@@ -259,6 +259,16 @@ export class ProductDatabase {
   }
 
   /**
+   * Ottiene il numero di prodotti con prezzi
+   */
+  getProductsWithPrices(): number {
+    const result = this.db
+      .prepare("SELECT COUNT(*) as count FROM products WHERE price IS NOT NULL")
+      .get() as { count: number };
+    return result.count;
+  }
+
+  /**
    * Ottiene timestamp dell'ultimo sync
    */
   getLastSyncTime(): number | null {
