@@ -42,15 +42,17 @@ Plans:
 **Goal**: Stabilire testing framework e rimuovere tech debt per codebase maintainable
 **Depends on**: Phase 1
 **Research**: Unlikely (Vitest già configurato, pattern di testing standard)
-**Plans**: 6 plans
+**Plans**: 8 plans
 
 Plans:
-- [ ] 02-01: Setup Vitest with first unit test (smoke test)
-- [ ] 02-02: Replace all console.log() with logger (30+ instances)
-- [ ] 02-03: Remove type any with proper TypeScript interfaces
-- [ ] 02-04: Remove dead code in product-sync-service.ts
-- [ ] 02-05: Add unit tests for critical services (CustomerDatabase, ProductDatabase)
-- [ ] 02-06: Add integration tests for sync services
+- [x] 02-01: Setup Vitest with first unit test (smoke test)
+- [ ] 02-02: Replace console.log in Core Services (customer/product/price sync)
+- [ ] 02-03: Replace console.log in Bot & Pool (archibald-bot, browser-pool, session-manager)
+- [ ] 02-04: Remove type any in Database Layer (customer-db, product-db, schemas, types)
+- [ ] 02-05: Remove type any in Services & Bot (sync services, archibald-bot)
+- [ ] 02-06: Remove Dead Code (product-sync-service, backup files)
+- [ ] 02-07: Unit Tests for Database Layer (TDD - CustomerDatabase, ProductDatabase)
+- [ ] 02-08: Integration Tests for Sync Services (TDD - sync services with mocked Puppeteer)
 
 ### Phase 3: MVP Order Form
 **Goal**: Form ordini production-ready con prezzi read-only, confezioni multiple e validazione vincoli
@@ -215,7 +217,7 @@ Plans:
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Security Critical Fixes | 5/5 | ✅ Complete | 2026-01-12 |
-| 2. Code Quality Foundation | 0/6 | Not started | - |
+| 2. Code Quality Foundation | 1/8 | In progress | - |
 | 3. MVP Order Form | 0/7 | Not started | - |
 | 4. Voice Input Enhancement | 0/5 | Not started | - |
 | 5. Order Submission | 0/6 | Not started | - |
@@ -227,4 +229,4 @@ Plans:
 | 11. Order Management | 0/7 | Not started | - |
 | 12. Deployment & Infrastructure | 0/10 | Not started | - |
 
-**Total Plans**: 81 across 12 phases
+**Total Plans**: 83 across 12 phases
