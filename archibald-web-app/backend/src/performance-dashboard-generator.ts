@@ -13,8 +13,450 @@ export class PerformanceDashboardGenerator {
       comparisonData?: ProfilingData[];
     }
   ): string {
-    // TODO: Implement HTML generation
-    return '';
+    const timestamp = new Date().toISOString();
+    const title = options?.title || 'Archibald Bot Performance Dashboard';
+
+    const dataJson = JSON.stringify(profilingData, null, 2);
+    const comparisonJson = options?.comparisonData ? JSON.stringify(options.comparisonData, null, 2) : 'null';
+
+    return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>${title}</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+      background: #f5f7fa;
+      color: #2c3e50;
+      line-height: 1.6;
+      padding: 2rem;
+    }
+
+    header {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      padding: 2rem;
+      border-radius: 12px;
+      margin-bottom: 2rem;
+      box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+    }
+
+    header h1 {
+      font-size: 2rem;
+      margin-bottom: 0.5rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    header .timestamp {
+      opacity: 0.9;
+      font-size: 0.9rem;
+    }
+
+    main {
+      max-width: 1400px;
+      margin: 0 auto;
+    }
+
+    section {
+      background: white;
+      padding: 2rem;
+      border-radius: 12px;
+      margin-bottom: 2rem;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+    }
+
+    h2 {
+      font-size: 1.5rem;
+      margin-bottom: 1.5rem;
+      color: #667eea;
+      border-bottom: 2px solid #e9ecef;
+      padding-bottom: 0.5rem;
+    }
+
+    .summary-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+      gap: 1.5rem;
+      margin-bottom: 2rem;
+    }
+
+    .summary-card {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      padding: 1.5rem;
+      border-radius: 8px;
+      box-shadow: 0 2px 8px rgba(102, 126, 234, 0.3);
+    }
+
+    .summary-card h3 {
+      font-size: 0.9rem;
+      opacity: 0.9;
+      margin-bottom: 0.5rem;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .summary-card .value {
+      font-size: 2rem;
+      font-weight: bold;
+    }
+
+    .summary-card .subtitle {
+      font-size: 0.85rem;
+      opacity: 0.8;
+      margin-top: 0.25rem;
+    }
+
+    .bottleneck-card {
+      background: #f8f9fa;
+      border-left: 4px solid #dc3545;
+      padding: 1.5rem;
+      margin-bottom: 1rem;
+      border-radius: 4px;
+    }
+
+    .bottleneck-card.priority-high { border-left-color: #dc3545; }
+    .bottleneck-card.priority-medium { border-left-color: #ffc107; }
+    .bottleneck-card.priority-low { border-left-color: #28a745; }
+
+    .bottleneck-card h3 {
+      font-size: 1.2rem;
+      margin-bottom: 0.5rem;
+      color: #2c3e50;
+    }
+
+    .bottleneck-card .metrics {
+      display: flex;
+      gap: 2rem;
+      margin: 1rem 0;
+      font-size: 0.9rem;
+    }
+
+    .bottleneck-card .metric {
+      display: flex;
+      flex-direction: column;
+    }
+
+    .bottleneck-card .metric-label {
+      color: #6c757d;
+      font-size: 0.8rem;
+    }
+
+    .bottleneck-card .metric-value {
+      font-weight: bold;
+      font-size: 1.1rem;
+    }
+
+    .bottleneck-card .recommendations {
+      margin-top: 1rem;
+    }
+
+    .bottleneck-card .recommendations h4 {
+      font-size: 0.9rem;
+      color: #6c757d;
+      margin-bottom: 0.5rem;
+    }
+
+    .bottleneck-card ul {
+      list-style-position: inside;
+      color: #495057;
+    }
+
+    .bottleneck-card li {
+      margin-bottom: 0.25rem;
+    }
+
+    #gantt-container {
+      position: relative;
+      overflow-x: auto;
+      margin-top: 1rem;
+    }
+
+    #gantt-svg {
+      min-width: 800px;
+    }
+
+    .gantt-bar {
+      cursor: pointer;
+      transition: opacity 0.2s;
+    }
+
+    .gantt-bar:hover {
+      opacity: 0.8;
+    }
+
+    .gantt-tooltip {
+      position: absolute;
+      background: rgba(0, 0, 0, 0.9);
+      color: white;
+      padding: 0.5rem;
+      border-radius: 4px;
+      font-size: 0.85rem;
+      pointer-events: none;
+      white-space: nowrap;
+      z-index: 1000;
+      display: none;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 1rem;
+    }
+
+    th, td {
+      text-align: left;
+      padding: 0.75rem;
+      border-bottom: 1px solid #e9ecef;
+    }
+
+    th {
+      background: #f8f9fa;
+      font-weight: 600;
+      color: #495057;
+      position: sticky;
+      top: 0;
+    }
+
+    tr:hover {
+      background: #f8f9fa;
+    }
+
+    .status-ok { color: #28a745; font-weight: bold; }
+    .status-error { color: #dc3545; font-weight: bold; }
+
+    .controls {
+      display: flex;
+      gap: 1rem;
+      margin-bottom: 1rem;
+      flex-wrap: wrap;
+    }
+
+    button {
+      padding: 0.5rem 1rem;
+      background: #667eea;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 0.9rem;
+      transition: background 0.2s;
+    }
+
+    button:hover {
+      background: #5568d3;
+    }
+
+    select, input {
+      padding: 0.5rem;
+      border: 1px solid #ced4da;
+      border-radius: 4px;
+      font-size: 0.9rem;
+    }
+
+    @media (prefers-color-scheme: dark) {
+      body { background: #1a1a1a; color: #e9ecef; }
+      section { background: #2d2d2d; }
+      th { background: #3d3d3d; color: #e9ecef; }
+      tr:hover { background: #3d3d3d; }
+      .bottleneck-card { background: #3d3d3d; }
+    }
+
+    @media (max-width: 768px) {
+      body { padding: 1rem; }
+      header { padding: 1rem; }
+      header h1 { font-size: 1.5rem; }
+      section { padding: 1rem; }
+      .summary-grid { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>🤖 ${title}</h1>
+    <p class="timestamp">Generated: ${timestamp}</p>
+  </header>
+
+  <main>
+    <section id="summary">
+      <h2>Summary</h2>
+      <div class="summary-grid">
+        <div class="summary-card">
+          <h3>Total Duration</h3>
+          <div class="value">${(profilingData.summary.totalDurationMs / 1000).toFixed(2)}s</div>
+          <div class="subtitle">Across ${profilingData.summary.totalOperations} operations</div>
+        </div>
+        <div class="summary-card">
+          <h3>Success Rate</h3>
+          <div class="value">${((profilingData.summary.successful / profilingData.summary.totalOperations) * 100).toFixed(1)}%</div>
+          <div class="subtitle">${profilingData.summary.successful} succeeded, ${profilingData.summary.failed} failed</div>
+        </div>
+        <div class="summary-card">
+          <h3>Avg Operation</h3>
+          <div class="value">${(profilingData.summary.averageOperationMs / 1000).toFixed(2)}s</div>
+          <div class="subtitle">Per operation</div>
+        </div>
+        <div class="summary-card">
+          <h3>Peak Memory</h3>
+          <div class="value">${(profilingData.summary.peakMemoryBytes / 1024 / 1024).toFixed(1)} MB</div>
+          <div class="subtitle">Maximum heap used</div>
+        </div>
+      </div>
+    </section>
+
+    <section id="bottlenecks">
+      <h2>Bottleneck Analysis</h2>
+      <div id="bottleneck-list"></div>
+    </section>
+
+    <section id="gantt">
+      <h2>Timeline Visualization</h2>
+      <div class="controls">
+        <label>
+          Category Filter:
+          <select id="category-filter">
+            <option value="">All Categories</option>
+          </select>
+        </label>
+      </div>
+      <div id="gantt-container">
+        <svg id="gantt-svg"></svg>
+        <div class="gantt-tooltip" id="gantt-tooltip"></div>
+      </div>
+    </section>
+
+    <section id="categories">
+      <h2>Category Breakdown</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Category</th>
+            <th>Count</th>
+            <th>Total Time</th>
+            <th>Avg Time</th>
+            <th>p50</th>
+            <th>p95</th>
+            <th>p99</th>
+            <th>Avg Memory</th>
+          </tr>
+        </thead>
+        <tbody id="category-table-body"></tbody>
+      </table>
+    </section>
+
+    <section id="timeline">
+      <h2>Detailed Operation Timeline</h2>
+      <div class="controls">
+        <input type="text" id="search-filter" placeholder="Search operations...">
+        <label>
+          Status:
+          <select id="status-filter">
+            <option value="">All</option>
+            <option value="ok">Success</option>
+            <option value="error">Error</option>
+          </select>
+        </label>
+      </div>
+      <table>
+        <thead>
+          <tr>
+            <th>ID</th>
+            <th>Name</th>
+            <th>Category</th>
+            <th>Status</th>
+            <th>Duration</th>
+            <th>Gap</th>
+            <th>Retry</th>
+            <th>Memory Δ</th>
+            <th>Start Time</th>
+          </tr>
+        </thead>
+        <tbody id="timeline-table-body"></tbody>
+      </table>
+    </section>
+
+    ${options?.comparisonData ? '<section id="trends"><h2>Trend Comparison</h2><div id="trend-charts"></div></section>' : ''}
+  </main>
+
+  <script>
+    const profilingData = ${dataJson};
+    const comparisonData = ${comparisonJson};
+
+    // Populate category breakdown table
+    function populateCategoryTable() {
+      const tbody = document.getElementById('category-table-body');
+      const categories = Object.entries(profilingData.categories).sort((a, b) => b[1].totalDurationMs - a[1].totalDurationMs);
+
+      tbody.innerHTML = categories.map(([name, data]) => \`
+        <tr>
+          <td><strong>\${name}</strong></td>
+          <td>\${data.count}</td>
+          <td>\${(data.totalDurationMs / 1000).toFixed(2)}s</td>
+          <td>\${(data.avgDurationMs / 1000).toFixed(2)}s</td>
+          <td>\${(data.p50Ms / 1000).toFixed(2)}s</td>
+          <td>\${(data.p95Ms / 1000).toFixed(2)}s</td>
+          <td>\${(data.p99Ms / 1000).toFixed(2)}s</td>
+          <td>\${(data.avgMemoryBytes / 1024).toFixed(1)} KB</td>
+        </tr>
+      \`).join('');
+    }
+
+    // Populate timeline table
+    function populateTimelineTable() {
+      const tbody = document.getElementById('timeline-table-body');
+      const searchFilter = document.getElementById('search-filter').value.toLowerCase();
+      const statusFilter = document.getElementById('status-filter').value;
+
+      const filtered = profilingData.operations.filter(op => {
+        const matchesSearch = !searchFilter || op.name.toLowerCase().includes(searchFilter) || op.category.toLowerCase().includes(searchFilter);
+        const matchesStatus = !statusFilter || op.status === statusFilter;
+        return matchesSearch && matchesStatus;
+      });
+
+      tbody.innerHTML = filtered.map(op => \`
+        <tr>
+          <td>\${op.id}</td>
+          <td>\${op.name}</td>
+          <td>\${op.category}</td>
+          <td class="status-\${op.status}">\${op.status.toUpperCase()}</td>
+          <td>\${(op.durationMs / 1000).toFixed(2)}s</td>
+          <td>\${(op.gapMs / 1000).toFixed(2)}s</td>
+          <td>\${op.retryAttempt}</td>
+          <td>\${((op.memoryAfter - op.memoryBefore) / 1024).toFixed(1)} KB</td>
+          <td>\${new Date(op.startIso).toLocaleTimeString()}</td>
+        </tr>
+      \`).join('');
+    }
+
+    // Add event listeners for filters
+    document.getElementById('search-filter').addEventListener('input', populateTimelineTable);
+    document.getElementById('status-filter').addEventListener('change', populateTimelineTable);
+
+    // Populate category filter dropdown
+    function populateCategoryFilter() {
+      const select = document.getElementById('category-filter');
+      const categories = Object.keys(profilingData.categories).sort();
+      categories.forEach(cat => {
+        const option = document.createElement('option');
+        option.value = cat;
+        option.textContent = cat;
+        select.appendChild(option);
+      });
+    }
+
+    // Initialize tables
+    populateCategoryTable();
+    populateTimelineTable();
+    populateCategoryFilter();
+  </script>
+</body>
+</html>`;
   }
 
   /**
