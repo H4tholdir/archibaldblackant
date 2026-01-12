@@ -93,15 +93,35 @@ Content-Type: application/json
 
 ## 🔧 Configurazione
 
-Le credenziali Archibald sono nel file `.env`:
+### Environment Variables
 
-```
-ARCHIBALD_URL=https://4.231.124.90/Archibald
-ARCHIBALD_USERNAME=ikiC0930
-ARCHIBALD_PASSWORD=FresisArch2025@
-```
+Il backend richiede variabili di ambiente configurate in un file `.env`.
 
-**IMPORTANTE**: Cambia la password nel gestionale dopo il test!
+**Setup:**
+
+1. Copia il file template:
+   ```bash
+   cp .env.example .env
+   ```
+
+2. Modifica `.env` con le tue credenziali reali:
+   ```bash
+   nano .env  # oppure usa il tuo editor preferito
+   ```
+
+3. Variabili richieste:
+   - `ARCHIBALD_URL` - URL del tuo server Archibald ERP
+   - `ARCHIBALD_USERNAME` - Il tuo username Archibald ERP
+   - `ARCHIBALD_PASSWORD` - La tua password Archibald ERP
+   - `REDIS_HOST` / `REDIS_PORT` - Server Redis per job queue
+   - `PORT` - Porta del server (default: 3000)
+   - `LOG_LEVEL` - Livello di logging (info, debug, warn, error)
+
+**⚠️ SECURITY:**
+- Il file `.env` è gitignored e **NON DEVE MAI** essere committato
+- Usa password forti (12+ caratteri, maiuscole, numeri, simboli)
+- Ruota le credenziali immediatamente se accidentalmente esposte
+- In produzione usa secrets manager (Docker secrets, cloud provider config)
 
 ---
 
