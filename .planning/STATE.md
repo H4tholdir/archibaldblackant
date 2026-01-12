@@ -10,18 +10,18 @@ See: .planning/PROJECT.md (updated 2026-01-11)
 ## Current Position
 
 Phase: 3.1 of 12 (Bot Performance Profiling & Optimization - INSERTED)
-Plan: 1/3 complete
+Plan: 2/3 complete
 Status: In progress
-Last activity: 2026-01-12 — Completed 03.1-01-PLAN.md (Enhanced Profiling System)
+Last activity: 2026-01-12 — Completed 03.1-02-PLAN.md (Performance Dashboard & Visualization)
 
-Progress: █████████░ 22%
+Progress: █████████░ 23%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 16
-- Average duration: 69 min (1h 9m)
-- Total execution time: 19.9 hours
+- Total plans completed: 17
+- Average duration: 67 min (1h 7m)
+- Total execution time: 20.3 hours
 
 **By Phase:**
 
@@ -30,11 +30,11 @@ Progress: █████████░ 22%
 | 1 | 5 | 965 min | 193 min |
 | 2 | 8 | 101 min | 13 min |
 | 3 | 3 | 44 min | 15 min |
-| 3.1 | 1 | 80 min | 80 min |
+| 3.1 | 2 | 230 min | 115 min |
 
 **Recent Trend:**
-- Last 5 plans: 02-07 (15m), 02-08 (9m), 03-02 (4m), 03-03 (31m), 03.1-01 (80m)
-- Trend: Profiling infrastructure work takes significant time (80m) vs pure DB/TDD plans (4-15m)
+- Last 5 plans: 02-08 (9m), 03-02 (4m), 03-03 (31m), 03.1-01 (80m), 03.1-02 (150m)
+- Trend: Dashboard/visualization work more complex than expected (150m vs 180m planned = 83% efficiency)
 
 ## Accumulated Context
 
@@ -45,14 +45,14 @@ Recent decisions affecting current work:
 
 | Phase | Decision | Rationale |
 |-------|----------|-----------|
+| 3.1 | Self-contained HTML dashboard with inline CSS/JS | No external dependencies, easy distribution, ~40KB typical size |
+| 3.1 | SVG for charts instead of Canvas | Crisp rendering at any zoom, easier event handling, DOM manipulation |
+| 3.1 | Static methods in PerformanceDashboardGenerator | No state needed, pure functions, easier testing |
+| 3.1 | Dynamic import in ArchibaldBot.generatePerformanceDashboard() | Avoid circular dependencies between bot and dashboard generator |
 | 3 | Search Archibald by variant ID instead of article name | Variant ID is unique, article name matches multiple variants causing selection errors |
 | 3 | Populate articleId and packageContent in OrderItem | Enable order tracking, debugging, and verification of correct variant selection |
 | 3 | Manual verification script instead of brittle integration tests | Full bot tests fragile (UI changes), slow (2+ min), complex setup; manual script provides instant verification |
 | 3 | Ordered variants by multipleQty DESC in getProductVariants() | Highest package always first for consistent selection |
-| 3 | Return null vs throw for missing articles | Return null for "not found" (expected), throw for invalid inputs (error) |
-| 3 | Validate inputs at start of selectPackageVariant() | Fail fast before database queries |
-| 1 | Changed both username and password ([REDACTED-USERNAME]→[REDACTED-NEW-USERNAME], password rotated) | Enhanced security beyond minimum requirement |
-| 1 | Defer .env commit until after git history cleanup | Prevent reintroducing credentials to git during history rewrite |
 
 ### Deferred Issues
 
@@ -78,6 +78,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-01-12 18:20
-Stopped at: Completed 03.1-01-PLAN.md (Enhanced Profiling System)
-Next: Execute 03.1-02-PLAN.md (Performance Dashboard & Visualization)
+Last session: 2026-01-12 20:50
+Stopped at: Completed 03.1-02-PLAN.md (Performance Dashboard & Visualization)
+Next: Execute 03.1-03-PLAN.md (Optimization Plan Documentation)
