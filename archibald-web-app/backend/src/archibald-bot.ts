@@ -984,54 +984,40 @@ export class ArchibaldBot {
     // Wait for DOM stabilization
     await this.wait(300);
 
-    // OPT-03: Try JavaScript setValue approach first (OPTIMIZED - faster than keyboard simulation)
+    // OPT-03: Optimized approach - Direct keyboard input with reduced delays
     try {
-      logger.debug(`Attempting JavaScript setValue for "${cellLabelText}"`);
+      logger.debug(`Attempting optimized field editing for "${cellLabelText}"`);
 
-      // Double-click to enter edit mode first
-      const cellHandle = await this.page!.$(`#${baseId}`);
-      if (cellHandle) {
-        await cellHandle.click({ clickCount: 2 });
-        await this.wait(150);
-      } else {
-        // Fallback to input click
-        const inputHandle = await this.page!.$(`#${inputInfo.id}`);
-        if (inputHandle) {
-          await inputHandle.click({ clickCount: 2 });
-          await this.wait(150);
-        }
-      }
+      // Double-click the input field directly using page.click (more reliable than handle.click)
+      // Research: DevExpress requires double-click to enter edit mode, page.click works better with dynamic elements
+      await this.page!.click(`#${inputInfo.id}`, { clickCount: 2 });
+      await this.wait(100); // Reduced from 150ms
 
-      // Set value directly with JavaScript and dispatch events
-      const setSuccess = await this.page!.evaluate((inputId, newValue) => {
-        const input = document.querySelector(`#${inputId}`) as HTMLInputElement;
-        if (!input) return false;
+      // Wait for input to be focused and editable
+      await this.page!.waitForFunction(
+        (inputId) => {
+          const input = document.querySelector(`#${inputId}`) as HTMLInputElement;
+          return input && !input.readOnly && !input.disabled && document.activeElement === input;
+        },
+        { timeout: 2000 },
+        inputInfo.id
+      );
 
-        try {
-          // Set value directly
-          input.value = newValue;
+      // Clear existing value and type new value in one operation
+      // Research: Using selectall + type is faster and more reliable than setValue + events for DevExpress
+      await this.page!.keyboard.down('Control');
+      await this.page!.keyboard.press('KeyA');
+      await this.page!.keyboard.up('Control');
 
-          // Dispatch events to notify DevExpress
-          input.dispatchEvent(new Event('input', { bubbles: true }));
-          input.dispatchEvent(new Event('change', { bubbles: true }));
-          input.dispatchEvent(new Event('blur', { bubbles: true }));
+      // Type new value with minimal delay (optimized from 30ms to 10ms)
+      await this.page!.keyboard.type(formattedValue, { delay: 10 });
 
-          return true;
-        } catch (error) {
-          return false;
-        }
-      }, inputInfo.id, formattedValue);
-
-      if (!setSuccess) {
-        throw new Error('JavaScript setValue returned false');
-      }
-
-      // Confirm with Enter to finalize
+      // Confirm with Enter+Tab (DevExpress standard)
       await this.page!.keyboard.press('Enter');
       await this.page!.keyboard.press('Tab');
 
-      // Reduced wait time (optimized from 600ms to 400ms)
-      await this.wait(400);
+      // Reduced wait time for DevExpress processing (optimized from 600ms to 250ms)
+      await this.wait(250);
 
       // Verify the value was set correctly
       const actualValue = await this.page!.evaluate((inputId) => {
@@ -1039,75 +1025,51 @@ export class ArchibaldBot {
         return input ? input.value : null;
       }, inputInfo.id);
 
-      logger.debug(`JavaScript setValue succeeded: "${actualValue}"`);
+      logger.debug(`Optimized field editing succeeded: "${actualValue}"`);
 
     } catch (error) {
-      // Fallback to keyboard simulation if JavaScript approach fails
-      logger.warn(`JavaScript setValue failed for "${cellLabelText}", falling back to keyboard simulation: ${error}`);
+      // Fallback: slower but more conservative approach
+      logger.warn(`Optimized field editing failed for "${cellLabelText}", using fallback: ${error}`);
 
-      // Get fresh input handle for fallback
-      let inputHandle = await this.page!.$(`#${inputInfo.id}`);
+      // Wait a bit longer for stability
+      await this.wait(200);
+
+      // Try to get input handle
+      const inputHandle = await this.page!.$(`#${inputInfo.id}`);
       if (!inputHandle) {
         throw new Error(`Cannot get handle for input ${inputInfo.id}`);
       }
 
-      // Try to click on the CELL first (not the input) - DevExpress best practice
-      const cellHandle = await this.page!.$(`#${baseId}`);
-      let clicked = false;
+      // Double-click directly on input (more conservative)
+      await inputHandle.click({ clickCount: 2 });
+      await this.wait(300);
 
-      if (cellHandle) {
-        try {
-          const box = await cellHandle.boundingBox();
-          if (box) {
-            // Double-click the cell to enter edit mode
-            await cellHandle.click({ clickCount: 2 });
-            await this.wait(200);
-            clicked = true;
-            logger.debug("Double-clicked on cell (fallback)");
-          }
-        } catch (err) {
-          logger.debug("Click on cell failed, falling back to input");
-        }
-      }
-
-      // Fallback: double-click directly on input
-      if (!clicked) {
-        inputHandle = await this.page!.$(`#${inputInfo.id}`);
-        if (!inputHandle) {
-          throw new Error(`Input ${inputInfo.id} not found after retry`);
-        }
-        await inputHandle.click({ clickCount: 2 });
-        await this.wait(200);
-        logger.debug("Double-clicked on input (fallback)");
-      }
-
-      // Select all and delete existing value
-      await inputHandle!.focus();
+      // Select all existing content
+      await inputHandle.focus();
       await this.page!.keyboard.down('Control');
-      await this.page!.keyboard.press('A');
+      await this.page!.keyboard.press('KeyA');
       await this.page!.keyboard.up('Control');
       await this.page!.keyboard.press('Backspace');
-      await this.wait(100);
+      await this.wait(150);
 
-      // Type new value character by character
-      await inputHandle!.type(formattedValue, { delay: 30 });
-      logger.debug(`Typed new value (fallback): "${formattedValue}"`);
+      // Type new value with slower delay for reliability
+      await inputHandle.type(formattedValue, { delay: 30 });
+      logger.debug(`Typed value with fallback: "${formattedValue}"`);
 
-      // Confirm with Enter and Tab
+      // Confirm changes
       await this.page!.keyboard.press('Enter');
       await this.page!.keyboard.press('Tab');
-      logger.debug("Pressed Enter and Tab to confirm (fallback)");
 
-      // Wait for DevExpress to process the change
+      // Conservative wait time
       await this.wait(600);
 
-      // Verify the value was set correctly
+      // Verify final value
       const actualValue = await this.page!.evaluate((inputId) => {
         const input = document.querySelector(`#${inputId}`) as HTMLInputElement;
         return input ? input.value : null;
       }, inputInfo.id);
 
-      logger.debug(`Final value in field (fallback): "${actualValue}"`);
+      logger.debug(`Fallback field editing completed: "${actualValue}"`);
     }
   }
 
