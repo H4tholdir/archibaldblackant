@@ -47,7 +47,7 @@ Plans:
 Plans:
 - [x] 02-01: Setup Vitest with first unit test (smoke test)
 - [x] 02-02: Replace console.log in Core Services (customer/product/price sync)
-- [ ] 02-03: Replace console.log in Bot & Pool (archibald-bot, browser-pool, session-manager)
+- [x] 02-03: Replace console.log in Bot & Pool (archibald-bot, browser-pool, session-manager)
 - [ ] 02-04: Remove type any in Database Layer (customer-db, product-db, schemas, types)
 - [ ] 02-05: Remove type any in Services & Bot (sync services, archibald-bot)
 - [ ] 02-06: Remove Dead Code (product-sync-service, backup files)
