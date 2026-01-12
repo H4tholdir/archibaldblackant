@@ -94,3 +94,165 @@ input, select, textarea {
     padding-right: max(0px, env(safe-area-inset-right));
   }
 }
+
+/* ============================================================================
+   Package Info Component Styles
+   ============================================================================ */
+
+/* Single package variant display */
+.package-info-single {
+  margin-top: 1rem;
+  padding: 0.75rem;
+  background-color: rgba(255, 255, 255, 0.05);
+  border-radius: 8px;
+  border-left: 3px solid #646cff;
+}
+
+.package-info-single .package-label {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.7);
+  margin-bottom: 0.25rem;
+}
+
+.package-info-single .package-content {
+  font-size: 1rem;
+  font-weight: 500;
+  margin-bottom: 0.25rem;
+}
+
+.package-info-single .package-rules {
+  font-size: 0.875rem;
+  color: rgba(255, 255, 255, 0.6);
+}
+
+/* Multi-package variants display */
+.package-info {
+  margin-top: 1rem;
+  padding: 1rem;
+  background-color: rgba(255, 255, 255, 0.05);
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.package-info .package-label {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.7);
+  margin-bottom: 0.75rem;
+}
+
+.package-list {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.package-item {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  padding: 0.75rem;
+  background-color: rgba(255, 255, 255, 0.03);
+  border-radius: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  transition: all 0.2s ease;
+}
+
+.package-item:hover {
+  background-color: rgba(255, 255, 255, 0.05);
+  border-color: rgba(255, 255, 255, 0.15);
+}
+
+.package-item.selected {
+  background-color: rgba(100, 108, 255, 0.1);
+  border-color: #646cff;
+  border-width: 2px;
+}
+
+.package-content {
+  font-size: 1rem;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.package-rules {
+  font-size: 0.875rem;
+  color: rgba(255, 255, 255, 0.6);
+}
+
+.selected-badge {
+  display: inline-block;
+  margin-top: 0.25rem;
+  padding: 0.25rem 0.5rem;
+  background-color: #646cff;
+  color: white;
+  font-size: 0.75rem;
+  font-weight: 600;
+  border-radius: 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+/* Mobile responsiveness */
+@media (max-width: 768px) {
+  .package-info,
+  .package-info-single {
+    margin-top: 0.75rem;
+    padding: 0.75rem;
+  }
+
+  .package-item {
+    padding: 0.5rem;
+  }
+
+  .package-content {
+    font-size: 0.9375rem;
+  }
+
+  .package-rules {
+    font-size: 0.8125rem;
+  }
+}
+
+/* Light mode adjustments */
+@media (prefers-color-scheme: light) {
+  .package-info-single,
+  .package-info {
+    background-color: rgba(0, 0, 0, 0.03);
+    border-color: rgba(0, 0, 0, 0.1);
+  }
+
+  .package-info-single .package-label,
+  .package-info .package-label {
+    color: rgba(0, 0, 0, 0.6);
+  }
+
+  .package-info-single .package-rules {
+    color: rgba(0, 0, 0, 0.5);
+  }
+
+  .package-item {
+    background-color: rgba(0, 0, 0, 0.02);
+    border-color: rgba(0, 0, 0, 0.08);
+  }
+
+  .package-item:hover {
+    background-color: rgba(0, 0, 0, 0.04);
+    border-color: rgba(0, 0, 0, 0.15);
+  }
+
+  .package-item.selected {
+    background-color: rgba(100, 108, 255, 0.08);
+    border-color: #646cff;
+  }
+
+  .package-content {
+    color: rgba(0, 0, 0, 0.9);
+  }
+
+  .package-rules {
+    color: rgba(0, 0, 0, 0.6);
+  }
+}
