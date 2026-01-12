@@ -2356,7 +2356,7 @@ export class ArchibaldBot {
 
           await this.wait(1000);
           await this.waitForDevExpressReady({ timeout: 3000 });
-        });
+        }, "form.article");
 
         // 5.5: Set quantity
         await this.runOp(`order.item.${i}.set_quantity`, async () => {
@@ -2364,7 +2364,7 @@ export class ArchibaldBot {
           await this.editTableCell("Qtà ordinata", item.quantity);
           logger.info(`✅ Quantity set: ${item.quantity}`);
           await this.wait(300);
-        });
+        }, "form.quantity");
 
         // 5.6: Set discount (optional)
         if (item.discount && item.discount > 0) {
@@ -2481,7 +2481,7 @@ export class ArchibaldBot {
 
           logger.info(`✅ Line item ${i + 1} saved`);
           await this.waitForDevExpressReady({ timeout: 3000 });
-        });
+        }, "form.submit");
 
         // 5.8: Click "New" for next article (if not last)
         if (i < orderData.items.length - 1) {
@@ -2634,7 +2634,7 @@ export class ArchibaldBot {
         // Fallback: use timestamp
         logger.warn("Order ID not found in URL or form, using timestamp");
         orderId = `ORDER-${Date.now()}`;
-      });
+      }, "form.submit");
 
       // STEP 10: Save and close order
       await this.runOp("order.save_and_close", async () => {
@@ -2687,7 +2687,7 @@ export class ArchibaldBot {
 
         logger.info('✅ Clicked "Salva e chiudi"');
         await this.wait(3000);
-      });
+      }, "form.submit");
 
       logger.info("🎉 BOT: ORDINE COMPLETATO", { orderId });
 
