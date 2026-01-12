@@ -20,3 +20,7 @@ logs/
 
 # Testing
 coverage/
+
+# Performance profiling reports
+profiling-reports/
+profiling-output.json
