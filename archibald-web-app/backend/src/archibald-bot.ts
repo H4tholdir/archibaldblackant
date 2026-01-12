@@ -222,6 +222,15 @@ export class ArchibaldBot {
     return lines.join("\n");
   }
 
+  /**
+   * Calculate percentile statistics from an array of numeric values
+   * @param values - Array of numeric values (e.g., operation durations in milliseconds)
+   * @returns Object containing p50 (median), p95, and p99 percentile values
+   * @example
+   * const durations = [100, 200, 300, 400, 500];
+   * const percentiles = this.calculatePercentiles(durations);
+   * // percentiles = { p50: 300, p95: 500, p99: 500 }
+   */
   private calculatePercentiles(
     values: number[]
   ): { p50: number; p95: number; p99: number } {
@@ -241,6 +250,32 @@ export class ArchibaldBot {
     };
   }
 
+  /**
+   * Build enhanced markdown performance report with category breakdown and profiling data
+   *
+   * Generates a comprehensive report including:
+   * - Summary statistics with memory profiling
+   * - Performance breakdown by operation category (login, navigation, form operations)
+   * - Percentile statistics (p50, p95, p99) per category
+   * - Retry analysis for operations that failed and were retried
+   * - Slowest operations and longest idle gaps
+   * - Detailed timeline with category and memory delta
+   *
+   * Category naming conventions:
+   * - "login" - Authentication and browser initialization
+   * - "login.cache" - Session cache operations
+   * - "navigation.ordini" - Navigation to orders menu
+   * - "navigation.form" - Navigation to order form
+   * - "form.customer" - Customer selection operations
+   * - "form.article" - Article search and selection
+   * - "form.quantity" - Quantity field operations
+   * - "form.discount" - Discount field operations
+   * - "form.package" - Package variant selection
+   * - "form.submit" - Save/update operations
+   * - "form.multi_article" - Multi-article row operations
+   *
+   * @returns Markdown-formatted performance report string
+   */
   private buildEnhancedReport(): string {
     const totalDurationMs = this.opRecords.reduce(
       (sum, record) => sum + record.durationMs,
@@ -426,6 +461,23 @@ export class ArchibaldBot {
     return lines.join("\n");
   }
 
+  /**
+   * Export structured profiling data as JSON for programmatic analysis
+   *
+   * Returns comprehensive performance metrics including:
+   * - Summary: Overall statistics, success/failure counts, durations, memory usage
+   * - Categories: Per-category breakdown with count, durations, percentiles (p50/p95/p99), and memory stats
+   * - Retries: List of operations that required retry attempts with final status
+   * - Operations: Complete array of all operation records with full details
+   *
+   * This data can be used for:
+   * - Automated performance analysis and alerting
+   * - Trend tracking across multiple test runs
+   * - Integration with monitoring/analytics systems
+   * - Generating custom reports and visualizations
+   *
+   * @returns Structured profiling data object
+   */
   private exportProfilingData(): {
     summary: {
       totalOperations: number;
