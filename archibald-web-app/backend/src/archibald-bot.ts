@@ -1127,7 +1127,7 @@ export class ArchibaldBot {
   async initialize(): Promise<void> {
     logger.info("Inizializzazione browser Puppeteer...");
 
-    this.browser = await this.runOp("browser.launch", "login", async () => {
+    this.browser = await this.runOp("browser.launch", async () => {
       return puppeteer.launch({
         headless: config.puppeteer.headless,
         slowMo: config.puppeteer.slowMo,
@@ -1144,7 +1144,7 @@ export class ArchibaldBot {
       });
     }, "login");
 
-    this.page = await this.runOp("browser.newPage", "login", async () => {
+    this.page = await this.runOp("browser.newPage", async () => {
       return this.browser!.newPage();
     }, "login");
 
@@ -1157,7 +1157,7 @@ export class ArchibaldBot {
     });
 
     // Ignora errori certificato SSL
-    await this.runOp("page.setRequestInterception", "login", async () => {
+    await this.runOp("page.setRequestInterception", async () => {
       await this.page!.setRequestInterception(false);
     }, "login");
 
