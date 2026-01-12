@@ -104,16 +104,15 @@ async function main() {
     logger.info(`✅ Order ID: ${orderId}`);
     logger.info("");
 
-    // Export profiling data to JSON
-    logger.info("📊 Exporting profiling data...");
-    const profilingData = (bot as any).exportProfilingData();
-    const profilingOutputPath = path.join(__dirname, "../../profiling-output.json");
-    await fs.writeFile(
-      profilingOutputPath,
-      JSON.stringify(profilingData, null, 2),
-      "utf-8"
-    );
-    logger.info(`✅ Profiling data exported to ${profilingOutputPath}`);
+    // Generate performance dashboard
+    logger.info("📊 Generating performance dashboard...");
+    const paths = await bot.generatePerformanceDashboard('./profiling-reports');
+    logger.info("✅ Dashboard generated:");
+    logger.info(`   📄 HTML: ${paths.htmlPath}`);
+    logger.info(`   📊 JSON: ${paths.jsonPath}`);
+    logger.info(`   📈 CSV: ${paths.csvPath}`);
+    logger.info("");
+    logger.info("🌐 Open HTML dashboard in browser to view results");
     logger.info("");
 
     logger.info("📸 Screenshots saved in logs/ directory:");
