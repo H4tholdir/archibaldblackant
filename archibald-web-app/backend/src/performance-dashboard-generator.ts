@@ -620,11 +620,110 @@ export class PerformanceDashboardGenerator {
 
     document.getElementById('category-filter').addEventListener('change', renderGanttChart);
 
+    // Bottleneck analysis with recommendations
+    function renderBottleneckAnalysis() {
+      const bottleneckList = document.getElementById('bottleneck-list');
+      const categories = Object.entries(profilingData.categories)
+        .sort((a, b) => b[1].totalDurationMs - a[1].totalDurationMs);
+
+      if (categories.length === 0) {
+        bottleneckList.innerHTML = '<p>No bottlenecks detected.</p>';
+        return;
+      }
+
+      const topBottlenecks = categories.slice(0, 3);
+
+      const getRecommendations = (categoryName, data) => {
+        const recommendations = [];
+
+        if (categoryName.includes('form.customer') && data.p95Ms > 20000) {
+          recommendations.push('Customer selection is slow. Consider: pre-caching common customers, testing direct API access instead of dropdown, reducing wait times between operations.');
+        }
+
+        if (categoryName.includes('form.article') && data.p95Ms > 8000) {
+          recommendations.push('Article search is slow. Consider: caching recently searched articles, batch searching for multi-article orders, optimizing dropdown search method.');
+        }
+
+        if ((categoryName.includes('form.quantity') || categoryName.includes('form.discount')) && data.p95Ms > 8000) {
+          recommendations.push('Field editing is slow. Consider: testing alternatives to Ctrl+A + Backspace pattern, using JavaScript setValue with event triggers, reducing wait times between keypress.');
+        }
+
+        if (categoryName === 'login' && data.p95Ms > 20000) {
+          recommendations.push('Login is slow. Session cache may not be working. Verify cache expiration and cookie persistence.');
+        }
+
+        const p99p95Ratio = data.p99Ms / data.p95Ms;
+        if (p99p95Ratio > 2) {
+          recommendations.push('High variance detected (p99/p95 > 2x). Some operations are much slower than others. Investigate network latency, page load times, or element wait timeouts.');
+        }
+
+        if (recommendations.length === 0) {
+          recommendations.push('Consider profiling individual operations in this category to identify specific optimization opportunities.');
+        }
+
+        return recommendations;
+      };
+
+      const bottlenecks = topBottlenecks.map(([name, data]) => {
+        const impact = (data.totalDurationMs / profilingData.summary.totalDurationMs) * 100;
+        let priority = 'low';
+        if (impact > 30) priority = 'high';
+        else if (impact > 15) priority = 'medium';
+
+        return {
+          category: name,
+          p50Ms: data.p50Ms,
+          p95Ms: data.p95Ms,
+          p99Ms: data.p99Ms,
+          impactPercent: impact,
+          priority,
+          recommendations: getRecommendations(name, data)
+        };
+      });
+
+      const bottleneckHTML = bottlenecks.map(b => \`
+        <div class="bottleneck-card priority-\${b.priority}">
+          <h3>\${b.category}</h3>
+          <div class="metrics">
+            <div class="metric">
+              <span class="metric-label">p50</span>
+              <span class="metric-value">\${(b.p50Ms / 1000).toFixed(2)}s</span>
+            </div>
+            <div class="metric">
+              <span class="metric-label">p95</span>
+              <span class="metric-value">\${(b.p95Ms / 1000).toFixed(2)}s</span>
+            </div>
+            <div class="metric">
+              <span class="metric-label">p99</span>
+              <span class="metric-value">\${(b.p99Ms / 1000).toFixed(2)}s</span>
+            </div>
+            <div class="metric">
+              <span class="metric-label">Impact</span>
+              <span class="metric-value">\${b.impactPercent.toFixed(1)}%</span>
+            </div>
+            <div class="metric">
+              <span class="metric-label">Priority</span>
+              <span class="metric-value">\${b.priority.toUpperCase()}</span>
+            </div>
+          </div>
+          <div class="recommendations">
+            <h4>Recommended Optimizations:</h4>
+            <ul>
+              \${b.recommendations.map(rec => \`<li>\${rec}</li>\`).join('')}
+            </ul>
+          </div>
+        </div>
+      \`).join('');
+
+      bottleneckList.innerHTML = bottleneckHTML;
+    }
+
     // Initialize tables and chart
     populateCategoryTable();
     populateTimelineTable();
     populateCategoryFilter();
     renderGanttChart();
+    renderBottleneckAnalysis();
   </script>
 </body>
 </html>`;
