@@ -718,12 +718,154 @@ export class PerformanceDashboardGenerator {
       bottleneckList.innerHTML = bottleneckHTML;
     }
 
+    // Trend comparison charts
+    function renderTrendComparison() {
+      if (!comparisonData || comparisonData.length === 0) return;
+
+      const trendCharts = document.getElementById('trend-charts');
+      if (!trendCharts) return;
+
+      const allRuns = [profilingData, ...comparisonData];
+      const runLabels = allRuns.map((_, i) => \`Run \${i + 1}\`);
+
+      const totalDurations = allRuns.map(run => run.summary.totalDurationMs);
+      const successRates = allRuns.map(run =>
+        (run.summary.successful / run.summary.totalOperations) * 100
+      );
+
+      const allCategories = new Set();
+      allRuns.forEach(run => {
+        Object.keys(run.categories).forEach(cat => allCategories.add(cat));
+      });
+
+      const categoryTrends = {};
+      allCategories.forEach(cat => {
+        categoryTrends[cat] = allRuns.map(run =>
+          run.categories[cat] ? run.categories[cat].totalDurationMs : 0
+        );
+      });
+
+      const createLineChart = (title, labels, datasets, yLabel) => {
+        const width = 600;
+        const height = 300;
+        const margin = { top: 40, right: 20, bottom: 60, left: 60 };
+        const chartWidth = width - margin.left - margin.right;
+        const chartHeight = height - margin.top - margin.bottom;
+
+        let svg = \`<svg width="\${width}" height="\${height}">\`;
+
+        const colors = ['#667eea', '#f093fb', '#4facfe', '#43e97b', '#fa709a'];
+
+        const allValues = datasets.flatMap(d => d.data);
+        const maxValue = Math.max(...allValues);
+        const minValue = Math.min(...allValues);
+        const valueRange = maxValue - minValue || 1;
+
+        const xScale = (i) => margin.left + (i / (labels.length - 1)) * chartWidth;
+        const yScale = (val) => margin.top + chartHeight - ((val - minValue) / valueRange) * chartHeight;
+
+        svg += \`<text x="\${width / 2}" y="20" text-anchor="middle" font-weight="bold" font-size="14">\${title}</text>\`;
+
+        svg += \`<text x="15" y="\${height / 2}" text-anchor="middle" transform="rotate(-90, 15, \${height / 2})" font-size="12" fill="#6c757d">\${yLabel}</text>\`;
+
+        for (let i = 0; i <= 5; i++) {
+          const y = margin.top + (i / 5) * chartHeight;
+          const val = maxValue - (i / 5) * valueRange;
+          svg += \`<line x1="\${margin.left}" y1="\${y}" x2="\${margin.left + chartWidth}" y2="\${y}" stroke="#e9ecef" stroke-width="1"/>\`;
+          svg += \`<text x="\${margin.left - 10}" y="\${y + 4}" text-anchor="end" font-size="10" fill="#6c757d">\${val.toFixed(0)}</text>\`;
+        }
+
+        datasets.forEach((dataset, di) => {
+          const color = colors[di % colors.length];
+          let pathD = '';
+
+          dataset.data.forEach((val, i) => {
+            const x = xScale(i);
+            const y = yScale(val);
+            if (i === 0) pathD += \`M \${x} \${y}\`;
+            else pathD += \` L \${x} \${y}\`;
+          });
+
+          svg += \`<path d="\${pathD}" fill="none" stroke="\${color}" stroke-width="2"/>\`;
+
+          dataset.data.forEach((val, i) => {
+            const x = xScale(i);
+            const y = yScale(val);
+            svg += \`<circle cx="\${x}" cy="\${y}" r="4" fill="\${color}"/>\`;
+          });
+
+          svg += \`<text x="\${width - margin.right - 10}" y="\${20 + di * 15}" text-anchor="end" font-size="11" fill="\${color}">\${dataset.label}</text>\`;
+        });
+
+        labels.forEach((label, i) => {
+          const x = xScale(i);
+          svg += \`<text x="\${x}" y="\${height - margin.bottom + 20}" text-anchor="middle" font-size="10" fill="#6c757d">\${label}</text>\`;
+        });
+
+        svg += '</svg>';
+        return svg;
+      };
+
+      let html = '<div style="display: grid; gap: 2rem;">';
+
+      html += '<div>' + createLineChart(
+        'Total Duration Trend',
+        runLabels,
+        [{ label: 'Total Time (ms)', data: totalDurations }],
+        'Duration (ms)'
+      ) + '</div>';
+
+      html += '<div>' + createLineChart(
+        'Success Rate Trend',
+        runLabels,
+        [{ label: 'Success Rate (%)', data: successRates }],
+        'Success Rate (%)'
+      ) + '</div>';
+
+      const topCategories = Object.entries(categoryTrends)
+        .sort((a, b) => Math.max(...b[1]) - Math.max(...a[1]))
+        .slice(0, 5);
+
+      if (topCategories.length > 0) {
+        html += '<div>' + createLineChart(
+          'Top Categories Duration Trend',
+          runLabels,
+          topCategories.map(([cat, data]) => ({ label: cat, data })),
+          'Duration (ms)'
+        ) + '</div>';
+      }
+
+      html += '<div style="margin-top: 2rem;"><h3>Run Comparison Table</h3><table><thead><tr><th>Run</th><th>Total Time</th><th>Operations</th><th>Success Rate</th><th>Peak Memory</th></tr></thead><tbody>';
+
+      allRuns.forEach((run, i) => {
+        const percentChange = i > 0
+          ? ((run.summary.totalDurationMs - allRuns[0].summary.totalDurationMs) / allRuns[0].summary.totalDurationMs * 100).toFixed(1)
+          : '-';
+        const arrow = i > 0
+          ? (run.summary.totalDurationMs > allRuns[0].summary.totalDurationMs ? '▲' : '▼')
+          : '';
+
+        html += \`<tr>
+          <td>Run \${i + 1}</td>
+          <td>\${(run.summary.totalDurationMs / 1000).toFixed(2)}s \${i > 0 ? \`<span style="color: \${arrow === '▲' ? '#dc3545' : '#28a745'}">\${arrow} \${percentChange}%</span>\` : ''}</td>
+          <td>\${run.summary.totalOperations}</td>
+          <td>\${((run.summary.successful / run.summary.totalOperations) * 100).toFixed(1)}%</td>
+          <td>\${(run.summary.peakMemoryBytes / 1024 / 1024).toFixed(1)} MB</td>
+        </tr>\`;
+      });
+
+      html += '</tbody></table></div></div>';
+
+      trendCharts.innerHTML = html;
+    }
+
     // Initialize tables and chart
     populateCategoryTable();
     populateTimelineTable();
     populateCategoryFilter();
     renderGanttChart();
     renderBottleneckAnalysis();
+    renderTrendComparison();
   </script>
 </body>
 </html>`;
