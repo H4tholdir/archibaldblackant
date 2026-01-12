@@ -10,18 +10,18 @@ See: .planning/PROJECT.md (updated 2026-01-11)
 ## Current Position
 
 Phase: 3 of 12 (MVP Order Form)
-Plan: 4/8 complete (03-01, 03-02, 03-03, 03-08 done; 03-04 through 03-07 remain)
+Plan: 5/8 complete (03-01, 03-02, 03-03, 03-04, 03-08 done; 03-05 through 03-07 remain)
 Status: IN PROGRESS
-Last activity: 2026-01-12 — Completed 03-08-PLAN.md (Critical Bot Refactor) - documentation added retroactively
+Last activity: 2026-01-12 — Completed 03-04 (Quantity Validation Against Package Rules)
 
-Progress: ████████░░ 25%
+Progress: ████████░░ 29%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 18
-- Average duration: 78 min (1h 18m)
-- Total execution time: 24.3 hours
+- Total plans completed: 19
+- Average duration: 75 min (1h 15m)
+- Total execution time: 24.4 hours
 
 **By Phase:**
 
@@ -29,12 +29,12 @@ Progress: ████████░░ 25%
 |-------|-------|-------|----------|
 | 1 | 5 | 965 min | 193 min |
 | 2 | 8 | 101 min | 13 min |
-| 3 | 4 | 284 min | 71 min |
+| 3 | 5 | 288 min | 58 min |
 | 3.1 | 3 | 350 min | 117 min |
 
 **Recent Trend:**
-- Last 5 plans: 03-03 (31m), 03-08 (240m), 03.1-01 (80m), 03.1-02 (150m), 03.1-03 (120m)
-- Trend: Phase 3.1 complete, Phase 3 bot refactor complete (240m = 4h actual), now ready for remaining Phase 3 plans (03-04 through 03-07)
+- Last 5 plans: 03-08 (240m), 03.1-01 (80m), 03.1-02 (150m), 03.1-03 (120m), 03-04 (4m)
+- Trend: Phase 3 validation work extremely fast (4m TDD plan), Phase 3 has 3 remaining plans (03-05 through 03-07)
 
 ## Accumulated Context
 
@@ -45,6 +45,9 @@ Recent decisions affecting current work:
 
 | Phase | Decision | Rationale |
 |-------|----------|-----------|
+| 3.04 | Validate quantity immediately after variant selection | Catch invalid quantities early before UI interaction - faster feedback, prevents wasted bot operations |
+| 3.04 | Include suggestions in ValidationResult | Better UX - tell user nearest valid quantities, don't just say "invalid" |
+| 3.04 | Use Pick<Product> for validation parameter type | Validation only needs minQty, multipleQty, maxQty - more flexible, easier testing, clearer intent |
 | 3.1 | Self-contained HTML dashboard with inline CSS/JS | No external dependencies, easy distribution, ~40KB typical size |
 | 3.1 | SVG for charts instead of Canvas | Crisp rendering at any zoom, easier event handling, DOM manipulation |
 | 3.1 | Static methods in PerformanceDashboardGenerator | No state needed, pure functions, easier testing |
@@ -100,8 +103,20 @@ None yet.
   - **Optimization roadmap**: Phase 1 (7h, -8.5s) → Phase 2 (14h, -17s, achieves SLO) → Phase 3 (16h, -13s)
   - **Next steps**: Resume Phase 3 main flow (plans 03-04 through 03-07), execute optimization roadmap in future phase
 
+- **2026-01-12 (Evening)**: Plan 03-04 (Quantity Validation Against Package Rules) executed
+  - **Duration**: 4 minutes (extremely fast TDD plan)
+  - **Approach**: TDD with RED-GREEN cycle, atomic commits per phase (test → feat → refactor → test)
+  - **Deliverables**:
+    - ValidationResult interface with valid, errors, suggestions fields
+    - validateQuantity() method in ProductDatabase (checks minQty, multipleQty, maxQty)
+    - Bot integration: validation after variant selection, before UI interaction
+    - Comprehensive test coverage: 9 unit tests + 2 integration tests (11 total)
+  - **Impact**: Prevents "quantity becomes 0" bug by validating early, provides suggestions for nearest valid quantities
+  - **Test results**: All 90 tests passing (49 product-db, 2 archibald-bot, 39 other) - no regressions
+  - **Next steps**: Plans 03-05 (Frontend Package Display), 03-06 (Frontend Quantity Validation), 03-07 (Integration Tests)
+
 ## Session Continuity
 
-Last session: 2026-01-12 23:45
-Stopped at: Completed 03-08 documentation (SUMMARY.md created retroactively), STATE.md and ROADMAP.md updated
-Next: Continue Phase 3 main flow with plans 03-04 through 03-07 (validation, tests, API endpoints, frontend integration)
+Last session: 2026-01-12 22:56
+Stopped at: Completed 03-04 execution (Quantity Validation), SUMMARY.md created, updating STATE.md and ROADMAP.md
+Next: Continue Phase 3 with plans 03-05 through 03-07 (frontend integration and tests)

@@ -59,18 +59,18 @@ Plans:
 **Goal**: Form ordini production-ready con selezione pacchetto automatica basata su quantità e validazione vincoli
 **Depends on**: Phase 2
 **Research**: Complete (03-01 - discovered unique variant IDs and package selection logic)
-**Plans**: 8 plans (4/8 complete)
-**Status**: In Progress - Critical blocker 03-08 resolved, remaining plans unblocked
+**Plans**: 8 plans (5/8 complete)
+**Status**: In Progress - 3 remaining plans (frontend integration and tests)
 
 Plans:
 - [x] 03-01: Package/Multiplier UI Discovery (Research - complete)
 - [x] 03-02: Package Variant Database Functions (TDD - complete)
 - [x] 03-03: Package Selection in Archibald Bot (search by variant ID - complete)
+- [x] 03-04: Quantity Validation Against Package Rules (TDD - complete, 4min execution)
 - [x] ✅ **03-08: CRITICAL - Refactor Archibald Bot Order Flow** (COMPLETE - bot now matches actual UI)
-- [ ] 03-04: Quantity Validation Against Package Rules (unblocked - ready to start)
-- [ ] 03-05: Frontend Package Display in OrderForm (unblocked - ready to start)
-- [ ] 03-06: Frontend Quantity Validation & User Feedback (unblocked - ready to start)
-- [ ] 03-07: Integration Tests for Package Selection (unblocked - ready to start)
+- [ ] 03-05: Frontend Package Display in OrderForm (ready to start)
+- [ ] 03-06: Frontend Quantity Validation & User Feedback (ready to start)
+- [ ] 03-07: Integration Tests for Package Selection (ready to start)
 
 **03-08 Results (2026-01-12)**:
 - ✅ UI selectors documented from 17 screenshots
@@ -82,6 +82,15 @@ Plans:
 - ✅ Final save: "Salvare" → "Salva e chiudi" workflow
 - ✅ Order ID extraction from URL
 - 🎯 Bot can now create orders end-to-end in production Archibald
+
+**03-04 Results (2026-01-12)**:
+- ✅ ValidationResult interface with valid, errors, suggestions fields
+- ✅ validateQuantity() method in ProductDatabase (minQty, multipleQty, maxQty checks)
+- ✅ Bot integration: validation after variant selection, before UI interaction
+- ✅ Error messages with suggestions for nearest valid quantities
+- ✅ TDD approach: RED-GREEN cycle with 4 atomic commits (test → feat → refactor → test)
+- ✅ Test coverage: 11 tests total (9 unit + 2 integration), all 90 tests passing
+- 🎯 Prevents "quantity becomes 0" bug by validating early
 
 ### Phase 3.1: Bot Performance Profiling & Optimization (INSERTED) ✅
 **Goal**: Implementare sistema di profiling dettagliato per tracciare tempi di ogni operazione bot, identificare colli di bottiglia e strutturare piano di ottimizzazione super-dettagliato per massimizzare velocità esecuzione ordini
