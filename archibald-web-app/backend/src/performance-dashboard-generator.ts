@@ -930,6 +930,28 @@ export class PerformanceDashboardGenerator {
     outputPath: string,
     options?: { format: 'html' | 'json' | 'csv' }
   ): Promise<void> {
-    // TODO: Implement file writing
+    const format = options?.format || 'html';
+
+    const parentDir = path.dirname(outputPath);
+    await fs.mkdir(parentDir, { recursive: true });
+
+    let content: string;
+
+    switch (format) {
+      case 'html':
+        content = this.generateHTML(profilingData);
+        break;
+      case 'json':
+        content = JSON.stringify(profilingData, null, 2);
+        break;
+      case 'csv':
+        content = this.exportCSV(profilingData);
+        break;
+      default:
+        throw new Error(`Unsupported format: ${format}`);
+    }
+
+    await fs.writeFile(outputPath, content, 'utf-8');
+    console.log(`Dashboard saved: ${outputPath}`);
   }
 }
