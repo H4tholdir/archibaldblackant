@@ -1,4 +1,8 @@
-import puppeteer, { type Browser, type Page } from "puppeteer";
+import puppeteer, {
+  type Browser,
+  type ElementHandle,
+  type Page,
+} from "puppeteer";
 import { config } from "./config";
 import { logger } from "./logger";
 import type { OrderData } from "./types";
@@ -608,9 +612,10 @@ export class ArchibaldBot {
                 const allElements = Array.from(
                   document.querySelectorAll("button, a, span, div"),
                 );
-                const nuovoBtn = allElements.find((el: any) => {
+                const nuovoBtn = allElements.find((el) => {
+                  const htmlEl = el as HTMLElement;
                   const text = el.textContent?.toLowerCase().trim() || "";
-                  return text === "nuovo" && el.offsetParent !== null;
+                  return text === "nuovo" && htmlEl.offsetParent !== null;
                 });
                 return !!nuovoBtn;
               },
@@ -684,12 +689,11 @@ export class ArchibaldBot {
           await this.page!.waitForFunction(
             () => {
               // Aspetta che almeno un input di tipo testo sia visibile (indica form caricato)
-              const inputs = (document as any).querySelectorAll(
-                'input[type="text"]',
-              );
-              return Array.from(inputs).some(
-                (input: any) => input.offsetParent !== null,
-              );
+              const inputs = document.querySelectorAll('input[type="text"]');
+              return Array.from(inputs).some((input) => {
+                const htmlInput = input as HTMLElement;
+                return htmlInput.offsetParent !== null;
+              });
             },
             { timeout: 2000, polling: 200 },
           );
@@ -717,11 +721,12 @@ export class ArchibaldBot {
               const inputs = Array.from(
                 document.querySelectorAll('input[type="text"]'),
               );
-              return inputs.some((input: any) => {
-                const id = input.id.toLowerCase();
+              return inputs.some((input) => {
+                const htmlInput = input as HTMLInputElement;
+                const id = htmlInput.id.toLowerCase();
                 return (
                   (id.includes("account") || id.includes("custtable")) &&
-                  input.offsetParent !== null
+                  htmlInput.offsetParent !== null
                 );
               });
             },
@@ -873,9 +878,11 @@ export class ArchibaldBot {
         try {
           // STEP 1b: Aspetta dropdown cliente (ottimizzato a 800ms da 1500ms)
           const result = await this.page!.waitForFunction(
-            (selectors: any) => {
+            (selectors: string[]) => {
               for (const sel of selectors) {
-                const input = document.querySelector(sel) as any;
+                const input = document.querySelector(
+                  sel,
+                ) as HTMLInputElement | null;
                 if (
                   input &&
                   input.offsetParent !== null &&
@@ -961,9 +968,9 @@ export class ArchibaldBot {
           try {
             await clickTarget.click();
             logger.debug("Cliente selezionato dalla griglia risultati");
-          } catch (error: any) {
+          } catch (error: unknown) {
             // Fallback: click JavaScript
-            await clickTarget.evaluate((el: any) => el.click());
+            await clickTarget.evaluate((el) => (el as HTMLElement).click());
             logger.debug("Cliente selezionato via JavaScript click");
           }
         } else {
@@ -974,8 +981,10 @@ export class ArchibaldBot {
 
         // OTTIMIZZAZIONE: Aspetta che il popup si chiuda invece di timeout fisso
         await this.page!.waitForFunction(
-          (baseId: any) => {
-            const popup = document.querySelector(`#${baseId}_DDD`) as any;
+          (baseId: string) => {
+            const popup = document.querySelector(
+              `#${baseId}_DDD`,
+            ) as HTMLElement | null;
             return (
               !popup ||
               popup.style.display === "none" ||
@@ -1128,12 +1137,14 @@ export class ArchibaldBot {
             );
 
             // Ordina per ID numerico (l'ultima riga ha numero più alto)
-            editRows.sort((a: any, b: any) => {
+            editRows.sort((a, b) => {
+              const aEl = a as HTMLElement;
+              const bEl = b as HTMLElement;
               const aNum = parseInt(
-                (a.id.match(/editnew_(\d+)/) || [])[1] || "0",
+                (aEl.id.match(/editnew_(\d+)/) || [])[1] || "0",
               );
               const bNum = parseInt(
-                (b.id.match(/editnew_(\d+)/) || [])[1] || "0",
+                (bEl.id.match(/editnew_(\d+)/) || [])[1] || "0",
               );
               return bNum - aNum; // Ordine decrescente
             });
@@ -1141,11 +1152,13 @@ export class ArchibaldBot {
             // Cerca INVENTTABLE nella prima riga (la più recente)
             for (const row of editRows) {
               const inputs = Array.from(
-                (row as any).querySelectorAll('input[id*="INVENTTABLE_Edit"]'),
+                (row as HTMLElement).querySelectorAll(
+                  'input[id*="INVENTTABLE_Edit"]',
+                ),
               );
 
               for (const input of inputs) {
-                const inp = input as any;
+                const inp = input as HTMLInputElement;
                 // Salta campi nascosti o di ricerca interna
                 if (inp.id.includes("DXSE") || inp.offsetParent === null)
                   continue;
@@ -1556,16 +1569,20 @@ export class ArchibaldBot {
           const searchQuery = item.productName || item.articleCode;
 
           // Ottieni il selector dall'elemento
-          const inputSelector = await searchInput.evaluate((el: any) => {
-            if (el.id) return `#${el.id}`;
-            if (el.placeholder) return `input[placeholder="${el.placeholder}"]`;
+          const inputSelector = await searchInput.evaluate((el) => {
+            const htmlEl = el as HTMLInputElement;
+            if (htmlEl.id) return `#${htmlEl.id}`;
+            if (htmlEl.placeholder)
+              return `input[placeholder="${htmlEl.placeholder}"]`;
             return null;
           });
 
           if (inputSelector) {
             await this.page!.evaluate(
-              (selector: any, value: any) => {
-                const input = document.querySelector(selector) as any;
+              (selector: string, value: string) => {
+                const input = document.querySelector(
+                  selector,
+                ) as HTMLInputElement | null;
                 if (input) {
                   input.value = value;
                   input.focus();
@@ -1676,14 +1693,16 @@ export class ArchibaldBot {
               await clickableElement.click();
               logger.debug(`Click riuscito (attempt ${attempt})`);
               break;
-            } catch (error: any) {
-              logger.warn(
-                `Click attempt ${attempt}/3 failed: ${error.message}`,
-              );
+            } catch (error: unknown) {
+              const errorMsg =
+                error instanceof Error ? error.message : String(error);
+              logger.warn(`Click attempt ${attempt}/3 failed: ${errorMsg}`);
               if (attempt === 3) {
                 // Ultimo tentativo: usa click JavaScript diretto
                 try {
-                  await clickableElement.evaluate((el: any) => el.click());
+                  await clickableElement.evaluate((el) =>
+                    (el as HTMLElement).click(),
+                  );
                   logger.debug("Click JavaScript riuscito come fallback");
                   break;
                 } catch {
@@ -1697,10 +1716,10 @@ export class ArchibaldBot {
           // OTTIMIZZAZIONE: Aspetta che il popup si chiuda invece di 800ms fissi
           try {
             await this.page!.waitForFunction(
-              (baseId: any) => {
-                const popup = (document as any).querySelector(
+              (baseId: string) => {
+                const popup = document.querySelector(
                   `#${baseId}_DDD`,
-                ) as any;
+                ) as HTMLElement | null;
                 return (
                   !popup ||
                   popup.style.display === "none" ||
@@ -1774,12 +1793,14 @@ export class ArchibaldBot {
               ),
             );
 
-            editRows.sort((a: any, b: any) => {
+            editRows.sort((a, b) => {
+              const aEl = a as HTMLElement;
+              const bEl = b as HTMLElement;
               const aNum = parseInt(
-                (a.id.match(/editnew_(\d+)/) || [])[1] || "0",
+                (aEl.id.match(/editnew_(\d+)/) || [])[1] || "0",
               );
               const bNum = parseInt(
-                (b.id.match(/editnew_(\d+)/) || [])[1] || "0",
+                (bEl.id.match(/editnew_(\d+)/) || [])[1] || "0",
               );
               return bNum - aNum;
             });
@@ -1864,10 +1885,12 @@ export class ArchibaldBot {
                 await this.wait(200);
                 clicked = true;
               }
-            } catch (error: any) {
+            } catch (error: unknown) {
               // Se detached o altro errore, fallback all'input
+              const errorMsg =
+                error instanceof Error ? error.message : String(error);
               logger.debug(
-                `Click su quantityCell fallito (${error.message}), uso input diretto`,
+                `Click su quantityCell fallito (${errorMsg}), uso input diretto`,
               );
             }
           }
@@ -1982,7 +2005,7 @@ export class ArchibaldBot {
         if (item.discount && item.discount > 0) {
           let discountInputId = "";
           let discountBaseId = "";
-          let discountInput: any = null;
+          let discountInput: ElementHandle<Element> | null = null;
 
           await this.runOp(`order.item.${i}.discount.find_input`, async () => {
             logger.debug(`Imposto sconto articolo: ${item.discount}%`);
@@ -1996,12 +2019,14 @@ export class ArchibaldBot {
                 ),
               );
 
-              editRows.sort((a: any, b: any) => {
+              editRows.sort((a, b) => {
+                const aEl = a as HTMLElement;
+                const bEl = b as HTMLElement;
                 const aNum = parseInt(
-                  (a.id.match(/editnew_(\d+)/) || [])[1] || "0",
+                  (aEl.id.match(/editnew_(\d+)/) || [])[1] || "0",
                 );
                 const bNum = parseInt(
-                  (b.id.match(/editnew_(\d+)/) || [])[1] || "0",
+                  (bEl.id.match(/editnew_(\d+)/) || [])[1] || "0",
                 );
                 return bNum - aNum;
               });
@@ -2096,9 +2121,11 @@ export class ArchibaldBot {
                       await this.wait(200);
                       clicked = true;
                     }
-                  } catch (error: any) {
+                  } catch (error: unknown) {
+                    const errorMsg =
+                      error instanceof Error ? error.message : String(error);
                     logger.debug(
-                      `Click su discountCell fallito (${error.message}), uso input diretto`,
+                      `Click su discountCell fallito (${errorMsg}), uso input diretto`,
                     );
                   }
                 }
@@ -2146,7 +2173,7 @@ export class ArchibaldBot {
               await this.wait(600);
 
               const discountValue = await discountInput!.evaluate(
-                (el: any) => (el as any).value || "",
+                (el) => (el as HTMLInputElement).value || "",
               );
               logger.debug(
                 `Sconto inserito (valore finale): "${discountValue}"`,
