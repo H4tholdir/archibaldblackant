@@ -400,10 +400,10 @@ app.post("/api/sync/full", async (req: Request, res: Response<ApiResponse>) => {
     logger.info("Richiesta sync completo (customers + products + prices)");
 
     // Verifica lock
-    if (activeSyncType) {
+    if (activeOperation) {
       return res.status(409).json({
         success: false,
-        error: `Sincronizzazione ${activeSyncType} già in corso. Attendere il completamento.`,
+        error: `Sincronizzazione ${activeOperation} già in corso. Attendere il completamento.`,
       });
     }
 
@@ -474,7 +474,7 @@ app.post("/api/sync/customers", async (req: Request, res: Response<ApiResponse>)
     if (!acquireSyncLock("customers")) {
       return res.status(409).json({
         success: false,
-        error: `Sincronizzazione ${activeSyncType} già in corso. Attendere il completamento.`,
+        error: `Sincronizzazione ${activeOperation} già in corso. Attendere il completamento.`,
       });
     }
 
@@ -512,7 +512,7 @@ app.post("/api/sync/products", async (req: Request, res: Response<ApiResponse>) 
     if (!acquireSyncLock("products")) {
       return res.status(409).json({
         success: false,
-        error: `Sincronizzazione ${activeSyncType} già in corso. Attendere il completamento.`,
+        error: `Sincronizzazione ${activeOperation} già in corso. Attendere il completamento.`,
       });
     }
 
@@ -550,7 +550,7 @@ app.post("/api/sync/prices", async (req: Request, res: Response<ApiResponse>) =>
     if (!acquireSyncLock("prices")) {
       return res.status(409).json({
         success: false,
-        error: `Sincronizzazione ${activeSyncType} già in corso. Attendere il completamento.`,
+        error: `Sincronizzazione ${activeOperation} già in corso. Attendere il completamento.`,
       });
     }
 
