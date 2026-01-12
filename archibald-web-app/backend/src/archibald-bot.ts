@@ -426,6 +426,117 @@ export class ArchibaldBot {
     return lines.join("\n");
   }
 
+  private exportProfilingData(): {
+    summary: {
+      totalOperations: number;
+      successful: number;
+      failed: number;
+      totalDurationMs: number;
+      totalGapMs: number;
+      averageOperationMs: number;
+      peakMemoryBytes: number;
+    };
+    categories: Record<string, {
+      count: number;
+      totalDurationMs: number;
+      avgDurationMs: number;
+      p50Ms: number;
+      p95Ms: number;
+      p99Ms: number;
+      avgMemoryBytes: number;
+    }>;
+    retries: Array<{
+      operationId: number;
+      name: string;
+      category: string;
+      attempts: number;
+      finalStatus: "ok" | "error";
+    }>;
+    operations: typeof this.opRecords;
+  } {
+    const totalDurationMs = this.opRecords.reduce(
+      (sum, record) => sum + record.durationMs,
+      0,
+    );
+
+    const totalGapMs = this.opRecords.reduce(
+      (sum, record) => sum + record.gapMs,
+      0,
+    );
+
+    const successful = this.opRecords.filter((r) => r.status === "ok").length;
+    const failed = this.opRecords.filter((r) => r.status === "error").length;
+    const peakMemoryBytes = Math.max(...this.opRecords.map((r) => r.memoryAfter));
+
+    // Category breakdown
+    const categoryMap: Record<string, {
+      durations: number[];
+      memories: number[];
+    }> = {};
+
+    for (const record of this.opRecords) {
+      if (record.status === "ok") {
+        if (!categoryMap[record.category]) {
+          categoryMap[record.category] = { durations: [], memories: [] };
+        }
+        categoryMap[record.category].durations.push(record.durationMs);
+        categoryMap[record.category].memories.push(record.memoryAfter - record.memoryBefore);
+      }
+    }
+
+    const categories: Record<string, {
+      count: number;
+      totalDurationMs: number;
+      avgDurationMs: number;
+      p50Ms: number;
+      p95Ms: number;
+      p99Ms: number;
+      avgMemoryBytes: number;
+    }> = {};
+
+    for (const [category, data] of Object.entries(categoryMap)) {
+      const totalMs = data.durations.reduce((sum, d) => sum + d, 0);
+      const percentiles = this.calculatePercentiles(data.durations);
+      const avgMemory = data.memories.reduce((sum, m) => sum + m, 0) / data.memories.length;
+
+      categories[category] = {
+        count: data.durations.length,
+        totalDurationMs: totalMs,
+        avgDurationMs: totalMs / data.durations.length,
+        p50Ms: percentiles.p50,
+        p95Ms: percentiles.p95,
+        p99Ms: percentiles.p99,
+        avgMemoryBytes: avgMemory,
+      };
+    }
+
+    // Retry analysis
+    const retries = this.opRecords
+      .filter((r) => r.retryAttempt > 0)
+      .map((r) => ({
+        operationId: r.id,
+        name: r.name,
+        category: r.category,
+        attempts: r.retryAttempt,
+        finalStatus: r.status,
+      }));
+
+    return {
+      summary: {
+        totalOperations: this.opRecords.length,
+        successful,
+        failed,
+        totalDurationMs,
+        totalGapMs,
+        averageOperationMs: totalDurationMs / this.opRecords.length,
+        peakMemoryBytes,
+      },
+      categories,
+      retries,
+      operations: this.opRecords,
+    };
+  }
+
   /**
    * Helper method to wait for a specified number of milliseconds
    */
