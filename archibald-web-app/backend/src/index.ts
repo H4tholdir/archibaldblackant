@@ -323,6 +323,40 @@ app.get("/api/products", (req: Request, res: Response<ApiResponse>) => {
   }
 });
 
+// Get product variants by article name endpoint
+app.get("/api/products/variants", (req: Request, res: Response<ApiResponse>) => {
+  try {
+    const articleName = req.query.name as string | undefined;
+
+    if (!articleName) {
+      return res.status(400).json({
+        success: false,
+        error: "Article name required",
+      });
+    }
+
+    logger.info("Richiesta varianti prodotto", { articleName });
+
+    const variants = productDb.getProductVariants(articleName);
+
+    res.json({
+      success: true,
+      data: variants,
+      message: `${variants.length} varianti trovate per "${articleName}"`,
+    });
+  } catch (error) {
+    logger.error("Errore API /api/products/variants", { error });
+
+    res.status(500).json({
+      success: false,
+      error:
+        error instanceof Error
+          ? error.message
+          : "Errore durante il recupero delle varianti",
+    });
+  }
+});
+
 // Get products sync status endpoint
 app.get(
   "/api/products/sync-status",
