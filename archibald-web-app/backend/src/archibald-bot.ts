@@ -923,6 +923,7 @@ export class ArchibaldBot {
 
   /**
    * Double-click cell and type value (for quantity, discount)
+   * OPTIMIZED: Uses JavaScript setValue with event dispatching for faster field editing
    * @param cellLabelText - Label text near the cell (e.g., "Qtà ordinata")
    * @param value - Value to set
    */
@@ -930,12 +931,6 @@ export class ArchibaldBot {
     cellLabelText: string,
     value: string | number,
   ): Promise<void> {
-    // For DevExpress grid cells, we need to:
-    // 1. Find the input field
-    // 2. Double-click to enter edit mode
-    // 3. Select all text
-    // 4. Type the new value character by character
-
     // Find the input field by pattern matching on column label
     const inputInfo = await this.page!.evaluate((label) => {
       const inputs = Array.from(document.querySelectorAll('input[type="text"]'));
@@ -989,70 +984,131 @@ export class ArchibaldBot {
     // Wait for DOM stabilization
     await this.wait(300);
 
-    // Get fresh input handle
-    let inputHandle = await this.page!.$(`#${inputInfo.id}`);
-    if (!inputHandle) {
-      throw new Error(`Cannot get handle for input ${inputInfo.id}`);
-    }
+    // OPT-03: Try JavaScript setValue approach first (OPTIMIZED - faster than keyboard simulation)
+    try {
+      logger.debug(`Attempting JavaScript setValue for "${cellLabelText}"`);
 
-    // Try to click on the CELL first (not the input) - DevExpress best practice
-    const cellHandle = await this.page!.$(`#${baseId}`);
-    let clicked = false;
-
-    if (cellHandle) {
-      try {
-        const box = await cellHandle.boundingBox();
-        if (box) {
-          // Double-click the cell to enter edit mode
-          await cellHandle.click({ clickCount: 2 });
-          await this.wait(200);
-          clicked = true;
-          logger.debug("Double-clicked on cell");
+      // Double-click to enter edit mode first
+      const cellHandle = await this.page!.$(`#${baseId}`);
+      if (cellHandle) {
+        await cellHandle.click({ clickCount: 2 });
+        await this.wait(150);
+      } else {
+        // Fallback to input click
+        const inputHandle = await this.page!.$(`#${inputInfo.id}`);
+        if (inputHandle) {
+          await inputHandle.click({ clickCount: 2 });
+          await this.wait(150);
         }
-      } catch (error) {
-        logger.debug("Click on cell failed, falling back to input");
       }
-    }
 
-    // Fallback: double-click directly on input
-    if (!clicked) {
-      // Re-get fresh input handle
-      inputHandle = await this.page!.$(`#${inputInfo.id}`);
+      // Set value directly with JavaScript and dispatch events
+      const setSuccess = await this.page!.evaluate((inputId, newValue) => {
+        const input = document.querySelector(`#${inputId}`) as HTMLInputElement;
+        if (!input) return false;
+
+        try {
+          // Set value directly
+          input.value = newValue;
+
+          // Dispatch events to notify DevExpress
+          input.dispatchEvent(new Event('input', { bubbles: true }));
+          input.dispatchEvent(new Event('change', { bubbles: true }));
+          input.dispatchEvent(new Event('blur', { bubbles: true }));
+
+          return true;
+        } catch (error) {
+          return false;
+        }
+      }, inputInfo.id, formattedValue);
+
+      if (!setSuccess) {
+        throw new Error('JavaScript setValue returned false');
+      }
+
+      // Confirm with Enter to finalize
+      await this.page!.keyboard.press('Enter');
+      await this.page!.keyboard.press('Tab');
+
+      // Reduced wait time (optimized from 600ms to 400ms)
+      await this.wait(400);
+
+      // Verify the value was set correctly
+      const actualValue = await this.page!.evaluate((inputId) => {
+        const input = document.querySelector(`#${inputId}`) as HTMLInputElement;
+        return input ? input.value : null;
+      }, inputInfo.id);
+
+      logger.debug(`JavaScript setValue succeeded: "${actualValue}"`);
+
+    } catch (error) {
+      // Fallback to keyboard simulation if JavaScript approach fails
+      logger.warn(`JavaScript setValue failed for "${cellLabelText}", falling back to keyboard simulation: ${error}`);
+
+      // Get fresh input handle for fallback
+      let inputHandle = await this.page!.$(`#${inputInfo.id}`);
       if (!inputHandle) {
-        throw new Error(`Input ${inputInfo.id} not found after retry`);
+        throw new Error(`Cannot get handle for input ${inputInfo.id}`);
       }
-      await inputHandle.click({ clickCount: 2 });
-      await this.wait(200);
-      logger.debug("Double-clicked on input (fallback)");
+
+      // Try to click on the CELL first (not the input) - DevExpress best practice
+      const cellHandle = await this.page!.$(`#${baseId}`);
+      let clicked = false;
+
+      if (cellHandle) {
+        try {
+          const box = await cellHandle.boundingBox();
+          if (box) {
+            // Double-click the cell to enter edit mode
+            await cellHandle.click({ clickCount: 2 });
+            await this.wait(200);
+            clicked = true;
+            logger.debug("Double-clicked on cell (fallback)");
+          }
+        } catch (err) {
+          logger.debug("Click on cell failed, falling back to input");
+        }
+      }
+
+      // Fallback: double-click directly on input
+      if (!clicked) {
+        inputHandle = await this.page!.$(`#${inputInfo.id}`);
+        if (!inputHandle) {
+          throw new Error(`Input ${inputInfo.id} not found after retry`);
+        }
+        await inputHandle.click({ clickCount: 2 });
+        await this.wait(200);
+        logger.debug("Double-clicked on input (fallback)");
+      }
+
+      // Select all and delete existing value
+      await inputHandle!.focus();
+      await this.page!.keyboard.down('Control');
+      await this.page!.keyboard.press('A');
+      await this.page!.keyboard.up('Control');
+      await this.page!.keyboard.press('Backspace');
+      await this.wait(100);
+
+      // Type new value character by character
+      await inputHandle!.type(formattedValue, { delay: 30 });
+      logger.debug(`Typed new value (fallback): "${formattedValue}"`);
+
+      // Confirm with Enter and Tab
+      await this.page!.keyboard.press('Enter');
+      await this.page!.keyboard.press('Tab');
+      logger.debug("Pressed Enter and Tab to confirm (fallback)");
+
+      // Wait for DevExpress to process the change
+      await this.wait(600);
+
+      // Verify the value was set correctly
+      const actualValue = await this.page!.evaluate((inputId) => {
+        const input = document.querySelector(`#${inputId}`) as HTMLInputElement;
+        return input ? input.value : null;
+      }, inputInfo.id);
+
+      logger.debug(`Final value in field (fallback): "${actualValue}"`);
     }
-
-    // Select all and delete existing value
-    await inputHandle!.focus();
-    await this.page!.keyboard.down('Control');
-    await this.page!.keyboard.press('A');
-    await this.page!.keyboard.up('Control');
-    await this.page!.keyboard.press('Backspace'); // IMPORTANT: Backspace after Ctrl+A
-    await this.wait(100);
-
-    // Type new value character by character
-    await inputHandle!.type(formattedValue, { delay: 30 });
-    logger.debug(`Typed new value: "${formattedValue}"`);
-
-    // Confirm with Enter and Tab
-    await this.page!.keyboard.press('Enter');
-    await this.page!.keyboard.press('Tab');
-    logger.debug("Pressed Enter and Tab to confirm");
-
-    // Wait for DevExpress to process the change
-    await this.wait(600);
-
-    // Verify the value was set correctly
-    const actualValue = await this.page!.evaluate((inputId) => {
-      const input = document.querySelector(`#${inputId}`) as HTMLInputElement;
-      return input ? input.value : null;
-    }, inputInfo.id);
-
-    logger.debug(`Final value in field: "${actualValue}"`);
   }
 
   /**
@@ -2382,22 +2438,22 @@ export class ArchibaldBot {
           await this.waitForDevExpressReady({ timeout: 3000 });
         }, "form.article");
 
-        // 5.5: Set quantity
+        // 5.5: Set quantity (OPT-03: optimized field editing)
         await this.runOp(`order.item.${i}.set_quantity`, async () => {
           logger.debug(`Setting quantity: ${item.quantity}`);
           await this.editTableCell("Qtà ordinata", item.quantity);
           logger.info(`✅ Quantity set: ${item.quantity}`);
           await this.wait(300);
-        }, "form.quantity");
+        }, "field-editing");
 
-        // 5.6: Set discount (optional)
+        // 5.6: Set discount (optional) (OPT-03: optimized field editing)
         if (item.discount && item.discount > 0) {
           await this.runOp(`order.item.${i}.set_discount`, async () => {
             logger.debug(`Setting discount: ${item.discount}%`);
             await this.editTableCell("Applica sconto", item.discount);
             logger.info(`✅ Discount set: ${item.discount}%`);
             await this.wait(300);
-          });
+          }, "field-editing");
         }
 
         // 5.7: Click "Update" button (floppy icon)
