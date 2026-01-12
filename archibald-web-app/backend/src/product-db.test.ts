@@ -597,4 +597,112 @@ describe("ProductDatabase", () => {
       );
     });
   });
+
+  describe("validateQuantity", () => {
+    it("should return valid for quantity meeting all rules", () => {
+      // Given: Product with minQty=5, multipleQty=5, maxQty=500
+      const product = { minQty: 5, multipleQty: 5, maxQty: 500 };
+
+      // When: validateQuantity(product, 10)
+      const result = db.validateQuantity(product, 10);
+
+      // Then: { valid: true }
+      expect(result.valid).toBe(true);
+      expect(result.errors).toEqual([]);
+    });
+
+    it("should return error when quantity < minQty", () => {
+      // Given: Product with minQty=5
+      const product = { minQty: 5, multipleQty: 1 };
+
+      // When: validateQuantity(product, 3)
+      const result = db.validateQuantity(product, 3);
+
+      // Then: Error about minimum quantity
+      expect(result.valid).toBe(false);
+      expect(result.errors).toContain("Quantity must be at least 5");
+    });
+
+    it("should return error when quantity not multiple of multipleQty", () => {
+      // Given: Product with multipleQty=5
+      const product = { minQty: 1, multipleQty: 5 };
+
+      // When: validateQuantity(product, 7)
+      const result = db.validateQuantity(product, 7);
+
+      // Then: Error about multiple
+      expect(result.valid).toBe(false);
+      expect(result.errors).toContain("Quantity must be a multiple of 5");
+    });
+
+    it("should return error when quantity > maxQty", () => {
+      // Given: Product with maxQty=100
+      const product = { minQty: 1, multipleQty: 1, maxQty: 100 };
+
+      // When: validateQuantity(product, 150)
+      const result = db.validateQuantity(product, 150);
+
+      // Then: Error about maximum
+      expect(result.valid).toBe(false);
+      expect(result.errors).toContain("Quantity cannot exceed 100");
+    });
+
+    it("should return multiple errors when multiple rules violated", () => {
+      // Given: Product with minQty=5, multipleQty=5, maxQty=100
+      const product = { minQty: 5, multipleQty: 5, maxQty: 100 };
+
+      // When: validateQuantity(product, 2)
+      const result = db.validateQuantity(product, 2);
+
+      // Then: Errors for both min and multiple
+      expect(result.valid).toBe(false);
+      expect(result.errors).toHaveLength(2);
+      expect(result.errors).toContain("Quantity must be at least 5");
+      expect(result.errors).toContain("Quantity must be a multiple of 5");
+    });
+
+    it("should suggest nearest valid quantities", () => {
+      // Given: Product with multipleQty=5
+      const product = { minQty: 5, multipleQty: 5 };
+
+      // When: validateQuantity(product, 7)
+      const result = db.validateQuantity(product, 7);
+
+      // Then: Suggestions provided
+      expect(result.suggestions).toEqual([5, 10]);
+    });
+
+    it("should handle products without validation rules", () => {
+      // Given: Product with no min/multiple/max
+      const product = {};
+
+      // When: validateQuantity(product, 7)
+      const result = db.validateQuantity(product, 7);
+
+      // Then: Always valid
+      expect(result.valid).toBe(true);
+    });
+
+    it("should handle edge case: quantity = minQty", () => {
+      // Given: Product with minQty=5
+      const product = { minQty: 5, multipleQty: 5 };
+
+      // When: validateQuantity(product, 5)
+      const result = db.validateQuantity(product, 5);
+
+      // Then: Valid (boundary case)
+      expect(result.valid).toBe(true);
+    });
+
+    it("should handle edge case: quantity = maxQty", () => {
+      // Given: Product with maxQty=100
+      const product = { maxQty: 100, multipleQty: 1 };
+
+      // When: validateQuantity(product, 100)
+      const result = db.validateQuantity(product, 100);
+
+      // Then: Valid (boundary case)
+      expect(result.valid).toBe(true);
+    });
+  });
 });
