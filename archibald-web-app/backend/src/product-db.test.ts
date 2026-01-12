@@ -96,7 +96,9 @@ describe("ProductDatabase", () => {
 
       const retrieved = db.getProducts();
       expect(retrieved[0].name).toBe("Dental Implant System Pro");
-      expect(retrieved[0].description).toBe("Enhanced implant kit with accessories");
+      expect(retrieved[0].description).toBe(
+        "Enhanced implant kit with accessories",
+      );
       expect(retrieved[0].price).toBe(349.99);
     });
 
@@ -376,6 +378,221 @@ describe("ProductDatabase", () => {
       const hash2 = ProductDatabase.calculateHash(fullProduct);
 
       expect(hash1).not.toBe(hash2);
+    });
+  });
+
+  describe("getProductVariants", () => {
+    const multiPackageArticle = "H129FSQ.104.023";
+    const singlePackageArticle = "TD1272.314";
+    const nonExistentArticle = "NONEXISTENT999";
+
+    beforeEach(() => {
+      const products = [
+        {
+          id: "016869K2",
+          name: multiPackageArticle,
+          description: "5-piece package",
+          packageContent: "5",
+          minQty: 5,
+          multipleQty: 5,
+          maxQty: 500,
+          price: 100.0,
+        },
+        {
+          id: "016869K3",
+          name: multiPackageArticle,
+          description: "1-piece package",
+          packageContent: "1",
+          minQty: 1,
+          multipleQty: 1,
+          maxQty: 100,
+          price: 25.0,
+        },
+        {
+          id: "TD1272314",
+          name: singlePackageArticle,
+          description: "Single package only",
+          packageContent: "1",
+          minQty: 1,
+          multipleQty: 1,
+          maxQty: 100,
+          price: 50.0,
+        },
+      ];
+      db.upsertProducts(products);
+    });
+
+    it("should return all variants for multi-package article", () => {
+      const variants = db.getProductVariants(multiPackageArticle);
+
+      expect(variants).toHaveLength(2);
+      expect(variants[0].id).toBe("016869K2"); // Highest multipleQty first
+      expect(variants[0].multipleQty).toBe(5);
+      expect(variants[1].id).toBe("016869K3");
+      expect(variants[1].multipleQty).toBe(1);
+    });
+
+    it("should return single variant for single-package article", () => {
+      const variants = db.getProductVariants(singlePackageArticle);
+
+      expect(variants).toHaveLength(1);
+      expect(variants[0].id).toBe("TD1272314");
+      expect(variants[0].packageContent).toBe("1");
+    });
+
+    it("should return empty array for non-existent article", () => {
+      const variants = db.getProductVariants(nonExistentArticle);
+
+      expect(variants).toHaveLength(0);
+    });
+
+    it("should order variants by multipleQty DESC", () => {
+      const variants = db.getProductVariants(multiPackageArticle);
+
+      expect(variants[0].multipleQty).toBeGreaterThanOrEqual(variants[1].multipleQty!);
+    });
+  });
+
+  describe("selectPackageVariant", () => {
+    const multiPackageArticle = "H129FSQ.104.023";
+    const singlePackageArticle = "TD1272.314";
+    const nonExistentArticle = "NONEXISTENT999";
+    const highestMultiple = 5;
+    const lowestMultiple = 1;
+
+    beforeEach(() => {
+      const products = [
+        {
+          id: "016869K2",
+          name: multiPackageArticle,
+          description: "5-piece package",
+          packageContent: "5",
+          minQty: 5,
+          multipleQty: highestMultiple,
+          maxQty: 500,
+          price: 100.0,
+        },
+        {
+          id: "016869K3",
+          name: multiPackageArticle,
+          description: "1-piece package",
+          packageContent: "1",
+          minQty: 1,
+          multipleQty: lowestMultiple,
+          maxQty: 100,
+          price: 25.0,
+        },
+        {
+          id: "TD1272314",
+          name: singlePackageArticle,
+          description: "Single package only",
+          packageContent: "1",
+          minQty: 1,
+          multipleQty: 1,
+          maxQty: 100,
+          price: 50.0,
+        },
+      ];
+      db.upsertProducts(products);
+    });
+
+    it("should select highest package when quantity >= highest multiple", () => {
+      const quantity = 10;
+      const variant = db.selectPackageVariant(multiPackageArticle, quantity);
+
+      expect(variant).not.toBeNull();
+      expect(variant!.id).toBe("016869K2"); // 5-piece package
+      expect(variant!.multipleQty).toBe(highestMultiple);
+    });
+
+    it("should select lowest package when quantity < highest multiple", () => {
+      const quantity = 3;
+      const variant = db.selectPackageVariant(multiPackageArticle, quantity);
+
+      expect(variant).not.toBeNull();
+      expect(variant!.id).toBe("016869K3"); // 1-piece package
+      expect(variant!.multipleQty).toBe(lowestMultiple);
+    });
+
+    it("should select only variant when single package", () => {
+      const quantity = 5;
+      const variant = db.selectPackageVariant(singlePackageArticle, quantity);
+
+      expect(variant).not.toBeNull();
+      expect(variant!.id).toBe("TD1272314");
+    });
+
+    it("should return null when article not found", () => {
+      const quantity = 5;
+      const variant = db.selectPackageVariant(nonExistentArticle, quantity);
+
+      expect(variant).toBeNull();
+    });
+
+    it("should select highest package when quantity equals highest multiple", () => {
+      const quantity = highestMultiple; // Exactly at threshold
+      const variant = db.selectPackageVariant(multiPackageArticle, quantity);
+
+      expect(variant).not.toBeNull();
+      expect(variant!.id).toBe("016869K2"); // 5-piece package (>= rule)
+    });
+
+    it("should select lowest package when quantity = 1", () => {
+      const quantity = 1;
+      const variant = db.selectPackageVariant(multiPackageArticle, quantity);
+
+      expect(variant).not.toBeNull();
+      expect(variant!.id).toBe("016869K3"); // 1-piece package
+    });
+  });
+
+  describe("selectPackageVariant validation", () => {
+    const validArticle = "H129FSQ.104.023";
+    const validQuantity = 5;
+
+    beforeEach(() => {
+      const products = [
+        {
+          id: "016869K2",
+          name: validArticle,
+          packageContent: "5",
+          minQty: 5,
+          multipleQty: 5,
+          maxQty: 500,
+          price: 100.0,
+        },
+      ];
+      db.upsertProducts(products);
+    });
+
+    it("should throw error for empty article name", () => {
+      expect(() => db.selectPackageVariant("", validQuantity)).toThrow(
+        "Article name is required"
+      );
+    });
+
+    it("should throw error for whitespace-only article name", () => {
+      expect(() => db.selectPackageVariant("   ", validQuantity)).toThrow(
+        "Article name is required"
+      );
+    });
+
+    it("should throw error for negative quantity", () => {
+      expect(() => db.selectPackageVariant(validArticle, -5)).toThrow(
+        "Quantity must be a positive number"
+      );
+    });
+
+    it("should throw error for zero quantity", () => {
+      expect(() => db.selectPackageVariant(validArticle, 0)).toThrow(
+        "Quantity must be a positive number"
+      );
+    });
+
+    it("should throw error for non-finite quantity", () => {
+      expect(() => db.selectPackageVariant(validArticle, Infinity)).toThrow(
+        "Quantity must be a positive number"
+      );
     });
   });
 });
