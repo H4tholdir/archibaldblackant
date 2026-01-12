@@ -450,10 +450,181 @@ export class PerformanceDashboardGenerator {
       });
     }
 
-    // Initialize tables
+    // Gantt chart visualization
+    function renderGanttChart() {
+      const svg = document.getElementById('gantt-svg');
+      const tooltip = document.getElementById('gantt-tooltip');
+      const categoryFilter = document.getElementById('category-filter').value;
+
+      const filtered = categoryFilter
+        ? profilingData.operations.filter(op => op.category === categoryFilter)
+        : profilingData.operations;
+
+      if (filtered.length === 0) {
+        svg.innerHTML = '<text x="10" y="30" fill="#666">No operations to display</text>';
+        return;
+      }
+
+      const startTimes = filtered.map(op => new Date(op.startIso).getTime());
+      const endTimes = filtered.map(op => new Date(op.endIso).getTime());
+      const minTime = Math.min(...startTimes);
+      const maxTime = Math.max(...endTimes);
+      const timeRange = maxTime - minTime;
+
+      const margin = { top: 40, right: 20, bottom: 40, left: 200 };
+      const chartWidth = Math.max(800, timeRange / 100);
+      const barHeight = 24;
+      const barGap = 4;
+      const chartHeight = filtered.length * (barHeight + barGap) + margin.top + margin.bottom;
+
+      svg.setAttribute('width', chartWidth + margin.left + margin.right);
+      svg.setAttribute('height', chartHeight);
+
+      svg.innerHTML = '';
+
+      const colorMap = {
+        'ok': '#28a745',
+        'error': '#dc3545'
+      };
+
+      const timeScale = (time) => {
+        return ((time - minTime) / timeRange) * chartWidth + margin.left;
+      };
+
+      const formatTime = (ms) => {
+        if (ms < 1000) return ms.toFixed(0) + 'ms';
+        return (ms / 1000).toFixed(2) + 's';
+      };
+
+      const formatTimestamp = (iso) => {
+        const date = new Date(iso);
+        return date.toLocaleTimeString();
+      };
+
+      filtered.forEach((op, index) => {
+        const y = index * (barHeight + barGap) + margin.top;
+        const startX = timeScale(new Date(op.startIso).getTime());
+        const endX = timeScale(new Date(op.endIso).getTime());
+        const width = Math.max(2, endX - startX);
+
+        const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+        g.setAttribute('class', 'gantt-bar');
+
+        const label = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+        label.setAttribute('x', margin.left - 10);
+        label.setAttribute('y', y + barHeight / 2 + 4);
+        label.setAttribute('text-anchor', 'end');
+        label.setAttribute('fill', '#495057');
+        label.setAttribute('font-size', '12');
+        label.textContent = op.name.length > 25 ? op.name.substring(0, 25) + '...' : op.name;
+        g.appendChild(label);
+
+        const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+        rect.setAttribute('x', startX);
+        rect.setAttribute('y', y);
+        rect.setAttribute('width', width);
+        rect.setAttribute('height', barHeight);
+        rect.setAttribute('fill', colorMap[op.status] || '#6c757d');
+        rect.setAttribute('opacity', '0.8');
+        rect.setAttribute('rx', '3');
+        g.appendChild(rect);
+
+        g.addEventListener('mouseenter', (e) => {
+          tooltip.style.display = 'block';
+          tooltip.innerHTML = \`
+            <strong>\${op.name}</strong><br>
+            Category: \${op.category}<br>
+            Duration: \${formatTime(op.durationMs)}<br>
+            Start: \${formatTimestamp(op.startIso)}<br>
+            Memory: \${((op.memoryAfter - op.memoryBefore) / 1024).toFixed(1)} KB<br>
+            Status: \${op.status.toUpperCase()}
+          \`;
+        });
+
+        g.addEventListener('mousemove', (e) => {
+          tooltip.style.left = (e.pageX + 10) + 'px';
+          tooltip.style.top = (e.pageY + 10) + 'px';
+        });
+
+        g.addEventListener('mouseleave', () => {
+          tooltip.style.display = 'none';
+        });
+
+        svg.appendChild(g);
+      });
+
+      const xAxisGroup = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+      const xAxisLine = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+      xAxisLine.setAttribute('x1', margin.left);
+      xAxisLine.setAttribute('y1', margin.top - 10);
+      xAxisLine.setAttribute('x2', margin.left + chartWidth);
+      xAxisLine.setAttribute('y2', margin.top - 10);
+      xAxisLine.setAttribute('stroke', '#dee2e6');
+      xAxisLine.setAttribute('stroke-width', '1');
+      xAxisGroup.appendChild(xAxisLine);
+
+      const numTicks = Math.min(10, Math.floor(chartWidth / 100));
+      for (let i = 0; i <= numTicks; i++) {
+        const x = margin.left + (i / numTicks) * chartWidth;
+        const time = minTime + (i / numTicks) * timeRange;
+        const tick = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+        tick.setAttribute('x1', x);
+        tick.setAttribute('y1', margin.top - 10);
+        tick.setAttribute('x2', x);
+        tick.setAttribute('y2', margin.top - 5);
+        tick.setAttribute('stroke', '#dee2e6');
+        xAxisGroup.appendChild(tick);
+
+        const tickLabel = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+        tickLabel.setAttribute('x', x);
+        tickLabel.setAttribute('y', margin.top - 15);
+        tickLabel.setAttribute('text-anchor', 'middle');
+        tickLabel.setAttribute('fill', '#6c757d');
+        tickLabel.setAttribute('font-size', '10');
+        tickLabel.textContent = formatTime((time - minTime));
+        xAxisGroup.appendChild(tickLabel);
+      }
+
+      svg.appendChild(xAxisGroup);
+
+      const legend = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+      const legendItems = [
+        { label: 'Success', color: '#28a745' },
+        { label: 'Error', color: '#dc3545' }
+      ];
+
+      legendItems.forEach((item, i) => {
+        const legendItem = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+        const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+        rect.setAttribute('x', margin.left + i * 100);
+        rect.setAttribute('y', chartHeight - 25);
+        rect.setAttribute('width', 16);
+        rect.setAttribute('height', 16);
+        rect.setAttribute('fill', item.color);
+        rect.setAttribute('rx', '2');
+        legendItem.appendChild(rect);
+
+        const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+        text.setAttribute('x', margin.left + i * 100 + 22);
+        text.setAttribute('y', chartHeight - 13);
+        text.setAttribute('fill', '#495057');
+        text.setAttribute('font-size', '12');
+        text.textContent = item.label;
+        legendItem.appendChild(text);
+
+        legend.appendChild(legendItem);
+      });
+
+      svg.appendChild(legend);
+    }
+
+    document.getElementById('category-filter').addEventListener('change', renderGanttChart);
+
+    // Initialize tables and chart
     populateCategoryTable();
     populateTimelineTable();
     populateCategoryFilter();
+    renderGanttChart();
   </script>
 </body>
 </html>`;
