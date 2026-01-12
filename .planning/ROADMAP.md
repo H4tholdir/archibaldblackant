@@ -46,7 +46,7 @@ Plans:
 
 Plans:
 - [x] 02-01: Setup Vitest with first unit test (smoke test)
-- [ ] 02-02: Replace console.log in Core Services (customer/product/price sync)
+- [x] 02-02: Replace console.log in Core Services (customer/product/price sync)
 - [ ] 02-03: Replace console.log in Bot & Pool (archibald-bot, browser-pool, session-manager)
 - [ ] 02-04: Remove type any in Database Layer (customer-db, product-db, schemas, types)
 - [ ] 02-05: Remove type any in Services & Bot (sync services, archibald-bot)
@@ -217,7 +217,7 @@ Plans:
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Security Critical Fixes | 5/5 | ✅ Complete | 2026-01-12 |
-| 2. Code Quality Foundation | 1/8 | In progress | - |
+| 2. Code Quality Foundation | 2/8 | In progress | - |
 | 3. MVP Order Form | 0/7 | Not started | - |
 | 4. Voice Input Enhancement | 0/5 | Not started | - |
 | 5. Order Submission | 0/6 | Not started | - |
