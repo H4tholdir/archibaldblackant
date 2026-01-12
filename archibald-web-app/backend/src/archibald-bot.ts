@@ -1754,6 +1754,17 @@ export class ArchibaldBot {
             await this.wait(300);
           }
 
+          // Populate article metadata for tracking
+          item.articleId = selectedVariant.id;
+          item.packageContent = selectedVariant.packageContent
+            ? parseInt(selectedVariant.packageContent)
+            : undefined;
+
+          logger.debug(`Article metadata populated`, {
+            articleId: item.articleId,
+            packageContent: item.packageContent,
+          });
+
           // await this.page!.screenshot({
           // path: `logs/order-step5-article-selected-${i}.png`,
           // fullPage: true,
