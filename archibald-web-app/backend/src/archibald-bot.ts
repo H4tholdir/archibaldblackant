@@ -222,6 +222,25 @@ export class ArchibaldBot {
     return lines.join("\n");
   }
 
+  private calculatePercentiles(
+    values: number[]
+  ): { p50: number; p95: number; p99: number } {
+    if (values.length === 0) {
+      return { p50: 0, p95: 0, p99: 0 };
+    }
+
+    const sorted = [...values].sort((a, b) => a - b);
+    const p50Index = Math.floor(sorted.length * 0.50);
+    const p95Index = Math.floor(sorted.length * 0.95);
+    const p99Index = Math.floor(sorted.length * 0.99);
+
+    return {
+      p50: sorted[p50Index],
+      p95: sorted[p95Index],
+      p99: sorted[p99Index],
+    };
+  }
+
   /**
    * Helper method to wait for a specified number of milliseconds
    */
