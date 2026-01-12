@@ -3,6 +3,7 @@ import { CustomerDatabase } from './customer-db';
 import { BrowserPool } from './browser-pool';
 import { logger } from './logger';
 import { SyncCheckpointManager } from './sync-checkpoint';
+import { config } from './config';
 
 export interface SyncProgress {
   status: 'idle' | 'syncing' | 'completed' | 'error';
@@ -162,14 +163,14 @@ export class CustomerSyncService extends EventEmitter {
         if (!bot.page) {
           throw new Error('Browser page is null after detached frame');
         }
-        await bot.page.goto(`https://4.231.124.90/Archibald/`, {
+        await bot.page.goto(config.archibald.url, {
           waitUntil: 'networkidle2',
           timeout: 60000,
         });
       }
 
       logger.info('Navigazione alla pagina clienti...');
-      await bot.page.goto(`https://4.231.124.90/Archibald/CUSTTABLE_ListView/`, {
+      await bot.page.goto(`${config.archibald.url}/CUSTTABLE_ListView/`, {
         waitUntil: 'networkidle2',
         timeout: 60000,
       });

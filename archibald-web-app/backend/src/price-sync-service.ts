@@ -3,6 +3,7 @@ import { ProductDatabase } from "./product-db";
 import { BrowserPool } from "./browser-pool";
 import { logger } from "./logger";
 import { SyncCheckpointManager } from "./sync-checkpoint";
+import { config } from "./config";
 
 export interface PriceSyncProgress {
   status: "idle" | "syncing" | "completed" | "error";
@@ -166,7 +167,7 @@ export class PriceSyncService extends EventEmitter {
         if (!bot.page) {
           throw new Error('Browser page is null after detached frame');
         }
-        await bot.page.goto(`https://4.231.124.90/Archibald/`, {
+        await bot.page.goto(config.archibald.url, {
           waitUntil: "networkidle2",
           timeout: 60000,
         });
@@ -174,7 +175,7 @@ export class PriceSyncService extends EventEmitter {
 
       logger.info("Navigazione alla tabella prezzi...");
       await bot.page!.goto(
-        `https://4.231.124.90/Archibald/PRICEDISCTABLE_ListView/`,
+        `${config.archibald.url}/PRICEDISCTABLE_ListView/`,
         {
           waitUntil: "networkidle2",
           timeout: 60000,

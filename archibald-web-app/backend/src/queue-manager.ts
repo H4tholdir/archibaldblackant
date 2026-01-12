@@ -3,6 +3,7 @@ import { Redis } from 'ioredis';
 import { logger } from './logger';
 import { BrowserPool } from './browser-pool';
 import type { OrderData } from './types';
+import { config } from './config';
 
 /**
  * Job data per la coda ordini
@@ -190,7 +191,7 @@ export class QueueManager {
       if (cookies && cookies.length > 0 && bot.page) {
         logger.info('🔐 Riutilizzo sessione login esistente...');
         await bot.page.setCookie(...cookies);
-        await bot.page.goto('https://4.231.124.90/Archibald/', {
+        await bot.page.goto(config.archibald.url, {
           waitUntil: 'networkidle2',
           timeout: 30000,
         });

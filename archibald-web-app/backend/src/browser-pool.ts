@@ -1,6 +1,7 @@
 import { ArchibaldBot } from "./archibald-bot";
 import { logger } from "./logger";
 import { SessionManager } from "./session-manager";
+import { config } from "./config";
 
 /**
  * Browser Pool Manager
@@ -77,7 +78,7 @@ export class BrowserPool {
         await bot.page.setCookie(...cookies);
 
         // Naviga alla home per verificare la sessione
-        await bot.page.goto("https://4.231.124.90/Archibald/", {
+        await bot.page.goto(config.archibald.url, {
           waitUntil: "networkidle2",
           timeout: 30000,
         });
@@ -150,7 +151,7 @@ export class BrowserPool {
       if (cookies && cookies.length > 0 && bot.page) {
         logger.info("Riutilizzo sessione Archibald esistente");
         await bot.page.setCookie(...cookies);
-        await bot.page.goto("https://4.231.124.90/Archibald/", {
+        await bot.page.goto(config.archibald.url, {
           waitUntil: "networkidle2",
           timeout: 30000,
         });
@@ -243,7 +244,7 @@ export class BrowserPool {
       try {
         if (bot.page && !bot.page.isClosed()) {
           logger.debug("Reset browser alla home page prima di rilasciarlo...");
-          await bot.page.goto("https://4.231.124.90/Archibald/", {
+          await bot.page.goto(config.archibald.url, {
             waitUntil: "networkidle2",
             timeout: 10000,
           });
