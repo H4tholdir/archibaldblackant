@@ -11,10 +11,13 @@ import type { ApiResponse, OrderData } from "./types";
 import { QueueManager } from "./queue-manager";
 import { BrowserPool } from "./browser-pool";
 import { CustomerDatabase } from "./customer-db";
-import { CustomerSyncService } from "./customer-sync-service";
+import {
+  CustomerSyncService,
+  type SyncProgress,
+} from "./customer-sync-service";
 import { ProductDatabase } from "./product-db";
 import { ProductSyncService } from "./product-sync-service";
-import { PriceSyncService } from "./price-sync-service";
+import { PriceSyncService, type PriceSyncProgress } from "./price-sync-service";
 import { SyncCheckpointManager } from "./sync-checkpoint";
 
 const app = express();
@@ -40,7 +43,9 @@ function acquireSyncLock(type: "customers" | "products" | "prices"): boolean {
     return false;
   }
   if (activeOperation) {
-    logger.warn(`Operazione ${activeOperation} già in corso, rifiuto richiesta ${type}`);
+    logger.warn(
+      `Operazione ${activeOperation} già in corso, rifiuto richiesta ${type}`,
+    );
     return false;
   }
   activeOperation = type;
@@ -58,7 +63,9 @@ function releaseSyncLock() {
 function acquireOrderLock(): boolean {
   // Controlla se c'è un'operazione nel lock globale
   if (activeOperation) {
-    logger.warn(`⚠️ Operazione ${activeOperation} in corso (global lock), richiedo interruzione...`);
+    logger.warn(
+      `⚠️ Operazione ${activeOperation} in corso (global lock), richiedo interruzione...`,
+    );
     if (activeOperation === "customers") {
       syncService.requestStop();
     } else if (activeOperation === "products") {
@@ -76,19 +83,25 @@ function acquireOrderLock(): boolean {
   const priceProgress = priceSyncService.getProgress();
 
   if (customerProgress.status === "syncing") {
-    logger.warn(`⚠️ Sync clienti in corso (status check), richiedo interruzione...`);
+    logger.warn(
+      `⚠️ Sync clienti in corso (status check), richiedo interruzione...`,
+    );
     syncService.requestStop();
     return false;
   }
 
   if (productProgress.status === "syncing") {
-    logger.warn(`⚠️ Sync prodotti in corso (status check), richiedo interruzione...`);
+    logger.warn(
+      `⚠️ Sync prodotti in corso (status check), richiedo interruzione...`,
+    );
     productSyncService.requestStop();
     return false;
   }
 
   if (priceProgress.status === "syncing") {
-    logger.warn(`⚠️ Sync prezzi in corso (status check), richiedo interruzione...`);
+    logger.warn(
+      `⚠️ Sync prezzi in corso (status check), richiedo interruzione...`,
+    );
     priceSyncService.requestStop();
     return false;
   }
@@ -129,17 +142,17 @@ wss.on("connection", (ws) => {
   ws.send(JSON.stringify(productSyncService.getProgress()));
 
   // Listener per aggiornamenti clienti
-  const customerProgressListener = (progress: any) => {
+  const customerProgressListener = (progress: SyncProgress) => {
     ws.send(JSON.stringify(progress));
   };
 
   // Listener per aggiornamenti prodotti
-  const productProgressListener = (progress: any) => {
+  const productProgressListener = (progress: SyncProgress) => {
     ws.send(JSON.stringify(progress));
   };
 
   // Listener per aggiornamenti prezzi
-  const priceProgressListener = (progress: any) => {
+  const priceProgressListener = (progress: PriceSyncProgress) => {
     ws.send(JSON.stringify(progress));
   };
 
@@ -467,118 +480,130 @@ app.post("/api/sync/full", async (req: Request, res: Response<ApiResponse>) => {
 });
 
 // Endpoint singolo per sync clienti
-app.post("/api/sync/customers", async (req: Request, res: Response<ApiResponse>) => {
-  try {
-    logger.info("Richiesta sync clienti");
+app.post(
+  "/api/sync/customers",
+  async (req: Request, res: Response<ApiResponse>) => {
+    try {
+      logger.info("Richiesta sync clienti");
 
-    if (!acquireSyncLock("customers")) {
-      return res.status(409).json({
+      if (!acquireSyncLock("customers")) {
+        return res.status(409).json({
+          success: false,
+          error: `Sincronizzazione ${activeOperation} già in corso. Attendere il completamento.`,
+        });
+      }
+
+      // Avvia sync in background
+      (async () => {
+        try {
+          await syncService.syncCustomers();
+          logger.info("✅ Sync clienti completato");
+        } catch (error) {
+          logger.error("❌ Errore sync clienti", { error });
+        } finally {
+          releaseSyncLock();
+        }
+      })();
+
+      res.json({
+        success: true,
+        message: "Sincronizzazione clienti avviata",
+      });
+    } catch (error) {
+      logger.error("Errore API /api/sync/customers", { error });
+      releaseSyncLock();
+      res.status(500).json({
         success: false,
-        error: `Sincronizzazione ${activeOperation} già in corso. Attendere il completamento.`,
+        error:
+          error instanceof Error ? error.message : "Errore avvio sync clienti",
       });
     }
-
-    // Avvia sync in background
-    (async () => {
-      try {
-        await syncService.syncCustomers();
-        logger.info("✅ Sync clienti completato");
-      } catch (error) {
-        logger.error("❌ Errore sync clienti", { error });
-      } finally {
-        releaseSyncLock();
-      }
-    })();
-
-    res.json({
-      success: true,
-      message: "Sincronizzazione clienti avviata",
-    });
-  } catch (error) {
-    logger.error("Errore API /api/sync/customers", { error });
-    releaseSyncLock();
-    res.status(500).json({
-      success: false,
-      error: error instanceof Error ? error.message : "Errore avvio sync clienti",
-    });
-  }
-});
+  },
+);
 
 // Endpoint singolo per sync prodotti
-app.post("/api/sync/products", async (req: Request, res: Response<ApiResponse>) => {
-  try {
-    logger.info("Richiesta sync prodotti");
+app.post(
+  "/api/sync/products",
+  async (req: Request, res: Response<ApiResponse>) => {
+    try {
+      logger.info("Richiesta sync prodotti");
 
-    if (!acquireSyncLock("products")) {
-      return res.status(409).json({
+      if (!acquireSyncLock("products")) {
+        return res.status(409).json({
+          success: false,
+          error: `Sincronizzazione ${activeOperation} già in corso. Attendere il completamento.`,
+        });
+      }
+
+      // Avvia sync in background
+      (async () => {
+        try {
+          await productSyncService.syncProducts();
+          logger.info("✅ Sync prodotti completato");
+        } catch (error) {
+          logger.error("❌ Errore sync prodotti", { error });
+        } finally {
+          releaseSyncLock();
+        }
+      })();
+
+      res.json({
+        success: true,
+        message: "Sincronizzazione prodotti avviata",
+      });
+    } catch (error) {
+      logger.error("Errore API /api/sync/products", { error });
+      releaseSyncLock();
+      res.status(500).json({
         success: false,
-        error: `Sincronizzazione ${activeOperation} già in corso. Attendere il completamento.`,
+        error:
+          error instanceof Error ? error.message : "Errore avvio sync prodotti",
       });
     }
-
-    // Avvia sync in background
-    (async () => {
-      try {
-        await productSyncService.syncProducts();
-        logger.info("✅ Sync prodotti completato");
-      } catch (error) {
-        logger.error("❌ Errore sync prodotti", { error });
-      } finally {
-        releaseSyncLock();
-      }
-    })();
-
-    res.json({
-      success: true,
-      message: "Sincronizzazione prodotti avviata",
-    });
-  } catch (error) {
-    logger.error("Errore API /api/sync/products", { error });
-    releaseSyncLock();
-    res.status(500).json({
-      success: false,
-      error: error instanceof Error ? error.message : "Errore avvio sync prodotti",
-    });
-  }
-});
+  },
+);
 
 // Endpoint singolo per sync prezzi
-app.post("/api/sync/prices", async (req: Request, res: Response<ApiResponse>) => {
-  try {
-    logger.info("Richiesta sync prezzi");
+app.post(
+  "/api/sync/prices",
+  async (req: Request, res: Response<ApiResponse>) => {
+    try {
+      logger.info("Richiesta sync prezzi");
 
-    if (!acquireSyncLock("prices")) {
-      return res.status(409).json({
+      if (!acquireSyncLock("prices")) {
+        return res.status(409).json({
+          success: false,
+          error: `Sincronizzazione ${activeOperation} già in corso. Attendere il completamento.`,
+        });
+      }
+
+      // Avvia sync in background
+      (async () => {
+        try {
+          await priceSyncService.syncPrices();
+          logger.info("✅ Sync prezzi completato");
+        } catch (error) {
+          logger.error("❌ Errore sync prezzi", { error });
+        } finally {
+          releaseSyncLock();
+        }
+      })();
+
+      res.json({
+        success: true,
+        message: "Sincronizzazione prezzi avviata",
+      });
+    } catch (error) {
+      logger.error("Errore API /api/sync/prices", { error });
+      releaseSyncLock();
+      res.status(500).json({
         success: false,
-        error: `Sincronizzazione ${activeOperation} già in corso. Attendere il completamento.`,
+        error:
+          error instanceof Error ? error.message : "Errore avvio sync prezzi",
       });
     }
-
-    // Avvia sync in background
-    (async () => {
-      try {
-        await priceSyncService.syncPrices();
-        logger.info("✅ Sync prezzi completato");
-      } catch (error) {
-        logger.error("❌ Errore sync prezzi", { error });
-      } finally {
-        releaseSyncLock();
-      }
-    })();
-
-    res.json({
-      success: true,
-      message: "Sincronizzazione prezzi avviata",
-    });
-  } catch (error) {
-    logger.error("Errore API /api/sync/prices", { error });
-    releaseSyncLock();
-    res.status(500).json({
-      success: false,
-      error: error instanceof Error ? error.message : "Errore avvio sync prezzi",
-    });
-  }
-});
+  },
+);
 
 // Endpoint per ottenere statistiche checkpoint
 app.get("/api/sync/stats", async (req: Request, res: Response<ApiResponse>) => {
@@ -603,116 +628,139 @@ app.get("/api/sync/stats", async (req: Request, res: Response<ApiResponse>) => {
 // ============================================================================
 
 // Ottieni statistiche timeout adattivi
-app.get("/api/timeouts/stats", async (req: Request, res: Response<ApiResponse>) => {
-  try {
-    const { AdaptiveTimeoutManager } = await import("./adaptive-timeout-manager");
-    const manager = AdaptiveTimeoutManager.getInstance();
-    const stats = manager.getAllStats();
+app.get(
+  "/api/timeouts/stats",
+  async (req: Request, res: Response<ApiResponse>) => {
+    try {
+      const { AdaptiveTimeoutManager } =
+        await import("./adaptive-timeout-manager");
+      const manager = AdaptiveTimeoutManager.getInstance();
+      const stats = manager.getAllStats();
 
-    res.json({
-      success: true,
-      data: stats,
-    });
-  } catch (error) {
-    logger.error("Errore API /api/timeouts/stats", { error });
-    res.status(500).json({
-      success: false,
-      error: error instanceof Error ? error.message : "Errore recupero stats timeout",
-    });
-  }
-});
+      res.json({
+        success: true,
+        data: stats,
+      });
+    } catch (error) {
+      logger.error("Errore API /api/timeouts/stats", { error });
+      res.status(500).json({
+        success: false,
+        error:
+          error instanceof Error
+            ? error.message
+            : "Errore recupero stats timeout",
+      });
+    }
+  },
+);
 
 // Reset statistiche timeout (mantiene i timeout correnti)
-app.post("/api/timeouts/reset/:operation?", async (req: Request, res: Response<ApiResponse>) => {
-  try {
-    const { AdaptiveTimeoutManager } = await import("./adaptive-timeout-manager");
-    const manager = AdaptiveTimeoutManager.getInstance();
-    const operation = req.params.operation;
+app.post(
+  "/api/timeouts/reset/:operation?",
+  async (req: Request, res: Response<ApiResponse>) => {
+    try {
+      const { AdaptiveTimeoutManager } =
+        await import("./adaptive-timeout-manager");
+      const manager = AdaptiveTimeoutManager.getInstance();
+      const operation = req.params.operation;
 
-    if (operation) {
-      manager.resetStats(operation);
-      logger.info(`Stats timeout ${operation} resettate`);
-      res.json({
-        success: true,
-        message: `Statistiche per ${operation} resettate`,
-      });
-    } else {
-      manager.resetStats();
-      logger.info("Tutte le stats timeout resettate");
-      res.json({
-        success: true,
-        message: "Tutte le statistiche timeout resettate",
+      if (operation) {
+        manager.resetStats(operation);
+        logger.info(`Stats timeout ${operation} resettate`);
+        res.json({
+          success: true,
+          message: `Statistiche per ${operation} resettate`,
+        });
+      } else {
+        manager.resetStats();
+        logger.info("Tutte le stats timeout resettate");
+        res.json({
+          success: true,
+          message: "Tutte le statistiche timeout resettate",
+        });
+      }
+    } catch (error) {
+      logger.error("Errore API /api/timeouts/reset", { error });
+      res.status(500).json({
+        success: false,
+        error:
+          error instanceof Error ? error.message : "Errore reset stats timeout",
       });
     }
-  } catch (error) {
-    logger.error("Errore API /api/timeouts/reset", { error });
-    res.status(500).json({
-      success: false,
-      error: error instanceof Error ? error.message : "Errore reset stats timeout",
-    });
-  }
-});
+  },
+);
 
 // Forza un timeout specifico per un'operazione
-app.post("/api/timeouts/set", async (req: Request, res: Response<ApiResponse>) => {
-  try {
-    const { operation, timeout } = req.body;
+app.post(
+  "/api/timeouts/set",
+  async (req: Request, res: Response<ApiResponse>) => {
+    try {
+      const { operation, timeout } = req.body;
 
-    if (!operation || typeof timeout !== "number") {
-      return res.status(400).json({
+      if (!operation || typeof timeout !== "number") {
+        return res.status(400).json({
+          success: false,
+          error: "Parametri richiesti: operation (string), timeout (number)",
+        });
+      }
+
+      const { AdaptiveTimeoutManager } =
+        await import("./adaptive-timeout-manager");
+      const manager = AdaptiveTimeoutManager.getInstance();
+      manager.setTimeout(operation, timeout);
+
+      res.json({
+        success: true,
+        message: `Timeout per ${operation} impostato a ${timeout}ms`,
+      });
+    } catch (error) {
+      logger.error("Errore API /api/timeouts/set", { error });
+      res.status(500).json({
         success: false,
-        error: "Parametri richiesti: operation (string), timeout (number)",
+        error:
+          error instanceof Error
+            ? error.message
+            : "Errore impostazione timeout",
       });
     }
-
-    const { AdaptiveTimeoutManager } = await import("./adaptive-timeout-manager");
-    const manager = AdaptiveTimeoutManager.getInstance();
-    manager.setTimeout(operation, timeout);
-
-    res.json({
-      success: true,
-      message: `Timeout per ${operation} impostato a ${timeout}ms`,
-    });
-  } catch (error) {
-    logger.error("Errore API /api/timeouts/set", { error });
-    res.status(500).json({
-      success: false,
-      error: error instanceof Error ? error.message : "Errore impostazione timeout",
-    });
-  }
-});
+  },
+);
 
 // ============================================================================
 // SYNC ENDPOINTS
 // ============================================================================
 
 // Endpoint per resettare un checkpoint (forza re-sync completo)
-app.post("/api/sync/reset/:type", async (req: Request, res: Response<ApiResponse>) => {
-  try {
-    const syncType = req.params.type as "customers" | "products" | "prices";
+app.post(
+  "/api/sync/reset/:type",
+  async (req: Request, res: Response<ApiResponse>) => {
+    try {
+      const syncType = req.params.type as "customers" | "products" | "prices";
 
-    if (!["customers", "products", "prices"].includes(syncType)) {
-      return res.status(400).json({
+      if (!["customers", "products", "prices"].includes(syncType)) {
+        return res.status(400).json({
+          success: false,
+          error: "Tipo sync non valido. Usare: customers, products, prices",
+        });
+      }
+
+      checkpointManager.resetCheckpoint(syncType);
+      logger.info(`Checkpoint ${syncType} resettato`);
+
+      res.json({
+        success: true,
+        message: `Checkpoint ${syncType} resettato. Prossima sync ripartirà da pagina 1.`,
+      });
+    } catch (error) {
+      logger.error("Errore API /api/sync/reset", { error });
+      res.status(500).json({
         success: false,
-        error: "Tipo sync non valido. Usare: customers, products, prices",
+        error:
+          error instanceof Error ? error.message : "Errore reset checkpoint",
       });
     }
-
-    checkpointManager.resetCheckpoint(syncType);
-    logger.info(`Checkpoint ${syncType} resettato`);
-
-    res.json({
-      success: true,
-      message: `Checkpoint ${syncType} resettato. Prossima sync ripartirà da pagina 1.`,
-    });
-  } catch (error) {
-    logger.error("Errore API /api/sync/reset", { error });
-    res.status(500).json({
-      success: false,
-      error: error instanceof Error ? error.message : "Errore reset checkpoint",
-    });
-  }
-});
+  },
+);
 
 // Trigger manual products sync endpoint
 app.post(
@@ -755,10 +803,10 @@ app.post(
       logger.info("📥 API: Ricevuta richiesta creazione ordine", {
         customerName: orderData.customerName,
         itemsCount: orderData.items.length,
-        items: orderData.items.map(item => ({
+        items: orderData.items.map((item) => ({
           name: item.productName || item.articleCode,
-          qty: item.quantity
-        }))
+          qty: item.quantity,
+        })),
       });
 
       // Aggiungi alla coda
@@ -769,7 +817,7 @@ app.post(
 
       logger.info("✅ API: Ordine aggiunto alla coda con successo", {
         jobId: job.id,
-        itemsCount: orderData.items.length
+        itemsCount: orderData.items.length,
       });
 
       res.json({
@@ -911,9 +959,13 @@ server.listen(config.server.port, async () => {
 
     const msUntilNext = next12PM.getTime() - now.getTime();
     const hoursUntil = Math.floor(msUntilNext / (1000 * 60 * 60));
-    const minutesUntil = Math.floor((msUntilNext % (1000 * 60 * 60)) / (1000 * 60));
+    const minutesUntil = Math.floor(
+      (msUntilNext % (1000 * 60 * 60)) / (1000 * 60),
+    );
 
-    logger.info(`⏰ Prossimo sync automatico programmato per ${next12PM.toLocaleString('it-IT')} (tra ${hoursUntil}h ${minutesUntil}m)`);
+    logger.info(
+      `⏰ Prossimo sync automatico programmato per ${next12PM.toLocaleString("it-IT")} (tra ${hoursUntil}h ${minutesUntil}m)`,
+    );
 
     setTimeout(async () => {
       try {
