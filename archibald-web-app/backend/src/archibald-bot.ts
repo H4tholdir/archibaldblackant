@@ -330,7 +330,6 @@ export class ArchibaldBot {
             const inputs = Array.from(
               document.querySelectorAll('input[type="text"]'),
             );
-            console.log("Input text trovati:", inputs.length);
 
             const userInput = inputs.find(
               (input) =>
@@ -341,10 +340,6 @@ export class ArchibaldBot {
             );
 
             if (userInput) {
-              console.log(
-                "Campo username trovato:",
-                userInput.id || userInput.name,
-              );
               return (
                 (userInput as HTMLInputElement).id ||
                 (userInput as HTMLInputElement).name
@@ -353,7 +348,6 @@ export class ArchibaldBot {
 
             // Fallback: prendi il primo input text visibile
             if (inputs.length > 0) {
-              console.log("Fallback: uso primo input text");
               return (
                 (inputs[0] as HTMLInputElement).id ||
                 (inputs[0] as HTMLInputElement).name
@@ -373,13 +367,11 @@ export class ArchibaldBot {
             const inputs = Array.from(
               document.querySelectorAll('input[type="password"]'),
             );
-            console.log("Input password trovati:", inputs.length);
 
             if (inputs.length > 0) {
               const pwdField =
                 (inputs[0] as HTMLInputElement).id ||
                 (inputs[0] as HTMLInputElement).name;
-              console.log("Campo password trovato:", pwdField);
               return pwdField;
             }
             return null;
@@ -544,19 +536,6 @@ export class ArchibaldBot {
             document.querySelectorAll(selectors.join(", ")),
           );
 
-          // Log di tutti gli elementi con "ordini" nel testo (per debug)
-          const ordiniElements = allElements.filter((el) =>
-            el.textContent?.toLowerCase().includes("ordini"),
-          );
-          console.log(
-            'Elementi con "ordini" trovati:',
-            ordiniElements.map((el) => ({
-              text: el.textContent?.trim(),
-              tag: el.tagName,
-              class: (el as HTMLElement).className,
-            })),
-          );
-
           // Cerca l'elemento esatto
           const menuItem = allElements.find((el) => {
             const text = el.textContent?.toLowerCase().trim() || "";
@@ -567,12 +546,6 @@ export class ArchibaldBot {
           });
 
           if (menuItem) {
-            console.log("Menu trovato:", {
-              text: menuItem.textContent,
-              tag: menuItem.tagName,
-              class: (menuItem as HTMLElement).className,
-            });
-
             // Prova diversi metodi di click
             (menuItem as HTMLElement).click();
 
@@ -580,7 +553,7 @@ export class ArchibaldBot {
             if (menuItem.tagName === "A") {
               const href = (menuItem as HTMLAnchorElement).href;
               if (href && href !== "#") {
-                console.log("Link href:", href);
+                // Link click will be handled automatically
               }
             }
 
@@ -673,7 +646,6 @@ export class ArchibaldBot {
           });
 
           if (nuovoBtn) {
-            console.log("Pulsante Nuovo trovato:", nuovoBtn.textContent);
             (nuovoBtn as HTMLElement).click();
             return true;
           }
@@ -809,11 +781,9 @@ export class ArchibaldBot {
 
           if (customerInput) {
             const fieldId = (customerInput as HTMLInputElement).id;
-            console.log('Campo "Account esterno" trovato:', fieldId);
             return "#" + fieldId;
           }
 
-          console.log('Campo "Account esterno" NON trovato');
           return null;
         });
 
@@ -1048,8 +1018,6 @@ export class ArchibaldBot {
 
           // APPROCCIO DIRETTO: Cerca il pulsante "New" per aggiungere articoli
           const plusButtonClicked = await this.page.evaluate(() => {
-            console.log("=== RICERCA PULSANTE NEW PER SALESLINE ===");
-
             // Strategia 1: Cerca img con title="New" e id che contiene "SALESLINE" e "DXCBtn"
             const newButtonImages = Array.from(
               document.querySelectorAll<HTMLImageElement>(
@@ -1062,29 +1030,16 @@ export class ArchibaldBot {
               // FIXED: Accetta DXCBtn con qualsiasi numero (DXCBtn0Img, DXCBtn1Img, ecc.)
               const hasDXCBtn =
                 el.id.includes("DXCBtn") && el.id.includes("Img");
-              console.log(
-                `Found img: id=${el.id}, title=${el.title}, hasSalesline=${hasSaleslineInId}, hasDXCBtn=${hasDXCBtn}, visible=${visible}`,
-              );
               return visible && hasSaleslineInId && hasDXCBtn;
             });
 
-            console.log(
-              'Pulsanti "New" SALESLINE trovati:',
-              newButtonImages.length,
-            );
-
             if (newButtonImages.length > 0) {
               const btn = newButtonImages[0];
-              console.log('Clicking "New" button:', btn.id);
               btn.click();
               return true;
             }
 
             // Strategia 2: Cerca qualsiasi DXCBtn nella griglia SALESLINE
-            console.log(
-              "Strategia 2: cerca img con DXCBtn nella griglia SALESLINE",
-            );
-
             // Cerca direttamente tutti i pulsanti DXCBtn nella sezione SALESLINE
             const allDXCButtons = Array.from(
               document.querySelectorAll<HTMLImageElement>(
@@ -1093,21 +1048,14 @@ export class ArchibaldBot {
             ).filter((img) => {
               const visible = img.offsetParent !== null;
               const isNew = img.title === "New" || img.alt === "New";
-              console.log(
-                `DXCBtn found: id=${img.id}, title=${img.title}, visible=${visible}, isNew=${isNew}`,
-              );
               return visible && isNew;
             });
 
-            console.log("DXCBtn buttons trovati:", allDXCButtons.length);
-
             if (allDXCButtons.length > 0) {
-              console.log("Clicking DXCBtn button:", allDXCButtons[0].id);
               allDXCButtons[0].click();
               return true;
             }
 
-            console.log("ERRORE: Nessun pulsante New/DXCBtn trovato");
             return false;
           });
 
@@ -2194,20 +2142,11 @@ export class ArchibaldBot {
               const hasDXCBtn =
                 el.id.includes("DXCBtn") && el.id.includes("Img");
               const hasSalesLine = el.id.includes("SALESLINE");
-              console.log(
-                `Update button: id=${el.id}, visible=${visible}, hasDXCBtn=${hasDXCBtn}, hasSalesLine=${hasSalesLine}`,
-              );
               return visible && hasDXCBtn && hasSalesLine;
             });
 
-            console.log(
-              'Pulsanti "Update" (SALESLINE) trovati:',
-              updateButtons.length,
-            );
-
             if (updateButtons.length > 0) {
               const btn = updateButtons[0];
-              console.log('Clicking "Update" button:', btn.id);
               btn.click();
               return true;
             }
@@ -2224,19 +2163,12 @@ export class ArchibaldBot {
               return visible && hasDXCBtn;
             });
 
-            console.log(
-              'Pulsanti "Update" fallback trovati:',
-              fallbackButtons.length,
-            );
-
             if (fallbackButtons.length > 0) {
               const btn = fallbackButtons[0];
-              console.log('Clicking "Update" fallback:', btn.id);
               btn.click();
               return true;
             }
 
-            console.log("ERRORE: Pulsante Update non trovato");
             return false;
           });
 
