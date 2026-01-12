@@ -449,7 +449,9 @@ describe("ProductDatabase", () => {
     it("should order variants by multipleQty DESC", () => {
       const variants = db.getProductVariants(multiPackageArticle);
 
-      expect(variants[0].multipleQty).toBeGreaterThanOrEqual(variants[1].multipleQty!);
+      expect(variants[0].multipleQty).toBeGreaterThanOrEqual(
+        variants[1].multipleQty!,
+      );
     });
   });
 
@@ -567,31 +569,31 @@ describe("ProductDatabase", () => {
 
     it("should throw error for empty article name", () => {
       expect(() => db.selectPackageVariant("", validQuantity)).toThrow(
-        "Article name is required"
+        "Article name is required",
       );
     });
 
     it("should throw error for whitespace-only article name", () => {
       expect(() => db.selectPackageVariant("   ", validQuantity)).toThrow(
-        "Article name is required"
+        "Article name is required",
       );
     });
 
     it("should throw error for negative quantity", () => {
       expect(() => db.selectPackageVariant(validArticle, -5)).toThrow(
-        "Quantity must be a positive number"
+        "Quantity must be a positive number",
       );
     });
 
     it("should throw error for zero quantity", () => {
       expect(() => db.selectPackageVariant(validArticle, 0)).toThrow(
-        "Quantity must be a positive number"
+        "Quantity must be a positive number",
       );
     });
 
     it("should throw error for non-finite quantity", () => {
       expect(() => db.selectPackageVariant(validArticle, Infinity)).toThrow(
-        "Quantity must be a positive number"
+        "Quantity must be a positive number",
       );
     });
   });
