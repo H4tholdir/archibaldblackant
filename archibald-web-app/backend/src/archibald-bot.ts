@@ -2354,6 +2354,30 @@ export class ArchibaldBot {
             ? parseInt(selectedVariant.packageContent)
             : undefined;
 
+          // Validate quantity against package rules
+          const validation = this.productDb.validateQuantity(
+            selectedVariant,
+            item.quantity,
+          );
+
+          if (!validation.valid) {
+            const errorMsg = `Quantity ${item.quantity} is invalid for article ${item.articleCode} (variant ${selectedVariant.id}): ${validation.errors.join(", ")}`;
+            const suggestMsg = validation.suggestions
+              ? ` Suggested quantities: ${validation.suggestions.join(", ")}`
+              : "";
+
+            logger.error(`❌ ${errorMsg}${suggestMsg}`);
+            throw new Error(`${errorMsg}${suggestMsg}`);
+          }
+
+          logger.info(`✅ Quantity ${item.quantity} validated successfully`, {
+            articleCode: item.articleCode,
+            variantId: selectedVariant.id,
+            minQty: selectedVariant.minQty,
+            multipleQty: selectedVariant.multipleQty,
+            maxQty: selectedVariant.maxQty,
+          });
+
           await this.wait(1000);
           await this.waitForDevExpressReady({ timeout: 3000 });
         }, "form.article");
