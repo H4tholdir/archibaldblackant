@@ -5,14 +5,11 @@ import * as fixtures from './test-fixtures/orders';
 
 describe('Package Selection Integration Tests', () => {
   let bot: ArchibaldBot;
-  let productDb: ProductDatabase;
 
   beforeAll(async () => {
-    // Initialize bot and DB
-    productDb = new ProductDatabase('./data/products.db');
-    bot = new ArchibaldBot(productDb);
-
-    await bot.init();
+    // Initialize bot (uses singleton ProductDatabase)
+    bot = new ArchibaldBot();
+    await bot.initialize();
   });
 
   afterAll(async () => {
