@@ -49,7 +49,7 @@ Plans:
 - [x] 02-02: Replace console.log in Core Services (customer/product/price sync)
 - [x] 02-03: Replace console.log in Bot & Pool (archibald-bot, browser-pool, session-manager)
 - [x] 02-04: Remove type any in Database Layer (customer-db, product-db, schemas, types)
-- [ ] 02-05: Remove type any in Services & Bot (sync services, archibald-bot)
+- [x] 02-05: Remove type any in Services & Bot (sync services, archibald-bot)
 - [ ] 02-06: Remove Dead Code (product-sync-service, backup files)
 - [ ] 02-07: Unit Tests for Database Layer (TDD - CustomerDatabase, ProductDatabase)
 - [ ] 02-08: Integration Tests for Sync Services (TDD - sync services with mocked Puppeteer)
