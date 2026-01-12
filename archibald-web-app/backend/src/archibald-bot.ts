@@ -784,233 +784,55 @@ export class ArchibaldBot {
       })),
     });
 
+    let orderId = "";
+
     try {
-      // 1. Prima clicca su "Inserimento ordini" nel menu laterale
-      await this.runOp("order.menu.inserimento", async () => {
-        logger.debug('Cerco voce menu "Inserimento ordini"...');
+      // STEP 1: Click "Ordini" in left menu
+      await this.runOp("order.menu.ordini", async () => {
+        logger.debug('Clicking "Ordini" menu item...');
 
-        // Salva screenshot del menu per debug
-        // await this.page.screenshot({
-        // path: "logs/menu-dashboard.png",
-        // fullPage: true,
-        // });
-
-        const menuClicked = await this.page.evaluate(() => {
-          // Cerca specificamente nel menu laterale (probabilmente è dentro un div con classe specifica)
-          // Prova a cercare in diverse strutture comuni di DevExpress
-          const selectors = [
-            "a",
-            "span",
-            "div",
-            "td",
-            ".dxm-item",
-            ".dxm-content", // DevExpress menu classes
-            '[role="menuitem"]',
-          ];
-
-          const allElements = Array.from(
-            document.querySelectorAll(selectors.join(", ")),
-          );
-
-          // Cerca l'elemento esatto
-          const menuItem = allElements.find((el) => {
-            const text = el.textContent?.toLowerCase().trim() || "";
-            const isExactMatch = text === "inserimento ordini";
-            const isPartialMatch =
-              text.includes("inserimento ordini") && text.length < 50;
-            return isExactMatch || isPartialMatch;
-          });
-
-          if (menuItem) {
-            // Prova diversi metodi di click
-            (menuItem as HTMLElement).click();
-
-            // Se è un link, prova anche a seguire l'href
-            if (menuItem.tagName === "A") {
-              const href = (menuItem as HTMLAnchorElement).href;
-              if (href && href !== "#") {
-                // Link click will be handled automatically
-              }
-            }
-
-            return true;
-          }
-          return false;
+        const clicked = await this.clickElementByText("Ordini", {
+          exact: true,
+          selectors: ["a", "span", "div", "td"],
         });
 
-        if (!menuClicked) {
-          logger.warn(
-            'Menu "Inserimento ordini" non trovato con evaluate, provo con Puppeteer click',
-          );
-
-          // Metodo alternativo: usa Puppeteer per cliccare
-          try {
-            const menuElements = await this.page.$$("a, span, div, td");
-
-            for (const element of menuElements) {
-              const text = await this.page.evaluate(
-                (el) => el.textContent?.trim() || "",
-                element,
-              );
-
-              if (
-                text.toLowerCase() === "inserimento ordini" ||
-                (text.toLowerCase().includes("inserimento ordini") &&
-                  text.length < 50)
-              ) {
-                logger.debug(`Trovato con Puppeteer: "${text}"`);
-                await element.click();
-                logger.debug("Click Puppeteer riuscito");
-                // Aspetta che carichi la lista ordini e il pulsante "Nuovo" venga renderizzato
-                await this.wait(5000);
-                break;
-              }
-            }
-          } catch (error) {
-            logger.error("Errore nel click Puppeteer", { error });
-          }
-
-          // Screenshot dopo tentativo click
-          // await this.page.screenshot({
-          // path: "logs/menu-clicked.png",
-          // fullPage: true,
-          // });
-        } else {
-          logger.debug('Click su menu "Inserimento ordini" riuscito');
-
-          // OTTIMIZZAZIONE: Aspetta dinamicamente che il pulsante "Nuovo" sia visibile
-          try {
-            await this.page!.waitForFunction(
-              () => {
-                const allElements = Array.from(
-                  document.querySelectorAll("button, a, span, div"),
-                );
-                const nuovoBtn = allElements.find((el) => {
-                  const htmlEl = el as HTMLElement;
-                  const text = el.textContent?.toLowerCase().trim() || "";
-                  return text === "nuovo" && htmlEl.offsetParent !== null;
-                });
-                return !!nuovoBtn;
-              },
-              { timeout: 3000, polling: 200 },
-            );
-          } catch {
-            // Fallback al timeout fisso se la funzione non trova il pulsante
-            await this.wait(2000);
-          }
-
-          // Screenshot dopo click menu
-          // await this.page!.screenshot({
-          // path: "logs/menu-clicked.png",
-          // fullPage: true,
-          // });
+        if (!clicked) {
+          throw new Error('Menu "Ordini" not found');
         }
+
+        // Wait for orders list page to load
+        await this.page!.waitForFunction(
+          () => {
+            const elements = Array.from(
+              document.querySelectorAll("span, button, a"),
+            );
+            return elements.some(
+              (el) => el.textContent?.trim().toLowerCase() === "nuovo",
+            );
+          },
+          { timeout: 5000 },
+        );
+
+        logger.info("✅ Navigated to orders list");
       });
 
-      // 2. Clicca sul pulsante "Nuovo"
+      // STEP 2: Click "Nuovo" button
       await this.runOp("order.click_nuovo", async () => {
-        logger.debug('Cerco pulsante "Nuovo"...');
+        logger.debug('Clicking "Nuovo" button...');
 
-        const nuovoClicked = await this.page!.evaluate(() => {
-          const allElements = Array.from(
-            document.querySelectorAll("button, a, span, div"),
-          );
-          const nuovoBtn = allElements.find((el) => {
-            const text = el.textContent?.toLowerCase().trim() || "";
-            return (
-              text === "nuovo" && (el as HTMLElement).offsetParent !== null
-            );
-          });
-
-          if (nuovoBtn) {
-            (nuovoBtn as HTMLElement).click();
-            return true;
-          }
-          return false;
+        const clicked = await this.clickElementByText("Nuovo", {
+          exact: true,
+          selectors: ["button", "a", "span"],
         });
 
-        if (!nuovoClicked) {
-          logger.warn(
-            'Pulsante "Nuovo" non trovato con evaluate, provo con Puppeteer',
-          );
-
-          try {
-            const buttons = await this.page!.$$("button, a, span, div");
-
-            for (const button of buttons) {
-              const text = await this.page!.evaluate(
-                (el) => el.textContent?.trim() || "",
-                button,
-              );
-
-              if (text.toLowerCase() === "nuovo") {
-                logger.debug('Pulsante "Nuovo" trovato con Puppeteer');
-                await button.click();
-                logger.debug('Click su "Nuovo" riuscito');
-                break;
-              }
-            }
-          } catch (error) {
-            logger.error("Errore nel click su Nuovo", { error });
-          }
-        } else {
-          logger.debug('Click su pulsante "Nuovo" riuscito');
+        if (!clicked) {
+          throw new Error('Button "Nuovo" not found');
         }
 
-        // OTTIMIZZAZIONE: Aspetta dinamicamente che il form nuovo ordine sia caricato
-        try {
-          await this.page!.waitForFunction(
-            () => {
-              // Aspetta che almeno un input di tipo testo sia visibile (indica form caricato)
-              const inputs = document.querySelectorAll('input[type="text"]');
-              return Array.from(inputs).some((input) => {
-                const htmlInput = input as HTMLElement;
-                return htmlInput.offsetParent !== null;
-              });
-            },
-            { timeout: 2000, polling: 200 },
-          );
-        } catch {
-          // Fallback al timeout fisso se la funzione non trova elementi
-          await this.wait(2000);
-        }
+        // Wait for order form to load
+        await this.waitForDevExpressReady({ timeout: 5000 });
 
-        logger.debug("Form nuovo ordine dovrebbe essere caricato");
-
-        // Screenshot iniziale
-        // await this.page.screenshot({
-        // path: "logs/order-step1-loaded.png",
-        // fullPage: true,
-        // });
-      });
-      logger.debug("Screenshot salvato: order-step1-loaded.png");
-
-      // 2. Attendi caricamento completo DevExpress - OTTIMIZZATO
-      await this.runOp("order.wait.devexpress", async () => {
-        // STEP 1: Aspetta che il campo cliente sia visibile (dinamico invece di 3s fissi)
-        try {
-          await this.page!.waitForFunction(
-            () => {
-              const inputs = Array.from(
-                document.querySelectorAll('input[type="text"]'),
-              );
-              return inputs.some((input) => {
-                const htmlInput = input as HTMLInputElement;
-                const id = htmlInput.id.toLowerCase();
-                return (
-                  (id.includes("account") || id.includes("custtable")) &&
-                  htmlInput.offsetParent !== null
-                );
-              });
-            },
-            { timeout: 2000, polling: 100 },
-          );
-          // Wait minimo di stabilizzazione
-          await this.wait(300);
-        } catch {
-          // Fallback conservativo
-          await this.wait(1500);
-        }
+        logger.info("✅ Order form loaded");
       });
 
       // 3. STEP 6.2: Compila campo "Account esterno" (codice cliente)
