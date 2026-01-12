@@ -25,9 +25,9 @@ export class ProductDatabase {
   private db: Database.Database;
   private static instance: ProductDatabase;
 
-  private constructor() {
-    const dbPath = path.join(__dirname, "../data/products.db");
-    this.db = new Database(dbPath);
+  constructor(dbPath?: string) {
+    const finalPath = dbPath || path.join(__dirname, "../data/products.db");
+    this.db = new Database(finalPath);
     this.initializeSchema();
   }
 
