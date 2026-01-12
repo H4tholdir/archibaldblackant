@@ -30,3 +30,46 @@ export type ApiResponse<T = unknown> = {
   error?: string;
   message?: string;
 };
+
+export interface ProfilingData {
+  summary: {
+    totalOperations: number;
+    successful: number;
+    failed: number;
+    totalDurationMs: number;
+    totalGapMs: number;
+    averageOperationMs: number;
+    peakMemoryBytes: number;
+  };
+  categories: Record<string, {
+    count: number;
+    totalDurationMs: number;
+    avgDurationMs: number;
+    p50Ms: number;
+    p95Ms: number;
+    p99Ms: number;
+    avgMemoryBytes: number;
+  }>;
+  retries: Array<{
+    operationId: number;
+    name: string;
+    category: string;
+    attempts: number;
+    finalStatus: "ok" | "error";
+  }>;
+  operations: Array<{
+    id: number;
+    name: string;
+    status: "ok" | "error";
+    category: string;
+    startIso: string;
+    endIso: string;
+    durationMs: number;
+    gapMs: number;
+    retryAttempt: number;
+    memoryBefore: number;
+    memoryAfter: number;
+    meta: Record<string, unknown>;
+    errorMessage?: string;
+  }>;
+}
