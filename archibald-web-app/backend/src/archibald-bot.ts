@@ -40,6 +40,7 @@ export class ArchibaldBot {
   private async runOp<T>(
     name: string,
     fn: () => Promise<T>,
+    category: string,
     meta: Record<string, unknown> = {},
   ): Promise<T> {
     const opId = ++this.opSeq;
@@ -49,26 +50,36 @@ export class ArchibaldBot {
       ? Number(startNs - this.lastOpEndNs) / 1_000_000
       : 0;
 
+    const retryAttempt =
+      typeof meta.retryAttempt === "number" ? meta.retryAttempt : 0;
+    const memoryBefore = process.memoryUsage().heapUsed;
+
     logger.debug(`[OP ${opId} START] ${name}`, { gapMs, ...meta });
 
     try {
       const result = await fn();
+      const memoryAfter = process.memoryUsage().heapUsed;
       const endNs = process.hrtime.bigint();
       const durationMs = Number(endNs - startNs) / 1_000_000;
       this.lastOpEndNs = endNs;
       this.opRecords.push({
         id: opId,
         name,
+        category,
         status: "ok",
         startIso,
         endIso: new Date().toISOString(),
         durationMs,
         gapMs,
+        retryAttempt,
+        memoryBefore,
+        memoryAfter,
         meta,
       });
       logger.debug(`[OP ${opId} END] ${name}`, { durationMs });
       return result;
     } catch (error) {
+      const memoryAfter = process.memoryUsage().heapUsed;
       const endNs = process.hrtime.bigint();
       const durationMs = Number(endNs - startNs) / 1_000_000;
       this.lastOpEndNs = endNs;
@@ -77,11 +88,15 @@ export class ArchibaldBot {
       this.opRecords.push({
         id: opId,
         name,
+        category,
         status: "error",
         startIso,
         endIso: new Date().toISOString(),
         durationMs,
         gapMs,
+        retryAttempt,
+        memoryBefore,
+        memoryAfter,
         meta,
         errorMessage,
       });
@@ -745,7 +760,7 @@ export class ArchibaldBot {
   async initialize(): Promise<void> {
     logger.info("Inizializzazione browser Puppeteer...");
 
-    this.browser = await this.runOp("browser.launch", async () => {
+    this.browser = await this.runOp("browser.launch", "login", async () => {
       return puppeteer.launch({
         headless: config.puppeteer.headless,
         slowMo: config.puppeteer.slowMo,
@@ -760,11 +775,11 @@ export class ArchibaldBot {
           height: 800,
         },
       });
-    });
+    }, "login");
 
-    this.page = await this.runOp("browser.newPage", async () => {
+    this.page = await this.runOp("browser.newPage", "login", async () => {
       return this.browser!.newPage();
-    });
+    }, "login");
 
     // Abilita console logging dal browser per debug
     this.page.on("console", (msg) => {
@@ -775,9 +790,9 @@ export class ArchibaldBot {
     });
 
     // Ignora errori certificato SSL
-    await this.runOp("page.setRequestInterception", async () => {
+    await this.runOp("page.setRequestInterception", "login", async () => {
       await this.page!.setRequestInterception(false);
-    });
+    }, "login");
 
     logger.info("Browser inizializzato con successo");
   }
@@ -832,6 +847,7 @@ export class ArchibaldBot {
             timeout: config.puppeteer.timeout,
           });
         },
+        "login",
         { url: loginUrl },
       );
 
@@ -848,9 +864,9 @@ export class ArchibaldBot {
       }
 
       // Aspetta che la pagina sia completamente caricata
-      await this.runOp("login.wait_page", async () => {
+      await this.runOp("login.wait_page", "login", async () => {
         await new Promise((resolve) => setTimeout(resolve, 2000));
-      });
+      }, "login");
 
       logger.debug("Pagina login caricata, cerco campi username/password...");
 
@@ -893,6 +909,7 @@ export class ArchibaldBot {
 
             return null;
           }),
+        "login",
       );
 
       logger.debug("Cerco campo password...");
@@ -913,6 +930,7 @@ export class ArchibaldBot {
             }
             return null;
           }),
+        "login",
       );
 
       if (!usernameField || !passwordField) {
@@ -937,6 +955,7 @@ export class ArchibaldBot {
             delay: 50,
           });
         },
+        "login",
         { field: usernameField },
       );
       logger.debug("Username inserito");
@@ -953,6 +972,7 @@ export class ArchibaldBot {
             delay: 50,
           });
         },
+        "login",
         { field: passwordField },
       );
       logger.debug("Password inserita");
@@ -977,24 +997,25 @@ export class ArchibaldBot {
             }
             return false;
           }),
+        "login",
       );
 
       if (!loginButtonClicked) {
         // Fallback: premi Enter sul campo password
-        await this.runOp("login.submitFallback", async () => {
+        await this.runOp("login.submitFallback", "login", async () => {
           await this.page!.keyboard.press("Enter");
-        });
+        }, "login");
       }
 
       logger.debug("Pulsante login cliccato, attendo redirect...");
 
       // Attendi redirect dopo login
-      await this.runOp("login.waitRedirect", async () => {
+      await this.runOp("login.waitRedirect", "login", async () => {
         await this.page!.waitForNavigation({
           waitUntil: "networkidle2",
           timeout: config.puppeteer.timeout,
         });
-      });
+      }, "login");
 
       const currentUrl = this.page.url();
 
@@ -1058,7 +1079,7 @@ export class ArchibaldBot {
 
     try {
       // STEP 1: Click "Ordini" in left menu
-      await this.runOp("order.menu.ordini", async () => {
+      await this.runOp("order.menu.ordini", "navigation.ordini", async () => {
         logger.debug('Clicking "Ordini" menu item...');
 
         const clicked = await this.clickElementByText("Ordini", {
@@ -1084,10 +1105,10 @@ export class ArchibaldBot {
         );
 
         logger.info("✅ Navigated to orders list");
-      });
+      }, "navigation.ordini");
 
       // STEP 2: Click "Nuovo" button
-      await this.runOp("order.click_nuovo", async () => {
+      await this.runOp("order.click_nuovo", "navigation.form", async () => {
         logger.debug('Clicking "Nuovo" button...');
 
         const clicked = await this.clickElementByText("Nuovo", {
@@ -1101,10 +1122,10 @@ export class ArchibaldBot {
 
         await this.waitForDevExpressReady({ timeout: 5000 });
         logger.info("✅ Order form loaded");
-      });
+      }, "navigation.form");
 
       // STEP 3: Select customer via "Profilo cliente" dropdown
-      await this.runOp("order.customer.select", async () => {
+      await this.runOp("order.customer.select", "form.customer", async () => {
         logger.debug('Opening "Profilo cliente" dropdown...');
 
         // Wait for order form fields to fully load
@@ -1367,10 +1388,10 @@ export class ArchibaldBot {
 
         logger.info(`✅ Customer selected: ${orderData.customerName}`);
         await this.waitForDevExpressReady({ timeout: 3000 });
-      });
+      }, "form.customer");
 
       // STEP 4: Click "New" button in Linee di vendita
-      await this.runOp("order.lineditems.click_new", async () => {
+      await this.runOp("order.lineditems.click_new", "form.multi_article", async () => {
         logger.debug('Clicking "New" in Linee di vendita...');
 
         // Wait for line items grid to be fully loaded
@@ -1499,7 +1520,7 @@ export class ArchibaldBot {
         }
 
         logger.info("✅ New line item row created and verified");
-      });
+      }, "form.multi_article");
 
       // STEP 5-8: For each item, add article with package selection
       for (let i = 0; i < orderData.items.length; i++) {
@@ -1511,7 +1532,8 @@ export class ArchibaldBot {
         });
 
         // 5.1: Query database for correct package variant
-        await this.runOp(`order.item.${i}.select_variant`, async () => {
+        await this.runOp(`order.item.${i}.select_variant`, "form.package", async () => {,
+          "form.package"
           const selectedVariant = this.productDb.selectPackageVariant(
             item.articleCode,
             item.quantity,
@@ -1533,10 +1555,10 @@ export class ArchibaldBot {
 
           // Store selected variant for next steps
           (item as any)._selectedVariant = selectedVariant;
-        });
+        }, "form.package");
 
         // 5.2: Open "Nome articolo" dropdown (GRID CELL APPROACH)
-        await this.runOp(`order.item.${i}.open_article_dropdown`, async () => {
+        await this.runOp(`order.item.${i}.open_article_dropdown`, "form.article", async () => {
           logger.debug("Looking for article dropdown in grid cell...");
 
           // Wait for grid to be ready
@@ -1699,10 +1721,10 @@ export class ArchibaldBot {
 
           await this.wait(800);
           logger.info("✅ Article dropdown opened");
-        });
+        }, "form.article");
 
         // 5.3: Search by ARTICLE NAME (not variant ID)
-        await this.runOp(`order.item.${i}.search_article`, async () => {
+        await this.runOp(`order.item.${i}.search_article`, "form.article", async () => {
           const selectedVariant = (item as any)._selectedVariant;
           // IMPORTANT: Search by article name/code, not variant ID
           // The variant ID is used to SELECT from results, not to search
@@ -1896,10 +1918,10 @@ export class ArchibaldBot {
 
           await this.wait(800);
           logger.info("✅ Article results loaded and displayed");
-        });
+        }, "form.article");
 
         // 5.4: Select article variant row
-        await this.runOp(`order.item.${i}.select_article`, async () => {
+        await this.runOp(`order.item.${i}.select_article`, "form.article", async () => {
           const selectedVariant = (item as any)._selectedVariant;
 
           // For article dropdowns, the variant ID appears as partial suffix
@@ -1958,7 +1980,7 @@ export class ArchibaldBot {
             variantId: selectedVariant.id,
             variantSuffix: variantSuffix,
             packageContent: selectedVariant.packageContent,
-          });
+          }, "form.article");
 
           // Populate metadata
           item.articleId = selectedVariant.id;
@@ -1971,7 +1993,7 @@ export class ArchibaldBot {
         });
 
         // 5.5: Set quantity
-        await this.runOp(`order.item.${i}.set_quantity`, async () => {
+        await this.runOp(`order.item.${i}.set_quantity`, "form.quantity", async () => {
           logger.debug(`Setting quantity: ${item.quantity}`);
           await this.editTableCell("Qtà ordinata", item.quantity);
           logger.info(`✅ Quantity set: ${item.quantity}`);
@@ -1980,7 +2002,7 @@ export class ArchibaldBot {
 
         // 5.6: Set discount (optional)
         if (item.discount && item.discount > 0) {
-          await this.runOp(`order.item.${i}.set_discount`, async () => {
+          await this.runOp(`order.item.${i}.set_discount`, "form.discount", async () => {
             logger.debug(`Setting discount: ${item.discount}%`);
             await this.editTableCell("Applica sconto", item.discount);
             logger.info(`✅ Discount set: ${item.discount}%`);
@@ -1989,7 +2011,7 @@ export class ArchibaldBot {
         }
 
         // 5.7: Click "Update" button (floppy icon)
-        await this.runOp(`order.item.${i}.click_update`, async () => {
+        await this.runOp(`order.item.${i}.click_update`, "form.submit", async () => {
           logger.debug('Clicking "Update" button (floppy icon)...');
 
           // DevExpress Update button pattern:
@@ -2097,7 +2119,7 @@ export class ArchibaldBot {
 
         // 5.8: Click "New" for next article (if not last)
         if (i < orderData.items.length - 1) {
-          await this.runOp(`order.item.${i}.click_new_for_next`, async () => {
+          await this.runOp(`order.item.${i}.click_new_for_next`, "form.multi_article", async () => {
             logger.debug('Clicking "New" button for next article...');
 
             // After Update, the "New" button changes to DXCBtn1
@@ -2200,7 +2222,7 @@ export class ArchibaldBot {
       }
 
       // STEP 9: Extract order ID before saving (while still on form)
-      await this.runOp("order.extract_id", async () => {
+      await this.runOp("order.extract_id", "form.submit", async () => {
         const currentUrl = this.page!.url();
         logger.debug(`Current URL before save: ${currentUrl}`);
 
@@ -2239,7 +2261,7 @@ export class ArchibaldBot {
           logger.info(`✅ Order ID extracted from form: ${orderId}`, {
             source: extractedId.source,
             fieldId: extractedId.fieldId,
-          });
+          }, "form.submit");
           return;
         }
 
@@ -2249,7 +2271,7 @@ export class ArchibaldBot {
       });
 
       // STEP 10: Save and close order
-      await this.runOp("order.save_and_close", async () => {
+      await this.runOp("order.save_and_close", "form.submit", async () => {
         logger.debug('Opening "Salvare" dropdown...');
 
         // Find "Salvare" button
@@ -2349,7 +2371,7 @@ export class ArchibaldBot {
 
     try {
       // STEP 1: Click "Ordini" in left menu
-      await this.runOp("order.menu.ordini", async () => {
+      await this.runOp("order.menu.ordini", "navigation.ordini", async () => {
         logger.debug('Clicking "Ordini" menu item...');
 
         const clicked = await this.clickElementByText("Ordini", {
@@ -2378,7 +2400,7 @@ export class ArchibaldBot {
       });
 
       // STEP 2: Click "Nuovo" button
-      await this.runOp("order.click_nuovo", async () => {
+      await this.runOp("order.click_nuovo", "navigation.form", async () => {
         logger.debug('Clicking "Nuovo" button...');
 
         const clicked = await this.clickElementByText("Nuovo", {
@@ -2397,7 +2419,7 @@ export class ArchibaldBot {
       });
 
       // 3. STEP 6.2: Compila campo "Account esterno" (codice cliente)
-      await this.runOp("order.customer.select", async () => {
+      await this.runOp("order.customer.select", "form.customer", async () => {
         logger.debug(
           'Cerco campo "Account esterno" per inserire codice cliente...',
         );
@@ -2412,7 +2434,7 @@ export class ArchibaldBot {
             placeholder: (input as HTMLInputElement).placeholder,
             value: (input as HTMLInputElement).value,
             visible: (input as HTMLElement).offsetParent !== null,
-          }));
+          }), "form.article");
         });
 
         logger.debug("Input text trovati sulla pagina", {
@@ -2598,8 +2620,8 @@ export class ArchibaldBot {
             if (input) {
               input.value = value;
               input.focus();
-              input.dispatchEvent(new Event("input", { bubbles: true }));
-              input.dispatchEvent(new Event("change", { bubbles: true }));
+              input.dispatchEvent(new Event("input", { bubbles: true }), "form.article");
+              input.dispatchEvent(new Event("change", { bubbles: true }), "form.article");
             }
           },
           foundSelector,
@@ -2665,7 +2687,7 @@ export class ArchibaldBot {
       logger.info(`Inizio inserimento di ${orderData.items.length} articoli`);
 
       // OTTIMIZZAZIONE: Aspetta che la griglia articoli sia visibile invece di 2000ms fissi
-      await this.runOp("order.wait.items_grid", async () => {
+      await this.runOp("order.wait.items_grid", "navigation.form", async () => {
         try {
           await this.page!.waitForSelector('[id*="dviSALESLINEs"]', {
             visible: true,
@@ -2686,7 +2708,7 @@ export class ArchibaldBot {
         );
 
         // 4.1: Click sul pulsante + per aggiungere nuovo articolo
-        await this.runOp(`order.item.${i}.add_row`, async () => {
+        await this.runOp(`order.item.${i}.add_row`, "form.multi_article", async () => {
           logger.debug(
             "Cerco pulsante + diretto per SALESLINE usando ID specifico...",
           );
@@ -2778,7 +2800,7 @@ export class ArchibaldBot {
         let inventtableInputId = "";
         let inventtableBaseId = "";
         let inventtableInput = null;
-        await this.runOp(`order.item.${i}.article.find_input`, async () => {
+        await this.runOp(`order.item.${i}.article.find_input`, "form.article", async () => {
           logger.debug(
             "Cerco campo INVENTTABLE per aprire dropdown articolo...",
           );
@@ -2871,7 +2893,7 @@ export class ArchibaldBot {
         let popupContainer = null;
         let searchInput = null;
 
-        await this.runOp(`order.item.${i}.article.open_dropdown`, async () => {
+        await this.runOp(`order.item.${i}.article.open_dropdown`, "form.article", async () => {
           const dropdownSelectors = [
             `#${inventtableBaseId}_B-1Img`,
             `#${inventtableBaseId}_B-1`,
@@ -3149,7 +3171,7 @@ export class ArchibaldBot {
             null;
         });
 
-        await this.runOp(`order.item.${i}.article.find_search`, async () => {
+        await this.runOp(`order.item.${i}.article.find_search`, "form.article", async () => {
           const directSearchSelectors = [
             `#${inventtableBaseId}_DDD_gv_DXSE_I`,
             `[id*="${inventtableBaseId}_DDD_gv_DXSE_I"]`,
@@ -3216,7 +3238,7 @@ export class ArchibaldBot {
           }
         });
 
-        await this.runOp(`order.item.${i}.article.search_type`, async () => {
+        await this.runOp(`order.item.${i}.article.search_type`, "form.article", async () => {
           if (!searchInput) {
             throw new Error("Barra ricerca articolo non trovata");
           }
@@ -3263,8 +3285,8 @@ export class ArchibaldBot {
                 if (input) {
                   input.value = value;
                   input.focus();
-                  input.dispatchEvent(new Event("input", { bubbles: true }));
-                  input.dispatchEvent(new Event("change", { bubbles: true }));
+                  input.dispatchEvent(new Event("input", { bubbles: true }), "form.article");
+                  input.dispatchEvent(new Event("change", { bubbles: true }), "form.article");
                 }
               },
               inputSelector,
@@ -3288,7 +3310,7 @@ export class ArchibaldBot {
           }
         });
 
-        await this.runOp(`order.item.${i}.article.select_row`, async () => {
+        await this.runOp(`order.item.${i}.article.select_row`, "form.article", async () => {
           const rowSelectors = [
             `#${inventtableBaseId}_DDD_gv_DXMainTable tr`,
             `[id*="${inventtableBaseId}_DDD_gv_DXMainTable"] tr`,
@@ -3423,7 +3445,7 @@ export class ArchibaldBot {
 
         // CRITICO: Aspetta che DevExpress finisca di caricare l'articolo
         // Il "Loading..." indica che sta rigenerando la riga con nuovo ID
-        await this.runOp(`order.item.${i}.wait_loading_complete`, async () => {
+        await this.runOp(`order.item.${i}.wait_loading_complete`, "form.article", async () => {
           logger.debug(
             "Attendo che DevExpress completi il caricamento articolo...",
           );
@@ -3462,7 +3484,7 @@ export class ArchibaldBot {
         let quantityBaseId = "";
         let quantityInput = null;
 
-        await this.runOp(`order.item.${i}.quantity.find_input`, async () => {
+        await this.runOp(`order.item.${i}.quantity.find_input`, "form.quantity", async () => {
           logger.debug(`Imposto quantità articolo: ${quantityValue}`);
 
           // OTTIMIZZAZIONE: Usa evaluate() per trovare il campo QTYORDERED (molto più veloce!)
@@ -3542,7 +3564,7 @@ export class ArchibaldBot {
           }
         });
 
-        await this.runOp(`order.item.${i}.quantity.activate_cell`, async () => {
+        await this.runOp(`order.item.${i}.quantity.activate_cell`, "form.quantity", async () => {
           // IMPORTANTE: Attendi un po' per stabilizzazione DOM dopo loading
           await this.wait(300);
 
@@ -3595,7 +3617,7 @@ export class ArchibaldBot {
           return fixed.replace(".", ",");
         };
 
-        await this.runOp(`order.item.${i}.quantity.type`, async () => {
+        await this.runOp(`order.item.${i}.quantity.type`, "form.quantity", async () => {
           if (!quantityInput) {
             throw new Error("Campo quantita articolo non trovato");
           }
@@ -3612,7 +3634,7 @@ export class ArchibaldBot {
           await this.page.keyboard.press("Tab");
         });
 
-        await this.runOp(`order.item.${i}.quantity.verify`, async () => {
+        await this.runOp(`order.item.${i}.quantity.verify`, "form.quantity", async () => {
           if (!quantityInput) {
             throw new Error("Campo quantita articolo non trovato");
           }
@@ -3639,8 +3661,8 @@ export class ArchibaldBot {
             await quantityInput.evaluate((el, value) => {
               const input = el as HTMLInputElement;
               input.value = value;
-              input.dispatchEvent(new Event("input", { bubbles: true }));
-              input.dispatchEvent(new Event("change", { bubbles: true }));
+              input.dispatchEvent(new Event("input", { bubbles: true }), "form.article");
+              input.dispatchEvent(new Event("change", { bubbles: true }), "form.article");
               input.blur();
             }, formatQuantity(quantityValue));
 
@@ -3688,7 +3710,7 @@ export class ArchibaldBot {
           let discountBaseId = "";
           let discountInput: ElementHandle<Element> | null = null;
 
-          await this.runOp(`order.item.${i}.discount.find_input`, async () => {
+          await this.runOp(`order.item.${i}.discount.find_input`, "form.discount", async () => {
             logger.debug(`Imposto sconto articolo: ${item.discount}%`);
 
             // Cerca il campo sconto (LINEDISC, DISCOUNT, etc.)
@@ -3778,6 +3800,7 @@ export class ArchibaldBot {
           } else {
             await this.runOp(
               `order.item.${i}.discount.activate_cell`,
+              "form.discount",
               async () => {
                 // Attendi stabilizzazione DOM
                 await this.wait(300);
@@ -3829,7 +3852,7 @@ export class ArchibaldBot {
               return fixed.replace(".", ",");
             };
 
-            await this.runOp(`order.item.${i}.discount.type`, async () => {
+            await this.runOp(`order.item.${i}.discount.type`, "form.discount", async () => {
               if (!discountInput) {
                 return;
               }
@@ -3849,7 +3872,7 @@ export class ArchibaldBot {
               logger.info(`✅ Sconto inserito: ${item.discount}%`);
             });
 
-            await this.runOp(`order.item.${i}.discount.verify`, async () => {
+            await this.runOp(`order.item.${i}.discount.verify`, "form.discount", async () => {
               // Attendi che il valore si stabilizzi
               await this.wait(600);
 
@@ -3868,7 +3891,7 @@ export class ArchibaldBot {
 
         // 4.4: Click su pulsante "Update" per salvare l'articolo
         // Il pulsante ha title="Update" e id che contiene "DXCBtn0Img"
-        await this.runOp(`order.item.${i}.save_article`, async () => {
+        await this.runOp(`order.item.${i}.save_article`, "form.submit", async () => {
           logger.debug("Cerco pulsante Update per salvare articolo...");
 
           const updateButtonClicked = await this.page.evaluate(() => {
@@ -3935,7 +3958,7 @@ export class ArchibaldBot {
       );
 
       // 5. STEP 6.4: Click su "Salva e chiudi"
-      const orderId = await this.runOp("order.save_and_close", async () => {
+      const orderId = await this.runOp("order.save_and_close", "form.submit", async () => {
         logger.info('🤖 BOT: Click su "Salva e chiudi" per salvare l\'ordine');
         logger.debug('Cerco azione "Salva e chiudi"...');
 
@@ -4240,7 +4263,7 @@ export class ArchibaldBot {
   async getCustomers(): Promise<
     Array<{ id: string; name: string; vatNumber?: string; email?: string }>
   > {
-    return this.runOp("getCustomers", async () => {
+    return this.runOp("getCustomers", "login", async () => {
       if (!this.page) {
         throw new Error("Browser non inizializzato");
       }
