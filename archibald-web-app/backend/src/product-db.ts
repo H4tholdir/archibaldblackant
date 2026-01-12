@@ -1,7 +1,7 @@
-import Database from 'better-sqlite3';
-import { createHash } from 'crypto';
-import path from 'path';
-import { logger } from './logger';
+import Database from "better-sqlite3";
+import { createHash } from "crypto";
+import path from "path";
+import { logger } from "./logger";
 
 export interface Product {
   id: string; // ID ARTICOLO
@@ -26,7 +26,7 @@ export class ProductDatabase {
   private static instance: ProductDatabase;
 
   private constructor() {
-    const dbPath = path.join(__dirname, '../data/products.db');
+    const dbPath = path.join(__dirname, "../data/products.db");
     this.db = new Database(dbPath);
     this.initializeSchema();
   }
@@ -70,26 +70,30 @@ export class ProductDatabase {
     // Migrazione: aggiungi colonna price se non esiste
     try {
       this.db.exec(`ALTER TABLE products ADD COLUMN price REAL`);
-      logger.info('Added price column to products table');
+      logger.info("Added price column to products table");
     } catch (error) {
       // Colonna già esistente, ignora l'errore
     }
 
-    logger.info('Product database schema initialized');
+    logger.info("Product database schema initialized");
   }
 
   /**
    * Calcola hash per un prodotto (per rilevare modifiche)
    */
-  static calculateHash(product: Omit<Product, 'hash' | 'lastSync'>): string {
-    const data = `${product.id}|${product.name}|${product.description || ''}|${product.groupCode || ''}|${product.searchName || ''}|${product.priceUnit || ''}|${product.productGroupId || ''}|${product.productGroupDescription || ''}|${product.packageContent || ''}|${product.minQty || ''}|${product.multipleQty || ''}|${product.maxQty || ''}|${product.price || ''}`;
-    return createHash('sha256').update(data).digest('hex');
+  static calculateHash(product: Omit<Product, "hash" | "lastSync">): string {
+    const data = `${product.id}|${product.name}|${product.description || ""}|${product.groupCode || ""}|${product.searchName || ""}|${product.priceUnit || ""}|${product.productGroupId || ""}|${product.productGroupDescription || ""}|${product.packageContent || ""}|${product.minQty || ""}|${product.multipleQty || ""}|${product.maxQty || ""}|${product.price || ""}`;
+    return createHash("sha256").update(data).digest("hex");
   }
 
   /**
    * Inserisce o aggiorna prodotti in batch
    */
-  upsertProducts(products: Array<Omit<Product, 'hash' | 'lastSync'>>): { inserted: number; updated: number; unchanged: number } {
+  upsertProducts(products: Array<Omit<Product, "hash" | "lastSync">>): {
+    inserted: number;
+    updated: number;
+    unchanged: number;
+  } {
     const now = Date.now();
     let inserted = 0;
     let updated = 0;
@@ -117,56 +121,60 @@ export class ProductDatabase {
       WHERE products.hash != excluded.hash
     `);
 
-    const checkStmt = this.db.prepare('SELECT hash FROM products WHERE id = ?');
+    const checkStmt = this.db.prepare("SELECT hash FROM products WHERE id = ?");
 
-    const transaction = this.db.transaction((productsToSync: Array<Omit<Product, 'hash' | 'lastSync'>>) => {
-      for (const product of productsToSync) {
-        const hash = ProductDatabase.calculateHash(product);
-        const existing = checkStmt.get(product.id) as { hash: string } | undefined;
+    const transaction = this.db.transaction(
+      (productsToSync: Array<Omit<Product, "hash" | "lastSync">>) => {
+        for (const product of productsToSync) {
+          const hash = ProductDatabase.calculateHash(product);
+          const existing = checkStmt.get(product.id) as
+            | { hash: string }
+            | undefined;
 
-        if (!existing) {
-          insertStmt.run(
-            product.id,
-            product.name,
-            product.description,
-            product.groupCode,
-            product.searchName,
-            product.priceUnit,
-            product.productGroupId,
-            product.productGroupDescription,
-            product.packageContent,
-            product.minQty,
-            product.multipleQty,
-            product.maxQty,
-            product.price,
-            hash,
-            now
-          );
-          inserted++;
-        } else if (existing.hash !== hash) {
-          insertStmt.run(
-            product.id,
-            product.name,
-            product.description,
-            product.groupCode,
-            product.searchName,
-            product.priceUnit,
-            product.productGroupId,
-            product.productGroupDescription,
-            product.packageContent,
-            product.minQty,
-            product.multipleQty,
-            product.maxQty,
-            product.price,
-            hash,
-            now
-          );
-          updated++;
-        } else {
-          unchanged++;
+          if (!existing) {
+            insertStmt.run(
+              product.id,
+              product.name,
+              product.description,
+              product.groupCode,
+              product.searchName,
+              product.priceUnit,
+              product.productGroupId,
+              product.productGroupDescription,
+              product.packageContent,
+              product.minQty,
+              product.multipleQty,
+              product.maxQty,
+              product.price,
+              hash,
+              now,
+            );
+            inserted++;
+          } else if (existing.hash !== hash) {
+            insertStmt.run(
+              product.id,
+              product.name,
+              product.description,
+              product.groupCode,
+              product.searchName,
+              product.priceUnit,
+              product.productGroupId,
+              product.productGroupDescription,
+              product.packageContent,
+              product.minQty,
+              product.multipleQty,
+              product.maxQty,
+              product.price,
+              hash,
+              now,
+            );
+            updated++;
+          } else {
+            unchanged++;
+          }
         }
-      }
-    });
+      },
+    );
 
     transaction(products);
 
@@ -181,14 +189,14 @@ export class ProductDatabase {
       return [];
     }
 
-    const placeholders = currentIds.map(() => '?').join(',');
+    const placeholders = currentIds.map(() => "?").join(",");
     const stmt = this.db.prepare(`
       SELECT id FROM products
       WHERE id NOT IN (${placeholders})
     `);
 
     const deleted = stmt.all(...currentIds) as Array<{ id: string }>;
-    return deleted.map(p => p.id);
+    return deleted.map((p) => p.id);
   }
 
   /**
@@ -199,8 +207,10 @@ export class ProductDatabase {
       return 0;
     }
 
-    const placeholders = ids.map(() => '?').join(',');
-    const stmt = this.db.prepare(`DELETE FROM products WHERE id IN (${placeholders})`);
+    const placeholders = ids.map(() => "?").join(",");
+    const stmt = this.db.prepare(
+      `DELETE FROM products WHERE id IN (${placeholders})`,
+    );
     const result = stmt.run(...ids);
     return result.changes;
   }
@@ -214,7 +224,7 @@ export class ProductDatabase {
 
     if (searchQuery) {
       // Rimuove punti, spazi e altri caratteri speciali per ricerca flessibile
-      const normalizedQuery = searchQuery.replace(/[.\s-]/g, '').toLowerCase();
+      const normalizedQuery = searchQuery.replace(/[.\s-]/g, "").toLowerCase();
       const query = `%${normalizedQuery}%`;
 
       stmt = this.db.prepare(`
@@ -242,7 +252,9 @@ export class ProductDatabase {
    * Conta totale prodotti
    */
   getProductCount(): number {
-    const result = this.db.prepare('SELECT COUNT(*) as count FROM products').get() as { count: number };
+    const result = this.db
+      .prepare("SELECT COUNT(*) as count FROM products")
+      .get() as { count: number };
     return result.count;
   }
 
@@ -250,7 +262,9 @@ export class ProductDatabase {
    * Ottiene timestamp dell'ultimo sync
    */
   getLastSyncTime(): number | null {
-    const result = this.db.prepare('SELECT MAX(lastSync) as lastSync FROM products').get() as { lastSync: number | null };
+    const result = this.db
+      .prepare("SELECT MAX(lastSync) as lastSync FROM products")
+      .get() as { lastSync: number | null };
     return result.lastSync;
   }
 

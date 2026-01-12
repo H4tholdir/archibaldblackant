@@ -1,7 +1,7 @@
-import Database from 'better-sqlite3';
-import { createHash } from 'crypto';
-import path from 'path';
-import { logger } from './logger';
+import Database from "better-sqlite3";
+import { createHash } from "crypto";
+import path from "path";
+import { logger } from "./logger";
 
 export interface Customer {
   id: string;
@@ -17,7 +17,7 @@ export class CustomerDatabase {
   private static instance: CustomerDatabase;
 
   private constructor() {
-    const dbPath = path.join(__dirname, '../data/customers.db');
+    const dbPath = path.join(__dirname, "../data/customers.db");
     this.db = new Database(dbPath);
     this.initializeSchema();
   }
@@ -47,21 +47,25 @@ export class CustomerDatabase {
       CREATE INDEX IF NOT EXISTS idx_lastSync ON customers(lastSync);
     `);
 
-    logger.info('Database schema initialized');
+    logger.info("Database schema initialized");
   }
 
   /**
    * Calcola hash per un cliente (per rilevare modifiche)
    */
-  static calculateHash(customer: Omit<Customer, 'hash' | 'lastSync'>): string {
-    const data = `${customer.id}|${customer.name}|${customer.vatNumber || ''}|${customer.email || ''}`;
-    return createHash('sha256').update(data).digest('hex');
+  static calculateHash(customer: Omit<Customer, "hash" | "lastSync">): string {
+    const data = `${customer.id}|${customer.name}|${customer.vatNumber || ""}|${customer.email || ""}`;
+    return createHash("sha256").update(data).digest("hex");
   }
 
   /**
    * Inserisce o aggiorna clienti in batch
    */
-  upsertCustomers(customers: Array<Omit<Customer, 'hash' | 'lastSync'>>): { inserted: number; updated: number; unchanged: number } {
+  upsertCustomers(customers: Array<Omit<Customer, "hash" | "lastSync">>): {
+    inserted: number;
+    updated: number;
+    unchanged: number;
+  } {
     const now = Date.now();
     let inserted = 0;
     let updated = 0;
@@ -80,24 +84,44 @@ export class CustomerDatabase {
       WHERE customers.hash != excluded.hash
     `);
 
-    const checkStmt = this.db.prepare('SELECT hash FROM customers WHERE id = ?');
+    const checkStmt = this.db.prepare(
+      "SELECT hash FROM customers WHERE id = ?",
+    );
 
-    const transaction = this.db.transaction((customersToSync: Array<Omit<Customer, 'hash' | 'lastSync'>>) => {
-      for (const customer of customersToSync) {
-        const hash = CustomerDatabase.calculateHash(customer);
-        const existing = checkStmt.get(customer.id) as { hash: string } | undefined;
+    const transaction = this.db.transaction(
+      (customersToSync: Array<Omit<Customer, "hash" | "lastSync">>) => {
+        for (const customer of customersToSync) {
+          const hash = CustomerDatabase.calculateHash(customer);
+          const existing = checkStmt.get(customer.id) as
+            | { hash: string }
+            | undefined;
 
-        if (!existing) {
-          insertStmt.run(customer.id, customer.name, customer.vatNumber, customer.email, hash, now);
-          inserted++;
-        } else if (existing.hash !== hash) {
-          insertStmt.run(customer.id, customer.name, customer.vatNumber, customer.email, hash, now);
-          updated++;
-        } else {
-          unchanged++;
+          if (!existing) {
+            insertStmt.run(
+              customer.id,
+              customer.name,
+              customer.vatNumber,
+              customer.email,
+              hash,
+              now,
+            );
+            inserted++;
+          } else if (existing.hash !== hash) {
+            insertStmt.run(
+              customer.id,
+              customer.name,
+              customer.vatNumber,
+              customer.email,
+              hash,
+              now,
+            );
+            updated++;
+          } else {
+            unchanged++;
+          }
         }
-      }
-    });
+      },
+    );
 
     transaction(customers);
 
@@ -112,14 +136,14 @@ export class CustomerDatabase {
       return [];
     }
 
-    const placeholders = currentIds.map(() => '?').join(',');
+    const placeholders = currentIds.map(() => "?").join(",");
     const stmt = this.db.prepare(`
       SELECT id FROM customers
       WHERE id NOT IN (${placeholders})
     `);
 
     const deleted = stmt.all(...currentIds) as Array<{ id: string }>;
-    return deleted.map(c => c.id);
+    return deleted.map((c) => c.id);
   }
 
   /**
@@ -130,8 +154,10 @@ export class CustomerDatabase {
       return 0;
     }
 
-    const placeholders = ids.map(() => '?').join(',');
-    const stmt = this.db.prepare(`DELETE FROM customers WHERE id IN (${placeholders})`);
+    const placeholders = ids.map(() => "?").join(",");
+    const stmt = this.db.prepare(
+      `DELETE FROM customers WHERE id IN (${placeholders})`,
+    );
     const result = stmt.run(...ids);
     return result.changes;
   }
@@ -166,7 +192,9 @@ export class CustomerDatabase {
    * Conta totale clienti
    */
   getCustomerCount(): number {
-    const result = this.db.prepare('SELECT COUNT(*) as count FROM customers').get() as { count: number };
+    const result = this.db
+      .prepare("SELECT COUNT(*) as count FROM customers")
+      .get() as { count: number };
     return result.count;
   }
 
@@ -174,7 +202,9 @@ export class CustomerDatabase {
    * Ottiene timestamp dell'ultimo sync
    */
   getLastSyncTime(): number | null {
-    const result = this.db.prepare('SELECT MAX(lastSync) as lastSync FROM customers').get() as { lastSync: number | null };
+    const result = this.db
+      .prepare("SELECT MAX(lastSync) as lastSync FROM customers")
+      .get() as { lastSync: number | null };
     return result.lastSync;
   }
 
