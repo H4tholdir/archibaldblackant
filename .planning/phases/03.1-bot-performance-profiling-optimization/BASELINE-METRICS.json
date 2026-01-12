@@ -1,0 +1,350 @@
+{
+  "timestamp": "2026-01-12T21:30:00.000Z",
+  "runs": 3,
+  "profilingReportPaths": [
+    "archibald-web-app/backend/profiling-reports/profiling-2026-01-12T21-18-43-865Z.json",
+    "archibald-web-app/backend/profiling-reports/profiling-2026-01-12T21-20-16-756Z.json",
+    "archibald-web-app/backend/profiling-reports/profiling-2026-01-12T21-21-39-451Z.json"
+  ],
+  "summary": {
+    "totalOrderTimeMs": {
+      "run1": 99572.55,
+      "run2": 72625.51,
+      "run3": 72303.75,
+      "mean": 81500.60,
+      "min": 72303.75,
+      "max": 99572.55,
+      "stddev": 15694.97,
+      "note": "Run 1 included full login (11 operations), Run 2 & 3 used cached session (3 operations)"
+    },
+    "totalOperations": {
+      "run1": 23,
+      "run2": 15,
+      "run3": 15,
+      "mean": 17.67
+    },
+    "successRate": 1.0,
+    "retryRate": 0.0,
+    "peakMemoryBytes": {
+      "run1": 50345000,
+      "run2": 40468216,
+      "run3": 41470784,
+      "mean": 44094666.67
+    }
+  },
+  "categories": {
+    "login": {
+      "description": "User authentication and session setup",
+      "count": {
+        "run1": 11,
+        "run2": 3,
+        "run3": 3,
+        "note": "Run 1 had full login, Run 2 & 3 used cached session"
+      },
+      "totalDurationMs": {
+        "run1": 29061.24,
+        "run2": 2309.86,
+        "run3": 2343.54,
+        "mean": 11238.21,
+        "note": "Full login ~29s, cached login ~2.3s"
+      },
+      "avgDurationMs": {
+        "run1": 2641.93,
+        "run2": 769.95,
+        "run3": 781.18,
+        "mean": 1397.69
+      },
+      "p50Ms": {
+        "run1": 1254.54,
+        "run2": 1076.72,
+        "run3": 1114.11,
+        "mean": 1148.46
+      },
+      "p95Ms": {
+        "run1": 9795.15,
+        "run2": 1232.77,
+        "run3": 1229.11,
+        "mean": 4085.68
+      }
+    },
+    "navigation.ordini": {
+      "description": "Navigate to Ordini menu",
+      "count": 1,
+      "totalDurationMs": {
+        "run1": 1848.01,
+        "run2": 1856.18,
+        "run3": 1848.71,
+        "mean": 1850.97,
+        "stddev": 4.42
+      },
+      "p95Ms": {
+        "mean": 1850.97
+      },
+      "proportionOfTotal": "2.3%"
+    },
+    "navigation.form": {
+      "description": "Open new order form",
+      "count": 1,
+      "totalDurationMs": {
+        "run1": 1125.02,
+        "run2": 1129.47,
+        "run3": 1121.39,
+        "mean": 1125.29,
+        "stddev": 4.05
+      },
+      "p95Ms": {
+        "mean": 1125.29
+      },
+      "proportionOfTotal": "1.4%"
+    },
+    "form.customer": {
+      "description": "Customer selection (MAJOR BOTTLENECK)",
+      "count": 1,
+      "totalDurationMs": {
+        "run1": 24759.70,
+        "run2": 24756.45,
+        "run3": 24753.61,
+        "mean": 24756.59,
+        "stddev": 3.05,
+        "note": "Extremely consistent across runs"
+      },
+      "p50Ms": {
+        "mean": 24756.59
+      },
+      "p95Ms": {
+        "mean": 24756.59
+      },
+      "p99Ms": {
+        "mean": 24756.59
+      },
+      "proportionOfTotal": "30.4%",
+      "severity": "CRITICAL",
+      "impact": "Largest single bottleneck in order creation"
+    },
+    "form.multi_article": {
+      "description": "Click 'New' to add article line",
+      "count": 1,
+      "totalDurationMs": {
+        "run1": 6979.18,
+        "run2": 6988.64,
+        "run3": 6999.27,
+        "mean": 6989.03,
+        "stddev": 10.09
+      },
+      "p95Ms": {
+        "mean": 6989.03
+      },
+      "proportionOfTotal": "8.6%"
+    },
+    "form.package": {
+      "description": "Select package variant",
+      "count": 1,
+      "totalDurationMs": {
+        "run1": 1.35,
+        "run2": 1.35,
+        "run3": 0.96,
+        "mean": 1.22,
+        "stddev": 0.23
+      },
+      "note": "Near-instant operation, negligible impact"
+    },
+    "form.article": {
+      "description": "Article search and selection (open dropdown + search)",
+      "count": 2,
+      "totalDurationMs": {
+        "run1": 14139.48,
+        "run2": 14147.52,
+        "run3": 14130.64,
+        "mean": 14139.21,
+        "stddev": 8.44
+      },
+      "avgDurationMs": {
+        "run1": 7069.74,
+        "run2": 7073.76,
+        "run3": 7065.32,
+        "mean": 7069.61,
+        "note": "Per article search"
+      },
+      "breakdown": {
+        "openDropdown": "~5.1s",
+        "searchArticle": "~9.1s"
+      },
+      "p50Ms": {
+        "run1": 9068.31,
+        "run2": 9076.36,
+        "run3": 9056.30,
+        "mean": 9066.99
+      },
+      "p95Ms": {
+        "mean": 9066.99
+      },
+      "proportionOfTotal": "17.3%",
+      "severity": "HIGH"
+    },
+    "undefined": {
+      "description": "BUG: Operations missing category parameter",
+      "count": 5,
+      "affectedOperations": [
+        "order.item.0.select_article",
+        "order.item.0.set_quantity",
+        "order.item.0.click_update",
+        "order.extract_id",
+        "order.save_and_close"
+      ],
+      "totalDurationMs": {
+        "run1": 21658.57,
+        "run2": 21436.05,
+        "run3": 21105.62,
+        "mean": 21400.08,
+        "stddev": 276.77
+      },
+      "avgDurationMs": {
+        "mean": 4280.02
+      },
+      "breakdown": {
+        "select_article": "~2.1s",
+        "set_quantity": "~9.5s (MAJOR BOTTLENECK)",
+        "click_update": "~5.7s",
+        "extract_id": "~0.2s",
+        "save_and_close": "~3.9s"
+      },
+      "p50Ms": {
+        "run1": 3927.58,
+        "run2": 3926.81,
+        "run3": 3922.96,
+        "mean": 3925.78
+      },
+      "p95Ms": {
+        "run1": 9624.08,
+        "run2": 9495.88,
+        "run3": 9482.02,
+        "mean": 9533.99
+      },
+      "proportionOfTotal": "26.3%",
+      "severity": "CRITICAL",
+      "bugLocation": "archibald-web-app/backend/src/archibald-bot.ts",
+      "bugLines": [2290, 2362, 2380, 2591, 2640],
+      "fix": "Add missing category parameter to runOp() calls"
+    }
+  },
+  "operationBreakdown": {
+    "customerSelection": {
+      "avgMs": 24756.59,
+      "percentOfTotal": 30.4,
+      "rank": 1,
+      "category": "form.customer"
+    },
+    "quantitySetting": {
+      "avgMs": 9533.99,
+      "percentOfTotal": 11.7,
+      "rank": 2,
+      "category": "undefined (should be form.field_edit)"
+    },
+    "articleSearch": {
+      "avgMs": 9066.99,
+      "percentOfTotal": 11.1,
+      "rank": 3,
+      "category": "form.article"
+    },
+    "multiArticleNew": {
+      "avgMs": 6989.03,
+      "percentOfTotal": 8.6,
+      "rank": 4,
+      "category": "form.multi_article"
+    },
+    "clickUpdate": {
+      "avgMs": 5708.37,
+      "percentOfTotal": 7.0,
+      "rank": 5,
+      "category": "undefined (should be form.article)"
+    },
+    "articleDropdown": {
+      "avgMs": 5072.22,
+      "percentOfTotal": 6.2,
+      "rank": 6,
+      "category": "form.article"
+    },
+    "saveAndClose": {
+      "avgMs": 3925.78,
+      "percentOfTotal": 4.8,
+      "rank": 7,
+      "category": "undefined (should be form.submit)"
+    },
+    "login": {
+      "avgMs": 11238.21,
+      "percentOfTotal": 13.8,
+      "rank": "varies",
+      "note": "Only on cold start, ~29s. Cached login ~2.3s"
+    }
+  },
+  "bottleneckAnalysis": {
+    "top3Bottlenecks": [
+      {
+        "rank": 1,
+        "operation": "Customer Selection",
+        "avgMs": 24756.59,
+        "percentOfTotal": 30.4,
+        "consistency": "Very high (stddev=3.05ms)",
+        "severity": "CRITICAL",
+        "optimizationPotential": "HIGH - investigate direct customer ID submission"
+      },
+      {
+        "rank": 2,
+        "operation": "Quantity Setting",
+        "avgMs": 9533.99,
+        "percentOfTotal": 11.7,
+        "consistency": "High (stddev ~70ms)",
+        "severity": "HIGH",
+        "optimizationPotential": "MEDIUM - test faster field editing methods"
+      },
+      {
+        "rank": 3,
+        "operation": "Article Search",
+        "avgMs": 9066.99,
+        "percentOfTotal": 11.1,
+        "consistency": "Very high (stddev=8.44ms)",
+        "severity": "HIGH",
+        "optimizationPotential": "MEDIUM - implement caching, reduce waits"
+      }
+    ],
+    "totalBottleneckTime": "43.4s (53.2% of total order creation time)",
+    "optimizationTarget": "Reduce bottleneck time by 40-50% to achieve <60s SLO"
+  },
+  "varianceAnalysis": {
+    "lowVariance": [
+      "customer_selection (stddev=3.05ms)",
+      "navigation_ordini (stddev=4.42ms)",
+      "navigation_form (stddev=4.05ms)",
+      "article_search (stddev=8.44ms)"
+    ],
+    "mediumVariance": [
+      "login (varies between full and cached)",
+      "undefined_category (stddev=276.77ms)"
+    ],
+    "highVariance": [],
+    "note": "Consistent performance across runs indicates stable baseline and reliable optimization targets"
+  },
+  "memoryAnalysis": {
+    "peakMemoryMB": 44.1,
+    "memoryGrowthPerOrder": "~10-15 MB",
+    "memoryStability": "Good - no obvious leaks detected",
+    "note": "Memory usage is acceptable, not a primary optimization target"
+  },
+  "recommendations": {
+    "immediate": [
+      "Fix 'undefined' category bug by adding missing category parameters",
+      "Investigate direct customer ID submission to bypass dropdown (potential -15s)",
+      "Test faster field editing methods for quantity (potential -5s)"
+    ],
+    "shortTerm": [
+      "Implement article search caching (potential -4s per cached article)",
+      "Reduce conservative wait times with adaptive waiting (potential -3-5s)",
+      "Optimize login cache TTL and session management (potential -1-2s)"
+    ],
+    "longTerm": [
+      "Explore parallel article processing for multi-article orders",
+      "Implement network latency optimization and request pipelining",
+      "Add predictive pre-loading based on order history"
+    ]
+  }
+}
