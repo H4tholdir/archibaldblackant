@@ -12,8 +12,9 @@ None (full-stack web app con pattern standard)
 
 - [x] **Phase 1: Security Critical Fixes** - Eliminare vulnerabilità credenziali e bug runtime
 - [x] **Phase 2: Code Quality Foundation** - Stabilire testing framework e rimuovere tech debt
-- [ ] **Phase 3: MVP Order Form** - Completare form ordini production-ready
+- [x] **Phase 3: MVP Order Form** - Completare form ordini production-ready ✅
 - [x] **Phase 3.1: Bot Performance Profiling & Optimization (INSERTED)** - Sistema profiling e piano ottimizzazione dettagliato ✅
+- [ ] **Phase 3.2: Bot Performance Implementation (INSERTED)** - Implementare 7 ottimizzazioni per 40% improvement 📋
 - [ ] **Phase 4: Voice Input Enhancement** - Voice hybrid affidabile con conferma visiva
 - [ ] **Phase 5: Order Submission** - Invio ordine ottimizzato con tracking
 - [ ] **Phase 6: Multi-User Authentication** - Login multi-agente con whitelist
@@ -152,8 +153,50 @@ Plans:
 - `.planning/phases/03.1-bot-performance-profiling-optimization/OPTIMIZATION-PLAN.md`: Comprehensive optimization plan (7 opts, ROI-prioritized, 3-phase roadmap)
 
 **Next Steps**:
-- Resume Phase 3 main flow (plans 03-04 through 03-08) OR
-- Implement Phase 3.1 optimization roadmap in dedicated phase (recommended: after Phase 3 complete)
+- ✅ Phase 3.2 created to implement all 7 optimizations from OPTIMIZATION-PLAN.md
+
+### Phase 3.2: Bot Performance Implementation (INSERTED) 📋
+**Goal**: Implementare tutte le 7 ottimizzazioni identificate in Phase 3.1 per raggiungere 40% miglioramento performance (81.5s → 49s P95)
+**Depends on**: Phase 3.1 (profiling system + optimization plan)
+**Priority**: 🟡 HIGH - Optimize production bot before continuing with Phase 4+
+**Research**: Complete (Phase 3.1 provided detailed implementation specs)
+**Plans**: 6 plans (0/6 complete) 📋
+**Status**: PLANNED - Ready for execution
+
+Plans:
+- [ ] 3.2-01: Quick Wins Part 1 (OPT-03 Field Editing + OPT-04 Multi-article Button) → 73s P95
+- [ ] 3.2-02: Quick Wins Part 2 (OPT-05 Login Cache + BUG-FIX Missing Categories) → Phase 1 complete
+- [ ] 3.2-03: Customer Selection Optimization (OPT-01) → 60s P95 (approaching SLO)
+- [ ] 3.2-04: Article Search Caching (OPT-02) → 56s P95 ✅ **SLO ACHIEVED** (< 60s target)
+- [ ] 3.2-05: Network & Request Optimization (OPT-06) → 51s P95
+- [ ] 3.2-06: Parallel Article Processing (OPT-07) → 49s P95 (Phase 3 complete, 40% improvement)
+
+**Performance Roadmap**:
+- **Baseline**: 81.5s P95 (Phase 3.1 measurement)
+- **Phase 1 Target** (Plans 01-02): 73s P95 (-8.5s, -10%) - Quick wins, low risk
+- **Phase 2 Target** (Plans 03-04): 56s P95 (-17s, -21%) - Major bottleneck elimination → **Achieves < 60s SLO ✅**
+- **Phase 3 Target** (Plans 05-06): 49s P95 (-13s, -16%) - Advanced optimizations, maximum performance
+- **Total Improvement**: -32.5s (-40%)
+
+**Key Optimizations**:
+1. **OPT-03**: Field editing (JavaScript setValue) → -4.5s
+2. **OPT-04**: Multi-article button (event-driven waiting) → -3s
+3. **OPT-05**: Login cache (extended TTL, direct navigation) → -1s
+4. **BUG-FIX**: Missing profiling categories (5 operations)
+5. **OPT-01**: Customer selection (direct ID or optimized dropdown) → -13s (largest bottleneck)
+6. **OPT-02**: Article search caching (LRU cache, 24h TTL) → -4s
+7. **OPT-06**: Network optimization (screenshot reduction, selector optimization) → -5s
+8. **OPT-07**: Parallel article processing (state machine, pre-fetch) → -8s per additional article
+
+**Business Impact**:
+- Agent productivity: 22 orders/hour → 36+ orders/hour (+64%)
+- Time savings: 32.5s per order = 9+ hours saved per 1000 orders
+- Multi-article efficiency: Per-article overhead 18.5s → 10s (-46%)
+
+**Checkpoints**:
+- After Plan 3.2-02: Phase 1 complete (quick wins validated)
+- After Plan 3.2-04: **SLO achieved** (< 60s P95) - Major milestone, consider pausing for business validation
+- After Plan 3.2-06: Phase 3.2 complete (maximum optimization)
 
 ### Phase 4: Voice Input Enhancement
 **Goal**: Voice hybrid affidabile (dettatura → form → conferma tap) per ridurre errori input
