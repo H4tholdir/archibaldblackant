@@ -282,7 +282,7 @@ export class ProductSyncService extends EventEmitter {
           // Cerca tutti gli input che hanno ID che finisce con "_Cb_I" (ComboBox Input DevExpress)
           const allInputs = Array.from(document.querySelectorAll('input[id$="_Cb_I"]'));
 
-          // DEBUG: Log all ITCNT8 inputs to see their values
+          // Collect debug info for ITCNT inputs
           const debugInfo: any[] = [];
           for (const inp of allInputs) {
             const inputEl = inp as HTMLInputElement;
@@ -294,7 +294,6 @@ export class ProductSyncService extends EventEmitter {
               });
             }
           }
-          console.log('[DEBUG] ITCNT inputs:', JSON.stringify(debugInfo, null, 2));
 
           for (const input of allInputs) {
             const inputElement = input as HTMLInputElement;
@@ -307,8 +306,6 @@ export class ProductSyncService extends EventEmitter {
               // Trova il campo nascosto _VI (sostituisci solo l'ultima occorrenza di _I con _VI)
               const hiddenFieldId = id.replace(/_I$/, '_VI');
               const hiddenField = document.getElementById(hiddenFieldId) as HTMLInputElement;
-
-              console.log(`[DEBUG] Found ITCNT8: id=${id}, value="${value}", hiddenField=${hiddenField ? hiddenField.value : 'NOT FOUND'}`);
 
               // Controlla se "Tutti i prodotti" è già selezionato
               if (value.toLowerCase() === 'tutti i prodotti' || (hiddenField && hiddenField.value === 'xaf_xaf_a0All_Products')) {
@@ -364,20 +361,14 @@ export class ProductSyncService extends EventEmitter {
 
                   // Cerca SOLO ITCNT8 (filtro prodotti), NON ITCNT5 (nav)
                   if (id.includes('ITCNT8')) {
-                    console.log(`[DEBUG] Attempting to set ITCNT8: id=${id}, currentValue="${value}"`);
-
                     // Trova il campo nascosto _VI associato (sostituisci solo l'ultima occorrenza)
                     const baseId = inputElement.id.replace(/_I$/, '_VI');
                     const hiddenField = document.getElementById(baseId) as HTMLInputElement;
-
-                    console.log(`[DEBUG] Hidden field: id=${baseId}, found=${!!hiddenField}, currentValue="${hiddenField?.value}"`);
 
                     if (hiddenField && inputElement) {
                       // Imposta "Tutti i prodotti" con il valore esatto dal HAR
                       hiddenField.value = 'xaf_xaf_a0All_Products';
                       inputElement.value = 'Tutti i prodotti';
-
-                      console.log(`[DEBUG] Set values: hiddenField="${hiddenField.value}", input="${inputElement.value}"`);
 
                       // Triggera gli eventi DevExpress
                       inputElement.dispatchEvent(new Event('input', { bubbles: true }));
