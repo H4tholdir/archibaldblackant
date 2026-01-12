@@ -279,6 +279,66 @@ export class ProductDatabase {
   }
 
   /**
+   * Get all package variants for an article.
+   * Variants are products with same name but different ID ARTICOLO.
+   *
+   * @param articleName - Article name (e.g., "H129FSQ.104.023")
+   * @returns Array of products ordered by multipleQty DESC (highest package first)
+   */
+  getProductVariants(articleName: string): Product[] {
+    const query = `
+      SELECT * FROM products
+      WHERE name = ?
+      ORDER BY multipleQty DESC NULLS LAST, id ASC
+    `;
+
+    return this.db.prepare(query).all(articleName) as Product[];
+  }
+
+  /**
+   * Select correct package variant based on quantity ordered.
+   *
+   * Logic:
+   * - If quantity >= highest multipleQty → select highest package
+   * - Else → select lowest package
+   * - Single package → select that package
+   *
+   * @param articleName - Article name (e.g., "H129FSQ.104.023")
+   * @param quantity - Quantity to order
+   * @returns Selected product variant, or null if article not found
+   */
+  selectPackageVariant(articleName: string, quantity: number): Product | null {
+    // Validation
+    if (!articleName || articleName.trim() === "") {
+      throw new Error("Article name is required");
+    }
+
+    if (quantity <= 0 || !Number.isFinite(quantity)) {
+      throw new Error("Quantity must be a positive number");
+    }
+
+    const variants = this.getProductVariants(articleName);
+
+    if (variants.length === 0) {
+      return null;
+    }
+
+    if (variants.length === 1) {
+      return variants[0];
+    }
+
+    // Multiple variants: apply selection logic
+    // variants already sorted by multipleQty DESC (highest first)
+    const highestMultiple = variants[0].multipleQty || 1;
+
+    if (quantity >= highestMultiple) {
+      return variants[0]; // Highest package
+    } else {
+      return variants[variants.length - 1]; // Lowest package
+    }
+  }
+
+  /**
    * Chiude la connessione al database
    */
   close(): void {
