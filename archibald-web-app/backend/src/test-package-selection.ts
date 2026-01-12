@@ -145,13 +145,28 @@ async function main() {
     logger.info("");
 
     if (process.env.TEST_CREATE_ORDER === "true") {
-      logger.info("Initializing browser and logging in...");
+      logger.info("");
+      logger.info("========================================");
+      logger.info("   SINGLE ORDER TEST - COMPLETE FLOW");
+      logger.info("========================================");
+      logger.info("");
+
+      logger.info("📌 Step 1/4: Initializing browser...");
       await bot.initialize();
+      logger.info("✅ Browser initialized");
+      logger.info("");
+
+      logger.info("📌 Step 2/4: Logging in to Archibald...");
       await bot.login();
+      logger.info("✅ Logged in successfully");
+      logger.info("");
+
+      logger.info("📌 Step 3/4: Creating test order...");
+      logger.info("");
 
       const orderData: OrderData = {
         customerId: "",
-        customerName: "Fresis Soc Cooperativa", // Replace with valid customer
+        customerName: "Fresis Soc Cooperativa",
         items: [
           {
             articleCode: testArticleName,
@@ -162,12 +177,42 @@ async function main() {
         ],
       };
 
-      logger.info("Creating test order with low quantity...");
-      const orderId = await bot.createOrder(orderData);
-      logger.info(`✅ Order created: ${orderId}`);
-      logger.info("Verify in Archibald that the correct package was selected!");
+      logger.info("Order Configuration:");
+      logger.info(`  Customer: ${orderData.customerName}`);
+      logger.info(`  Article: ${testArticleName}`);
+      logger.info(`  Quantity: ${lowQuantity}`);
+      logger.info(`  Expected Package: 1 (variant K3)`);
+      logger.info("");
 
+      const orderId = await bot.createOrder(orderData);
+
+      logger.info("");
+      logger.info("✅ ORDER CREATED SUCCESSFULLY!");
+      logger.info("");
+      logger.info("Order Summary:");
+      logger.info(`  Order ID: ${orderId}`);
+      logger.info(`  Customer: ${orderData.customerName}`);
+      logger.info(`  Article: ${testArticleName}`);
+      logger.info(`  Quantity: ${lowQuantity}`);
+      logger.info(`  Package: 1 (K3 variant)`);
+      logger.info("");
+
+      logger.info("📌 Step 4/4: Closing browser...");
       await bot.close();
+      logger.info("✅ Browser closed");
+      logger.info("");
+
+      logger.info("========================================");
+      logger.info("   MANUAL VERIFICATION REQUIRED");
+      logger.info("========================================");
+      logger.info("");
+      logger.info("Please check in Archibald:");
+      logger.info("  1. Order exists with ID: " + orderId);
+      logger.info("  2. Customer is 'Fresis Soc Cooperativa'");
+      logger.info("  3. Article '10839.314.016' is in line items");
+      logger.info("  4. Variant K3 (package=1) was selected");
+      logger.info("  5. Quantity field shows: 4");
+      logger.info("");
     } else {
       logger.info(
         "Skipping real order creation. Set TEST_CREATE_ORDER=true to enable.",

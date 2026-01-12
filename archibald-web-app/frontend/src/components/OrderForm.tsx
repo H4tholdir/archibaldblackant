@@ -2,8 +2,6 @@ import { useState, useEffect, useRef } from "react";
 import { useVoiceInput } from "../hooks/useVoiceInput";
 import { parseVoiceOrder, getVoiceSuggestions } from "../utils/orderParser";
 import type { OrderItem } from "../types/order";
-import { getProductVariants, type Product as ApiProduct } from "../api/products";
-import { PackageInfo } from "./PackageInfo";
 
 interface Customer {
   id: string;
@@ -58,11 +56,12 @@ export default function OrderForm({ onOrderCreated }: OrderFormProps) {
     discount: 0,
   });
 
-  // Package variants state
-  const [packageVariants, setPackageVariants] = useState<ApiProduct[]>([]);
-  const [selectedVariant, setSelectedVariant] = useState<ApiProduct | null>(
-    null,
-  );
+  // Package constraints for selected product
+  const [packageConstraints, setPackageConstraints] = useState<{
+    minQty: number;
+    multipleQty: number;
+    maxQty?: number;
+  } | null>(null);
 
   // Voice input state
   const [showVoiceModal, setShowVoiceModal] = useState(false);
@@ -124,80 +123,6 @@ export default function OrderForm({ onOrderCreated }: OrderFormProps) {
     };
   }, [customersLoaded]);
 
-  // Fetch package variants when articleCode changes
-  useEffect(() => {
-    let isMounted = true;
-
-    const fetchVariants = async () => {
-      if (!newItem.articleCode) {
-        setPackageVariants([]);
-        setSelectedVariant(null);
-        return;
-      }
-
-      try {
-        const variants = await getProductVariants(newItem.articleCode);
-        if (isMounted) {
-          setPackageVariants(variants);
-        }
-      } catch (error) {
-        console.error("Errore caricamento varianti:", error);
-        if (isMounted) {
-          setPackageVariants([]);
-          setSelectedVariant(null);
-        }
-      }
-    };
-
-    fetchVariants();
-
-    return () => {
-      isMounted = false;
-    };
-  }, [newItem.articleCode]);
-
-  // Helper function to select package variant based on quantity
-  // Logic mirrors backend logic in product-db.ts:selectPackageVariant
-  // - If quantity >= highest package multipleQty → select highest package
-  // - Else → select lowest package that can satisfy the quantity
-  const selectPackageVariant = (
-    variants: ApiProduct[],
-    quantity: number,
-  ): ApiProduct | null => {
-    if (variants.length === 0) return null;
-    if (variants.length === 1) return variants[0];
-
-    // Variants are already ordered by multipleQty DESC (highest first)
-    const highestPackage = variants[0];
-    const highestMultiple = highestPackage.multipleQty || 0;
-
-    // If user wants quantity >= highest package size, use highest package
-    if (quantity >= highestMultiple) {
-      return highestPackage;
-    }
-
-    // Otherwise, find the smallest package that can satisfy the quantity
-    // Iterate from smallest to largest (reverse order)
-    for (let i = variants.length - 1; i >= 0; i--) {
-      const variant = variants[i];
-      const packageSize = variant.multipleQty || 0;
-
-      // If this package size can satisfy the quantity, use it
-      if (quantity >= packageSize) {
-        return variant;
-      }
-    }
-
-    // Fallback: use smallest package if quantity is less than all package sizes
-    return variants[variants.length - 1];
-  };
-
-  // Update selected variant when quantity or variants change
-  useEffect(() => {
-    const selected = selectPackageVariant(packageVariants, newItem.quantity);
-    setSelectedVariant(selected);
-  }, [packageVariants, newItem.quantity]);
-
   // Don't fetch products on mount - wait for user to type
   // This prevents loading 4000+ products at startup
 
@@ -242,21 +167,29 @@ export default function OrderForm({ onOrderCreated }: OrderFormProps) {
 
   // Product selection handler
   const handleProductSelect = (product: Product) => {
-    // Parse packageContent to get quantity (es. "1", "100", etc.)
-    let autoQuantity = 1;
+    // Parse packageContent to get the package size (minimum order quantity)
+    let packageSize = 1;
     if (product.packageContent) {
       const parsed = parseInt(product.packageContent);
       if (!isNaN(parsed) && parsed > 0) {
-        autoQuantity = parsed;
+        packageSize = parsed;
       }
     }
+
+    // Set package constraints based on product metadata
+    // This will be used to validate and constrain quantity input
+    setPackageConstraints({
+      minQty: packageSize, // Min quantity = package size
+      multipleQty: packageSize, // Must order in multiples of package size
+      maxQty: undefined, // No max by default
+    });
 
     setNewItem({
       ...newItem,
       articleCode: product.name, // Usa il nome invece dell'ID
       productName: product.name,
       description: product.description || "",
-      quantity: autoQuantity, // Auto-compila con CONTENUTO DELL'IMBALLAGGIO
+      quantity: packageSize, // Start with minimum package size
       price: product.price || 0, // Auto-compila il prezzo dal database
     });
     setProductSearch(product.name);
@@ -612,6 +545,11 @@ export default function OrderForm({ onOrderCreated }: OrderFormProps) {
                     <div className="autocomplete-item-name">{product.name}</div>
                     <div className="autocomplete-item-id">
                       ID: {product.id}
+                      {product.packageContent && (
+                        <span className="package-badge">
+                          📦 {product.packageContent} colli
+                        </span>
+                      )}
                       {product.description &&
                         ` - ${product.description.substring(0, 50)}`}
                     </div>
@@ -654,18 +592,20 @@ export default function OrderForm({ onOrderCreated }: OrderFormProps) {
                 quantity: parseInt(e.target.value) || 0,
               })
             }
-            min="1"
+            min={packageConstraints?.minQty || 1}
+            step={packageConstraints?.multipleQty || 1}
+            max={packageConstraints?.maxQty}
           />
+          {packageConstraints && (
+            <div className="package-hint">
+              📦 Confezione da {packageConstraints.multipleQty} colli
+              {packageConstraints.minQty > 1 &&
+                ` • Minimo: ${packageConstraints.minQty}`}
+              {packageConstraints.maxQty &&
+                ` • Massimo: ${packageConstraints.maxQty}`}
+            </div>
+          )}
         </div>
-
-        {/* Package Info - shows available variants and which will be selected */}
-        {newItem.articleCode && (
-          <PackageInfo
-            variants={packageVariants}
-            selectedVariant={selectedVariant}
-            quantity={newItem.quantity}
-          />
-        )}
 
         <div className="form-group">
           <label className="form-label">Prezzo Unitario (€)</label>
