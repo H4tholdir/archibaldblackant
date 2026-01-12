@@ -157,8 +157,9 @@ export default function OrderForm({ onOrderCreated }: OrderFormProps) {
   }, [newItem.articleCode]);
 
   // Helper function to select package variant based on quantity
-  // Logic: if quantity >= highest multipleQty → select highest package
-  //        else → select lowest package
+  // Logic mirrors backend logic in product-db.ts:selectPackageVariant
+  // - If quantity >= highest package multipleQty → select highest package
+  // - Else → select lowest package that can satisfy the quantity
   const selectPackageVariant = (
     variants: ApiProduct[],
     quantity: number,
@@ -166,14 +167,29 @@ export default function OrderForm({ onOrderCreated }: OrderFormProps) {
     if (variants.length === 0) return null;
     if (variants.length === 1) return variants[0];
 
-    // Variants are already ordered by multipleQty DESC (from backend)
-    const highestMultiple = variants[0].multipleQty || 0;
+    // Variants are already ordered by multipleQty DESC (highest first)
+    const highestPackage = variants[0];
+    const highestMultiple = highestPackage.multipleQty || 0;
 
+    // If user wants quantity >= highest package size, use highest package
     if (quantity >= highestMultiple) {
-      return variants[0]; // Highest package
+      return highestPackage;
     }
 
-    return variants[variants.length - 1]; // Lowest package
+    // Otherwise, find the smallest package that can satisfy the quantity
+    // Iterate from smallest to largest (reverse order)
+    for (let i = variants.length - 1; i >= 0; i--) {
+      const variant = variants[i];
+      const packageSize = variant.multipleQty || 0;
+
+      // If this package size can satisfy the quantity, use it
+      if (quantity >= packageSize) {
+        return variant;
+      }
+    }
+
+    // Fallback: use smallest package if quantity is less than all package sizes
+    return variants[variants.length - 1];
   };
 
   // Update selected variant when quantity or variants change
