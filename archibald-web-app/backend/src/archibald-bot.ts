@@ -772,7 +772,391 @@ export class ArchibaldBot {
     }
   }
 
+  /**
+   * Create a new order in Archibald
+   * @param orderData - Order data with customer and items
+   * @returns Order ID
+   */
   async createOrder(orderData: OrderData): Promise<string> {
+    if (!this.page) throw new Error("Browser non inizializzato");
+
+    logger.info("🤖 BOT: INIZIO creazione ordine", {
+      customerName: orderData.customerName,
+      itemsCount: orderData.items.length,
+      items: orderData.items.map((item) => ({
+        name: item.articleCode,
+        qty: item.quantity,
+      })),
+    });
+
+    let orderId = "";
+
+    try {
+      // STEP 1: Click "Ordini" in left menu
+      await this.runOp("order.menu.ordini", async () => {
+        logger.debug('Clicking "Ordini" menu item...');
+
+        const clicked = await this.clickElementByText("Ordini", {
+          exact: true,
+          selectors: ["a", "span", "div", "td"],
+        });
+
+        if (!clicked) {
+          throw new Error('Menu "Ordini" not found');
+        }
+
+        // Wait for orders list page
+        await this.page!.waitForFunction(
+          () => {
+            const elements = Array.from(
+              document.querySelectorAll("span, button, a"),
+            );
+            return elements.some(
+              (el) => el.textContent?.trim().toLowerCase() === "nuovo",
+            );
+          },
+          { timeout: 5000 },
+        );
+
+        logger.info("✅ Navigated to orders list");
+      });
+
+      // STEP 2: Click "Nuovo" button
+      await this.runOp("order.click_nuovo", async () => {
+        logger.debug('Clicking "Nuovo" button...');
+
+        const clicked = await this.clickElementByText("Nuovo", {
+          exact: true,
+          selectors: ["button", "a", "span"],
+        });
+
+        if (!clicked) {
+          throw new Error('Button "Nuovo" not found');
+        }
+
+        await this.waitForDevExpressReady({ timeout: 5000 });
+        logger.info("✅ Order form loaded");
+      });
+
+      // STEP 3: Select customer via "Profilo cliente" dropdown
+      await this.runOp("order.customer.select", async () => {
+        logger.debug('Opening "Profilo cliente" dropdown...');
+
+        const dropdownOpened = await this.openDevExpressDropdown(
+          "PROFILO CLIENTE",
+          {
+            timeout: 3000,
+          },
+        );
+
+        if (!dropdownOpened) {
+          throw new Error('Dropdown "Profilo cliente" not found');
+        }
+
+        logger.debug("Dropdown opened, searching for customer...");
+        await this.wait(500);
+
+        // Search for customer
+        await this.searchInDropdown(orderData.customerName, { timeout: 2000 });
+        logger.debug(`Searching for: ${orderData.customerName}`);
+        await this.wait(1000); // Wait for filtering
+
+        // Select customer row
+        const rowSelected = await this.selectDropdownRow(
+          orderData.customerName,
+          {
+            exact: false,
+          },
+        );
+
+        if (!rowSelected) {
+          throw new Error(
+            `Customer "${orderData.customerName}" not found in dropdown`,
+          );
+        }
+
+        logger.info(`✅ Customer selected: ${orderData.customerName}`);
+        await this.waitForDevExpressReady({ timeout: 3000 });
+      });
+
+      // STEP 4: Click "New" button in Linee di vendita
+      await this.runOp("order.lineditems.click_new", async () => {
+        logger.debug('Clicking "New" in Linee di vendita...');
+
+        const clicked = await this.clickElementByText("New", {
+          exact: true,
+          selectors: ["button", "a", "img", "span"],
+        });
+
+        if (!clicked) {
+          throw new Error('Button "New" in line items not found');
+        }
+
+        await this.wait(500);
+        logger.info("✅ New line item row created");
+      });
+
+      // STEP 5-8: For each item, add article with package selection
+      for (let i = 0; i < orderData.items.length; i++) {
+        const item = orderData.items[i];
+
+        logger.info(`Processing item ${i + 1}/${orderData.items.length}`, {
+          articleCode: item.articleCode,
+          quantity: item.quantity,
+        });
+
+        // 5.1: Query database for correct package variant
+        await this.runOp(`order.item.${i}.select_variant`, async () => {
+          const selectedVariant = this.productDb.selectPackageVariant(
+            item.articleCode,
+            item.quantity,
+          );
+
+          if (!selectedVariant) {
+            throw new Error(
+              `Article ${item.articleCode} not found in database. ` +
+                `Ensure product sync has run.`,
+            );
+          }
+
+          logger.info(`Selected package variant for ${item.articleCode}`, {
+            variantId: selectedVariant.id,
+            packageContent: selectedVariant.packageContent,
+            multipleQty: selectedVariant.multipleQty,
+            quantity: item.quantity,
+          });
+
+          // Store selected variant for next steps
+          (item as any)._selectedVariant = selectedVariant;
+        });
+
+        // 5.2: Open "Nome articolo" dropdown
+        await this.runOp(`order.item.${i}.open_article_dropdown`, async () => {
+          const dropdownOpened =
+            await this.openDevExpressDropdown("NOME ARTICOLO");
+
+          if (!dropdownOpened) {
+            throw new Error('Dropdown "Nome articolo" not found');
+          }
+
+          await this.wait(500);
+        });
+
+        // 5.3: Search by VARIANT ID
+        await this.runOp(`order.item.${i}.search_article`, async () => {
+          const selectedVariant = (item as any)._selectedVariant;
+          await this.searchInDropdown(selectedVariant.id);
+          logger.debug(`Searching for variant ID: ${selectedVariant.id}`);
+          await this.wait(1000);
+        });
+
+        // 5.4: Select article row
+        await this.runOp(`order.item.${i}.select_article`, async () => {
+          const selectedVariant = (item as any)._selectedVariant;
+          const rowSelected = await this.selectDropdownRow(selectedVariant.id, {
+            exact: false,
+          });
+
+          if (!rowSelected) {
+            throw new Error(
+              `Variant ID ${selectedVariant.id} not found in dropdown. ` +
+                `Article: ${item.articleCode}, package: ${selectedVariant.packageContent}`,
+            );
+          }
+
+          logger.info(`✅ Article variant selected`, {
+            variantId: selectedVariant.id,
+            packageContent: selectedVariant.packageContent,
+          });
+
+          // Populate metadata
+          item.articleId = selectedVariant.id;
+          item.packageContent = selectedVariant.packageContent
+            ? parseInt(selectedVariant.packageContent)
+            : undefined;
+
+          await this.waitForDevExpressReady({ timeout: 3000 });
+        });
+
+        // 5.5: Set quantity
+        await this.runOp(`order.item.${i}.set_quantity`, async () => {
+          logger.debug(`Setting quantity: ${item.quantity}`);
+          await this.editTableCell("Qtà ordinata", item.quantity);
+          logger.info(`✅ Quantity set: ${item.quantity}`);
+          await this.wait(300);
+        });
+
+        // 5.6: Set discount (optional)
+        if (item.discount && item.discount > 0) {
+          await this.runOp(`order.item.${i}.set_discount`, async () => {
+            logger.debug(`Setting discount: ${item.discount}%`);
+            await this.editTableCell("Applica sconto", item.discount);
+            logger.info(`✅ Discount set: ${item.discount}%`);
+            await this.wait(300);
+          });
+        }
+
+        // 5.7: Click "Update" button
+        await this.runOp(`order.item.${i}.click_update`, async () => {
+          logger.debug('Clicking "Update" button...');
+
+          const clicked = await this.page!.evaluate(() => {
+            const buttons = Array.from(
+              document.querySelectorAll("a, button, img"),
+            );
+            const updateBtn = buttons.find((btn) => {
+              const title = (btn as HTMLElement).title?.toLowerCase() || "";
+              const alt = (btn as HTMLImageElement).alt?.toLowerCase() || "";
+              const id = (btn as HTMLElement).id?.toLowerCase() || "";
+
+              return (
+                title.includes("update") ||
+                title.includes("salva") ||
+                alt.includes("update") ||
+                alt.includes("salva") ||
+                id.includes("update")
+              );
+            });
+
+            if (updateBtn) {
+              (updateBtn as HTMLElement).click();
+              return true;
+            }
+            return false;
+          });
+
+          if (!clicked) {
+            throw new Error('Button "Update" not found');
+          }
+
+          logger.info(`✅ Line item ${i + 1} saved`);
+          await this.waitForDevExpressReady({ timeout: 2000 });
+        });
+
+        // 5.8: Click "New" for next article (if not last)
+        if (i < orderData.items.length - 1) {
+          await this.runOp(`order.item.${i}.click_new_for_next`, async () => {
+            logger.debug('Clicking "New" for next article...');
+
+            const clicked = await this.clickElementByText("New", {
+              exact: true,
+              selectors: ["button", "a", "img", "span"],
+            });
+
+            if (!clicked) {
+              throw new Error('Button "New" not found for next article');
+            }
+
+            await this.wait(500);
+            logger.info(`✅ Ready for article ${i + 2}`);
+          });
+        }
+      }
+
+      // STEP 9: Save and close order
+      await this.runOp("order.save_and_close", async () => {
+        logger.debug('Opening "Salvare" dropdown...');
+
+        // Find "Salvare" button
+        const dropdownOpened = await this.page!.evaluate(() => {
+          const allElements = Array.from(
+            document.querySelectorAll("span, button, a"),
+          );
+          const salvareBtn = allElements.find((el) => {
+            const text = el.textContent?.trim() || "";
+            return text.toLowerCase().includes("salvare");
+          });
+
+          if (!salvareBtn) return false;
+
+          // Click dropdown arrow
+          const parent = salvareBtn.parentElement;
+          if (!parent) return false;
+
+          const arrow = parent.querySelector(
+            'img[id*="_B-1"], img[alt*="down"]',
+          );
+          if (arrow) {
+            (arrow as HTMLElement).click();
+            return true;
+          }
+
+          // Fallback: click button itself
+          (salvareBtn as HTMLElement).click();
+          return true;
+        });
+
+        if (!dropdownOpened) {
+          throw new Error('Button "Salvare" not found');
+        }
+
+        await this.wait(500);
+
+        // Click "Salva e chiudi"
+        const saveClicked = await this.clickElementByText("Salva e chiudi", {
+          exact: true,
+          selectors: ["a", "span", "div"],
+        });
+
+        if (!saveClicked) {
+          throw new Error('Option "Salva e chiudi" not found in dropdown');
+        }
+
+        logger.info('✅ Clicked "Salva e chiudi"');
+        await this.wait(3000);
+      });
+
+      // STEP 10: Extract order ID
+      await this.runOp("order.extract_id", async () => {
+        const currentUrl = this.page!.url();
+        logger.debug(`Current URL after save: ${currentUrl}`);
+
+        // Try to extract order ID from URL
+        const urlMatch = currentUrl.match(/ObjectKey=([^&]+)/);
+        if (urlMatch) {
+          orderId = decodeURIComponent(urlMatch[1]);
+          logger.info(`✅ Order created with ID: ${orderId}`);
+          return;
+        }
+
+        // Fallback: use timestamp
+        logger.warn("Order ID not found in URL, using timestamp");
+        orderId = `ORDER-${Date.now()}`;
+      });
+
+      logger.info("🎉 BOT: ORDINE COMPLETATO", { orderId });
+
+      // Write operation report
+      await this.writeOperationReport();
+
+      return orderId;
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
+      logger.error("Errore durante creazione ordine", {
+        errorMessage,
+        errorStack: error instanceof Error ? error.stack : undefined,
+        orderData,
+      });
+
+      // Save screenshot on error
+      try {
+        await this.page!.screenshot({
+          path: `logs/order-error-${Date.now()}.png`,
+          fullPage: true,
+        });
+      } catch (screenshotError) {
+        logger.error("Failed to save error screenshot", { screenshotError });
+      }
+
+      // Write operation report even on error
+      await this.writeOperationReport();
+
+      throw error;
+    }
+  }
+
+  async createOrderOLD_BACKUP(orderData: OrderData): Promise<string> {
     if (!this.page) throw new Error("Browser non inizializzato");
 
     logger.info("🤖 BOT: INIZIO creazione ordine", {
