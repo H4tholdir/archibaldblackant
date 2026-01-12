@@ -194,9 +194,8 @@ export class ArchibaldBot {
    * Helper method to wait for a specified number of milliseconds
    */
   private async wait(ms: number): Promise<void> {
-    return new Promise(resolve => setTimeout(resolve, ms));
+    return new Promise((resolve) => setTimeout(resolve, ms));
   }
-
 
   async writeOperationReport(filePath?: string): Promise<string> {
     const report = this.buildOperationReport();
@@ -502,10 +501,10 @@ export class ArchibaldBot {
     logger.info("🤖 BOT: INIZIO creazione ordine", {
       customerName: orderData.customerName,
       itemsCount: orderData.items.length,
-      items: orderData.items.map(item => ({
+      items: orderData.items.map((item) => ({
         name: item.productName || item.articleCode,
-        qty: item.quantity
-      }))
+        qty: item.quantity,
+      })),
     });
 
     try {
@@ -515,8 +514,8 @@ export class ArchibaldBot {
 
         // Salva screenshot del menu per debug
         // await this.page.screenshot({
-          // path: "logs/menu-dashboard.png",
-          // fullPage: true,
+        // path: "logs/menu-dashboard.png",
+        // fullPage: true,
         // });
 
         const menuClicked = await this.page.evaluate(() => {
@@ -596,8 +595,8 @@ export class ArchibaldBot {
 
           // Screenshot dopo tentativo click
           // await this.page.screenshot({
-            // path: "logs/menu-clicked.png",
-            // fullPage: true,
+          // path: "logs/menu-clicked.png",
+          // fullPage: true,
           // });
         } else {
           logger.debug('Click su menu "Inserimento ordini" riuscito');
@@ -624,8 +623,8 @@ export class ArchibaldBot {
 
           // Screenshot dopo click menu
           // await this.page!.screenshot({
-            // path: "logs/menu-clicked.png",
-            // fullPage: true,
+          // path: "logs/menu-clicked.png",
+          // fullPage: true,
           // });
         }
       });
@@ -703,8 +702,8 @@ export class ArchibaldBot {
 
         // Screenshot iniziale
         // await this.page.screenshot({
-          // path: "logs/order-step1-loaded.png",
-          // fullPage: true,
+        // path: "logs/order-step1-loaded.png",
+        // fullPage: true,
         // });
       });
       logger.debug("Screenshot salvato: order-step1-loaded.png");
@@ -715,14 +714,18 @@ export class ArchibaldBot {
         try {
           await this.page!.waitForFunction(
             () => {
-              const inputs = Array.from(document.querySelectorAll('input[type="text"]'));
+              const inputs = Array.from(
+                document.querySelectorAll('input[type="text"]'),
+              );
               return inputs.some((input: any) => {
                 const id = input.id.toLowerCase();
-                return (id.includes('account') || id.includes('custtable')) &&
-                       input.offsetParent !== null;
+                return (
+                  (id.includes("account") || id.includes("custtable")) &&
+                  input.offsetParent !== null
+                );
               });
             },
-            { timeout: 2000, polling: 100 }
+            { timeout: 2000, polling: 100 },
           );
           // Wait minimo di stabilizzazione
           await this.wait(300);
@@ -790,8 +793,8 @@ export class ArchibaldBot {
         if (!customerInputSelector) {
           logger.warn('Campo "Account esterno" non trovato');
           // await this.page.screenshot({
-            // path: "logs/order-step2-no-customer-field.png",
-            // fullPage: true,
+          // path: "logs/order-step2-no-customer-field.png",
+          // fullPage: true,
           // });
           throw new Error("Campo cliente non trovato");
         }
@@ -801,7 +804,8 @@ export class ArchibaldBot {
         );
 
         // Usa il nome cliente invece dell'ID
-        const customerQuery = orderData.customerName?.trim() || orderData.customerId?.trim();
+        const customerQuery =
+          orderData.customerName?.trim() || orderData.customerId?.trim();
 
         if (!customerQuery) {
           throw new Error("Nome o codice cliente non fornito");
@@ -849,8 +853,8 @@ export class ArchibaldBot {
 
         if (!dropdownClicked) {
           // await this.page.screenshot({
-            // path: "logs/order-step2-no-customer-dropdown.png",
-            // fullPage: true,
+          // path: "logs/order-step2-no-customer-dropdown.png",
+          // fullPage: true,
           // });
           throw new Error("Dropdown cliente non trovato");
         }
@@ -864,7 +868,7 @@ export class ArchibaldBot {
         ];
 
         let searchInput = null;
-        let foundSelector: string | null = '';
+        let foundSelector: string | null = "";
 
         try {
           // STEP 1b: Aspetta dropdown cliente (ottimizzato a 800ms da 1500ms)
@@ -872,17 +876,22 @@ export class ArchibaldBot {
             (selectors: any) => {
               for (const sel of selectors) {
                 const input = document.querySelector(sel) as any;
-                if (input && input.offsetParent !== null && !input.disabled && !input.readOnly) {
+                if (
+                  input &&
+                  input.offsetParent !== null &&
+                  !input.disabled &&
+                  !input.readOnly
+                ) {
                   return sel;
                 }
               }
               return null;
             },
             { timeout: 800, polling: 50 }, // Ottimizzato da 1500ms
-            searchInputSelectors
+            searchInputSelectors,
           );
 
-          foundSelector = await result.jsonValue() as string | null;
+          foundSelector = (await result.jsonValue()) as string | null;
 
           if (foundSelector) {
             searchInput = await this.page!.$(foundSelector);
@@ -892,7 +901,9 @@ export class ArchibaldBot {
           for (const selector of searchInputSelectors) {
             const input = await this.page!.$(selector);
             if (input) {
-              const isVisible = await input.evaluate(el => (el as HTMLElement).offsetParent !== null);
+              const isVisible = await input.evaluate(
+                (el) => (el as HTMLElement).offsetParent !== null,
+              );
               if (isVisible) {
                 searchInput = input;
                 foundSelector = selector;
@@ -903,14 +914,14 @@ export class ArchibaldBot {
         }
 
         // await this.page!.screenshot({
-          // path: "logs/order-step2-dropdown-opened.png",
-          // fullPage: true,
+        // path: "logs/order-step2-dropdown-opened.png",
+        // fullPage: true,
         // });
 
         if (!searchInput) {
           // await this.page.screenshot({
-            // path: "logs/order-step2-no-search-input.png",
-            // fullPage: true,
+          // path: "logs/order-step2-no-search-input.png",
+          // fullPage: true,
           // });
           throw new Error(
             'Barra di ricerca "Enter text to search" non trovata',
@@ -918,15 +929,19 @@ export class ArchibaldBot {
         }
 
         // OTTIMIZZAZIONE ULTRA: Incolla direttamente senza click/backspace (più veloce!)
-        await this.page!.evaluate((selector, value) => {
-          const input = document.querySelector(selector) as HTMLInputElement;
-          if (input) {
-            input.value = value;
-            input.focus();
-            input.dispatchEvent(new Event('input', { bubbles: true }));
-            input.dispatchEvent(new Event('change', { bubbles: true }));
-          }
-        }, foundSelector, customerQuery);
+        await this.page!.evaluate(
+          (selector, value) => {
+            const input = document.querySelector(selector) as HTMLInputElement;
+            if (input) {
+              input.value = value;
+              input.focus();
+              input.dispatchEvent(new Event("input", { bubbles: true }));
+              input.dispatchEvent(new Event("change", { bubbles: true }));
+            }
+          },
+          foundSelector,
+          customerQuery,
+        );
 
         await this.page!.keyboard.press("Enter");
 
@@ -940,7 +955,7 @@ export class ArchibaldBot {
 
         if (rows.length > 0) {
           // FIX: Clicca sulla prima cella <td> invece che sulla riga
-          const firstCell = await rows[0].$('td');
+          const firstCell = await rows[0].$("td");
           const clickTarget = firstCell || rows[0];
 
           try {
@@ -975,8 +990,8 @@ export class ArchibaldBot {
         await this.wait(300);
 
         // await this.page.screenshot({
-          // path: "logs/order-step2-customer-filled.png",
-          // fullPage: true,
+        // path: "logs/order-step2-customer-filled.png",
+        // fullPage: true,
         // });
         logger.debug("Screenshot salvato: customer-filled.png");
       });
@@ -1012,8 +1027,8 @@ export class ArchibaldBot {
           );
 
           // await this.page.screenshot({
-            // path: `logs/order-step3-before-add-item-${i}.png`,
-            // fullPage: true,
+          // path: `logs/order-step3-before-add-item-${i}.png`,
+          // fullPage: true,
           // });
 
           // APPROCCIO DIRETTO: Cerca il pulsante "New" per aggiungere articoli
@@ -1061,8 +1076,8 @@ export class ArchibaldBot {
 
           if (!plusButtonClicked) {
             // await this.page.screenshot({
-              // path: `logs/order-error-no-plus-button.png`,
-              // fullPage: true,
+            // path: `logs/order-error-no-plus-button.png`,
+            // fullPage: true,
             // });
             throw new Error(
               "Pulsante + per aggiungere articolo non trovato (SALESLINE)",
@@ -1089,8 +1104,8 @@ export class ArchibaldBot {
           }
 
           // await this.page.screenshot({
-            // path: `logs/order-step4-after-plus-${i}.png`,
-            // fullPage: true,
+          // path: `logs/order-step4-after-plus-${i}.png`,
+          // fullPage: true,
           // });
         });
 
@@ -1434,8 +1449,8 @@ export class ArchibaldBot {
 
           if (!dropdownClicked) {
             // await this.page.screenshot({
-              // path: `logs/order-error-no-article-dropdown-${i}.png`,
-              // fullPage: true,
+            // path: `logs/order-error-no-article-dropdown-${i}.png`,
+            // fullPage: true,
             // });
             logger.debug(
               `Tentativi dropdown articolo: ${dropdownAttempts.join(" | ")}`,
@@ -1525,8 +1540,8 @@ export class ArchibaldBot {
 
           if (!searchInput) {
             // await this.page.screenshot({
-              // path: `logs/order-error-no-article-search-${i}.png`,
-              // fullPage: true,
+            // path: `logs/order-error-no-article-search-${i}.png`,
+            // fullPage: true,
             // });
             throw new Error("Barra ricerca articolo non trovata");
           }
@@ -1548,15 +1563,19 @@ export class ArchibaldBot {
           });
 
           if (inputSelector) {
-            await this.page!.evaluate((selector: any, value: any) => {
-              const input = document.querySelector(selector) as any;
-              if (input) {
-                input.value = value;
-                input.focus();
-                input.dispatchEvent(new Event('input', { bubbles: true }));
-                input.dispatchEvent(new Event('change', { bubbles: true }));
-              }
-            }, inputSelector, searchQuery);
+            await this.page!.evaluate(
+              (selector: any, value: any) => {
+                const input = document.querySelector(selector) as any;
+                if (input) {
+                  input.value = value;
+                  input.focus();
+                  input.dispatchEvent(new Event("input", { bubbles: true }));
+                  input.dispatchEvent(new Event("change", { bubbles: true }));
+                }
+              },
+              inputSelector,
+              searchQuery,
+            );
           }
 
           await this.page!.keyboard.press("Enter");
@@ -1625,8 +1644,8 @@ export class ArchibaldBot {
 
           if (!selectedRow) {
             // await this.page.screenshot({
-              // path: `logs/order-error-no-article-row-${i}.png`,
-              // fullPage: true,
+            // path: `logs/order-error-no-article-row-${i}.png`,
+            // fullPage: true,
             // });
             throw new Error("Riga articolo non trovata nel popup");
           }
@@ -1642,13 +1661,13 @@ export class ArchibaldBot {
           // FIX: Le righe <tr> non sono cliccabili, clicca sulla prima cella <td>
           let clickableElement = selectedRow;
           try {
-            const firstCell = await selectedRow.$('td');
+            const firstCell = await selectedRow.$("td");
             if (firstCell) {
               clickableElement = firstCell;
-              logger.debug('Trovata cella <td> cliccabile nella riga');
+              logger.debug("Trovata cella <td> cliccabile nella riga");
             }
           } catch {
-            logger.debug('Nessuna cella <td> trovata, clicco sulla riga');
+            logger.debug("Nessuna cella <td> trovata, clicco sulla riga");
           }
 
           // Click with retry
@@ -1665,7 +1684,7 @@ export class ArchibaldBot {
                 // Ultimo tentativo: usa click JavaScript diretto
                 try {
                   await clickableElement.evaluate((el: any) => el.click());
-                  logger.debug('Click JavaScript riuscito come fallback');
+                  logger.debug("Click JavaScript riuscito come fallback");
                   break;
                 } catch {
                   throw error;
@@ -1697,8 +1716,8 @@ export class ArchibaldBot {
           }
 
           // await this.page!.screenshot({
-            // path: `logs/order-step5-article-selected-${i}.png`,
-            // fullPage: true,
+          // path: `logs/order-step5-article-selected-${i}.png`,
+          // fullPage: true,
           // });
         });
 
@@ -1847,7 +1866,9 @@ export class ArchibaldBot {
               }
             } catch (error: any) {
               // Se detached o altro errore, fallback all'input
-              logger.debug(`Click su quantityCell fallito (${error.message}), uso input diretto`);
+              logger.debug(
+                `Click su quantityCell fallito (${error.message}), uso input diretto`,
+              );
             }
           }
 
@@ -1988,7 +2009,9 @@ export class ArchibaldBot {
               // Cerca LINEDISC o DISCOUNT nella prima riga (la più recente)
               for (const row of editRows) {
                 const inputs = Array.from(
-                  (row as any).querySelectorAll('input[id*="LINEDISC_Edit"], input[id*="DISCOUNT_Edit"], input[id*="Discount_Edit"]'),
+                  (row as any).querySelectorAll(
+                    'input[id*="LINEDISC_Edit"], input[id*="DISCOUNT_Edit"], input[id*="Discount_Edit"]',
+                  ),
                 );
 
                 for (const input of inputs) {
@@ -2036,7 +2059,9 @@ export class ArchibaldBot {
             // Seleziona il campo
             discountInput = await this.page!.$(`#${discountInputId}`);
             if (!discountInput) {
-              logger.warn(`Campo sconto con ID ${discountInputId} non trovato nel DOM`);
+              logger.warn(
+                `Campo sconto con ID ${discountInputId} non trovato nel DOM`,
+              );
               return;
             }
           });
@@ -2045,44 +2070,49 @@ export class ArchibaldBot {
           if (!discountInput) {
             logger.warn("Campo sconto non trovato, continuo senza");
           } else {
-            await this.runOp(`order.item.${i}.discount.activate_cell`, async () => {
-              // Attendi stabilizzazione DOM
-              await this.wait(300);
+            await this.runOp(
+              `order.item.${i}.discount.activate_cell`,
+              async () => {
+                // Attendi stabilizzazione DOM
+                await this.wait(300);
 
-              // Ri-ottieni l'elemento fresh
-              discountInput = await this.page!.$(`#${discountInputId}`);
-
-              if (!discountInput) {
-                logger.warn("Campo sconto non trovato");
-                return;
-              }
-
-              // Prova prima con la cella, con fallback all'input
-              const discountCell = await this.page!.$(`#${discountBaseId}`);
-
-              let clicked = false;
-              if (discountCell) {
-                try {
-                  const box = await discountCell.boundingBox();
-                  if (box) {
-                    await discountCell.click({ clickCount: 2 });
-                    await this.wait(200);
-                    clicked = true;
-                  }
-                } catch (error: any) {
-                  logger.debug(`Click su discountCell fallito (${error.message}), uso input diretto`);
-                }
-              }
-
-              // Fallback: click diretto
-              if (!clicked) {
+                // Ri-ottieni l'elemento fresh
                 discountInput = await this.page!.$(`#${discountInputId}`);
-                if (discountInput) {
-                  await discountInput.click({ clickCount: 2 });
-                  await this.wait(200);
+
+                if (!discountInput) {
+                  logger.warn("Campo sconto non trovato");
+                  return;
                 }
-              }
-            });
+
+                // Prova prima con la cella, con fallback all'input
+                const discountCell = await this.page!.$(`#${discountBaseId}`);
+
+                let clicked = false;
+                if (discountCell) {
+                  try {
+                    const box = await discountCell.boundingBox();
+                    if (box) {
+                      await discountCell.click({ clickCount: 2 });
+                      await this.wait(200);
+                      clicked = true;
+                    }
+                  } catch (error: any) {
+                    logger.debug(
+                      `Click su discountCell fallito (${error.message}), uso input diretto`,
+                    );
+                  }
+                }
+
+                // Fallback: click diretto
+                if (!clicked) {
+                  discountInput = await this.page!.$(`#${discountInputId}`);
+                  if (discountInput) {
+                    await discountInput.click({ clickCount: 2 });
+                    await this.wait(200);
+                  }
+                }
+              },
+            );
 
             const formatDiscount = (value: number): string => {
               const fixed = Number.isInteger(value)
@@ -2118,7 +2148,9 @@ export class ArchibaldBot {
               const discountValue = await discountInput!.evaluate(
                 (el: any) => (el as any).value || "",
               );
-              logger.debug(`Sconto inserito (valore finale): "${discountValue}"`);
+              logger.debug(
+                `Sconto inserito (valore finale): "${discountValue}"`,
+              );
             });
           }
         } else {
@@ -2182,15 +2214,17 @@ export class ArchibaldBot {
           await this.wait(2000);
 
           // await this.page.screenshot({
-            // path: `logs/order-step6-article-saved-${i}.png`,
-            // fullPage: true,
+          // path: `logs/order-step6-article-saved-${i}.png`,
+          // fullPage: true,
           // });
 
           logger.info(`Articolo ${i + 1}/${orderData.items.length} salvato`);
         });
       }
 
-      logger.info("🤖 BOT: Tutti gli articoli inseriti con successo, ora salvo l'ordine");
+      logger.info(
+        "🤖 BOT: Tutti gli articoli inseriti con successo, ora salvo l'ordine",
+      );
 
       // 5. STEP 6.4: Click su "Salva e chiudi"
       const orderId = await this.runOp("order.save_and_close", async () => {
@@ -2198,8 +2232,8 @@ export class ArchibaldBot {
         logger.debug('Cerco azione "Salva e chiudi"...');
 
         // await this.page!.screenshot({
-          // path: "logs/order-step7-before-final-save.png",
-          // fullPage: true,
+        // path: "logs/order-step7-before-final-save.png",
+        // fullPage: true,
         // });
 
         const tryClickSaveAndClose = async (): Promise<string | null> => {
@@ -2328,8 +2362,8 @@ export class ArchibaldBot {
             await this.wait(1500);
 
             // await this.page!.screenshot({
-              // path: "logs/order-step7-dropdown-opened.png",
-              // fullPage: true,
+            // path: "logs/order-step7-dropdown-opened.png",
+            // fullPage: true,
             // });
           }
 
@@ -2381,8 +2415,8 @@ export class ArchibaldBot {
         if (!saveMethod) {
           logger.error('Pulsante "Salva e chiudi" non trovato');
           // await this.page!.screenshot({
-            // path: "logs/order-error-no-save-button.png",
-            // fullPage: true,
+          // path: "logs/order-error-no-save-button.png",
+          // fullPage: true,
           // });
           throw new Error('Pulsante "Salva e chiudi" non trovato');
         }
@@ -2478,7 +2512,7 @@ export class ArchibaldBot {
       logger.info("🤖 BOT: FINE creazione ordine", {
         orderId,
         customerName: orderData.customerName,
-        itemsCount: orderData.items.length
+        itemsCount: orderData.items.length,
       });
 
       return orderId;
