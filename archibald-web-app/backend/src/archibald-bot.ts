@@ -1899,8 +1899,7 @@ export class ArchibaldBot {
         });
 
         // 5.1: Query database for correct package variant
-        await this.runOp(`order.item.${i}.select_variant`, "form.package", async () => {,
-          "form.package"
+        await this.runOp(`order.item.${i}.select_variant`, "form.package", async () => {
           const selectedVariant = this.productDb.selectPackageVariant(
             item.articleCode,
             item.quantity,
