@@ -241,6 +241,191 @@ export class ArchibaldBot {
     };
   }
 
+  private buildEnhancedReport(): string {
+    const totalDurationMs = this.opRecords.reduce(
+      (sum, record) => sum + record.durationMs,
+      0,
+    );
+
+    const totalGapMs = this.opRecords.reduce(
+      (sum, record) => sum + record.gapMs,
+      0,
+    );
+
+    const errors = this.opRecords.filter((record) => record.status === "error");
+    const successCount = this.opRecords.filter((r) => r.status === "ok").length;
+
+    // Memory stats
+    const peakMemoryBytes = Math.max(...this.opRecords.map((r) => r.memoryAfter));
+    const avgMemoryBytes = this.opRecords.reduce((sum, r) => sum + r.memoryBefore, 0) / this.opRecords.length;
+
+    // Category breakdown
+    const categoryMap: Record<string, {
+      count: number;
+      durations: number[];
+      memories: number[];
+    }> = {};
+
+    for (const record of this.opRecords) {
+      if (record.status === "ok") {
+        if (!categoryMap[record.category]) {
+          categoryMap[record.category] = { count: 0, durations: [], memories: [] };
+        }
+        categoryMap[record.category].count++;
+        categoryMap[record.category].durations.push(record.durationMs);
+        categoryMap[record.category].memories.push(record.memoryAfter - record.memoryBefore);
+      }
+    }
+
+    // Retry analysis
+    const retriedOperations = this.opRecords.filter((r) => r.retryAttempt > 0);
+
+    // Build report
+    const lines: string[] = [];
+    lines.push("# 🤖 Archibald Bot Enhanced Performance Report");
+    lines.push("");
+    lines.push(`**Generated**: ${new Date().toISOString()}`);
+    lines.push("");
+
+    // Summary section
+    lines.push("## 📊 Summary");
+    lines.push("");
+    lines.push(`- **Total operations**: ${this.opRecords.length}`);
+    lines.push(`- **Successful**: ${successCount}`);
+    lines.push(`- **Failed**: ${errors.length}`);
+    lines.push(`- **Total duration**: ${(totalDurationMs / 1000).toFixed(2)}s`);
+    lines.push(`- **Total gaps**: ${(totalGapMs / 1000).toFixed(2)}s`);
+    lines.push(`- **Average operation**: ${(totalDurationMs / this.opRecords.length).toFixed(0)}ms`);
+    lines.push(`- **Peak memory**: ${(peakMemoryBytes / 1024 / 1024).toFixed(2)} MB`);
+    lines.push(`- **Average memory**: ${(avgMemoryBytes / 1024 / 1024).toFixed(2)} MB`);
+    lines.push("");
+
+    // Category breakdown
+    lines.push("## 📂 Performance by Category");
+    lines.push("");
+    lines.push("| Category | Count | Total (s) | Avg (ms) | p50 (ms) | p95 (ms) | p99 (ms) | Avg Memory (KB) |");
+    lines.push("| -------- | ----- | --------- | -------- | -------- | -------- | -------- | --------------- |");
+
+    const sortedCategories = Object.entries(categoryMap).sort(
+      ([, a], [, b]) => b.durations.reduce((s, d) => s + d, 0) - a.durations.reduce((s, d) => s + d, 0)
+    );
+
+    for (const [category, data] of sortedCategories) {
+      const totalMs = data.durations.reduce((sum, d) => sum + d, 0);
+      const avgMs = totalMs / data.count;
+      const percentiles = this.calculatePercentiles(data.durations);
+      const avgMemoryKB = data.memories.reduce((sum, m) => sum + m, 0) / data.count / 1024;
+
+      lines.push(
+        `| ${category} | ${data.count} | ${(totalMs / 1000).toFixed(2)} | ${avgMs.toFixed(0)} | ${percentiles.p50.toFixed(0)} | ${percentiles.p95.toFixed(0)} | ${percentiles.p99.toFixed(0)} | ${avgMemoryKB.toFixed(1)} |`
+      );
+    }
+    lines.push("");
+
+    // Retry analysis
+    if (retriedOperations.length > 0) {
+      lines.push("## 🔄 Retry Analysis");
+      lines.push("");
+      lines.push(`**Total retried operations**: ${retriedOperations.length}`);
+      lines.push("");
+      lines.push("| Op ID | Name | Category | Retry # | Status |");
+      lines.push("| ----- | ---- | -------- | ------- | ------ |");
+
+      for (const op of retriedOperations) {
+        const statusEmoji = op.status === "ok" ? "✅" : "❌";
+        lines.push(
+          `| ${op.id} | ${op.name} | ${op.category} | ${op.retryAttempt} | ${statusEmoji} ${op.status} |`
+        );
+      }
+      lines.push("");
+    }
+
+    // Slowest operations (from original report)
+    const slowest = [...this.opRecords]
+      .filter((r) => r.status === "ok")
+      .sort((a, b) => b.durationMs - a.durationMs)
+      .slice(0, 5);
+
+    if (slowest.length > 0) {
+      lines.push("## 🐌 Slowest Operations (Top 5)");
+      lines.push("");
+      for (let i = 0; i < slowest.length; i++) {
+        const op = slowest[i];
+        lines.push(
+          `${i + 1}. **${op.name}** (${op.category}): ${(op.durationMs / 1000).toFixed(2)}s`
+        );
+      }
+      lines.push("");
+    }
+
+    // Longest gaps (from original report)
+    const longestGaps = [...this.opRecords]
+      .sort((a, b) => b.gapMs - a.gapMs)
+      .slice(0, 5);
+
+    if (longestGaps.length > 0 && longestGaps[0].gapMs > 100) {
+      lines.push("## ⏳ Longest Gaps (Top 5)");
+      lines.push("");
+      lines.push("*Gaps represent idle time between operations*");
+      lines.push("");
+      for (let i = 0; i < longestGaps.length; i++) {
+        const op = longestGaps[i];
+        if (op.gapMs > 100) {
+          lines.push(
+            `${i + 1}. Before **${op.name}** (${op.category}): ${(op.gapMs / 1000).toFixed(2)}s`
+          );
+        }
+      }
+      lines.push("");
+    }
+
+    // Errors (from original report)
+    if (errors.length > 0) {
+      lines.push("## ❌ Errors");
+      lines.push("");
+      for (const record of errors) {
+        lines.push(`- **[${record.id}] ${record.name}** (${record.category})`);
+        lines.push(`  - Error: \`${record.errorMessage ?? "unknown"}\``);
+        lines.push(
+          `  - Duration before fail: ${(record.durationMs / 1000).toFixed(2)}s`
+        );
+      }
+      lines.push("");
+    }
+
+    // Detailed timeline (extended with category and memory)
+    lines.push("## 📋 Detailed Timeline");
+    lines.push("");
+    lines.push(
+      "| # | Name | Category | Status | Duration ms | Gap ms | Memory Δ (KB) | Start | End | Meta |",
+    );
+    lines.push(
+      "| - | ---- | -------- | ------ | ----------- | ------ | ------------- | ----- | --- | ---- |",
+    );
+
+    for (const record of this.opRecords) {
+      const metaStr = Object.keys(record.meta).length
+        ? JSON.stringify(record.meta).replace(/\|/g, "\\|")
+        : "";
+      const statusEmoji = record.status === "ok" ? "✅" : "❌";
+      const memoryDeltaKB = ((record.memoryAfter - record.memoryBefore) / 1024).toFixed(1);
+      lines.push(
+        `| ${record.id} | ${record.name} | ${record.category} | ${statusEmoji} ${record.status} | ${record.durationMs.toFixed(
+          1,
+        )} | ${record.gapMs.toFixed(1)} | ${memoryDeltaKB} | ${record.startIso} | ${
+          record.endIso
+        } | ${metaStr} |`,
+      );
+    }
+
+    lines.push("");
+    lines.push("---");
+    lines.push("");
+    lines.push("*Generated by Archibald Bot Enhanced Profiling System*");
+
+    return lines.join("\n");
+  }
+
   /**
    * Helper method to wait for a specified number of milliseconds
    */
