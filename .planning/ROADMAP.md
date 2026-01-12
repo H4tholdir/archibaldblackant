@@ -13,7 +13,7 @@ None (full-stack web app con pattern standard)
 - [x] **Phase 1: Security Critical Fixes** - Eliminare vulnerabilità credenziali e bug runtime
 - [x] **Phase 2: Code Quality Foundation** - Stabilire testing framework e rimuovere tech debt
 - [ ] **Phase 3: MVP Order Form** - Completare form ordini production-ready
-- [ ] **Phase 3.1: Bot Performance Profiling & Optimization (INSERTED)** - Sistema profiling e piano ottimizzazione dettagliato
+- [x] **Phase 3.1: Bot Performance Profiling & Optimization (INSERTED)** - Sistema profiling e piano ottimizzazione dettagliato ✅
 - [ ] **Phase 4: Voice Input Enhancement** - Voice hybrid affidabile con conferma visiva
 - [ ] **Phase 5: Order Submission** - Invio ordine ottimizzato con tracking
 - [ ] **Phase 6: Multi-User Authentication** - Login multi-agente con whitelist
@@ -72,39 +72,39 @@ Plans:
 - [ ] 03-06: Frontend Quantity Validation & User Feedback (blocked by 03-08)
 - [ ] 03-07: Integration Tests for Package Selection (blocked by 03-08)
 
-### Phase 3.1: Bot Performance Profiling & Optimization (INSERTED)
+### Phase 3.1: Bot Performance Profiling & Optimization (INSERTED) ✅
 **Goal**: Implementare sistema di profiling dettagliato per tracciare tempi di ogni operazione bot, identificare colli di bottiglia e strutturare piano di ottimizzazione super-dettagliato per massimizzare velocità esecuzione ordini
 **Depends on**: Phase 3 (dopo 03-03)
 **Priority**: 🔴 URGENT - Blocca proseguimento Phase 3 fino a completamento
 **Research**: Unlikely (profiling patterns e performance analysis sono tecniche standard)
-**Plans**: 3 plans (0/3 complete)
-
-**Rationale**: Dopo aver completato 03-03, è critico profilare l'intero flusso bot prima di continuare con validazioni e frontend. Questo permetterà di:
-1. Tracciare timing dettagliato di ogni operazione (login, navigazione, selezione cliente, articolo, quantità, etc.)
-2. Identificare colli di bottiglia (es: customer selection ~25s, article search ~9s)
-3. Creare dashboard/report di performance con metriche chiave
-4. Strutturare piano di ottimizzazione basato su dati reali (non supposizioni)
-5. Stabilire baseline performance per misurare miglioramenti futuri
-
-**Current Performance (from recent tests)**:
-- Total order creation: ~82s (con cache) / ~108s (senza cache)
-- Customer selection: 24.8s (paste method)
-- Article search: 9.1s (paste method)
-- Quantity setting: 9.5s (Ctrl+A + Backspace pattern)
-- Discount setting: 9.1s
-- Login: 26s (senza cache) / 4s (con cache)
+**Plans**: 3 plans (3/3 complete) ✅
+**Completed**: 2026-01-12
 
 Plans:
 - [x] 03.1-01: Enhanced Profiling System (extend runOp, add categories, percentiles, memory tracking)
-- [ ] 03.1-02: Performance Dashboard & Visualization (HTML dashboard with Gantt charts, bottleneck analysis)
-- [ ] 03.1-03: Optimization Plan Documentation (data-driven plan with ROI prioritization, SLO targets)
+- [x] 03.1-02: Performance Dashboard & Visualization (HTML dashboard with Gantt charts, bottleneck analysis)
+- [x] 03.1-03: Optimization Plan Documentation (data-driven plan with ROI prioritization, SLO targets)
 
-**Details**:
-- Implementare operation timing tracking nel bot (già parziale tramite runOp())
-- Estendere sistema di reporting per includere analisi colli di bottiglia
-- Creare visualizzazione performance (grafici, percentiles, trend)
-- Documentare piano ottimizzazione step-by-step basato su profiling
-- Stabilire target performance e SLO (Service Level Objectives)
+**Results (2026-01-12)**:
+- ✅ Profiling system implemented with category tracking, percentiles, memory tracking, retry detection
+- ✅ Self-contained HTML performance dashboard with Gantt charts, bottleneck analysis, recommendations
+- ✅ Comprehensive optimization plan: 7 optimizations, 40% improvement potential (-32.5s)
+- ✅ Baseline established: 3 profiling runs averaging 81.5s order creation (72.3s with cache, 99.6s cold start)
+- ✅ Major bottlenecks identified: Customer selection (24.8s, 30.4%), quantity setting (9.5s, 11.7%), article search (9.1s, 11.1%)
+- ✅ SLO targets defined: P95 < 60s order creation (vs. current 81.5s)
+- ✅ Optimization roadmap: Phase 1 (7h, -8.5s → 73s) → Phase 2 (14h, -17s → 56s ✅ SLO) → Phase 3 (16h, -13s → 49s)
+- 🐛 Bug discovered: 5 operations missing category parameter (need fix before next profiling)
+
+**Deliverables**:
+- `archibald-web-app/backend/src/archibald-bot.ts`: Enhanced runOp() with category, percentiles, memory
+- `archibald-web-app/backend/src/performance-dashboard-generator.ts`: HTML dashboard generator (static methods)
+- `archibald-web-app/backend/profiling-reports/*.html`: Performance dashboard reports (self-contained, ~40KB)
+- `.planning/phases/03.1-bot-performance-profiling-optimization/BASELINE-METRICS.json`: Consolidated metrics from 3 runs
+- `.planning/phases/03.1-bot-performance-profiling-optimization/OPTIMIZATION-PLAN.md`: Comprehensive optimization plan (7 opts, ROI-prioritized, 3-phase roadmap)
+
+**Next Steps**:
+- Resume Phase 3 main flow (plans 03-04 through 03-08) OR
+- Implement Phase 3.1 optimization roadmap in dedicated phase (recommended: after Phase 3 complete)
 
 ### Phase 4: Voice Input Enhancement
 **Goal**: Voice hybrid affidabile (dettatura → form → conferma tap) per ridurre errori input
