@@ -35,7 +35,7 @@ Plans:
 - [x] 01-01: Rotate test credentials in Archibald ERP
 - [x] 01-02: Remove backend/.env from git history with BFG Repo-Cleaner
 - [x] 01-03: Add .env to .gitignore and document required vars in .env.example
-- [ ] 01-04: Fix activeSyncType undefined bug in backend/src/index.ts
+- [x] 01-04: Fix activeSyncType undefined bug in backend/src/index.ts
 - [ ] 01-05: Centralize all hardcoded URLs in backend/src/config.ts
 
 ### Phase 2: Code Quality Foundation
@@ -214,7 +214,7 @@ Plans:
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Security Critical Fixes | 3/5 | In progress | - |
+| 1. Security Critical Fixes | 4/5 | In progress | - |
 | 2. Code Quality Foundation | 0/6 | Not started | - |
 | 3. MVP Order Form | 0/7 | Not started | - |
 | 4. Voice Input Enhancement | 0/5 | Not started | - |
