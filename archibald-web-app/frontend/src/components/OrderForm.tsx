@@ -586,12 +586,53 @@ export default function OrderForm({ onOrderCreated }: OrderFormProps) {
             type="number"
             className="form-input"
             value={newItem.quantity}
-            onChange={(e) =>
+            onChange={(e) => {
+              let qty = parseInt(e.target.value) || 0;
+
+              // Enforce constraints client-side
+              if (packageConstraints) {
+                // Round to nearest valid multiple
+                const multiple = packageConstraints.multipleQty;
+                qty = Math.round(qty / multiple) * multiple;
+
+                // Enforce minimum
+                if (qty < packageConstraints.minQty) {
+                  qty = packageConstraints.minQty;
+                }
+
+                // Enforce maximum
+                if (packageConstraints.maxQty && qty > packageConstraints.maxQty) {
+                  qty = packageConstraints.maxQty;
+                }
+              }
+
               setNewItem({
                 ...newItem,
-                quantity: parseInt(e.target.value) || 0,
-              })
-            }
+                quantity: qty,
+              });
+            }}
+            onBlur={(e) => {
+              // Re-validate on blur to ensure constraints are met
+              let qty = parseInt(e.target.value) || 0;
+
+              if (packageConstraints) {
+                if (qty < packageConstraints.minQty) {
+                  qty = packageConstraints.minQty;
+                }
+
+                const multiple = packageConstraints.multipleQty;
+                qty = Math.round(qty / multiple) * multiple;
+
+                if (packageConstraints.maxQty && qty > packageConstraints.maxQty) {
+                  qty = packageConstraints.maxQty;
+                }
+
+                setNewItem({
+                  ...newItem,
+                  quantity: qty,
+                });
+              }
+            }}
             min={packageConstraints?.minQty || 1}
             step={packageConstraints?.multipleQty || 1}
             max={packageConstraints?.maxQty}
