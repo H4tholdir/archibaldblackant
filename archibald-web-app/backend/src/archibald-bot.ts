@@ -207,6 +207,273 @@ export class ArchibaldBot {
     return new Promise((resolve) => setTimeout(resolve, ms));
   }
 
+  /**
+   * Find and click element by text content
+   * @param text - Text to search for
+   * @param options - Configuration options
+   * @returns true if clicked, false if not found
+   */
+  private async clickElementByText(
+    text: string,
+    options?: {
+      exact?: boolean;
+      selectors?: string[];
+      timeout?: number;
+    },
+  ): Promise<boolean> {
+    const {
+      exact = false,
+      selectors = ["a", "span", "button", "div"],
+      timeout = 3000,
+    } = options || {};
+
+    const clicked = await this.page!.evaluate(
+      (searchText, isExact, selectorList) => {
+        const elements = Array.from(
+          document.querySelectorAll(selectorList.join(", ")),
+        );
+
+        const target = elements.find((el) => {
+          const elementText = el.textContent?.trim() || "";
+          const searchLower = searchText.toLowerCase();
+          const elementLower = elementText.toLowerCase();
+
+          if (isExact) {
+            return elementLower === searchLower;
+          }
+          return elementLower.includes(searchLower) && elementText.length < 100;
+        });
+
+        if (target) {
+          (target as HTMLElement).click();
+          return true;
+        }
+        return false;
+      },
+      text,
+      exact,
+      selectors,
+    );
+
+    return clicked;
+  }
+
+  /**
+   * Find DevExpress dropdown by label text and click arrow
+   * @param labelText - Label text to search for (e.g., "PROFILO CLIENTE")
+   * @param options - Configuration options
+   * @returns true if dropdown opened
+   */
+  private async openDevExpressDropdown(
+    labelText: string,
+    options?: { timeout?: number },
+  ): Promise<boolean> {
+    const { timeout = 3000 } = options || {};
+
+    const dropdownOpened = await this.page!.evaluate((label) => {
+      // Find label by text
+      const allElements = Array.from(
+        document.querySelectorAll("span, td, div, label"),
+      );
+      const labelEl = allElements.find(
+        (el) => el.textContent?.toUpperCase().trim() === label.toUpperCase(),
+      );
+
+      if (!labelEl) return false;
+
+      // Find dropdown arrow near label (sibling or parent's sibling)
+      const parent = labelEl.parentElement;
+      if (!parent) return false;
+
+      // Look for DevExpress dropdown image (arrow icon)
+      const dropdownArrow = parent.querySelector(
+        'img[id*="DDD"], img[id*="_B-1"], img[src*="edtDropDown"]',
+      );
+      if (dropdownArrow) {
+        (dropdownArrow as HTMLElement).click();
+        return true;
+      }
+
+      // Fallback: look for clickable parent with dropdown ID
+      const clickable = parent.closest('[id*="DDD"]');
+      if (clickable) {
+        (clickable as HTMLElement).click();
+        return true;
+      }
+
+      return false;
+    }, labelText);
+
+    if (dropdownOpened) {
+      // Wait for dropdown panel to appear
+      await this.wait(500);
+    }
+
+    return dropdownOpened;
+  }
+
+  /**
+   * Type in dropdown search input and wait for filtering
+   * @param searchText - Text to type in search input
+   * @param options - Configuration options
+   */
+  private async searchInDropdown(
+    searchText: string,
+    options?: { timeout?: number },
+  ): Promise<void> {
+    const { timeout = 2000 } = options || {};
+
+    // Find visible text input in dropdown
+    const searchInput = await this.page!.$(
+      'input[type="text"]:not([style*="display: none"])',
+    );
+
+    if (!searchInput) {
+      throw new Error("Search input not found in dropdown");
+    }
+
+    // Clear existing value and type new text
+    await searchInput.click({ clickCount: 3 }); // Select all
+    await searchInput.type(searchText);
+    await this.page!.keyboard.press("Enter"); // Trigger filter
+  }
+
+  /**
+   * Select row in dropdown table by text match
+   * @param matchText - Text to match in row
+   * @param options - Configuration options
+   * @returns true if row selected, false if not found
+   */
+  private async selectDropdownRow(
+    matchText: string,
+    options?: { exact?: boolean },
+  ): Promise<boolean> {
+    const { exact = false } = options || {};
+
+    const rowSelected = await this.page!.evaluate(
+      (text, isExact) => {
+        // Find all visible table rows in dropdown
+        const rows = Array.from(
+          document.querySelectorAll('tr[class*="dxgvDataRow"]'),
+        );
+
+        const matchedRow = rows.find((row) => {
+          const htmlRow = row as HTMLElement;
+          const isVisible = htmlRow.offsetParent !== null;
+          const rowText = row.textContent?.trim() || "";
+
+          if (!isVisible) return false;
+
+          if (isExact) {
+            return rowText === text;
+          }
+          return rowText.includes(text);
+        });
+
+        if (matchedRow) {
+          const firstCell = matchedRow.querySelector("td");
+          if (firstCell) {
+            (firstCell as HTMLElement).click();
+            return true;
+          }
+        }
+
+        return false;
+      },
+      matchText,
+      exact,
+    );
+
+    return rowSelected;
+  }
+
+  /**
+   * Double-click cell and type value (for quantity, discount)
+   * @param cellLabelText - Label text near the cell (e.g., "Qtà ordinata")
+   * @param value - Value to set
+   */
+  private async editTableCell(
+    cellLabelText: string,
+    value: string | number,
+  ): Promise<void> {
+    const cellEdited = await this.page!.evaluate(
+      (label, val) => {
+        // Find all table cells
+        const cells = Array.from(document.querySelectorAll("td"));
+
+        // Find cell with label matching
+        const labelCell = cells.find((cell) =>
+          cell.textContent?.toLowerCase().includes(label.toLowerCase()),
+        );
+
+        if (!labelCell) return false;
+
+        // Find input in same row or next cell
+        const row = labelCell.closest("tr");
+        if (!row) return false;
+
+        const input = row.querySelector(
+          'input[type="text"]',
+        ) as HTMLInputElement;
+        if (!input) return false;
+
+        // Focus and set value
+        input.focus();
+        input.click();
+
+        // Clear and set value
+        input.value = String(val);
+
+        // Trigger change events
+        input.dispatchEvent(new Event("input", { bubbles: true }));
+        input.dispatchEvent(new Event("change", { bubbles: true }));
+        input.dispatchEvent(new Event("blur", { bubbles: true }));
+
+        return true;
+      },
+      cellLabelText,
+      value,
+    );
+
+    if (!cellEdited) {
+      throw new Error(`Cell "${cellLabelText}" not found or not editable`);
+    }
+  }
+
+  /**
+   * Wait for DevExpress loading indicator to disappear
+   * @param options - Configuration options
+   */
+  private async waitForDevExpressReady(options?: {
+    timeout?: number;
+  }): Promise<void> {
+    const { timeout = 5000 } = options || {};
+
+    try {
+      await this.page!.waitForFunction(
+        () => {
+          const loadingIndicators = Array.from(
+            document.querySelectorAll(
+              '[id*="LPV"], .dxlp, .dxlpLoadingPanel, [id*="Loading"]',
+            ),
+          );
+          return loadingIndicators.every(
+            (el) =>
+              (el as HTMLElement).style.display === "none" ||
+              (el as HTMLElement).offsetParent === null,
+          );
+        },
+        { timeout, polling: 100 },
+      );
+
+      // Additional stabilization wait
+      await this.wait(300);
+    } catch {
+      // Fallback: just wait fixed time if loading detection fails
+      await this.wait(1000);
+    }
+  }
+
   async writeOperationReport(filePath?: string): Promise<string> {
     const report = this.buildOperationReport();
     const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
