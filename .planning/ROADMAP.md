@@ -58,12 +58,12 @@ Plans:
 **Goal**: Form ordini production-ready con selezione pacchetto automatica basata su quantità e validazione vincoli
 **Depends on**: Phase 2
 **Research**: Complete (03-01 - discovered unique variant IDs and package selection logic)
-**Plans**: 7 plans (2/7 complete)
+**Plans**: 7 plans (3/7 complete)
 
 Plans:
 - [x] 03-01: Package/Multiplier UI Discovery (Research - complete)
 - [x] 03-02: Package Variant Database Functions (TDD - complete)
-- [ ] 03-03: Package Selection in Archibald Bot (search by variant ID)
+- [x] 03-03: Package Selection in Archibald Bot (search by variant ID - complete)
 - [ ] 03-04: Quantity Validation Against Package Rules
 - [ ] 03-05: Frontend Package Display in OrderForm
 - [ ] 03-06: Frontend Quantity Validation & User Feedback
@@ -217,7 +217,7 @@ Plans:
 |-------|----------------|--------|-----------|
 | 1. Security Critical Fixes | 5/5 | ✅ Complete | 2026-01-12 |
 | 2. Code Quality Foundation | 8/8 | ✅ Complete | 2026-01-12 |
-| 3. MVP Order Form | 0/7 | Not started | - |
+| 3. MVP Order Form | 3/7 | 🔄 In progress | - |
 | 4. Voice Input Enhancement | 0/5 | Not started | - |
 | 5. Order Submission | 0/6 | Not started | - |
 | 6. Multi-User Authentication | 0/8 | Not started | - |

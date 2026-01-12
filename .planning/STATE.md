@@ -10,18 +10,18 @@ See: .planning/PROJECT.md (updated 2026-01-11)
 ## Current Position
 
 Phase: 3 of 12 (MVP Order Form)
-Plan: 2/7 complete (03-02)
+Plan: 3/7 complete (03-03)
 Status: In progress
-Last activity: 2026-01-12 — Completed 03-02-PLAN.md (Package Variant Database Functions)
+Last activity: 2026-01-12 — Completed 03-03-PLAN.md (Package Selection in Archibald Bot)
 
-Progress: ████████░░ 19%
+Progress: █████████░ 21%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 14
-- Average duration: 74 min (1h 14m)
-- Total execution time: 18 hours
+- Total plans completed: 15
+- Average duration: 70 min (1h 10m)
+- Total execution time: 18.5 hours
 
 **By Phase:**
 
@@ -29,11 +29,11 @@ Progress: ████████░░ 19%
 |-------|-------|-------|----------|
 | 1 | 5 | 965 min | 193 min |
 | 2 | 8 | 101 min | 13 min |
-| 3 | 2 | 13 min | 7 min |
+| 3 | 3 | 44 min | 15 min |
 
 **Recent Trend:**
-- Last 5 plans: 02-05 (23m), 02-06 (12m), 02-07 (15m), 02-08 (9m), 03-02 (4m)
-- Trend: TDD plans remain very fast (avg 4-15m)
+- Last 5 plans: 02-06 (12m), 02-07 (15m), 02-08 (9m), 03-02 (4m), 03-03 (31m)
+- Trend: Bot integration plans take longer (31m) than pure DB/TDD plans (4-15m)
 
 ## Accumulated Context
 
@@ -44,12 +44,14 @@ Recent decisions affecting current work:
 
 | Phase | Decision | Rationale |
 |-------|----------|-----------|
+| 3 | Search Archibald by variant ID instead of article name | Variant ID is unique, article name matches multiple variants causing selection errors |
+| 3 | Populate articleId and packageContent in OrderItem | Enable order tracking, debugging, and verification of correct variant selection |
+| 3 | Manual verification script instead of brittle integration tests | Full bot tests fragile (UI changes), slow (2+ min), complex setup; manual script provides instant verification |
 | 3 | Ordered variants by multipleQty DESC in getProductVariants() | Highest package always first for consistent selection |
 | 3 | Return null vs throw for missing articles | Return null for "not found" (expected), throw for invalid inputs (error) |
 | 3 | Validate inputs at start of selectPackageVariant() | Fail fast before database queries |
 | 1 | Changed both username and password ([REDACTED-USERNAME]→[REDACTED-NEW-USERNAME], password rotated) | Enhanced security beyond minimum requirement |
 | 1 | Defer .env commit until after git history cleanup | Prevent reintroducing credentials to git during history rewrite |
-| 1 | Used BFG text replacement instead of file removal | Credentials were in docs, not .env - needed surgical approach |
 
 ### Deferred Issues
 
@@ -61,6 +63,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-01-12 14:09
-Stopped at: Completed 03-02-PLAN.md (Package Variant Database Functions)
-Next: Execute 03-03-PLAN.md (Package Selection in Archibald Bot)
+Last session: 2026-01-12 14:51
+Stopped at: Completed 03-03-PLAN.md (Package Selection in Archibald Bot)
+Next: Execute 03-04-PLAN.md (Quantity Validation Against Package Rules)
