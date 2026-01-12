@@ -49,8 +49,13 @@ export class PriceSyncService extends EventEmitter {
    * @param intervalMinutes Intervallo in minuti tra i sync
    * @param skipInitialSync Se true, non esegue il sync iniziale immediato
    */
-  startAutoSync(intervalMinutes: number = 60, skipInitialSync: boolean = false): void {
-    logger.info(`Avvio auto-sync prezzi ogni ${intervalMinutes} minuti${skipInitialSync ? ' (senza sync iniziale)' : ''}`);
+  startAutoSync(
+    intervalMinutes: number = 60,
+    skipInitialSync: boolean = false,
+  ): void {
+    logger.info(
+      `Avvio auto-sync prezzi ogni ${intervalMinutes} minuti${skipInitialSync ? " (senza sync iniziale)" : ""}`,
+    );
 
     if (!skipInitialSync) {
       // Sync iniziale al boot (dopo 10 secondi)
@@ -113,16 +118,16 @@ export class PriceSyncService extends EventEmitter {
     this.shouldStop = false;
 
     // Verifica se la sync è stata completata di recente
-    const resumePoint = this.checkpointManager.getResumePoint('prices');
+    const resumePoint = this.checkpointManager.getResumePoint("prices");
     if (resumePoint === -1) {
-      logger.info('⏭️ Sync prezzi recente, skip');
+      logger.info("⏭️ Sync prezzi recente, skip");
       const productsWithPrices = this.db.getProductsWithPrices();
       this.updateProgress({
-        status: 'completed',
+        status: "completed",
         currentPage: 0,
         totalPages: 0,
         pricesProcessed: productsWithPrices,
-        message: 'Sincronizzazione recente, skip',
+        message: "Sincronizzazione recente, skip",
       });
       return;
     }
@@ -130,16 +135,17 @@ export class PriceSyncService extends EventEmitter {
     this.syncInProgress = true;
 
     // Segna sync come iniziata
-    this.checkpointManager.startSync('prices');
+    this.checkpointManager.startSync("prices");
 
     this.updateProgress({
       status: "syncing",
       currentPage: 0,
       totalPages: 0,
       pricesProcessed: 0,
-      message: resumePoint > 1
-        ? `Ripresa da pagina ${resumePoint}...`
-        : "Avvio sincronizzazione prezzi...",
+      message:
+        resumePoint > 1
+          ? `Ripresa da pagina ${resumePoint}...`
+          : "Avvio sincronizzazione prezzi...",
     });
 
     let bot = null;
@@ -148,14 +154,14 @@ export class PriceSyncService extends EventEmitter {
       logger.info(
         resumePoint > 1
           ? `🔄 Ripresa sincronizzazione prezzi da pagina ${resumePoint}`
-          : "Inizio sincronizzazione prezzi da Archibald"
+          : "Inizio sincronizzazione prezzi da Archibald",
       );
 
       bot = await this.browserPool.acquire();
 
       // Verifica che la pagina esista e sia ancora valida
       if (!bot.page) {
-        throw new Error('Browser page is null');
+        throw new Error("Browser page is null");
       }
 
       try {
@@ -165,7 +171,7 @@ export class PriceSyncService extends EventEmitter {
         logger.warn("Frame detached, ricarico la pagina...");
         // Verifica nuovamente che la pagina esista prima di navigare
         if (!bot.page) {
-          throw new Error('Browser page is null after detached frame');
+          throw new Error("Browser page is null after detached frame");
         }
         await bot.page.goto(config.archibald.url, {
           waitUntil: "networkidle2",
@@ -174,13 +180,10 @@ export class PriceSyncService extends EventEmitter {
       }
 
       logger.info("Navigazione alla tabella prezzi...");
-      await bot.page!.goto(
-        `${config.archibald.url}/PRICEDISCTABLE_ListView/`,
-        {
-          waitUntil: "networkidle2",
-          timeout: 60000,
-        },
-      );
+      await bot.page!.goto(`${config.archibald.url}/PRICEDISCTABLE_ListView/`, {
+        waitUntil: "networkidle2",
+        timeout: 60000,
+      });
 
       await bot.page!.waitForSelector("table", { timeout: 10000 });
 
@@ -232,7 +235,11 @@ export class PriceSyncService extends EventEmitter {
 
       // Usa navigazione diretta invece di cliccare Next
       // Inizia da resumePoint invece di 1
-      for (let currentPage = resumePoint; currentPage <= totalPages && !this.shouldStop; currentPage++) {
+      for (
+        let currentPage = resumePoint;
+        currentPage <= totalPages && !this.shouldStop;
+        currentPage++
+      ) {
         this.updateProgress({
           status: "syncing",
           currentPage,
@@ -387,12 +394,10 @@ export class PriceSyncService extends EventEmitter {
         // DEBUG: Log first 3 price entries to verify data format
         if (currentPage === 1 && prices.length > 0) {
           logger.info("DEBUG - Sample price entries:", {
-            samples: prices
-              .slice(0, 3)
-              .map((p) => ({
-                itemDescription: p.itemDescription,
-                price: p.price,
-              })),
+            samples: prices.slice(0, 3).map((p) => ({
+              itemDescription: p.itemDescription,
+              price: p.price,
+            })),
           });
         }
 
@@ -425,10 +430,10 @@ export class PriceSyncService extends EventEmitter {
 
         // Salva checkpoint dopo ogni pagina completata
         this.checkpointManager.updateProgress(
-          'prices',
+          "prices",
           currentPage,
           totalPages,
-          allPrices.length
+          allPrices.length,
         );
 
         // Se non ci sono prezzi, interrompi
@@ -521,7 +526,11 @@ export class PriceSyncService extends EventEmitter {
       );
 
       // Segna checkpoint come completato
-      this.checkpointManager.completeSync('prices', totalPages, allPrices.length);
+      this.checkpointManager.completeSync(
+        "prices",
+        totalPages,
+        allPrices.length,
+      );
 
       this.updateProgress({
         status: "completed",
@@ -539,9 +548,9 @@ export class PriceSyncService extends EventEmitter {
 
       // Segna checkpoint come fallito (mantiene lastSuccessfulPage per ripresa)
       this.checkpointManager.failSync(
-        'prices',
-        error instanceof Error ? error.message : 'Errore sconosciuto',
-        this.progress.currentPage
+        "prices",
+        error instanceof Error ? error.message : "Errore sconosciuto",
+        this.progress.currentPage,
       );
 
       this.updateProgress({
