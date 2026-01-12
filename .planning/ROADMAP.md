@@ -13,6 +13,7 @@ None (full-stack web app con pattern standard)
 - [x] **Phase 1: Security Critical Fixes** - Eliminare vulnerabilità credenziali e bug runtime
 - [x] **Phase 2: Code Quality Foundation** - Stabilire testing framework e rimuovere tech debt
 - [ ] **Phase 3: MVP Order Form** - Completare form ordini production-ready
+- [ ] **Phase 3.1: Bot Performance Profiling & Optimization (INSERTED)** - Sistema profiling e piano ottimizzazione dettagliato
 - [ ] **Phase 4: Voice Input Enhancement** - Voice hybrid affidabile con conferma visiva
 - [ ] **Phase 5: Order Submission** - Invio ordine ottimizzato con tracking
 - [ ] **Phase 6: Multi-User Authentication** - Login multi-agente con whitelist
@@ -70,6 +71,40 @@ Plans:
 - [ ] 03-05: Frontend Package Display in OrderForm (blocked by 03-08)
 - [ ] 03-06: Frontend Quantity Validation & User Feedback (blocked by 03-08)
 - [ ] 03-07: Integration Tests for Package Selection (blocked by 03-08)
+
+### Phase 3.1: Bot Performance Profiling & Optimization (INSERTED)
+**Goal**: Implementare sistema di profiling dettagliato per tracciare tempi di ogni operazione bot, identificare colli di bottiglia e strutturare piano di ottimizzazione super-dettagliato per massimizzare velocità esecuzione ordini
+**Depends on**: Phase 3 (dopo 03-03)
+**Priority**: 🔴 URGENT - Blocca proseguimento Phase 3 fino a completamento
+**Research**: Unlikely (profiling patterns e performance analysis sono tecniche standard)
+**Plans**: 3 plans (0/3 complete)
+
+**Rationale**: Dopo aver completato 03-03, è critico profilare l'intero flusso bot prima di continuare con validazioni e frontend. Questo permetterà di:
+1. Tracciare timing dettagliato di ogni operazione (login, navigazione, selezione cliente, articolo, quantità, etc.)
+2. Identificare colli di bottiglia (es: customer selection ~25s, article search ~9s)
+3. Creare dashboard/report di performance con metriche chiave
+4. Strutturare piano di ottimizzazione basato su dati reali (non supposizioni)
+5. Stabilire baseline performance per misurare miglioramenti futuri
+
+**Current Performance (from recent tests)**:
+- Total order creation: ~82s (con cache) / ~108s (senza cache)
+- Customer selection: 24.8s (paste method)
+- Article search: 9.1s (paste method)
+- Quantity setting: 9.5s (Ctrl+A + Backspace pattern)
+- Discount setting: 9.1s
+- Login: 26s (senza cache) / 4s (con cache)
+
+Plans:
+- [x] 03.1-01: Enhanced Profiling System (extend runOp, add categories, percentiles, memory tracking)
+- [ ] 03.1-02: Performance Dashboard & Visualization (HTML dashboard with Gantt charts, bottleneck analysis)
+- [ ] 03.1-03: Optimization Plan Documentation (data-driven plan with ROI prioritization, SLO targets)
+
+**Details**:
+- Implementare operation timing tracking nel bot (già parziale tramite runOp())
+- Estendere sistema di reporting per includere analisi colli di bottiglia
+- Creare visualizzazione performance (grafici, percentiles, trend)
+- Documentare piano ottimizzazione step-by-step basato su profiling
+- Stabilire target performance e SLO (Service Level Objectives)
 
 ### Phase 4: Voice Input Enhancement
 **Goal**: Voice hybrid affidabile (dettatura → form → conferma tap) per ridurre errori input
@@ -219,7 +254,8 @@ Plans:
 |-------|----------------|--------|-----------|
 | 1. Security Critical Fixes | 5/5 | ✅ Complete | 2026-01-12 |
 | 2. Code Quality Foundation | 8/8 | ✅ Complete | 2026-01-12 |
-| 3. MVP Order Form | 3/7 | 🔄 In progress | - |
+| 3. MVP Order Form | 3/8 | 🔄 In progress | - |
+| 3.1. Bot Performance Profiling & Optimization (INSERTED) | 1/3 | 🔄 In progress | - |
 | 4. Voice Input Enhancement | 0/5 | Not started | - |
 | 5. Order Submission | 0/6 | Not started | - |
 | 6. Multi-User Authentication | 0/8 | Not started | - |
@@ -230,4 +266,4 @@ Plans:
 | 11. Order Management | 0/7 | Not started | - |
 | 12. Deployment & Infrastructure | 0/10 | Not started | - |
 
-**Total Plans**: 83 across 12 phases
+**Total Plans**: 86 across 12+ phases

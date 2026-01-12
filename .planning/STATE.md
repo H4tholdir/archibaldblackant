@@ -9,19 +9,19 @@ See: .planning/PROJECT.md (updated 2026-01-11)
 
 ## Current Position
 
-Phase: 3 of 12 (MVP Order Form)
-Plan: 3/7 complete (03-03)
+Phase: 3.1 of 12 (Bot Performance Profiling & Optimization - INSERTED)
+Plan: 1/3 complete
 Status: In progress
-Last activity: 2026-01-12 — Completed 03-03-PLAN.md (Package Selection in Archibald Bot)
+Last activity: 2026-01-12 — Completed 03.1-01-PLAN.md (Enhanced Profiling System)
 
-Progress: █████████░ 21%
+Progress: █████████░ 22%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 15
-- Average duration: 70 min (1h 10m)
-- Total execution time: 18.5 hours
+- Total plans completed: 16
+- Average duration: 69 min (1h 9m)
+- Total execution time: 19.9 hours
 
 **By Phase:**
 
@@ -30,10 +30,11 @@ Progress: █████████░ 21%
 | 1 | 5 | 965 min | 193 min |
 | 2 | 8 | 101 min | 13 min |
 | 3 | 3 | 44 min | 15 min |
+| 3.1 | 1 | 80 min | 80 min |
 
 **Recent Trend:**
-- Last 5 plans: 02-06 (12m), 02-07 (15m), 02-08 (9m), 03-02 (4m), 03-03 (31m)
-- Trend: Bot integration plans take longer (31m) than pure DB/TDD plans (4-15m)
+- Last 5 plans: 02-07 (15m), 02-08 (9m), 03-02 (4m), 03-03 (31m), 03.1-01 (80m)
+- Trend: Profiling infrastructure work takes significant time (80m) vs pure DB/TDD plans (4-15m)
 
 ## Accumulated Context
 
@@ -61,8 +62,22 @@ None yet.
 
 None yet.
 
+### Roadmap Evolution
+
+- **2026-01-12**: Phase 3.1 (Bot Performance Profiling & Optimization) inserted after Phase 3 as URGENT priority
+  - **Reason**: Critico profilare flusso bot completo prima di continuare con validazioni e frontend Phase 3
+  - **Impact**: Blocca proseguimento Phase 3 (plans 03-04 to 03-08) fino a completamento Phase 3.1
+  - **Rationale**: Ottimizzazione basata su dati reali (non supposizioni) è fondamentale per velocità produzione
+  - **Current baseline**: ~82s order creation (con cache), colli di bottiglia identificati in customer selection (24.8s) e article search (9.1s)
+
+- **2026-01-12**: Phase 3.1 planning completed
+  - **Plans created**: 3 plans (03.1-01: Enhanced Profiling, 03.1-02: Dashboard & Visualization, 03.1-03: Optimization Plan Documentation)
+  - **Scope**: ~6.5 hours total (1.5h + 3h + 2h)
+  - **Objective**: Extend runOp() profiling, create HTML dashboard with Gantt charts, document data-driven optimization plan with ROI prioritization and SLO targets
+  - **Expected outcome**: Clear optimization roadmap with 6+ opportunities, 42% improvement potential (-34.5s), target P95 < 60s
+
 ## Session Continuity
 
-Last session: 2026-01-12 14:51
-Stopped at: Completed 03-03-PLAN.md (Package Selection in Archibald Bot)
-Next: Execute 03-04-PLAN.md (Quantity Validation Against Package Rules)
+Last session: 2026-01-12 18:20
+Stopped at: Completed 03.1-01-PLAN.md (Enhanced Profiling System)
+Next: Execute 03.1-02-PLAN.md (Performance Dashboard & Visualization)
