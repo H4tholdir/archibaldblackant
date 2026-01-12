@@ -1,15 +1,15 @@
 import { describe, test, expect, beforeAll, afterAll } from 'vitest';
 import { ArchibaldBot } from './archibald-bot';
-import { ProductDb } from './product-db';
+import { ProductDatabase } from './product-db';
 import * as fixtures from './test-fixtures/orders';
 
 describe('Package Selection Integration Tests', () => {
   let bot: ArchibaldBot;
-  let productDb: ProductDb;
+  let productDb: ProductDatabase;
 
   beforeAll(async () => {
     // Initialize bot and DB
-    productDb = new ProductDb('./data/products.db');
+    productDb = new ProductDatabase('./data/products.db');
     bot = new ArchibaldBot(productDb);
 
     await bot.init();
