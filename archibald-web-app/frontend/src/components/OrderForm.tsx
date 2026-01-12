@@ -2,6 +2,8 @@ import { useState, useEffect, useRef } from "react";
 import { useVoiceInput } from "../hooks/useVoiceInput";
 import { parseVoiceOrder, getVoiceSuggestions } from "../utils/orderParser";
 import type { OrderItem } from "../types/order";
+import { getProductVariants, type Product as ApiProduct } from "../api/products";
+import { PackageInfo } from "./PackageInfo";
 
 interface Customer {
   id: string;
@@ -55,6 +57,12 @@ export default function OrderForm({ onOrderCreated }: OrderFormProps) {
     price: 0,
     discount: 0,
   });
+
+  // Package variants state
+  const [packageVariants, setPackageVariants] = useState<ApiProduct[]>([]);
+  const [selectedVariant, setSelectedVariant] = useState<ApiProduct | null>(
+    null,
+  );
 
   // Voice input state
   const [showVoiceModal, setShowVoiceModal] = useState(false);
@@ -115,6 +123,64 @@ export default function OrderForm({ onOrderCreated }: OrderFormProps) {
       isMounted = false;
     };
   }, [customersLoaded]);
+
+  // Fetch package variants when articleCode changes
+  useEffect(() => {
+    let isMounted = true;
+
+    const fetchVariants = async () => {
+      if (!newItem.articleCode) {
+        setPackageVariants([]);
+        setSelectedVariant(null);
+        return;
+      }
+
+      try {
+        const variants = await getProductVariants(newItem.articleCode);
+        if (isMounted) {
+          setPackageVariants(variants);
+        }
+      } catch (error) {
+        console.error("Errore caricamento varianti:", error);
+        if (isMounted) {
+          setPackageVariants([]);
+          setSelectedVariant(null);
+        }
+      }
+    };
+
+    fetchVariants();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [newItem.articleCode]);
+
+  // Helper function to select package variant based on quantity
+  // Logic: if quantity >= highest multipleQty → select highest package
+  //        else → select lowest package
+  const selectPackageVariant = (
+    variants: ApiProduct[],
+    quantity: number,
+  ): ApiProduct | null => {
+    if (variants.length === 0) return null;
+    if (variants.length === 1) return variants[0];
+
+    // Variants are already ordered by multipleQty DESC (from backend)
+    const highestMultiple = variants[0].multipleQty || 0;
+
+    if (quantity >= highestMultiple) {
+      return variants[0]; // Highest package
+    }
+
+    return variants[variants.length - 1]; // Lowest package
+  };
+
+  // Update selected variant when quantity or variants change
+  useEffect(() => {
+    const selected = selectPackageVariant(packageVariants, newItem.quantity);
+    setSelectedVariant(selected);
+  }, [packageVariants, newItem.quantity]);
 
   // Don't fetch products on mount - wait for user to type
   // This prevents loading 4000+ products at startup
@@ -575,6 +641,15 @@ export default function OrderForm({ onOrderCreated }: OrderFormProps) {
             min="1"
           />
         </div>
+
+        {/* Package Info - shows available variants and which will be selected */}
+        {newItem.articleCode && (
+          <PackageInfo
+            variants={packageVariants}
+            selectedVariant={selectedVariant}
+            quantity={newItem.quantity}
+          />
+        )}
 
         <div className="form-group">
           <label className="form-label">Prezzo Unitario (€)</label>
