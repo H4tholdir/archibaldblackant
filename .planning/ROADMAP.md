@@ -55,20 +55,19 @@ Plans:
 - [x] 02-08: Integration Tests for Sync Services (TDD - sync services with mocked Puppeteer)
 
 ### Phase 3: MVP Order Form
-**Goal**: Form ordini production-ready con prezzi read-only, confezioni multiple e validazione vincoli
+**Goal**: Form ordini production-ready con selezione pacchetto automatica basata su quantità e validazione vincoli
 **Depends on**: Phase 2
-**Research**: Likely (need to investigate Archibald UI structure for package/multiplier fields)
-**Research topics**: Archibald form selectors for package types, data structure for confezioni, validation rules in ERP
-**Plans**: 7 plans
+**Research**: Complete (03-01 - discovered unique variant IDs and package selection logic)
+**Plans**: 7 plans (2/7 complete)
 
 Plans:
-- [ ] 03-01: Research Archibald package/multiplier UI and data structure
-- [ ] 03-02: Make price field read-only (remove input, show listino value)
-- [ ] 03-03: Update backend schema to remove required price field
-- [ ] 03-04: Use canonical article ID instead of article name in articleCode
-- [ ] 03-05: Add package type selection UI (dropdown/radio per articolo)
-- [ ] 03-06: Implement multiplier validation (min order, multipli per confezione)
-- [ ] 03-07: Add frontend validation before order submission
+- [x] 03-01: Package/Multiplier UI Discovery (Research - complete)
+- [x] 03-02: Package Variant Database Functions (TDD - complete)
+- [ ] 03-03: Package Selection in Archibald Bot (search by variant ID)
+- [ ] 03-04: Quantity Validation Against Package Rules
+- [ ] 03-05: Frontend Package Display in OrderForm
+- [ ] 03-06: Frontend Quantity Validation & User Feedback
+- [ ] 03-07: Integration Tests for Package Selection
 
 ### Phase 4: Voice Input Enhancement
 **Goal**: Voice hybrid affidabile (dettatura → form → conferma tap) per ridurre errori input
