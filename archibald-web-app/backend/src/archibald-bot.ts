@@ -5,11 +5,13 @@ import puppeteer, {
 } from "puppeteer";
 import { config } from "./config";
 import { logger } from "./logger";
+import { ProductDatabase } from "./product-db";
 import type { OrderData } from "./types";
 
 export class ArchibaldBot {
   private browser: Browser | null = null;
   private page: Page | null = null;
+  private productDb: ProductDatabase;
   private opSeq = 0;
   private lastOpEndNs: bigint | null = null;
   private opRecords: Array<{
@@ -23,6 +25,10 @@ export class ArchibaldBot {
     meta: Record<string, unknown>;
     errorMessage?: string;
   }> = [];
+
+  constructor() {
+    this.productDb = ProductDatabase.getInstance();
+  }
 
   private async runOp<T>(
     name: string,
@@ -1565,8 +1571,29 @@ export class ArchibaldBot {
             throw new Error("Barra ricerca articolo non trovata");
           }
 
+          // Query database for correct package variant
+          const selectedVariant = this.productDb.selectPackageVariant(
+            item.articleCode,
+            item.quantity,
+          );
+
+          if (!selectedVariant) {
+            throw new Error(
+              `Article ${item.articleCode} not found in database. ` +
+                `Ensure product sync has run and article exists in Archibald.`,
+            );
+          }
+
+          logger.info(`Selected package variant for ${item.articleCode}`, {
+            variantId: selectedVariant.id,
+            packageContent: selectedVariant.packageContent,
+            multipleQty: selectedVariant.multipleQty,
+            quantity: item.quantity,
+          });
+
           // OTTIMIZZAZIONE ULTRA: Incolla direttamente senza click/backspace (più veloce!)
-          const searchQuery = item.productName || item.articleCode;
+          // Search by VARIANT ID instead of article name for precise matching
+          const searchQuery = selectedVariant.id;
 
           // Ottieni il selector dall'elemento
           const inputSelector = await searchInput.evaluate((el) => {
@@ -1630,13 +1657,7 @@ export class ArchibaldBot {
             }
           }
 
-          // Usa productName se disponibile, altrimenti articleCode
-          const searchQuery = item.productName || item.articleCode;
-          const searchQueryNormalized = searchQuery
-            .trim()
-            .toLowerCase()
-            .replace(/[^a-z0-9]/g, "");
-
+          // Match row by variant ID (more precise than article name)
           let selectedRow = null;
           let matchedText = "";
 
@@ -1644,19 +1665,13 @@ export class ArchibaldBot {
             const text = await row.evaluate((el) =>
               (el.textContent ?? "").toString(),
             );
-            const normalized = text.toLowerCase().replace(/[^a-z0-9]/g, "");
-            if (normalized.includes(searchQueryNormalized)) {
+
+            // NEW: Match by variant ID for precise selection
+            if (text.includes(selectedVariant.id)) {
               selectedRow = row;
-              matchedText = text.substring(0, 50);
+              matchedText = text.substring(0, 100);
               break;
             }
-          }
-
-          if (!selectedRow && rows.length > 0) {
-            selectedRow = rows[0];
-            matchedText = await rows[0].evaluate((el) =>
-              (el.textContent ?? "").toString().substring(0, 50),
-            );
           }
 
           if (!selectedRow) {
@@ -1664,10 +1679,15 @@ export class ArchibaldBot {
             // path: `logs/order-error-no-article-row-${i}.png`,
             // fullPage: true,
             // });
-            throw new Error("Riga articolo non trovata nel popup");
+            throw new Error(
+              `Variant ID ${selectedVariant.id} not found in Archibald popup. ` +
+                `Expected article: ${item.articleCode}, package: ${selectedVariant.packageContent}`,
+            );
           }
 
-          logger.debug(`Seleziono riga articolo (match: ${matchedText})`);
+          logger.info(
+            `Selected row for variant ${selectedVariant.id} (match: ${matchedText})`,
+          );
 
           // Scroll into view
           await selectedRow.evaluate((el) =>
