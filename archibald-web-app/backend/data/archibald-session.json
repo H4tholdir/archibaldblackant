@@ -1,0 +1,64 @@
+{
+  "cookies": [
+    {
+      "name": "55e0e4bd-c35c-4132-9061-3b520f493369",
+      "value": "loaded",
+      "domain": "4.231.124.90",
+      "path": "/",
+      "expires": -1,
+      "size": 42,
+      "httpOnly": false,
+      "secure": false,
+      "session": true,
+      "priority": "Medium",
+      "sameParty": false,
+      "sourceScheme": "Secure"
+    },
+    {
+      "name": "Login",
+      "value": "C6908EC63E6409977AC0EEBF2843A33BF40D8C7743B279B22414C8145B6256A5EC932C1D79D8CCBDBBCE6CC317B6706A6AFAB8EAA89A1DAC94386309B90F7C5CC548D5665746AD2EC3614701B74C7E6B3131006B7C05C6FD31B8959AE236D7E43B109E65E37D30BD92F3D7237EEE496F4AA8B8F1943F04032854FA0A4F987F68E4B8B51033B3A0AD65F8A80DA2D55838FCAFBA24E113C711BD57DBE0EA7C80F1FC6F2BA6D8FC3A57F19CCDE51DACEC8A",
+      "domain": "4.231.124.90",
+      "path": "/",
+      "expires": -1,
+      "size": 357,
+      "httpOnly": true,
+      "secure": false,
+      "session": true,
+      "sameSite": "Lax",
+      "priority": "Medium",
+      "sameParty": false,
+      "sourceScheme": "Secure"
+    },
+    {
+      "name": "xafkidemovbUserName",
+      "value": "ikiA0930",
+      "domain": "4.231.124.90",
+      "path": "/",
+      "expires": 1770884518.357973,
+      "size": 27,
+      "httpOnly": true,
+      "secure": false,
+      "session": false,
+      "priority": "Medium",
+      "sameParty": false,
+      "sourceScheme": "Secure"
+    },
+    {
+      "name": "ASP.NET_SessionId",
+      "value": "hspvxlieawq2t3y1g1xn2q4o",
+      "domain": "4.231.124.90",
+      "path": "/",
+      "expires": -1,
+      "size": 41,
+      "httpOnly": true,
+      "secure": false,
+      "session": true,
+      "sameSite": "Lax",
+      "priority": "Medium",
+      "sameParty": false,
+      "sourceScheme": "Secure"
+    }
+  ],
+  "timestamp": 1768206119779,
+  "expiresAt": 1768292519779
+}

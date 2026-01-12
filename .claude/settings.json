@@ -1,0 +1,7 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npx get-shit-done-cc:*)"
+    ]
+  }
+}

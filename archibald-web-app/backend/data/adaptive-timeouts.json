@@ -1,0 +1,86 @@
+[
+  {
+    "name": "order.wait.devexpress",
+    "operationName": "order.wait.devexpress",
+    "successCount": 2,
+    "failureCount": 1,
+    "totalTime": 1288,
+    "minTime": 0,
+    "maxTime": 684,
+    "avgTime": 429.3333333333333,
+    "currentTimeout": 1100,
+    "lastAdjustment": 1767971318610
+  },
+  {
+    "name": "customer.dropdown.open",
+    "operationName": "customer.dropdown.open",
+    "successCount": 2,
+    "failureCount": 0,
+    "totalTime": 1217,
+    "minTime": 0,
+    "maxTime": 609,
+    "avgTime": 608.5,
+    "currentTimeout": 912,
+    "lastAdjustment": 1767971323985
+  },
+  {
+    "name": "customer.results.load",
+    "operationName": "customer.results.load",
+    "successCount": 2,
+    "failureCount": 0,
+    "totalTime": 2445,
+    "minTime": 0,
+    "maxTime": 1227,
+    "avgTime": 1222.5,
+    "currentTimeout": 1833,
+    "lastAdjustment": 1767971326635
+  },
+  {
+    "name": "article.search.open",
+    "operationName": "article.search.open",
+    "successCount": 0,
+    "failureCount": 2,
+    "totalTime": 0,
+    "minTime": null,
+    "maxTime": 0,
+    "avgTime": 0,
+    "currentTimeout": 550,
+    "lastAdjustment": 1767971354982
+  },
+  {
+    "name": "article.results.load",
+    "operationName": "article.results.load",
+    "successCount": 0,
+    "failureCount": 2,
+    "totalTime": 0,
+    "minTime": null,
+    "maxTime": 0,
+    "avgTime": 0,
+    "currentTimeout": 550,
+    "lastAdjustment": 1767971358740
+  },
+  {
+    "name": "quantity.field.ready",
+    "operationName": "quantity.field.ready",
+    "successCount": 0,
+    "failureCount": 0,
+    "totalTime": 0,
+    "minTime": null,
+    "maxTime": 0,
+    "avgTime": 0,
+    "currentTimeout": 300,
+    "lastAdjustment": 1767970843951
+  },
+  {
+    "name": "order.save",
+    "operationName": "order.save",
+    "successCount": 0,
+    "failureCount": 0,
+    "totalTime": 0,
+    "minTime": null,
+    "maxTime": 0,
+    "avgTime": 0,
+    "currentTimeout": 5000,
+    "lastAdjustment": 1767970843951
+  }
+]

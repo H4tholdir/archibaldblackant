@@ -1,0 +1,32 @@
+{
+  "name": "archibald-mobile",
+  "version": "1.0.0",
+  "description": "PWA mobile per inserimento ordini Archibald",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "preview": "vite preview",
+    "type-check": "tsc --noEmit"
+  },
+  "dependencies": {
+    "react": "^19.2.3",
+    "react-dom": "^19.2.3"
+  },
+  "devDependencies": {
+    "@types/react": "^19.2.7",
+    "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "^5.1.2",
+    "typescript": "^5.9.3",
+    "vite": "^7.3.1",
+    "vite-plugin-pwa": "^1.2.0"
+  },
+  "keywords": [
+    "pwa",
+    "mobile",
+    "archibald",
+    "orders"
+  ],
+  "author": "Fresis Team",
+  "license": "MIT"
+}

@@ -1,0 +1,153 @@
+.sync-bars-container {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+  max-width: 600px;
+  margin: 0 auto;
+}
+
+.sync-bar {
+  position: relative;
+  height: 36px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  overflow: hidden;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.sync-bar:hover:not(.disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+}
+
+.sync-bar.disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+.sync-bar.active {
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+}
+
+/* Barra Clienti - Verde pastello */
+.sync-bar.customers .sync-bar-background {
+  background: linear-gradient(135deg, #c8e6c9 0%, #a5d6a7 100%);
+}
+
+.sync-bar.customers.syncing .sync-bar-fill {
+  background: linear-gradient(135deg, #66bb6a 0%, #43a047 100%);
+}
+
+.sync-bar.customers.completed .sync-bar-fill {
+  background: linear-gradient(135deg, #4caf50 0%, #388e3c 100%);
+}
+
+.sync-bar.customers.error .sync-bar-background {
+  background: linear-gradient(135deg, #ffcdd2 0%, #ef9a9a 100%);
+}
+
+/* Barra Prodotti - Gialla pastello */
+.sync-bar.products .sync-bar-background {
+  background: linear-gradient(135deg, #fff9c4 0%, #fff59d 100%);
+}
+
+.sync-bar.products.syncing .sync-bar-fill {
+  background: linear-gradient(135deg, #ffeb3b 0%, #fdd835 100%);
+}
+
+.sync-bar.products.completed .sync-bar-fill {
+  background: linear-gradient(135deg, #fbc02d 0%, #f9a825 100%);
+}
+
+.sync-bar.products.error .sync-bar-background {
+  background: linear-gradient(135deg, #ffcdd2 0%, #ef9a9a 100%);
+}
+
+/* Barra Prezzi - Rossa pastello */
+.sync-bar.prices .sync-bar-background {
+  background: linear-gradient(135deg, #ffccbc 0%, #ffab91 100%);
+}
+
+.sync-bar.prices.syncing .sync-bar-fill {
+  background: linear-gradient(135deg, #ff7043 0%, #f4511e 100%);
+}
+
+.sync-bar.prices.completed .sync-bar-fill {
+  background: linear-gradient(135deg, #e64a19 0%, #d84315 100%);
+}
+
+.sync-bar.prices.error .sync-bar-background {
+  background: linear-gradient(135deg, #ffcdd2 0%, #ef9a9a 100%);
+}
+
+/* Elementi interni */
+.sync-bar-background {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  transition: background 0.3s ease;
+}
+
+.sync-bar-fill {
+  position: absolute;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  width: 0%;
+  transition: width 0.5s ease, background 0.3s ease;
+}
+
+.sync-bar-content {
+  position: relative;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0 16px;
+  height: 100%;
+  z-index: 1;
+}
+
+.sync-bar-label {
+  font-weight: 600;
+  font-size: 14px;
+  color: #333;
+  text-shadow: 0 1px 2px rgba(255, 255, 255, 0.8);
+}
+
+.sync-bar-info {
+  font-size: 12px;
+  color: #555;
+  text-shadow: 0 1px 2px rgba(255, 255, 255, 0.8);
+  font-weight: 500;
+}
+
+/* Animazione per barra attiva */
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.9;
+  }
+}
+
+.sync-bar.syncing {
+  animation: pulse 2s ease-in-out infinite;
+}
+
+/* Stati */
+.sync-bar.error .sync-bar-label,
+.sync-bar.error .sync-bar-info {
+  color: #c62828;
+}
+
+.sync-bar.completed .sync-bar-label,
+.sync-bar.completed .sync-bar-info {
+  color: #1b5e20;
+  font-weight: 600;
+}

@@ -1,0 +1,16 @@
+import { z } from "zod";
+
+export const orderItemSchema = z.object({
+  articleCode: z.string().min(1, "Codice articolo obbligatorio"),
+  productName: z.string().optional(),
+  description: z.string().optional(),
+  quantity: z.number().int().positive("Quantità deve essere > 0"),
+  price: z.number().nonnegative("Prezzo deve essere >= 0"),
+  discount: z.number().min(0).max(100).optional(),
+});
+
+export const createOrderSchema = z.object({
+  customerId: z.string().min(1, "ID cliente obbligatorio"),
+  customerName: z.string().min(1, "Nome cliente obbligatorio"),
+  items: z.array(orderItemSchema).min(1, "Almeno 1 articolo richiesto"),
+});
