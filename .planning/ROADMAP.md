@@ -59,8 +59,8 @@ Plans:
 **Goal**: Form ordini production-ready con selezione pacchetto automatica basata su quantità e validazione vincoli
 **Depends on**: Phase 2
 **Research**: Complete (03-01 - discovered unique variant IDs and package selection logic)
-**Plans**: 8 plans (5/8 complete)
-**Status**: In Progress - 3 remaining plans (frontend integration and tests)
+**Plans**: 8 plans (6/8 complete)
+**Status**: In Progress - 2 remaining plans (frontend validation and tests)
 
 Plans:
 - [x] 03-01: Package/Multiplier UI Discovery (Research - complete)
@@ -68,9 +68,19 @@ Plans:
 - [x] 03-03: Package Selection in Archibald Bot (search by variant ID - complete)
 - [x] 03-04: Quantity Validation Against Package Rules (TDD - complete, 4min execution)
 - [x] ✅ **03-08: CRITICAL - Refactor Archibald Bot Order Flow** (COMPLETE - bot now matches actual UI)
-- [ ] 03-05: Frontend Package Display in OrderForm (ready to start)
+- [x] ✅ **03-05: Frontend Package Display in OrderForm** (COMPLETE - constraints-based UX with badges)
 - [ ] 03-06: Frontend Quantity Validation & User Feedback (ready to start)
 - [ ] 03-07: Integration Tests for Package Selection (ready to start)
+
+**03-05 Results (2026-01-12)**:
+- ✅ Package badges in product autocomplete dropdown (📦 5 colli)
+- ✅ HTML5 input constraints (min, step, max) for quantity validation
+- ✅ Real-time quantity validation with onChange + onBlur handlers
+- ✅ Package hint below quantity input with rules display
+- ✅ Client-side enforcement prevents invalid quantity submission
+- 🔄 **REFACTOR**: Removed complex PackageInfo component after user feedback
+- 🎯 Simpler, more intuitive UX: see variants upfront, quantity auto-constrained
+- ⏱️ Duration: 37 minutes (including checkpoint and refactor)
 
 **03-08 Results (2026-01-12)**:
 - ✅ UI selectors documented from 17 screenshots

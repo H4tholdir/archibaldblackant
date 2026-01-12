@@ -10,18 +10,18 @@ See: .planning/PROJECT.md (updated 2026-01-11)
 ## Current Position
 
 Phase: 3 of 12 (MVP Order Form)
-Plan: 5/8 complete (03-01, 03-02, 03-03, 03-04, 03-08 done; 03-05 through 03-07 remain)
+Plan: 6/8 complete (03-01, 03-02, 03-03, 03-04, 03-05, 03-08 done; 03-06 and 03-07 remain)
 Status: IN PROGRESS
-Last activity: 2026-01-12 — Completed 03-04 (Quantity Validation Against Package Rules)
+Last activity: 2026-01-12 — Completed 03-05 (Frontend Package Display in OrderForm)
 
-Progress: ████████░░ 29%
+Progress: ████████░░ 31%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 19
-- Average duration: 75 min (1h 15m)
-- Total execution time: 24.4 hours
+- Total plans completed: 20
+- Average duration: 73 min (1h 13m)
+- Total execution time: 25.0 hours
 
 **By Phase:**
 
@@ -29,12 +29,12 @@ Progress: ████████░░ 29%
 |-------|-------|-------|----------|
 | 1 | 5 | 965 min | 193 min |
 | 2 | 8 | 101 min | 13 min |
-| 3 | 5 | 288 min | 58 min |
+| 3 | 6 | 325 min | 54 min |
 | 3.1 | 3 | 350 min | 117 min |
 
 **Recent Trend:**
-- Last 5 plans: 03-08 (240m), 03.1-01 (80m), 03.1-02 (150m), 03.1-03 (120m), 03-04 (4m)
-- Trend: Phase 3 validation work extremely fast (4m TDD plan), Phase 3 has 3 remaining plans (03-05 through 03-07)
+- Last 5 plans: 03.1-01 (80m), 03.1-02 (150m), 03.1-03 (120m), 03-04 (4m), 03-05 (37m)
+- Trend: Phase 3 validation/frontend work averaging 20m, Phase 3 has 2 remaining plans (03-06, 03-07)
 
 ## Accumulated Context
 
@@ -45,6 +45,10 @@ Recent decisions affecting current work:
 
 | Phase | Decision | Rationale |
 |-------|----------|-----------|
+| 3.05 | Show package size as badge in autocomplete dropdown | Users need to see package differences BEFORE selecting - upfront visibility beats auto-selection |
+| 3.05 | Use HTML5 input constraints (min, step, max) | Native browser validation more reliable and accessible than custom validation |
+| 3.05 | Real-time validation with onChange + onBlur | Auto-correct to nearest valid multiple on typing - prevents invalid submission |
+| 3.05 | REFACTOR: Remove PackageInfo component after user feedback | User testing showed complex variant selection confusing - simpler UX with badges + constraints better |
 | 3.04 | Validate quantity immediately after variant selection | Catch invalid quantities early before UI interaction - faster feedback, prevents wasted bot operations |
 | 3.04 | Include suggestions in ValidationResult | Better UX - tell user nearest valid quantities, don't just say "invalid" |
 | 3.04 | Use Pick<Product> for validation parameter type | Validation only needs minQty, multipleQty, maxQty - more flexible, easier testing, clearer intent |
@@ -115,8 +119,28 @@ None yet.
   - **Test results**: All 90 tests passing (49 product-db, 2 archibald-bot, 39 other) - no regressions
   - **Next steps**: Plans 03-05 (Frontend Package Display), 03-06 (Frontend Quantity Validation), 03-07 (Integration Tests)
 
+- **2026-01-12 (Night)**: Plan 03-05 (Frontend Package Display in OrderForm) executed
+  - **Duration**: 37 minutes (including checkpoint and refactor)
+  - **Approach**: Segmented execution (Strategy B) with human verification checkpoint
+  - **Initial Deliverables**:
+    - GET /api/products/variants endpoint
+    - products.ts API client with getProductVariants()
+    - PackageInfo component with variant list
+    - Integration in OrderForm with auto-selection
+    - Comprehensive CSS styling
+  - **User Feedback at Checkpoint**: "Too complex - can't see differences when searching" + "Why both variants show as selected?"
+  - **REFACTOR (Breaking Change)**:
+    - Removed complex PackageInfo component (~200 lines)
+    - Added package badges in autocomplete dropdown (📦 5 colli)
+    - HTML5 input constraints (min, step, max) for quantity
+    - Real-time validation with onChange + onBlur handlers
+    - Package hint below input showing rules
+  - **Impact**: Much simpler, more intuitive UX - see variants upfront, quantity auto-constrained
+  - **Commits**: 6 total (4 implementation + 1 bug fix + 1 refactor)
+  - **Next steps**: Plans 03-06 (Frontend Quantity Validation), 03-07 (Integration Tests)
+
 ## Session Continuity
 
-Last session: 2026-01-12 22:56
-Stopped at: Completed 03-04 execution (Quantity Validation), SUMMARY.md created, updating STATE.md and ROADMAP.md
-Next: Continue Phase 3 with plans 03-05 through 03-07 (frontend integration and tests)
+Last session: 2026-01-12 23:38
+Stopped at: Completed 03-05 execution (Frontend Package Display), SUMMARY.md created, updating STATE.md and ROADMAP.md
+Next: Continue Phase 3 with plans 03-06 and 03-07 (frontend validation feedback and integration tests)
