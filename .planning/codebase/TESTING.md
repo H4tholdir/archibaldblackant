@@ -1,19 +1,23 @@
 # Testing Patterns
 
 **Analysis Date:** 2026-01-11
+**Updated:** 2026-01-12 after Vitest setup
 
 ## Test Framework
 
 **Runner:**
 - Vitest 1.2.1 - Configured in `backend/package.json`
-- Config: No `vitest.config.ts` found (uses defaults)
+- Config: `backend/vitest.config.ts` with globals enabled, node environment, v8 coverage
+- Coverage: @vitest/coverage-v8@1.2.1 for coverage reporting
 
 **Assertion Library:**
-- Vitest built-in expect (not yet used)
+- Vitest built-in expect with globals enabled (no imports needed)
 
 **Run Commands:**
 ```bash
-npm test                              # Run all tests (no tests present)
+npm test                              # Run all tests once (vitest run)
+npm run test:watch                    # Run tests in watch mode
+npm run test:coverage                 # Run tests with coverage report (text + html)
 npm run test:login                    # Manual integration test - ERP login
 npm run test:order                    # Manual integration test - Order creation
 npm run test:queue                    # Manual integration test - Job queue
@@ -22,25 +26,37 @@ npm run test:queue                    # Manual integration test - Job queue
 ## Test File Organization
 
 **Location:**
-- Expected: `*.test.ts` alongside source files (Vitest convention)
-- **Actual: NO UNIT TESTS PRESENT**
+- `*.test.ts` files alongside source files (Vitest convention)
+- Example: `src/config.test.ts` tests `src/config.ts`
 
 **Naming:**
-- Expected pattern: `module-name.test.ts`
-- No test files found in `backend/src/` or `frontend/src/`
+- Pattern: `module-name.test.ts`
+- First test: `backend/src/config.test.ts`
 
 **Structure:**
-- No test directory structure exists
-- Manual test scripts in `backend/src/scripts/` instead of automated tests
+- Test files colocated with source code
+- Manual test scripts remain in `backend/src/scripts/` for integration testing
 
 ## Test Structure
 
 **Suite Organization:**
-- Not applicable - no tests written yet
+- Use `describe(className/functionName)` for grouping tests
+- Use `it('should behavior')` for individual test cases
+- Example structure:
+```typescript
+describe('config', () => {
+  it('should load config object', () => {
+    expect(config).toBeDefined();
+  });
+});
+```
 
-**Patterns:**
-- Vitest conventions would apply (describe/it/expect)
-- No actual test structure to document
+**Conventions:**
+- Test file must import from vitest: `import { describe, it, expect } from 'vitest'`
+- Or rely on globals (enabled in vitest.config.ts)
+- Group related tests under descriptive `describe` blocks
+- Write clear, behavioral test descriptions
+- Mock external dependencies (Puppeteer, Redis, SQLite) when testing units
 
 ## Mocking
 
@@ -62,23 +78,26 @@ npm run test:queue                    # Manual integration test - Job queue
 ## Coverage
 
 **Requirements:**
-- No coverage target defined
-- No coverage tracking configured
+- No specific coverage target defined yet
 
 **Configuration:**
-- Vitest coverage available via `--coverage` flag but not configured
+- Vitest coverage configured with v8 provider
+- Reporters: text (console) and html (coverage/index.html)
+- Run: `npm run test:coverage`
 
 **View Coverage:**
-- Not applicable - no tests to measure
+- Console: Automatically displayed after `npm run test:coverage`
+- HTML: Open `coverage/index.html` in browser after running coverage
 
 ## Test Types
 
 **Unit Tests:**
-- Status: NOT IMPLEMENTED
-- No `*.test.ts` or `*.spec.ts` files in source code
+- Status: FRAMEWORK READY, FIRST TEST IMPLEMENTED
+- First test: `backend/src/config.test.ts` - smoke test for config loading
+- Pattern: `*.test.ts` files alongside source code
 
 **Integration Tests:**
-- Status: MANUAL SCRIPTS ONLY
+- Status: MANUAL SCRIPTS (automated tests to be added)
 - Location: `backend/src/scripts/`
 - Scripts:
   - `test-login.ts` - Tests Puppeteer authentication to Archibald ERP
@@ -132,7 +151,7 @@ testLogin();
 
 ## Test Coverage Gaps
 
-**Critical Gaps:**
+**Status:** Testing framework now ready for use
 
 **Services without tests:**
 - `backend/src/customer-sync-service.ts` - No unit tests for sync logic
@@ -150,10 +169,10 @@ testLogin();
 - No utility tests for `orderParser.ts`
 
 **Why no tests:**
-- Vitest configured but never utilized
 - Development focused on rapid prototyping
 - Manual testing via scripts deemed sufficient initially
 - Integration complexity (Puppeteer, Redis, SQLite) makes unit testing challenging
+- Framework now configured and ready for test development
 
 **Risk:**
 - Refactoring is risky without safety net
@@ -164,7 +183,7 @@ testLogin();
 **Priority:**
 - High: Queue processing, sync logic, database operations
 - Medium: Browser automation, API endpoints
-- Low: Utilities, logging, configuration
+- Low: Utilities, logging, configuration (config.ts now has smoke test)
 
 ## Recommendations
 
