@@ -1038,7 +1038,7 @@ export class ArchibaldBot {
   }
 
   async writeOperationReport(filePath?: string): Promise<string> {
-    const report = this.buildOperationReport();
+    const report = this.buildEnhancedReport();
     const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
     const fs = await import("fs/promises");
     const path = await import("path");
