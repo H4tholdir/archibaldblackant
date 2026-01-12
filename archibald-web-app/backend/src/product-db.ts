@@ -21,6 +21,12 @@ export interface Product {
   lastSync: number;
 }
 
+export interface ValidationResult {
+  valid: boolean;
+  errors: string[];
+  suggestions?: number[];
+}
+
 export class ProductDatabase {
   private db: Database.Database;
   private static instance: ProductDatabase;
@@ -336,6 +342,64 @@ export class ProductDatabase {
     } else {
       return variants[variants.length - 1]; // Lowest package
     }
+  }
+
+  /**
+   * Validate quantity against product package rules.
+   *
+   * Rules:
+   * - quantity >= minQty (if defined)
+   * - quantity % multipleQty === 0 (if defined)
+   * - quantity <= maxQty (if defined)
+   *
+   * @param product - Product or partial product with validation rules
+   * @param quantity - Quantity to validate
+   * @returns Validation result with errors and suggestions
+   */
+  validateQuantity(
+    product: Pick<Product, "minQty" | "multipleQty" | "maxQty">,
+    quantity: number,
+  ): ValidationResult {
+    const errors: string[] = [];
+
+    // Check minQty
+    if (product.minQty && quantity < product.minQty) {
+      errors.push(`Quantity must be at least ${product.minQty}`);
+    }
+
+    // Check multipleQty
+    if (product.multipleQty && quantity % product.multipleQty !== 0) {
+      errors.push(`Quantity must be a multiple of ${product.multipleQty}`);
+    }
+
+    // Check maxQty
+    if (product.maxQty && quantity > product.maxQty) {
+      errors.push(`Quantity cannot exceed ${product.maxQty}`);
+    }
+
+    // Generate suggestions if invalid
+    let suggestions: number[] | undefined;
+    if (errors.length > 0 && product.multipleQty) {
+      const minQty = product.minQty || product.multipleQty;
+      const maxQty = product.maxQty || minQty * 10; // Reasonable default
+
+      // Suggest nearest multiples
+      const lower =
+        Math.floor(quantity / product.multipleQty) * product.multipleQty;
+      const higher =
+        Math.ceil(quantity / product.multipleQty) * product.multipleQty;
+
+      suggestions = [
+        Math.max(lower, minQty),
+        Math.min(higher, maxQty),
+      ].filter((v, i, arr) => arr.indexOf(v) === i); // Unique values
+    }
+
+    return {
+      valid: errors.length === 0,
+      errors,
+      suggestions,
+    };
   }
 
   /**
