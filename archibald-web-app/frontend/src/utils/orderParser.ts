@@ -57,6 +57,25 @@ export interface ArticleValidationResult {
   error?: string;
 }
 
+export interface CustomerValidationResult {
+  matchType: "exact" | "phonetic" | "fuzzy" | "not_found";
+  confidence: number;
+  customer?: {
+    id: string;
+    name: string;
+    vatNumber?: string;
+    email?: string;
+  };
+  suggestions: Array<{
+    id: string;
+    name: string;
+    confidence: number;
+    reason: "exact" | "phonetic" | "fuzzy";
+    vatNumber?: string;
+  }>;
+  error?: string;
+}
+
 /**
  * Parse spoken order into structured data
  * Examples:
@@ -368,6 +387,99 @@ export async function validateArticleCode(
     suggestions: [],
     error: `Articolo "${code}" non trovato nel catalogo`,
   };
+}
+
+/**
+ * Validate customer name with fuzzy matching
+ * Uses backend API for phonetic and Levenshtein-based search
+ *
+ * Example: "Fresis" → suggests "Francis" (95%), "Frances" (90%), "Francesca" (85%)
+ */
+export async function validateCustomerName(
+  name: string,
+): Promise<CustomerValidationResult> {
+  try {
+    // Call backend fuzzy search API
+    const response = await fetch(
+      `/api/customers/search?q=${encodeURIComponent(name)}&limit=5`,
+    );
+
+    if (!response.ok) {
+      throw new Error(`API error: ${response.statusText}`);
+    }
+
+    const data = await response.json();
+
+    if (!data.success || !data.data || data.data.length === 0) {
+      return {
+        matchType: "not_found",
+        confidence: 0.0,
+        suggestions: [],
+        error: `Cliente "${name}" non trovato`,
+      };
+    }
+
+    const results = data.data;
+    const bestMatch = results[0];
+
+    // Exact or phonetic match (confidence >= 95%)
+    if (bestMatch.confidence >= 95) {
+      return {
+        matchType: bestMatch.matchReason === "exact" ? "exact" : "phonetic",
+        confidence: bestMatch.confidence / 100, // Convert from percentage
+        customer: {
+          id: bestMatch.id,
+          name: bestMatch.name,
+          vatNumber: bestMatch.vatNumber,
+          email: bestMatch.email,
+        },
+        suggestions: [],
+      };
+    }
+
+    // Phonetic or fuzzy match (confidence >= 70%)
+    if (bestMatch.confidence >= 70) {
+      return {
+        matchType: bestMatch.matchReason === "phonetic" ? "phonetic" : "fuzzy",
+        confidence: bestMatch.confidence / 100,
+        customer: {
+          id: bestMatch.id,
+          name: bestMatch.name,
+          vatNumber: bestMatch.vatNumber,
+          email: bestMatch.email,
+        },
+        suggestions: results.slice(1).map((r: any) => ({
+          id: r.id,
+          name: r.name,
+          confidence: r.confidence,
+          reason: r.matchReason,
+          vatNumber: r.vatNumber,
+        })),
+      };
+    }
+
+    // Multiple fuzzy matches (confidence < 70%)
+    return {
+      matchType: "fuzzy",
+      confidence: bestMatch.confidence / 100,
+      suggestions: results.map((r: any) => ({
+        id: r.id,
+        name: r.name,
+        confidence: r.confidence,
+        reason: r.matchReason,
+        vatNumber: r.vatNumber,
+      })),
+      error: `Cliente "${name}" non trovato. Forse intendevi:`,
+    };
+  } catch (error) {
+    console.error("Error validating customer name:", error);
+    return {
+      matchType: "not_found",
+      confidence: 0.0,
+      suggestions: [],
+      error: `Errore durante la ricerca del cliente "${name}"`,
+    };
+  }
 }
 
 /**
