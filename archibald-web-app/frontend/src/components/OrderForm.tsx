@@ -1399,7 +1399,14 @@ export default function OrderForm({ onOrderCreated }: OrderFormProps) {
                     className="autocomplete-item"
                     onClick={() => handleProductSelect(product)}
                   >
-                    <div className="autocomplete-item-name">{product.name}</div>
+                    <div className="autocomplete-item-name">
+                      {product.name}
+                      {product.price && product.price > 0 && (
+                        <span className="product-price-badge">
+                          €{product.price.toFixed(2)}
+                        </span>
+                      )}
+                    </div>
                     <div className="autocomplete-item-id">
                       ID: {product.id}
                       {product.packageContent && (

@@ -1053,6 +1053,30 @@
   color: #6b7280;
 }
 
+.product-price-badge {
+  display: inline-block;
+  margin-left: 0.75rem;
+  padding: 0.25rem 0.625rem;
+  background-color: #10b981;
+  color: white;
+  font-size: 0.875rem;
+  font-weight: 600;
+  border-radius: 9999px;
+  white-space: nowrap;
+}
+
+.package-badge {
+  display: inline-block;
+  margin-left: 0.5rem;
+  padding: 0.125rem 0.5rem;
+  background-color: #f59e0b;
+  color: white;
+  font-size: 0.75rem;
+  font-weight: 500;
+  border-radius: 4px;
+  white-space: nowrap;
+}
+
 .customer-selected {
   background: #d1fae5;
   color: #065f46;
