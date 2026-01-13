@@ -558,6 +558,104 @@ export class CustomerSyncService extends EventEmitter {
       // Imposta il filtro la prima volta
       await ensureAllCustomersFilter();
 
+      // Imposta sort descending su colonna ID per processare clienti più recenti per primi
+      logger.info("Verifica ordinamento ID descending per priorità clienti recenti...");
+      const sortResult = await bot.page!.evaluate(() => {
+        // Cerca l'header della colonna "ID" nella tabella
+        const allCells = Array.from(document.querySelectorAll("td, th"));
+        let idHeaderCell: HTMLElement | null = null;
+
+        for (const cell of allCells) {
+          const text = (cell as HTMLElement).textContent?.trim();
+          if (text === "ID") {
+            idHeaderCell = cell as HTMLElement;
+            break;
+          }
+        }
+
+        if (!idHeaderCell) {
+          return {
+            found: false,
+            error: "Colonna ID non trovata",
+          };
+        }
+
+        // Verifica lo stato corrente del sort cercando le immagini sort
+        const sortUpImg = idHeaderCell.querySelector(
+          'img[class*="gvHeaderSortUp"]',
+        );
+        const sortDownImg = idHeaderCell.querySelector(
+          'img[class*="gvHeaderSortDown"]',
+        );
+
+        let currentSort: "none" | "ascending" | "descending" = "none";
+        if (sortDownImg) {
+          currentSort = "descending";
+        } else if (sortUpImg) {
+          currentSort = "ascending";
+        }
+
+        // Se già descending, non fare nulla
+        if (currentSort === "descending") {
+          return {
+            found: true,
+            currentSort: "descending",
+            action: "none",
+            message: "Sort già impostato su descending",
+          };
+        }
+
+        // Calcola quanti click servono
+        let clicksNeeded = 0;
+        if (currentSort === "none") {
+          clicksNeeded = 2; // none → ascending → descending
+        } else if (currentSort === "ascending") {
+          clicksNeeded = 1; // ascending → descending
+        }
+
+        // Esegui i click necessari
+        for (let i = 0; i < clicksNeeded; i++) {
+          // Cerca il link cliccabile nell'header (di solito un <a> dentro il <td>)
+          const clickableLink = idHeaderCell.querySelector("a");
+          if (clickableLink) {
+            (clickableLink as HTMLElement).click();
+          } else {
+            // Fallback: click diretto sulla cella
+            idHeaderCell.click();
+          }
+        }
+
+        return {
+          found: true,
+          currentSort,
+          action: `clicked ${clicksNeeded} times`,
+          clicksNeeded,
+          message: `Sort impostato da ${currentSort} a descending`,
+        };
+      });
+
+      if (sortResult.found) {
+        logger.info(`✓ Sort ID: ${sortResult.message}`, {
+          action: sortResult.action,
+          clicksNeeded: sortResult.clicksNeeded,
+        });
+
+        // Se abbiamo fatto dei click, attendi che la pagina si aggiorni
+        if (
+          sortResult.clicksNeeded &&
+          (sortResult.clicksNeeded as number) > 0
+        ) {
+          await new Promise((resolve) => setTimeout(resolve, 2500));
+          await bot.page!.waitForSelector("table tbody tr", { timeout: 10000 });
+          logger.info("✓ Pagina aggiornata con sort descending");
+        }
+      } else {
+        logger.warn(
+          "⚠ Impossibile impostare sort descending su colonna ID, procedo comunque...",
+          { error: sortResult.error },
+        );
+      }
+
       const allCustomers: Array<{
         id: string;
         name: string;
