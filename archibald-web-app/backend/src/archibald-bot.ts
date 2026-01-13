@@ -1707,20 +1707,21 @@ export class ArchibaldBot {
         await this.page!.keyboard.press("Enter");
         logger.debug("Pressed Enter, waiting for filtered results...");
 
-        // OPT-05: Event-driven wait for filtered results (stable row count)
-        // Wait for rows to stabilize after filtering (more efficient than fixed waits)
+        // OPT-08: Fast result detection with minimal stabilization
+        // For customer selection, we typically get 1 result, so optimize for that case
         let stableRowCount = 0;
         try {
+          // Wait for at least 1 visible row to appear
           await this.page!.waitForFunction(
             () => {
               const rows = Array.from(document.querySelectorAll('tr[class*="dxgvDataRow"]'));
               const visibleRows = rows.filter(row => (row as HTMLElement).offsetParent !== null);
               return visibleRows.length > 0;
             },
-            { timeout: 3000, polling: 100 }
+            { timeout: 2000, polling: 50 } // Faster polling
           );
 
-          // Additional check: wait for row count to stabilize (no changes for 200ms)
+          // Quick stabilization check: wait just 100ms for count to stay stable
           stableRowCount = await this.page!.waitForFunction(
             () => {
               return new Promise<number>((resolve) => {
@@ -1733,7 +1734,7 @@ export class ArchibaldBot {
 
                   if (currentCount === previousCount && currentCount > 0) {
                     stableChecks++;
-                    if (stableChecks >= 2) { // Stable for 200ms (2 x 100ms)
+                    if (stableChecks >= 1) { // Stable for just 50ms (1 x 50ms check)
                       clearInterval(checkInterval);
                       resolve(currentCount);
                     }
@@ -1741,21 +1742,21 @@ export class ArchibaldBot {
                     stableChecks = 0;
                     previousCount = currentCount;
                   }
-                }, 100);
+                }, 50); // Check every 50ms instead of 100ms
 
-                // Timeout after 2 seconds
+                // Shorter timeout: 1 second instead of 2
                 setTimeout(() => {
                   clearInterval(checkInterval);
                   resolve(previousCount > 0 ? previousCount : 0);
-                }, 2000);
+                }, 1000);
               });
             },
-            { timeout: 3000 }
+            { timeout: 1500 }
           ).then(result => result.jsonValue());
 
-          logger.debug(`✅ Results stabilized with ${stableRowCount} rows`);
+          logger.debug(`✅ Results ready with ${stableRowCount} rows`);
         } catch (err) {
-          logger.warn('Stable row count wait timed out, proceeding with current results');
+          logger.warn('Row detection wait timed out, proceeding with current results');
         }
 
         logger.debug("Customer results loaded, checking rows...");
