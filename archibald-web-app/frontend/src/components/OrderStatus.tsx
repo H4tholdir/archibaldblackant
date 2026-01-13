@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 
 interface OrderStatusProps {
   jobId: string;
@@ -7,7 +7,12 @@ interface OrderStatusProps {
 
 interface JobStatus {
   status: string;
-  progress?: number;
+  progress?: number | {
+    percent: number;
+    step: string;
+    message: string;
+    estimatedRemainingSeconds: number;
+  };
   result?: {
     orderId: string;
     duration: number;
@@ -19,9 +24,14 @@ interface JobStatus {
 export default function OrderStatus({ jobId, onNewOrder }: OrderStatusProps) {
   const [status, setStatus] = useState<JobStatus | null>(null);
   const [loading, setLoading] = useState(true);
+  const [progressMessage, setProgressMessage] = useState<string>('');
+  const [progressPercent, setProgressPercent] = useState<number>(0);
+  const [estimatedTime, setEstimatedTime] = useState<number | null>(null);
+  const wsRef = useRef<WebSocket | null>(null);
 
   useEffect(() => {
-    const fetchStatus = async () => {
+    // Fetch initial status via HTTP
+    const fetchInitialStatus = async () => {
       try {
         const response = await fetch(`/api/orders/status/${jobId}`);
         const data = await response.json();
@@ -29,28 +39,87 @@ export default function OrderStatus({ jobId, onNewOrder }: OrderStatusProps) {
         if (data.success) {
           setStatus(data.data);
 
-          // Se lo stato è completato o fallito, ferma il polling
+          // Update progress info if available
+          if (data.data.progress && typeof data.data.progress === 'object') {
+            setProgressPercent(data.data.progress.percent || 0);
+            setProgressMessage(data.data.progress.message || '');
+            setEstimatedTime(data.data.progress.estimatedRemainingSeconds || null);
+          } else if (typeof data.data.progress === 'number') {
+            setProgressPercent(data.data.progress);
+          }
+
+          // If completed or failed, stop loading
           if (data.data.status === 'completed' || data.data.status === 'failed') {
             setLoading(false);
           }
         }
       } catch (error) {
-        console.error('Errore durante il fetch dello stato:', error);
+        console.error('Error fetching initial status:', error);
       }
     };
 
-    // Fetch iniziale
-    fetchStatus();
+    fetchInitialStatus();
 
-    // Polling ogni 2 secondi finché non è completato
-    const interval = setInterval(() => {
-      if (loading) {
-        fetchStatus();
+    // Connect to WebSocket for real-time progress updates
+    const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const wsHost = window.location.host;
+    const wsUrl = `${wsProtocol}//${wsHost}/ws/sync?jobId=${jobId}`;
+
+    console.log('Connecting to WebSocket:', wsUrl);
+    const ws = new WebSocket(wsUrl);
+    wsRef.current = ws;
+
+    ws.onopen = () => {
+      console.log('✅ WebSocket connected for job:', jobId);
+    };
+
+    ws.onmessage = (event) => {
+      try {
+        const message = JSON.parse(event.data);
+        console.log('📨 WebSocket message received:', message);
+
+        if (message.type === 'order_progress') {
+          // Update status from WebSocket message
+          const progressData = message.data;
+
+          // Handle progress updates
+          if (progressData.progress && typeof progressData.progress === 'object') {
+            setProgressPercent(progressData.progress.percent || 0);
+            setProgressMessage(progressData.progress.message || '');
+            setEstimatedTime(progressData.progress.estimatedRemainingSeconds || null);
+          } else if (typeof progressData.progress === 'number') {
+            setProgressPercent(progressData.progress);
+          }
+
+          // Update full status
+          setStatus(progressData);
+
+          // If completed or failed, stop loading and close WebSocket
+          if (progressData.status === 'completed' || progressData.status === 'failed') {
+            setLoading(false);
+            ws.close();
+          }
+        }
+      } catch (error) {
+        console.error('Error parsing WebSocket message:', error);
       }
-    }, 2000);
+    };
 
-    return () => clearInterval(interval);
-  }, [jobId, loading]);
+    ws.onerror = (error) => {
+      console.error('❌ WebSocket error:', error);
+    };
+
+    ws.onclose = () => {
+      console.log('🔌 WebSocket disconnected for job:', jobId);
+    };
+
+    // Cleanup on unmount
+    return () => {
+      if (wsRef.current) {
+        wsRef.current.close();
+      }
+    };
+  }, [jobId]);
 
   const getStatusClass = () => {
     if (!status) return 'status-waiting';
@@ -119,9 +188,23 @@ export default function OrderStatus({ jobId, onNewOrder }: OrderStatusProps) {
           />
         </div>
 
-        {status?.progress !== undefined && (
+        {(status?.progress !== undefined || progressPercent > 0) && (
           <div className="form-group">
             <label className="form-label">Progresso</label>
+
+            {progressMessage && (
+              <div style={{
+                marginBottom: '0.75rem',
+                padding: '0.5rem',
+                background: '#f3f4f6',
+                borderRadius: '4px',
+                fontSize: '0.875rem',
+                color: '#374151'
+              }}>
+                {progressMessage}
+              </div>
+            )}
+
             <div style={{
               width: '100%',
               height: '8px',
@@ -130,14 +213,29 @@ export default function OrderStatus({ jobId, onNewOrder }: OrderStatusProps) {
               overflow: 'hidden',
             }}>
               <div style={{
-                width: `${typeof status.progress === 'number' ? status.progress : 0}%`,
+                width: `${progressPercent}%`,
                 height: '100%',
                 background: 'linear-gradient(90deg, #667eea 0%, #764ba2 100%)',
                 transition: 'width 0.3s ease',
               }} />
             </div>
-            <div style={{ textAlign: 'right', marginTop: '0.5rem', fontSize: '0.875rem', color: '#6b7280' }}>
-              {typeof status.progress === 'number' ? `${status.progress}%` : 'N/A'}
+
+            <div style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              marginTop: '0.5rem',
+              fontSize: '0.875rem',
+              color: '#6b7280'
+            }}>
+              <div>
+                {progressPercent > 0 ? `${progressPercent}%` : 'N/A'}
+              </div>
+              {estimatedTime !== null && estimatedTime > 0 && (
+                <div>
+                  ⏱️ ~{estimatedTime}s rimanenti
+                </div>
+              )}
             </div>
           </div>
         )}
