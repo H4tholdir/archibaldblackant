@@ -39,6 +39,7 @@ export class QueueManager {
   private browserPool: BrowserPool;
   private onOrderStart?: () => boolean;
   private onOrderEnd?: () => void;
+  private progressBroadcaster?: (jobId: string, progress: any) => void;
 
   private constructor() {
     // Connessione Redis (usa Redis locale su porta 6379)
@@ -81,6 +82,22 @@ export class QueueManager {
   }
 
   /**
+   * Setta il broadcaster per il progress tracking via WebSocket
+   */
+  setProgressBroadcaster(fn: (jobId: string, progress: any) => void): void {
+    this.progressBroadcaster = fn;
+  }
+
+  /**
+   * Emette un evento di progress per il job specificato
+   */
+  private emitProgress(jobId: string, progress: any): void {
+    if (this.progressBroadcaster) {
+      this.progressBroadcaster(jobId, progress);
+    }
+  }
+
+  /**
    * Avvia il worker per processare i job
    */
   async startWorker(): Promise<void> {
@@ -120,6 +137,9 @@ export class QueueManager {
 
     this.worker.on('progress', (job: Job<OrderJobData, OrderJobResult>, progress: number | object) => {
       logger.debug(`Job ${job.id} progress`, { progress });
+
+      // Emit progress to WebSocket clients
+      this.emitProgress(job.id!, progress);
     });
 
     logger.info('Worker avviato con concurrency: 3');

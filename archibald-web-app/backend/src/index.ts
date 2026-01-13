@@ -133,8 +133,42 @@ app.use((req, res, next) => {
   next();
 });
 
+// Store WebSocket clients by job ID subscription
+const orderProgressClients = new Map<string, Set<typeof ws>>();
+
 // WebSocket per notifiche sync in real-time
-wss.on("connection", (ws) => {
+wss.on("connection", (ws, req) => {
+  const url = new URL(req.url || '', 'http://localhost');
+  const jobId = url.searchParams.get('jobId');
+
+  // If jobId is present, this is an order progress subscription
+  if (jobId) {
+    logger.info(`Client subscribed to order progress: ${jobId}`);
+
+    if (!orderProgressClients.has(jobId)) {
+      orderProgressClients.set(jobId, new Set());
+    }
+    orderProgressClients.get(jobId)!.add(ws);
+
+    // Send initial job status
+    queueManager.getJobStatus(jobId).then(status => {
+      ws.send(JSON.stringify({ type: 'order_progress', data: status }));
+    }).catch(err => {
+      logger.error(`Failed to get job status for ${jobId}`, { error: err });
+    });
+
+    ws.on('close', () => {
+      logger.info(`Client unsubscribed from order progress: ${jobId}`);
+      orderProgressClients.get(jobId)?.delete(ws);
+      if (orderProgressClients.get(jobId)?.size === 0) {
+        orderProgressClients.delete(jobId);
+      }
+    });
+
+    return; // Don't register sync listeners for order progress clients
+  }
+
+  // Legacy sync progress connection (no jobId parameter)
   logger.info("Client WebSocket connesso");
 
   // Invia stato corrente di entrambi i sync
@@ -1114,6 +1148,24 @@ server.listen(config.server.port, async () => {
   // Registra i callback per gestire i lock ordini/sync
   queueManager.setOrderLockCallbacks(acquireOrderLock, releaseOrderLock);
   logger.info("✅ Lock callbacks registrati per ordini");
+
+  // Registra il progress broadcaster per WebSocket
+  queueManager.setProgressBroadcaster((jobId, progress) => {
+    const clients = orderProgressClients.get(jobId);
+    if (clients) {
+      const message = JSON.stringify({
+        type: 'order_progress',
+        jobId,
+        data: progress
+      });
+      clients.forEach(client => {
+        if (client.readyState === 1) { // WebSocket.OPEN
+          client.send(message);
+        }
+      });
+    }
+  });
+  logger.info("✅ Progress broadcaster registrato per WebSocket");
 
   // Avvia il worker della coda
   try {
