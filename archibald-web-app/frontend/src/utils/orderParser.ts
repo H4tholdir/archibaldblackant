@@ -395,3 +395,125 @@ export function getVoiceSuggestions(transcript: string): string[] {
 
   return suggestions;
 }
+
+/**
+ * Transcript segment with optional entity metadata
+ */
+export interface TranscriptSegment {
+  text: string;
+  entity?: {
+    type: "customer" | "article" | "quantity" | "price";
+    confidence: number;
+  };
+}
+
+/**
+ * Highlight recognized entities in transcript
+ * Returns array of segments with entity metadata for rendering
+ */
+export function highlightEntities(
+  transcript: string,
+  parsedOrder: ParsedOrderWithConfidence,
+): TranscriptSegment[] {
+  const segments: TranscriptSegment[] = [];
+  const entities: Array<{
+    start: number;
+    end: number;
+    type: "customer" | "article" | "quantity" | "price";
+    confidence: number;
+  }> = [];
+
+  // Find customer name position
+  if (
+    parsedOrder.customerName &&
+    parsedOrder.customerNameConfidence !== undefined
+  ) {
+    const lowerTranscript = transcript.toLowerCase();
+    const lowerName = parsedOrder.customerName.toLowerCase();
+    const index = lowerTranscript.indexOf(lowerName);
+
+    if (index !== -1) {
+      entities.push({
+        start: index,
+        end: index + parsedOrder.customerName.length,
+        type: "customer",
+        confidence: parsedOrder.customerNameConfidence,
+      });
+    }
+  }
+
+  // Find article codes and quantities
+  for (const item of parsedOrder.items) {
+    const lowerTranscript = transcript.toLowerCase();
+
+    // Find article code
+    if (item.articleCode && item.articleCodeConfidence !== undefined) {
+      const lowerCode = item.articleCode.toLowerCase();
+      const index = lowerTranscript.indexOf(lowerCode);
+
+      if (index !== -1) {
+        entities.push({
+          start: index,
+          end: index + item.articleCode.length,
+          type: "article",
+          confidence: item.articleCodeConfidence,
+        });
+      }
+    }
+
+    // Find quantity - search after "quantità" keyword to avoid false matches
+    if (item.quantity && item.quantityConfidence !== undefined) {
+      const quantityStr = item.quantity.toString();
+      const quantitaIndex = lowerTranscript.indexOf("quantità");
+
+      // Search for quantity after "quantità" keyword
+      const searchStart = quantitaIndex !== -1 ? quantitaIndex : 0;
+      const index = transcript.indexOf(quantityStr, searchStart);
+
+      if (index !== -1) {
+        entities.push({
+          start: index,
+          end: index + quantityStr.length,
+          type: "quantity",
+          confidence: item.quantityConfidence,
+        });
+      }
+    }
+  }
+
+  // No entities found - return plain text
+  if (entities.length === 0) {
+    return [{ text: transcript }];
+  }
+
+  // Sort entities by start position
+  entities.sort((a, b) => a.start - b.start);
+
+  // Build segments
+  let currentPos = 0;
+
+  for (const entity of entities) {
+    // Add plain text before entity
+    if (entity.start > currentPos) {
+      segments.push({ text: transcript.slice(currentPos, entity.start) });
+    }
+
+    // Add entity segment
+    segments.push({
+      text: transcript.slice(entity.start, entity.end),
+      entity: {
+        type: entity.type,
+        confidence: entity.confidence,
+      },
+    });
+
+    currentPos = entity.end;
+  }
+
+  // Add remaining plain text
+  if (currentPos < transcript.length) {
+    segments.push({ text: transcript.slice(currentPos) });
+  }
+
+  return segments;
+}

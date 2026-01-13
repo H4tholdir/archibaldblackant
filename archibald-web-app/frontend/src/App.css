@@ -583,6 +583,24 @@
   margin-left: 0.125rem;
 }
 
+/* Transcript Display */
+.transcript-display {
+  background: #f9fafb;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  padding: 1rem;
+  margin-bottom: 1.5rem;
+  font-size: 1rem;
+  line-height: 1.8;
+  min-height: 60px;
+  color: #1a202c;
+}
+
+.transcript-interim {
+  font-style: italic;
+  color: #6b7280;
+}
+
 /* Voice Button */
 .btn-voice {
   background: linear-gradient(135deg, #10b981 0%, #059669 100%);

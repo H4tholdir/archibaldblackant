@@ -4,7 +4,9 @@ import {
   getVoiceSuggestions,
   detectMixedPackageSolutions,
   validateArticleCode,
+  highlightEntities,
 } from "./orderParser";
+import type { ParsedOrderWithConfidence } from "./orderParser";
 
 describe("parseVoiceOrder", () => {
   describe("basic parsing", () => {
@@ -55,16 +57,14 @@ describe("parseVoiceOrder", () => {
     });
 
     test("normalizes article code with mixed format", () => {
-      const transcript =
-        "cliente Mario Rossi, articolo H71.104 032 quantità 5";
+      const transcript = "cliente Mario Rossi, articolo H71.104 032 quantità 5";
       const result = parseVoiceOrder(transcript);
 
       expect(result.items[0].articleCode).toBe("H71.104.032");
     });
 
     test("normalizes article code with letter prefix and spaces", () => {
-      const transcript =
-        "cliente Mario Rossi, articolo TD 1272 314 quantità 2";
+      const transcript = "cliente Mario Rossi, articolo TD 1272 314 quantità 2";
       const result = parseVoiceOrder(transcript);
 
       expect(result.items[0].articleCode).toBe("TD.1272.314");
@@ -102,7 +102,6 @@ describe("parseVoiceOrderWithConfidence", () => {
     // This function doesn't exist yet - will be implemented in Task 5
     // const transcript = "cliente Mario Rossi, articolo SF1000 quantità 5";
     // const result = parseVoiceOrderWithConfidence(transcript);
-
     // expect(result.customerNameConfidence).toBe(1.0);
     // expect(result.items[0].articleCodeConfidence).toBe(1.0);
     // expect(result.items[0].quantityConfidence).toBe(1.0);
@@ -112,7 +111,6 @@ describe("parseVoiceOrderWithConfidence", () => {
     // TODO: Implement parseVoiceOrderWithConfidence function
     // const transcript = "cliente mario rossi articolo sf mille quantità cinque";
     // const result = parseVoiceOrderWithConfidence(transcript);
-
     // expect(result.customerNameConfidence).toBeCloseTo(0.9, 1);
     // expect(result.items[0].articleCodeConfidence).toBeCloseTo(0.9, 1);
   });
@@ -121,7 +119,6 @@ describe("parseVoiceOrderWithConfidence", () => {
     // TODO: Implement parseVoiceOrderWithConfidence function
     // const transcript = "mario rossi sf quantità";
     // const result = parseVoiceOrderWithConfidence(transcript);
-
     // expect(result.customerNameConfidence).toBeLessThan(0.5);
     // expect(result.items[0].quantityConfidence).toBe(0);
   });
@@ -289,9 +286,7 @@ describe("validateExtractedEntities", () => {
     //   items: [],
     // };
     // const customers = [{ id: "1", name: "Fresis" }];
-
     // const result = await validateExtractedEntities(parsed, customers, []);
-
     // expect(result.customerNameValid).toBe(true);
     // expect(result.customerSuggestions).toHaveLength(0);
   });
@@ -302,9 +297,7 @@ describe("validateExtractedEntities", () => {
     //   items: [],
     // };
     // const customers = [{ id: "1", name: "Fresis" }, { id: "2", name: "Freschi" }];
-
     // const result = await validateExtractedEntities(parsed, customers, []);
-
     // expect(result.customerNameValid).toBe(false);
     // expect(result.customerSuggestions.length).toBeGreaterThan(0);
     // expect(result.customerSuggestions[0]).toBe("Fresis");
@@ -322,9 +315,7 @@ describe("validateExtractedEntities", () => {
     //   ],
     // };
     // const products = [{ id: "K2", name: "H71.104.032", multipleQty: 5 }];
-
     // const result = await validateExtractedEntities(parsed, [], products);
-
     // expect(result.items[0].validationErrors).toHaveLength(0);
     // expect(result.items[0].articleCodeConfidence).toBe(1.0);
   });
@@ -356,5 +347,136 @@ describe("getVoiceSuggestions", () => {
     );
 
     expect(result).toHaveLength(0);
+  });
+});
+
+describe("highlightEntities", () => {
+  test("returns plain text segments when no entities parsed", () => {
+    const transcript = "hello world";
+    const parsedOrder: ParsedOrderWithConfidence = { items: [] };
+
+    const result = highlightEntities(transcript, parsedOrder);
+
+    expect(result).toEqual([{ text: "hello world" }]);
+  });
+
+  test("highlights customer name in transcript", () => {
+    const transcript = "cliente Mario Rossi";
+    const parsedOrder: ParsedOrderWithConfidence = {
+      customerName: "Mario Rossi",
+      customerNameConfidence: 0.95,
+      items: [],
+    };
+
+    const result = highlightEntities(transcript, parsedOrder);
+
+    expect(result).toEqual([
+      { text: "cliente " },
+      {
+        text: "Mario Rossi",
+        entity: { type: "customer", confidence: 0.95 },
+      },
+    ]);
+  });
+
+  test("highlights article code and quantity", () => {
+    const transcript = "articolo SF1000 quantità 5";
+    const parsedOrder: ParsedOrderWithConfidence = {
+      items: [
+        {
+          articleCode: "SF1000",
+          articleCodeConfidence: 0.9,
+          description: "",
+          quantity: 5,
+          quantityConfidence: 0.98,
+          price: 0,
+        },
+      ],
+    };
+
+    const result = highlightEntities(transcript, parsedOrder);
+
+    expect(result).toEqual([
+      { text: "articolo " },
+      {
+        text: "SF1000",
+        entity: { type: "article", confidence: 0.9 },
+      },
+      { text: " quantità " },
+      {
+        text: "5",
+        entity: { type: "quantity", confidence: 0.98 },
+      },
+    ]);
+  });
+
+  test("highlights multiple entities in complete order", () => {
+    const transcript = "cliente Mario Rossi, articolo H71.104.032 quantità 10";
+    const parsedOrder: ParsedOrderWithConfidence = {
+      customerName: "Mario Rossi",
+      customerNameConfidence: 0.92,
+      items: [
+        {
+          articleCode: "H71.104.032",
+          articleCodeConfidence: 0.88,
+          description: "",
+          quantity: 10,
+          quantityConfidence: 1.0,
+          price: 0,
+        },
+      ],
+    };
+
+    const result = highlightEntities(transcript, parsedOrder);
+
+    expect(result).toEqual([
+      { text: "cliente " },
+      {
+        text: "Mario Rossi",
+        entity: { type: "customer", confidence: 0.92 },
+      },
+      { text: ", articolo " },
+      {
+        text: "H71.104.032",
+        entity: { type: "article", confidence: 0.88 },
+      },
+      { text: " quantità " },
+      {
+        text: "10",
+        entity: { type: "quantity", confidence: 1.0 },
+      },
+    ]);
+  });
+
+  test("handles case-insensitive entity matching", () => {
+    const transcript = "Cliente MARIO ROSSI";
+    const parsedOrder: ParsedOrderWithConfidence = {
+      customerName: "Mario Rossi",
+      customerNameConfidence: 0.85,
+      items: [],
+    };
+
+    const result = highlightEntities(transcript, parsedOrder);
+
+    expect(result).toEqual([
+      { text: "Cliente " },
+      {
+        text: "MARIO ROSSI",
+        entity: { type: "customer", confidence: 0.85 },
+      },
+    ]);
+  });
+
+  test("returns plain text when entities not found in transcript", () => {
+    const transcript = "something random";
+    const parsedOrder: ParsedOrderWithConfidence = {
+      customerName: "Mario Rossi",
+      customerNameConfidence: 0.9,
+      items: [],
+    };
+
+    const result = highlightEntities(transcript, parsedOrder);
+
+    expect(result).toEqual([{ text: "something random" }]);
   });
 });
