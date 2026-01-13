@@ -246,15 +246,18 @@ Plans (Original):
 ### Phase 4: Voice Input Enhancement
 **Goal**: Voice hybrid affidabile (dettatura → form → conferma tap) per ridurre errori input
 **Depends on**: Phase 3
-**Research**: Unlikely (Web Speech API già implementato, miglioramento pattern esistenti)
-**Plans**: 5 plans
+**Research**: Complete (Level 0 - existing implementation analyzed)
+**Plans**: 3 plans (consolidated from 5 - combined related tasks for cohesive implementation)
+
+**Discovery Summary:**
+- Existing: Web Speech API hook (`useVoiceInput.ts`), basic parser (`orderParser.ts`), voice modal UI
+- Gaps: No confidence scoring, no entity validation, no manual edit workflow, voice directly submits
+- Approach: Enhance parser → visual feedback → hybrid workflow (pre-fill + confirm)
 
 Plans:
-- [ ] 04-01: Refactor voice parser for reliable entity extraction (cliente, articolo, quantità)
-- [ ] 04-02: Add visual feedback during voice recognition (real-time transcription)
-- [ ] 04-03: Populate form fields from voice input (pre-fill, not submit)
-- [ ] 04-04: Add tap confirmation requirement before order creation
-- [ ] 04-05: Add manual edit capability for voice-populated fields
+- [ ] 04-01: Voice parser enhancement (confidence scoring, validation, fuzzy matching)
+- [ ] 04-02: Visual feedback enhancement (real-time confidence, entity highlighting, validation status)
+- [ ] 04-03: Hybrid workflow implementation (pre-fill → manual edit → tap confirm) - Combines original 04-03, 04-04, 04-05
 
 ### Phase 5: Order Submission
 **Goal**: Invio ordine Puppeteer ottimizzato con tracking real-time e error recovery robusto
