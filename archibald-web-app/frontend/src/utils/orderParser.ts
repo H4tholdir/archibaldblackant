@@ -1,7 +1,8 @@
 import type { OrderItem } from "../types/order";
 
-// Italian number words to digits mapping
+// Italian number words to digits mapping (0-100 + common round numbers)
 const ITALIAN_NUMBERS: Record<string, string> = {
+  // 0-9
   zero: "0",
   uno: "1",
   due: "2",
@@ -12,6 +13,7 @@ const ITALIAN_NUMBERS: Record<string, string> = {
   sette: "7",
   otto: "8",
   nove: "9",
+  // 10-19
   dieci: "10",
   undici: "11",
   dodici: "12",
@@ -22,42 +24,159 @@ const ITALIAN_NUMBERS: Record<string, string> = {
   diciassette: "17",
   diciotto: "18",
   diciannove: "19",
+  // 20-29
   venti: "20",
   ventuno: "21",
   ventidue: "22",
   ventitre: "23",
+  ventitré: "23", // variant with accent
   ventiquattro: "24",
   venticinque: "25",
+  ventisei: "26",
+  ventisette: "27",
+  ventotto: "28",
+  ventinove: "29",
+  // 30-39
   trenta: "30",
+  trentuno: "31",
+  trentadue: "32",
+  trentatre: "33",
+  trentatré: "33", // variant with accent
+  trentaquattro: "34",
+  trentacinque: "35",
+  trentasei: "36",
+  trentasette: "37",
+  trentotto: "38",
+  trentanove: "39",
+  // 40-49
   quaranta: "40",
+  quarantuno: "41",
+  quarantadue: "42",
+  quarantatre: "43",
+  quarantatré: "43", // variant with accent
+  quarantaquattro: "44",
+  quarantacinque: "45",
+  quarantasei: "46",
+  quarantasette: "47",
+  quarantotto: "48",
+  quarantanove: "49",
+  // 50-59
   cinquanta: "50",
+  cinquantuno: "51",
+  cinquantadue: "52",
+  cinquantatre: "53",
+  cinquantatré: "53", // variant with accent
+  cinquantaquattro: "54",
+  cinquantacinque: "55",
+  cinquantasei: "56",
+  cinquantasette: "57",
+  cinquantotto: "58",
+  cinquantanove: "59",
+  // 60-69
+  sessanta: "60",
+  sessantuno: "61",
+  sessantadue: "62",
+  sessantatre: "63",
+  sessantatré: "63", // variant with accent
+  sessantaquattro: "64",
+  sessantacinque: "65",
+  sessantasei: "66",
+  sessantasette: "67",
+  sessantotto: "68",
+  sessantanove: "69",
+  // 70-79
+  settanta: "70",
+  settantuno: "71",
+  settantadue: "72",
+  settantatre: "73",
+  settantatré: "73", // variant with accent
+  settantaquattro: "74",
+  settantacinque: "75",
+  settantasei: "76",
+  settantasette: "77",
+  settantotto: "78",
+  settantanove: "79",
+  // 80-89
+  ottanta: "80",
+  ottantuno: "81",
+  ottantadue: "82",
+  ottantatre: "83",
+  ottantatré: "83", // variant with accent
+  ottantaquattro: "84",
+  ottantacinque: "85",
+  ottantasei: "86",
+  ottantasette: "87",
+  ottantotto: "88",
+  ottantanove: "89",
+  // 90-99
+  novanta: "90",
+  novantuno: "91",
+  novantadue: "92",
+  novantatre: "93",
+  novantatré: "93", // variant with accent
+  novantaquattro: "94",
+  novantacinque: "95",
+  novantasei: "96",
+  novantasette: "97",
+  novantotto: "98",
+  novantanove: "99",
+  // Round numbers
   cento: "100",
+  duecento: "200",
+  trecento: "300",
+  quattrocento: "400",
+  cinquecento: "500",
+  seicento: "600",
+  settecento: "700",
+  ottocento: "800",
+  novecento: "900",
   mille: "1000",
+  duemila: "2000",
+  tremila: "3000",
+  quattromila: "4000",
+  cinquemila: "5000",
 };
 
 /**
  * Convert Italian number words to digits
  * Two contexts:
- * 1. "mille" and "cento" ALWAYS converted (common in article codes like SF.1000)
- * 2. All other Italian numbers (uno-cinquanta) converted ONLY near quantity keywords
+ * 1. Round numbers (cento, duecento, ..., mille, duemila, ...) ALWAYS converted (common in article codes)
+ * 2. All other Italian numbers (0-99) converted ONLY near quantity keywords
+ *
+ * Supported range: 0-99 complete + round numbers (100, 200, ..., 5000)
  *
  * Examples:
  * - "SF mille" -> "SF 1000" (mille always converted)
- * - "cinque pezzi" -> "5 pezzi" (cinque near pezzi)
+ * - "settanta pezzi" -> "70 pezzi" (settanta near pezzi)
  * - "articolo cinque" -> "articolo cinque" (cinque NOT near quantity keyword, kept as-is)
  */
 function convertItalianNumbers(text: string): string {
   let result = text;
 
-  // ALWAYS convert "mille" and "cento" everywhere (common in article codes)
-  result = result.replace(/\bmille\b/gi, "1000");
-  result = result.replace(/\bcento\b/gi, "100");
+  // ALWAYS convert round numbers everywhere (common in article codes)
+  // Pattern: cento, duecento, trecento, ..., mille, duemila, ...
+  const roundNumbers = [
+    "cinquemila", "quattromila", "tremila", "duemila", "mille",
+    "novecento", "ottocento", "settecento", "seicento", "cinquecento",
+    "quattrocento", "trecento", "duecento", "cento"
+  ];
+  for (const num of roundNumbers) {
+    const regex = new RegExp(`\\b${num}\\b`, "gi");
+    result = result.replace(regex, ITALIAN_NUMBERS[num]);
+  }
 
-  // For all OTHER Italian numbers (uno, due, tre, ..., cinquanta),
+  // For all OTHER Italian numbers (0-99),
   // only convert when they appear near quantity keywords
   const quantityNumbers = { ...ITALIAN_NUMBERS };
-  delete quantityNumbers.mille;
-  delete quantityNumbers.cento;
+  // Remove all round numbers (already converted above)
+  const roundNumbersToRemove = [
+    "cento", "duecento", "trecento", "quattrocento", "cinquecento",
+    "seicento", "settecento", "ottocento", "novecento",
+    "mille", "duemila", "tremila", "quattromila", "cinquemila"
+  ];
+  for (const num of roundNumbersToRemove) {
+    delete quantityNumbers[num];
+  }
 
   // Sort by length descending to match longer phrases first (e.g., "ventuno" before "venti")
   const sortedKeys = Object.keys(quantityNumbers).sort(

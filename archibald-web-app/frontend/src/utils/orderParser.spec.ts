@@ -239,6 +239,48 @@ describe("parseVoiceOrder", () => {
       expect(result.items).toHaveLength(1);
       expect(result.items[0].quantity).toBe(5);
     });
+
+    test("converts 'sessanta pezzi' to quantity 60", () => {
+      const transcript = "articolo SF 1000 sessanta pezzi";
+      const result = parseVoiceOrder(transcript);
+
+      expect(result.items).toHaveLength(1);
+      expect(result.items[0].quantity).toBe(60);
+    });
+
+    test("converts 'novantanove pezzi' to quantity 99", () => {
+      const transcript = "articolo H71 104 032 novantanove pezzi";
+      const result = parseVoiceOrder(transcript);
+
+      expect(result.items).toHaveLength(1);
+      expect(result.items[0].quantity).toBe(99);
+    });
+
+    test("converts 'duecento' in article code always", () => {
+      const transcript = "articolo SF duecento quantità 5";
+      const result = parseVoiceOrder(transcript);
+
+      expect(result.items).toHaveLength(1);
+      expect(result.items[0].articleCode).toBe("SF.200");
+      expect(result.items[0].quantity).toBe(5);
+    });
+
+    test("converts 'cinquemila' in article code always", () => {
+      const transcript = "articolo TD cinquemila quantità 3";
+      const result = parseVoiceOrder(transcript);
+
+      expect(result.items).toHaveLength(1);
+      expect(result.items[0].articleCode).toBe("TD.5000");
+      expect(result.items[0].quantity).toBe(3);
+    });
+
+    test("converts 'settantacinque pezzi' to quantity 75", () => {
+      const transcript = "articolo H71 104 032 settantacinque pezzi";
+      const result = parseVoiceOrder(transcript);
+
+      expect(result.items).toHaveLength(1);
+      expect(result.items[0].quantity).toBe(75);
+    });
   });
 });
 
