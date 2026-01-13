@@ -197,7 +197,7 @@ export default function OrderForm({ onOrderCreated }: OrderFormProps) {
 
       // Validate article code if present (async fuzzy matching)
       // Skip validation if user manually selected an article from suggestions
-      let articleConfidence = 0.85; // default
+      let articleConfidence = 0; // default to 0 - will be set by validation
       if (
         parsed.items.length > 0 &&
         parsed.items[0].articleCode &&
