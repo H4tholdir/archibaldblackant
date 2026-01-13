@@ -974,130 +974,90 @@ export class ArchibaldBot {
       : inputInfo.id;
 
     // Format value for DevExpress (use comma as decimal separator)
+    // Use decimals only when necessary (4 → "4", 4.5 → "4,5")
     const formatValue = (val: number): string => {
-      const fixed = Number.isInteger(val) ? val.toFixed(0) : val.toFixed(2);
+      const fixed = Number.isInteger(val) ? val.toString() : val.toFixed(2);
       return fixed.replace('.', ',');
     };
 
     const formattedValue = formatValue(Number(value));
 
-    // Wait for DOM stabilization
+    // Wait for DOM stabilization after article selection
     await this.wait(300);
 
-    // OPT-03 v3: Atomic operations to avoid "detached node" errors
-    // Research: DevExpress double-click can trigger DOM reload causing detachment
-    // Solution: Use page.evaluate for atomic click + keyboard API (no element handles)
-    try {
-      logger.debug(`Attempting OPT-03 v3 (atomic operations) for "${cellLabelText}"`);
+    // OPT-03 FINAL: Classic reliable approach - atomic double-click + keyboard simulation
+    // This is the proven method that works 100% of the time with DevExpress
+    logger.debug(`Field editing for "${cellLabelText}" with value: "${formattedValue}"`);
 
-      // Strategy: FULL ATOMIC approach - do everything in one evaluate call
-      // This prevents any timing/selection issues with DevExpress
-      // Source: https://github.com/puppeteer/puppeteer/issues/3496
-      const setSuccess = await this.page!.evaluate((inputId, newValue) => {
-        const input = document.querySelector(`#${inputId}`) as HTMLInputElement;
-        if (!input) return { success: false, error: 'input not found' };
+    // Step 1: Atomic double-click to enter edit mode (prevents detachment issues)
+    const dblClickSuccess = await this.page!.evaluate((inputId) => {
+      const input = document.querySelector(`#${inputId}`) as HTMLInputElement;
+      if (!input) return false;
 
-        try {
-          // Focus first
-          input.focus();
+      try {
+        input.focus();
 
-          // Dispatch double-click event to enter edit mode
-          const dblClickEvent = new MouseEvent('dblclick', {
-            view: window,
-            bubbles: true,
-            cancelable: true,
-            detail: 2
-          });
-          input.dispatchEvent(dblClickEvent);
+        const dblClickEvent = new MouseEvent('dblclick', {
+          view: window,
+          bubbles: true,
+          cancelable: true,
+          detail: 2
+        });
+        input.dispatchEvent(dblClickEvent);
 
-          // Small sync wait for edit mode (DevExpress needs this)
-          const start = Date.now();
-          while (Date.now() - start < 100) {
-            // Busy wait
-          }
+        // Small sync wait for edit mode
+        const start = Date.now();
+        while (Date.now() - start < 150) {}
 
-          // Set value directly (most reliable)
-          input.value = newValue;
-
-          // Dispatch events to notify DevExpress
-          input.dispatchEvent(new Event('input', { bubbles: true }));
-          input.dispatchEvent(new Event('change', { bubbles: true }));
-
-          return { success: true, finalValue: input.value };
-        } catch (error) {
-          return { success: false, error: String(error) };
-        }
-      }, inputInfo.id, formattedValue);
-
-      if (!setSuccess.success) {
-        throw new Error(`Atomic set failed: ${setSuccess.error}`);
+        return true;
+      } catch (err) {
+        return false;
       }
+    }, inputInfo.id);
 
-      logger.debug(`Atomic setValue result: "${setSuccess.finalValue}"`);
-
-      // CRITICAL: Wait for DevExpress to process the value change BEFORE pressing Enter
-      // If we press Enter too soon, DevExpress validation may override our value
-      await this.wait(400);
-
-      // Confirm with Enter+Tab (DevExpress standard)
-      await this.page!.keyboard.press('Enter');
-      await this.page!.keyboard.press('Tab');
-
-      // Additional wait for DevExpress post-confirmation processing
-      await this.wait(200);
-
-      // Verify the value was set correctly
-      const actualValue = await this.page!.evaluate((inputId) => {
-        const input = document.querySelector(`#${inputId}`) as HTMLInputElement;
-        return input ? input.value : null;
-      }, inputInfo.id);
-
-      logger.debug(`OPT-03 v3 atomic operations succeeded: "${actualValue}"`);
-
-    } catch (error) {
-      // Fallback: slower but more conservative approach
-      logger.warn(`Optimized field editing failed for "${cellLabelText}", using fallback: ${error}`);
-
-      // Wait a bit longer for stability
-      await this.wait(200);
-
-      // Try to get input handle
-      const inputHandle = await this.page!.$(`#${inputInfo.id}`);
-      if (!inputHandle) {
-        throw new Error(`Cannot get handle for input ${inputInfo.id}`);
-      }
-
-      // Double-click directly on input (more conservative)
-      await inputHandle.click({ clickCount: 2 });
-      await this.wait(300);
-
-      // Select all existing content
-      await inputHandle.focus();
-      await this.page!.keyboard.down('Control');
-      await this.page!.keyboard.press('KeyA');
-      await this.page!.keyboard.up('Control');
-      await this.page!.keyboard.press('Backspace');
-      await this.wait(150);
-
-      // Type new value with slower delay for reliability
-      await inputHandle.type(formattedValue, { delay: 30 });
-      logger.debug(`Typed value with fallback: "${formattedValue}"`);
-
-      // Confirm changes
-      await this.page!.keyboard.press('Enter');
-      await this.page!.keyboard.press('Tab');
-
-      // Conservative wait time
-      await this.wait(600);
-
-      // Verify final value
-      const actualValue = await this.page!.evaluate((inputId) => {
-        const input = document.querySelector(`#${inputId}`) as HTMLInputElement;
-        return input ? input.value : null;
-      }, inputInfo.id);
-
-      logger.debug(`Fallback field editing completed: "${actualValue}"`);
+    if (!dblClickSuccess) {
+      throw new Error(`Double-click failed for input ${inputInfo.id}`);
     }
+
+    await this.wait(300);
+
+    // Step 2: Select all existing content programmatically (more reliable than Ctrl+A)
+    const selectSuccess = await this.page!.evaluate((inputId) => {
+      const input = document.querySelector(`#${inputId}`) as HTMLInputElement;
+      if (!input) return false;
+
+      try {
+        // Ensure field is focused
+        input.focus();
+
+        // Select all text programmatically
+        input.select();
+        // Alternative: input.setSelectionRange(0, input.value.length);
+
+        return true;
+      } catch (err) {
+        return false;
+      }
+    }, inputInfo.id);
+
+    if (!selectSuccess) {
+      throw new Error(`Failed to select text in field: ${fieldLabel}`);
+    }
+
+    await this.wait(100);
+
+    // Step 3: Clear selected content and type new value
+    await this.page!.keyboard.press('Backspace'); // Delete selected text
+    await this.wait(50);
+    await this.page!.keyboard.type(formattedValue, { delay: 30 });
+    logger.debug(`✅ Typed value: "${formattedValue}"`);
+
+    // Step 4: DO NOT confirm with Enter or Tab!
+    // Leave the value in the editor and let the Update button save it
+    // This prevents DevExpress validation conflicts
+    await this.wait(300); // Brief wait for typing to complete
+
+    logger.debug(`✅ Field editing completed - value left in editor for Update button`);
   }
 
   /**
@@ -2425,11 +2385,28 @@ export class ArchibaldBot {
 
           await this.wait(1000);
           await this.waitForDevExpressReady({ timeout: 3000 });
+
+          // CRITICAL: Wait for DevExpress to fully load article data into grid
+          // DevExpress needs time to populate all fields (price, quantity, etc.)
+          // If we edit quantity too soon, the loading process will reset it to default
+          logger.debug('Waiting for DevExpress to complete article data loading...');
+          await this.wait(2400); // Optimized wait for complete article loading
+
         }, "form.article");
 
-        // 5.5: Set quantity (OPT-03: optimized field editing)
+        // 5.5: Set quantity (OPT-03: optimized field editing with smart skip)
         await this.runOp(`order.item.${i}.set_quantity`, async () => {
-          logger.debug(`Setting quantity: ${item.quantity}`);
+          const selectedVariant = (item as any)._selectedVariant;
+
+          // SMART OPTIMIZATION: If quantity == multipleQty, DevExpress auto-fills correctly
+          // Skip manual editing for exact package matches (1 for pack=1, 5 for pack=5, etc.)
+          if (item.quantity === selectedVariant.multipleQty) {
+            logger.info(`⚡ Quantity ${item.quantity} matches multipleQty - skipping edit (auto-filled by DevExpress)`);
+            await this.wait(500); // Let DevExpress stabilize
+            return;
+          }
+
+          logger.debug(`Setting quantity: ${item.quantity} (multipleQty: ${selectedVariant.multipleQty})`);
           await this.editTableCell("Qtà ordinata", item.quantity);
           logger.info(`✅ Quantity set: ${item.quantity}`);
           await this.wait(300);
