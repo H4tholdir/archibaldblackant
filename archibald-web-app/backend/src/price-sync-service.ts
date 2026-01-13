@@ -21,6 +21,7 @@ export class PriceSyncService extends EventEmitter {
   private checkpointManager: SyncCheckpointManager;
   private syncInProgress = false;
   private shouldStop = false;
+  private paused = false;
   private syncInterval: NodeJS.Timeout | null = null;
   private progress: PriceSyncProgress = {
     status: "idle",
@@ -42,6 +43,35 @@ export class PriceSyncService extends EventEmitter {
       PriceSyncService.instance = new PriceSyncService();
     }
     return PriceSyncService.instance;
+  }
+
+  /**
+   * Pause the sync service (for PriorityManager)
+   * Waits for current sync operation to complete if running
+   */
+  async pause(): Promise<void> {
+    logger.info("[PriceSyncService] Pause requested");
+    this.paused = true;
+
+    // If sync is currently running, wait for it to complete
+    if (this.syncInProgress) {
+      logger.info("[PriceSyncService] Waiting for current sync to complete...");
+      // Wait for sync to finish by polling syncInProgress
+      while (this.syncInProgress) {
+        await new Promise((resolve) => setTimeout(resolve, 500));
+      }
+    }
+
+    logger.info("[PriceSyncService] Paused");
+  }
+
+  /**
+   * Resume the sync service (for PriorityManager)
+   */
+  resume(): void {
+    logger.info("[PriceSyncService] Resume requested");
+    this.paused = false;
+    logger.info("[PriceSyncService] Resumed");
   }
 
   /**
@@ -111,6 +141,12 @@ export class PriceSyncService extends EventEmitter {
   async syncPrices(): Promise<void> {
     if (this.syncInProgress) {
       logger.warn("Sync prezzi già in corso, skip");
+      return;
+    }
+
+    // Check if paused (for PriorityManager)
+    if (this.paused) {
+      logger.info("[PriceSyncService] Sync skipped - service is paused");
       return;
     }
 

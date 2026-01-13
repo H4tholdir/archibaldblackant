@@ -21,6 +21,7 @@ export class ProductSyncService extends EventEmitter {
   private checkpointManager: SyncCheckpointManager;
   private syncInProgress = false;
   private shouldStop = false;
+  private paused = false;
   private syncInterval: NodeJS.Timeout | null = null;
   private progress: SyncProgress = {
     status: "idle",
@@ -42,6 +43,35 @@ export class ProductSyncService extends EventEmitter {
       ProductSyncService.instance = new ProductSyncService();
     }
     return ProductSyncService.instance;
+  }
+
+  /**
+   * Pause the sync service (for PriorityManager)
+   * Waits for current sync operation to complete if running
+   */
+  async pause(): Promise<void> {
+    logger.info("[ProductSyncService] Pause requested");
+    this.paused = true;
+
+    // If sync is currently running, wait for it to complete
+    if (this.syncInProgress) {
+      logger.info("[ProductSyncService] Waiting for current sync to complete...");
+      // Wait for sync to finish by polling syncInProgress
+      while (this.syncInProgress) {
+        await new Promise((resolve) => setTimeout(resolve, 500));
+      }
+    }
+
+    logger.info("[ProductSyncService] Paused");
+  }
+
+  /**
+   * Resume the sync service (for PriorityManager)
+   */
+  resume(): void {
+    logger.info("[ProductSyncService] Resume requested");
+    this.paused = false;
+    logger.info("[ProductSyncService] Resumed");
   }
 
   /**
@@ -111,6 +141,12 @@ export class ProductSyncService extends EventEmitter {
   async syncProducts(): Promise<void> {
     if (this.syncInProgress) {
       logger.warn("Sync già in corso, skip");
+      return;
+    }
+
+    // Check if paused (for PriorityManager)
+    if (this.paused) {
+      logger.info("[ProductSyncService] Sync skipped - service is paused");
       return;
     }
 
