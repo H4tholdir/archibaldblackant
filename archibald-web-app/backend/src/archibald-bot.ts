@@ -2534,7 +2534,7 @@ export class ArchibaldBot {
           "form.article",
         );
 
-        // 5.4: Select article variant row
+        // 5.4: Select article variant row (with pagination support)
         await this.runOp(
           `order.item.${i}.select_article`,
           async () => {
@@ -2551,59 +2551,195 @@ export class ArchibaldBot {
               `Selecting variant by suffix: ${variantSuffix} (from ${selectedVariant.id})`,
             );
 
-            const rowSelected = await this.page!.evaluate(
-              (variantSuffix, packageContent) => {
-                // Find all visible rows with dxgvDataRow class
-                const rows = Array.from(
-                  document.querySelectorAll('tr[class*="dxgvDataRow"]'),
-                );
-                const visibleRows = rows.filter(
-                  (row) => (row as HTMLElement).offsetParent !== null,
-                );
+            // Pagination support: loop through pages until variant found
+            let rowSelected = false;
+            let currentPage = 1;
+            const maxPages = 10; // Safety limit to prevent infinite loops
 
-                // Primary strategy: Find row by package content alone
-                // The dropdown shows: [part1, part2, part3, icon, packageQty, variantCode, fullCode, price]
-                // We match on packageQty (column 4) which is most reliable
-                for (const row of visibleRows) {
-                  const cells = Array.from(row.querySelectorAll("td"));
-                  if (cells.length < 6) continue;
+            while (!rowSelected && currentPage <= maxPages) {
+              logger.debug(`Searching for variant on page ${currentPage}...`);
 
-                  const cellTexts = cells.map(
-                    (cell) => cell.textContent?.trim() || "",
+              // Try to find and select the row on current page
+              rowSelected = await this.page!.evaluate(
+                (variantSuffix, packageContent) => {
+                  // Find all visible rows with dxgvDataRow class
+                  const rows = Array.from(
+                    document.querySelectorAll('tr[class*="dxgvDataRow"]'),
+                  );
+                  const visibleRows = rows.filter(
+                    (row) => (row as HTMLElement).offsetParent !== null,
                   );
 
-                  // Look for packageContent in the cells (typically column 4)
-                  // Package content appears as a standalone number like "1", "5", "10"
-                  const packageStr = String(packageContent);
-                  const hasPackageMatch = cellTexts.some((text, index) => {
-                    // Check columns 3-5 for package content (flexible matching)
-                    if (index >= 3 && index <= 5) {
-                      return text === packageStr;
-                    }
-                    return false;
-                  });
+                  // Primary strategy: Find row by package content alone
+                  // The dropdown shows: [part1, part2, part3, icon, packageQty, variantCode, fullCode, price]
+                  // We match on packageQty (column 4) which is most reliable
+                  for (const row of visibleRows) {
+                    const cells = Array.from(row.querySelectorAll("td"));
+                    if (cells.length < 6) continue;
 
-                  if (hasPackageMatch) {
-                    // Found a row with matching package content
-                    // If there's only one match, use it. If multiple, prefer the one with variant suffix match
-                    const hasVariantMatch = cellTexts.some(
-                      (text) => text === variantSuffix,
+                    const cellTexts = cells.map(
+                      (cell) => cell.textContent?.trim() || "",
                     );
 
-                    // Click this row if package matches (variant check is secondary)
-                    const firstCell = cells[0];
-                    if (firstCell) {
-                      (firstCell as HTMLElement).click();
-                      return true;
+                    // Look for packageContent in the cells (typically column 4)
+                    // Package content appears as a standalone number like "1", "5", "10"
+                    const packageStr = String(packageContent);
+                    const hasPackageMatch = cellTexts.some((text, index) => {
+                      // Check columns 3-5 for package content (flexible matching)
+                      if (index >= 3 && index <= 5) {
+                        return text === packageStr;
+                      }
+                      return false;
+                    });
+
+                    if (hasPackageMatch) {
+                      // Found a row with matching package content
+                      // If there's only one match, use it. If multiple, prefer the one with variant suffix match
+                      const hasVariantMatch = cellTexts.some(
+                        (text) => text === variantSuffix,
+                      );
+
+                      // Click this row if package matches (variant check is secondary)
+                      const firstCell = cells[0];
+                      if (firstCell) {
+                        (firstCell as HTMLElement).click();
+                        return true;
+                      }
+                    }
+                  }
+
+                  return false;
+                },
+                variantSuffix,
+                selectedVariant.packageContent,
+              );
+
+              if (rowSelected) {
+                logger.info(`✅ Variant found on page ${currentPage}`);
+                break;
+              }
+
+              // Row not found on current page, check if there's a next page
+              logger.debug(`Variant not found on page ${currentPage}, checking for next page...`);
+
+              const nextPageInfo = await this.page!.evaluate(() => {
+                // Look for DevExpress pagination controls
+                // Pattern from user: <a class="dxp-button dxp-bi" onclick="ASPx.GVPagerOnClick(...)">
+                //                      <img class="dxWeb_pNext_XafTheme" alt="Next">
+
+                // Strategy 1: Find img with alt="Next" or class containing "pNext"
+                const images = Array.from(document.querySelectorAll('img'));
+                for (const img of images) {
+                  const alt = img.getAttribute('alt') || "";
+                  const className = img.className || "";
+
+                  // Check for Next image (DevExpress pattern)
+                  if (alt === "Next" || className.includes("pNext")) {
+                    const parent = img.parentElement;
+                    if (parent && parent.offsetParent !== null) {
+                      // Check if parent button is disabled
+                      const parentClass = parent.className || "";
+                      const isDisabled = parentClass.includes('dxp-disabled') ||
+                                       parentClass.includes('disabled');
+
+                      if (!isDisabled) {
+                        return {
+                          hasNextPage: true,
+                          buttonElement: true,
+                          isImage: true,
+                          id: parent.id
+                        };
+                      }
                     }
                   }
                 }
 
+                // Strategy 2: Find link/button with dxp-button class and PBN onclick
+                const allButtons = Array.from(document.querySelectorAll('a.dxp-button, button.dxp-button'));
+                for (const btn of allButtons) {
+                  const onclick = (btn as HTMLElement).getAttribute('onclick') || "";
+                  const className = (btn as HTMLElement).className || "";
+
+                  // Check for "PBN" (Page Button Next) in onclick
+                  const isNextButton = onclick.includes("'PBN'") || onclick.includes('"PBN"');
+
+                  // Make sure it's not disabled
+                  const isDisabled = className.includes('dxp-disabled') ||
+                                   className.includes('disabled');
+
+                  if (isNextButton && !isDisabled && (btn as HTMLElement).offsetParent !== null) {
+                    return {
+                      hasNextPage: true,
+                      buttonElement: true,
+                      className: className,
+                      id: (btn as HTMLElement).id
+                    };
+                  }
+                }
+
+                return {
+                  hasNextPage: false
+                };
+              });
+
+              if (!nextPageInfo.hasNextPage) {
+                logger.debug("No next page button found, article not in results");
+                break;
+              }
+
+              // Click next page button
+              logger.debug("Found next page button, navigating to next page...");
+
+              const nextPageClicked = await this.page!.evaluate(() => {
+                // Strategy 1: Find img with alt="Next" and click parent
+                const images = Array.from(document.querySelectorAll('img'));
+                for (const img of images) {
+                  const alt = img.getAttribute('alt') || "";
+                  const className = img.className || "";
+
+                  if (alt === "Next" || className.includes("pNext")) {
+                    const parent = img.parentElement;
+                    if (parent && parent.offsetParent !== null) {
+                      const parentClass = parent.className || "";
+                      const isDisabled = parentClass.includes('dxp-disabled') ||
+                                       parentClass.includes('disabled');
+
+                      if (!isDisabled) {
+                        (parent as HTMLElement).click();
+                        return true;
+                      }
+                    }
+                  }
+                }
+
+                // Strategy 2: Find button with PBN onclick
+                const allButtons = Array.from(document.querySelectorAll('a.dxp-button, button.dxp-button'));
+                for (const btn of allButtons) {
+                  const onclick = (btn as HTMLElement).getAttribute('onclick') || "";
+                  const className = (btn as HTMLElement).className || "";
+
+                  const isNextButton = onclick.includes("'PBN'") || onclick.includes('"PBN"');
+                  const isDisabled = className.includes('dxp-disabled') ||
+                                   className.includes('disabled');
+
+                  if (isNextButton && !isDisabled && (btn as HTMLElement).offsetParent !== null) {
+                    (btn as HTMLElement).click();
+                    return true;
+                  }
+                }
+
                 return false;
-              },
-              variantSuffix,
-              selectedVariant.packageContent,
-            );
+              });
+
+              if (!nextPageClicked) {
+                logger.warn("Failed to click next page button");
+                break;
+              }
+
+              // Wait for page to load new results
+              await this.wait(1500);
+              currentPage++;
+            }
 
             if (!rowSelected) {
               await this.page!.screenshot({
@@ -2611,7 +2747,7 @@ export class ArchibaldBot {
                 fullPage: true,
               });
               throw new Error(
-                `Variant ${variantSuffix} (package=${selectedVariant.packageContent}) not found in dropdown. ` +
+                `Variant ${variantSuffix} (package=${selectedVariant.packageContent}) not found in dropdown after searching ${currentPage} page(s). ` +
                   `Article: ${item.articleCode}, Full Variant ID: ${selectedVariant.id}`,
               );
             }
