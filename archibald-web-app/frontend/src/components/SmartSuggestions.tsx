@@ -79,6 +79,11 @@ export function SmartSuggestions({
                       >
                         <div className="suggestion-info">
                           <strong>{suggestion.code}</strong>
+                          {suggestion.packageInfo && (
+                            <span className="suggestion-package">
+                              {suggestion.packageInfo}
+                            </span>
+                          )}
                           <span className="suggestion-confidence">
                             {Math.round(suggestion.confidence * 100)}% match
                           </span>

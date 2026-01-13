@@ -608,8 +608,7 @@ export default function OrderForm({ onOrderCreated }: OrderFormProps) {
 
         setDraftItems((prev) => [...prev, newDraftItem]);
 
-        // Clear the voice modal and reset for next item
-        setShowVoiceModal(false);
+        // Clear state for next item (keep modal open for continuous dictation)
         resetTranscript();
         setParsedOrder({ items: [] });
         setArticleValidation(null);
