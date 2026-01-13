@@ -1703,10 +1703,10 @@ export class ArchibaldBot {
             return visibleRows.length;
           });
 
-          // If no rows found immediately, use mutation polling to wait for them
+          // OPT-15: If no rows found immediately, wait and click in one operation
           if (stableRowCount === 0) {
-            logger.debug("Results not ready, using mutation polling...");
-            stableRowCount = await this.page!.waitForFunction(
+            logger.debug("Results not ready, waiting and will click immediately...");
+            const clicked = await this.page!.waitForFunction(
               () => {
                 const rows = Array.from(document.querySelectorAll('tr[class*="dxgvDataRow"]'));
                 const visibleRows = rows.filter(row => {
@@ -1714,41 +1714,65 @@ export class ArchibaldBot {
                   return el.offsetParent !== null &&
                          el.getBoundingClientRect().height > 0;
                 });
-                return visibleRows.length > 0 ? visibleRows.length : false;
+
+                if (visibleRows.length > 0) {
+                  // Click immediately when first row appears
+                  const firstRow = visibleRows[0] as HTMLElement;
+                  const firstCell = firstRow.querySelector('td') as HTMLElement;
+                  const clickTarget = firstCell || firstRow;
+                  clickTarget.click();
+                  return true;
+                }
+                return false;
               },
               { timeout: 2000, polling: 'mutation' }
-            ).then(result => result.jsonValue()) as number;
+            ).then(result => result.jsonValue()) as boolean;
+
+            if (!clicked) {
+              throw new Error('Failed to click customer row');
+            }
+            logger.debug(`✓ Results appeared and clicked immediately`);
           } else {
-            logger.debug(`✓ Results found immediately: ${stableRowCount} row(s)`);
+            // Results already visible, click directly
+            logger.debug(`✓ Results found immediately: ${stableRowCount} row(s), clicking now...`);
+            const clickResult = await this.page!.evaluate(() => {
+              const rows = Array.from(document.querySelectorAll('tr[class*="dxgvDataRow"]'));
+              const visibleRows = rows.filter(row => {
+                const el = row as HTMLElement;
+                return el.offsetParent !== null &&
+                       el.getBoundingClientRect().height > 0;
+              });
+
+              if (visibleRows.length === 0) {
+                return false;
+              }
+
+              const firstRow = visibleRows[0] as HTMLElement;
+              const firstCell = firstRow.querySelector('td') as HTMLElement;
+              const clickTarget = firstCell || firstRow;
+              clickTarget.click();
+              return true;
+            });
+
+            if (!clickResult) {
+              throw new Error(`No customer results found for: ${orderData.customerName}`);
+            }
           }
 
-          logger.debug(`✅ Results ready with ${stableRowCount} row(s)`);
+          logger.debug("✓ Customer selected");
         } catch (err) {
-          logger.warn('Row detection wait timed out, proceeding with current results');
+          logger.warn('Row click failed, attempting fallback...');
+          // Fallback: try Puppeteer handle click
+          const rows = await this.page!.$$('tr[class*="dxgvDataRow"]');
+          if (rows.length > 0) {
+            const firstCell = await rows[0].$("td");
+            const clickTarget = firstCell || rows[0];
+            await clickTarget.click();
+            logger.debug("✓ Customer selected via fallback");
+          } else {
+            throw new Error(`No customer results found for: ${orderData.customerName}`);
+          }
         }
-
-        // OPT-09: Fast row selection (eliminate debug overhead)
-        // Get visible rows and click immediately
-        const rows = await this.page!.$$('tr[class*="dxgvDataRow"]');
-
-        if (rows.length === 0) {
-          throw new Error(`No customer results found for: ${orderData.customerName}`);
-        }
-
-        logger.debug(`✓ Found ${rows.length} customer row(s), selecting first...`);
-
-        // Click first cell directly (faster than getting element handle first)
-        const firstCell = await rows[0].$("td");
-        const clickTarget = firstCell || rows[0];
-
-        try {
-          await clickTarget.click();
-        } catch (error: unknown) {
-          // Fallback: JavaScript click
-          await clickTarget.evaluate((el) => (el as HTMLElement).click());
-        }
-
-        logger.debug("✓ Customer selected");
 
         // OPT-05: Event-driven wait for dropdown to close and customer data to load
         // Instead of fixed wait, check for dropdown disappearance and line items grid readiness
