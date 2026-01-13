@@ -133,48 +133,8 @@ app.use((req, res, next) => {
   next();
 });
 
-// Store WebSocket clients by job ID subscription
-const orderProgressClients = new Map<string, Set<typeof ws>>();
-
 // WebSocket per notifiche sync in real-time
-wss.on("connection", (ws, req) => {
-  const url = new URL(req.url || '', 'http://localhost');
-  const jobId = url.searchParams.get('jobId');
-
-  // If jobId is present, this is an order progress subscription
-  if (jobId) {
-    logger.info(`🔌 Client subscribed to order progress: ${jobId}`);
-    logger.debug(`WebSocket URL:`, { url: req.url });
-
-    if (!orderProgressClients.has(jobId)) {
-      orderProgressClients.set(jobId, new Set());
-      logger.debug(`📋 Created new client set for job ${jobId}`);
-    }
-    orderProgressClients.get(jobId)!.add(ws);
-    logger.info(`✅ Client added to job ${jobId}. Total clients: ${orderProgressClients.get(jobId)!.size}`);
-
-    // Send initial job status
-    queueManager.getJobStatus(jobId).then(status => {
-      const initialMessage = JSON.stringify({ type: 'order_progress', jobId, data: status });
-      logger.debug(`📤 Sending initial status to client for job ${jobId}`, { status });
-      ws.send(initialMessage);
-    }).catch(err => {
-      logger.error(`❌ Failed to get job status for ${jobId}`, { error: err });
-    });
-
-    ws.on('close', () => {
-      logger.info(`🔌 Client unsubscribed from order progress: ${jobId}`);
-      orderProgressClients.get(jobId)?.delete(ws);
-      if (orderProgressClients.get(jobId)?.size === 0) {
-        orderProgressClients.delete(jobId);
-        logger.debug(`📋 Removed empty client set for job ${jobId}`);
-      }
-    });
-
-    return; // Don't register sync listeners for order progress clients
-  }
-
-  // Legacy sync progress connection (no jobId parameter)
+wss.on("connection", (ws) => {
   logger.info("Client WebSocket connesso");
 
   // Invia stato corrente di entrambi i sync
@@ -1154,35 +1114,6 @@ server.listen(config.server.port, async () => {
   // Registra i callback per gestire i lock ordini/sync
   queueManager.setOrderLockCallbacks(acquireOrderLock, releaseOrderLock);
   logger.info("✅ Lock callbacks registrati per ordini");
-
-  // Registra il progress broadcaster per WebSocket
-  queueManager.setProgressBroadcaster((jobId, progress) => {
-    logger.debug(`📡 Broadcasting progress for job ${jobId}`, { progress });
-
-    const clients = orderProgressClients.get(jobId);
-    if (!clients || clients.size === 0) {
-      logger.warn(`⚠️ No WebSocket clients subscribed to job ${jobId}`);
-      return;
-    }
-
-    logger.debug(`📤 Sending to ${clients.size} client(s) for job ${jobId}`);
-
-    const message = JSON.stringify({
-      type: 'order_progress',
-      jobId,
-      data: progress
-    });
-
-    clients.forEach(client => {
-      if (client.readyState === 1) { // WebSocket.OPEN
-        client.send(message);
-        logger.debug(`✅ Message sent to client for job ${jobId}`);
-      } else {
-        logger.warn(`⚠️ Client not ready (state: ${client.readyState}) for job ${jobId}`);
-      }
-    });
-  });
-  logger.info("✅ Progress broadcaster registrato per WebSocket");
 
   // Avvia il worker della coda
   try {
