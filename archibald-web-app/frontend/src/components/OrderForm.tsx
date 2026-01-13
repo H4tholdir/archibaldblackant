@@ -79,6 +79,13 @@ export default function OrderForm({ onOrderCreated }: OrderFormProps) {
   >("idle");
   const [isFinalTranscript, setIsFinalTranscript] = useState(false);
 
+  // Voice-populated fields tracking
+  const [voicePopulatedFields, setVoicePopulatedFields] = useState<{
+    customer: boolean;
+    article: boolean;
+    quantity: boolean;
+  }>({ customer: false, article: false, quantity: false });
+
   // Voice input hook
   const {
     isListening,
@@ -193,6 +200,8 @@ export default function OrderForm({ onOrderCreated }: OrderFormProps) {
     setCustomerSearch(e.target.value);
     setCustomerName(""); // Clear selection when typing
     setCustomerId(""); // Clear ID when typing
+    // Clear voice-populated indicator on manual edit
+    setVoicePopulatedFields((prev) => ({ ...prev, customer: false }));
   };
 
   // Product selection handler
@@ -233,6 +242,12 @@ export default function OrderForm({ onOrderCreated }: OrderFormProps) {
     const searchValue = e.target.value;
     setProductSearch(searchValue);
     setNewItem({ ...newItem, articleCode: "", productName: "" }); // Clear selection when typing
+    // Clear voice-populated indicator on manual edit
+    setVoicePopulatedFields((prev) => ({
+      ...prev,
+      article: false,
+      quantity: false,
+    }));
 
     // If user types at least 2 characters, fetch matching products
     if (searchValue.length >= 2) {
@@ -341,6 +356,13 @@ export default function OrderForm({ onOrderCreated }: OrderFormProps) {
     });
     setProductSearch(""); // Reset product search
     setPackageConstraints(null); // Reset constraints for next item
+
+    // Clear voice-populated indicators after adding item
+    setVoicePopulatedFields({
+      customer: false,
+      article: false,
+      quantity: false,
+    });
   };
 
   const handleRemoveItem = (index: number) => {
@@ -359,19 +381,51 @@ export default function OrderForm({ onOrderCreated }: OrderFormProps) {
   };
 
   const handleVoiceApply = () => {
-    const parsed = parseVoiceOrder(transcript);
-
-    // Apply parsed data to form
-    if (parsed.customerId) setCustomerId(parsed.customerId);
-    if (parsed.customerName) setCustomerName(parsed.customerName);
-    if (parsed.items.length > 0) {
-      setItems([...items, ...parsed.items]);
+    // Pre-fill customer field
+    if (
+      parsedOrder.customerName &&
+      parsedOrder.customerNameConfidence &&
+      parsedOrder.customerNameConfidence > 0.5
+    ) {
+      setCustomerSearch(parsedOrder.customerName);
+      // Trigger autocomplete search by setting the search value
+      // The customer ID will be set when user selects from dropdown or we auto-select if exact match
     }
 
-    // Close modal and reset
-    setShowVoiceModal(false);
-    resetTranscript();
-    stopListening();
+    // Pre-fill article fields for first item
+    if (parsedOrder.items.length > 0) {
+      const item = parsedOrder.items[0]; // Start with first item
+
+      // Pre-fill article code if confident
+      if (
+        item.articleCode &&
+        item.articleCodeConfidence &&
+        item.articleCodeConfidence > 0.5
+      ) {
+        setProductSearch(item.articleCode);
+        // Trigger product autocomplete search
+      }
+
+      // Pre-fill quantity if available
+      if (item.quantity) {
+        setNewItem((prev) => ({ ...prev, quantity: item.quantity }));
+      }
+    }
+
+    // Mark fields as voice-populated (for visual indicator)
+    setVoicePopulatedFields({
+      customer:
+        !!parsedOrder.customerName &&
+        (parsedOrder.customerNameConfidence || 0) > 0.5,
+      article:
+        parsedOrder.items.length > 0 &&
+        !!parsedOrder.items[0].articleCode &&
+        (parsedOrder.items[0].articleCodeConfidence || 0) > 0.5,
+      quantity: parsedOrder.items.length > 0 && !!parsedOrder.items[0].quantity,
+    });
+
+    // KEEP MODAL OPEN for user review
+    // User will close modal manually or click "Review & Apply" again
   };
 
   const handleVoiceCancel = () => {
