@@ -6,6 +6,56 @@ interface ParsedOrder {
   items: OrderItem[];
 }
 
+// Enhanced parsing results with confidence scoring
+export interface ParsedOrderWithConfidence {
+  customerId?: string;
+  customerIdConfidence?: number;
+  customerName?: string;
+  customerNameConfidence?: number;
+  items: ParsedOrderItem[];
+}
+
+export interface ParsedOrderItem extends OrderItem {
+  articleCodeConfidence?: number;
+  quantityConfidence?: number;
+  validationErrors?: string[];
+  suggestions?: string[];
+  needsDisambiguation?: boolean;
+  packageSolutions?: PackageSolution[];
+}
+
+export interface PackageSolution {
+  totalPackages: number;
+  breakdown: Array<{
+    variantId: string;
+    packageContent: number;
+    count: number;
+  }>;
+  isOptimal: boolean; // Fewest packages
+}
+
+export interface ArticleValidationResult {
+  matchType: "exact" | "base_pattern" | "fuzzy" | "not_found";
+  confidence: number;
+  product?: {
+    id: string;
+    name: string;
+    packageContent?: string;
+    minQty?: number;
+    multipleQty?: number;
+    maxQty?: number;
+  };
+  basePattern?: string; // "845.104" for partial matches
+  suggestions: Array<{
+    code: string;
+    variant?: string; // Last part (016, 023, etc.)
+    packageInfo?: string; // "K2 - 5pz"
+    confidence: number;
+    reason: "exact" | "base_match" | "fuzzy_match" | "phonetic";
+  }>;
+  error?: string;
+}
+
 /**
  * Parse spoken order into structured data
  * Examples:
