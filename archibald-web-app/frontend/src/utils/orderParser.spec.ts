@@ -2,6 +2,7 @@ import { describe, test, expect } from "vitest";
 import {
   parseVoiceOrder,
   getVoiceSuggestions,
+  detectMixedPackageSolutions,
   type ParsedOrderWithConfidence,
   type ArticleValidationResult,
   type PackageSolution,
@@ -147,50 +148,54 @@ describe("detectMixedPackageSolutions", () => {
   ];
 
   test("detects disambiguation needed for qty=7 with 5pz and 1pz variants", () => {
-    // Function doesn't exist yet - will be implemented
-    // const result = detectMixedPackageSolutions(7, mockVariants);
+    const result = detectMixedPackageSolutions(7, mockVariants);
 
-    // expect(result.needsDisambiguation).toBe(true);
-    // expect(result.solutions).toHaveLength(2);
+    expect(result.needsDisambiguation).toBe(true);
+    expect(result.solutions).toHaveLength(2);
 
-    // // Solution 1: 1×K2 + 2×K3 = 3 packages (optimal)
-    // expect(result.solutions[0].totalPackages).toBe(3);
-    // expect(result.solutions[0].isOptimal).toBe(true);
-    // expect(result.solutions[0].breakdown).toEqual([
-    //   { variantId: "016869K2", packageContent: 5, count: 1 },
-    //   { variantId: "016869K3", packageContent: 1, count: 2 },
-    // ]);
+    // Solution 1: 1×K2 + 2×K3 = 3 packages (optimal)
+    expect(result.solutions[0].totalPackages).toBe(3);
+    expect(result.solutions[0].isOptimal).toBe(true);
+    expect(result.solutions[0].breakdown).toEqual([
+      { variantId: "016869K2", packageContent: 5, count: 1 },
+      { variantId: "016869K3", packageContent: 1, count: 2 },
+    ]);
 
-    // // Solution 2: 7×K3 = 7 packages
-    // expect(result.solutions[1].totalPackages).toBe(7);
-    // expect(result.solutions[1].isOptimal).toBe(false);
+    // Solution 2: 7×K3 = 7 packages
+    expect(result.solutions[1].totalPackages).toBe(7);
+    expect(result.solutions[1].isOptimal).toBe(false);
   });
 
   test("no disambiguation for qty=10 (only 2×K2 solution)", () => {
-    // const result = detectMixedPackageSolutions(10, mockVariants);
+    const result = detectMixedPackageSolutions(10, mockVariants);
 
-    // expect(result.needsDisambiguation).toBe(false);
-    // expect(result.solutions).toHaveLength(1);
-    // expect(result.solutions[0].totalPackages).toBe(2);
-    // expect(result.solutions[0].breakdown).toEqual([
-    //   { variantId: "016869K2", packageContent: 5, count: 2 },
-    // ]);
+    expect(result.needsDisambiguation).toBe(false);
+    expect(result.solutions).toHaveLength(1);
+    expect(result.solutions[0].totalPackages).toBe(2);
+    expect(result.solutions[0].breakdown).toEqual([
+      { variantId: "016869K2", packageContent: 5, count: 2 },
+    ]);
   });
 
-  test("no disambiguation for qty=6 (only 6×K3 solution)", () => {
-    // const result = detectMixedPackageSolutions(6, mockVariants);
+  test("disambiguation for qty=6 (6×K3 vs 1×K2+1×K3)", () => {
+    const result = detectMixedPackageSolutions(6, mockVariants);
 
-    // expect(result.needsDisambiguation).toBe(false);
-    // expect(result.solutions).toHaveLength(1);
-    // expect(result.solutions[0].totalPackages).toBe(6);
+    // qty=6: K3 alone (6×1pz) OR mixed (1×5pz + 1×1pz)
+    expect(result.needsDisambiguation).toBe(true);
+    expect(result.solutions).toHaveLength(2);
+    // Mixed solution is optimal (2 packages < 6 packages)
+    expect(result.solutions[0].totalPackages).toBe(2);
+    expect(result.solutions[0].isOptimal).toBe(true);
+    expect(result.solutions[1].totalPackages).toBe(6);
+    expect(result.solutions[1].isOptimal).toBe(false);
   });
 
   test("no disambiguation for qty=15 (only 3×K2 solution)", () => {
-    // const result = detectMixedPackageSolutions(15, mockVariants);
+    const result = detectMixedPackageSolutions(15, mockVariants);
 
-    // expect(result.needsDisambiguation).toBe(false);
-    // expect(result.solutions).toHaveLength(1);
-    // expect(result.solutions[0].totalPackages).toBe(3);
+    expect(result.needsDisambiguation).toBe(false);
+    expect(result.solutions).toHaveLength(1);
+    expect(result.solutions[0].totalPackages).toBe(3);
   });
 });
 

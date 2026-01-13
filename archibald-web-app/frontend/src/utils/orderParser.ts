@@ -204,6 +204,93 @@ function escapeRegex(str: string): string {
 }
 
 /**
+ * Detect mixed-package solutions for a given quantity
+ * Returns multiple packaging options when applicable
+ *
+ * Example: qty=7 with variants [K2:5pz, K3:1pz]
+ * - Solution A: 7×K3 = 7 packages
+ * - Solution B: 1×K2 + 2×K3 = 3 packages (optimal)
+ */
+export function detectMixedPackageSolutions(
+  quantity: number,
+  variants: Array<{
+    id: string;
+    name: string;
+    packageContent?: string;
+    multipleQty?: number;
+  }>,
+): { needsDisambiguation: boolean; solutions: PackageSolution[] } {
+  const solutions: PackageSolution[] = [];
+
+  // Solution 1: Single variant (largest package that divides evenly - fewest packages)
+  // Variants are sorted DESC by multipleQty, so iterate normally to prefer larger packages
+  for (const variant of variants) {
+    const multiple = variant.multipleQty || 1;
+    if (quantity % multiple === 0) {
+      solutions.push({
+        totalPackages: quantity / multiple,
+        breakdown: [
+          {
+            variantId: variant.id,
+            packageContent: multiple,
+            count: quantity / multiple,
+          },
+        ],
+        isOptimal: false, // Will be marked later
+      });
+      break; // Only one single-variant solution (prefer largest)
+    }
+  }
+
+  // Solution 2: Mixed packages (if 2+ variants available)
+  if (variants.length >= 2) {
+    const large = variants[0]; // Highest multipleQty
+    const small = variants[variants.length - 1]; // Smallest multipleQty
+
+    const largeMultiple = large.multipleQty || 1;
+    const smallMultiple = small.multipleQty || 1;
+
+    // Try: maximize large packages, fill remainder with small
+    const largeCount = Math.floor(quantity / largeMultiple);
+    const remainder = quantity % largeMultiple;
+
+    // Only add mixed solution if there's a remainder AND it can be filled with small packages
+    if (remainder > 0 && remainder % smallMultiple === 0 && largeCount > 0) {
+      const smallCount = remainder / smallMultiple;
+      solutions.push({
+        totalPackages: largeCount + smallCount,
+        breakdown: [
+          {
+            variantId: large.id,
+            packageContent: largeMultiple,
+            count: largeCount,
+          },
+          {
+            variantId: small.id,
+            packageContent: smallMultiple,
+            count: smallCount,
+          },
+        ],
+        isOptimal: false,
+      });
+    }
+  }
+
+  // Mark optimal solution (fewest packages)
+  if (solutions.length > 0) {
+    const minPackages = Math.min(...solutions.map((s) => s.totalPackages));
+    solutions.forEach((s) => {
+      s.isOptimal = s.totalPackages === minPackages;
+    });
+  }
+
+  return {
+    needsDisambiguation: solutions.length > 1,
+    solutions: solutions.sort((a, b) => a.totalPackages - b.totalPackages), // Optimal first
+  };
+}
+
+/**
  * Get suggestions for partial voice input
  */
 export function getVoiceSuggestions(transcript: string): string[] {
