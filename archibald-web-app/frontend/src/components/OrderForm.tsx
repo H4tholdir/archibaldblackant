@@ -429,11 +429,27 @@ export default function OrderForm({ onOrderCreated }: OrderFormProps) {
     // User will close modal manually or click "Review & Apply" again
   };
 
+  const handleVoiceClear = () => {
+    resetTranscript();
+    setParsedOrder({ items: [] });
+    setVoiceSuggestions(getVoiceSuggestions(""));
+    setIsFinalTranscript(false);
+    // Keep modal open for re-recording
+  };
+
   const handleVoiceCancel = () => {
     setShowVoiceModal(false);
     resetTranscript();
     stopListening();
   };
+
+  // Check if we have at least one high-confidence entity for "Review & Apply" button
+  const hasHighConfidenceEntity =
+    (parsedOrder.customerNameConfidence &&
+      parsedOrder.customerNameConfidence > 0.5) ||
+    (parsedOrder.items.length > 0 &&
+      parsedOrder.items[0].articleCodeConfidence &&
+      parsedOrder.items[0].articleCodeConfidence > 0.5);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -560,6 +576,40 @@ export default function OrderForm({ onOrderCreated }: OrderFormProps) {
               </div>
             </div>
 
+            {/* Recognition Summary */}
+            {transcript && isFinalTranscript && (
+              <div className="voice-summary">
+                {parsedOrder.customerName && (
+                  <span className="voice-summary-item">
+                    ✓ Cliente: {parsedOrder.customerName} (
+                    {Math.round(
+                      (parsedOrder.customerNameConfidence || 0) * 100,
+                    )}
+                    %)
+                  </span>
+                )}
+                {parsedOrder.items.length > 0 && (
+                  <>
+                    {parsedOrder.items[0].articleCode && (
+                      <span className="voice-summary-item">
+                        ✓ Articolo: {parsedOrder.items[0].articleCode} (
+                        {Math.round(
+                          (parsedOrder.items[0].articleCodeConfidence || 0) *
+                            100,
+                        )}
+                        %)
+                      </span>
+                    )}
+                    {parsedOrder.items[0].quantity && (
+                      <span className="voice-summary-item">
+                        ✓ Quantità: {parsedOrder.items[0].quantity}
+                      </span>
+                    )}
+                  </>
+                )}
+              </div>
+            )}
+
             <div className="voice-modal-footer">
               <button
                 type="button"
@@ -568,14 +618,25 @@ export default function OrderForm({ onOrderCreated }: OrderFormProps) {
               >
                 {isListening ? "⏸️ Pausa" : "▶️ Riprendi"}
               </button>
-              <button
-                type="button"
-                className="btn btn-primary"
-                onClick={handleVoiceApply}
-                disabled={!transcript}
-              >
-                ✅ Applica
-              </button>
+              {transcript && (
+                <>
+                  <button
+                    type="button"
+                    className="btn btn-secondary"
+                    onClick={handleVoiceClear}
+                  >
+                    🔄 Clear & Retry
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-primary"
+                    onClick={handleVoiceApply}
+                    disabled={!hasHighConfidenceEntity}
+                  >
+                    ✓ Review & Apply
+                  </button>
+                </>
+              )}
             </div>
           </div>
         </div>
