@@ -1854,12 +1854,7 @@ export class ArchibaldBot {
         });
         await this.wait(300);
 
-        // Take screenshot before click
-        await this.page!.screenshot({
-          path: `logs/before-new-click-${Date.now()}.png`,
-          fullPage: true,
-        });
-
+        // OPT-10: Remove debug screenshots (save I/O time)
         // Click the button
         await buttonHandle.click();
         logger.debug("New button clicked, waiting for row...");
@@ -1886,12 +1881,6 @@ export class ArchibaldBot {
         } catch (err) {
           logger.warn("Event-driven wait timed out, verifying row presence manually");
         }
-
-        // Take screenshot after click to verify row appeared
-        await this.page!.screenshot({
-          path: `logs/after-new-click-${Date.now()}.png`,
-          fullPage: true,
-        });
 
         // Final verification that row appeared
         const articleInputAppeared = await this.page!.evaluate(() => {
@@ -2271,12 +2260,7 @@ export class ArchibaldBot {
           logger.debug("Pressed Enter, waiting for article results...");
           await this.wait(2000);
 
-          // Take screenshot to see dropdown results
-          await this.page!.screenshot({
-            path: `logs/article-dropdown-results-${Date.now()}.png`,
-            fullPage: true,
-          });
-
+          // OPT-10: Remove debug screenshot (save I/O time)
           // Check if results appeared by looking for table rows with article data
           // The dropdown shows results as table rows with cells containing article parts
           const resultsAppeared = await this.page!.evaluate(() => {
