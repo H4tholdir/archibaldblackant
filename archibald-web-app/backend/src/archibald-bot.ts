@@ -1500,7 +1500,7 @@ export class ArchibaldBot {
       await this.runOp("order.customer.select", async () => {
         logger.debug('Opening "Profilo cliente" dropdown...');
 
-        // OPT-12: Immediate check + mutation polling fallback (eliminate wait for already-present elements)
+        // OPT-12: Immediate check (eliminate wait for already-present elements)
         // Try immediate synchronous check first, then mutation polling if not found
         logger.debug("Finding customer field...");
 
@@ -1689,7 +1689,7 @@ export class ArchibaldBot {
         await this.page!.keyboard.press("Enter");
         logger.debug("Pressed Enter, checking for filtered results...");
 
-        // OPT-12: Immediate check + mutation polling fallback for filtered results
+        // OPT-12: Immediate check for filtered results
         let stableRowCount = 0;
         try {
           // First: Immediate synchronous check (results might already be visible)

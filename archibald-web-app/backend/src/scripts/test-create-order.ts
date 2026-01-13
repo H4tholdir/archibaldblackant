@@ -18,19 +18,13 @@ async function testCreateOrder() {
         articleCode: "td1272.314",
         description: "td1272.314",
         quantity: 3,
-        price: 5.0,
-      },
-      {
-        articleCode: "sf1000",
-        description: "sf1000",
-        quantity: 5,
         price: 10.0,
       },
       {
-        articleCode: "h250e 104 040",
-        description: "h250e 104 040",
-        quantity: 10,
-        price: 15.0,
+        articleCode: "h71.104.023",
+        description: "h71.104.023",
+        quantity: 5,
+        price: 20.0,
       },
     ],
   };

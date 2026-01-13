@@ -1,36 +1,7 @@
 {
   "cookies": [
     {
-      "name": "ASP.NET_SessionId",
-      "value": "yows5xdnmmd4sh4l1ejjjcay",
-      "domain": "4.231.124.90",
-      "path": "/",
-      "expires": -1,
-      "size": 41,
-      "httpOnly": true,
-      "secure": true,
-      "session": true,
-      "sameSite": "Lax",
-      "priority": "Medium",
-      "sameParty": false,
-      "sourceScheme": "Secure"
-    },
-    {
-      "name": "xafkidemovbUserName",
-      "value": "ikiA0930",
-      "domain": "4.231.124.90",
-      "path": "/",
-      "expires": 1770934136.738966,
-      "size": 27,
-      "httpOnly": true,
-      "secure": false,
-      "session": false,
-      "priority": "Medium",
-      "sameParty": false,
-      "sourceScheme": "Secure"
-    },
-    {
-      "name": "4efc40c1-e4eb-48ad-a658-8369b6dc633f",
+      "name": "ccbcf41a-fd01-48c8-8df1-4143eed45404",
       "value": "loaded",
       "domain": "4.231.124.90",
       "path": "/",
@@ -38,20 +9,6 @@
       "size": 42,
       "httpOnly": false,
       "secure": false,
-      "session": true,
-      "priority": "Medium",
-      "sameParty": false,
-      "sourceScheme": "Secure"
-    },
-    {
-      "name": "8ff5dfaa-5317-4bac-bd18-38905ac208d0",
-      "value": "loaded",
-      "domain": "4.231.124.90",
-      "path": "/",
-      "expires": -1,
-      "size": 42,
-      "httpOnly": false,
-      "secure": true,
       "session": true,
       "priority": "Medium",
       "sameParty": false,
@@ -59,7 +16,7 @@
     },
     {
       "name": "Login",
-      "value": "F0EB7E933B3AB55229CCEC271C732A79E8D45214804F8C5491D3E87EC6580D16560BB57F4520348A98DEA291E15A1F8DAFC5FC88D78BE8358DDABCFCD077BCD4355682E8F9DA46CCBEABEA53706DD1F70F2BB55B637EF568B2DD61A5FFB5CC1EAC769FCD35C58A2968F7AF0A2FF9F9A2E564CDC5F1226807CD982F3C6993B6ACFDA694DF2B3735F62BBF65B1BEBB7BC0472059BFD6FF9BF90DCA679E1F39A945EE8AA3816ED719ECC25333177D7C61BA",
+      "value": "F173BA10F9ABB8CCE11FF69BE26D425B47EBB511F2325CC748294DB424E21E19FB6995749D2D78329D01785AE3296C16328D383E41295D03C51CBDF963AD923283362D48E4EF6E12BAE17D3E8306184580AE4B80CFAA84B0ED3C5D8C3BB49042F8EF379E20360C97A40584D9BAC0E35DDC31A77210F1CC7DC728A60BFFFC62F3FE0852680A3831412D7FF18EDA610A53CEB5A2F0553940B535122AF7E6AC3859E3696F21E7E6012B0F976F7DE0D3D22A",
       "domain": "4.231.124.90",
       "path": "/",
       "expires": -1,
@@ -73,20 +30,35 @@
       "sourceScheme": "Secure"
     },
     {
-      "name": "55e0e4bd-c35c-4132-9061-3b520f493369",
-      "value": "loaded",
+      "name": "xafkidemovbUserName",
+      "value": "ikiA0930",
+      "domain": "4.231.124.90",
+      "path": "/",
+      "expires": 1770949343.573989,
+      "size": 27,
+      "httpOnly": true,
+      "secure": false,
+      "session": false,
+      "priority": "Medium",
+      "sameParty": false,
+      "sourceScheme": "Secure"
+    },
+    {
+      "name": "ASP.NET_SessionId",
+      "value": "a1gtmucodtejuqtg2za1gboq",
       "domain": "4.231.124.90",
       "path": "/",
       "expires": -1,
-      "size": 42,
-      "httpOnly": false,
+      "size": 41,
+      "httpOnly": true,
       "secure": false,
       "session": true,
+      "sameSite": "Lax",
       "priority": "Medium",
       "sameParty": false,
       "sourceScheme": "Secure"
     }
   ],
-  "createdAt": 1768255738071,
-  "expiresAt": 1768258799999
+  "createdAt": 1768270945327,
+  "expiresAt": 1768345199999
 }
