@@ -33,7 +33,6 @@ export default function OrderForm({ onOrderCreated }: OrderFormProps) {
   const [loading, setLoading] = useState(false);
   const [customerId, setCustomerId] = useState("");
   const [customerName, setCustomerName] = useState("");
-  const [items, setItems] = useState<OrderItem[]>([]);
 
   // Customer autocomplete state
   const [customers, setCustomers] = useState<Customer[]>([]);
@@ -387,10 +386,6 @@ export default function OrderForm({ onOrderCreated }: OrderFormProps) {
       article: false,
       quantity: false,
     });
-  };
-
-  const handleRemoveItem = (index: number) => {
-    setItems(items.filter((_, i) => i !== index));
   };
 
   const handleRemoveDraftItem = (index: number) => {

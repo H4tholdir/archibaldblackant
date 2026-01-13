@@ -1,5 +1,5 @@
 import { describe, test, expect } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render } from "@testing-library/react";
 import { VoicePopulatedBadge } from "./VoicePopulatedBadge";
 
 describe("VoicePopulatedBadge", () => {
