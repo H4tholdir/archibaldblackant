@@ -1500,81 +1500,34 @@ export class ArchibaldBot {
       await this.runOp("order.customer.select", async () => {
         logger.debug('Opening "Profilo cliente" dropdown...');
 
-        // OPT-07: Event-driven wait for customer field (eliminate fixed 2000ms wait)
-        // Wait directly for customer field to appear with faster polling
-        logger.debug("Waiting for customer field to appear...");
-        await this.page!.waitForFunction(
+        // OPT-09: Direct customer field detection and dropdown opening (no redundant searches)
+        // Combine field detection and dropdown ID extraction in single operation
+        logger.debug("Finding customer field and opening dropdown...");
+
+        const customerInputId = await this.page!.waitForFunction(
           () => {
             const inputs = Array.from(document.querySelectorAll('input[type="text"]'));
-            return inputs.some((input) => {
+            const customerInput = inputs.find((input) => {
               const id = (input as HTMLInputElement).id.toLowerCase();
               return (
                 id.includes("custtable") ||
                 id.includes("custaccount") ||
+                id.includes("custome") ||
                 id.includes("cliente") ||
                 id.includes("account") ||
                 id.includes("profilo")
               );
             });
+            return customerInput ? (customerInput as HTMLInputElement).id : null;
           },
-          { timeout: 5000, polling: 50 }, // Faster polling: 50ms instead of 200ms
-        ).catch(() => {
-          logger.warn("Customer field wait timeout - will try anyway");
-        });
-
-        // Strategy: Find customer input field first, then construct dropdown button ID from it
-        // This is more reliable than searching for button directly
-
-        // First, debug: log all visible text inputs
-        const allInputs = await this.page!.evaluate(() => {
-          const inputs = Array.from(
-            document.querySelectorAll('input[type="text"]'),
-          );
-          return inputs
-            .filter((input) => (input as HTMLElement).offsetParent !== null)
-            .slice(0, 10) // First 10 visible inputs
-            .map((input) => ({
-              id: (input as HTMLInputElement).id,
-              value: (input as HTMLInputElement).value,
-              placeholder: (input as HTMLInputElement).placeholder,
-            }));
-        });
-
-        logger.debug(`Found ${allInputs.length} visible text inputs:`, allInputs);
-
-        const customerInputId = await this.page!.evaluate(() => {
-          const inputs = Array.from(
-            document.querySelectorAll('input[type="text"]'),
-          );
-
-          // Find customer input by ID pattern (try multiple patterns)
-          const customerInput = inputs.find((input) => {
-            const id = (input as HTMLInputElement).id.toLowerCase();
-            return (
-              id.includes("custtable") ||
-              id.includes("custaccount") ||
-              id.includes("custome") || // typo variations
-              id.includes("cliente") || // Italian
-              id.includes("account") ||
-              id.includes("profilo") // From "Profilo Cliente"
-            );
-          });
-
-          return customerInput ? (customerInput as HTMLInputElement).id : null;
-        });
+          { timeout: 3000, polling: 50 }
+        ).then(result => result.jsonValue()) as string;
 
         if (!customerInputId) {
-          // Take screenshot to help debug
-          await this.page!.screenshot({
-            path: `logs/customer-input-not-found-${Date.now()}.png`,
-            fullPage: true,
-          });
-          throw new Error(
-            `Customer input field not found. Visible inputs: ${JSON.stringify(allInputs.map((i) => i.id))}`,
-          );
+          throw new Error('Customer input field not found');
         }
 
-        logger.debug(`Found customer input: ${customerInputId}`);
+        logger.debug(`✓ Customer field: ${customerInputId}`);
 
         // Extract base ID (remove _I suffix if present)
         const customerBaseId = customerInputId.endsWith("_I")
@@ -1759,37 +1712,28 @@ export class ArchibaldBot {
           logger.warn('Row detection wait timed out, proceeding with current results');
         }
 
-        logger.debug("Customer results loaded, checking rows...");
-
-        // Get all visible rows
+        // OPT-09: Fast row selection (eliminate debug overhead)
+        // Get visible rows and click immediately
         const rows = await this.page!.$$('tr[class*="dxgvDataRow"]');
-        logger.debug(`Found ${rows.length} customer rows`);
 
         if (rows.length === 0) {
           throw new Error(`No customer results found for: ${orderData.customerName}`);
         }
 
-        // Log first row content for debugging
-        const firstRowText = await rows[0].evaluate((el) => el.textContent?.trim());
-        logger.debug(`First row text: "${firstRowText}"`);
+        logger.debug(`✓ Found ${rows.length} customer row(s), selecting first...`);
 
-        // Take screenshot before clicking
-        await this.page!.screenshot({
-          path: `logs/customer-before-click-${Date.now()}.png`,
-          fullPage: true,
-        });
-
+        // Click first cell directly (faster than getting element handle first)
         const firstCell = await rows[0].$("td");
         const clickTarget = firstCell || rows[0];
 
         try {
           await clickTarget.click();
-          logger.debug("✓ Customer row clicked");
         } catch (error: unknown) {
           // Fallback: JavaScript click
           await clickTarget.evaluate((el) => (el as HTMLElement).click());
-          logger.debug("✓ Customer row clicked (JavaScript)");
         }
+
+        logger.debug("✓ Customer selected");
 
         // OPT-05: Event-driven wait for dropdown to close and customer data to load
         // Instead of fixed wait, check for dropdown disappearance and line items grid readiness
