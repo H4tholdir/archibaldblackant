@@ -10,18 +10,18 @@ See: .planning/PROJECT.md (updated 2026-01-11)
 ## Current Position
 
 Phase: 4.1 of 12 (Critical Production Fixes - INSERTED URGENT)
-Plan: 1 of 4 complete (backend pause ✓, price sync, voice UX, customer priority)
-Status: IN PROGRESS - Backend priority manager implemented
-Last activity: 2026-01-13 — Completed 04.1-01-PLAN.md (Priority Manager)
+Plan: 2 of 4 complete (backend pause ✓, price sync ✓, voice UX, customer priority)
+Status: IN PROGRESS - Price sync investigation & fix completed
+Last activity: 2026-01-13 — Completed 04.1-02-PLAN.md (Price Sync Investigation & Fix)
 
-Progress: ████████░░ 32% (29/36 plans complete - Phase 4 complete, Phase 4.1 in progress)
+Progress: ████████░░ 33% (30/36 plans complete - Phase 4 complete, Phase 4.1 2/4 plans done)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 28
-- Average duration: 73 min (1h 13m)
-- Total execution time: 33.2 hours
+- Total plans completed: 30
+- Average duration: 75 min (1h 15m)
+- Total execution time: 37.4 hours
 
 **By Phase:**
 
@@ -32,10 +32,11 @@ Progress: ████████░░ 32% (29/36 plans complete - Phase 4 com
 | 3 | 8 | 346 min | 43 min |
 | 3.1 | 3 | 350 min | 117 min |
 | 4 | 3 | 285 min | 95 min |
+| 4.1 | 2 | 145 min | 73 min |
 
 **Recent Trend:**
-- Last 5 plans: 03-06 (0m - integrated), 03-07 (21m), 04-01 (45m), 04-02 (120m), 04-03 (120m)
-- Trend: Phase 4 complete - averaged 95m per plan
+- Last 5 plans: 03-07 (21m), 04-01 (45m), 04-02 (120m), 04-03 (120m), 04.1-01 (25m), 04.1-02 (120m)
+- Trend: Phase 4.1 averaging 73m per plan
 
 ## Accumulated Context
 
@@ -46,6 +47,10 @@ Recent decisions affecting current work:
 
 | Phase | Decision | Rationale |
 |-------|----------|-----------|
+| 04.1-02 | Multi-level matching: ID → name exact → name normalized | Single matching method fails with data variations; 3 levels maximize match rate (59.8% → 85%+) |
+| 04.1-02 | Normalized matching removes dots, spaces, dashes, lowercase | Catches formatting variations like "354TL.12.000.050" vs "354TL12.000.050" |
+| 04.1-02 | Default pricing: group average or global average (€24.90) | Products in same group have similar pricing; more accurate than random default |
+| 04.1-02 | Green badge for price display in autocomplete | Green = positive/price information; stands out without overwhelming UI |
 | 4.02 | Real-time parsing in useEffect watching transcript | Immediate feedback as user speaks - don't wait for final result |
 | 4.02 | Package disambiguation modal instead of inline selection | Complex choice with multiple options - modal provides focus and clear decision space |
 | 04.1-01 | EventEmitter pattern for lifecycle events in PriorityManager | Node.js built-in, well-understood, enables future observability |
