@@ -16,6 +16,7 @@ None (full-stack web app con pattern standard)
 - [x] **Phase 3.1: Bot Performance Profiling & Optimization (INSERTED)** - Sistema profiling e piano ottimizzazione dettagliato ✅
 - [x] **Phase 3.2: Bot Performance Implementation (INSERTED)** - Ottimizzazioni critiche completate (9% improvement, bug fixes) ✅
 - [x] **Phase 4: Voice Input Enhancement** - Voice hybrid affidabile con conferma visiva ✅
+- [ ] **Phase 4.1: Critical Production Fixes (INSERTED)** - 🔴 Fix blockers: backend pause, price sync, voice UX, customer priority 📋
 - [ ] **Phase 5: Order Submission** - Invio ordine ottimizzato con tracking 📋
 - [ ] **Phase 6: Multi-User Authentication** - Login multi-agente con whitelist
 - [ ] **Phase 7: Credential Management** - Storage sicuro credenziali su device
@@ -278,6 +279,51 @@ Plans:
 - Voice hybrid workflow: dettatura → form pre-fill → manual edit → tap confirmation
 - Comprehensive test coverage (98 tests + 13 voice hook tests = 111 tests)
 - Manual UAT checklist for 9 voice scenarios
+
+### Phase 4.1: Critical Production Fixes (INSERTED) 🔴 URGENT
+**Goal**: Fix blocking production issues before Phase 5: backend process conflicts, price sync missing, voice UX insufficient, customer sync priority wrong
+**Depends on**: Phase 4
+**Priority**: 🔴 CRITICAL - Blocks reliable production use
+**Research**: Required for Issues 2 & 4 (price sync investigation, customer API filtering)
+**Plans**: 4 plans (1 per issue)
+**Status**: Planning
+
+Plans:
+- [ ] 04.1-01: Backend Process Priority Manager (pause/resume during order creation)
+- [ ] 04.1-02: Price Sync Investigation & Fix (prices not showing in order form)
+- [ ] 04.1-03: Voice Modal UX Enhancement (better examples, detailed instructions, workflow guide)
+- [ ] 04.1-04: Customer Sync Priority Reversal (sync new customers first, not last)
+
+**Issue Details**:
+
+1. **Backend Process Conflicts** (04.1-01):
+   - **Problem**: Concurrent processes interfere with bot during order creation
+   - **Solution**: PriorityManager singleton with pause/resume API
+   - **Impact**: HIGH - Affects every order's reliability and speed
+
+2. **Price List Not Synced** (04.1-02):
+   - **Problem**: Prices exist in Archibald (visible in screenshots) but not in order form
+   - **Evidence**: 4 screenshots showing "Tabella prezzi" with prices (234,59 €, 275,00 €, etc.)
+   - **Solution**: Investigate price-sync-service, database, API, and frontend integration
+   - **Impact**: HIGH - Agents can't see pricing, must check manually
+
+3. **Voice UX Insufficient** (04.1-03):
+   - **Problem**: Minimal instructions, basic example, no workflow guidance
+   - **Solution**: Better examples (real codes), detailed commands, step-by-step workflow, error recovery
+   - **Impact**: MEDIUM - Affects adoption and confidence
+
+4. **Customer Sync Priority** (04.1-04):
+   - **Problem**: Sync processes oldest customers first, new customers last (hours wait)
+   - **Solution**: Reverse priority - fetch new customers first, then backfill old
+   - **Impact**: HIGH - Blocks agents from working with new customers
+
+**Execution Priority**:
+1. 04.1-01 (Backend Pause) - Highest impact, enables reliable orders
+2. 04.1-04 (Customer Priority) - High impact, unblocks agents immediately
+3. 04.1-02 (Price Sync) - High impact, completes order form data
+4. 04.1-03 (Voice UX) - Medium impact, improves adoption
+
+**Estimated Effort**: 8-12 hours total (2-3h each for 01, 02, 04; 1-2h for 03)
 
 ### Phase 5: Order Submission
 **Goal**: Invio ordine Puppeteer ottimizzato con tracking real-time e error recovery robusto

@@ -5,16 +5,16 @@
 See: .planning/PROJECT.md (updated 2026-01-11)
 
 **Core value:** Rendere la creazione ordini Archibald **veloce, affidabile e mobile-friendly** per agenti in movimento
-**Current focus:** Phase 4 — Voice Input Enhancement
+**Current focus:** Phase 4.1 — Critical Production Fixes 🔴
 
 ## Current Position
 
-Phase: 4 of 12 (Voice Input Enhancement)
-Plan: FIX (04-FIX executed - infinite loop bug resolved)
-Status: COMPLETE - All issues resolved, manual UAT pending
-Last activity: 2026-01-13 — Fix 04-FIX executed (UAT-001 infinite loop resolved)
+Phase: 4.1 of 12 (Critical Production Fixes - INSERTED URGENT)
+Plan: Not started (4 plans: backend pause, price sync, voice UX, customer priority)
+Status: PLANNING - 4 critical blockers identified
+Last activity: 2026-01-13 — Phase 4.1 inserted, context documented
 
-Progress: ████████░░ 31% (28/36 plans complete - Phase 4 complete)
+Progress: ████████░░ 31% (28/36 plans complete - Phase 4 complete, Phase 4.1 starting)
 
 ## Performance Metrics
 
@@ -261,8 +261,23 @@ None yet.
   - **Commits**: 4 total (fix + tests + docs + metadata)
   - **Phase Status**: Phase 4 technically complete, manual UAT pending
 
+- **2026-01-13 (Late Evening)**: Phase 4.1 (Critical Production Fixes) inserted as URGENT priority
+  - **Reason**: 4 critical production blockers discovered during user review
+  - **Priority**: 🔴 CRITICAL - Must fix before Phase 5 Order Submission
+  - **Issues Identified**:
+    1. Backend processes interfere with bot during order creation (HIGH impact)
+    2. Prices not visible in order form despite existing in Archibald (HIGH impact, 4 screenshots provided)
+    3. Voice modal UX insufficient - needs better examples and workflow guide (MEDIUM impact)
+    4. Customer sync processes old customers first, new customers last (HIGH impact - blocks agents)
+  - **Plans**: 4 plans (1 per issue)
+  - **Estimated Effort**: 8-12 hours total
+  - **Execution Priority**: 04.1-01 (Backend) → 04.1-04 (Customer) → 04.1-02 (Price) → 04.1-03 (Voice UX)
+  - **Impact**: Blocks reliable production use - must fix before continuing
+  - **Context**: Full analysis documented in `.planning/phases/04.1-critical-production-fixes/04.1-CONTEXT.md`
+  - **Next steps**: Plan 04.1-01 (Backend Process Priority Manager)
+
 ## Session Continuity
 
-Last session: 2026-01-13 (evening)
-Stopped at: Fix 04-FIX complete - UAT-001 resolved, Phase 4 COMPLETE
-Next: Optional manual UAT using 04-MANUAL-UAT-CHECKLIST.md, then proceed to Phase 5 (Order Submission)
+Last session: 2026-01-13 (late evening)
+Stopped at: Phase 4.1 inserted and documented, ready for planning
+Next: `/gsd:plan-phase 4.1` or start with 04.1-01 (Backend Priority Manager)
