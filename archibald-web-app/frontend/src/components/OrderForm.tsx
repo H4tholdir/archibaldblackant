@@ -202,9 +202,20 @@ export default function OrderForm({ onOrderCreated }: OrderFormProps) {
         parsed.items[0].articleCode &&
         articleConfidence >= 0.7;
 
+      console.log("🔍 Auto-apply check:", {
+        hasHighConfidenceCustomer,
+        hasHighConfidenceArticle,
+        customerName: parsed.customerName,
+        customerConfidence,
+        articleCode: parsed.items[0]?.articleCode,
+        articleConfidence,
+      });
+
       if (hasHighConfidenceCustomer || hasHighConfidenceArticle) {
+        console.log("⏰ Scheduling auto-apply in 1.5s...");
         // Wait a moment to show the validation result, then auto-apply
         setTimeout(() => {
+          console.log("⚡ Auto-apply triggered!");
           handleVoiceApply();
         }, 1500);
       }
@@ -585,18 +596,28 @@ export default function OrderForm({ onOrderCreated }: OrderFormProps) {
   };
 
   const handleVoiceApply = () => {
+    console.log("🔵 handleVoiceApply called", {
+      customerName: parsedOrder.customerName,
+      customerId: parsedOrder.customerId,
+      confidence: parsedOrder.customerNameConfidence,
+    });
+
     // Pre-fill customer field
     if (
       parsedOrder.customerName &&
       parsedOrder.customerNameConfidence &&
       parsedOrder.customerNameConfidence > 0.5
     ) {
+      console.log("✅ Setting customer in form:", parsedOrder.customerName);
       setCustomerSearch(parsedOrder.customerName);
       if (parsedOrder.customerId) {
         setCustomerId(parsedOrder.customerId);
         setCustomerName(parsedOrder.customerName);
+        console.log("✅ Customer ID set:", parsedOrder.customerId);
       }
       setVoicePopulatedFields((prev) => ({ ...prev, customer: true }));
+    } else {
+      console.log("❌ Customer not applied - confidence too low or missing");
     }
 
     // Handle multiple items
