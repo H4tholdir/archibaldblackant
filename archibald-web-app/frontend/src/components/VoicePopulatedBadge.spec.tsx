@@ -56,4 +56,39 @@ describe("VoicePopulatedBadge", () => {
     const badge = container.querySelector(".voice-badge");
     expect(badge?.textContent).toContain("78%");
   });
+
+  test("displays edit button when onEdit callback provided", () => {
+    const onEdit = () => {};
+    const { container } = render(
+      <VoicePopulatedBadge confidence={0.8} onEdit={onEdit} />,
+    );
+
+    const editButton = container.querySelector(".voice-badge-edit");
+    expect(editButton).toBeTruthy();
+    expect(editButton?.textContent).toContain("✏️");
+  });
+
+  test("does not display edit button when onEdit not provided", () => {
+    const { container } = render(<VoicePopulatedBadge confidence={0.8} />);
+
+    const editButton = container.querySelector(".voice-badge-edit");
+    expect(editButton).toBeNull();
+  });
+
+  test("calls onEdit when edit button clicked", () => {
+    let editCalled = false;
+    const onEdit = () => {
+      editCalled = true;
+    };
+    const { container } = render(
+      <VoicePopulatedBadge confidence={0.8} onEdit={onEdit} />,
+    );
+
+    const editButton = container.querySelector(
+      ".voice-badge-edit",
+    ) as HTMLButtonElement;
+    editButton?.click();
+
+    expect(editCalled).toBe(true);
+  });
 });

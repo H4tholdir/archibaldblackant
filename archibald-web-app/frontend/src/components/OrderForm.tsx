@@ -443,6 +443,20 @@ export default function OrderForm({ onOrderCreated }: OrderFormProps) {
     stopListening();
   };
 
+  // Handle manual edit of voice-populated fields
+  const handleEditField = (field: "customer" | "article" | "quantity") => {
+    // Clear voice-populated indicator
+    setVoicePopulatedFields((prev) => ({ ...prev, [field]: false }));
+
+    // Focus the appropriate input
+    if (field === "customer" && customerInputRef.current) {
+      customerInputRef.current.focus();
+    } else if (field === "article" && productInputRef.current) {
+      productInputRef.current.focus();
+    }
+    // Note: quantity input focus is handled inline since we don't have a ref for it
+  };
+
   // Check if we have at least one high-confidence entity for "Review & Apply" button
   const hasHighConfidenceEntity =
     (parsedOrder.customerNameConfidence &&
@@ -663,6 +677,7 @@ export default function OrderForm({ onOrderCreated }: OrderFormProps) {
             {voicePopulatedFields.customer && (
               <VoicePopulatedBadge
                 confidence={parsedOrder.customerNameConfidence}
+                onEdit={() => handleEditField("customer")}
               />
             )}
           </label>
@@ -735,6 +750,7 @@ export default function OrderForm({ onOrderCreated }: OrderFormProps) {
             {voicePopulatedFields.article && (
               <VoicePopulatedBadge
                 confidence={parsedOrder.items[0]?.articleCodeConfidence}
+                onEdit={() => handleEditField("article")}
               />
             )}
           </label>
@@ -806,6 +822,7 @@ export default function OrderForm({ onOrderCreated }: OrderFormProps) {
             {voicePopulatedFields.quantity && (
               <VoicePopulatedBadge
                 confidence={parsedOrder.items[0]?.quantityConfidence}
+                onEdit={() => handleEditField("quantity")}
               />
             )}
           </label>
