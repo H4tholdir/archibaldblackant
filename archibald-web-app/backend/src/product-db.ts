@@ -382,25 +382,13 @@ export class ProductDatabase {
       errors.push(`Quantity must be a multiple of ${product.multipleQty}`);
     }
 
-    // Check maxQty
-    // IMPORTANT: maxQty represents the maximum number of PACKAGES, not individual pieces
-    // When multipleQty > 1 (packaged items), maxQty limits the number of packages
-    // Example: packageContent=100, multipleQty=100, maxQty=1 means "max 1 package of 100 pieces"
-    if (product.maxQty) {
-      const maxQtyInPieces = product.maxQty * (product.multipleQty || 1);
-      if (quantity > maxQtyInPieces) {
-        errors.push(`Quantity cannot exceed ${maxQtyInPieces}`);
-      }
-    }
+    // NOTE: maxQty is NOT validated - it's an Archibald constraint that doesn't apply to our bot
+    // The bot can order any quantity that is a valid multiple of multipleQty
 
     // Generate suggestions if invalid
     let suggestions: number[] | undefined;
     if (errors.length > 0 && product.multipleQty) {
       const minQty = product.minQty || product.multipleQty;
-      // Convert maxQty from packages to pieces
-      const maxQtyInPieces = product.maxQty
-        ? product.maxQty * product.multipleQty
-        : minQty * 10; // Reasonable default if no maxQty
 
       // Suggest nearest multiples
       const lower =
@@ -408,7 +396,7 @@ export class ProductDatabase {
       const higher =
         Math.ceil(quantity / product.multipleQty) * product.multipleQty;
 
-      suggestions = [Math.max(lower, minQty), Math.min(higher, maxQtyInPieces)].filter(
+      suggestions = [Math.max(lower, minQty), higher].filter(
         (v, i, arr) => arr.indexOf(v) === i,
       ); // Unique values
     }
