@@ -102,7 +102,7 @@ describe("parseVoiceOrder", () => {
     });
 
     test("parses quantity from pezzi X pattern (reversed)", () => {
-      const transcript = "articolo SF mille pezzi 7";
+      const transcript = "articolo SF 1000 pezzi 7";
       const result = parseVoiceOrder(transcript);
 
       expect(result.items).toHaveLength(1);
@@ -111,7 +111,7 @@ describe("parseVoiceOrder", () => {
     });
 
     test("parses quantity from pezzo X pattern (singular)", () => {
-      const transcript = "articolo ABC cento pezzo 3";
+      const transcript = "articolo ABC 100 pezzo 3";
       const result = parseVoiceOrder(transcript);
 
       expect(result.items).toHaveLength(1);
@@ -186,6 +186,49 @@ describe("parseVoiceOrder", () => {
 
       expect(result.items).toHaveLength(1);
       expect(result.items[0].articleCode).toBe("SF.1000");
+    });
+  });
+
+  describe("Italian number words conversion", () => {
+    test("converts 'cinque pezzi' to quantity 5", () => {
+      const transcript = "articolo H269 GK 314 016 cinque pezzi";
+      const result = parseVoiceOrder(transcript);
+
+      expect(result.items).toHaveLength(1);
+      expect(result.items[0].articleCode).toBe("H269GK.314.016");
+      expect(result.items[0].quantity).toBe(5);
+    });
+
+    test("converts 'dieci pezzi' to quantity 10", () => {
+      const transcript = "articolo SF 1000 dieci pezzi";
+      const result = parseVoiceOrder(transcript);
+
+      expect(result.items).toHaveLength(1);
+      expect(result.items[0].quantity).toBe(10);
+    });
+
+    test("converts 'venti pezzi' to quantity 20", () => {
+      const transcript = "articolo TD 1272 314 venti pezzi";
+      const result = parseVoiceOrder(transcript);
+
+      expect(result.items).toHaveLength(1);
+      expect(result.items[0].quantity).toBe(20);
+    });
+
+    test("converts 'tre pezzi' to quantity 3", () => {
+      const transcript = "articolo ABC 100 tre pezzi";
+      const result = parseVoiceOrder(transcript);
+
+      expect(result.items).toHaveLength(1);
+      expect(result.items[0].quantity).toBe(3);
+    });
+
+    test("converts 'quantità cinque' to quantity 5", () => {
+      const transcript = "articolo H71 104 032 quantità cinque";
+      const result = parseVoiceOrder(transcript);
+
+      expect(result.items).toHaveLength(1);
+      expect(result.items[0].quantity).toBe(5);
     });
   });
 });

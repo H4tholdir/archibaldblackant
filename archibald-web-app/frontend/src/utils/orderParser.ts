@@ -1,5 +1,95 @@
 import type { OrderItem } from "../types/order";
 
+// Italian number words to digits mapping
+const ITALIAN_NUMBERS: Record<string, string> = {
+  zero: "0",
+  uno: "1",
+  due: "2",
+  tre: "3",
+  quattro: "4",
+  cinque: "5",
+  sei: "6",
+  sette: "7",
+  otto: "8",
+  nove: "9",
+  dieci: "10",
+  undici: "11",
+  dodici: "12",
+  tredici: "13",
+  quattordici: "14",
+  quindici: "15",
+  sedici: "16",
+  diciassette: "17",
+  diciotto: "18",
+  diciannove: "19",
+  venti: "20",
+  ventuno: "21",
+  ventidue: "22",
+  ventitre: "23",
+  ventiquattro: "24",
+  venticinque: "25",
+  trenta: "30",
+  quaranta: "40",
+  cinquanta: "50",
+  cento: "100",
+  mille: "1000",
+};
+
+/**
+ * Convert Italian number words to digits
+ * Two contexts:
+ * 1. "mille" and "cento" ALWAYS converted (common in article codes like SF.1000)
+ * 2. All other Italian numbers (uno-cinquanta) converted ONLY near quantity keywords
+ *
+ * Examples:
+ * - "SF mille" -> "SF 1000" (mille always converted)
+ * - "cinque pezzi" -> "5 pezzi" (cinque near pezzi)
+ * - "articolo cinque" -> "articolo cinque" (cinque NOT near quantity keyword, kept as-is)
+ */
+function convertItalianNumbers(text: string): string {
+  let result = text;
+
+  // ALWAYS convert "mille" and "cento" everywhere (common in article codes)
+  result = result.replace(/\bmille\b/gi, "1000");
+  result = result.replace(/\bcento\b/gi, "100");
+
+  // For all OTHER Italian numbers (uno, due, tre, ..., cinquanta),
+  // only convert when they appear near quantity keywords
+  const quantityNumbers = { ...ITALIAN_NUMBERS };
+  delete quantityNumbers.mille;
+  delete quantityNumbers.cento;
+
+  // Sort by length descending to match longer phrases first (e.g., "ventuno" before "venti")
+  const sortedKeys = Object.keys(quantityNumbers).sort(
+    (a, b) => b.length - a.length,
+  );
+
+  for (const word of sortedKeys) {
+    // Pattern 1: number word BEFORE pezzi/pezzo/pz
+    const beforePattern = new RegExp(
+      `\\b${word}\\b(\\s+(?:pezz[io]|pz)\\b)`,
+      "gi",
+    );
+    result = result.replace(beforePattern, `${quantityNumbers[word]}$1`);
+
+    // Pattern 2: number word AFTER pezzi/pezzo/pz
+    const afterPattern = new RegExp(
+      `((?:pezz[io]|pz)\\b\\s+)\\b${word}\\b`,
+      "gi",
+    );
+    result = result.replace(afterPattern, `$1${quantityNumbers[word]}`);
+
+    // Pattern 3: number word AFTER quantità
+    const quantitàPattern = new RegExp(
+      `(quantità\\s+)\\b${word}\\b`,
+      "gi",
+    );
+    result = result.replace(quantitàPattern, `$1${quantityNumbers[word]}`);
+  }
+
+  return result;
+}
+
 interface ParsedOrder {
   customerId?: string;
   customerName?: string;
@@ -88,7 +178,10 @@ export function parseVoiceOrder(transcript: string): ParsedOrder {
   };
 
   // Normalize transcript
-  const normalized = transcript.toLowerCase().replace(/\s+/g, " ").trim();
+  // First convert Italian number words to digits, then normalize spaces
+  let normalized = transcript.toLowerCase();
+  normalized = convertItalianNumbers(normalized);
+  normalized = normalized.replace(/\s+/g, " ").trim();
 
   // Extract customer ID
   const customerIdMatch = normalized.match(
@@ -144,13 +237,30 @@ function parseSingleItem(text: string): OrderItem | null {
   // - "quantità 10" (keyword then number)
   // - "10 pezzi" (number then keyword)
   // - "pezzi 10" (keyword then number)
-  // Any number near "pezzi/pezzo/pz" is treated as quantity
-  const quantityMatch = text.match(
-    /(?:quantità\s+(\d+))|(?:(\d+)\s+(?:pezz[io]|pz)\b)|(?:(?:pezz[io]|pz)\s+(\d+))/i,
-  );
-  const quantity = quantityMatch
-    ? parseInt(quantityMatch[1] || quantityMatch[2] || quantityMatch[3], 10)
-    : 1;
+  // Priority: Try "pezzi NUMBER" first (more specific), then "NUMBER pezzi", then "quantità NUMBER"
+
+  let quantity = 1;
+  let quantityMatch = null;
+
+  // Pattern 1 (highest priority): "pezzi/pezzo/pz NUMBER" (keyword then number)
+  quantityMatch = text.match(/(?:pezz[io]|pz)\s+(\d+)/i);
+  if (quantityMatch) {
+    quantity = parseInt(quantityMatch[1], 10);
+  } else {
+    // Pattern 2 (medium priority): "NUMBER pezzi/pezzo/pz" (number then keyword)
+    // BUT: match the LAST occurrence to avoid matching numbers in article codes
+    const matches = Array.from(text.matchAll(/(\d+)\s+(?:pezz[io]|pz)\b/gi));
+    if (matches.length > 0) {
+      quantityMatch = matches[matches.length - 1]; // Use LAST match
+      quantity = parseInt(quantityMatch[1], 10);
+    } else {
+      // Pattern 3 (lowest priority): "quantità NUMBER"
+      quantityMatch = text.match(/quantità\s+(\d+)/i);
+      if (quantityMatch) {
+        quantity = parseInt(quantityMatch[1], 10);
+      }
+    }
+  }
 
   // Extract article code (everything before quantity/price keywords)
   // Remove only explicit quantity patterns (not bare numbers that might be part of article code)
@@ -201,9 +311,15 @@ function normalizeArticleCode(code: string): string {
     // Handle explicit keywords first
     .replace(/\s+punto\s+/gi, ".")
     .replace(/\s+trattino\s+/gi, "-")
-    .replace(/\s+slash\s+/gi, "/")
-    .replace(/mille/gi, "1000")
-    .replace(/cento/gi, "100");
+    .replace(/\s+slash\s+/gi, "/");
+  // Note: Number words (mille, cento, cinque, etc.) are already converted
+  // to digits by convertItalianNumbers() before this function is called
+
+  // CRITICAL: Remove spaces between letter groups and letter+number groups
+  // Pattern: "H269 GK" → "H269GK"
+  // Pattern: "TD E" → "TDE"
+  // This must happen BEFORE number sequence handling
+  normalized = normalized.replace(/([A-Z]\d*)\s+([A-Z])/gi, "$1$2");
 
   // CRITICAL: Handle spaces as implicit dots for numeric sequences
   // Pattern: "H71 104 032" → "H71.104.032"
