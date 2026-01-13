@@ -74,6 +74,7 @@ async function main() {
     logger.info("📌 Step 3: Creating order with detailed step tracking...");
     logger.info("");
 
+    // OPT-04: Test with 2 articles to verify multi-article "New" button optimization
     const orderData: OrderData = {
       customerId: "",
       customerName: "Fresis Soc Cooperativa",
@@ -84,13 +85,20 @@ async function main() {
           description: "",
           price: 0,
         },
+        {
+          articleCode: testArticleName, // Same article, second item
+          quantity: lowQuantity + 1,
+          description: "",
+          price: 0,
+        },
       ],
     };
 
     logger.info("Order Details:");
     logger.info(`  Customer: ${orderData.customerName}`);
-    logger.info(`  Article: ${testArticleName}`);
-    logger.info(`  Quantity: ${lowQuantity}`);
+    logger.info(`  Article 1: ${testArticleName} (qty: ${lowQuantity})`);
+    logger.info(`  Article 2: ${testArticleName} (qty: ${lowQuantity + 1})`);
+    logger.info("  [Multi-article test for OPT-04: New button optimization]");
     logger.info("");
 
     logger.info("Creating order... (screenshots will be saved to logs/ directory)");

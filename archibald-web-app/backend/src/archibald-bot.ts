@@ -1865,7 +1865,28 @@ export class ArchibaldBot {
         await buttonHandle.click();
         logger.debug("New button clicked, waiting for row...");
 
-        await this.wait(1500); // Give time for row to be created
+        // OPT-04: Event-driven waiting for grid row insertion
+        // Wait for DevExpress to insert new row with article input field (event-based with fallback)
+        try {
+          await this.page!.waitForFunction(
+            () => {
+              const inputs = Array.from(document.querySelectorAll('input[type="text"]'));
+              return inputs.some((input) => {
+                const id = (input as HTMLInputElement).id.toLowerCase();
+                return (
+                  id.includes("itemid") ||
+                  id.includes("salesline") ||
+                  id.includes("articolo") ||
+                  id.includes("nome")
+                );
+              });
+            },
+            { timeout: 3000 } // Fallback timeout (was 1500ms fixed wait)
+          );
+          logger.debug("✅ New row detected via event-driven waiting");
+        } catch (err) {
+          logger.warn("Event-driven wait timed out, verifying row presence manually");
+        }
 
         // Take screenshot after click to verify row appeared
         await this.page!.screenshot({
@@ -1873,7 +1894,7 @@ export class ArchibaldBot {
           fullPage: true,
         });
 
-        // Verify that a new editable row appeared by checking for article input field
+        // Final verification that row appeared
         const articleInputAppeared = await this.page!.evaluate(() => {
           const inputs = Array.from(document.querySelectorAll('input[type="text"]'));
           return inputs.some((input) => {
@@ -2553,21 +2574,72 @@ export class ArchibaldBot {
           await this.runOp(`order.item.${i}.click_new_for_next`, async () => {
             logger.debug('Clicking "New" button for next article...');
 
-            // After Update, the "New" button changes to DXCBtn1
+            // OPT-04: Optimized wait for "New" button reappearance after Update
+            // Strategy: Wait for disappearance, then wait for reappearance (based on Puppeteer best practices)
+            logger.debug('Step 1: Waiting for "New" button to disappear after Update...');
+            try {
+              await this.page!.waitForFunction(
+                () => {
+                  const buttons = Array.from(document.querySelectorAll('a[data-args*="AddNew"]'));
+                  return buttons.length === 0;
+                },
+                { timeout: 2000 } // Wait for button to disappear
+              );
+              logger.debug('✅ Button disappeared');
+            } catch (err) {
+              logger.debug('Button may not have disappeared yet, continuing...');
+            }
+
+            logger.debug('Step 2: Waiting for "New" button to reappear...');
+            try {
+              await this.page!.waitForFunction(
+                () => {
+                  const buttons = Array.from(document.querySelectorAll('a[data-args*="AddNew"]'));
+                  return buttons.length > 0;
+                },
+                { timeout: 5000 } // Wait for button to reappear
+              );
+              logger.debug('✅ "New" button reappeared - event-driven waiting successful');
+            } catch (err) {
+              logger.warn('Event-driven wait timed out for New button reappearance');
+            }
+
+            // Small stability wait after button appears (let DevExpress finish DOM updates)
+            await this.wait(200);
+
+            // After Update, the "New" button may be DXCBtn1 or DXCBtn0 depending on state
             // Pattern: <a data-args="[['AddNew'],1]" with <img title="New" src="Action_Inline_New">
             const buttonInfo = await this.page!.evaluate(() => {
-              // Strategy 1: Find by data-args containing 'AddNew' and DXCBtn1
+              // Strategy 1: Find by data-args containing 'AddNew'
               const buttons = Array.from(
                 document.querySelectorAll('a[data-args*="AddNew"]'),
               );
+
+              // Debug: Log all buttons found
+              const allButtonIds = buttons.map(b => (b as HTMLElement).id);
+
+              // First try to find DXCBtn1 (preferred after Update)
               for (const btn of buttons) {
                 const id = (btn as HTMLElement).id || '';
-                // Look for DXCBtn1 (the "New" button after first Update)
                 if (id.includes('DXCBtn1')) {
                   return {
                     found: true,
                     strategy: 1,
                     id: id,
+                    debug: `Found DXCBtn1. All buttons: ${allButtonIds.join(', ')}`
+                  };
+                }
+              }
+
+              // Fallback: Accept DXCBtn0 if DXCBtn1 not found
+              for (const btn of buttons) {
+                const id = (btn as HTMLElement).id || '';
+                if (id.includes('SALESLINEs') && id.includes('DXCBtn0')) {
+                  return {
+                    found: true,
+                    strategy: 1,
+                    id: id,
+                    debug: `Found DXCBtn0. All buttons: ${allButtonIds.join(', ')}`
                   };
                 }
               }
@@ -2580,27 +2652,34 @@ export class ArchibaldBot {
                   const parent = img.parentElement;
                   if (parent && parent.tagName === 'A') {
                     const parentId = parent.id || '';
-                    // Prefer DXCBtn1 over DXCBtn0
-                    if (parentId.includes('DXCBtn1')) {
+                    // Any valid New button
+                    if (parentId.includes('SALESLINE')) {
                       return {
                         found: true,
                         strategy: 2,
                         id: parentId,
+                        debug: `Found via image. All buttons: ${allButtonIds.join(', ')}`
                       };
                     }
                   }
                 }
               }
 
-              return { found: false };
+              return {
+                found: false,
+                debug: `NO MATCH. All AddNew buttons found: ${allButtonIds.join(', ') || 'NONE'}`
+              };
             });
+
+            // Log debug info
+            logger.debug(`Button search result: ${buttonInfo.debug || 'no debug info'}`);
 
             if (!buttonInfo.found) {
               await this.page!.screenshot({
                 path: `logs/new-button-for-next-not-found-${Date.now()}.png`,
                 fullPage: true,
               });
-              throw new Error('Button "New" not found for next article');
+              throw new Error(`Button "New" not found for next article. ${buttonInfo.debug || ''}`);
             }
 
             logger.debug(`Found "New" button using strategy ${buttonInfo.strategy}`, {
@@ -2645,10 +2724,37 @@ export class ArchibaldBot {
               throw new Error('Failed to click "New" button for next article');
             }
 
-            await this.wait(1500); // Wait for new row to appear
+            // OPT-04: Event-driven waiting for next row insertion
+            logger.debug("Waiting for new row to appear...");
+            try {
+              await this.page!.waitForFunction(
+                (expectedRowIndex) => {
+                  // Wait for DevExpress to insert the new editable row
+                  // Check for presence of new article input field
+                  const inputs = Array.from(document.querySelectorAll('input[type="text"]'));
+                  const articleInputs = inputs.filter((input) => {
+                    const id = (input as HTMLInputElement).id.toLowerCase();
+                    return (
+                      id.includes("itemid") ||
+                      id.includes("salesline") ||
+                      id.includes("articolo") ||
+                      id.includes("nome")
+                    );
+                  });
+                  // Should have at least one article input for the new row
+                  return articleInputs.length > 0;
+                },
+                { timeout: 3000 }, // Fallback timeout (was 1500ms fixed wait)
+                i + 1 // Expected row index
+              );
+              logger.debug("✅ New row detected via event-driven waiting");
+            } catch (err) {
+              logger.warn("Event-driven wait timed out, proceeding anyway");
+            }
+
             await this.waitForDevExpressReady({ timeout: 3000 });
             logger.info(`✅ Ready for article ${i + 2}`);
-          });
+          }, "multi-article-navigation");
         }
       }
 
