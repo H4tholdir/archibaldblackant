@@ -10,11 +10,11 @@ See: .planning/PROJECT.md (updated 2026-01-11)
 ## Current Position
 
 Phase: 4.1 of 12 (Critical Production Fixes - INSERTED URGENT)
-Plan: Not started (4 plans: backend pause, price sync, voice UX, customer priority)
-Status: PLANNING - 4 critical blockers identified
-Last activity: 2026-01-13 — Phase 4.1 inserted, context documented
+Plan: 1 of 4 complete (backend pause ✓, price sync, voice UX, customer priority)
+Status: IN PROGRESS - Backend priority manager implemented
+Last activity: 2026-01-13 — Completed 04.1-01-PLAN.md (Priority Manager)
 
-Progress: ████████░░ 31% (28/36 plans complete - Phase 4 complete, Phase 4.1 starting)
+Progress: ████████░░ 32% (29/36 plans complete - Phase 4 complete, Phase 4.1 in progress)
 
 ## Performance Metrics
 
@@ -48,6 +48,9 @@ Recent decisions affecting current work:
 |-------|----------|-----------|
 | 4.02 | Real-time parsing in useEffect watching transcript | Immediate feedback as user speaks - don't wait for final result |
 | 4.02 | Package disambiguation modal instead of inline selection | Complex choice with multiple options - modal provides focus and clear decision space |
+| 04.1-01 | EventEmitter pattern for lifecycle events in PriorityManager | Node.js built-in, well-understood, enables future observability |
+| 04.1-01 | Polling-based wait for sync completion (500ms) | Simple, reliable, good balance between responsiveness and CPU usage |
+| 04.1-01 | Service registration in QueueManager constructor | Centralized registration point, ensures priority lock always available |
 | 4.02 | Mark optimal solution with green "Raccomandato" badge | Guide users to best choice (fewest packages) while allowing alternatives |
 | 4.02 | ARIA live="polite" instead of "assertive" | Voice input shouldn't interrupt current screen reader context |
 | 4.02 | Entity highlighting with badges instead of background color | More prominent, works better on mobile, clearer entity boundaries |
@@ -274,10 +277,23 @@ None yet.
   - **Execution Priority**: 04.1-01 (Backend) → 04.1-04 (Customer) → 04.1-02 (Price) → 04.1-03 (Voice UX)
   - **Impact**: Blocks reliable production use - must fix before continuing
   - **Context**: Full analysis documented in `.planning/phases/04.1-critical-production-fixes/04.1-CONTEXT.md`
-  - **Next steps**: Plan 04.1-01 (Backend Process Priority Manager)
+
+- **2026-01-13 (Evening continued)**: Plan 04.1-01 complete (Backend Process Priority Manager)
+  - **Accomplishments**:
+    - PriorityManager singleton created with pause/resume coordination (44810cc)
+    - All 3 sync services now pausable/resumable (129f40c)
+    - Order creation wrapped with priority lock in queue manager (5099b42)
+  - **Key Decisions**:
+    - EventEmitter pattern for lifecycle observability
+    - Polling-based wait for sync completion (500ms intervals)
+    - Service registration in QueueManager constructor
+  - **Test Results**: New code compiles cleanly, pre-existing TypeScript errors unaffected
+  - **Impact**: Eliminates race conditions between bot and sync services, order creation now has exclusive resource access
+  - **Duration**: ~25 minutes
+  - **Next**: Plan 04.1-02 (Price Sync Investigation & Fix)
 
 ## Session Continuity
 
-Last session: 2026-01-13 (late evening)
-Stopped at: Phase 4.1 inserted and documented, ready for planning
-Next: `/gsd:plan-phase 4.1` or start with 04.1-01 (Backend Priority Manager)
+Last session: 2026-01-13 (evening)
+Stopped at: Completed 04.1-01-PLAN.md (Backend Process Priority Manager)
+Next: `/gsd:execute-plan .planning/phases/04.1-critical-production-fixes/04.1-02-PLAN.md` (Price Sync Investigation)
