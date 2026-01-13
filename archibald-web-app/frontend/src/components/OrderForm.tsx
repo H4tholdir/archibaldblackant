@@ -91,6 +91,12 @@ export default function OrderForm({ onOrderCreated }: OrderFormProps) {
   const [draftItems, setDraftItems] = useState<OrderItem[]>([]);
   const [showConfirmModal, setShowConfirmModal] = useState(false);
 
+  // Multi-item voice input
+  const [showMultiItemModal, setShowMultiItemModal] = useState(false);
+  const [multiItemSummary, setMultiItemSummary] = useState<
+    ParsedOrderWithConfidence["items"]
+  >([]);
+
   // Voice input hook
   const {
     isListening,
@@ -413,6 +419,44 @@ export default function OrderForm({ onOrderCreated }: OrderFormProps) {
     }
   };
 
+  const handleApplyAllItems = () => {
+    // Add all items to draft
+    const validItems = multiItemSummary.filter(
+      (item) =>
+        item.articleCode &&
+        item.articleCodeConfidence &&
+        item.articleCodeConfidence > 0.5,
+    );
+
+    validItems.forEach((item) => {
+      const draftItem: OrderItem = {
+        articleCode: item.articleCode,
+        productName: item.productName || "",
+        description: item.description || "",
+        quantity: item.quantity || 1,
+        price: item.price || 0,
+        discount: item.discount || 0,
+      };
+      setDraftItems((prev) => [...prev, draftItem]);
+    });
+
+    // Close multi-item modal
+    setShowMultiItemModal(false);
+    setMultiItemSummary([]);
+  };
+
+  const handleApplySelectedItem = (index: number) => {
+    const item = multiItemSummary[index];
+    if (!item) return;
+
+    // Populate form with selected item
+    populateFormWithItem(item);
+
+    // Close multi-item modal
+    setShowMultiItemModal(false);
+    setMultiItemSummary([]);
+  };
+
   const handleVoiceStart = () => {
     setShowVoiceModal(true);
     resetTranscript();
@@ -424,6 +468,37 @@ export default function OrderForm({ onOrderCreated }: OrderFormProps) {
     stopListening();
   };
 
+  // Helper to populate form with a single item
+  const populateFormWithItem = (
+    item: ParsedOrderWithConfidence["items"][0],
+  ) => {
+    // Pre-fill article code if confident
+    if (
+      item.articleCode &&
+      item.articleCodeConfidence &&
+      item.articleCodeConfidence > 0.5
+    ) {
+      setProductSearch(item.articleCode);
+      // Trigger product autocomplete search
+    }
+
+    // Pre-fill quantity if available
+    if (item.quantity) {
+      setNewItem((prev) => ({ ...prev, quantity: item.quantity }));
+    }
+
+    // Mark fields as voice-populated
+    setVoicePopulatedFields((prev) => ({
+      ...prev,
+      article: !!(
+        item.articleCode &&
+        item.articleCodeConfidence &&
+        item.articleCodeConfidence > 0.5
+      ),
+      quantity: !!item.quantity,
+    }));
+  };
+
   const handleVoiceApply = () => {
     // Pre-fill customer field
     if (
@@ -432,41 +507,18 @@ export default function OrderForm({ onOrderCreated }: OrderFormProps) {
       parsedOrder.customerNameConfidence > 0.5
     ) {
       setCustomerSearch(parsedOrder.customerName);
-      // Trigger autocomplete search by setting the search value
-      // The customer ID will be set when user selects from dropdown or we auto-select if exact match
+      setVoicePopulatedFields((prev) => ({ ...prev, customer: true }));
     }
 
-    // Pre-fill article fields for first item
-    if (parsedOrder.items.length > 0) {
-      const item = parsedOrder.items[0]; // Start with first item
-
-      // Pre-fill article code if confident
-      if (
-        item.articleCode &&
-        item.articleCodeConfidence &&
-        item.articleCodeConfidence > 0.5
-      ) {
-        setProductSearch(item.articleCode);
-        // Trigger product autocomplete search
-      }
-
-      // Pre-fill quantity if available
-      if (item.quantity) {
-        setNewItem((prev) => ({ ...prev, quantity: item.quantity }));
-      }
+    // Handle multiple items
+    if (parsedOrder.items.length > 1) {
+      // Show multi-item summary modal
+      setMultiItemSummary(parsedOrder.items);
+      setShowMultiItemModal(true);
+    } else if (parsedOrder.items.length === 1) {
+      // Single item - populate form directly
+      populateFormWithItem(parsedOrder.items[0]);
     }
-
-    // Mark fields as voice-populated (for visual indicator)
-    setVoicePopulatedFields({
-      customer:
-        !!parsedOrder.customerName &&
-        (parsedOrder.customerNameConfidence || 0) > 0.5,
-      article:
-        parsedOrder.items.length > 0 &&
-        !!parsedOrder.items[0].articleCode &&
-        (parsedOrder.items[0].articleCodeConfidence || 0) > 0.5,
-      quantity: parsedOrder.items.length > 0 && !!parsedOrder.items[0].quantity,
-    });
 
     // KEEP MODAL OPEN for user review
     // User will close modal manually or click "Review & Apply" again
@@ -997,6 +1049,68 @@ export default function OrderForm({ onOrderCreated }: OrderFormProps) {
           >
             🚀 Create Order ({draftItems.length} items)
           </button>
+        </div>
+      )}
+
+      {/* Multi-Item Selection Modal */}
+      {showMultiItemModal && (
+        <div
+          className="voice-modal-overlay"
+          onClick={() => setShowMultiItemModal(false)}
+        >
+          <div className="confirm-modal" onClick={(e) => e.stopPropagation()}>
+            <h2>Multiple Items Detected</h2>
+            <div className="confirm-modal-body">
+              <p style={{ marginBottom: "1rem", color: "#6b7280" }}>
+                Voice input contains {multiItemSummary.length} items. Select
+                which items to apply:
+              </p>
+              <div className="multi-item-list">
+                {multiItemSummary.map((item, index) => (
+                  <div key={index} className="multi-item-card">
+                    <div className="multi-item-info">
+                      <div className="multi-item-code">
+                        {item.articleCode || "Unknown"}
+                      </div>
+                      <div className="multi-item-details">
+                        Quantity: {item.quantity || 1}
+                        {item.articleCodeConfidence && (
+                          <span className="multi-item-confidence">
+                            {" "}
+                            • {Math.round(item.articleCodeConfidence * 100)}%
+                            confidence
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      className="btn btn-secondary btn-sm"
+                      onClick={() => handleApplySelectedItem(index)}
+                    >
+                      Apply
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div className="confirm-modal-footer">
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={() => setShowMultiItemModal(false)}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="btn btn-primary"
+                onClick={handleApplyAllItems}
+              >
+                ✓ Apply All Items
+              </button>
+            </div>
+          </div>
         </div>
       )}
 
