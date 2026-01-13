@@ -13,4 +13,6 @@ export const createOrderSchema = z.object({
   customerId: z.string().min(1, "ID cliente obbligatorio"),
   customerName: z.string().min(1, "Nome cliente obbligatorio"),
   items: z.array(orderItemSchema).min(1, "Almeno 1 articolo richiesto"),
+  discountPercent: z.number().min(0).max(100).optional(), // Sconto globale applicato a tutte le righe
+  targetTotalWithVAT: z.number().positive().optional(), // Totale desiderato (con IVA) per calcolo sconto
 });

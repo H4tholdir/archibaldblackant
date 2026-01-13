@@ -3132,6 +3132,95 @@ export class ArchibaldBot {
         "form.submit",
       );
 
+      // STEP 9.5: Apply global discount (if specified)
+      if (orderData.discountPercent && orderData.discountPercent > 0) {
+        await this.runOp(
+          "order.apply_global_discount",
+          async () => {
+            logger.debug(`Applying global discount: ${orderData.discountPercent}%`);
+
+            // Find the MANUALDISCOUNT field (APPLICA SCONTO %)
+            const discountFieldInfo = await this.page!.evaluate(() => {
+              const inputs = Array.from(
+                document.querySelectorAll('input[type="text"]'),
+              ) as HTMLInputElement[];
+
+              // Search for MANUALDISCOUNT field
+              const manualDiscountInput = inputs.find((input) => {
+                const id = input.id.toLowerCase();
+                return (
+                  (id.includes("manualdiscount") || id.includes("applica") || id.includes("sconto")) &&
+                  !id.includes("salesline") && // Not a line-level discount
+                  input.offsetParent !== null && // Visible
+                  !input.readOnly // Editable
+                );
+              });
+
+              if (manualDiscountInput) {
+                return {
+                  found: true,
+                  id: manualDiscountInput.id,
+                  currentValue: manualDiscountInput.value,
+                };
+              }
+
+              return { found: false };
+            });
+
+            if (!discountFieldInfo.found) {
+              logger.warn("Global discount field (MANUALDISCOUNT) not found, skipping discount application");
+              return;
+            }
+
+            logger.debug(`Found global discount field: ${discountFieldInfo.id}`, {
+              currentValue: discountFieldInfo.currentValue,
+            });
+
+            // Click on the discount field to focus it
+            const discountInput = await this.page!.$(`#${discountFieldInfo.id}`);
+            if (!discountInput) {
+              throw new Error("Discount input element not found");
+            }
+
+            await discountInput.click();
+            await this.wait(300);
+
+            // Clear existing value
+            await this.page!.evaluate((inputId) => {
+              const input = document.getElementById(inputId) as HTMLInputElement;
+              if (input) {
+                input.value = "";
+                input.dispatchEvent(new Event("input", { bubbles: true }));
+                input.dispatchEvent(new Event("change", { bubbles: true }));
+              }
+            }, discountFieldInfo.id);
+
+            await this.wait(200);
+
+            // Type the discount percentage
+            // Format: "XX,XX %" (Italian format with comma)
+            const discountFormatted = orderData.discountPercent.toFixed(2).replace(".", ",");
+            await discountInput.type(discountFormatted, { delay: 50 });
+
+            await this.wait(500);
+
+            // Trigger blur to confirm the value
+            await this.page!.evaluate((inputId) => {
+              const input = document.getElementById(inputId) as HTMLInputElement;
+              if (input) {
+                input.dispatchEvent(new Event("blur", { bubbles: true }));
+                input.dispatchEvent(new Event("change", { bubbles: true }));
+              }
+            }, discountFieldInfo.id);
+
+            await this.wait(1000); // Wait for Archibald to recalculate order totals
+
+            logger.info(`✅ Global discount applied: ${orderData.discountPercent}%`);
+          },
+          "form.discount",
+        );
+      }
+
       // STEP 10: Save and close order
       await this.runOp(
         "order.save_and_close",

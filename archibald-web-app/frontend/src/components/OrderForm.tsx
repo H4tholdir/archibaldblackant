@@ -117,6 +117,11 @@ export default function OrderForm({ onOrderCreated }: OrderFormProps) {
   const [draftItems, setDraftItems] = useState<OrderItem[]>([]);
   const [showConfirmModal, setShowConfirmModal] = useState(false);
 
+  // Pricing calculation state
+  const [targetTotalWithVAT, setTargetTotalWithVAT] = useState<string>("");
+  const [calculatedDiscount, setCalculatedDiscount] = useState<number>(0);
+  const [pricingError, setPricingError] = useState<string>("");
+
   // Multi-item voice input
   const [showMultiItemModal, setShowMultiItemModal] = useState(false);
   const [multiItemSummary, setMultiItemSummary] = useState<
@@ -645,7 +650,128 @@ export default function OrderForm({ onOrderCreated }: OrderFormProps) {
     setDraftItems((prev) => prev.filter((_, i) => i !== index));
   };
 
+  /**
+   * Calcola prezzi ordine con IVA, spedizione e sconto
+   */
+  const calculatePricing = () => {
+    const VAT_RATE = 0.22; // 22%
+    const SHIPPING_COST_BASE = 15.45; // €15.45
+    const SHIPPING_THRESHOLD = 200; // Gratis se subtotale > €200
+
+    // Subtotale articoli (senza IVA, senza sconto)
+    const subtotalItems = draftItems.reduce(
+      (sum, item) => sum + item.price * item.quantity,
+      0
+    );
+
+    // Calcola spese spedizione
+    const shippingBase =
+      subtotalItems > SHIPPING_THRESHOLD ? 0 : SHIPPING_COST_BASE;
+    const shippingWithVAT = shippingBase * (1 + VAT_RATE);
+
+    // Se non c'è target, nessuno sconto
+    if (!targetTotalWithVAT || targetTotalWithVAT.trim() === "") {
+      const totalWithVAT = subtotalItems * (1 + VAT_RATE) + shippingWithVAT;
+      return {
+        subtotalItems,
+        shippingBase,
+        shippingWithVAT,
+        discountPercent: 0,
+        subtotalAfterDiscount: subtotalItems,
+        totalWithVAT,
+        error: null,
+      };
+    }
+
+    // Parse target totale desiderato
+    const targetTotal = parseFloat(targetTotalWithVAT);
+    if (isNaN(targetTotal) || targetTotal <= 0) {
+      return {
+        subtotalItems,
+        shippingBase,
+        shippingWithVAT,
+        discountPercent: 0,
+        subtotalAfterDiscount: subtotalItems,
+        totalWithVAT: subtotalItems * (1 + VAT_RATE) + shippingWithVAT,
+        error: "Inserisci un totale valido (> 0)",
+      };
+    }
+
+    // Calcola sconto necessario per raggiungere il target
+    // Formula: targetTotal = (subtotalItems * (1 - discount/100)) * (1 + VAT) + shippingWithVAT
+    // Risolviamo per discount:
+    // targetTotal - shippingWithVAT = (subtotalItems * (1 - discount/100)) * (1 + VAT)
+    // (targetTotal - shippingWithVAT) / (1 + VAT) = subtotalItems * (1 - discount/100)
+    // discount = 100 * (1 - ((targetTotal - shippingWithVAT) / (1 + VAT)) / subtotalItems)
+
+    const subtotalAfterVATAndShipping = targetTotal - shippingWithVAT;
+    if (subtotalAfterVATAndShipping <= 0) {
+      return {
+        subtotalItems,
+        shippingBase,
+        shippingWithVAT,
+        discountPercent: 0,
+        subtotalAfterDiscount: subtotalItems,
+        totalWithVAT: subtotalItems * (1 + VAT_RATE) + shippingWithVAT,
+        error: `Il totale desiderato è troppo basso. Minimo: €${shippingWithVAT.toFixed(2)} (solo spedizione)`,
+      };
+    }
+
+    const subtotalAfterDiscount = subtotalAfterVATAndShipping / (1 + VAT_RATE);
+    const discountPercent =
+      100 * (1 - subtotalAfterDiscount / subtotalItems);
+
+    // Validazione: sconto deve essere tra 0% e 100%
+    if (discountPercent < 0) {
+      const maxTotal = subtotalItems * (1 + VAT_RATE) + shippingWithVAT;
+      return {
+        subtotalItems,
+        shippingBase,
+        shippingWithVAT,
+        discountPercent: 0,
+        subtotalAfterDiscount: subtotalItems,
+        totalWithVAT: maxTotal,
+        error: `Il totale desiderato (€${targetTotal.toFixed(2)}) supera il totale massimo (€${maxTotal.toFixed(2)}). Non è necessario uno sconto.`,
+      };
+    }
+
+    if (discountPercent > 100) {
+      return {
+        subtotalItems,
+        shippingBase,
+        shippingWithVAT,
+        discountPercent: 0,
+        subtotalAfterDiscount: subtotalItems,
+        totalWithVAT: subtotalItems * (1 + VAT_RATE) + shippingWithVAT,
+        error: `Il totale desiderato (€${targetTotal.toFixed(2)}) è troppo basso. Minimo possibile: €${(shippingWithVAT).toFixed(2)}`,
+      };
+    }
+
+    return {
+      subtotalItems,
+      shippingBase,
+      shippingWithVAT,
+      discountPercent,
+      subtotalAfterDiscount,
+      totalWithVAT: targetTotal,
+      error: null,
+    };
+  };
+
+  // Ricalcola pricing quando cambia target o items
+  useEffect(() => {
+    const pricing = calculatePricing();
+    setCalculatedDiscount(pricing.discountPercent);
+    setPricingError(pricing.error || "");
+  }, [targetTotalWithVAT, draftItems]);
+
   const handleConfirmOrder = async () => {
+    // Valida pricing prima di inviare
+    if (pricingError) {
+      alert(pricingError);
+      return;
+    }
+
     setLoading(true);
     try {
       const response = await fetch("/api/orders/create", {
@@ -657,6 +783,8 @@ export default function OrderForm({ onOrderCreated }: OrderFormProps) {
           customerId,
           customerName,
           items: draftItems,
+          discountPercent: calculatedDiscount > 0 ? calculatedDiscount : undefined,
+          targetTotalWithVAT: targetTotalWithVAT ? parseFloat(targetTotalWithVAT) : undefined,
         }),
       });
 
@@ -1849,14 +1977,105 @@ export default function OrderForm({ onOrderCreated }: OrderFormProps) {
                   ))}
                 </div>
               </div>
-              {draftItems.length > 0 && (
-                <div className="confirm-total">
-                  <strong>Total:</strong> €
-                  {draftItems
-                    .reduce((sum, item) => sum + item.price * item.quantity, 0)
-                    .toFixed(2)}
-                </div>
-              )}
+              {draftItems.length > 0 && (() => {
+                const pricing = calculatePricing();
+                return (
+                  <>
+                    <div className="confirm-pricing">
+                      <div className="pricing-row">
+                        <span>Subtotale (senza IVA):</span>
+                        <span>€{pricing.subtotalItems.toFixed(2)}</span>
+                      </div>
+                      {pricing.discountPercent > 0 && (
+                        <div className="pricing-row pricing-discount">
+                          <span>Sconto ({pricing.discountPercent.toFixed(2)}%):</span>
+                          <span>-€{(pricing.subtotalItems - pricing.subtotalAfterDiscount).toFixed(2)}</span>
+                        </div>
+                      )}
+                      {pricing.discountPercent > 0 && (
+                        <div className="pricing-row">
+                          <span>Subtotale dopo sconto:</span>
+                          <span>€{pricing.subtotalAfterDiscount.toFixed(2)}</span>
+                        </div>
+                      )}
+                      <div className="pricing-row">
+                        <span>IVA (22%):</span>
+                        <span>
+                          €{(pricing.subtotalAfterDiscount * 0.22).toFixed(2)}
+                        </span>
+                      </div>
+                      <div className="pricing-row">
+                        <span>
+                          Spedizione{" "}
+                          {pricing.shippingBase === 0 && (
+                            <span style={{ color: "#10b981", fontWeight: "bold" }}>
+                              (GRATIS)
+                            </span>
+                          )}
+                          :
+                        </span>
+                        <span>
+                          {pricing.shippingBase === 0 ? (
+                            <>€0.00</>
+                          ) : (
+                            <>€{pricing.shippingWithVAT.toFixed(2)}</>
+                          )}
+                        </span>
+                      </div>
+                      <div className="pricing-row pricing-total">
+                        <strong>Totale con IVA:</strong>
+                        <strong>€{pricing.totalWithVAT.toFixed(2)}</strong>
+                      </div>
+                    </div>
+
+                    <div className="pricing-target-section">
+                      <div className="form-group">
+                        <label className="form-label">
+                          💰 Totale desiderato (con IVA) - <em>Opzionale</em>
+                        </label>
+                        <input
+                          type="number"
+                          step="0.01"
+                          min="0"
+                          className="form-input"
+                          placeholder="es. 25.00"
+                          value={targetTotalWithVAT}
+                          onChange={(e) => setTargetTotalWithVAT(e.target.value)}
+                          disabled={loading}
+                        />
+                        <small style={{ color: "#6b7280", display: "block", marginTop: "0.25rem" }}>
+                          Inserisci il prezzo finale desiderato. Calcoleremo lo sconto necessario.
+                        </small>
+                        {pricingError && (
+                          <div style={{
+                            color: "#dc2626",
+                            backgroundColor: "#fef2f2",
+                            padding: "0.5rem",
+                            borderRadius: "4px",
+                            marginTop: "0.5rem",
+                            fontSize: "0.875rem",
+                          }}>
+                            ⚠️ {pricingError}
+                          </div>
+                        )}
+                        {!pricingError && pricing.discountPercent > 0 && (
+                          <div style={{
+                            color: "#10b981",
+                            backgroundColor: "#f0fdf4",
+                            padding: "0.5rem",
+                            borderRadius: "4px",
+                            marginTop: "0.5rem",
+                            fontSize: "0.875rem",
+                          }}>
+                            ✓ Sconto calcolato: <strong>{pricing.discountPercent.toFixed(2)}%</strong>
+                            {" "}(verrà applicato automaticamente in Archibald)
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </>
+                );
+              })()}
             </div>
             <div className="confirm-modal-footer">
               <button
