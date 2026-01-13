@@ -1113,12 +1113,147 @@ export default function OrderForm({ onOrderCreated }: OrderFormProps) {
                 />
               )}
 
-              {/* Example */}
+              {/* Workflow Guide */}
+              <div className="voice-workflow-guide" style={{ marginBottom: "1rem", padding: "1rem", backgroundColor: "#f9fafb", borderRadius: "0.5rem", border: "1px solid #e5e7eb" }}>
+                <strong>📋 Come Funziona (Step-by-Step)</strong>
+                <ol style={{ marginTop: "0.5rem", marginLeft: "1.25rem", fontSize: "0.875rem", lineHeight: "1.75" }}>
+                  <li><strong>Tap microfono</strong> → Modal si apre, ascolto inizia</li>
+                  <li><strong>Dettare ordine</strong> → Parla chiaramente: cliente, articoli, quantità</li>
+                  <li><strong>Attendere feedback</strong> → Sistema mostra riconoscimento in tempo reale</li>
+                  <li><strong>Verificare bozza</strong> → Controlla cliente e articoli riconosciuti</li>
+                  <li><strong>Correggere se necessario</strong> → Usa comandi o tap per modifiche</li>
+                  <li><strong>Confermare</strong> → Tap "Conferma" quando tutto è corretto</li>
+                </ol>
+
+                <div style={{ marginTop: "1rem" }}>
+                  <strong>🎤 Comandi Vocali Disponibili</strong>
+                  <div style={{ marginTop: "0.5rem", fontSize: "0.875rem" }}>
+                    <div style={{ marginBottom: "0.5rem" }}>
+                      <strong>"conferma ordine"</strong> → Conferma la bozza e procede con l'invio
+                      <div style={{ fontSize: "0.75rem", color: "#6b7280", marginLeft: "1rem" }}>
+                        • Quando: dopo aver verificato che tutto è corretto<br/>
+                        • Risultato: modal si chiude, ordine viene processato
+                      </div>
+                    </div>
+                    <div style={{ marginBottom: "0.5rem" }}>
+                      <strong>"annulla"</strong> → Cancella la bozza corrente e ricomincia
+                      <div style={{ fontSize: "0.75rem", color: "#6b7280", marginLeft: "1rem" }}>
+                        • Quando: se vuoi ripartire da zero<br/>
+                        • Risultato: bozza svuotata, pronto per nuovo dettato
+                      </div>
+                    </div>
+                    <div style={{ marginBottom: "0.5rem" }}>
+                      <strong>"riprova"</strong> → Cancella e riavvia il riconoscimento
+                      <div style={{ fontSize: "0.75rem", color: "#6b7280", marginLeft: "1rem" }}>
+                        • Quando: se il sistema ha capito male<br/>
+                        • Risultato: modal resta aperto, può ridettare
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div style={{ marginTop: "1rem", paddingTop: "0.75rem", borderTop: "1px solid #e5e7eb" }}>
+                  <strong>💡 Consigli</strong>
+                  <ul style={{ marginTop: "0.25rem", marginLeft: "1.25rem", fontSize: "0.875rem", lineHeight: "1.75" }}>
+                    <li>Parlare in ambiente silenzioso</li>
+                    <li>Scandire bene i numeri degli articoli</li>
+                    <li>Fare pause tra "virgola" e prossimo articolo</li>
+                    <li>Verificare sempre prima di confermare</li>
+                  </ul>
+                </div>
+              </div>
+
+              {/* Error Recovery Instructions */}
+              <div className="voice-error-recovery" style={{ marginBottom: "1rem", padding: "1rem", backgroundColor: "#fef3c7", borderRadius: "0.5rem", border: "1px solid #fbbf24" }}>
+                <strong>🔧 Cosa Fare Se...</strong>
+
+                <div style={{ marginTop: "0.75rem", fontSize: "0.875rem" }}>
+                  <div style={{ marginBottom: "0.75rem" }}>
+                    <strong style={{ color: "#d97706" }}>Cliente sbagliato riconosciuto:</strong>
+                    <ol style={{ marginTop: "0.25rem", marginLeft: "1.25rem", lineHeight: "1.5" }}>
+                      <li>Usa comando "riprova"</li>
+                      <li>Ri-detta nome cliente più lentamente</li>
+                      <li>Oppure: tap su campo cliente per editare manualmente</li>
+                    </ol>
+                  </div>
+
+                  <div style={{ marginBottom: "0.75rem" }}>
+                    <strong style={{ color: "#d97706" }}>Articolo sbagliato o mancante:</strong>
+                    <ol style={{ marginTop: "0.25rem", marginLeft: "1.25rem", lineHeight: "1.5" }}>
+                      <li>Tap sulla riga dell'articolo per modificare codice</li>
+                      <li>Oppure: usa "annulla" e ri-detta ordine completo</li>
+                      <li>Ricorda: usa "punto" per separatori e "novecento" per 900</li>
+                    </ol>
+                  </div>
+
+                  <div style={{ marginBottom: "0.75rem" }}>
+                    <strong style={{ color: "#d97706" }}>Quantità errata:</strong>
+                    <ol style={{ marginTop: "0.25rem", marginLeft: "1.25rem", lineHeight: "1.5" }}>
+                      <li>Tap sul campo quantità per correggere</li>
+                      <li>Non serve ri-dettare tutto, modifica solo il valore</li>
+                    </ol>
+                  </div>
+
+                  <div style={{ marginBottom: "0.75rem" }}>
+                    <strong style={{ color: "#d97706" }}>Riconoscimento non parte:</strong>
+                    <ol style={{ marginTop: "0.25rem", marginLeft: "1.25rem", lineHeight: "1.5" }}>
+                      <li>Controlla permessi microfono nel browser</li>
+                      <li>Tap di nuovo sull'icona microfono</li>
+                      <li>Verifica che browser supporti Web Speech API</li>
+                    </ol>
+                  </div>
+
+                  <div>
+                    <strong style={{ color: "#d97706" }}>Sistema non capisce:</strong>
+                    <ul style={{ marginTop: "0.25rem", marginLeft: "1.25rem", lineHeight: "1.5" }}>
+                      <li>Parla più lentamente</li>
+                      <li>Scandisci digit-by-digit per articoli</li>
+                      <li>Evita rumori di fondo</li>
+                      <li>Usa "riprova" per nuovo tentativo</li>
+                    </ul>
+                  </div>
+                </div>
+              </div>
+
+              {/* Examples with Real Article Formats */}
               <div className="voice-example">
-                <strong>Esempio:</strong>
-                <br />
-                "Cliente Mario Rossi, articolo SF1000 quantità 5, articolo
-                TD1272 punto 314 quantità 2"
+                <strong>📝 Esempi Pratici:</strong>
+
+                <div style={{ marginTop: "0.75rem" }}>
+                  <div style={{ marginBottom: "0.75rem" }}>
+                    <strong>Esempio 1: Ordine Singolo</strong>
+                    <div style={{ fontSize: "0.875rem", color: "#6b7280", marginTop: "0.25rem" }}>
+                      "Cliente Mario Rossi, articolo zero due punto tre tre punto zero uno sei punto zero uno zero quantità cinque"
+                    </div>
+                    <div style={{ fontSize: "0.75rem", color: "#10b981", marginTop: "0.25rem" }}>
+                      → Cliente: Mario Rossi | Articolo: 02.33.016.010 | Quantità: 5
+                    </div>
+                  </div>
+
+                  <div style={{ marginBottom: "0.75rem" }}>
+                    <strong>Esempio 2: Ordine Multi-Articolo</strong>
+                    <div style={{ fontSize: "0.875rem", color: "#6b7280", marginTop: "0.25rem" }}>
+                      "Cliente ACME S.P.A., articolo zero cinque punto due uno punto zero zero uno punto novecento quantità dieci, virgola articolo uno due punto quattro quattro punto zero tre cinque punto zero zero tre quantità venti"
+                    </div>
+                    <div style={{ fontSize: "0.75rem", color: "#10b981", marginTop: "0.25rem" }}>
+                      → Cliente: ACME S.P.A. | 2 articoli con quantità
+                    </div>
+                  </div>
+
+                  <div style={{ marginBottom: "0.5rem" }}>
+                    <strong>Esempio 3: Codice con "novecento"</strong>
+                    <div style={{ fontSize: "0.875rem", color: "#6b7280", marginTop: "0.25rem" }}>
+                      "articolo zero uno punto novecento uno punto zero zero uno punto zero zero tre quantità quindici"
+                    </div>
+                    <div style={{ fontSize: "0.75rem", color: "#10b981", marginTop: "0.25rem" }}>
+                      → Articolo: 01.9001.001.003 | Quantità: 15
+                    </div>
+                  </div>
+                </div>
+
+                <div style={{ fontSize: "0.75rem", color: "#9ca3af", marginTop: "0.75rem", paddingTop: "0.75rem", borderTop: "1px solid #e5e7eb" }}>
+                  💡 <strong>Nota:</strong> "punto" = separatore decimale (.) | "virgola" = prossimo articolo | "novecento" = 900
+                </div>
               </div>
 
               {/* Voice Commands Legend */}
