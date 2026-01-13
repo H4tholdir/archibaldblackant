@@ -4,6 +4,10 @@ import { logger } from './logger';
 import { BrowserPool } from './browser-pool';
 import type { OrderData } from './types';
 import { config } from './config';
+import { PriorityManager } from './priority-manager';
+import { CustomerSyncService } from './customer-sync-service';
+import { ProductSyncService } from './product-sync-service';
+import { PriceSyncService } from './price-sync-service';
 
 /**
  * Job data per la coda ordini
@@ -51,6 +55,12 @@ export class QueueManager {
 
     // Inizializza il browser pool
     this.browserPool = BrowserPool.getInstance(1, 3);
+
+    // Register sync services with PriorityManager
+    const priorityManager = PriorityManager.getInstance();
+    priorityManager.registerService('customer-sync', CustomerSyncService.getInstance());
+    priorityManager.registerService('product-sync', ProductSyncService.getInstance());
+    priorityManager.registerService('price-sync', PriceSyncService.getInstance());
 
     logger.info('Queue Manager inizializzato');
   }
@@ -223,8 +233,12 @@ export class QueueManager {
       // Aggiorna progress
       await job.updateProgress(25);
 
-      // Crea l'ordine
-      const orderId = await bot.createOrder(orderData);
+      // Crea l'ordine con priority lock (pausa tutti i servizi di sync)
+      logger.debug('[QueueManager] Acquiring priority lock for order creation...');
+      const orderId = await PriorityManager.getInstance().withPriority(async () => {
+        return await bot.createOrder(orderData);
+      });
+      logger.debug('[QueueManager] Priority lock released');
 
       // Aggiorna progress
       await job.updateProgress(100);
