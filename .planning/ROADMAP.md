@@ -17,7 +17,6 @@ None (full-stack web app con pattern standard)
 - [x] **Phase 3.2: Bot Performance Implementation (INSERTED)** - Ottimizzazioni critiche completate (9% improvement, bug fixes) ✅
 - [x] **Phase 4: Voice Input Enhancement** - Voice hybrid affidabile con conferma visiva ✅
 - [ ] **Phase 4.1: Critical Production Fixes (INSERTED)** - 🔴 Fix blockers: backend pause ✓, price sync ✓, voice UX ✓, customer priority 📋
-- [ ] **Phase 5: Order Submission** - Invio ordine ottimizzato con tracking 📋
 - [ ] **Phase 6: Multi-User Authentication** - Login multi-agente con whitelist
 - [ ] **Phase 7: Credential Management** - Storage sicuro credenziali su device
 - [ ] **Phase 8: Offline Capability** - Cache IndexedDB e bozze persistenti
@@ -25,6 +24,7 @@ None (full-stack web app con pattern standard)
 - [ ] **Phase 10: Order History** - Storico ordini da Archibald
 - [ ] **Phase 11: Order Management** - Modifica, duplica e tracking ordini
 - [ ] **Phase 12: Deployment & Infrastructure** - Setup produzione VPS
+- [ ] **Phase 5: Order Submission (POSTPONED)** - Invio ordine ottimizzato con tracking 📋
 
 ## Phase Details
 
@@ -340,11 +340,18 @@ Plans:
 
 **Estimated Effort**: 8-12 hours total (2-3h each for 01, 02, 04; 1-2h for 03)
 
-### Phase 5: Order Submission
+### Phase 5: Order Submission (POSTPONED TO END OF ROADMAP)
 **Goal**: Invio ordine Puppeteer ottimizzato con tracking real-time e error recovery robusto
-**Depends on**: Phase 4
+**Depends on**: Phase 12 (now final phase)
 **Research**: Unlikely (Puppeteer automation già funzionante, ottimizzazione pattern esistenti)
 **Plans**: 6 plans
+**Status**: ⚠️ POSTPONED - Changes compromised functionality, moved to end of roadmap
+
+**Rollback History**:
+- 2026-01-13: All Phase 5 changes reverted (commit 20f1cd4)
+- Reverted commits: aa1b324, 04dbf96, 306b7f3, db7b34f, 08edccb, a574b7d
+- Reason: Phase 5 changes compromised some functionality
+- Decision: Postpone to end of roadmap after Phase 12
 
 Plans:
 - [ ] 05-01: Optimize Puppeteer order submission flow (reduce latency)
@@ -356,7 +363,7 @@ Plans:
 
 ### Phase 6: Multi-User Authentication
 **Goal**: Abilitare login multi-agente con whitelist e sessioni Puppeteer separate per-utente
-**Depends on**: Phase 5
+**Depends on**: Phase 4.1 (Phase 5 postponed)
 **Research**: Likely (session management architecture decision)
 **Research topics**: Puppeteer multi-session patterns, session isolation strategies, credential flow architecture
 **Plans**: 8 plans
@@ -479,7 +486,7 @@ Plans:
 | 3.1. Bot Performance Profiling & Optimization (INSERTED) | 3/3 | ✅ Complete | 2026-01-12 |
 | 3.2. Bot Performance Implementation (INSERTED) | 1/6 partial | ✅ Complete (closed early) | 2026-01-13 |
 | 4. Voice Input Enhancement | 4/4 | ✅ Complete | 2026-01-13 |
-| 5. Order Submission | 0/6 | Not started | - |
+| 4.1. Critical Production Fixes (INSERTED) | 4/4 | ✅ Complete | 2026-01-13 |
 | 6. Multi-User Authentication | 0/8 | Not started | - |
 | 7. Credential Management | 0/6 | Not started | - |
 | 8. Offline Capability | 0/8 | Not started | - |
@@ -487,5 +494,6 @@ Plans:
 | 10. Order History | 0/6 | Not started | - |
 | 11. Order Management | 0/7 | Not started | - |
 | 12. Deployment & Infrastructure | 0/10 | Not started | - |
+| 5. Order Submission (POSTPONED) | 0/6 | ⚠️ Postponed (rolled back) | - |
 
 **Total Plans**: 86 across 12+ phases

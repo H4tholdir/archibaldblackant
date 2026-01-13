@@ -5,16 +5,16 @@
 See: .planning/PROJECT.md (updated 2026-01-11)
 
 **Core value:** Rendere la creazione ordini Archibald **veloce, affidabile e mobile-friendly** per agenti in movimento
-**Current focus:** Phase 5 — Order Submission UX Enhancement
+**Current focus:** Phase 6 — Multi-User Authentication (Phase 5 postponed to end of roadmap)
 
 ## Current Position
 
-Phase: 5 of 12 (Order Submission) 📋 PLANNED
-Plan: 0 of 2 complete (progress tracking, frontend UI)
-Status: READY TO EXECUTE - Plans created from user context, ready for implementation
-Last activity: 2026-01-13 — Created 05-01-PLAN.md and 05-02-PLAN.md
+Phase: 6 of 12 (Multi-User Authentication) 📋 NOT STARTED
+Plan: 0 of 8 complete
+Status: READY FOR PLANNING - Phase 5 rolled back and postponed
+Last activity: 2026-01-13 — Rolled back Phase 5 changes (commit 20f1cd4), postponed phase to end of roadmap
 
-Progress: ████████░░ 38% (32/38 plans complete - Phase 4.1 complete ✅, Phase 5 planned)
+Progress: ████████░░ 37% (32/38 plans complete - Phase 4.1 complete ✅, Phase 5 rolled back ⚠️)
 
 ## Performance Metrics
 
@@ -351,8 +351,31 @@ None yet.
   - **Commits**: 1 atomic commit (ce93ce7)
   - **Phase 4.1 Status**: ✅ COMPLETE (4/4 plans done)
 
+- **2026-01-13 (Late Evening continued)**: Phase 5 (Order Submission) ROLLED BACK and POSTPONED
+  - **Reason**: Phase 5 changes compromised some functionality (user reported)
+  - **Action**: Complete rollback of all Phase 5 changes
+  - **Reverted Commits** (commit 20f1cd4):
+    - aa1b324 fix(05-01): correct WebSocket URL to use backend port 3000
+    - 04dbf96 debug(websocket): add detailed logging for progress tracking
+    - 306b7f3 fix(05-01): implement WebSocket connection in OrderStatus
+    - db7b34f docs(05-01): complete granular progress tracking plan
+    - 08edccb feat(05-01): create WebSocket endpoint for order progress
+    - a574b7d feat(05-01): add granular progress tracking to processOrder
+  - **Files Affected**:
+    - [archibald-web-app/backend/src/index.ts](archibald-web-app/backend/src/index.ts) - WebSocket endpoint removed
+    - [archibald-web-app/backend/src/queue-manager.ts](archibald-web-app/backend/src/queue-manager.ts) - Progress tracking removed
+    - [archibald-web-app/frontend/src/components/OrderStatus.tsx](archibald-web-app/frontend/src/components/OrderStatus.tsx) - WebSocket connection removed
+    - `.planning/phases/05-order-submission/05-01-SUMMARY.md` - Deleted
+  - **Roadmap Updates**:
+    - Phase 5 moved from position 5 to final position (after Phase 12)
+    - Phase 6 dependencies updated (now depends on Phase 4.1)
+    - ROADMAP.md updated with postponement notice
+  - **Impact**: System restored to stable pre-Phase-5 state
+  - **Decision**: Focus on user-facing features (Multi-User Auth, Credential Management, Offline) before returning to Order Submission UX enhancements
+  - **Next**: Phase 6 (Multi-User Authentication) planning
+
 ## Session Continuity
 
 Last session: 2026-01-13 (late evening)
-Stopped at: Completed 04.1-04-PLAN.md (Customer Sync Priority Reversal) - Phase 4.1 COMPLETE ✅
-Next: Review Phase 5 plans (Order Submission) or address deferred issues
+Stopped at: Rolled back Phase 5 changes (commit 20f1cd4), moved Phase 5 to end of roadmap
+Next: Begin Phase 6 (Multi-User Authentication) planning with `/gsd:plan-phase 6`
