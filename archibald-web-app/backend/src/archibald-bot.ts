@@ -3316,20 +3316,28 @@ export class ArchibaldBot {
               logger.warn('"Prezzi e sconti" tab not found, trying to find discount field anyway...');
             } else {
               logger.info('✅ Clicked "Prezzi e sconti" tab');
-              await this.wait(1000); // Wait for tab content to load
+              await this.wait(2000); // Wait longer for tab content to load and render
             }
 
-            // Find the MANUALDISCOUNT field (APPLICA SCONTO %)
+            // Find the MANUALDISCOUNT field (APPLICA SCONTO %) with debug info
             const discountFieldInfo = await this.page!.evaluate(() => {
               const inputs = Array.from(
                 document.querySelectorAll('input[type="text"]'),
               ) as HTMLInputElement[];
 
+              // DEBUG: Log all input IDs to help troubleshoot
+              const allInputIds = inputs.map(i => ({
+                id: i.id,
+                visible: i.offsetParent !== null,
+                readOnly: i.readOnly,
+                value: i.value
+              })).filter(i => i.id.toLowerCase().includes('discount') || i.id.toLowerCase().includes('sconto'));
+
               // Search for MANUALDISCOUNT field
               const manualDiscountInput = inputs.find((input) => {
                 const id = input.id.toLowerCase();
                 return (
-                  (id.includes("manualdiscount") || id.includes("applica") || id.includes("sconto")) &&
+                  (id.includes("manualdiscount") || id.includes("dvimanualdiscount") || id.includes("applica") || id.includes("sconto")) &&
                   !id.includes("salesline") && // Not a line-level discount
                   input.offsetParent !== null && // Visible
                   !input.readOnly // Editable
@@ -3341,14 +3349,20 @@ export class ArchibaldBot {
                   found: true,
                   id: manualDiscountInput.id,
                   currentValue: manualDiscountInput.value,
+                  debug: allInputIds
                 };
               }
 
-              return { found: false };
+              return {
+                found: false,
+                debug: allInputIds
+              };
             });
 
             if (!discountFieldInfo.found) {
-              logger.warn("Global discount field (MANUALDISCOUNT) not found, skipping discount application");
+              logger.warn("Global discount field (MANUALDISCOUNT) not found", {
+                debugInputs: discountFieldInfo.debug
+              });
               return;
             }
 
