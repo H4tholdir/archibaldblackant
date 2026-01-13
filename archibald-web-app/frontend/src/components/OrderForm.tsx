@@ -5,6 +5,7 @@ import {
   getVoiceSuggestions,
   validateCustomerName,
   validateArticleCode,
+  detectVoiceCommand,
 } from "../utils/orderParser";
 import type { OrderItem } from "../types/order";
 import type {
@@ -18,10 +19,7 @@ import { ValidationStatus } from "./ValidationStatus";
 import { SmartSuggestions } from "./SmartSuggestions";
 import { CustomerSuggestions } from "./CustomerSuggestions";
 import { VoicePopulatedBadge } from "./VoicePopulatedBadge";
-import {
-  VoiceDebugPanel,
-  useVoiceDebugLogger,
-} from "./VoiceDebugPanel";
+import { VoiceDebugPanel, useVoiceDebugLogger } from "./VoiceDebugPanel";
 
 interface Customer {
   id: string;
@@ -45,7 +43,12 @@ interface OrderFormProps {
 
 export default function OrderForm({ onOrderCreated }: OrderFormProps) {
   // Debug logger
-  const { logs, log: debugLog, clear: clearLogs, exportLogs } = useVoiceDebugLogger();
+  const {
+    logs,
+    log: debugLog,
+    clear: clearLogs,
+    exportLogs,
+  } = useVoiceDebugLogger();
 
   const [loading, setLoading] = useState(false);
   const [customerId, setCustomerId] = useState("");
@@ -144,54 +147,74 @@ export default function OrderForm({ onOrderCreated }: OrderFormProps) {
     continuous: true,
     interimResults: true,
     onResult: async (finalTranscript) => {
-      debugLog("📝 Raw Transcript Received", {
-        transcript: finalTranscript,
-        length: finalTranscript.length,
-      }, "info");
+      debugLog(
+        "📝 Raw Transcript Received",
+        {
+          transcript: finalTranscript,
+          length: finalTranscript.length,
+        },
+        "info",
+      );
 
       // Parse transcript
       const parsed = parseVoiceOrder(finalTranscript);
 
-      debugLog("🔍 Transcript Parsed", {
-        customerName: parsed.customerName,
-        customerId: parsed.customerId,
-        itemsCount: parsed.items.length,
-        items: parsed.items.map(item => ({
-          articleCode: item.articleCode,
-          quantity: item.quantity,
-        })),
-      }, "info");
+      debugLog(
+        "🔍 Transcript Parsed",
+        {
+          customerName: parsed.customerName,
+          customerId: parsed.customerId,
+          itemsCount: parsed.items.length,
+          items: parsed.items.map((item) => ({
+            articleCode: item.articleCode,
+            quantity: item.quantity,
+          })),
+        },
+        "info",
+      );
 
       // Validate customer name if present (async fuzzy matching)
       // Skip validation if user manually selected a customer from suggestions
       let customerConfidence = parsed.customerName ? 0.5 : undefined;
       if (parsed.customerName && !customerManuallySelected) {
-        debugLog("🔎 Validating Customer", {
-          inputName: parsed.customerName,
-          manuallySelected: customerManuallySelected,
-        }, "info");
+        debugLog(
+          "🔎 Validating Customer",
+          {
+            inputName: parsed.customerName,
+            manuallySelected: customerManuallySelected,
+          },
+          "info",
+        );
 
         const validation = await validateCustomerName(parsed.customerName);
         setCustomerValidation(validation);
         customerConfidence = validation.confidence;
 
-        debugLog("✅ Customer Validation Result", {
-          matchType: validation.matchType,
-          confidence: validation.confidence,
-          foundCustomer: validation.customer?.name,
-          suggestionsCount: validation.suggestions.length,
-        }, validation.confidence >= 0.7 ? "success" : "warning");
+        debugLog(
+          "✅ Customer Validation Result",
+          {
+            matchType: validation.matchType,
+            confidence: validation.confidence,
+            foundCustomer: validation.customer?.name,
+            suggestionsCount: validation.suggestions.length,
+          },
+          validation.confidence >= 0.7 ? "success" : "warning",
+        );
 
         // If exact/phonetic match found, use the correct name from database
         if (validation.customer && validation.confidence >= 0.7) {
           parsed.customerName = validation.customer.name;
           parsed.customerId = validation.customer.id;
 
-          debugLog("🎯 Customer Auto-Selected", {
-            originalName: parsed.customerName,
-            correctedName: validation.customer.name,
-            customerId: validation.customer.id,
-          }, "success");
+          debugLog(
+            "🎯 Customer Auto-Selected",
+            {
+              originalName: parsed.customerName,
+              correctedName: validation.customer.name,
+              customerId: validation.customer.id,
+            },
+            "success",
+          );
         }
       }
 
@@ -203,10 +226,14 @@ export default function OrderForm({ onOrderCreated }: OrderFormProps) {
         parsed.items[0].articleCode &&
         !articleManuallySelected
       ) {
-        debugLog("🔎 Validating Article", {
-          inputCode: parsed.items[0].articleCode,
-          manuallySelected: articleManuallySelected,
-        }, "info");
+        debugLog(
+          "🔎 Validating Article",
+          {
+            inputCode: parsed.items[0].articleCode,
+            manuallySelected: articleManuallySelected,
+          },
+          "info",
+        );
 
         const validation = await validateArticleCode(
           parsed.items[0].articleCode,
@@ -214,22 +241,30 @@ export default function OrderForm({ onOrderCreated }: OrderFormProps) {
         setArticleValidation(validation);
         articleConfidence = validation.confidence;
 
-        debugLog("✅ Article Validation Result", {
-          matchType: validation.matchType,
-          confidence: validation.confidence,
-          foundProduct: validation.product?.name,
-          suggestionsCount: validation.suggestions?.length || 0,
-        }, validation.confidence >= 0.7 ? "success" : "warning");
+        debugLog(
+          "✅ Article Validation Result",
+          {
+            matchType: validation.matchType,
+            confidence: validation.confidence,
+            foundProduct: validation.product?.name,
+            suggestionsCount: validation.suggestions?.length || 0,
+          },
+          validation.confidence >= 0.7 ? "success" : "warning",
+        );
 
         // If exact/normalized match found, use the correct code from database
         if (validation.product && validation.confidence >= 0.7) {
           parsed.items[0].articleCode = validation.product.name;
 
-          debugLog("🎯 Article Auto-Selected", {
-            originalCode: parsed.items[0].articleCode,
-            correctedCode: validation.product.name,
-            productId: validation.product.id,
-          }, "success");
+          debugLog(
+            "🎯 Article Auto-Selected",
+            {
+              originalCode: parsed.items[0].articleCode,
+              correctedCode: validation.product.name,
+              productId: validation.product.id,
+            },
+            "success",
+          );
         }
       }
 
@@ -260,44 +295,106 @@ export default function OrderForm({ onOrderCreated }: OrderFormProps) {
         parsed.items[0].articleCode &&
         articleConfidence >= 0.7;
 
-      debugLog("🤔 Auto-Apply Decision", {
-        hasHighConfidenceCustomer,
-        hasHighConfidenceArticle,
-        customerName: parsed.customerName,
-        customerConfidence,
-        articleCode: parsed.items[0]?.articleCode,
-        articleConfidence,
-        threshold: 0.7,
-      }, hasHighConfidenceCustomer || hasHighConfidenceArticle ? "success" : "warning");
+      debugLog(
+        "🤔 Auto-Apply Decision",
+        {
+          hasHighConfidenceCustomer,
+          hasHighConfidenceArticle,
+          customerName: parsed.customerName,
+          customerConfidence,
+          articleCode: parsed.items[0]?.articleCode,
+          articleConfidence,
+          threshold: 0.7,
+        },
+        hasHighConfidenceCustomer || hasHighConfidenceArticle
+          ? "success"
+          : "warning",
+      );
 
       if (hasHighConfidenceCustomer || hasHighConfidenceArticle) {
-        debugLog("⏰ Auto-Apply Scheduled", {
-          delay: "1.5s",
-          reason: hasHighConfidenceCustomer ? "High confidence customer" : "High confidence article",
-        }, "info");
+        debugLog(
+          "⏰ Auto-Apply Scheduled",
+          {
+            delay: "1.5s",
+            reason: hasHighConfidenceCustomer
+              ? "High confidence customer"
+              : "High confidence article",
+          },
+          "info",
+        );
 
         // Capture parsedWithConfidence in closure to avoid state race conditions
         const dataToApply = parsedWithConfidence;
         // Wait a moment to show the validation result, then auto-apply
         setTimeout(() => {
-          debugLog("⚡ Auto-Apply Triggered", {
-            customerName: dataToApply.customerName,
-            customerId: dataToApply.customerId,
-            itemsCount: dataToApply.items.length,
-          }, "success");
+          debugLog(
+            "⚡ Auto-Apply Triggered",
+            {
+              customerName: dataToApply.customerName,
+              customerId: dataToApply.customerId,
+              itemsCount: dataToApply.items.length,
+            },
+            "success",
+          );
 
           // Apply the captured data directly instead of reading from state
           applyVoiceData(dataToApply);
         }, 1500);
       } else {
-        debugLog("⏸️ Auto-Apply Skipped", {
-          reason: "Confidence below threshold (70%)",
-          customerConfidence,
-          articleConfidence,
-        }, "warning");
+        debugLog(
+          "⏸️ Auto-Apply Skipped",
+          {
+            reason: "Confidence below threshold (70%)",
+            customerConfidence,
+            articleConfidence,
+          },
+          "warning",
+        );
       }
     },
   });
+
+  // Voice command detection - watch for keywords to control modal
+  useEffect(() => {
+    if (!transcript || !showVoiceModal) return;
+
+    const command = detectVoiceCommand(transcript);
+
+    if (command === "close") {
+      debugLog(
+        "🔴 Voice Command: Close",
+        {
+          transcript,
+          action: "Closing modal",
+        },
+        "info",
+      );
+      handleVoiceCancel();
+    } else if (command === "retry") {
+      debugLog(
+        "🔄 Voice Command: Retry",
+        {
+          transcript,
+          action: "Clearing transcript",
+        },
+        "info",
+      );
+      handleVoiceClear();
+    } else if (command === "apply") {
+      // Only apply if we have something to apply
+      if (parsedOrder.customerName || parsedOrder.items.length > 0) {
+        debugLog(
+          "✅ Voice Command: Apply",
+          {
+            transcript,
+            action: "Applying voice data",
+          },
+          "info",
+        );
+        handleVoiceApply();
+      }
+    }
+  }, [transcript, showVoiceModal]);
 
   // Fetch customers on mount - run only once
   useEffect(() => {
@@ -676,13 +773,17 @@ export default function OrderForm({ onOrderCreated }: OrderFormProps) {
   const applyVoiceData = (data?: ParsedOrderWithConfidence) => {
     const dataToUse = data || parsedOrder;
 
-    debugLog("📋 Apply Voice Data", {
-      source: data ? "closure" : "state",
-      customerName: dataToUse.customerName,
-      customerId: dataToUse.customerId,
-      customerConfidence: dataToUse.customerNameConfidence,
-      itemsCount: dataToUse.items.length,
-    }, "info");
+    debugLog(
+      "📋 Apply Voice Data",
+      {
+        source: data ? "closure" : "state",
+        customerName: dataToUse.customerName,
+        customerId: dataToUse.customerId,
+        customerConfidence: dataToUse.customerNameConfidence,
+        itemsCount: dataToUse.items.length,
+      },
+      "info",
+    );
 
     // Pre-fill customer field
     if (
@@ -690,11 +791,15 @@ export default function OrderForm({ onOrderCreated }: OrderFormProps) {
       dataToUse.customerNameConfidence &&
       dataToUse.customerNameConfidence > 0.5
     ) {
-      debugLog("✅ Customer Applied to Form", {
-        name: dataToUse.customerName,
-        id: dataToUse.customerId,
-        confidence: dataToUse.customerNameConfidence,
-      }, "success");
+      debugLog(
+        "✅ Customer Applied to Form",
+        {
+          name: dataToUse.customerName,
+          id: dataToUse.customerId,
+          confidence: dataToUse.customerNameConfidence,
+        },
+        "success",
+      );
 
       setCustomerSearch(dataToUse.customerName);
       if (dataToUse.customerId) {
@@ -703,23 +808,33 @@ export default function OrderForm({ onOrderCreated }: OrderFormProps) {
       }
       setVoicePopulatedFields((prev) => ({ ...prev, customer: true }));
     } else {
-      debugLog("❌ Customer NOT Applied", {
-        reason: !dataToUse.customerName ? "No customer name" : "Confidence too low",
-        confidence: dataToUse.customerNameConfidence,
-        threshold: 0.5,
-      }, "error");
+      debugLog(
+        "❌ Customer NOT Applied",
+        {
+          reason: !dataToUse.customerName
+            ? "No customer name"
+            : "Confidence too low",
+          confidence: dataToUse.customerNameConfidence,
+          threshold: 0.5,
+        },
+        "error",
+      );
     }
 
     // Handle multiple items
     if (dataToUse.items.length > 1) {
-      debugLog("📦 Multiple Items Detected", {
-        count: dataToUse.items.length,
-        items: dataToUse.items.map(i => ({
-          code: i.articleCode,
-          qty: i.quantity,
-          confidence: i.articleCodeConfidence,
-        })),
-      }, "info");
+      debugLog(
+        "📦 Multiple Items Detected",
+        {
+          count: dataToUse.items.length,
+          items: dataToUse.items.map((i) => ({
+            code: i.articleCode,
+            qty: i.quantity,
+            confidence: i.articleCodeConfidence,
+          })),
+        },
+        "info",
+      );
 
       // Show multi-item summary modal
       setMultiItemSummary(dataToUse.items);
@@ -734,11 +849,15 @@ export default function OrderForm({ onOrderCreated }: OrderFormProps) {
         item.articleCodeConfidence &&
         item.articleCodeConfidence > 0.5
       ) {
-        debugLog("✅ Article Added to Draft", {
-          code: item.articleCode,
-          quantity: item.quantity || 1,
-          confidence: item.articleCodeConfidence,
-        }, "success");
+        debugLog(
+          "✅ Article Added to Draft",
+          {
+            code: item.articleCode,
+            quantity: item.quantity || 1,
+            confidence: item.articleCodeConfidence,
+          },
+          "success",
+        );
 
         const newDraftItem: OrderItem = {
           articleCode: item.articleCode,
@@ -750,25 +869,37 @@ export default function OrderForm({ onOrderCreated }: OrderFormProps) {
 
         setDraftItems((prev) => [...prev, newDraftItem]);
       } else {
-        debugLog("⚠️ Low Confidence Article", {
-          code: item.articleCode,
-          confidence: item.articleCodeConfidence,
-          action: "Populate form for manual review",
-        }, "warning");
+        debugLog(
+          "⚠️ Low Confidence Article",
+          {
+            code: item.articleCode,
+            confidence: item.articleCodeConfidence,
+            action: "Populate form for manual review",
+          },
+          "warning",
+        );
 
         // Low confidence - populate form for manual review
         populateFormWithItem(item);
       }
     } else {
-      debugLog("ℹ️ No Items in Voice Input", {
-        customerOnly: !!dataToUse.customerName,
-      }, "info");
+      debugLog(
+        "ℹ️ No Items in Voice Input",
+        {
+          customerOnly: !!dataToUse.customerName,
+        },
+        "info",
+      );
     }
 
     // Always clear state for next input (keep modal open for continuous dictation)
-    debugLog("🧹 Modal State Reset", {
-      action: "Clear transcript and validations for next input",
-    }, "info");
+    debugLog(
+      "🧹 Modal State Reset",
+      {
+        action: "Clear transcript and validations for next input",
+      },
+      "info",
+    );
 
     resetTranscript();
     setParsedOrder({ items: [] });
