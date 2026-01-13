@@ -220,6 +220,61 @@ app.get("/api/customers", (req: Request, res: Response<ApiResponse>) => {
   }
 });
 
+// Fuzzy search customers endpoint (for voice input suggestions)
+app.get(
+  "/api/customers/search",
+  (req: Request, res: Response<ApiResponse>) => {
+    try {
+      const query = req.query.q as string | undefined;
+      const limit = parseInt(req.query.limit as string) || 5;
+
+      if (!query || query.trim().length === 0) {
+        return res.status(400).json({
+          success: false,
+          error: "Query parameter 'q' is required",
+        });
+      }
+
+      logger.info("Richiesta fuzzy search clienti", { query, limit });
+
+      const results = customerDb.searchCustomersByName(query, limit);
+
+      res.json({
+        success: true,
+        data: results.map((r) => ({
+          id: r.customer.id,
+          name: r.customer.name,
+          vatNumber: r.customer.vatNumber,
+          email: r.customer.email,
+          confidence: Math.round(r.confidence * 100), // Convert to percentage
+          matchReason:
+            r.confidence >= 0.95
+              ? "exact"
+              : r.confidence >= 0.7
+                ? "phonetic"
+                : "fuzzy",
+        })),
+        message: `${results.length} clienti simili trovati per "${query}"`,
+        metadata: {
+          query,
+          resultCount: results.length,
+          threshold: 30, // 30% minimum similarity
+        },
+      });
+    } catch (error) {
+      logger.error("Errore API /api/customers/search", { error });
+
+      res.status(500).json({
+        success: false,
+        error:
+          error instanceof Error
+            ? error.message
+            : "Errore durante la ricerca fuzzy",
+      });
+    }
+  },
+);
+
 // Get sync status endpoint
 app.get(
   "/api/customers/sync-status",
