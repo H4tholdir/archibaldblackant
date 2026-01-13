@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from "react";
 
 interface VoiceInputOptions {
   lang?: string;
@@ -18,9 +18,11 @@ interface VoiceInputReturn {
   error: string | null;
 }
 
-export function useVoiceInput(options: VoiceInputOptions = {}): VoiceInputReturn {
+export function useVoiceInput(
+  options: VoiceInputOptions = {},
+): VoiceInputReturn {
   const {
-    lang = 'it-IT',
+    lang = "it-IT",
     continuous = true,
     interimResults = true,
     onResult,
@@ -28,22 +30,38 @@ export function useVoiceInput(options: VoiceInputOptions = {}): VoiceInputReturn
   } = options;
 
   const [isListening, setIsListening] = useState(false);
-  const [transcript, setTranscript] = useState('');
+  const [transcript, setTranscript] = useState("");
   const [error, setError] = useState<string | null>(null);
-  const [recognition, setRecognition] = useState<SpeechRecognition | null>(null);
+  const [recognition, setRecognition] = useState<SpeechRecognition | null>(
+    null,
+  );
+
+  // Use refs to store latest callbacks without triggering effect re-runs
+  const onResultRef = useRef(onResult);
+  const onErrorRef = useRef(onError);
+
+  // Update refs when callbacks change (doesn't recreate recognition)
+  useEffect(() => {
+    onResultRef.current = onResult;
+    onErrorRef.current = onError;
+  }, [onResult, onError]);
 
   // Check browser support
-  const isSupported = typeof window !== 'undefined' &&
-    ('SpeechRecognition' in window || 'webkitSpeechRecognition' in window);
+  const isSupported =
+    typeof window !== "undefined" &&
+    ("SpeechRecognition" in window || "webkitSpeechRecognition" in window);
 
   useEffect(() => {
     if (!isSupported) {
-      setError('Il tuo browser non supporta il riconoscimento vocale. Usa Chrome, Safari iOS 14.5+ o Edge.');
+      setError(
+        "Il tuo browser non supporta il riconoscimento vocale. Usa Chrome, Safari iOS 14.5+ o Edge.",
+      );
       return;
     }
 
     // @ts-ignore - webkit prefix
-    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    const SpeechRecognition =
+      window.SpeechRecognition || window.webkitSpeechRecognition;
     const recognitionInstance = new SpeechRecognition();
 
     recognitionInstance.lang = lang;
@@ -56,13 +74,13 @@ export function useVoiceInput(options: VoiceInputOptions = {}): VoiceInputReturn
     };
 
     recognitionInstance.onresult = (event: SpeechRecognitionEvent) => {
-      let finalTranscript = '';
-      let interimTranscript = '';
+      let finalTranscript = "";
+      let interimTranscript = "";
 
       for (let i = event.resultIndex; i < event.results.length; i++) {
         const transcriptPart = event.results[i][0].transcript;
         if (event.results[i].isFinal) {
-          finalTranscript += transcriptPart + ' ';
+          finalTranscript += transcriptPart + " ";
         } else {
           interimTranscript += transcriptPart;
         }
@@ -71,37 +89,39 @@ export function useVoiceInput(options: VoiceInputOptions = {}): VoiceInputReturn
       const currentTranscript = (finalTranscript || interimTranscript).trim();
       setTranscript(currentTranscript);
 
-      if (finalTranscript && onResult) {
-        onResult(finalTranscript.trim());
+      if (finalTranscript && onResultRef.current) {
+        onResultRef.current(finalTranscript.trim());
       }
     };
 
     recognitionInstance.onerror = (event: SpeechRecognitionErrorEvent) => {
-      let errorMessage = 'Errore nel riconoscimento vocale';
+      let errorMessage = "Errore nel riconoscimento vocale";
 
       switch (event.error) {
-        case 'no-speech':
-          errorMessage = 'Nessun audio rilevato. Riprova parlando più chiaramente.';
+        case "no-speech":
+          errorMessage =
+            "Nessun audio rilevato. Riprova parlando più chiaramente.";
           break;
-        case 'audio-capture':
-          errorMessage = 'Microfono non disponibile. Controlla i permessi.';
+        case "audio-capture":
+          errorMessage = "Microfono non disponibile. Controlla i permessi.";
           break;
-        case 'not-allowed':
-          errorMessage = 'Permesso microfono negato. Abilita nelle impostazioni del browser.';
+        case "not-allowed":
+          errorMessage =
+            "Permesso microfono negato. Abilita nelle impostazioni del browser.";
           break;
-        case 'network':
-          errorMessage = 'Errore di rete. Controlla la connessione internet.';
+        case "network":
+          errorMessage = "Errore di rete. Controlla la connessione internet.";
           break;
-        case 'aborted':
-          errorMessage = 'Riconoscimento vocale interrotto.';
+        case "aborted":
+          errorMessage = "Riconoscimento vocale interrotto.";
           break;
       }
 
       setError(errorMessage);
       setIsListening(false);
 
-      if (onError) {
-        onError(errorMessage);
+      if (onErrorRef.current) {
+        onErrorRef.current(errorMessage);
       }
     };
 
@@ -116,24 +136,24 @@ export function useVoiceInput(options: VoiceInputOptions = {}): VoiceInputReturn
         recognitionInstance.stop();
       }
     };
-  }, [lang, continuous, interimResults, isSupported, onResult, onError]);
+  }, [lang, continuous, interimResults, isSupported]);
 
   const startListening = useCallback(() => {
     if (!recognition) {
-      setError('Riconoscimento vocale non disponibile');
+      setError("Riconoscimento vocale non disponibile");
       return;
     }
 
     try {
       setError(null);
-      setTranscript('');
+      setTranscript("");
       recognition.start();
     } catch (err) {
-      if (err instanceof Error && err.message.includes('already started')) {
+      if (err instanceof Error && err.message.includes("already started")) {
         recognition.stop();
         setTimeout(() => recognition.start(), 100);
       } else {
-        setError('Impossibile avviare il riconoscimento vocale');
+        setError("Impossibile avviare il riconoscimento vocale");
       }
     }
   }, [recognition]);
@@ -145,7 +165,7 @@ export function useVoiceInput(options: VoiceInputOptions = {}): VoiceInputReturn
   }, [recognition]);
 
   const resetTranscript = useCallback(() => {
-    setTranscript('');
+    setTranscript("");
     setError(null);
   }, []);
 
