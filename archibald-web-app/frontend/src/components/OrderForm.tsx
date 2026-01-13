@@ -192,6 +192,18 @@ export default function OrderForm({ onOrderCreated }: OrderFormProps) {
 
       // Update suggestions based on what's missing
       setVoiceSuggestions(getVoiceSuggestions(finalTranscript));
+
+      // Auto-apply if high confidence (≥90%) and has article
+      if (
+        parsed.items.length > 0 &&
+        parsed.items[0].articleCode &&
+        articleConfidence >= 0.9
+      ) {
+        // Wait a moment to show the validation result, then auto-apply
+        setTimeout(() => {
+          handleVoiceApply();
+        }, 1500);
+      }
     },
   });
 
