@@ -231,15 +231,17 @@ export class ArchibaldBot {
    * const percentiles = this.calculatePercentiles(durations);
    * // percentiles = { p50: 300, p95: 500, p99: 500 }
    */
-  private calculatePercentiles(
-    values: number[]
-  ): { p50: number; p95: number; p99: number } {
+  private calculatePercentiles(values: number[]): {
+    p50: number;
+    p95: number;
+    p99: number;
+  } {
     if (values.length === 0) {
       return { p50: 0, p95: 0, p99: 0 };
     }
 
     const sorted = [...values].sort((a, b) => a - b);
-    const p50Index = Math.floor(sorted.length * 0.50);
+    const p50Index = Math.floor(sorted.length * 0.5);
     const p95Index = Math.floor(sorted.length * 0.95);
     const p99Index = Math.floor(sorted.length * 0.99);
 
@@ -291,24 +293,37 @@ export class ArchibaldBot {
     const successCount = this.opRecords.filter((r) => r.status === "ok").length;
 
     // Memory stats
-    const peakMemoryBytes = Math.max(...this.opRecords.map((r) => r.memoryAfter));
-    const avgMemoryBytes = this.opRecords.reduce((sum, r) => sum + r.memoryBefore, 0) / this.opRecords.length;
+    const peakMemoryBytes = Math.max(
+      ...this.opRecords.map((r) => r.memoryAfter),
+    );
+    const avgMemoryBytes =
+      this.opRecords.reduce((sum, r) => sum + r.memoryBefore, 0) /
+      this.opRecords.length;
 
     // Category breakdown
-    const categoryMap: Record<string, {
-      count: number;
-      durations: number[];
-      memories: number[];
-    }> = {};
+    const categoryMap: Record<
+      string,
+      {
+        count: number;
+        durations: number[];
+        memories: number[];
+      }
+    > = {};
 
     for (const record of this.opRecords) {
       if (record.status === "ok") {
         if (!categoryMap[record.category]) {
-          categoryMap[record.category] = { count: 0, durations: [], memories: [] };
+          categoryMap[record.category] = {
+            count: 0,
+            durations: [],
+            memories: [],
+          };
         }
         categoryMap[record.category].count++;
         categoryMap[record.category].durations.push(record.durationMs);
-        categoryMap[record.category].memories.push(record.memoryAfter - record.memoryBefore);
+        categoryMap[record.category].memories.push(
+          record.memoryAfter - record.memoryBefore,
+        );
       }
     }
 
@@ -330,29 +345,42 @@ export class ArchibaldBot {
     lines.push(`- **Failed**: ${errors.length}`);
     lines.push(`- **Total duration**: ${(totalDurationMs / 1000).toFixed(2)}s`);
     lines.push(`- **Total gaps**: ${(totalGapMs / 1000).toFixed(2)}s`);
-    lines.push(`- **Average operation**: ${(totalDurationMs / this.opRecords.length).toFixed(0)}ms`);
-    lines.push(`- **Peak memory**: ${(peakMemoryBytes / 1024 / 1024).toFixed(2)} MB`);
-    lines.push(`- **Average memory**: ${(avgMemoryBytes / 1024 / 1024).toFixed(2)} MB`);
+    lines.push(
+      `- **Average operation**: ${(totalDurationMs / this.opRecords.length).toFixed(0)}ms`,
+    );
+    lines.push(
+      `- **Peak memory**: ${(peakMemoryBytes / 1024 / 1024).toFixed(2)} MB`,
+    );
+    lines.push(
+      `- **Average memory**: ${(avgMemoryBytes / 1024 / 1024).toFixed(2)} MB`,
+    );
     lines.push("");
 
     // Category breakdown
     lines.push("## 📂 Performance by Category");
     lines.push("");
-    lines.push("| Category | Count | Total (s) | Avg (ms) | p50 (ms) | p95 (ms) | p99 (ms) | Avg Memory (KB) |");
-    lines.push("| -------- | ----- | --------- | -------- | -------- | -------- | -------- | --------------- |");
+    lines.push(
+      "| Category | Count | Total (s) | Avg (ms) | p50 (ms) | p95 (ms) | p99 (ms) | Avg Memory (KB) |",
+    );
+    lines.push(
+      "| -------- | ----- | --------- | -------- | -------- | -------- | -------- | --------------- |",
+    );
 
     const sortedCategories = Object.entries(categoryMap).sort(
-      ([, a], [, b]) => b.durations.reduce((s, d) => s + d, 0) - a.durations.reduce((s, d) => s + d, 0)
+      ([, a], [, b]) =>
+        b.durations.reduce((s, d) => s + d, 0) -
+        a.durations.reduce((s, d) => s + d, 0),
     );
 
     for (const [category, data] of sortedCategories) {
       const totalMs = data.durations.reduce((sum, d) => sum + d, 0);
       const avgMs = totalMs / data.count;
       const percentiles = this.calculatePercentiles(data.durations);
-      const avgMemoryKB = data.memories.reduce((sum, m) => sum + m, 0) / data.count / 1024;
+      const avgMemoryKB =
+        data.memories.reduce((sum, m) => sum + m, 0) / data.count / 1024;
 
       lines.push(
-        `| ${category} | ${data.count} | ${(totalMs / 1000).toFixed(2)} | ${avgMs.toFixed(0)} | ${percentiles.p50.toFixed(0)} | ${percentiles.p95.toFixed(0)} | ${percentiles.p99.toFixed(0)} | ${avgMemoryKB.toFixed(1)} |`
+        `| ${category} | ${data.count} | ${(totalMs / 1000).toFixed(2)} | ${avgMs.toFixed(0)} | ${percentiles.p50.toFixed(0)} | ${percentiles.p95.toFixed(0)} | ${percentiles.p99.toFixed(0)} | ${avgMemoryKB.toFixed(1)} |`,
       );
     }
     lines.push("");
@@ -369,7 +397,7 @@ export class ArchibaldBot {
       for (const op of retriedOperations) {
         const statusEmoji = op.status === "ok" ? "✅" : "❌";
         lines.push(
-          `| ${op.id} | ${op.name} | ${op.category} | ${op.retryAttempt} | ${statusEmoji} ${op.status} |`
+          `| ${op.id} | ${op.name} | ${op.category} | ${op.retryAttempt} | ${statusEmoji} ${op.status} |`,
         );
       }
       lines.push("");
@@ -387,7 +415,7 @@ export class ArchibaldBot {
       for (let i = 0; i < slowest.length; i++) {
         const op = slowest[i];
         lines.push(
-          `${i + 1}. **${op.name}** (${op.category}): ${(op.durationMs / 1000).toFixed(2)}s`
+          `${i + 1}. **${op.name}** (${op.category}): ${(op.durationMs / 1000).toFixed(2)}s`,
         );
       }
       lines.push("");
@@ -407,7 +435,7 @@ export class ArchibaldBot {
         const op = longestGaps[i];
         if (op.gapMs > 100) {
           lines.push(
-            `${i + 1}. Before **${op.name}** (${op.category}): ${(op.gapMs / 1000).toFixed(2)}s`
+            `${i + 1}. Before **${op.name}** (${op.category}): ${(op.gapMs / 1000).toFixed(2)}s`,
           );
         }
       }
@@ -422,7 +450,7 @@ export class ArchibaldBot {
         lines.push(`- **[${record.id}] ${record.name}** (${record.category})`);
         lines.push(`  - Error: \`${record.errorMessage ?? "unknown"}\``);
         lines.push(
-          `  - Duration before fail: ${(record.durationMs / 1000).toFixed(2)}s`
+          `  - Duration before fail: ${(record.durationMs / 1000).toFixed(2)}s`,
         );
       }
       lines.push("");
@@ -443,7 +471,10 @@ export class ArchibaldBot {
         ? JSON.stringify(record.meta).replace(/\|/g, "\\|")
         : "";
       const statusEmoji = record.status === "ok" ? "✅" : "❌";
-      const memoryDeltaKB = ((record.memoryAfter - record.memoryBefore) / 1024).toFixed(1);
+      const memoryDeltaKB = (
+        (record.memoryAfter - record.memoryBefore) /
+        1024
+      ).toFixed(1);
       lines.push(
         `| ${record.id} | ${record.name} | ${record.category} | ${statusEmoji} ${record.status} | ${record.durationMs.toFixed(
           1,
@@ -488,15 +519,18 @@ export class ArchibaldBot {
       averageOperationMs: number;
       peakMemoryBytes: number;
     };
-    categories: Record<string, {
-      count: number;
-      totalDurationMs: number;
-      avgDurationMs: number;
-      p50Ms: number;
-      p95Ms: number;
-      p99Ms: number;
-      avgMemoryBytes: number;
-    }>;
+    categories: Record<
+      string,
+      {
+        count: number;
+        totalDurationMs: number;
+        avgDurationMs: number;
+        p50Ms: number;
+        p95Ms: number;
+        p99Ms: number;
+        avgMemoryBytes: number;
+      }
+    >;
     retries: Array<{
       operationId: number;
       name: string;
@@ -518,13 +552,18 @@ export class ArchibaldBot {
 
     const successful = this.opRecords.filter((r) => r.status === "ok").length;
     const failed = this.opRecords.filter((r) => r.status === "error").length;
-    const peakMemoryBytes = Math.max(...this.opRecords.map((r) => r.memoryAfter));
+    const peakMemoryBytes = Math.max(
+      ...this.opRecords.map((r) => r.memoryAfter),
+    );
 
     // Category breakdown
-    const categoryMap: Record<string, {
-      durations: number[];
-      memories: number[];
-    }> = {};
+    const categoryMap: Record<
+      string,
+      {
+        durations: number[];
+        memories: number[];
+      }
+    > = {};
 
     for (const record of this.opRecords) {
       if (record.status === "ok") {
@@ -532,24 +571,30 @@ export class ArchibaldBot {
           categoryMap[record.category] = { durations: [], memories: [] };
         }
         categoryMap[record.category].durations.push(record.durationMs);
-        categoryMap[record.category].memories.push(record.memoryAfter - record.memoryBefore);
+        categoryMap[record.category].memories.push(
+          record.memoryAfter - record.memoryBefore,
+        );
       }
     }
 
-    const categories: Record<string, {
-      count: number;
-      totalDurationMs: number;
-      avgDurationMs: number;
-      p50Ms: number;
-      p95Ms: number;
-      p99Ms: number;
-      avgMemoryBytes: number;
-    }> = {};
+    const categories: Record<
+      string,
+      {
+        count: number;
+        totalDurationMs: number;
+        avgDurationMs: number;
+        p50Ms: number;
+        p95Ms: number;
+        p99Ms: number;
+        avgMemoryBytes: number;
+      }
+    > = {};
 
     for (const [category, data] of Object.entries(categoryMap)) {
       const totalMs = data.durations.reduce((sum, d) => sum + d, 0);
       const percentiles = this.calculatePercentiles(data.durations);
-      const avgMemory = data.memories.reduce((sum, m) => sum + m, 0) / data.memories.length;
+      const avgMemory =
+        data.memories.reduce((sum, m) => sum + m, 0) / data.memories.length;
 
       categories[category] = {
         count: data.durations.length,
@@ -668,7 +713,8 @@ export class ArchibaldBot {
       const normalizedLabel = label.toUpperCase().replace(/:/g, "").trim();
 
       const labelEl = allElements.find((el) => {
-        const text = el.textContent?.toUpperCase().replace(/:/g, "").trim() || "";
+        const text =
+          el.textContent?.toUpperCase().replace(/:/g, "").trim() || "";
         return text === normalizedLabel || text.includes(normalizedLabel);
       });
 
@@ -777,15 +823,12 @@ export class ArchibaldBot {
     await this.wait(100);
 
     // Set the value directly (faster than clipboard for DevExpress)
-    await inputHandle.evaluate(
-      (el, value) => {
-        (el as HTMLInputElement).value = value;
-        // Trigger input event to notify DevExpress
-        el.dispatchEvent(new Event("input", { bubbles: true }));
-        el.dispatchEvent(new Event("change", { bubbles: true }));
-      },
-      text,
-    );
+    await inputHandle.evaluate((el, value) => {
+      (el as HTMLInputElement).value = value;
+      // Trigger input event to notify DevExpress
+      el.dispatchEvent(new Event("input", { bubbles: true }));
+      el.dispatchEvent(new Event("change", { bubbles: true }));
+    }, text);
 
     await this.wait(100);
 
@@ -840,7 +883,9 @@ export class ArchibaldBot {
       throw new Error("Search input not found in dropdown panel");
     }
 
-    logger.debug(`Search input found, ${usePaste ? "pasting" : "typing"} text...`);
+    logger.debug(
+      `Search input found, ${usePaste ? "pasting" : "typing"} text...`,
+    );
 
     if (usePaste) {
       // Use faster paste method
@@ -933,14 +978,22 @@ export class ArchibaldBot {
   ): Promise<void> {
     // Find the input field by pattern matching on column label
     const inputInfo = await this.page!.evaluate((label) => {
-      const inputs = Array.from(document.querySelectorAll('input[type="text"]'));
+      const inputs = Array.from(
+        document.querySelectorAll('input[type="text"]'),
+      );
 
       // Map label to ID pattern
-      let idPattern = '';
-      if (label.toLowerCase().includes('qtà') || label.toLowerCase().includes('quantit')) {
-        idPattern = 'qtyordered';
-      } else if (label.toLowerCase().includes('sconto') || label.toLowerCase().includes('discount')) {
-        idPattern = 'discount';
+      let idPattern = "";
+      if (
+        label.toLowerCase().includes("qtà") ||
+        label.toLowerCase().includes("quantit")
+      ) {
+        idPattern = "qtyordered";
+      } else if (
+        label.toLowerCase().includes("sconto") ||
+        label.toLowerCase().includes("discount")
+      ) {
+        idPattern = "discount";
       }
 
       // Find input with matching ID pattern
@@ -948,7 +1001,7 @@ export class ArchibaldBot {
         const id = (inp as HTMLInputElement).id.toLowerCase();
         return (
           id.includes(idPattern) &&
-          id.includes('salesline') &&
+          id.includes("salesline") &&
           (inp as HTMLElement).offsetParent !== null
         );
       });
@@ -969,7 +1022,7 @@ export class ArchibaldBot {
     logger.debug(`Current value: "${inputInfo.value}"`);
 
     // Extract base ID (remove _I suffix) for cell selector
-    const baseId = inputInfo.id.endsWith('_I')
+    const baseId = inputInfo.id.endsWith("_I")
       ? inputInfo.id.slice(0, -2)
       : inputInfo.id;
 
@@ -977,7 +1030,7 @@ export class ArchibaldBot {
     // Use decimals only when necessary (4 → "4", 4.5 → "4,5")
     const formatValue = (val: number): string => {
       const fixed = Number.isInteger(val) ? val.toString() : val.toFixed(2);
-      return fixed.replace('.', ',');
+      return fixed.replace(".", ",");
     };
 
     const formattedValue = formatValue(Number(value));
@@ -987,7 +1040,9 @@ export class ArchibaldBot {
 
     // OPT-03 FINAL: Classic reliable approach - atomic double-click + keyboard simulation
     // This is the proven method that works 100% of the time with DevExpress
-    logger.debug(`Field editing for "${cellLabelText}" with value: "${formattedValue}"`);
+    logger.debug(
+      `Field editing for "${cellLabelText}" with value: "${formattedValue}"`,
+    );
 
     // Step 1: Atomic double-click to enter edit mode (prevents detachment issues)
     const dblClickSuccess = await this.page!.evaluate((inputId) => {
@@ -997,11 +1052,11 @@ export class ArchibaldBot {
       try {
         input.focus();
 
-        const dblClickEvent = new MouseEvent('dblclick', {
+        const dblClickEvent = new MouseEvent("dblclick", {
           view: window,
           bubbles: true,
           cancelable: true,
-          detail: 2
+          detail: 2,
         });
         input.dispatchEvent(dblClickEvent);
 
@@ -1047,7 +1102,7 @@ export class ArchibaldBot {
     await this.wait(100);
 
     // Step 3: Clear selected content and type new value
-    await this.page!.keyboard.press('Backspace'); // Delete selected text
+    await this.page!.keyboard.press("Backspace"); // Delete selected text
     await this.wait(50);
     await this.page!.keyboard.type(formattedValue, { delay: 30 });
     logger.debug(`✅ Typed value: "${formattedValue}"`);
@@ -1057,7 +1112,9 @@ export class ArchibaldBot {
     // This prevents DevExpress validation conflicts
     await this.wait(300); // Brief wait for typing to complete
 
-    logger.debug(`✅ Field editing completed - value left in editor for Update button`);
+    logger.debug(
+      `✅ Field editing completed - value left in editor for Update button`,
+    );
   }
 
   /**
@@ -1132,26 +1189,34 @@ export class ArchibaldBot {
   async initialize(): Promise<void> {
     logger.info("Inizializzazione browser Puppeteer...");
 
-    this.browser = await this.runOp("browser.launch", async () => {
-      return puppeteer.launch({
-        headless: config.puppeteer.headless,
-        slowMo: config.puppeteer.slowMo,
-        args: [
-          "--no-sandbox",
-          "--disable-setuid-sandbox",
-          "--disable-web-security",
-          "--ignore-certificate-errors",
-        ],
-        defaultViewport: {
-          width: 1280,
-          height: 800,
-        },
-      });
-    }, "login");
+    this.browser = await this.runOp(
+      "browser.launch",
+      async () => {
+        return puppeteer.launch({
+          headless: config.puppeteer.headless,
+          slowMo: config.puppeteer.slowMo,
+          args: [
+            "--no-sandbox",
+            "--disable-setuid-sandbox",
+            "--disable-web-security",
+            "--ignore-certificate-errors",
+          ],
+          defaultViewport: {
+            width: 1280,
+            height: 800,
+          },
+        });
+      },
+      "login",
+    );
 
-    this.page = await this.runOp("browser.newPage", async () => {
-      return this.browser!.newPage();
-    }, "login");
+    this.page = await this.runOp(
+      "browser.newPage",
+      async () => {
+        return this.browser!.newPage();
+      },
+      "login",
+    );
 
     // Abilita console logging dal browser per debug
     this.page.on("console", (msg) => {
@@ -1162,9 +1227,13 @@ export class ArchibaldBot {
     });
 
     // Ignora errori certificato SSL
-    await this.runOp("page.setRequestInterception", async () => {
-      await this.page!.setRequestInterception(false);
-    }, "login");
+    await this.runOp(
+      "page.setRequestInterception",
+      async () => {
+        await this.page!.setRequestInterception(false);
+      },
+      "login",
+    );
 
     logger.info("Browser inizializzato con successo");
   }
@@ -1190,12 +1259,17 @@ export class ArchibaldBot {
           return;
         }
 
-        logger.info("Session expired, clearing cache and performing fresh login");
+        logger.info(
+          "Session expired, clearing cache and performing fresh login",
+        );
         this.sessionCache.clearSession();
       } catch (error) {
-        logger.warn("Failed to restore session from cache, performing fresh login", {
-          error,
-        });
+        logger.warn(
+          "Failed to restore session from cache, performing fresh login",
+          {
+            error,
+          },
+        );
         this.sessionCache.clearSession();
       }
     }
@@ -1236,9 +1310,13 @@ export class ArchibaldBot {
       }
 
       // Aspetta che la pagina sia completamente caricata
-      await this.runOp("login.wait_page", async () => {
-        await new Promise((resolve) => setTimeout(resolve, 2000));
-      }, "login");
+      await this.runOp(
+        "login.wait_page",
+        async () => {
+          await new Promise((resolve) => setTimeout(resolve, 2000));
+        },
+        "login",
+      );
 
       logger.debug("Pagina login caricata, cerco campi username/password...");
 
@@ -1374,20 +1452,28 @@ export class ArchibaldBot {
 
       if (!loginButtonClicked) {
         // Fallback: premi Enter sul campo password
-        await this.runOp("login.submitFallback", async () => {
-          await this.page!.keyboard.press("Enter");
-        }, "login");
+        await this.runOp(
+          "login.submitFallback",
+          async () => {
+            await this.page!.keyboard.press("Enter");
+          },
+          "login",
+        );
       }
 
       logger.debug("Pulsante login cliccato, attendo redirect...");
 
       // Attendi redirect dopo login
-      await this.runOp("login.waitRedirect", async () => {
-        await this.page!.waitForNavigation({
-          waitUntil: "networkidle2",
-          timeout: config.puppeteer.timeout,
-        });
-      }, "login");
+      await this.runOp(
+        "login.waitRedirect",
+        async () => {
+          await this.page!.waitForNavigation({
+            waitUntil: "networkidle2",
+            timeout: config.puppeteer.timeout,
+          });
+        },
+        "login",
+      );
 
       const currentUrl = this.page.url();
 
@@ -1451,641 +1537,145 @@ export class ArchibaldBot {
 
     try {
       // STEP 1: Click "Ordini" in left menu
-      await this.runOp("order.menu.ordini", async () => {
-        logger.debug('Clicking "Ordini" menu item...');
+      await this.runOp(
+        "order.menu.ordini",
+        async () => {
+          logger.debug('Clicking "Ordini" menu item...');
 
-        const clicked = await this.clickElementByText("Ordini", {
-          exact: true,
-          selectors: ["a", "span", "div", "td"],
-        });
+          const clicked = await this.clickElementByText("Ordini", {
+            exact: true,
+            selectors: ["a", "span", "div", "td"],
+          });
 
-        if (!clicked) {
-          throw new Error('Menu "Ordini" not found');
-        }
+          if (!clicked) {
+            throw new Error('Menu "Ordini" not found');
+          }
 
-        // Wait for orders list page
-        await this.page!.waitForFunction(
-          () => {
-            const elements = Array.from(
-              document.querySelectorAll("span, button, a"),
-            );
-            return elements.some(
-              (el) => el.textContent?.trim().toLowerCase() === "nuovo",
-            );
-          },
-          { timeout: 5000 },
-        );
+          // Wait for orders list page
+          await this.page!.waitForFunction(
+            () => {
+              const elements = Array.from(
+                document.querySelectorAll("span, button, a"),
+              );
+              return elements.some(
+                (el) => el.textContent?.trim().toLowerCase() === "nuovo",
+              );
+            },
+            { timeout: 5000 },
+          );
 
-        logger.info("✅ Navigated to orders list");
-      }, "navigation.ordini");
+          logger.info("✅ Navigated to orders list");
+        },
+        "navigation.ordini",
+      );
 
       // STEP 2: Click "Nuovo" button
-      await this.runOp("order.click_nuovo", async () => {
-        logger.debug('Clicking "Nuovo" button...');
+      await this.runOp(
+        "order.click_nuovo",
+        async () => {
+          logger.debug('Clicking "Nuovo" button...');
 
-        const clicked = await this.clickElementByText("Nuovo", {
-          exact: true,
-          selectors: ["button", "a", "span"],
-        });
+          const clicked = await this.clickElementByText("Nuovo", {
+            exact: true,
+            selectors: ["button", "a", "span"],
+          });
 
-        if (!clicked) {
-          throw new Error('Button "Nuovo" not found');
-        }
+          if (!clicked) {
+            throw new Error('Button "Nuovo" not found');
+          }
 
-        await this.waitForDevExpressReady({ timeout: 5000 });
-        logger.info("✅ Order form loaded");
-      }, "navigation.form");
+          await this.waitForDevExpressReady({ timeout: 5000 });
+          logger.info("✅ Order form loaded");
+        },
+        "navigation.form",
+      );
 
       // STEP 3: Select customer via "Profilo cliente" dropdown
-      await this.runOp("order.customer.select", async () => {
-        logger.debug('Opening "Profilo cliente" dropdown...');
+      await this.runOp(
+        "order.customer.select",
+        async () => {
+          logger.debug('Opening "Profilo cliente" dropdown...');
 
-        // OPT-12: Immediate check (eliminate wait for already-present elements)
-        // Try immediate synchronous check first, then mutation polling if not found
-        logger.debug("Finding customer field...");
+          // OPT-12: Immediate check (eliminate wait for already-present elements)
+          // Try immediate synchronous check first, then mutation polling if not found
+          logger.debug("Finding customer field...");
 
-        // First: Immediate synchronous check (no wait if element already exists)
-        let customerInputId = await this.page!.evaluate(() => {
-          const inputs = Array.from(document.querySelectorAll('input[type="text"]'));
-          const customerInput = inputs.find((input) => {
-            const id = (input as HTMLInputElement).id.toLowerCase();
-            const el = input as HTMLInputElement;
-            return (
-              (id.includes("custtable") ||
-               id.includes("custaccount") ||
-               id.includes("custome") ||
-               id.includes("cliente") ||
-               id.includes("account") ||
-               id.includes("profilo")) &&
-              !el.disabled &&
-              el.getBoundingClientRect().height > 0
+          // First: Immediate synchronous check (no wait if element already exists)
+          let customerInputId = await this.page!.evaluate(() => {
+            const inputs = Array.from(
+              document.querySelectorAll('input[type="text"]'),
             );
-          });
-          return customerInput ? (customerInput as HTMLInputElement).id : null;
-        });
-
-        // If not found immediately, use mutation polling to wait for it
-        if (!customerInputId) {
-          logger.debug("Field not ready, using mutation polling...");
-          customerInputId = await this.page!.waitForFunction(
-            () => {
-              const inputs = Array.from(document.querySelectorAll('input[type="text"]'));
-              const customerInput = inputs.find((input) => {
-                const id = (input as HTMLInputElement).id.toLowerCase();
-                const el = input as HTMLInputElement;
-                return (
-                  (id.includes("custtable") ||
-                   id.includes("custaccount") ||
-                   id.includes("custome") ||
-                   id.includes("cliente") ||
-                   id.includes("account") ||
-                   id.includes("profilo")) &&
-                  !el.disabled &&
-                  el.getBoundingClientRect().height > 0
-                );
-              });
-              return customerInput ? (customerInput as HTMLInputElement).id : null;
-            },
-            { timeout: 3000, polling: 'mutation' }
-          ).then(result => result.jsonValue()) as string;
-        } else {
-          logger.debug("✓ Field found immediately (no wait needed)");
-        }
-
-        if (!customerInputId) {
-          throw new Error('Customer input field not found');
-        }
-
-        logger.debug(`✓ Customer field: ${customerInputId}`);
-
-        // Extract base ID (remove _I suffix if present)
-        const customerBaseId = customerInputId.endsWith("_I")
-          ? customerInputId.slice(0, -2)
-          : customerInputId;
-
-        logger.debug(`Customer base ID: ${customerBaseId}`);
-
-        // Try multiple dropdown button selectors based on base ID
-        const dropdownSelectors = [
-          `#${customerBaseId}_B-1`,
-          `#${customerBaseId}_B-1Img`,
-          `#${customerBaseId}_B`,
-          `#${customerBaseId}_DDD`,
-          `#${customerBaseId}_DropDown`,
-        ];
-
-        let dropdownOpened = false;
-        for (const selector of dropdownSelectors) {
-          const handle = await this.page!.$(selector);
-          if (!handle) continue;
-          const box = await handle.boundingBox();
-          if (!box) continue;
-          await handle.click();
-          dropdownOpened = true;
-          logger.debug(`✓ Dropdown clicked: ${selector}`);
-          break;
-        }
-
-        if (!dropdownOpened) {
-          throw new Error(
-            `Dropdown button not found for customer field ${customerBaseId}`,
-          );
-        }
-
-        // OPT-05: Event-driven wait for search input (eliminate fixed wait)
-        // Find search input using specific DevExpress ID pattern
-        const searchInputSelectors = [
-          `#${customerBaseId}_DDD_gv_DXSE_I`, // DevExpress standard pattern
-          'input[placeholder*="enter text to search" i]', // Generic fallback
-        ];
-
-        let searchInput = null;
-        let foundSelector: string | null = null;
-
-        // Wait for search input with waitForFunction (no fixed wait needed)
-        logger.debug('Waiting for search input to appear...');
-        try {
-          const result = await this.page!.waitForFunction(
-            (selectors: string[]) => {
-              for (const sel of selectors) {
-                const input = document.querySelector(sel) as HTMLInputElement | null;
-                if (
-                  input &&
-                  input.offsetParent !== null &&
-                  !input.disabled &&
-                  !input.readOnly
-                ) {
-                  return sel;
-                }
-              }
-              return null;
-            },
-            { timeout: 3000, polling: 50 }, // Increased timeout for reliability
-            searchInputSelectors,
-          );
-
-          foundSelector = (await result.jsonValue()) as string | null;
-          if (foundSelector) {
-            searchInput = await this.page!.$(foundSelector);
-            logger.debug(`✓ Search input found: ${foundSelector}`);
-          }
-        } catch (error) {
-          // Fallback: try each selector
-          for (const selector of searchInputSelectors) {
-            const input = await this.page!.$(selector);
-            if (input) {
-              const isVisible = await input.evaluate(
-                (el) => (el as HTMLElement).offsetParent !== null,
+            const customerInput = inputs.find((input) => {
+              const id = (input as HTMLInputElement).id.toLowerCase();
+              const el = input as HTMLInputElement;
+              return (
+                (id.includes("custtable") ||
+                  id.includes("custaccount") ||
+                  id.includes("custome") ||
+                  id.includes("cliente") ||
+                  id.includes("account") ||
+                  id.includes("profilo")) &&
+                !el.disabled &&
+                el.getBoundingClientRect().height > 0
               );
-              if (isVisible) {
-                searchInput = input;
-                foundSelector = selector;
-                logger.debug(`✓ Search input found (fallback): ${selector}`);
-                break;
-              }
-            }
-          }
-        }
-
-        if (!searchInput || !foundSelector) {
-          const screenshotPath = `logs/search-input-not-found-${Date.now()}.png`;
-          await this.page!.screenshot({
-            path: screenshotPath,
-            fullPage: true,
-          });
-          throw new Error(
-            `Search input not found in dropdown. Tried: ${searchInputSelectors.join(", ")}`,
-          );
-        }
-
-        // Use paste method (much faster than typing character by character)
-        logger.debug(`Pasting search value: ${orderData.customerName}`);
-        logger.debug(`Using input handle`);
-
-        // OPT-06: Use paste helper with event-driven verification (no fixed wait)
-        await this.pasteText(searchInput, orderData.customerName);
-        logger.debug("Finished pasting customer name");
-
-        // Event-driven: Wait for value to be present in input (no fixed wait)
-        const actualValue = await this.page!.waitForFunction(
-          (selector: string, expectedValue: string) => {
-            const input = document.querySelector(selector) as HTMLInputElement;
-            return input && input.value === expectedValue ? input.value : null;
-          },
-          { timeout: 1000, polling: 50 },
-          foundSelector,
-          orderData.customerName
-        ).then(result => result.jsonValue()) as string;
-
-        logger.debug(`✓ Value verified in input: "${actualValue}"`);
-
-        if (actualValue !== orderData.customerName) {
-          logger.warn(
-            `Value mismatch! Expected "${orderData.customerName}", got "${actualValue}"`,
-          );
-        }
-
-        // Press Enter to trigger search
-        await this.page!.keyboard.press("Enter");
-        logger.debug("Pressed Enter, checking for filtered results...");
-
-        // OPT-12: Immediate check for filtered results
-        let stableRowCount = 0;
-        try {
-          // First: Immediate synchronous check (results might already be visible)
-          stableRowCount = await this.page!.evaluate(() => {
-            const rows = Array.from(document.querySelectorAll('tr[class*="dxgvDataRow"]'));
-            const visibleRows = rows.filter(row => {
-              const el = row as HTMLElement;
-              return el.offsetParent !== null &&
-                     el.getBoundingClientRect().height > 0;
             });
-            return visibleRows.length;
+            return customerInput
+              ? (customerInput as HTMLInputElement).id
+              : null;
           });
 
-          // OPT-15: If no rows found immediately, wait and click in one operation
-          if (stableRowCount === 0) {
-            logger.debug("Results not ready, waiting and will click immediately...");
-            const clicked = await this.page!.waitForFunction(
+          // If not found immediately, use mutation polling to wait for it
+          if (!customerInputId) {
+            logger.debug("Field not ready, using mutation polling...");
+            customerInputId = (await this.page!.waitForFunction(
               () => {
-                const rows = Array.from(document.querySelectorAll('tr[class*="dxgvDataRow"]'));
-                const visibleRows = rows.filter(row => {
-                  const el = row as HTMLElement;
-                  return el.offsetParent !== null &&
-                         el.getBoundingClientRect().height > 0;
-                });
-
-                if (visibleRows.length > 0) {
-                  // Click immediately when first row appears
-                  const firstRow = visibleRows[0] as HTMLElement;
-                  const firstCell = firstRow.querySelector('td') as HTMLElement;
-                  const clickTarget = firstCell || firstRow;
-                  clickTarget.click();
-                  return true;
-                }
-                return false;
-              },
-              { timeout: 2000, polling: 'mutation' }
-            ).then(result => result.jsonValue()) as boolean;
-
-            if (!clicked) {
-              throw new Error('Failed to click customer row');
-            }
-            logger.debug(`✓ Results appeared and clicked immediately`);
-          } else {
-            // Results already visible, click directly
-            logger.debug(`✓ Results found immediately: ${stableRowCount} row(s), clicking now...`);
-            const clickResult = await this.page!.evaluate(() => {
-              const rows = Array.from(document.querySelectorAll('tr[class*="dxgvDataRow"]'));
-              const visibleRows = rows.filter(row => {
-                const el = row as HTMLElement;
-                return el.offsetParent !== null &&
-                       el.getBoundingClientRect().height > 0;
-              });
-
-              if (visibleRows.length === 0) {
-                return false;
-              }
-
-              const firstRow = visibleRows[0] as HTMLElement;
-              const firstCell = firstRow.querySelector('td') as HTMLElement;
-              const clickTarget = firstCell || firstRow;
-              clickTarget.click();
-              return true;
-            });
-
-            if (!clickResult) {
-              throw new Error(`No customer results found for: ${orderData.customerName}`);
-            }
-          }
-
-          logger.debug("✓ Customer selected");
-        } catch (err) {
-          logger.warn('Row click failed, attempting fallback...');
-          // Fallback: try Puppeteer handle click
-          const rows = await this.page!.$$('tr[class*="dxgvDataRow"]');
-          if (rows.length > 0) {
-            const firstCell = await rows[0].$("td");
-            const clickTarget = firstCell || rows[0];
-            await clickTarget.click();
-            logger.debug("✓ Customer selected via fallback");
-          } else {
-            throw new Error(`No customer results found for: ${orderData.customerName}`);
-          }
-        }
-
-        // OPT-05: Event-driven wait for dropdown to close and customer data to load
-        // Instead of fixed wait, check for dropdown disappearance and line items grid readiness
-        logger.debug('Waiting for customer data to load...');
-        try {
-          // Wait for dropdown panel to disappear
-          await this.page!.waitForFunction(
-            () => {
-              // Check if dropdown panel is gone
-              const dropdownPanels = Array.from(document.querySelectorAll('[id*="_DDD_PW"]'));
-              const visiblePanels = dropdownPanels.filter(panel =>
-                (panel as HTMLElement).offsetParent !== null &&
-                (panel as HTMLElement).style.display !== 'none'
-              );
-              return visiblePanels.length === 0;
-            },
-            { timeout: 2000, polling: 100 }
-          );
-          logger.debug('✅ Dropdown closed');
-        } catch (err) {
-          logger.debug('Dropdown close check timed out, proceeding...');
-        }
-
-        logger.info(`✅ Customer selected: ${orderData.customerName}`);
-        await this.waitForDevExpressReady({ timeout: 3000 });
-      }, "form.customer");
-
-      // STEP 4: Click "New" button in Linee di vendita
-      await this.runOp("order.lineditems.click_new", async () => {
-        logger.debug('Clicking "New" in Linee di vendita...');
-
-        // Wait for line items grid to be fully loaded
-        await this.wait(1000);
-
-        // Look for DevExpress "New" button in sales lines grid
-        // Pattern: <a class="dxbButton_XafTheme" with <img title="New">
-        const buttonInfo = await this.page!.evaluate(() => {
-          // Strategy 1: Find by data-args containing 'AddNew'
-          const buttons = Array.from(document.querySelectorAll('a[data-args*="AddNew"]'));
-          if (buttons.length > 0) {
-            const button = buttons[0] as HTMLElement;
-            return {
-              found: true,
-              strategy: 1,
-              id: button.id || "no-id",
-              selector: 'a[data-args*="AddNew"]',
-            };
-          }
-
-          // Strategy 2: Find img with title="New" and src containing "Action_Inline_New"
-          const images = Array.from(document.querySelectorAll('img[title="New"]'));
-          for (const img of images) {
-            const src = (img as HTMLImageElement).src || "";
-            if (src.includes("Action_Inline_New")) {
-              const parent = img.parentElement;
-              if (parent && parent.tagName === "A") {
-                return {
-                  found: true,
-                  strategy: 2,
-                  id: parent.id || "no-id",
-                  selector: 'img[title="New"] parent',
-                };
-              }
-            }
-          }
-
-          // Strategy 3: Find by ID pattern containing "SALESLINEs" and "DXCBtn"
-          const allLinks = Array.from(document.querySelectorAll('a.dxbButton_XafTheme'));
-          for (const link of allLinks) {
-            const id = link.id || "";
-            if (id.includes("SALESLINEs") && id.includes("DXCBtn")) {
-              return {
-                found: true,
-                strategy: 3,
-                id: id,
-                selector: 'a.dxbButton_XafTheme with SALESLINEs',
-              };
-            }
-          }
-
-          return { found: false };
-        });
-
-        if (!buttonInfo.found) {
-          await this.page!.screenshot({
-            path: `logs/new-button-not-found-${Date.now()}.png`,
-            fullPage: true,
-          });
-          throw new Error('Button "New" in line items not found');
-        }
-
-        logger.debug(`Found "New" button using strategy ${buttonInfo.strategy}`, {
-          id: buttonInfo.id,
-          selector: buttonInfo.selector,
-        });
-
-        // Use Puppeteer click instead of JavaScript click for more reliable interaction
-        let buttonHandle = null;
-
-        if (buttonInfo.strategy === 1) {
-          buttonHandle = await this.page!.$('a[data-args*="AddNew"]');
-        } else if (buttonInfo.strategy === 2) {
-          const imgHandle = await this.page!.$('img[title="New"][src*="Action_Inline_New"]');
-          if (imgHandle) {
-            buttonHandle = await imgHandle.evaluateHandle((img) => img.parentElement);
-          }
-        } else if (buttonInfo.strategy === 3) {
-          buttonHandle = await this.page!.$(`#${buttonInfo.id}`);
-        }
-
-        if (!buttonHandle) {
-          throw new Error('Found button in evaluate but could not get handle');
-        }
-
-        // Ensure button is visible and scroll into view
-        await buttonHandle.evaluate((el) => {
-          (el as HTMLElement).scrollIntoView({ block: 'center' });
-        });
-        await this.wait(300);
-
-        // OPT-10: Remove debug screenshots (save I/O time)
-        // Click the button
-        await buttonHandle.click();
-        logger.debug("New button clicked, waiting for row...");
-
-        // OPT-04: Event-driven waiting for grid row insertion
-        // Wait for DevExpress to insert new row with article input field (event-based with fallback)
-        try {
-          await this.page!.waitForFunction(
-            () => {
-              const inputs = Array.from(document.querySelectorAll('input[type="text"]'));
-              return inputs.some((input) => {
-                const id = (input as HTMLInputElement).id.toLowerCase();
-                return (
-                  id.includes("itemid") ||
-                  id.includes("salesline") ||
-                  id.includes("articolo") ||
-                  id.includes("nome")
+                const inputs = Array.from(
+                  document.querySelectorAll('input[type="text"]'),
                 );
-              });
-            },
-            { timeout: 3000 } // Fallback timeout (was 1500ms fixed wait)
-          );
-          logger.debug("✅ New row detected via event-driven waiting");
-        } catch (err) {
-          logger.warn("Event-driven wait timed out, verifying row presence manually");
-        }
-
-        // Final verification that row appeared
-        const articleInputAppeared = await this.page!.evaluate(() => {
-          const inputs = Array.from(document.querySelectorAll('input[type="text"]'));
-          return inputs.some((input) => {
-            const id = (input as HTMLInputElement).id.toLowerCase();
-            return (
-              id.includes("itemid") ||
-              id.includes("salesline") ||
-              id.includes("articolo") ||
-              id.includes("nome")
-            );
-          });
-        });
-
-        if (!articleInputAppeared) {
-          throw new Error('New row did not appear after clicking "New" button');
-        }
-
-        logger.info("✅ New line item row created and verified");
-      }, "form.multi_article");
-
-      // STEP 5-8: For each item, add article with package selection
-      for (let i = 0; i < orderData.items.length; i++) {
-        const item = orderData.items[i];
-
-        logger.info(`Processing item ${i + 1}/${orderData.items.length}`, {
-          articleCode: item.articleCode,
-          quantity: item.quantity,
-        });
-
-        // 5.1: Query database for correct package variant
-        await this.runOp(`order.item.${i}.select_variant`, async () => {
-          const selectedVariant = this.productDb.selectPackageVariant(
-            item.articleCode,
-            item.quantity,
-          );
-
-          if (!selectedVariant) {
-            throw new Error(
-              `Article ${item.articleCode} not found in database. ` +
-                `Ensure product sync has run.`,
-            );
+                const customerInput = inputs.find((input) => {
+                  const id = (input as HTMLInputElement).id.toLowerCase();
+                  const el = input as HTMLInputElement;
+                  return (
+                    (id.includes("custtable") ||
+                      id.includes("custaccount") ||
+                      id.includes("custome") ||
+                      id.includes("cliente") ||
+                      id.includes("account") ||
+                      id.includes("profilo")) &&
+                    !el.disabled &&
+                    el.getBoundingClientRect().height > 0
+                  );
+                });
+                return customerInput
+                  ? (customerInput as HTMLInputElement).id
+                  : null;
+              },
+              { timeout: 3000, polling: "mutation" },
+            ).then((result) => result.jsonValue())) as string;
+          } else {
+            logger.debug("✓ Field found immediately (no wait needed)");
           }
 
-          logger.info(`Selected package variant for ${item.articleCode}`, {
-            variantId: selectedVariant.id,
-            packageContent: selectedVariant.packageContent,
-            multipleQty: selectedVariant.multipleQty,
-            quantity: item.quantity,
-          });
-
-          // Store selected variant for next steps
-          (item as any)._selectedVariant = selectedVariant;
-        }, "form.package");
-
-        // 5.2: Open "Nome articolo" dropdown (GRID CELL APPROACH)
-        await this.runOp(`order.item.${i}.open_article_dropdown`, async () => {
-          logger.debug("Looking for article dropdown in grid cell...");
-
-          // Wait for grid to be ready
-          await this.wait(1000);
-
-          // In DevExpress grids, dropdowns in edit mode work differently
-          // Strategy 1: Find the table cell for "NOME ARTICOLO" column and click it
-          // Strategy 2: Look for the dropdown with "N/A" value (default for empty article)
-
-          const articleDropdownInfo = await this.page!.evaluate(() => {
-            // Look for all visible dropdown inputs in the grid
-            const inputs = Array.from(document.querySelectorAll('input[type="text"]'));
-
-            // Strategy 1: Find by column pattern - look for ITEMID specifically
-            const itemIdInput = inputs.find((input) => {
-              const id = (input as HTMLInputElement).id.toLowerCase();
-              const value = (input as HTMLInputElement).value;
-              // ITEMID is the article code column, typically shows N/A when empty
-              return (
-                id.includes("itemid") &&
-                id.includes("salesline") &&
-                (input as HTMLElement).offsetParent !== null
-              );
-            });
-
-            if (itemIdInput) {
-              return {
-                found: true,
-                strategy: "itemid",
-                id: (itemIdInput as HTMLInputElement).id,
-                value: (itemIdInput as HTMLInputElement).value,
-              };
-            }
-
-            // Strategy 2: Find by value "N/A" in the grid (common default for empty article)
-            const naInput = inputs.find((input) => {
-              const value = (input as HTMLInputElement).value;
-              const id = (input as HTMLInputElement).id.toLowerCase();
-              return (
-                value === "N/A" &&
-                id.includes("salesline") &&
-                !id.includes("linenum") && // Exclude line number field
-                (input as HTMLElement).offsetParent !== null
-              );
-            });
-
-            if (naInput) {
-              return {
-                found: true,
-                strategy: "na-value",
-                id: (naInput as HTMLInputElement).id,
-                value: (naInput as HTMLInputElement).value,
-              };
-            }
-
-            // Strategy 3: Look for first editable field in SALESLINES that is NOT LINENUM
-            const firstEditableInGrid = inputs.find((input) => {
-              const id = (input as HTMLInputElement).id.toLowerCase();
-              const value = (input as HTMLInputElement).value;
-              return (
-                id.includes("salesline") &&
-                id.includes("editnew") &&
-                !id.includes("linenum") && // Skip line number
-                !id.includes("qty") && // Skip quantity (we'll handle that later)
-                !id.includes("price") && // Skip price
-                !id.includes("discount") && // Skip discount
-                (input as HTMLElement).offsetParent !== null &&
-                (!(input as HTMLInputElement).readOnly)
-              );
-            });
-
-            if (firstEditableInGrid) {
-              return {
-                found: true,
-                strategy: "first-editable",
-                id: (firstEditableInGrid as HTMLInputElement).id,
-                value: (firstEditableInGrid as HTMLInputElement).value,
-              };
-            }
-
-            return { found: false };
-          });
-
-          if (!articleDropdownInfo.found) {
-            await this.page!.screenshot({
-              path: `logs/article-dropdown-not-found-${Date.now()}.png`,
-              fullPage: true,
-            });
-            throw new Error("Article dropdown not found in grid");
+          if (!customerInputId) {
+            throw new Error("Customer input field not found");
           }
 
-          logger.debug(`Found article dropdown using strategy: ${articleDropdownInfo.strategy}`, {
-            id: articleDropdownInfo.id,
-            value: articleDropdownInfo.value,
-          });
+          logger.debug(`✓ Customer field: ${customerInputId}`);
 
-          // Store for later use
-          const articleInputId = articleDropdownInfo.id;
-          const articleBaseId = articleInputId.endsWith("_I")
-            ? articleInputId.slice(0, -2)
-            : articleInputId;
+          // Extract base ID (remove _I suffix if present)
+          const customerBaseId = customerInputId.endsWith("_I")
+            ? customerInputId.slice(0, -2)
+            : customerInputId;
 
-          // Click the dropdown button
+          logger.debug(`Customer base ID: ${customerBaseId}`);
+
+          // Try multiple dropdown button selectors based on base ID
           const dropdownSelectors = [
-            `#${articleBaseId}_B-1`, // Standard DevExpress dropdown button
-            `#${articleBaseId}_B-1Img`,
-            `#${articleBaseId}_B`,
-            `#${articleBaseId}_DDD_B-1`, // Alternative pattern
+            `#${customerBaseId}_B-1`,
+            `#${customerBaseId}_B-1Img`,
+            `#${customerBaseId}_B`,
+            `#${customerBaseId}_DDD`,
+            `#${customerBaseId}_DropDown`,
           ];
 
           let dropdownOpened = false;
@@ -2094,140 +1684,37 @@ export class ArchibaldBot {
             if (!handle) continue;
             const box = await handle.boundingBox();
             if (!box) continue;
-
-            // Scroll into view
-            await handle.evaluate((el) => {
-              (el as HTMLElement).scrollIntoView({ block: 'center' });
-            });
-            await this.wait(200);
-
             await handle.click();
             dropdownOpened = true;
-            logger.debug(`✓ Article dropdown clicked: ${selector}`);
+            logger.debug(`✓ Dropdown clicked: ${selector}`);
             break;
           }
 
           if (!dropdownOpened) {
-            // Try clicking the input field directly (might open dropdown)
-            const inputHandle = await this.page!.$(`#${articleInputId}`);
-            if (inputHandle) {
-              logger.debug("Trying to click input field directly...");
-              await inputHandle.click();
-              await this.wait(500);
-
-              // Check if dropdown appeared
-              const dropdownAppeared = await this.page!.evaluate(() => {
-                const dropdowns = Array.from(document.querySelectorAll('[class*="dxeListBox"]'));
-                return dropdowns.some((d) => (d as HTMLElement).offsetParent !== null);
-              });
-
-              if (dropdownAppeared) {
-                dropdownOpened = true;
-                logger.debug("✓ Dropdown opened by clicking input");
-              }
-            }
-          }
-
-          if (!dropdownOpened) {
-            await this.page!.screenshot({
-              path: `logs/article-dropdown-button-not-found-${Date.now()}.png`,
-              fullPage: true,
-            });
             throw new Error(
-              `Article dropdown button not found for field ${articleBaseId}`,
+              `Dropdown button not found for customer field ${customerBaseId}`,
             );
           }
 
-          await this.wait(800);
-          logger.info("✅ Article dropdown opened");
-        }, "form.article");
-
-        // 5.3: Search by ARTICLE NAME (not variant ID)
-        await this.runOp(`order.item.${i}.search_article`, async () => {
-          const selectedVariant = (item as any)._selectedVariant;
-          // IMPORTANT: Search by article name/code, not variant ID
-          // The variant ID is used to SELECT from results, not to search
-          const searchTerm = item.articleCode; // Use article code like "10839.314.016"
-          logger.debug(`Searching for article: ${searchTerm} (will select variant: ${selectedVariant.id})`);
-
-          // Find article field using same strategy as dropdown opening
-          const articleInputId = await this.page!.evaluate(() => {
-            const inputs = Array.from(
-              document.querySelectorAll('input[type="text"]'),
-            );
-
-            // Strategy 1: INVENTTABLE (article inventory table field)
-            const inventTableInput = inputs.find((input) => {
-              const id = (input as HTMLInputElement).id.toLowerCase();
-              return (
-                id.includes("inventtable") &&
-                id.includes("salesline") &&
-                (input as HTMLElement).offsetParent !== null
-              );
-            });
-
-            if (inventTableInput) {
-              return (inventTableInput as HTMLInputElement).id;
-            }
-
-            // Strategy 2: ITEMID
-            const itemIdInput = inputs.find((input) => {
-              const id = (input as HTMLInputElement).id.toLowerCase();
-              return (
-                id.includes("itemid") &&
-                id.includes("salesline") &&
-                (input as HTMLElement).offsetParent !== null
-              );
-            });
-
-            if (itemIdInput) {
-              return (itemIdInput as HTMLInputElement).id;
-            }
-
-            // Strategy 3: N/A value (fallback)
-            const naInput = inputs.find((input) => {
-              const value = (input as HTMLInputElement).value;
-              const id = (input as HTMLInputElement).id.toLowerCase();
-              return (
-                value === "N/A" &&
-                id.includes("salesline") &&
-                !id.includes("linenum") &&
-                (input as HTMLElement).offsetParent !== null
-              );
-            });
-
-            return naInput ? (naInput as HTMLInputElement).id : null;
-          });
-
-          if (!articleInputId) {
-            await this.page!.screenshot({
-              path: `logs/article-input-not-found-search-${Date.now()}.png`,
-              fullPage: true,
-            });
-            throw new Error("Article input not found for search");
-          }
-
-          logger.debug(`Found article input for search: ${articleInputId}`);
-
-          const articleBaseId = articleInputId.endsWith("_I")
-            ? articleInputId.slice(0, -2)
-            : articleInputId;
-
-          // Find search input using DevExpress pattern
+          // OPT-05: Event-driven wait for search input (eliminate fixed wait)
+          // Find search input using specific DevExpress ID pattern
           const searchInputSelectors = [
-            `#${articleBaseId}_DDD_gv_DXSE_I`,
-            'input[placeholder*="enter text to search" i]',
+            `#${customerBaseId}_DDD_gv_DXSE_I`, // DevExpress standard pattern
+            'input[placeholder*="enter text to search" i]', // Generic fallback
           ];
 
           let searchInput = null;
           let foundSelector: string | null = null;
 
-          // Try to find search input
+          // Wait for search input with waitForFunction (no fixed wait needed)
+          logger.debug("Waiting for search input to appear...");
           try {
             const result = await this.page!.waitForFunction(
               (selectors: string[]) => {
                 for (const sel of selectors) {
-                  const input = document.querySelector(sel) as HTMLInputElement | null;
+                  const input = document.querySelector(
+                    sel,
+                  ) as HTMLInputElement | null;
                   if (
                     input &&
                     input.offsetParent !== null &&
@@ -2239,17 +1726,17 @@ export class ArchibaldBot {
                 }
                 return null;
               },
-              { timeout: 800, polling: 50 },
+              { timeout: 3000, polling: 50 }, // Increased timeout for reliability
               searchInputSelectors,
             );
 
             foundSelector = (await result.jsonValue()) as string | null;
             if (foundSelector) {
               searchInput = await this.page!.$(foundSelector);
-              logger.debug(`✓ Article search input found: ${foundSelector}`);
+              logger.debug(`✓ Search input found: ${foundSelector}`);
             }
           } catch (error) {
-            // Fallback
+            // Fallback: try each selector
             for (const selector of searchInputSelectors) {
               const input = await this.page!.$(selector);
               if (input) {
@@ -2259,259 +1746,254 @@ export class ArchibaldBot {
                 if (isVisible) {
                   searchInput = input;
                   foundSelector = selector;
-                  logger.debug(`✓ Article search input found (fallback): ${selector}`);
+                  logger.debug(`✓ Search input found (fallback): ${selector}`);
                   break;
                 }
               }
             }
           }
 
-          if (!searchInput) {
+          if (!searchInput || !foundSelector) {
+            const screenshotPath = `logs/search-input-not-found-${Date.now()}.png`;
             await this.page!.screenshot({
-              path: `logs/article-search-input-not-found-${Date.now()}.png`,
+              path: screenshotPath,
               fullPage: true,
             });
             throw new Error(
-              `Article search input not found. Tried: ${searchInputSelectors.join(", ")}`,
+              `Search input not found in dropdown. Tried: ${searchInputSelectors.join(", ")}`,
             );
           }
 
           // Use paste method (much faster than typing character by character)
-          logger.debug(`Pasting article code: ${searchTerm}`);
-          await this.pasteText(searchInput, searchTerm);
-          logger.debug("Finished pasting article code");
+          logger.debug(`Pasting search value: ${orderData.customerName}`);
+          logger.debug(`Using input handle`);
 
-          // OPT-06: Event-driven verification of paste (no fixed wait)
-          const actualValue = await this.page!.waitForFunction(
+          // OPT-06: Use paste helper with event-driven verification (no fixed wait)
+          await this.pasteText(searchInput, orderData.customerName);
+          logger.debug("Finished pasting customer name");
+
+          // Event-driven: Wait for value to be present in input (no fixed wait)
+          const actualValue = (await this.page!.waitForFunction(
             (selector: string, expectedValue: string) => {
-              const input = document.querySelector(selector) as HTMLInputElement;
-              return input && input.value === expectedValue ? input.value : null;
+              const input = document.querySelector(
+                selector,
+              ) as HTMLInputElement;
+              return input && input.value === expectedValue
+                ? input.value
+                : null;
             },
             { timeout: 1000, polling: 50 },
             foundSelector,
-            searchTerm
-          ).then(result => result.jsonValue()) as string;
+            orderData.customerName,
+          ).then((result) => result.jsonValue())) as string;
 
-          logger.debug(`✓ Article code verified in input: "${actualValue}"`);
+          logger.debug(`✓ Value verified in input: "${actualValue}"`);
 
-          // Press Enter
+          if (actualValue !== orderData.customerName) {
+            logger.warn(
+              `Value mismatch! Expected "${orderData.customerName}", got "${actualValue}"`,
+            );
+          }
+
+          // Press Enter to trigger search
           await this.page!.keyboard.press("Enter");
-          logger.debug("Pressed Enter, waiting for article results...");
-          await this.wait(2000);
+          logger.debug("Pressed Enter, checking for filtered results...");
 
-          // OPT-10: Remove debug screenshot (save I/O time)
-          // Check if results appeared by looking for table rows with article data
-          // The dropdown shows results as table rows with cells containing article parts
-          const resultsAppeared = await this.page!.evaluate(() => {
-            // Look for tables with visible rows containing article data
-            const tables = Array.from(document.querySelectorAll('table'));
-            for (const table of tables) {
-              if ((table as HTMLElement).offsetParent === null) continue;
+          // OPT-12: Immediate check for filtered results
+          let stableRowCount = 0;
+          try {
+            // First: Immediate synchronous check (results might already be visible)
+            stableRowCount = await this.page!.evaluate(() => {
+              const rows = Array.from(
+                document.querySelectorAll('tr[class*="dxgvDataRow"]'),
+              );
+              const visibleRows = rows.filter((row) => {
+                const el = row as HTMLElement;
+                return (
+                  el.offsetParent !== null &&
+                  el.getBoundingClientRect().height > 0
+                );
+              });
+              return visibleRows.length;
+            });
 
-              const rows = Array.from(table.querySelectorAll('tr'));
-              // Check if any row has multiple cells with text content
-              for (const row of rows) {
-                const cells = Array.from(row.querySelectorAll('td'));
-                if (cells.length >= 3) {
-                  // Check if cells have content (not just "No data to display")
-                  const hasContent = cells.some(cell => {
-                    const text = cell.textContent?.trim() || '';
-                    return text.length > 0 && text !== 'No data to display';
+            // OPT-15: If no rows found immediately, wait and click in one operation
+            if (stableRowCount === 0) {
+              logger.debug(
+                "Results not ready, waiting and will click immediately...",
+              );
+              const clicked = (await this.page!.waitForFunction(
+                () => {
+                  const rows = Array.from(
+                    document.querySelectorAll('tr[class*="dxgvDataRow"]'),
+                  );
+                  const visibleRows = rows.filter((row) => {
+                    const el = row as HTMLElement;
+                    return (
+                      el.offsetParent !== null &&
+                      el.getBoundingClientRect().height > 0
+                    );
                   });
-                  if (hasContent) {
-                    return true; // Found results table
+
+                  if (visibleRows.length > 0) {
+                    // Click immediately when first row appears
+                    const firstRow = visibleRows[0] as HTMLElement;
+                    const firstCell = firstRow.querySelector(
+                      "td",
+                    ) as HTMLElement;
+                    const clickTarget = firstCell || firstRow;
+                    clickTarget.click();
+                    return true;
                   }
-                }
+                  return false;
+                },
+                { timeout: 2000, polling: "mutation" },
+              ).then((result) => result.jsonValue())) as boolean;
+
+              if (!clicked) {
+                throw new Error("Failed to click customer row");
               }
-            }
-            return false;
-          });
+              logger.debug(`✓ Results appeared and clicked immediately`);
+            } else {
+              // Results already visible, click directly
+              logger.debug(
+                `✓ Results found immediately: ${stableRowCount} row(s), clicking now...`,
+              );
+              const clickResult = await this.page!.evaluate(() => {
+                const rows = Array.from(
+                  document.querySelectorAll('tr[class*="dxgvDataRow"]'),
+                );
+                const visibleRows = rows.filter((row) => {
+                  const el = row as HTMLElement;
+                  return (
+                    el.offsetParent !== null &&
+                    el.getBoundingClientRect().height > 0
+                  );
+                });
 
-          if (!resultsAppeared) {
-            await this.page!.screenshot({
-              path: `logs/article-results-not-found-${Date.now()}.png`,
-              fullPage: true,
-            });
-            throw new Error("Article results did not appear after search");
-          }
-
-          await this.wait(800);
-          logger.info("✅ Article results loaded and displayed");
-        }, "form.article");
-
-        // 5.4: Select article variant row
-        await this.runOp(`order.item.${i}.select_article`, async () => {
-          const selectedVariant = (item as any)._selectedVariant;
-
-          // For article dropdowns, the variant ID appears as partial suffix
-          // Example: "005159K3" appears as "K3" in the dropdown
-          // Row structure: [10839, 314, 016, icon, 1, K3, 10839.314.016, 1,00]
-          // We need to extract the suffix (K3, K2, etc.) from the variant ID
-          const variantSuffix = selectedVariant.id.substring(selectedVariant.id.length - 2);
-          logger.debug(`Selecting variant by suffix: ${variantSuffix} (from ${selectedVariant.id})`);
-
-          const rowSelected = await this.page!.evaluate((variantSuffix, packageContent) => {
-            // Find all visible rows with dxgvDataRow class
-            const rows = Array.from(document.querySelectorAll('tr[class*="dxgvDataRow"]'));
-            const visibleRows = rows.filter(row =>
-              (row as HTMLElement).offsetParent !== null
-            );
-
-            // Look for row containing the variant suffix (K3, K2, etc.)
-            for (const row of visibleRows) {
-              const cells = Array.from(row.querySelectorAll('td'));
-              if (cells.length < 6) continue;
-
-              const cellTexts = cells.map(cell => cell.textContent?.trim() || '');
-
-              // Check if any cell contains the exact variant suffix
-              // This is typically in cell index 5 (after: 10839, 314, 016, icon, packageQty)
-              const hasVariantMatch = cellTexts.some(text => text === variantSuffix);
-
-              // Double-check with package content to be sure
-              const hasPackageMatch = cellTexts.some(text => text === String(packageContent));
-
-              if (hasVariantMatch && hasPackageMatch) {
-                // Found the correct row, click it
-                const firstCell = cells[0];
-                if (firstCell) {
-                  (firstCell as HTMLElement).click();
-                  return true;
+                if (visibleRows.length === 0) {
+                  return false;
                 }
+
+                const firstRow = visibleRows[0] as HTMLElement;
+                const firstCell = firstRow.querySelector("td") as HTMLElement;
+                const clickTarget = firstCell || firstRow;
+                clickTarget.click();
+                return true;
+              });
+
+              if (!clickResult) {
+                throw new Error(
+                  `No customer results found for: ${orderData.customerName}`,
+                );
               }
             }
 
-            return false;
-          }, variantSuffix, selectedVariant.packageContent);
+            logger.debug("✓ Customer selected");
+          } catch (err) {
+            logger.warn("Row click failed, attempting fallback...");
+            // Fallback: try Puppeteer handle click
+            const rows = await this.page!.$$('tr[class*="dxgvDataRow"]');
+            if (rows.length > 0) {
+              const firstCell = await rows[0].$("td");
+              const clickTarget = firstCell || rows[0];
+              await clickTarget.click();
+              logger.debug("✓ Customer selected via fallback");
+            } else {
+              throw new Error(
+                `No customer results found for: ${orderData.customerName}`,
+              );
+            }
+          }
 
-          if (!rowSelected) {
-            await this.page!.screenshot({
-              path: `logs/variant-not-found-${Date.now()}.png`,
-              fullPage: true,
-            });
-            throw new Error(
-              `Variant ${variantSuffix} (package=${selectedVariant.packageContent}) not found in dropdown. ` +
-                `Article: ${item.articleCode}, Full Variant ID: ${selectedVariant.id}`,
+          // OPT-05: Event-driven wait for dropdown to close and customer data to load
+          // Instead of fixed wait, check for dropdown disappearance and line items grid readiness
+          logger.debug("Waiting for customer data to load...");
+          try {
+            // Wait for dropdown panel to disappear
+            await this.page!.waitForFunction(
+              () => {
+                // Check if dropdown panel is gone
+                const dropdownPanels = Array.from(
+                  document.querySelectorAll('[id*="_DDD_PW"]'),
+                );
+                const visiblePanels = dropdownPanels.filter(
+                  (panel) =>
+                    (panel as HTMLElement).offsetParent !== null &&
+                    (panel as HTMLElement).style.display !== "none",
+                );
+                return visiblePanels.length === 0;
+              },
+              { timeout: 2000, polling: 100 },
             );
+            logger.debug("✅ Dropdown closed");
+          } catch (err) {
+            logger.debug("Dropdown close check timed out, proceeding...");
           }
 
-          logger.info(`✅ Article variant selected`, {
-            variantId: selectedVariant.id,
-            variantSuffix: variantSuffix,
-            packageContent: selectedVariant.packageContent,
-          }, "form.article");
-
-          // Populate metadata
-          item.articleId = selectedVariant.id;
-          item.packageContent = selectedVariant.packageContent
-            ? parseInt(selectedVariant.packageContent)
-            : undefined;
-
-          // Validate quantity against package rules
-          const validation = this.productDb.validateQuantity(
-            selectedVariant,
-            item.quantity,
-          );
-
-          if (!validation.valid) {
-            const errorMsg = `Quantity ${item.quantity} is invalid for article ${item.articleCode} (variant ${selectedVariant.id}): ${validation.errors.join(", ")}`;
-            const suggestMsg = validation.suggestions
-              ? ` Suggested quantities: ${validation.suggestions.join(", ")}`
-              : "";
-
-            logger.error(`❌ ${errorMsg}${suggestMsg}`);
-            throw new Error(`${errorMsg}${suggestMsg}`);
-          }
-
-          logger.info(`✅ Quantity ${item.quantity} validated successfully`, {
-            articleCode: item.articleCode,
-            variantId: selectedVariant.id,
-            minQty: selectedVariant.minQty,
-            multipleQty: selectedVariant.multipleQty,
-            maxQty: selectedVariant.maxQty,
-          });
-
-          await this.wait(1000);
+          logger.info(`✅ Customer selected: ${orderData.customerName}`);
           await this.waitForDevExpressReady({ timeout: 3000 });
+        },
+        "form.customer",
+      );
 
-          // CRITICAL: Wait for DevExpress to fully load article data into grid
-          // DevExpress needs time to populate all fields (price, quantity, etc.)
-          // If we edit quantity too soon, the loading process will reset it to default
-          logger.debug('Waiting for DevExpress to complete article data loading...');
-          await this.wait(2400); // Optimized wait for complete article loading
+      // STEP 4: Click "New" button in Linee di vendita
+      await this.runOp(
+        "order.lineditems.click_new",
+        async () => {
+          logger.debug('Clicking "New" in Linee di vendita...');
 
-        }, "form.article");
+          // Wait for line items grid to be fully loaded
+          await this.wait(1000);
 
-        // 5.5: Set quantity (OPT-03: optimized field editing with smart skip)
-        await this.runOp(`order.item.${i}.set_quantity`, async () => {
-          const selectedVariant = (item as any)._selectedVariant;
-
-          // SMART OPTIMIZATION: If quantity == multipleQty, DevExpress auto-fills correctly
-          // Skip manual editing for exact package matches (1 for pack=1, 5 for pack=5, etc.)
-          if (item.quantity === selectedVariant.multipleQty) {
-            logger.info(`⚡ Quantity ${item.quantity} matches multipleQty - skipping edit (auto-filled by DevExpress)`);
-            await this.wait(500); // Let DevExpress stabilize
-            return;
-          }
-
-          logger.debug(`Setting quantity: ${item.quantity} (multipleQty: ${selectedVariant.multipleQty})`);
-          await this.editTableCell("Qtà ordinata", item.quantity);
-          logger.info(`✅ Quantity set: ${item.quantity}`);
-          await this.wait(300);
-        }, "field-editing");
-
-        // 5.6: Set discount (optional) (OPT-03: optimized field editing)
-        if (item.discount && item.discount > 0) {
-          await this.runOp(`order.item.${i}.set_discount`, async () => {
-            logger.debug(`Setting discount: ${item.discount}%`);
-            await this.editTableCell("Applica sconto", item.discount);
-            logger.info(`✅ Discount set: ${item.discount}%`);
-            await this.wait(300);
-          }, "field-editing");
-        }
-
-        // 5.7: Click "Update" button (floppy icon)
-        await this.runOp(`order.item.${i}.click_update`, async () => {
-          logger.debug('Clicking "Update" button (floppy icon)...');
-
-          // DevExpress Update button pattern:
-          // <a data-args="[['UpdateEdit'],1]" with <img title="Update" src="Action_Save">
+          // Look for DevExpress "New" button in sales lines grid
+          // Pattern: <a class="dxbButton_XafTheme" with <img title="New">
           const buttonInfo = await this.page!.evaluate(() => {
-            // Strategy 1: Find by data-args containing 'UpdateEdit'
-            const buttons = Array.from(document.querySelectorAll('a[data-args*="UpdateEdit"]'));
+            // Strategy 1: Find by data-args containing 'AddNew'
+            const buttons = Array.from(
+              document.querySelectorAll('a[data-args*="AddNew"]'),
+            );
             if (buttons.length > 0) {
+              const button = buttons[0] as HTMLElement;
               return {
                 found: true,
                 strategy: 1,
-                id: (buttons[0] as HTMLElement).id || 'no-id',
+                id: button.id || "no-id",
+                selector: 'a[data-args*="AddNew"]',
               };
             }
 
-            // Strategy 2: Find img with title="Update" and src containing "Action_Save"
-            const images = Array.from(document.querySelectorAll('img[title="Update"]'));
+            // Strategy 2: Find img with title="New" and src containing "Action_Inline_New"
+            const images = Array.from(
+              document.querySelectorAll('img[title="New"]'),
+            );
             for (const img of images) {
-              const src = (img as HTMLImageElement).src || '';
-              if (src.includes('Action_Save')) {
+              const src = (img as HTMLImageElement).src || "";
+              if (src.includes("Action_Inline_New")) {
                 const parent = img.parentElement;
-                if (parent && parent.tagName === 'A') {
+                if (parent && parent.tagName === "A") {
                   return {
                     found: true,
                     strategy: 2,
-                    id: parent.id || 'no-id',
+                    id: parent.id || "no-id",
+                    selector: 'img[title="New"] parent',
                   };
                 }
               }
             }
 
-            // Strategy 3: Find by ID pattern containing "SALESLINEs" and "DXCBtn0"
-            const allLinks = Array.from(document.querySelectorAll('a.dxbButton_XafTheme'));
+            // Strategy 3: Find by ID pattern containing "SALESLINEs" and "DXCBtn"
+            const allLinks = Array.from(
+              document.querySelectorAll("a.dxbButton_XafTheme"),
+            );
             for (const link of allLinks) {
-              const id = link.id || '';
-              if (id.includes('SALESLINEs') && id.includes('DXCBtn0')) {
+              const id = link.id || "";
+              if (id.includes("SALESLINEs") && id.includes("DXCBtn")) {
                 return {
                   found: true,
                   strategy: 3,
                   id: id,
+                  selector: "a.dxbButton_XafTheme with SALESLINEs",
                 };
               }
             }
@@ -2521,371 +2003,1191 @@ export class ArchibaldBot {
 
           if (!buttonInfo.found) {
             await this.page!.screenshot({
-              path: `logs/update-button-not-found-${Date.now()}.png`,
+              path: `logs/new-button-not-found-${Date.now()}.png`,
               fullPage: true,
             });
-            throw new Error('Button "Update" not found');
+            throw new Error('Button "New" in line items not found');
           }
 
-          logger.debug(`Found Update button using strategy ${buttonInfo.strategy}`, {
-            id: buttonInfo.id,
-          });
+          logger.debug(
+            `Found "New" button using strategy ${buttonInfo.strategy}`,
+            {
+              id: buttonInfo.id,
+              selector: buttonInfo.selector,
+            },
+          );
 
-          // Click the button
-          let clicked = false;
+          // Use Puppeteer click instead of JavaScript click for more reliable interaction
+          let buttonHandle = null;
 
           if (buttonInfo.strategy === 1) {
-            // OPT-03: Use atomic click to avoid detachment after scroll
-            const clickSuccess = await this.page!.evaluate(() => {
-              const button = document.querySelector('a[data-args*="UpdateEdit"]') as HTMLElement;
-              if (!button) return false;
-
-              button.scrollIntoView({ block: 'center' });
-              // Small sync wait for scroll stabilization
-              const start = Date.now();
-              while (Date.now() - start < 200) {}
-
-              button.click();
-              return true;
-            });
-
-            if (clickSuccess) {
-              clicked = true;
-            }
+            buttonHandle = await this.page!.$('a[data-args*="AddNew"]');
           } else if (buttonInfo.strategy === 2) {
-            // OPT-03: Atomic click for strategy 2
-            const clickSuccess = await this.page!.evaluate(() => {
-              const img = document.querySelector('img[title="Update"][src*="Action_Save"]') as HTMLElement;
-              if (!img || !img.parentElement) return false;
-
-              img.parentElement.scrollIntoView({ block: 'center' });
-              const start = Date.now();
-              while (Date.now() - start < 200) {}
-
-              img.parentElement.click();
-              return true;
-            });
-
-            if (clickSuccess) {
-              clicked = true;
+            const imgHandle = await this.page!.$(
+              'img[title="New"][src*="Action_Inline_New"]',
+            );
+            if (imgHandle) {
+              buttonHandle = await imgHandle.evaluateHandle(
+                (img) => img.parentElement,
+              );
             }
           } else if (buttonInfo.strategy === 3) {
-            // OPT-03: Atomic click for strategy 3
-            const clickSuccess = await this.page!.evaluate((buttonId) => {
-              const button = document.querySelector(`#${buttonId}`) as HTMLElement;
-              if (!button) return false;
-
-              button.scrollIntoView({ block: 'center' });
-              const start = Date.now();
-              while (Date.now() - start < 200) {}
-
-              button.click();
-              return true;
-            }, buttonInfo.id);
-
-            if (clickSuccess) {
-              clicked = true;
-            }
+            buttonHandle = await this.page!.$(`#${buttonInfo.id}`);
           }
 
-          if (!clicked) {
-            throw new Error('Failed to click Update button');
+          if (!buttonHandle) {
+            throw new Error(
+              "Found button in evaluate but could not get handle",
+            );
           }
 
-          logger.info(`✅ Line item ${i + 1} saved`);
-          await this.waitForDevExpressReady({ timeout: 3000 });
-        }, "form.submit");
+          // Ensure button is visible and scroll into view
+          await buttonHandle.evaluate((el) => {
+            (el as HTMLElement).scrollIntoView({ block: "center" });
+          });
+          await this.wait(300);
 
-        // 5.8: Click "New" for next article (if not last)
-        if (i < orderData.items.length - 1) {
-          await this.runOp(`order.item.${i}.click_new_for_next`, async () => {
-            logger.debug('Clicking "New" button for next article...');
+          // OPT-10: Remove debug screenshots (save I/O time)
+          // Click the button
+          await buttonHandle.click();
+          logger.debug("New button clicked, waiting for row...");
 
-            // OPT-04: Optimized wait for "New" button reappearance after Update
-            // Strategy: Wait for disappearance, then wait for reappearance (based on Puppeteer best practices)
-            logger.debug('Step 1: Waiting for "New" button to disappear after Update...');
-            try {
-              await this.page!.waitForFunction(
-                () => {
-                  const buttons = Array.from(document.querySelectorAll('a[data-args*="AddNew"]'));
-                  return buttons.length === 0;
-                },
-                { timeout: 2000 } // Wait for button to disappear
+          // OPT-04: Event-driven waiting for grid row insertion
+          // Wait for DevExpress to insert new row with article input field (event-based with fallback)
+          try {
+            await this.page!.waitForFunction(
+              () => {
+                const inputs = Array.from(
+                  document.querySelectorAll('input[type="text"]'),
+                );
+                return inputs.some((input) => {
+                  const id = (input as HTMLInputElement).id.toLowerCase();
+                  return (
+                    id.includes("itemid") ||
+                    id.includes("salesline") ||
+                    id.includes("articolo") ||
+                    id.includes("nome")
+                  );
+                });
+              },
+              { timeout: 3000 }, // Fallback timeout (was 1500ms fixed wait)
+            );
+            logger.debug("✅ New row detected via event-driven waiting");
+          } catch (err) {
+            logger.warn(
+              "Event-driven wait timed out, verifying row presence manually",
+            );
+          }
+
+          // Final verification that row appeared
+          const articleInputAppeared = await this.page!.evaluate(() => {
+            const inputs = Array.from(
+              document.querySelectorAll('input[type="text"]'),
+            );
+            return inputs.some((input) => {
+              const id = (input as HTMLInputElement).id.toLowerCase();
+              return (
+                id.includes("itemid") ||
+                id.includes("salesline") ||
+                id.includes("articolo") ||
+                id.includes("nome")
               );
-              logger.debug('✅ Button disappeared');
-            } catch (err) {
-              logger.debug('Button may not have disappeared yet, continuing...');
+            });
+          });
+
+          if (!articleInputAppeared) {
+            throw new Error(
+              'New row did not appear after clicking "New" button',
+            );
+          }
+
+          logger.info("✅ New line item row created and verified");
+        },
+        "form.multi_article",
+      );
+
+      // STEP 5-8: For each item, add article with package selection
+      for (let i = 0; i < orderData.items.length; i++) {
+        const item = orderData.items[i];
+
+        logger.info(`Processing item ${i + 1}/${orderData.items.length}`, {
+          articleCode: item.articleCode,
+          quantity: item.quantity,
+        });
+
+        // 5.1: Query database for correct package variant
+        await this.runOp(
+          `order.item.${i}.select_variant`,
+          async () => {
+            const selectedVariant = this.productDb.selectPackageVariant(
+              item.articleCode,
+              item.quantity,
+            );
+
+            if (!selectedVariant) {
+              throw new Error(
+                `Article ${item.articleCode} not found in database. ` +
+                  `Ensure product sync has run.`,
+              );
             }
 
-            logger.debug('Step 2: Waiting for "New" button to reappear...');
-            try {
-              await this.page!.waitForFunction(
-                () => {
-                  const buttons = Array.from(document.querySelectorAll('a[data-args*="AddNew"]'));
-                  return buttons.length > 0;
-                },
-                { timeout: 5000 } // Wait for button to reappear
+            logger.info(`Selected package variant for ${item.articleCode}`, {
+              variantId: selectedVariant.id,
+              packageContent: selectedVariant.packageContent,
+              multipleQty: selectedVariant.multipleQty,
+              quantity: item.quantity,
+            });
+
+            // Store selected variant for next steps
+            (item as any)._selectedVariant = selectedVariant;
+          },
+          "form.package",
+        );
+
+        // 5.2: Open "Nome articolo" dropdown (GRID CELL APPROACH)
+        await this.runOp(
+          `order.item.${i}.open_article_dropdown`,
+          async () => {
+            logger.debug("Looking for article dropdown in grid cell...");
+
+            // Wait for grid to be ready
+            await this.wait(1000);
+
+            // In DevExpress grids, dropdowns in edit mode work differently
+            // Strategy 1: Find the table cell for "NOME ARTICOLO" column and click it
+            // Strategy 2: Look for the dropdown with "N/A" value (default for empty article)
+
+            const articleDropdownInfo = await this.page!.evaluate(() => {
+              // Look for all visible dropdown inputs in the grid
+              const inputs = Array.from(
+                document.querySelectorAll('input[type="text"]'),
               );
-              logger.debug('✅ "New" button reappeared - event-driven waiting successful');
-            } catch (err) {
-              logger.warn('Event-driven wait timed out for New button reappearance');
+
+              // Strategy 1: Find by column pattern - look for ITEMID specifically
+              const itemIdInput = inputs.find((input) => {
+                const id = (input as HTMLInputElement).id.toLowerCase();
+                const value = (input as HTMLInputElement).value;
+                // ITEMID is the article code column, typically shows N/A when empty
+                return (
+                  id.includes("itemid") &&
+                  id.includes("salesline") &&
+                  (input as HTMLElement).offsetParent !== null
+                );
+              });
+
+              if (itemIdInput) {
+                return {
+                  found: true,
+                  strategy: "itemid",
+                  id: (itemIdInput as HTMLInputElement).id,
+                  value: (itemIdInput as HTMLInputElement).value,
+                };
+              }
+
+              // Strategy 2: Find by value "N/A" in the grid (common default for empty article)
+              const naInput = inputs.find((input) => {
+                const value = (input as HTMLInputElement).value;
+                const id = (input as HTMLInputElement).id.toLowerCase();
+                return (
+                  value === "N/A" &&
+                  id.includes("salesline") &&
+                  !id.includes("linenum") && // Exclude line number field
+                  (input as HTMLElement).offsetParent !== null
+                );
+              });
+
+              if (naInput) {
+                return {
+                  found: true,
+                  strategy: "na-value",
+                  id: (naInput as HTMLInputElement).id,
+                  value: (naInput as HTMLInputElement).value,
+                };
+              }
+
+              // Strategy 3: Look for first editable field in SALESLINES that is NOT LINENUM
+              const firstEditableInGrid = inputs.find((input) => {
+                const id = (input as HTMLInputElement).id.toLowerCase();
+                const value = (input as HTMLInputElement).value;
+                return (
+                  id.includes("salesline") &&
+                  id.includes("editnew") &&
+                  !id.includes("linenum") && // Skip line number
+                  !id.includes("qty") && // Skip quantity (we'll handle that later)
+                  !id.includes("price") && // Skip price
+                  !id.includes("discount") && // Skip discount
+                  (input as HTMLElement).offsetParent !== null &&
+                  !(input as HTMLInputElement).readOnly
+                );
+              });
+
+              if (firstEditableInGrid) {
+                return {
+                  found: true,
+                  strategy: "first-editable",
+                  id: (firstEditableInGrid as HTMLInputElement).id,
+                  value: (firstEditableInGrid as HTMLInputElement).value,
+                };
+              }
+
+              return { found: false };
+            });
+
+            if (!articleDropdownInfo.found) {
+              await this.page!.screenshot({
+                path: `logs/article-dropdown-not-found-${Date.now()}.png`,
+                fullPage: true,
+              });
+              throw new Error("Article dropdown not found in grid");
             }
 
-            // Small stability wait after button appears (let DevExpress finish DOM updates)
-            await this.wait(200);
+            logger.debug(
+              `Found article dropdown using strategy: ${articleDropdownInfo.strategy}`,
+              {
+                id: articleDropdownInfo.id,
+                value: articleDropdownInfo.value,
+              },
+            );
 
-            // After Update, the "New" button may be DXCBtn1 or DXCBtn0 depending on state
-            // Pattern: <a data-args="[['AddNew'],1]" with <img title="New" src="Action_Inline_New">
-            const buttonInfo = await this.page!.evaluate(() => {
-              // Strategy 1: Find by data-args containing 'AddNew'
-              const buttons = Array.from(
-                document.querySelectorAll('a[data-args*="AddNew"]'),
+            // Store for later use
+            const articleInputId = articleDropdownInfo.id;
+            const articleBaseId = articleInputId.endsWith("_I")
+              ? articleInputId.slice(0, -2)
+              : articleInputId;
+
+            // Click the dropdown button
+            const dropdownSelectors = [
+              `#${articleBaseId}_B-1`, // Standard DevExpress dropdown button
+              `#${articleBaseId}_B-1Img`,
+              `#${articleBaseId}_B`,
+              `#${articleBaseId}_DDD_B-1`, // Alternative pattern
+            ];
+
+            let dropdownOpened = false;
+            for (const selector of dropdownSelectors) {
+              const handle = await this.page!.$(selector);
+              if (!handle) continue;
+              const box = await handle.boundingBox();
+              if (!box) continue;
+
+              // Scroll into view
+              await handle.evaluate((el) => {
+                (el as HTMLElement).scrollIntoView({ block: "center" });
+              });
+              await this.wait(200);
+
+              await handle.click();
+              dropdownOpened = true;
+              logger.debug(`✓ Article dropdown clicked: ${selector}`);
+              break;
+            }
+
+            if (!dropdownOpened) {
+              // Try clicking the input field directly (might open dropdown)
+              const inputHandle = await this.page!.$(`#${articleInputId}`);
+              if (inputHandle) {
+                logger.debug("Trying to click input field directly...");
+                await inputHandle.click();
+                await this.wait(500);
+
+                // Check if dropdown appeared
+                const dropdownAppeared = await this.page!.evaluate(() => {
+                  const dropdowns = Array.from(
+                    document.querySelectorAll('[class*="dxeListBox"]'),
+                  );
+                  return dropdowns.some(
+                    (d) => (d as HTMLElement).offsetParent !== null,
+                  );
+                });
+
+                if (dropdownAppeared) {
+                  dropdownOpened = true;
+                  logger.debug("✓ Dropdown opened by clicking input");
+                }
+              }
+            }
+
+            if (!dropdownOpened) {
+              await this.page!.screenshot({
+                path: `logs/article-dropdown-button-not-found-${Date.now()}.png`,
+                fullPage: true,
+              });
+              throw new Error(
+                `Article dropdown button not found for field ${articleBaseId}`,
+              );
+            }
+
+            await this.wait(800);
+            logger.info("✅ Article dropdown opened");
+          },
+          "form.article",
+        );
+
+        // 5.3: Search by ARTICLE NAME (not variant ID)
+        await this.runOp(
+          `order.item.${i}.search_article`,
+          async () => {
+            const selectedVariant = (item as any)._selectedVariant;
+            // IMPORTANT: Search by article name/code, not variant ID
+            // The variant ID is used to SELECT from results, not to search
+            const searchTerm = item.articleCode; // Use article code like "10839.314.016"
+            logger.debug(
+              `Searching for article: ${searchTerm} (will select variant: ${selectedVariant.id})`,
+            );
+
+            // Find article field using same strategy as dropdown opening
+            const articleInputId = await this.page!.evaluate(() => {
+              const inputs = Array.from(
+                document.querySelectorAll('input[type="text"]'),
               );
 
-              // Debug: Log all buttons found
-              const allButtonIds = buttons.map(b => (b as HTMLElement).id);
+              // Strategy 1: INVENTTABLE (article inventory table field)
+              const inventTableInput = inputs.find((input) => {
+                const id = (input as HTMLInputElement).id.toLowerCase();
+                return (
+                  id.includes("inventtable") &&
+                  id.includes("salesline") &&
+                  (input as HTMLElement).offsetParent !== null
+                );
+              });
 
-              // First try to find DXCBtn1 (preferred after Update)
-              for (const btn of buttons) {
-                const id = (btn as HTMLElement).id || '';
-                if (id.includes('DXCBtn1')) {
-                  return {
-                    found: true,
-                    strategy: 1,
-                    id: id,
-                    debug: `Found DXCBtn1. All buttons: ${allButtonIds.join(', ')}`
-                  };
-                }
+              if (inventTableInput) {
+                return (inventTableInput as HTMLInputElement).id;
               }
 
-              // Fallback: Accept DXCBtn0 if DXCBtn1 not found
-              for (const btn of buttons) {
-                const id = (btn as HTMLElement).id || '';
-                if (id.includes('SALESLINEs') && id.includes('DXCBtn0')) {
-                  return {
-                    found: true,
-                    strategy: 1,
-                    id: id,
-                    debug: `Found DXCBtn0. All buttons: ${allButtonIds.join(', ')}`
-                  };
-                }
+              // Strategy 2: ITEMID
+              const itemIdInput = inputs.find((input) => {
+                const id = (input as HTMLInputElement).id.toLowerCase();
+                return (
+                  id.includes("itemid") &&
+                  id.includes("salesline") &&
+                  (input as HTMLElement).offsetParent !== null
+                );
+              });
+
+              if (itemIdInput) {
+                return (itemIdInput as HTMLInputElement).id;
               }
 
-              // Strategy 2: Find img with title="New" and src containing "Action_Inline_New"
-              const images = Array.from(document.querySelectorAll('img[title="New"]'));
-              for (const img of images) {
-                const src = (img as HTMLImageElement).src || '';
-                if (src.includes('Action_Inline_New')) {
-                  const parent = img.parentElement;
-                  if (parent && parent.tagName === 'A') {
-                    const parentId = parent.id || '';
-                    // Any valid New button
-                    if (parentId.includes('SALESLINE')) {
-                      return {
-                        found: true,
-                        strategy: 2,
-                        id: parentId,
-                        debug: `Found via image. All buttons: ${allButtonIds.join(', ')}`
-                      };
+              // Strategy 3: N/A value (fallback)
+              const naInput = inputs.find((input) => {
+                const value = (input as HTMLInputElement).value;
+                const id = (input as HTMLInputElement).id.toLowerCase();
+                return (
+                  value === "N/A" &&
+                  id.includes("salesline") &&
+                  !id.includes("linenum") &&
+                  (input as HTMLElement).offsetParent !== null
+                );
+              });
+
+              return naInput ? (naInput as HTMLInputElement).id : null;
+            });
+
+            if (!articleInputId) {
+              await this.page!.screenshot({
+                path: `logs/article-input-not-found-search-${Date.now()}.png`,
+                fullPage: true,
+              });
+              throw new Error("Article input not found for search");
+            }
+
+            logger.debug(`Found article input for search: ${articleInputId}`);
+
+            const articleBaseId = articleInputId.endsWith("_I")
+              ? articleInputId.slice(0, -2)
+              : articleInputId;
+
+            // Find search input using DevExpress pattern
+            const searchInputSelectors = [
+              `#${articleBaseId}_DDD_gv_DXSE_I`,
+              'input[placeholder*="enter text to search" i]',
+            ];
+
+            let searchInput = null;
+            let foundSelector: string | null = null;
+
+            // Try to find search input
+            try {
+              const result = await this.page!.waitForFunction(
+                (selectors: string[]) => {
+                  for (const sel of selectors) {
+                    const input = document.querySelector(
+                      sel,
+                    ) as HTMLInputElement | null;
+                    if (
+                      input &&
+                      input.offsetParent !== null &&
+                      !input.disabled &&
+                      !input.readOnly
+                    ) {
+                      return sel;
+                    }
+                  }
+                  return null;
+                },
+                { timeout: 800, polling: 50 },
+                searchInputSelectors,
+              );
+
+              foundSelector = (await result.jsonValue()) as string | null;
+              if (foundSelector) {
+                searchInput = await this.page!.$(foundSelector);
+                logger.debug(`✓ Article search input found: ${foundSelector}`);
+              }
+            } catch (error) {
+              // Fallback
+              for (const selector of searchInputSelectors) {
+                const input = await this.page!.$(selector);
+                if (input) {
+                  const isVisible = await input.evaluate(
+                    (el) => (el as HTMLElement).offsetParent !== null,
+                  );
+                  if (isVisible) {
+                    searchInput = input;
+                    foundSelector = selector;
+                    logger.debug(
+                      `✓ Article search input found (fallback): ${selector}`,
+                    );
+                    break;
+                  }
+                }
+              }
+            }
+
+            if (!searchInput) {
+              await this.page!.screenshot({
+                path: `logs/article-search-input-not-found-${Date.now()}.png`,
+                fullPage: true,
+              });
+              throw new Error(
+                `Article search input not found. Tried: ${searchInputSelectors.join(", ")}`,
+              );
+            }
+
+            // Use paste method (much faster than typing character by character)
+            logger.debug(`Pasting article code: ${searchTerm}`);
+            await this.pasteText(searchInput, searchTerm);
+            logger.debug("Finished pasting article code");
+
+            // OPT-06: Event-driven verification of paste (no fixed wait)
+            const actualValue = (await this.page!.waitForFunction(
+              (selector: string, expectedValue: string) => {
+                const input = document.querySelector(
+                  selector,
+                ) as HTMLInputElement;
+                return input && input.value === expectedValue
+                  ? input.value
+                  : null;
+              },
+              { timeout: 1000, polling: 50 },
+              foundSelector,
+              searchTerm,
+            ).then((result) => result.jsonValue())) as string;
+
+            logger.debug(`✓ Article code verified in input: "${actualValue}"`);
+
+            // Press Enter
+            await this.page!.keyboard.press("Enter");
+            logger.debug("Pressed Enter, waiting for article results...");
+            await this.wait(2000);
+
+            // OPT-10: Remove debug screenshot (save I/O time)
+            // Check if results appeared by looking for table rows with article data
+            // The dropdown shows results as table rows with cells containing article parts
+            const resultsAppeared = await this.page!.evaluate(() => {
+              // Look for tables with visible rows containing article data
+              const tables = Array.from(document.querySelectorAll("table"));
+              for (const table of tables) {
+                if ((table as HTMLElement).offsetParent === null) continue;
+
+                const rows = Array.from(table.querySelectorAll("tr"));
+                // Check if any row has multiple cells with text content
+                for (const row of rows) {
+                  const cells = Array.from(row.querySelectorAll("td"));
+                  if (cells.length >= 3) {
+                    // Check if cells have content (not just "No data to display")
+                    const hasContent = cells.some((cell) => {
+                      const text = cell.textContent?.trim() || "";
+                      return text.length > 0 && text !== "No data to display";
+                    });
+                    if (hasContent) {
+                      return true; // Found results table
                     }
                   }
                 }
               }
-
-              return {
-                found: false,
-                debug: `NO MATCH. All AddNew buttons found: ${allButtonIds.join(', ') || 'NONE'}`
-              };
+              return false;
             });
 
-            // Log debug info
-            logger.debug(`Button search result: ${buttonInfo.debug || 'no debug info'}`);
+            if (!resultsAppeared) {
+              await this.page!.screenshot({
+                path: `logs/article-results-not-found-${Date.now()}.png`,
+                fullPage: true,
+              });
+              throw new Error("Article results did not appear after search");
+            }
+
+            await this.wait(800);
+            logger.info("✅ Article results loaded and displayed");
+          },
+          "form.article",
+        );
+
+        // 5.4: Select article variant row
+        await this.runOp(
+          `order.item.${i}.select_article`,
+          async () => {
+            const selectedVariant = (item as any)._selectedVariant;
+
+            // For article dropdowns, the variant ID appears as partial suffix
+            // Example: "005159K3" appears as "K3" in the dropdown
+            // Row structure: [10839, 314, 016, icon, 1, K3, 10839.314.016, 1,00]
+            // We need to extract the suffix (K3, K2, etc.) from the variant ID
+            const variantSuffix = selectedVariant.id.substring(
+              selectedVariant.id.length - 2,
+            );
+            logger.debug(
+              `Selecting variant by suffix: ${variantSuffix} (from ${selectedVariant.id})`,
+            );
+
+            const rowSelected = await this.page!.evaluate(
+              (variantSuffix, packageContent) => {
+                // Find all visible rows with dxgvDataRow class
+                const rows = Array.from(
+                  document.querySelectorAll('tr[class*="dxgvDataRow"]'),
+                );
+                const visibleRows = rows.filter(
+                  (row) => (row as HTMLElement).offsetParent !== null,
+                );
+
+                // Primary strategy: Find row by package content alone
+                // The dropdown shows: [part1, part2, part3, icon, packageQty, variantCode, fullCode, price]
+                // We match on packageQty (column 4) which is most reliable
+                for (const row of visibleRows) {
+                  const cells = Array.from(row.querySelectorAll("td"));
+                  if (cells.length < 6) continue;
+
+                  const cellTexts = cells.map(
+                    (cell) => cell.textContent?.trim() || "",
+                  );
+
+                  // Look for packageContent in the cells (typically column 4)
+                  // Package content appears as a standalone number like "1", "5", "10"
+                  const packageStr = String(packageContent);
+                  const hasPackageMatch = cellTexts.some((text, index) => {
+                    // Check columns 3-5 for package content (flexible matching)
+                    if (index >= 3 && index <= 5) {
+                      return text === packageStr;
+                    }
+                    return false;
+                  });
+
+                  if (hasPackageMatch) {
+                    // Found a row with matching package content
+                    // If there's only one match, use it. If multiple, prefer the one with variant suffix match
+                    const hasVariantMatch = cellTexts.some(
+                      (text) => text === variantSuffix,
+                    );
+
+                    // Click this row if package matches (variant check is secondary)
+                    const firstCell = cells[0];
+                    if (firstCell) {
+                      (firstCell as HTMLElement).click();
+                      return true;
+                    }
+                  }
+                }
+
+                return false;
+              },
+              variantSuffix,
+              selectedVariant.packageContent,
+            );
+
+            if (!rowSelected) {
+              await this.page!.screenshot({
+                path: `logs/variant-not-found-${Date.now()}.png`,
+                fullPage: true,
+              });
+              throw new Error(
+                `Variant ${variantSuffix} (package=${selectedVariant.packageContent}) not found in dropdown. ` +
+                  `Article: ${item.articleCode}, Full Variant ID: ${selectedVariant.id}`,
+              );
+            }
+
+            logger.info(
+              `✅ Article variant selected`,
+              {
+                variantId: selectedVariant.id,
+                variantSuffix: variantSuffix,
+                packageContent: selectedVariant.packageContent,
+              },
+              "form.article",
+            );
+
+            // Populate metadata
+            item.articleId = selectedVariant.id;
+            item.packageContent = selectedVariant.packageContent
+              ? parseInt(selectedVariant.packageContent)
+              : undefined;
+
+            // Validate quantity against package rules
+            const validation = this.productDb.validateQuantity(
+              selectedVariant,
+              item.quantity,
+            );
+
+            if (!validation.valid) {
+              const errorMsg = `Quantity ${item.quantity} is invalid for article ${item.articleCode} (variant ${selectedVariant.id}): ${validation.errors.join(", ")}`;
+              const suggestMsg = validation.suggestions
+                ? ` Suggested quantities: ${validation.suggestions.join(", ")}`
+                : "";
+
+              logger.error(`❌ ${errorMsg}${suggestMsg}`);
+              throw new Error(`${errorMsg}${suggestMsg}`);
+            }
+
+            logger.info(`✅ Quantity ${item.quantity} validated successfully`, {
+              articleCode: item.articleCode,
+              variantId: selectedVariant.id,
+              minQty: selectedVariant.minQty,
+              multipleQty: selectedVariant.multipleQty,
+              maxQty: selectedVariant.maxQty,
+            });
+
+            await this.wait(1000);
+            await this.waitForDevExpressReady({ timeout: 3000 });
+
+            // CRITICAL: Wait for DevExpress to fully load article data into grid
+            // DevExpress needs time to populate all fields (price, quantity, etc.)
+            // If we edit quantity too soon, the loading process will reset it to default
+            logger.debug(
+              "Waiting for DevExpress to complete article data loading...",
+            );
+            await this.wait(2400); // Optimized wait for complete article loading
+          },
+          "form.article",
+        );
+
+        // 5.5: Set quantity (OPT-03: optimized field editing with smart skip)
+        await this.runOp(
+          `order.item.${i}.set_quantity`,
+          async () => {
+            const selectedVariant = (item as any)._selectedVariant;
+
+            // SMART OPTIMIZATION: If quantity == multipleQty, DevExpress auto-fills correctly
+            // Skip manual editing for exact package matches (1 for pack=1, 5 for pack=5, etc.)
+            if (item.quantity === selectedVariant.multipleQty) {
+              logger.info(
+                `⚡ Quantity ${item.quantity} matches multipleQty - skipping edit (auto-filled by DevExpress)`,
+              );
+              await this.wait(500); // Let DevExpress stabilize
+              return;
+            }
+
+            logger.debug(
+              `Setting quantity: ${item.quantity} (multipleQty: ${selectedVariant.multipleQty})`,
+            );
+            await this.editTableCell("Qtà ordinata", item.quantity);
+            logger.info(`✅ Quantity set: ${item.quantity}`);
+            await this.wait(300);
+          },
+          "field-editing",
+        );
+
+        // 5.6: Set discount (optional) (OPT-03: optimized field editing)
+        if (item.discount && item.discount > 0) {
+          await this.runOp(
+            `order.item.${i}.set_discount`,
+            async () => {
+              logger.debug(`Setting discount: ${item.discount}%`);
+              await this.editTableCell("Applica sconto", item.discount);
+              logger.info(`✅ Discount set: ${item.discount}%`);
+              await this.wait(300);
+            },
+            "field-editing",
+          );
+        }
+
+        // 5.7: Click "Update" button (floppy icon)
+        await this.runOp(
+          `order.item.${i}.click_update`,
+          async () => {
+            logger.debug('Clicking "Update" button (floppy icon)...');
+
+            // DevExpress Update button pattern:
+            // <a data-args="[['UpdateEdit'],1]" with <img title="Update" src="Action_Save">
+            const buttonInfo = await this.page!.evaluate(() => {
+              // Strategy 1: Find by data-args containing 'UpdateEdit'
+              const buttons = Array.from(
+                document.querySelectorAll('a[data-args*="UpdateEdit"]'),
+              );
+              if (buttons.length > 0) {
+                return {
+                  found: true,
+                  strategy: 1,
+                  id: (buttons[0] as HTMLElement).id || "no-id",
+                };
+              }
+
+              // Strategy 2: Find img with title="Update" and src containing "Action_Save"
+              const images = Array.from(
+                document.querySelectorAll('img[title="Update"]'),
+              );
+              for (const img of images) {
+                const src = (img as HTMLImageElement).src || "";
+                if (src.includes("Action_Save")) {
+                  const parent = img.parentElement;
+                  if (parent && parent.tagName === "A") {
+                    return {
+                      found: true,
+                      strategy: 2,
+                      id: parent.id || "no-id",
+                    };
+                  }
+                }
+              }
+
+              // Strategy 3: Find by ID pattern containing "SALESLINEs" and "DXCBtn0"
+              const allLinks = Array.from(
+                document.querySelectorAll("a.dxbButton_XafTheme"),
+              );
+              for (const link of allLinks) {
+                const id = link.id || "";
+                if (id.includes("SALESLINEs") && id.includes("DXCBtn0")) {
+                  return {
+                    found: true,
+                    strategy: 3,
+                    id: id,
+                  };
+                }
+              }
+
+              return { found: false };
+            });
 
             if (!buttonInfo.found) {
               await this.page!.screenshot({
-                path: `logs/new-button-for-next-not-found-${Date.now()}.png`,
+                path: `logs/update-button-not-found-${Date.now()}.png`,
                 fullPage: true,
               });
-              throw new Error(`Button "New" not found for next article. ${buttonInfo.debug || ''}`);
+              throw new Error('Button "Update" not found');
             }
 
-            logger.debug(`Found "New" button using strategy ${buttonInfo.strategy}`, {
-              id: buttonInfo.id,
-            });
+            logger.debug(
+              `Found Update button using strategy ${buttonInfo.strategy}`,
+              {
+                id: buttonInfo.id,
+              },
+            );
 
             // Click the button
             let clicked = false;
 
             if (buttonInfo.strategy === 1) {
-              // Find by ID directly
-              const handle = await this.page!.$(`#${buttonInfo.id}`);
-              if (handle) {
-                await handle.evaluate((el) =>
-                  (el as HTMLElement).scrollIntoView({ block: 'center' }),
-                );
-                await this.wait(300);
-                await handle.click();
+              // OPT-03: Use atomic click to avoid detachment after scroll
+              const clickSuccess = await this.page!.evaluate(() => {
+                const button = document.querySelector(
+                  'a[data-args*="UpdateEdit"]',
+                ) as HTMLElement;
+                if (!button) return false;
+
+                button.scrollIntoView({ block: "center" });
+                // Small sync wait for scroll stabilization
+                const start = Date.now();
+                while (Date.now() - start < 200) {}
+
+                button.click();
+                return true;
+              });
+
+              if (clickSuccess) {
                 clicked = true;
               }
             } else if (buttonInfo.strategy === 2) {
-              // Find by img and click parent
-              const imgHandle = await this.page!.$(
-                'img[title="New"][src*="Action_Inline_New"]',
-              );
-              if (imgHandle) {
-                const parentHandle = await imgHandle.evaluateHandle(
-                  (img) => img.parentElement,
-                );
-                if (parentHandle) {
-                  await parentHandle.evaluate((el) =>
-                    (el as HTMLElement).scrollIntoView({ block: 'center' }),
-                  );
-                  await this.wait(300);
-                  await (parentHandle as any).click();
-                  clicked = true;
-                }
+              // OPT-03: Atomic click for strategy 2
+              const clickSuccess = await this.page!.evaluate(() => {
+                const img = document.querySelector(
+                  'img[title="Update"][src*="Action_Save"]',
+                ) as HTMLElement;
+                if (!img || !img.parentElement) return false;
+
+                img.parentElement.scrollIntoView({ block: "center" });
+                const start = Date.now();
+                while (Date.now() - start < 200) {}
+
+                img.parentElement.click();
+                return true;
+              });
+
+              if (clickSuccess) {
+                clicked = true;
+              }
+            } else if (buttonInfo.strategy === 3) {
+              // OPT-03: Atomic click for strategy 3
+              const clickSuccess = await this.page!.evaluate((buttonId) => {
+                const button = document.querySelector(
+                  `#${buttonId}`,
+                ) as HTMLElement;
+                if (!button) return false;
+
+                button.scrollIntoView({ block: "center" });
+                const start = Date.now();
+                while (Date.now() - start < 200) {}
+
+                button.click();
+                return true;
+              }, buttonInfo.id);
+
+              if (clickSuccess) {
+                clicked = true;
               }
             }
 
             if (!clicked) {
-              throw new Error('Failed to click "New" button for next article');
+              throw new Error("Failed to click Update button");
             }
 
-            // OPT-04: Event-driven waiting for next row insertion
-            logger.debug("Waiting for new row to appear...");
-            try {
-              await this.page!.waitForFunction(
-                (expectedRowIndex) => {
-                  // Wait for DevExpress to insert the new editable row
-                  // Check for presence of new article input field
-                  const inputs = Array.from(document.querySelectorAll('input[type="text"]'));
-                  const articleInputs = inputs.filter((input) => {
-                    const id = (input as HTMLInputElement).id.toLowerCase();
-                    return (
-                      id.includes("itemid") ||
-                      id.includes("salesline") ||
-                      id.includes("articolo") ||
-                      id.includes("nome")
-                    );
-                  });
-                  // Should have at least one article input for the new row
-                  return articleInputs.length > 0;
-                },
-                { timeout: 3000 }, // Fallback timeout (was 1500ms fixed wait)
-                i + 1 // Expected row index
-              );
-              logger.debug("✅ New row detected via event-driven waiting");
-            } catch (err) {
-              logger.warn("Event-driven wait timed out, proceeding anyway");
-            }
-
+            logger.info(`✅ Line item ${i + 1} saved`);
             await this.waitForDevExpressReady({ timeout: 3000 });
-            logger.info(`✅ Ready for article ${i + 2}`);
-          }, "multi-article-navigation");
+          },
+          "form.submit",
+        );
+
+        // 5.8: Click "New" for next article (if not last)
+        if (i < orderData.items.length - 1) {
+          await this.runOp(
+            `order.item.${i}.click_new_for_next`,
+            async () => {
+              logger.debug('Clicking "New" button for next article...');
+
+              // OPT-04: Optimized wait for "New" button reappearance after Update
+              // Strategy: Wait for disappearance, then wait for reappearance (based on Puppeteer best practices)
+              logger.debug(
+                'Step 1: Waiting for "New" button to disappear after Update...',
+              );
+              try {
+                await this.page!.waitForFunction(
+                  () => {
+                    const buttons = Array.from(
+                      document.querySelectorAll('a[data-args*="AddNew"]'),
+                    );
+                    return buttons.length === 0;
+                  },
+                  { timeout: 2000 }, // Wait for button to disappear
+                );
+                logger.debug("✅ Button disappeared");
+              } catch (err) {
+                logger.debug(
+                  "Button may not have disappeared yet, continuing...",
+                );
+              }
+
+              logger.debug('Step 2: Waiting for "New" button to reappear...');
+              try {
+                await this.page!.waitForFunction(
+                  () => {
+                    const buttons = Array.from(
+                      document.querySelectorAll('a[data-args*="AddNew"]'),
+                    );
+                    return buttons.length > 0;
+                  },
+                  { timeout: 5000 }, // Wait for button to reappear
+                );
+                logger.debug(
+                  '✅ "New" button reappeared - event-driven waiting successful',
+                );
+              } catch (err) {
+                logger.warn(
+                  "Event-driven wait timed out for New button reappearance",
+                );
+              }
+
+              // Small stability wait after button appears (let DevExpress finish DOM updates)
+              await this.wait(200);
+
+              // After Update, the "New" button may be DXCBtn1 or DXCBtn0 depending on state
+              // Pattern: <a data-args="[['AddNew'],1]" with <img title="New" src="Action_Inline_New">
+              const buttonInfo = await this.page!.evaluate(() => {
+                // Strategy 1: Find by data-args containing 'AddNew'
+                const buttons = Array.from(
+                  document.querySelectorAll('a[data-args*="AddNew"]'),
+                );
+
+                // Debug: Log all buttons found
+                const allButtonIds = buttons.map((b) => (b as HTMLElement).id);
+
+                // First try to find DXCBtn1 (preferred after Update)
+                for (const btn of buttons) {
+                  const id = (btn as HTMLElement).id || "";
+                  if (id.includes("DXCBtn1")) {
+                    return {
+                      found: true,
+                      strategy: 1,
+                      id: id,
+                      debug: `Found DXCBtn1. All buttons: ${allButtonIds.join(", ")}`,
+                    };
+                  }
+                }
+
+                // Fallback: Accept DXCBtn0 if DXCBtn1 not found
+                for (const btn of buttons) {
+                  const id = (btn as HTMLElement).id || "";
+                  if (id.includes("SALESLINEs") && id.includes("DXCBtn0")) {
+                    return {
+                      found: true,
+                      strategy: 1,
+                      id: id,
+                      debug: `Found DXCBtn0. All buttons: ${allButtonIds.join(", ")}`,
+                    };
+                  }
+                }
+
+                // Strategy 2: Find img with title="New" and src containing "Action_Inline_New"
+                const images = Array.from(
+                  document.querySelectorAll('img[title="New"]'),
+                );
+                for (const img of images) {
+                  const src = (img as HTMLImageElement).src || "";
+                  if (src.includes("Action_Inline_New")) {
+                    const parent = img.parentElement;
+                    if (parent && parent.tagName === "A") {
+                      const parentId = parent.id || "";
+                      // Any valid New button
+                      if (parentId.includes("SALESLINE")) {
+                        return {
+                          found: true,
+                          strategy: 2,
+                          id: parentId,
+                          debug: `Found via image. All buttons: ${allButtonIds.join(", ")}`,
+                        };
+                      }
+                    }
+                  }
+                }
+
+                return {
+                  found: false,
+                  debug: `NO MATCH. All AddNew buttons found: ${allButtonIds.join(", ") || "NONE"}`,
+                };
+              });
+
+              // Log debug info
+              logger.debug(
+                `Button search result: ${buttonInfo.debug || "no debug info"}`,
+              );
+
+              if (!buttonInfo.found) {
+                await this.page!.screenshot({
+                  path: `logs/new-button-for-next-not-found-${Date.now()}.png`,
+                  fullPage: true,
+                });
+                throw new Error(
+                  `Button "New" not found for next article. ${buttonInfo.debug || ""}`,
+                );
+              }
+
+              logger.debug(
+                `Found "New" button using strategy ${buttonInfo.strategy}`,
+                {
+                  id: buttonInfo.id,
+                },
+              );
+
+              // Click the button
+              let clicked = false;
+
+              if (buttonInfo.strategy === 1) {
+                // Find by ID directly
+                const handle = await this.page!.$(`#${buttonInfo.id}`);
+                if (handle) {
+                  await handle.evaluate((el) =>
+                    (el as HTMLElement).scrollIntoView({ block: "center" }),
+                  );
+                  await this.wait(300);
+                  await handle.click();
+                  clicked = true;
+                }
+              } else if (buttonInfo.strategy === 2) {
+                // Find by img and click parent
+                const imgHandle = await this.page!.$(
+                  'img[title="New"][src*="Action_Inline_New"]',
+                );
+                if (imgHandle) {
+                  const parentHandle = await imgHandle.evaluateHandle(
+                    (img) => img.parentElement,
+                  );
+                  if (parentHandle) {
+                    await parentHandle.evaluate((el) =>
+                      (el as HTMLElement).scrollIntoView({ block: "center" }),
+                    );
+                    await this.wait(300);
+                    await (parentHandle as any).click();
+                    clicked = true;
+                  }
+                }
+              }
+
+              if (!clicked) {
+                throw new Error(
+                  'Failed to click "New" button for next article',
+                );
+              }
+
+              // OPT-04: Event-driven waiting for next row insertion
+              logger.debug("Waiting for new row to appear...");
+              try {
+                await this.page!.waitForFunction(
+                  (expectedRowIndex) => {
+                    // Wait for DevExpress to insert the new editable row
+                    // Check for presence of new article input field
+                    const inputs = Array.from(
+                      document.querySelectorAll('input[type="text"]'),
+                    );
+                    const articleInputs = inputs.filter((input) => {
+                      const id = (input as HTMLInputElement).id.toLowerCase();
+                      return (
+                        id.includes("itemid") ||
+                        id.includes("salesline") ||
+                        id.includes("articolo") ||
+                        id.includes("nome")
+                      );
+                    });
+                    // Should have at least one article input for the new row
+                    return articleInputs.length > 0;
+                  },
+                  { timeout: 3000 }, // Fallback timeout (was 1500ms fixed wait)
+                  i + 1, // Expected row index
+                );
+                logger.debug("✅ New row detected via event-driven waiting");
+              } catch (err) {
+                logger.warn("Event-driven wait timed out, proceeding anyway");
+              }
+
+              await this.waitForDevExpressReady({ timeout: 3000 });
+              logger.info(`✅ Ready for article ${i + 2}`);
+            },
+            "multi-article-navigation",
+          );
         }
       }
 
       // STEP 9: Extract order ID before saving (while still on form)
-      await this.runOp("order.extract_id", async () => {
-        const currentUrl = this.page!.url();
-        logger.debug(`Current URL before save: ${currentUrl}`);
+      await this.runOp(
+        "order.extract_id",
+        async () => {
+          const currentUrl = this.page!.url();
+          logger.debug(`Current URL before save: ${currentUrl}`);
 
-        // Try to extract order ID from URL (if already saved with "Salva")
-        const urlMatch = currentUrl.match(/ObjectKey=([^&]+)/);
-        if (urlMatch) {
-          orderId = decodeURIComponent(urlMatch[1]);
-          logger.info(`✅ Order ID extracted from URL: ${orderId}`);
-          return;
-        }
+          // Try to extract order ID from URL (if already saved with "Salva")
+          const urlMatch = currentUrl.match(/ObjectKey=([^&]+)/);
+          if (urlMatch) {
+            orderId = decodeURIComponent(urlMatch[1]);
+            logger.info(`✅ Order ID extracted from URL: ${orderId}`);
+            return;
+          }
 
-        // Try to extract from page elements (order form fields)
-        const extractedId = await this.page!.evaluate(() => {
-          // Look for "Numero ordine cliente" or "ID" field
-          const inputs = Array.from(document.querySelectorAll('input[type="text"]'));
+          // Try to extract from page elements (order form fields)
+          const extractedId = await this.page!.evaluate(() => {
+            // Look for "Numero ordine cliente" or "ID" field
+            const inputs = Array.from(
+              document.querySelectorAll('input[type="text"]'),
+            );
 
-          // Find ID field (usually labeled as "ID" and has a numeric value)
-          for (const input of inputs) {
-            const htmlInput = input as HTMLInputElement;
-            const id = htmlInput.id || "";
+            // Find ID field (usually labeled as "ID" and has a numeric value)
+            for (const input of inputs) {
+              const htmlInput = input as HTMLInputElement;
+              const id = htmlInput.id || "";
 
-            // Look for ID field pattern
-            if (id.includes("dviID_") || id.includes("SALESID_")) {
-              const value = htmlInput.value?.trim();
-              if (value && value !== "0" && value !== "") {
-                return { source: "form_field", value, fieldId: id };
+              // Look for ID field pattern
+              if (id.includes("dviID_") || id.includes("SALESID_")) {
+                const value = htmlInput.value?.trim();
+                if (value && value !== "0" && value !== "") {
+                  return { source: "form_field", value, fieldId: id };
+                }
               }
             }
-          }
 
-          return null;
-        });
-
-        if (extractedId) {
-          orderId = extractedId.value;
-          logger.info(`✅ Order ID extracted from form: ${orderId}`, {
-            source: extractedId.source,
-            fieldId: extractedId.fieldId,
-          }, "form.submit");
-          return;
-        }
-
-        // Fallback: use timestamp
-        logger.warn("Order ID not found in URL or form, using timestamp");
-        orderId = `ORDER-${Date.now()}`;
-      }, "form.submit");
-
-      // STEP 10: Save and close order
-      await this.runOp("order.save_and_close", async () => {
-        logger.debug('Opening "Salvare" dropdown...');
-
-        // Find "Salvare" button
-        const dropdownOpened = await this.page!.evaluate(() => {
-          const allElements = Array.from(
-            document.querySelectorAll("span, button, a"),
-          );
-          const salvareBtn = allElements.find((el) => {
-            const text = el.textContent?.trim() || "";
-            return text.toLowerCase().includes("salvare");
+            return null;
           });
 
-          if (!salvareBtn) return false;
-
-          // Click dropdown arrow
-          const parent = salvareBtn.parentElement;
-          if (!parent) return false;
-
-          const arrow = parent.querySelector(
-            'img[id*="_B-1"], img[alt*="down"]',
-          );
-          if (arrow) {
-            (arrow as HTMLElement).click();
-            return true;
+          if (extractedId) {
+            orderId = extractedId.value;
+            logger.info(
+              `✅ Order ID extracted from form: ${orderId}`,
+              {
+                source: extractedId.source,
+                fieldId: extractedId.fieldId,
+              },
+              "form.submit",
+            );
+            return;
           }
 
-          // Fallback: click button itself
-          (salvareBtn as HTMLElement).click();
-          return true;
-        });
+          // Fallback: use timestamp
+          logger.warn("Order ID not found in URL or form, using timestamp");
+          orderId = `ORDER-${Date.now()}`;
+        },
+        "form.submit",
+      );
 
-        if (!dropdownOpened) {
-          throw new Error('Button "Salvare" not found');
-        }
+      // STEP 10: Save and close order
+      await this.runOp(
+        "order.save_and_close",
+        async () => {
+          logger.debug('Opening "Salvare" dropdown...');
 
-        await this.wait(500);
+          // Find "Salvare" button
+          const dropdownOpened = await this.page!.evaluate(() => {
+            const allElements = Array.from(
+              document.querySelectorAll("span, button, a"),
+            );
+            const salvareBtn = allElements.find((el) => {
+              const text = el.textContent?.trim() || "";
+              return text.toLowerCase().includes("salvare");
+            });
 
-        // Click "Salva e chiudi"
-        const saveClicked = await this.clickElementByText("Salva e chiudi", {
-          exact: true,
-          selectors: ["a", "span", "div"],
-        });
+            if (!salvareBtn) return false;
 
-        if (!saveClicked) {
-          throw new Error('Option "Salva e chiudi" not found in dropdown');
-        }
+            // Click dropdown arrow
+            const parent = salvareBtn.parentElement;
+            if (!parent) return false;
 
-        logger.info('✅ Clicked "Salva e chiudi"');
-        await this.wait(3000);
-      }, "form.submit");
+            const arrow = parent.querySelector(
+              'img[id*="_B-1"], img[alt*="down"]',
+            );
+            if (arrow) {
+              (arrow as HTMLElement).click();
+              return true;
+            }
+
+            // Fallback: click button itself
+            (salvareBtn as HTMLElement).click();
+            return true;
+          });
+
+          if (!dropdownOpened) {
+            throw new Error('Button "Salvare" not found');
+          }
+
+          await this.wait(500);
+
+          // Click "Salva e chiudi"
+          const saveClicked = await this.clickElementByText("Salva e chiudi", {
+            exact: true,
+            selectors: ["a", "span", "div"],
+          });
+
+          if (!saveClicked) {
+            throw new Error('Option "Salva e chiudi" not found in dropdown');
+          }
+
+          logger.info('✅ Clicked "Salva e chiudi"');
+          await this.wait(3000);
+        },
+        "form.submit",
+      );
 
       logger.info("🎉 BOT: ORDINE COMPLETATO", { orderId });
 
@@ -2992,13 +3294,16 @@ export class ArchibaldBot {
           const inputs = Array.from(
             document.querySelectorAll('input[type="text"]'),
           );
-          return inputs.slice(0, 30).map((input) => ({
-            id: (input as HTMLInputElement).id,
-            name: (input as HTMLInputElement).name,
-            placeholder: (input as HTMLInputElement).placeholder,
-            value: (input as HTMLInputElement).value,
-            visible: (input as HTMLElement).offsetParent !== null,
-          }), "form.article");
+          return inputs.slice(0, 30).map(
+            (input) => ({
+              id: (input as HTMLInputElement).id,
+              name: (input as HTMLInputElement).name,
+              placeholder: (input as HTMLInputElement).placeholder,
+              value: (input as HTMLInputElement).value,
+              visible: (input as HTMLElement).offsetParent !== null,
+            }),
+            "form.article",
+          );
         });
 
         logger.debug("Input text trovati sulla pagina", {
@@ -3184,8 +3489,14 @@ export class ArchibaldBot {
             if (input) {
               input.value = value;
               input.focus();
-              input.dispatchEvent(new Event("input", { bubbles: true }), "form.article");
-              input.dispatchEvent(new Event("change", { bubbles: true }), "form.article");
+              input.dispatchEvent(
+                new Event("input", { bubbles: true }),
+                "form.article",
+              );
+              input.dispatchEvent(
+                new Event("change", { bubbles: true }),
+                "form.article",
+              );
             }
           },
           foundSelector,
@@ -3849,8 +4160,14 @@ export class ArchibaldBot {
                 if (input) {
                   input.value = value;
                   input.focus();
-                  input.dispatchEvent(new Event("input", { bubbles: true }), "form.article");
-                  input.dispatchEvent(new Event("change", { bubbles: true }), "form.article");
+                  input.dispatchEvent(
+                    new Event("input", { bubbles: true }),
+                    "form.article",
+                  );
+                  input.dispatchEvent(
+                    new Event("change", { bubbles: true }),
+                    "form.article",
+                  );
                 }
               },
               inputSelector,
@@ -4225,8 +4542,14 @@ export class ArchibaldBot {
             await quantityInput.evaluate((el, value) => {
               const input = el as HTMLInputElement;
               input.value = value;
-              input.dispatchEvent(new Event("input", { bubbles: true }), "form.article");
-              input.dispatchEvent(new Event("change", { bubbles: true }), "form.article");
+              input.dispatchEvent(
+                new Event("input", { bubbles: true }),
+                "form.article",
+              );
+              input.dispatchEvent(
+                new Event("change", { bubbles: true }),
+                "form.article",
+              );
               input.blur();
             }, formatQuantity(quantityValue));
 
@@ -5047,38 +5370,33 @@ export class ArchibaldBot {
    * @returns Paths to the generated files
    */
   public async generatePerformanceDashboard(
-    outputDir: string = './profiling-reports'
+    outputDir: string = "./profiling-reports",
   ): Promise<{
     htmlPath: string;
     jsonPath: string;
     csvPath: string;
   }> {
-    const { PerformanceDashboardGenerator } = await import('./performance-dashboard-generator');
+    const { PerformanceDashboardGenerator } =
+      await import("./performance-dashboard-generator");
     const profilingData = this.exportProfilingData();
-    const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+    const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
     const baseName = `profiling-${timestamp}`;
 
     const htmlPath = `${outputDir}/${baseName}.html`;
     const jsonPath = `${outputDir}/${baseName}.json`;
     const csvPath = `${outputDir}/${baseName}.csv`;
 
-    await PerformanceDashboardGenerator.saveDashboard(
-      profilingData,
-      htmlPath,
-      { format: 'html' }
-    );
+    await PerformanceDashboardGenerator.saveDashboard(profilingData, htmlPath, {
+      format: "html",
+    });
 
-    await PerformanceDashboardGenerator.saveDashboard(
-      profilingData,
-      jsonPath,
-      { format: 'json' }
-    );
+    await PerformanceDashboardGenerator.saveDashboard(profilingData, jsonPath, {
+      format: "json",
+    });
 
-    await PerformanceDashboardGenerator.saveDashboard(
-      profilingData,
-      csvPath,
-      { format: 'csv' }
-    );
+    await PerformanceDashboardGenerator.saveDashboard(profilingData, csvPath, {
+      format: "csv",
+    });
 
     return {
       htmlPath,
