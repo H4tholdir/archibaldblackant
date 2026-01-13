@@ -97,6 +97,16 @@ export default function OrderForm({ onOrderCreated }: OrderFormProps) {
     ParsedOrderWithConfidence["items"]
   >([]);
 
+  // Onboarding hints
+  const [showVoiceHint, setShowVoiceHint] = useState(() => {
+    if (typeof window === "undefined") return false;
+    const count = parseInt(
+      localStorage.getItem("voiceModalOpenCount") || "0",
+      10,
+    );
+    return count < 3; // Show hint for first 3 uses
+  });
+
   // Voice input hook
   const {
     isListening,
@@ -462,6 +472,18 @@ export default function OrderForm({ onOrderCreated }: OrderFormProps) {
     resetTranscript();
     setVoiceSuggestions(getVoiceSuggestions(""));
     startListening();
+
+    // Track voice modal opens for onboarding hints
+    if (typeof window !== "undefined") {
+      const count = parseInt(
+        localStorage.getItem("voiceModalOpenCount") || "0",
+        10,
+      );
+      localStorage.setItem("voiceModalOpenCount", String(count + 1));
+      if (count + 1 >= 3) {
+        setShowVoiceHint(false);
+      }
+    }
   };
 
   const handleVoiceStop = () => {
@@ -584,6 +606,14 @@ export default function OrderForm({ onOrderCreated }: OrderFormProps) {
             </div>
 
             <div className="voice-modal-body">
+              {/* First-use hint */}
+              {showVoiceHint && (
+                <div className="onboarding-hint">
+                  💡 <strong>Tip:</strong> Speak clearly, then review the
+                  populated fields before confirming
+                </div>
+              )}
+
               {/* Listening indicator */}
               <div
                 className={`voice-indicator ${isListening ? "listening" : ""}`}
@@ -727,6 +757,7 @@ export default function OrderForm({ onOrderCreated }: OrderFormProps) {
           className="btn btn-voice"
           onClick={handleVoiceStart}
           disabled={loading}
+          title="🎤 Voice Input: Speak your order, then review and confirm"
         >
           🎤 Dettatura Completa Ordine
         </button>
@@ -1013,6 +1044,9 @@ export default function OrderForm({ onOrderCreated }: OrderFormProps) {
           <h2 className="card-title">
             📋 Items to Order ({draftItems.length})
           </h2>
+          <div className="onboarding-hint" style={{ marginBottom: "1rem" }}>
+            💡 Review your items before creating the order
+          </div>
           <div className="items-list">
             {draftItems.map((item, index) => (
               <div key={index} className="item-card">
@@ -1122,6 +1156,9 @@ export default function OrderForm({ onOrderCreated }: OrderFormProps) {
         >
           <div className="confirm-modal" onClick={(e) => e.stopPropagation()}>
             <h2>Confirm Order</h2>
+            <div className="onboarding-hint" style={{ marginBottom: "1rem" }}>
+              💡 Final check: Ensure all details are correct before submitting
+            </div>
             <div className="confirm-modal-body">
               <div className="confirm-section">
                 <strong>Customer:</strong> {customerName || "Not specified"}
