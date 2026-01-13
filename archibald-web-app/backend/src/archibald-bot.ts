@@ -3275,6 +3275,50 @@ export class ArchibaldBot {
           async () => {
             logger.debug(`Applying global discount: ${orderData.discountPercent}%`);
 
+            // STEP 9.5.1: Click "Prezzi e sconti" tab to make discount field visible
+            logger.debug('Looking for "Prezzi e sconti" tab...');
+
+            const tabClicked = await this.page!.evaluate(() => {
+              // Find tab with text "Prezzi e sconti"
+              const allLinks = Array.from(document.querySelectorAll('a.dxtc-link, span.dx-vam'));
+
+              for (const element of allLinks) {
+                const text = element.textContent?.trim() || '';
+                if (text.includes('Prezzi') && text.includes('sconti')) {
+                  // Click the link or its parent
+                  const clickTarget = element.tagName === 'A' ? element : element.parentElement;
+                  if (clickTarget && (clickTarget as HTMLElement).offsetParent !== null) {
+                    (clickTarget as HTMLElement).click();
+                    return true;
+                  }
+                }
+              }
+
+              // Alternative: Find by tab ID pattern (pg_AT2 = Prezzi e sconti)
+              const tabs = Array.from(document.querySelectorAll('li[id*="_pg_AT"]'));
+              for (const tab of tabs) {
+                const link = tab.querySelector('a.dxtc-link');
+                const span = tab.querySelector('span.dx-vam');
+                const text = span?.textContent?.trim() || '';
+
+                if (text.includes('Prezzi') && text.includes('sconti')) {
+                  if (link && (link as HTMLElement).offsetParent !== null) {
+                    (link as HTMLElement).click();
+                    return true;
+                  }
+                }
+              }
+
+              return false;
+            });
+
+            if (!tabClicked) {
+              logger.warn('"Prezzi e sconti" tab not found, trying to find discount field anyway...');
+            } else {
+              logger.info('✅ Clicked "Prezzi e sconti" tab');
+              await this.wait(1000); // Wait for tab content to load
+            }
+
             // Find the MANUALDISCOUNT field (APPLICA SCONTO %)
             const discountFieldInfo = await this.page!.evaluate(() => {
               const inputs = Array.from(
