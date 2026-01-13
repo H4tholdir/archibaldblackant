@@ -16,3 +16,13 @@ export const createOrderSchema = z.object({
   discountPercent: z.number().min(0).max(100).optional(), // Sconto globale applicato a tutte le righe
   targetTotalWithVAT: z.number().positive().optional(), // Totale desiderato (con IVA) per calcolo sconto
 });
+
+// User management schemas
+export const createUserSchema = z.object({
+  username: z.string().min(3, "Username deve essere >= 3 caratteri").max(50),
+  fullName: z.string().min(1, "Nome completo obbligatorio").max(100),
+});
+
+export const updateWhitelistSchema = z.object({
+  whitelisted: z.boolean(),
+});

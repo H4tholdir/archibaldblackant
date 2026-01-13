@@ -6,8 +6,9 @@ import { WebSocketServer } from "ws";
 import { config } from "./config";
 import { logger } from "./logger";
 import { ArchibaldBot } from "./archibald-bot";
-import { createOrderSchema } from "./schemas";
+import { createOrderSchema, createUserSchema, updateWhitelistSchema } from "./schemas";
 import type { ApiResponse, OrderData } from "./types";
+import { UserDatabase } from "./user-db";
 import { QueueManager } from "./queue-manager";
 import { BrowserPool } from "./browser-pool";
 import { CustomerDatabase } from "./customer-db";
@@ -32,6 +33,7 @@ const productDb = ProductDatabase.getInstance();
 const productSyncService = ProductSyncService.getInstance();
 const priceSyncService = PriceSyncService.getInstance();
 const checkpointManager = SyncCheckpointManager.getInstance();
+const userDb = UserDatabase.getInstance();
 
 // Global lock per prevenire sync paralleli e conflitti con ordini
 type ActiveOperation = "customers" | "products" | "prices" | "order" | null;
@@ -179,6 +181,156 @@ app.get("/api/health", (req: Request, res: Response<ApiResponse>) => {
     },
   });
 });
+
+// ========== ADMIN USER MANAGEMENT ENDPOINTS ==========
+
+// Create new user (admin only - no auth in Phase 6)
+app.post("/api/admin/users", (req: Request, res: Response<ApiResponse>) => {
+  try {
+    const body = createUserSchema.parse(req.body);
+
+    // Check if user already exists
+    const existingUser = userDb.getUserByUsername(body.username);
+    if (existingUser) {
+      return res.status(409).json({
+        success: false,
+        error: `User with username "${body.username}" already exists`,
+      });
+    }
+
+    const user = userDb.createUser(body.username, body.fullName);
+
+    logger.info("Admin created new user", {
+      userId: user.id,
+      username: user.username,
+    });
+
+    res.status(201).json({
+      success: true,
+      data: user,
+      message: `User ${user.username} created successfully`,
+    });
+  } catch (error) {
+    logger.error("Error creating user", { error });
+
+    res.status(500).json({
+      success: false,
+      error:
+        error instanceof Error
+          ? error.message
+          : "Error creating user",
+    });
+  }
+});
+
+// List all users (admin only - no auth in Phase 6)
+app.get("/api/admin/users", (req: Request, res: Response<ApiResponse>) => {
+  try {
+    const users = userDb.getAllUsers();
+
+    res.json({
+      success: true,
+      data: users,
+      message: `${users.length} users found`,
+    });
+  } catch (error) {
+    logger.error("Error fetching users", { error });
+
+    res.status(500).json({
+      success: false,
+      error:
+        error instanceof Error
+          ? error.message
+          : "Error fetching users",
+    });
+  }
+});
+
+// Update user whitelist status (admin only - no auth in Phase 6)
+app.patch(
+  "/api/admin/users/:id/whitelist",
+  (req: Request, res: Response<ApiResponse>) => {
+    try {
+      const { id } = req.params;
+      const body = updateWhitelistSchema.parse(req.body);
+
+      // Check if user exists
+      const user = userDb.getUserById(id);
+      if (!user) {
+        return res.status(404).json({
+          success: false,
+          error: `User with ID "${id}" not found`,
+        });
+      }
+
+      userDb.updateWhitelist(id, body.whitelisted);
+
+      const updatedUser = userDb.getUserById(id);
+
+      logger.info("Admin updated user whitelist", {
+        userId: id,
+        whitelisted: body.whitelisted,
+      });
+
+      res.json({
+        success: true,
+        data: updatedUser,
+        message: `User ${user.username} whitelist updated to ${body.whitelisted}`,
+      });
+    } catch (error) {
+      logger.error("Error updating whitelist", { error });
+
+      res.status(500).json({
+        success: false,
+        error:
+          error instanceof Error
+            ? error.message
+            : "Error updating whitelist",
+      });
+    }
+  },
+);
+
+// Delete user (admin only - no auth in Phase 6)
+app.delete(
+  "/api/admin/users/:id",
+  (req: Request, res: Response<ApiResponse>) => {
+    try {
+      const { id } = req.params;
+
+      // Check if user exists
+      const user = userDb.getUserById(id);
+      if (!user) {
+        return res.status(404).json({
+          success: false,
+          error: `User with ID "${id}" not found`,
+        });
+      }
+
+      userDb.deleteUser(id);
+
+      logger.info("Admin deleted user", {
+        userId: id,
+        username: user.username,
+      });
+
+      res.json({
+        success: true,
+        message: `User ${user.username} deleted successfully`,
+      });
+    } catch (error) {
+      logger.error("Error deleting user", { error });
+
+      res.status(500).json({
+        success: false,
+        error:
+          error instanceof Error
+            ? error.message
+            : "Error deleting user",
+      });
+    }
+  },
+);
 
 // Get customers endpoint (legge dal database locale)
 app.get("/api/customers", (req: Request, res: Response<ApiResponse>) => {
