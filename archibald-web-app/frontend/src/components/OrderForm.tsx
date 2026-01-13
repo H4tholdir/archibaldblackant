@@ -1223,36 +1223,36 @@ export default function OrderForm({ onOrderCreated }: OrderFormProps) {
                   <div style={{ marginBottom: "0.75rem" }}>
                     <strong>Esempio 1: Ordine Singolo</strong>
                     <div style={{ fontSize: "0.875rem", color: "#6b7280", marginTop: "0.25rem" }}>
-                      "Cliente Mario Rossi, articolo zero due punto tre tre punto zero uno sei punto zero uno zero quantità cinque"
+                      "Cliente Mario Rossi, articolo ti di uno due sette due punto tre uno quattro quantità due"
                     </div>
                     <div style={{ fontSize: "0.75rem", color: "#10b981", marginTop: "0.25rem" }}>
-                      → Cliente: Mario Rossi | Articolo: 02.33.016.010 | Quantità: 5
+                      → Cliente: Mario Rossi | Articolo: TD1272.314 | Quantità: 2
                     </div>
                   </div>
 
                   <div style={{ marginBottom: "0.75rem" }}>
-                    <strong>Esempio 2: Ordine Multi-Articolo</strong>
+                    <strong>Esempio 2: Articolo con Lettere e Numeri</strong>
                     <div style={{ fontSize: "0.875rem", color: "#6b7280", marginTop: "0.25rem" }}>
-                      "Cliente ACME S.P.A., articolo zero cinque punto due uno punto zero zero uno punto novecento quantità dieci, virgola articolo uno due punto quattro quattro punto zero tre cinque punto zero zero tre quantità venti"
+                      "Cliente ACME S.P.A., articolo acca uno due nove effe esse cu punto uno zero quattro punto zero due tre quantità cinque"
                     </div>
                     <div style={{ fontSize: "0.75rem", color: "#10b981", marginTop: "0.25rem" }}>
-                      → Cliente: ACME S.P.A. | 2 articoli con quantità
+                      → Cliente: ACME S.P.A. | Articolo: H129FSQ.104.023 | Quantità: 5
                     </div>
                   </div>
 
                   <div style={{ marginBottom: "0.5rem" }}>
-                    <strong>Esempio 3: Codice con "novecento"</strong>
+                    <strong>Esempio 3: Articolo con Spazi (senza "punto")</strong>
                     <div style={{ fontSize: "0.875rem", color: "#6b7280", marginTop: "0.25rem" }}>
-                      "articolo zero uno punto novecento uno punto zero zero uno punto zero zero tre quantità quindici"
+                      "articolo acca sette uno uno zero quattro zero due tre quantità quindici"
                     </div>
                     <div style={{ fontSize: "0.75rem", color: "#10b981", marginTop: "0.25rem" }}>
-                      → Articolo: 01.9001.001.003 | Quantità: 15
+                      → Articolo: H71 104 023 | Quantità: 15
                     </div>
                   </div>
                 </div>
 
                 <div style={{ fontSize: "0.75rem", color: "#9ca3af", marginTop: "0.75rem", paddingTop: "0.75rem", borderTop: "1px solid #e5e7eb" }}>
-                  💡 <strong>Nota:</strong> "punto" = separatore decimale (.) | "virgola" = prossimo articolo | "novecento" = 900
+                  💡 <strong>Nota:</strong> "punto" = separatore (.) | Lettere e numeri pronunciati separatamente | Gli spazi vengono riconosciuti automaticamente
                 </div>
               </div>
 
