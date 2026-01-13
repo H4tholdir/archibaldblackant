@@ -311,9 +311,27 @@ export function parseVoiceOrder(transcript: string): ParsedOrder {
   }
 
   // Extract customer name
-  const customerNameMatch = normalized.match(
-    /(?:cliente|nome cliente|nome)\s+([a-z\sàèéìòù]+?)(?:\s*,|\s+(?:articolo|articoli|aggiungi|aggiungere|poi|ancora|inserisci|metti)|$)/i,
+  // First try with standard trigger keywords or comma
+  let customerNameMatch = normalized.match(
+    /(?:cliente|nome cliente|nome)\s+([a-z\sàèéìòù]+?)(?:\s*,|\s+(?:articolo|articoli|aggiungi|aggiungere|poi|ancora|inserisci|metti))/i,
   );
+
+  // If not found, try fallback: customer name followed by article-like pattern
+  // Article patterns: contain both letters and numbers (SF1000, H71), or short all-uppercase codes followed by numbers
+  if (!customerNameMatch) {
+    customerNameMatch = normalized.match(
+      /(?:cliente|nome cliente|nome)\s+([a-z\sàèéìòù]+?)(?=\s+(?:[a-z]+\d|[a-z]{1,4}\s+\d))/i,
+    );
+  }
+
+  // If still not found, try capturing everything after "cliente" (handles incomplete transcripts)
+  // Stop at common Italian stop words (grazie, per favore, ecc) or end of string
+  if (!customerNameMatch) {
+    customerNameMatch = normalized.match(
+      /(?:cliente|nome cliente|nome)\s+([a-z\sàèéìòù]+?)(?:\s+(?:grazie|per\s+favore|ecc|eccetera)|$)/i,
+    );
+  }
+
   if (customerNameMatch) {
     result.customerName = capitalizeWords(customerNameMatch[1].trim());
   }
@@ -322,6 +340,30 @@ export function parseVoiceOrder(transcript: string): ParsedOrder {
   // Keywords: articolo, articoli, aggiungi, aggiungere, poi, ancora, inserisci, metti
   const itemsText = normalized.match(/(?:articolo|articoli|aggiungi|aggiungere|poi|ancora|inserisci|metti)\s+.+/i)?.[0] || "";
   result.items = parseItems(itemsText);
+
+  // FALLBACK: If no items found with triggers, try to detect article pattern without trigger
+  // This handles cases where agent forgets to say "articolo" but says the code directly
+  // Pattern: after customer name, if we see article code + quantity, parse it as item
+  if (result.items.length === 0 && result.customerName && customerNameMatch) {
+    // Look for text after the customer name match
+    const matchEnd = (customerNameMatch.index || 0) + customerNameMatch[0].length;
+    const afterCustomer = normalized.substring(matchEnd);
+
+    if (afterCustomer) {
+      // Remove leading comma/whitespace
+      const potentialArticle = afterCustomer.replace(/^[,\s]+/, "").trim();
+
+      // Try to parse as article if it looks like one:
+      // - Contains letters and numbers (article code pattern)
+      // - May have quantity keywords (pezzi, quantità)
+      if (potentialArticle && /[a-z]+.*\d+|\d+.*[a-z]+/i.test(potentialArticle)) {
+        const item = parseSingleItem(potentialArticle);
+        if (item) {
+          result.items.push(item);
+        }
+      }
+    }
+  }
 
   return result;
 }

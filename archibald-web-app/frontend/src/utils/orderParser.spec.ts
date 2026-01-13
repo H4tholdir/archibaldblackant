@@ -309,6 +309,64 @@ describe("parseVoiceOrder", () => {
       expect(result.items[0].quantity).toBe(1);
     });
   });
+
+  describe("fallback article detection without trigger", () => {
+    test("detects article after customer name without trigger keyword", () => {
+      const transcript = "cliente Mario Rossi SF 1000 5 pezzi";
+      const result = parseVoiceOrder(transcript);
+
+      expect(result.customerName).toBe("Mario Rossi");
+      expect(result.items).toHaveLength(1);
+      expect(result.items[0].articleCode).toBe("SF.1000");
+      expect(result.items[0].quantity).toBe(5);
+    });
+
+    test("detects complex article code without trigger", () => {
+      const transcript = "cliente Fresis H71 104 032 cinque pezzi";
+      const result = parseVoiceOrder(transcript);
+
+      expect(result.customerName).toBe("Fresis");
+      expect(result.items).toHaveLength(1);
+      expect(result.items[0].articleCode).toBe("H71.104.032");
+      expect(result.items[0].quantity).toBe(5);
+    });
+
+    test("detects article with comma separator", () => {
+      const transcript = "cliente La Casa Del Sorriso, H48LG 314 012 5 pezzi";
+      const result = parseVoiceOrder(transcript);
+
+      expect(result.customerName).toBe("La Casa Del Sorriso");
+      expect(result.items).toHaveLength(1);
+      expect(result.items[0].articleCode).toBe("H48LG.314.012");
+      expect(result.items[0].quantity).toBe(5);
+    });
+
+    test("detects article without quantity (defaults to 1)", () => {
+      const transcript = "cliente Pavese TD 1272 314";
+      const result = parseVoiceOrder(transcript);
+
+      expect(result.customerName).toBe("Pavese");
+      expect(result.items).toHaveLength(1);
+      expect(result.items[0].articleCode).toBe("TD.1272.314");
+      expect(result.items[0].quantity).toBe(1);
+    });
+
+    test("fallback does not trigger if no customer name", () => {
+      const transcript = "SF 1000 5 pezzi";
+      const result = parseVoiceOrder(transcript);
+
+      expect(result.customerName).toBeUndefined();
+      expect(result.items).toHaveLength(0); // No items without customer
+    });
+
+    test("fallback does not trigger if text after customer is not article-like", () => {
+      const transcript = "cliente Mario Rossi grazie";
+      const result = parseVoiceOrder(transcript);
+
+      expect(result.customerName).toBe("Mario Rossi");
+      expect(result.items).toHaveLength(0);
+    });
+  });
 });
 
 describe("parseVoiceOrderWithConfidence", () => {
