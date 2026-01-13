@@ -87,6 +87,10 @@ export default function OrderForm({ onOrderCreated }: OrderFormProps) {
     quantity: boolean;
   }>({ customer: false, article: false, quantity: false });
 
+  // Draft items and confirmation modal
+  const [draftItems, setDraftItems] = useState<OrderItem[]>([]);
+  const [showConfirmModal, setShowConfirmModal] = useState(false);
+
   // Voice input hook
   const {
     isListening,
@@ -346,7 +350,10 @@ export default function OrderForm({ onOrderCreated }: OrderFormProps) {
       }
     }
 
-    setItems([...items, { ...newItem }]);
+    // Add to draft instead of direct submission
+    setDraftItems((prev) => [...prev, { ...newItem }]);
+
+    // Clear form for next item
     setNewItem({
       articleCode: "",
       productName: "",
@@ -368,6 +375,42 @@ export default function OrderForm({ onOrderCreated }: OrderFormProps) {
 
   const handleRemoveItem = (index: number) => {
     setItems(items.filter((_, i) => i !== index));
+  };
+
+  const handleRemoveDraftItem = (index: number) => {
+    setDraftItems((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  const handleConfirmOrder = async () => {
+    setLoading(true);
+    try {
+      const response = await fetch("/api/orders/create", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          customerId,
+          customerName,
+          items: draftItems,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        onOrderCreated(data.data.jobId);
+        // Clear draft items and close modal
+        setDraftItems([]);
+        setShowConfirmModal(false);
+      } else {
+        alert(`Errore: ${data.error}`);
+      }
+    } catch (error) {
+      alert(`Errore di rete: ${error}`);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleVoiceStart = () => {
@@ -467,39 +510,8 @@ export default function OrderForm({ onOrderCreated }: OrderFormProps) {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-
-    if (items.length === 0) {
-      alert("Aggiungi almeno un articolo");
-      return;
-    }
-
-    setLoading(true);
-
-    try {
-      const response = await fetch("/api/orders/create", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          customerId,
-          customerName,
-          items,
-        }),
-      });
-
-      const data = await response.json();
-
-      if (data.success) {
-        onOrderCreated(data.data.jobId);
-      } else {
-        alert(`Errore: ${data.error}`);
-      }
-    } catch (error) {
-      alert(`Errore di rete: ${error}`);
-    } finally {
-      setLoading(false);
-    }
+    // Form submission is now handled by the confirmation modal
+    // This prevents accidental submission via Enter key
   };
 
   return (
@@ -943,11 +955,14 @@ export default function OrderForm({ onOrderCreated }: OrderFormProps) {
         </button>
       </div>
 
-      {items.length > 0 && (
+      {/* Draft Items Section */}
+      {draftItems.length > 0 && (
         <div className="card">
-          <h2 className="card-title">📋 Articoli ({items.length})</h2>
+          <h2 className="card-title">
+            📋 Items to Order ({draftItems.length})
+          </h2>
           <div className="items-list">
-            {items.map((item, index) => (
+            {draftItems.map((item, index) => (
               <div key={index} className="item-card">
                 <div className="item-header">
                   <span className="item-code">
@@ -956,7 +971,7 @@ export default function OrderForm({ onOrderCreated }: OrderFormProps) {
                   <button
                     type="button"
                     className="item-remove"
-                    onClick={() => handleRemoveItem(index)}
+                    onClick={() => handleRemoveDraftItem(index)}
                   >
                     ×
                   </button>
@@ -974,23 +989,84 @@ export default function OrderForm({ onOrderCreated }: OrderFormProps) {
               </div>
             ))}
           </div>
+          <button
+            type="button"
+            className="btn btn-primary"
+            onClick={() => setShowConfirmModal(true)}
+            style={{ marginTop: "1rem" }}
+          >
+            🚀 Create Order ({draftItems.length} items)
+          </button>
         </div>
       )}
 
-      <button
-        type="submit"
-        className="btn btn-primary"
-        disabled={loading || items.length === 0}
-      >
-        {loading ? (
-          <>
-            <span className="spinner" />
-            Invio ordine...
-          </>
-        ) : (
-          <>🚀 Crea Ordine</>
-        )}
-      </button>
+      {/* Confirmation Modal */}
+      {showConfirmModal && (
+        <div
+          className="voice-modal-overlay"
+          onClick={() => setShowConfirmModal(false)}
+        >
+          <div className="confirm-modal" onClick={(e) => e.stopPropagation()}>
+            <h2>Confirm Order</h2>
+            <div className="confirm-modal-body">
+              <div className="confirm-section">
+                <strong>Customer:</strong> {customerName || "Not specified"}
+              </div>
+              <div className="confirm-section">
+                <strong>Items ({draftItems.length}):</strong>
+                <div className="confirm-items-list">
+                  {draftItems.map((item, i) => (
+                    <div key={i} className="confirm-item">
+                      <span className="confirm-item-name">
+                        {item.productName || item.articleCode}
+                      </span>
+                      <span className="confirm-item-qty">
+                        Qty: {item.quantity}
+                      </span>
+                      <span className="confirm-item-price">
+                        €{(item.price * item.quantity).toFixed(2)}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              {draftItems.length > 0 && (
+                <div className="confirm-total">
+                  <strong>Total:</strong> €
+                  {draftItems
+                    .reduce((sum, item) => sum + item.price * item.quantity, 0)
+                    .toFixed(2)}
+                </div>
+              )}
+            </div>
+            <div className="confirm-modal-footer">
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={() => setShowConfirmModal(false)}
+                disabled={loading}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="btn btn-primary"
+                onClick={handleConfirmOrder}
+                disabled={loading}
+              >
+                {loading ? (
+                  <>
+                    <span className="spinner" />
+                    Submitting...
+                  </>
+                ) : (
+                  <>✓ Confirm & Submit</>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </form>
   );
 }
