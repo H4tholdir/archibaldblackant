@@ -4,9 +4,6 @@ import {
   getVoiceSuggestions,
   detectMixedPackageSolutions,
   validateArticleCode,
-  type ParsedOrderWithConfidence,
-  type ArticleValidationResult,
-  type PackageSolution,
 } from "./orderParser";
 
 describe("parseVoiceOrder", () => {
@@ -101,8 +98,9 @@ describe("parseVoiceOrder", () => {
 
 describe("parseVoiceOrderWithConfidence", () => {
   test("high confidence for complete and clear input", () => {
-    const transcript = "cliente Mario Rossi, articolo SF1000 quantità 5";
-    // This function doesn't exist yet - will be implemented
+    // TODO: Implement parseVoiceOrderWithConfidence function
+    // This function doesn't exist yet - will be implemented in Task 5
+    // const transcript = "cliente Mario Rossi, articolo SF1000 quantità 5";
     // const result = parseVoiceOrderWithConfidence(transcript);
 
     // expect(result.customerNameConfidence).toBe(1.0);
@@ -111,8 +109,8 @@ describe("parseVoiceOrderWithConfidence", () => {
   });
 
   test("medium confidence for normalized input", () => {
-    const transcript =
-      "cliente mario rossi articolo sf mille quantità cinque";
+    // TODO: Implement parseVoiceOrderWithConfidence function
+    // const transcript = "cliente mario rossi articolo sf mille quantità cinque";
     // const result = parseVoiceOrderWithConfidence(transcript);
 
     // expect(result.customerNameConfidence).toBeCloseTo(0.9, 1);
@@ -120,7 +118,8 @@ describe("parseVoiceOrderWithConfidence", () => {
   });
 
   test("low confidence for very short or ambiguous input", () => {
-    const transcript = "mario rossi sf quantità";
+    // TODO: Implement parseVoiceOrderWithConfidence function
+    // const transcript = "mario rossi sf quantità";
     // const result = parseVoiceOrderWithConfidence(transcript);
 
     // expect(result.customerNameConfidence).toBeLessThan(0.5);
