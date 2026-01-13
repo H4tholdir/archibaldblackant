@@ -4,11 +4,13 @@ import {
   parseVoiceOrder,
   getVoiceSuggestions,
   validateCustomerName,
+  validateArticleCode,
 } from "../utils/orderParser";
 import type { OrderItem } from "../types/order";
 import type {
   ParsedOrderWithConfidence,
   CustomerValidationResult,
+  ArticleValidationResult,
 } from "../utils/orderParser";
 import { ConfidenceMeter } from "./ConfidenceMeter";
 import { TranscriptDisplay } from "./TranscriptDisplay";
@@ -90,6 +92,9 @@ export default function OrderForm({ onOrderCreated }: OrderFormProps) {
     useState<CustomerValidationResult | null>(null);
   const [customerManuallySelected, setCustomerManuallySelected] =
     useState(false);
+  const [articleValidation, setArticleValidation] =
+    useState<ArticleValidationResult | null>(null);
+  const [articleManuallySelected, setArticleManuallySelected] = useState(false);
 
   // Voice-populated fields tracking
   const [voicePopulatedFields, setVoicePopulatedFields] = useState<{
@@ -150,14 +155,34 @@ export default function OrderForm({ onOrderCreated }: OrderFormProps) {
         }
       }
 
-      // Add confidence scores (customer uses validation result, items use mock scores)
+      // Validate article code if present (async fuzzy matching)
+      // Skip validation if user manually selected an article from suggestions
+      let articleConfidence = 0.85; // default
+      if (
+        parsed.items.length > 0 &&
+        parsed.items[0].articleCode &&
+        !articleManuallySelected
+      ) {
+        const validation = await validateArticleCode(
+          parsed.items[0].articleCode,
+        );
+        setArticleValidation(validation);
+        articleConfidence = validation.confidence;
+
+        // If exact/normalized match found, use the correct code from database
+        if (validation.product && validation.confidence >= 0.7) {
+          parsed.items[0].articleCode = validation.product.name;
+        }
+      }
+
+      // Add confidence scores (customer and article use validation results)
       const parsedWithConfidence: ParsedOrderWithConfidence = {
         ...parsed,
         customerNameConfidence: customerConfidence,
         customerIdConfidence: parsed.customerId ? 0.9 : undefined,
         items: parsed.items.map((item) => ({
           ...item,
-          articleCodeConfidence: 0.85,
+          articleCodeConfidence: articleConfidence,
           quantityConfidence: 0.95,
         })),
       };
@@ -575,6 +600,8 @@ export default function OrderForm({ onOrderCreated }: OrderFormProps) {
     setIsFinalTranscript(false);
     setCustomerValidation(null);
     setCustomerManuallySelected(false);
+    setArticleValidation(null);
+    setArticleManuallySelected(false);
     // Keep modal open for re-recording
   };
 
@@ -584,6 +611,8 @@ export default function OrderForm({ onOrderCreated }: OrderFormProps) {
     stopListening();
     setCustomerValidation(null);
     setCustomerManuallySelected(false);
+    setArticleValidation(null);
+    setArticleManuallySelected(false);
   };
 
   // Handle manual edit of voice-populated fields
@@ -768,6 +797,41 @@ export default function OrderForm({ onOrderCreated }: OrderFormProps) {
                   setCustomerValidation(null);
                   // Mark customer as manually selected to prevent re-validation
                   setCustomerManuallySelected(true);
+                }}
+              />
+            )}
+
+            {/* Article Suggestions (fuzzy matching) */}
+            {articleValidation && (
+              <SmartSuggestions
+                validationResult={articleValidation}
+                suggestions={[]}
+                priority="high"
+                onSuggestionClick={(articleCode) => {
+                  // Apply selected suggestion to form
+                  setNewItem((prev) => ({ ...prev, articleCode }));
+                  setProductSearch(articleCode);
+                  setVoicePopulatedFields((prev) => ({
+                    ...prev,
+                    article: true,
+                  }));
+                  // Update parsed order with selected article
+                  setParsedOrder((prev) => ({
+                    ...prev,
+                    items: prev.items.map((item, idx) =>
+                      idx === 0
+                        ? {
+                            ...item,
+                            articleCode,
+                            articleCodeConfidence: 1.0, // User confirmed
+                          }
+                        : item,
+                    ),
+                  }));
+                  // Clear validation to hide suggestions
+                  setArticleValidation(null);
+                  // Mark article as manually selected to prevent re-validation
+                  setArticleManuallySelected(true);
                 }}
               />
             )}

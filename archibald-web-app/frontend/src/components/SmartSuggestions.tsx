@@ -25,7 +25,8 @@ export function SmartSuggestions({
         <div
           className={`validation-result result-${validationResult.matchType}`}
         >
-          {validationResult.matchType === "exact" && (
+          {(validationResult.matchType === "exact" ||
+            validationResult.matchType === "normalized") && (
             <div className="result-exact">
               <span className="result-icon">✓</span>
               <span className="result-message">Articolo trovato</span>
