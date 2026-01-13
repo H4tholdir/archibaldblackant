@@ -476,6 +476,56 @@
   color: #78350f;
 }
 
+/* Confidence Meter */
+.confidence-meter {
+  margin-bottom: 1.5rem;
+}
+
+.confidence-meter-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.5rem;
+}
+
+.confidence-label {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: #374151;
+}
+
+.confidence-percentage {
+  font-size: 0.875rem;
+  font-weight: 700;
+  color: #1a202c;
+}
+
+.confidence-bar {
+  height: 8px;
+  background: #e5e7eb;
+  border-radius: 4px;
+  overflow: hidden;
+  position: relative;
+}
+
+.confidence-fill {
+  height: 100%;
+  transition: width 0.3s ease, background-color 0.3s ease;
+  border-radius: 4px;
+}
+
+.confidence-low {
+  background-color: #f44336;
+}
+
+.confidence-medium {
+  background-color: #ffc107;
+}
+
+.confidence-high {
+  background-color: #4caf50;
+}
+
 /* Voice Button */
 .btn-voice {
   background: linear-gradient(135deg, #10b981 0%, #059669 100%);
