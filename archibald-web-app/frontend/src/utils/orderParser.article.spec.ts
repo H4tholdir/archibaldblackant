@@ -45,6 +45,66 @@ describe("validateArticleCode", () => {
     expect(result.suggestions).toEqual([]);
   });
 
+  it("should return exact match with alternative suggestions", async () => {
+    const mockResponse = {
+      success: true,
+      data: [
+        {
+          id: "031155K0",
+          name: "TD1272.314.",
+          description: "KIT PROTESI - DR MASSIRONI",
+          packageContent: "1",
+          multipleQty: 1,
+          price: 179.63,
+          confidence: 98,
+          matchReason: "exact",
+        },
+        {
+          id: "047637K0",
+          name: "LD1374.314.",
+          description: "KIT FRESE OSSIVORE POLIFUNZIONALI",
+          packageContent: "1",
+          multipleQty: 1,
+          price: null,
+          confidence: 67,
+          matchReason: "fuzzy",
+        },
+        {
+          id: "035456K0",
+          name: "TD1655.314.",
+          description: "KIT PROTESI - DR MASSIRONI",
+          packageContent: "1",
+          multipleQty: 1,
+          price: null,
+          confidence: 67,
+          matchReason: "fuzzy",
+        },
+      ],
+    };
+
+    (global.fetch as any).mockResolvedValueOnce({
+      ok: true,
+      json: async () => mockResponse,
+    });
+
+    const result = await validateArticleCode("TD 1272-3-14");
+
+    expect(result.matchType).toBe("exact");
+    expect(result.confidence).toBe(0.98);
+    expect(result.product).toEqual({
+      id: "031155K0",
+      name: "TD1272.314.",
+      description: "KIT PROTESI - DR MASSIRONI",
+      packageContent: "1",
+      multipleQty: 1,
+    });
+    // Should now include alternative suggestions
+    expect(result.suggestions).toHaveLength(2);
+    expect(result.suggestions[0].code).toBe("LD1374.314.");
+    expect(result.suggestions[0].confidence).toBe(67);
+    expect(result.suggestions[1].code).toBe("TD1655.314.");
+  });
+
   it("should return normalized match for code without dots", async () => {
     const mockResponse = {
       success: true,

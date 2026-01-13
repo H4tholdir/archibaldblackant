@@ -1308,3 +1308,28 @@
   color: #9ca3af;
   margin-top: 0.125rem;
 }
+
+/* Alternative suggestions for exact/normalized matches */
+.result-alternative-suggestions {
+  margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: 1px solid #e5e7eb;
+}
+
+.result-alternative-suggestions .result-hint {
+  font-size: 0.875rem;
+  color: #6b7280;
+  margin-bottom: 0.5rem;
+  font-weight: 500;
+}
+
+.suggestion-item-alt {
+  background: #f9fafb;
+  border: 1px dashed #d1d5db;
+}
+
+.suggestion-item-alt:hover {
+  background: white;
+  border-style: solid;
+  border-color: #9ca3af;
+}

@@ -355,7 +355,15 @@ export async function validateArticleCode(
           packageContent: bestMatch.packageContent,
           multipleQty: bestMatch.multipleQty,
         },
-        suggestions: [],
+        // Include other results as alternative suggestions (if any)
+        suggestions: results.slice(1).map((r: any) => ({
+          code: r.name,
+          confidence: r.confidence,
+          reason: r.matchReason,
+          packageInfo: r.packageContent
+            ? `${r.id.slice(-2)} - ${r.packageContent}pz`
+            : r.id.slice(-2),
+        })),
       };
     }
 

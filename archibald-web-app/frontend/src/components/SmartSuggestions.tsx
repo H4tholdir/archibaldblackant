@@ -29,7 +29,46 @@ export function SmartSuggestions({
             validationResult.matchType === "normalized") && (
             <div className="result-exact">
               <span className="result-icon">✓</span>
-              <span className="result-message">Articolo trovato</span>
+              <div className="result-content">
+                <div className="result-message">Articolo trovato</div>
+                {/* Show alternative suggestions if available */}
+                {validationResult.suggestions &&
+                  validationResult.suggestions.length > 0 && (
+                    <div className="result-alternative-suggestions">
+                      <div className="result-hint">
+                        Altre corrispondenze trovate:
+                      </div>
+                      <div className="result-suggestions-list">
+                        {validationResult.suggestions
+                          .slice(0, 3)
+                          .map((suggestion, index) => (
+                            <button
+                              key={index}
+                              className="suggestion-item suggestion-item-alt"
+                              onClick={() =>
+                                onSuggestionClick?.(suggestion.code)
+                              }
+                            >
+                              <div className="suggestion-info">
+                                <strong>{suggestion.code}</strong>
+                                {suggestion.packageInfo && (
+                                  <span className="suggestion-package">
+                                    {suggestion.packageInfo}
+                                  </span>
+                                )}
+                                <span className="suggestion-confidence">
+                                  {Math.round(suggestion.confidence)}% match
+                                </span>
+                              </div>
+                              <span className="suggestion-action">
+                                Seleziona
+                              </span>
+                            </button>
+                          ))}
+                      </div>
+                    </div>
+                  )}
+              </div>
             </div>
           )}
 
