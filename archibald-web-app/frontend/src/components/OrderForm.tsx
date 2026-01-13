@@ -749,6 +749,67 @@ export default function OrderForm({ onOrderCreated }: OrderFormProps) {
               {/* Error */}
               {voiceError && <div className="voice-error">⚠️ {voiceError}</div>}
 
+              {/* Customer Validation Results */}
+              {customerValidation &&
+                customerValidation.suggestions.length > 0 && (
+                  <SmartSuggestions
+                    validationResult={{
+                      matchType: "fuzzy",
+                      confidence: customerValidation.confidence,
+                      suggestions: customerValidation.suggestions.map((s) => ({
+                        code: s.name,
+                        confidence: s.confidence * 100,
+                        reason: "fuzzy_match",
+                        packageInfo: s.vatNumber
+                          ? `P.IVA: ${s.vatNumber}`
+                          : undefined,
+                      })),
+                      error:
+                        customerValidation.matchType === "not_found"
+                          ? customerValidation.error
+                          : "Cliente simile a:",
+                    }}
+                    suggestions={[]}
+                    priority="high"
+                    onSuggestionClick={(customerName) => {
+                      const customer = customerValidation.suggestions.find(
+                        (s) => s.name === customerName,
+                      );
+                      if (customer) {
+                        setParsedOrder((prev) => ({
+                          ...prev,
+                          customerName: customer.name,
+                          customerId: customer.id,
+                        }));
+                        setCustomerManuallySelected(true);
+                      }
+                    }}
+                  />
+                )}
+
+              {/* Article Validation Results */}
+              {articleValidation && (
+                <SmartSuggestions
+                  validationResult={articleValidation}
+                  suggestions={[]}
+                  priority="high"
+                  onSuggestionClick={(articleCode) => {
+                    setParsedOrder((prev) => ({
+                      ...prev,
+                      items: prev.items.map((item, idx) =>
+                        idx === 0
+                          ? {
+                              ...item,
+                              articleCode,
+                            }
+                          : item,
+                      ),
+                    }));
+                    setArticleManuallySelected(true);
+                  }}
+                />
+              )}
+
               {/* Smart Suggestions */}
               {voiceSuggestions.length > 0 && (
                 <SmartSuggestions
