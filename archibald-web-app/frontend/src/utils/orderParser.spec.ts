@@ -85,12 +85,20 @@ describe("parseVoiceOrder", () => {
     });
 
     test("normalizes mille and cento keywords", () => {
-      const transcript =
-        "cliente Mario Rossi, articolo SF mille quantità cinque";
+      const transcript = "cliente Mario Rossi, articolo SF mille quantità 5";
       const result = parseVoiceOrder(transcript);
 
       // "SF mille" → "SF 1000" (space added by keyword) → "SF.1000" (dot added by space pattern)
       expect(result.items[0].articleCode).toBe("SF.1000");
+    });
+
+    test("parses quantity from X pezzi pattern", () => {
+      const transcript = "articolo TD 1272-314 10 pezzi";
+      const result = parseVoiceOrder(transcript);
+
+      expect(result.items).toHaveLength(1);
+      expect(result.items[0].articleCode).toBe("TD.1272.314");
+      expect(result.items[0].quantity).toBe(10);
     });
   });
 });

@@ -138,15 +138,30 @@ function parseItems(itemsText: string): OrderItem[] {
  * Example: "SF1000 quantità 5 prezzo 150"
  */
 function parseSingleItem(text: string): OrderItem | null {
-  // Extract article code (first word/phrase before quantity/price)
-  const codeMatch = text.match(/^([a-z0-9\s.]+?)(?:\s+(?:quantità|prezzo)|$)/i);
+  // Extract quantity (supports both "quantità X" and "X pezzi/pz")
+  // Match either: "quantità 10" or "10 pezzi" or "10pz"
+  const quantityMatch = text.match(
+    /(?:quantità\s+(\d+))|(?:(\d+)\s+(?:pezz[io]|pz)\b)/i,
+  );
+  const quantity = quantityMatch
+    ? parseInt(quantityMatch[1] || quantityMatch[2], 10)
+    : 1;
+
+  // Extract article code (everything before quantity/price keywords)
+  // Remove only explicit quantity patterns (not bare numbers that might be part of article code)
+  let textForCode = text;
+  if (quantityMatch) {
+    // Remove the matched quantity pattern
+    textForCode = text.replace(quantityMatch[0], "").trim();
+  } else {
+    // No quantity pattern found, just remove "quantità" keyword if present
+    textForCode = text.replace(/\bquantità\b/gi, "").trim();
+  }
+
+  const codeMatch = textForCode.match(/^([a-z0-9\s.\-]+?)(?:\s+prezzo|$)/i);
   if (!codeMatch) return null;
 
   const articleCode = normalizeArticleCode(codeMatch[1].trim());
-
-  // Extract quantity
-  const quantityMatch = text.match(/quantità\s+(\d+)/i);
-  const quantity = quantityMatch ? parseInt(quantityMatch[1], 10) : 1;
 
   // Extract price
   const priceMatch = text.match(/prezzo\s+([\d,]+)/i);
