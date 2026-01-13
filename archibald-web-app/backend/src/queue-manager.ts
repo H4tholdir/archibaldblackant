@@ -194,6 +194,14 @@ export class QueueManager {
       bot = new ArchibaldBot();
       await bot.initialize();
 
+      // Progress: 10% - Browser initialization started
+      await job.updateProgress({
+        percent: 10,
+        step: 'browser_init',
+        message: 'Inizializzazione browser...',
+        estimatedRemainingSeconds: 75
+      });
+
       // Prova a riutilizzare sessione esistente
       const sessionManager = SessionManager.getInstance();
       const cookies = await sessionManager.loadSession();
@@ -230,18 +238,78 @@ export class QueueManager {
         }
       }
 
-      // Aggiorna progress
-      await job.updateProgress(25);
+      // Progress: 15% - Login/session check complete
+      await job.updateProgress({
+        percent: 15,
+        step: 'login',
+        message: 'Login completato',
+        estimatedRemainingSeconds: 70
+      });
+
+      // Progress: 25% - Session validated (EXISTING milestone)
+      await job.updateProgress({
+        percent: 25,
+        step: 'session_validated',
+        message: 'Sessione validata',
+        estimatedRemainingSeconds: 65
+      });
+
+      // Progress: 35% - Customer selection started
+      await job.updateProgress({
+        percent: 35,
+        step: 'customer_selection',
+        message: 'Selezione cliente in corso...',
+        estimatedRemainingSeconds: 55
+      });
 
       // Crea l'ordine con priority lock (pausa tutti i servizi di sync)
       logger.debug('[QueueManager] Acquiring priority lock for order creation...');
       const orderId = await PriorityManager.getInstance().withPriority(async () => {
-        return await bot.createOrder(orderData);
+        // Progress: 50% - Customer selected (estimated midpoint)
+        await job.updateProgress({
+          percent: 50,
+          step: 'customer_selected',
+          message: 'Cliente selezionato',
+          estimatedRemainingSeconds: 40
+        });
+
+        // Progress: 65% - Article addition started
+        await job.updateProgress({
+          percent: 65,
+          step: 'article_addition',
+          message: 'Aggiunta articoli...',
+          estimatedRemainingSeconds: 30
+        });
+
+        const result = await bot.createOrder(orderData);
+
+        // Progress: 80% - Articles added
+        await job.updateProgress({
+          percent: 80,
+          step: 'articles_added',
+          message: 'Articoli aggiunti',
+          estimatedRemainingSeconds: 15
+        });
+
+        // Progress: 90% - Order save initiated
+        await job.updateProgress({
+          percent: 90,
+          step: 'order_save',
+          message: 'Salvataggio ordine...',
+          estimatedRemainingSeconds: 8
+        });
+
+        return result;
       });
       logger.debug('[QueueManager] Priority lock released');
 
-      // Aggiorna progress
-      await job.updateProgress(100);
+      // Progress: 100% - Order creation complete
+      await job.updateProgress({
+        percent: 100,
+        step: 'complete',
+        message: 'Ordine creato!',
+        estimatedRemainingSeconds: 0
+      });
 
       const duration = Date.now() - startTime;
 
