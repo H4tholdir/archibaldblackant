@@ -9,19 +9,19 @@ See: .planning/PROJECT.md (updated 2026-01-11)
 
 ## Current Position
 
-Phase: 5 of 12 (Order Submission) 📋 PLANNED
-Plan: 0 of 2 complete (progress tracking, frontend UI)
-Status: READY TO EXECUTE - Plans created from user context, ready for implementation
-Last activity: 2026-01-13 — Created 05-01-PLAN.md and 05-02-PLAN.md
+Phase: 5 of 12 (Order Submission) 🚧 IN PROGRESS
+Plan: 1 of 2 complete (progress tracking ⚠️, frontend UI pending)
+Status: EXECUTING - Plan 05-01 complete with WebSocket issues, ready for user pricing request
+Last activity: 2026-01-13 — Completed 05-01-PLAN.md (granular progress tracking)
 
-Progress: ████████░░ 38% (32/38 plans complete - Phase 4.1 complete ✅, Phase 5 planned)
+Progress: ████████░░ 39% (33/38 plans complete - Phase 5 Plan 1 complete with issues)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 32
-- Average duration: 75 min (1h 15m)
-- Total execution time: 39.6 hours
+- Total plans completed: 33
+- Average duration: 74 min (1h 14m)
+- Total execution time: 40.7 hours
 
 **By Phase:**
 
@@ -33,10 +33,11 @@ Progress: ████████░░ 38% (32/38 plans complete - Phase 4.1 c
 | 3.1 | 3 | 350 min | 117 min |
 | 4 | 3 | 285 min | 95 min |
 | 4.1 | 4 | 233 min | 58 min |
+| 5 | 1 | 65 min | 65 min |
 
 **Recent Trend:**
-- Last 6 plans: 04-01 (45m), 04-02 (120m), 04-03 (120m), 04.1-01 (25m), 04.1-02 (120m), 04.1-03 (15m), 04.1-04 (73m)
-- Trend: Phase 4.1 averaging 58m per plan (mid-range complexity)
+- Last 7 plans: 04-02 (120m), 04-03 (120m), 04.1-01 (25m), 04.1-02 (120m), 04.1-03 (15m), 04.1-04 (73m), 05-01 (65m)
+- Trend: Recent plans averaging ~77m (backend infrastructure work)
 
 ## Accumulated Context
 
@@ -351,8 +352,28 @@ None yet.
   - **Commits**: 1 atomic commit (ce93ce7)
   - **Phase 4.1 Status**: ✅ COMPLETE (4/4 plans done)
 
+- **2026-01-13 (Continued)**: Plan 05-01 complete ⚠️ (Granular Progress Tracking)
+  - **Duration**: 65 minutes
+  - **Accomplishments**:
+    - Added 9 granular progress milestones in queue-manager.ts:processOrder() (a574b7d)
+    - Created WebSocket endpoint for order progress tracking with jobId subscriptions (08edccb)
+    - Progress broadcaster mechanism connecting BullMQ to WebSocket clients
+    - Structured progress metadata: percent, step, message, estimatedRemainingSeconds
+  - **Issue Discovered**: WebSocket not receiving real-time progress updates
+    - Frontend displays Job ID correctly but shows "N/A" for progress
+    - User report: "vedo solo la barra ma non rispetta quello che il bot sotto sta creando"
+    - Backend infrastructure complete, but updates not reaching frontend
+  - **Key Decisions**:
+    - Event-driven broadcaster pattern for QueueManager → WebSocket decoupling
+    - Italian localization for all progress messages
+    - Time estimates based on Phase 3.2 baseline (82s order creation)
+  - **Impact**: Backend infrastructure ready, WebSocket delivery issue needs debugging
+  - **Test Results**: TypeScript compiles cleanly (new code), order creation still functional
+  - **Status**: COMPLETED WITH ISSUES - Infrastructure built, delivery broken
+  - **Next**: User requested pricing calculation feature (VAT, shipping, discount)
+
 ## Session Continuity
 
-Last session: 2026-01-13 (late evening)
-Stopped at: Completed 04.1-04-PLAN.md (Customer Sync Priority Reversal) - Phase 4.1 COMPLETE ✅
-Next: Review Phase 5 plans (Order Submission) or address deferred issues
+Last session: 2026-01-13 (continued)
+Stopped at: Completed 05-01-PLAN.md (Granular Progress Tracking) - Plan complete with WebSocket issues ⚠️
+Next: User pricing calculation request (VAT, shipping, discount to target total)
