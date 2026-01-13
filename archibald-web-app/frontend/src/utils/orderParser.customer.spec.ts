@@ -1,6 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { validateCustomerName } from "./orderParser";
-import type { CustomerValidationResult } from "./orderParser";
 
 // Mock fetch globally
 global.fetch = vi.fn();
@@ -105,7 +104,7 @@ describe("validateCustomerName", () => {
     const result = await validateCustomerName("Fresis");
 
     expect(result.matchType).toBe("phonetic");
-    expect(result.confidence).toBe(0.80);
+    expect(result.confidence).toBe(0.8);
     expect(result.customer).toEqual({
       id: "CUST002",
       name: "Francis",

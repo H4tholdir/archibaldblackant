@@ -88,6 +88,8 @@ export default function OrderForm({ onOrderCreated }: OrderFormProps) {
   const [isFinalTranscript, setIsFinalTranscript] = useState(false);
   const [customerValidation, setCustomerValidation] =
     useState<CustomerValidationResult | null>(null);
+  const [customerManuallySelected, setCustomerManuallySelected] =
+    useState(false);
 
   // Voice-populated fields tracking
   const [voicePopulatedFields, setVoicePopulatedFields] = useState<{
@@ -134,8 +136,9 @@ export default function OrderForm({ onOrderCreated }: OrderFormProps) {
       const parsed = parseVoiceOrder(finalTranscript);
 
       // Validate customer name if present (async fuzzy matching)
+      // Skip validation if user manually selected a customer from suggestions
       let customerConfidence = parsed.customerName ? 0.5 : undefined;
-      if (parsed.customerName) {
+      if (parsed.customerName && !customerManuallySelected) {
         const validation = await validateCustomerName(parsed.customerName);
         setCustomerValidation(validation);
         customerConfidence = validation.confidence;
@@ -570,6 +573,8 @@ export default function OrderForm({ onOrderCreated }: OrderFormProps) {
     setParsedOrder({ items: [] });
     setVoiceSuggestions(getVoiceSuggestions(""));
     setIsFinalTranscript(false);
+    setCustomerValidation(null);
+    setCustomerManuallySelected(false);
     // Keep modal open for re-recording
   };
 
@@ -577,6 +582,8 @@ export default function OrderForm({ onOrderCreated }: OrderFormProps) {
     setShowVoiceModal(false);
     resetTranscript();
     stopListening();
+    setCustomerValidation(null);
+    setCustomerManuallySelected(false);
   };
 
   // Handle manual edit of voice-populated fields
@@ -759,6 +766,8 @@ export default function OrderForm({ onOrderCreated }: OrderFormProps) {
                   }));
                   // Clear validation to hide suggestions
                   setCustomerValidation(null);
+                  // Mark customer as manually selected to prevent re-validation
+                  setCustomerManuallySelected(true);
                 }}
               />
             )}
