@@ -1,4 +1,5 @@
 import type { OrderItem } from "../types/order";
+import Fuse from "fuse.js";
 
 interface ParsedOrder {
   customerId?: string;
@@ -287,6 +288,85 @@ export function detectMixedPackageSolutions(
   return {
     needsDisambiguation: solutions.length > 1,
     solutions: solutions.sort((a, b) => a.totalPackages - b.totalPackages), // Optimal first
+  };
+}
+
+/**
+ * Validate article code with multi-layer approach:
+ * - Layer 1: Exact match
+ * - Layer 2: Base pattern match (handles variant errors like 023→016)
+ * - Layer 3: Fuzzy match (handles recognition errors like H71→H61)
+ */
+export async function validateArticleCode(
+  code: string,
+  productDb: Array<{
+    id: string;
+    name: string;
+    packageContent?: string;
+    multipleQty?: number;
+  }>,
+): Promise<ArticleValidationResult> {
+  // Layer 1: Exact match
+  const exactMatch = productDb.find((p) => p.name === code);
+  if (exactMatch) {
+    return {
+      matchType: "exact",
+      confidence: 1.0,
+      product: exactMatch,
+      suggestions: [],
+    };
+  }
+
+  // Layer 2: Base pattern match (handles variant errors: 023→016)
+  const parts = code.split(".");
+  if (parts.length >= 2) {
+    const basePattern = parts.slice(0, 2).join(".");
+    const variants = productDb.filter((p) => p.name.startsWith(basePattern));
+
+    if (variants.length > 0) {
+      return {
+        matchType: "base_pattern",
+        confidence: 0.7,
+        basePattern,
+        suggestions: variants.map((v) => ({
+          code: v.name,
+          variant: v.name.split(".")[2] || "",
+          packageInfo: `${v.id.slice(-2)} - ${v.packageContent}pz`,
+          confidence: 0.8,
+          reason: "base_match",
+        })),
+        error: `Variante .${parts[2]} non trovata per ${basePattern}`,
+      };
+    }
+  }
+
+  // Layer 3: Fuzzy match (handles recognition errors: H71→H61)
+  const fuse = new Fuse(productDb, {
+    keys: ["name", "id"],
+    threshold: 0.3,
+    includeScore: true,
+  });
+
+  const results = fuse.search(code);
+  if (results.length > 0) {
+    return {
+      matchType: "fuzzy",
+      confidence: 0.5,
+      suggestions: results.slice(0, 3).map((r) => ({
+        code: r.item.name,
+        confidence: 1 - (r.score || 0),
+        reason: "fuzzy_match",
+      })),
+      error: `Articolo "${code}" non trovato`,
+    };
+  }
+
+  // No match
+  return {
+    matchType: "not_found",
+    confidence: 0.0,
+    suggestions: [],
+    error: `Articolo "${code}" non trovato nel catalogo`,
   };
 }
 
