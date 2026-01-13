@@ -623,21 +623,21 @@ export default function OrderForm({ onOrderCreated }: OrderFormProps) {
         };
 
         setDraftItems((prev) => [...prev, newDraftItem]);
-
-        // Clear state for next item (keep modal open for continuous dictation)
-        resetTranscript();
-        setParsedOrder({ items: [] });
-        setArticleValidation(null);
-        setArticleManuallySelected(false);
-        setCustomerValidation(null);
-        setCustomerManuallySelected(false);
-        setIsFinalTranscript(false);
-        setVoiceSuggestions([]);
       } else {
         // Low confidence - populate form for manual review
         populateFormWithItem(item);
       }
     }
+
+    // Always clear state for next input (keep modal open for continuous dictation)
+    resetTranscript();
+    setParsedOrder({ items: [] });
+    setArticleValidation(null);
+    setArticleManuallySelected(false);
+    setCustomerValidation(null);
+    setCustomerManuallySelected(false);
+    setIsFinalTranscript(false);
+    setVoiceSuggestions([]);
   };
 
   const handleVoiceClear = () => {

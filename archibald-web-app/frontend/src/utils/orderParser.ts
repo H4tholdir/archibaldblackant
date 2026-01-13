@@ -218,6 +218,9 @@ function normalizeArticleCode(code: string): string {
   // Handle remaining single spaces between digits (e.g., "H71.104 032")
   normalized = normalized.replace(/(\d+)\s+(\d+)/g, "$1.$2");
 
+  // Replace hyphens between number segments with dots (e.g., "TD.1272-314" → "TD.1272.314")
+  normalized = normalized.replace(/(\d+)-(\d+)/g, "$1.$2");
+
   return normalized.toUpperCase().trim();
 }
 
