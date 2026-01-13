@@ -3356,42 +3356,31 @@ export class ArchibaldBot {
               currentValue: discountFieldInfo.currentValue,
             });
 
-            // Click on the discount field to focus it
+            // Double-click strategy (same as quantity fields)
             const discountInput = await this.page!.$(`#${discountFieldInfo.id}`);
             if (!discountInput) {
               throw new Error("Discount input element not found");
             }
 
-            await discountInput.click();
+            // Double-click to activate cell editing mode
+            await discountInput.click({ clickCount: 2 });
             await this.wait(300);
 
-            // Clear existing value
-            await this.page!.evaluate((inputId) => {
-              const input = document.getElementById(inputId) as HTMLInputElement;
-              if (input) {
-                input.value = "";
-                input.dispatchEvent(new Event("input", { bubbles: true }));
-                input.dispatchEvent(new Event("change", { bubbles: true }));
-              }
-            }, discountFieldInfo.id);
+            // Select all existing content with Ctrl+A
+            await this.page!.keyboard.down('Control');
+            await this.page!.keyboard.press('KeyA');
+            await this.page!.keyboard.up('Control');
+            await this.wait(100);
 
-            await this.wait(200);
-
-            // Type the discount percentage
-            // Format: "XX,XX %" (Italian format with comma)
+            // Type the discount percentage (will replace selected content)
+            // Format: "XX,XX" (Italian format with comma, without % symbol)
             const discountFormatted = orderData.discountPercent.toFixed(2).replace(".", ",");
-            await discountInput.type(discountFormatted, { delay: 50 });
+            await this.page!.keyboard.type(discountFormatted, { delay: 50 });
 
             await this.wait(500);
 
-            // Trigger blur to confirm the value
-            await this.page!.evaluate((inputId) => {
-              const input = document.getElementById(inputId) as HTMLInputElement;
-              if (input) {
-                input.dispatchEvent(new Event("blur", { bubbles: true }));
-                input.dispatchEvent(new Event("change", { bubbles: true }));
-              }
-            }, discountFieldInfo.id);
+            // Press Tab to confirm and move to next field (triggers DevExpress validation)
+            await this.page!.keyboard.press('Tab');
 
             await this.wait(1000); // Wait for Archibald to recalculate order totals
 
