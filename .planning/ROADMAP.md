@@ -361,22 +361,29 @@ Plans:
 - [ ] 05-05: Add E2E test for complete order flow (Playwright)
 - [ ] 05-06: Add order success confirmation with Archibald order ID
 
-### Phase 6: Multi-User Authentication
+### Phase 6: Multi-User Authentication 🚧 IN PROGRESS
 **Goal**: Abilitare login multi-agente con whitelist e sessioni Puppeteer separate per-utente
 **Depends on**: Phase 4.1 (Phase 5 postponed)
-**Research**: Likely (session management architecture decision)
-**Research topics**: Puppeteer multi-session patterns, session isolation strategies, credential flow architecture
-**Plans**: 8 plans
+**Research**: ✅ COMPLETE (Plan 06-01)
+**Research topics**: Puppeteer multi-session patterns (BrowserContext pooling chosen), session isolation strategies, credential flow architecture
+**Plans**: 7 plans (1/7 complete)
+**Status**: 🚧 IN PROGRESS - Plan 06-01 complete, executing Plan 06-02
+
+**Architecture Decision** (Plan 06-01): ✅ BrowserContext Pooling
+- One Browser instance with Map<userId, BrowserContext>
+- Complete cookie isolation per user
+- Session persistence via file-based cache (.cache/session-{userId}.json, 24h TTL)
+- 5x memory efficiency vs separate Browsers (300MB vs 1.5GB for 10 users)
+- 35s faster subsequent logins (72s vs 107s)
 
 Plans:
-- [ ] 06-01: Research Puppeteer multi-session architecture patterns
-- [ ] 06-02: Design per-user session architecture (DB schema, backend API)
-- [ ] 06-03: Create agent whitelist management (admin backend endpoint)
-- [ ] 06-04: Implement login UI with Archibald credentials input
-- [ ] 06-05: Add backend authentication endpoint (validate against whitelist)
-- [ ] 06-06: Refactor BrowserPool to support per-user sessions
-- [ ] 06-07: Update order creation to use authenticated user session
-- [ ] 06-08: Add logout and session cleanup
+- [x] 06-01: Research & Architecture Design (45m) ✅
+- [ ] 06-02: User Database & Whitelist Backend
+- [ ] 06-03: Authentication Backend & JWT
+- [ ] 06-04: Login UI & Frontend Auth State
+- [ ] 06-05: Refactor BrowserPool for Multi-User Sessions
+- [ ] 06-06: Integrate User Sessions in Order Flow
+- [ ] 06-07: Session Cleanup & Testing
 
 ### Phase 7: Credential Management
 **Goal**: Salvataggio cifrato credenziali su device con Web Crypto API, backend stateless
