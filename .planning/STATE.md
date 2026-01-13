@@ -10,11 +10,11 @@ See: .planning/PROJECT.md (updated 2026-01-11)
 ## Current Position
 
 Phase: 4.1 of 12 (Critical Production Fixes - INSERTED URGENT)
-Plan: 2 of 4 complete (backend pause ✓, price sync ✓, voice UX, customer priority)
-Status: IN PROGRESS - Price sync investigation & fix completed
-Last activity: 2026-01-13 — Completed 04.1-02-PLAN.md (Price Sync Investigation & Fix)
+Plan: 3 of 4 complete (backend pause ✓, price sync ✓, voice UX ✓, customer priority)
+Status: IN PROGRESS - Voice modal UX enhancement completed
+Last activity: 2026-01-13 — Completed 04.1-03-PLAN.md (Voice Modal UX Enhancement)
 
-Progress: ████████░░ 33% (30/36 plans complete - Phase 4 complete, Phase 4.1 2/4 plans done)
+Progress: ████████░░ 36% (31/36 plans complete - Phase 4 complete, Phase 4.1 3/4 plans done)
 
 ## Performance Metrics
 
@@ -32,11 +32,11 @@ Progress: ████████░░ 33% (30/36 plans complete - Phase 4 com
 | 3 | 8 | 346 min | 43 min |
 | 3.1 | 3 | 350 min | 117 min |
 | 4 | 3 | 285 min | 95 min |
-| 4.1 | 2 | 145 min | 73 min |
+| 4.1 | 3 | 160 min | 53 min |
 
 **Recent Trend:**
-- Last 5 plans: 03-07 (21m), 04-01 (45m), 04-02 (120m), 04-03 (120m), 04.1-01 (25m), 04.1-02 (120m)
-- Trend: Phase 4.1 averaging 73m per plan
+- Last 5 plans: 04-01 (45m), 04-02 (120m), 04-03 (120m), 04.1-01 (25m), 04.1-02 (120m), 04.1-03 (15m)
+- Trend: Phase 4.1 averaging 53m per plan (fast UX improvements bringing average down)
 
 ## Accumulated Context
 
@@ -47,6 +47,11 @@ Recent decisions affecting current work:
 
 | Phase | Decision | Rationale |
 |-------|----------|-----------|
+| 04.1-03 | 3 detailed examples with real article formats (XX.XX.XXX.XXX) | Generic examples (SF1000) don't match real products; agents need actual formats to build confidence |
+| 04.1-03 | Structured workflow guide with 6 steps | Linear flow reduces cognitive load; agents know exactly what to do at each step |
+| 04.1-03 | Command explanations with when/what/result | Agents need context (when to use) and outcomes (what happens) to use commands confidently |
+| 04.1-03 | Error recovery section with 5 scenarios | Proactive guidance reduces frustration; agents can self-recover instead of abandoning feature |
+| 04.1-03 | Visual hierarchy with colors and sections | Dense instructional content needs structure; colors (green=success, yellow=help) aid scanning |
 | 04.1-02 | Multi-level matching: ID → name exact → name normalized | Single matching method fails with data variations; 3 levels maximize match rate (59.8% → 85%+) |
 | 04.1-02 | Normalized matching removes dots, spaces, dashes, lowercase | Catches formatting variations like "354TL.12.000.050" vs "354TL12.000.050" |
 | 04.1-02 | Default pricing: group average or global average (€24.90) | Products in same group have similar pricing; more accurate than random default |
@@ -297,8 +302,36 @@ None yet.
   - **Duration**: ~25 minutes
   - **Next**: Plan 04.1-02 (Price Sync Investigation & Fix)
 
+- **2026-01-13 (Late Evening)**: Plan 04.1-02 complete (Price Sync Investigation & Fix)
+  - **Duration**: 120 minutes actual
+  - **Accomplishments**:
+    - Multi-level price matching: ID → name exact → name normalized (f22bac0)
+    - Default pricing script: assign group average or global average (e6ebd58)
+    - Price display in product autocomplete with green badges (5d26ef3)
+    - ForceFullSync parameter to enable manual full price sync
+  - **Key Decisions**:
+    - Multi-level matching catches formatting variations (354TL.12 vs 354TL12)
+    - Default pricing uses group-based averages for accuracy
+    - Green badge for price display in autocomplete (positive indicator)
+  - **Impact**: 100% price coverage (4,541/4,541 products), up from 59.8%
+  - **Test Results**: Comprehensive testing documented in TEST-RESULTS-04.1-02.md
+  - **Next**: Plan 04.1-03 (Voice Modal UX Enhancement)
+
+- **2026-01-13 (Late Evening continued)**: Plan 04.1-03 complete (Voice Modal UX Enhancement)
+  - **Duration**: 15 minutes actual
+  - **Accomplishments**:
+    - 3 detailed examples with real article code formats (XX.XX.XXX.XXX)
+    - Step-by-step workflow guide (6 steps from tap to confirm)
+    - Detailed command explanations (conferma, annulla, riprova) with when/what/result
+    - Comprehensive error recovery section (5 common scenarios)
+    - All content in Italian for agent usability
+  - **Impact**: Substantially more comprehensive voice modal instructions, improved agent confidence
+  - **Test Results**: TypeScript compilation passed, all changes UI-only
+  - **Commits**: 1 atomic commit (c582255)
+  - **Next**: Plan 04.1-04 (Customer Sync Priority Reversal)
+
 ## Session Continuity
 
-Last session: 2026-01-13 (evening)
-Stopped at: Completed 04.1-01-PLAN.md (Backend Process Priority Manager)
-Next: `/gsd:execute-plan .planning/phases/04.1-critical-production-fixes/04.1-02-PLAN.md` (Price Sync Investigation)
+Last session: 2026-01-13 (late evening)
+Stopped at: Completed 04.1-03-PLAN.md (Voice Modal UX Enhancement)
+Next: `/gsd:execute-plan .planning/phases/04.1-critical-production-fixes/04.1-04-PLAN.md` (Customer Sync Priority Reversal)

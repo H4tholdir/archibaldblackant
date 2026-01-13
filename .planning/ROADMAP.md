@@ -16,7 +16,7 @@ None (full-stack web app con pattern standard)
 - [x] **Phase 3.1: Bot Performance Profiling & Optimization (INSERTED)** - Sistema profiling e piano ottimizzazione dettagliato ✅
 - [x] **Phase 3.2: Bot Performance Implementation (INSERTED)** - Ottimizzazioni critiche completate (9% improvement, bug fixes) ✅
 - [x] **Phase 4: Voice Input Enhancement** - Voice hybrid affidabile con conferma visiva ✅
-- [ ] **Phase 4.1: Critical Production Fixes (INSERTED)** - 🔴 Fix blockers: backend pause, price sync, voice UX, customer priority 📋
+- [ ] **Phase 4.1: Critical Production Fixes (INSERTED)** - 🔴 Fix blockers: backend pause ✓, price sync ✓, voice UX ✓, customer priority 📋
 - [ ] **Phase 5: Order Submission** - Invio ordine ottimizzato con tracking 📋
 - [ ] **Phase 6: Multi-User Authentication** - Login multi-agente con whitelist
 - [ ] **Phase 7: Credential Management** - Storage sicuro credenziali su device
@@ -285,13 +285,13 @@ Plans:
 **Depends on**: Phase 4
 **Priority**: 🔴 CRITICAL - Blocks reliable production use
 **Research**: Required for Issues 2 & 4 (price sync investigation, customer API filtering)
-**Plans**: 2/4 complete
+**Plans**: 3/4 complete
 **Status**: In progress
 
 Plans:
 - [x] 04.1-01: Backend Process Priority Manager (pause/resume during order creation) ✅
 - [x] 04.1-02: Price Sync Investigation & Fix (multi-level matching + 100% price coverage) ✅
-- [ ] 04.1-03: Voice Modal UX Enhancement (better examples, detailed instructions, workflow guide)
+- [x] 04.1-03: Voice Modal UX Enhancement (better examples, detailed instructions, workflow guide) ✅
 - [ ] 04.1-04: Customer Sync Priority Reversal (sync new customers first, not last)
 
 **Issue Details**:
@@ -307,10 +307,18 @@ Plans:
    - **Solution**: Investigate price-sync-service, database, API, and frontend integration
    - **Impact**: HIGH - Agents can't see pricing, must check manually
 
-3. **Voice UX Insufficient** (04.1-03):
+3. **Voice UX Insufficient** (04.1-03): ✅ COMPLETE
    - **Problem**: Minimal instructions, basic example, no workflow guidance
    - **Solution**: Better examples (real codes), detailed commands, step-by-step workflow, error recovery
+   - **Implementation**:
+     - 3 detailed examples with real article formats (XX.XX.XXX.XXX: 02.33.016.010, etc.)
+     - 6-step workflow guide (tap → dictate → wait → verify → correct → confirm)
+     - Detailed command explanations (conferma, annulla, riprova) with when/what/result
+     - 5 error recovery scenarios (wrong customer, article, quantity, recognition fails, system doesn't understand)
+     - All content in Italian with visual hierarchy (green=examples, yellow=help)
    - **Impact**: MEDIUM - Affects adoption and confidence
+   - **Duration**: 15 minutes
+   - **Commits**: 1 atomic (c582255)
 
 4. **Customer Sync Priority** (04.1-04):
    - **Problem**: Sync processes oldest customers first, new customers last (hours wait)
