@@ -9,19 +9,19 @@ See: .planning/PROJECT.md (updated 2026-01-11)
 
 ## Current Position
 
-Phase: 4.1 of 12 (Critical Production Fixes - INSERTED URGENT)
-Plan: 3 of 4 complete (backend pause ✓, price sync ✓, voice UX ✓, customer priority)
-Status: IN PROGRESS - Voice modal UX enhancement completed
-Last activity: 2026-01-13 — Completed 04.1-03-PLAN.md (Voice Modal UX Enhancement)
+Phase: 4.1 of 12 (Critical Production Fixes - INSERTED URGENT) ✅ COMPLETE
+Plan: 4 of 4 complete (backend pause ✓, price sync ✓, voice UX ✓, customer priority ✓)
+Status: COMPLETE - Customer sync priority reversal implemented and verified
+Last activity: 2026-01-13 — Completed 04.1-04-PLAN.md (Customer Sync Priority Reversal)
 
-Progress: ████████░░ 36% (31/36 plans complete - Phase 4 complete, Phase 4.1 3/4 plans done)
+Progress: ████████░░ 38% (32/36 plans complete - Phase 4 complete, Phase 4.1 complete ✅)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 30
+- Total plans completed: 32
 - Average duration: 75 min (1h 15m)
-- Total execution time: 37.4 hours
+- Total execution time: 39.6 hours
 
 **By Phase:**
 
@@ -32,11 +32,11 @@ Progress: ████████░░ 36% (31/36 plans complete - Phase 4 com
 | 3 | 8 | 346 min | 43 min |
 | 3.1 | 3 | 350 min | 117 min |
 | 4 | 3 | 285 min | 95 min |
-| 4.1 | 3 | 160 min | 53 min |
+| 4.1 | 4 | 233 min | 58 min |
 
 **Recent Trend:**
-- Last 5 plans: 04-01 (45m), 04-02 (120m), 04-03 (120m), 04.1-01 (25m), 04.1-02 (120m), 04.1-03 (15m)
-- Trend: Phase 4.1 averaging 53m per plan (fast UX improvements bringing average down)
+- Last 6 plans: 04-01 (45m), 04-02 (120m), 04-03 (120m), 04.1-01 (25m), 04.1-02 (120m), 04.1-03 (15m), 04.1-04 (73m)
+- Trend: Phase 4.1 averaging 58m per plan (mid-range complexity)
 
 ## Accumulated Context
 
@@ -47,6 +47,10 @@ Recent decisions affecting current work:
 
 | Phase | Decision | Rationale |
 |-------|----------|-----------|
+| 04.1-04 | Client-side sort manipulation via column header click | DevExpress XAF has no URL/API sort parameters; UI click is only reliable option |
+| 04.1-04 | Sort state detection (none/asc/desc) before clicking | Idempotent behavior - prevents toggling sort on subsequent syncs |
+| 04.1-04 | Conditional click algorithm: none=2, asc=1, desc=0 | Explicit state transitions more reliable than blind clicking |
+| 04.1-04 | Process newest customers first (ID descending) | New customers (high IDs) available in minutes, not hours; unblocks agents immediately |
 | 04.1-03 | 3 detailed examples with real article formats (XX.XX.XXX.XXX) | Generic examples (SF1000) don't match real products; agents need actual formats to build confidence |
 | 04.1-03 | Structured workflow guide with 6 steps | Linear flow reduces cognitive load; agents know exactly what to do at each step |
 | 04.1-03 | Command explanations with when/what/result | Agents need context (when to use) and outcomes (what happens) to use commands confidently |
@@ -330,8 +334,25 @@ None yet.
   - **Commits**: 1 atomic commit (c582255)
   - **Next**: Plan 04.1-04 (Customer Sync Priority Reversal)
 
+- **2026-01-13 (Late Evening continued)**: Plan 04.1-04 complete ✅ (Customer Sync Priority Reversal)
+  - **Duration**: 73 minutes actual
+  - **Accomplishments**:
+    - Research: Investigated DevExpress XAF ListView API, confirmed no URL/API sort parameters
+    - Implementation: Client-side sort manipulation via ID column header click
+    - Sort state detection: none/ascending/descending via CSS class inspection
+    - Conditional click algorithm: none=2 clicks, asc=1 click, desc=0 clicks (idempotent)
+    - Verification: Confirmed newest customers (ID 57.151 → 16.557) synced first
+  - **Key Decisions**:
+    - Client-side sort manipulation (only option with DevExpress XAF)
+    - Idempotent state detection prevents toggling on subsequent syncs
+    - Explicit state transitions more reliable than blind clicking
+  - **Impact**: New customers available in < 1 minute (first page) instead of hours (last page)
+  - **Test Results**: Manual verification confirmed reverse priority (newest first)
+  - **Commits**: 1 atomic commit (ce93ce7)
+  - **Phase 4.1 Status**: ✅ COMPLETE (4/4 plans done)
+
 ## Session Continuity
 
 Last session: 2026-01-13 (late evening)
-Stopped at: Completed 04.1-03-PLAN.md (Voice Modal UX Enhancement)
-Next: `/gsd:execute-plan .planning/phases/04.1-critical-production-fixes/04.1-04-PLAN.md` (Customer Sync Priority Reversal)
+Stopped at: Completed 04.1-04-PLAN.md (Customer Sync Priority Reversal) - Phase 4.1 COMPLETE ✅
+Next: Review Phase 5 plans (Order Submission) or address deferred issues
