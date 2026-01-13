@@ -479,6 +479,48 @@
   color: #78350f;
 }
 
+/* Voice Commands Legend */
+.voice-commands-legend {
+  background: #e0f2fe;
+  border: 1px solid #38bdf8;
+  border-radius: 8px;
+  padding: 1rem;
+  margin-top: 1rem;
+  font-size: 0.875rem;
+}
+
+.voice-commands-legend strong {
+  display: block;
+  margin-bottom: 0.75rem;
+  color: #075985;
+  font-size: 0.9rem;
+}
+
+.voice-commands-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.voice-command-group {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  line-height: 1.4;
+}
+
+.command-label {
+  color: #0c4a6e;
+  font-weight: 600;
+  min-width: 80px;
+  flex-shrink: 0;
+}
+
+.command-keywords {
+  color: #0369a1;
+  font-style: italic;
+}
+
 /* Confidence Meter */
 .confidence-meter {
   margin-bottom: 1.5rem;

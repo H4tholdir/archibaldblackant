@@ -1120,6 +1120,31 @@ export default function OrderForm({ onOrderCreated }: OrderFormProps) {
                 "Cliente Mario Rossi, articolo SF1000 quantità 5, articolo
                 TD1272 punto 314 quantità 2"
               </div>
+
+              {/* Voice Commands Legend */}
+              <div className="voice-commands-legend">
+                <strong>📢 Comandi Vocali:</strong>
+                <div className="voice-commands-grid">
+                  <div className="voice-command-group">
+                    <span className="command-label">✓ Applica:</span>
+                    <span className="command-keywords">
+                      applica, conferma, vai, invia
+                    </span>
+                  </div>
+                  <div className="voice-command-group">
+                    <span className="command-label">🔄 Riprova:</span>
+                    <span className="command-keywords">
+                      riprova, ripeti, ricomincia, di nuovo
+                    </span>
+                  </div>
+                  <div className="voice-command-group">
+                    <span className="command-label">✕ Chiudi:</span>
+                    <span className="command-keywords">
+                      basta, finito, chiudi, annulla, esci, stop
+                    </span>
+                  </div>
+                </div>
+              </div>
             </div>
 
             {/* Recognition Summary */}
