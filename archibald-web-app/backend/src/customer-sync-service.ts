@@ -528,14 +528,46 @@ export class CustomerSyncService extends EventEmitter {
         vatNumber?: string;
         email?: string;
       }> = [];
-      let currentPage = resumePoint; // Inizia da resumePoint invece di 1
+
+      // Determina il numero totale di pagine dalla UI di paginazione
+      logger.info("Determinazione numero totale di pagine...");
+      const totalPages = await bot.page!.evaluate(() => {
+        // Cerca tutti i pulsanti numerici di paginazione
+        const pageButtons = Array.from(
+          document.querySelectorAll("a, span, td"),
+        ).filter((el) => {
+          const text = (el as Element).textContent?.trim();
+          return text && /^\d+$/.test(text); // Solo numeri puri
+        });
+
+        // Trova il numero più alto
+        let maxPage = 1;
+        for (const btn of pageButtons) {
+          const text = (btn as Element).textContent?.trim();
+          if (text) {
+            const pageNum = parseInt(text, 10);
+            if (!isNaN(pageNum) && pageNum > maxPage) {
+              maxPage = pageNum;
+            }
+          }
+        }
+        return maxPage;
+      });
+
+      logger.info(`📄 Trovate ${totalPages} pagine totali`);
+
+      // Se non riprendiamo da checkpoint, vai all'ultima pagina
+      let currentPage: number;
       let hasMorePages = true;
 
-      // Se riprendiamo da una pagina > 1, naviga direttamente lì
       if (resumePoint > 1) {
-        logger.info(`Navigazione a pagina ${resumePoint}...`);
-        // Implementazione navigazione diretta alla pagina
-        // Per ora, iteriamo fino alla pagina desiderata
+        // Ripresa da checkpoint
+        logger.info(
+          `🔄 Ripresa da checkpoint: pagina ${resumePoint} di ${totalPages}`,
+        );
+        currentPage = resumePoint;
+
+        // Naviga alla pagina di ripresa
         for (let page = 1; page < resumePoint; page++) {
           const clicked = await bot.page!.evaluate(() => {
             const nextButtons = [
@@ -573,17 +605,64 @@ export class CustomerSyncService extends EventEmitter {
           await bot.page!.waitForSelector("table tbody tr", { timeout: 10000 });
         }
         logger.info(`✓ Posizionato su pagina ${resumePoint}`);
+      } else {
+        // Nuovo sync: vai all'ultima pagina
+        logger.info(
+          `⏩ Navigazione all'ultima pagina (${totalPages}) per caricare i clienti più recenti...`,
+        );
+        currentPage = totalPages;
+
+        // Naviga all'ultima pagina
+        for (let page = 1; page < totalPages; page++) {
+          const clicked = await bot.page!.evaluate(() => {
+            const nextButtons = [
+              document.querySelector('img[alt="Next"]'),
+              document.querySelector('img[title="Next"]'),
+              document.querySelector('a[title="Next"]'),
+              document.querySelector('button[title="Next"]'),
+              document.querySelector('.dxp-button.dxp-bi[title*="Next"]'),
+              document.querySelector(".dxWeb_pNext_XafTheme"),
+            ];
+
+            for (const btn of nextButtons) {
+              if (
+                btn &&
+                !(btn as HTMLElement).classList?.contains("dxp-disabled")
+              ) {
+                const clickable =
+                  btn.tagName === "A" || btn.tagName === "BUTTON"
+                    ? btn
+                    : btn.closest("a") ||
+                      btn.closest("button") ||
+                      btn.parentElement;
+
+                if (clickable) {
+                  (clickable as HTMLElement).click();
+                  return true;
+                }
+              }
+            }
+            return false;
+          });
+
+          if (!clicked) break;
+          await new Promise((resolve) => setTimeout(resolve, 1000));
+          await bot.page!.waitForSelector("table tbody tr", { timeout: 10000 });
+        }
+        logger.info(`✓ Posizionato su ultima pagina (${totalPages})`);
       }
 
-      logger.info("Inizio estrazione clienti con paginazione...");
+      logger.info(
+        `Inizio estrazione clienti a ritroso da pagina ${currentPage} a 1...`,
+      );
 
-      while (hasMorePages && currentPage <= 100 && !this.shouldStop) {
+      while (hasMorePages && currentPage >= 1 && !this.shouldStop) {
         this.updateProgress({
           status: "syncing",
           currentPage,
-          totalPages: currentPage, // aggiorniamo man mano
+          totalPages: totalPages,
           customersProcessed: allCustomers.length,
-          message: `Estrazione pagina ${currentPage}...`,
+          message: `Estrazione pagina ${currentPage} di ${totalPages}...`,
         });
 
         await bot.page!.waitForSelector("table tbody tr", { timeout: 10000 });
@@ -662,47 +741,30 @@ export class CustomerSyncService extends EventEmitter {
         this.checkpointManager.updateProgress(
           "customers",
           currentPage,
-          currentPage, // totalPages è sconosciuto fino alla fine
+          totalPages,
           allCustomers.length,
         );
 
-        hasMorePages = await bot.page!.evaluate(() => {
-          const nextButtons = [
-            document.querySelector('img[alt="Next"]'),
-            document.querySelector('img[title="Next"]'),
-            document.querySelector('a[title="Next"]'),
-            document.querySelector('button[title="Next"]'),
-            document.querySelector('.dxp-button.dxp-bi[title*="Next"]'),
-            document.querySelector(".dxWeb_pNext_XafTheme"),
-          ];
-
-          for (const btn of nextButtons) {
-            if (
-              btn &&
-              !(btn as HTMLElement).classList?.contains("dxp-disabled") &&
-              !(btn.parentElement as HTMLElement)?.classList?.contains(
-                "dxp-disabled",
-              )
-            ) {
-              return true;
-            }
-          }
-
-          return false;
-        });
+        // Verifica se ci sono ancora pagine precedenti (andiamo a ritroso)
+        hasMorePages = currentPage > 1;
 
         if (hasMorePages) {
+          // Clicca sul pulsante "Previous" per andare alla pagina precedente
           const clicked = await bot.page!.evaluate(() => {
-            const nextButtons = [
-              document.querySelector('img[alt="Next"]'),
-              document.querySelector('img[title="Next"]'),
-              document.querySelector('a[title="Next"]'),
-              document.querySelector('button[title="Next"]'),
-              document.querySelector('.dxp-button.dxp-bi[title*="Next"]'),
-              document.querySelector(".dxWeb_pNext_XafTheme"),
+            const prevButtons = [
+              document.querySelector('img[alt="Prev"]'),
+              document.querySelector('img[title="Prev"]'),
+              document.querySelector('img[alt="Previous"]'),
+              document.querySelector('img[title="Previous"]'),
+              document.querySelector('a[title="Prev"]'),
+              document.querySelector('a[title="Previous"]'),
+              document.querySelector('button[title="Prev"]'),
+              document.querySelector('button[title="Previous"]'),
+              document.querySelector('.dxp-button.dxp-bi[title*="Prev"]'),
+              document.querySelector(".dxWeb_pPrev_XafTheme"),
             ];
 
-            for (const btn of nextButtons) {
+            for (const btn of prevButtons) {
               if (
                 btn &&
                 !(btn as HTMLElement).classList?.contains("dxp-disabled")
@@ -724,10 +786,10 @@ export class CustomerSyncService extends EventEmitter {
           });
 
           if (!clicked) {
-            logger.warn("Pulsante Next trovato ma non cliccabile");
+            logger.warn("Pulsante Previous trovato ma non cliccabile");
             hasMorePages = false;
           } else {
-            // Attendi il caricamento della pagina successiva
+            // Attendi il caricamento della pagina precedente
             await new Promise((resolve) => setTimeout(resolve, 2000));
             await bot.page!.waitForSelector("table tbody tr", {
               timeout: 10000,
@@ -736,7 +798,7 @@ export class CustomerSyncService extends EventEmitter {
             // CRITICAL: Re-imposta il filtro "Tutti i clienti" dopo ogni paginazione
             // DevExpress può resettare il filtro durante la navigazione
             logger.info(
-              `🔄 Re-impostazione filtro "Tutti i clienti" dopo paginazione a pagina ${currentPage + 1}...`,
+              `🔄 Re-impostazione filtro "Tutti i clienti" dopo paginazione a pagina ${currentPage - 1}...`,
             );
             await ensureAllCustomersFilter();
 
@@ -746,7 +808,7 @@ export class CustomerSyncService extends EventEmitter {
               timeout: 10000,
             });
 
-            currentPage++;
+            currentPage--;
           }
         }
       }
@@ -772,15 +834,15 @@ export class CustomerSyncService extends EventEmitter {
       }
 
       logger.info(
-        `Estrazione completata: ${allCustomers.length} clienti da ${currentPage} pagine`,
+        `Estrazione completata: ${allCustomers.length} clienti da ${totalPages} pagine (scansione a ritroso dall'ultima)`,
       );
 
       // I dati sono già nel database (scritti progressivamente)
       // Ora gestiamo solo i clienti eliminati da Archibald
       this.updateProgress({
         status: "syncing",
-        currentPage,
-        totalPages: currentPage,
+        currentPage: totalPages,
+        totalPages: totalPages,
         customersProcessed: allCustomers.length,
         message: "Pulizia clienti eliminati...",
       });
@@ -799,12 +861,12 @@ export class CustomerSyncService extends EventEmitter {
       const totalInDb = this.db.getCustomerCount();
 
       // Segna checkpoint come completato
-      this.checkpointManager.completeSync("customers", currentPage, totalInDb);
+      this.checkpointManager.completeSync("customers", totalPages, totalInDb);
 
       this.updateProgress({
         status: "completed",
-        currentPage,
-        totalPages: currentPage,
+        currentPage: totalPages,
+        totalPages: totalPages,
         customersProcessed: totalInDb,
         message: `Sincronizzazione completata: ${totalInDb} clienti disponibili${deletedCount > 0 ? ` (${deletedCount} eliminati)` : ""}`,
       });
