@@ -91,7 +91,8 @@ describe("parseVoiceOrder", () => {
         "cliente Mario Rossi, articolo SF mille quantità cinque";
       const result = parseVoiceOrder(transcript);
 
-      expect(result.items[0].articleCode).toBe("SF1000");
+      // "SF mille" → "SF 1000" (space added by keyword) → "SF.1000" (dot added by space pattern)
+      expect(result.items[0].articleCode).toBe("SF.1000");
     });
   });
 });

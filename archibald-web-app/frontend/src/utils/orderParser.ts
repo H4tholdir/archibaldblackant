@@ -75,7 +75,7 @@ export function parseVoiceOrder(transcript: string): ParsedOrder {
     /(?:cliente id|codice cliente|id cliente)\s+([a-z0-9]+)/i,
   );
   if (customerIdMatch) {
-    result.customerId = customerIdMatch[1];
+    result.customerId = customerIdMatch[1].toUpperCase();
   }
 
   // Extract customer name
@@ -152,18 +152,38 @@ function parseSingleItem(text: string): OrderItem | null {
 /**
  * Normalize article code from speech
  * Example: "TD1272 punto 314" -> "TD1272.314"
+ * Example: "H71 104 032" -> "H71.104.032" (COMMON CASE - no punto)
  * Example: "SF mille" -> "SF1000"
- * Example: "H250E 104 040" -> "H250E 104 040"
+ * Example: "H250E 104 040" -> "H250E.104.040"
  */
 function normalizeArticleCode(code: string): string {
-  return code
+  let normalized = code
+    // Handle explicit keywords first
     .replace(/\s+punto\s+/gi, ".")
     .replace(/\s+trattino\s+/gi, "-")
     .replace(/\s+slash\s+/gi, "/")
     .replace(/mille/gi, "1000")
-    .replace(/cento/gi, "100")
-    .toUpperCase()
-    .trim();
+    .replace(/cento/gi, "100");
+
+  // CRITICAL: Handle spaces as implicit dots for numeric sequences
+  // Pattern: "H71 104 032" → "H71.104.032"
+  // Pattern: "SF 1000" → "SF.1000"
+  // Pattern: "H250E 104 040" → "H250E.104.040"
+  // Note: "SF mille" → "SF1000" (no space after keyword replacement, so no dot added)
+
+  // First pass: Handle 3-number sequences (most specific)
+  const threeNumPattern = /([A-Z]+\d*)\s+(\d+)\s+(\d+)/gi;
+  normalized = normalized.replace(threeNumPattern, "$1.$2.$3");
+
+  // Second pass: Handle 2-number sequences (less specific)
+  // Only if there's a space - this preserves "SF1000" from keyword replacement
+  const twoNumPattern = /([A-Z]+\d*)\s+(\d+)/gi;
+  normalized = normalized.replace(twoNumPattern, "$1.$2");
+
+  // Handle remaining single spaces between digits (e.g., "H71.104 032")
+  normalized = normalized.replace(/(\d+)\s+(\d+)/g, "$1.$2");
+
+  return normalized.toUpperCase().trim();
 }
 
 /**
