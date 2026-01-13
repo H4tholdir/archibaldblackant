@@ -1500,12 +1500,9 @@ export class ArchibaldBot {
       await this.runOp("order.customer.select", async () => {
         logger.debug('Opening "Profilo cliente" dropdown...');
 
-        // Wait for order form fields to fully load
-        // The customer field should appear after clicking "Nuovo"
-        logger.debug("Waiting for order form fields to load...");
-        await this.wait(2000); // Give extra time for form to render
-
-        // Wait specifically for customer field to exist
+        // OPT-07: Event-driven wait for customer field (eliminate fixed 2000ms wait)
+        // Wait directly for customer field to appear with faster polling
+        logger.debug("Waiting for customer field to appear...");
         await this.page!.waitForFunction(
           () => {
             const inputs = Array.from(document.querySelectorAll('input[type="text"]'));
@@ -1520,7 +1517,7 @@ export class ArchibaldBot {
               );
             });
           },
-          { timeout: 5000, polling: 200 },
+          { timeout: 5000, polling: 50 }, // Faster polling: 50ms instead of 200ms
         ).catch(() => {
           logger.warn("Customer field wait timeout - will try anyway");
         });
