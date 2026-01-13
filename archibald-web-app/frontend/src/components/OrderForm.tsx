@@ -1,12 +1,20 @@
 import { useState, useEffect, useRef } from "react";
 import { useVoiceInput } from "../hooks/useVoiceInput";
-import { parseVoiceOrder, getVoiceSuggestions } from "../utils/orderParser";
+import {
+  parseVoiceOrder,
+  getVoiceSuggestions,
+  validateCustomerName,
+} from "../utils/orderParser";
 import type { OrderItem } from "../types/order";
-import type { ParsedOrderWithConfidence } from "../utils/orderParser";
+import type {
+  ParsedOrderWithConfidence,
+  CustomerValidationResult,
+} from "../utils/orderParser";
 import { ConfidenceMeter } from "./ConfidenceMeter";
 import { TranscriptDisplay } from "./TranscriptDisplay";
 import { ValidationStatus } from "./ValidationStatus";
 import { SmartSuggestions } from "./SmartSuggestions";
+import { CustomerSuggestions } from "./CustomerSuggestions";
 import { VoicePopulatedBadge } from "./VoicePopulatedBadge";
 
 interface Customer {
@@ -78,6 +86,8 @@ export default function OrderForm({ onOrderCreated }: OrderFormProps) {
     "idle" | "validating" | "success" | "error"
   >("idle");
   const [isFinalTranscript, setIsFinalTranscript] = useState(false);
+  const [customerValidation, setCustomerValidation] =
+    useState<CustomerValidationResult | null>(null);
 
   // Voice-populated fields tracking
   const [voicePopulatedFields, setVoicePopulatedFields] = useState<{
@@ -119,14 +129,28 @@ export default function OrderForm({ onOrderCreated }: OrderFormProps) {
     lang: "it-IT",
     continuous: true,
     interimResults: true,
-    onResult: (finalTranscript) => {
+    onResult: async (finalTranscript) => {
       // Parse transcript
       const parsed = parseVoiceOrder(finalTranscript);
 
-      // Add mock confidence scores (in real implementation, these would come from voice recognition)
+      // Validate customer name if present (async fuzzy matching)
+      let customerConfidence = parsed.customerName ? 0.5 : undefined;
+      if (parsed.customerName) {
+        const validation = await validateCustomerName(parsed.customerName);
+        setCustomerValidation(validation);
+        customerConfidence = validation.confidence;
+
+        // If exact/phonetic match found, use the correct name from database
+        if (validation.customer && validation.confidence >= 0.7) {
+          parsed.customerName = validation.customer.name;
+          parsed.customerId = validation.customer.id;
+        }
+      }
+
+      // Add confidence scores (customer uses validation result, items use mock scores)
       const parsedWithConfidence: ParsedOrderWithConfidence = {
         ...parsed,
-        customerNameConfidence: parsed.customerName ? 0.9 : undefined,
+        customerNameConfidence: customerConfidence,
         customerIdConfidence: parsed.customerId ? 0.9 : undefined,
         items: parsed.items.map((item) => ({
           ...item,
@@ -711,6 +735,32 @@ export default function OrderForm({ onOrderCreated }: OrderFormProps) {
                   </>
                 )}
               </div>
+            )}
+
+            {/* Customer Suggestions (fuzzy matching) */}
+            {customerValidation && (
+              <CustomerSuggestions
+                validationResult={customerValidation}
+                onSuggestionClick={(customerId, customerName) => {
+                  // Apply selected suggestion to form
+                  setCustomerId(customerId);
+                  setCustomerName(customerName);
+                  setCustomerSearch(customerName);
+                  setVoicePopulatedFields((prev) => ({
+                    ...prev,
+                    customer: true,
+                  }));
+                  // Update parsed order with selected customer
+                  setParsedOrder((prev) => ({
+                    ...prev,
+                    customerId,
+                    customerName,
+                    customerNameConfidence: 1.0, // User confirmed, so confidence is 100%
+                  }));
+                  // Clear validation to hide suggestions
+                  setCustomerValidation(null);
+                }}
+              />
             )}
 
             <div className="voice-modal-footer">
