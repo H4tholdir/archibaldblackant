@@ -281,6 +281,33 @@ describe("parseVoiceOrder", () => {
       expect(result.items).toHaveLength(1);
       expect(result.items[0].quantity).toBe(75);
     });
+
+    test("handles 'un pezzo' as quantity 1", () => {
+      const transcript = "articolo SF 1000 un pezzo";
+      const result = parseVoiceOrder(transcript);
+
+      expect(result.items).toHaveLength(1);
+      expect(result.items[0].articleCode).toBe("SF.1000");
+      expect(result.items[0].quantity).toBe(1);
+    });
+
+    test("handles 'uno pezzo' as quantity 1", () => {
+      const transcript = "aggiungi TD 1272 314 uno pezzo";
+      const result = parseVoiceOrder(transcript);
+
+      expect(result.items).toHaveLength(1);
+      expect(result.items[0].articleCode).toBe("TD.1272.314");
+      expect(result.items[0].quantity).toBe(1);
+    });
+
+    test("handles 'una pezzo' as quantity 1 (feminine form)", () => {
+      const transcript = "poi H71 104 032 una pezzo";
+      const result = parseVoiceOrder(transcript);
+
+      expect(result.items).toHaveLength(1);
+      expect(result.items[0].articleCode).toBe("H71.104.032");
+      expect(result.items[0].quantity).toBe(1);
+    });
   });
 });
 

@@ -356,14 +356,21 @@ function parseSingleItem(text: string): OrderItem | null {
   // - "quantità 10" (keyword then number)
   // - "10 pezzi" (number then keyword)
   // - "pezzi 10" (keyword then number)
-  // Priority: Try "pezzi NUMBER" first (more specific), then "NUMBER pezzi", then "quantità NUMBER"
+  // - "un pezzo" / "uno pezzo" (implicit quantity = 1)
+  // Priority: Try "pezzi NUMBER" first (more specific), then "NUMBER pezzi", then "quantità NUMBER", then "un/uno pezzo"
 
   let quantity = 1;
   let quantityMatch = null;
 
+  // Pattern 0 (special case): "un pezzo" / "uno pezzo" = 1 piece
+  // Must be checked FIRST to avoid "un" being included in article code
+  const unPezzoMatch = text.match(/\b(un[oa]?)\s+(?:pezz[io]|pz)\b/i);
+  if (unPezzoMatch) {
+    quantity = 1;
+    quantityMatch = unPezzoMatch;
+  }
   // Pattern 1 (highest priority): "pezzi/pezzo/pz NUMBER" (keyword then number)
-  quantityMatch = text.match(/(?:pezz[io]|pz)\s+(\d+)/i);
-  if (quantityMatch) {
+  else if ((quantityMatch = text.match(/(?:pezz[io]|pz)\s+(\d+)/i))) {
     quantity = parseInt(quantityMatch[1], 10);
   } else {
     // Pattern 2 (medium priority): "NUMBER pezzi/pezzo/pz" (number then keyword)
