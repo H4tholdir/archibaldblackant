@@ -177,7 +177,8 @@ describe("parseVoiceOrder", () => {
     });
 
     test("parses multiple items with mixed keywords", () => {
-      const transcript = "articolo SF 1000 quantità 5, poi TD 1272 punto 314 quantità 2, ancora H71 104 032";
+      const transcript =
+        "articolo SF 1000 quantità 5, poi TD 1272 punto 314 quantità 2, ancora H71 104 032";
       const result = parseVoiceOrder(transcript);
 
       expect(result.items).toHaveLength(3);

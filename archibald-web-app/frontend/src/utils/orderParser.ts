@@ -156,9 +156,20 @@ function convertItalianNumbers(text: string): string {
   // ALWAYS convert round numbers everywhere (common in article codes)
   // Pattern: cento, duecento, trecento, ..., mille, duemila, ...
   const roundNumbers = [
-    "cinquemila", "quattromila", "tremila", "duemila", "mille",
-    "novecento", "ottocento", "settecento", "seicento", "cinquecento",
-    "quattrocento", "trecento", "duecento", "cento"
+    "cinquemila",
+    "quattromila",
+    "tremila",
+    "duemila",
+    "mille",
+    "novecento",
+    "ottocento",
+    "settecento",
+    "seicento",
+    "cinquecento",
+    "quattrocento",
+    "trecento",
+    "duecento",
+    "cento",
   ];
   for (const num of roundNumbers) {
     const regex = new RegExp(`\\b${num}\\b`, "gi");
@@ -170,9 +181,20 @@ function convertItalianNumbers(text: string): string {
   const quantityNumbers = { ...ITALIAN_NUMBERS };
   // Remove all round numbers (already converted above)
   const roundNumbersToRemove = [
-    "cento", "duecento", "trecento", "quattrocento", "cinquecento",
-    "seicento", "settecento", "ottocento", "novecento",
-    "mille", "duemila", "tremila", "quattromila", "cinquemila"
+    "cento",
+    "duecento",
+    "trecento",
+    "quattrocento",
+    "cinquecento",
+    "seicento",
+    "settecento",
+    "ottocento",
+    "novecento",
+    "mille",
+    "duemila",
+    "tremila",
+    "quattromila",
+    "cinquemila",
   ];
   for (const num of roundNumbersToRemove) {
     delete quantityNumbers[num];
@@ -199,10 +221,7 @@ function convertItalianNumbers(text: string): string {
     result = result.replace(afterPattern, `$1${quantityNumbers[word]}`);
 
     // Pattern 3: number word AFTER quantità
-    const quantitàPattern = new RegExp(
-      `(quantità\\s+)\\b${word}\\b`,
-      "gi",
-    );
+    const quantitàPattern = new RegExp(`(quantità\\s+)\\b${word}\\b`, "gi");
     result = result.replace(quantitàPattern, `$1${quantityNumbers[word]}`);
   }
 
@@ -338,7 +357,10 @@ export function parseVoiceOrder(transcript: string): ParsedOrder {
 
   // Extract items (supports multiple trigger keywords)
   // Keywords: articolo, articoli, aggiungi, aggiungere, poi, ancora, inserisci, metti
-  const itemsText = normalized.match(/(?:articolo|articoli|aggiungi|aggiungere|poi|ancora|inserisci|metti)\s+.+/i)?.[0] || "";
+  const itemsText =
+    normalized.match(
+      /(?:articolo|articoli|aggiungi|aggiungere|poi|ancora|inserisci|metti)\s+.+/i,
+    )?.[0] || "";
   result.items = parseItems(itemsText);
 
   // FALLBACK: If no items found with triggers, try to detect article pattern without trigger
@@ -346,7 +368,8 @@ export function parseVoiceOrder(transcript: string): ParsedOrder {
   // Pattern: after customer name, if we see article code + quantity, parse it as item
   if (result.items.length === 0 && result.customerName && customerNameMatch) {
     // Look for text after the customer name match
-    const matchEnd = (customerNameMatch.index || 0) + customerNameMatch[0].length;
+    const matchEnd =
+      (customerNameMatch.index || 0) + customerNameMatch[0].length;
     const afterCustomer = normalized.substring(matchEnd);
 
     if (afterCustomer) {
@@ -356,7 +379,10 @@ export function parseVoiceOrder(transcript: string): ParsedOrder {
       // Try to parse as article if it looks like one:
       // - Contains letters and numbers (article code pattern)
       // - May have quantity keywords (pezzi, quantità)
-      if (potentialArticle && /[a-z]+.*\d+|\d+.*[a-z]+/i.test(potentialArticle)) {
+      if (
+        potentialArticle &&
+        /[a-z]+.*\d+|\d+.*[a-z]+/i.test(potentialArticle)
+      ) {
         const item = parseSingleItem(potentialArticle);
         if (item) {
           result.items.push(item);
@@ -377,7 +403,11 @@ function parseItems(itemsText: string): OrderItem[] {
   const items: OrderItem[] = [];
 
   // Split by any item trigger keyword
-  const itemParts = itemsText.split(/(?:,\s*)?(?:articolo|articoli|aggiungi|aggiungere|poi|ancora|inserisci|metti)\s+/i).filter(Boolean);
+  const itemParts = itemsText
+    .split(
+      /(?:,\s*)?(?:articolo|articoli|aggiungi|aggiungere|poi|ancora|inserisci|metti)\s+/i,
+    )
+    .filter(Boolean);
 
   for (const part of itemParts) {
     const item = parseSingleItem(part);
