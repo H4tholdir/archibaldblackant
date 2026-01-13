@@ -143,25 +143,31 @@ wss.on("connection", (ws, req) => {
 
   // If jobId is present, this is an order progress subscription
   if (jobId) {
-    logger.info(`Client subscribed to order progress: ${jobId}`);
+    logger.info(`🔌 Client subscribed to order progress: ${jobId}`);
+    logger.debug(`WebSocket URL:`, { url: req.url });
 
     if (!orderProgressClients.has(jobId)) {
       orderProgressClients.set(jobId, new Set());
+      logger.debug(`📋 Created new client set for job ${jobId}`);
     }
     orderProgressClients.get(jobId)!.add(ws);
+    logger.info(`✅ Client added to job ${jobId}. Total clients: ${orderProgressClients.get(jobId)!.size}`);
 
     // Send initial job status
     queueManager.getJobStatus(jobId).then(status => {
-      ws.send(JSON.stringify({ type: 'order_progress', data: status }));
+      const initialMessage = JSON.stringify({ type: 'order_progress', jobId, data: status });
+      logger.debug(`📤 Sending initial status to client for job ${jobId}`, { status });
+      ws.send(initialMessage);
     }).catch(err => {
-      logger.error(`Failed to get job status for ${jobId}`, { error: err });
+      logger.error(`❌ Failed to get job status for ${jobId}`, { error: err });
     });
 
     ws.on('close', () => {
-      logger.info(`Client unsubscribed from order progress: ${jobId}`);
+      logger.info(`🔌 Client unsubscribed from order progress: ${jobId}`);
       orderProgressClients.get(jobId)?.delete(ws);
       if (orderProgressClients.get(jobId)?.size === 0) {
         orderProgressClients.delete(jobId);
+        logger.debug(`📋 Removed empty client set for job ${jobId}`);
       }
     });
 
@@ -1151,19 +1157,30 @@ server.listen(config.server.port, async () => {
 
   // Registra il progress broadcaster per WebSocket
   queueManager.setProgressBroadcaster((jobId, progress) => {
+    logger.debug(`📡 Broadcasting progress for job ${jobId}`, { progress });
+
     const clients = orderProgressClients.get(jobId);
-    if (clients) {
-      const message = JSON.stringify({
-        type: 'order_progress',
-        jobId,
-        data: progress
-      });
-      clients.forEach(client => {
-        if (client.readyState === 1) { // WebSocket.OPEN
-          client.send(message);
-        }
-      });
+    if (!clients || clients.size === 0) {
+      logger.warn(`⚠️ No WebSocket clients subscribed to job ${jobId}`);
+      return;
     }
+
+    logger.debug(`📤 Sending to ${clients.size} client(s) for job ${jobId}`);
+
+    const message = JSON.stringify({
+      type: 'order_progress',
+      jobId,
+      data: progress
+    });
+
+    clients.forEach(client => {
+      if (client.readyState === 1) { // WebSocket.OPEN
+        client.send(message);
+        logger.debug(`✅ Message sent to client for job ${jobId}`);
+      } else {
+        logger.warn(`⚠️ Client not ready (state: ${client.readyState}) for job ${jobId}`);
+      }
+    });
   });
   logger.info("✅ Progress broadcaster registrato per WebSocket");
 
