@@ -1613,9 +1613,7 @@ export class ArchibaldBot {
           );
         }
 
-        // Wait for dropdown panel and search input to appear
-        await this.wait(800);
-
+        // OPT-05: Event-driven wait for search input (eliminate fixed wait)
         // Find search input using specific DevExpress ID pattern
         const searchInputSelectors = [
           `#${customerBaseId}_DDD_gv_DXSE_I`, // DevExpress standard pattern
@@ -1625,7 +1623,8 @@ export class ArchibaldBot {
         let searchInput = null;
         let foundSelector: string | null = null;
 
-        // Try to find search input with waitForFunction (more reliable)
+        // Wait for search input with waitForFunction (no fixed wait needed)
+        logger.debug('Waiting for search input to appear...');
         try {
           const result = await this.page!.waitForFunction(
             (selectors: string[]) => {
@@ -1642,7 +1641,7 @@ export class ArchibaldBot {
               }
               return null;
             },
-            { timeout: 800, polling: 50 },
+            { timeout: 3000, polling: 50 }, // Increased timeout for reliability
             searchInputSelectors,
           );
 
@@ -1684,24 +1683,17 @@ export class ArchibaldBot {
         logger.debug(`Pasting search value: ${orderData.customerName}`);
         logger.debug(`Using input handle`);
 
-        // Use paste helper
+        // OPT-05: Use paste helper and immediate Enter (no wait needed)
         await this.pasteText(searchInput, orderData.customerName);
         logger.debug("Finished pasting customer name");
 
-        await this.wait(500);
-
-        // Verify value was typed
+        // Verify value was pasted (minimal wait for paste to complete)
+        await this.wait(100);
         const actualValue = await searchInput.evaluate(
           (el) => (el as HTMLInputElement).value,
         );
 
         logger.debug(`Actual value in input after typing: "${actualValue}"`);
-
-        // Take screenshot after typing value
-        await this.page!.screenshot({
-          path: `logs/customer-search-value-typed-${Date.now()}.png`,
-          fullPage: true,
-        });
 
         if (actualValue !== orderData.customerName) {
           logger.warn(
@@ -1711,17 +1703,58 @@ export class ArchibaldBot {
 
         // Press Enter to trigger search
         await this.page!.keyboard.press("Enter");
-        logger.debug("Pressed Enter, waiting for results...");
-        await this.wait(1000); // Increased wait for filtering
+        logger.debug("Pressed Enter, waiting for filtered results...");
 
-        // Wait for results table rows to appear
-        await this.page!.waitForSelector('tr[class*="dxgvDataRow"]', {
-          visible: true,
-          timeout: 2000,
-        });
+        // OPT-05: Event-driven wait for filtered results (stable row count)
+        // Wait for rows to stabilize after filtering (more efficient than fixed waits)
+        let stableRowCount = 0;
+        try {
+          await this.page!.waitForFunction(
+            () => {
+              const rows = Array.from(document.querySelectorAll('tr[class*="dxgvDataRow"]'));
+              const visibleRows = rows.filter(row => (row as HTMLElement).offsetParent !== null);
+              return visibleRows.length > 0;
+            },
+            { timeout: 3000, polling: 100 }
+          );
 
-        // Wait a bit more for filtering to complete
-        await this.wait(800);
+          // Additional check: wait for row count to stabilize (no changes for 200ms)
+          stableRowCount = await this.page!.waitForFunction(
+            () => {
+              return new Promise<number>((resolve) => {
+                let previousCount = -1;
+                let stableChecks = 0;
+                const checkInterval = setInterval(() => {
+                  const rows = Array.from(document.querySelectorAll('tr[class*="dxgvDataRow"]'));
+                  const visibleRows = rows.filter(row => (row as HTMLElement).offsetParent !== null);
+                  const currentCount = visibleRows.length;
+
+                  if (currentCount === previousCount && currentCount > 0) {
+                    stableChecks++;
+                    if (stableChecks >= 2) { // Stable for 200ms (2 x 100ms)
+                      clearInterval(checkInterval);
+                      resolve(currentCount);
+                    }
+                  } else {
+                    stableChecks = 0;
+                    previousCount = currentCount;
+                  }
+                }, 100);
+
+                // Timeout after 2 seconds
+                setTimeout(() => {
+                  clearInterval(checkInterval);
+                  resolve(previousCount > 0 ? previousCount : 0);
+                }, 2000);
+              });
+            },
+            { timeout: 3000 }
+          ).then(result => result.jsonValue());
+
+          logger.debug(`✅ Results stabilized with ${stableRowCount} rows`);
+        } catch (err) {
+          logger.warn('Stable row count wait timed out, proceeding with current results');
+        }
 
         logger.debug("Customer results loaded, checking rows...");
 
@@ -1755,8 +1788,27 @@ export class ArchibaldBot {
           logger.debug("✓ Customer row clicked (JavaScript)");
         }
 
-        // Wait for dropdown to close and value to be set
-        await this.wait(1000);
+        // OPT-05: Event-driven wait for dropdown to close and customer data to load
+        // Instead of fixed wait, check for dropdown disappearance and line items grid readiness
+        logger.debug('Waiting for customer data to load...');
+        try {
+          // Wait for dropdown panel to disappear
+          await this.page!.waitForFunction(
+            () => {
+              // Check if dropdown panel is gone
+              const dropdownPanels = Array.from(document.querySelectorAll('[id*="_DDD_PW"]'));
+              const visiblePanels = dropdownPanels.filter(panel =>
+                (panel as HTMLElement).offsetParent !== null &&
+                (panel as HTMLElement).style.display !== 'none'
+              );
+              return visiblePanels.length === 0;
+            },
+            { timeout: 2000, polling: 100 }
+          );
+          logger.debug('✅ Dropdown closed');
+        } catch (err) {
+          logger.debug('Dropdown close check timed out, proceeding...');
+        }
 
         logger.info(`✅ Customer selected: ${orderData.customerName}`);
         await this.waitForDevExpressReady({ timeout: 3000 });
