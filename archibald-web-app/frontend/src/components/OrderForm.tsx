@@ -540,17 +540,18 @@ export default function OrderForm({ onOrderCreated }: OrderFormProps) {
         if (data.success) {
           setProducts(data.data.products);
           setShowProductDropdown(true);
-          // Mantieni focus sull'input dopo il caricamento
-          setTimeout(() => {
-            if (productInputRef.current) {
-              productInputRef.current.focus();
-            }
-          }, 0);
         }
       } catch (error) {
         console.error("Errore ricerca prodotti:", error);
       } finally {
         setLoadingProducts(false);
+        // Mantieni focus sull'input dopo il caricamento - CRITICAL FIX
+        // Use requestAnimationFrame to ensure DOM is updated before refocusing
+        requestAnimationFrame(() => {
+          if (productInputRef.current && document.activeElement !== productInputRef.current) {
+            productInputRef.current.focus();
+          }
+        });
       }
     } else {
       // Clear products when less than 2 characters
