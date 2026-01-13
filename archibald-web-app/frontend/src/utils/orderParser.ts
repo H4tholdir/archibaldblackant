@@ -100,14 +100,15 @@ export function parseVoiceOrder(transcript: string): ParsedOrder {
 
   // Extract customer name
   const customerNameMatch = normalized.match(
-    /(?:cliente|nome cliente|nome)\s+([a-z\sàèéìòù]+?)(?:\s*,|\s+articolo|$)/i,
+    /(?:cliente|nome cliente|nome)\s+([a-z\sàèéìòù]+?)(?:\s*,|\s+(?:articolo|articoli|aggiungi|aggiungere|poi|ancora|inserisci|metti)|$)/i,
   );
   if (customerNameMatch) {
     result.customerName = capitalizeWords(customerNameMatch[1].trim());
   }
 
-  // Extract items
-  const itemsText = normalized.match(/articolo\s+.+/i)?.[0] || "";
+  // Extract items (supports multiple trigger keywords)
+  // Keywords: articolo, articoli, aggiungi, aggiungere, poi, ancora, inserisci, metti
+  const itemsText = normalized.match(/(?:articolo|articoli|aggiungi|aggiungere|poi|ancora|inserisci|metti)\s+.+/i)?.[0] || "";
   result.items = parseItems(itemsText);
 
   return result;
@@ -115,13 +116,14 @@ export function parseVoiceOrder(transcript: string): ParsedOrder {
 
 /**
  * Parse multiple items from voice input
- * Example: "articolo SF1000 quantità 5, articolo TD1272 punto 314 quantità 2"
+ * Supports multiple trigger keywords: articolo, articoli, aggiungi, poi, ancora, inserisci, metti
+ * Example: "articolo SF1000 quantità 5, poi TD1272 punto 314 quantità 2"
  */
 function parseItems(itemsText: string): OrderItem[] {
   const items: OrderItem[] = [];
 
-  // Split by "articolo" keyword
-  const itemParts = itemsText.split(/(?:,\s*)?articolo\s+/i).filter(Boolean);
+  // Split by any item trigger keyword
+  const itemParts = itemsText.split(/(?:,\s*)?(?:articolo|articoli|aggiungi|aggiungere|poi|ancora|inserisci|metti)\s+/i).filter(Boolean);
 
   for (const part of itemParts) {
     const item = parseSingleItem(part);

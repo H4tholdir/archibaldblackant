@@ -101,6 +101,75 @@ describe("parseVoiceOrder", () => {
       expect(result.items[0].quantity).toBe(10);
     });
   });
+
+  describe("alternative trigger keywords", () => {
+    test("parses with 'aggiungi' keyword", () => {
+      const transcript = "cliente Mario Rossi aggiungi SF 1000 quantità 5";
+      const result = parseVoiceOrder(transcript);
+
+      expect(result.customerName).toBe("Mario Rossi");
+      expect(result.items).toHaveLength(1);
+      expect(result.items[0].articleCode).toBe("SF.1000");
+      expect(result.items[0].quantity).toBe(5);
+    });
+
+    test("parses with 'poi' keyword", () => {
+      const transcript = "cliente Fresis poi TD 1272 punto 314 quantità 2";
+      const result = parseVoiceOrder(transcript);
+
+      expect(result.customerName).toBe("Fresis");
+      expect(result.items).toHaveLength(1);
+      expect(result.items[0].articleCode).toBe("TD.1272.314");
+    });
+
+    test("parses with 'ancora' keyword", () => {
+      const transcript = "ancora H71 104 032 quantità 3";
+      const result = parseVoiceOrder(transcript);
+
+      expect(result.items).toHaveLength(1);
+      expect(result.items[0].articleCode).toBe("H71.104.032");
+      expect(result.items[0].quantity).toBe(3);
+    });
+
+    test("parses with 'inserisci' keyword", () => {
+      const transcript = "inserisci SF mille quantità 10";
+      const result = parseVoiceOrder(transcript);
+
+      expect(result.items).toHaveLength(1);
+      expect(result.items[0].articleCode).toBe("SF.1000");
+      expect(result.items[0].quantity).toBe(10);
+    });
+
+    test("parses with 'metti' keyword", () => {
+      const transcript = "metti TD 1272 punto 314 5 pezzi";
+      const result = parseVoiceOrder(transcript);
+
+      expect(result.items).toHaveLength(1);
+      expect(result.items[0].articleCode).toBe("TD.1272.314");
+      expect(result.items[0].quantity).toBe(5);
+    });
+
+    test("parses multiple items with mixed keywords", () => {
+      const transcript = "articolo SF 1000 quantità 5, poi TD 1272 punto 314 quantità 2, ancora H71 104 032";
+      const result = parseVoiceOrder(transcript);
+
+      expect(result.items).toHaveLength(3);
+      expect(result.items[0].articleCode).toBe("SF.1000");
+      expect(result.items[0].quantity).toBe(5);
+      expect(result.items[1].articleCode).toBe("TD.1272.314");
+      expect(result.items[1].quantity).toBe(2);
+      expect(result.items[2].articleCode).toBe("H71.104.032");
+      expect(result.items[2].quantity).toBe(1);
+    });
+
+    test("parses with 'articoli' (plural) keyword", () => {
+      const transcript = "articoli SF 1000 quantità 5";
+      const result = parseVoiceOrder(transcript);
+
+      expect(result.items).toHaveLength(1);
+      expect(result.items[0].articleCode).toBe("SF.1000");
+    });
+  });
 });
 
 describe("parseVoiceOrderWithConfidence", () => {
