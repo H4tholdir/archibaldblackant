@@ -26,3 +26,9 @@ export const createUserSchema = z.object({
 export const updateWhitelistSchema = z.object({
   whitelisted: z.boolean(),
 });
+
+// Authentication schemas
+export const loginSchema = z.object({
+  username: z.string().min(1, "Username obbligatorio"),
+  password: z.string().min(1, "Password obbligatoria"),
+});

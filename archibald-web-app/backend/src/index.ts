@@ -6,7 +6,8 @@ import { WebSocketServer } from "ws";
 import { config } from "./config";
 import { logger } from "./logger";
 import { ArchibaldBot } from "./archibald-bot";
-import { createOrderSchema, createUserSchema, updateWhitelistSchema } from "./schemas";
+import { createOrderSchema, createUserSchema, updateWhitelistSchema, loginSchema } from "./schemas";
+import { generateJWT } from "./auth-utils";
 import type { ApiResponse, OrderData } from "./types";
 import { UserDatabase } from "./user-db";
 import { QueueManager } from "./queue-manager";
@@ -180,6 +181,101 @@ app.get("/api/health", (req: Request, res: Response<ApiResponse>) => {
       version: "1.0.0",
     },
   });
+});
+
+// ========== AUTHENTICATION ENDPOINTS ==========
+
+// Login endpoint - validates whitelist and Puppeteer credentials
+app.post("/api/auth/login", async (req: Request, res: Response<ApiResponse>) => {
+  try {
+    // 1. Validate request
+    const result = loginSchema.safeParse(req.body);
+    if (!result.success) {
+      return res.status(400).json({
+        success: false,
+        error: "Formato richiesta non valido",
+      });
+    }
+
+    const { username, password } = result.data;
+
+    // 2. Check user exists and is whitelisted
+    const user = userDb.getUserByUsername(username);
+
+    if (!user) {
+      logger.warn(`Login attempt for non-existent user: ${username}`);
+      return res.status(401).json({
+        success: false,
+        error: "Credenziali non valide o utente non autorizzato",
+      });
+    }
+
+    if (!user.whitelisted) {
+      logger.warn(`Login attempt for non-whitelisted user: ${username}`);
+      return res.status(403).json({
+        success: false,
+        error: "Utente non autorizzato",
+      });
+    }
+
+    // 3. Test login with Puppeteer
+    logger.info(`Testing Archibald login for user: ${username}`);
+    const bot = new ArchibaldBot();
+
+    try {
+      await bot.initialize();
+
+      // Override bot's credentials with user's credentials
+      // DO NOT save these credentials anywhere - use only for this login test
+      const loginSuccess = await bot.loginWithCredentials(username, password);
+
+      if (!loginSuccess) {
+        await bot.close();
+        logger.warn(`Archibald login failed for user: ${username}`);
+        return res.status(401).json({
+          success: false,
+          error: "Credenziali Archibald non valide",
+        });
+      }
+
+      // Close bot after successful validation (don't keep session for security)
+      await bot.close();
+
+    } catch (error) {
+      await bot.close().catch(() => {});
+      logger.error(`Error during Puppeteer login test`, { error, username });
+      return res.status(500).json({
+        success: false,
+        error: "Servizio di login non disponibile",
+      });
+    }
+
+    // 4. Update lastLogin timestamp
+    userDb.updateLastLogin(user.id);
+
+    // 5. Generate JWT
+    const token = await generateJWT({
+      userId: user.id,
+      username: user.username
+    });
+
+    logger.info(`Login successful for user: ${username}`);
+    res.json({
+      success: true,
+      data: {
+        token,
+        user: {
+          id: user.id,
+          username: user.username,
+          fullName: user.fullName,
+        }
+      }
+    });
+
+  } catch (error) {
+    logger.error("Login error", { error });
+    res.status(500).json({ success: false, error: "Errore interno del server" });
+  }
 });
 
 // ========== ADMIN USER MANAGEMENT ENDPOINTS ==========

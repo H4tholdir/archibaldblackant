@@ -1517,6 +1517,124 @@ export class ArchibaldBot {
   }
 
   /**
+   * Test login with provided credentials (used for authentication validation)
+   * @param username - Archibald username
+   * @param password - Archibald password
+   * @returns true if login successful, false otherwise
+   *
+   * SECURITY: This method does NOT store credentials. It only validates them against Archibald.
+   */
+  async loginWithCredentials(username: string, password: string): Promise<boolean> {
+    if (!this.page) throw new Error("Browser non inizializzato");
+
+    const loginUrl = `${config.archibald.url}/Login.aspx?ReturnUrl=%2fArchibald%2fDefault.aspx`;
+
+    logger.info("Testing credentials for user", { username });
+
+    try {
+      // Navigate to login page
+      const response = await this.page.goto(loginUrl, {
+        waitUntil: "networkidle2",
+        timeout: config.puppeteer.timeout,
+      });
+
+      if (!response || response.status() !== 200) {
+        logger.warn("Login page not accessible", { status: response?.status() });
+        return false;
+      }
+
+      // Wait for page to load
+      await new Promise((resolve) => setTimeout(resolve, 2000));
+
+      // Find username field
+      const usernameField = await this.page.evaluate(() => {
+        const inputs = Array.from(document.querySelectorAll('input[type="text"]'));
+        const userInput = inputs.find(
+          (input) =>
+            input.id.includes("UserName") ||
+            input.name.includes("UserName") ||
+            input.placeholder?.toLowerCase().includes("account") ||
+            input.placeholder?.toLowerCase().includes("username"),
+        );
+        if (userInput) {
+          return (userInput as HTMLInputElement).id || (userInput as HTMLInputElement).name;
+        }
+        if (inputs.length > 0) {
+          return (inputs[0] as HTMLInputElement).id || (inputs[0] as HTMLInputElement).name;
+        }
+        return null;
+      });
+
+      // Find password field
+      const passwordField = await this.page.evaluate(() => {
+        const inputs = Array.from(document.querySelectorAll('input[type="password"]'));
+        if (inputs.length > 0) {
+          return (inputs[0] as HTMLInputElement).id || (inputs[0] as HTMLInputElement).name;
+        }
+        return null;
+      });
+
+      if (!usernameField || !passwordField) {
+        logger.warn("Login fields not found");
+        return false;
+      }
+
+      // Fill username
+      const usernameSelector = `#${usernameField}`;
+      await this.page.click(usernameSelector, { clickCount: 3 });
+      await this.page.keyboard.press("Backspace");
+      await this.page.type(usernameSelector, username, { delay: 50 });
+
+      // Fill password
+      const passwordSelector = `#${passwordField}`;
+      await this.page.click(passwordSelector, { clickCount: 3 });
+      await this.page.keyboard.press("Backspace");
+      await this.page.type(passwordSelector, password, { delay: 50 });
+
+      // Click login button
+      const loginButtonClicked = await this.page.evaluate(() => {
+        const buttons = Array.from(document.querySelectorAll('button, input[type="submit"], a'));
+        const loginBtn = buttons.find(
+          (btn) =>
+            btn.textContent?.toLowerCase().includes("accedi") ||
+            btn.textContent?.toLowerCase().includes("login") ||
+            (btn as HTMLElement).id?.toLowerCase().includes("login"),
+        );
+        if (loginBtn) {
+          (loginBtn as HTMLElement).click();
+          return true;
+        }
+        return false;
+      });
+
+      if (!loginButtonClicked) {
+        // Fallback: press Enter
+        await this.page.keyboard.press("Enter");
+      }
+
+      // Wait for navigation
+      await this.page.waitForNavigation({
+        waitUntil: "networkidle2",
+        timeout: config.puppeteer.timeout,
+      });
+
+      const currentUrl = this.page.url();
+
+      // Check if login was successful (redirected away from Login.aspx)
+      if (currentUrl.includes("Default.aspx") || !currentUrl.includes("Login.aspx")) {
+        logger.info("Credentials validated successfully", { username });
+        return true;
+      } else {
+        logger.warn("Invalid credentials - still on login page", { username });
+        return false;
+      }
+    } catch (error) {
+      logger.error("Error during credential validation", { error, username });
+      return false;
+    }
+  }
+
+  /**
    * Create a new order in Archibald
    * @param orderData - Order data with customer and items
    * @returns Order ID
