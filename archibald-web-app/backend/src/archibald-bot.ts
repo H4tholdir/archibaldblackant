@@ -984,40 +984,67 @@ export class ArchibaldBot {
     // Wait for DOM stabilization
     await this.wait(300);
 
-    // OPT-03: Optimized approach - Direct keyboard input with reduced delays
+    // OPT-03 v3: Atomic operations to avoid "detached node" errors
+    // Research: DevExpress double-click can trigger DOM reload causing detachment
+    // Solution: Use page.evaluate for atomic click + keyboard API (no element handles)
     try {
-      logger.debug(`Attempting optimized field editing for "${cellLabelText}"`);
+      logger.debug(`Attempting OPT-03 v3 (atomic operations) for "${cellLabelText}"`);
 
-      // Double-click the input field directly using page.click (more reliable than handle.click)
-      // Research: DevExpress requires double-click to enter edit mode, page.click works better with dynamic elements
-      await this.page!.click(`#${inputInfo.id}`, { clickCount: 2 });
-      await this.wait(100); // Reduced from 150ms
+      // Strategy: FULL ATOMIC approach - do everything in one evaluate call
+      // This prevents any timing/selection issues with DevExpress
+      // Source: https://github.com/puppeteer/puppeteer/issues/3496
+      const setSuccess = await this.page!.evaluate((inputId, newValue) => {
+        const input = document.querySelector(`#${inputId}`) as HTMLInputElement;
+        if (!input) return { success: false, error: 'input not found' };
 
-      // Wait for input to be focused and editable
-      await this.page!.waitForFunction(
-        (inputId) => {
-          const input = document.querySelector(`#${inputId}`) as HTMLInputElement;
-          return input && !input.readOnly && !input.disabled && document.activeElement === input;
-        },
-        { timeout: 2000 },
-        inputInfo.id
-      );
+        try {
+          // Focus first
+          input.focus();
 
-      // Clear existing value and type new value in one operation
-      // Research: Using selectall + type is faster and more reliable than setValue + events for DevExpress
-      await this.page!.keyboard.down('Control');
-      await this.page!.keyboard.press('KeyA');
-      await this.page!.keyboard.up('Control');
+          // Dispatch double-click event to enter edit mode
+          const dblClickEvent = new MouseEvent('dblclick', {
+            view: window,
+            bubbles: true,
+            cancelable: true,
+            detail: 2
+          });
+          input.dispatchEvent(dblClickEvent);
 
-      // Type new value with minimal delay (optimized from 30ms to 10ms)
-      await this.page!.keyboard.type(formattedValue, { delay: 10 });
+          // Small sync wait for edit mode (DevExpress needs this)
+          const start = Date.now();
+          while (Date.now() - start < 100) {
+            // Busy wait
+          }
+
+          // Set value directly (most reliable)
+          input.value = newValue;
+
+          // Dispatch events to notify DevExpress
+          input.dispatchEvent(new Event('input', { bubbles: true }));
+          input.dispatchEvent(new Event('change', { bubbles: true }));
+
+          return { success: true, finalValue: input.value };
+        } catch (error) {
+          return { success: false, error: String(error) };
+        }
+      }, inputInfo.id, formattedValue);
+
+      if (!setSuccess.success) {
+        throw new Error(`Atomic set failed: ${setSuccess.error}`);
+      }
+
+      logger.debug(`Atomic setValue result: "${setSuccess.finalValue}"`);
+
+      // CRITICAL: Wait for DevExpress to process the value change BEFORE pressing Enter
+      // If we press Enter too soon, DevExpress validation may override our value
+      await this.wait(400);
 
       // Confirm with Enter+Tab (DevExpress standard)
       await this.page!.keyboard.press('Enter');
       await this.page!.keyboard.press('Tab');
 
-      // Reduced wait time for DevExpress processing (optimized from 600ms to 250ms)
-      await this.wait(250);
+      // Additional wait for DevExpress post-confirmation processing
+      await this.wait(200);
 
       // Verify the value was set correctly
       const actualValue = await this.page!.evaluate((inputId) => {
@@ -1025,7 +1052,7 @@ export class ArchibaldBot {
         return input ? input.value : null;
       }, inputInfo.id);
 
-      logger.debug(`Optimized field editing succeeded: "${actualValue}"`);
+      logger.debug(`OPT-03 v3 atomic operations succeeded: "${actualValue}"`);
 
     } catch (error) {
       // Fallback: slower but more conservative approach
@@ -2483,36 +2510,55 @@ export class ArchibaldBot {
           let clicked = false;
 
           if (buttonInfo.strategy === 1) {
-            const handle = await this.page!.$('a[data-args*="UpdateEdit"]');
-            if (handle) {
-              await handle.evaluate((el) => {
-                (el as HTMLElement).scrollIntoView({ block: 'center' });
-              });
-              await this.wait(300);
-              await handle.click();
+            // OPT-03: Use atomic click to avoid detachment after scroll
+            const clickSuccess = await this.page!.evaluate(() => {
+              const button = document.querySelector('a[data-args*="UpdateEdit"]') as HTMLElement;
+              if (!button) return false;
+
+              button.scrollIntoView({ block: 'center' });
+              // Small sync wait for scroll stabilization
+              const start = Date.now();
+              while (Date.now() - start < 200) {}
+
+              button.click();
+              return true;
+            });
+
+            if (clickSuccess) {
               clicked = true;
             }
           } else if (buttonInfo.strategy === 2) {
-            const imgHandle = await this.page!.$('img[title="Update"][src*="Action_Save"]');
-            if (imgHandle) {
-              const parentHandle = await imgHandle.evaluateHandle((img) => img.parentElement);
-              if (parentHandle) {
-                await parentHandle.evaluate((el) => {
-                  (el as HTMLElement).scrollIntoView({ block: 'center' });
-                });
-                await this.wait(300);
-                await (parentHandle as any).click();
-                clicked = true;
-              }
+            // OPT-03: Atomic click for strategy 2
+            const clickSuccess = await this.page!.evaluate(() => {
+              const img = document.querySelector('img[title="Update"][src*="Action_Save"]') as HTMLElement;
+              if (!img || !img.parentElement) return false;
+
+              img.parentElement.scrollIntoView({ block: 'center' });
+              const start = Date.now();
+              while (Date.now() - start < 200) {}
+
+              img.parentElement.click();
+              return true;
+            });
+
+            if (clickSuccess) {
+              clicked = true;
             }
           } else if (buttonInfo.strategy === 3) {
-            const handle = await this.page!.$(`#${buttonInfo.id}`);
-            if (handle) {
-              await handle.evaluate((el) => {
-                (el as HTMLElement).scrollIntoView({ block: 'center' });
-              });
-              await this.wait(300);
-              await handle.click();
+            // OPT-03: Atomic click for strategy 3
+            const clickSuccess = await this.page!.evaluate((buttonId) => {
+              const button = document.querySelector(`#${buttonId}`) as HTMLElement;
+              if (!button) return false;
+
+              button.scrollIntoView({ block: 'center' });
+              const start = Date.now();
+              while (Date.now() - start < 200) {}
+
+              button.click();
+              return true;
+            }, buttonInfo.id);
+
+            if (clickSuccess) {
               clicked = true;
             }
           }
