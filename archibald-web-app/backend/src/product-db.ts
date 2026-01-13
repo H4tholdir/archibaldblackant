@@ -333,15 +333,25 @@ export class ProductDatabase {
       return variants[0];
     }
 
-    // Multiple variants: apply selection logic
+    // Multiple variants: find the variant where quantity is a valid multiple
     // variants already sorted by multipleQty DESC (highest first)
-    const highestMultiple = variants[0].multipleQty || 1;
 
-    if (quantity >= highestMultiple) {
-      return variants[0]; // Highest package
-    } else {
-      return variants[variants.length - 1]; // Lowest package
+    // Find all variants where quantity is a valid multiple
+    const validVariants = variants.filter((v) => {
+      const multiple = v.multipleQty || 1;
+      return quantity % multiple === 0;
+    });
+
+    if (validVariants.length === 0) {
+      // No valid variant found - this shouldn't happen if product data is correct
+      // Fall back to the variant with smallest multipleQty (most flexible)
+      return variants[variants.length - 1];
     }
+
+    // Prefer the variant with the largest multipleQty that's still valid
+    // This uses the most efficient packaging while still being valid
+    // validVariants is already sorted DESC due to original variants sort
+    return validVariants[0];
   }
 
   /**
@@ -389,10 +399,9 @@ export class ProductDatabase {
       const higher =
         Math.ceil(quantity / product.multipleQty) * product.multipleQty;
 
-      suggestions = [
-        Math.max(lower, minQty),
-        Math.min(higher, maxQty),
-      ].filter((v, i, arr) => arr.indexOf(v) === i); // Unique values
+      suggestions = [Math.max(lower, minQty), Math.min(higher, maxQty)].filter(
+        (v, i, arr) => arr.indexOf(v) === i,
+      ); // Unique values
     }
 
     return {
