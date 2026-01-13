@@ -100,6 +100,24 @@ describe("parseVoiceOrder", () => {
       expect(result.items[0].articleCode).toBe("TD.1272.314");
       expect(result.items[0].quantity).toBe(10);
     });
+
+    test("parses quantity from pezzi X pattern (reversed)", () => {
+      const transcript = "articolo SF mille pezzi 7";
+      const result = parseVoiceOrder(transcript);
+
+      expect(result.items).toHaveLength(1);
+      expect(result.items[0].articleCode).toBe("SF.1000");
+      expect(result.items[0].quantity).toBe(7);
+    });
+
+    test("parses quantity from pezzo X pattern (singular)", () => {
+      const transcript = "articolo ABC cento pezzo 3";
+      const result = parseVoiceOrder(transcript);
+
+      expect(result.items).toHaveLength(1);
+      expect(result.items[0].articleCode).toBe("ABC.100");
+      expect(result.items[0].quantity).toBe(3);
+    });
   });
 
   describe("alternative trigger keywords", () => {

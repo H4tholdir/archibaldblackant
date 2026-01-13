@@ -140,13 +140,16 @@ function parseItems(itemsText: string): OrderItem[] {
  * Example: "SF1000 quantità 5 prezzo 150"
  */
 function parseSingleItem(text: string): OrderItem | null {
-  // Extract quantity (supports both "quantità X" and "X pezzi/pz")
-  // Match either: "quantità 10" or "10 pezzi" or "10pz"
+  // Extract quantity - supports multiple patterns:
+  // - "quantità 10" (keyword then number)
+  // - "10 pezzi" (number then keyword)
+  // - "pezzi 10" (keyword then number)
+  // Any number near "pezzi/pezzo/pz" is treated as quantity
   const quantityMatch = text.match(
-    /(?:quantità\s+(\d+))|(?:(\d+)\s+(?:pezz[io]|pz)\b)/i,
+    /(?:quantità\s+(\d+))|(?:(\d+)\s+(?:pezz[io]|pz)\b)|(?:(?:pezz[io]|pz)\s+(\d+))/i,
   );
   const quantity = quantityMatch
-    ? parseInt(quantityMatch[1] || quantityMatch[2], 10)
+    ? parseInt(quantityMatch[1] || quantityMatch[2] || quantityMatch[3], 10)
     : 1;
 
   // Extract article code (everything before quantity/price keywords)
