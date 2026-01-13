@@ -4,6 +4,7 @@ import {
   getVoiceSuggestions,
   detectMixedPackageSolutions,
   highlightEntities,
+  detectVoiceCommand,
 } from "./orderParser";
 import type { ParsedOrderWithConfidence } from "./orderParser";
 
@@ -709,5 +710,88 @@ describe("highlightEntities", () => {
     const result = highlightEntities(transcript, parsedOrder);
 
     expect(result).toEqual([{ text: "something random" }]);
+  });
+});
+
+describe("detectVoiceCommand", () => {
+  describe("close commands", () => {
+    test("detects 'basta'", () => {
+      expect(detectVoiceCommand("basta")).toBe("close");
+      expect(detectVoiceCommand("Basta grazie")).toBe("close");
+    });
+
+    test("detects 'finito'", () => {
+      expect(detectVoiceCommand("finito")).toBe("close");
+      expect(detectVoiceCommand("è finito")).toBe("close");
+    });
+
+    test("detects 'chiudi'", () => {
+      expect(detectVoiceCommand("chiudi")).toBe("close");
+      expect(detectVoiceCommand("chiudi tutto")).toBe("close");
+    });
+
+    test("detects 'annulla'", () => {
+      expect(detectVoiceCommand("annulla")).toBe("close");
+    });
+
+    test("detects 'esci'", () => {
+      expect(detectVoiceCommand("esci")).toBe("close");
+    });
+
+    test("detects 'stop'", () => {
+      expect(detectVoiceCommand("stop")).toBe("close");
+    });
+
+    test("detects 'cancella'", () => {
+      expect(detectVoiceCommand("cancella")).toBe("close");
+    });
+  });
+
+  describe("retry commands", () => {
+    test("detects 'riprova'", () => {
+      expect(detectVoiceCommand("riprova")).toBe("retry");
+    });
+
+    test("detects 'ripeti'", () => {
+      expect(detectVoiceCommand("ripeti")).toBe("retry");
+    });
+
+    test("detects 'ricomincia'", () => {
+      expect(detectVoiceCommand("ricomincia")).toBe("retry");
+    });
+
+    test("detects 'di nuovo'", () => {
+      expect(detectVoiceCommand("di nuovo")).toBe("retry");
+      expect(detectVoiceCommand("prova di nuovo")).toBe("retry");
+    });
+  });
+
+  describe("apply commands", () => {
+    test("detects 'applica'", () => {
+      expect(detectVoiceCommand("applica")).toBe("apply");
+    });
+
+    test("detects 'conferma'", () => {
+      expect(detectVoiceCommand("conferma")).toBe("apply");
+    });
+
+    test("detects 'vai'", () => {
+      expect(detectVoiceCommand("vai")).toBe("apply");
+    });
+
+    test("detects 'invia'", () => {
+      expect(detectVoiceCommand("invia")).toBe("apply");
+    });
+  });
+
+  describe("no command detected", () => {
+    test("returns null for normal order input", () => {
+      expect(detectVoiceCommand("cliente Mario Rossi")).toBeNull();
+      expect(detectVoiceCommand("articolo SF1000 5 pezzi")).toBeNull();
+    });
+
+    test("returns null for empty string", () => {
+      expect(detectVoiceCommand("")).toBeNull();
+    });
   });
 });

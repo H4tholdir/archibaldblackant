@@ -574,6 +574,44 @@ function escapeRegex(str: string): string {
 }
 
 /**
+ * Voice command detection
+ * Returns the detected command type or null if no command found
+ */
+export type VoiceCommand = "close" | "retry" | "apply" | null;
+
+export function detectVoiceCommand(transcript: string): VoiceCommand {
+  const normalized = transcript.toLowerCase().trim();
+
+  // Close commands: "basta", "finito", "chiudi", "annulla", "esci", "stop"
+  const closeKeywords = [
+    "basta",
+    "finito",
+    "chiudi",
+    "annulla",
+    "esci",
+    "stop",
+    "cancella",
+  ];
+  if (closeKeywords.some((keyword) => normalized.includes(keyword))) {
+    return "close";
+  }
+
+  // Retry commands: "riprova", "ripeti", "ricomincia", "di nuovo"
+  const retryKeywords = ["riprova", "ripeti", "ricomincia", "di nuovo"];
+  if (retryKeywords.some((keyword) => normalized.includes(keyword))) {
+    return "retry";
+  }
+
+  // Apply commands: "applica", "conferma", "vai", "ok", "invia"
+  const applyKeywords = ["applica", "conferma", "vai", "invia"];
+  if (applyKeywords.some((keyword) => normalized.includes(keyword))) {
+    return "apply";
+  }
+
+  return null;
+}
+
+/**
  * Detect mixed-package solutions for a given quantity
  * Returns multiple packaging options when applicable
  *
