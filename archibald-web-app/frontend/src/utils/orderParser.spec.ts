@@ -309,6 +309,42 @@ describe("parseVoiceOrder", () => {
       expect(result.items[0].articleCode).toBe("H71.104.032");
       expect(result.items[0].quantity).toBe(1);
     });
+
+    test("normalizes hyphens in article codes", () => {
+      const transcript = "aggiungi 83-68.314.023 cinque pezzi";
+      const result = parseVoiceOrder(transcript);
+
+      expect(result.items).toHaveLength(1);
+      expect(result.items[0].articleCode).toBe("83.68.314.023");
+      expect(result.items[0].quantity).toBe(5);
+    });
+
+    test("normalizes commas in article codes", () => {
+      const transcript = "poi 95,98.900.220 20 pezzi";
+      const result = parseVoiceOrder(transcript);
+
+      expect(result.items).toHaveLength(1);
+      expect(result.items[0].articleCode).toBe("95.98.900.220");
+      expect(result.items[0].quantity).toBe(20);
+    });
+
+    test("handles multiple hyphens in article code", () => {
+      const transcript = "poi 89-79 314 016 5 pezzi";
+      const result = parseVoiceOrder(transcript);
+
+      expect(result.items).toHaveLength(1);
+      expect(result.items[0].articleCode).toBe("89.79.314.016");
+      expect(result.items[0].quantity).toBe(5);
+    });
+
+    test("converts 'novecento' in article codes", () => {
+      const transcript = "poi 95,98 novecento 220 20 pezzi";
+      const result = parseVoiceOrder(transcript);
+
+      expect(result.items).toHaveLength(1);
+      expect(result.items[0].articleCode).toBe("95.98.900.220");
+      expect(result.items[0].quantity).toBe(20);
+    });
   });
 
   describe("fallback article detection without trigger", () => {

@@ -471,7 +471,8 @@ function parseSingleItem(text: string): OrderItem | null {
     textForCode = text.replace(/\bquantità\b/gi, "").trim();
   }
 
-  const codeMatch = textForCode.match(/^([a-z0-9\s.\-/]+?)(?:\s+prezzo|$)/i);
+  // Match article code - include commas and hyphens which will be normalized later
+  const codeMatch = textForCode.match(/^([a-z0-9\s.\-/,]+?)(?:\s+prezzo|$)/i);
   if (!codeMatch) return null;
 
   const articleCode = normalizeArticleCode(codeMatch[1].trim());
@@ -503,6 +504,8 @@ function parseSingleItem(text: string): OrderItem | null {
  * Example: "H71 104 032" -> "H71.104.032" (COMMON CASE - no punto)
  * Example: "SF mille" -> "SF1000"
  * Example: "H250E 104 040" -> "H250E.104.040"
+ * Example: "83-68.314.023" -> "83.68.314.023" (normalize hyphens)
+ * Example: "95,98.900.220" -> "95.98.900.220" (normalize commas)
  */
 function normalizeArticleCode(code: string): string {
   let normalized = code
@@ -539,11 +542,16 @@ function normalizeArticleCode(code: string): string {
   const twoNumPattern = /([A-Z]+\d*)\s+(\d+)/gi;
   normalized = normalized.replace(twoNumPattern, "$1.$2");
 
-  // Handle remaining single spaces between digits (e.g., "H71.104 032")
-  normalized = normalized.replace(/(\d+)\s+(\d+)/g, "$1.$2");
+  // IMPORTANT: Normalize hyphens and commas BEFORE spaces
+  // This ensures patterns like "89-79 314 016" become "89.79 314 016" first
+  // Pattern: "83-68" → "83.68", "95,98" → "95.98"
+  normalized = normalized.replace(/(\d+)[-,](\d+)/g, "$1.$2");
 
-  // Replace hyphens between number segments with dots (e.g., "TD.1272-314" → "TD.1272.314")
-  normalized = normalized.replace(/(\d+)-(\d+)/g, "$1.$2");
+  // Handle remaining single spaces between digits (e.g., "H71.104 032" or "89.79 314 016")
+  // Use while loop to handle multiple consecutive space→dot conversions
+  while (/(\d+)\s+(\d+)/.test(normalized)) {
+    normalized = normalized.replace(/(\d+)\s+(\d+)/g, "$1.$2");
+  }
 
   return normalized.toUpperCase().trim();
 }
