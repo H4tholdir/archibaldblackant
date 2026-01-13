@@ -92,6 +92,15 @@ describe("parseVoiceOrder", () => {
       expect(result.items[0].articleCode).toBe("SF.1000");
     });
 
+    test("parses article code with slash separator", () => {
+      const transcript = "Aggiungi 83/79 314 018 5 pezzi";
+      const result = parseVoiceOrder(transcript);
+
+      expect(result.items).toHaveLength(1);
+      expect(result.items[0].articleCode).toBe("83/79.314.018");
+      expect(result.items[0].quantity).toBe(5);
+    });
+
     test("parses quantity from X pezzi pattern", () => {
       const transcript = "articolo TD 1272-314 10 pezzi";
       const result = parseVoiceOrder(transcript);

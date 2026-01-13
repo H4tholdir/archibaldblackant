@@ -273,7 +273,7 @@ function parseSingleItem(text: string): OrderItem | null {
     textForCode = text.replace(/\bquantità\b/gi, "").trim();
   }
 
-  const codeMatch = textForCode.match(/^([a-z0-9\s.\-]+?)(?:\s+prezzo|$)/i);
+  const codeMatch = textForCode.match(/^([a-z0-9\s.\-/]+?)(?:\s+prezzo|$)/i);
   if (!codeMatch) return null;
 
   const articleCode = normalizeArticleCode(codeMatch[1].trim());
@@ -325,11 +325,16 @@ function normalizeArticleCode(code: string): string {
   // Pattern: "H71 104 032" → "H71.104.032"
   // Pattern: "SF 1000" → "SF.1000"
   // Pattern: "H250E 104 040" → "H250E.104.040"
+  // Pattern: "83/79 314 018" → "83/79.314.018"
   // Note: "SF mille" → "SF1000" (no space after keyword replacement, so no dot added)
 
-  // First pass: Handle 3-number sequences (most specific)
+  // First pass: Handle 3-number sequences with letter prefix (most specific)
   const threeNumPattern = /([A-Z]+\d*)\s+(\d+)\s+(\d+)/gi;
   normalized = normalized.replace(threeNumPattern, "$1.$2.$3");
+
+  // Handle 3-number sequences with slash prefix (e.g., "83/79 314 018")
+  const threeNumSlashPattern = /(\d+\/\d+)\s+(\d+)\s+(\d+)/gi;
+  normalized = normalized.replace(threeNumSlashPattern, "$1.$2.$3");
 
   // Second pass: Handle 2-number sequences (less specific)
   // Only if there's a space - this preserves "SF1000" from keyword replacement
