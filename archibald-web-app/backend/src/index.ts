@@ -8,6 +8,7 @@ import { logger } from "./logger";
 import { ArchibaldBot } from "./archibald-bot";
 import { createOrderSchema, createUserSchema, updateWhitelistSchema, loginSchema } from "./schemas";
 import { generateJWT } from "./auth-utils";
+import { authenticateJWT, type AuthRequest } from "./middleware/auth";
 import type { ApiResponse, OrderData } from "./types";
 import { UserDatabase } from "./user-db";
 import { QueueManager } from "./queue-manager";
@@ -276,6 +277,37 @@ app.post("/api/auth/login", async (req: Request, res: Response<ApiResponse>) => 
     logger.error("Login error", { error });
     res.status(500).json({ success: false, error: "Errore interno del server" });
   }
+});
+
+// Logout endpoint - JWT invalidation is client-side (remove token)
+app.post("/api/auth/logout", authenticateJWT, async (req: AuthRequest, res: Response<ApiResponse>) => {
+  // For now, logout is client-side (remove JWT from localStorage)
+  // When we implement per-user BrowserContexts (Plan 06-05),
+  // we'll close the user's context here
+  logger.info(`User logged out: ${req.user?.username}`);
+  res.json({ success: true, data: { message: "Logout effettuato con successo" } });
+});
+
+// Get current user profile
+app.get("/api/auth/me", authenticateJWT, async (req: AuthRequest, res: Response<ApiResponse>) => {
+  const user = userDb.getUserById(req.user!.userId);
+
+  if (!user) {
+    return res.status(404).json({ success: false, error: 'Utente non trovato' });
+  }
+
+  res.json({
+    success: true,
+    data: {
+      user: {
+        id: user.id,
+        username: user.username,
+        fullName: user.fullName,
+        whitelisted: user.whitelisted,
+        lastLoginAt: user.lastLoginAt,
+      }
+    }
+  });
 });
 
 // ========== ADMIN USER MANAGEMENT ENDPOINTS ==========
