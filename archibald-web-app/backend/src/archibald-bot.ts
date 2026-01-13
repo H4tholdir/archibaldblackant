@@ -1500,33 +1500,57 @@ export class ArchibaldBot {
       await this.runOp("order.customer.select", async () => {
         logger.debug('Opening "Profilo cliente" dropdown...');
 
-        // OPT-11: Mutation polling for instant field detection (research-based)
-        // Use 'mutation' polling to react immediately to DOM changes
-        // Source: https://latenode.com/blog/optimizing-wait-strategies-in-puppeteer-a-complete-guide-to-waiting-methods
-        logger.debug("Finding customer field with mutation polling...");
+        // OPT-12: Immediate check + mutation polling fallback (eliminate wait for already-present elements)
+        // Try immediate synchronous check first, then mutation polling if not found
+        logger.debug("Finding customer field...");
 
-        const customerInputId = await this.page!.waitForFunction(
-          () => {
-            const inputs = Array.from(document.querySelectorAll('input[type="text"]'));
-            const customerInput = inputs.find((input) => {
-              const id = (input as HTMLInputElement).id.toLowerCase();
-              const el = input as HTMLInputElement;
-              // Multi-condition check: exists, enabled, visible dimensions
-              return (
-                (id.includes("custtable") ||
-                 id.includes("custaccount") ||
-                 id.includes("custome") ||
-                 id.includes("cliente") ||
-                 id.includes("account") ||
-                 id.includes("profilo")) &&
-                !el.disabled &&
-                el.getBoundingClientRect().height > 0
-              );
-            });
-            return customerInput ? (customerInput as HTMLInputElement).id : null;
-          },
-          { timeout: 3000, polling: 'mutation' } // Use mutation polling for instant detection
-        ).then(result => result.jsonValue()) as string;
+        // First: Immediate synchronous check (no wait if element already exists)
+        let customerInputId = await this.page!.evaluate(() => {
+          const inputs = Array.from(document.querySelectorAll('input[type="text"]'));
+          const customerInput = inputs.find((input) => {
+            const id = (input as HTMLInputElement).id.toLowerCase();
+            const el = input as HTMLInputElement;
+            return (
+              (id.includes("custtable") ||
+               id.includes("custaccount") ||
+               id.includes("custome") ||
+               id.includes("cliente") ||
+               id.includes("account") ||
+               id.includes("profilo")) &&
+              !el.disabled &&
+              el.getBoundingClientRect().height > 0
+            );
+          });
+          return customerInput ? (customerInput as HTMLInputElement).id : null;
+        });
+
+        // If not found immediately, use mutation polling to wait for it
+        if (!customerInputId) {
+          logger.debug("Field not ready, using mutation polling...");
+          customerInputId = await this.page!.waitForFunction(
+            () => {
+              const inputs = Array.from(document.querySelectorAll('input[type="text"]'));
+              const customerInput = inputs.find((input) => {
+                const id = (input as HTMLInputElement).id.toLowerCase();
+                const el = input as HTMLInputElement;
+                return (
+                  (id.includes("custtable") ||
+                   id.includes("custaccount") ||
+                   id.includes("custome") ||
+                   id.includes("cliente") ||
+                   id.includes("account") ||
+                   id.includes("profilo")) &&
+                  !el.disabled &&
+                  el.getBoundingClientRect().height > 0
+                );
+              });
+              return customerInput ? (customerInput as HTMLInputElement).id : null;
+            },
+            { timeout: 3000, polling: 'mutation' }
+          ).then(result => result.jsonValue()) as string;
+        } else {
+          logger.debug("✓ Field found immediately (no wait needed)");
+        }
 
         if (!customerInputId) {
           throw new Error('Customer input field not found');
@@ -1663,29 +1687,42 @@ export class ArchibaldBot {
 
         // Press Enter to trigger search
         await this.page!.keyboard.press("Enter");
-        logger.debug("Pressed Enter, waiting for filtered results...");
+        logger.debug("Pressed Enter, checking for filtered results...");
 
-        // OPT-11: Mutation polling for immediate row detection (research-based)
-        // Reacts instantly to DOM changes when filtered results appear
-        // Source: https://latenode.com/blog/optimizing-wait-strategies-in-puppeteer-a-complete-guide-to-waiting-methods
+        // OPT-12: Immediate check + mutation polling fallback for filtered results
         let stableRowCount = 0;
         try {
-          // Use mutation polling to detect rows immediately when they appear
-          stableRowCount = await this.page!.waitForFunction(
-            () => {
-              const rows = Array.from(document.querySelectorAll('tr[class*="dxgvDataRow"]'));
-              const visibleRows = rows.filter(row => {
-                const el = row as HTMLElement;
-                return el.offsetParent !== null &&
-                       el.getBoundingClientRect().height > 0;
-              });
-              // Return count immediately when rows appear (no stabilization delay for single result)
-              return visibleRows.length > 0 ? visibleRows.length : false;
-            },
-            { timeout: 2000, polling: 'mutation' } // Mutation polling for instant detection
-          ).then(result => result.jsonValue()) as number;
+          // First: Immediate synchronous check (results might already be visible)
+          stableRowCount = await this.page!.evaluate(() => {
+            const rows = Array.from(document.querySelectorAll('tr[class*="dxgvDataRow"]'));
+            const visibleRows = rows.filter(row => {
+              const el = row as HTMLElement;
+              return el.offsetParent !== null &&
+                     el.getBoundingClientRect().height > 0;
+            });
+            return visibleRows.length;
+          });
 
-          logger.debug(`✅ Results detected with ${stableRowCount} row(s)`);
+          // If no rows found immediately, use mutation polling to wait for them
+          if (stableRowCount === 0) {
+            logger.debug("Results not ready, using mutation polling...");
+            stableRowCount = await this.page!.waitForFunction(
+              () => {
+                const rows = Array.from(document.querySelectorAll('tr[class*="dxgvDataRow"]'));
+                const visibleRows = rows.filter(row => {
+                  const el = row as HTMLElement;
+                  return el.offsetParent !== null &&
+                         el.getBoundingClientRect().height > 0;
+                });
+                return visibleRows.length > 0 ? visibleRows.length : false;
+              },
+              { timeout: 2000, polling: 'mutation' }
+            ).then(result => result.jsonValue()) as number;
+          } else {
+            logger.debug(`✓ Results found immediately: ${stableRowCount} row(s)`);
+          }
+
+          logger.debug(`✅ Results ready with ${stableRowCount} row(s)`);
         } catch (err) {
           logger.warn('Row detection wait timed out, proceeding with current results');
         }
