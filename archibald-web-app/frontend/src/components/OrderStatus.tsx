@@ -61,9 +61,9 @@ export default function OrderStatus({ jobId, onNewOrder }: OrderStatusProps) {
     fetchInitialStatus();
 
     // Connect to WebSocket for real-time progress updates
+    // Backend WebSocket is on port 3000, not the frontend dev server port
     const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const wsHost = window.location.host;
-    const wsUrl = `${wsProtocol}//${wsHost}/ws/sync?jobId=${jobId}`;
+    const wsUrl = `${wsProtocol}//localhost:3000/ws/sync?jobId=${jobId}`;
 
     console.log('Connecting to WebSocket:', wsUrl);
     const ws = new WebSocket(wsUrl);
