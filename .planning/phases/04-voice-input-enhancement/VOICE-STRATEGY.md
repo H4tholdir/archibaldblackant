@@ -250,6 +250,267 @@ function needsDisambiguation(quantity: number, variants: Product[]): boolean {
 
 ---
 
+## 🛡️ Error Recovery: Gestione Errori Riconoscimento Vocale
+
+### Problema: Voice Recognition Errors
+
+Il riconoscimento vocale può commettere errori su:
+1. **Lettere simili foneticamente**: H71 → H61, B vs P, D vs T
+2. **Numeri simili**: 023 vs 016, 5 vs 9
+3. **Parti mancanti**: "H71 104" invece di "H71.104.032"
+
+### Strategia Multi-Layer Validation
+
+```
+Voice Input: "H61 104 032"
+     ↓
+Normalize: "H61.104.032"
+     ↓
+Validation (3 layers):
+     ↓
+┌──────────────────────────────────────┐
+│ Layer 1: Exact Match                 │
+│ Search: "H61.104.032"                │
+│ Result: NOT FOUND                    │
+└──────────────────────────────────────┘
+     ↓
+┌──────────────────────────────────────┐
+│ Layer 2: Base Pattern Match          │
+│ Extract base: "H61.104"              │
+│ Search: "H61.104.*"                  │
+│ Result: NOT FOUND (no variants)      │
+└──────────────────────────────────────┘
+     ↓
+┌──────────────────────────────────────┐
+│ Layer 3: Fuzzy Match                 │
+│ Search similar: fuse.js (30% diff)   │
+│ Results:                             │
+│   - H71.104.032 (95% similar) ← TOP  │
+│   - H61.104.016 (80% similar)        │
+│   - H61.105.032 (75% similar)        │
+└──────────────────────────────────────┘
+     ↓
+Show Suggestions Modal
+```
+
+### Caso 1: Recognition Error (H71 → H61)
+
+**Scenario:**
+```
+🎤 AGENTE dice: "H71 104 032"
+🤖 SISTEMA sente: "H61 104 032"
+```
+
+**Detection:**
+```typescript
+const validation = await validateArticleCode("H61.104.032", productDb);
+// Returns:
+{
+  matchType: 'fuzzy',
+  confidence: 0.5,
+  suggestions: [
+    { code: "H71.104.032", confidence: 0.95, reason: 'fuzzy_match' },
+    { code: "H61.104.016", confidence: 0.80, reason: 'fuzzy_match' }
+  ],
+  error: "Articolo 'H61.104.032' non trovato"
+}
+```
+
+**UI Feedback:**
+```
+┌─────────────────────────────────────────┐
+│ ⚠️ Articolo Non Trovato                 │
+├─────────────────────────────────────────┤
+│ Hai detto: "H61 104 032"                │
+│                                         │
+│ Articolo non trovato nel catalogo.     │
+│ Intendevi uno di questi?                │
+│                                         │
+│ ┌───────────────────────────────────┐  │
+│ │ ○ H71.104.032 (95% simile)        │  │ ← Click to select
+│ │   K2 - 5pz | K3 - 1pz             │  │
+│ └───────────────────────────────────┘  │
+│                                         │
+│ ┌───────────────────────────────────┐  │
+│ │ ○ H61.104.016 (80% simile)        │  │
+│ │   K1 - 10pz                       │  │
+│ └───────────────────────────────────┘  │
+│                                         │
+│ [🎤 Riprova]  [✏️ Scrivi Manualmente]   │
+└─────────────────────────────────────────┘
+```
+
+**User Action:** Click "H71.104.032" → Confidence becomes 1.0, continue workflow
+
+---
+
+### Caso 2: Variant Doesn't Exist (023 vs 016)
+
+**Scenario:**
+```
+🎤 AGENTE dice: "845 104 023"
+🗄️ DATABASE ha: "845.104.016", "845.104.032" (non .023)
+```
+
+**Detection:**
+```typescript
+const validation = await validateArticleCode("845.104.023", productDb);
+// Returns:
+{
+  matchType: 'base_pattern',
+  confidence: 0.7,
+  basePattern: "845.104",
+  suggestions: [
+    { code: "845.104.016", variant: "016", packageInfo: "K2 - 5pz", confidence: 0.8 },
+    { code: "845.104.032", variant: "032", packageInfo: "K3 - 1pz", confidence: 0.8 }
+  ],
+  error: "Variante .023 non trovata per 845.104"
+}
+```
+
+**UI Feedback:**
+```
+┌─────────────────────────────────────────┐
+│ ⚠️ Variante Non Trovata                 │
+├─────────────────────────────────────────┤
+│ Articolo 845.104 ✓ trovato              │
+│ Variante .023 non disponibile           │
+│                                         │
+│ Seleziona la variante corretta:        │
+│                                         │
+│ ┌───────────────────────────────────┐  │
+│ │ ○ 845.104.016                     │  │
+│ │   K2 - 5 pezzi per confezione     │  │
+│ └───────────────────────────────────┘  │
+│                                         │
+│ ┌───────────────────────────────────┐  │
+│ │ ○ 845.104.032                     │  │
+│ │   K3 - 1 pezzo per confezione     │  │
+│ └───────────────────────────────────┘  │
+│                                         │
+│ [🎤 Riprova]  [✏️ Scrivi Manualmente]   │
+└─────────────────────────────────────────┘
+```
+
+**User Action:** Click ".016" → Continue with "845.104.016"
+
+---
+
+### Caso 3: Complete Mismatch
+
+**Scenario:**
+```
+🎤 SISTEMA sente: "XXXYYY 999 888" (completamente errato)
+```
+
+**Detection:**
+```typescript
+const validation = await validateArticleCode("XXXYYY.999.888", productDb);
+// Returns:
+{
+  matchType: 'not_found',
+  confidence: 0.0,
+  suggestions: [],
+  error: "Articolo 'XXXYYY.999.888' non trovato nel catalogo"
+}
+```
+
+**UI Feedback:**
+```
+┌─────────────────────────────────────────┐
+│ ❌ Articolo Non Trovato                 │
+├─────────────────────────────────────────┤
+│ Hai detto: "XXXYYY 999 888"             │
+│                                         │
+│ Articolo non trovato nel catalogo.     │
+│ Nessun articolo simile disponibile.    │
+│                                         │
+│ [🎤 Riprova Dettatura]                  │
+│ [✏️ Inserisci Manualmente]              │
+│ [❌ Annulla]                            │
+└─────────────────────────────────────────┘
+```
+
+---
+
+### Decision Tree: Validation → UI
+
+```
+validateArticleCode(code)
+    ↓
+┌─────────────────────────────────────┐
+│ matchType?                          │
+├─────────────────────────────────────┤
+│ exact        → ✅ Green checkmark   │
+│                 "Articolo trovato"  │
+│                 Auto-populate form  │
+│                                     │
+│ base_pattern → ⚠️  Yellow modal     │
+│                 "Variante non       │
+│                  trovata"           │
+│                 Show variant list   │
+│                 User selects        │
+│                                     │
+│ fuzzy        → ⚠️  Orange modal     │
+│                 "Articolo simile"   │
+│                 Show top 3 matches  │
+│                 User selects        │
+│                                     │
+│ not_found    → ❌ Red modal         │
+│                 "Non trovato"       │
+│                 Retry or Manual     │
+└─────────────────────────────────────┘
+```
+
+---
+
+### Confidence Thresholds
+
+```typescript
+const CONFIDENCE_THRESHOLDS = {
+  AUTO_ACCEPT: 0.9,      // Exact match - auto-populate
+  REVIEW_REQUIRED: 0.7,  // Base pattern - show variants
+  MANUAL_REQUIRED: 0.5,  // Fuzzy - show suggestions
+  INVALID: 0.0           // Not found - retry or manual
+};
+```
+
+**Behavior by Confidence:**
+- **≥ 0.9**: Auto-populate form, green checkmark
+- **0.7 - 0.89**: Show variant/suggestions modal, yellow warning
+- **0.5 - 0.69**: Show fuzzy suggestions, orange warning, require selection
+- **< 0.5**: Show error, red, require retry or manual input
+
+---
+
+### Implementation Notes
+
+**Fuzzy Match Configuration:**
+```typescript
+import Fuse from 'fuse.js';
+
+const fuse = new Fuse(productDb, {
+  keys: ['name', 'id'],
+  threshold: 0.3,        // Max 30% difference
+  distance: 100,         // Max edit distance
+  includeScore: true,    // Return similarity score
+  minMatchCharLength: 3  // Min 3 chars to match
+});
+```
+
+**Performance:**
+- Exact match: O(1) hash lookup
+- Base pattern: O(n) filtered search
+- Fuzzy match: O(n) but cached, ~50ms for 10k products
+
+**UX Principles:**
+1. **Never auto-populate invalid data** (confidence < 0.9)
+2. **Always show why** suggestion was made (95% similar, same base, etc.)
+3. **Provide escape hatches**: Riprova voice, Manual edit, Cancel
+4. **Visual hierarchy**: Most likely suggestion first, with confidence %
+
+---
+
 ## 🚀 Evoluzione Futura (Post-MVP)
 
 ### Hybrid Mode: Controllo Esplicito Variante
