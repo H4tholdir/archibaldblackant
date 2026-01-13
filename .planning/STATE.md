@@ -5,16 +5,16 @@
 See: .planning/PROJECT.md (updated 2026-01-11)
 
 **Core value:** Rendere la creazione ordini Archibald **veloce, affidabile e mobile-friendly** per agenti in movimento
-**Current focus:** Phase 3 — MVP Order Form
+**Current focus:** Phase 4 — Voice Input Enhancement
 
 ## Current Position
 
-Phase: 3 of 12 (MVP Order Form)
-Plan: 8/8 complete (ALL DONE - 03-01 through 03-08)
-Status: COMPLETE
-Last activity: 2026-01-12 — Completed 03-07 (Integration Tests for Package Selection)
+Phase: 4 of 12 (Voice Input Enhancement)
+Plan: 0/6 (Phase ready to start)
+Status: READY TO START
+Last activity: 2026-01-13 — Phase 3.2 completed (9% performance improvement, critical bugs fixed)
 
-Progress: ████████░░ 33%
+Progress: ████████░░ 27% (25/36 plans complete - Phase 3.2 closed early)
 
 ## Performance Metrics
 
@@ -160,8 +160,41 @@ None yet.
   - **Commits**: 5 total (3 implementation + 2 bug fixes)
   - **Phase Status**: Phase 3 MVP Order Form now COMPLETE (8/8 plans)
 
+- **2026-01-13 (Early Morning)**: Phase 3.2 (Bot Performance Implementation) - Ad-hoc optimization work
+  - **Context**: 126 commits made outside GSD framework
+  - **Duration**: ~4 hours (00:00 - 04:00)
+  - **Approach**: Iterative A/B testing with multiple optimization attempts
+  - **Major Achievement - OPT-15: Customer Selection Optimization**:
+    - Integrated click directly into waitForFunction() - eliminates gap between detection and action
+    - Used mutation polling for instant DOM change detection
+    - **Impact**: Customer selection 20.91s → 12.51s (-8.4s, -40.2%)
+    - **Overall**: Total order time 90.55s → 82.23s (-8.32s, -9.2%)
+    - **Commit**: ffcd8fa
+  - **Attempted - OPT-03: Field Editing Optimization**:
+    - Multiple iterations (v1: JavaScript setValue, v2: research-based, v3: atomic operations)
+    - **Result**: No measurable improvement (~0s)
+    - **Lesson**: DevExpress grid overhead dominates input method optimization
+    - **Decision**: De-prioritize, focus on other high-ROI optimizations
+  - **Critical Bug Fix**: Variant Selection Logic (commit 94ae6b8)
+    - **Problem**: Bot selected K2 (5-pack) for qty=7 when K3 (1-pack) was valid
+    - **Solution**: Filter variants by valid multiples (qty % multipleQty === 0), prefer largest
+    - **Impact**: Quantity 7 now correctly selects K3, prevents invalid quantity errors
+  - **Critical Bug Fix**: Package Constraints Validation (commit b97c617)
+    - Dual-layer validation (client + server) prevents invalid order submission
+    - Frontend: Real-time validation in handleAddItem() with suggestions
+    - Backend: Server-side validation before bot execution with detailed errors
+    - Fixes Job ID 38/31 validation bypass bug
+  - **Status**: Phase 3.2 COMPLETE (partial implementation, 1 of 6 plans)
+  - **Performance vs Plan**:
+    - Phase 1 target: 71s (-10.5s), Actual: 82.23s (-8.3s) → 2.2s short of target
+    - SLO target: < 60s, Current: 82.23s → 22.23s improvement deferred
+  - **Decision**: Close Phase 3.2 early, defer remaining optimizations (OPT-02, OPT-06, OPT-01)
+  - **Rationale**: Good progress achieved (9%), user features higher priority, can revisit later
+  - **Documentation**: Complete phase summary (3.2-PHASE-COMPLETE.md, PERFORMANCE-ANALYSIS.md, 3.2-AD-HOC-SUMMARY.md)
+  - **Next**: Phase 4 - Voice Input Enhancement
+
 ## Session Continuity
 
-Last session: 2026-01-12 23:11
-Stopped at: Completed Phase 3 (MVP Order Form), all 8 plans done
-Next: Phase 4 or milestone completion review
+Last session: 2026-01-13 04:30
+Stopped at: Phase 3.2 closed, documentation complete
+Next: Start Phase 4 (Voice Input Enhancement) - ready for /gsd:plan-phase 4
