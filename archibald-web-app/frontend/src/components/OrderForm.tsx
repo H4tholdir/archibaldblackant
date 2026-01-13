@@ -213,10 +213,13 @@ export default function OrderForm({ onOrderCreated }: OrderFormProps) {
 
       if (hasHighConfidenceCustomer || hasHighConfidenceArticle) {
         console.log("⏰ Scheduling auto-apply in 1.5s...");
+        // Capture parsedWithConfidence in closure to avoid state race conditions
+        const dataToApply = parsedWithConfidence;
         // Wait a moment to show the validation result, then auto-apply
         setTimeout(() => {
           console.log("⚡ Auto-apply triggered!");
-          handleVoiceApply();
+          // Apply the captured data directly instead of reading from state
+          applyVoiceData(dataToApply);
         }, 1500);
       }
     },
@@ -595,25 +598,28 @@ export default function OrderForm({ onOrderCreated }: OrderFormProps) {
     }));
   };
 
-  const handleVoiceApply = () => {
-    console.log("🔵 handleVoiceApply called", {
-      customerName: parsedOrder.customerName,
-      customerId: parsedOrder.customerId,
-      confidence: parsedOrder.customerNameConfidence,
+  // Helper function to apply voice data (can be called with explicit data or from state)
+  const applyVoiceData = (data?: ParsedOrderWithConfidence) => {
+    const dataToUse = data || parsedOrder;
+
+    console.log("🔵 applyVoiceData called", {
+      customerName: dataToUse.customerName,
+      customerId: dataToUse.customerId,
+      confidence: dataToUse.customerNameConfidence,
     });
 
     // Pre-fill customer field
     if (
-      parsedOrder.customerName &&
-      parsedOrder.customerNameConfidence &&
-      parsedOrder.customerNameConfidence > 0.5
+      dataToUse.customerName &&
+      dataToUse.customerNameConfidence &&
+      dataToUse.customerNameConfidence > 0.5
     ) {
-      console.log("✅ Setting customer in form:", parsedOrder.customerName);
-      setCustomerSearch(parsedOrder.customerName);
-      if (parsedOrder.customerId) {
-        setCustomerId(parsedOrder.customerId);
-        setCustomerName(parsedOrder.customerName);
-        console.log("✅ Customer ID set:", parsedOrder.customerId);
+      console.log("✅ Setting customer in form:", dataToUse.customerName);
+      setCustomerSearch(dataToUse.customerName);
+      if (dataToUse.customerId) {
+        setCustomerId(dataToUse.customerId);
+        setCustomerName(dataToUse.customerName);
+        console.log("✅ Customer ID set:", dataToUse.customerId);
       }
       setVoicePopulatedFields((prev) => ({ ...prev, customer: true }));
     } else {
@@ -621,13 +627,13 @@ export default function OrderForm({ onOrderCreated }: OrderFormProps) {
     }
 
     // Handle multiple items
-    if (parsedOrder.items.length > 1) {
+    if (dataToUse.items.length > 1) {
       // Show multi-item summary modal
-      setMultiItemSummary(parsedOrder.items);
+      setMultiItemSummary(dataToUse.items);
       setShowMultiItemModal(true);
-    } else if (parsedOrder.items.length === 1) {
+    } else if (dataToUse.items.length === 1) {
       // Single item - add directly to draft items
-      const item = parsedOrder.items[0];
+      const item = dataToUse.items[0];
 
       // Only add if we have article code with good confidence
       if (
@@ -659,6 +665,10 @@ export default function OrderForm({ onOrderCreated }: OrderFormProps) {
     setCustomerManuallySelected(false);
     setIsFinalTranscript(false);
     setVoiceSuggestions([]);
+  };
+
+  const handleVoiceApply = () => {
+    applyVoiceData();
   };
 
   const handleVoiceClear = () => {
