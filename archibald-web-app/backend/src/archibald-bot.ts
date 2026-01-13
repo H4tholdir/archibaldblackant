@@ -1683,17 +1683,22 @@ export class ArchibaldBot {
         logger.debug(`Pasting search value: ${orderData.customerName}`);
         logger.debug(`Using input handle`);
 
-        // OPT-05: Use paste helper and immediate Enter (no wait needed)
+        // OPT-06: Use paste helper with event-driven verification (no fixed wait)
         await this.pasteText(searchInput, orderData.customerName);
         logger.debug("Finished pasting customer name");
 
-        // Verify value was pasted (minimal wait for paste to complete)
-        await this.wait(100);
-        const actualValue = await searchInput.evaluate(
-          (el) => (el as HTMLInputElement).value,
-        );
+        // Event-driven: Wait for value to be present in input (no fixed wait)
+        const actualValue = await this.page!.waitForFunction(
+          (selector: string, expectedValue: string) => {
+            const input = document.querySelector(selector) as HTMLInputElement;
+            return input && input.value === expectedValue ? input.value : null;
+          },
+          { timeout: 1000, polling: 50 },
+          foundSelector,
+          orderData.customerName
+        ).then(result => result.jsonValue()) as string;
 
-        logger.debug(`Actual value in input after typing: "${actualValue}"`);
+        logger.debug(`✓ Value verified in input: "${actualValue}"`);
 
         if (actualValue !== orderData.customerName) {
           logger.warn(
@@ -2306,13 +2311,18 @@ export class ArchibaldBot {
           await this.pasteText(searchInput, searchTerm);
           logger.debug("Finished pasting article code");
 
-          await this.wait(500);
+          // OPT-06: Event-driven verification of paste (no fixed wait)
+          const actualValue = await this.page!.waitForFunction(
+            (selector: string, expectedValue: string) => {
+              const input = document.querySelector(selector) as HTMLInputElement;
+              return input && input.value === expectedValue ? input.value : null;
+            },
+            { timeout: 1000, polling: 50 },
+            foundSelector,
+            searchTerm
+          ).then(result => result.jsonValue()) as string;
 
-          // Verify value
-          const actualValue = await searchInput.evaluate(
-            (el) => (el as HTMLInputElement).value,
-          );
-          logger.debug(`Actual value in article search: "${actualValue}"`);
+          logger.debug(`✓ Article code verified in input: "${actualValue}"`);
 
           // Press Enter
           await this.page!.keyboard.press("Enter");
