@@ -576,6 +576,10 @@ export default function OrderForm({ onOrderCreated }: OrderFormProps) {
       parsedOrder.customerNameConfidence > 0.5
     ) {
       setCustomerSearch(parsedOrder.customerName);
+      if (parsedOrder.customerId) {
+        setCustomerId(parsedOrder.customerId);
+        setCustomerName(parsedOrder.customerName);
+      }
       setVoicePopulatedFields((prev) => ({ ...prev, customer: true }));
     }
 
@@ -585,12 +589,36 @@ export default function OrderForm({ onOrderCreated }: OrderFormProps) {
       setMultiItemSummary(parsedOrder.items);
       setShowMultiItemModal(true);
     } else if (parsedOrder.items.length === 1) {
-      // Single item - populate form directly
-      populateFormWithItem(parsedOrder.items[0]);
-    }
+      // Single item - add directly to draft items
+      const item = parsedOrder.items[0];
 
-    // KEEP MODAL OPEN for user review
-    // User will close modal manually or click "Review & Apply" again
+      // Only add if we have article code with good confidence
+      if (
+        item.articleCode &&
+        item.articleCodeConfidence &&
+        item.articleCodeConfidence > 0.5
+      ) {
+        const newDraftItem: OrderItem = {
+          articleCode: item.articleCode,
+          description: item.articleCode, // Will be populated by bot
+          quantity: item.quantity || 1,
+          price: 0, // Will be set by backend
+          discount: 0,
+        };
+
+        setDraftItems((prev) => [...prev, newDraftItem]);
+
+        // Clear the voice modal and reset for next item
+        setShowVoiceModal(false);
+        resetTranscript();
+        setParsedOrder({ items: [] });
+        setArticleValidation(null);
+        setArticleManuallySelected(false);
+      } else {
+        // Low confidence - populate form for manual review
+        populateFormWithItem(item);
+      }
+    }
   };
 
   const handleVoiceClear = () => {
