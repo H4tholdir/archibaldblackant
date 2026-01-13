@@ -2,6 +2,11 @@ import { useState, useEffect, useRef } from "react";
 import { useVoiceInput } from "../hooks/useVoiceInput";
 import { parseVoiceOrder, getVoiceSuggestions } from "../utils/orderParser";
 import type { OrderItem } from "../types/order";
+import type { ParsedOrderWithConfidence } from "../utils/orderParser";
+import { ConfidenceMeter } from "./ConfidenceMeter";
+import { TranscriptDisplay } from "./TranscriptDisplay";
+import { ValidationStatus } from "./ValidationStatus";
+import { SmartSuggestions } from "./SmartSuggestions";
 
 interface Customer {
   id: string;
@@ -66,6 +71,13 @@ export default function OrderForm({ onOrderCreated }: OrderFormProps) {
   // Voice input state
   const [showVoiceModal, setShowVoiceModal] = useState(false);
   const [voiceSuggestions, setVoiceSuggestions] = useState<string[]>([]);
+  const [parsedOrder, setParsedOrder] = useState<ParsedOrderWithConfidence>({
+    items: [],
+  });
+  const [validationStatus, setValidationStatus] = useState<
+    "idle" | "validating" | "success" | "error"
+  >("idle");
+  const [isFinalTranscript, setIsFinalTranscript] = useState(false);
 
   // Voice input hook
   const {
@@ -81,7 +93,25 @@ export default function OrderForm({ onOrderCreated }: OrderFormProps) {
     continuous: true,
     interimResults: true,
     onResult: (finalTranscript) => {
-      // Update suggestions as user speaks
+      // Parse transcript
+      const parsed = parseVoiceOrder(finalTranscript);
+
+      // Add mock confidence scores (in real implementation, these would come from voice recognition)
+      const parsedWithConfidence: ParsedOrderWithConfidence = {
+        ...parsed,
+        customerNameConfidence: parsed.customerName ? 0.9 : undefined,
+        customerIdConfidence: parsed.customerId ? 0.9 : undefined,
+        items: parsed.items.map((item) => ({
+          ...item,
+          articleCodeConfidence: 0.85,
+          quantityConfidence: 0.95,
+        })),
+      };
+
+      setParsedOrder(parsedWithConfidence);
+      setIsFinalTranscript(true); // onResult is called only for final transcripts
+
+      // Update suggestions based on what's missing
       setVoiceSuggestions(getVoiceSuggestions(finalTranscript));
     },
   });
@@ -278,8 +308,8 @@ export default function OrderForm({ onOrderCreated }: OrderFormProps) {
       if (newItem.quantity % multiple !== 0) {
         alert(
           `La quantità deve essere un multiplo di ${multiple}. ` +
-          `Quantità suggerite: ${Math.floor(newItem.quantity / multiple) * multiple}, ` +
-          `${Math.ceil(newItem.quantity / multiple) * multiple}`
+            `Quantità suggerite: ${Math.floor(newItem.quantity / multiple) * multiple}, ` +
+            `${Math.ceil(newItem.quantity / multiple) * multiple}`,
         );
         return;
       }
@@ -291,7 +321,10 @@ export default function OrderForm({ onOrderCreated }: OrderFormProps) {
       }
 
       // Check maximum quantity
-      if (packageConstraints.maxQty && newItem.quantity > packageConstraints.maxQty) {
+      if (
+        packageConstraints.maxQty &&
+        newItem.quantity > packageConstraints.maxQty
+      ) {
         alert(`La quantità massima è ${packageConstraints.maxQty}`);
         return;
       }
@@ -412,26 +445,55 @@ export default function OrderForm({ onOrderCreated }: OrderFormProps) {
                 </div>
               </div>
 
-              {/* Transcript */}
-              <div className="voice-transcript">
-                {transcript || "Inizia a parlare..."}
-              </div>
+              {/* Confidence Meter */}
+              {transcript && (
+                <ConfidenceMeter
+                  confidence={
+                    parsedOrder.items.length > 0
+                      ? (parsedOrder.customerNameConfidence || 0.5) * 0.4 +
+                        (parsedOrder.items[0].articleCodeConfidence || 0.5) *
+                          0.4 +
+                        (parsedOrder.items[0].quantityConfidence || 0.5) * 0.2
+                      : parsedOrder.customerNameConfidence || 0.5
+                  }
+                  label="Confidenza riconoscimento"
+                />
+              )}
+
+              {/* Transcript with Entity Highlighting */}
+              {transcript ? (
+                <TranscriptDisplay
+                  transcript={transcript}
+                  parsedOrder={parsedOrder}
+                  isFinal={isFinalTranscript}
+                />
+              ) : (
+                <div className="voice-transcript">Inizia a parlare...</div>
+              )}
+
+              {/* Validation Status */}
+              <ValidationStatus
+                status={validationStatus}
+                message={
+                  validationStatus === "validating"
+                    ? "Validazione in corso..."
+                    : validationStatus === "success"
+                      ? "Dati validi"
+                      : validationStatus === "error"
+                        ? "Errore di validazione"
+                        : undefined
+                }
+              />
 
               {/* Error */}
               {voiceError && <div className="voice-error">⚠️ {voiceError}</div>}
 
-              {/* Suggestions */}
+              {/* Smart Suggestions */}
               {voiceSuggestions.length > 0 && (
-                <div className="voice-suggestions">
-                  <div className="voice-suggestions-title">
-                    💡 Suggerimenti:
-                  </div>
-                  {voiceSuggestions.map((suggestion, i) => (
-                    <div key={i} className="voice-suggestion">
-                      • {suggestion}
-                    </div>
-                  ))}
-                </div>
+                <SmartSuggestions
+                  suggestions={voiceSuggestions}
+                  priority={voiceSuggestions.length > 2 ? "high" : "low"}
+                />
               )}
 
               {/* Example */}
@@ -629,7 +691,10 @@ export default function OrderForm({ onOrderCreated }: OrderFormProps) {
                 }
 
                 // Enforce maximum
-                if (packageConstraints.maxQty && qty > packageConstraints.maxQty) {
+                if (
+                  packageConstraints.maxQty &&
+                  qty > packageConstraints.maxQty
+                ) {
                   qty = packageConstraints.maxQty;
                 }
               }
@@ -651,7 +716,10 @@ export default function OrderForm({ onOrderCreated }: OrderFormProps) {
                 const multiple = packageConstraints.multipleQty;
                 qty = Math.round(qty / multiple) * multiple;
 
-                if (packageConstraints.maxQty && qty > packageConstraints.maxQty) {
+                if (
+                  packageConstraints.maxQty &&
+                  qty > packageConstraints.maxQty
+                ) {
                   qty = packageConstraints.maxQty;
                 }
 
