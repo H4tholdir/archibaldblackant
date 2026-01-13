@@ -193,12 +193,16 @@ export default function OrderForm({ onOrderCreated }: OrderFormProps) {
       // Update suggestions based on what's missing
       setVoiceSuggestions(getVoiceSuggestions(finalTranscript));
 
-      // Auto-apply if high confidence (≥90%) and has article
-      if (
+      // Auto-apply if high confidence (≥70%)
+      // Apply if either customer or article has good confidence
+      const hasHighConfidenceCustomer =
+        parsed.customerName && customerConfidence && customerConfidence >= 0.7;
+      const hasHighConfidenceArticle =
         parsed.items.length > 0 &&
         parsed.items[0].articleCode &&
-        articleConfidence >= 0.9
-      ) {
+        articleConfidence >= 0.7;
+
+      if (hasHighConfidenceCustomer || hasHighConfidenceArticle) {
         // Wait a moment to show the validation result, then auto-apply
         setTimeout(() => {
           handleVoiceApply();
@@ -625,6 +629,10 @@ export default function OrderForm({ onOrderCreated }: OrderFormProps) {
         setParsedOrder({ items: [] });
         setArticleValidation(null);
         setArticleManuallySelected(false);
+        setCustomerValidation(null);
+        setCustomerManuallySelected(false);
+        setIsFinalTranscript(false);
+        setVoiceSuggestions([]);
       } else {
         // Low confidence - populate form for manual review
         populateFormWithItem(item);
