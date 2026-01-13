@@ -137,8 +137,9 @@ export class PriceSyncService extends EventEmitter {
 
   /**
    * Sincronizza i prezzi dalla tabella prezzi di Archibald
+   * @param forceFullSync Se true, ignora checkpoint e parte sempre da pagina 1
    */
-  async syncPrices(): Promise<void> {
+  async syncPrices(forceFullSync: boolean = false): Promise<void> {
     if (this.syncInProgress) {
       logger.warn("Sync prezzi già in corso, skip");
       return;
@@ -154,7 +155,15 @@ export class PriceSyncService extends EventEmitter {
     this.shouldStop = false;
 
     // Verifica se la sync è stata completata di recente
-    const resumePoint = this.checkpointManager.getResumePoint("prices");
+    let resumePoint = this.checkpointManager.getResumePoint("prices");
+
+    // Force full sync: reset checkpoint and start from page 1
+    if (forceFullSync && resumePoint !== -1) {
+      logger.info("🔄 Full sync forzato: reset checkpoint, start da pagina 1");
+      this.checkpointManager.resetCheckpoint("prices");
+      resumePoint = 1;
+    }
+
     if (resumePoint === -1) {
       logger.info("⏭️ Sync prezzi recente, skip");
       const productsWithPrices = this.db.getProductsWithPrices();

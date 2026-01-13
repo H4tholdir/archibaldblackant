@@ -570,11 +570,11 @@ app.post("/api/sync/full", async (req: Request, res: Response<ApiResponse>) => {
           releaseSyncLock();
         }
 
-        // 3. Finally sync prices
+        // 3. Finally sync prices (full sync for scheduled sync)
         if (!acquireSyncLock("prices")) return;
         try {
-          logger.info("3️⃣ Sync prezzi...");
-          await priceSyncService.syncPrices();
+          logger.info("3️⃣ Sync prezzi (full sync)...");
+          await priceSyncService.syncPrices(true); // Force full sync
           logger.info("✅ Sync prezzi completato");
         } finally {
           releaseSyncLock();
@@ -693,7 +693,14 @@ app.post(
   "/api/sync/prices",
   async (req: Request, res: Response<ApiResponse>) => {
     try {
-      logger.info("Richiesta sync prezzi");
+      // Support query param ?full=true for full sync from page 1
+      const forceFullSync = req.query.full === "true";
+
+      logger.info(
+        forceFullSync
+          ? "Richiesta FULL sync prezzi (da pagina 1)"
+          : "Richiesta sync prezzi",
+      );
 
       if (!acquireSyncLock("prices")) {
         return res.status(409).json({
@@ -705,7 +712,7 @@ app.post(
       // Avvia sync in background
       (async () => {
         try {
-          await priceSyncService.syncPrices();
+          await priceSyncService.syncPrices(forceFullSync);
           logger.info("✅ Sync prezzi completato");
         } catch (error) {
           logger.error("❌ Errore sync prezzi", { error });
@@ -716,7 +723,9 @@ app.post(
 
       res.json({
         success: true,
-        message: "Sincronizzazione prezzi avviata",
+        message: forceFullSync
+          ? "Sincronizzazione completa prezzi avviata (da pagina 1)"
+          : "Sincronizzazione prezzi avviata",
       });
     } catch (error) {
       logger.error("Errore API /api/sync/prices", { error });
@@ -1152,9 +1161,9 @@ server.listen(config.server.port, async () => {
         await productSyncService.syncProducts();
         logger.info("✅ Sync prodotti completato");
 
-        // 3. Finally sync prices
-        logger.info("3️⃣ Sync prezzi...");
-        await priceSyncService.syncPrices();
+        // 3. Finally sync prices (full sync for daily automatic sync)
+        logger.info("3️⃣ Sync prezzi (full sync)...");
+        await priceSyncService.syncPrices(true); // Force full sync
         logger.info("✅ Sync prezzi completato");
 
         logger.info("🎉 Sync giornaliero completato con successo!");
