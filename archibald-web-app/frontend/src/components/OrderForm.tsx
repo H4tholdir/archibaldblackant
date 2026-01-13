@@ -74,7 +74,7 @@ export default function OrderForm({ onOrderCreated }: OrderFormProps) {
   const [parsedOrder, setParsedOrder] = useState<ParsedOrderWithConfidence>({
     items: [],
   });
-  const [validationStatus, setValidationStatus] = useState<
+  const [validationStatus] = useState<
     "idle" | "validating" | "success" | "error"
   >("idle");
   const [isFinalTranscript, setIsFinalTranscript] = useState(false);

@@ -37,7 +37,7 @@ describe("PackageDisambiguationModal", () => {
 
     expect(screen.getByText(/H71\.104\.032/)).toBeInTheDocument();
     expect(
-      screen.getByText((content, element) => {
+      screen.getByText((_content, element) => {
         return (
           element?.textContent === "Articolo H71.104.032, quantità 7 pezzi"
         );
