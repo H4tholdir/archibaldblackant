@@ -1,5 +1,4 @@
 import type { OrderItem } from "../types/order";
-import Fuse from "fuse.js";
 
 interface ParsedOrder {
   customerId?: string;
@@ -36,11 +35,12 @@ export interface PackageSolution {
 }
 
 export interface ArticleValidationResult {
-  matchType: "exact" | "base_pattern" | "fuzzy" | "not_found";
+  matchType: "exact" | "normalized" | "base_pattern" | "fuzzy" | "not_found";
   confidence: number;
   product?: {
     id: string;
     name: string;
+    description?: string;
     packageContent?: string;
     minQty?: number;
     multipleQty?: number;
@@ -52,7 +52,7 @@ export interface ArticleValidationResult {
     variant?: string; // Last part (016, 023, etc.)
     packageInfo?: string; // "K2 - 5pz"
     confidence: number;
-    reason: "exact" | "base_match" | "fuzzy_match" | "phonetic";
+    reason: "exact" | "normalized" | "base_match" | "fuzzy_match" | "phonetic";
   }>;
   error?: string;
 }
@@ -311,82 +311,128 @@ export function detectMixedPackageSolutions(
 }
 
 /**
- * Validate article code with multi-layer approach:
- * - Layer 1: Exact match
- * - Layer 2: Base pattern match (handles variant errors like 023→016)
- * - Layer 3: Fuzzy match (handles recognition errors like H71→H61)
+ * Validate article code with fuzzy matching
+ * Uses backend API for Levenshtein-based search
+ *
+ * Example: "H129FSQ104023" → suggests "H129FSQ.104.023" (98%), "H129FSQ.104.016" (85%)
  */
 export async function validateArticleCode(
   code: string,
-  productDb: Array<{
-    id: string;
-    name: string;
-    packageContent?: string;
-    multipleQty?: number;
-  }>,
 ): Promise<ArticleValidationResult> {
-  // Layer 1: Exact match
-  const exactMatch = productDb.find((p) => p.name === code);
-  if (exactMatch) {
-    return {
-      matchType: "exact",
-      confidence: 1.0,
-      product: exactMatch,
-      suggestions: [],
-    };
-  }
+  try {
+    // Call backend fuzzy search API
+    const response = await fetch(
+      `/api/products/search?q=${encodeURIComponent(code)}&limit=5`,
+    );
 
-  // Layer 2: Base pattern match (handles variant errors: 023→016)
-  const parts = code.split(".");
-  if (parts.length >= 2) {
-    const basePattern = parts.slice(0, 2).join(".");
-    const variants = productDb.filter((p) => p.name.startsWith(basePattern));
+    if (!response.ok) {
+      throw new Error(`API error: ${response.statusText}`);
+    }
 
-    if (variants.length > 0) {
+    const data = await response.json();
+
+    if (!data.success || !data.data || data.data.length === 0) {
       return {
-        matchType: "base_pattern",
-        confidence: 0.7,
-        basePattern,
-        suggestions: variants.map((v) => ({
-          code: v.name,
-          variant: v.name.split(".")[2] || "",
-          packageInfo: `${v.id.slice(-2)} - ${v.packageContent}pz`,
-          confidence: 0.8,
-          reason: "base_match",
-        })),
-        error: `Variante .${parts[2]} non trovata per ${basePattern}`,
+        matchType: "not_found",
+        confidence: 0.0,
+        suggestions: [],
+        error: `Articolo "${code}" non trovato`,
       };
     }
-  }
 
-  // Layer 3: Fuzzy match (handles recognition errors: H71→H61)
-  const fuse = new Fuse(productDb, {
-    keys: ["name", "id"],
-    threshold: 0.3,
-    includeScore: true,
-  });
+    const results = data.data;
+    const bestMatch = results[0];
 
-  const results = fuse.search(code);
-  if (results.length > 0) {
+    // Exact or normalized match (confidence >= 95%)
+    if (bestMatch.confidence >= 95) {
+      return {
+        matchType: bestMatch.matchReason === "exact" ? "exact" : "normalized",
+        confidence: bestMatch.confidence / 100,
+        product: {
+          id: bestMatch.id,
+          name: bestMatch.name,
+          description: bestMatch.description,
+          packageContent: bestMatch.packageContent,
+          multipleQty: bestMatch.multipleQty,
+        },
+        suggestions: [],
+      };
+    }
+
+    // Check for base pattern match (for variant errors like H129FSQ.104.023 → H129FSQ.104.016)
+    const parts = code.split(".");
+    if (parts.length >= 2) {
+      const basePattern = parts.slice(0, 2).join(".");
+      const variantsForBase = results.filter((r: any) =>
+        r.name.startsWith(basePattern),
+      );
+
+      if (variantsForBase.length > 0) {
+        return {
+          matchType: "base_pattern",
+          confidence: 0.7,
+          basePattern,
+          suggestions: variantsForBase.map((r: any) => ({
+            code: r.name,
+            variant: r.name.split(".")[2] || "",
+            packageInfo: r.packageContent
+              ? `${r.id.slice(-2)} - ${r.packageContent}pz`
+              : r.id.slice(-2),
+            confidence: r.confidence,
+            reason: "base_match",
+          })),
+          error: `Variante .${parts[2]} non trovata per ${basePattern}`,
+        };
+      }
+    }
+
+    // Normalized or fuzzy match (confidence >= 70%)
+    if (bestMatch.confidence >= 70) {
+      return {
+        matchType:
+          bestMatch.matchReason === "normalized" ? "normalized" : "fuzzy",
+        confidence: bestMatch.confidence / 100,
+        product: {
+          id: bestMatch.id,
+          name: bestMatch.name,
+          description: bestMatch.description,
+          packageContent: bestMatch.packageContent,
+          multipleQty: bestMatch.multipleQty,
+        },
+        suggestions: results.slice(1).map((r: any) => ({
+          code: r.name,
+          confidence: r.confidence,
+          reason: r.matchReason,
+          packageInfo: r.packageContent
+            ? `${r.id.slice(-2)} - ${r.packageContent}pz`
+            : r.id.slice(-2),
+        })),
+      };
+    }
+
+    // Multiple fuzzy matches (confidence < 70%)
     return {
       matchType: "fuzzy",
-      confidence: 0.5,
-      suggestions: results.slice(0, 3).map((r) => ({
-        code: r.item.name,
-        confidence: 1 - (r.score || 0),
-        reason: "fuzzy_match",
+      confidence: bestMatch.confidence / 100,
+      suggestions: results.map((r: any) => ({
+        code: r.name,
+        confidence: r.confidence,
+        reason: r.matchReason,
+        packageInfo: r.packageContent
+          ? `${r.id.slice(-2)} - ${r.packageContent}pz`
+          : r.id.slice(-2),
       })),
-      error: `Articolo "${code}" non trovato`,
+      error: `Articolo "${code}" non trovato. Forse intendevi:`,
+    };
+  } catch (error) {
+    console.error("Error validating article code:", error);
+    return {
+      matchType: "not_found",
+      confidence: 0.0,
+      suggestions: [],
+      error: `Errore durante la ricerca dell'articolo "${code}"`,
     };
   }
-
-  // No match
-  return {
-    matchType: "not_found",
-    confidence: 0.0,
-    suggestions: [],
-    error: `Articolo "${code}" non trovato nel catalogo`,
-  };
 }
 
 /**

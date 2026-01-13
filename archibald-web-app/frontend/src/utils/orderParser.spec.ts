@@ -3,7 +3,6 @@ import {
   parseVoiceOrder,
   getVoiceSuggestions,
   detectMixedPackageSolutions,
-  validateArticleCode,
   highlightEntities,
 } from "./orderParser";
 import type { ParsedOrderWithConfidence } from "./orderParser";
@@ -196,87 +195,8 @@ describe("detectMixedPackageSolutions", () => {
   });
 });
 
-describe("validateArticleCode", () => {
-  const mockProductDb = [
-    {
-      id: "016869K2",
-      name: "H71.104.032",
-      packageContent: "5",
-      multipleQty: 5,
-    },
-    {
-      id: "016869K3",
-      name: "H71.104.016",
-      packageContent: "1",
-      multipleQty: 1,
-    },
-    {
-      id: "845104K2",
-      name: "845.104.016",
-      packageContent: "5",
-      multipleQty: 5,
-    },
-    {
-      id: "845104K3",
-      name: "845.104.032",
-      packageContent: "1",
-      multipleQty: 1,
-    },
-  ];
-
-  test("exact match returns confidence 1.0", async () => {
-    const result = await validateArticleCode("H71.104.032", mockProductDb);
-
-    expect(result.matchType).toBe("exact");
-    expect(result.confidence).toBe(1.0);
-    expect(result.product?.name).toBe("H71.104.032");
-    expect(result.suggestions).toHaveLength(0);
-  });
-
-  test("recognition error H71→H61 returns fuzzy match suggestions", async () => {
-    // Simulates voice recognition error: spoken "H71" but heard "H61"
-    const result = await validateArticleCode("H61.104.032", mockProductDb);
-
-    expect(result.matchType).toBe("fuzzy");
-    expect(result.confidence).toBeLessThanOrEqual(0.7);
-    expect(result.error).toContain("H61.104.032");
-    expect(result.suggestions.length).toBeGreaterThan(0);
-    expect(result.suggestions[0].code).toBe("H71.104.032");
-    expect(result.suggestions[0].reason).toBe("fuzzy_match");
-    expect(result.suggestions[0].confidence).toBeGreaterThan(0.9);
-  });
-
-  test("variant doesn't exist (023→016) returns base pattern suggestions", async () => {
-    // Simulates: user says 845.104.023 but only .016 and .032 exist
-    const result = await validateArticleCode("845.104.023", mockProductDb);
-
-    expect(result.matchType).toBe("base_pattern");
-    expect(result.basePattern).toBe("845.104");
-    expect(result.confidence).toBeCloseTo(0.7, 1);
-    expect(result.error).toContain("023");
-    expect(result.suggestions).toHaveLength(2);
-    expect(result.suggestions.map((s) => s.variant)).toContain("016");
-    expect(result.suggestions.map((s) => s.variant)).toContain("032");
-    expect(result.suggestions[0].reason).toBe("base_match");
-  });
-
-  test("complete mismatch returns not_found", async () => {
-    const result = await validateArticleCode("XXXYYY.999.888", mockProductDb);
-
-    expect(result.matchType).toBe("not_found");
-    expect(result.confidence).toBe(0.0);
-    expect(result.suggestions).toHaveLength(0);
-    expect(result.error).toContain("non trovato");
-  });
-
-  test("partial code finds all variants", async () => {
-    const result = await validateArticleCode("H71.104", mockProductDb);
-
-    // Should find both H71.104.032 and H71.104.016
-    expect(result.matchType).toBe("base_pattern");
-    expect(result.suggestions.length).toBeGreaterThanOrEqual(2);
-  });
-});
+// validateArticleCode tests moved to orderParser.article.spec.ts
+// (now uses API-based fuzzy matching instead of local productDb)
 
 describe("validateExtractedEntities", () => {
   test("validates customer name with exact match", async () => {
