@@ -270,6 +270,33 @@ export default function OrderForm({ onOrderCreated }: OrderFormProps) {
       return;
     }
 
+    // Validate package constraints before adding
+    if (packageConstraints) {
+      const multiple = packageConstraints.multipleQty;
+
+      // Check if quantity is a valid multiple
+      if (newItem.quantity % multiple !== 0) {
+        alert(
+          `La quantità deve essere un multiplo di ${multiple}. ` +
+          `Quantità suggerite: ${Math.floor(newItem.quantity / multiple) * multiple}, ` +
+          `${Math.ceil(newItem.quantity / multiple) * multiple}`
+        );
+        return;
+      }
+
+      // Check minimum quantity
+      if (newItem.quantity < packageConstraints.minQty) {
+        alert(`La quantità minima è ${packageConstraints.minQty}`);
+        return;
+      }
+
+      // Check maximum quantity
+      if (packageConstraints.maxQty && newItem.quantity > packageConstraints.maxQty) {
+        alert(`La quantità massima è ${packageConstraints.maxQty}`);
+        return;
+      }
+    }
+
     setItems([...items, { ...newItem }]);
     setNewItem({
       articleCode: "",
@@ -280,6 +307,7 @@ export default function OrderForm({ onOrderCreated }: OrderFormProps) {
       discount: 0,
     });
     setProductSearch(""); // Reset product search
+    setPackageConstraints(null); // Reset constraints for next item
   };
 
   const handleRemoveItem = (index: number) => {

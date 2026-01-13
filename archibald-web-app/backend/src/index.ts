@@ -843,6 +843,46 @@ app.post(
         })),
       });
 
+      // Validate package constraints for each item
+      const validationErrors: string[] = [];
+      for (const item of orderData.items) {
+        try {
+          const product = await productDb.getByNameOrId(item.articleCode);
+
+          if (product) {
+            const validation = productDb.validateQuantity(product, item.quantity);
+
+            if (!validation.valid) {
+              const errorMsg = `Quantity ${item.quantity} is invalid for article ${item.articleCode}` +
+                (product.name ? ` (${product.name})` : '') +
+                `: ${validation.errors.join(', ')}` +
+                (validation.suggestions?.length ?
+                  ` Suggested quantities: ${validation.suggestions.join(', ')}` : '');
+              validationErrors.push(errorMsg);
+            }
+          }
+        } catch (error) {
+          logger.warn("Could not validate product constraints", {
+            articleCode: item.articleCode,
+            error,
+          });
+          // Continue even if product not found in DB - let bot handle it
+        }
+      }
+
+      // If validation errors exist, reject the order
+      if (validationErrors.length > 0) {
+        logger.warn("❌ API: Order rejected due to validation errors", {
+          errors: validationErrors,
+        });
+
+        res.status(400).json({
+          success: false,
+          error: validationErrors.join('; '),
+        });
+        return;
+      }
+
       // Aggiungi alla coda
       const job = await queueManager.addOrder(
         orderData,
