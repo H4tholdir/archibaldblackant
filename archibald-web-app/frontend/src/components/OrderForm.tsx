@@ -7,6 +7,7 @@ import { ConfidenceMeter } from "./ConfidenceMeter";
 import { TranscriptDisplay } from "./TranscriptDisplay";
 import { ValidationStatus } from "./ValidationStatus";
 import { SmartSuggestions } from "./SmartSuggestions";
+import { VoicePopulatedBadge } from "./VoicePopulatedBadge";
 
 interface Customer {
   id: string;
@@ -596,7 +597,14 @@ export default function OrderForm({ onOrderCreated }: OrderFormProps) {
         <h2 className="card-title">👤 Cliente</h2>
 
         <div className="form-group">
-          <label className="form-label">Cerca Cliente</label>
+          <label className="form-label">
+            Cerca Cliente
+            {voicePopulatedFields.customer && (
+              <VoicePopulatedBadge
+                confidence={parsedOrder.customerNameConfidence}
+              />
+            )}
+          </label>
           <div className="autocomplete-container">
             <input
               ref={customerInputRef}
@@ -661,7 +669,14 @@ export default function OrderForm({ onOrderCreated }: OrderFormProps) {
         <h2 className="card-title">📦 Nuovo Articolo</h2>
 
         <div className="form-group">
-          <label className="form-label">Nome Articolo</label>
+          <label className="form-label">
+            Nome Articolo
+            {voicePopulatedFields.article && (
+              <VoicePopulatedBadge
+                confidence={parsedOrder.items[0]?.articleCodeConfidence}
+              />
+            )}
+          </label>
           <div className="autocomplete-container">
             <input
               ref={productInputRef}
@@ -725,7 +740,14 @@ export default function OrderForm({ onOrderCreated }: OrderFormProps) {
         </div>
 
         <div className="form-group">
-          <label className="form-label">Quantità</label>
+          <label className="form-label">
+            Quantità
+            {voicePopulatedFields.quantity && (
+              <VoicePopulatedBadge
+                confidence={parsedOrder.items[0]?.quantityConfidence}
+              />
+            )}
+          </label>
           <input
             type="number"
             className="form-input"
@@ -757,6 +779,9 @@ export default function OrderForm({ onOrderCreated }: OrderFormProps) {
                 ...newItem,
                 quantity: qty,
               });
+
+              // Clear voice-populated indicator on manual edit
+              setVoicePopulatedFields((prev) => ({ ...prev, quantity: false }));
             }}
             onBlur={(e) => {
               // Re-validate on blur to ensure constraints are met
