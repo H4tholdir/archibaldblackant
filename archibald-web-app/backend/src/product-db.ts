@@ -412,6 +412,117 @@ export class ProductDatabase {
   }
 
   /**
+   * Ricerca fuzzy di prodotti per codice/nome
+   * Usa similarità fonetica e Levenshtein distance
+   */
+  searchProductsByName(
+    query: string,
+    limit: number = 5,
+  ): Array<{ product: Product; confidence: number }> {
+    const normalizedQuery = query.toLowerCase().trim();
+
+    // Get all products for fuzzy matching
+    const allProducts = this.db
+      .prepare(
+        `
+      SELECT id, name, description, groupCode, searchName, priceUnit, productGroupId, productGroupDescription, packageContent, minQty, multipleQty, maxQty, price, hash, lastSync
+      FROM products
+      ORDER BY name ASC
+    `,
+      )
+      .all() as Product[];
+
+    // Calculate similarity scores
+    const results = allProducts
+      .map((product) => {
+        const normalizedName = product.name.toLowerCase();
+        const confidence = this.calculateSimilarity(
+          normalizedQuery,
+          normalizedName,
+        );
+        return { product, confidence };
+      })
+      .filter((result) => result.confidence > 0.3) // Threshold: 30% similarity
+      .sort((a, b) => b.confidence - a.confidence)
+      .slice(0, limit);
+
+    return results;
+  }
+
+  /**
+   * Calcola similarità tra due stringhe (0-1)
+   * Combina:
+   * - Levenshtein distance normalizzata
+   * - Substring match bonus
+   * - Normalization of special characters (dots, spaces)
+   */
+  private calculateSimilarity(query: string, target: string): number {
+    // Exact match
+    if (query === target) return 1.0;
+
+    // Normalize by removing dots, spaces, dashes for product codes
+    const normalizeCode = (str: string) =>
+      str.replace(/[.\s-]/g, "").toLowerCase();
+
+    const normalizedQuery = normalizeCode(query);
+    const normalizedTarget = normalizeCode(target);
+
+    // Exact match after normalization
+    if (normalizedQuery === normalizedTarget) return 0.98;
+
+    // Substring match (high score)
+    if (normalizedTarget.includes(normalizedQuery)) {
+      const ratio = normalizedQuery.length / normalizedTarget.length;
+      return 0.7 + ratio * 0.28; // 0.7-0.98 based on length ratio
+    }
+    if (normalizedQuery.includes(normalizedTarget)) {
+      const ratio = normalizedTarget.length / normalizedQuery.length;
+      return 0.7 + ratio * 0.28;
+    }
+
+    // Levenshtein distance
+    const distance = this.levenshteinDistance(
+      normalizedQuery,
+      normalizedTarget,
+    );
+    const maxLen = Math.max(normalizedQuery.length, normalizedTarget.length);
+    const levenshteinScore = 1 - distance / maxLen;
+
+    return levenshteinScore;
+  }
+
+  /**
+   * Calcola Levenshtein distance tra due stringhe
+   */
+  private levenshteinDistance(a: string, b: string): number {
+    const matrix: number[][] = [];
+
+    for (let i = 0; i <= b.length; i++) {
+      matrix[i] = [i];
+    }
+
+    for (let j = 0; j <= a.length; j++) {
+      matrix[0][j] = j;
+    }
+
+    for (let i = 1; i <= b.length; i++) {
+      for (let j = 1; j <= a.length; j++) {
+        if (b.charAt(i - 1) === a.charAt(j - 1)) {
+          matrix[i][j] = matrix[i - 1][j - 1];
+        } else {
+          matrix[i][j] = Math.min(
+            matrix[i - 1][j - 1] + 1, // substitution
+            matrix[i][j - 1] + 1, // insertion
+            matrix[i - 1][j] + 1, // deletion
+          );
+        }
+      }
+    }
+
+    return matrix[b.length][a.length];
+  }
+
+  /**
    * Chiude la connessione al database
    */
   close(): void {

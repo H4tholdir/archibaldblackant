@@ -221,59 +221,56 @@ app.get("/api/customers", (req: Request, res: Response<ApiResponse>) => {
 });
 
 // Fuzzy search customers endpoint (for voice input suggestions)
-app.get(
-  "/api/customers/search",
-  (req: Request, res: Response<ApiResponse>) => {
-    try {
-      const query = req.query.q as string | undefined;
-      const limit = parseInt(req.query.limit as string) || 5;
+app.get("/api/customers/search", (req: Request, res: Response<ApiResponse>) => {
+  try {
+    const query = req.query.q as string | undefined;
+    const limit = parseInt(req.query.limit as string) || 5;
 
-      if (!query || query.trim().length === 0) {
-        return res.status(400).json({
-          success: false,
-          error: "Query parameter 'q' is required",
-        });
-      }
-
-      logger.info("Richiesta fuzzy search clienti", { query, limit });
-
-      const results = customerDb.searchCustomersByName(query, limit);
-
-      res.json({
-        success: true,
-        data: results.map((r) => ({
-          id: r.customer.id,
-          name: r.customer.name,
-          vatNumber: r.customer.vatNumber,
-          email: r.customer.email,
-          confidence: Math.round(r.confidence * 100), // Convert to percentage
-          matchReason:
-            r.confidence >= 0.95
-              ? "exact"
-              : r.confidence >= 0.7
-                ? "phonetic"
-                : "fuzzy",
-        })),
-        message: `${results.length} clienti simili trovati per "${query}"`,
-        metadata: {
-          query,
-          resultCount: results.length,
-          threshold: 30, // 30% minimum similarity
-        },
-      });
-    } catch (error) {
-      logger.error("Errore API /api/customers/search", { error });
-
-      res.status(500).json({
+    if (!query || query.trim().length === 0) {
+      return res.status(400).json({
         success: false,
-        error:
-          error instanceof Error
-            ? error.message
-            : "Errore durante la ricerca fuzzy",
+        error: "Query parameter 'q' is required",
       });
     }
-  },
-);
+
+    logger.info("Richiesta fuzzy search clienti", { query, limit });
+
+    const results = customerDb.searchCustomersByName(query, limit);
+
+    res.json({
+      success: true,
+      data: results.map((r) => ({
+        id: r.customer.id,
+        name: r.customer.name,
+        vatNumber: r.customer.vatNumber,
+        email: r.customer.email,
+        confidence: Math.round(r.confidence * 100), // Convert to percentage
+        matchReason:
+          r.confidence >= 0.95
+            ? "exact"
+            : r.confidence >= 0.7
+              ? "phonetic"
+              : "fuzzy",
+      })),
+      message: `${results.length} clienti simili trovati per "${query}"`,
+      metadata: {
+        query,
+        resultCount: results.length,
+        threshold: 30, // 30% minimum similarity
+      },
+    });
+  } catch (error) {
+    logger.error("Errore API /api/customers/search", { error });
+
+    res.status(500).json({
+      success: false,
+      error:
+        error instanceof Error
+          ? error.message
+          : "Errore durante la ricerca fuzzy",
+    });
+  }
+});
 
 // Get sync status endpoint
 app.get(
@@ -378,39 +375,78 @@ app.get("/api/products", (req: Request, res: Response<ApiResponse>) => {
   }
 });
 
-// Get product variants by article name endpoint
-app.get("/api/products/variants", (req: Request, res: Response<ApiResponse>) => {
-  try {
-    const articleName = req.query.name as string | undefined;
+// Fuzzy search products endpoint (similar to /api/customers/search)
+app.get("/api/products/search", (req: Request, res: Response<ApiResponse>) => {
+  const query = req.query.q as string | undefined;
+  const limit = parseInt(req.query.limit as string) || 5;
 
-    if (!articleName) {
-      return res.status(400).json({
-        success: false,
-        error: "Article name required",
-      });
-    }
-
-    logger.info("Richiesta varianti prodotto", { articleName });
-
-    const variants = productDb.getProductVariants(articleName);
-
-    res.json({
-      success: true,
-      data: variants,
-      message: `${variants.length} varianti trovate per "${articleName}"`,
-    });
-  } catch (error) {
-    logger.error("Errore API /api/products/variants", { error });
-
-    res.status(500).json({
+  if (!query || query.trim().length === 0) {
+    return res.status(400).json({
       success: false,
-      error:
-        error instanceof Error
-          ? error.message
-          : "Errore durante il recupero delle varianti",
+      error: "Query parameter 'q' is required",
     });
   }
+
+  logger.info("Fuzzy search products", { query, limit });
+
+  const results = productDb.searchProductsByName(query, limit);
+
+  res.json({
+    success: true,
+    data: results.map((r) => ({
+      id: r.product.id,
+      name: r.product.name,
+      description: r.product.description,
+      packageContent: r.product.packageContent,
+      multipleQty: r.product.multipleQty,
+      price: r.product.price,
+      confidence: Math.round(r.confidence * 100),
+      matchReason:
+        r.confidence >= 0.95
+          ? "exact"
+          : r.confidence >= 0.7
+            ? "normalized"
+            : "fuzzy",
+    })),
+  });
 });
+
+// Get product variants by article name endpoint
+app.get(
+  "/api/products/variants",
+  (req: Request, res: Response<ApiResponse>) => {
+    try {
+      const articleName = req.query.name as string | undefined;
+
+      if (!articleName) {
+        return res.status(400).json({
+          success: false,
+          error: "Article name required",
+        });
+      }
+
+      logger.info("Richiesta varianti prodotto", { articleName });
+
+      const variants = productDb.getProductVariants(articleName);
+
+      res.json({
+        success: true,
+        data: variants,
+        message: `${variants.length} varianti trovate per "${articleName}"`,
+      });
+    } catch (error) {
+      logger.error("Errore API /api/products/variants", { error });
+
+      res.status(500).json({
+        success: false,
+        error:
+          error instanceof Error
+            ? error.message
+            : "Errore durante il recupero delle varianti",
+      });
+    }
+  },
+);
 
 // Get products sync status endpoint
 app.get(
@@ -905,14 +941,19 @@ app.post(
           const product = await productDb.getByNameOrId(item.articleCode);
 
           if (product) {
-            const validation = productDb.validateQuantity(product, item.quantity);
+            const validation = productDb.validateQuantity(
+              product,
+              item.quantity,
+            );
 
             if (!validation.valid) {
-              const errorMsg = `Quantity ${item.quantity} is invalid for article ${item.articleCode}` +
-                (product.name ? ` (${product.name})` : '') +
-                `: ${validation.errors.join(', ')}` +
-                (validation.suggestions?.length ?
-                  ` Suggested quantities: ${validation.suggestions.join(', ')}` : '');
+              const errorMsg =
+                `Quantity ${item.quantity} is invalid for article ${item.articleCode}` +
+                (product.name ? ` (${product.name})` : "") +
+                `: ${validation.errors.join(", ")}` +
+                (validation.suggestions?.length
+                  ? ` Suggested quantities: ${validation.suggestions.join(", ")}`
+                  : "");
               validationErrors.push(errorMsg);
             }
           }
@@ -933,7 +974,7 @@ app.post(
 
         res.status(400).json({
           success: false,
-          error: validationErrors.join('; '),
+          error: validationErrors.join("; "),
         });
         return;
       }
