@@ -14,7 +14,8 @@ import { PriceSyncService } from './price-sync-service';
  */
 export interface OrderJobData {
   orderData: OrderData;
-  requestId?: string;
+  userId: string;
+  username: string;
   timestamp: number;
 }
 
@@ -145,7 +146,7 @@ export class QueueManager {
    */
   private async processOrder(job: Job<OrderJobData, OrderJobResult>): Promise<OrderJobResult> {
     const startTime = Date.now();
-    const { orderData, requestId } = job.data;
+    const { orderData, userId, username } = job.data;
 
     // Acquisisci il lock per ordini (blocca sync)
     if (this.onOrderStart) {
@@ -169,7 +170,8 @@ export class QueueManager {
 
     logger.info(`📋 QUEUE: INIZIO processamento ordine`, {
       jobId: job.id,
-      requestId,
+      userId,
+      username,
       customerName: orderData.customerName,
       itemsCount: orderData.items.length,
       items: orderData.items.map(item => ({
@@ -189,46 +191,15 @@ export class QueueManager {
       logger.info('🔧 Creazione browser dedicato per ordine...');
 
       const { ArchibaldBot } = await import('./archibald-bot');
-      const { SessionManager } = await import('./session-manager');
 
-      bot = new ArchibaldBot();
+      // Create bot with userId for multi-user session
+      bot = new ArchibaldBot(userId);
       await bot.initialize();
 
-      // Prova a riutilizzare sessione esistente
-      const sessionManager = SessionManager.getInstance();
-      const cookies = await sessionManager.loadSession();
+      logger.info(`🔐 Using authenticated session for user ${username} (${userId})`);
 
-      if (cookies && cookies.length > 0 && bot.page) {
-        logger.info('🔐 Riutilizzo sessione login esistente...');
-        await bot.page.setCookie(...cookies);
-        await bot.page.goto(config.archibald.url, {
-          waitUntil: 'networkidle2',
-          timeout: 30000,
-        });
-
-        // Verifica se siamo ancora autenticati
-        const isLoggedIn = await bot.page.evaluate(() => {
-          return !document.querySelector('input[type="password"]');
-        });
-
-        if (isLoggedIn) {
-          logger.info('✅ Sessione ancora valida, skip login');
-        } else {
-          logger.info('⚠️ Sessione scaduta, eseguo nuovo login...');
-          await bot.login();
-          // Salva nuova sessione
-          const newCookies = await bot.page.cookies();
-          await sessionManager.saveSession(newCookies);
-        }
-      } else {
-        logger.info('🔐 Nessuna sessione, eseguo login...');
-        await bot.login();
-        // Salva sessione
-        if (bot.page) {
-          const newCookies = await bot.page.cookies();
-          await sessionManager.saveSession(newCookies);
-        }
-      }
+      // Bot will handle login with per-user session cache
+      await bot.login();
 
       // Aggiorna progress
       await job.updateProgress(25);
@@ -249,6 +220,8 @@ export class QueueManager {
         orderId,
         duration: `${(duration / 1000).toFixed(2)}s`,
         jobId: job.id,
+        userId,
+        username,
         customerName: orderData.customerName,
         itemsCount: orderData.items.length
       });
@@ -262,6 +235,8 @@ export class QueueManager {
       logger.error('Errore durante creazione ordine', {
         error,
         jobId: job.id,
+        userId,
+        username,
         orderData,
       });
       throw error;
@@ -286,13 +261,17 @@ export class QueueManager {
    */
   async addOrder(
     orderData: OrderData,
-    requestId?: string,
+    userId: string,
   ): Promise<Job<OrderJobData, OrderJobResult>> {
+    // Get username from userId
+    const username = await this.getUsernameFromId(userId);
+
     const job = await this.queue.add(
       'create-order',
       {
         orderData,
-        requestId,
+        userId,
+        username,
         timestamp: Date.now(),
       },
       {
@@ -312,12 +291,28 @@ export class QueueManager {
 
     logger.info(`📋 QUEUE: Ordine aggiunto alla coda`, {
       jobId: job.id,
-      requestId,
+      userId,
+      username,
       customerName: orderData.customerName,
       itemsCount: orderData.items.length
     });
 
     return job;
+  }
+
+  /**
+   * Helper method to get username from userId
+   */
+  private async getUsernameFromId(userId: string): Promise<string> {
+    try {
+      const { UserDatabase } = await import('./user-db');
+      const userDb = UserDatabase.getInstance();
+      const user = userDb.getUserById(userId);
+      return user?.username || 'unknown';
+    } catch (error) {
+      logger.error('Error getting username from userId', { error, userId });
+      return 'unknown';
+    }
   }
 
   /**
