@@ -4,13 +4,14 @@ import { useAuth } from './hooks/useAuth';
 import { LoginModal } from './components/LoginModal';
 import OrderForm from './components/OrderForm';
 import OrderStatus from './components/OrderStatus';
+import OrdersList from './components/OrdersList';
 import SyncBanner from './components/SyncBanner';
 import SyncBars from './components/SyncBars';
 
 function App() {
   const auth = useAuth();
   const [jobId, setJobId] = useState<string | null>(null);
-  const [view, setView] = useState<'form' | 'status'>('form');
+  const [view, setView] = useState<'form' | 'status' | 'orders-list'>('form');
 
   const handleOrderCreated = (newJobId: string) => {
     setJobId(newJobId);
@@ -20,6 +21,15 @@ function App() {
   const handleNewOrder = () => {
     setJobId(null);
     setView('form');
+  };
+
+  const handleViewOrder = (selectedJobId: string) => {
+    setJobId(selectedJobId);
+    setView('status');
+  };
+
+  const handleViewOrdersList = () => {
+    setView('orders-list');
   };
 
   // Show loading spinner while checking auth
@@ -51,14 +61,32 @@ function App() {
           <h1>📦 Archibald Mobile</h1>
           <p>Inserimento ordini</p>
         </div>
-        <div className="user-info">
-          <span>{auth.user?.fullName}</span>
-          <button
-            onClick={auth.logout}
-            className="btn btn-secondary btn-sm"
-          >
-            Logout
-          </button>
+        <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
+          <div style={{ display: 'flex', gap: '0.5rem' }}>
+            <button
+              type="button"
+              onClick={handleNewOrder}
+              className={`btn btn-sm ${view === 'form' ? 'btn-primary' : 'btn-secondary'}`}
+            >
+              📝 Nuovo Ordine
+            </button>
+            <button
+              type="button"
+              onClick={handleViewOrdersList}
+              className={`btn btn-sm ${view === 'orders-list' ? 'btn-primary' : 'btn-secondary'}`}
+            >
+              📊 I Miei Ordini
+            </button>
+          </div>
+          <div className="user-info">
+            <span>{auth.user?.fullName}</span>
+            <button
+              onClick={auth.logout}
+              className="btn btn-secondary btn-sm"
+            >
+              Logout
+            </button>
+          </div>
         </div>
       </header>
 
@@ -70,8 +98,10 @@ function App() {
       <main className="app-main">
         {view === 'form' ? (
           <OrderForm token={auth.token!} onOrderCreated={handleOrderCreated} />
-        ) : (
+        ) : view === 'status' ? (
           <OrderStatus jobId={jobId!} onNewOrder={handleNewOrder} />
+        ) : (
+          <OrdersList token={auth.token!} onViewOrder={handleViewOrder} onNewOrder={handleNewOrder} />
         )}
       </main>
 

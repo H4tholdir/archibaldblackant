@@ -29,7 +29,6 @@ export function LoginModal({ onLogin, error, isLoading }: LoginModalProps) {
               type="text"
               value={username}
               onChange={(e) => setUsername(e.target.value)}
-              placeholder="mario.rossi"
               required
               autoFocus
               disabled={isLoading}
@@ -43,7 +42,6 @@ export function LoginModal({ onLogin, error, isLoading }: LoginModalProps) {
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              placeholder="••••••••"
               required
               disabled={isLoading}
             />

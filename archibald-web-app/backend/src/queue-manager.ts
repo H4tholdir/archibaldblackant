@@ -100,7 +100,7 @@ export class QueueManager {
       },
       {
         connection: this.redisConnection,
-        concurrency: 3, // Processa fino a 3 ordini in parallelo
+        concurrency: 1, // Processa un ordine alla volta (sequenziale)
       },
     );
 
@@ -355,6 +355,49 @@ export class QueueManager {
       status: state,
       progress: progress || undefined,
     };
+  }
+
+  /**
+   * Ottiene tutti i job di un utente
+   */
+  async getUserJobs(userId: string): Promise<Array<{
+    jobId: string;
+    status: string;
+    orderData: OrderData;
+    createdAt: number;
+    result?: OrderJobResult;
+    error?: string;
+  }>> {
+    // Get all jobs (waiting, active, completed, failed)
+    const [waitingJobs, activeJobs, completedJobs, failedJobs] = await Promise.all([
+      this.queue.getWaiting(),
+      this.queue.getActive(),
+      this.queue.getCompleted(),
+      this.queue.getFailed(),
+    ]);
+
+    const allJobs = [...waitingJobs, ...activeJobs, ...completedJobs, ...failedJobs];
+
+    // Filter by userId and map to response format
+    const userJobs = await Promise.all(
+      allJobs
+        .filter(job => job.data.userId === userId)
+        .map(async job => {
+          const state = await job.getState();
+
+          return {
+            jobId: job.id!,
+            status: state,
+            orderData: job.data.orderData,
+            createdAt: job.data.timestamp,
+            result: state === 'completed' ? job.returnvalue : undefined,
+            error: state === 'failed' ? (job.failedReason || 'Unknown error') : undefined,
+          };
+        })
+    );
+
+    // Sort by createdAt descending (most recent first)
+    return userJobs.sort((a, b) => b.createdAt - a.createdAt);
   }
 
   /**
