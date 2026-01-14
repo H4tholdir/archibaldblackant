@@ -5,23 +5,24 @@
 See: .planning/PROJECT.md (updated 2026-01-11)
 
 **Core value:** Rendere la creazione ordini Archibald **veloce, affidabile e mobile-friendly** per agenti in movimento
-**Current focus:** Phase 7 — Credential Management (Storage sicuro credenziali su device con Web Crypto API, backend stateless)
+**Current focus:** Phase 8 — Offline Capability (Cache IndexedDB e bozze persistenti)
 
 ## Current Position
 
-Phase: 7 of 12 (Credential Management) ✅ COMPLETE
-Plan: 6 of 6 complete
-Status: Phase 7 complete — All credential management plans executed
-Last activity: 2026-01-14 — Completed Plan 07-06 (Backend Refactor & Security Audit, 35min)
+Phase: 8 of 12 (Offline Capability) 🚧 IN PROGRESS
+Plan: 1 of 8 complete
+Status: Completed Plan 08-01 (IndexedDB Schema Design & Dexie Setup, 20min)
+Last activity: 2026-01-14 — Completed Plan 08-01
+Start time: 2026-01-14 10:00 → End time: 2026-01-14 10:20
 
-Progress: ██████████ 100% Phase 7 (44/44 plans complete - Phase 7 complete ✅)
+Progress: █ 12.5% Phase 8 (1/8 plans complete)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 44
-- Average duration: 66 min (1h 6m)
-- Total execution time: 52.62 hours
+- Total plans completed: 45
+- Average duration: 64 min (1h 4m)
+- Total execution time: 52.95 hours
 
 **By Phase:**
 
@@ -35,10 +36,11 @@ Progress: ██████████ 100% Phase 7 (44/44 plans complete - Ph
 | 4.1 | 4 | 233 min | 58 min |
 | 6 | 7 | 209 min | 30 min |
 | 7 | 6 | 243 min | 41 min |
+| 8 | 1 | 20 min | 20 min |
 
 **Recent Trend:**
-- Last 7 plans: 07-01 (38m), 07-02 (25m), 07-03 (40m), 07-04 (45m), 07-05 (60m), 07-06 (35m)
-- Trend: Phase 7 complete, consistently averaging 41 min/plan
+- Last 7 plans: 07-02 (25m), 07-03 (40m), 07-04 (45m), 07-05 (60m), 07-06 (35m), 08-01 (20m)
+- Trend: Phase 8 started strong with 20min plan (fastest since Phase 2)
 
 ## Accumulated Context
 
@@ -49,6 +51,11 @@ Recent decisions affecting current work:
 
 | Phase | Decision | Rationale |
 |-------|----------|-----------|
+| 08-01 | Dexie.js for IndexedDB abstraction | TypeScript-first API, automatic schema versioning, query optimizations, well-maintained (~100k weekly downloads) |
+| 08-01 | Compound indexes on name/article fields | Achieve <100ms search performance requirement for offline-first features |
+| 08-01 | Auto-increment IDs for local-only data (drafts, pending) | Simpler than UUIDs for offline-first features, no server sync needed |
+| 08-01 | Graceful degradation if IndexedDB unavailable | App renders even if IndexedDB fails (quota exceeded, version conflicts), offline features degrade gracefully |
+| 08-01 | Non-blocking initialization in main.tsx | Database initialization doesn't block app render, prioritizes user experience |
 | 07-06 | Keep PasswordCache as session-scoped in-memory cache (1h TTL) | Pragmatic stateless: no persistent storage (disk/database), in-memory session state acceptable, avoids Puppeteer login per order (~30s saved) |
 | 07-05 | Web Authentication API (WebAuthn) for biometric unlock | Browser-native biometric standard, cross-platform support (iOS Face ID/Touch ID, Android fingerprint), graceful degradation |
 | 07-05 | Simplified WebAuthn implementation (MVP, no server validation) | MVP functionality for Phase 7, full FIDO2 compliance deferred to future security hardening |

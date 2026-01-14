@@ -422,13 +422,14 @@ Plans:
 ### Phase 8: Offline Capability
 **Goal**: Cache IndexedDB per clienti/prodotti/prezzi e bozze ordine persistenti
 **Depends on**: Phase 7
-**Research**: Likely (offline-first PWA patterns)
+**Research**: Complete (08-01 - Dexie.js schema design, IndexedDB patterns)
 **Research topics**: IndexedDB schema design, service worker caching strategies, Workbox configuration for Vite
-**Plans**: 8 plans
+**Plans**: 8 plans (1/8 complete)
+**Status**: 🚧 In Progress
 
 Plans:
-- [ ] 08-01: Research IndexedDB schema for customers/products/prices
-- [ ] 08-02: Implement IndexedDB wrapper with Dexie.js
+- [x] 08-01: IndexedDB Schema Design & Dexie Setup (COMPLETE - Dexie.js 4.2.1, 7 tables, lifecycle hooks, 20min)
+- [ ] 08-02: Cache Population from Backend
 - [ ] 08-03: Migrate sync services to populate IndexedDB (not just SQLite backend)
 - [ ] 08-04: Update frontend to read from IndexedDB cache
 - [ ] 08-05: Implement service worker with offline-first strategy
@@ -538,8 +539,8 @@ Plans:
 | 4. Voice Input Enhancement | 4/4 | ✅ Complete | 2026-01-13 |
 | 4.1. Critical Production Fixes (INSERTED) | 4/4 | ✅ Complete | 2026-01-13 |
 | 6. Multi-User Authentication | 7/7 | ✅ Complete | 2026-01-14 |
-| 7. Credential Management | 4/6 | 🚧 In Progress | - |
-| 8. Offline Capability | 0/8 | Not started | - |
+| 7. Credential Management | 6/6 | ✅ Complete | 2026-01-14 |
+| 8. Offline Capability | 1/8 | 🚧 In Progress | - |
 | 9. Offline Queue | 0/7 | Not started | - |
 | 10. Order History | 0/6 | Not started | - |
 | 11. Order Management | 0/7 | Not started | - |
