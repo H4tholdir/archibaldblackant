@@ -50,7 +50,12 @@ export class BrowserPool {
       this.browser = await puppeteer.launch({
         headless: config.puppeteer.headless,
         ignoreHTTPSErrors: true,
-        args: ['--no-sandbox', '--disable-setuid-sandbox'],
+        args: [
+          '--no-sandbox',
+          '--disable-setuid-sandbox',
+          '--disable-web-security',
+          '--ignore-certificate-errors',
+        ],
         defaultViewport: {
           width: 1280,
           height: 800,

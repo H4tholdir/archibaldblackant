@@ -1798,6 +1798,9 @@ export class ArchibaldBot {
         async () => {
           logger.debug('Clicking "Nuovo" button...');
 
+          const urlBefore = this.page!.url();
+          logger.debug(`URL before click: ${urlBefore}`);
+
           const clicked = await this.clickElementByText("Nuovo", {
             exact: true,
             selectors: ["button", "a", "span"],
@@ -1805,6 +1808,23 @@ export class ArchibaldBot {
 
           if (!clicked) {
             throw new Error('Button "Nuovo" not found');
+          }
+
+          logger.debug("Waiting for navigation after Nuovo click...");
+
+          // Wait for URL to change (indicating navigation to form)
+          try {
+            await this.page!.waitForFunction(
+              (oldUrl) => window.location.href !== oldUrl,
+              { timeout: 5000 },
+              urlBefore
+            );
+            const urlAfter = this.page!.url();
+            logger.info(`✅ Navigated to order form: ${urlAfter}`);
+          } catch (timeoutError) {
+            const urlAfter = this.page!.url();
+            logger.error(`Navigation failed! URL did not change. Before: ${urlBefore}, After: ${urlAfter}`);
+            throw new Error(`Click on "Nuovo" did not navigate to form. URL remained: ${urlAfter}`);
           }
 
           await this.waitForDevExpressReady({ timeout: 5000 });
@@ -1850,36 +1870,74 @@ export class ArchibaldBot {
           // If not found immediately, use mutation polling to wait for it
           if (!customerInputId) {
             logger.debug("Field not ready, using mutation polling...");
-            customerInputId = (await this.page!.waitForFunction(
-              () => {
-                const inputs = Array.from(
-                  document.querySelectorAll('input[type="text"]'),
-                );
-                const customerInput = inputs.find((input) => {
-                  const id = (input as HTMLInputElement).id.toLowerCase();
-                  const el = input as HTMLInputElement;
-                  return (
-                    (id.includes("custtable") ||
-                      id.includes("custaccount") ||
-                      id.includes("custome") ||
-                      id.includes("cliente") ||
-                      id.includes("account") ||
-                      id.includes("profilo")) &&
-                    !el.disabled &&
-                    el.getBoundingClientRect().height > 0
+            try {
+              customerInputId = (await this.page!.waitForFunction(
+                () => {
+                  const inputs = Array.from(
+                    document.querySelectorAll('input[type="text"]'),
                   );
-                });
-                return customerInput
-                  ? (customerInput as HTMLInputElement).id
-                  : null;
-              },
-              { timeout: 3000, polling: "mutation" },
-            ).then((result) => result.jsonValue())) as string;
+                  const customerInput = inputs.find((input) => {
+                    const id = (input as HTMLInputElement).id.toLowerCase();
+                    const el = input as HTMLInputElement;
+                    return (
+                      (id.includes("custtable") ||
+                        id.includes("custaccount") ||
+                        id.includes("custome") ||
+                        id.includes("cliente") ||
+                        id.includes("account") ||
+                        id.includes("profilo")) &&
+                      !el.disabled &&
+                      el.getBoundingClientRect().height > 0
+                    );
+                  });
+                  return customerInput
+                    ? (customerInput as HTMLInputElement).id
+                    : null;
+                },
+                { timeout: 3000, polling: "mutation" },
+              ).then((result) => result.jsonValue())) as string;
+            } catch (timeoutError) {
+              // DIAGNOSTIC: Field not found after timeout - log all inputs to understand why
+              logger.error("Customer field timeout! Logging all page inputs for diagnostic...");
+              const allInputs = await this.page!.evaluate(() => {
+                const inputs = Array.from(document.querySelectorAll('input[type="text"]'));
+                return inputs.slice(0, 30).map((input) => ({
+                  id: (input as HTMLInputElement).id,
+                  name: (input as HTMLInputElement).name,
+                  placeholder: (input as HTMLInputElement).placeholder,
+                  disabled: (input as HTMLInputElement).disabled,
+                  visible: (input as HTMLElement).offsetParent !== null,
+                  height: (input as HTMLElement).getBoundingClientRect().height,
+                }));
+              });
+              logger.error("All text inputs on page:", {
+                inputCount: allInputs.length,
+                inputs: allInputs,
+                currentUrl: this.page!.url()
+              });
+              throw timeoutError;
+            }
           } else {
             logger.debug("✓ Field found immediately (no wait needed)");
           }
 
           if (!customerInputId) {
+            // DIAGNOSTIC: Log all text inputs to understand why field not found
+            const allInputs = await this.page!.evaluate(() => {
+              const inputs = Array.from(document.querySelectorAll('input[type="text"]'));
+              return inputs.slice(0, 30).map((input) => ({
+                id: (input as HTMLInputElement).id,
+                name: (input as HTMLInputElement).name,
+                placeholder: (input as HTMLInputElement).placeholder,
+                disabled: (input as HTMLInputElement).disabled,
+                visible: (input as HTMLElement).offsetParent !== null,
+                height: (input as HTMLElement).getBoundingClientRect().height,
+              }));
+            });
+            logger.error("Customer field not found! All text inputs on page:", {
+              inputCount: allInputs.length,
+              inputs: allInputs
+            });
             throw new Error("Customer input field not found");
           }
 
