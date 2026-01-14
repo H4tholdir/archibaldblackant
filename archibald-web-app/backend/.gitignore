@@ -24,3 +24,6 @@ coverage/
 # Performance profiling reports
 profiling-reports/
 profiling-output.json
+
+# Session cache
+.cache/
