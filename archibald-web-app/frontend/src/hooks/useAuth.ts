@@ -9,6 +9,7 @@ export interface AuthState {
   token: string | null;
   isLoading: boolean;
   error: string | null;
+  needsPinSetup: boolean;
 }
 
 export function useAuth() {
@@ -18,6 +19,7 @@ export function useAuth() {
     token: null,
     isLoading: true,
     error: null,
+    needsPinSetup: false,
   });
 
   // Initialize: Check localStorage for existing JWT
@@ -34,6 +36,7 @@ export function useAuth() {
               token,
               isLoading: false,
               error: null,
+              needsPinSetup: false,
             });
           } else {
             // Token invalid, clear it
@@ -50,7 +53,7 @@ export function useAuth() {
     }
   }, []);
 
-  const login = async (username: string, password: string): Promise<boolean> => {
+  const login = async (username: string, password: string, rememberCredentials: boolean = false): Promise<boolean> => {
     setState(prev => ({ ...prev, isLoading: true, error: null }));
 
     try {
@@ -64,6 +67,7 @@ export function useAuth() {
           token: response.token,
           isLoading: false,
           error: null,
+          needsPinSetup: rememberCredentials,
         });
         return true;
       } else {
@@ -95,12 +99,30 @@ export function useAuth() {
       token: null,
       isLoading: false,
       error: null,
+      needsPinSetup: false,
     });
+  };
+
+  const completePinSetup = async (pin: string, username: string, password: string): Promise<void> => {
+    if (!state.user) return;
+
+    const { getCredentialStore } = await import('../services/credential-store');
+    const credentialStore = getCredentialStore();
+    await credentialStore.initialize();
+    await credentialStore.storeCredentials(state.user.id, username, password, pin);
+
+    setState(prev => ({ ...prev, needsPinSetup: false }));
+  };
+
+  const skipPinSetup = () => {
+    setState(prev => ({ ...prev, needsPinSetup: false }));
   };
 
   return {
     ...state,
     login,
     logout,
+    completePinSetup,
+    skipPinSetup,
   };
 }

@@ -1,7 +1,7 @@
 import { useState } from 'react';
 
 interface LoginModalProps {
-  onLogin: (username: string, password: string) => Promise<boolean>;
+  onLogin: (username: string, password: string, rememberCredentials: boolean) => Promise<boolean>;
   error: string | null;
   isLoading: boolean;
 }
@@ -9,10 +9,11 @@ interface LoginModalProps {
 export function LoginModal({ onLogin, error, isLoading }: LoginModalProps) {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
+  const [rememberCredentials, setRememberCredentials] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    await onLogin(username, password);
+    await onLogin(username, password, rememberCredentials);
   };
 
   return (
@@ -45,6 +46,18 @@ export function LoginModal({ onLogin, error, isLoading }: LoginModalProps) {
               required
               disabled={isLoading}
             />
+          </div>
+
+          <div className="remember-credentials">
+            <label>
+              <input
+                type="checkbox"
+                checked={rememberCredentials}
+                onChange={(e) => setRememberCredentials(e.target.checked)}
+                disabled={isLoading}
+              />
+              <span>Ricorda credenziali su questo device</span>
+            </label>
           </div>
 
           {error && (

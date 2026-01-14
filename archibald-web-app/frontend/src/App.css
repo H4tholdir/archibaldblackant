@@ -1502,3 +1502,24 @@
   margin-bottom: 1rem;
   font-size: 0.9rem;
 }
+
+/* Remember Credentials Checkbox */
+.remember-credentials {
+  margin: 1rem 0;
+  text-align: left;
+}
+
+.remember-credentials label {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  cursor: pointer;
+  font-size: 0.9rem;
+  color: #333;
+}
+
+.remember-credentials input[type="checkbox"] {
+  width: 1.2rem;
+  height: 1.2rem;
+  cursor: pointer;
+}
