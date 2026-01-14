@@ -192,7 +192,11 @@ export class CustomerSyncService extends EventEmitter {
           : "Inizio sincronizzazione clienti da Archibald",
       );
 
-      bot = await this.browserPool.acquire();
+      // Use legacy ArchibaldBot for system sync operations
+      const { ArchibaldBot } = await import('./archibald-bot');
+      bot = new ArchibaldBot(); // No userId = legacy mode
+      await bot.initialize();
+      await bot.login(); // Uses config credentials
 
       // Verifica che la pagina esista e sia ancora valida
       if (!bot.page) {
@@ -967,9 +971,8 @@ export class CustomerSyncService extends EventEmitter {
       });
     } finally {
       if (bot) {
-        // Per i sync, rilasciamo sempre con success=false per chiudere il browser
-        // I sync sono operazioni lunghe che modificano molto lo stato del browser
-        await this.browserPool.release(bot, false);
+        // Close bot after sync (legacy mode)
+        await bot.close();
       }
       this.syncInProgress = false;
     }

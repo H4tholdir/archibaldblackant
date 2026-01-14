@@ -202,7 +202,11 @@ export class PriceSyncService extends EventEmitter {
           : "Inizio sincronizzazione prezzi da Archibald",
       );
 
-      bot = await this.browserPool.acquire();
+      // Use legacy ArchibaldBot for system sync operations
+      const { ArchibaldBot } = await import('./archibald-bot');
+      bot = new ArchibaldBot(); // No userId = legacy mode
+      await bot.initialize();
+      await bot.login(); // Uses config credentials
 
       // Verifica che la pagina esista e sia ancora valida
       if (!bot.page) {
@@ -685,7 +689,7 @@ export class PriceSyncService extends EventEmitter {
       });
     } finally {
       if (bot) {
-        await this.browserPool.release(bot, false); // Chiudi browser dopo sync
+        await bot.close(); // Close bot after sync (legacy mode)
       }
       this.syncInProgress = false;
     }
