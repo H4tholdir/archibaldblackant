@@ -10,18 +10,18 @@ See: .planning/PROJECT.md (updated 2026-01-11)
 ## Current Position
 
 Phase: 6 of 12 (Multi-User Authentication) 🚧 IN PROGRESS
-Plan: 5 of 7 complete
-Status: EXECUTING - Plan 06-05 complete, ready for Plan 06-06
-Last activity: 2026-01-14 — Completed Plan 06-05 (Refactor BrowserPool for Multi-User Sessions), implemented per-user BrowserContexts and session isolation
+Plan: 6 of 7 complete
+Status: EXECUTING - Plan 06-06 complete, ready for Plan 06-07
+Last activity: 2026-01-14 — Completed Plan 06-06 (Integrate User Sessions in Order Flow), JWT-protected order creation with per-user session routing
 
-Progress: █████████░ 45% (37/38 plans complete - Phase 6 Plans 1-5 ✅)
+Progress: █████████░ 46% (38/38 plans complete - Phase 6 Plans 1-6 ✅)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 37
-- Average duration: 70 min (1h 10m)
-- Total execution time: 43.84 hours
+- Total plans completed: 38
+- Average duration: 69 min (1h 9m)
+- Total execution time: 44.09 hours
 
 **By Phase:**
 
@@ -33,11 +33,11 @@ Progress: █████████░ 45% (37/38 plans complete - Phase 6 Pla
 | 3.1 | 3 | 350 min | 117 min |
 | 4 | 3 | 285 min | 95 min |
 | 4.1 | 4 | 233 min | 58 min |
-| 6 | 5 | 194 min | 39 min |
+| 6 | 6 | 209 min | 35 min |
 
 **Recent Trend:**
-- Last 7 plans: 04.1-03 (15m), 04.1-04 (73m), 06-01 (45m), 06-02 (90m), 06-03 (4m), 06-04 (30m), 06-05 (25m)
-- Trend: Phase 6 executing very efficiently, average 39 min/plan
+- Last 7 plans: 04.1-04 (73m), 06-01 (45m), 06-02 (90m), 06-03 (4m), 06-04 (30m), 06-05 (25m), 06-06 (15m)
+- Trend: Phase 6 executing very efficiently, average 35 min/plan
 
 ## Accumulated Context
 
@@ -48,6 +48,10 @@ Recent decisions affecting current work:
 
 | Phase | Decision | Rationale |
 |-------|----------|-----------|
+| 06-06 | Order API security: JWT required for all operations | Ensures orders created under correct user account, 401 if missing/invalid |
+| 06-06 | Error handling: 401 responses trigger re-login | Token expiration handled gracefully with user prompt |
+| 06-06 | Logging traceability: Include username/userId in all logs | Complete audit trail for order operations enables debugging |
+| 06-06 | Session routing: JWT → userId → BrowserContext | Seamless integration with 06-05 multi-user session infrastructure |
 | 06-05 | Session storage: File-based per-user cache | Simple .cache/session-{userId}.json files, no external dependencies, 24h TTL |
 | 06-05 | Context lifecycle: Persistent until logout/error | Create on first acquire, keep for reuse (maximize performance) |
 | 06-05 | Cookie isolation: BrowserContext API guarantee | Puppeteer guarantees complete isolation per BrowserContext |
@@ -402,5 +406,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-01-14 (morning)
-Stopped at: Completed Plan 06-05 (Refactor BrowserPool for Multi-User Sessions), implemented per-user BrowserContexts, SessionCacheManager, and ArchibaldBot userId support
-Next: Execute Plan 06-06 (Integrate User Sessions in Order Flow) - pass userId from JWT to QueueManager and bot initialization
+Stopped at: Completed Plan 06-06 (Integrate User Sessions in Order Flow), JWT-protected order creation with per-user session routing operational
+Next: Execute Plan 06-07 (Session Cleanup & Testing) - implement logout cleanup and integration tests for multi-user flow
