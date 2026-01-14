@@ -107,28 +107,25 @@ export class ArchibaldDatabase extends Dexie {
   constructor() {
     super('ArchibaldOfflineDB');
 
-    // Version 1 schema
+    // Version 1 schema (original)
     this.version(1).stores({
-      // Customers: primary key 'id', indexes for search
       customers: 'id, name, code, city, *hash',
-
-      // Products: primary key 'id', compound indexes for fast search
       products: 'id, name, article, *hash',
-
-      // Product variants: auto-increment, FK to products
       productVariants: '++id, productId, variantId',
-
-      // Prices: auto-increment, FK to products
       prices: '++id, articleId, articleName',
-
-      // Draft orders: auto-increment, indexed by customer and timestamps
       draftOrders: '++id, customerId, createdAt, updatedAt',
-
-      // Pending orders: auto-increment, indexed by status and createdAt
       pendingOrders: '++id, status, createdAt',
-
-      // Cache metadata: primary key 'key'
       cacheMetadata: 'key, lastSynced'
+    });
+
+    // Version 2: Updated PendingOrder schema to include full order data
+    this.version(2).stores({
+      // Same indexes, but PendingOrder now includes customerName and full item details
+      pendingOrders: '++id, status, createdAt'
+    }).upgrade(async (trans) => {
+      // Clear old pending orders with incompatible schema
+      console.log('[IndexedDB] Migration v1→v2: Clearing old pending orders');
+      await trans.table('pendingOrders').clear();
     });
   }
 }
