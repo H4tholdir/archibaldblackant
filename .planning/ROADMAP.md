@@ -424,7 +424,7 @@ Plans:
 **Depends on**: Phase 7
 **Research**: Complete (08-01 - Dexie.js schema design, IndexedDB patterns)
 **Research topics**: IndexedDB schema design, service worker caching strategies, Workbox configuration for Vite
-**Plans**: 8 plans (6/8 complete)
+**Plans**: 8 plans (7/8 complete)
 **Status**: 🚧 In Progress
 
 Plans:
@@ -434,7 +434,7 @@ Plans:
 - [x] 08-04: Service Worker & Offline-First Strategy (COMPLETE - Workbox, CacheFirst fonts, auto-update, 22min)
 - [x] 08-05: Draft Order Auto-Save (COMPLETE - TDD, 1s debounce, restoration on mount, 11min)
 - [x] 08-06: Offline Indicator UI (COMPLETE - Banking app style yellow banner, navigator.onLine detection, 11min)
-- [ ] 08-07: Implement pending order queue for offline submission
+- [x] 08-07: Offline Order Queue with Automatic Sync (COMPLETE - PendingOrdersService, useAutomaticSync hook, IndexedDB v2 migration, 80min)
 - [ ] 08-08: Test offline scenarios (airplane mode, flaky network)
 
 ### Phase 9: Offline Queue

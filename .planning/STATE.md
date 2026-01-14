@@ -10,19 +10,19 @@ See: .planning/PROJECT.md (updated 2026-01-11)
 ## Current Position
 
 Phase: 8 of 12 (Offline Capability) 🚧 IN PROGRESS
-Plan: 6 of 8 complete
-Status: Completed Plan 08-06 (Offline Indicator UI)
-Last activity: 2026-01-14 — Completed Plan 08-06
-Start time: 2026-01-14 22:15 → End time: 2026-01-14 22:26
+Plan: 7 of 8 complete
+Status: Completed Plan 08-07 (Offline Order Queue with Automatic Sync)
+Last activity: 2026-01-14 — Completed Plan 08-07
+Start time: 2026-01-14 22:26 → End time: 2026-01-14 23:46
 
-Progress: ██████░ 75.0% Phase 8 (6/8 plans complete)
+Progress: ███████░ 87.5% Phase 8 (7/8 plans complete)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 50
-- Average duration: 58 min
-- Total execution time: 54.33 hours
+- Total plans completed: 51
+- Average duration: 59 min
+- Total execution time: 55.67 hours
 
 **By Phase:**
 
@@ -36,11 +36,11 @@ Progress: ██████░ 75.0% Phase 8 (6/8 plans complete)
 | 4.1 | 4 | 233 min | 58 min |
 | 6 | 7 | 209 min | 30 min |
 | 7 | 6 | 243 min | 41 min |
-| 8 | 6 | 104 min | 17 min |
+| 8 | 7 | 184 min | 26 min |
 
 **Recent Trend:**
-- Last 7 plans: 08-01 (20m), 08-02 (25m), 08-03 (15m), 08-04 (22m), 08-05 (11m), 08-06 (11m)
-- Trend: Phase 8 maintaining fast pace (avg 17min vs project avg 58min)
+- Last 7 plans: 08-02 (25m), 08-03 (15m), 08-04 (22m), 08-05 (11m), 08-06 (11m), 08-07 (80m)
+- Trend: Plan 08-07 longer due to debugging (API schema mismatch), but delivered robust solution
 
 ## Accumulated Context
 
@@ -51,6 +51,10 @@ Recent decisions affecting current work:
 
 | Phase | Decision | Rationale |
 |-------|----------|-----------|
+| 08-07 | PendingOrder stores complete API-compliant order data | Direct API compatibility eliminates transformation logic, preserves all user data, enables future features (preview queue, edit pending), simpler sync (pass-through vs reconstruction) |
+| 08-07 | Database migration v2 clears incompatible pending orders | Schema change incompatible with old records, simpler than data migration, acceptable for pilot phase with no production data |
+| 08-07 | Sync immediately when isOnline changes false→true | Minimizes delay between connectivity restore and order submission, simple implementation, users expect immediate action |
+| 08-07 | Comprehensive debug logging in OrderForm and sync service | Enables rapid troubleshooting, aids user verification, useful for production issues |
 | 08-06 | Banking app style yellow banner for offline indicator | Matches trusted UX patterns from Intesa/UniCredit, prominent and unmissable, reassuring message emphasizes continuity |
 | 08-06 | Fixed position banner with 64px margin adjustment | Prevents content overlap, banner always visible regardless of scroll position |
 | 08-06 | navigator.onLine + browser events for network detection | 97% browser support, reliable standard API, works across desktop/mobile platforms |
