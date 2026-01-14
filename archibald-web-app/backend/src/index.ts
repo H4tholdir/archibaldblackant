@@ -279,11 +279,26 @@ app.post("/api/auth/login", async (req: Request, res: Response<ApiResponse>) => 
 
 // Logout endpoint - JWT invalidation is client-side (remove token)
 app.post("/api/auth/logout", authenticateJWT, async (req: AuthRequest, res: Response<ApiResponse>) => {
-  // For now, logout is client-side (remove JWT from localStorage)
-  // When we implement per-user BrowserContexts (Plan 06-05),
-  // we'll close the user's context here
-  logger.info(`User logged out: ${req.user?.username}`);
-  res.json({ success: true, data: { message: "Logout effettuato con successo" } });
+  const userId = req.user!.userId;
+  const username = req.user!.username;
+
+  try {
+    // Close user's BrowserContext and clear cached session
+    const pool = BrowserPool.getInstance();
+    await pool.closeUserContext(userId);
+
+    logger.info(`User ${username} logged out, session cleaned up`, { userId });
+
+    res.json({ success: true, data: { message: "Logout effettuato con successo" } });
+  } catch (error) {
+    logger.error(`Error during logout cleanup for user ${username}`, {
+      error,
+      userId,
+    });
+    // Even if cleanup fails, return success to client
+    // (client will discard JWT anyway)
+    res.json({ success: true, data: { message: "Logout effettuato con successo" } });
+  }
 });
 
 // Get current user profile
