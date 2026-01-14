@@ -5,16 +5,16 @@
 See: .planning/PROJECT.md (updated 2026-01-11)
 
 **Core value:** Rendere la creazione ordini Archibald **veloce, affidabile e mobile-friendly** per agenti in movimento
-**Current focus:** Phase 6 — Multi-User Authentication (Phase 5 postponed to end of roadmap)
+**Current focus:** Phase 7 — Credential Management (Storage sicuro credenziali su device con Web Crypto API, backend stateless)
 
 ## Current Position
 
-Phase: 6 of 12 (Multi-User Authentication) 🚧 IN PROGRESS
-Plan: 6 of 7 complete
-Status: EXECUTING - Plan 06-06 complete, ready for Plan 06-07
-Last activity: 2026-01-14 — Completed Plan 06-06 (Integrate User Sessions in Order Flow), JWT-protected order creation with per-user session routing
+Phase: 7 of 12 (Credential Management) 🚧 PLANNING COMPLETE
+Plan: 0 of 6 complete (all 6 plans ready for execution)
+Status: READY TO EXECUTE - Phase 7 plans created, ready for Plan 07-01
+Last activity: 2026-01-14 — Completed Phase 7 planning (6 plans), Phase 6 complete (7/7 plans ✅)
 
-Progress: █████████░ 46% (38/38 plans complete - Phase 6 Plans 1-6 ✅)
+Progress: █████████░ 46% (38/38 plans complete - Phase 6 complete ✅, Phase 7 planned)
 
 ## Performance Metrics
 
