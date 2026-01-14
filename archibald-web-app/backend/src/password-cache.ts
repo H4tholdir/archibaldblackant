@@ -1,15 +1,26 @@
 /**
- * In-memory password cache for lazy credential validation
+ * PasswordCache - Session-scoped in-memory credential cache
  *
- * Stores user passwords temporarily after login, to be validated
- * via Puppeteer only when the user creates their first order.
- * This makes login instant while maintaining security.
+ * Purpose: Temporarily cache user passwords to avoid repeated Puppeteer logins
+ * within a session. This is NOT persistent storage.
  *
- * Passwords are:
- * - Never persisted to disk
- * - Auto-cleared after 1 hour
- * - Cleared on logout
- * - Only used for Puppeteer validation
+ * Architecture Note (Phase 7):
+ * - Credentials are stored ENCRYPTED on frontend device (IndexedDB)
+ * - Backend receives credentials only during login validation
+ * - PasswordCache provides session-scoped cache (1h TTL) for UX
+ * - This is acceptable as "temporary session state", not "persistent storage"
+ * - Backend never writes credentials to disk or database
+ *
+ * Security:
+ * - In-memory only (lost on backend restart)
+ * - 1-hour TTL per credential
+ * - Cleared on explicit logout
+ * - HTTPS required to protect credentials in transit during login POST
+ *
+ * Trade-offs:
+ * - Backend is not 100% stateless (has in-memory session state)
+ * - Backend restart requires users to re-authenticate
+ * - Acceptable for Phase 7 given UX benefits (no Puppeteer login per order)
  */
 
 interface CachedPassword {
