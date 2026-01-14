@@ -10,18 +10,18 @@ See: .planning/PROJECT.md (updated 2026-01-11)
 ## Current Position
 
 Phase: 7 of 12 (Credential Management) 🚧 IN PROGRESS
-Plan: 3 of 6 complete
-Status: EXECUTING - Plan 07-03 complete (PIN Setup Flow), ready for Plan 07-04
-Last activity: 2026-01-14 — Completed Plan 07-03 (Checkbox & PIN Setup Wizard, 40min)
+Plan: 4 of 6 complete
+Status: EXECUTING - Plan 07-04 complete (PIN Unlock Flow), ready for Plan 07-05
+Last activity: 2026-01-14 — Completed Plan 07-04 (PIN Unlock & Auto-Login, 45min)
 
-Progress: █████████░ 50% (41/44 plans complete - Phase 6 complete ✅, Phase 7: 3/6 ✅)
+Progress: █████████░ 52% (42/44 plans complete - Phase 6 complete ✅, Phase 7: 4/6 ✅)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 41
+- Total plans completed: 42
 - Average duration: 66 min (1h 6m)
-- Total execution time: 45.82 hours
+- Total execution time: 46.57 hours
 
 **By Phase:**
 
@@ -34,11 +34,11 @@ Progress: █████████░ 50% (41/44 plans complete - Phase 6 com
 | 4 | 3 | 285 min | 95 min |
 | 4.1 | 4 | 233 min | 58 min |
 | 6 | 7 | 209 min | 30 min |
-| 7 | 3 | 103 min | 34 min |
+| 7 | 4 | 148 min | 37 min |
 
 **Recent Trend:**
-- Last 7 plans: 06-04 (30m), 06-05 (25m), 06-06 (15m), 06-07 (TBD), 07-01 (38m), 07-02 (25m), 07-03 (40m)
-- Trend: Phase 7 executing efficiently, averaging 34 min/plan
+- Last 7 plans: 06-05 (25m), 06-06 (15m), 06-07 (TBD), 07-01 (38m), 07-02 (25m), 07-03 (40m), 07-04 (45m)
+- Trend: Phase 7 executing efficiently, averaging 37 min/plan
 
 ## Accumulated Context
 
@@ -49,6 +49,10 @@ Recent decisions affecting current work:
 
 | Phase | Decision | Rationale |
 |-------|----------|-----------|
+| 07-04 | lastUser stored in localStorage (userId + fullName only) | Non-sensitive metadata for detecting returning users, credentials stay encrypted in IndexedDB |
+| 07-04 | Auto-submit on 6-digit PIN entry | Banking app UX (Intesa, UniCredit reference), no "Submit" button needed |
+| 07-04 | Failed attempt tracking (max 3, no hard lockout) | Balance security vs UX, escalating error messages, recovery flow available ("PIN dimenticato?") |
+| 07-04 | logout preserves lastUser (unlock screen on next visit) | Unlock screen should appear after logout if credentials saved, lastUser only cleared on "PIN dimenticato?" |
 | 07-03 | PIN length: 6 digits (banking app standard) | Match user expectations from banking apps (Intesa, UniCredit), mobile-friendly numeric keyboard |
 | 07-03 | 2-step wizard (create → confirm) | Prevent typos in PIN creation, standard banking app pattern |
 | 07-03 | Temporary credentials cleared after PIN setup | Minimize plaintext credential lifetime in memory for security |

@@ -399,14 +399,14 @@ Plans:
 **Goal**: Salvataggio cifrato credenziali su device con Web Crypto API, backend stateless
 **Depends on**: Phase 6
 **Research**: Complete (07-01 - Web Crypto API, AES-GCM, PBKDF2, IndexedDB patterns)
-**Plans**: 6 plans (3/6 complete)
+**Plans**: 6 plans (4/6 complete)
 **Status**: 🚧 IN PROGRESS
 
 Plans:
 - [x] 07-01: Research Web Crypto API encryption best practices (COMPLETE - AES-GCM 256-bit, PBKDF2, IndexedDB schema)
 - [x] 07-02: Implement IndexedDB credentials store with encryption (COMPLETE - CredentialStore TDD, 25min)
 - [x] 07-03: Add "Ricorda credenziali" checkbox & PIN setup wizard (COMPLETE - banking UX, 40min)
-- [ ] 07-04: Add PIN unlock flow for stored credentials
+- [x] 07-04: Add PIN unlock flow for stored credentials (COMPLETE - UnlockScreen + auto-login, 45min)
 - [ ] 07-05: Add credential expiry and re-authentication flow
 - [ ] 07-06: Add security audit and penetration test checklist
 
@@ -529,7 +529,7 @@ Plans:
 | 4. Voice Input Enhancement | 4/4 | ✅ Complete | 2026-01-13 |
 | 4.1. Critical Production Fixes (INSERTED) | 4/4 | ✅ Complete | 2026-01-13 |
 | 6. Multi-User Authentication | 7/7 | ✅ Complete | 2026-01-14 |
-| 7. Credential Management | 0/6 | Not started | - |
+| 7. Credential Management | 4/6 | 🚧 In Progress | - |
 | 8. Offline Capability | 0/8 | Not started | - |
 | 9. Offline Queue | 0/7 | Not started | - |
 | 10. Order History | 0/6 | Not started | - |
