@@ -10,18 +10,18 @@ See: .planning/PROJECT.md (updated 2026-01-11)
 ## Current Position
 
 Phase: 6 of 12 (Multi-User Authentication) 🚧 IN PROGRESS
-Plan: 3 of 7 complete
-Status: EXECUTING - Plan 06-03 complete, ready for Plan 06-04
-Last activity: 2026-01-13 — Completed Plan 06-03 (Authentication Backend & JWT), implemented JWT auth with Puppeteer validation
+Plan: 4 of 7 complete
+Status: EXECUTING - Plan 06-04 complete, ready for Plan 06-05
+Last activity: 2026-01-14 — Completed Plan 06-04 (Login UI & Frontend Auth State), implemented frontend authentication with LoginModal and JWT persistence
 
-Progress: █████████░ 43% (35/38 plans complete - Phase 6 Plans 1-3 ✅)
+Progress: █████████░ 44% (36/38 plans complete - Phase 6 Plans 1-4 ✅)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 35
-- Average duration: 73 min (1h 13m)
-- Total execution time: 42.92 hours
+- Total plans completed: 36
+- Average duration: 72 min (1h 12m)
+- Total execution time: 43.42 hours
 
 **By Phase:**
 
@@ -33,11 +33,11 @@ Progress: █████████░ 43% (35/38 plans complete - Phase 6 Pla
 | 3.1 | 3 | 350 min | 117 min |
 | 4 | 3 | 285 min | 95 min |
 | 4.1 | 4 | 233 min | 58 min |
-| 6 | 3 | 139 min | 46 min |
+| 6 | 4 | 169 min | 42 min |
 
 **Recent Trend:**
-- Last 7 plans: 04.1-01 (25m), 04.1-02 (120m), 04.1-03 (15m), 04.1-04 (73m), 06-01 (45m), 06-02 (90m), 06-03 (4m)
-- Trend: Phase 6 executing rapidly, Plan 06-03 extremely fast (JWT backend in 4m)
+- Last 7 plans: 04.1-02 (120m), 04.1-03 (15m), 04.1-04 (73m), 06-01 (45m), 06-02 (90m), 06-03 (4m), 06-04 (30m)
+- Trend: Phase 6 executing efficiently, average 42 min/plan
 
 ## Accumulated Context
 
@@ -53,6 +53,11 @@ Recent decisions affecting current work:
 | 06-02 | Default whitelisted: true for new users | All users start with access, admin can revoke via PATCH endpoint |
 | 06-02 | Admin endpoints: No authentication in Phase 6 | Deferred to Phase 7, documented as known limitation for MVP |
 | 06-02 | Seed script creates 3 test users | Sufficient for testing multi-user authentication flows |
+| 06-04 | JWT storage in localStorage with key 'archibald_jwt' | Simple persistence mechanism, cleared on logout |
+| 06-04 | Auto-restore session by calling GET /api/auth/me on mount | Verify token validity on app startup, handle expired/invalid tokens gracefully |
+| 06-04 | Login UX with modal overlay blocking app access | Full-screen modal prevents unauthorized access to main app |
+| 06-04 | User display shows fullName not username in header | Better UX - "Francesco Formicola" more natural than "ikiA0930" |
+| 06-04 | Admin user: ikiA0930 = Francesco Formicola (whitelisted) | Primary admin user with real Archibald credentials for testing and production |
 | 06-03 | JWT middleware with AuthRequest interface | Type-safe user context in protected routes, extends Express Request |
 | 06-03 | Login validation via Puppeteer test (not password hash) | Validates against real Archibald system, ensures credentials work end-to-end |
 | 06-03 | JWT format: { userId, username, iat, exp } | Minimal payload with essential identity info, 8h expiry |
@@ -391,6 +396,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-01-13 (late evening)
-Stopped at: Completed Plan 06-03 (Authentication Backend & JWT), implemented JWT auth with Puppeteer validation
-Next: Execute Plan 06-04 (Login UI & Frontend Auth State) with `/gsd:execute-plan .planning/phases/06-multi-user-authentication/06-04-PLAN.md`
+Last session: 2026-01-14 (early morning)
+Stopped at: Completed Plan 06-04 (Login UI & Frontend Auth State), implemented frontend authentication with LoginModal, useAuth hook, and JWT persistence
+Next: Execute Plan 06-05 (Refactor BrowserPool for Multi-User Sessions) with `/gsd:execute-plan .planning/phases/06-multi-user-authentication/06-05-PLAN.md`
