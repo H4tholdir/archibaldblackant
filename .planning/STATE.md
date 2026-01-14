@@ -10,19 +10,19 @@ See: .planning/PROJECT.md (updated 2026-01-11)
 ## Current Position
 
 Phase: 8 of 12 (Offline Capability) 🚧 IN PROGRESS
-Plan: 1 of 8 complete
-Status: Completed Plan 08-01 (IndexedDB Schema Design & Dexie Setup, 20min)
-Last activity: 2026-01-14 — Completed Plan 08-01
-Start time: 2026-01-14 10:00 → End time: 2026-01-14 10:20
+Plan: 2 of 8 complete
+Status: Completed Plan 08-02 (Cache Population from Backend, 25min)
+Last activity: 2026-01-14 — Completed Plan 08-02
+Start time: 2026-01-14 10:35 → End time: 2026-01-14 11:00
 
-Progress: █ 12.5% Phase 8 (1/8 plans complete)
+Progress: ██ 25% Phase 8 (2/8 plans complete)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 45
-- Average duration: 64 min (1h 4m)
-- Total execution time: 52.95 hours
+- Total plans completed: 46
+- Average duration: 63 min (1h 3m)
+- Total execution time: 53.37 hours
 
 **By Phase:**
 
@@ -36,11 +36,11 @@ Progress: █ 12.5% Phase 8 (1/8 plans complete)
 | 4.1 | 4 | 233 min | 58 min |
 | 6 | 7 | 209 min | 30 min |
 | 7 | 6 | 243 min | 41 min |
-| 8 | 1 | 20 min | 20 min |
+| 8 | 2 | 45 min | 23 min |
 
 **Recent Trend:**
-- Last 7 plans: 07-02 (25m), 07-03 (40m), 07-04 (45m), 07-05 (60m), 07-06 (35m), 08-01 (20m)
-- Trend: Phase 8 started strong with 20min plan (fastest since Phase 2)
+- Last 7 plans: 07-03 (40m), 07-04 (45m), 07-05 (60m), 07-06 (35m), 08-01 (20m), 08-02 (25m)
+- Trend: Phase 8 maintaining fast pace (avg 23min vs project avg 63min)
 
 ## Accumulated Context
 
@@ -51,6 +51,10 @@ Recent decisions affecting current work:
 
 | Phase | Decision | Rationale |
 |-------|----------|-----------|
+| 08-02 | Full sync in one request (not paginated) | 6 MB uncompressed acceptable for ~14,000 records, simpler implementation, good for MVP |
+| 08-02 | bulkPut() for IndexedDB inserts | Single transaction per table, fastest method (2-3s for ~14k records) |
+| 08-02 | Auto-sync on first run or stale cache | Seamless UX, no manual trigger needed, 24h TTL balances freshness vs unnecessary syncs |
+| 08-02 | Progress callbacks every 20% | Responsive UI without overwhelming updates, meaningful stages (fetching, customers, products, variants, prices) |
 | 08-01 | Dexie.js for IndexedDB abstraction | TypeScript-first API, automatic schema versioning, query optimizations, well-maintained (~100k weekly downloads) |
 | 08-01 | Compound indexes on name/article fields | Achieve <100ms search performance requirement for offline-first features |
 | 08-01 | Auto-increment IDs for local-only data (drafts, pending) | Simpler than UUIDs for offline-first features, no server sync needed |
