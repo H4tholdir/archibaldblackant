@@ -2,6 +2,7 @@ import { useState } from 'react';
 import './App.css';
 import { useAuth } from './hooks/useAuth';
 import { LoginModal } from './components/LoginModal';
+import { PinSetupWizard } from './components/PinSetupWizard';
 import OrderForm from './components/OrderForm';
 import OrderStatus from './components/OrderStatus';
 import OrdersList from './components/OrdersList';
@@ -12,6 +13,7 @@ function App() {
   const auth = useAuth();
   const [jobId, setJobId] = useState<string | null>(null);
   const [view, setView] = useState<'form' | 'status' | 'orders-list'>('form');
+  const [tempCredentials, setTempCredentials] = useState<{ username: string; password: string } | null>(null);
 
   const handleOrderCreated = (newJobId: string) => {
     setJobId(newJobId);
@@ -43,11 +45,35 @@ function App() {
 
   // Show login modal if not authenticated
   if (!auth.isAuthenticated) {
+    const handleLogin = async (username: string, password: string, rememberCredentials: boolean) => {
+      const success = await auth.login(username, password, rememberCredentials);
+      if (success && rememberCredentials) {
+        setTempCredentials({ username, password });
+      }
+      return success;
+    };
+
     return (
       <LoginModal
-        onLogin={auth.login}
+        onLogin={handleLogin}
         error={auth.error}
         isLoading={auth.isLoading}
+      />
+    );
+  }
+
+  // Show PIN setup wizard if needed
+  if (auth.needsPinSetup && tempCredentials) {
+    return (
+      <PinSetupWizard
+        onComplete={async (pin) => {
+          await auth.completePinSetup(pin, tempCredentials.username, tempCredentials.password);
+          setTempCredentials(null); // Clear from memory
+        }}
+        onCancel={() => {
+          auth.skipPinSetup();
+          setTempCredentials(null); // Clear from memory
+        }}
       />
     );
   }
