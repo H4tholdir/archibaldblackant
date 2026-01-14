@@ -48,7 +48,7 @@ export class BrowserPool {
       logger.info('Initializing BrowserPool with multi-user support');
 
       this.browser = await puppeteer.launch({
-        headless: true,
+        headless: config.puppeteer.headless,
         ignoreHTTPSErrors: true,
         args: ['--no-sandbox', '--disable-setuid-sandbox'],
       });
