@@ -55,7 +55,7 @@ export class QueueManager {
     });
 
     // Inizializza il browser pool
-    this.browserPool = BrowserPool.getInstance(1, 3);
+    this.browserPool = BrowserPool.getInstance();
 
     // Register sync services with PriorityManager
     const priorityManager = PriorityManager.getInstance();
@@ -180,7 +180,7 @@ export class QueueManager {
       }))
     });
 
-    let bot = null;
+    let bot: any = null;
 
     try {
       // Pulizia browser zombie prima di crearne uno nuovo
