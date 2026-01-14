@@ -38,10 +38,11 @@ interface Product {
 }
 
 interface OrderFormProps {
+  token: string;
   onOrderCreated: (jobId: string) => void;
 }
 
-export default function OrderForm({ onOrderCreated }: OrderFormProps) {
+export default function OrderForm({ token, onOrderCreated }: OrderFormProps) {
   // Debug logger
   const {
     logs,
@@ -778,6 +779,7 @@ export default function OrderForm({ onOrderCreated }: OrderFormProps) {
       const response = await fetch("/api/orders/create", {
         method: "POST",
         headers: {
+          "Authorization": `Bearer ${token}`,
           "Content-Type": "application/json",
         },
         body: JSON.stringify({

@@ -35,6 +35,18 @@
   font-size: 0.875rem;
 }
 
+.user-info {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  font-size: 0.9rem;
+}
+
+.btn-sm {
+  padding: 0.4rem 0.8rem;
+  font-size: 0.85rem;
+}
+
 .app-main {
   flex: 1;
   padding: 1rem;
