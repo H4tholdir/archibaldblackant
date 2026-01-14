@@ -6,10 +6,8 @@ import { logger } from "../logger";
 /**
  * Seed initial test users for Phase 6 multi-user authentication
  *
- * Creates 3 test users:
- * - mario.rossi (whitelisted)
- * - luca.bianchi (whitelisted)
- * - sara.verdi (whitelisted)
+ * Creates test user:
+ * - ikiA0930 (whitelisted, admin) - Francesco Formicola - real Archibald credentials
  */
 async function seedUsers() {
   logger.info("=== SEED USERS ===");
@@ -17,9 +15,7 @@ async function seedUsers() {
   const userDb = UserDatabase.getInstance();
 
   const testUsers = [
-    { username: "mario.rossi", fullName: "Mario Rossi" },
-    { username: "luca.bianchi", fullName: "Luca Bianchi" },
-    { username: "sara.verdi", fullName: "Sara Verdi" },
+    { username: "ikiA0930", fullName: "Francesco Formicola" },
   ];
 
   try {
