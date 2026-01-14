@@ -10,19 +10,19 @@ See: .planning/PROJECT.md (updated 2026-01-11)
 ## Current Position
 
 Phase: 8 of 12 (Offline Capability) 🚧 IN PROGRESS
-Plan: 4 of 8 complete
-Status: Completed Plan 08-04 (Service Worker & Offline-First Strategy)
-Last activity: 2026-01-14 — Completed Plan 08-04
-Start time: 2026-01-14 22:37 → End time: 2026-01-14 22:59
+Plan: 5 of 8 complete
+Status: Completed Plan 08-05 (Draft Order Auto-Save)
+Last activity: 2026-01-14 — Completed Plan 08-05
+Start time: 2026-01-14 22:07 → End time: 2026-01-14 22:18
 
-Progress: ████ 50% Phase 8 (4/8 plans complete)
+Progress: █████░ 62.5% Phase 8 (5/8 plans complete)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 48
-- Average duration: 61 min (1h 1m)
-- Total execution time: 53.98 hours
+- Total plans completed: 49
+- Average duration: 59 min
+- Total execution time: 54.15 hours
 
 **By Phase:**
 
@@ -36,11 +36,11 @@ Progress: ████ 50% Phase 8 (4/8 plans complete)
 | 4.1 | 4 | 233 min | 58 min |
 | 6 | 7 | 209 min | 30 min |
 | 7 | 6 | 243 min | 41 min |
-| 8 | 4 | 82 min | 21 min |
+| 8 | 5 | 93 min | 19 min |
 
 **Recent Trend:**
-- Last 7 plans: 07-05 (60m), 07-06 (35m), 08-01 (20m), 08-02 (25m), 08-03 (15m), 08-04 (22m)
-- Trend: Phase 8 maintaining fast pace (avg 21min vs project avg 61min)
+- Last 7 plans: 07-06 (35m), 08-01 (20m), 08-02 (25m), 08-03 (15m), 08-04 (22m), 08-05 (11m)
+- Trend: Phase 8 maintaining fast pace (avg 19min vs project avg 59min)
 
 ## Accumulated Context
 
@@ -51,6 +51,9 @@ Recent decisions affecting current work:
 
 | Phase | Decision | Rationale |
 |-------|----------|-----------|
+| 08-05 | 1-second debounce for draft auto-save | Prevents excessive IndexedDB writes during rapid typing, balances responsiveness with performance |
+| 08-05 | Upsert pattern for drafts (reuse existing ID) | Single draft per user prevents clutter, updatedAt tracks latest changes |
+| 08-05 | Clear draft immediately after order submission | Prevents stale drafts from reappearing, clean state after successful completion |
 | 08-04 | CacheFirst for Google Fonts with 1-year expiration | Long-lived assets with low churn, instant offline loading for typography |
 | 08-04 | Auto-update service worker (registerType: autoUpdate) | Seamless deployment updates without user intervention, always latest version |
 | 08-04 | vite-env.d.ts for virtual:pwa-register types | TypeScript support for PWA registration, resolves module not found errors |
