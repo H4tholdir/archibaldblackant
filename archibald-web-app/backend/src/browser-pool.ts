@@ -159,6 +159,17 @@ export class BrowserPool {
       // Then close the context
       await context.close();
       logger.info(`Context closed and session cleared for user ${userId}`);
+
+      // CRITICAL: If this was the last context, reinitialize browser to prevent zombie state
+      if (this.userContexts.size === 0 && this.browser) {
+        logger.warn('Last BrowserContext closed, reinitializing Browser to prevent corruption');
+        await this.browser.close().catch(err => {
+          logger.error('Error closing browser during reinitialization', { error: err });
+        });
+        this.browser = null;
+        this.isInitialized = false;
+        this.initializationPromise = null;
+      }
     }
   }
 
