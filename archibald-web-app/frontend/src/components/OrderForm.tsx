@@ -22,6 +22,8 @@ import { VoicePopulatedBadge } from "./VoicePopulatedBadge";
 import { VoiceDebugPanel, useVoiceDebugLogger } from "./VoiceDebugPanel";
 import { cacheService } from "../services/cache-service";
 import { draftService } from "../services/draft-service";
+import { pendingOrdersService } from "../services/pending-orders-service";
+import { useNetworkStatus } from "../hooks/useNetworkStatus";
 import type { DraftOrderItem } from "../db/schema";
 
 interface Customer {
@@ -46,6 +48,9 @@ interface OrderFormProps {
 }
 
 export default function OrderForm({ token, onOrderCreated }: OrderFormProps) {
+  // Network status
+  const { isOffline } = useNetworkStatus();
+
   // Debug logger
   const {
     logs,
@@ -870,6 +875,33 @@ export default function OrderForm({ token, onOrderCreated }: OrderFormProps) {
 
     setLoading(true);
     try {
+      // If offline, queue the order instead of sending immediately
+      if (isOffline) {
+        console.log("[OrderForm] Offline detected, queuing order...");
+
+        // Convert draftItems to simple format for pending queue
+        const items = draftItems.map((item) => ({
+          productId: item.articleCode,
+          variantId: item.articleCode, // Use articleCode as variantId
+          quantity: item.quantity,
+        }));
+
+        await pendingOrdersService.addPendingOrder(customerId, items);
+
+        alert(
+          "✅ Ordine aggiunto alla coda offline. Sarà inviato automaticamente quando torni online.",
+        );
+
+        // Clear draft from IndexedDB after queuing
+        await draftService.clearDraft();
+        // Clear draft items and close modal
+        setDraftItems([]);
+        setShowConfirmModal(false);
+        setLoading(false);
+        return;
+      }
+
+      // Online: send order immediately
       const response = await fetch("/api/orders/create", {
         method: "POST",
         headers: {
