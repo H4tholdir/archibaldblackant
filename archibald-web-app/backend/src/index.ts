@@ -289,7 +289,8 @@ app.post("/api/auth/login", async (req: Request, res: Response<ApiResponse>) => 
     // 5. Generate JWT
     const token = await generateJWT({
       userId: user.id,
-      username: user.username
+      username: user.username,
+      role: user.role
     });
 
     logger.info(`Login successful for user: ${username}`);
@@ -300,6 +301,7 @@ app.post("/api/auth/login", async (req: Request, res: Response<ApiResponse>) => 
         id: user.id,
         username: user.username,
         fullName: user.fullName,
+        role: user.role
       }
     });
 
@@ -351,6 +353,7 @@ app.get("/api/auth/me", authenticateJWT, async (req: AuthRequest, res: Response<
         id: user.id,
         username: user.username,
         fullName: user.fullName,
+        role: user.role,
         whitelisted: user.whitelisted,
         lastLoginAt: user.lastLoginAt,
       }

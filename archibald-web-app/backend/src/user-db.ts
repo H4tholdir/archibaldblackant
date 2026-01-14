@@ -3,10 +3,13 @@ import { v4 as uuidv4 } from "uuid";
 import path from "path";
 import { logger } from "./logger";
 
+export type UserRole = 'agent' | 'admin';
+
 export interface User {
   id: string;
   username: string;
   fullName: string;
+  role: UserRole;
   whitelisted: boolean;
   createdAt: number;
   lastLoginAt: number | null;
@@ -40,14 +43,17 @@ export class UserDatabase {
         id TEXT PRIMARY KEY,
         username TEXT UNIQUE NOT NULL,
         fullName TEXT NOT NULL,
+        role TEXT NOT NULL DEFAULT 'agent',
         whitelisted INTEGER NOT NULL DEFAULT 1,
         createdAt INTEGER NOT NULL,
         lastLoginAt INTEGER,
-        CONSTRAINT unique_username UNIQUE (username)
+        CONSTRAINT unique_username UNIQUE (username),
+        CONSTRAINT valid_role CHECK (role IN ('agent', 'admin'))
       );
 
       CREATE INDEX IF NOT EXISTS idx_username ON users(username);
       CREATE INDEX IF NOT EXISTS idx_whitelisted ON users(whitelisted);
+      CREATE INDEX IF NOT EXISTS idx_role ON users(role);
     `);
 
     logger.info("User database schema initialized");
@@ -56,11 +62,12 @@ export class UserDatabase {
   /**
    * Create a new user
    */
-  createUser(username: string, fullName: string): User {
+  createUser(username: string, fullName: string, role: UserRole = 'agent'): User {
     const user: User = {
       id: uuidv4(),
       username,
       fullName,
+      role,
       whitelisted: true,
       createdAt: Date.now(),
       lastLoginAt: null,
@@ -68,14 +75,15 @@ export class UserDatabase {
 
     try {
       const stmt = this.db.prepare(`
-        INSERT INTO users (id, username, fullName, whitelisted, createdAt, lastLoginAt)
-        VALUES (?, ?, ?, ?, ?, ?)
+        INSERT INTO users (id, username, fullName, role, whitelisted, createdAt, lastLoginAt)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
       `);
 
       stmt.run(
         user.id,
         user.username,
         user.fullName,
+        user.role,
         user.whitelisted ? 1 : 0,
         user.createdAt,
         user.lastLoginAt
@@ -253,10 +261,36 @@ export class UserDatabase {
       id: row.id,
       username: row.username,
       fullName: row.fullName,
+      role: (row.role || 'agent') as UserRole,
       whitelisted: row.whitelisted === 1,
       createdAt: row.createdAt,
       lastLoginAt: row.lastLoginAt,
     };
+  }
+
+  /**
+   * Update user's role
+   */
+  updateRole(id: string, role: UserRole): void {
+    try {
+      const stmt = this.db.prepare(`
+        UPDATE users SET role = ? WHERE id = ?
+      `);
+
+      const result = stmt.run(role, id);
+
+      if (result.changes === 0) {
+        throw new Error(`User not found: ${id}`);
+      }
+
+      logger.info("User role updated", {
+        userId: id,
+        role,
+      });
+    } catch (error) {
+      logger.error("Error updating user role", { id, role, error });
+      throw error;
+    }
   }
 
   /**
