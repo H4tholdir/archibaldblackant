@@ -138,9 +138,11 @@ export class BrowserPool {
   async closeUserContext(userId: string): Promise<void> {
     const context = this.userContexts.get(userId);
     if (context) {
-      await context.close();
+      // Remove from map FIRST to prevent race condition with acquireContext
       this.userContexts.delete(userId);
       this.sessionCache.clearSession(userId);
+      // Then close the context
+      await context.close();
       logger.info(`Context closed and session cleared for user ${userId}`);
     }
   }
