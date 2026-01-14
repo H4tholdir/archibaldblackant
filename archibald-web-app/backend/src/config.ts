@@ -21,7 +21,7 @@ export const config = {
   },
   puppeteer: {
     headless: false, // Sempre visibile per debug
-    slowMo: 200, // Delay necessario per stabilità DevExpress
+    slowMo: 200, // Rallenta per vedere meglio
     timeout: 30000,
   },
 } as const;

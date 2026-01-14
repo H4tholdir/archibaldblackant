@@ -49,8 +49,6 @@ export class BrowserPool {
 
       this.browser = await puppeteer.launch({
         headless: config.puppeteer.headless,
-        slowMo: config.puppeteer.slowMo,
-        protocolTimeout: 240000, // 4 minutes - prevents deleteCookies timeout issues
         ignoreHTTPSErrors: true,
         args: [
           '--no-sandbox',
