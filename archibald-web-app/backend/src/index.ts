@@ -1204,15 +1204,22 @@ app.post(
   },
 );
 
-// Create order endpoint (con queue system)
+// Create order endpoint (con queue system) - Protected with JWT authentication
 app.post(
   "/api/orders/create",
-  async (req: Request, res: Response<ApiResponse<{ jobId: string }>>) => {
+  authenticateJWT,
+  async (req: AuthRequest, res: Response<ApiResponse<{ jobId: string }>>) => {
     try {
+      // Extract user info from JWT
+      const userId = req.user!.userId;
+      const username = req.user!.username;
+
       // Valida input
       const orderData = createOrderSchema.parse(req.body) as OrderData;
 
       logger.info("📥 API: Ricevuta richiesta creazione ordine", {
+        userId,
+        username,
         customerName: orderData.customerName,
         itemsCount: orderData.items.length,
         items: orderData.items.map((item) => ({
@@ -1266,14 +1273,16 @@ app.post(
         return;
       }
 
-      // Aggiungi alla coda
+      // Aggiungi alla coda con userId
       const job = await queueManager.addOrder(
         orderData,
-        req.headers["x-request-id"] as string,
+        userId,
       );
 
       logger.info("✅ API: Ordine aggiunto alla coda con successo", {
         jobId: job.id,
+        userId,
+        username,
         itemsCount: orderData.items.length,
       });
 
