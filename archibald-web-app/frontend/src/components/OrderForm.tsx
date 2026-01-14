@@ -793,6 +793,17 @@ export default function OrderForm({ token, onOrderCreated }: OrderFormProps) {
 
       const data = await response.json();
 
+      if (!response.ok) {
+        if (response.status === 401) {
+          alert('Sessione scaduta. Effettua nuovamente il login.');
+          // Token expired or invalid - user should be redirected to login
+          // This will be handled by the parent component (App.tsx)
+          return;
+        }
+        alert(`Errore: ${data.error || 'Errore sconosciuto'}`);
+        return;
+      }
+
       if (data.success) {
         onOrderCreated(data.data.jobId);
         // Clear draft items and close modal
