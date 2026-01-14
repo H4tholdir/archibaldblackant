@@ -886,10 +886,27 @@ export default function OrderForm({ token, onOrderCreated }: OrderFormProps) {
           quantity: item.quantity,
         }));
 
-        await pendingOrdersService.addPendingOrder(customerId, items);
+        const orderId = await pendingOrdersService.addPendingOrder(
+          customerId,
+          items,
+        );
+
+        console.log(
+          "[OrderForm] Order added to pending queue with ID:",
+          orderId,
+        );
+
+        // Verify the order was written by reading it back
+        const allPending =
+          await pendingOrdersService.getPendingOrdersWithCounts();
+        console.log(
+          "[OrderForm] Current pending orders count:",
+          allPending.counts,
+        );
+        console.log("[OrderForm] All pending orders:", allPending.orders);
 
         alert(
-          "✅ Ordine aggiunto alla coda offline. Sarà inviato automaticamente quando torni online.",
+          `✅ Ordine #${orderId} aggiunto alla coda offline. Sarà inviato automaticamente quando torni online.`,
         );
 
         // Clear draft from IndexedDB after queuing
