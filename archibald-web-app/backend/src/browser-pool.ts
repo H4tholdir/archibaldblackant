@@ -51,6 +51,10 @@ export class BrowserPool {
         headless: config.puppeteer.headless,
         ignoreHTTPSErrors: true,
         args: ['--no-sandbox', '--disable-setuid-sandbox'],
+        defaultViewport: {
+          width: 1280,
+          height: 800,
+        },
       });
 
       this.isInitialized = true;
