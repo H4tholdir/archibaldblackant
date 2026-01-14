@@ -398,15 +398,15 @@ Plans:
 ### Phase 7: Credential Management
 **Goal**: Salvataggio cifrato credenziali su device con Web Crypto API, backend stateless
 **Depends on**: Phase 6
-**Research**: Likely (Web Crypto API usage for secure storage)
-**Research topics**: Web Crypto API best practices, IndexedDB encryption patterns, device-local credential storage
-**Plans**: 6 plans
+**Research**: Complete (07-01 - Web Crypto API, AES-GCM, PBKDF2, IndexedDB patterns)
+**Plans**: 6 plans (3/6 complete)
+**Status**: 🚧 IN PROGRESS
 
 Plans:
-- [ ] 07-01: Research Web Crypto API encryption best practices
-- [ ] 07-02: Implement IndexedDB credentials store with encryption
-- [ ] 07-03: Add PIN/biometric unlock UI for credential access
-- [ ] 07-04: Refactor backend to session-per-request (no credential storage)
+- [x] 07-01: Research Web Crypto API encryption best practices (COMPLETE - AES-GCM 256-bit, PBKDF2, IndexedDB schema)
+- [x] 07-02: Implement IndexedDB credentials store with encryption (COMPLETE - CredentialStore TDD, 25min)
+- [x] 07-03: Add "Ricorda credenziali" checkbox & PIN setup wizard (COMPLETE - banking UX, 40min)
+- [ ] 07-04: Add PIN unlock flow for stored credentials
 - [ ] 07-05: Add credential expiry and re-authentication flow
 - [ ] 07-06: Add security audit and penetration test checklist
 
