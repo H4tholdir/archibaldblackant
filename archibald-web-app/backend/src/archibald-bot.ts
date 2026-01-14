@@ -1,5 +1,6 @@
 import puppeteer, {
   type Browser,
+  type BrowserContext,
   type ElementHandle,
   type Page,
 } from "puppeteer";
@@ -7,11 +8,15 @@ import { config } from "./config";
 import { logger } from "./logger";
 import { ProductDatabase } from "./product-db";
 import { SessionCacheManager } from "./session-cache";
+import { SessionCacheManager as MultiUserSessionCacheManager } from "./session-cache-manager";
+import { BrowserPool } from "./browser-pool";
 import type { OrderData } from "./types";
 
 export class ArchibaldBot {
   private browser: Browser | null = null;
-  private page: Page | null = null;
+  private context: BrowserContext | null = null;
+  public page: Page | null = null;
+  private userId: string | null = null;
   private productDb: ProductDatabase;
   private sessionCache: SessionCacheManager;
   private opSeq = 0;
@@ -32,7 +37,8 @@ export class ArchibaldBot {
     errorMessage?: string;
   }> = [];
 
-  constructor() {
+  constructor(userId?: string) {
+    this.userId = userId || null;
     this.productDb = ProductDatabase.getInstance();
     this.sessionCache = new SessionCacheManager();
   }
@@ -1187,39 +1193,66 @@ export class ArchibaldBot {
   }
 
   async initialize(): Promise<void> {
-    logger.info("Inizializzazione browser Puppeteer...");
+    if (this.userId) {
+      // Multi-user mode: acquire context from pool
+      logger.info(`Inizializzazione bot per user ${this.userId}`);
 
-    this.browser = await this.runOp(
-      "browser.launch",
-      async () => {
-        return puppeteer.launch({
-          headless: config.puppeteer.headless,
-          slowMo: config.puppeteer.slowMo,
-          args: [
-            "--no-sandbox",
-            "--disable-setuid-sandbox",
-            "--disable-web-security",
-            "--ignore-certificate-errors",
-          ],
-          defaultViewport: {
-            width: 1280,
-            height: 800,
-          },
-        });
-      },
-      "login",
-    );
+      const pool = BrowserPool.getInstance();
+      this.context = await this.runOp(
+        "browserPool.acquireContext",
+        async () => {
+          return pool.acquireContext(this.userId!);
+        },
+        "login",
+      );
 
-    this.page = await this.runOp(
-      "browser.newPage",
-      async () => {
-        return this.browser!.newPage();
-      },
-      "login",
-    );
+      this.page = await this.runOp(
+        "context.newPage",
+        async () => {
+          return this.context!.newPage();
+        },
+        "login",
+      );
+
+      logger.info(`Bot inizializzato per user ${this.userId} (multi-user mode)`);
+    } else {
+      // Legacy single-user mode (for backwards compatibility)
+      logger.info("Inizializzazione browser Puppeteer (legacy single-user mode)...");
+
+      this.browser = await this.runOp(
+        "browser.launch",
+        async () => {
+          return puppeteer.launch({
+            headless: config.puppeteer.headless,
+            slowMo: config.puppeteer.slowMo,
+            args: [
+              "--no-sandbox",
+              "--disable-setuid-sandbox",
+              "--disable-web-security",
+              "--ignore-certificate-errors",
+            ],
+            defaultViewport: {
+              width: 1280,
+              height: 800,
+            },
+          });
+        },
+        "login",
+      );
+
+      this.page = await this.runOp(
+        "browser.newPage",
+        async () => {
+          return this.browser!.newPage();
+        },
+        "login",
+      );
+
+      logger.info("Browser inizializzato con successo (legacy mode)");
+    }
 
     // Abilita console logging dal browser per debug
-    this.page.on("console", (msg) => {
+    this.page!.on("console", (msg) => {
       const text = msg.text();
       if (text) {
         logger.debug(`[Browser Console] ${text}`);
@@ -1234,8 +1267,6 @@ export class ArchibaldBot {
       },
       "login",
     );
-
-    logger.info("Browser inizializzato con successo");
   }
 
   async login(): Promise<void> {
@@ -1483,9 +1514,17 @@ export class ArchibaldBot {
       ) {
         logger.info("Login riuscito!", { url: currentUrl });
 
-        // Save session cookies to persistent cache (expires at end of day)
+        // Save session cookies to persistent cache
         const cookies = await this.page.cookies();
-        this.sessionCache.saveSession(cookies);
+
+        if (this.userId) {
+          // Multi-user mode: save to per-user cache
+          const multiUserCache = MultiUserSessionCacheManager.getInstance();
+          await multiUserCache.saveSession(this.userId, cookies);
+        } else {
+          // Legacy single-user mode
+          this.sessionCache.saveSession(cookies);
+        }
       } else {
         throw new Error("Login fallito: ancora sulla pagina di login");
       }
@@ -5722,19 +5761,30 @@ export class ArchibaldBot {
   }
 
   async close(): Promise<void> {
-    if (this.browser) {
-      // Genera e salva report automaticamente prima di chiudere
-      try {
-        const reportPath = await this.writeOperationReport();
-        logger.info(`Report operazioni salvato: ${reportPath}`);
-      } catch (error) {
-        logger.error("Errore nel salvataggio report operazioni", { error });
-      }
+    // Genera e salva report automaticamente prima di chiudere
+    try {
+      const reportPath = await this.writeOperationReport();
+      logger.info(`Report operazioni salvato: ${reportPath}`);
+    } catch (error) {
+      logger.error("Errore nel salvataggio report operazioni", { error });
+    }
 
+    if (this.page && !this.page.isClosed()) {
+      await this.page.close();
+      this.page = null;
+    }
+
+    if (this.userId && this.context) {
+      // Multi-user mode: release context to pool
+      const pool = BrowserPool.getInstance();
+      await pool.releaseContext(this.userId, this.context, true);
+      this.context = null;
+      logger.info(`Context released for user ${this.userId}`);
+    } else if (this.browser) {
+      // Legacy mode: close browser
       await this.browser.close();
       this.browser = null;
-      this.page = null;
-      logger.info("Browser chiuso");
+      logger.info("Browser chiuso (legacy mode)");
     }
   }
 
