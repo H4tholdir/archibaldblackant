@@ -263,13 +263,11 @@ app.post("/api/auth/login", async (req: Request, res: Response<ApiResponse>) => 
     logger.info(`Login successful for user: ${username}`);
     res.json({
       success: true,
-      data: {
-        token,
-        user: {
-          id: user.id,
-          username: user.username,
-          fullName: user.fullName,
-        }
+      token,
+      user: {
+        id: user.id,
+        username: user.username,
+        fullName: user.fullName,
       }
     });
 
