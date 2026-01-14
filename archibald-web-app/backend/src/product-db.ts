@@ -520,6 +520,70 @@ export class ProductDatabase {
   }
 
   /**
+   * Get all products for cache export
+   */
+  getAllProducts(): Product[] {
+    const stmt = this.db.prepare(`
+      SELECT id, name, description, groupCode, searchName, priceUnit, productGroupId, productGroupDescription, packageContent, minQty, multipleQty, maxQty, price, hash, lastSync
+      FROM products
+      ORDER BY name ASC
+    `);
+    return stmt.all() as Product[];
+  }
+
+  /**
+   * Get all product variants for cache export
+   */
+  getAllProductVariants(): Array<{
+    productId: string;
+    variantId: string;
+    multipleQty: number;
+    minQty: number;
+    maxQty: number;
+    packageContent: string;
+  }> {
+    // Extract variant info from products table
+    // Products with same name but different IDs are variants
+    const stmt = this.db.prepare(`
+      SELECT
+        name as productId,
+        id as variantId,
+        multipleQty,
+        minQty,
+        maxQty,
+        packageContent
+      FROM products
+      WHERE multipleQty IS NOT NULL
+      ORDER BY name, multipleQty DESC
+    `);
+
+    return stmt.all() as any[];
+  }
+
+  /**
+   * Get all prices for cache export
+   */
+  getAllPrices(): Array<{
+    articleId: string;
+    articleName: string;
+    price: number;
+    lastSynced: string;
+  }> {
+    const stmt = this.db.prepare(`
+      SELECT
+        id as articleId,
+        name as articleName,
+        price,
+        datetime(lastSync / 1000, 'unixepoch') as lastSynced
+      FROM products
+      WHERE price IS NOT NULL
+      ORDER BY name
+    `);
+
+    return stmt.all() as any[];
+  }
+
+  /**
    * Chiude la connessione al database
    */
   close(): void {

@@ -347,6 +347,18 @@ export class CustomerDatabase {
   }
 
   /**
+   * Get all customers for cache export
+   */
+  getAllCustomers(): Customer[] {
+    const stmt = this.db.prepare(`
+      SELECT id, name, vatNumber, email, hash, lastSync
+      FROM customers
+      ORDER BY name ASC
+    `);
+    return stmt.all() as Customer[];
+  }
+
+  /**
    * Chiude la connessione al database
    */
   close(): void {

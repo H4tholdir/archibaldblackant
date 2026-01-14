@@ -187,6 +187,61 @@ app.get("/api/health", (req: Request, res: Response<ApiResponse>) => {
   });
 });
 
+// ========== CACHE EXPORT ENDPOINT ==========
+
+// Cache export endpoint - returns all data for offline cache population
+app.get("/api/cache/export", authenticateJWT, async (req: AuthRequest, res: Response<ApiResponse>) => {
+  try {
+    logger.info('Cache export requested', { userId: req.user?.userId });
+
+    const startTime = Date.now();
+
+    // Get all data from SQLite databases
+    const [customers, products, variants, prices] = await Promise.all([
+      Promise.resolve(customerDb.getAllCustomers()),
+      Promise.resolve(productDb.getAllProducts()),
+      Promise.resolve(productDb.getAllProductVariants()),
+      Promise.resolve(productDb.getAllPrices())
+    ]);
+
+    const duration = Date.now() - startTime;
+
+    logger.info('Cache export completed', {
+      userId: req.user?.userId,
+      customers: customers.length,
+      products: products.length,
+      variants: variants.length,
+      prices: prices.length,
+      durationMs: duration
+    });
+
+    res.json({
+      success: true,
+      data: {
+        customers,
+        products,
+        variants,
+        prices
+      },
+      metadata: {
+        exportedAt: new Date().toISOString(),
+        recordCounts: {
+          customers: customers.length,
+          products: products.length,
+          variants: variants.length,
+          prices: prices.length
+        }
+      }
+    });
+  } catch (error) {
+    logger.error('Cache export failed', { error, userId: req.user?.userId });
+    res.status(500).json({
+      success: false,
+      error: 'Cache export failed'
+    });
+  }
+});
+
 // ========== AUTHENTICATION ENDPOINTS ==========
 
 // Login endpoint - validates whitelist and Puppeteer credentials
