@@ -100,6 +100,8 @@ export class BrowserPool {
     const cookies = await this.sessionCache.loadSession(userId);
     if (cookies && cookies.length > 0) {
       const page = await context.newPage();
+      // Set viewport to match Archibald UI requirements
+      await page.setViewport({ width: 1280, height: 800 });
       // Type cast needed due to puppeteer/devtools-protocol version mismatch
       await page.setCookie(...(cookies as any));
       await page.close();

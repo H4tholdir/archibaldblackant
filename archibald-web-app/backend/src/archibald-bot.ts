@@ -1225,6 +1225,15 @@ export class ArchibaldBot {
         "login",
       );
 
+      // Set viewport to match Archibald UI requirements (same as legacy mode)
+      await this.runOp(
+        "page.setViewport",
+        async () => {
+          await this.page!.setViewport({ width: 1280, height: 800 });
+        },
+        "login",
+      );
+
       logger.info(`Bot inizializzato per user ${this.userId} (multi-user mode)`);
     } else {
       // Legacy single-user mode (for backwards compatibility)
