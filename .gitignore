@@ -30,3 +30,6 @@ logs/
 
 # Dependencies
 node_modules/
+
+# Voice debug files
+voice-debug-*.json
