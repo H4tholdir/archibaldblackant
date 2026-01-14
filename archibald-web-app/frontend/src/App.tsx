@@ -2,6 +2,7 @@ import { useState } from "react";
 import "./App.css";
 import { useAuth } from "./hooks/useAuth";
 import { useNetworkStatus } from "./hooks/useNetworkStatus";
+import { useAutomaticSync } from "./hooks/useAutomaticSync";
 import { LoginModal } from "./components/LoginModal";
 import { PinSetupWizard } from "./components/PinSetupWizard";
 import { UnlockScreen } from "./components/UnlockScreen";
@@ -16,6 +17,9 @@ import { OfflineBanner } from "./components/OfflineBanner";
 function App() {
   const auth = useAuth();
   const { isOffline } = useNetworkStatus();
+
+  // Automatic sync when network returns
+  useAutomaticSync(auth.token);
   const [jobId, setJobId] = useState<string | null>(null);
   const [view, setView] = useState<"form" | "status" | "orders-list">("form");
   const [tempCredentials, setTempCredentials] = useState<{
