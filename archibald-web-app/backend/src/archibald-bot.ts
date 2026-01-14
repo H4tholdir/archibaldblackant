@@ -3,6 +3,7 @@ import puppeteer, {
   type BrowserContext,
   type ElementHandle,
   type Page,
+  type KeyInput,
 } from "puppeteer";
 import { config } from "./config";
 import { logger } from "./logger";
@@ -11,6 +12,8 @@ import { SessionCacheManager } from "./session-cache";
 import { SessionCacheManager as MultiUserSessionCacheManager } from "./session-cache-manager";
 import { BrowserPool } from "./browser-pool";
 import { PasswordCache } from "./password-cache";
+import { DelayManager } from "./delay-manager";
+import { OPERATIONS, getOperationDelay } from "./operation-registry";
 import type { OrderData } from "./types";
 
 export class ArchibaldBot {
@@ -53,6 +56,154 @@ export class ArchibaldBot {
       this.legacySessionCache = new SessionCacheManager();
     }
   }
+
+  // ============================================================================
+  // OPTIMIZED OPERATION WRAPPERS
+  // ============================================================================
+  // These methods wrap Puppeteer operations with optimized delays from DelayManager.
+  // Each operation uses a granular delay instead of global slowMo.
+  // Delays are determined by binary search testing (see operation-registry.ts).
+  // ============================================================================
+
+  /**
+   * Optimized click operation with operation-specific delay
+   */
+  private async clickWithDelay(
+    selector: string,
+    operationId: string
+  ): Promise<void> {
+    if (!this.page) throw new Error("Page not initialized");
+
+    const delay = getOperationDelay(operationId);
+
+    logger.debug(`Click operation: ${operationId}`, { selector, delay });
+
+    await this.page.click(selector);
+
+    if (delay > 0) {
+      await new Promise(resolve => setTimeout(resolve, delay));
+    }
+  }
+
+  /**
+   * Optimized type operation with operation-specific delay
+   */
+  private async typeWithDelay(
+    selector: string,
+    text: string,
+    operationId: string
+  ): Promise<void> {
+    if (!this.page) throw new Error("Page not initialized");
+
+    const delay = getOperationDelay(operationId);
+
+    logger.debug(`Type operation: ${operationId}`, { selector, text: text.substring(0, 20), delay });
+
+    await this.page.type(selector, text);
+
+    if (delay > 0) {
+      await new Promise(resolve => setTimeout(resolve, delay));
+    }
+  }
+
+  /**
+   * Optimized keyboard press with operation-specific delay
+   */
+  private async pressKeyWithDelay(
+    key: KeyInput,
+    operationId: string
+  ): Promise<void> {
+    if (!this.page) throw new Error("Page not initialized");
+
+    const delay = getOperationDelay(operationId);
+
+    logger.debug(`Keyboard press: ${operationId}`, { key, delay });
+
+    await this.page.keyboard.press(key);
+
+    if (delay > 0) {
+      await new Promise(resolve => setTimeout(resolve, delay));
+    }
+  }
+
+  /**
+   * Optimized keyboard down with operation-specific delay
+   */
+  private async keyboardDownWithDelay(
+    key: KeyInput,
+    operationId: string
+  ): Promise<void> {
+    if (!this.page) throw new Error("Page not initialized");
+
+    const delay = getOperationDelay(operationId);
+
+    logger.debug(`Keyboard down: ${operationId}`, { key, delay });
+
+    await this.page.keyboard.down(key);
+
+    if (delay > 0) {
+      await new Promise(resolve => setTimeout(resolve, delay));
+    }
+  }
+
+  /**
+   * Optimized keyboard up with operation-specific delay
+   */
+  private async keyboardUpWithDelay(
+    key: KeyInput,
+    operationId: string
+  ): Promise<void> {
+    if (!this.page) throw new Error("Page not initialized");
+
+    const delay = getOperationDelay(operationId);
+
+    logger.debug(`Keyboard up: ${operationId}`, { key, delay });
+
+    await this.page.keyboard.up(key);
+
+    if (delay > 0) {
+      await new Promise(resolve => setTimeout(resolve, delay));
+    }
+  }
+
+  /**
+   * Navigate operation (no slowMo effect, but included for completeness)
+   */
+  private async navigateWithTracking(
+    url: string,
+    operationId: string
+  ): Promise<void> {
+    if (!this.page) throw new Error("Page not initialized");
+
+    logger.debug(`Navigate operation: ${operationId}`, { url });
+
+    await this.page.goto(url, {
+      waitUntil: "networkidle2",
+      timeout: config.puppeteer.timeout,
+    });
+  }
+
+  /**
+   * Wait for selector operation (no slowMo effect, but included for completeness)
+   */
+  private async waitForSelectorWithTracking(
+    selector: string,
+    operationId: string,
+    options?: { timeout?: number; visible?: boolean }
+  ): Promise<void> {
+    if (!this.page) throw new Error("Page not initialized");
+
+    logger.debug(`Wait for selector: ${operationId}`, { selector, options });
+
+    await this.page.waitForSelector(selector, {
+      timeout: options?.timeout || config.puppeteer.timeout,
+      visible: options?.visible,
+    });
+  }
+
+  // ============================================================================
+  // END OPTIMIZED OPERATION WRAPPERS
+  // ============================================================================
 
   private async runOp<T>(
     name: string,
@@ -1245,6 +1396,7 @@ export class ArchibaldBot {
           return puppeteer.launch({
             headless: config.puppeteer.headless,
             slowMo: config.puppeteer.slowMo,
+            protocolTimeout: 240000, // 4 minutes - prevents deleteCookies timeout issues
             args: [
               "--no-sandbox",
               "--disable-setuid-sandbox",
@@ -1318,59 +1470,15 @@ export class ArchibaldBot {
       logger.info(`Using config credentials for legacy login`, { username });
     }
 
-    // Try to restore session from persistent cache (daily expiration)
-    let cachedCookies: any[] | null = null;
-
-    if (this.userId && this.multiUserSessionCache) {
-      // Multi-user mode: load per-user session
-      cachedCookies = await this.multiUserSessionCache.loadSession(this.userId);
-    } else if (this.legacySessionCache) {
-      // Legacy mode: load single-user session
-      cachedCookies = this.legacySessionCache.loadSession();
-    }
-
-    if (cachedCookies && cachedCookies.length > 0) {
-      logger.info("Attempting to restore session from persistent cache...");
-      try {
-        await this.page.setCookie(...cachedCookies);
-        await this.page.goto(`${config.archibald.url}/Default.aspx`, {
-          waitUntil: "networkidle2",
-          timeout: 10000,
-        });
-
-        // Verify we're still logged in
-        const currentUrl = this.page.url();
-        if (!currentUrl.includes("Login.aspx")) {
-          logger.info("✅ Session restored successfully from persistent cache");
-          return;
-        }
-
-        logger.info(
-          "Session expired, clearing cache and performing fresh login",
-        );
-
-        // Clear the appropriate cache
-        if (this.userId && this.multiUserSessionCache) {
-          this.multiUserSessionCache.clearSession(this.userId);
-        } else if (this.legacySessionCache) {
-          this.legacySessionCache.clearSession();
-        }
-      } catch (error) {
-        logger.warn(
-          "Failed to restore session from cache, performing fresh login",
-          {
-            error,
-          },
-        );
-
-        // Clear the appropriate cache
-        if (this.userId && this.multiUserSessionCache) {
-          this.multiUserSessionCache.clearSession(this.userId);
-        } else if (this.legacySessionCache) {
-          this.legacySessionCache.clearSession();
-        }
-      }
-    }
+    // FRESH BROWSER STRATEGY - No session caching
+    // After extensive testing, session caching causes instability:
+    // - Browser hangs on about:blank when reusing contexts
+    // - deleteCookies timeouts even with 240s protocolTimeout
+    // - Validation adds complexity without reliability gains
+    //
+    // Fresh login takes ~75s but is 100% reliable
+    // PasswordCache already avoids user re-authentication
+    logger.info("Using fresh login (no session cache - max reliability)");
 
     const loginUrl = `${config.archibald.url}/Login.aspx?ReturnUrl=%2fArchibald%2fDefault.aspx`;
 
@@ -1581,16 +1689,7 @@ export class ArchibaldBot {
       ) {
         logger.info("Login riuscito!", { url: currentUrl });
 
-        // Save session cookies to persistent cache
-        const cookies = await this.page.cookies();
-
-        if (this.userId && this.multiUserSessionCache) {
-          // Multi-user mode: save to per-user cache
-          await this.multiUserSessionCache.saveSession(this.userId, cookies);
-        } else if (this.legacySessionCache) {
-          // Legacy single-user mode
-          this.legacySessionCache.saveSession(cookies);
-        }
+        // Session saving disabled - fresh browser strategy for max reliability
       } else {
         throw new Error("Login fallito: ancora sulla pagina di login");
       }
@@ -1801,13 +1900,35 @@ export class ArchibaldBot {
           const urlBefore = this.page!.url();
           logger.debug(`URL before click: ${urlBefore}`);
 
-          const clicked = await this.clickElementByText("Nuovo", {
-            exact: true,
-            selectors: ["button", "a", "span"],
+          // Try to click using DOM click() which is more reliable for JavaScript handlers
+          const clickResult = await this.page!.evaluate(() => {
+            const elements = Array.from(document.querySelectorAll('a, button, span'));
+            const nuovoBtn = elements.find(el =>
+              el.textContent?.trim() === "Nuovo" &&
+              el.getAttribute('title')?.includes('Ordini')
+            ) as HTMLElement;
+
+            if (nuovoBtn) {
+              nuovoBtn.click();
+              return {
+                clicked: true,
+                html: nuovoBtn.outerHTML.substring(0, 200)
+              };
+            }
+            return { clicked: false, html: '' };
           });
 
-          if (!clicked) {
-            throw new Error('Button "Nuovo" not found');
+          if (clickResult.clicked) {
+            logger.info(`Found and clicked Nuovo button via DOM: ${clickResult.html}`);
+          } else {
+            logger.warn("DOM click failed, trying Puppeteer click...");
+            const puppeteerClicked = await this.clickElementByText("Nuovo", {
+              exact: true,
+              selectors: ["button", "a", "span"],
+            });
+            if (!puppeteerClicked) {
+              throw new Error('Button "Nuovo" not found');
+            }
           }
 
           logger.debug("Waiting for navigation after Nuovo click...");
