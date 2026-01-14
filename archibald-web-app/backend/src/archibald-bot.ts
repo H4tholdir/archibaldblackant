@@ -21,6 +21,7 @@ export class ArchibaldBot {
   private sessionCache: SessionCacheManager;
   private opSeq = 0;
   private lastOpEndNs: bigint | null = null;
+  private hasError = false;
   private opRecords: Array<{
     id: number;
     name: string;
@@ -5777,9 +5778,10 @@ export class ArchibaldBot {
     if (this.userId && this.context) {
       // Multi-user mode: release context to pool
       const pool = BrowserPool.getInstance();
-      await pool.releaseContext(this.userId, this.context, true);
+      // Release with success=false if there were errors, so pool closes the context
+      await pool.releaseContext(this.userId, this.context, !this.hasError);
       this.context = null;
-      logger.info(`Context released for user ${this.userId}`);
+      logger.info(`Context released for user ${this.userId}, success=${!this.hasError}`);
     } else if (this.browser) {
       // Legacy mode: close browser
       await this.browser.close();

@@ -232,6 +232,10 @@ export class QueueManager {
         timestamp: Date.now(),
       };
     } catch (error) {
+      // Mark bot as having error so context will be closed on release
+      if (bot) {
+        (bot as any).hasError = true;
+      }
       logger.error('Errore durante creazione ordine', {
         error,
         jobId: job.id,
