@@ -3,6 +3,7 @@ import './App.css';
 import { useAuth } from './hooks/useAuth';
 import { LoginModal } from './components/LoginModal';
 import { PinSetupWizard } from './components/PinSetupWizard';
+import { UnlockScreen } from './components/UnlockScreen';
 import OrderForm from './components/OrderForm';
 import OrderStatus from './components/OrderStatus';
 import OrdersList from './components/OrdersList';
@@ -14,6 +15,7 @@ function App() {
   const [jobId, setJobId] = useState<string | null>(null);
   const [view, setView] = useState<'form' | 'status' | 'orders-list'>('form');
   const [tempCredentials, setTempCredentials] = useState<{ username: string; password: string } | null>(null);
+  const [showLoginForm, setShowLoginForm] = useState(false);
 
   const handleOrderCreated = (newJobId: string) => {
     setJobId(newJobId);
@@ -43,8 +45,36 @@ function App() {
     );
   }
 
+  // Determine which screen to show for non-authenticated users
+  const showUnlock = !auth.isAuthenticated && !auth.isLoading && auth.lastUser && !showLoginForm;
+  const showLogin = !auth.isAuthenticated && !auth.isLoading && (!auth.lastUser || showLoginForm);
+
+  // Show unlock screen if lastUser exists
+  if (showUnlock && auth.lastUser) {
+    return (
+      <UnlockScreen
+        userId={auth.lastUser.userId}
+        fullName={auth.lastUser.fullName}
+        onUnlock={auth.unlockWithPin}
+        onForgotPin={async () => {
+          const confirmed = window.confirm(
+            'Cancellare le credenziali salvate? Dovrai inserire di nuovo username e password Archibald.'
+          );
+          if (confirmed) {
+            await auth.clearLastUser();
+            setShowLoginForm(true);
+          }
+        }}
+        onSwitchAccount={() => {
+          auth.switchAccount();
+          setShowLoginForm(true);
+        }}
+      />
+    );
+  }
+
   // Show login modal if not authenticated
-  if (!auth.isAuthenticated) {
+  if (showLogin) {
     const handleLogin = async (username: string, password: string, rememberCredentials: boolean) => {
       const success = await auth.login(username, password, rememberCredentials);
       if (success && rememberCredentials) {
