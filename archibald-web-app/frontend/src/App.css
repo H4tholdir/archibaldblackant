@@ -1761,3 +1761,70 @@
   color: #ccc;
   cursor: not-allowed;
 }
+
+/* Biometric Unlock */
+.biometric-area {
+  margin: 2rem 0;
+  text-align: center;
+}
+
+.biometric-button {
+  width: 100%;
+  padding: 1rem;
+  font-size: 1.1rem;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  border: none;
+  border-radius: 12px;
+  cursor: pointer;
+  transition: transform 0.2s, box-shadow 0.2s;
+  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+}
+
+.biometric-button:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 16px rgba(102, 126, 234, 0.4);
+}
+
+.biometric-button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.unlock-divider {
+  margin: 1.5rem 0;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  color: #999;
+  font-size: 0.9rem;
+}
+
+.unlock-divider::before,
+.unlock-divider::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: #ddd;
+}
+
+.use-pin-button {
+  background: transparent;
+  border: 2px solid #667eea;
+  color: #667eea;
+  padding: 0.75rem 2rem;
+  border-radius: 8px;
+  font-size: 1rem;
+  cursor: pointer;
+  transition: background-color 0.2s, color 0.2s;
+}
+
+.use-pin-button:hover:not(:disabled) {
+  background-color: #667eea;
+  color: white;
+}
+
+.use-pin-button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}

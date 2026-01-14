@@ -1,5 +1,7 @@
 import { useState, useEffect } from 'react';
 import { PinInput } from './PinInput';
+import { getBiometricAuth } from '../services/biometric-auth';
+import { getCredentialStore } from '../services/credential-store';
 
 interface UnlockScreenProps {
   userId: string;
@@ -20,34 +22,97 @@ export function UnlockScreen({
   const [error, setError] = useState('');
   const [isUnlocking, setIsUnlocking] = useState(false);
   const [attempts, setAttempts] = useState(0);
+  const [showPinInput, setShowPinInput] = useState(false); // PIN fallback toggle
+  const [biometricAvailable, setBiometricAvailable] = useState(false);
+  const [biometricLabel, setBiometricLabel] = useState('');
 
+  // Check biometric availability on mount
   useEffect(() => {
-    // Auto-submit when PIN complete
-    if (pin.length === 6 && !isUnlocking) {
-      handleUnlock();
-    }
-  }, [pin]);
+    const checkBiometric = async () => {
+      const bioAuth = getBiometricAuth();
+      const capability = await bioAuth.checkAvailability();
 
-  const handleUnlock = async () => {
+      if (capability.available) {
+        // Also check if user has biometric registered
+        const credStore = getCredentialStore();
+        await credStore.initialize();
+        const hasBio = await credStore.hasBiometricCredential(userId);
+
+        if (hasBio) {
+          setBiometricAvailable(true);
+          setBiometricLabel(capability.platformLabel);
+        } else {
+          // Biometric supported but not registered → show PIN only
+          setShowPinInput(true);
+        }
+      } else {
+        // Biometric not supported → show PIN only
+        setShowPinInput(true);
+      }
+    };
+
+    checkBiometric();
+  }, [userId]);
+
+  const handleBiometricUnlock = async () => {
     setIsUnlocking(true);
     setError('');
 
     try {
-      // Import CredentialStore
-      const { getCredentialStore } = await import('../services/credential-store');
       const credStore = getCredentialStore();
       await credStore.initialize();
 
-      // Decrypt credentials with PIN
+      // Attempt biometric unlock
+      const credentials = await credStore.getCredentialsWithBiometric(userId);
+
+      if (!credentials) {
+        // Biometric failed → show PIN fallback
+        setError('Autenticazione biometrica fallita. Usa il PIN.');
+        setShowPinInput(true);
+        setIsUnlocking(false);
+        return;
+      }
+
+      // Credentials decrypted, attempt auto-login
+      const loginSuccess = await onUnlock(
+        credentials.username,
+        credentials.password
+      );
+
+      if (!loginSuccess) {
+        setError('Errore durante il login. Verifica la connessione.');
+        setShowPinInput(true);
+        setIsUnlocking(false);
+        return;
+      }
+
+      // Success
+    } catch (err) {
+      setError('Errore imprevisto. Usa il PIN.');
+      setShowPinInput(true);
+      setIsUnlocking(false);
+    }
+  };
+
+  const handlePinUnlock = async () => {
+    // Existing PIN unlock logic from Plan 07-04
+    setIsUnlocking(true);
+    setError('');
+
+    try {
+      const credStore = getCredentialStore();
+      await credStore.initialize();
+
       const credentials = await credStore.getCredentials(userId, pin);
 
       if (!credentials) {
-        // Wrong PIN or decryption failed
         const newAttempts = attempts + 1;
         setAttempts(newAttempts);
 
         if (newAttempts >= 3) {
-          setError('Troppi tentativi errati. Usa "PIN dimenticato?" per reimpostare.');
+          setError(
+            'Troppi tentativi errati. Usa "PIN dimenticato?" per reimpostare.'
+          );
         } else if (newAttempts === 2) {
           setError('PIN errato. Ultimo tentativo rimanente.');
         } else {
@@ -59,8 +124,10 @@ export function UnlockScreen({
         return;
       }
 
-      // Credentials decrypted, attempt auto-login
-      const loginSuccess = await onUnlock(credentials.username, credentials.password);
+      const loginSuccess = await onUnlock(
+        credentials.username,
+        credentials.password
+      );
 
       if (!loginSuccess) {
         setError('Errore durante il login. Verifica la connessione.');
@@ -68,8 +135,6 @@ export function UnlockScreen({
         setIsUnlocking(false);
         return;
       }
-
-      // Success - onUnlock handles navigation
     } catch (err) {
       setError('Errore imprevisto. Riprova.');
       setPin('');
@@ -77,32 +142,64 @@ export function UnlockScreen({
     }
   };
 
+  // Auto-submit PIN when complete
+  useEffect(() => {
+    if (pin.length === 6 && !isUnlocking && showPinInput) {
+      handlePinUnlock();
+    }
+  }, [pin]);
+
   return (
     <div className="unlock-screen">
       <div className="unlock-container">
         <div className="unlock-logo">
-          {/* App logo placeholder */}
           <div className="logo-circle">A</div>
         </div>
 
         <div className="unlock-greeting">
           <h2>Bentornato, {fullName.split(' ')[0]}!</h2>
-          <p className="unlock-subtitle">Inserisci il PIN per accedere</p>
+          <p className="unlock-subtitle">
+            {biometricAvailable && !showPinInput
+              ? `Sblocca con ${biometricLabel}`
+              : 'Inserisci il PIN per accedere'}
+          </p>
         </div>
 
-        <div className="unlock-pin-area">
-          <PinInput
-            value={pin}
-            onChange={setPin}
-            autoFocus
-          />
-        </div>
+        {/* Biometric Button (mobile only, when available and not in PIN fallback) */}
+        {biometricAvailable && !showPinInput && (
+          <div className="biometric-area">
+            <button
+              onClick={handleBiometricUnlock}
+              disabled={isUnlocking}
+              className="biometric-button"
+            >
+              🔓 Sblocca con {biometricLabel}
+            </button>
+
+            <div className="unlock-divider">
+              <span>oppure</span>
+            </div>
+
+            <button
+              onClick={() => setShowPinInput(true)}
+              disabled={isUnlocking}
+              className="use-pin-button"
+            >
+              Usa PIN
+            </button>
+          </div>
+        )}
+
+        {/* PIN Input (always available when showPinInput=true or no biometric) */}
+        {showPinInput && (
+          <div className="unlock-pin-area">
+            <PinInput value={pin} onChange={setPin} autoFocus />
+          </div>
+        )}
 
         {error && <div className="unlock-error">{error}</div>}
 
-        {isUnlocking && (
-          <div className="unlock-loading">Accesso in corso...</div>
-        )}
+        {isUnlocking && <div className="unlock-loading">Accesso in corso...</div>}
 
         <div className="unlock-actions">
           <button
