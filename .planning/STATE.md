@@ -9,20 +9,20 @@ See: .planning/PROJECT.md (updated 2026-01-11)
 
 ## Current Position
 
-Phase: 8 of 12 (Offline Capability) 🚧 IN PROGRESS
-Plan: 7 of 8 complete
-Status: Completed Plan 08-07 (Offline Order Queue with Automatic Sync)
-Last activity: 2026-01-14 — Completed Plan 08-07
-Start time: 2026-01-14 22:26 → End time: 2026-01-14 23:46
+Phase: 8 of 12 (Offline Capability) ✅ COMPLETE
+Plan: 8 of 8 complete
+Status: Completed Plan 08-08 (Stale Data Warning & Force Refresh)
+Last activity: 2026-01-15 — Completed Plan 08-08 and Phase 8
+Start time: 2026-01-15 00:00 → End time: 2026-01-15 00:20
 
-Progress: ███████░ 87.5% Phase 8 (7/8 plans complete)
+Progress: ████████ 100% Phase 8 (8/8 plans complete) ✅
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 51
-- Average duration: 59 min
-- Total execution time: 55.67 hours
+- Total plans completed: 52
+- Average duration: 58 min
+- Total execution time: 56.00 hours
 
 **By Phase:**
 
@@ -36,11 +36,11 @@ Progress: ███████░ 87.5% Phase 8 (7/8 plans complete)
 | 4.1 | 4 | 233 min | 58 min |
 | 6 | 7 | 209 min | 30 min |
 | 7 | 6 | 243 min | 41 min |
-| 8 | 7 | 184 min | 26 min |
+| 8 | 8 | 204 min | 26 min |
 
 **Recent Trend:**
-- Last 7 plans: 08-02 (25m), 08-03 (15m), 08-04 (22m), 08-05 (11m), 08-06 (11m), 08-07 (80m)
-- Trend: Plan 08-07 longer due to debugging (API schema mismatch), but delivered robust solution
+- Last 7 plans: 08-03 (15m), 08-04 (22m), 08-05 (11m), 08-06 (11m), 08-07 (80m), 08-08 (20m)
+- Trend: Phase 8 complete with consistent velocity except 08-07 (debugging), average 26min/plan
 
 ## Accumulated Context
 
@@ -51,6 +51,10 @@ Recent decisions affecting current work:
 
 | Phase | Decision | Rationale |
 |-------|----------|-----------|
+| 08-08 | 3-day threshold for stale cache warning | Balances data freshness with user workflow interruption, matches 08-CONTEXT.md requirements |
+| 08-08 | Explicit confirmation required for stale data | User choice not blocking, informed decision with "Continua comunque" option |
+| 08-08 | Force refresh available anytime from header | Proactive cache updates, not just reactive to stale warning, always accessible |
+| 08-08 | Progress indicator for manual refresh | Transparency during sync operation, matches Plan 08-07 UX patterns |
 | 08-07 | PendingOrder stores complete API-compliant order data | Direct API compatibility eliminates transformation logic, preserves all user data, enables future features (preview queue, edit pending), simpler sync (pass-through vs reconstruction) |
 | 08-07 | Database migration v2 clears incompatible pending orders | Schema change incompatible with old records, simpler than data migration, acceptable for pilot phase with no production data |
 | 08-07 | Sync immediately when isOnline changes false→true | Minimizes delay between connectivity restore and order submission, simple implementation, users expect immediate action |
