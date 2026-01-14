@@ -1,6 +1,64 @@
 import { db } from './schema';
 
 /**
+ * Initialize database and handle errors
+ */
+export async function initializeDatabase(): Promise<{
+  success: boolean;
+  error?: string;
+}> {
+  try {
+    // Check IndexedDB support
+    if (!isIndexedDBSupported()) {
+      return {
+        success: false,
+        error: 'IndexedDB non supportato in questo browser'
+      };
+    }
+
+    // Open database (triggers schema creation if needed)
+    await db.open();
+
+    console.log('[IndexedDB] Database initialized successfully');
+    console.log('[IndexedDB] Database version:', db.verno);
+
+    // Log storage quota
+    const quota = await getStorageQuota();
+    console.log(
+      '[IndexedDB] Storage:',
+      `${quota.used}MB / ${quota.available}MB (${quota.percentage}%)`
+    );
+
+    return { success: true };
+  } catch (error) {
+    console.error('[IndexedDB] Initialization failed:', error);
+
+    // Handle common errors
+    if (error instanceof Error) {
+      if (error.name === 'QuotaExceededError') {
+        return {
+          success: false,
+          error:
+            'Spazio di archiviazione insufficiente. Libera spazio sul dispositivo.'
+        };
+      }
+
+      if (error.name === 'VersionError') {
+        return {
+          success: false,
+          error: "Errore di versione database. Prova a ricaricare l'app."
+        };
+      }
+    }
+
+    return {
+      success: false,
+      error: 'Errore imprevisto durante inizializzazione database'
+    };
+  }
+}
+
+/**
  * Check if IndexedDB is supported
  */
 export function isIndexedDBSupported(): boolean {
@@ -70,3 +128,38 @@ export async function getCacheFreshness(): Promise<Map<string, Date>> {
 
   return freshness;
 }
+
+/**
+ * Handle database upgrade (version migration)
+ */
+db.on('ready', async () => {
+  console.log('[IndexedDB] Database ready');
+
+  // Log current record counts
+  const counts = {
+    customers: await db.customers.count(),
+    products: await db.products.count(),
+    variants: await db.productVariants.count(),
+    prices: await db.prices.count(),
+    drafts: await db.draftOrders.count(),
+    pending: await db.pendingOrders.count()
+  };
+
+  console.log('[IndexedDB] Record counts:', counts);
+});
+
+/**
+ * Handle database errors
+ */
+db.on('blocked', () => {
+  console.warn(
+    '[IndexedDB] Database blocked - another tab may be using an older version'
+  );
+});
+
+db.on('versionchange', () => {
+  console.warn(
+    '[IndexedDB] Database version changed - reload recommended'
+  );
+  db.close();
+});
