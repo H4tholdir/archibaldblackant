@@ -10,18 +10,18 @@ See: .planning/PROJECT.md (updated 2026-01-11)
 ## Current Position
 
 Phase: 6 of 12 (Multi-User Authentication) 🚧 IN PROGRESS
-Plan: 4 of 7 complete
-Status: EXECUTING - Plan 06-04 complete, ready for Plan 06-05
-Last activity: 2026-01-14 — Completed Plan 06-04 (Login UI & Frontend Auth State), implemented frontend authentication with LoginModal and JWT persistence
+Plan: 5 of 7 complete
+Status: EXECUTING - Plan 06-05 complete, ready for Plan 06-06
+Last activity: 2026-01-14 — Completed Plan 06-05 (Refactor BrowserPool for Multi-User Sessions), implemented per-user BrowserContexts and session isolation
 
-Progress: █████████░ 44% (36/38 plans complete - Phase 6 Plans 1-4 ✅)
+Progress: █████████░ 45% (37/38 plans complete - Phase 6 Plans 1-5 ✅)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 36
-- Average duration: 72 min (1h 12m)
-- Total execution time: 43.42 hours
+- Total plans completed: 37
+- Average duration: 70 min (1h 10m)
+- Total execution time: 43.84 hours
 
 **By Phase:**
 
@@ -33,11 +33,11 @@ Progress: █████████░ 44% (36/38 plans complete - Phase 6 Pla
 | 3.1 | 3 | 350 min | 117 min |
 | 4 | 3 | 285 min | 95 min |
 | 4.1 | 4 | 233 min | 58 min |
-| 6 | 4 | 169 min | 42 min |
+| 6 | 5 | 194 min | 39 min |
 
 **Recent Trend:**
-- Last 7 plans: 04.1-02 (120m), 04.1-03 (15m), 04.1-04 (73m), 06-01 (45m), 06-02 (90m), 06-03 (4m), 06-04 (30m)
-- Trend: Phase 6 executing efficiently, average 42 min/plan
+- Last 7 plans: 04.1-03 (15m), 04.1-04 (73m), 06-01 (45m), 06-02 (90m), 06-03 (4m), 06-04 (30m), 06-05 (25m)
+- Trend: Phase 6 executing very efficiently, average 39 min/plan
 
 ## Accumulated Context
 
@@ -48,6 +48,11 @@ Recent decisions affecting current work:
 
 | Phase | Decision | Rationale |
 |-------|----------|-----------|
+| 06-05 | Session storage: File-based per-user cache | Simple .cache/session-{userId}.json files, no external dependencies, 24h TTL |
+| 06-05 | Context lifecycle: Persistent until logout/error | Create on first acquire, keep for reuse (maximize performance) |
+| 06-05 | Cookie isolation: BrowserContext API guarantee | Puppeteer guarantees complete isolation per BrowserContext |
+| 06-05 | Backwards compatibility: Legacy mode preserved | No userId = single-user mode (existing code continues to work) |
+| 06-05 | Memory efficiency: Shared Browser architecture | 5x improvement (300MB vs 1.5GB for 10 users) via single Browser + multiple contexts |
 | 06-02 | UUID v4 for user IDs | Consistent with project patterns (customer-db, product-db), globally unique |
 | 06-02 | Boolean whitelisted field stored as INTEGER in SQLite | SQLite compatibility, converted to boolean in rowToUser() method |
 | 06-02 | Default whitelisted: true for new users | All users start with access, admin can revoke via PATCH endpoint |
@@ -396,6 +401,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-01-14 (early morning)
-Stopped at: Completed Plan 06-04 (Login UI & Frontend Auth State), implemented frontend authentication with LoginModal, useAuth hook, and JWT persistence
-Next: Execute Plan 06-05 (Refactor BrowserPool for Multi-User Sessions) with `/gsd:execute-plan .planning/phases/06-multi-user-authentication/06-05-PLAN.md`
+Last session: 2026-01-14 (morning)
+Stopped at: Completed Plan 06-05 (Refactor BrowserPool for Multi-User Sessions), implemented per-user BrowserContexts, SessionCacheManager, and ArchibaldBot userId support
+Next: Execute Plan 06-06 (Integrate User Sessions in Order Flow) - pass userId from JWT to QueueManager and bot initialization
