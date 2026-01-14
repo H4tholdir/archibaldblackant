@@ -1,5 +1,5 @@
 import { db } from '../db/schema';
-import type { Customer, Product, ProductVariant, Price } from '../db/schema';
+import type { Customer, Product, ProductVariant } from '../db/schema';
 
 export interface ProductWithDetails extends Product {
   variants: ProductVariant[];

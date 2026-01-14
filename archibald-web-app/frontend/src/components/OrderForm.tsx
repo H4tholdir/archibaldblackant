@@ -20,6 +20,7 @@ import { SmartSuggestions } from "./SmartSuggestions";
 import { CustomerSuggestions } from "./CustomerSuggestions";
 import { VoicePopulatedBadge } from "./VoicePopulatedBadge";
 import { VoiceDebugPanel, useVoiceDebugLogger } from "./VoiceDebugPanel";
+import { cacheService } from "../services/cache-service";
 
 interface Customer {
   id: string;
@@ -138,6 +139,10 @@ export default function OrderForm({ token, onOrderCreated }: OrderFormProps) {
     );
     return count < 3; // Show hint for first 3 uses
   });
+
+  // Cache freshness tracking
+  const [cacheAge, setCacheAge] = useState<number | null>(null);
+  const [cacheStale, setCacheStale] = useState(false);
 
   // Voice input hook
   const {
@@ -402,25 +407,47 @@ export default function OrderForm({ token, onOrderCreated }: OrderFormProps) {
     }
   }, [transcript, showVoiceModal]);
 
-  // Fetch customers on mount - run only once
+  // Check cache freshness on mount
+  useEffect(() => {
+    async function checkCache() {
+      const age = await cacheService.getCacheAge();
+      const stale = await cacheService.isCacheStale();
+      setCacheAge(age);
+      setCacheStale(stale);
+    }
+    checkCache();
+  }, []);
+
+  // Fetch customers from cache on mount
   useEffect(() => {
     let isMounted = true;
 
-    const fetchCustomers = async () => {
+    const loadCustomersFromCache = async () => {
       if (customersLoaded) return; // Already loaded
 
       setLoadingCustomers(true);
       try {
-        const response = await fetch("/api/customers");
-        const data = await response.json();
+        // Load all customers from cache (fast - IndexedDB)
+        const cachedCustomers = await cacheService.searchCustomers('', 10000); // Large limit to get all
 
         if (!isMounted) return;
 
-        if (data.success) {
-          setCustomers(data.data);
+        if (cachedCustomers.length > 0) {
+          setCustomers(cachedCustomers);
           setCustomersLoaded(true);
         } else {
-          console.error("Errore dal server:", data.error);
+          // Fallback to API if cache is empty
+          const response = await fetch("/api/customers");
+          const data = await response.json();
+
+          if (!isMounted) return;
+
+          if (data.success) {
+            setCustomers(data.data);
+            setCustomersLoaded(true);
+          } else {
+            console.error("Errore dal server:", data.error);
+          }
         }
       } catch (error) {
         if (!isMounted) return;
@@ -432,7 +459,7 @@ export default function OrderForm({ token, onOrderCreated }: OrderFormProps) {
       }
     };
 
-    fetchCustomers();
+    loadCustomersFromCache();
 
     return () => {
       isMounted = false;
@@ -514,7 +541,7 @@ export default function OrderForm({ token, onOrderCreated }: OrderFormProps) {
     setShowProductDropdown(false);
   };
 
-  // Product search handler with dynamic fetch
+  // Product search handler with cache service
   const handleProductSearchChange = async (
     e: React.ChangeEvent<HTMLInputElement>,
   ) => {
@@ -528,20 +555,26 @@ export default function OrderForm({ token, onOrderCreated }: OrderFormProps) {
       quantity: false,
     }));
 
-    // If user types at least 2 characters, fetch matching products
+    // If user types at least 2 characters, search from cache
     if (searchValue.length >= 2) {
       setLoadingProducts(true);
       setShowProductDropdown(false); // Hide while loading
       try {
-        const response = await fetch(
-          `/api/products?search=${encodeURIComponent(searchValue)}&limit=50`,
-        );
-        const data = await response.json();
+        // Search from cache (< 100ms performance)
+        const cachedProducts = await cacheService.searchProducts(searchValue, 50);
 
-        if (data.success) {
-          setProducts(data.data.products);
-          setShowProductDropdown(true);
-        }
+        // Map ProductWithDetails to Product interface for display
+        const mappedProducts = cachedProducts.map(p => ({
+          id: p.id,
+          name: p.name,
+          description: p.description,
+          groupCode: undefined,
+          price: p.price,
+          packageContent: p.variants[0]?.packageContent
+        }));
+
+        setProducts(mappedProducts);
+        setShowProductDropdown(true);
       } catch (error) {
         console.error("Errore ricerca prodotti:", error);
       } finally {
@@ -1109,6 +1142,22 @@ export default function OrderForm({ token, onOrderCreated }: OrderFormProps) {
 
   return (
     <form onSubmit={handleSubmit}>
+      {/* Cache Freshness Indicator */}
+      {cacheAge !== null && (
+        <div style={{
+          fontSize: '12px',
+          color: cacheStale ? '#f57c00' : '#666',
+          marginBottom: '8px',
+          padding: '8px 12px',
+          backgroundColor: cacheStale ? '#fff3e0' : '#f5f5f5',
+          borderRadius: '4px',
+          border: `1px solid ${cacheStale ? '#ffb74d' : '#e0e0e0'}`
+        }}>
+          {cacheStale ? '⚠️' : 'ℹ️'} Dati aggiornati {Math.round(cacheAge)} ore fa
+          {cacheStale && ' (aggiornamento consigliato)'}
+        </div>
+      )}
+
       {/* Voice Input Modal */}
       {showVoiceModal && (
         <div className="voice-modal-overlay" onClick={handleVoiceCancel}>
