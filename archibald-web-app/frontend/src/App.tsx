@@ -9,6 +9,7 @@ import OrderStatus from './components/OrderStatus';
 import OrdersList from './components/OrdersList';
 import SyncBanner from './components/SyncBanner';
 import SyncBars from './components/SyncBars';
+import { CacheSyncProgress } from './components/CacheSyncProgress';
 
 function App() {
   const auth = useAuth();
@@ -164,6 +165,9 @@ function App() {
       <footer className="app-footer">
         <p>v1.0.0 • Fresis Team</p>
       </footer>
+
+      {/* Cache sync progress bar */}
+      <CacheSyncProgress />
     </div>
   );
 }
