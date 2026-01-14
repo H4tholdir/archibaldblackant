@@ -1325,6 +1325,33 @@ app.get(
   },
 );
 
+// Get user's orders endpoint - Protected with JWT
+app.get(
+  "/api/orders/my-orders",
+  authenticateJWT,
+  async (req: AuthRequest, res: Response<ApiResponse>) => {
+    try {
+      const userId = req.user!.userId;
+
+      const userJobs = await queueManager.getUserJobs(userId);
+
+      logger.info(`Fetched ${userJobs.length} orders for user ${userId}`);
+
+      res.json({
+        success: true,
+        data: userJobs,
+      });
+    } catch (error) {
+      logger.error("Errore API /api/orders/my-orders", { error });
+
+      res.status(500).json({
+        success: false,
+        error: error instanceof Error ? error.message : "Errore sconosciuto",
+      });
+    }
+  },
+);
+
 // Get queue stats endpoint
 app.get(
   "/api/queue/stats",
@@ -1409,8 +1436,10 @@ server.listen(config.server.port, async () => {
   // Avvia session cleanup job (ogni ora)
   sessionCleanup.start();
 
-  // SCHEDULER SYNC GIORNALIERO ALLE 12:00
-  // Calcola quando sarà il prossimo mezzogiorno
+  // SCHEDULER SYNC GIORNALIERO DISABILITATO
+  // Sync manuale disponibile tramite API endpoint /api/sync/*
+  // Automatic sync disabled to prevent global lock issues
+  /*
   const scheduleNextSync = () => {
     const now = new Date();
     const next12PM = new Date();
@@ -1464,6 +1493,8 @@ server.listen(config.server.port, async () => {
   // Avvia lo scheduler
   scheduleNextSync();
   logger.info("✅ Sync automatico giornaliero configurato (ore 12:00)");
+  */
+  logger.info("ℹ️ Sync automatico disabilitato - solo sync manuale via API");
 });
 
 // Graceful shutdown
