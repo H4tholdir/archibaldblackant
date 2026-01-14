@@ -19,7 +19,8 @@ export class ArchibaldBot {
   public page: Page | null = null;
   private userId: string | null = null;
   private productDb: ProductDatabase;
-  private sessionCache: SessionCacheManager;
+  private legacySessionCache: SessionCacheManager | null = null;
+  private multiUserSessionCache: MultiUserSessionCacheManager | null = null;
   private opSeq = 0;
   private lastOpEndNs: bigint | null = null;
   private hasError = false;
@@ -42,7 +43,15 @@ export class ArchibaldBot {
   constructor(userId?: string) {
     this.userId = userId || null;
     this.productDb = ProductDatabase.getInstance();
-    this.sessionCache = new SessionCacheManager();
+
+    // Use appropriate session cache based on mode
+    if (this.userId) {
+      // Multi-user mode: use per-user session cache
+      this.multiUserSessionCache = MultiUserSessionCacheManager.getInstance();
+    } else {
+      // Legacy mode: use single-user session cache
+      this.legacySessionCache = new SessionCacheManager();
+    }
   }
 
   private async runOp<T>(
@@ -1301,7 +1310,16 @@ export class ArchibaldBot {
     }
 
     // Try to restore session from persistent cache (daily expiration)
-    const cachedCookies = this.sessionCache.loadSession();
+    let cachedCookies: any[] | null = null;
+
+    if (this.userId && this.multiUserSessionCache) {
+      // Multi-user mode: load per-user session
+      cachedCookies = await this.multiUserSessionCache.loadSession(this.userId);
+    } else if (this.legacySessionCache) {
+      // Legacy mode: load single-user session
+      cachedCookies = this.legacySessionCache.loadSession();
+    }
+
     if (cachedCookies && cachedCookies.length > 0) {
       logger.info("Attempting to restore session from persistent cache...");
       try {
@@ -1321,7 +1339,13 @@ export class ArchibaldBot {
         logger.info(
           "Session expired, clearing cache and performing fresh login",
         );
-        this.sessionCache.clearSession();
+
+        // Clear the appropriate cache
+        if (this.userId && this.multiUserSessionCache) {
+          this.multiUserSessionCache.clearSession(this.userId);
+        } else if (this.legacySessionCache) {
+          this.legacySessionCache.clearSession();
+        }
       } catch (error) {
         logger.warn(
           "Failed to restore session from cache, performing fresh login",
@@ -1329,7 +1353,13 @@ export class ArchibaldBot {
             error,
           },
         );
-        this.sessionCache.clearSession();
+
+        // Clear the appropriate cache
+        if (this.userId && this.multiUserSessionCache) {
+          this.multiUserSessionCache.clearSession(this.userId);
+        } else if (this.legacySessionCache) {
+          this.legacySessionCache.clearSession();
+        }
       }
     }
 
@@ -1545,13 +1575,12 @@ export class ArchibaldBot {
         // Save session cookies to persistent cache
         const cookies = await this.page.cookies();
 
-        if (this.userId) {
+        if (this.userId && this.multiUserSessionCache) {
           // Multi-user mode: save to per-user cache
-          const multiUserCache = MultiUserSessionCacheManager.getInstance();
-          await multiUserCache.saveSession(this.userId, cookies);
-        } else {
+          await this.multiUserSessionCache.saveSession(this.userId, cookies);
+        } else if (this.legacySessionCache) {
           // Legacy single-user mode
-          this.sessionCache.saveSession(cookies);
+          this.legacySessionCache.saveSession(cookies);
         }
       } else {
         throw new Error("Login fallito: ancora sulla pagina di login");
