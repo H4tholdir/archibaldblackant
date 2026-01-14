@@ -3,6 +3,18 @@ import ReactDOM from 'react-dom/client';
 import App from './App';
 import './index.css';
 import { initializeDatabase } from './db/database';
+import { registerSW } from 'virtual:pwa-register';
+
+// Register service worker
+const updateSW = registerSW({
+  onNeedRefresh() {
+    console.log('[PWA] New content available, reload to update');
+    // Could show UI prompt here in future
+  },
+  onOfflineReady() {
+    console.log('[PWA] App ready to work offline');
+  }
+});
 
 // Initialize IndexedDB before rendering app
 initializeDatabase().then((result) => {
