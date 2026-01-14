@@ -21,6 +21,8 @@ import { CustomerSuggestions } from "./CustomerSuggestions";
 import { VoicePopulatedBadge } from "./VoicePopulatedBadge";
 import { VoiceDebugPanel, useVoiceDebugLogger } from "./VoiceDebugPanel";
 import { cacheService } from "../services/cache-service";
+import { draftService } from "../services/draft-service";
+import type { DraftOrderItem } from "../db/schema";
 
 interface Customer {
   id: string;
@@ -418,6 +420,60 @@ export default function OrderForm({ token, onOrderCreated }: OrderFormProps) {
     checkCache();
   }, []);
 
+  // Restore draft on mount
+  useEffect(() => {
+    async function restoreDraft() {
+      const draft = await draftService.getDraft();
+      if (draft && draft.items.length > 0) {
+        // Populate form with draft data
+        setCustomerId(draft.customerId);
+        setCustomerName(draft.customerName);
+        setCustomerSearch(draft.customerName);
+
+        // Convert DraftOrderItem[] to OrderItem[]
+        const orderItems: OrderItem[] = draft.items.map((item) => ({
+          articleCode: item.article,
+          productName: item.productName,
+          description: "",
+          quantity: item.quantity,
+          price: 0, // Will be populated by backend
+          discount: 0,
+        }));
+
+        setDraftItems(orderItems);
+        console.log("[Draft] Restored from", new Date(draft.updatedAt));
+      }
+    }
+    restoreDraft();
+  }, []);
+
+  // Auto-save draft with debounce
+  useEffect(() => {
+    // Only auto-save if we have a customer and items
+    if (!customerId || !customerName || draftItems.length === 0) {
+      return;
+    }
+
+    // Debounce: save after 1 second of inactivity
+    const timeoutId = setTimeout(() => {
+      // Convert OrderItem[] to DraftOrderItem[]
+      const draftOrderItems: DraftOrderItem[] = draftItems.map((item) => ({
+        productId: item.articleCode, // Use articleCode as productId
+        productName: item.productName,
+        article: item.articleCode,
+        variantId: "", // Not used in current flow
+        quantity: item.quantity,
+        packageContent: "",
+      }));
+
+      draftService.saveDraft(customerId, customerName, draftOrderItems);
+      console.log("[Draft] Auto-saved");
+    }, 1000);
+
+    // Cleanup: clear timeout if dependencies change
+    return () => clearTimeout(timeoutId);
+  }, [customerId, customerName, draftItems]);
+
   // Fetch customers from cache on mount
   useEffect(() => {
     let isMounted = true;
@@ -428,7 +484,7 @@ export default function OrderForm({ token, onOrderCreated }: OrderFormProps) {
       setLoadingCustomers(true);
       try {
         // Load all customers from cache (fast - IndexedDB)
-        const cachedCustomers = await cacheService.searchCustomers('', 10000); // Large limit to get all
+        const cachedCustomers = await cacheService.searchCustomers("", 10000); // Large limit to get all
 
         if (!isMounted) return;
 
@@ -561,16 +617,19 @@ export default function OrderForm({ token, onOrderCreated }: OrderFormProps) {
       setShowProductDropdown(false); // Hide while loading
       try {
         // Search from cache (< 100ms performance)
-        const cachedProducts = await cacheService.searchProducts(searchValue, 50);
+        const cachedProducts = await cacheService.searchProducts(
+          searchValue,
+          50,
+        );
 
         // Map ProductWithDetails to Product interface for display
-        const mappedProducts = cachedProducts.map(p => ({
+        const mappedProducts = cachedProducts.map((p) => ({
           id: p.id,
           name: p.name,
           description: p.description,
           groupCode: undefined,
           price: p.price,
-          packageContent: p.variants[0]?.packageContent
+          packageContent: p.variants[0]?.packageContent,
         }));
 
         setProducts(mappedProducts);
@@ -582,7 +641,10 @@ export default function OrderForm({ token, onOrderCreated }: OrderFormProps) {
         // Mantieni focus sull'input dopo il caricamento - CRITICAL FIX
         // Use requestAnimationFrame to ensure DOM is updated before refocusing
         requestAnimationFrame(() => {
-          if (productInputRef.current && document.activeElement !== productInputRef.current) {
+          if (
+            productInputRef.current &&
+            document.activeElement !== productInputRef.current
+          ) {
             productInputRef.current.focus();
           }
         });
@@ -696,7 +758,7 @@ export default function OrderForm({ token, onOrderCreated }: OrderFormProps) {
     // Subtotale articoli (senza IVA, senza sconto)
     const subtotalItems = draftItems.reduce(
       (sum, item) => sum + item.price * item.quantity,
-      0
+      0,
     );
 
     // Calcola spese spedizione
@@ -753,8 +815,7 @@ export default function OrderForm({ token, onOrderCreated }: OrderFormProps) {
     }
 
     const subtotalAfterDiscount = subtotalAfterVATAndShipping / (1 + VAT_RATE);
-    const discountPercent =
-      100 * (1 - subtotalAfterDiscount / subtotalItems);
+    const discountPercent = 100 * (1 - subtotalAfterDiscount / subtotalItems);
 
     // Validazione: sconto deve essere tra 0% e 100%
     if (discountPercent < 0) {
@@ -778,7 +839,7 @@ export default function OrderForm({ token, onOrderCreated }: OrderFormProps) {
         discountPercent: 0,
         subtotalAfterDiscount: subtotalItems,
         totalWithVAT: subtotalItems * (1 + VAT_RATE) + shippingWithVAT,
-        error: `Il totale desiderato (€${targetTotal.toFixed(2)}) è troppo basso. Minimo possibile: €${(shippingWithVAT).toFixed(2)}`,
+        error: `Il totale desiderato (€${targetTotal.toFixed(2)}) è troppo basso. Minimo possibile: €${shippingWithVAT.toFixed(2)}`,
       };
     }
 
@@ -812,15 +873,18 @@ export default function OrderForm({ token, onOrderCreated }: OrderFormProps) {
       const response = await fetch("/api/orders/create", {
         method: "POST",
         headers: {
-          "Authorization": `Bearer ${token}`,
+          Authorization: `Bearer ${token}`,
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
           customerId,
           customerName,
           items: draftItems,
-          discountPercent: calculatedDiscount > 0 ? calculatedDiscount : undefined,
-          targetTotalWithVAT: targetTotalWithVAT ? parseFloat(targetTotalWithVAT) : undefined,
+          discountPercent:
+            calculatedDiscount > 0 ? calculatedDiscount : undefined,
+          targetTotalWithVAT: targetTotalWithVAT
+            ? parseFloat(targetTotalWithVAT)
+            : undefined,
         }),
       });
 
@@ -828,17 +892,19 @@ export default function OrderForm({ token, onOrderCreated }: OrderFormProps) {
 
       if (!response.ok) {
         if (response.status === 401) {
-          alert('Sessione scaduta. Effettua nuovamente il login.');
+          alert("Sessione scaduta. Effettua nuovamente il login.");
           // Token expired or invalid - user should be redirected to login
           // This will be handled by the parent component (App.tsx)
           return;
         }
-        alert(`Errore: ${data.error || 'Errore sconosciuto'}`);
+        alert(`Errore: ${data.error || "Errore sconosciuto"}`);
         return;
       }
 
       if (data.success) {
         onOrderCreated(data.data.jobId);
+        // Clear draft from IndexedDB after successful submission
+        await draftService.clearDraft();
         // Clear draft items and close modal
         setDraftItems([]);
         setShowConfirmModal(false);
@@ -1144,17 +1210,20 @@ export default function OrderForm({ token, onOrderCreated }: OrderFormProps) {
     <form onSubmit={handleSubmit}>
       {/* Cache Freshness Indicator */}
       {cacheAge !== null && (
-        <div style={{
-          fontSize: '12px',
-          color: cacheStale ? '#f57c00' : '#666',
-          marginBottom: '8px',
-          padding: '8px 12px',
-          backgroundColor: cacheStale ? '#fff3e0' : '#f5f5f5',
-          borderRadius: '4px',
-          border: `1px solid ${cacheStale ? '#ffb74d' : '#e0e0e0'}`
-        }}>
-          {cacheStale ? '⚠️' : 'ℹ️'} Dati aggiornati {Math.round(cacheAge)} ore fa
-          {cacheStale && ' (aggiornamento consigliato)'}
+        <div
+          style={{
+            fontSize: "12px",
+            color: cacheStale ? "#f57c00" : "#666",
+            marginBottom: "8px",
+            padding: "8px 12px",
+            backgroundColor: cacheStale ? "#fff3e0" : "#f5f5f5",
+            borderRadius: "4px",
+            border: `1px solid ${cacheStale ? "#ffb74d" : "#e0e0e0"}`,
+          }}
+        >
+          {cacheStale ? "⚠️" : "ℹ️"} Dati aggiornati {Math.round(cacheAge)} ore
+          fa
+          {cacheStale && " (aggiornamento consigliato)"}
         </div>
       )}
 
@@ -1305,47 +1374,117 @@ export default function OrderForm({ token, onOrderCreated }: OrderFormProps) {
               )}
 
               {/* Workflow Guide */}
-              <div className="voice-workflow-guide" style={{ marginBottom: "1rem", padding: "1rem", backgroundColor: "#f9fafb", borderRadius: "0.5rem", border: "1px solid #e5e7eb" }}>
+              <div
+                className="voice-workflow-guide"
+                style={{
+                  marginBottom: "1rem",
+                  padding: "1rem",
+                  backgroundColor: "#f9fafb",
+                  borderRadius: "0.5rem",
+                  border: "1px solid #e5e7eb",
+                }}
+              >
                 <strong>📋 Come Funziona (Step-by-Step)</strong>
-                <ol style={{ marginTop: "0.5rem", marginLeft: "1.25rem", fontSize: "0.875rem", lineHeight: "1.75" }}>
-                  <li><strong>Tap microfono</strong> → Modal si apre, ascolto inizia</li>
-                  <li><strong>Dettare ordine</strong> → Parla chiaramente: cliente, articoli, quantità</li>
-                  <li><strong>Attendere feedback</strong> → Sistema mostra riconoscimento in tempo reale</li>
-                  <li><strong>Verificare bozza</strong> → Controlla cliente e articoli riconosciuti</li>
-                  <li><strong>Correggere se necessario</strong> → Usa comandi o tap per modifiche</li>
-                  <li><strong>Confermare</strong> → Tap "Conferma" quando tutto è corretto</li>
+                <ol
+                  style={{
+                    marginTop: "0.5rem",
+                    marginLeft: "1.25rem",
+                    fontSize: "0.875rem",
+                    lineHeight: "1.75",
+                  }}
+                >
+                  <li>
+                    <strong>Tap microfono</strong> → Modal si apre, ascolto
+                    inizia
+                  </li>
+                  <li>
+                    <strong>Dettare ordine</strong> → Parla chiaramente:
+                    cliente, articoli, quantità
+                  </li>
+                  <li>
+                    <strong>Attendere feedback</strong> → Sistema mostra
+                    riconoscimento in tempo reale
+                  </li>
+                  <li>
+                    <strong>Verificare bozza</strong> → Controlla cliente e
+                    articoli riconosciuti
+                  </li>
+                  <li>
+                    <strong>Correggere se necessario</strong> → Usa comandi o
+                    tap per modifiche
+                  </li>
+                  <li>
+                    <strong>Confermare</strong> → Tap "Conferma" quando tutto è
+                    corretto
+                  </li>
                 </ol>
 
                 <div style={{ marginTop: "1rem" }}>
                   <strong>🎤 Comandi Vocali Disponibili</strong>
                   <div style={{ marginTop: "0.5rem", fontSize: "0.875rem" }}>
                     <div style={{ marginBottom: "0.5rem" }}>
-                      <strong>"conferma ordine"</strong> → Conferma la bozza e procede con l'invio
-                      <div style={{ fontSize: "0.75rem", color: "#6b7280", marginLeft: "1rem" }}>
-                        • Quando: dopo aver verificato che tutto è corretto<br/>
-                        • Risultato: modal si chiude, ordine viene processato
+                      <strong>"conferma ordine"</strong> → Conferma la bozza e
+                      procede con l'invio
+                      <div
+                        style={{
+                          fontSize: "0.75rem",
+                          color: "#6b7280",
+                          marginLeft: "1rem",
+                        }}
+                      >
+                        • Quando: dopo aver verificato che tutto è corretto
+                        <br />• Risultato: modal si chiude, ordine viene
+                        processato
                       </div>
                     </div>
                     <div style={{ marginBottom: "0.5rem" }}>
-                      <strong>"annulla"</strong> → Cancella la bozza corrente e ricomincia
-                      <div style={{ fontSize: "0.75rem", color: "#6b7280", marginLeft: "1rem" }}>
-                        • Quando: se vuoi ripartire da zero<br/>
-                        • Risultato: bozza svuotata, pronto per nuovo dettato
+                      <strong>"annulla"</strong> → Cancella la bozza corrente e
+                      ricomincia
+                      <div
+                        style={{
+                          fontSize: "0.75rem",
+                          color: "#6b7280",
+                          marginLeft: "1rem",
+                        }}
+                      >
+                        • Quando: se vuoi ripartire da zero
+                        <br />• Risultato: bozza svuotata, pronto per nuovo
+                        dettato
                       </div>
                     </div>
                     <div style={{ marginBottom: "0.5rem" }}>
-                      <strong>"riprova"</strong> → Cancella e riavvia il riconoscimento
-                      <div style={{ fontSize: "0.75rem", color: "#6b7280", marginLeft: "1rem" }}>
-                        • Quando: se il sistema ha capito male<br/>
-                        • Risultato: modal resta aperto, può ridettare
+                      <strong>"riprova"</strong> → Cancella e riavvia il
+                      riconoscimento
+                      <div
+                        style={{
+                          fontSize: "0.75rem",
+                          color: "#6b7280",
+                          marginLeft: "1rem",
+                        }}
+                      >
+                        • Quando: se il sistema ha capito male
+                        <br />• Risultato: modal resta aperto, può ridettare
                       </div>
                     </div>
                   </div>
                 </div>
 
-                <div style={{ marginTop: "1rem", paddingTop: "0.75rem", borderTop: "1px solid #e5e7eb" }}>
+                <div
+                  style={{
+                    marginTop: "1rem",
+                    paddingTop: "0.75rem",
+                    borderTop: "1px solid #e5e7eb",
+                  }}
+                >
                   <strong>💡 Consigli</strong>
-                  <ul style={{ marginTop: "0.25rem", marginLeft: "1.25rem", fontSize: "0.875rem", lineHeight: "1.75" }}>
+                  <ul
+                    style={{
+                      marginTop: "0.25rem",
+                      marginLeft: "1.25rem",
+                      fontSize: "0.875rem",
+                      lineHeight: "1.75",
+                    }}
+                  >
                     <li>Parlare in ambiente silenzioso</li>
                     <li>Scandire bene i numeri degli articoli</li>
                     <li>Fare pause tra "virgola" e prossimo articolo</li>
@@ -1355,39 +1494,89 @@ export default function OrderForm({ token, onOrderCreated }: OrderFormProps) {
               </div>
 
               {/* Error Recovery Instructions */}
-              <div className="voice-error-recovery" style={{ marginBottom: "1rem", padding: "1rem", backgroundColor: "#fef3c7", borderRadius: "0.5rem", border: "1px solid #fbbf24" }}>
+              <div
+                className="voice-error-recovery"
+                style={{
+                  marginBottom: "1rem",
+                  padding: "1rem",
+                  backgroundColor: "#fef3c7",
+                  borderRadius: "0.5rem",
+                  border: "1px solid #fbbf24",
+                }}
+              >
                 <strong>🔧 Cosa Fare Se...</strong>
 
                 <div style={{ marginTop: "0.75rem", fontSize: "0.875rem" }}>
                   <div style={{ marginBottom: "0.75rem" }}>
-                    <strong style={{ color: "#d97706" }}>Cliente sbagliato riconosciuto:</strong>
-                    <ol style={{ marginTop: "0.25rem", marginLeft: "1.25rem", lineHeight: "1.5" }}>
+                    <strong style={{ color: "#d97706" }}>
+                      Cliente sbagliato riconosciuto:
+                    </strong>
+                    <ol
+                      style={{
+                        marginTop: "0.25rem",
+                        marginLeft: "1.25rem",
+                        lineHeight: "1.5",
+                      }}
+                    >
                       <li>Usa comando "riprova"</li>
                       <li>Ri-detta nome cliente più lentamente</li>
-                      <li>Oppure: tap su campo cliente per editare manualmente</li>
+                      <li>
+                        Oppure: tap su campo cliente per editare manualmente
+                      </li>
                     </ol>
                   </div>
 
                   <div style={{ marginBottom: "0.75rem" }}>
-                    <strong style={{ color: "#d97706" }}>Articolo sbagliato o mancante:</strong>
-                    <ol style={{ marginTop: "0.25rem", marginLeft: "1.25rem", lineHeight: "1.5" }}>
-                      <li>Tap sulla riga dell'articolo per modificare codice</li>
+                    <strong style={{ color: "#d97706" }}>
+                      Articolo sbagliato o mancante:
+                    </strong>
+                    <ol
+                      style={{
+                        marginTop: "0.25rem",
+                        marginLeft: "1.25rem",
+                        lineHeight: "1.5",
+                      }}
+                    >
+                      <li>
+                        Tap sulla riga dell'articolo per modificare codice
+                      </li>
                       <li>Oppure: usa "annulla" e ri-detta ordine completo</li>
-                      <li>Ricorda: usa "punto" per separatori e "novecento" per 900</li>
+                      <li>
+                        Ricorda: usa "punto" per separatori e "novecento" per
+                        900
+                      </li>
                     </ol>
                   </div>
 
                   <div style={{ marginBottom: "0.75rem" }}>
-                    <strong style={{ color: "#d97706" }}>Quantità errata:</strong>
-                    <ol style={{ marginTop: "0.25rem", marginLeft: "1.25rem", lineHeight: "1.5" }}>
+                    <strong style={{ color: "#d97706" }}>
+                      Quantità errata:
+                    </strong>
+                    <ol
+                      style={{
+                        marginTop: "0.25rem",
+                        marginLeft: "1.25rem",
+                        lineHeight: "1.5",
+                      }}
+                    >
                       <li>Tap sul campo quantità per correggere</li>
-                      <li>Non serve ri-dettare tutto, modifica solo il valore</li>
+                      <li>
+                        Non serve ri-dettare tutto, modifica solo il valore
+                      </li>
                     </ol>
                   </div>
 
                   <div style={{ marginBottom: "0.75rem" }}>
-                    <strong style={{ color: "#d97706" }}>Riconoscimento non parte:</strong>
-                    <ol style={{ marginTop: "0.25rem", marginLeft: "1.25rem", lineHeight: "1.5" }}>
+                    <strong style={{ color: "#d97706" }}>
+                      Riconoscimento non parte:
+                    </strong>
+                    <ol
+                      style={{
+                        marginTop: "0.25rem",
+                        marginLeft: "1.25rem",
+                        lineHeight: "1.5",
+                      }}
+                    >
                       <li>Controlla permessi microfono nel browser</li>
                       <li>Tap di nuovo sull'icona microfono</li>
                       <li>Verifica che browser supporti Web Speech API</li>
@@ -1395,8 +1584,16 @@ export default function OrderForm({ token, onOrderCreated }: OrderFormProps) {
                   </div>
 
                   <div>
-                    <strong style={{ color: "#d97706" }}>Sistema non capisce:</strong>
-                    <ul style={{ marginTop: "0.25rem", marginLeft: "1.25rem", lineHeight: "1.5" }}>
+                    <strong style={{ color: "#d97706" }}>
+                      Sistema non capisce:
+                    </strong>
+                    <ul
+                      style={{
+                        marginTop: "0.25rem",
+                        marginLeft: "1.25rem",
+                        lineHeight: "1.5",
+                      }}
+                    >
                       <li>Parla più lentamente</li>
                       <li>Scandisci digit-by-digit per articoli</li>
                       <li>Evita rumori di fondo</li>
@@ -1413,37 +1610,91 @@ export default function OrderForm({ token, onOrderCreated }: OrderFormProps) {
                 <div style={{ marginTop: "0.75rem" }}>
                   <div style={{ marginBottom: "0.75rem" }}>
                     <strong>Esempio 1: Ordine Singolo</strong>
-                    <div style={{ fontSize: "0.875rem", color: "#6b7280", marginTop: "0.25rem" }}>
-                      "Cliente Mario Rossi, articolo ti di uno due sette due punto tre uno quattro quantità due"
+                    <div
+                      style={{
+                        fontSize: "0.875rem",
+                        color: "#6b7280",
+                        marginTop: "0.25rem",
+                      }}
+                    >
+                      "Cliente Mario Rossi, articolo ti di uno due sette due
+                      punto tre uno quattro quantità due"
                     </div>
-                    <div style={{ fontSize: "0.75rem", color: "#10b981", marginTop: "0.25rem" }}>
-                      → Cliente: Mario Rossi | Articolo: TD1272.314 | Quantità: 2
+                    <div
+                      style={{
+                        fontSize: "0.75rem",
+                        color: "#10b981",
+                        marginTop: "0.25rem",
+                      }}
+                    >
+                      → Cliente: Mario Rossi | Articolo: TD1272.314 | Quantità:
+                      2
                     </div>
                   </div>
 
                   <div style={{ marginBottom: "0.75rem" }}>
                     <strong>Esempio 2: Articolo con Lettere e Numeri</strong>
-                    <div style={{ fontSize: "0.875rem", color: "#6b7280", marginTop: "0.25rem" }}>
-                      "Cliente ACME S.P.A., articolo acca uno due nove effe esse cu punto uno zero quattro punto zero due tre quantità cinque"
+                    <div
+                      style={{
+                        fontSize: "0.875rem",
+                        color: "#6b7280",
+                        marginTop: "0.25rem",
+                      }}
+                    >
+                      "Cliente ACME S.P.A., articolo acca uno due nove effe esse
+                      cu punto uno zero quattro punto zero due tre quantità
+                      cinque"
                     </div>
-                    <div style={{ fontSize: "0.75rem", color: "#10b981", marginTop: "0.25rem" }}>
-                      → Cliente: ACME S.P.A. | Articolo: H129FSQ.104.023 | Quantità: 5
+                    <div
+                      style={{
+                        fontSize: "0.75rem",
+                        color: "#10b981",
+                        marginTop: "0.25rem",
+                      }}
+                    >
+                      → Cliente: ACME S.P.A. | Articolo: H129FSQ.104.023 |
+                      Quantità: 5
                     </div>
                   </div>
 
                   <div style={{ marginBottom: "0.5rem" }}>
-                    <strong>Esempio 3: Articolo con Spazi (senza "punto")</strong>
-                    <div style={{ fontSize: "0.875rem", color: "#6b7280", marginTop: "0.25rem" }}>
-                      "articolo acca sette uno uno zero quattro zero due tre quantità quindici"
+                    <strong>
+                      Esempio 3: Articolo con Spazi (senza "punto")
+                    </strong>
+                    <div
+                      style={{
+                        fontSize: "0.875rem",
+                        color: "#6b7280",
+                        marginTop: "0.25rem",
+                      }}
+                    >
+                      "articolo acca sette uno uno zero quattro zero due tre
+                      quantità quindici"
                     </div>
-                    <div style={{ fontSize: "0.75rem", color: "#10b981", marginTop: "0.25rem" }}>
+                    <div
+                      style={{
+                        fontSize: "0.75rem",
+                        color: "#10b981",
+                        marginTop: "0.25rem",
+                      }}
+                    >
                       → Articolo: H71 104 023 | Quantità: 15
                     </div>
                   </div>
                 </div>
 
-                <div style={{ fontSize: "0.75rem", color: "#9ca3af", marginTop: "0.75rem", paddingTop: "0.75rem", borderTop: "1px solid #e5e7eb" }}>
-                  💡 <strong>Nota:</strong> "punto" = separatore (.) | Lettere e numeri pronunciati separatamente | Gli spazi vengono riconosciuti automaticamente
+                <div
+                  style={{
+                    fontSize: "0.75rem",
+                    color: "#9ca3af",
+                    marginTop: "0.75rem",
+                    paddingTop: "0.75rem",
+                    borderTop: "1px solid #e5e7eb",
+                  }}
+                >
+                  💡 <strong>Nota:</strong> "punto" = separatore (.) | Lettere e
+                  numeri pronunciati separatamente | Gli spazi vengono
+                  riconosciuti automaticamente
                 </div>
               </div>
 
@@ -2040,105 +2291,134 @@ export default function OrderForm({ token, onOrderCreated }: OrderFormProps) {
                   ))}
                 </div>
               </div>
-              {draftItems.length > 0 && (() => {
-                const pricing = calculatePricing();
-                return (
-                  <>
-                    <div className="confirm-pricing">
-                      <div className="pricing-row">
-                        <span>Subtotale (senza IVA):</span>
-                        <span>€{pricing.subtotalItems.toFixed(2)}</span>
-                      </div>
-                      {pricing.discountPercent > 0 && (
-                        <div className="pricing-row pricing-discount">
-                          <span>Sconto ({pricing.discountPercent.toFixed(2)}%):</span>
-                          <span>-€{(pricing.subtotalItems - pricing.subtotalAfterDiscount).toFixed(2)}</span>
-                        </div>
-                      )}
-                      {pricing.discountPercent > 0 && (
+              {draftItems.length > 0 &&
+                (() => {
+                  const pricing = calculatePricing();
+                  return (
+                    <>
+                      <div className="confirm-pricing">
                         <div className="pricing-row">
-                          <span>Subtotale dopo sconto:</span>
-                          <span>€{pricing.subtotalAfterDiscount.toFixed(2)}</span>
+                          <span>Subtotale (senza IVA):</span>
+                          <span>€{pricing.subtotalItems.toFixed(2)}</span>
                         </div>
-                      )}
-                      <div className="pricing-row">
-                        <span>IVA (22%):</span>
-                        <span>
-                          €{(pricing.subtotalAfterDiscount * 0.22).toFixed(2)}
-                        </span>
-                      </div>
-                      <div className="pricing-row">
-                        <span>
-                          Spedizione{" "}
-                          {pricing.shippingBase === 0 && (
-                            <span style={{ color: "#10b981", fontWeight: "bold" }}>
-                              (GRATIS)
+                        {pricing.discountPercent > 0 && (
+                          <div className="pricing-row pricing-discount">
+                            <span>
+                              Sconto ({pricing.discountPercent.toFixed(2)}%):
                             </span>
-                          )}
-                          :
-                        </span>
-                        <span>
-                          {pricing.shippingBase === 0 ? (
-                            <>€0.00</>
-                          ) : (
-                            <>€{pricing.shippingWithVAT.toFixed(2)}</>
-                          )}
-                        </span>
+                            <span>
+                              -€
+                              {(
+                                pricing.subtotalItems -
+                                pricing.subtotalAfterDiscount
+                              ).toFixed(2)}
+                            </span>
+                          </div>
+                        )}
+                        {pricing.discountPercent > 0 && (
+                          <div className="pricing-row">
+                            <span>Subtotale dopo sconto:</span>
+                            <span>
+                              €{pricing.subtotalAfterDiscount.toFixed(2)}
+                            </span>
+                          </div>
+                        )}
+                        <div className="pricing-row">
+                          <span>IVA (22%):</span>
+                          <span>
+                            €{(pricing.subtotalAfterDiscount * 0.22).toFixed(2)}
+                          </span>
+                        </div>
+                        <div className="pricing-row">
+                          <span>
+                            Spedizione{" "}
+                            {pricing.shippingBase === 0 && (
+                              <span
+                                style={{ color: "#10b981", fontWeight: "bold" }}
+                              >
+                                (GRATIS)
+                              </span>
+                            )}
+                            :
+                          </span>
+                          <span>
+                            {pricing.shippingBase === 0 ? (
+                              <>€0.00</>
+                            ) : (
+                              <>€{pricing.shippingWithVAT.toFixed(2)}</>
+                            )}
+                          </span>
+                        </div>
+                        <div className="pricing-row pricing-total">
+                          <strong>Totale con IVA:</strong>
+                          <strong>€{pricing.totalWithVAT.toFixed(2)}</strong>
+                        </div>
                       </div>
-                      <div className="pricing-row pricing-total">
-                        <strong>Totale con IVA:</strong>
-                        <strong>€{pricing.totalWithVAT.toFixed(2)}</strong>
-                      </div>
-                    </div>
 
-                    <div className="pricing-target-section">
-                      <div className="form-group">
-                        <label className="form-label">
-                          💰 Totale desiderato (con IVA) - <em>Opzionale</em>
-                        </label>
-                        <input
-                          type="number"
-                          step="0.01"
-                          min="0"
-                          className="form-input"
-                          placeholder="es. 25.00"
-                          value={targetTotalWithVAT}
-                          onChange={(e) => setTargetTotalWithVAT(e.target.value)}
-                          disabled={loading}
-                        />
-                        <small style={{ color: "#6b7280", display: "block", marginTop: "0.25rem" }}>
-                          Inserisci il prezzo finale desiderato. Calcoleremo lo sconto necessario.
-                        </small>
-                        {pricingError && (
-                          <div style={{
-                            color: "#dc2626",
-                            backgroundColor: "#fef2f2",
-                            padding: "0.5rem",
-                            borderRadius: "4px",
-                            marginTop: "0.5rem",
-                            fontSize: "0.875rem",
-                          }}>
-                            ⚠️ {pricingError}
-                          </div>
-                        )}
-                        {!pricingError && pricing.discountPercent > 0 && (
-                          <div style={{
-                            color: "#10b981",
-                            backgroundColor: "#f0fdf4",
-                            padding: "0.5rem",
-                            borderRadius: "4px",
-                            marginTop: "0.5rem",
-                            fontSize: "0.875rem",
-                          }}>
-                            ✓ Sconto calcolato: <strong>{pricing.discountPercent.toFixed(2)}%</strong>
-                            {" "}(verrà applicato automaticamente in Archibald)
-                          </div>
-                        )}
+                      <div className="pricing-target-section">
+                        <div className="form-group">
+                          <label className="form-label">
+                            💰 Totale desiderato (con IVA) - <em>Opzionale</em>
+                          </label>
+                          <input
+                            type="number"
+                            step="0.01"
+                            min="0"
+                            className="form-input"
+                            placeholder="es. 25.00"
+                            value={targetTotalWithVAT}
+                            onChange={(e) =>
+                              setTargetTotalWithVAT(e.target.value)
+                            }
+                            disabled={loading}
+                          />
+                          <small
+                            style={{
+                              color: "#6b7280",
+                              display: "block",
+                              marginTop: "0.25rem",
+                            }}
+                          >
+                            Inserisci il prezzo finale desiderato. Calcoleremo
+                            lo sconto necessario.
+                          </small>
+                          {pricingError && (
+                            <div
+                              style={{
+                                color: "#dc2626",
+                                backgroundColor: "#fef2f2",
+                                padding: "0.5rem",
+                                borderRadius: "4px",
+                                marginTop: "0.5rem",
+                                fontSize: "0.875rem",
+                              }}
+                            >
+                              ⚠️ {pricingError}
+                            </div>
+                          )}
+                          {!pricingError && pricing.discountPercent > 0 && (
+                            <div
+                              style={{
+                                color: "#10b981",
+                                backgroundColor: "#f0fdf4",
+                                padding: "0.5rem",
+                                borderRadius: "4px",
+                                marginTop: "0.5rem",
+                                fontSize: "0.875rem",
+                              }}
+                            >
+                              ✓ Sconto calcolato:{" "}
+                              <strong>
+                                {pricing.discountPercent.toFixed(2)}%
+                              </strong>{" "}
+                              (verrà applicato automaticamente in Archibald)
+                            </div>
+                          )}
+                        </div>
                       </div>
-                    </div>
-                  </>
-                );
-              })()}
+                    </>
+                  );
+                })()}
             </div>
             <div className="confirm-modal-footer">
               <button
