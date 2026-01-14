@@ -10,6 +10,7 @@ import { ProductDatabase } from "./product-db";
 import { SessionCacheManager } from "./session-cache";
 import { SessionCacheManager as MultiUserSessionCacheManager } from "./session-cache-manager";
 import { BrowserPool } from "./browser-pool";
+import { PasswordCache } from "./password-cache";
 import type { OrderData } from "./types";
 
 export class ArchibaldBot {
@@ -1273,6 +1274,32 @@ export class ArchibaldBot {
   async login(): Promise<void> {
     if (!this.page) throw new Error("Browser non inizializzato");
 
+    // Get credentials: use PasswordCache for multi-user, config for legacy
+    let username: string;
+    let password: string;
+
+    if (this.userId) {
+      // Multi-user mode: get password from cache
+      const cachedPassword = PasswordCache.getInstance().get(this.userId);
+      if (!cachedPassword) {
+        throw new Error(`Password not found in cache for user ${this.userId}. User must login again.`);
+      }
+      // Get username from UserDatabase
+      const { UserDatabase } = await import('./user-db');
+      const user = UserDatabase.getInstance().getUserById(this.userId);
+      if (!user) {
+        throw new Error(`User ${this.userId} not found in database`);
+      }
+      username = user.username;
+      password = cachedPassword;
+      logger.info(`Using cached credentials for multi-user login`, { userId: this.userId, username });
+    } else {
+      // Legacy mode: use config
+      username = config.archibald.username;
+      password = config.archibald.password;
+      logger.info(`Using config credentials for legacy login`, { username });
+    }
+
     // Try to restore session from persistent cache (daily expiration)
     const cachedCookies = this.sessionCache.loadSession();
     if (cachedCookies && cachedCookies.length > 0) {
@@ -1310,7 +1337,7 @@ export class ArchibaldBot {
 
     logger.info("Tentativo login su Archibald...", {
       loginUrl,
-      username: config.archibald.username,
+      username,
     });
 
     try {
@@ -1433,7 +1460,7 @@ export class ArchibaldBot {
           // Seleziona tutto il testo esistente e sostituiscilo
           await this.page!.click(usernameSelector, { clickCount: 3 });
           await this.page!.keyboard.press("Backspace");
-          await this.page!.type(usernameSelector, config.archibald.username, {
+          await this.page!.type(usernameSelector, username, {
             delay: 50,
           });
         },
@@ -1450,7 +1477,7 @@ export class ArchibaldBot {
           // Seleziona tutto il testo esistente e sostituiscilo
           await this.page!.click(passwordSelector, { clickCount: 3 });
           await this.page!.keyboard.press("Backspace");
-          await this.page!.type(passwordSelector, config.archibald.password, {
+          await this.page!.type(passwordSelector, password, {
             delay: 50,
           });
         },

@@ -1,0 +1,700 @@
+[
+  {
+    "timestamp": 1768300390503,
+    "step": "📝 Raw Transcript Received",
+    "data": {
+      "transcript": "cliente La casa del sorriso",
+      "length": 27
+    },
+    "level": "info"
+  },
+  {
+    "timestamp": 1768300390511,
+    "step": "🔍 Transcript Parsed",
+    "data": {
+      "customerName": "La Casa Del Sorriso",
+      "itemsCount": 0,
+      "items": []
+    },
+    "level": "info"
+  },
+  {
+    "timestamp": 1768300390511,
+    "step": "🔎 Validating Customer",
+    "data": {
+      "inputName": "La Casa Del Sorriso",
+      "manuallySelected": false
+    },
+    "level": "info"
+  },
+  {
+    "timestamp": 1768300390538,
+    "step": "✅ Customer Validation Result",
+    "data": {
+      "matchType": "phonetic",
+      "confidence": 0.94,
+      "foundCustomer": "La Casa Del Sorriso S.R.L.",
+      "suggestionsCount": 4
+    },
+    "level": "success"
+  },
+  {
+    "timestamp": 1768300390538,
+    "step": "🎯 Customer Auto-Selected",
+    "data": {
+      "originalName": "La Casa Del Sorriso S.R.L.",
+      "correctedName": "La Casa Del Sorriso S.R.L.",
+      "customerId": "16.591"
+    },
+    "level": "success"
+  },
+  {
+    "timestamp": 1768300390538,
+    "step": "🤔 Auto-Apply Decision",
+    "data": {
+      "hasHighConfidenceCustomer": true,
+      "hasHighConfidenceArticle": false,
+      "customerName": "La Casa Del Sorriso S.R.L.",
+      "customerConfidence": 0.94,
+      "articleConfidence": 0,
+      "threshold": 0.7
+    },
+    "level": "success"
+  },
+  {
+    "timestamp": 1768300390538,
+    "step": "⏰ Auto-Apply Scheduled",
+    "data": {
+      "delay": "1.5s",
+      "reason": "High confidence customer"
+    },
+    "level": "info"
+  },
+  {
+    "timestamp": 1768300392039,
+    "step": "⚡ Auto-Apply Triggered",
+    "data": {
+      "customerName": "La Casa Del Sorriso S.R.L.",
+      "customerId": "16.591",
+      "itemsCount": 0
+    },
+    "level": "success"
+  },
+  {
+    "timestamp": 1768300392039,
+    "step": "📋 Apply Voice Data",
+    "data": {
+      "source": "closure",
+      "customerName": "La Casa Del Sorriso S.R.L.",
+      "customerId": "16.591",
+      "customerConfidence": 0.94,
+      "itemsCount": 0
+    },
+    "level": "info"
+  },
+  {
+    "timestamp": 1768300392039,
+    "step": "✅ Customer Applied to Form",
+    "data": {
+      "name": "La Casa Del Sorriso S.R.L.",
+      "id": "16.591",
+      "confidence": 0.94
+    },
+    "level": "success"
+  },
+  {
+    "timestamp": 1768300392039,
+    "step": "ℹ️ No Items in Voice Input",
+    "data": {
+      "customerOnly": true
+    },
+    "level": "info"
+  },
+  {
+    "timestamp": 1768300392039,
+    "step": "🧹 Modal State Reset",
+    "data": {
+      "action": "Clear transcript and validations for next input"
+    },
+    "level": "info"
+  },
+  {
+    "timestamp": 1768300401334,
+    "step": "📝 Raw Transcript Received",
+    "data": {
+      "transcript": "Aggiungi 8863 314 016 5 pezzi",
+      "length": 29
+    },
+    "level": "info"
+  },
+  {
+    "timestamp": 1768300401336,
+    "step": "🔍 Transcript Parsed",
+    "data": {
+      "itemsCount": 1,
+      "items": [
+        {
+          "articleCode": "8863.314 016",
+          "quantity": 5
+        }
+      ]
+    },
+    "level": "info"
+  },
+  {
+    "timestamp": 1768300401336,
+    "step": "🔎 Validating Article",
+    "data": {
+      "inputCode": "8863.314 016",
+      "manuallySelected": false
+    },
+    "level": "info"
+  },
+  {
+    "timestamp": 1768300401364,
+    "step": "✅ Article Validation Result",
+    "data": {
+      "matchType": "exact",
+      "confidence": 0.98,
+      "foundProduct": "8863.314.016",
+      "suggestionsCount": 4
+    },
+    "level": "success"
+  },
+  {
+    "timestamp": 1768300401364,
+    "step": "🎯 Article Auto-Selected",
+    "data": {
+      "originalCode": "8863.314.016",
+      "correctedCode": "8863.314.016",
+      "productId": "005057K2"
+    },
+    "level": "success"
+  },
+  {
+    "timestamp": 1768300401364,
+    "step": "🤔 Auto-Apply Decision",
+    "data": {
+      "hasHighConfidenceArticle": true,
+      "articleCode": "8863.314.016",
+      "articleConfidence": 0.98,
+      "threshold": 0.7
+    },
+    "level": "success"
+  },
+  {
+    "timestamp": 1768300401364,
+    "step": "⏰ Auto-Apply Scheduled",
+    "data": {
+      "delay": "1.5s",
+      "reason": "High confidence article"
+    },
+    "level": "info"
+  },
+  {
+    "timestamp": 1768300402865,
+    "step": "⚡ Auto-Apply Triggered",
+    "data": {
+      "itemsCount": 1
+    },
+    "level": "success"
+  },
+  {
+    "timestamp": 1768300402865,
+    "step": "📋 Apply Voice Data",
+    "data": {
+      "source": "closure",
+      "itemsCount": 1
+    },
+    "level": "info"
+  },
+  {
+    "timestamp": 1768300402865,
+    "step": "❌ Customer NOT Applied",
+    "data": {
+      "reason": "No customer name",
+      "threshold": 0.5
+    },
+    "level": "error"
+  },
+  {
+    "timestamp": 1768300402865,
+    "step": "✅ Article Added to Draft",
+    "data": {
+      "code": "8863.314.016",
+      "quantity": 5,
+      "confidence": 0.98
+    },
+    "level": "success"
+  },
+  {
+    "timestamp": 1768300402865,
+    "step": "🧹 Modal State Reset",
+    "data": {
+      "action": "Clear transcript and validations for next input"
+    },
+    "level": "info"
+  },
+  {
+    "timestamp": 1768300410038,
+    "step": "📝 Raw Transcript Received",
+    "data": {
+      "transcript": "poi 6801314 012 cinque pezzi",
+      "length": 28
+    },
+    "level": "info"
+  },
+  {
+    "timestamp": 1768300410048,
+    "step": "🔍 Transcript Parsed",
+    "data": {
+      "itemsCount": 1,
+      "items": [
+        {
+          "articleCode": "6801314.012",
+          "quantity": 5
+        }
+      ]
+    },
+    "level": "info"
+  },
+  {
+    "timestamp": 1768300410049,
+    "step": "🔎 Validating Article",
+    "data": {
+      "inputCode": "6801314.012",
+      "manuallySelected": false
+    },
+    "level": "info"
+  },
+  {
+    "timestamp": 1768300410079,
+    "step": "✅ Article Validation Result",
+    "data": {
+      "matchType": "exact",
+      "confidence": 0.98,
+      "foundProduct": "6801.314.012",
+      "suggestionsCount": 4
+    },
+    "level": "success"
+  },
+  {
+    "timestamp": 1768300410079,
+    "step": "🎯 Article Auto-Selected",
+    "data": {
+      "originalCode": "6801.314.012",
+      "correctedCode": "6801.314.012",
+      "productId": "004781K2"
+    },
+    "level": "success"
+  },
+  {
+    "timestamp": 1768300410079,
+    "step": "🤔 Auto-Apply Decision",
+    "data": {
+      "hasHighConfidenceArticle": true,
+      "articleCode": "6801.314.012",
+      "articleConfidence": 0.98,
+      "threshold": 0.7
+    },
+    "level": "success"
+  },
+  {
+    "timestamp": 1768300410079,
+    "step": "⏰ Auto-Apply Scheduled",
+    "data": {
+      "delay": "1.5s",
+      "reason": "High confidence article"
+    },
+    "level": "info"
+  },
+  {
+    "timestamp": 1768300411580,
+    "step": "⚡ Auto-Apply Triggered",
+    "data": {
+      "itemsCount": 1
+    },
+    "level": "success"
+  },
+  {
+    "timestamp": 1768300411580,
+    "step": "📋 Apply Voice Data",
+    "data": {
+      "source": "closure",
+      "itemsCount": 1
+    },
+    "level": "info"
+  },
+  {
+    "timestamp": 1768300411580,
+    "step": "❌ Customer NOT Applied",
+    "data": {
+      "reason": "No customer name",
+      "threshold": 0.5
+    },
+    "level": "error"
+  },
+  {
+    "timestamp": 1768300411580,
+    "step": "✅ Article Added to Draft",
+    "data": {
+      "code": "6801.314.012",
+      "quantity": 5,
+      "confidence": 0.98
+    },
+    "level": "success"
+  },
+  {
+    "timestamp": 1768300411580,
+    "step": "🧹 Modal State Reset",
+    "data": {
+      "action": "Clear transcript and validations for next input"
+    },
+    "level": "info"
+  },
+  {
+    "timestamp": 1768300420221,
+    "step": "📝 Raw Transcript Received",
+    "data": {
+      "transcript": "poi h48lq 314 012 5 pezzi",
+      "length": 25
+    },
+    "level": "info"
+  },
+  {
+    "timestamp": 1768300420223,
+    "step": "🔍 Transcript Parsed",
+    "data": {
+      "itemsCount": 1,
+      "items": [
+        {
+          "articleCode": "H48LQ.314.012",
+          "quantity": 5
+        }
+      ]
+    },
+    "level": "info"
+  },
+  {
+    "timestamp": 1768300420223,
+    "step": "🔎 Validating Article",
+    "data": {
+      "inputCode": "H48LQ.314.012",
+      "manuallySelected": false
+    },
+    "level": "info"
+  },
+  {
+    "timestamp": 1768300420245,
+    "step": "✅ Article Validation Result",
+    "data": {
+      "matchType": "exact",
+      "confidence": 1,
+      "foundProduct": "H48LQ.314.012",
+      "suggestionsCount": 4
+    },
+    "level": "success"
+  },
+  {
+    "timestamp": 1768300420245,
+    "step": "🎯 Article Auto-Selected",
+    "data": {
+      "originalCode": "H48LQ.314.012",
+      "correctedCode": "H48LQ.314.012",
+      "productId": "034376K2"
+    },
+    "level": "success"
+  },
+  {
+    "timestamp": 1768300420245,
+    "step": "🤔 Auto-Apply Decision",
+    "data": {
+      "hasHighConfidenceArticle": true,
+      "articleCode": "H48LQ.314.012",
+      "articleConfidence": 1,
+      "threshold": 0.7
+    },
+    "level": "success"
+  },
+  {
+    "timestamp": 1768300420245,
+    "step": "⏰ Auto-Apply Scheduled",
+    "data": {
+      "delay": "1.5s",
+      "reason": "High confidence article"
+    },
+    "level": "info"
+  },
+  {
+    "timestamp": 1768300421746,
+    "step": "⚡ Auto-Apply Triggered",
+    "data": {
+      "itemsCount": 1
+    },
+    "level": "success"
+  },
+  {
+    "timestamp": 1768300421746,
+    "step": "📋 Apply Voice Data",
+    "data": {
+      "source": "closure",
+      "itemsCount": 1
+    },
+    "level": "info"
+  },
+  {
+    "timestamp": 1768300421746,
+    "step": "❌ Customer NOT Applied",
+    "data": {
+      "reason": "No customer name",
+      "threshold": 0.5
+    },
+    "level": "error"
+  },
+  {
+    "timestamp": 1768300421746,
+    "step": "✅ Article Added to Draft",
+    "data": {
+      "code": "H48LQ.314.012",
+      "quantity": 5,
+      "confidence": 1
+    },
+    "level": "success"
+  },
+  {
+    "timestamp": 1768300421746,
+    "step": "🧹 Modal State Reset",
+    "data": {
+      "action": "Clear transcript and validations for next input"
+    },
+    "level": "info"
+  },
+  {
+    "timestamp": 1768300431385,
+    "step": "📝 Raw Transcript Received",
+    "data": {
+      "transcript": "aggiungiamo 83-68.314.023 cinque pezzi",
+      "length": 38
+    },
+    "level": "info"
+  },
+  {
+    "timestamp": 1768300431386,
+    "step": "🔍 Transcript Parsed",
+    "data": {
+      "itemsCount": 0,
+      "items": []
+    },
+    "level": "info"
+  },
+  {
+    "timestamp": 1768300431386,
+    "step": "🤔 Auto-Apply Decision",
+    "data": {
+      "hasHighConfidenceArticle": false,
+      "articleConfidence": 0,
+      "threshold": 0.7
+    },
+    "level": "warning"
+  },
+  {
+    "timestamp": 1768300431386,
+    "step": "⏸️ Auto-Apply Skipped",
+    "data": {
+      "reason": "Confidence below threshold (70%)",
+      "articleConfidence": 0
+    },
+    "level": "warning"
+  },
+  {
+    "timestamp": 1768300452271,
+    "step": "📝 Raw Transcript Received",
+    "data": {
+      "transcript": "aggiungi",
+      "length": 8
+    },
+    "level": "info"
+  },
+  {
+    "timestamp": 1768300452276,
+    "step": "🔍 Transcript Parsed",
+    "data": {
+      "itemsCount": 0,
+      "items": []
+    },
+    "level": "info"
+  },
+  {
+    "timestamp": 1768300452276,
+    "step": "🤔 Auto-Apply Decision",
+    "data": {
+      "hasHighConfidenceArticle": false,
+      "articleConfidence": 0,
+      "threshold": 0.7
+    },
+    "level": "warning"
+  },
+  {
+    "timestamp": 1768300452276,
+    "step": "⏸️ Auto-Apply Skipped",
+    "data": {
+      "reason": "Confidence below threshold (70%)",
+      "articleConfidence": 0
+    },
+    "level": "warning"
+  },
+  {
+    "timestamp": 1768300458772,
+    "step": "📝 Raw Transcript Received",
+    "data": {
+      "transcript": "83 68 314 023 5 pezzi",
+      "length": 21
+    },
+    "level": "info"
+  },
+  {
+    "timestamp": 1768300458772,
+    "step": "🔍 Transcript Parsed",
+    "data": {
+      "itemsCount": 0,
+      "items": []
+    },
+    "level": "info"
+  },
+  {
+    "timestamp": 1768300458772,
+    "step": "🤔 Auto-Apply Decision",
+    "data": {
+      "hasHighConfidenceArticle": false,
+      "articleConfidence": 0,
+      "threshold": 0.7
+    },
+    "level": "warning"
+  },
+  {
+    "timestamp": 1768300458772,
+    "step": "⏸️ Auto-Apply Skipped",
+    "data": {
+      "reason": "Confidence below threshold (70%)",
+      "articleConfidence": 0
+    },
+    "level": "warning"
+  },
+  {
+    "timestamp": 1768300476948,
+    "step": "📝 Raw Transcript Received",
+    "data": {
+      "transcript": "poi 89-79 314 016 5 pezzi",
+      "length": 25
+    },
+    "level": "info"
+  },
+  {
+    "timestamp": 1768300476950,
+    "step": "🔍 Transcript Parsed",
+    "data": {
+      "itemsCount": 1,
+      "items": [
+        {
+          "articleCode": "89.79.314 016",
+          "quantity": 5
+        }
+      ]
+    },
+    "level": "info"
+  },
+  {
+    "timestamp": 1768300476950,
+    "step": "🔎 Validating Article",
+    "data": {
+      "inputCode": "89.79.314 016",
+      "manuallySelected": false
+    },
+    "level": "info"
+  },
+  {
+    "timestamp": 1768300476974,
+    "step": "✅ Article Validation Result",
+    "data": {
+      "matchType": "exact",
+      "confidence": 0.98,
+      "foundProduct": "8979.314.016",
+      "suggestionsCount": 4
+    },
+    "level": "success"
+  },
+  {
+    "timestamp": 1768300476974,
+    "step": "🎯 Article Auto-Selected",
+    "data": {
+      "originalCode": "8979.314.016",
+      "correctedCode": "8979.314.016",
+      "productId": "018638K2"
+    },
+    "level": "success"
+  },
+  {
+    "timestamp": 1768300476974,
+    "step": "🤔 Auto-Apply Decision",
+    "data": {
+      "hasHighConfidenceArticle": true,
+      "articleCode": "8979.314.016",
+      "articleConfidence": 0.98,
+      "threshold": 0.7
+    },
+    "level": "success"
+  },
+  {
+    "timestamp": 1768300476974,
+    "step": "⏰ Auto-Apply Scheduled",
+    "data": {
+      "delay": "1.5s",
+      "reason": "High confidence article"
+    },
+    "level": "info"
+  },
+  {
+    "timestamp": 1768300478476,
+    "step": "⚡ Auto-Apply Triggered",
+    "data": {
+      "itemsCount": 1
+    },
+    "level": "success"
+  },
+  {
+    "timestamp": 1768300478476,
+    "step": "📋 Apply Voice Data",
+    "data": {
+      "source": "closure",
+      "itemsCount": 1
+    },
+    "level": "info"
+  },
+  {
+    "timestamp": 1768300478476,
+    "step": "❌ Customer NOT Applied",
+    "data": {
+      "reason": "No customer name",
+      "threshold": 0.5
+    },
+    "level": "error"
+  },
+  {
+    "timestamp": 1768300478476,
+    "step": "✅ Article Added to Draft",
+    "data": {
+      "code": "8979.314.016",
+      "quantity": 5,
+      "confidence": 0.98
+    },
+    "level": "success"
+  },
+  {
+    "timestamp": 1768300478476,
+    "step": "🧹 Modal State Reset",
+    "data": {
+      "action": "Clear transcript and validations for next input"
+    },
+    "level": "info"
+  }
+]

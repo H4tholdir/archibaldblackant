@@ -384,9 +384,11 @@ export class PriceSyncService extends EventEmitter {
                 }
 
                 // ITEM DESCRIPTION: product name with dots/dashes
-                // Examples: "XTD3324.314.", "TD3233.314.", "9686.204.040"
+                // Examples: "XTD3324.314.", "TD3233.314.", "9686.204.040", "KP6830L.314.012"
+                // NOTE: Exclude short codes like "12.565" (price IDs) - real product names are longer
                 if (
                   !itemDescription &&
+                  cellText.length >= 8 && // Real product names are at least 8 chars
                   /^[A-Z0-9]{2,}[0-9./-]{2,}$/i.test(cellText) &&
                   /[./-]/.test(cellText) // Must contain dots or dashes
                 ) {

@@ -6,6 +6,7 @@ import { WebSocketServer } from "ws";
 import { config } from "./config";
 import { logger } from "./logger";
 import { ArchibaldBot } from "./archibald-bot";
+import { PasswordCache } from "./password-cache";
 import { createOrderSchema, createUserSchema, updateWhitelistSchema, loginSchema } from "./schemas";
 import { generateJWT } from "./auth-utils";
 import { authenticateJWT, type AuthRequest } from "./middleware/auth";
@@ -221,37 +222,11 @@ app.post("/api/auth/login", async (req: Request, res: Response<ApiResponse>) => 
       });
     }
 
-    // 3. Test login with Puppeteer
-    logger.info(`Testing Archibald login for user: ${username}`);
-    const bot = new ArchibaldBot();
-
-    try {
-      await bot.initialize();
-
-      // Override bot's credentials with user's credentials
-      // DO NOT save these credentials anywhere - use only for this login test
-      const loginSuccess = await bot.loginWithCredentials(username, password);
-
-      if (!loginSuccess) {
-        await bot.close();
-        logger.warn(`Archibald login failed for user: ${username}`);
-        return res.status(401).json({
-          success: false,
-          error: "Credenziali Archibald non valide",
-        });
-      }
-
-      // Close bot after successful validation (don't keep session for security)
-      await bot.close();
-
-    } catch (error) {
-      await bot.close().catch(() => {});
-      logger.error(`Error during Puppeteer login test`, { error, username });
-      return res.status(500).json({
-        success: false,
-        error: "Servizio di login non disponibile",
-      });
-    }
+    // 3. Store password in memory for lazy validation
+    // Password will be validated on first order creation via Puppeteer
+    // This makes login INSTANT (no 30s Puppeteer wait)
+    PasswordCache.getInstance().set(user.id, password);
+    logger.info(`Password cached for user ${username} - will validate on first order`);
 
     // 4. Update lastLogin timestamp
     userDb.updateLastLogin(user.id);
@@ -288,6 +263,9 @@ app.post("/api/auth/logout", authenticateJWT, async (req: AuthRequest, res: Resp
     // Close user's BrowserContext and clear cached session
     const pool = BrowserPool.getInstance();
     await pool.closeUserContext(userId);
+
+    // Clear cached password
+    PasswordCache.getInstance().clear(userId);
 
     logger.info(`User ${username} logged out, session cleaned up`, { userId });
 
