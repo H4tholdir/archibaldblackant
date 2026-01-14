@@ -5,6 +5,7 @@ interface StoredCredential {
   salt: Uint8Array;
   createdAt: number;
   lastUsedAt: number;
+  biometricCredentialId?: string; // WebAuthn credential ID (optional)
 }
 
 interface DecryptedCredentials {
@@ -140,6 +141,78 @@ export class CredentialStore {
     }
   }
 
+  /**
+   * Store biometric credential ID after PIN setup
+   */
+  async storeBiometricCredential(
+    userId: string,
+    credentialId: string
+  ): Promise<void> {
+    const stored = await this.getStoredCredential(userId);
+    if (stored) {
+      stored.biometricCredentialId = credentialId;
+      await this.putStoredCredential(stored);
+    }
+  }
+
+  /**
+   * Check if user has biometric credential registered
+   */
+  async hasBiometricCredential(userId: string): Promise<boolean> {
+    const stored = await this.getStoredCredential(userId);
+    return stored?.biometricCredentialId ? true : false;
+  }
+
+  /**
+   * Get credentials using biometric authentication
+   * Returns decrypted credentials if biometric auth succeeds
+   */
+  async getCredentialsWithBiometric(
+    userId: string
+  ): Promise<DecryptedCredentials | null> {
+    const stored = await this.getStoredCredential(userId);
+    if (!stored || !stored.biometricCredentialId) {
+      return null;
+    }
+
+    try {
+      // Import BiometricAuth
+      const { getBiometricAuth } = await import('./biometric-auth');
+      const bioAuth = getBiometricAuth();
+
+      // Authenticate with biometric
+      const keyMaterial = await bioAuth.authenticate(
+        userId,
+        stored.biometricCredentialId
+      );
+      if (!keyMaterial) {
+        return null; // Biometric failed or cancelled
+      }
+
+      // Derive encryption key from biometric key material
+      const key = await this.deriveKeyFromBiometric(keyMaterial, stored.salt);
+
+      // Decrypt credentials
+      const decryptedData = await crypto.subtle.decrypt(
+        { name: 'AES-GCM', iv: stored.iv },
+        key,
+        stored.encryptedData
+      );
+
+      const decoder = new TextDecoder();
+      const plaintext = decoder.decode(decryptedData);
+      const credentials: DecryptedCredentials = JSON.parse(plaintext);
+
+      // Update lastUsedAt
+      await this.touchCredentials(userId);
+
+      return credentials;
+    } catch (error) {
+      console.error('Biometric unlock failed', error);
+      return null;
+    }
+  }
+
   close(): void {
     if (this.db) {
       this.db.close();
@@ -175,6 +248,39 @@ export class CredentialStore {
       { name: "AES-GCM", length: 256 },
       false, // not extractable
       ["encrypt", "decrypt"],
+    );
+
+    return key;
+  }
+
+  /**
+   * Derive encryption key from biometric key material (similar to PIN derivation)
+   */
+  private async deriveKeyFromBiometric(
+    keyMaterial: Uint8Array,
+    salt: Uint8Array
+  ): Promise<CryptoKey> {
+    // Import raw key material
+    const importedKey = await crypto.subtle.importKey(
+      'raw',
+      keyMaterial,
+      'PBKDF2',
+      false,
+      ['deriveKey']
+    );
+
+    // Derive AES-GCM key using PBKDF2
+    const key = await crypto.subtle.deriveKey(
+      {
+        name: 'PBKDF2',
+        salt,
+        iterations: this.pbkdf2Iterations,
+        hash: 'SHA-256',
+      },
+      importedKey,
+      { name: 'AES-GCM', length: 256 },
+      false,
+      ['encrypt', 'decrypt']
     );
 
     return key;
