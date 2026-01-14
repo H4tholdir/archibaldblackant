@@ -864,7 +864,7 @@ app.get(
 );
 
 // Trigger full sync of customers, products, and prices (SEQUENTIALLY to avoid conflicts)
-app.post("/api/sync/full", async (req: Request, res: Response<ApiResponse>) => {
+app.post("/api/sync/full", authenticateJWT, requireAdmin, async (req: AuthRequest, res: Response<ApiResponse>) => {
   try {
     logger.info("Richiesta sync completo (customers + products + prices)");
 
@@ -938,7 +938,9 @@ app.post("/api/sync/full", async (req: Request, res: Response<ApiResponse>) => {
 // Endpoint singolo per sync clienti
 app.post(
   "/api/sync/customers",
-  async (req: Request, res: Response<ApiResponse>) => {
+  authenticateJWT,
+  requireAdmin,
+  async (req: AuthRequest, res: Response<ApiResponse>) => {
     try {
       logger.info("Richiesta sync clienti");
 
@@ -980,7 +982,9 @@ app.post(
 // Endpoint singolo per sync prodotti
 app.post(
   "/api/sync/products",
-  async (req: Request, res: Response<ApiResponse>) => {
+  authenticateJWT,
+  requireAdmin,
+  async (req: AuthRequest, res: Response<ApiResponse>) => {
     try {
       logger.info("Richiesta sync prodotti");
 
@@ -1022,7 +1026,9 @@ app.post(
 // Endpoint singolo per sync prezzi
 app.post(
   "/api/sync/prices",
-  async (req: Request, res: Response<ApiResponse>) => {
+  authenticateJWT,
+  requireAdmin,
+  async (req: AuthRequest, res: Response<ApiResponse>) => {
     try {
       // Support query param ?full=true for full sync from page 1
       const forceFullSync = req.query.full === "true";
