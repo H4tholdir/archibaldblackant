@@ -14,13 +14,22 @@ export class PendingOrdersService {
   /**
    * Add order to pending queue
    */
-  async addPendingOrder(
-    customerId: string,
-    items: Array<{ productId: string; variantId: string; quantity: number }>,
-  ): Promise<number> {
+  async addPendingOrder(orderData: {
+    customerId: string;
+    customerName: string;
+    items: Array<{
+      articleCode: string;
+      productName?: string;
+      description?: string;
+      quantity: number;
+      price: number;
+      discount?: number;
+    }>;
+    discountPercent?: number;
+    targetTotalWithVAT?: number;
+  }): Promise<number> {
     const order: PendingOrder = {
-      customerId,
-      items,
+      ...orderData,
       createdAt: new Date().toISOString(),
       status: "pending",
       retryCount: 0,
@@ -80,7 +89,7 @@ export class PendingOrdersService {
         // Update status to syncing
         await db.pendingOrders.update(order.id!, { status: "syncing" });
 
-        // Call backend API
+        // Call backend API with full order data
         const response = await fetch("/api/orders/create", {
           method: "POST",
           headers: {
@@ -89,7 +98,10 @@ export class PendingOrdersService {
           },
           body: JSON.stringify({
             customerId: order.customerId,
+            customerName: order.customerName,
             items: order.items,
+            discountPercent: order.discountPercent,
+            targetTotalWithVAT: order.targetTotalWithVAT,
           }),
         });
 

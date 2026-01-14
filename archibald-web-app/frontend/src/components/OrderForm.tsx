@@ -879,17 +879,26 @@ export default function OrderForm({ token, onOrderCreated }: OrderFormProps) {
       if (isOffline) {
         console.log("[OrderForm] Offline detected, queuing order...");
 
-        // Convert draftItems to simple format for pending queue
-        const items = draftItems.map((item) => ({
-          productId: item.articleCode,
-          variantId: item.articleCode, // Use articleCode as variantId
-          quantity: item.quantity,
-        }));
-
-        const orderId = await pendingOrdersService.addPendingOrder(
+        // Prepare order data in the same format as the API expects
+        const orderData = {
           customerId,
-          items,
-        );
+          customerName,
+          items: draftItems.map((item) => ({
+            articleCode: item.articleCode,
+            productName: item.productName,
+            description: item.description,
+            quantity: item.quantity,
+            price: item.price,
+            discount: item.discount,
+          })),
+          discountPercent:
+            calculatedDiscount > 0 ? calculatedDiscount : undefined,
+          targetTotalWithVAT: targetTotalWithVAT
+            ? parseFloat(targetTotalWithVAT)
+            : undefined,
+        };
+
+        const orderId = await pendingOrdersService.addPendingOrder(orderData);
 
         console.log(
           "[OrderForm] Order added to pending queue with ID:",

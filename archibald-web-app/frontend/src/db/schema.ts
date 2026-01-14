@@ -70,11 +70,17 @@ export interface DraftOrderItem {
 export interface PendingOrder {
   id?: number; // Auto-increment
   customerId: string;
+  customerName: string;
   items: Array<{
-    productId: string;
-    variantId: string;
+    articleCode: string;
+    productName?: string;
+    description?: string;
     quantity: number;
+    price: number;
+    discount?: number;
   }>;
+  discountPercent?: number;
+  targetTotalWithVAT?: number;
   createdAt: string;
   status: 'pending' | 'syncing' | 'error';
   errorMessage?: string;
