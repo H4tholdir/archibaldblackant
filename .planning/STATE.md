@@ -10,19 +10,19 @@ See: .planning/PROJECT.md (updated 2026-01-11)
 ## Current Position
 
 Phase: 8 of 12 (Offline Capability) 🚧 IN PROGRESS
-Plan: 2 of 8 complete
-Status: Completed Plan 08-02 (Cache Population from Backend, 25min)
-Last activity: 2026-01-14 — Completed Plan 08-02
-Start time: 2026-01-14 10:35 → End time: 2026-01-14 11:00
+Plan: 3 of 8 complete
+Status: Completed Plan 08-03 (Frontend Offline-First Data Access, TDD)
+Last activity: 2026-01-14 — Completed Plan 08-03
+Start time: 2026-01-14 22:20 → End time: 2026-01-14 22:35
 
-Progress: ██ 25% Phase 8 (2/8 plans complete)
+Progress: ███ 37.5% Phase 8 (3/8 plans complete)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 46
-- Average duration: 63 min (1h 3m)
-- Total execution time: 53.37 hours
+- Total plans completed: 47
+- Average duration: 62 min (1h 2m)
+- Total execution time: 53.62 hours
 
 **By Phase:**
 
@@ -36,11 +36,11 @@ Progress: ██ 25% Phase 8 (2/8 plans complete)
 | 4.1 | 4 | 233 min | 58 min |
 | 6 | 7 | 209 min | 30 min |
 | 7 | 6 | 243 min | 41 min |
-| 8 | 2 | 45 min | 23 min |
+| 8 | 3 | 60 min | 20 min |
 
 **Recent Trend:**
-- Last 7 plans: 07-03 (40m), 07-04 (45m), 07-05 (60m), 07-06 (35m), 08-01 (20m), 08-02 (25m)
-- Trend: Phase 8 maintaining fast pace (avg 23min vs project avg 63min)
+- Last 7 plans: 07-04 (45m), 07-05 (60m), 07-06 (35m), 08-01 (20m), 08-02 (25m), 08-03 (15m)
+- Trend: Phase 8 maintaining fast pace (avg 20min vs project avg 62min)
 
 ## Accumulated Context
 
@@ -51,6 +51,14 @@ Recent decisions affecting current work:
 
 | Phase | Decision | Rationale |
 |-------|----------|-----------|
+| 08-03 | 50 result limit for searchCustomers() and searchProducts() | Prevents UI lag with huge result sets, balances performance vs completeness |
+| 08-03 | 3-day stale cache threshold (72 hours) | From 08-CONTEXT.md requirements, balances freshness vs offline capability |
+| 08-03 | Dexie startsWithIgnoreCase() for indexed search | Leverages compound indexes for < 100ms performance, prefix matching ideal for autocomplete |
+| 08-03 | Fallback contains() search if no prefix matches | Catches cases where user types mid-string or formatting differs, broader coverage |
+| 08-03 | Parallel enrichment with Promise.all for variants/prices | Single round-trip for all enrichment queries, maintains < 100ms target |
+| 08-03 | Cache age indicator always visible (not just on stale) | Transparency requirement from 08-CONTEXT.md, agents always see data freshness |
+| 08-03 | Large limit (10000) for initial customer load | Load all customers at once from cache (fast with IndexedDB), fallback to API if empty |
+| 08-03 | Cache-first strategy with API fallback | Offline-first architecture, graceful degradation if cache empty |
 | 08-02 | Full sync in one request (not paginated) | 6 MB uncompressed acceptable for ~14,000 records, simpler implementation, good for MVP |
 | 08-02 | bulkPut() for IndexedDB inserts | Single transaction per table, fastest method (2-3s for ~14k records) |
 | 08-02 | Auto-sync on first run or stale cache | Seamless UX, no manual trigger needed, 24h TTL balances freshness vs unnecessary syncs |
