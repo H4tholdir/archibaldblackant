@@ -24,6 +24,7 @@ None (full-stack web app con pattern standard)
 - [ ] **Phase 10: Order History** - Storico ordini da Archibald
 - [ ] **Phase 11: Order Management** - Modifica, duplica e tracking ordini
 - [ ] **Phase 12: Deployment & Infrastructure** - Setup produzione VPS
+- [ ] **Phase 13: Security Audit & Sensitive Data Cleanup** - Rimozione dati sensibili da codice, documentazione e git history 🔒
 - [ ] **Phase 5: Order Submission (POSTPONED)** - Invio ordine ottimizzato con tracking 📋
 
 ## Phase Details
@@ -482,6 +483,30 @@ Plans:
 - [ ] 12-08: Implement graceful shutdown with operation wait
 - [ ] 12-09: Create CI/CD pipeline (GitHub Actions or GitLab CI)
 - [ ] 12-10: Production deployment and smoke test
+
+### Phase 13: Security Audit & Sensitive Data Cleanup
+**Goal**: Rimuovere completamente dati sensibili (username, password, credenziali) da codice, documentazione e git history prima della pubblicazione
+**Depends on**: Phase 12
+**Research**: Likely (git history rewriting techniques, BFG Repo-Cleaner, git-filter-repo)
+**Research topics**: Git history rewriting best practices, .gitignore patterns for sensitive data, secret scanning tools, credential rotation workflow
+**Plans**: 6 plans
+
+Plans:
+- [ ] 13-01: Audit codebase per dati sensibili (username, password, API keys, tokens)
+- [ ] 13-02: Replace hardcoded credentials con environment variables e .env.example templates
+- [ ] 13-03: Sanitize documentation files (.planning/, README, commit messages con username/password)
+- [ ] 13-04: Implement git pre-commit hooks per bloccare commit con dati sensibili
+- [ ] 13-05: Rewrite git history per rimuovere dati sensibili già committati (BFG Repo-Cleaner)
+- [ ] 13-06: Setup GitHub secret scanning e Dependabot security alerts
+
+**Security Checklist**:
+- [ ] No username/password in commit messages
+- [ ] No username/password in .planning/ documentation
+- [ ] No username/password in code (seed scripts, config files)
+- [ ] All credentials in .env files (gitignored)
+- [ ] .env.example templates without real credentials
+- [ ] Git history cleaned (force push dopo backup)
+- [ ] Pre-commit hooks attivi per prevenire future esposizioni
 
 ## Progress
 
