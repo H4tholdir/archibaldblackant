@@ -22,6 +22,7 @@ import { ProductDatabase } from "./product-db";
 import { ProductSyncService } from "./product-sync-service";
 import { PriceSyncService, type PriceSyncProgress } from "./price-sync-service";
 import { SyncCheckpointManager } from "./sync-checkpoint";
+import { SessionCleanupJob } from "./session-cleanup-job";
 
 const app = express();
 const server = createServer(app);
@@ -36,6 +37,7 @@ const productSyncService = ProductSyncService.getInstance();
 const priceSyncService = PriceSyncService.getInstance();
 const checkpointManager = SyncCheckpointManager.getInstance();
 const userDb = UserDatabase.getInstance();
+const sessionCleanup = new SessionCleanupJob();
 
 // Global lock per prevenire sync paralleli e conflitti con ordini
 type ActiveOperation = "customers" | "products" | "prices" | "order" | null;
@@ -1426,6 +1428,9 @@ server.listen(config.server.port, async () => {
     process.exit(1);
   }
 
+  // Avvia session cleanup job (ogni ora)
+  sessionCleanup.start();
+
   // SCHEDULER SYNC GIORNALIERO ALLE 12:00
   // Calcola quando sarà il prossimo mezzogiorno
   const scheduleNextSync = () => {
@@ -1486,6 +1491,7 @@ server.listen(config.server.port, async () => {
 // Graceful shutdown
 process.on("SIGTERM", async () => {
   logger.info("SIGTERM ricevuto, shutdown graceful...");
+  sessionCleanup.stop();
   syncService.stopAutoSync();
   productSyncService.stopAutoSync();
   priceSyncService.stopAutoSync();
@@ -1497,6 +1503,7 @@ process.on("SIGTERM", async () => {
 
 process.on("SIGINT", async () => {
   logger.info("SIGINT ricevuto, shutdown graceful...");
+  sessionCleanup.stop();
   syncService.stopAutoSync();
   productSyncService.stopAutoSync();
   priceSyncService.stopAutoSync();
