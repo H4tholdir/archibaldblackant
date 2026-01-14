@@ -424,14 +424,14 @@ Plans:
 **Depends on**: Phase 7
 **Research**: Complete (08-01 - Dexie.js schema design, IndexedDB patterns)
 **Research topics**: IndexedDB schema design, service worker caching strategies, Workbox configuration for Vite
-**Plans**: 8 plans (3/8 complete)
+**Plans**: 8 plans (4/8 complete)
 **Status**: 🚧 In Progress
 
 Plans:
 - [x] 08-01: IndexedDB Schema Design & Dexie Setup (COMPLETE - Dexie.js 4.2.1, 7 tables, lifecycle hooks, 20min)
 - [x] 08-02: Cache Population from Backend (COMPLETE - API endpoint, CachePopulationService, progress UI, 25min)
 - [x] 08-03: Frontend Offline-First Data Access (COMPLETE - CacheService TDD, OrderForm integration, < 100ms, 15min)
-- [ ] 08-04: Implement service worker with offline-first strategy
+- [x] 08-04: Service Worker & Offline-First Strategy (COMPLETE - Workbox, CacheFirst fonts, auto-update, 22min)
 - [ ] 08-05: Add draft order persistence to IndexedDB
 - [ ] 08-06: Add offline indicator UI (network status)
 - [ ] 08-07: Implement pending order queue for offline submission
@@ -540,7 +540,7 @@ Plans:
 | 4.1. Critical Production Fixes (INSERTED) | 4/4 | ✅ Complete | 2026-01-13 |
 | 6. Multi-User Authentication | 7/7 | ✅ Complete | 2026-01-14 |
 | 7. Credential Management | 6/6 | ✅ Complete | 2026-01-14 |
-| 8. Offline Capability | 3/8 | 🚧 In Progress | - |
+| 8. Offline Capability | 4/8 | 🚧 In Progress | - |
 | 9. Offline Queue | 0/7 | Not started | - |
 | 10. Order History | 0/6 | Not started | - |
 | 11. Order Management | 0/7 | Not started | - |

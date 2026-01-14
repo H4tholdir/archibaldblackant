@@ -10,19 +10,19 @@ See: .planning/PROJECT.md (updated 2026-01-11)
 ## Current Position
 
 Phase: 8 of 12 (Offline Capability) 🚧 IN PROGRESS
-Plan: 3 of 8 complete
-Status: Completed Plan 08-03 (Frontend Offline-First Data Access, TDD)
-Last activity: 2026-01-14 — Completed Plan 08-03
-Start time: 2026-01-14 22:20 → End time: 2026-01-14 22:35
+Plan: 4 of 8 complete
+Status: Completed Plan 08-04 (Service Worker & Offline-First Strategy)
+Last activity: 2026-01-14 — Completed Plan 08-04
+Start time: 2026-01-14 22:37 → End time: 2026-01-14 22:59
 
-Progress: ███ 37.5% Phase 8 (3/8 plans complete)
+Progress: ████ 50% Phase 8 (4/8 plans complete)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 47
-- Average duration: 62 min (1h 2m)
-- Total execution time: 53.62 hours
+- Total plans completed: 48
+- Average duration: 61 min (1h 1m)
+- Total execution time: 53.98 hours
 
 **By Phase:**
 
@@ -36,11 +36,11 @@ Progress: ███ 37.5% Phase 8 (3/8 plans complete)
 | 4.1 | 4 | 233 min | 58 min |
 | 6 | 7 | 209 min | 30 min |
 | 7 | 6 | 243 min | 41 min |
-| 8 | 3 | 60 min | 20 min |
+| 8 | 4 | 82 min | 21 min |
 
 **Recent Trend:**
-- Last 7 plans: 07-04 (45m), 07-05 (60m), 07-06 (35m), 08-01 (20m), 08-02 (25m), 08-03 (15m)
-- Trend: Phase 8 maintaining fast pace (avg 20min vs project avg 62min)
+- Last 7 plans: 07-05 (60m), 07-06 (35m), 08-01 (20m), 08-02 (25m), 08-03 (15m), 08-04 (22m)
+- Trend: Phase 8 maintaining fast pace (avg 21min vs project avg 61min)
 
 ## Accumulated Context
 
@@ -51,6 +51,9 @@ Recent decisions affecting current work:
 
 | Phase | Decision | Rationale |
 |-------|----------|-----------|
+| 08-04 | CacheFirst for Google Fonts with 1-year expiration | Long-lived assets with low churn, instant offline loading for typography |
+| 08-04 | Auto-update service worker (registerType: autoUpdate) | Seamless deployment updates without user intervention, always latest version |
+| 08-04 | vite-env.d.ts for virtual:pwa-register types | TypeScript support for PWA registration, resolves module not found errors |
 | 08-03 | 50 result limit for searchCustomers() and searchProducts() | Prevents UI lag with huge result sets, balances performance vs completeness |
 | 08-03 | 3-day stale cache threshold (72 hours) | From 08-CONTEXT.md requirements, balances freshness vs offline capability |
 | 08-03 | Dexie startsWithIgnoreCase() for indexed search | Leverages compound indexes for < 100ms performance, prefix matching ideal for autocomplete |
