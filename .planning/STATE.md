@@ -10,18 +10,18 @@ See: .planning/PROJECT.md (updated 2026-01-11)
 ## Current Position
 
 Phase: 7 of 12 (Credential Management) 🚧 IN PROGRESS
-Plan: 4 of 6 complete
-Status: EXECUTING - Plan 07-04 complete (PIN Unlock Flow), ready for Plan 07-05
-Last activity: 2026-01-14 — Completed Plan 07-04 (PIN Unlock & Auto-Login, 45min)
+Plan: 5 of 6 complete
+Status: EXECUTING - Plan 07-05 complete (Biometric Unlock), ready for Plan 07-06
+Last activity: 2026-01-14 — Completed Plan 07-05 (Biometric Unlock via WebAuthn, 60min)
 
-Progress: █████████░ 52% (42/44 plans complete - Phase 6 complete ✅, Phase 7: 4/6 ✅)
+Progress: █████████░ 54% (43/44 plans complete - Phase 6 complete ✅, Phase 7: 5/6 ✅)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 42
+- Total plans completed: 43
 - Average duration: 66 min (1h 6m)
-- Total execution time: 46.57 hours
+- Total execution time: 48.57 hours
 
 **By Phase:**
 
@@ -34,11 +34,11 @@ Progress: █████████░ 52% (42/44 plans complete - Phase 6 com
 | 4 | 3 | 285 min | 95 min |
 | 4.1 | 4 | 233 min | 58 min |
 | 6 | 7 | 209 min | 30 min |
-| 7 | 4 | 148 min | 37 min |
+| 7 | 5 | 208 min | 42 min |
 
 **Recent Trend:**
-- Last 7 plans: 06-05 (25m), 06-06 (15m), 06-07 (TBD), 07-01 (38m), 07-02 (25m), 07-03 (40m), 07-04 (45m)
-- Trend: Phase 7 executing efficiently, averaging 37 min/plan
+- Last 7 plans: 06-06 (15m), 06-07 (TBD), 07-01 (38m), 07-02 (25m), 07-03 (40m), 07-04 (45m), 07-05 (60m)
+- Trend: Phase 7 executing efficiently, averaging 42 min/plan
 
 ## Accumulated Context
 
@@ -49,6 +49,10 @@ Recent decisions affecting current work:
 
 | Phase | Decision | Rationale |
 |-------|----------|-----------|
+| 07-05 | Web Authentication API (WebAuthn) for biometric unlock | Browser-native biometric standard, cross-platform support (iOS Face ID/Touch ID, Android fingerprint), graceful degradation |
+| 07-05 | Simplified WebAuthn implementation (MVP, no server validation) | MVP functionality for Phase 7, full FIDO2 compliance deferred to future security hardening |
+| 07-05 | HTTPS required for biometric testing (WebAuthn security) | Browser security policy, biometric testing deferred to production deployment |
+| 07-05 | Desktop remains PIN-only (Windows Hello deferred) | Mobile biometric higher priority for banking app parity, desktop can be added later |
 | 07-04 | lastUser stored in localStorage (userId + fullName only) | Non-sensitive metadata for detecting returning users, credentials stay encrypted in IndexedDB |
 | 07-04 | Auto-submit on 6-digit PIN entry | Banking app UX (Intesa, UniCredit reference), no "Submit" button needed |
 | 07-04 | Failed attempt tracking (max 3, no hard lockout) | Balance security vs UX, escalating error messages, recovery flow available ("PIN dimenticato?") |

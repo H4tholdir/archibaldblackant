@@ -399,7 +399,7 @@ Plans:
 **Goal**: Salvataggio cifrato credenziali su device con Web Crypto API, backend stateless
 **Depends on**: Phase 6
 **Research**: Complete (07-01 - Web Crypto API, AES-GCM, PBKDF2, IndexedDB patterns)
-**Plans**: 6 plans (4/6 complete)
+**Plans**: 6 plans (5/6 complete)
 **Status**: 🚧 IN PROGRESS
 
 Plans:
@@ -407,8 +407,8 @@ Plans:
 - [x] 07-02: Implement IndexedDB credentials store with encryption (COMPLETE - CredentialStore TDD, 25min)
 - [x] 07-03: Add "Ricorda credenziali" checkbox & PIN setup wizard (COMPLETE - banking UX, 40min)
 - [x] 07-04: Add PIN unlock flow for stored credentials (COMPLETE - UnlockScreen + auto-login, 45min)
-- [ ] 07-05: Add credential expiry and re-authentication flow
-- [ ] 07-06: Add security audit and penetration test checklist
+- [x] 07-05: Biometric unlock via Web Authentication API (COMPLETE - WebAuthn mobile, PIN fallback, 60min)
+- [ ] 07-06: Backend session-per-request refactor and cleanup
 
 ### Phase 8: Offline Capability
 **Goal**: Cache IndexedDB per clienti/prodotti/prezzi e bozze ordine persistenti
