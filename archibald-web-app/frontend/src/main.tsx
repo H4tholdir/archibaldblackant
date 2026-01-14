@@ -1,6 +1,6 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
-import App from './App';
+import AppRouter from './AppRouter';
 import './index.css';
 import { initializeDatabase } from './db/database';
 import { registerSW } from 'virtual:pwa-register';
@@ -28,7 +28,7 @@ initializeDatabase().then((result) => {
   if (root) {
     ReactDOM.createRoot(root).render(
       <React.StrictMode>
-        <App />
+        <AppRouter />
       </React.StrictMode>
     );
   }

@@ -9,7 +9,7 @@ import { ArchibaldBot } from "./archibald-bot";
 import { PasswordCache } from "./password-cache";
 import { createOrderSchema, createUserSchema, updateWhitelistSchema, loginSchema } from "./schemas";
 import { generateJWT } from "./auth-utils";
-import { authenticateJWT, type AuthRequest } from "./middleware/auth";
+import { authenticateJWT, requireAdmin, type AuthRequest } from "./middleware/auth";
 import type { ApiResponse, OrderData } from "./types";
 import { UserDatabase } from "./user-db";
 import { QueueManager } from "./queue-manager";

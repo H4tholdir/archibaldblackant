@@ -35,10 +35,10 @@ export function useAuth() {
       // Verify token by fetching user profile
       authApi.getMe(token)
         .then(response => {
-          if (response.success && response.user) {
+          if (response.success && response.data?.user) {
             setState({
               isAuthenticated: true,
-              user: response.user,
+              user: response.data.user,
               token,
               isLoading: false,
               error: null,

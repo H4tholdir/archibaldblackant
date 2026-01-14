@@ -1,5 +1,7 @@
 const API_BASE = '';  // Vite proxy handles /api
 
+export type UserRole = 'agent' | 'admin';
+
 export interface LoginRequest {
   username: string;
   password: string;
@@ -12,6 +14,7 @@ export interface LoginResponse {
     id: string;
     username: string;
     fullName: string;
+    role: UserRole;
   };
   error?: string;
 }
@@ -20,6 +23,7 @@ export interface User {
   id: string;
   username: string;
   fullName: string;
+  role: UserRole;
   whitelisted: boolean;
   lastLoginAt: number | null;
 }
@@ -40,9 +44,27 @@ export async function logout(token: string): Promise<void> {
   });
 }
 
-export async function getMe(token: string): Promise<{ success: boolean; user?: User }> {
+export interface GetMeResponse {
+  success: boolean;
+  data?: {
+    user: User;
+  };
+  error?: string;
+}
+
+export async function getMe(token: string): Promise<GetMeResponse> {
   const response = await fetch(`${API_BASE}/api/auth/me`, {
     headers: { 'Authorization': `Bearer ${token}` },
   });
-  return response.json();
+  const data = await response.json();
+  // Transform backend format to match expected format
+  if (data.success && data.data?.user) {
+    return {
+      success: true,
+      data: {
+        user: data.data.user
+      }
+    };
+  }
+  return data;
 }
