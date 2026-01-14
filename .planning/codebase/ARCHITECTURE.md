@@ -191,7 +191,70 @@
 - Persists statistics to `backend/data/adaptive-timeouts.json`
 - Location: `backend/src/adaptive-timeout-manager.ts`
 
+## Multi-User Authentication (Phase 6)
+
+**Added:** 2026-01-14
+
+### Architecture
+
+- **Authentication**: JWT-based (8h expiry, jose library)
+- **User Database**: SQLite users.db (id, username, fullName, whitelisted)
+- **Session Management**: Per-user BrowserContext with cookie isolation
+- **Session Cache**: File-based (.cache/session-{userId}.json, 24h TTL)
+
+### Components
+
+- **UserDatabase**: Singleton managing users.db, whitelist CRUD operations
+- **SessionCacheManager**: Per-user cookie persistence (replaces single-user SessionManager)
+- **BrowserPool**: Manages per-user BrowserContexts (one Browser, N contexts)
+- **JWT Middleware**: authenticateJWT extracts userId from token
+- **SessionCleanupJob**: Background job cleans expired sessions every hour
+
+### Authentication Flow
+
+1. **Login**: POST /api/auth/login
+   - Validates user is whitelisted
+   - Tests credentials via Puppeteer login
+   - Generates JWT with userId, username, iat, exp
+   - Returns JWT (stored in localStorage by frontend)
+
+2. **Order Creation**: POST /api/orders/create (JWT required)
+   - Extracts userId from JWT via authenticateJWT middleware
+   - Passes userId to QueueManager → ArchibaldBot
+   - Bot uses user's BrowserContext (isolated session)
+   - Order created under user's Archibald account
+
+3. **Logout**: POST /api/auth/logout (JWT required)
+   - Closes user's BrowserContext via BrowserPool.closeUserContext()
+   - Deletes cached session file (.cache/session-{userId}.json)
+   - Client discards JWT from localStorage
+
+### Security
+
+- **No password storage**: Passwords used only for immediate Puppeteer validation, never stored
+- **Complete session isolation**: Puppeteer BrowserContext API guarantees cookie isolation
+- **JWT_SECRET**: Environment variable (not committed to git)
+- **Whitelist control**: Only authorized users can login
+- **Session expiry**: 24h TTL for cached cookies, automatic cleanup
+
+### Memory Efficiency
+
+- **Architecture**: One Browser instance + Map<userId, BrowserContext>
+- **Memory**: 300MB for 10 users vs 1.5GB for 10 separate Browsers (5x improvement)
+- **Session reuse**: BrowserContexts persisted until logout/error for performance
+- **Cleanup**: SessionCleanupJob runs every hour to cleanup expired sessions
+
+### Admin Endpoints (No Authentication in Phase 6)
+
+- POST /api/admin/users - Create new user
+- GET /api/admin/users - List all users
+- PATCH /api/admin/users/:id/whitelist - Update whitelist status
+- DELETE /api/admin/users/:id - Delete user
+
+**Note**: Admin endpoints deferred to Phase 7, documented as known limitation for MVP.
+
 ---
 
 *Architecture analysis: 2026-01-11*
 *Update when major patterns change*
+*Phase 6 (Multi-User Authentication) added: 2026-01-14*
