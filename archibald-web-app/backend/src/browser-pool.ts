@@ -66,11 +66,21 @@ export class BrowserPool {
   async acquireContext(userId: string): Promise<BrowserContext> {
     await this.initialize();
 
-    // Return existing context if available
+    // Return existing context if available and still valid
     if (this.userContexts.has(userId)) {
       const context = this.userContexts.get(userId)!;
-      logger.debug(`Reusing context for user ${userId}`);
-      return context;
+
+      // Verify context is still valid by checking if browser is connected
+      try {
+        // Try to get pages - if context is closed, this will throw
+        await context.pages();
+        logger.debug(`Reusing context for user ${userId}`);
+        return context;
+      } catch (error) {
+        // Context is no longer valid, remove it and create a new one
+        logger.warn(`Context for user ${userId} is no longer valid, creating new one`, { error });
+        this.userContexts.delete(userId);
+      }
     }
 
     // Create new context for user
