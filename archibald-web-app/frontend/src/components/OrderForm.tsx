@@ -24,6 +24,7 @@ import { cacheService } from "../services/cache-service";
 import { draftService } from "../services/draft-service";
 import { pendingOrdersService } from "../services/pending-orders-service";
 import { useNetworkStatus } from "../hooks/useNetworkStatus";
+import { StaleCacheWarning } from "./StaleCacheWarning";
 import type { DraftOrderItem } from "../db/schema";
 
 interface Customer {
@@ -125,6 +126,7 @@ export default function OrderForm({ token, onOrderCreated }: OrderFormProps) {
   // Draft items and confirmation modal
   const [draftItems, setDraftItems] = useState<OrderItem[]>([]);
   const [showConfirmModal, setShowConfirmModal] = useState(false);
+  const [showStaleWarning, setShowStaleWarning] = useState(false);
 
   // Pricing calculation state
   const [targetTotalWithVAT, setTargetTotalWithVAT] = useState<string>("");
@@ -873,6 +875,18 @@ export default function OrderForm({ token, onOrderCreated }: OrderFormProps) {
       return;
     }
 
+    // Check if cache is stale (> 3 days) before proceeding
+    const isStale = await cacheService.isCacheStale();
+    if (isStale) {
+      setShowStaleWarning(true);
+      return; // Wait for user confirmation
+    }
+
+    // Proceed with order submission
+    await submitOrder();
+  };
+
+  const submitOrder = async () => {
     setLoading(true);
     try {
       // If offline, queue the order instead of sending immediately
@@ -2505,6 +2519,20 @@ export default function OrderForm({ token, onOrderCreated }: OrderFormProps) {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Stale Cache Warning */}
+      {showStaleWarning && (
+        <StaleCacheWarning
+          onConfirm={async () => {
+            setShowStaleWarning(false);
+            await submitOrder(); // User confirmed, proceed anyway
+          }}
+          onCancel={() => {
+            setShowStaleWarning(false);
+            // User cancelled, do nothing
+          }}
+        />
       )}
 
       {/* Voice Debug Panel */}
