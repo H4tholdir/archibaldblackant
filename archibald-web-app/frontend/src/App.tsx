@@ -13,6 +13,7 @@ import SyncBanner from "./components/SyncBanner";
 import SyncBars from "./components/SyncBars";
 import { CacheSyncProgress } from "./components/CacheSyncProgress";
 import { OfflineBanner } from "./components/OfflineBanner";
+import { CacheRefreshButton } from "./components/CacheRefreshButton";
 
 function App() {
   const auth = useAuth();
@@ -159,6 +160,7 @@ function App() {
                 📊 I Miei Ordini
               </button>
             </div>
+            <CacheRefreshButton />
             <div className="user-info">
               <span>{auth.user?.fullName}</span>
               <button
