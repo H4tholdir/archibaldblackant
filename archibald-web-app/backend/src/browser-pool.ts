@@ -83,6 +83,14 @@ export class BrowserPool {
       }
     }
 
+    // Verify browser is still connected before creating context
+    if (!this.browser || !this.browser.isConnected()) {
+      logger.warn('Browser disconnected, reinitializing...');
+      this.isInitialized = false;
+      this.initializationPromise = null;
+      await this.initialize();
+    }
+
     // Create new context for user
     logger.info(`Creating new BrowserContext for user ${userId}`);
     const context = await this.browser!.createBrowserContext();
