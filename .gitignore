@@ -1,38 +1,108 @@
-# OS files
+# ============================================
+# Archibald Black Ant - Git Ignore Rules
+# ============================================
+
+# ===== OS Files =====
 .DS_Store
 .DS_Store?
 ._*
 .Spotlight-V100
 .Trashes
+ehthumbs.db
+Thumbs.db
 
-# Logs
+# ===== Dependencies =====
+node_modules/
+bower_components/
+
+# ===== Build Output =====
+dist/
+build/
+out/
+*.tsbuildinfo
+
+# ===== Environment Variables (NEVER commit!) =====
+.env
+.env.*
+!.env.example
+**/.env
+**/.env.*
+!**/.env.example
+
+# ===== Logs =====
 *.log
 logs/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
 
-# IDE and editors
+# ===== IDE and Editors =====
 .vscode/
 .idea/
 *.swp
 *.swo
 *~
+.sublime-workspace
+*.sublime-project
 
-# Environment variables (NEVER commit!)
-.env
-.env.local
-.env.*.local
-**/.env
-**/.env.local
-**/.env.*.local
+# ===== Testing =====
+coverage/
+.nyc_output/
+*.lcov
 
-# Temporary files
+# ===== Temporary Files =====
 *.tmp
 *.temp
+*.bak
+*.swp
+~*
 
-# Dependencies
-node_modules/
+# ===== Database Files (Runtime Data) =====
+*.db
+*.db-journal
+*.db-shm
+*.db-wal
 
-# Voice debug files
+# ===== Session Cache =====
+.cache/
+**/.cache/
+
+# ===== Performance & Profiling =====
+profiling-reports/
+profiling-output.json
+*.har
+performance-*.json
+
+# ===== Voice Debug Files =====
 voice-debug-*.json
 
-# Backup files
+# ===== Backup Files =====
 *.zip
+*.tar
+*.tar.gz
+*.rar
+*.7z
+backup/
+backups/
+*-backup.*
+
+# ===== Package Manager =====
+.pnpm-store/
+.yarn/cache
+.yarn/unplugged
+.yarn/build-state.yml
+.yarn/install-state.gz
+
+# ===== Claude Code =====
+.claude/settings.local.json
+
+# ===== Puppeteer =====
+.local-chromium/
+.local-firefox/
+
+# ===== Misc =====
+*.pid
+*.seed
+*.pid.lock
