@@ -229,37 +229,71 @@ export class OrderHistoryService {
   private async navigateToOrderList(page: Page): Promise<void> {
     logger.info("[OrderHistoryService] Navigating to order list");
 
-    // Navigate directly to order list URL (from UI-SELECTORS.md)
-    const orderListUrl =
-      "https://4.231.124.90/Archibald/SALESTABLE_ListView_Agent/";
-
     const currentUrl = page.url();
     logger.info(`[OrderHistoryService] Current URL before navigation: ${currentUrl}`);
 
     // Only navigate if we're not already on the order list page
     if (!currentUrl.includes("SALESTABLE_ListView_Agent")) {
-      logger.info("[OrderHistoryService] Not on order list page, navigating...");
+      logger.info("[OrderHistoryService] Not on order list page, navigating via menu click...");
 
       try {
-        await page.goto(orderListUrl, {
-          waitUntil: "domcontentloaded", // Less strict than networkidle2
-          timeout: 60000, // Increased to 60s for slow Archibald responses
-        });
+        // Strategy: Click "AGENT" menu item instead of direct URL navigation
+        // This is more reliable as it follows user interaction pattern
+
+        logger.info("[OrderHistoryService] Looking for AGENT menu item...");
+
+        // Wait for navigation menu to be present
+        await page.waitForSelector('a[href*="SALESTABLE_ListView_Agent"]', { timeout: 10000 });
+
+        logger.info("[OrderHistoryService] Found AGENT menu link, clicking...");
+
+        // Click the link and wait for navigation with race condition handling
+        await Promise.race([
+          page.click('a[href*="SALESTABLE_ListView_Agent"]'),
+          new Promise((_, reject) =>
+            setTimeout(() => reject(new Error('Click timeout after 5s')), 5000)
+          )
+        ]);
+
+        logger.info("[OrderHistoryService] Clicked, waiting for navigation...");
+
+        // Wait for URL to change
+        await page.waitForFunction(
+          (expectedUrl) => window.location.href.includes(expectedUrl),
+          { timeout: 30000 },
+          'SALESTABLE_ListView_Agent'
+        );
+
         logger.info(`[OrderHistoryService] Navigation completed, new URL: ${page.url()}`);
+
       } catch (navError) {
-        logger.error("[OrderHistoryService] Navigation error", {
-          error: navError instanceof Error ? navError.message : String(navError),
-          currentUrl: page.url(),
-          attemptedUrl: orderListUrl
+        logger.warn("[OrderHistoryService] Menu navigation failed, trying direct URL as fallback", {
+          error: navError instanceof Error ? navError.message : String(navError)
         });
 
-        // If timeout, check if we're at least on Archibald domain
-        const currentUrl = page.url();
-        if (currentUrl.includes('4.231.124.90') && currentUrl.includes('Archibald')) {
-          logger.warn('[OrderHistoryService] Navigation timed out but we are on Archibald, continuing...');
-          // Continue anyway, page might have loaded but networkidle2 never triggered
-        } else {
-          throw navError;
+        // Fallback: try direct URL navigation with reduced timeout
+        const orderListUrl = "https://4.231.124.90/Archibald/SALESTABLE_ListView_Agent/";
+
+        try {
+          await Promise.race([
+            page.goto(orderListUrl, {
+              waitUntil: "domcontentloaded",
+              timeout: 30000,
+            }),
+            new Promise((_, reject) =>
+              setTimeout(() => reject(new Error('Direct navigation timeout after 30s')), 30000)
+            )
+          ]);
+
+          logger.info(`[OrderHistoryService] Direct navigation completed, new URL: ${page.url()}`);
+        } catch (directNavError) {
+          logger.error("[OrderHistoryService] Both navigation methods failed", {
+            menuError: navError instanceof Error ? navError.message : String(navError),
+            directError: directNavError instanceof Error ? directNavError.message : String(directNavError),
+            currentUrl: page.url()
+          });
+
+          throw new Error("Failed to navigate to order list page");
         }
       }
     } else {
