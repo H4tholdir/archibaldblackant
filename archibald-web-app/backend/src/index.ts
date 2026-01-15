@@ -315,6 +315,33 @@ app.post("/api/auth/login", async (req: Request, res: Response<ApiResponse>) => 
   }
 });
 
+// Refresh credentials endpoint - re-cache password after backend restart
+app.post("/api/auth/refresh-credentials", authenticateJWT, async (req: AuthRequest, res: Response<ApiResponse>) => {
+  try {
+    const userId = req.user!.userId;
+    const { password } = req.body;
+
+    if (!password || typeof password !== 'string') {
+      return res.status(400).json({
+        success: false,
+        error: "Password richiesta"
+      });
+    }
+
+    // Re-cache password
+    PasswordCache.getInstance().set(userId, password);
+    logger.info(`Credentials refreshed for user ${req.user!.username}`);
+
+    res.json({
+      success: true,
+      data: { message: "Credenziali aggiornate" }
+    });
+  } catch (error) {
+    logger.error("Error refreshing credentials", { error, userId: req.user!.userId });
+    res.status(500).json({ success: false, error: "Errore interno del server" });
+  }
+});
+
 // Logout endpoint - JWT invalidation is client-side (remove token)
 app.post("/api/auth/logout", authenticateJWT, async (req: AuthRequest, res: Response<ApiResponse>) => {
   const userId = req.user!.userId;
@@ -1557,9 +1584,19 @@ app.get(
         userId,
       });
 
+      // Check if error is "Password not found in cache"
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      if (errorMessage.includes("Password not found in cache")) {
+        return res.status(401).json({
+          success: false,
+          error: "CREDENTIALS_EXPIRED",
+          message: "Sessione scaduta. Effettua nuovamente il login.",
+        });
+      }
+
       res.status(500).json({
         success: false,
-        error: error instanceof Error ? error.message : "Failed to fetch order history",
+        error: errorMessage || "Failed to fetch order history",
       });
     } finally {
       // Always release context and resume services

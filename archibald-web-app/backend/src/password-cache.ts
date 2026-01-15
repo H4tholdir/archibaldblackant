@@ -7,13 +7,13 @@
  * Architecture Note (Phase 7):
  * - Credentials are stored ENCRYPTED on frontend device (IndexedDB)
  * - Backend receives credentials only during login validation
- * - PasswordCache provides session-scoped cache (1h TTL) for UX
+ * - PasswordCache provides session-scoped cache (24h TTL) for UX
  * - This is acceptable as "temporary session state", not "persistent storage"
  * - Backend never writes credentials to disk or database
  *
  * Security:
  * - In-memory only (lost on backend restart)
- * - 1-hour TTL per credential
+ * - 24-hour TTL per credential (matches JWT expiration)
  * - Cleared on explicit logout
  * - HTTPS required to protect credentials in transit during login POST
  *
@@ -31,7 +31,7 @@ interface CachedPassword {
 export class PasswordCache {
   private static instance: PasswordCache;
   private cache: Map<string, CachedPassword> = new Map();
-  private readonly TTL_MS = 60 * 60 * 1000; // 1 hour
+  private readonly TTL_MS = 24 * 60 * 60 * 1000; // 24 hours (match JWT expiration)
 
   private constructor() {
     // Cleanup expired entries every 10 minutes
