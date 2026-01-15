@@ -523,8 +523,8 @@ Plans:
 **Status**: ✅ Planning Complete (ready for execution)
 
 Plans:
-- [ ] 11-01: Research Order Management Pages and Workflows (DDT, Fatture, "Invio" workflow)
-- [ ] 11-02: Implement "Send to Milano" Feature (Step 2 automation + database migration)
+- [x] 11-01: Research Order Management Pages and Workflows (DDT, Fatture, "Invio" workflow)
+- [x] 11-02: Implement "Send to Milano" Feature (Step 2 automation + database migration)
 - [ ] 11-03: Implement DDT and Tracking Number Scraping (CUSTPACKINGSLIPJOUR_ListView)
 - [ ] 11-04: Implement Status Tracking Backend with Cache (2-hour TTL, on-demand sync)
 - [ ] 11-05: Build Status Tracking UI with Timeline (OrderTimeline, OrderTracking, SendToMilanoModal)
