@@ -46,6 +46,50 @@ export interface Order {
 }
 
 /**
+ * Complete order detail with items and timeline
+ */
+export interface OrderDetail {
+  id: string; // Internal ID (e.g., "70.309")
+  orderNumber: string; // e.g., "ORD/26000374"
+  date: string; // Creation date ISO 8601
+  deliveryDate: string; // Delivery date ISO 8601
+  customerName: string; // Seller name
+  customerProfileId: string; // Customer profile code
+  customerAddress?: string; // Full delivery address
+  customerEmail?: string; // Delivery email
+  customerReference?: string; // Customer reference
+  status: string; // Current status (e.g., "Consegnato")
+  documentStatus?: string; // Document status (e.g., "Documento di trasporto")
+  transferStatus?: string; // Transfer status (e.g., "Trasferito")
+  transferDate?: string; // Transfer date ISO 8601
+  completionDate?: string; // Completion date ISO 8601
+  items: OrderItem[]; // Article list
+  statusTimeline: StatusUpdate[]; // Status history
+  // tracking and documents added in Plan 10-04
+}
+
+/**
+ * Single item/article in order
+ */
+export interface OrderItem {
+  articleCode: string; // e.g., "0180480"
+  articleName: string; // Product description
+  quantity: number; // Quantity ordered
+  unitPrice: string; // Unit price with € symbol
+  subtotal: string; // Line total with € symbol
+  discount?: string; // Discount % if visible
+}
+
+/**
+ * Status update in timeline
+ */
+export interface StatusUpdate {
+  status: string; // Status name
+  timestamp: string; // ISO 8601
+  note?: string; // Optional note
+}
+
+/**
  * Service for scraping order history from Archibald
  * Follows patterns from customer-sync-service.ts and discovery from UI-SELECTORS.md
  */
@@ -382,5 +426,321 @@ export class OrderHistoryService {
 
       return false;
     });
+  }
+
+  /**
+   * Get complete order detail for a single order
+   * @param context BrowserContext for the user session
+   * @param userId User ID for logging
+   * @param orderId Internal order ID (from Order.id)
+   * @returns OrderDetail with items and timeline, or null if not found
+   */
+  async getOrderDetail(
+    context: BrowserContext,
+    userId: string,
+    orderId: string,
+  ): Promise<OrderDetail | null> {
+    logger.info(
+      `[OrderHistoryService] Fetching order detail for user ${userId}, order ${orderId}`,
+    );
+
+    try {
+      // Create new page in user's context
+      const page = await context.newPage();
+
+      try {
+        // Navigate directly to order detail URL (from UI-SELECTORS.md)
+        const detailUrl = `https://4.231.124.90/Archibald/SALESTABLE_DetailViewAgent/${orderId}?mode=View`;
+
+        await page.goto(detailUrl, {
+          waitUntil: "networkidle2",
+          timeout: 30000,
+        });
+
+        // Wait for detail view to load (check for "Panoramica" tab)
+        await page.waitForSelector('text=Panoramica', { timeout: 30000 });
+
+        logger.info(
+          `[OrderHistoryService] Order detail page loaded for order ${orderId}`,
+        );
+
+        // Extract order detail data
+        const orderDetail = await this.extractOrderDetail(page, orderId);
+
+        if (!orderDetail) {
+          logger.warn(
+            `[OrderHistoryService] Failed to extract data for order ${orderId}`,
+          );
+          return null;
+        }
+
+        logger.info(
+          `[OrderHistoryService] Extracted ${orderDetail.items.length} items, ${orderDetail.statusTimeline.length} status updates for order ${orderId}`,
+        );
+
+        return orderDetail;
+      } finally {
+        await page.close();
+      }
+    } catch (error) {
+      logger.error(
+        `[OrderHistoryService] Error fetching order detail for user ${userId}, order ${orderId}`,
+        { error },
+      );
+
+      return null;
+    }
+  }
+
+  /**
+   * Extract complete order data from detail page
+   * Scrapes Panoramica tab fields and Linee di vendita table
+   */
+  private async extractOrderDetail(
+    page: Page,
+    orderId: string,
+  ): Promise<OrderDetail | null> {
+    return await page.evaluate((id) => {
+      // Helper: find text content by label
+      const findByLabel = (labelText: string): string => {
+        const labels = Array.from(document.querySelectorAll("td, div, span"));
+        for (const label of labels) {
+          if (label.textContent?.trim() === labelText) {
+            // Look for adjacent cell or next sibling with value
+            const parent = label.parentElement;
+            if (parent) {
+              const cells = Array.from(parent.querySelectorAll("td"));
+              const labelIndex = cells.indexOf(label as HTMLElement);
+              if (labelIndex >= 0 && labelIndex + 1 < cells.length) {
+                return cells[labelIndex + 1].textContent?.trim() || "";
+              }
+            }
+            // Try next sibling
+            const next = label.nextElementSibling;
+            if (next) {
+              return next.textContent?.trim() || "";
+            }
+          }
+        }
+        return "";
+      };
+
+      // Helper: parse date DD/MM/YYYY to ISO 8601
+      const parseDate = (dateStr: string): string => {
+        const match = dateStr.match(
+          /(\d{2})\/(\d{2})\/(\d{4})(?: (\d{2}):(\d{2}):(\d{2}))?/,
+        );
+        if (match) {
+          const [, day, month, year, hour, minute, second] = match;
+          if (hour) {
+            return `${year}-${month}-${day}T${hour}:${minute}:${second}Z`;
+          } else {
+            return `${year}-${month}-${day}T00:00:00Z`;
+          }
+        }
+        return dateStr;
+      };
+
+      try {
+        // Extract fields from Dettagli di vendita sections
+        const orderNumber =
+          findByLabel("ORDINE DI VENDITA:") || findByLabel("ORDINE DI VENDITA");
+        const customerProfileId =
+          findByLabel("PROFILO CLIENTE:") || findByLabel("PROFILO CLIENTE");
+        const customerName =
+          findByLabel("NOME VENDITORE:") || findByLabel("NOME VENDITORE");
+        const dateText =
+          findByLabel("DATA ORDINE:") || findByLabel("DATA ORDINE");
+        const deliveryDateText =
+          findByLabel("DELIVERY DATE:") || findByLabel("DELIVERY DATE");
+        const customerAddress =
+          findByLabel("INDIRIZZO DI CONSEGNA:") ||
+          findByLabel("INDIRIZZO DI CONSEGNA");
+        const customerEmail =
+          findByLabel("E-MAIL DI CONSEGNA:") ||
+          findByLabel("E-MAIL DI CONSEGNA");
+        const customerReference =
+          findByLabel("RIFERIMENTO CLIENTE:") ||
+          findByLabel("RIFERIMENTO CLIENTE");
+        const completionDateText =
+          findByLabel("DATA COMPLETAMENTO:") ||
+          findByLabel("DATA COMPLETAMENTO");
+
+        // Extract status fields
+        const status = findByLabel("STATO:") || findByLabel("STATO");
+        const documentStatus =
+          findByLabel("STATO DEL DOCUMENTO:") ||
+          findByLabel("STATO DEL DOCUMENTO");
+        const transferStatus =
+          findByLabel("STATO DEL TRASFERIMENTO:") ||
+          findByLabel("STATO DEL TRASFERIMENTO");
+        const transferDateText =
+          findByLabel("DATA DEL TRASFERIMENTO:") ||
+          findByLabel("DATA DEL TRASFERIMENTO");
+
+        // Parse dates
+        const date = parseDate(dateText);
+        const deliveryDate = parseDate(deliveryDateText);
+        const completionDate = completionDateText
+          ? parseDate(completionDateText)
+          : undefined;
+        const transferDate = transferDateText
+          ? parseDate(transferDateText)
+          : undefined;
+
+        // Extract items from "Linee di vendita" table
+        // The table appears after clicking "Linee di vendita:" tab
+        // For now, look for any table with article data
+        const items: Array<{
+          articleCode: string;
+          articleName: string;
+          quantity: number;
+          unitPrice: string;
+          subtotal: string;
+          discount?: string;
+        }> = [];
+
+        // Find tables on page (DevExpress tables)
+        const tables = Array.from(document.querySelectorAll("table"));
+
+        for (const table of tables) {
+          const rows = Array.from(
+            table.querySelectorAll("tbody tr"),
+          ) as HTMLElement[];
+
+          for (const row of rows) {
+            const cells = Array.from(
+              row.querySelectorAll("td"),
+            ) as HTMLElement[];
+
+            // Check if this looks like an item row (has quantity and price patterns)
+            if (cells.length >= 5) {
+              // Look for numeric patterns in cells
+              let articleCode = "";
+              let articleName = "";
+              let quantity = 0;
+              let unitPrice = "";
+              let subtotal = "";
+
+              // Try to identify columns by content patterns
+              for (let i = 0; i < cells.length; i++) {
+                const text = cells[i].textContent?.trim() || "";
+
+                // Article code: numeric pattern
+                if (!articleCode && /^\d{5,}$/.test(text)) {
+                  articleCode = text;
+                }
+
+                // Quantity: small number pattern
+                if (!quantity && /^\d{1,4}$/.test(text)) {
+                  const num = parseInt(text, 10);
+                  if (num > 0 && num < 10000) {
+                    quantity = num;
+                  }
+                }
+
+                // Price: contains € or decimal with comma
+                if (
+                  !unitPrice &&
+                  (text.includes("€") || /\d+[.,]\d+/.test(text))
+                ) {
+                  unitPrice = text;
+                }
+
+                // Article name: longer text without numbers
+                if (
+                  !articleName &&
+                  text.length > 10 &&
+                  !/^\d+$/.test(text) &&
+                  !text.includes("€")
+                ) {
+                  articleName = text;
+                }
+              }
+
+              // If we found basic item data, add it
+              if (articleCode && quantity > 0) {
+                items.push({
+                  articleCode,
+                  articleName: articleName || articleCode,
+                  quantity,
+                  unitPrice: unitPrice || "0 €",
+                  subtotal: unitPrice || "0 €", // Approximate for now
+                });
+              }
+            }
+          }
+        }
+
+        // Create status timeline from available dates
+        const statusTimeline: Array<{
+          status: string;
+          timestamp: string;
+          note?: string;
+        }> = [];
+
+        // Add creation
+        if (date) {
+          statusTimeline.push({
+            status: "Creato",
+            timestamp: date,
+          });
+        }
+
+        // Add transfer if exists
+        if (transferDate && transferStatus) {
+          statusTimeline.push({
+            status: transferStatus,
+            timestamp: transferDate,
+          });
+        }
+
+        // Add completion if exists
+        if (completionDate) {
+          statusTimeline.push({
+            status: documentStatus || "Completato",
+            timestamp: completionDate,
+          });
+        }
+
+        // Add current status
+        if (status && deliveryDate) {
+          statusTimeline.push({
+            status: status,
+            timestamp: deliveryDate,
+          });
+        }
+
+        // Sort timeline by timestamp descending (newest first)
+        statusTimeline.sort(
+          (a, b) =>
+            new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime(),
+        );
+
+        const orderDetail: OrderDetail = {
+          id,
+          orderNumber,
+          date,
+          deliveryDate,
+          customerName,
+          customerProfileId,
+          customerAddress: customerAddress || undefined,
+          customerEmail: customerEmail || undefined,
+          customerReference: customerReference || undefined,
+          status,
+          documentStatus: documentStatus || undefined,
+          transferStatus: transferStatus || undefined,
+          transferDate,
+          completionDate,
+          items,
+          statusTimeline,
+        };
+
+        return orderDetail;
+      } catch (error) {
+        console.error("Error extracting order detail:", error);
+        return null;
+      }
+    }, orderId);
   }
 }
