@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom';
 import { useState } from 'react';
 import './App.css';
 import { useAuth } from './hooks/useAuth';
@@ -15,6 +15,7 @@ import { CacheSyncProgress } from './components/CacheSyncProgress';
 import { OfflineBanner } from './components/OfflineBanner';
 import { CacheRefreshButton } from './components/CacheRefreshButton';
 import { AdminPage } from './pages/AdminPage';
+import { OrderHistory } from './pages/OrderHistory';
 
 function AppRouter() {
   const auth = useAuth();
@@ -43,10 +44,6 @@ function AppRouter() {
   const handleViewOrder = (selectedJobId: string) => {
     setJobId(selectedJobId);
     setView("status");
-  };
-
-  const handleViewOrdersList = () => {
-    setView("orders-list");
   };
 
   // Show loading spinner while checking auth
@@ -136,6 +133,54 @@ function AppRouter() {
   // Main app - authenticated users
   const isAdmin = auth.user?.role === 'admin';
 
+  // Shared Header component
+  function AppHeader() {
+    const navigate = useNavigate();
+    const location = useLocation();
+
+    return (
+      <header className="app-header">
+        <div>
+          <h1>📦 Archibald Mobile</h1>
+          <p>Inserimento ordini</p>
+        </div>
+        <div style={{ display: "flex", gap: "1rem", alignItems: "center" }}>
+          <div style={{ display: "flex", gap: "0.5rem" }}>
+            <button
+              type="button"
+              onClick={() => navigate('/')}
+              className={`btn btn-sm ${location.pathname === '/' && view === "form" ? "btn-primary" : "btn-secondary"}`}
+            >
+              📝 Nuovo Ordine
+            </button>
+            <button
+              type="button"
+              onClick={() => navigate('/orders')}
+              className={`btn btn-sm ${location.pathname === '/orders' ? "btn-primary" : "btn-secondary"}`}
+            >
+              📦 Storico
+            </button>
+          </div>
+          <CacheRefreshButton />
+          <div className="user-info">
+            <span>{auth.user?.fullName}</span>
+            {isAdmin && (
+              <a href="/admin" className="btn btn-secondary btn-sm">
+                🔧 Admin
+              </a>
+            )}
+            <button
+              onClick={auth.logout}
+              className="btn btn-secondary btn-sm"
+            >
+              Logout
+            </button>
+          </div>
+        </div>
+      </header>
+    );
+  }
+
   return (
     <BrowserRouter>
       <OfflineBanner />
@@ -153,52 +198,31 @@ function AppRouter() {
           />
         )}
 
+        {/* Order History route */}
+        <Route
+          path="/orders"
+          element={
+            <div className="app" style={{ marginTop: isOffline ? "64px" : "0" }}>
+              <SyncBanner />
+              <AppHeader />
+              <main className="app-main" style={{ padding: "0" }}>
+                <OrderHistory />
+              </main>
+              <footer className="app-footer">
+                <p>v1.0.0 • Fresis Team</p>
+              </footer>
+              <CacheSyncProgress />
+            </div>
+          }
+        />
+
         {/* Main app route */}
         <Route
           path="/"
           element={
             <div className="app" style={{ marginTop: isOffline ? "64px" : "0" }}>
               <SyncBanner />
-              <header className="app-header">
-                <div>
-                  <h1>📦 Archibald Mobile</h1>
-                  <p>Inserimento ordini</p>
-                </div>
-                <div style={{ display: "flex", gap: "1rem", alignItems: "center" }}>
-                  <div style={{ display: "flex", gap: "0.5rem" }}>
-                    <button
-                      type="button"
-                      onClick={handleNewOrder}
-                      className={`btn btn-sm ${view === "form" ? "btn-primary" : "btn-secondary"}`}
-                    >
-                      📝 Nuovo Ordine
-                    </button>
-                    <button
-                      type="button"
-                      onClick={handleViewOrdersList}
-                      className={`btn btn-sm ${view === "orders-list" ? "btn-primary" : "btn-secondary"}`}
-                    >
-                      📊 I Miei Ordini
-                    </button>
-                  </div>
-                  <CacheRefreshButton />
-                  <div className="user-info">
-                    <span>{auth.user?.fullName}</span>
-                    {isAdmin && (
-                      <a href="/admin" className="btn btn-secondary btn-sm">
-                        🔧 Admin
-                      </a>
-                    )}
-                    <button
-                      onClick={auth.logout}
-                      className="btn btn-secondary btn-sm"
-                    >
-                      Logout
-                    </button>
-                  </div>
-                </div>
-              </header>
-
+              <AppHeader />
               <main className="app-main">
                 {view === "form" ? (
                   <OrderForm
