@@ -167,19 +167,8 @@ export class OrderHistoryService {
         break;
       }
 
-      // Check for duplicates (same order ID on consecutive pages)
-      const newOrders = pageOrders.filter(
-        (order) => !allOrders.some((existing) => existing.id === order.id),
-      );
-
-      if (newOrders.length === 0 && pageOrders.length > 0) {
-        logger.warn(
-          `[OrderHistoryService] Page ${currentPage} only contains duplicates, stopping`,
-        );
-        break;
-      }
-
-      allOrders.push(...newOrders);
+      // Add all orders from page (no duplicate check - Archibald data is authoritative)
+      allOrders.push(...pageOrders);
 
       // Check if we have enough orders
       if (allOrders.length >= limit) {
