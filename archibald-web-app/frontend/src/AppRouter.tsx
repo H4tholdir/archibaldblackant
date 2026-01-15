@@ -1,5 +1,5 @@
 import { BrowserRouter, Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import './App.css';
 import { useAuth } from './hooks/useAuth';
 import { useNetworkStatus } from './hooks/useNetworkStatus';
@@ -16,6 +16,8 @@ import { OfflineBanner } from './components/OfflineBanner';
 import { CacheRefreshButton } from './components/CacheRefreshButton';
 import { AdminPage } from './pages/AdminPage';
 import { OrderHistory } from './pages/OrderHistory';
+import { PendingOrdersView } from './pages/PendingOrdersView';
+import { pendingOrdersService } from './services/pending-orders-service';
 
 function AppRouter() {
   const auth = useAuth();
@@ -30,6 +32,26 @@ function AppRouter() {
     password: string;
   } | null>(null);
   const [showLoginForm, setShowLoginForm] = useState(false);
+  const [pendingCount, setPendingCount] = useState(0);
+
+  // Load pending count on mount and refresh periodically
+  useEffect(() => {
+    const loadPendingCount = async () => {
+      try {
+        const result = await pendingOrdersService.getPendingOrdersWithCounts();
+        setPendingCount(result.counts.pending);
+      } catch (error) {
+        console.error('[AppRouter] Failed to load pending count:', error);
+      }
+    };
+
+    if (auth.isAuthenticated) {
+      loadPendingCount();
+      // Refresh count every 30 seconds
+      const interval = setInterval(loadPendingCount, 30000);
+      return () => clearInterval(interval);
+    }
+  }, [auth.isAuthenticated]);
 
   const handleOrderCreated = (newJobId: string) => {
     setJobId(newJobId);
@@ -160,6 +182,32 @@ function AppRouter() {
             >
               📦 Storico
             </button>
+            <button
+              type="button"
+              onClick={() => navigate('/pending')}
+              className={`btn btn-sm ${location.pathname === '/pending' ? "btn-primary" : "btn-secondary"}`}
+              style={{ position: 'relative' }}
+            >
+              📋 Coda
+              {pendingCount > 0 && (
+                <span
+                  style={{
+                    position: 'absolute',
+                    top: '-8px',
+                    right: '-8px',
+                    backgroundColor: '#ff9800',
+                    color: '#fff',
+                    borderRadius: '10px',
+                    padding: '2px 6px',
+                    fontSize: '11px',
+                    fontWeight: 600,
+                    minWidth: '20px',
+                  }}
+                >
+                  {pendingCount}
+                </span>
+              )}
+            </button>
           </div>
           <CacheRefreshButton />
           <div className="user-info">
@@ -216,6 +264,24 @@ function AppRouter() {
           }
         />
 
+        {/* Pending Orders route */}
+        <Route
+          path="/pending"
+          element={
+            <div className="app" style={{ marginTop: isOffline ? "64px" : "0" }}>
+              <SyncBanner />
+              <AppHeader />
+              <main className="app-main" style={{ padding: "0" }}>
+                <PendingOrdersView />
+              </main>
+              <footer className="app-footer">
+                <p>v1.0.0 • Fresis Team</p>
+              </footer>
+              <CacheSyncProgress />
+            </div>
+          }
+        />
+
         {/* Main app route */}
         <Route
           path="/"
@@ -228,6 +294,7 @@ function AppRouter() {
                   <OrderForm
                     token={auth.token!}
                     onOrderCreated={handleOrderCreated}
+                    isAdmin={isAdmin}
                   />
                 ) : view === "status" ? (
                   <OrderStatus jobId={jobId!} onNewOrder={handleNewOrder} />
