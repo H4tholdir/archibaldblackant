@@ -517,18 +517,19 @@ Plans:
 ### Phase 11: Order Management
 **Goal**: Modifica ordini pendenti, duplica ordine e tracking stato spedizione
 **Depends on**: Phase 10
-**Research**: Likely (Archibald order modification workflows)
-**Research topics**: Edit order flow in Archibald, order status tracking, duplication patterns
-**Plans**: 7 plans
+**Research**: Complete (11-CONTEXT.md from /gsd:discuss-phase 11)
+**Research topics**: DDT page structure, Fatture page structure, order states from ARCHIBALD AGENTI.pptx, "Invio" button workflow
+**Plans**: 7 plans (planning complete 2026-01-15)
+**Status**: ✅ Planning Complete (ready for execution)
 
 Plans:
-- [ ] 11-01: Research Archibald order edit workflow and constraints
-- [ ] 11-02: Implement order status tracking (in lavorazione/spedito/consegnato)
-- [ ] 11-03: Add backend endpoint for order status updates
-- [ ] 11-04: Build order status UI with real-time updates
-- [ ] 11-05: Implement edit pending order (if not yet processed)
-- [ ] 11-06: Implement duplicate order ("Ripeti ultimo ordine")
-- [ ] 11-07: Add order action audit log (chi ha modificato cosa, quando)
+- [ ] 11-01: Research Order Management Pages and Workflows (DDT, Fatture, "Invio" workflow)
+- [ ] 11-02: Implement "Send to Milano" Feature (Step 2 automation + database migration)
+- [ ] 11-03: Implement DDT and Tracking Number Scraping (CUSTPACKINGSLIPJOUR_ListView)
+- [ ] 11-04: Implement Status Tracking Backend with Cache (2-hour TTL, on-demand sync)
+- [ ] 11-05: Build Status Tracking UI with Timeline (OrderTimeline, OrderTracking, SendToMilanoModal)
+- [ ] 11-06: Implement Invoice Scraping and PDF Download (CUSTINVOICEJOUR_ListView)
+- [ ] 11-07: Integration Testing, Error Handling & Audit Log (E2E tests, edge cases, audit verification)
 
 ### Phase 12: Deployment & Infrastructure
 **Goal**: Setup produzione VPS con Docker, CI/CD e archibaldblackant.it SSL
@@ -589,9 +590,10 @@ Plans:
 | 8. Offline Capability | 8/8 | ✅ Complete | 2026-01-15 |
 | 9. Offline Queue | 3/3 | ✅ Complete | 2026-01-15 |
 | 10. Order History | 7/7 | ✅ Complete | 2026-01-15 |
-| 11. Order Management | 0/7 | Not started | - |
+| 11. Order Management | 0/7 | ✅ Planning complete | 2026-01-15 (planning) |
 | 12. Deployment & Infrastructure | 0/10 | Not started | - |
 | 5. Order Submission (POSTPONED) | 0/6 | ⚠️ Postponed (rolled back) | - |
 
-**Total Plans**: 82 across 12+ phases (Phase 9 reduced from 7→3, Phase 10 expanded from 6→7)
-**Completed**: 71/82 plans (87%)
+**Total Plans**: 89 across 12+ phases (Phase 9 reduced from 7→3, Phase 10 expanded from 6→7, Phase 11 confirmed 7 plans)
+**Completed**: 71/89 plans (80%)
+**Planning Complete**: 7/89 plans ready for execution (Phase 11)
