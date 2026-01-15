@@ -89,6 +89,62 @@ Content-Type: application/json
 }
 ```
 
+### 3. Invia a Milano (Step 2)
+```http
+POST http://localhost:3000/api/orders/:orderId/send-to-milano
+Authorization: Bearer <JWT_TOKEN>
+Content-Type: application/json
+```
+
+**Descrizione**: Invia definitivamente l'ordine al magazzino Milano (Step 2 del workflow a 2 fasi). Dopo questo step l'ordine **non è più modificabile**.
+
+**Parametri**:
+- `orderId` (URL param) - ID dell'ordine da inviare (es: "70.614")
+- JWT token richiesto in header Authorization
+
+**Validazioni**:
+- Ordine deve esistere e appartenere all'utente autenticato
+- Stato ordine deve essere "piazzato" (Step 1 già completato)
+- Se già inviato, ritorna successo (idempotente)
+
+**Risposta Success (200)**:
+```json
+{
+  "success": true,
+  "message": "Order 70.614 sent to Milano successfully",
+  "data": {
+    "orderId": "70.614",
+    "sentToMilanoAt": "2026-01-15T23:30:00.000Z",
+    "currentState": "inviato_milano"
+  }
+}
+```
+
+**Risposta Already Sent (200)**:
+```json
+{
+  "success": true,
+  "message": "Order 70.614 was already sent to Milano",
+  "data": {
+    "orderId": "70.614",
+    "sentToMilanoAt": "2026-01-15T22:00:00.000Z",
+    "currentState": "inviato_milano"
+  }
+}
+```
+
+**Errori**:
+- `400` - Ordine non in stato "piazzato"
+- `404` - Ordine non trovato
+- `500` - Errore durante automazione Archibald
+
+**Audit Trail**:
+Ogni invio viene registrato nella tabella `order_audit_log` con:
+- `action`: "send_to_milano"
+- `performed_by`: userId dell'utente autenticato
+- `performed_at`: timestamp ISO 8601
+- `details`: JSON con username e timestamp
+
 ---
 
 ## 🔧 Configurazione
