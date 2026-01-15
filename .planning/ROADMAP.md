@@ -457,12 +457,12 @@ Plans:
 ### Phase 9: Offline Queue
 **Goal**: Coda ordini offline con invio manuale e conflict resolution per dati stale
 **Depends on**: Phase 8 (PendingOrdersService, IndexedDB, automatic sync already implemented)
-**Status**: In progress (1/3 plans complete)
+**Status**: In progress (2/3 plans complete)
 **Plans**: 3 plans
 
 Plans:
 - [x] 09-01: Pending Orders UI & Manual Sync (2m) ✅
-- [ ] 09-02: Conflict Detection for Stale Data
+- [x] 09-02: Conflict Detection for Stale Data (15m) ✅
 - [ ] 09-03: Conflict Resolution UI
 
 **Note**: Phase 8 already implemented most of Phase 9's core functionality (queue persistence, automatic sync). Phase 9 adds user-facing UI and conflict resolution only.

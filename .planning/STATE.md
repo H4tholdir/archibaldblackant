@@ -10,18 +10,18 @@ See: .planning/PROJECT.md (updated 2026-01-11)
 ## Current Position
 
 Phase: 9 of 12 (Offline Queue)
-Plan: 1 of 3 in current phase
+Plan: 2 of 3 in current phase
 Status: In progress
-Last activity: 2026-01-15 — Completed 09-01-PLAN.md (Pending Orders UI & Manual Sync)
+Last activity: 2026-01-15 — Completed 09-02-PLAN.md (Conflict Detection for Stale Data)
 
-Progress: ████████░░ 76% (66/86 plans complete)
+Progress: ████████░░ 78% (67/86 plans complete)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 66
-- Average duration: 52 min
-- Total execution time: 68.30 hours
+- Total plans completed: 67
+- Average duration: 51 min
+- Total execution time: 68.55 hours
 
 **By Phase:**
 
@@ -36,12 +36,12 @@ Progress: ████████░░ 76% (66/86 plans complete)
 | 6 | 7 | 209 min | 30 min |
 | 7 | 6 | 243 min | 41 min |
 | 8 | 8 | 204 min | 26 min |
-| 9 | 1 | 2 min | 2 min |
+| 9 | 2 | 17 min | 9 min |
 | 10 | 7 | 738 min | 105 min |
 
 **Recent Trend:**
-- Last 8 plans: 10-02 (26m), 10-03 (37m), 10-04 (38m), 10-05 (45m), 10-06 (46m), 10-07 (521m), 09-01 (2m)
-- Trend: Plan 09-01 extremely fast (2m) - leveraged existing Phase 8 infrastructure, minimal new code needed
+- Last 8 plans: 10-03 (37m), 10-04 (38m), 10-05 (45m), 10-06 (46m), 10-07 (521m), 09-01 (2m), 09-02 (15m)
+- Trend: Phase 9 extremely fast (avg 9m) - leveraging existing Phase 8 infrastructure for offline features
 
 ## Accumulated Context
 
@@ -52,6 +52,11 @@ Recent decisions affecting current work:
 
 | Phase | Decision | Rationale |
 |-------|----------|-----------|
+| 09-02 | 72-hour threshold reused for conflict detection | Consistency with Phase 8-08 cache refresh, threshold already validated, users familiar with 3-day concept |
+| 09-02 | Modal blocks sync with user choice | Critical decision for risky action, banking app UX explicit confirmation, user empowerment with informed choice |
+| 09-02 | Per-order conflict badges when order created after cache sync | Order before cache sync = data fresh when queued, order after sync AND cache stale = show warning, proactive visibility |
+| 09-02 | Stale orders count in summary stats | Quick visibility at a glance, proactive before sync attempt, consistent with other badges (pending/syncing/error) |
+| 09-02 | Graceful fallback on detection error | Detection error ≠ data is stale, better UX don't block workflow, user empowerment, debug logs for troubleshooting |
 | 09-01 | Temporal grouping for pending orders (3 periods) | Oggi/Settimana/Vecchi matches OrderHistory Phase 10, simplified to 3 periods for shorter pending timespan |
 | 09-01 | Yellow badge (#ff9800) for pending count | Matches offline banner color, visual consistency, semantic meaning "attention needed" but not urgent |
 | 09-01 | 30-second refresh interval for pending count | Balances freshness with performance, syncs typically complete < 30s so count updates after sync |
