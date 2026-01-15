@@ -4,8 +4,34 @@ export interface StatusUpdate {
   note?: string;
 }
 
+export interface StateHistoryEntry {
+  state: string;
+  changedAt: string; // ISO 8601
+  notes?: string;
+}
+
 interface OrderTimelineProps {
-  updates: StatusUpdate[];
+  updates?: StatusUpdate[];
+  stateHistory?: StateHistoryEntry[];
+  currentState?: string;
+}
+
+// Italian state labels mapping
+const stateLabels: Record<string, string> = {
+  creato: "Creato",
+  piazzato: "Piazzato su Archibald",
+  inviato_milano: "Inviato a Milano",
+  modifica: "In modifica",
+  trasferito: "Trasferito",
+  transfer_error: "Errore trasferimento",
+  ordine_aperto: "Ordine aperto",
+  spedito: "Spedito",
+  consegnato: "Consegnato",
+  fatturato: "Fatturato",
+};
+
+function getStateLabel(state: string): string {
+  return stateLabels[state] || state;
 }
 
 function formatTimestamp(isoString: string): string {
@@ -37,10 +63,20 @@ function formatTimestamp(isoString: string): string {
 
 function getStatusColor(status: string): string {
   const statusLower = status.toLowerCase();
-  if (statusLower.includes("evaso")) return "#4caf50"; // Green
+  if (statusLower.includes("evaso") || statusLower.includes("consegnato"))
+    return "#4caf50"; // Green
   if (statusLower.includes("spedito")) return "#9c27b0"; // Purple
-  if (statusLower.includes("lavorazione")) return "#2196f3"; // Blue
-  if (statusLower.includes("creato")) return "#2196f3"; // Blue
+  if (
+    statusLower.includes("lavorazione") ||
+    statusLower.includes("ordine_aperto")
+  )
+    return "#2196f3"; // Blue
+  if (
+    statusLower.includes("creato") ||
+    statusLower.includes("piazzato") ||
+    statusLower.includes("inviato_milano")
+  )
+    return "#9e9e9e"; // Gray
   return "#9e9e9e"; // Gray default
 }
 
@@ -130,11 +166,37 @@ function TimelineItem({
   );
 }
 
-export function OrderTimeline({ updates }: OrderTimelineProps) {
-  // Sort updates by timestamp descending (newest first)
-  const sortedUpdates = [...updates].sort(
-    (a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime(),
-  );
+export function OrderTimeline({
+  updates,
+  stateHistory,
+  currentState,
+}: OrderTimelineProps) {
+  // Convert stateHistory to StatusUpdate format if provided
+  let sortedUpdates: StatusUpdate[];
+
+  if (stateHistory && stateHistory.length > 0) {
+    // New format: StateHistoryEntry[] from 11-04 API
+    sortedUpdates = stateHistory.map((entry) => ({
+      status: getStateLabel(entry.state),
+      timestamp: entry.changedAt,
+      note: entry.notes,
+    }));
+
+    // Sort by timestamp descending (newest first)
+    sortedUpdates.sort(
+      (a, b) =>
+        new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime(),
+    );
+  } else if (updates && updates.length > 0) {
+    // Legacy format: StatusUpdate[]
+    sortedUpdates = [...updates].sort(
+      (a, b) =>
+        new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime(),
+    );
+  } else {
+    // No updates available
+    return null;
+  }
 
   // If no updates, return null
   if (sortedUpdates.length === 0) {
