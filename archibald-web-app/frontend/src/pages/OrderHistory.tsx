@@ -2,7 +2,13 @@ import { useState, useEffect, useCallback } from "react";
 import { OrderCard } from "../components/OrderCard";
 import type { Order as OrderCardOrder } from "../components/OrderCard";
 import { OrderTimeline } from "../components/OrderTimeline";
-import type { StatusUpdate } from "../components/OrderTimeline";
+import type {
+  StatusUpdate,
+  StateHistoryEntry,
+} from "../components/OrderTimeline";
+import { OrderTracking } from "../components/OrderTracking";
+import { OrderActions } from "../components/OrderActions";
+import { SendToMilanoModal } from "../components/SendToMilanoModal";
 import { groupOrdersByPeriod } from "../utils/orderGrouping";
 import type { Order } from "../utils/orderGrouping";
 
@@ -60,6 +66,9 @@ export function OrderHistory() {
   const [orderDetails, setOrderDetails] = useState<Map<string, OrderDetail>>(
     new Map(),
   );
+  const [stateHistory, setStateHistory] = useState<
+    Map<string, StateHistoryEntry[]>
+  >(new Map());
   const [filters, setFilters] = useState<OrderFilters>({
     customer: "",
     dateFrom: "",
@@ -68,6 +77,10 @@ export function OrderHistory() {
   });
   const [debouncedCustomer, setDebouncedCustomer] = useState("");
   const [syncing, setSyncing] = useState(false);
+  const [modalOpen, setModalOpen] = useState(false);
+  const [modalOrderId, setModalOrderId] = useState<string | null>(null);
+  const [modalCustomerName, setModalCustomerName] = useState<string>("");
+  const [sendingToMilano, setSendingToMilano] = useState(false);
 
   // Debounce customer search input (300ms)
   useEffect(() => {
@@ -132,7 +145,7 @@ export function OrderHistory() {
     fetchOrders();
   }, [fetchOrders]);
 
-  // Fetch order detail when expanding
+  // Fetch order detail and state history when expanding
   const handleToggle = async (orderId: string) => {
     if (expandedOrderId === orderId) {
       // Collapse
@@ -146,7 +159,7 @@ export function OrderHistory() {
       return;
     }
 
-    // Fetch detail
+    // Fetch detail and state history in parallel
     try {
       const token = localStorage.getItem("archibald_jwt");
       if (!token) {
@@ -154,27 +167,47 @@ export function OrderHistory() {
         return;
       }
 
-      const response = await fetch(`/api/orders/${orderId}`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
+      const [detailResponse, stateHistoryResponse] = await Promise.all([
+        fetch(`/api/orders/${orderId}`, {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }),
+        fetch(`/api/orders/${orderId}/state-history`, {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }),
+      ]);
 
-      if (!response.ok) {
-        if (response.status === 404) {
+      if (!detailResponse.ok) {
+        if (detailResponse.status === 404) {
           setError("Ordine non trovato.");
           return;
         }
-        throw new Error(`Errore ${response.status}: ${response.statusText}`);
+        throw new Error(
+          `Errore ${detailResponse.status}: ${detailResponse.statusText}`,
+        );
       }
 
-      const data: OrderDetailResponse = await response.json();
-      if (!data.success) {
+      const detailData: OrderDetailResponse = await detailResponse.json();
+      if (!detailData.success) {
         throw new Error("Errore nel caricamento del dettaglio ordine");
       }
 
       // Cache detail
-      setOrderDetails((prev) => new Map(prev).set(orderId, data.data));
+      setOrderDetails((prev) => new Map(prev).set(orderId, detailData.data));
+
+      // Fetch state history (non-blocking if fails)
+      if (stateHistoryResponse.ok) {
+        const historyData = await stateHistoryResponse.json();
+        if (historyData.success && historyData.data) {
+          setStateHistory((prev) =>
+            new Map(prev).set(orderId, historyData.data),
+          );
+        }
+      }
+
       setExpandedOrderId(orderId);
     } catch (err) {
       console.error("Error fetching order detail:", err);
@@ -202,24 +235,35 @@ export function OrderHistory() {
     });
   };
 
-  const handleForceSync = async () => {
-    setSyncing(true);
+  const handleSendToMilano = (orderId: string, customerName: string) => {
+    setModalOrderId(orderId);
+    setModalCustomerName(customerName);
+    setModalOpen(true);
+  };
+
+  const handleConfirmSendToMilano = async () => {
+    if (!modalOrderId) return;
+
+    setSendingToMilano(true);
     setError(null);
 
     try {
       const token = localStorage.getItem("archibald_jwt");
       if (!token) {
         setError("Non autenticato. Effettua il login.");
-        setSyncing(false);
+        setSendingToMilano(false);
         return;
       }
 
-      const response = await fetch("/api/orders/force-sync", {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${token}`,
+      const response = await fetch(
+        `/api/orders/${modalOrderId}/send-to-milano`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
         },
-      });
+      );
 
       if (!response.ok) {
         if (response.status === 401) {
@@ -232,7 +276,82 @@ export function OrderHistory() {
 
       const data = await response.json();
       if (!data.success) {
+        throw new Error(data.message || "Errore nell'invio a Milano");
+      }
+
+      // Close modal
+      setModalOpen(false);
+      setModalOrderId(null);
+      setModalCustomerName("");
+
+      // Reload orders to reflect new state
+      await fetchOrders();
+
+      // Show success message (you could add a toast here)
+      alert("Ordine inviato a Milano con successo!");
+    } catch (err) {
+      console.error("Error sending to Milano:", err);
+      setError(
+        err instanceof Error ? err.message : "Errore nell'invio a Milano",
+      );
+    } finally {
+      setSendingToMilano(false);
+    }
+  };
+
+  const handleEdit = (orderId: string) => {
+    // Navigate to OrderForm with orderId to restore draft
+    window.location.href = `/order-form?orderId=${orderId}`;
+  };
+
+  const handleForceSync = async () => {
+    setSyncing(true);
+    setError(null);
+
+    try {
+      const token = localStorage.getItem("archibald_jwt");
+      if (!token) {
+        setError("Non autenticato. Effettua il login.");
+        setSyncing(false);
+        return;
+      }
+
+      // Call both force-sync and sync-states endpoints in parallel
+      const [syncResponse, stateResponse] = await Promise.all([
+        fetch("/api/orders/force-sync", {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }),
+        fetch("/api/orders/sync-states?forceRefresh=true", {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }),
+      ]);
+
+      if (!syncResponse.ok) {
+        if (syncResponse.status === 401) {
+          setError("Sessione scaduta. Effettua il login.");
+          localStorage.removeItem("archibald_jwt");
+          return;
+        }
+        throw new Error(
+          `Errore ${syncResponse.status}: ${syncResponse.statusText}`,
+        );
+      }
+
+      const data = await syncResponse.json();
+      if (!data.success) {
         throw new Error("Errore nella sincronizzazione degli ordini");
+      }
+
+      // State sync is best-effort (don't fail if it errors)
+      if (stateResponse.ok) {
+        const stateData = await stateResponse.json();
+        console.log("State sync result:", stateData);
       }
 
       // Reload orders after successful sync
@@ -693,6 +812,50 @@ export function OrderHistory() {
                   const mergedOrder = getMergedOrder(order);
                   const isExpanded = expandedOrderId === order.id;
                   const detail = orderDetails.get(order.id);
+                  const history = stateHistory.get(order.id);
+
+                  // Create combined component for expanded view
+                  const expandedContent = isExpanded ? (
+                    <>
+                      {/* State Timeline */}
+                      {(history || detail?.statusTimeline) && (
+                        <div style={{ marginBottom: "16px" }}>
+                          <OrderTimeline
+                            stateHistory={history}
+                            updates={detail?.statusTimeline}
+                            currentState={
+                              (detail as any)?.currentState || order.status
+                            }
+                          />
+                        </div>
+                      )}
+
+                      {/* Tracking Information */}
+                      {(detail?.ddtNumber || detail?.trackingNumber) && (
+                        <div style={{ marginBottom: "16px" }}>
+                          <OrderTracking
+                            ddtNumber={(detail as any)?.ddtNumber}
+                            trackingNumber={(detail as any)?.trackingNumber}
+                            trackingUrl={(detail as any)?.trackingUrl}
+                            trackingCourier={(detail as any)?.trackingCourier}
+                          />
+                        </div>
+                      )}
+
+                      {/* Order Actions */}
+                      <OrderActions
+                        orderId={order.id}
+                        currentState={
+                          (detail as any)?.currentState || order.status
+                        }
+                        archibaldOrderId={(detail as any)?.archibaldOrderId}
+                        onSendToMilano={() =>
+                          handleSendToMilano(order.id, order.customerName)
+                        }
+                        onEdit={() => handleEdit(order.id)}
+                      />
+                    </>
+                  ) : undefined;
 
                   return (
                     <OrderCard
@@ -701,11 +864,7 @@ export function OrderHistory() {
                       expanded={isExpanded}
                       onToggle={() => handleToggle(order.id)}
                       onDocumentsClick={handleDocumentsClick}
-                      timelineComponent={
-                        isExpanded && detail?.statusTimeline ? (
-                          <OrderTimeline updates={detail.statusTimeline} />
-                        ) : undefined
-                      }
+                      timelineComponent={expandedContent}
                     />
                   );
                 })}
@@ -714,6 +873,20 @@ export function OrderHistory() {
           ))}
         </div>
       )}
+
+      {/* Send to Milano Modal */}
+      <SendToMilanoModal
+        isOpen={modalOpen}
+        onClose={() => {
+          setModalOpen(false);
+          setModalOrderId(null);
+          setModalCustomerName("");
+        }}
+        onConfirm={handleConfirmSendToMilano}
+        orderId={modalOrderId || ""}
+        customerName={modalCustomerName}
+        isLoading={sendingToMilano}
+      />
     </div>
   );
 }
