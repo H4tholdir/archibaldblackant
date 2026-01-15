@@ -10,19 +10,19 @@ See: .planning/PROJECT.md (updated 2026-01-11)
 ## Current Position
 
 Phase: 10 of 12 (Order History)
-Plan: 4 of 7 complete
-Status: Completed Plan 10-04 (Tracking & Documents Extraction)
-Last activity: 2026-01-15 — Completed Plan 10-04 with tracking and documents
-Start time: 2026-01-15 07:19 → End time: 2026-01-15 07:57
+Plan: 5 of 7 complete
+Status: Completed Plan 10-05 (Order History API Endpoints)
+Last activity: 2026-01-15 — Completed Plan 10-05 with JWT auth and filters
+Start time: 2026-01-15 08:02 → End time: 2026-01-15 08:47
 
-Progress: ███████░ 57% Phase 10 (4/7 plans complete)
+Progress: ████████ 71% Phase 10 (5/7 plans complete)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 56
-- Average duration: 55 min
-- Total execution time: 58.10 hours
+- Total plans completed: 57
+- Average duration: 54 min
+- Total execution time: 58.85 hours
 
 **By Phase:**
 
@@ -37,11 +37,11 @@ Progress: ███████░ 57% Phase 10 (4/7 plans complete)
 | 6 | 7 | 209 min | 30 min |
 | 7 | 6 | 243 min | 41 min |
 | 8 | 8 | 204 min | 26 min |
-| 10 | 4 | 126 min | 32 min |
+| 10 | 5 | 171 min | 34 min |
 
 **Recent Trend:**
-- Last 7 plans: 08-07 (80m), 08-08 (20m), 10-01 (25m), 10-02 (26m), 10-03 (37m), 10-04 (38m)
-- Trend: Phase 10 progressing steadily, Plans 10-03 and 10-04 slightly longer due to complex DOM extraction
+- Last 7 plans: 08-08 (20m), 10-01 (25m), 10-02 (26m), 10-03 (37m), 10-04 (38m), 10-05 (45m)
+- Trend: Phase 10 progressing well, Plans 10-03/10-04/10-05 average ~40m due to complex logic
 
 ## Accumulated Context
 
@@ -52,6 +52,12 @@ Recent decisions affecting current work:
 
 | Phase | Decision | Rationale |
 |-------|----------|-----------|
+| 10-05 | In-memory filtering after scraping | Archibald has no API, scraping fast (< 5s), allows flexible filter combinations, OrderHistoryService remains filter-agnostic |
+| 10-05 | Case-insensitive partial match for customer filter | User-friendly ("rossi" matches "Mario Rossi"), consistent with Phase 8 search patterns, partial match more useful than exact |
+| 10-05 | End-of-day logic for dateTo filter | ISO date "2024-01-31" means entire day, set time to 23:59:59.999 to include full day, matches user expectations |
+| 10-05 | Numeric validation for orderId parameter | Archibald IDs are numeric, early validation provides clear 400 error, prevents unnecessary context acquisition |
+| 10-05 | PriorityManager pause/resume pattern | Same pattern as order creation (Phase 4.1-01), prevents bot conflicts, synchronous methods (no await) |
+| 10-05 | BrowserContext success flag always true | Read-only operations don't corrupt session, keep context maximizes performance, avoid re-login overhead |
 | 10-04 | Header-based column detection for tracking | Header text ("TRACCIABILITÀ") stable identifier vs hardcoded indices, matches Plan 10-03 pattern |
 | 10-04 | First-row tracking extraction only | Most orders have single shipment, simplifies data structure (tracking?: TrackingInfo vs array), sufficient for MVP |
 | 10-04 | URL normalization for document links | Archibald may return relative paths, frontend needs absolute URLs, handles both gracefully |
