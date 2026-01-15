@@ -10,19 +10,19 @@ See: .planning/PROJECT.md (updated 2026-01-11)
 ## Current Position
 
 Phase: 10 of 12 (Order History)
-Plan: 5 of 7 complete
-Status: Completed Plan 10-05 (Order History API Endpoints)
-Last activity: 2026-01-15 — Completed Plan 10-05 with JWT auth and filters
-Start time: 2026-01-15 08:02 → End time: 2026-01-15 08:47
+Plan: 6 of 7 complete
+Status: Completed Plan 10-06 (Timeline UI Components)
+Last activity: 2026-01-15 — Completed Plan 10-06 with banking app style components
+Start time: 2026-01-15 08:49 → End time: 2026-01-15 09:35
 
-Progress: ████████ 71% Phase 10 (5/7 plans complete)
+Progress: █████████ 86% Phase 10 (6/7 plans complete)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 57
+- Total plans completed: 58
 - Average duration: 54 min
-- Total execution time: 58.85 hours
+- Total execution time: 59.62 hours
 
 **By Phase:**
 
@@ -37,11 +37,11 @@ Progress: ████████ 71% Phase 10 (5/7 plans complete)
 | 6 | 7 | 209 min | 30 min |
 | 7 | 6 | 243 min | 41 min |
 | 8 | 8 | 204 min | 26 min |
-| 10 | 5 | 171 min | 34 min |
+| 10 | 6 | 217 min | 36 min |
 
 **Recent Trend:**
-- Last 7 plans: 08-08 (20m), 10-01 (25m), 10-02 (26m), 10-03 (37m), 10-04 (38m), 10-05 (45m)
-- Trend: Phase 10 progressing well, Plans 10-03/10-04/10-05 average ~40m due to complex logic
+- Last 7 plans: 10-01 (25m), 10-02 (26m), 10-03 (37m), 10-04 (38m), 10-05 (45m), 10-06 (46m)
+- Trend: Phase 10 progressing consistently, frontend/backend plans averaging ~37m with complex implementations
 
 ## Accumulated Context
 
@@ -52,6 +52,11 @@ Recent decisions affecting current work:
 
 | Phase | Decision | Rationale |
 |-------|----------|-----------|
+| 10-06 | Inline styles over CSS modules | Matches existing project convention (verified vs OfflineBanner), consistent with Phase 8 patterns, simpler for component library |
+| 10-06 | Controlled component for OrderCard expand state | External state management provides flexibility, allows parent to control expand/collapse, easier testing |
+| 10-06 | Status-specific color coding | Blue (In lavorazione), green (Evaso), purple (Spedito), gray (default) - consistent across badges and timeline dots |
+| 10-06 | Temporal grouping with 4 periods | Oggi/Settimana/Mese/Vecchi matches banking app patterns (Intesa/UniCredit), clear temporal hierarchy |
+| 10-06 | Pure function for grouping utility | No side effects, easier testing, reusable, 12 unit tests passing |
 | 10-05 | In-memory filtering after scraping | Archibald has no API, scraping fast (< 5s), allows flexible filter combinations, OrderHistoryService remains filter-agnostic |
 | 10-05 | Case-insensitive partial match for customer filter | User-friendly ("rossi" matches "Mario Rossi"), consistent with Phase 8 search patterns, partial match more useful than exact |
 | 10-05 | End-of-day logic for dateTo filter | ISO date "2024-01-31" means entire day, set time to 23:59:59.999 to include full day, matches user expectations |
