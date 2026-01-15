@@ -20,7 +20,7 @@ None (full-stack web app con pattern standard)
 - [x] **Phase 6: Multi-User Authentication** - Login multi-agente con whitelist ✅ COMPLETE (7/7 plans)
 - [x] **Phase 7: Credential Management** - Storage sicuro credenziali su device ✅ COMPLETE (6/6 plans)
 - [x] **Phase 8: Offline Capability** - Cache IndexedDB e bozze persistenti ✅ COMPLETE (8/8 plans)
-- [ ] **Phase 9: Offline Queue** - Coda ordini offline con sync manuale
+- [x] **Phase 9: Offline Queue** - Coda ordini offline con sync manuale ✅
 - [ ] **Phase 10: Order History** - Storico ordini da Archibald
 - [ ] **Phase 11: Order Management** - Modifica, duplica e tracking ordini
 - [ ] **Phase 12: Deployment & Infrastructure** - Setup produzione VPS
@@ -454,16 +454,30 @@ Plans:
 2. ✅ **Trasparenza** - L'agente vede sempre lo stato (banner + progress + list)
 3. ✅ **Velocità** - Ricerca < 100ms (verified in tests)
 
-### Phase 9: Offline Queue
+### Phase 9: Offline Queue ✅ COMPLETE
 **Goal**: Coda ordini offline con invio manuale e conflict resolution per dati stale
 **Depends on**: Phase 8 (PendingOrdersService, IndexedDB, automatic sync already implemented)
-**Status**: In progress (2/3 plans complete)
+**Status**: Complete (3/3 plans) ✅
+**Completed**: 2026-01-15
 **Plans**: 3 plans
 
 Plans:
 - [x] 09-01: Pending Orders UI & Manual Sync (2m) ✅
 - [x] 09-02: Conflict Detection for Stale Data (15m) ✅
-- [ ] 09-03: Conflict Resolution UI
+- [x] 09-03: Conflict Resolution UI (15m) ✅
+
+**Results**:
+- ✅ PendingOrdersView with temporal grouping (today/this week/older)
+- ✅ Manual sync button with conflict detection
+- ✅ Conflict warning modal before sync (choose update cache or continue)
+- ✅ Per-order conflict review modals with price/product conflict highlighting
+- ✅ Sequential review workflow with progress tracking
+- ✅ User can confirm (sync) or cancel (mark as error) each conflicted order
+- ✅ Banking app UX consistent throughout
+- ✅ OrderConflictReview component for detailed conflict display
+- ✅ Price changes color-coded (red=higher, green=lower)
+- ✅ Product not found warnings for discontinued items
+- ✅ Total price difference calculation with percentage change
 
 **Note**: Phase 8 already implemented most of Phase 9's core functionality (queue persistence, automatic sync). Phase 9 adds user-facing UI and conflict resolution only.
 

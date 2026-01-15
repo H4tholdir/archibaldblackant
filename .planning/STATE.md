@@ -5,23 +5,23 @@
 See: .planning/PROJECT.md (updated 2026-01-11)
 
 **Core value:** Rendere la creazione ordini Archibald **veloce, affidabile e mobile-friendly** per agenti in movimento
-**Current focus:** Phase 9 — Offline Queue (UI for pending orders with manual sync)
+**Current focus:** Phase 9 — Offline Queue (COMPLETE) → Phase 10 — Order History (in progress)
 
 ## Current Position
 
 Phase: 9 of 12 (Offline Queue)
-Plan: 2 of 3 in current phase
-Status: In progress
-Last activity: 2026-01-15 — Completed 09-02-PLAN.md (Conflict Detection for Stale Data)
+Plan: 3 of 3 in current phase
+Status: Complete
+Last activity: 2026-01-15 — Completed 09-03-PLAN.md (Conflict Resolution UI)
 
-Progress: ████████░░ 78% (67/86 plans complete)
+Progress: ████████░░ 79% (68/86 plans complete)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 67
-- Average duration: 51 min
-- Total execution time: 68.55 hours
+- Total plans completed: 68
+- Average duration: 50 min
+- Total execution time: 68.8 hours
 
 **By Phase:**
 
@@ -36,12 +36,12 @@ Progress: ████████░░ 78% (67/86 plans complete)
 | 6 | 7 | 209 min | 30 min |
 | 7 | 6 | 243 min | 41 min |
 | 8 | 8 | 204 min | 26 min |
-| 9 | 2 | 17 min | 9 min |
+| 9 | 3 | 32 min | 11 min |
 | 10 | 7 | 738 min | 105 min |
 
 **Recent Trend:**
-- Last 8 plans: 10-03 (37m), 10-04 (38m), 10-05 (45m), 10-06 (46m), 10-07 (521m), 09-01 (2m), 09-02 (15m)
-- Trend: Phase 9 extremely fast (avg 9m) - leveraging existing Phase 8 infrastructure for offline features
+- Last 8 plans: 10-04 (38m), 10-05 (45m), 10-06 (46m), 10-07 (521m), 09-01 (2m), 09-02 (15m), 09-03 (15m)
+- Trend: Phase 9 extremely fast (avg 11m) - leveraging existing Phase 8 infrastructure for offline features
 
 ## Accumulated Context
 
@@ -52,6 +52,11 @@ Recent decisions affecting current work:
 
 | Phase | Decision | Rationale |
 |-------|----------|-----------|
+| 09-03 | Sequential per-order review (one at a time) | Banking app UX focus on one critical decision, prevents information overload, progress banner provides context, clear workflow |
+| 09-03 | Confirm syncs, cancel marks as error | Clear consequences for each action, confirm=accept changes/proceed, cancel=reject/preserve in queue with error status for manual retry later |
+| 09-03 | Price changes color-coded (red=higher, green=lower) | Semantic colors consistent with banking/finance UX, immediate visual feedback, red=cost increase (bad), green=decrease (good) |
+| 09-03 | Review progress banner at top | Always visible regardless of modal scroll, non-intrusive, reassurance of remaining reviews, blue consistent with action/progress indicators |
+| 09-03 | Product not found warnings (red) | Critical issue can't fulfill order, red signals severity, user can cancel or contact customer, prevents sync errors with invalid codes |
 | 09-02 | 72-hour threshold reused for conflict detection | Consistency with Phase 8-08 cache refresh, threshold already validated, users familiar with 3-day concept |
 | 09-02 | Modal blocks sync with user choice | Critical decision for risky action, banking app UX explicit confirmation, user empowerment with informed choice |
 | 09-02 | Per-order conflict badges when order created after cache sync | Order before cache sync = data fresh when queued, order after sync AND cache stale = show warning, proactive visibility |
