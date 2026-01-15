@@ -19,9 +19,27 @@ interface SyncState {
 
 export default function SyncBars() {
   const [syncState, setSyncState] = useState<SyncState>({
-    customers: { status: "idle", currentPage: 0, totalPages: 0, itemsProcessed: 0, message: "Pronto" },
-    products: { status: "idle", currentPage: 0, totalPages: 0, itemsProcessed: 0, message: "Pronto" },
-    prices: { status: "idle", currentPage: 0, totalPages: 0, itemsProcessed: 0, message: "Pronto" },
+    customers: {
+      status: "idle",
+      currentPage: 0,
+      totalPages: 0,
+      itemsProcessed: 0,
+      message: "Pronto",
+    },
+    products: {
+      status: "idle",
+      currentPage: 0,
+      totalPages: 0,
+      itemsProcessed: 0,
+      message: "Pronto",
+    },
+    prices: {
+      status: "idle",
+      currentPage: 0,
+      totalPages: 0,
+      itemsProcessed: 0,
+      message: "Pronto",
+    },
     activeSyncType: null,
   });
 
@@ -61,7 +79,11 @@ export default function SyncBars() {
               status: data.status || "idle",
               currentPage: data.currentPage || 0,
               totalPages: data.totalPages || 0,
-              itemsProcessed: data.customersProcessed || data.productsProcessed || data.pricesProcessed || 0,
+              itemsProcessed:
+                data.customersProcessed ||
+                data.productsProcessed ||
+                data.pricesProcessed ||
+                0,
               message: data.message || "",
               error: data.error,
             };
@@ -73,7 +95,12 @@ export default function SyncBars() {
               if (data.status === "syncing") {
                 // Se sta sincronizzando, imposta come attivo
                 newActiveSyncType = syncType;
-              } else if (prev.activeSyncType === syncType && (data.status === "completed" || data.status === "error" || data.status === "idle")) {
+              } else if (
+                prev.activeSyncType === syncType &&
+                (data.status === "completed" ||
+                  data.status === "error" ||
+                  data.status === "idle")
+              ) {
                 // Se questo sync era attivo ma ora è completato/errore/idle, resetta
                 newActiveSyncType = null;
               }
@@ -116,13 +143,27 @@ export default function SyncBars() {
   const handleSync = async (type: "customers" | "products" | "prices") => {
     // Previeni sync multipli in parallelo
     if (syncState.activeSyncType) {
-      alert(`Sincronizzazione ${syncState.activeSyncType === "customers" ? "clienti" : syncState.activeSyncType === "products" ? "prodotti" : "prezzi"} in corso. Attendi il completamento.`);
+      alert(
+        `Sincronizzazione ${syncState.activeSyncType === "customers" ? "clienti" : syncState.activeSyncType === "products" ? "prodotti" : "prezzi"} in corso. Attendi il completamento.`,
+      );
       return;
     }
 
     try {
+      // Get JWT token for admin authentication
+      const jwt = localStorage.getItem("archibald_jwt");
+      if (!jwt) {
+        alert("Autenticazione richiesta. Effettua il login.");
+        return;
+      }
+
       const endpoint = `/api/sync/${type}`;
-      const response = await fetch(endpoint, { method: "POST" });
+      const response = await fetch(endpoint, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${jwt}`,
+        },
+      });
       const data = await response.json();
 
       if (!data.success) {
@@ -136,7 +177,9 @@ export default function SyncBars() {
       }));
     } catch (error) {
       console.error(`Errore sync ${type}:`, error);
-      alert(`Errore avvio sincronizzazione ${type === "customers" ? "clienti" : type === "products" ? "prodotti" : "prezzi"}`);
+      alert(
+        `Errore avvio sincronizzazione ${type === "customers" ? "clienti" : type === "products" ? "prodotti" : "prezzi"}`,
+      );
     }
   };
 
@@ -172,10 +215,10 @@ export default function SyncBars() {
             {syncState.customers.status === "syncing"
               ? `${calculateProgress(syncState.customers)}% - ${syncState.customers.itemsProcessed} items`
               : syncState.customers.status === "completed"
-              ? `✓ ${syncState.customers.itemsProcessed} clienti`
-              : syncState.customers.status === "error"
-              ? "✗ Errore"
-              : "Clicca per avviare"}
+                ? `✓ ${syncState.customers.itemsProcessed} clienti`
+                : syncState.customers.status === "error"
+                  ? "✗ Errore"
+                  : "Clicca per avviare"}
           </span>
         </div>
       </div>
@@ -198,10 +241,10 @@ export default function SyncBars() {
             {syncState.products.status === "syncing"
               ? `${calculateProgress(syncState.products)}% - ${syncState.products.itemsProcessed} items`
               : syncState.products.status === "completed"
-              ? `✓ ${syncState.products.itemsProcessed} prodotti`
-              : syncState.products.status === "error"
-              ? "✗ Errore"
-              : "Clicca per avviare"}
+                ? `✓ ${syncState.products.itemsProcessed} prodotti`
+                : syncState.products.status === "error"
+                  ? "✗ Errore"
+                  : "Clicca per avviare"}
           </span>
         </div>
       </div>
@@ -224,10 +267,10 @@ export default function SyncBars() {
             {syncState.prices.status === "syncing"
               ? `${calculateProgress(syncState.prices)}% - ${syncState.prices.itemsProcessed} items`
               : syncState.prices.status === "completed"
-              ? `✓ ${syncState.prices.itemsProcessed} prezzi`
-              : syncState.prices.status === "error"
-              ? "✗ Errore"
-              : "Clicca per avviare"}
+                ? `✓ ${syncState.prices.itemsProcessed} prezzi`
+                : syncState.prices.status === "error"
+                  ? "✗ Errore"
+                  : "Clicca per avviare"}
           </span>
         </div>
       </div>

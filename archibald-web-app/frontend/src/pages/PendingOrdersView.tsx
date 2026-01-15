@@ -36,7 +36,10 @@ export function PendingOrdersView() {
     null,
   );
   const [ordersToReview, setOrdersToReview] = useState<PendingOrder[]>([]);
-  const [reviewProgress, setReviewProgress] = useState({ current: 0, total: 0 });
+  const [reviewProgress, setReviewProgress] = useState({
+    current: 0,
+    total: 0,
+  });
 
   const loadOrders = async () => {
     try {
@@ -234,7 +237,10 @@ export function PendingOrdersView() {
         "Non sincronizzato - modifiche rifiutate",
       );
     } catch (error) {
-      console.error("[PendingOrdersView] Failed to update order status:", error);
+      console.error(
+        "[PendingOrdersView] Failed to update order status:",
+        error,
+      );
     }
 
     // Move to next order or finish
@@ -254,7 +260,8 @@ export function PendingOrdersView() {
       await loadOrders();
 
       setToast({
-        message: "⚠️ Revisione completata. Alcuni ordini non sono stati sincronizzati.",
+        message:
+          "⚠️ Revisione completata. Alcuni ordini non sono stati sincronizzati.",
         type: "error",
       });
     }
@@ -503,7 +510,7 @@ export function PendingOrdersView() {
         }}
       >
         <h2 style={{ fontSize: "20px", fontWeight: 600, marginBottom: "16px" }}>
-          📋 Coda Ordini
+          📋 Coda Ordini Offline
         </h2>
         <div
           style={{

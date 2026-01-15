@@ -1507,6 +1507,79 @@ app.get(
 );
 
 // ============================================================================
+// ADMIN JOB MANAGEMENT ENDPOINTS
+// ============================================================================
+
+// Get all jobs (admin only)
+app.get(
+  "/api/admin/jobs",
+  authenticateJWT,
+  requireAdmin,
+  async (req: AuthRequest, res: Response<ApiResponse>) => {
+    try {
+      const limit = parseInt((req.query.limit as string) || "50", 10);
+      const status = req.query.status as string | undefined;
+
+      const jobs = await queueManager.getAllJobs(limit, status);
+
+      logger.info(`[Admin] Fetched ${jobs.length} jobs`, {
+        userId: req.user!.userId,
+        limit,
+        status,
+      });
+
+      res.json({
+        success: true,
+        data: jobs,
+      });
+    } catch (error) {
+      logger.error("Error fetching admin jobs", { error });
+      res.status(500).json({
+        success: false,
+        error: error instanceof Error ? error.message : "Error fetching jobs",
+      });
+    }
+  },
+);
+
+// Retry a failed job (admin only)
+app.post(
+  "/api/admin/jobs/retry/:jobId",
+  authenticateJWT,
+  requireAdmin,
+  async (req: AuthRequest, res: Response<ApiResponse>) => {
+    try {
+      const { jobId } = req.params;
+
+      logger.info(`[Admin] Retry job ${jobId}`, {
+        userId: req.user!.userId,
+      });
+
+      const result = await queueManager.retryJob(jobId);
+
+      if (!result.success) {
+        return res.status(400).json({
+          success: false,
+          error: result.error || "Failed to retry job",
+        });
+      }
+
+      res.json({
+        success: true,
+        data: { newJobId: result.newJobId },
+        message: `Job ${jobId} retried successfully as ${result.newJobId}`,
+      });
+    } catch (error) {
+      logger.error("Error retrying job", { error });
+      res.status(500).json({
+        success: false,
+        error: error instanceof Error ? error.message : "Error retrying job",
+      });
+    }
+  },
+);
+
+// ============================================================================
 // ORDER HISTORY ENDPOINTS (Phase 10)
 // ============================================================================
 

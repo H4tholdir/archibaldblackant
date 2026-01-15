@@ -1,13 +1,13 @@
-import { Queue, Worker, type Job } from 'bullmq';
-import { Redis } from 'ioredis';
-import { logger } from './logger';
-import { BrowserPool } from './browser-pool';
-import type { OrderData } from './types';
-import { config } from './config';
-import { PriorityManager } from './priority-manager';
-import { CustomerSyncService } from './customer-sync-service';
-import { ProductSyncService } from './product-sync-service';
-import { PriceSyncService } from './price-sync-service';
+import { Queue, Worker, type Job } from "bullmq";
+import { Redis } from "ioredis";
+import { logger } from "./logger";
+import { BrowserPool } from "./browser-pool";
+import type { OrderData } from "./types";
+import { config } from "./config";
+import { PriorityManager } from "./priority-manager";
+import { CustomerSyncService } from "./customer-sync-service";
+import { ProductSyncService } from "./product-sync-service";
+import { PriceSyncService } from "./price-sync-service";
 
 /**
  * Job data per la coda ordini
@@ -44,13 +44,13 @@ export class QueueManager {
   private constructor() {
     // Connessione Redis (usa Redis locale su porta 6379)
     this.redisConnection = new Redis({
-      host: process.env.REDIS_HOST || 'localhost',
-      port: parseInt(process.env.REDIS_PORT || '6379'),
+      host: process.env.REDIS_HOST || "localhost",
+      port: parseInt(process.env.REDIS_PORT || "6379"),
       maxRetriesPerRequest: null,
     });
 
     // Inizializza la coda
-    this.queue = new Queue<OrderJobData, OrderJobResult>('orders', {
+    this.queue = new Queue<OrderJobData, OrderJobResult>("orders", {
       connection: this.redisConnection,
     });
 
@@ -59,11 +59,20 @@ export class QueueManager {
 
     // Register sync services with PriorityManager
     const priorityManager = PriorityManager.getInstance();
-    priorityManager.registerService('customer-sync', CustomerSyncService.getInstance());
-    priorityManager.registerService('product-sync', ProductSyncService.getInstance());
-    priorityManager.registerService('price-sync', PriceSyncService.getInstance());
+    priorityManager.registerService(
+      "customer-sync",
+      CustomerSyncService.getInstance(),
+    );
+    priorityManager.registerService(
+      "product-sync",
+      ProductSyncService.getInstance(),
+    );
+    priorityManager.registerService(
+      "price-sync",
+      PriceSyncService.getInstance(),
+    );
 
-    logger.info('Queue Manager inizializzato');
+    logger.info("Queue Manager inizializzato");
   }
 
   static getInstance(): QueueManager {
@@ -86,7 +95,7 @@ export class QueueManager {
    */
   async startWorker(): Promise<void> {
     if (this.worker) {
-      logger.warn('Worker già avviato');
+      logger.warn("Worker già avviato");
       return;
     }
 
@@ -94,7 +103,7 @@ export class QueueManager {
     await this.browserPool.initialize();
 
     this.worker = new Worker<OrderJobData, OrderJobResult>(
-      'orders',
+      "orders",
       async (job: Job<OrderJobData, OrderJobResult>) => {
         return this.processOrder(job);
       },
@@ -105,25 +114,31 @@ export class QueueManager {
     );
 
     // Event listeners
-    this.worker.on('completed', (job: Job<OrderJobData, OrderJobResult>) => {
+    this.worker.on("completed", (job: Job<OrderJobData, OrderJobResult>) => {
       logger.info(`Job ${job.id} completato`, {
         orderId: job.returnvalue?.orderId,
         duration: job.returnvalue?.duration,
       });
     });
 
-    this.worker.on('failed', (job: Job<OrderJobData, OrderJobResult> | undefined, err: Error) => {
-      logger.error(`Job ${job?.id} fallito`, {
-        error: err.message,
-        orderData: job?.data.orderData,
-      });
-    });
+    this.worker.on(
+      "failed",
+      (job: Job<OrderJobData, OrderJobResult> | undefined, err: Error) => {
+        logger.error(`Job ${job?.id} fallito`, {
+          error: err.message,
+          orderData: job?.data.orderData,
+        });
+      },
+    );
 
-    this.worker.on('progress', (job: Job<OrderJobData, OrderJobResult>, progress: number | object) => {
-      logger.debug(`Job ${job.id} progress`, { progress });
-    });
+    this.worker.on(
+      "progress",
+      (job: Job<OrderJobData, OrderJobResult>, progress: number | object) => {
+        logger.debug(`Job ${job.id} progress`, { progress });
+      },
+    );
 
-    logger.info('Worker avviato con concurrency: 3');
+    logger.info("Worker avviato con concurrency: 3");
   }
 
   /**
@@ -131,20 +146,24 @@ export class QueueManager {
    */
   private async cleanupZombieBrowsers(): Promise<void> {
     try {
-      const { execSync } = await import('child_process');
+      const { execSync } = await import("child_process");
       // Su macOS, chiudi TUTTI i processi Chrome for Testing di Puppeteer
       // Non usare "headless" perché Puppeteer non usa quella flag
-      execSync('pkill -f "Google Chrome for Testing" || true', { stdio: 'ignore' });
-      logger.debug('🧹 Pulizia browser zombie completata');
+      execSync('pkill -f "Google Chrome for Testing" || true', {
+        stdio: "ignore",
+      });
+      logger.debug("🧹 Pulizia browser zombie completata");
     } catch (error) {
-      logger.debug('Nessun browser zombie da pulire');
+      logger.debug("Nessun browser zombie da pulire");
     }
   }
 
   /**
    * Processa un ordine
    */
-  private async processOrder(job: Job<OrderJobData, OrderJobResult>): Promise<OrderJobResult> {
+  private async processOrder(
+    job: Job<OrderJobData, OrderJobResult>,
+  ): Promise<OrderJobResult> {
     const startTime = Date.now();
     const { orderData, userId, username } = job.data;
 
@@ -157,14 +176,18 @@ export class QueueManager {
       while (!acquired && attempts < maxAttempts) {
         acquired = this.onOrderStart();
         if (!acquired) {
-          logger.info(`⏳ Attendo rilascio operazione in corso... (tentativo ${attempts + 1}/${maxAttempts})`);
-          await new Promise(resolve => setTimeout(resolve, 1000));
+          logger.info(
+            `⏳ Attendo rilascio operazione in corso... (tentativo ${attempts + 1}/${maxAttempts})`,
+          );
+          await new Promise((resolve) => setTimeout(resolve, 1000));
           attempts++;
         }
       }
 
       if (!acquired) {
-        throw new Error('Impossibile acquisire il lock per creare l\'ordine dopo 60 secondi');
+        throw new Error(
+          "Impossibile acquisire il lock per creare l'ordine dopo 60 secondi",
+        );
       }
     }
 
@@ -174,10 +197,10 @@ export class QueueManager {
       username,
       customerName: orderData.customerName,
       itemsCount: orderData.items.length,
-      items: orderData.items.map(item => ({
+      items: orderData.items.map((item) => ({
         name: item.productName || item.articleCode,
-        qty: item.quantity
-      }))
+        qty: item.quantity,
+      })),
     });
 
     let bot: any = null;
@@ -188,15 +211,17 @@ export class QueueManager {
 
       // Per gli ordini, crea un browser dedicato invece di usare il pool
       // Il pool causa problemi con i retry e lo stato del browser
-      logger.info('🔧 Creazione browser dedicato per ordine...');
+      logger.info("🔧 Creazione browser dedicato per ordine...");
 
-      const { ArchibaldBot } = await import('./archibald-bot');
+      const { ArchibaldBot } = await import("./archibald-bot");
 
       // Create bot with userId for multi-user session
       bot = new ArchibaldBot(userId);
       await bot.initialize();
 
-      logger.info(`🔐 Using authenticated session for user ${username} (${userId})`);
+      logger.info(
+        `🔐 Using authenticated session for user ${username} (${userId})`,
+      );
 
       // Bot will handle login with per-user session cache
       await bot.login();
@@ -205,11 +230,15 @@ export class QueueManager {
       await job.updateProgress(25);
 
       // Crea l'ordine con priority lock (pausa tutti i servizi di sync)
-      logger.debug('[QueueManager] Acquiring priority lock for order creation...');
-      const orderId = await PriorityManager.getInstance().withPriority(async () => {
-        return await bot.createOrder(orderData);
-      });
-      logger.debug('[QueueManager] Priority lock released');
+      logger.debug(
+        "[QueueManager] Acquiring priority lock for order creation...",
+      );
+      const orderId = await PriorityManager.getInstance().withPriority(
+        async () => {
+          return await bot.createOrder(orderData);
+        },
+      );
+      logger.debug("[QueueManager] Priority lock released");
 
       // Aggiorna progress
       await job.updateProgress(100);
@@ -223,7 +252,7 @@ export class QueueManager {
         userId,
         username,
         customerName: orderData.customerName,
-        itemsCount: orderData.items.length
+        itemsCount: orderData.items.length,
       });
 
       return {
@@ -236,7 +265,7 @@ export class QueueManager {
       if (bot) {
         (bot as any).hasError = true;
       }
-      logger.error('Errore durante creazione ordine', {
+      logger.error("Errore durante creazione ordine", {
         error,
         jobId: job.id,
         userId,
@@ -247,9 +276,9 @@ export class QueueManager {
     } finally {
       // Chiudi sempre il browser dedicato
       if (bot) {
-        logger.info('🧹 Chiusura browser dedicato...');
+        logger.info("🧹 Chiusura browser dedicato...");
         await bot.close().catch((err) => {
-          logger.error('Errore durante chiusura browser', { error: err });
+          logger.error("Errore durante chiusura browser", { error: err });
         });
       }
 
@@ -271,7 +300,7 @@ export class QueueManager {
     const username = await this.getUsernameFromId(userId);
 
     const job = await this.queue.add(
-      'create-order',
+      "create-order",
       {
         orderData,
         userId,
@@ -281,7 +310,7 @@ export class QueueManager {
       {
         attempts: 3, // Riprova fino a 3 volte in caso di errore
         backoff: {
-          type: 'exponential',
+          type: "exponential",
           delay: 5000, // Attendi 5s prima del primo retry
         },
         removeOnComplete: {
@@ -298,7 +327,7 @@ export class QueueManager {
       userId,
       username,
       customerName: orderData.customerName,
-      itemsCount: orderData.items.length
+      itemsCount: orderData.items.length,
     });
 
     return job;
@@ -309,13 +338,13 @@ export class QueueManager {
    */
   private async getUsernameFromId(userId: string): Promise<string> {
     try {
-      const { UserDatabase } = await import('./user-db');
+      const { UserDatabase } = await import("./user-db");
       const userDb = UserDatabase.getInstance();
       const user = userDb.getUserById(userId);
-      return user?.username || 'unknown';
+      return user?.username || "unknown";
     } catch (error) {
-      logger.error('Error getting username from userId', { error, userId });
-      return 'unknown';
+      logger.error("Error getting username from userId", { error, userId });
+      return "unknown";
     }
   }
 
@@ -331,23 +360,23 @@ export class QueueManager {
     const job = await this.queue.getJob(jobId);
 
     if (!job) {
-      return { status: 'not_found' };
+      return { status: "not_found" };
     }
 
     const state = await job.getState();
     const progress = job.progress;
 
-    if (state === 'completed') {
+    if (state === "completed") {
       return {
-        status: 'completed',
+        status: "completed",
         result: job.returnvalue || undefined,
       };
     }
 
-    if (state === 'failed') {
+    if (state === "failed") {
       return {
-        status: 'failed',
-        error: job.failedReason || 'Unknown error',
+        status: "failed",
+        error: job.failedReason || "Unknown error",
       };
     }
 
@@ -360,29 +389,37 @@ export class QueueManager {
   /**
    * Ottiene tutti i job di un utente
    */
-  async getUserJobs(userId: string): Promise<Array<{
-    jobId: string;
-    status: string;
-    orderData: OrderData;
-    createdAt: number;
-    result?: OrderJobResult;
-    error?: string;
-  }>> {
+  async getUserJobs(userId: string): Promise<
+    Array<{
+      jobId: string;
+      status: string;
+      orderData: OrderData;
+      createdAt: number;
+      result?: OrderJobResult;
+      error?: string;
+    }>
+  > {
     // Get all jobs (waiting, active, completed, failed)
-    const [waitingJobs, activeJobs, completedJobs, failedJobs] = await Promise.all([
-      this.queue.getWaiting(),
-      this.queue.getActive(),
-      this.queue.getCompleted(),
-      this.queue.getFailed(),
-    ]);
+    const [waitingJobs, activeJobs, completedJobs, failedJobs] =
+      await Promise.all([
+        this.queue.getWaiting(),
+        this.queue.getActive(),
+        this.queue.getCompleted(),
+        this.queue.getFailed(),
+      ]);
 
-    const allJobs = [...waitingJobs, ...activeJobs, ...completedJobs, ...failedJobs];
+    const allJobs = [
+      ...waitingJobs,
+      ...activeJobs,
+      ...completedJobs,
+      ...failedJobs,
+    ];
 
     // Filter by userId and map to response format
     const userJobs = await Promise.all(
       allJobs
-        .filter(job => job.data.userId === userId)
-        .map(async job => {
+        .filter((job) => job.data.userId === userId)
+        .map(async (job) => {
           const state = await job.getState();
 
           return {
@@ -390,10 +427,13 @@ export class QueueManager {
             status: state,
             orderData: job.data.orderData,
             createdAt: job.data.timestamp,
-            result: state === 'completed' ? job.returnvalue : undefined,
-            error: state === 'failed' ? (job.failedReason || 'Unknown error') : undefined,
+            result: state === "completed" ? job.returnvalue : undefined,
+            error:
+              state === "failed"
+                ? job.failedReason || "Unknown error"
+                : undefined,
           };
-        })
+        }),
     );
 
     // Sort by createdAt descending (most recent first)
@@ -421,10 +461,118 @@ export class QueueManager {
   }
 
   /**
+   * Retry a failed job by creating a new job with the same data
+   */
+  async retryJob(
+    jobId: string,
+  ): Promise<{ success: boolean; newJobId?: string; error?: string }> {
+    try {
+      // Get the failed job by ID
+      const job = await this.queue.getJob(jobId);
+
+      if (!job) {
+        return { success: false, error: "Job not found" };
+      }
+
+      // Extract original job data
+      const { orderData, userId, username } = job.data;
+
+      // Create new job with same data
+      const newJob = await this.addOrder(orderData, userId);
+
+      // Remove old failed job
+      await job.remove();
+
+      logger.info(`📋 QUEUE: Job ${jobId} retried as new job ${newJob.id}`, {
+        oldJobId: jobId,
+        newJobId: newJob.id,
+        userId,
+        username,
+      });
+
+      return { success: true, newJobId: newJob.id! };
+    } catch (error) {
+      logger.error("Error retrying job", { error, jobId });
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : "Unknown error",
+      };
+    }
+  }
+
+  /**
+   * Get all jobs from all users (admin-only)
+   */
+  async getAllJobs(
+    limit: number = 50,
+    statusFilter?: string,
+  ): Promise<
+    Array<{
+      jobId: string;
+      status: string;
+      userId: string;
+      username: string;
+      orderData: OrderData;
+      createdAt: number;
+      result?: OrderJobResult;
+      error?: string;
+    }>
+  > {
+    // Get all jobs from all states
+    const [waitingJobs, activeJobs, completedJobs, failedJobs] =
+      await Promise.all([
+        this.queue.getWaiting(),
+        this.queue.getActive(),
+        this.queue.getCompleted(),
+        this.queue.getFailed(),
+      ]);
+
+    const allJobs = [
+      ...waitingJobs,
+      ...activeJobs,
+      ...completedJobs,
+      ...failedJobs,
+    ];
+
+    // Map to response format
+    const jobs = await Promise.all(
+      allJobs.map(async (job) => {
+        const state = await job.getState();
+
+        return {
+          jobId: job.id!,
+          status: state,
+          userId: job.data.userId,
+          username: job.data.username,
+          orderData: job.data.orderData,
+          createdAt: job.data.timestamp,
+          result: state === "completed" ? job.returnvalue : undefined,
+          error:
+            state === "failed"
+              ? job.failedReason || "Unknown error"
+              : undefined,
+        };
+      }),
+    );
+
+    // Filter by status if provided
+    let filteredJobs = jobs;
+    if (statusFilter && statusFilter !== "all") {
+      filteredJobs = jobs.filter((job) => job.status === statusFilter);
+    }
+
+    // Sort by createdAt descending (most recent first)
+    const sortedJobs = filteredJobs.sort((a, b) => b.createdAt - a.createdAt);
+
+    // Apply limit
+    return sortedJobs.slice(0, limit);
+  }
+
+  /**
    * Chiude la coda e il worker
    */
   async shutdown(): Promise<void> {
-    logger.info('Shutdown Queue Manager...');
+    logger.info("Shutdown Queue Manager...");
 
     if (this.worker) {
       await this.worker.close();
@@ -435,6 +583,6 @@ export class QueueManager {
     await this.browserPool.shutdown();
     await this.redisConnection.quit();
 
-    logger.info('Queue Manager chiuso');
+    logger.info("Queue Manager chiuso");
   }
 }

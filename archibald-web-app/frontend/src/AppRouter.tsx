@@ -1,23 +1,30 @@
-import { BrowserRouter, Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom';
-import { useState, useEffect } from 'react';
-import './App.css';
-import { useAuth } from './hooks/useAuth';
-import { useNetworkStatus } from './hooks/useNetworkStatus';
-import { useAutomaticSync } from './hooks/useAutomaticSync';
-import { LoginModal } from './components/LoginModal';
-import { PinSetupWizard } from './components/PinSetupWizard';
-import { UnlockScreen } from './components/UnlockScreen';
-import OrderForm from './components/OrderForm';
-import OrderStatus from './components/OrderStatus';
-import OrdersList from './components/OrdersList';
-import SyncBanner from './components/SyncBanner';
-import { CacheSyncProgress } from './components/CacheSyncProgress';
-import { OfflineBanner } from './components/OfflineBanner';
-import { CacheRefreshButton } from './components/CacheRefreshButton';
-import { AdminPage } from './pages/AdminPage';
-import { OrderHistory } from './pages/OrderHistory';
-import { PendingOrdersView } from './pages/PendingOrdersView';
-import { pendingOrdersService } from './services/pending-orders-service';
+import {
+  BrowserRouter,
+  Routes,
+  Route,
+  Navigate,
+  useNavigate,
+  useLocation,
+} from "react-router-dom";
+import { useState, useEffect } from "react";
+import "./App.css";
+import { useAuth } from "./hooks/useAuth";
+import { useNetworkStatus } from "./hooks/useNetworkStatus";
+import { useAutomaticSync } from "./hooks/useAutomaticSync";
+import { LoginModal } from "./components/LoginModal";
+import { PinSetupWizard } from "./components/PinSetupWizard";
+import { UnlockScreen } from "./components/UnlockScreen";
+import OrderForm from "./components/OrderForm";
+import OrderStatus from "./components/OrderStatus";
+import OrdersList from "./components/OrdersList";
+import SyncBanner from "./components/SyncBanner";
+import { CacheSyncProgress } from "./components/CacheSyncProgress";
+import { OfflineBanner } from "./components/OfflineBanner";
+import { CacheRefreshButton } from "./components/CacheRefreshButton";
+import { AdminPage } from "./pages/AdminPage";
+import { OrderHistory } from "./pages/OrderHistory";
+import { PendingOrdersView } from "./pages/PendingOrdersView";
+import { pendingOrdersService } from "./services/pending-orders-service";
 
 function AppRouter() {
   const auth = useAuth();
@@ -41,7 +48,7 @@ function AppRouter() {
         const result = await pendingOrdersService.getPendingOrdersWithCounts();
         setPendingCount(result.counts.pending);
       } catch (error) {
-        console.error('[AppRouter] Failed to load pending count:', error);
+        console.error("[AppRouter] Failed to load pending count:", error);
       }
     };
 
@@ -153,7 +160,7 @@ function AppRouter() {
   }
 
   // Main app - authenticated users
-  const isAdmin = auth.user?.role === 'admin';
+  const isAdmin = auth.user?.role === "admin";
 
   // Shared Header component
   function AppHeader() {
@@ -170,38 +177,38 @@ function AppRouter() {
           <div style={{ display: "flex", gap: "0.5rem" }}>
             <button
               type="button"
-              onClick={() => navigate('/')}
-              className={`btn btn-sm ${location.pathname === '/' && view === "form" ? "btn-primary" : "btn-secondary"}`}
+              onClick={() => navigate("/")}
+              className={`btn btn-sm ${location.pathname === "/" && view === "form" ? "btn-primary" : "btn-secondary"}`}
             >
               📝 Nuovo Ordine
             </button>
             <button
               type="button"
-              onClick={() => navigate('/orders')}
-              className={`btn btn-sm ${location.pathname === '/orders' ? "btn-primary" : "btn-secondary"}`}
+              onClick={() => navigate("/orders")}
+              className={`btn btn-sm ${location.pathname === "/orders" ? "btn-primary" : "btn-secondary"}`}
             >
               📦 Storico
             </button>
             <button
               type="button"
-              onClick={() => navigate('/pending')}
-              className={`btn btn-sm ${location.pathname === '/pending' ? "btn-primary" : "btn-secondary"}`}
-              style={{ position: 'relative' }}
+              onClick={() => navigate("/pending")}
+              className={`btn btn-sm ${location.pathname === "/pending" ? "btn-primary" : "btn-secondary"}`}
+              style={{ position: "relative" }}
             >
-              📋 Coda
+              📋 Coda Ordini Offline
               {pendingCount > 0 && (
                 <span
                   style={{
-                    position: 'absolute',
-                    top: '-8px',
-                    right: '-8px',
-                    backgroundColor: '#ff9800',
-                    color: '#fff',
-                    borderRadius: '10px',
-                    padding: '2px 6px',
-                    fontSize: '11px',
+                    position: "absolute",
+                    top: "-8px",
+                    right: "-8px",
+                    backgroundColor: "#ff9800",
+                    color: "#fff",
+                    borderRadius: "10px",
+                    padding: "2px 6px",
+                    fontSize: "11px",
                     fontWeight: 600,
-                    minWidth: '20px',
+                    minWidth: "20px",
                   }}
                 >
                   {pendingCount}
@@ -217,10 +224,7 @@ function AppRouter() {
                 🔧 Admin
               </a>
             )}
-            <button
-              onClick={auth.logout}
-              className="btn btn-secondary btn-sm"
-            >
+            <button onClick={auth.logout} className="btn btn-secondary btn-sm">
               Logout
             </button>
           </div>
@@ -240,7 +244,7 @@ function AppRouter() {
             element={
               <AdminPage
                 onLogout={auth.logout}
-                userName={auth.user?.fullName || ''}
+                userName={auth.user?.fullName || ""}
               />
             }
           />
@@ -250,7 +254,10 @@ function AppRouter() {
         <Route
           path="/orders"
           element={
-            <div className="app" style={{ marginTop: isOffline ? "64px" : "0" }}>
+            <div
+              className="app"
+              style={{ marginTop: isOffline ? "64px" : "0" }}
+            >
               <SyncBanner />
               <AppHeader />
               <main className="app-main" style={{ padding: "0" }}>
@@ -268,7 +275,10 @@ function AppRouter() {
         <Route
           path="/pending"
           element={
-            <div className="app" style={{ marginTop: isOffline ? "64px" : "0" }}>
+            <div
+              className="app"
+              style={{ marginTop: isOffline ? "64px" : "0" }}
+            >
               <SyncBanner />
               <AppHeader />
               <main className="app-main" style={{ padding: "0" }}>
@@ -286,7 +296,10 @@ function AppRouter() {
         <Route
           path="/"
           element={
-            <div className="app" style={{ marginTop: isOffline ? "64px" : "0" }}>
+            <div
+              className="app"
+              style={{ marginTop: isOffline ? "64px" : "0" }}
+            >
               <SyncBanner />
               <AppHeader />
               <main className="app-main">
