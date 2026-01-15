@@ -38,6 +38,7 @@ import { SendToMilanoService } from "./send-to-milano-service";
 import { DDTScraperService } from "./ddt-scraper-service";
 import { OrderDatabase } from "./order-db";
 import { PriorityManager } from "./priority-manager";
+import { OrderStateSyncService } from "./order-state-sync-service";
 
 const app = express();
 const server = createServer(app);
@@ -2016,6 +2017,94 @@ app.post(
       return res.status(500).json({
         success: false,
         error: "Failed to sync DDT data. Please try again later.",
+      });
+    }
+  },
+);
+
+// Sync order states - POST /api/orders/sync-states
+app.post(
+  "/api/orders/sync-states",
+  authenticateJWT,
+  async (req: AuthRequest, res: Response) => {
+    const userId = req.userId!;
+    const forceRefresh = req.query.forceRefresh === "true";
+    const stateSyncService = new OrderStateSyncService();
+
+    try {
+      logger.info(`[State Sync] Starting state sync for user ${userId}`, {
+        forceRefresh,
+      });
+
+      // Sync order states with cache
+      const syncResult = await stateSyncService.syncOrderStates(userId, forceRefresh);
+
+      logger.info(`[State Sync] Completed for user ${userId}`, syncResult);
+
+      return res.json({
+        success: syncResult.success,
+        message: syncResult.message,
+        data: {
+          updated: syncResult.updated,
+          unchanged: syncResult.unchanged,
+          errors: syncResult.errors,
+          cacheTimestamp: syncResult.cacheTimestamp,
+          scrapedCount: syncResult.scrapedCount,
+        },
+      });
+
+    } catch (error) {
+      logger.error(`[State Sync] Failed for user ${userId}`, {
+        error: error instanceof Error ? error.message : String(error),
+      });
+
+      return res.status(500).json({
+        success: false,
+        error: "Failed to sync order states. Please try again later.",
+      });
+    }
+  },
+);
+
+// Get order state history - GET /api/orders/:orderId/state-history
+app.get(
+  "/api/orders/:orderId/state-history",
+  authenticateJWT,
+  async (req: AuthRequest, res: Response) => {
+    const userId = req.userId!;
+    const orderId = req.params.orderId;
+    const orderDb = OrderDatabase.getInstance();
+
+    try {
+      // Verify order belongs to user
+      const order = orderDb.getOrderById(userId, orderId);
+
+      if (!order) {
+        return res.status(404).json({
+          success: false,
+          error: "Order not found",
+        });
+      }
+
+      // Get state history
+      const history = orderDb.getStateHistory(orderId);
+
+      return res.json({
+        success: true,
+        data: {
+          orderId,
+          history,
+        },
+      });
+
+    } catch (error) {
+      logger.error(`[State History] Failed for order ${orderId}`, {
+        error: error instanceof Error ? error.message : String(error),
+      });
+
+      return res.status(500).json({
+        success: false,
+        error: "Failed to get state history. Please try again later.",
       });
     }
   },
