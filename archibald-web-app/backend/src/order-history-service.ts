@@ -377,6 +377,7 @@ export class OrderHistoryService {
       // Find the DevExpress table and select all rows that contain data cells
       const table = document.querySelector('table[id*="DXMainTable"]');
       if (!table) {
+        console.log('[OrderHistoryService] Table not found with selector: table[id*="DXMainTable"]');
         return [];
       }
 
@@ -384,6 +385,8 @@ export class OrderHistoryService {
       const rows = Array.from(
         table.querySelectorAll('tr')
       ).filter(row => row.querySelector('td.dxgv.dx-al')) as HTMLElement[];
+
+      console.log(`[OrderHistoryService] Found ${rows.length} data rows`);
 
       const orders: Order[] = [];
 
@@ -399,47 +402,34 @@ export class OrderHistoryService {
             continue;
           }
 
-          // Column mapping from UI-SELECTORS.md:
-          // 0: ID (edit icon) - extract ID from link or adjacent text
-          // 1: ORDI VENDITA (Order Number) - e.g., "ORD/26000405"
-          // 2: PROFILO CLIENTE (Customer Profile ID) - e.g., "1002209"
-          // 3: NOME VENDITORE (Seller Name)
-          // 4: NOME DI CONSEGNA (Delivery Name)
-          // 5: INDIRIZZO DI CONSEGNA (Delivery Address)
-          // 6: DATA DI CREAZIONE (Creation Date) - "DD/MM/YYYY HH:MM:SS"
-          // 7: DATA DI CONSEGNA (Delivery Date) - "DD/MM/YYYY"
-          // 8: RIMANI VENDUTE FINANZIARE (Financial Remains) - skip
-          // 9: RIFERIMENTO CLIENTE (Customer Reference) - optional
-          // 10: STATO DELLE VENDITE (Sales Status)
+          // Column mapping from actual HTML structure:
+          // 0: Checkbox (select) - skip
+          // 1: Edit button (actions) - skip
+          // 2: ID - e.g., "70.602"
+          // 3: ID DI VENDITA (Order Number) - e.g., "ORD/26000405" (optional)
+          // 4: PROFILO CLIENTE (Customer Profile ID) - e.g., "1002209"
+          // 5: NOME VENDITE (Seller Name)
+          // 6: NOME DI CONSEGNA (Delivery Name)
+          // 7: INDIRIZZO DI CONSEGNA (Delivery Address)
+          // 8: DATA DI CREAZIONE (Creation Date) - "DD/MM/YYYY HH:MM:SS"
+          // 9: DATA DI CONSEGNA (Delivery Date) - "DD/MM/YYYY"
+          // 10: RIMANI VENDITE FINANZIARIE (Financial Remains) - skip
+          // 11: RIFERIMENTO CLIENTE (Customer Reference) - optional
+          // 12: STATO DELLE VENDITE (Sales Status) - e.g., "Ordine aperto"
 
-          // Extract ID from first cell (may be in link or text)
-          const idCell = cells[0];
-          let id = "";
-          const idLink = idCell.querySelector("a");
-          if (idLink) {
-            // Extract ID from href or text
-            const href = idLink.getAttribute("href") || "";
-            const match = href.match(/\/(\d+)\?/);
-            if (match) {
-              id = match[1];
-            } else {
-              id = idLink.textContent?.trim() || "";
-            }
-          } else {
-            // Fallback: try to find ID in text content
-            const textMatch = idCell.textContent?.match(/\d+/);
-            id = textMatch ? textMatch[0] : "";
-          }
+          // Extract ID from cell index 2
+          const id = cells[2]?.textContent?.trim() || "";
 
-          const orderNumber = cells[1]?.textContent?.trim() || "";
-          const customerProfileId = cells[2]?.textContent?.trim() || "";
-          const customerName = cells[3]?.textContent?.trim() || "";
-          const deliveryName = cells[4]?.textContent?.trim() || "";
-          const deliveryAddress = cells[5]?.textContent?.trim() || "";
-          const creationDateText = cells[6]?.textContent?.trim() || "";
-          const deliveryDateText = cells[7]?.textContent?.trim() || "";
-          const customerReference = cells[9]?.textContent?.trim() || "";
-          const status = cells[10]?.textContent?.trim() || "";
+          // Order number might be in cell 3, or we use ID if empty
+          const orderNumber = cells[3]?.textContent?.trim() || id;
+          const customerProfileId = cells[4]?.textContent?.trim() || "";
+          const customerName = cells[5]?.textContent?.trim() || "";
+          const deliveryName = cells[6]?.textContent?.trim() || "";
+          const deliveryAddress = cells[7]?.textContent?.trim() || "";
+          const creationDateText = cells[8]?.textContent?.trim() || "";
+          const deliveryDateText = cells[9]?.textContent?.trim() || "";
+          const customerReference = cells[11]?.textContent?.trim() || "";
+          const status = cells[12]?.textContent?.trim() || "";
 
           // Parse dates from DD/MM/YYYY format to ISO 8601
           const parseDate = (dateStr: string): string => {
