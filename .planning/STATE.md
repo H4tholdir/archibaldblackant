@@ -10,19 +10,19 @@ See: .planning/PROJECT.md (updated 2026-01-11)
 ## Current Position
 
 Phase: 10 of 12 (Order History)
-Plan: 2 of 7 complete
-Status: Completed Plan 10-02 (Order List Scraper Implementation)
-Last activity: 2026-01-15 — Completed Plan 10-02 with pagination support
-Start time: 2026-01-15 01:52 → End time: 2026-01-15 02:18
+Plan: 3 of 7 complete
+Status: Completed Plan 10-03 (Order Detail Extraction)
+Last activity: 2026-01-15 — Completed Plan 10-03 with items and timeline
+Start time: 2026-01-15 02:18 → End time: 2026-01-15 02:55
 
-Progress: ████░░░░ 29% Phase 10 (2/7 plans complete)
+Progress: ██████░░ 43% Phase 10 (3/7 plans complete)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 54
+- Total plans completed: 55
 - Average duration: 56 min
-- Total execution time: 56.85 hours
+- Total execution time: 57.47 hours
 
 **By Phase:**
 
@@ -37,11 +37,11 @@ Progress: ████░░░░ 29% Phase 10 (2/7 plans complete)
 | 6 | 7 | 209 min | 30 min |
 | 7 | 6 | 243 min | 41 min |
 | 8 | 8 | 204 min | 26 min |
-| 10 | 2 | 51 min | 26 min |
+| 10 | 3 | 88 min | 29 min |
 
 **Recent Trend:**
-- Last 7 plans: 08-05 (11m), 08-06 (11m), 08-07 (80m), 08-08 (20m), 10-01 (25m), 10-02 (26m)
-- Trend: Phase 10 maintaining consistent velocity (25-26min/plan), scraper implementation complete
+- Last 7 plans: 08-06 (11m), 08-07 (80m), 08-08 (20m), 10-01 (25m), 10-02 (26m), 10-03 (37m)
+- Trend: Phase 10 progressing well, Plan 10-03 took longer (37m) due to complex extraction logic
 
 ## Accumulated Context
 
@@ -52,6 +52,11 @@ Recent decisions affecting current work:
 
 | Phase | Decision | Rationale |
 |-------|----------|-----------|
+| 10-03 | Label-based field extraction | DevExpress dynamic IDs unreliable, label text stable across versions, flexible with/without colon |
+| 10-03 | Pattern-based article column identification | Column order unknown from screenshots, patterns more robust (code: 5+ digits, qty: <10000, price: €/decimal) |
+| 10-03 | Timeline from multiple date fields | No dedicated status log found in UI, 4 date sources provide sufficient milestones for MVP banking app timeline |
+| 10-03 | Approximate subtotal equals unitPrice | Parsing price strings error-prone (comma separator, € symbol), frontend can calculate if needed |
+| 10-03 | Graceful missing field handling | Label extraction may fail on layout changes, better partial data than complete failure |
 | 10-02 | Direct URL navigation to order list | Faster than menu clicks (2-3s saved), more reliable, URL pattern documented in UI-SELECTORS.md |
 | 10-02 | Date parsing to ISO 8601 in scraper | ISO 8601 standard for APIs, simplifies frontend, handles both date-only and date-time formats |
 | 10-02 | Duplicate detection across pages | Archibald may return overlapping results, prevents duplicates, early termination if all duplicates |
