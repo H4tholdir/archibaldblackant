@@ -164,6 +164,20 @@ export class PendingOrdersService {
     // Trigger sync
     await this.syncPendingOrders(jwt);
   }
+
+  /**
+   * Update order status (used for conflict resolution)
+   */
+  async updateOrderStatus(
+    orderId: number,
+    status: "pending" | "syncing" | "error",
+    errorMessage?: string,
+  ): Promise<void> {
+    await db.pendingOrders.update(orderId, {
+      status,
+      errorMessage,
+    });
+  }
 }
 
 export const pendingOrdersService = PendingOrdersService.getInstance();

@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { pendingOrdersService } from "../services/pending-orders-service";
 import { conflictDetectionService } from "../services/conflict-detection";
 import type { PendingOrder } from "../db/schema";
+import { OrderConflictReview } from "../components/OrderConflictReview";
 
 interface GroupedOrders {
   today: PendingOrder[];
@@ -31,6 +32,11 @@ export function PendingOrdersView() {
     prices: Date | null;
   } | null>(null);
   const [isCacheStale, setIsCacheStale] = useState(false);
+  const [reviewingOrder, setReviewingOrder] = useState<PendingOrder | null>(
+    null,
+  );
+  const [ordersToReview, setOrdersToReview] = useState<PendingOrder[]>([]);
+  const [reviewProgress, setReviewProgress] = useState({ current: 0, total: 0 });
 
   const loadOrders = async () => {
     try {
@@ -178,7 +184,80 @@ export function PendingOrdersView() {
 
   const handleContinueAnyway = async () => {
     setShowConflictModal(false);
-    await performSync();
+
+    // Get all pending orders with potential conflicts
+    const pendingOrders = orders.filter((o) => o.status === "pending");
+    const ordersWithConflicts = pendingOrders.filter((o) => isOrderStale(o));
+
+    if (ordersWithConflicts.length === 0) {
+      // No conflicts, proceed with sync
+      await performSync();
+      return;
+    }
+
+    // Start conflict resolution flow
+    setOrdersToReview(ordersWithConflicts);
+    setReviewProgress({ current: 0, total: ordersWithConflicts.length });
+    setReviewingOrder(ordersWithConflicts[0]);
+  };
+
+  const handleConfirmOrder = async () => {
+    if (!reviewingOrder) return;
+
+    // Update order status to confirmed
+    const currentIndex = ordersToReview.indexOf(reviewingOrder);
+    setReviewProgress({
+      current: currentIndex + 1,
+      total: ordersToReview.length,
+    });
+
+    // Move to next order or finish
+    if (currentIndex + 1 < ordersToReview.length) {
+      setReviewingOrder(ordersToReview[currentIndex + 1]);
+    } else {
+      // All reviews complete, proceed with sync
+      setReviewingOrder(null);
+      setOrdersToReview([]);
+      setReviewProgress({ current: 0, total: 0 });
+      await performSync();
+    }
+  };
+
+  const handleCancelOrder = async () => {
+    if (!reviewingOrder) return;
+
+    // Mark order as error with message
+    try {
+      await pendingOrdersService.updateOrderStatus(
+        reviewingOrder.id!,
+        "error",
+        "Non sincronizzato - modifiche rifiutate",
+      );
+    } catch (error) {
+      console.error("[PendingOrdersView] Failed to update order status:", error);
+    }
+
+    // Move to next order or finish
+    const currentIndex = ordersToReview.indexOf(reviewingOrder);
+    setReviewProgress({
+      current: currentIndex + 1,
+      total: ordersToReview.length,
+    });
+
+    if (currentIndex + 1 < ordersToReview.length) {
+      setReviewingOrder(ordersToReview[currentIndex + 1]);
+    } else {
+      // All reviews complete, reload orders
+      setReviewingOrder(null);
+      setOrdersToReview([]);
+      setReviewProgress({ current: 0, total: 0 });
+      await loadOrders();
+
+      setToast({
+        message: "⚠️ Revisione completata. Alcuni ordini non sono stati sincronizzati.",
+        type: "error",
+      });
+    }
   };
 
   const handleUpdateCacheFirst = () => {
@@ -597,6 +676,37 @@ export function PendingOrdersView() {
             </div>
           </div>
         </>
+      )}
+
+      {/* Order Conflict Review Modal */}
+      {reviewingOrder && (
+        <OrderConflictReview
+          order={reviewingOrder}
+          onConfirm={handleConfirmOrder}
+          onCancel={handleCancelOrder}
+        />
+      )}
+
+      {/* Review Progress Banner */}
+      {reviewProgress.total > 0 && (
+        <div
+          style={{
+            position: "fixed",
+            top: "20px",
+            left: "50%",
+            transform: "translateX(-50%)",
+            backgroundColor: "#2196f3",
+            color: "#fff",
+            padding: "12px 24px",
+            borderRadius: "8px",
+            boxShadow: "0 4px 6px rgba(0,0,0,0.2)",
+            zIndex: 999,
+            fontSize: "14px",
+            fontWeight: 600,
+          }}
+        >
+          Revisione ordini... ({reviewProgress.current}/{reviewProgress.total})
+        </div>
       )}
 
       {/* Toast Notification */}
