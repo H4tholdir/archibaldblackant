@@ -42,6 +42,12 @@ export interface StoredOrder {
   // Order management fields (Phase 11)
   sentToMilanoAt: string | null; // ISO 8601 timestamp when sent to Milano
   currentState: string; // Order lifecycle state: creato, piazzato, inviato_milano, etc.
+
+  // DDT and tracking fields (Phase 11-03)
+  ddtNumber: string | null; // DDT document number (e.g., "DDT/26000515")
+  trackingNumber: string | null; // Courier tracking number (e.g., "445291888246")
+  trackingUrl: string | null; // Full tracking URL (courier-specific)
+  trackingCourier: string | null; // Courier name (e.g., "fedex", "ups", "dhl")
 }
 
 export interface OrderAuditLog {
@@ -97,6 +103,11 @@ export class OrderDatabase {
         sentToMilanoAt TEXT,
         currentState TEXT DEFAULT 'creato',
 
+        ddtNumber TEXT,
+        trackingNumber TEXT,
+        trackingUrl TEXT,
+        trackingCourier TEXT,
+
         PRIMARY KEY (id, userId)
       );
 
@@ -132,7 +143,7 @@ export class OrderDatabase {
     orders: Array<
       Omit<
         StoredOrder,
-        "lastScraped" | "lastUpdated" | "isOpen" | "detailJson" | "userId" | "sentToMilanoAt" | "currentState"
+        "lastScraped" | "lastUpdated" | "isOpen" | "detailJson" | "userId" | "sentToMilanoAt" | "currentState" | "ddtNumber" | "trackingNumber" | "trackingUrl" | "trackingCourier"
       >
     >,
   ): void {
@@ -143,8 +154,8 @@ export class OrderDatabase {
         id, userId, orderNumber, customerProfileId, customerName,
         deliveryName, deliveryAddress, creationDate, deliveryDate,
         status, customerReference, lastScraped, lastUpdated, isOpen, detailJson,
-        sentToMilanoAt, currentState
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        sentToMilanoAt, currentState, ddtNumber, trackingNumber, trackingUrl, trackingCourier
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       ON CONFLICT(id, userId) DO UPDATE SET
         orderNumber = excluded.orderNumber,
         customerProfileId = excluded.customerProfileId,
@@ -184,6 +195,10 @@ export class OrderDatabase {
           null, // detailJson (filled later by detail scraping)
           null, // sentToMilanoAt
           "creato", // currentState (default)
+          null, // ddtNumber (filled by DDT scraping)
+          null, // trackingNumber
+          null, // trackingUrl
+          null, // trackingCourier
         );
       }
     });
@@ -251,6 +266,10 @@ export class OrderDatabase {
       customerReference: row.customerReference || null,
       sentToMilanoAt: row.sentToMilanoAt || null,
       currentState: row.currentState || "creato",
+      ddtNumber: row.ddtNumber || null,
+      trackingNumber: row.trackingNumber || null,
+      trackingUrl: row.trackingUrl || null,
+      trackingCourier: row.trackingCourier || null,
     }));
   }
 
@@ -283,6 +302,10 @@ export class OrderDatabase {
       isOpen: Boolean(row.isOpen),
       sentToMilanoAt: row.sentToMilanoAt || null,
       currentState: row.currentState || "creato",
+      ddtNumber: row.ddtNumber || null,
+      trackingNumber: row.trackingNumber || null,
+      trackingUrl: row.trackingUrl || null,
+      trackingCourier: row.trackingCourier || null,
     }));
   }
 
@@ -378,6 +401,10 @@ export class OrderDatabase {
       isOpen: Boolean(row.isOpen),
       sentToMilanoAt: row.sentToMilanoAt || null,
       currentState: row.currentState || "creato",
+      ddtNumber: row.ddtNumber || null,
+      trackingNumber: row.trackingNumber || null,
+      trackingUrl: row.trackingUrl || null,
+      trackingCourier: row.trackingCourier || null,
     };
   }
 
@@ -400,6 +427,39 @@ export class OrderDatabase {
       .run(sentToMilanoAt, orderId, userId);
 
     logger.info(`Updated order ${orderId} Milano state for user ${userId}`);
+  }
+
+  /**
+   * Update order DDT and tracking data
+   */
+  updateOrderDDT(
+    userId: string,
+    orderId: string,
+    ddtData: {
+      ddtNumber: string;
+      trackingNumber?: string;
+      trackingUrl?: string;
+      trackingCourier?: string;
+    },
+  ): void {
+    this.db
+      .prepare(
+        `
+      UPDATE orders
+      SET ddtNumber = ?, trackingNumber = ?, trackingUrl = ?, trackingCourier = ?
+      WHERE id = ? AND userId = ?
+    `,
+      )
+      .run(
+        ddtData.ddtNumber,
+        ddtData.trackingNumber || null,
+        ddtData.trackingUrl || null,
+        ddtData.trackingCourier || null,
+        orderId,
+        userId,
+      );
+
+    logger.info(`Updated order ${orderId} DDT data for user ${userId}`);
   }
 
   /**
