@@ -25,6 +25,12 @@ export function PendingOrdersView() {
     daysOld: number;
   } | null>(null);
   const [isCheckingConflicts, setIsCheckingConflicts] = useState(false);
+  const [cacheAge, setCacheAge] = useState<{
+    customers: Date | null;
+    products: Date | null;
+    prices: Date | null;
+  } | null>(null);
+  const [isCacheStale, setIsCacheStale] = useState(false);
 
   const loadOrders = async () => {
     try {
@@ -40,7 +46,18 @@ export function PendingOrdersView() {
 
   useEffect(() => {
     loadOrders();
+    loadCacheStatus();
   }, []);
+
+  const loadCacheStatus = async () => {
+    try {
+      const report = await conflictDetectionService.detectStaleData();
+      setCacheAge(report.cacheAge);
+      setIsCacheStale(report.hasConflicts);
+    } catch (error) {
+      console.error("[PendingOrdersView] Failed to load cache status:", error);
+    }
+  };
 
   // Group orders by temporal periods
   const groupOrdersByTime = (orders: PendingOrder[]): GroupedOrders => {
@@ -230,55 +247,99 @@ export function PendingOrdersView() {
     );
   };
 
-  const renderOrderCard = (order: PendingOrder) => (
-    <div
-      key={order.id}
-      style={{
-        backgroundColor: "#fff",
-        borderRadius: "12px",
-        padding: "16px",
-        marginBottom: "12px",
-        boxShadow: "0 2px 4px rgba(0,0,0,0.1)",
-      }}
-    >
+  const isOrderStale = (order: PendingOrder): boolean => {
+    if (!isCacheStale || !cacheAge) return false;
+
+    const orderCreatedAt = new Date(order.createdAt);
+
+    // Get the most recent cache sync time
+    const cacheDates = [
+      cacheAge.customers,
+      cacheAge.products,
+      cacheAge.prices,
+    ].filter((d): d is Date => d !== null);
+
+    if (cacheDates.length === 0) return true;
+
+    const mostRecentCacheSync = new Date(
+      Math.max(...cacheDates.map((d) => d.getTime())),
+    );
+
+    // Order is stale if created AFTER the last cache sync AND cache is now stale
+    return orderCreatedAt > mostRecentCacheSync;
+  };
+
+  const renderOrderCard = (order: PendingOrder) => {
+    const hasStaleData = isOrderStale(order);
+
+    return (
       <div
+        key={order.id}
         style={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "flex-start",
+          backgroundColor: "#fff",
+          borderRadius: "12px",
+          padding: "16px",
           marginBottom: "12px",
+          boxShadow: "0 2px 4px rgba(0,0,0,0.1)",
         }}
       >
-        <div>
-          <div
-            style={{ fontSize: "16px", fontWeight: 600, marginBottom: "4px" }}
-          >
-            {order.customerName}
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "flex-start",
+            marginBottom: "12px",
+          }}
+        >
+          <div>
+            <div
+              style={{ fontSize: "16px", fontWeight: 600, marginBottom: "4px" }}
+            >
+              {order.customerName}
+            </div>
+            <div style={{ fontSize: "14px", color: "#666" }}>
+              {order.items.length}{" "}
+              {order.items.length === 1 ? "articolo" : "articoli"} • €
+              {calculateTotal(order).toFixed(2)}
+            </div>
           </div>
-          <div style={{ fontSize: "14px", color: "#666" }}>
-            {order.items.length}{" "}
-            {order.items.length === 1 ? "articolo" : "articoli"} • €
-            {calculateTotal(order).toFixed(2)}
+          <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+            {hasStaleData && (
+              <span
+                style={{
+                  display: "inline-block",
+                  padding: "4px 12px",
+                  borderRadius: "12px",
+                  fontSize: "12px",
+                  fontWeight: 600,
+                  backgroundColor: "#ff9800",
+                  color: "#fff",
+                }}
+                title="Questo ordine potrebbe contenere dati obsoleti, verifica prima di sincronizzare"
+              >
+                ⚠️ Verifica
+              </span>
+            )}
+            <span style={getStatusBadgeStyle(order.status)}>
+              {order.status === "pending"
+                ? "In attesa"
+                : order.status === "syncing"
+                  ? "Sincronizzando"
+                  : "Errore"}
+            </span>
           </div>
         </div>
-        <span style={getStatusBadgeStyle(order.status)}>
-          {order.status === "pending"
-            ? "In attesa"
-            : order.status === "syncing"
-              ? "Sincronizzando"
-              : "Errore"}
-        </span>
-      </div>
-      <div style={{ fontSize: "12px", color: "#999" }}>
-        {formatDate(order.createdAt)}
-      </div>
-      {order.errorMessage && (
-        <div style={{ marginTop: "8px", fontSize: "12px", color: "#f44336" }}>
-          {order.errorMessage}
+        <div style={{ fontSize: "12px", color: "#999" }}>
+          {formatDate(order.createdAt)}
         </div>
-      )}
-    </div>
-  );
+        {order.errorMessage && (
+          <div style={{ marginTop: "8px", fontSize: "12px", color: "#f44336" }}>
+            {order.errorMessage}
+          </div>
+        )}
+      </div>
+    );
+  };
 
   const renderGroup = (title: string, orders: PendingOrder[]) => {
     if (orders.length === 0) return null;
@@ -342,6 +403,7 @@ export function PendingOrdersView() {
 
   const grouped = groupOrdersByTime(orders);
   const totalPending = counts.pending;
+  const staleOrdersCount = orders.filter((o) => isOrderStale(o)).length;
 
   return (
     <div
@@ -364,7 +426,14 @@ export function PendingOrdersView() {
         <h2 style={{ fontSize: "20px", fontWeight: 600, marginBottom: "16px" }}>
           📋 Coda Ordini
         </h2>
-        <div style={{ display: "flex", gap: "16px", marginBottom: "16px" }}>
+        <div
+          style={{
+            display: "flex",
+            gap: "16px",
+            marginBottom: "16px",
+            flexWrap: "wrap",
+          }}
+        >
           <div>
             <span style={getStatusBadgeStyle("pending")}>
               {counts.pending} In attesa
@@ -381,6 +450,23 @@ export function PendingOrdersView() {
             <div>
               <span style={getStatusBadgeStyle("error")}>
                 {counts.error} Errore
+              </span>
+            </div>
+          )}
+          {staleOrdersCount > 0 && (
+            <div>
+              <span
+                style={{
+                  display: "inline-block",
+                  padding: "4px 12px",
+                  borderRadius: "12px",
+                  fontSize: "12px",
+                  fontWeight: 600,
+                  backgroundColor: "#ff9800",
+                  color: "#fff",
+                }}
+              >
+                ⚠️ {staleOrdersCount} con dati obsoleti
               </span>
             </div>
           )}
