@@ -456,19 +456,16 @@ Plans:
 
 ### Phase 9: Offline Queue
 **Goal**: Coda ordini offline con invio manuale e conflict resolution per dati stale
-**Depends on**: Phase 8
-**Research**: Likely (conflict resolution patterns)
-**Research topics**: Offline queue persistence, sync conflict detection, reconciliation strategies for stale data
-**Plans**: 7 plans
+**Depends on**: Phase 8 (PendingOrdersService, IndexedDB, automatic sync already implemented)
+**Status**: In progress (1/3 plans complete)
+**Plans**: 3 plans
 
 Plans:
-- [ ] 09-01: Research offline queue and conflict resolution patterns
-- [ ] 09-02: Design offline order queue schema (IndexedDB)
-- [ ] 09-03: Implement queue when order created offline
-- [ ] 09-04: Add manual sync UI with user consent prompt
-- [ ] 09-05: Implement background sync when network returns
-- [ ] 09-06: Add conflict detection (stale price/product data)
-- [ ] 09-07: Implement conflict resolution UI (notify user, allow re-confirmation)
+- [x] 09-01: Pending Orders UI & Manual Sync (2m) ✅
+- [ ] 09-02: Conflict Detection for Stale Data
+- [ ] 09-03: Conflict Resolution UI
+
+**Note**: Phase 8 already implemented most of Phase 9's core functionality (queue persistence, automatic sync). Phase 9 adds user-facing UI and conflict resolution only.
 
 ### Phase 10: Order History
 **Goal**: Lettura storico ordini da Archibald con filtri e dettaglio completo

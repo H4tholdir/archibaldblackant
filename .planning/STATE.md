@@ -5,24 +5,23 @@
 See: .planning/PROJECT.md (updated 2026-01-11)
 
 **Core value:** Rendere la creazione ordini Archibald **veloce, affidabile e mobile-friendly** per agenti in movimento
-**Current focus:** Phase 10 — Order History (Timeline cronologica con filtri e dettagli ordini)
+**Current focus:** Phase 9 — Offline Queue (UI for pending orders with manual sync)
 
 ## Current Position
 
-Phase: 10 of 12 (Order History)
-Plan: 6 of 7 complete
-Status: Completed Plan 10-06 (Timeline UI Components)
-Last activity: 2026-01-15 — Completed Plan 10-06 with banking app style components
-Start time: 2026-01-15 08:49 → End time: 2026-01-15 09:35
+Phase: 9 of 12 (Offline Queue)
+Plan: 1 of 3 in current phase
+Status: In progress
+Last activity: 2026-01-15 — Completed 09-01-PLAN.md (Pending Orders UI & Manual Sync)
 
-Progress: █████████ 86% Phase 10 (6/7 plans complete)
+Progress: ████████░░ 76% (66/86 plans complete)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 58
-- Average duration: 54 min
-- Total execution time: 59.62 hours
+- Total plans completed: 66
+- Average duration: 52 min
+- Total execution time: 68.30 hours
 
 **By Phase:**
 
@@ -37,11 +36,12 @@ Progress: █████████ 86% Phase 10 (6/7 plans complete)
 | 6 | 7 | 209 min | 30 min |
 | 7 | 6 | 243 min | 41 min |
 | 8 | 8 | 204 min | 26 min |
-| 10 | 6 | 217 min | 36 min |
+| 9 | 1 | 2 min | 2 min |
+| 10 | 7 | 738 min | 105 min |
 
 **Recent Trend:**
-- Last 7 plans: 10-01 (25m), 10-02 (26m), 10-03 (37m), 10-04 (38m), 10-05 (45m), 10-06 (46m)
-- Trend: Phase 10 progressing consistently, frontend/backend plans averaging ~37m with complex implementations
+- Last 8 plans: 10-02 (26m), 10-03 (37m), 10-04 (38m), 10-05 (45m), 10-06 (46m), 10-07 (521m), 09-01 (2m)
+- Trend: Plan 09-01 extremely fast (2m) - leveraged existing Phase 8 infrastructure, minimal new code needed
 
 ## Accumulated Context
 
@@ -52,6 +52,10 @@ Recent decisions affecting current work:
 
 | Phase | Decision | Rationale |
 |-------|----------|-----------|
+| 09-01 | Temporal grouping for pending orders (3 periods) | Oggi/Settimana/Vecchi matches OrderHistory Phase 10, simplified to 3 periods for shorter pending timespan |
+| 09-01 | Yellow badge (#ff9800) for pending count | Matches offline banner color, visual consistency, semantic meaning "attention needed" but not urgent |
+| 09-01 | 30-second refresh interval for pending count | Balances freshness with performance, syncs typically complete < 30s so count updates after sync |
+| 09-01 | Toast notifications for sync feedback (5-second auto-hide) | Non-blocking feedback, auto-hide sufficient read time, banking app UX for transient feedback |
 | 10-06 | Inline styles over CSS modules | Matches existing project convention (verified vs OfflineBanner), consistent with Phase 8 patterns, simpler for component library |
 | 10-06 | Controlled component for OrderCard expand state | External state management provides flexibility, allows parent to control expand/collapse, easier testing |
 | 10-06 | Status-specific color coding | Blue (In lavorazione), green (Evaso), purple (Spedito), gray (default) - consistent across badges and timeline dots |
@@ -497,6 +501,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-01-14 (morning)
-Stopped at: Completed Plan 06-06 (Integrate User Sessions in Order Flow), JWT-protected order creation with per-user session routing operational
-Next: Execute Plan 06-07 (Session Cleanup & Testing) - implement logout cleanup and integration tests for multi-user flow
+Last session: 2026-01-15 (afternoon)
+Stopped at: Completed Plan 09-01 (Pending Orders UI & Manual Sync), PendingOrdersView operational with navigation and pending count badge
+Next: Execute Plan 09-02 (Conflict Detection for Stale Data) - implement stale cache detection before sync
