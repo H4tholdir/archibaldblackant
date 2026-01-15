@@ -262,8 +262,17 @@ export class BrowserPool {
         throw new Error("Login form fields not found");
       }
 
-      // Type credentials
+      // Clear and type credentials (fields might be pre-filled by browser)
+      await page.evaluate((fieldId) => {
+        const input = document.getElementById(fieldId) as HTMLInputElement;
+        if (input) input.value = '';
+      }, usernameField);
       await page.type(`#${usernameField}`, username, { delay: 100 });
+
+      await page.evaluate((fieldId) => {
+        const input = document.getElementById(fieldId) as HTMLInputElement;
+        if (input) input.value = '';
+      }, passwordField);
       await page.type(`#${passwordField}`, cachedPassword, { delay: 100 });
 
       // Submit form by pressing Enter (more reliable than clicking button)
