@@ -34,6 +34,8 @@ import { PriceSyncService, type PriceSyncProgress } from "./price-sync-service";
 import { SyncCheckpointManager } from "./sync-checkpoint";
 import { SessionCleanupJob } from "./session-cleanup-job";
 import { OrderHistoryService } from "./order-history-service";
+import { SendToMilanoService } from "./send-to-milano-service";
+import { OrderDatabase } from "./order-db";
 import { PriorityManager } from "./priority-manager";
 
 const app = express();
@@ -51,6 +53,8 @@ const checkpointManager = SyncCheckpointManager.getInstance();
 const userDb = UserDatabase.getInstance();
 const sessionCleanup = new SessionCleanupJob();
 const orderHistoryService = new OrderHistoryService();
+const sendToMilanoService = new SendToMilanoService();
+const orderDb = OrderDatabase.getInstance();
 const priorityManager = PriorityManager.getInstance();
 
 // Global lock per prevenire sync paralleli e conflitti con ordini
@@ -1659,7 +1663,8 @@ app.get(
       if (!orderId || !/^[\d.]+$/.test(orderId)) {
         return res.status(400).json({
           success: false,
-          error: "Invalid order ID format. Expected numeric string (dots allowed)",
+          error:
+            "Invalid order ID format. Expected numeric string (dots allowed)",
         });
       }
 
@@ -1755,6 +1760,135 @@ app.post(
       res.status(500).json({
         success: false,
         error: "Failed to force sync orders",
+      });
+    }
+  },
+);
+
+// Send order to Milano - POST /api/orders/:orderId/send-to-milano
+app.post(
+  "/api/orders/:orderId/send-to-milano",
+  authenticateJWT,
+  async (req: AuthRequest, res: Response<ApiResponse>) => {
+    const userId = req.user!.userId;
+    const orderId = req.params.orderId;
+
+    try {
+      logger.info(`[SendToMilano] Request received for order ${orderId}`, {
+        userId,
+        orderId,
+      });
+
+      // Validate orderId parameter
+      if (!orderId || typeof orderId !== "string") {
+        return res.status(400).json({
+          success: false,
+          error: "Order ID is required",
+        });
+      }
+
+      // Fetch order from database
+      const order = orderDb.getOrderById(userId, orderId);
+
+      if (!order) {
+        return res.status(404).json({
+          success: false,
+          error: `Order ${orderId} not found`,
+        });
+      }
+
+      // Check if order already sent to Milano (idempotent)
+      if (order.sentToMilanoAt) {
+        logger.info(`[SendToMilano] Order ${orderId} already sent to Milano`, {
+          userId,
+          orderId,
+          sentToMilanoAt: order.sentToMilanoAt,
+        });
+
+        return res.json({
+          success: true,
+          message: `Order ${orderId} was already sent to Milano`,
+          data: {
+            orderId,
+            sentToMilanoAt: order.sentToMilanoAt,
+            currentState: order.currentState,
+          },
+        });
+      }
+
+      // Validate order state (must be "piazzato")
+      if (order.currentState !== "piazzato") {
+        return res.status(400).json({
+          success: false,
+          error: `Order must be in "piazzato" state to send to Milano. Current state: ${order.currentState}`,
+        });
+      }
+
+      // Pause background services to avoid conflicts
+      priorityManager.pause();
+      logger.info(
+        `[SendToMilano] Background services paused for order ${orderId}`,
+      );
+
+      try {
+        // Call SendToMilanoService
+        const result = await sendToMilanoService.sendToMilano(orderId, userId);
+
+        if (!result.success) {
+          // Return error without updating database
+          return res.status(500).json({
+            success: false,
+            error: result.error || "Failed to send order to Milano",
+          });
+        }
+
+        // Update database on success
+        const sentToMilanoAt = result.sentAt || new Date().toISOString();
+        orderDb.updateOrderMilanoState(userId, orderId, sentToMilanoAt);
+
+        // Insert audit log entry
+        orderDb.insertAuditLog(orderId, "send_to_milano", userId, {
+          sentToMilanoAt,
+          message: result.message,
+        });
+
+        logger.info(
+          `[SendToMilano] Order ${orderId} sent to Milano successfully`,
+          {
+            userId,
+            orderId,
+            sentToMilanoAt,
+          },
+        );
+
+        return res.json({
+          success: true,
+          message:
+            result.message || `Order ${orderId} sent to Milano successfully`,
+          data: {
+            orderId,
+            sentToMilanoAt,
+            currentState: "inviato_milano",
+          },
+        });
+      } finally {
+        // Always resume background services
+        priorityManager.resume();
+        logger.info(
+          `[SendToMilano] Background services resumed after order ${orderId}`,
+        );
+      }
+    } catch (error) {
+      logger.error("[SendToMilano] Unexpected error", {
+        error,
+        userId,
+        orderId,
+        message: error instanceof Error ? error.message : String(error),
+      });
+
+      return res.status(500).json({
+        success: false,
+        error: "An unexpected error occurred while sending order to Milano",
       });
     }
   },

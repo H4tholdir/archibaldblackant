@@ -38,6 +38,19 @@ export interface StoredOrder {
 
   // JSON fields for extended data (filled by detail scraping)
   detailJson: string | null; // JSON stringified OrderDetail
+
+  // Order management fields (Phase 11)
+  sentToMilanoAt: string | null; // ISO 8601 timestamp when sent to Milano
+  currentState: string; // Order lifecycle state: creato, piazzato, inviato_milano, etc.
+}
+
+export interface OrderAuditLog {
+  id: number;
+  orderId: string;
+  action: string; // send_to_archibald, send_to_milano, edit, cancel
+  performedBy: string; // user_id
+  performedAt: string; // ISO 8601 timestamp
+  details: string | null; // JSON with action-specific data
 }
 
 export class OrderDatabase {
@@ -81,6 +94,9 @@ export class OrderDatabase {
 
         detailJson TEXT,
 
+        sentToMilanoAt TEXT,
+        currentState TEXT DEFAULT 'creato',
+
         PRIMARY KEY (id, userId)
       );
 
@@ -89,6 +105,19 @@ export class OrderDatabase {
       CREATE INDEX IF NOT EXISTS idx_orders_isOpen ON orders(userId, isOpen);
       CREATE INDEX IF NOT EXISTS idx_orders_lastUpdated ON orders(userId, lastUpdated DESC);
       CREATE INDEX IF NOT EXISTS idx_orders_creationDate ON orders(userId, creationDate DESC);
+
+      CREATE TABLE IF NOT EXISTS order_audit_log (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        order_id TEXT NOT NULL,
+        action TEXT NOT NULL,
+        performed_by TEXT NOT NULL,
+        performed_at TEXT NOT NULL,
+        details TEXT,
+        FOREIGN KEY (order_id) REFERENCES orders(id)
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_audit_order ON order_audit_log(order_id);
+      CREATE INDEX IF NOT EXISTS idx_audit_performed_at ON order_audit_log(performed_at DESC);
     `);
 
     logger.info("Order database schema initialized");
@@ -103,7 +132,7 @@ export class OrderDatabase {
     orders: Array<
       Omit<
         StoredOrder,
-        "lastScraped" | "lastUpdated" | "isOpen" | "detailJson" | "userId"
+        "lastScraped" | "lastUpdated" | "isOpen" | "detailJson" | "userId" | "sentToMilanoAt" | "currentState"
       >
     >,
   ): void {
@@ -113,8 +142,9 @@ export class OrderDatabase {
       INSERT INTO orders (
         id, userId, orderNumber, customerProfileId, customerName,
         deliveryName, deliveryAddress, creationDate, deliveryDate,
-        status, customerReference, lastScraped, lastUpdated, isOpen, detailJson
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        status, customerReference, lastScraped, lastUpdated, isOpen, detailJson,
+        sentToMilanoAt, currentState
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       ON CONFLICT(id, userId) DO UPDATE SET
         orderNumber = excluded.orderNumber,
         customerProfileId = excluded.customerProfileId,
@@ -152,6 +182,8 @@ export class OrderDatabase {
           now, // lastUpdated (will be preserved if status unchanged)
           isOpen ? 1 : 0,
           null, // detailJson (filled later by detail scraping)
+          null, // sentToMilanoAt
+          "creato", // currentState (default)
         );
       }
     });
@@ -216,7 +248,9 @@ export class OrderDatabase {
     return rows.map((row) => ({
       ...row,
       isOpen: Boolean(row.isOpen),
-      customerReference: row.customerReference || undefined,
+      customerReference: row.customerReference || null,
+      sentToMilanoAt: row.sentToMilanoAt || null,
+      currentState: row.currentState || "creato",
     }));
   }
 
@@ -247,6 +281,8 @@ export class OrderDatabase {
     return rows.map((row) => ({
       ...row,
       isOpen: Boolean(row.isOpen),
+      sentToMilanoAt: row.sentToMilanoAt || null,
+      currentState: row.currentState || "creato",
     }));
   }
 
@@ -340,7 +376,71 @@ export class OrderDatabase {
     return {
       ...row,
       isOpen: Boolean(row.isOpen),
+      sentToMilanoAt: row.sentToMilanoAt || null,
+      currentState: row.currentState || "creato",
     };
+  }
+
+  /**
+   * Update order state after sending to Milano
+   */
+  updateOrderMilanoState(
+    userId: string,
+    orderId: string,
+    sentToMilanoAt: string,
+  ): void {
+    this.db
+      .prepare(
+        `
+      UPDATE orders
+      SET sentToMilanoAt = ?, currentState = 'inviato_milano'
+      WHERE id = ? AND userId = ?
+    `,
+      )
+      .run(sentToMilanoAt, orderId, userId);
+
+    logger.info(`Updated order ${orderId} Milano state for user ${userId}`);
+  }
+
+  /**
+   * Insert audit log entry
+   */
+  insertAuditLog(
+    orderId: string,
+    action: string,
+    performedBy: string,
+    details?: Record<string, any>,
+  ): void {
+    const performedAt = new Date().toISOString();
+    const detailsJson = details ? JSON.stringify(details) : null;
+
+    this.db
+      .prepare(
+        `
+      INSERT INTO order_audit_log (order_id, action, performed_by, performed_at, details)
+      VALUES (?, ?, ?, ?, ?)
+    `,
+      )
+      .run(orderId, action, performedBy, performedAt, detailsJson);
+
+    logger.info(`Audit log entry created for order ${orderId}: ${action}`);
+  }
+
+  /**
+   * Get audit log for an order
+   */
+  getAuditLog(orderId: string): OrderAuditLog[] {
+    const rows = this.db
+      .prepare(
+        `
+      SELECT * FROM order_audit_log
+      WHERE order_id = ?
+      ORDER BY performed_at DESC
+    `,
+      )
+      .all(orderId) as OrderAuditLog[];
+
+    return rows;
   }
 
   /**

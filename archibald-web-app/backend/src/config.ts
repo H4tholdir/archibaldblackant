@@ -24,4 +24,8 @@ export const config = {
     slowMo: 200, // Rallenta per vedere meglio
     timeout: 60000, // Increased to 60s for slow Archibald responses
   },
+  features: {
+    // Feature flag for Send to Milano - disabled by default until safe test order available
+    sendToMilanoEnabled: process.env.SEND_TO_MILANO_ENABLED === 'true',
+  },
 } as const;
