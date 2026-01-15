@@ -59,6 +59,15 @@ export interface OrderAuditLog {
   details: string | null; // JSON with action-specific data
 }
 
+export interface OrderStateHistory {
+  id: number;
+  orderId: string;
+  state: string;
+  changedAt: string; // ISO 8601
+  changedBy?: string;
+  notes?: string;
+}
+
 export class OrderDatabase {
   private static instance: OrderDatabase;
   private db: Database.Database;
@@ -129,6 +138,19 @@ export class OrderDatabase {
 
       CREATE INDEX IF NOT EXISTS idx_audit_order ON order_audit_log(order_id);
       CREATE INDEX IF NOT EXISTS idx_audit_performed_at ON order_audit_log(performed_at DESC);
+
+      CREATE TABLE IF NOT EXISTS order_state_history (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        order_id TEXT NOT NULL,
+        state TEXT NOT NULL,
+        changed_at TEXT NOT NULL,
+        changed_by TEXT,
+        notes TEXT,
+        FOREIGN KEY (order_id) REFERENCES orders(id)
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_state_history_order ON order_state_history(order_id);
+      CREATE INDEX IF NOT EXISTS idx_state_history_changed_at ON order_state_history(changed_at DESC);
     `);
 
     logger.info("Order database schema initialized");
@@ -501,6 +523,77 @@ export class OrderDatabase {
       .all(orderId) as OrderAuditLog[];
 
     return rows;
+  }
+
+  /**
+   * Insert state history entry
+   */
+  insertStateHistory(
+    orderId: string,
+    state: string,
+    changedBy?: string,
+    notes?: string,
+  ): void {
+    const changedAt = new Date().toISOString();
+
+    this.db
+      .prepare(
+        `
+      INSERT INTO order_state_history (order_id, state, changed_at, changed_by, notes)
+      VALUES (?, ?, ?, ?, ?)
+    `,
+      )
+      .run(orderId, state, changedAt, changedBy || null, notes || null);
+
+    logger.info(`State history entry created for order ${orderId}: ${state}`);
+  }
+
+  /**
+   * Get state history for an order
+   */
+  getStateHistory(orderId: string): OrderStateHistory[] {
+    const rows = this.db
+      .prepare(
+        `
+      SELECT * FROM order_state_history
+      WHERE order_id = ?
+      ORDER BY changed_at DESC
+    `,
+      )
+      .all(orderId) as OrderStateHistory[];
+
+    return rows.map((row) => ({
+      ...row,
+      changedBy: row.changedBy || undefined,
+      notes: row.notes || undefined,
+    }));
+  }
+
+  /**
+   * Update order current state and record in history
+   */
+  updateOrderState(
+    orderId: string,
+    userId: string,
+    newState: string,
+    changedBy?: string,
+    notes?: string,
+  ): void {
+    // Update current state
+    this.db
+      .prepare(
+        `
+      UPDATE orders
+      SET currentState = ?
+      WHERE id = ? AND userId = ?
+    `,
+      )
+      .run(newState, orderId, userId);
+
+    // Record in history
+    this.insertStateHistory(orderId, newState, changedBy, notes);
+
+    logger.info(`Updated order ${orderId} state to ${newState} for user ${userId}`);
   }
 
   /**
