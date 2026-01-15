@@ -85,12 +85,21 @@ export class BrowserPool {
       // Verify context is still valid by checking if browser is connected
       try {
         // Try to get pages - if context is closed, this will throw
-        await context.pages();
-        logger.debug(`Reusing context for user ${userId}`);
-        return context;
+        const pages = await context.pages();
+        // Also check if at least one page is not closed
+        const hasValidPage = pages.some(p => !p.isClosed());
+        if (hasValidPage) {
+          logger.debug(`Reusing context for user ${userId} (${pages.length} pages active)`);
+          return context;
+        } else {
+          logger.warn(`Context for user ${userId} has no valid pages, recreating`);
+          this.userContexts.delete(userId);
+        }
       } catch (error) {
         // Context is no longer valid, remove it and create a new one
-        logger.warn(`Context for user ${userId} is no longer valid, creating new one`, { error });
+        logger.warn(`Context for user ${userId} is no longer valid, creating new one`, {
+          error: error instanceof Error ? error.message : String(error)
+        });
         this.userContexts.delete(userId);
       }
     }
@@ -190,18 +199,22 @@ export class BrowserPool {
       // Navigate to a page to check if we're already logged in
       try {
         await page.goto(`${config.archibald.url}/Default.aspx`, {
-          waitUntil: "networkidle2",
-          timeout: 15000,
+          waitUntil: "domcontentloaded", // Less strict than networkidle2
+          timeout: 20000, // Increased from 15s
         });
 
         const currentUrl = page.url();
+        logger.info(`[BrowserPool] Current URL after navigation: ${currentUrl}`);
+
         if (!currentUrl.includes("Login.aspx")) {
           logger.info("[BrowserPool] Already logged in, session valid");
           await page.close();
           return;
         }
       } catch (error) {
-        logger.warn("[BrowserPool] Error checking login status, will attempt login", { error });
+        logger.warn("[BrowserPool] Error checking login status, will attempt login", {
+          error: error instanceof Error ? error.message : String(error)
+        });
       }
 
       // Need to login
@@ -210,10 +223,11 @@ export class BrowserPool {
       const loginUrl = `${config.archibald.url}/Login.aspx?ReturnUrl=%2fArchibald%2fDefault.aspx`;
 
       await page.goto(loginUrl, {
-        waitUntil: "networkidle2",
-        timeout: 30000,
+        waitUntil: "domcontentloaded", // Less strict, more reliable
+        timeout: 60000, // Increased to 60s for slow connections
       });
 
+      logger.info('[BrowserPool] Login page loaded, waiting for form...');
       await new Promise((resolve) => setTimeout(resolve, 2000));
 
       // Find and fill username field
@@ -252,32 +266,70 @@ export class BrowserPool {
       await page.type(`#${usernameField}`, username, { delay: 100 });
       await page.type(`#${passwordField}`, cachedPassword, { delay: 100 });
 
-      // Find and click login button
-      const loginButton = await page.evaluate(() => {
-        const buttons = Array.from(document.querySelectorAll('input[type="submit"], button[type="submit"]'));
-        if (buttons.length > 0) {
-          return (buttons[0] as HTMLElement).id || (buttons[0] as HTMLElement).outerHTML.match(/id="([^"]+)"/)?.[1];
-        }
-        return null;
-      });
+      // Submit form by pressing Enter (more reliable than clicking button)
+      logger.info('[BrowserPool] Submitting login form with Enter key');
+      await page.keyboard.press('Enter');
 
-      if (!loginButton) {
-        throw new Error("Login button not found");
+      logger.info('[BrowserPool] Form submitted, waiting for navigation...');
+
+      try {
+        await page.waitForNavigation({
+          waitUntil: "domcontentloaded", // Less strict for reliability
+          timeout: 60000 // Increased to 60s for slow Archibald responses
+        });
+        logger.info('[BrowserPool] Navigation completed after login');
+      } catch (navError) {
+        logger.error('[BrowserPool] Navigation timeout or error after login', {
+          error: navError instanceof Error ? navError.message : String(navError),
+          currentUrl: page.url()
+        });
+        throw new Error(`Login navigation failed: ${navError instanceof Error ? navError.message : String(navError)}`);
       }
-
-      await page.click(`#${loginButton}`);
-      await page.waitForNavigation({ waitUntil: "networkidle2", timeout: 30000 });
 
       // Verify login success
       const finalUrl = page.url();
+      logger.info(`[BrowserPool] Final URL after login: ${finalUrl}`);
+
       if (finalUrl.includes("Login.aspx")) {
-        throw new Error("Login failed - still on login page");
+        // Check for error message on page to give better feedback
+        const errorMessage = await page.evaluate(() => {
+          const errorElements = document.querySelectorAll('.error, .alert, [class*="error"], [class*="alert"]');
+          if (errorElements.length > 0) {
+            return Array.from(errorElements)
+              .map(el => el.textContent?.trim())
+              .filter(t => t && t.length > 0)
+              .join('; ');
+          }
+          return null;
+        });
+
+        throw new Error(
+          `Login failed - still on login page. ${errorMessage ? `Error: ${errorMessage}` : 'Possible invalid credentials or Archibald issue.'}`
+        );
       }
 
       logger.info("[BrowserPool] Login successful");
+    } catch (loginError) {
+      logger.error('[BrowserPool] Error during login process', {
+        error: loginError instanceof Error ? loginError.message : String(loginError),
+        stack: loginError instanceof Error ? loginError.stack : undefined
+      });
+      throw loginError;
     } finally {
-      // Always close the temporary page
-      await page.close();
+      // Close the temporary page if still open
+      try {
+        if (!page.isClosed()) {
+          logger.info('[BrowserPool] Closing temporary login page');
+          await page.close();
+          logger.info('[BrowserPool] Temporary login page closed');
+        } else {
+          logger.info('[BrowserPool] Temporary login page already closed');
+        }
+      } catch (closeError) {
+        logger.warn('[BrowserPool] Error closing temporary page (may already be closed)', {
+          error: closeError instanceof Error ? closeError.message : String(closeError)
+        });
+      }
     }
   }
 

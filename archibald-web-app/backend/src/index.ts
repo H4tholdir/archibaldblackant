@@ -1552,13 +1552,14 @@ app.get(
       });
     } catch (error) {
       logger.error("[OrderHistory] Error fetching order history", {
-        error,
+        error: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : undefined,
         userId,
       });
 
       res.status(500).json({
         success: false,
-        error: "Failed to fetch order history",
+        error: error instanceof Error ? error.message : "Failed to fetch order history",
       });
     } finally {
       // Always release context and resume services

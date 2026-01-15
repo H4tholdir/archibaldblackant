@@ -22,6 +22,6 @@ export const config = {
   puppeteer: {
     headless: false, // Sempre visibile per debug
     slowMo: 200, // Rallenta per vedere meglio
-    timeout: 30000,
+    timeout: 60000, // Increased to 60s for slow Archibald responses
   },
 } as const;

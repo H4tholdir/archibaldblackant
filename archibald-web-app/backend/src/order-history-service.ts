@@ -110,6 +110,38 @@ export interface OrderDocument {
 }
 
 /**
+ * Helper function to retry async operations with exponential backoff
+ */
+async function retryOperation<T>(
+  operation: () => Promise<T>,
+  operationName: string,
+  maxRetries: number = 3,
+  initialDelay: number = 1000
+): Promise<T> {
+  let lastError: Error | null = null;
+
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      logger.info(`[Retry] Attempting ${operationName} (attempt ${attempt}/${maxRetries})`);
+      return await operation();
+    } catch (error) {
+      lastError = error instanceof Error ? error : new Error(String(error));
+      logger.warn(`[Retry] ${operationName} failed on attempt ${attempt}/${maxRetries}`, {
+        error: lastError.message
+      });
+
+      if (attempt < maxRetries) {
+        const delay = initialDelay * Math.pow(2, attempt - 1); // Exponential backoff
+        logger.info(`[Retry] Waiting ${delay}ms before retry...`);
+        await new Promise(resolve => setTimeout(resolve, delay));
+      }
+    }
+  }
+
+  throw new Error(`${operationName} failed after ${maxRetries} attempts: ${lastError?.message}`);
+}
+
+/**
  * Service for scraping order history from Archibald
  * Follows patterns from customer-sync-service.ts and discovery from UI-SELECTORS.md
  */
@@ -139,7 +171,13 @@ export class OrderHistoryService {
 
       try {
         // Navigate to order list (login already handled by BrowserPool)
-        await this.navigateToOrderList(page);
+        // Use retry logic for navigation (can fail on slow connections)
+        await retryOperation(
+          () => this.navigateToOrderList(page),
+          `Navigate to order list for user ${userId}`,
+          3, // max 3 retries
+          2000 // 2s initial delay
+        );
 
         // Scrape all pages up to limit
         const allOrders = await this.scrapeAllPages(page, limit);
@@ -186,16 +224,68 @@ export class OrderHistoryService {
     const orderListUrl =
       "https://4.231.124.90/Archibald/SALESTABLE_ListView_Agent/";
 
-    await page.goto(orderListUrl, {
-      waitUntil: "networkidle2",
-      timeout: 30000,
-    });
+    const currentUrl = page.url();
+    logger.info(`[OrderHistoryService] Current URL before navigation: ${currentUrl}`);
 
-    // Wait for DevExpress table to load
-    await page.waitForSelector(".dxgvControl", { timeout: 30000 });
+    // Only navigate if we're not already on the order list page
+    if (!currentUrl.includes("SALESTABLE_ListView_Agent")) {
+      logger.info("[OrderHistoryService] Not on order list page, navigating...");
 
-    // Additional wait for table content to populate
-    await page.waitForSelector(".dxgvDataRow", { timeout: 30000 });
+      try {
+        await page.goto(orderListUrl, {
+          waitUntil: "domcontentloaded", // Less strict than networkidle2
+          timeout: 60000, // Increased to 60s for slow Archibald responses
+        });
+        logger.info(`[OrderHistoryService] Navigation completed, new URL: ${page.url()}`);
+      } catch (navError) {
+        logger.error("[OrderHistoryService] Navigation error", {
+          error: navError instanceof Error ? navError.message : String(navError),
+          currentUrl: page.url(),
+          attemptedUrl: orderListUrl
+        });
+
+        // If timeout, check if we're at least on Archibald domain
+        const currentUrl = page.url();
+        if (currentUrl.includes('4.231.124.90') && currentUrl.includes('Archibald')) {
+          logger.warn('[OrderHistoryService] Navigation timed out but we are on Archibald, continuing...');
+          // Continue anyway, page might have loaded but networkidle2 never triggered
+        } else {
+          throw navError;
+        }
+      }
+    } else {
+      logger.info("[OrderHistoryService] Already on order list page, skipping navigation");
+    }
+
+    logger.info("[OrderHistoryService] Waiting for order list table...");
+
+    // Wait for the main table container - DevExpress uses table with specific ID pattern
+    try {
+      // Wait for any table with DevExpress ID (contains "DXMainTable")
+      await page.waitForSelector('table[id*="DXMainTable"]', { timeout: 60000 }); // Increased to 60s
+      logger.info("[OrderHistoryService] DevExpress main table found");
+    } catch (err) {
+      logger.error("[OrderHistoryService] DevExpress main table not found", {
+        error: err instanceof Error ? err.message : String(err),
+        currentUrl: page.url()
+      });
+      throw err;
+    }
+
+    // Wait for actual data cells (td with dxgv class that contain order data)
+    try {
+      await page.waitForSelector('td.dxgv.dx-al', { timeout: 60000 }); // Increased to 60s
+      logger.info("[OrderHistoryService] Data cells found");
+    } catch (err) {
+      logger.error("[OrderHistoryService] Data cells not found", {
+        error: err instanceof Error ? err.message : String(err),
+        currentUrl: page.url()
+      });
+      throw err;
+    }
+
+    // Small delay to ensure all data is rendered
+    await new Promise(resolve => setTimeout(resolve, 1000));
 
     logger.info("[OrderHistoryService] Order list loaded successfully");
   }
@@ -217,12 +307,13 @@ export class OrderHistoryService {
         `[OrderHistoryService] Scraping page ${currentPage}, ${allOrders.length} orders so far`,
       );
 
-      // Wait for table to be ready
-      await page.waitForSelector(".dxgvDataRow", { timeout: 10000 });
+      // Wait for table to be ready - wait for data cells to be present
+      await page.waitForSelector('td.dxgv.dx-al', { timeout: 10000 });
       await new Promise((resolve) => setTimeout(resolve, 500));
 
       // Scrape current page
       const pageOrders = await this.scrapeOrderPage(page);
+      logger.info(`[OrderHistoryService] Scraped ${pageOrders.length} orders from page ${currentPage}`);
 
       if (pageOrders.length === 0) {
         logger.warn(
@@ -256,8 +347,8 @@ export class OrderHistoryService {
           break;
         }
 
-        // Wait for page transition
-        await page.waitForSelector(".dxgvDataRow", { timeout: 10000 });
+        // Wait for page transition - wait for data cells to be present again
+        await page.waitForSelector('td.dxgv.dx-al', { timeout: 10000 });
         await new Promise((resolve) => setTimeout(resolve, 1000));
 
         currentPage++;
@@ -283,9 +374,16 @@ export class OrderHistoryService {
    */
   private async scrapeOrderPage(page: Page): Promise<Order[]> {
     return await page.evaluate(() => {
+      // Find the DevExpress table and select all rows that contain data cells
+      const table = document.querySelector('table[id*="DXMainTable"]');
+      if (!table) {
+        return [];
+      }
+
+      // Get all <tr> elements that contain td.dxgv.dx-al cells (data rows)
       const rows = Array.from(
-        document.querySelectorAll(".dxgvDataRow"),
-      ) as HTMLElement[];
+        table.querySelectorAll('tr')
+      ).filter(row => row.querySelector('td.dxgv.dx-al')) as HTMLElement[];
 
       const orders: Order[] = [];
 
