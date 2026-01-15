@@ -10,19 +10,19 @@ See: .planning/PROJECT.md (updated 2026-01-11)
 ## Current Position
 
 Phase: 10 of 12 (Order History)
-Plan: 3 of 7 complete
-Status: Completed Plan 10-03 (Order Detail Extraction)
-Last activity: 2026-01-15 — Completed Plan 10-03 with items and timeline
-Start time: 2026-01-15 02:18 → End time: 2026-01-15 02:55
+Plan: 4 of 7 complete
+Status: Completed Plan 10-04 (Tracking & Documents Extraction)
+Last activity: 2026-01-15 — Completed Plan 10-04 with tracking and documents
+Start time: 2026-01-15 07:19 → End time: 2026-01-15 07:57
 
-Progress: ██████░░ 43% Phase 10 (3/7 plans complete)
+Progress: ███████░ 57% Phase 10 (4/7 plans complete)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 55
-- Average duration: 56 min
-- Total execution time: 57.47 hours
+- Total plans completed: 56
+- Average duration: 55 min
+- Total execution time: 58.10 hours
 
 **By Phase:**
 
@@ -37,11 +37,11 @@ Progress: ██████░░ 43% Phase 10 (3/7 plans complete)
 | 6 | 7 | 209 min | 30 min |
 | 7 | 6 | 243 min | 41 min |
 | 8 | 8 | 204 min | 26 min |
-| 10 | 3 | 88 min | 29 min |
+| 10 | 4 | 126 min | 32 min |
 
 **Recent Trend:**
-- Last 7 plans: 08-06 (11m), 08-07 (80m), 08-08 (20m), 10-01 (25m), 10-02 (26m), 10-03 (37m)
-- Trend: Phase 10 progressing well, Plan 10-03 took longer (37m) due to complex extraction logic
+- Last 7 plans: 08-07 (80m), 08-08 (20m), 10-01 (25m), 10-02 (26m), 10-03 (37m), 10-04 (38m)
+- Trend: Phase 10 progressing steadily, Plans 10-03 and 10-04 slightly longer due to complex DOM extraction
 
 ## Accumulated Context
 
@@ -52,6 +52,12 @@ Recent decisions affecting current work:
 
 | Phase | Decision | Rationale |
 |-------|----------|-----------|
+| 10-04 | Header-based column detection for tracking | Header text ("TRACCIABILITÀ") stable identifier vs hardcoded indices, matches Plan 10-03 pattern |
+| 10-04 | First-row tracking extraction only | Most orders have single shipment, simplifies data structure (tracking?: TrackingInfo vs array), sufficient for MVP |
+| 10-04 | URL normalization for document links | Archibald may return relative paths, frontend needs absolute URLs, handles both gracefully |
+| 10-04 | Multiple document types from same table | Efficient single table scan, extracts DDT and invoice from same iteration, reduces duplication |
+| 10-04 | Optional date extraction for documents | Document date useful for display but not critical, graceful fallback if column missing |
+| 10-04 | Tracking courier lowercase normalization | Consistent format for frontend filtering, matches common API patterns, prevents case mismatches |
 | 10-03 | Label-based field extraction | DevExpress dynamic IDs unreliable, label text stable across versions, flexible with/without colon |
 | 10-03 | Pattern-based article column identification | Column order unknown from screenshots, patterns more robust (code: 5+ digits, qty: <10000, price: €/decimal) |
 | 10-03 | Timeline from multiple date fields | No dedicated status log found in UI, 4 date sources provide sufficient milestones for MVP banking app timeline |
