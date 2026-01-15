@@ -65,7 +65,8 @@ export interface OrderDetail {
   completionDate?: string; // Completion date ISO 8601
   items: OrderItem[]; // Article list
   statusTimeline: StatusUpdate[]; // Status history
-  // tracking and documents added in Plan 10-04
+  tracking?: TrackingInfo; // Shipping tracking (Plan 10-04)
+  documents?: OrderDocument[]; // Documents (DDT, invoices) (Plan 10-04)
 }
 
 /**
@@ -87,6 +88,25 @@ export interface StatusUpdate {
   status: string; // Status name
   timestamp: string; // ISO 8601
   note?: string; // Optional note
+}
+
+/**
+ * Shipping tracking information
+ */
+export interface TrackingInfo {
+  courier: string; // Courier name (e.g., "fedex", "fidex")
+  trackingNumber: string; // Tracking number
+  trackingUrl?: string; // Full tracking URL if available
+}
+
+/**
+ * Order document (invoice, DDT, etc.)
+ */
+export interface OrderDocument {
+  type: "invoice" | "ddt" | "other"; // Document type
+  name: string; // Document name/reference
+  url: string; // Document URL (PDF link)
+  date?: string; // Document date ISO 8601 (if available)
 }
 
 /**
@@ -717,6 +737,162 @@ export class OrderHistoryService {
             new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime(),
         );
 
+        // Extract tracking information from "Cronologia documento di trasporto" section
+        // Look for tracking column "NUMERO DI TRACCIABILITÀ" with format "courier trackingNumber"
+        let tracking: { courier: string; trackingNumber: string; trackingUrl?: string } | undefined;
+
+        // Search for tracking data in tables
+        const allTables = Array.from(document.querySelectorAll("table"));
+
+        for (const table of allTables) {
+          // Check if this table has tracking column header
+          const headers = Array.from(table.querySelectorAll("th"));
+          const trackingColIndex = headers.findIndex(
+            (h) => h.textContent?.includes("TRACCIABILITÀ") || h.textContent?.includes("TRACKING")
+          );
+
+          if (trackingColIndex >= 0) {
+            // Found tracking column, extract from first data row
+            const dataRows = Array.from(table.querySelectorAll("tbody tr"));
+
+            for (const row of dataRows) {
+              const cells = Array.from(row.querySelectorAll("td"));
+
+              if (cells[trackingColIndex]) {
+                const trackingCell = cells[trackingColIndex];
+
+                // Look for link with tracking text
+                const trackingLink = trackingCell.querySelector("a");
+                if (trackingLink) {
+                  const trackingText = trackingLink.textContent?.trim() || "";
+                  const trackingUrl = trackingLink.getAttribute("href") || undefined;
+
+                  // Parse format "courier trackingNumber" (e.g., "fedex 445501887029")
+                  const parts = trackingText.split(/\s+/);
+                  if (parts.length >= 2) {
+                    tracking = {
+                      courier: parts[0].toLowerCase(),
+                      trackingNumber: parts.slice(1).join(" "),
+                      trackingUrl,
+                    };
+                    break;
+                  }
+                } else {
+                  // No link, try plain text
+                  const trackingText = trackingCell.textContent?.trim() || "";
+                  const parts = trackingText.split(/\s+/);
+                  if (parts.length >= 2) {
+                    tracking = {
+                      courier: parts[0].toLowerCase(),
+                      trackingNumber: parts.slice(1).join(" "),
+                    };
+                    break;
+                  }
+                }
+              }
+            }
+
+            if (tracking) break;
+          }
+        }
+
+        // Extract document links (DDT and invoices) from tables
+        // Look for columns "DOCUMENTO DI TRASPORTO" and "FATTURA PDF"
+        const documents: Array<{
+          type: "invoice" | "ddt" | "other";
+          name: string;
+          url: string;
+          date?: string;
+        }> = [];
+
+        for (const table of allTables) {
+          const headers = Array.from(table.querySelectorAll("th"));
+
+          // Find DDT and invoice column indices
+          const ddtColIndex = headers.findIndex(
+            (h) => h.textContent?.includes("DOCUMENTO DI TRASPORTO") || h.textContent?.includes("DDT")
+          );
+          const invoiceColIndex = headers.findIndex(
+            (h) => h.textContent?.includes("FATTURA PDF") || h.textContent?.includes("INVOICE PDF")
+          );
+          const dateColIndex = headers.findIndex(
+            (h) => h.textContent?.includes("DATA") && !h.textContent?.includes("DELIVERY")
+          );
+
+          if (ddtColIndex >= 0 || invoiceColIndex >= 0) {
+            // Found document columns, extract from data rows
+            const dataRows = Array.from(table.querySelectorAll("tbody tr"));
+
+            for (const row of dataRows) {
+              const cells = Array.from(row.querySelectorAll("td"));
+
+              // Extract DDT reference
+              if (ddtColIndex >= 0 && cells[ddtColIndex]) {
+                const ddtCell = cells[ddtColIndex];
+                const ddtLink = ddtCell.querySelector("a");
+
+                if (ddtLink) {
+                  const ddtName = ddtLink.textContent?.trim() || "";
+                  let ddtUrl = ddtLink.getAttribute("href") || "";
+
+                  // Normalize URL (prepend base if relative)
+                  if (ddtUrl && !ddtUrl.startsWith("http")) {
+                    ddtUrl = `https://4.231.124.90${ddtUrl.startsWith("/") ? "" : "/"}${ddtUrl}`;
+                  }
+
+                  if (ddtName && ddtUrl) {
+                    // Extract date if available
+                    let docDate: string | undefined;
+                    if (dateColIndex >= 0 && cells[dateColIndex]) {
+                      const dateText = cells[dateColIndex].textContent?.trim() || "";
+                      docDate = dateText ? parseDate(dateText) : undefined;
+                    }
+
+                    documents.push({
+                      type: "ddt",
+                      name: ddtName,
+                      url: ddtUrl,
+                      date: docDate,
+                    });
+                  }
+                }
+              }
+
+              // Extract invoice PDF link
+              if (invoiceColIndex >= 0 && cells[invoiceColIndex]) {
+                const invoiceCell = cells[invoiceColIndex];
+                const invoiceLink = invoiceCell.querySelector("a");
+
+                if (invoiceLink) {
+                  const invoiceName = invoiceLink.textContent?.trim() || "";
+                  let invoiceUrl = invoiceLink.getAttribute("href") || "";
+
+                  // Normalize URL
+                  if (invoiceUrl && !invoiceUrl.startsWith("http")) {
+                    invoiceUrl = `https://4.231.124.90${invoiceUrl.startsWith("/") ? "" : "/"}${invoiceUrl}`;
+                  }
+
+                  if (invoiceName && invoiceUrl) {
+                    // Extract date if available
+                    let docDate: string | undefined;
+                    if (dateColIndex >= 0 && cells[dateColIndex]) {
+                      const dateText = cells[dateColIndex].textContent?.trim() || "";
+                      docDate = dateText ? parseDate(dateText) : undefined;
+                    }
+
+                    documents.push({
+                      type: "invoice",
+                      name: invoiceName,
+                      url: invoiceUrl,
+                      date: docDate,
+                    });
+                  }
+                }
+              }
+            }
+          }
+        }
+
         const orderDetail: OrderDetail = {
           id,
           orderNumber,
@@ -734,6 +910,8 @@ export class OrderHistoryService {
           completionDate,
           items,
           statusTimeline,
+          tracking,
+          documents: documents.length > 0 ? documents : undefined,
         };
 
         return orderDetail;
