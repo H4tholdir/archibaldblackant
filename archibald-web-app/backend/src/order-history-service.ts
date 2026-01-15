@@ -46,6 +46,15 @@ export interface Order {
 }
 
 /**
+ * Internal scraping result from page.evaluate()
+ */
+interface ScrapeResult {
+  success: boolean;
+  error: string | null;
+  orders: Order[];
+}
+
+/**
  * Complete order detail with items and timeline
  */
 export interface OrderDetail {
@@ -373,12 +382,14 @@ export class OrderHistoryService {
    * Extracts data from DevExpress table using UI-SELECTORS.md column mapping
    */
   private async scrapeOrderPage(page: Page): Promise<Order[]> {
-    return await page.evaluate(() => {
+    logger.info("[OrderHistoryService] Starting scrapeOrderPage...");
+
+    const result = await page.evaluate((): ScrapeResult => {
       // Find the DevExpress table and select all rows that contain data cells
       const table = document.querySelector('table[id*="DXMainTable"]');
       if (!table) {
         console.log('[OrderHistoryService] Table not found with selector: table[id*="DXMainTable"]');
-        return [];
+        return { success: false, error: 'TABLE_NOT_FOUND', orders: [] };
       }
 
       // Get all <tr> elements that contain td.dxgv.dx-al cells (data rows)
@@ -472,8 +483,17 @@ export class OrderHistoryService {
         }
       }
 
-      return orders;
+      return { success: true, error: null, orders };
     });
+
+    // Log results from backend
+    if (!result.success) {
+      logger.error(`[OrderHistoryService] Scraping failed in browser: ${result.error}`);
+      return [];
+    }
+
+    logger.info(`[OrderHistoryService] Scraped ${result.orders.length} orders from current page`);
+    return result.orders;
   }
 
   /**
