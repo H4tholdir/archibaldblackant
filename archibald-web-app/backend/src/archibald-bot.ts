@@ -1289,6 +1289,66 @@ export class ArchibaldBot {
     );
   }
 
+  /**
+   * Initialize dedicated browser (legacy mode) with multi-user credentials
+   * This method creates a dedicated browser instance using legacy mode
+   * but with credentials from password cache (multi-user system)
+   */
+  async initializeDedicatedBrowser(): Promise<void> {
+    logger.info(`🔧 Initializing dedicated browser for user ${this.userId}...`);
+
+    // Create dedicated browser (same as legacy mode)
+    this.browser = await this.runOp(
+      "browser.launch",
+      async () => {
+        return puppeteer.launch({
+          headless: config.puppeteer.headless,
+          slowMo: config.puppeteer.slowMo,
+          args: [
+            "--no-sandbox",
+            "--disable-setuid-sandbox",
+            "--disable-web-security",
+            "--ignore-certificate-errors",
+          ],
+          defaultViewport: {
+            width: 1280,
+            height: 800,
+          },
+        });
+      },
+      "login",
+    );
+
+    this.page = await this.runOp(
+      "browser.newPage",
+      async () => {
+        return this.browser!.newPage();
+      },
+      "login",
+    );
+
+    // Enable console logging
+    this.page!.on("console", (msg) => {
+      const text = msg.text();
+      if (text) {
+        logger.debug(`[Browser Console] ${text}`);
+      }
+    });
+
+    await this.runOp(
+      "page.setRequestInterception",
+      async () => {
+        await this.page!.setRequestInterception(false);
+      },
+      "login",
+    );
+
+    logger.info(`✅ Dedicated browser initialized for user ${this.userId}`);
+
+    // Now perform login with password cache credentials
+    await this.login();
+  }
+
   async login(): Promise<void> {
     if (!this.page) throw new Error("Browser non inizializzato");
 

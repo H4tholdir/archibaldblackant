@@ -27,7 +27,6 @@ import { UserDatabase } from './user-db';
 export class BrowserPool {
   private static instance: BrowserPool;
   private browser: Browser | null = null;
-  private isInitialized = false;
   private initializationPromise: Promise<void> | null = null;
 
   // Per-user locks to prevent concurrent login attempts
@@ -46,8 +45,22 @@ export class BrowserPool {
    * Initialize shared Browser instance (lazy)
    */
   private async initialize(): Promise<void> {
-    if (this.isInitialized && this.browser && this.browser.isConnected()) {
-      return;
+    // Check if browser exists and is actually connected
+    if (this.browser) {
+      try {
+        // Test if browser is really connected by checking process and connection
+        const browserProcess = this.browser.process();
+        if (browserProcess?.pid && browserProcess.pid > 0) {
+          logger.debug('[BrowserPool] Browser already initialized and connected');
+          return;
+        }
+      } catch (error) {
+        logger.warn('[BrowserPool] Browser connection check failed, reinitializing...', {
+          error: error instanceof Error ? error.message : String(error)
+        });
+        this.browser = null;
+        this.initializationPromise = null;
+      }
     }
 
     if (this.initializationPromise) {
@@ -59,6 +72,7 @@ export class BrowserPool {
 
       this.browser = await puppeteer.launch({
         headless: config.puppeteer.headless,
+        slowMo: config.puppeteer.slowMo, // CRITICAL: Prevents browser crashes with shared instance
         ignoreHTTPSErrors: true,
         args: [
           '--no-sandbox',
@@ -72,8 +86,10 @@ export class BrowserPool {
         },
       });
 
-      this.isInitialized = true;
-      logger.info('[BrowserPool] Browser launched successfully');
+      this.initializationPromise = null; // Reset promise after successful init
+      logger.info('[BrowserPool] Browser launched successfully', {
+        pid: this.browser.process()?.pid
+      });
     })();
 
     return this.initializationPromise;
@@ -108,8 +124,28 @@ export class BrowserPool {
     // Create a promise for this login operation and store it as a lock
     const loginPromise = (async () => {
       try {
-        // Create brand new context
-        const context = await this.browser!.createBrowserContext();
+        // Create brand new context - wrap in try/catch to handle browser crashes
+        let context: BrowserContext;
+        try {
+          context = await this.browser!.createBrowserContext();
+        } catch (error) {
+          // Browser crashed - force reinitialization and retry once
+          logger.warn(`[BrowserPool] Failed to create context, reinitializing browser...`, {
+            error: error instanceof Error ? error.message : String(error),
+            userId
+          });
+
+          // Force reinit by clearing browser
+          this.browser = null;
+          this.initializationPromise = null;
+
+          // Reinitialize browser
+          await this.initialize();
+
+          // Retry context creation
+          context = await this.browser!.createBrowserContext();
+          logger.info(`[BrowserPool] Context created successfully after browser reinit`);
+        }
 
         // Perform fresh login
         await this.performLogin(context, userId);
@@ -295,7 +331,6 @@ export class BrowserPool {
       this.browser = null;
     }
 
-    this.isInitialized = false;
     this.initializationPromise = null;
 
     logger.info('[BrowserPool] Shutdown complete');
