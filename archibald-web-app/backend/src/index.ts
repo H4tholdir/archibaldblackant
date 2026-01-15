@@ -35,6 +35,7 @@ import { SyncCheckpointManager } from "./sync-checkpoint";
 import { SessionCleanupJob } from "./session-cleanup-job";
 import { OrderHistoryService } from "./order-history-service";
 import { SendToMilanoService } from "./send-to-milano-service";
+import { DDTScraperService } from "./ddt-scraper-service";
 import { OrderDatabase } from "./order-db";
 import { PriorityManager } from "./priority-manager";
 
@@ -1962,6 +1963,59 @@ app.post(
       return res.status(500).json({
         success: false,
         error: "An unexpected error occurred while sending order to Milano",
+      });
+    }
+  },
+);
+
+// Sync DDT (transport documents) and tracking data - POST /api/orders/sync-ddt
+app.post(
+  "/api/orders/sync-ddt",
+  authenticateJWT,
+  async (req: AuthRequest, res: Response) => {
+    const userId = req.userId!;
+    const orderDb = OrderDatabase.getInstance();
+    const ddtScraperService = new DDTScraperService();
+    const priorityManager = PriorityManager.getInstance();
+
+    try {
+      logger.info(`[DDT Sync] Starting DDT sync for user ${userId}`);
+
+      // Pause background services to prevent bot conflicts
+      priorityManager.pause();
+
+      try {
+        // Scrape DDT data from Archibald
+        const ddtData = await ddtScraperService.scrapeDDTData(userId);
+
+        // Match and sync to database
+        const syncResult = await ddtScraperService.syncDDTToOrders(userId, ddtData);
+
+        logger.info(`[DDT Sync] Completed for user ${userId}`, syncResult);
+
+        return res.json({
+          success: syncResult.success,
+          message: syncResult.message || `Synced ${syncResult.matched} DDT entries`,
+          data: {
+            matched: syncResult.matched,
+            notFound: syncResult.notFound,
+            scrapedCount: syncResult.scrapedCount,
+          },
+        });
+
+      } finally {
+        // Always resume background services
+        priorityManager.resume();
+      }
+
+    } catch (error) {
+      logger.error(`[DDT Sync] Failed for user ${userId}`, {
+        error: error instanceof Error ? error.message : String(error),
+      });
+
+      return res.status(500).json({
+        success: false,
+        error: "Failed to sync DDT data. Please try again later.",
       });
     }
   },
