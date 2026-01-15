@@ -481,20 +481,38 @@ Plans:
 
 **Note**: Phase 8 already implemented most of Phase 9's core functionality (queue persistence, automatic sync). Phase 9 adds user-facing UI and conflict resolution only.
 
-### Phase 10: Order History
+### Phase 10: Order History ✅ COMPLETE
 **Goal**: Lettura storico ordini da Archibald con filtri e dettaglio completo
 **Depends on**: Phase 9
-**Research**: Likely (Archibald order history UI parsing)
-**Research topics**: Archibald order list selectors, pagination patterns, order detail extraction
-**Plans**: 6 plans
+**Research**: Complete (10-01 - DevExpress UI selectors, navigation flows, 9 screenshots)
+**Status**: Complete (7/7 plans) ✅
+**Completed**: 2026-01-15
+**Duration**: 738 min (12.3 hours)
+**Plans**: 7 plans (6 original + 1 FIX for login issues)
 
 Plans:
-- [ ] 10-01: Research Archibald order history UI and selectors
-- [ ] 10-02: Implement Puppeteer scraper for order list (pagination support)
-- [ ] 10-03: Implement order detail extraction (articoli, quantità, prezzi, totale)
-- [ ] 10-04: Create backend API endpoint for order history
-- [ ] 10-05: Build frontend order history UI with filters (cliente, data, stato)
-- [ ] 10-06: Add order detail view with full information
+- [x] 10-01: Research Archibald order history UI and selectors (58m) ✅
+- [x] 10-02: Implement Puppeteer scraper for order list with pagination (38m) ✅
+- [x] 10-03: Implement order detail extraction (items, timeline, prices) (7m) ✅
+- [x] 10-04: Add tracking and document extraction (DDT, invoices) (38m) ✅
+- [x] 10-05: Create backend API endpoints with JWT auth and filters (45m) ✅
+- [x] 10-06: Build Timeline UI Components (OrderCard, OrderTimeline, grouping) (46m) ✅
+- [x] 10-07: Implement OrderHistory Page with filters and integration (521m) ✅
+- [x] 10-FIX: Resolve critical login issues (BrowserPool refactor, PasswordCache TTL) (~180m) ✅
+
+**Results**:
+- ✅ Complete order history scraping from Archibald (pagination up to 100 pages)
+- ✅ Order detail extraction with items, timeline, tracking, documents
+- ✅ Banking app timeline UI (Oggi/Settimana/Mese/Vecchi grouping)
+- ✅ API endpoints: GET /api/orders/history, GET /api/orders/:id
+- ✅ Filters: customer search (debounced 300ms), date range, status chips
+- ✅ Expand/collapse order cards with detail caching
+- ✅ Loading/error/empty states
+- ✅ Navigation integration with shared AppHeader
+- ✅ BrowserPool session-per-operation architecture (no stale sessions)
+- ✅ PasswordCache TTL aligned with JWT (24h)
+
+**Note**: Phase 10 was completed BEFORE Phase 9 despite theoretical dependency. Critical login issues (PasswordCache TTL mismatch, BrowserPool race conditions) resolved in 10-FIX plan.
 
 ### Phase 11: Order Management
 **Goal**: Modifica ordini pendenti, duplica ordine e tracking stato spedizione
@@ -569,10 +587,11 @@ Plans:
 | 6. Multi-User Authentication | 7/7 | ✅ Complete | 2026-01-14 |
 | 7. Credential Management | 6/6 | ✅ Complete | 2026-01-14 |
 | 8. Offline Capability | 8/8 | ✅ Complete | 2026-01-15 |
-| 9. Offline Queue | 0/7 | Not started | - |
-| 10. Order History | 0/6 | Not started | - |
+| 9. Offline Queue | 3/3 | ✅ Complete | 2026-01-15 |
+| 10. Order History | 7/7 | ✅ Complete | 2026-01-15 |
 | 11. Order Management | 0/7 | Not started | - |
 | 12. Deployment & Infrastructure | 0/10 | Not started | - |
 | 5. Order Submission (POSTPONED) | 0/6 | ⚠️ Postponed (rolled back) | - |
 
-**Total Plans**: 86 across 12+ phases
+**Total Plans**: 82 across 12+ phases (Phase 9 reduced from 7→3, Phase 10 expanded from 6→7)
+**Completed**: 71/82 plans (87%)
