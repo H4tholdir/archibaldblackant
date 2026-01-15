@@ -46,9 +46,10 @@ interface Product {
 interface OrderFormProps {
   token: string;
   onOrderCreated: (jobId: string) => void;
+  isAdmin?: boolean;
 }
 
-export default function OrderForm({ token, onOrderCreated }: OrderFormProps) {
+export default function OrderForm({ token, onOrderCreated, isAdmin = false }: OrderFormProps) {
   // Network status
   const { isOffline } = useNetworkStatus();
 
@@ -2535,8 +2536,10 @@ export default function OrderForm({ token, onOrderCreated }: OrderFormProps) {
         />
       )}
 
-      {/* Voice Debug Panel */}
-      <VoiceDebugPanel logs={logs} onClear={clearLogs} onExport={exportLogs} />
+      {/* Voice Debug Panel - Only for admin users */}
+      {isAdmin && (
+        <VoiceDebugPanel logs={logs} onClear={clearLogs} onExport={exportLogs} />
+      )}
     </form>
   );
 }

@@ -18,7 +18,7 @@ export function VoiceDebugPanel({
   onClear,
   onExport,
 }: VoiceDebugPanelProps) {
-  const [isMinimized, setIsMinimized] = useState(false);
+  const [isMinimized, setIsMinimized] = useState(true);
   const [filter, setFilter] = useState<string>("all");
 
   const filteredLogs =

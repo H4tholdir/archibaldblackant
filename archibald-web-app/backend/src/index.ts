@@ -7,9 +7,18 @@ import { config } from "./config";
 import { logger } from "./logger";
 import { ArchibaldBot } from "./archibald-bot";
 import { PasswordCache } from "./password-cache";
-import { createOrderSchema, createUserSchema, updateWhitelistSchema, loginSchema } from "./schemas";
+import {
+  createOrderSchema,
+  createUserSchema,
+  updateWhitelistSchema,
+  loginSchema,
+} from "./schemas";
 import { generateJWT } from "./auth-utils";
-import { authenticateJWT, requireAdmin, type AuthRequest } from "./middleware/auth";
+import {
+  authenticateJWT,
+  requireAdmin,
+  type AuthRequest,
+} from "./middleware/auth";
 import type { ApiResponse, OrderData } from "./types";
 import { UserDatabase } from "./user-db";
 import { QueueManager } from "./queue-manager";
@@ -194,199 +203,236 @@ app.get("/api/health", (req: Request, res: Response<ApiResponse>) => {
 // ========== CACHE EXPORT ENDPOINT ==========
 
 // Cache export endpoint - returns all data for offline cache population
-app.get("/api/cache/export", authenticateJWT, async (req: AuthRequest, res: Response<ApiResponse>) => {
-  try {
-    logger.info('Cache export requested', { userId: req.user?.userId });
+app.get(
+  "/api/cache/export",
+  authenticateJWT,
+  async (req: AuthRequest, res: Response<ApiResponse>) => {
+    try {
+      logger.info("Cache export requested", { userId: req.user?.userId });
 
-    const startTime = Date.now();
+      const startTime = Date.now();
 
-    // Get all data from SQLite databases
-    const [customers, products, variants, prices] = await Promise.all([
-      Promise.resolve(customerDb.getAllCustomers()),
-      Promise.resolve(productDb.getAllProducts()),
-      Promise.resolve(productDb.getAllProductVariants()),
-      Promise.resolve(productDb.getAllPrices())
-    ]);
+      // Get all data from SQLite databases
+      const [customers, products, variants, prices] = await Promise.all([
+        Promise.resolve(customerDb.getAllCustomers()),
+        Promise.resolve(productDb.getAllProducts()),
+        Promise.resolve(productDb.getAllProductVariants()),
+        Promise.resolve(productDb.getAllPrices()),
+      ]);
 
-    const duration = Date.now() - startTime;
+      const duration = Date.now() - startTime;
 
-    logger.info('Cache export completed', {
-      userId: req.user?.userId,
-      customers: customers.length,
-      products: products.length,
-      variants: variants.length,
-      prices: prices.length,
-      durationMs: duration
-    });
+      logger.info("Cache export completed", {
+        userId: req.user?.userId,
+        customers: customers.length,
+        products: products.length,
+        variants: variants.length,
+        prices: prices.length,
+        durationMs: duration,
+      });
 
-    res.json({
-      success: true,
-      data: {
-        customers,
-        products,
-        variants,
-        prices
-      },
-      metadata: {
-        exportedAt: new Date().toISOString(),
-        recordCounts: {
-          customers: customers.length,
-          products: products.length,
-          variants: variants.length,
-          prices: prices.length
-        }
-      }
-    });
-  } catch (error) {
-    logger.error('Cache export failed', { error, userId: req.user?.userId });
-    res.status(500).json({
-      success: false,
-      error: 'Cache export failed'
-    });
-  }
-});
+      res.json({
+        success: true,
+        data: {
+          customers,
+          products,
+          variants,
+          prices,
+        },
+        metadata: {
+          exportedAt: new Date().toISOString(),
+          recordCounts: {
+            customers: customers.length,
+            products: products.length,
+            variants: variants.length,
+            prices: prices.length,
+          },
+        },
+      });
+    } catch (error) {
+      logger.error("Cache export failed", { error, userId: req.user?.userId });
+      res.status(500).json({
+        success: false,
+        error: "Cache export failed",
+      });
+    }
+  },
+);
 
 // ========== AUTHENTICATION ENDPOINTS ==========
 
 // Login endpoint - validates whitelist and Puppeteer credentials
-app.post("/api/auth/login", async (req: Request, res: Response<ApiResponse>) => {
-  try {
-    // 1. Validate request
-    const result = loginSchema.safeParse(req.body);
-    if (!result.success) {
-      return res.status(400).json({
-        success: false,
-        error: "Formato richiesta non valido",
-      });
-    }
-
-    const { username, password } = result.data;
-
-    // 2. Check user exists and is whitelisted
-    const user = userDb.getUserByUsername(username);
-
-    if (!user) {
-      logger.warn(`Login attempt for non-existent user: ${username}`);
-      return res.status(401).json({
-        success: false,
-        error: "Credenziali non valide o utente non autorizzato",
-      });
-    }
-
-    if (!user.whitelisted) {
-      logger.warn(`Login attempt for non-whitelisted user: ${username}`);
-      return res.status(403).json({
-        success: false,
-        error: "Utente non autorizzato",
-      });
-    }
-
-    // 3. Store password in memory for lazy validation
-    // Password will be validated on first order creation via Puppeteer
-    // This makes login INSTANT (no 30s Puppeteer wait)
-    PasswordCache.getInstance().set(user.id, password);
-    logger.info(`Password cached for user ${username} - will validate on first order`);
-
-    // 4. Update lastLogin timestamp
-    userDb.updateLastLogin(user.id);
-
-    // 5. Generate JWT
-    const token = await generateJWT({
-      userId: user.id,
-      username: user.username,
-      role: user.role
-    });
-
-    logger.info(`Login successful for user: ${username}`);
-    res.json({
-      success: true,
-      token,
-      user: {
-        id: user.id,
-        username: user.username,
-        fullName: user.fullName,
-        role: user.role
+app.post(
+  "/api/auth/login",
+  async (req: Request, res: Response<ApiResponse>) => {
+    try {
+      // 1. Validate request
+      const result = loginSchema.safeParse(req.body);
+      if (!result.success) {
+        return res.status(400).json({
+          success: false,
+          error: "Formato richiesta non valido",
+        });
       }
-    });
 
-  } catch (error) {
-    logger.error("Login error", { error });
-    res.status(500).json({ success: false, error: "Errore interno del server" });
-  }
-});
+      const { username, password } = result.data;
+
+      // 2. Check user exists and is whitelisted
+      const user = userDb.getUserByUsername(username);
+
+      if (!user) {
+        logger.warn(`Login attempt for non-existent user: ${username}`);
+        return res.status(401).json({
+          success: false,
+          error: "Credenziali non valide o utente non autorizzato",
+        });
+      }
+
+      if (!user.whitelisted) {
+        logger.warn(`Login attempt for non-whitelisted user: ${username}`);
+        return res.status(403).json({
+          success: false,
+          error: "Utente non autorizzato",
+        });
+      }
+
+      // 3. Store password in memory for lazy validation
+      // Password will be validated on first order creation via Puppeteer
+      // This makes login INSTANT (no 30s Puppeteer wait)
+      PasswordCache.getInstance().set(user.id, password);
+      logger.info(
+        `Password cached for user ${username} - will validate on first order`,
+      );
+
+      // 4. Update lastLogin timestamp
+      userDb.updateLastLogin(user.id);
+
+      // 5. Generate JWT
+      const token = await generateJWT({
+        userId: user.id,
+        username: user.username,
+        role: user.role,
+      });
+
+      logger.info(`Login successful for user: ${username}`);
+      res.json({
+        success: true,
+        token,
+        user: {
+          id: user.id,
+          username: user.username,
+          fullName: user.fullName,
+          role: user.role,
+        },
+      });
+    } catch (error) {
+      logger.error("Login error", { error });
+      res
+        .status(500)
+        .json({ success: false, error: "Errore interno del server" });
+    }
+  },
+);
 
 // Refresh credentials endpoint - re-cache password after backend restart
-app.post("/api/auth/refresh-credentials", authenticateJWT, async (req: AuthRequest, res: Response<ApiResponse>) => {
-  try {
-    const userId = req.user!.userId;
-    const { password } = req.body;
+app.post(
+  "/api/auth/refresh-credentials",
+  authenticateJWT,
+  async (req: AuthRequest, res: Response<ApiResponse>) => {
+    try {
+      const userId = req.user!.userId;
+      const { password } = req.body;
 
-    if (!password || typeof password !== 'string') {
-      return res.status(400).json({
-        success: false,
-        error: "Password richiesta"
+      if (!password || typeof password !== "string") {
+        return res.status(400).json({
+          success: false,
+          error: "Password richiesta",
+        });
+      }
+
+      // Re-cache password
+      PasswordCache.getInstance().set(userId, password);
+      logger.info(`Credentials refreshed for user ${req.user!.username}`);
+
+      res.json({
+        success: true,
+        data: { message: "Credenziali aggiornate" },
+      });
+    } catch (error) {
+      logger.error("Error refreshing credentials", {
+        error,
+        userId: req.user!.userId,
+      });
+      res
+        .status(500)
+        .json({ success: false, error: "Errore interno del server" });
+    }
+  },
+);
+
+// Logout endpoint - JWT invalidation is client-side (remove token)
+app.post(
+  "/api/auth/logout",
+  authenticateJWT,
+  async (req: AuthRequest, res: Response<ApiResponse>) => {
+    const userId = req.user!.userId;
+    const username = req.user!.username;
+
+    try {
+      // Clear cached password (browser contexts are automatically cleaned up per-operation)
+      PasswordCache.getInstance().clear(userId);
+
+      logger.info(`User ${username} logged out, password cache cleared`, {
+        userId,
+      });
+
+      res.json({
+        success: true,
+        data: { message: "Logout effettuato con successo" },
+      });
+    } catch (error) {
+      logger.error(`Error during logout cleanup for user ${username}`, {
+        error,
+        userId,
+      });
+      // Even if cleanup fails, return success to client
+      // (client will discard JWT anyway)
+      res.json({
+        success: true,
+        data: { message: "Logout effettuato con successo" },
       });
     }
+  },
+);
 
-    // Re-cache password
-    PasswordCache.getInstance().set(userId, password);
-    logger.info(`Credentials refreshed for user ${req.user!.username}`);
+// Get current user profile
+app.get(
+  "/api/auth/me",
+  authenticateJWT,
+  async (req: AuthRequest, res: Response<ApiResponse>) => {
+    const user = userDb.getUserById(req.user!.userId);
+
+    if (!user) {
+      return res
+        .status(404)
+        .json({ success: false, error: "Utente non trovato" });
+    }
 
     res.json({
       success: true,
-      data: { message: "Credenziali aggiornate" }
+      data: {
+        user: {
+          id: user.id,
+          username: user.username,
+          fullName: user.fullName,
+          role: user.role,
+          whitelisted: user.whitelisted,
+          lastLoginAt: user.lastLoginAt,
+        },
+      },
     });
-  } catch (error) {
-    logger.error("Error refreshing credentials", { error, userId: req.user!.userId });
-    res.status(500).json({ success: false, error: "Errore interno del server" });
-  }
-});
-
-// Logout endpoint - JWT invalidation is client-side (remove token)
-app.post("/api/auth/logout", authenticateJWT, async (req: AuthRequest, res: Response<ApiResponse>) => {
-  const userId = req.user!.userId;
-  const username = req.user!.username;
-
-  try {
-    // Clear cached password (browser contexts are automatically cleaned up per-operation)
-    PasswordCache.getInstance().clear(userId);
-
-    logger.info(`User ${username} logged out, password cache cleared`, { userId });
-
-    res.json({ success: true, data: { message: "Logout effettuato con successo" } });
-  } catch (error) {
-    logger.error(`Error during logout cleanup for user ${username}`, {
-      error,
-      userId,
-    });
-    // Even if cleanup fails, return success to client
-    // (client will discard JWT anyway)
-    res.json({ success: true, data: { message: "Logout effettuato con successo" } });
-  }
-});
-
-// Get current user profile
-app.get("/api/auth/me", authenticateJWT, async (req: AuthRequest, res: Response<ApiResponse>) => {
-  const user = userDb.getUserById(req.user!.userId);
-
-  if (!user) {
-    return res.status(404).json({ success: false, error: 'Utente non trovato' });
-  }
-
-  res.json({
-    success: true,
-    data: {
-      user: {
-        id: user.id,
-        username: user.username,
-        fullName: user.fullName,
-        role: user.role,
-        whitelisted: user.whitelisted,
-        lastLoginAt: user.lastLoginAt,
-      }
-    }
-  });
-});
+  },
+);
 
 // ========== ADMIN USER MANAGEMENT ENDPOINTS ==========
 
@@ -421,10 +467,7 @@ app.post("/api/admin/users", (req: Request, res: Response<ApiResponse>) => {
 
     res.status(500).json({
       success: false,
-      error:
-        error instanceof Error
-          ? error.message
-          : "Error creating user",
+      error: error instanceof Error ? error.message : "Error creating user",
     });
   }
 });
@@ -444,10 +487,7 @@ app.get("/api/admin/users", (req: Request, res: Response<ApiResponse>) => {
 
     res.status(500).json({
       success: false,
-      error:
-        error instanceof Error
-          ? error.message
-          : "Error fetching users",
+      error: error instanceof Error ? error.message : "Error fetching users",
     });
   }
 });
@@ -489,9 +529,7 @@ app.patch(
       res.status(500).json({
         success: false,
         error:
-          error instanceof Error
-            ? error.message
-            : "Error updating whitelist",
+          error instanceof Error ? error.message : "Error updating whitelist",
       });
     }
   },
@@ -529,10 +567,7 @@ app.delete(
 
       res.status(500).json({
         success: false,
-        error:
-          error instanceof Error
-            ? error.message
-            : "Error deleting user",
+        error: error instanceof Error ? error.message : "Error deleting user",
       });
     }
   },
@@ -891,76 +926,81 @@ app.get(
 );
 
 // Trigger full sync of customers, products, and prices (SEQUENTIALLY to avoid conflicts)
-app.post("/api/sync/full", authenticateJWT, requireAdmin, async (req: AuthRequest, res: Response<ApiResponse>) => {
-  try {
-    logger.info("Richiesta sync completo (customers + products + prices)");
+app.post(
+  "/api/sync/full",
+  authenticateJWT,
+  requireAdmin,
+  async (req: AuthRequest, res: Response<ApiResponse>) => {
+    try {
+      logger.info("Richiesta sync completo (customers + products + prices)");
 
-    // Verifica lock
-    if (activeOperation) {
-      return res.status(409).json({
+      // Verifica lock
+      if (activeOperation) {
+        return res.status(409).json({
+          success: false,
+          error: `Sincronizzazione ${activeOperation} già in corso. Attendere il completamento.`,
+        });
+      }
+
+      // Run syncs SEQUENTIALLY in background to avoid browser pool conflicts
+      (async () => {
+        try {
+          logger.info("🔄 Avvio sync sequenziale: clienti → prodotti → prezzi");
+
+          // 1. Sync customers first
+          if (!acquireSyncLock("customers")) return;
+          try {
+            logger.info("1️⃣ Sync clienti...");
+            await syncService.syncCustomers();
+            logger.info("✅ Sync clienti completato");
+          } finally {
+            releaseSyncLock();
+          }
+
+          // 2. Then sync products
+          if (!acquireSyncLock("products")) return;
+          try {
+            logger.info("2️⃣ Sync prodotti...");
+            await productSyncService.syncProducts();
+            logger.info("✅ Sync prodotti completato");
+          } finally {
+            releaseSyncLock();
+          }
+
+          // 3. Finally sync prices (full sync for scheduled sync)
+          if (!acquireSyncLock("prices")) return;
+          try {
+            logger.info("3️⃣ Sync prezzi (full sync)...");
+            await priceSyncService.syncPrices(true); // Force full sync
+            logger.info("✅ Sync prezzi completato");
+          } finally {
+            releaseSyncLock();
+          }
+
+          logger.info("🎉 Sync completo terminato con successo!");
+        } catch (error) {
+          logger.error("❌ Errore durante sync sequenziale", { error });
+          releaseSyncLock();
+        }
+      })();
+
+      res.json({
+        success: true,
+        message:
+          "Sincronizzazione completa avviata in sequenza (clienti → prodotti → prezzi)",
+      });
+    } catch (error) {
+      logger.error("Errore API /api/sync/full", { error });
+      res.status(500).json({
         success: false,
-        error: `Sincronizzazione ${activeOperation} già in corso. Attendere il completamento.`,
+        error:
+          error instanceof Error
+            ? error.message
+            : "Errore durante l'avvio della sincronizzazione",
       });
     }
-
-    // Run syncs SEQUENTIALLY in background to avoid browser pool conflicts
-    (async () => {
-      try {
-        logger.info("🔄 Avvio sync sequenziale: clienti → prodotti → prezzi");
-
-        // 1. Sync customers first
-        if (!acquireSyncLock("customers")) return;
-        try {
-          logger.info("1️⃣ Sync clienti...");
-          await syncService.syncCustomers();
-          logger.info("✅ Sync clienti completato");
-        } finally {
-          releaseSyncLock();
-        }
-
-        // 2. Then sync products
-        if (!acquireSyncLock("products")) return;
-        try {
-          logger.info("2️⃣ Sync prodotti...");
-          await productSyncService.syncProducts();
-          logger.info("✅ Sync prodotti completato");
-        } finally {
-          releaseSyncLock();
-        }
-
-        // 3. Finally sync prices (full sync for scheduled sync)
-        if (!acquireSyncLock("prices")) return;
-        try {
-          logger.info("3️⃣ Sync prezzi (full sync)...");
-          await priceSyncService.syncPrices(true); // Force full sync
-          logger.info("✅ Sync prezzi completato");
-        } finally {
-          releaseSyncLock();
-        }
-
-        logger.info("🎉 Sync completo terminato con successo!");
-      } catch (error) {
-        logger.error("❌ Errore durante sync sequenziale", { error });
-        releaseSyncLock();
-      }
-    })();
-
-    res.json({
-      success: true,
-      message:
-        "Sincronizzazione completa avviata in sequenza (clienti → prodotti → prezzi)",
-    });
-  } catch (error) {
-    logger.error("Errore API /api/sync/full", { error });
-    res.status(500).json({
-      success: false,
-      error:
-        error instanceof Error
-          ? error.message
-          : "Errore durante l'avvio della sincronizzazione",
-    });
-  }
-});
+  },
+);
 
 // Endpoint singolo per sync clienti
 app.post(
@@ -1360,10 +1400,7 @@ app.post(
       }
 
       // Aggiungi alla coda con userId
-      const job = await queueManager.addOrder(
-        orderData,
-        userId,
-      );
+      const job = await queueManager.addOrder(orderData, userId);
 
       logger.info("✅ API: Ordine aggiunto alla coda con successo", {
         jobId: job.id,
@@ -1475,7 +1512,6 @@ app.get(
   authenticateJWT,
   async (req: AuthRequest, res: Response<ApiResponse>) => {
     const userId = req.user!.userId;
-    let context = null;
 
     try {
       // Parse query parameters
@@ -1513,66 +1549,77 @@ app.get(
       // Pause sync services to avoid conflicts
       priorityManager.pause();
 
-      // Acquire browser context for user
-      context = await browserPool.acquireContext(userId);
-
-      // Fetch order list from Archibald
-      const result = await orderHistoryService.getOrderList(context, userId, {
-        limit: limit + offset, // Fetch extra for post-filtering
-        offset: 0,
-      });
-
-      // Apply filters in-memory
-      let filteredOrders = result.orders;
-
-      if (customer) {
-        const customerLower = customer.toLowerCase();
-        filteredOrders = filteredOrders.filter((order) =>
-          order.customerName.toLowerCase().includes(customerLower),
-        );
-      }
-
-      if (dateFrom) {
-        const fromDate = new Date(dateFrom);
-        filteredOrders = filteredOrders.filter((order) => {
-          const orderDate = new Date(order.creationDate);
-          return orderDate >= fromDate;
+      try {
+        // Fetch order list from DB only (no automatic sync)
+        // Sync is triggered only via force-sync endpoint
+        const result = await orderHistoryService.getOrderList(userId, {
+          limit: limit + offset, // Fetch extra for post-filtering
+          offset: 0,
+          skipSync: true, // Don't auto-sync, only return from cache
         });
-      }
 
-      if (dateTo) {
-        const toDate = new Date(dateTo);
-        toDate.setHours(23, 59, 59, 999); // End of day
-        filteredOrders = filteredOrders.filter((order) => {
-          const orderDate = new Date(order.creationDate);
-          return orderDate <= toDate;
-        });
-      }
+        // Apply filters in-memory
+        let filteredOrders = result.orders;
 
-      if (status) {
-        const statusLower = status.toLowerCase();
-        filteredOrders = filteredOrders.filter(
-          (order) => order.status.toLowerCase() === statusLower,
+        if (customer) {
+          const customerLower = customer.toLowerCase();
+          filteredOrders = filteredOrders.filter((order) =>
+            order.customerName.toLowerCase().includes(customerLower),
+          );
+        }
+
+        if (dateFrom) {
+          const fromDate = new Date(dateFrom);
+          filteredOrders = filteredOrders.filter((order) => {
+            const orderDate = new Date(order.creationDate);
+            return orderDate >= fromDate;
+          });
+        }
+
+        if (dateTo) {
+          const toDate = new Date(dateTo);
+          toDate.setHours(23, 59, 59, 999); // End of day
+          filteredOrders = filteredOrders.filter((order) => {
+            const orderDate = new Date(order.creationDate);
+            return orderDate <= toDate;
+          });
+        }
+
+        if (status) {
+          const statusLower = status.toLowerCase();
+          filteredOrders = filteredOrders.filter(
+            (order) => order.status.toLowerCase() === statusLower,
+          );
+        }
+
+        // Apply pagination to filtered results
+        const paginatedOrders = filteredOrders.slice(offset, offset + limit);
+        const hasMore = filteredOrders.length > offset + limit;
+
+        // Map orders to add frontend-required fields (date, total)
+        const ordersWithFrontendFields = paginatedOrders.map((order) => ({
+          ...order,
+          date: order.creationDate, // Frontend expects 'date' field for timeline grouping
+          total: "N/A", // Placeholder - total will be calculated from items in detail view
+        }));
+
+        logger.info(
+          `[OrderHistory] Fetched ${result.orders.length} orders, filtered to ${filteredOrders.length}, returning ${paginatedOrders.length}`,
+          { userId },
         );
+
+        res.json({
+          success: true,
+          data: {
+            orders: ordersWithFrontendFields,
+            total: filteredOrders.length,
+            hasMore,
+          },
+        });
+      } finally {
+        // Always resume services
+        priorityManager.resume();
       }
-
-      // Apply pagination to filtered results
-      const paginatedOrders = filteredOrders.slice(offset, offset + limit);
-      const hasMore = filteredOrders.length > offset + limit;
-
-      logger.info(
-        `[OrderHistory] Fetched ${result.orders.length} orders, filtered to ${filteredOrders.length}, returning ${paginatedOrders.length}`,
-        { userId },
-      );
-
-      res.json({
-        success: true,
-        data: {
-          orders: paginatedOrders,
-          total: filteredOrders.length,
-          hasMore,
-        },
-      });
     } catch (error) {
       logger.error("[OrderHistory] Error fetching order history", {
         error: error instanceof Error ? error.message : String(error),
@@ -1581,7 +1628,8 @@ app.get(
       });
 
       // Check if error is "Password not found in cache"
-      const errorMessage = error instanceof Error ? error.message : String(error);
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
       if (errorMessage.includes("Password not found in cache")) {
         return res.status(401).json({
           success: false,
@@ -1594,12 +1642,6 @@ app.get(
         success: false,
         error: errorMessage || "Failed to fetch order history",
       });
-    } finally {
-      // Always release context and resume services
-      if (context) {
-        await browserPool.releaseContext(userId, context, true);
-      }
-      priorityManager.resume();
     }
   },
 );
@@ -1611,49 +1653,53 @@ app.get(
   async (req: AuthRequest, res: Response<ApiResponse>) => {
     const userId = req.user!.userId;
     const orderId = req.params.id;
-    let context = null;
 
     try {
-      // Validate orderId format (should be numeric string)
-      if (!orderId || !/^\d+$/.test(orderId)) {
+      // Validate orderId format (numeric with optional dots, e.g., "70.614")
+      if (!orderId || !/^[\d.]+$/.test(orderId)) {
         return res.status(400).json({
           success: false,
-          error: "Invalid order ID format. Expected numeric string",
-        });
-      }
-
-      logger.info(`[OrderHistory] Fetching order detail for user ${userId}, order ${orderId}`);
-
-      // Pause sync services to avoid conflicts
-      priorityManager.pause();
-
-      // Acquire browser context for user
-      context = await browserPool.acquireContext(userId);
-
-      // Fetch order detail from Archibald
-      const orderDetail = await orderHistoryService.getOrderDetail(
-        context,
-        userId,
-        orderId,
-      );
-
-      if (!orderDetail) {
-        logger.warn(`[OrderHistory] Order ${orderId} not found for user ${userId}`);
-        return res.status(404).json({
-          success: false,
-          error: "Order not found",
+          error: "Invalid order ID format. Expected numeric string (dots allowed)",
         });
       }
 
       logger.info(
-        `[OrderHistory] Fetched order detail: ${orderDetail.items.length} items, ${orderDetail.statusTimeline.length} status updates`,
-        { userId, orderId },
+        `[OrderHistory] Fetching order detail for user ${userId}, order ${orderId}`,
       );
 
-      res.json({
-        success: true,
-        data: orderDetail,
-      });
+      // Pause sync services to avoid conflicts
+      priorityManager.pause();
+
+      try {
+        // Fetch order detail from Archibald (OrderHistoryService handles ArchibaldBot internally)
+        const orderDetail = await orderHistoryService.getOrderDetail(
+          userId,
+          orderId,
+        );
+
+        if (!orderDetail) {
+          logger.warn(
+            `[OrderHistory] Order ${orderId} not found for user ${userId}`,
+          );
+          return res.status(404).json({
+            success: false,
+            error: "Order not found",
+          });
+        }
+
+        logger.info(
+          `[OrderHistory] Fetched order detail: ${orderDetail.items.length} items, ${orderDetail.statusTimeline.length} status updates`,
+          { userId, orderId },
+        );
+
+        res.json({
+          success: true,
+          data: orderDetail,
+        });
+      } finally {
+        // Always resume services
+        priorityManager.resume();
+      }
     } catch (error) {
       logger.error("[OrderHistory] Error fetching order detail", {
         error,
@@ -1665,12 +1711,51 @@ app.get(
         success: false,
         error: "Failed to fetch order detail",
       });
-    } finally {
-      // Always release context and resume services
-      if (context) {
-        await browserPool.releaseContext(userId, context, true);
+    }
+  },
+);
+
+// Force sync orders - Protected with JWT
+// Clears cached orders and forces a fresh scrape from Archibald
+app.post(
+  "/api/orders/force-sync",
+  authenticateJWT,
+  async (req: AuthRequest, res: Response<ApiResponse>) => {
+    const userId = req.user!.userId;
+
+    try {
+      logger.info(`[OrderHistory] Force sync requested by user ${userId}`);
+
+      // Pause sync services to avoid conflicts
+      priorityManager.pause();
+
+      try {
+        // Clear existing cached orders
+        orderHistoryService.orderDb.clearUserOrders(userId);
+        logger.info(`[OrderHistory] Cleared cached orders for user ${userId}`);
+
+        // Force sync from Archibald (will scrape all pages)
+        await orderHistoryService.syncFromArchibald(userId);
+        logger.info(`[OrderHistory] Force sync completed for user ${userId}`);
+
+        res.json({
+          success: true,
+          message: "Orders re-synced successfully",
+        });
+      } finally {
+        // Always resume services
+        priorityManager.resume();
       }
-      priorityManager.resume();
+    } catch (error) {
+      logger.error("[OrderHistory] Error during force sync", {
+        error,
+        userId,
+      });
+
+      res.status(500).json({
+        success: false,
+        error: "Failed to force sync orders",
+      });
     }
   },
 );

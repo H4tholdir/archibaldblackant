@@ -1,5 +1,4 @@
 import { useState, useEffect } from "react";
-import { cacheService, type ProductWithDetails } from "../services/cache-service";
 import type { PendingOrder } from "../db/schema";
 import { db } from "../db/schema";
 

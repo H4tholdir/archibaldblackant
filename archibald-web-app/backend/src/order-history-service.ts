@@ -1,5 +1,7 @@
-import { BrowserContext, Page } from "puppeteer";
+import { Page } from "puppeteer";
 import { logger } from "./logger";
+import { config } from "./config";
+import { OrderDatabase, type StoredOrder } from "./order-db";
 
 /**
  * Options for fetching order list
@@ -47,11 +49,13 @@ export interface Order {
 
 /**
  * Internal scraping result from page.evaluate()
+ * Uses plain types (any[]) because page.evaluate runs in browser context
+ * where TypeScript types are not available
  */
 interface ScrapeResult {
   success: boolean;
   error: string | null;
-  orders: Order[];
+  orders: any[]; // Will be cast to Order[] after returning from browser
 }
 
 /**
@@ -119,244 +123,574 @@ export interface OrderDocument {
 }
 
 /**
- * Helper function to retry async operations with exponential backoff
- */
-async function retryOperation<T>(
-  operation: () => Promise<T>,
-  operationName: string,
-  maxRetries: number = 3,
-  initialDelay: number = 1000
-): Promise<T> {
-  let lastError: Error | null = null;
-
-  for (let attempt = 1; attempt <= maxRetries; attempt++) {
-    try {
-      logger.info(`[Retry] Attempting ${operationName} (attempt ${attempt}/${maxRetries})`);
-      return await operation();
-    } catch (error) {
-      lastError = error instanceof Error ? error : new Error(String(error));
-      logger.warn(`[Retry] ${operationName} failed on attempt ${attempt}/${maxRetries}`, {
-        error: lastError.message
-      });
-
-      if (attempt < maxRetries) {
-        const delay = initialDelay * Math.pow(2, attempt - 1); // Exponential backoff
-        logger.info(`[Retry] Waiting ${delay}ms before retry...`);
-        await new Promise(resolve => setTimeout(resolve, delay));
-      }
-    }
-  }
-
-  throw new Error(`${operationName} failed after ${maxRetries} attempts: ${lastError?.message}`);
-}
-
-/**
  * Service for scraping order history from Archibald
- * Follows patterns from customer-sync-service.ts and discovery from UI-SELECTORS.md
+ * Refactored to use ArchibaldBot pattern from customer-sync-service.ts
+ *
+ * KEY CHANGES (2026-01-15):
+ * - Use ArchibaldBot instead of BrowserPool directly
+ * - Direct navigation to URL with waitUntil: "networkidle2" (like customer sync)
+ * - Simplified scraping with table tbody tr selector (no complex DevExpress selectors)
  */
 export class OrderHistoryService {
+  public orderDb: OrderDatabase; // Public for force-sync endpoint access
+  private readonly SYNC_INTERVAL_MS = 10 * 60 * 1000; // 10 minutes
+
+  constructor() {
+    this.orderDb = OrderDatabase.getInstance();
+  }
+
   /**
-   * Get order list from Archibald
-   * @param context BrowserContext for the user session (from BrowserPool)
-   * @param userId User ID for logging context
+   * Get order list - Cache-first strategy with incremental sync
+   *
+   * Strategy:
+   * 1. Try DB first (fast path)
+   * 2. If DB empty OR last sync > 10min ago → scrape from Archibald
+   * 3. Save new orders to DB
+   * 4. Return from DB
+   *
+   * @param userId User ID for multi-user ArchibaldBot mode
    * @param options Pagination and filter options
    * @returns OrderListResult with orders, total, and hasMore flag
    */
   async getOrderList(
-    context: BrowserContext,
     userId: string,
-    options?: OrderListOptions,
+    options?: OrderListOptions & { skipSync?: boolean },
   ): Promise<OrderListResult> {
     const limit = options?.limit || 100;
     const offset = options?.offset || 0;
+    const filters = options?.filters;
+    const skipSync = options?.skipSync || false;
 
     logger.info(
-      `[OrderHistoryService] Fetching order list for user ${userId} (limit: ${limit}, offset: ${offset})`,
+      `[OrderHistoryService] Fetching order list for user ${userId} (limit: ${limit}, offset: ${offset}, skipSync: ${skipSync})`,
     );
 
     try {
-      // Create new page in user's context
-      const page = await context.newPage();
+      // Check if we need to sync from Archibald (only if not skipping)
+      if (!skipSync) {
+        const needsSync = await this.needsSync(userId);
 
-      try {
-        // Navigate to order list (login already handled by BrowserPool)
-        // Use retry logic for navigation (can fail on slow connections)
-        await retryOperation(
-          () => this.navigateToOrderList(page),
-          `Navigate to order list for user ${userId}`,
-          3, // max 3 retries
-          2000 // 2s initial delay
-        );
-
-        // Scrape all pages up to limit
-        const allOrders = await this.scrapeAllPages(page, limit);
-
-        // Apply offset and limit
-        const paginatedOrders = allOrders.slice(offset, offset + limit);
-        const hasMore = allOrders.length > offset + limit;
-
+        if (needsSync) {
+          logger.info(
+            "[OrderHistoryService] DB empty or stale, syncing from Archibald...",
+          );
+          await this.syncFromArchibald(userId);
+        } else {
+          logger.info("[OrderHistoryService] Using cached orders from DB");
+        }
+      } else {
         logger.info(
-          `[OrderHistoryService] Fetched ${allOrders.length} orders for user ${userId}, returning ${paginatedOrders.length} (hasMore: ${hasMore})`,
+          "[OrderHistoryService] Skipping sync check, using cached orders from DB",
         );
-
-        return {
-          orders: paginatedOrders,
-          total: allOrders.length,
-          hasMore,
-        };
-      } finally {
-        await page.close();
       }
+
+      // Always return from DB (cache-first)
+      const dbOrders = this.orderDb.getOrdersByUser(userId, {
+        limit,
+        offset,
+        status: filters?.status,
+        customer: filters?.customer,
+        dateFrom: filters?.dateFrom,
+        dateTo: filters?.dateTo,
+      });
+
+      const total = this.orderDb.countOrders(userId, {
+        status: filters?.status,
+        customer: filters?.customer,
+        dateFrom: filters?.dateFrom,
+        dateTo: filters?.dateTo,
+      });
+
+      const hasMore = offset + limit < total;
+
+      logger.info(
+        `[OrderHistoryService] Returning ${dbOrders.length} orders from DB (total: ${total}, hasMore: ${hasMore})`,
+      );
+
+      // Convert StoredOrder to Order (remove DB metadata)
+      const orders: Order[] = dbOrders.map(this.storedOrderToOrder);
+
+      return {
+        orders,
+        total,
+        hasMore,
+      };
     } catch (error) {
       logger.error(
         `[OrderHistoryService] Error fetching order list for user ${userId}`,
-        { error },
+        {
+          error,
+          message: error instanceof Error ? error.message : String(error),
+          stack: error instanceof Error ? error.stack : undefined,
+        },
       );
 
-      // Return empty result on error (graceful degradation)
-      return {
-        orders: [],
-        total: 0,
-        hasMore: false,
-      };
+      // Fallback: try to return from DB even on error
+      try {
+        const dbOrders = this.orderDb.getOrdersByUser(userId, {
+          limit,
+          offset,
+        });
+        const total = this.orderDb.countOrders(userId);
+        return {
+          orders: dbOrders.map(this.storedOrderToOrder),
+          total,
+          hasMore: offset + limit < total,
+        };
+      } catch {
+        // Return empty result on error (graceful degradation)
+        return {
+          orders: [],
+          total: 0,
+          hasMore: false,
+        };
+      }
     }
   }
 
   /**
-   * Navigate to Archibald order list page
-   * Path: AGENT → Ordini (from UI-SELECTORS.md)
+   * Check if we need to sync from Archibald
+   * Returns true if DB is empty or last sync was > 10 minutes ago
    */
-  private async navigateToOrderList(page: Page): Promise<void> {
-    logger.info("[OrderHistoryService] Navigating to order list");
+  private async needsSync(userId: string): Promise<boolean> {
+    const lastScraped = this.orderDb.getLastScrapedTimestamp(userId);
 
-    const currentUrl = page.url();
-    logger.info(`[OrderHistoryService] Current URL before navigation: ${currentUrl}`);
+    if (!lastScraped) {
+      // DB empty - need initial sync
+      return true;
+    }
 
-    // Only navigate if we're not already on the order list page
-    if (!currentUrl.includes("SALESTABLE_ListView_Agent")) {
-      logger.info("[OrderHistoryService] Not on order list page, navigating via menu click...");
+    const lastScrapedMs = new Date(lastScraped).getTime();
+    const ageMs = Date.now() - lastScrapedMs;
 
-      try {
-        // Strategy: Click "AGENT" menu item instead of direct URL navigation
-        // This is more reliable as it follows user interaction pattern
+    // Sync if older than threshold
+    return ageMs > this.SYNC_INTERVAL_MS;
+  }
 
-        logger.info("[OrderHistoryService] Looking for AGENT menu item...");
+  /**
+   * Sync orders from Archibald and save to DB
+   * This is the actual scraping logic (extracted from old getOrderList)
+   */
+  private async syncFromArchibald(userId: string): Promise<void> {
+    let bot = null;
 
-        // Wait for navigation menu to be present
-        await page.waitForSelector('a[href*="SALESTABLE_ListView_Agent"]', { timeout: 10000 });
+    try {
+      // Use legacy ArchibaldBot for system sync operations (like customer-sync)
+      const { ArchibaldBot } = await import("./archibald-bot");
+      bot = new ArchibaldBot(); // No userId = legacy mode
+      await bot.initialize();
+      await bot.login(); // Uses config credentials
 
-        logger.info("[OrderHistoryService] Found AGENT menu link, clicking...");
+      // Verify page exists
+      if (!bot.page) {
+        throw new Error("Browser page is null after initialization");
+      }
 
-        // Click the link and wait for navigation with race condition handling
-        await Promise.race([
-          page.click('a[href*="SALESTABLE_ListView_Agent"]'),
-          new Promise((_, reject) =>
-            setTimeout(() => reject(new Error('Click timeout after 5s')), 5000)
-          )
-        ]);
+      logger.info(
+        "[OrderHistoryService] ArchibaldBot initialized (legacy mode), navigating to order list...",
+      );
 
-        logger.info("[OrderHistoryService] Clicked, waiting for navigation...");
+      // Navigate to order list page (direct URL like customer sync)
+      const orderListUrl = `${config.archibald.url}/SALESTABLE_ListView_Agent/`;
 
-        // Wait for URL to change
-        await page.waitForFunction(
-          (expectedUrl) => window.location.href.includes(expectedUrl),
-          { timeout: 30000 },
-          'SALESTABLE_ListView_Agent'
+      await bot.page.goto(orderListUrl, {
+        waitUntil: "networkidle2",
+        timeout: 60000,
+      });
+
+      logger.info(`[OrderHistoryService] Navigated to ${orderListUrl}`);
+
+      // Wait for table to be present
+      await bot.page.waitForSelector("table", { timeout: 10000 });
+
+      // Wait for DevExpress table to be fully loaded
+      logger.info("[OrderHistoryService] Waiting for DevExpress table to fully render...");
+      await this.waitForDevExpressTableReady(bot.page);
+
+      // Additional wait for dynamic content
+      await new Promise((resolve) => setTimeout(resolve, 2000));
+
+      // Ensure "Tutti gli ordini" filter is selected
+      logger.info(
+        "[OrderHistoryService] Verifying 'Tutti gli ordini' filter is selected...",
+      );
+      await this.ensureAllOrdersFilterSelected(bot.page);
+
+      // Navigate to page 1 (in case we're on a different page when forcing sync)
+      logger.info("[OrderHistoryService] Ensuring we start from page 1...");
+      await this.navigateToFirstPage(bot.page);
+
+      // Sort table by creation date DESC (newest first)
+      // sortTableByCreationDate already includes waits for table reload
+      logger.info(
+        "[OrderHistoryService] Sorting table by creation date (newest first)...",
+      );
+      await this.sortTableByCreationDate(bot.page);
+
+      // Scrape ALL orders (no limit - we want full sync)
+      const allOrders = await this.scrapeAllPages(
+        bot.page,
+        Number.MAX_SAFE_INTEGER,
+      );
+
+      logger.info(
+        `[OrderHistoryService] Scraped ${allOrders.length} orders from Archibald`,
+      );
+
+      // Save to DB (upsert - updates existing, inserts new)
+      this.orderDb.upsertOrders(userId, allOrders);
+
+      logger.info(
+        `[OrderHistoryService] Saved ${allOrders.length} orders to DB for user ${userId}`,
+      );
+    } catch (error) {
+      logger.error(
+        `[OrderHistoryService] Error syncing from Archibald for user ${userId}`,
+        {
+          error,
+          message: error instanceof Error ? error.message : String(error),
+          stack: error instanceof Error ? error.stack : undefined,
+        },
+      );
+      throw error; // Re-throw so caller knows sync failed
+    } finally {
+      if (bot) {
+        // Close bot after operation (releases context)
+        await bot.close();
+      }
+    }
+  }
+
+  /**
+   * Navigate to page 1 of the order list
+   * Required when forcing sync while on a different page
+   */
+  private async navigateToFirstPage(page: Page): Promise<void> {
+    try {
+      logger.info("[OrderHistoryService] Checking current page and navigating to page 1...");
+
+      // Check if we're already on page 1
+      const currentPage = await page.evaluate(() => {
+        const currentPageSpan = document.querySelector(
+          'span[id*="xaf_a1DXDataPager_PSI"]',
+        ) as HTMLSpanElement;
+        return currentPageSpan?.textContent?.trim() || "1";
+      });
+
+      logger.info(`[OrderHistoryService] Current page: ${currentPage}`);
+
+      if (currentPage === "1") {
+        logger.info("[OrderHistoryService] Already on page 1, skipping navigation");
+        return;
+      }
+
+      // Find and click page 1 button
+      logger.info("[OrderHistoryService] Navigating to page 1...");
+      const navigatedToFirst = await page.evaluate(() => {
+        // Look for first page button - usually has class "dxp-num" and text "1"
+        const pageButtons = Array.from(
+          document.querySelectorAll('div[id*="xaf_a1DXDataPager"] div.dxp-num'),
         );
 
-        logger.info(`[OrderHistoryService] Navigation completed, new URL: ${page.url()}`);
-
-      } catch (navError) {
-        logger.warn("[OrderHistoryService] Menu navigation failed, trying direct URL as fallback", {
-          error: navError instanceof Error ? navError.message : String(navError)
-        });
-
-        // Fallback: try direct URL navigation with reduced timeout
-        const orderListUrl = "https://4.231.124.90/Archibald/SALESTABLE_ListView_Agent/";
-
-        try {
-          await Promise.race([
-            page.goto(orderListUrl, {
-              waitUntil: "domcontentloaded",
-              timeout: 30000,
-            }),
-            new Promise((_, reject) =>
-              setTimeout(() => reject(new Error('Direct navigation timeout after 30s')), 30000)
-            )
-          ]);
-
-          logger.info(`[OrderHistoryService] Direct navigation completed, new URL: ${page.url()}`);
-        } catch (directNavError) {
-          logger.error("[OrderHistoryService] Both navigation methods failed", {
-            menuError: navError instanceof Error ? navError.message : String(navError),
-            directError: directNavError instanceof Error ? directNavError.message : String(directNavError),
-            currentUrl: page.url()
-          });
-
-          throw new Error("Failed to navigate to order list page");
+        for (const button of pageButtons) {
+          if (button.textContent?.trim() === "1") {
+            (button as HTMLElement).click();
+            return true;
+          }
         }
+
+        // Alternative: Look for "First" button with class "dxp-lead"
+        const firstButton = Array.from(
+          document.querySelectorAll('div[id*="xaf_a1DXDataPager"] div.dxp-lead'),
+        ).find((el) => el.textContent?.includes("<<"));
+
+        if (firstButton) {
+          (firstButton as HTMLElement).click();
+          return true;
+        }
+
+        return false;
+      });
+
+      if (!navigatedToFirst) {
+        logger.warn("[OrderHistoryService] Could not find page 1 button");
+        return;
       }
-    } else {
-      logger.info("[OrderHistoryService] Already on order list page, skipping navigation");
+
+      // Wait for table to reload
+      await new Promise((resolve) => setTimeout(resolve, 2000));
+      await page.waitForSelector("table tbody tr", { timeout: 10000 });
+
+      logger.info("[OrderHistoryService] Successfully navigated to page 1");
+    } catch (error) {
+      logger.error("[OrderHistoryService] Error navigating to page 1", { error });
     }
+  }
 
-    logger.info("[OrderHistoryService] Waiting for order list table...");
+  /**
+   * Convert StoredOrder (DB) to Order (API response)
+   * Removes DB metadata fields
+   */
+  private storedOrderToOrder(stored: StoredOrder): Order {
+    return {
+      id: stored.id,
+      orderNumber: stored.orderNumber,
+      customerProfileId: stored.customerProfileId,
+      customerName: stored.customerName,
+      deliveryName: stored.deliveryName,
+      deliveryAddress: stored.deliveryAddress,
+      creationDate: stored.creationDate,
+      deliveryDate: stored.deliveryDate,
+      status: stored.status,
+      customerReference: stored.customerReference || undefined,
+    };
+  }
 
-    // Wait for the main table container - DevExpress uses table with specific ID pattern
+  /**
+   * Wait for DevExpress table to be fully rendered with data
+   * DevExpress uses dynamic loading, so we need to wait for actual data rows
+   */
+  private async waitForDevExpressTableReady(page: Page): Promise<void> {
     try {
-      // Wait for any table with DevExpress ID (contains "DXMainTable")
-      await page.waitForSelector('table[id*="DXMainTable"]', { timeout: 60000 }); // Increased to 60s
-      logger.info("[OrderHistoryService] DevExpress main table found");
-    } catch (err) {
-      logger.error("[OrderHistoryService] DevExpress main table not found", {
-        error: err instanceof Error ? err.message : String(err),
-        currentUrl: page.url()
-      });
-      throw err;
-    }
+      // Wait for table rows with multiple cells (not just loading placeholders)
+      await page.waitForFunction(
+        () => {
+          const rows = document.querySelectorAll("table tbody tr");
+          if (rows.length === 0) return false;
 
-    // Wait for actual data cells (td with dxgv class that contain order data)
+          // Check if at least one row has multiple cells (real data)
+          for (const row of Array.from(rows)) {
+            const cells = row.querySelectorAll("td");
+            if (cells.length >= 10) {
+              // Found a row with enough cells - table is ready
+              return true;
+            }
+          }
+          return false;
+        },
+        { timeout: 15000 }
+      );
+      logger.info("[OrderHistoryService] DevExpress table ready with data rows");
+    } catch (error) {
+      logger.warn("[OrderHistoryService] Timeout waiting for table data, proceeding anyway", { error });
+    }
+  }
+
+  /**
+   * Ensure "Tutti gli ordini" (All orders) filter is selected
+   * This filter can be visible directly or hidden behind "Show hidden items" menu
+   */
+  private async ensureAllOrdersFilterSelected(page: Page): Promise<void> {
     try {
-      await page.waitForSelector('td.dxgv.dx-al', { timeout: 60000 }); // Increased to 60s
-      logger.info("[OrderHistoryService] Data cells found");
-    } catch (err) {
-      logger.error("[OrderHistoryService] Data cells not found", {
-        error: err instanceof Error ? err.message : String(err),
-        currentUrl: page.url()
+      // Check current filter value
+      const currentFilter = await page.evaluate(() => {
+        // Look for the hidden input with filter value
+        const filterInput = document.querySelector(
+          'input[id*="xaf_a1_Cb_VI"]',
+        ) as HTMLInputElement;
+        return filterInput?.value || null;
       });
-      throw err;
+
+      logger.info(
+        `[OrderHistoryService] Current filter value: ${currentFilter}`,
+      );
+
+      // Check if already on "Tutti gli ordini" (All orders)
+      if (currentFilter === "xaf_xaf_a1ListViewSalesTableOrdersAll") {
+        logger.info(
+          "[OrderHistoryService] Filter already set to 'Tutti gli ordini'",
+        );
+        return;
+      }
+
+      // Need to change filter - first check if it's visible
+      const filterVisible = await page.evaluate(() => {
+        const comboInput = document.querySelector(
+          'input[id*="xaf_a1_Cb_I"]',
+        ) as HTMLInputElement;
+        return comboInput !== null && comboInput.offsetParent !== null;
+      });
+
+      if (!filterVisible) {
+        // Filter is hidden - need to click "Show hidden items" first
+        logger.info(
+          "[OrderHistoryService] Filter hidden, clicking 'Show hidden items'...",
+        );
+        await page.evaluate(() => {
+          const showHiddenButton = Array.from(
+            document.querySelectorAll("a, button"),
+          ).find((el) => el.textContent?.includes("Show hidden items"));
+          if (showHiddenButton) {
+            (showHiddenButton as HTMLElement).click();
+          }
+        });
+        await new Promise((resolve) => setTimeout(resolve, 1000));
+      }
+
+      // Click on combobox to open dropdown
+      logger.info("[OrderHistoryService] Opening filter dropdown...");
+      await page.evaluate(() => {
+        const dropdownButton = document.querySelector(
+          'td[id*="xaf_a1_Cb_B-1"]',
+        ) as HTMLElement;
+        if (dropdownButton) {
+          dropdownButton.click();
+        }
+      });
+
+      // Wait for dropdown to appear
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+
+      // Select "Tutti gli ordini" from dropdown
+      logger.info("[OrderHistoryService] Selecting 'Tutti gli ordini'...");
+      await page.evaluate(() => {
+        // Find the list item with "Tutti gli ordini" text
+        const items = Array.from(
+          document.querySelectorAll('td[class*="dxeListBoxItem"]'),
+        );
+        for (const item of items) {
+          if (item.textContent?.includes("Tutti gli ordini")) {
+            (item as HTMLElement).click();
+            return true;
+          }
+        }
+        return false;
+      });
+
+      // Wait for page to reload with new filter
+      await new Promise((resolve) => setTimeout(resolve, 2000));
+      await page.waitForSelector("table tbody tr", { timeout: 10000 });
+
+      logger.info("[OrderHistoryService] Filter changed to 'Tutti gli ordini'");
+    } catch (error) {
+      logger.error("[OrderHistoryService] Error setting filter", { error });
+      // Non-blocking - continue scraping even if filter change fails
+      // (it might already be on the correct filter)
     }
-
-    // Small delay to ensure all data is rendered
-    await new Promise(resolve => setTimeout(resolve, 1000));
-
-    logger.info("[OrderHistoryService] Order list loaded successfully");
   }
 
   /**
    * Scrape all pages of orders up to limit
    * Implements pagination pattern from customer-sync-service.ts
    */
+  /**
+   * Sort DevExpress table by creation date column (newest first - DESC)
+   * Clicks on the "Data Creazione" header twice: first for ASC, then for DESC
+   */
+  private async sortTableByCreationDate(page: Page): Promise<void> {
+    try {
+      // Find the "DATA DI CREAZIONE" header
+      const headerFound = await page.evaluate(() => {
+        // Look for column header containing "creazione"
+        const headers = Array.from(
+          document.querySelectorAll('th, td[class*="Header"]'),
+        );
+
+        for (const header of headers) {
+          const text = header.textContent?.toLowerCase() || "";
+          if (
+            text.includes("creazione") ||
+            text.includes("data di creazione")
+          ) {
+            // Found the header - return its selector info for clicking
+            return true;
+          }
+        }
+        return false;
+      });
+
+      if (!headerFound) {
+        logger.warn(
+          "[OrderHistoryService] Could not find creation date column header",
+        );
+        return;
+      }
+
+      // Click once for ASC sort
+      logger.info(
+        "[OrderHistoryService] Clicking creation date header (1st click - ASC)...",
+      );
+      await page.evaluate(() => {
+        const headers = Array.from(
+          document.querySelectorAll('th, td[class*="Header"]'),
+        );
+        for (const header of headers) {
+          const text = header.textContent?.toLowerCase() || "";
+          if (
+            text.includes("creazione") ||
+            text.includes("data di creazione")
+          ) {
+            (header as HTMLElement).click();
+            return;
+          }
+        }
+      });
+
+      // Wait for sort to apply (table reload)
+      await new Promise((resolve) => setTimeout(resolve, 2000));
+      await page.waitForSelector("table tbody tr", { timeout: 10000 });
+
+      // Click again for DESC sort
+      logger.info(
+        "[OrderHistoryService] Clicking creation date header (2nd click - DESC)...",
+      );
+      await page.evaluate(() => {
+        const headers = Array.from(
+          document.querySelectorAll('th, td[class*="Header"]'),
+        );
+        for (const header of headers) {
+          const text = header.textContent?.toLowerCase() || "";
+          if (
+            text.includes("creazione") ||
+            text.includes("data di creazione")
+          ) {
+            (header as HTMLElement).click();
+            return;
+          }
+        }
+      });
+
+      // Wait for sort to apply again
+      await new Promise((resolve) => setTimeout(resolve, 2000));
+      await page.waitForSelector("table tbody tr", { timeout: 10000 });
+
+      logger.info(
+        "[OrderHistoryService] Table sorted by creation date DESC (newest first)",
+      );
+    } catch (error) {
+      logger.error("[OrderHistoryService] Error sorting table", { error });
+      // Non-blocking - continue scraping even if sort fails
+    }
+  }
+
   private async scrapeAllPages(page: Page, limit: number): Promise<Order[]> {
     const allOrders: Order[] = [];
     let currentPage = 1;
     let hasMorePages = true;
-    const MAX_PAGES = 10; // Safety limit to prevent infinite loops
+    const MAX_PAGES = 100; // Increased to handle large order histories (was 10)
 
-    logger.info("[OrderHistoryService] Starting multi-page scraping");
+    logger.info(
+      "[OrderHistoryService] Starting multi-page scraping (up to 100 pages)",
+    );
 
-    while (hasMorePages && allOrders.length < limit && currentPage <= MAX_PAGES) {
+    while (
+      hasMorePages &&
+      allOrders.length < limit &&
+      currentPage <= MAX_PAGES
+    ) {
       logger.info(
         `[OrderHistoryService] Scraping page ${currentPage}, ${allOrders.length} orders so far`,
       );
 
-      // Wait for table to be ready - wait for data cells to be present
-      await page.waitForSelector('td.dxgv.dx-al', { timeout: 10000 });
+      // Wait for table to be ready
+      await page.waitForSelector("table tbody tr", { timeout: 10000 });
       await new Promise((resolve) => setTimeout(resolve, 500));
 
       // Scrape current page
       const pageOrders = await this.scrapeOrderPage(page);
-      logger.info(`[OrderHistoryService] Scraped ${pageOrders.length} orders from page ${currentPage}`);
+      logger.info(
+        `[OrderHistoryService] Scraped ${pageOrders.length} orders from page ${currentPage}`,
+      );
 
       if (pageOrders.length === 0) {
         logger.warn(
@@ -376,25 +710,79 @@ export class OrderHistoryService {
         break;
       }
 
-      // Check for next page button
-      hasMorePages = await this.hasNextPage(page);
+      // Check for next page button (same pattern as customer sync)
+      hasMorePages = await page.evaluate(() => {
+        const nextButtons = [
+          document.querySelector('img[alt="Next"]'),
+          document.querySelector('img[title="Next"]'),
+          document.querySelector('a[title="Next"]'),
+          document.querySelector('button[title="Next"]'),
+          document.querySelector('.dxp-button.dxp-bi[title*="Next"]'),
+          document.querySelector(".dxWeb_pNext_XafTheme"),
+        ];
+
+        for (const btn of nextButtons) {
+          if (
+            btn &&
+            !(btn as HTMLElement).classList?.contains("dxp-disabled") &&
+            !(btn.parentElement as HTMLElement)?.classList?.contains(
+              "dxp-disabled",
+            )
+          ) {
+            return true;
+          }
+        }
+
+        return false;
+      });
 
       if (hasMorePages) {
-        // Click next page and wait for reload
-        const clicked = await this.clickNextPage(page);
+        // Click next page
+        const clicked = await page.evaluate(() => {
+          const nextButtons = [
+            document.querySelector('img[alt="Next"]'),
+            document.querySelector('img[title="Next"]'),
+            document.querySelector('a[title="Next"]'),
+            document.querySelector('button[title="Next"]'),
+            document.querySelector('.dxp-button.dxp-bi[title*="Next"]'),
+            document.querySelector(".dxWeb_pNext_XafTheme"),
+          ];
+
+          for (const btn of nextButtons) {
+            if (
+              btn &&
+              !(btn as HTMLElement).classList?.contains("dxp-disabled")
+            ) {
+              const clickable =
+                btn.tagName === "A" || btn.tagName === "BUTTON"
+                  ? btn
+                  : btn.closest("a") ||
+                    btn.closest("button") ||
+                    btn.parentElement;
+
+              if (clickable) {
+                (clickable as HTMLElement).click();
+                return true;
+              }
+            }
+          }
+          return false;
+        });
 
         if (!clicked) {
           logger.warn(
-            "[OrderHistoryService] Failed to click next page button, stopping",
+            "[OrderHistoryService] Next button found but not clickable",
           );
-          break;
+          hasMorePages = false;
+        } else {
+          // Wait for page transition
+          await new Promise((resolve) => setTimeout(resolve, 2000));
+          await page.waitForSelector("table tbody tr", {
+            timeout: 10000,
+          });
+
+          currentPage++;
         }
-
-        // Wait for page transition - wait for data cells to be present again
-        await page.waitForSelector('td.dxgv.dx-al', { timeout: 10000 });
-        await new Promise((resolve) => setTimeout(resolve, 1000));
-
-        currentPage++;
       }
     }
 
@@ -412,193 +800,136 @@ export class OrderHistoryService {
   }
 
   /**
+   * Parse date from DD/MM/YYYY format to ISO 8601
+   * Extracted outside page.evaluate to avoid TypeScript transpiler __name issues
+   */
+  private parseDate(dateStr: string): string {
+    if (!dateStr) return "";
+
+    // Format: "DD/MM/YYYY HH:MM:SS" or "DD/MM/YYYY"
+    const match = dateStr.match(
+      /(\d{2})\/(\d{2})\/(\d{4})(?: (\d{2}):(\d{2}):(\d{2}))?/,
+    );
+    if (match) {
+      const [, day, month, year, hour, minute, second] = match;
+      if (hour) {
+        return `${year}-${month}-${day}T${hour}:${minute}:${second}Z`;
+      } else {
+        return `${year}-${month}-${day}T00:00:00Z`;
+      }
+    }
+    return dateStr; // Return as-is if parse fails
+  }
+
+  /**
    * Scrape orders from current page
-   * Extracts data from DevExpress table using UI-SELECTORS.md column mapping
+   * Simplified pattern like customer-sync-service.ts
    */
   private async scrapeOrderPage(page: Page): Promise<Order[]> {
     logger.info("[OrderHistoryService] Starting scrapeOrderPage...");
 
-    const result = await page.evaluate((): ScrapeResult => {
-      // Find the DevExpress table and select all rows that contain data cells
-      const table = document.querySelector('table[id*="DXMainTable"]');
-      if (!table) {
-        console.log('[OrderHistoryService] Table not found with selector: table[id*="DXMainTable"]');
-        return { success: false, error: 'TABLE_NOT_FOUND', orders: [] };
-      }
+    // Wait longer for DevExpress table to fully render
+    // DevExpress tables have dynamic loading, need to wait for actual data rows
+    await new Promise((resolve) => setTimeout(resolve, 2000));
 
-      // Get all <tr> elements that contain td.dxgv.dx-al cells (data rows)
-      const rows = Array.from(
-        table.querySelectorAll('tr')
-      ).filter(row => row.querySelector('td.dxgv.dx-al')) as HTMLElement[];
+    // Use VERY SPECIFIC selector for the order table to avoid calendars and other tables
+    // Based on actual page structure: id ends with "_DXMainTable" and has class "dxgvTable_XafTheme"
+    const tableSelector = 'table[id$="_DXMainTable"].dxgvTable_XafTheme';
+    await page.waitForSelector(tableSelector, { timeout: 10000 }).catch(() => {
+      logger.warn("[OrderHistoryService] DevExpress main table selector not found");
+    });
 
-      console.log(`[OrderHistoryService] Found ${rows.length} data rows`);
-
-      const orders: Order[] = [];
+    // Use $$eval with VERY SPECIFIC table selector - only the main order grid
+    // This avoids scraping calendars, filter dropdowns, and other auxiliary tables
+    const orders = await page.$$eval('table[id$="_DXMainTable"].dxgvTable_XafTheme tbody tr', (rows) => {
+      const results: any[] = [];
 
       for (const row of rows) {
         try {
-          // Extract cells from row
-          const cells = Array.from(
-            row.querySelectorAll("td"),
-          ) as HTMLElement[];
+          const cells = Array.from(row.querySelectorAll("td"));
+
+          // DEBUG: Log cell count and first row content for verification
+          if (results.length === 0) {
+            const cellContents = cells.slice(0, 15).map((c, i) => `[${i}]=${c.textContent?.trim()}`);
+            console.log(`[DEBUG] First row has ${cells.length} cells`);
+            console.log(`[DEBUG] First 15 cell contents: ${cellContents.join(', ')}`);
+          }
 
           if (cells.length < 10) {
-            // Expected at least 10 columns (see UI-SELECTORS.md)
             continue;
           }
 
-          // Column mapping from actual HTML structure:
-          // 0: Checkbox (select) - skip
-          // 1: Edit button (actions) - skip
-          // 2: ID - e.g., "70.602"
-          // 3: ID DI VENDITA (Order Number) - e.g., "ORD/26000405" (optional)
-          // 4: PROFILO CLIENTE (Customer Profile ID) - e.g., "1002209"
-          // 5: NOME VENDITE (Seller Name)
-          // 6: NOME DI CONSEGNA (Delivery Name)
-          // 7: INDIRIZZO DI CONSEGNA (Delivery Address)
-          // 8: DATA DI CREAZIONE (Creation Date) - "DD/MM/YYYY HH:MM:SS"
-          // 9: DATA DI CONSEGNA (Delivery Date) - "DD/MM/YYYY"
-          // 10: RIMANI VENDITE FINANZIARIE (Financial Remains) - skip
-          // 11: RIFERIMENTO CLIENTE (Customer Reference) - optional
-          // 12: STATO DELLE VENDITE (Sales Status) - e.g., "Ordine aperto"
-
-          // Extract ID from cell index 2
+          // Extract all visible columns based on actual HTML structure from elementi pagina ordini.txt
+          // Cell mapping verified from real page HTML:
+          // [0] = checkbox, [1] = edit button with scripts
+          // [2] = ID, [3] = Order Number, [4] = Customer Profile ID
+          // [5] = Customer Name, [6] = Delivery Name, [7] = Delivery Address
+          // [8] = Creation Date, [9] = Delivery Date, [10-11] = empty
+          // [12] = Status, [13-19] = other fields, [20-22] = amounts, [23] = checkbox
           const id = cells[2]?.textContent?.trim() || "";
-
-          // Order number might be in cell 3, or we use ID if empty
-          const orderNumber = cells[3]?.textContent?.trim() || id;
+          const orderNumber = cells[3]?.textContent?.trim() || "";
           const customerProfileId = cells[4]?.textContent?.trim() || "";
           const customerName = cells[5]?.textContent?.trim() || "";
           const deliveryName = cells[6]?.textContent?.trim() || "";
           const deliveryAddress = cells[7]?.textContent?.trim() || "";
           const creationDateText = cells[8]?.textContent?.trim() || "";
           const deliveryDateText = cells[9]?.textContent?.trim() || "";
-          const customerReference = cells[11]?.textContent?.trim() || "";
+          const customerReference = cells[10]?.textContent?.trim() || "";
           const status = cells[12]?.textContent?.trim() || "";
 
-          // Parse dates from DD/MM/YYYY format to ISO 8601
-          const parseDate = (dateStr: string): string => {
-            // Format: "DD/MM/YYYY HH:MM:SS" or "DD/MM/YYYY"
-            const match = dateStr.match(
-              /(\d{2})\/(\d{2})\/(\d{4})(?: (\d{2}):(\d{2}):(\d{2}))?/,
-            );
-            if (match) {
-              const [, day, month, year, hour, minute, second] = match;
-              if (hour) {
-                return `${year}-${month}-${day}T${hour}:${minute}:${second}Z`;
-              } else {
-                return `${year}-${month}-${day}T00:00:00Z`;
-              }
-            }
-            return dateStr; // Return as-is if parse fails
-          };
+          // Validation - check if id looks like a valid order ID (numeric or "XX.XXX" format)
+          if (!id || id.includes("Loading") || id.includes("<") || !/\d/.test(id)) {
+            continue;
+          }
 
-          const creationDate = parseDate(creationDateText);
-          const deliveryDate = parseDate(deliveryDateText);
+          // Additional validation - check if this looks like a real order row
+          if (!customerName && !deliveryName) {
+            continue; // Skip rows with no customer data
+          }
 
-          // Only add if we have minimum required fields
-          if (id && orderNumber) {
-            orders.push({
+          if (id) {
+            results.push({
               id,
-              orderNumber,
-              customerProfileId,
+              orderNumber: orderNumber || id,
+              customerProfileId: customerProfileId || "",
               customerName,
               deliveryName,
               deliveryAddress,
-              creationDate,
-              deliveryDate,
+              creationDate: creationDateText,
+              deliveryDate: deliveryDateText,
               status,
               customerReference: customerReference || undefined,
             });
           }
         } catch (error) {
-          // Skip row on error
-          console.error("Error parsing order row:", error);
+          console.error("[OrderHistoryService] Error parsing row:", error);
         }
       }
 
-      return { success: true, error: null, orders };
+      return results;
     });
 
-    // Log results from backend
-    if (!result.success) {
-      logger.error(`[OrderHistoryService] Scraping failed in browser: ${result.error}`);
-      return [];
-    }
+    logger.info(
+      `[OrderHistoryService] Scraped ${orders.length} orders from current page`,
+    );
 
-    logger.info(`[OrderHistoryService] Scraped ${result.orders.length} orders from current page`);
-    return result.orders;
-  }
+    // Parse dates outside browser context to avoid TypeScript transpiler issues
+    const ordersWithParsedDates = orders.map((order: any) => ({
+      ...order,
+      creationDate: this.parseDate(order.creationDate),
+      deliveryDate: this.parseDate(order.deliveryDate),
+    }));
 
-  /**
-   * Check if next page button exists and is enabled
-   * Follows pagination pattern from customer-sync-service.ts
-   */
-  private async hasNextPage(page: Page): Promise<boolean> {
-    return await page.evaluate(() => {
-      // Check for ">" next button (from pagination screenshots)
-      const nextButtons = [
-        document.querySelector('img[alt="Next"]'),
-        document.querySelector('img[title="Next"]'),
-        document.querySelector('a[title="Next"]'),
-        document.querySelector('button[title="Next"]'),
-        document.querySelector('.dxp-button.dxp-bi[title*="Next"]'),
-        document.querySelector(".dxWeb_pNext_XafTheme"),
-      ];
-
-      for (const btn of nextButtons) {
-        if (
-          btn &&
-          !btn.classList.contains("dxp-disabled") &&
-          !btn.classList.contains("aspNetDisabled")
-        ) {
-          return true;
-        }
-      }
-
-      return false;
-    });
-  }
-
-  /**
-   * Click next page button
-   * Returns true if successfully clicked, false otherwise
-   */
-  private async clickNextPage(page: Page): Promise<boolean> {
-    return await page.evaluate(() => {
-      const nextButtons = [
-        document.querySelector('img[alt="Next"]'),
-        document.querySelector('img[title="Next"]'),
-        document.querySelector('a[title="Next"]'),
-        document.querySelector('button[title="Next"]'),
-        document.querySelector('.dxp-button.dxp-bi[title*="Next"]'),
-        document.querySelector(".dxWeb_pNext_XafTheme"),
-      ];
-
-      for (const btn of nextButtons) {
-        if (
-          btn &&
-          !btn.classList.contains("dxp-disabled") &&
-          !btn.classList.contains("aspNetDisabled")
-        ) {
-          (btn as HTMLElement).click();
-          return true;
-        }
-      }
-
-      return false;
-    });
+    return ordersWithParsedDates;
   }
 
   /**
    * Get complete order detail for a single order
-   * @param context BrowserContext for the user session
-   * @param userId User ID for logging
+   * @param userId User ID for multi-user mode
    * @param orderId Internal order ID (from Order.id)
    * @returns OrderDetail with items and timeline, or null if not found
    */
   async getOrderDetail(
-    context: BrowserContext,
     userId: string,
     orderId: string,
   ): Promise<OrderDetail | null> {
@@ -606,44 +937,49 @@ export class OrderHistoryService {
       `[OrderHistoryService] Fetching order detail for user ${userId}, order ${orderId}`,
     );
 
+    let bot = null;
+
     try {
-      // Create new page in user's context
-      const page = await context.newPage();
+      // Use legacy ArchibaldBot for system sync operations (like customer-sync)
+      const { ArchibaldBot } = await import("./archibald-bot");
+      bot = new ArchibaldBot(); // No userId = legacy mode
+      await bot.initialize();
+      await bot.login(); // Uses config credentials
 
-      try {
-        // Navigate directly to order detail URL (login already handled by BrowserPool)
-        const detailUrl = `https://4.231.124.90/Archibald/SALESTABLE_DetailViewAgent/${orderId}?mode=View`;
-
-        await page.goto(detailUrl, {
-          waitUntil: "networkidle2",
-          timeout: 30000,
-        });
-
-        // Wait for detail view to load (check for "Panoramica" tab)
-        await page.waitForSelector('text=Panoramica', { timeout: 30000 });
-
-        logger.info(
-          `[OrderHistoryService] Order detail page loaded for order ${orderId}`,
-        );
-
-        // Extract order detail data
-        const orderDetail = await this.extractOrderDetail(page, orderId);
-
-        if (!orderDetail) {
-          logger.warn(
-            `[OrderHistoryService] Failed to extract data for order ${orderId}`,
-          );
-          return null;
-        }
-
-        logger.info(
-          `[OrderHistoryService] Extracted ${orderDetail.items.length} items, ${orderDetail.statusTimeline.length} status updates for order ${orderId}`,
-        );
-
-        return orderDetail;
-      } finally {
-        await page.close();
+      if (!bot.page) {
+        throw new Error("Browser page is null after initialization");
       }
+
+      // Navigate directly to order detail URL
+      const detailUrl = `${config.archibald.url}/SALESTABLE_DetailViewAgent/${orderId}?mode=View`;
+
+      await bot.page.goto(detailUrl, {
+        waitUntil: "networkidle2",
+        timeout: 60000,
+      });
+
+      // Wait for detail view to load (check for "Panoramica" tab)
+      await bot.page.waitForSelector("text=Panoramica", { timeout: 30000 });
+
+      logger.info(
+        `[OrderHistoryService] Order detail page loaded for order ${orderId}`,
+      );
+
+      // Extract order detail data
+      const orderDetail = await this.extractOrderDetail(bot.page, orderId);
+
+      if (!orderDetail) {
+        logger.warn(
+          `[OrderHistoryService] Failed to extract data for order ${orderId}`,
+        );
+        return null;
+      }
+
+      logger.info(
+        `[OrderHistoryService] Extracted ${orderDetail.items.length} items, ${orderDetail.statusTimeline.length} status updates for order ${orderId}`,
+      );
+
+      return orderDetail;
     } catch (error) {
       logger.error(
         `[OrderHistoryService] Error fetching order detail for user ${userId}, order ${orderId}`,
@@ -651,6 +987,10 @@ export class OrderHistoryService {
       );
 
       return null;
+    } finally {
+      if (bot) {
+        await bot.close();
+      }
     }
   }
 
@@ -751,8 +1091,6 @@ export class OrderHistoryService {
           : undefined;
 
         // Extract items from "Linee di vendita" table
-        // The table appears after clicking "Linee di vendita:" tab
-        // For now, look for any table with article data
         const items: Array<{
           articleCode: string;
           articleName: string;
@@ -880,8 +1218,9 @@ export class OrderHistoryService {
         );
 
         // Extract tracking information from "Cronologia documento di trasporto" section
-        // Look for tracking column "NUMERO DI TRACCIABILITÀ" with format "courier trackingNumber"
-        let tracking: { courier: string; trackingNumber: string; trackingUrl?: string } | undefined;
+        let tracking:
+          | { courier: string; trackingNumber: string; trackingUrl?: string }
+          | undefined;
 
         // Search for tracking data in tables
         const allTables = Array.from(document.querySelectorAll("table"));
@@ -890,7 +1229,9 @@ export class OrderHistoryService {
           // Check if this table has tracking column header
           const headers = Array.from(table.querySelectorAll("th"));
           const trackingColIndex = headers.findIndex(
-            (h) => h.textContent?.includes("TRACCIABILITÀ") || h.textContent?.includes("TRACKING")
+            (h) =>
+              h.textContent?.includes("TRACCIABILITÀ") ||
+              h.textContent?.includes("TRACKING"),
           );
 
           if (trackingColIndex >= 0) {
@@ -907,7 +1248,8 @@ export class OrderHistoryService {
                 const trackingLink = trackingCell.querySelector("a");
                 if (trackingLink) {
                   const trackingText = trackingLink.textContent?.trim() || "";
-                  const trackingUrl = trackingLink.getAttribute("href") || undefined;
+                  const trackingUrl =
+                    trackingLink.getAttribute("href") || undefined;
 
                   // Parse format "courier trackingNumber" (e.g., "fedex 445501887029")
                   const parts = trackingText.split(/\s+/);
@@ -939,7 +1281,6 @@ export class OrderHistoryService {
         }
 
         // Extract document links (DDT and invoices) from tables
-        // Look for columns "DOCUMENTO DI TRASPORTO" and "FATTURA PDF"
         const documents: Array<{
           type: "invoice" | "ddt" | "other";
           name: string;
@@ -952,13 +1293,19 @@ export class OrderHistoryService {
 
           // Find DDT and invoice column indices
           const ddtColIndex = headers.findIndex(
-            (h) => h.textContent?.includes("DOCUMENTO DI TRASPORTO") || h.textContent?.includes("DDT")
+            (h) =>
+              h.textContent?.includes("DOCUMENTO DI TRASPORTO") ||
+              h.textContent?.includes("DDT"),
           );
           const invoiceColIndex = headers.findIndex(
-            (h) => h.textContent?.includes("FATTURA PDF") || h.textContent?.includes("INVOICE PDF")
+            (h) =>
+              h.textContent?.includes("FATTURA PDF") ||
+              h.textContent?.includes("INVOICE PDF"),
           );
           const dateColIndex = headers.findIndex(
-            (h) => h.textContent?.includes("DATA") && !h.textContent?.includes("DELIVERY")
+            (h) =>
+              h.textContent?.includes("DATA") &&
+              !h.textContent?.includes("DELIVERY"),
           );
 
           if (ddtColIndex >= 0 || invoiceColIndex >= 0) {
@@ -986,7 +1333,8 @@ export class OrderHistoryService {
                     // Extract date if available
                     let docDate: string | undefined;
                     if (dateColIndex >= 0 && cells[dateColIndex]) {
-                      const dateText = cells[dateColIndex].textContent?.trim() || "";
+                      const dateText =
+                        cells[dateColIndex].textContent?.trim() || "";
                       docDate = dateText ? parseDate(dateText) : undefined;
                     }
 
@@ -1018,7 +1366,8 @@ export class OrderHistoryService {
                     // Extract date if available
                     let docDate: string | undefined;
                     if (dateColIndex >= 0 && cells[dateColIndex]) {
-                      const dateText = cells[dateColIndex].textContent?.trim() || "";
+                      const dateText =
+                        cells[dateColIndex].textContent?.trim() || "";
                       docDate = dateText ? parseDate(dateText) : undefined;
                     }
 
@@ -1058,7 +1407,10 @@ export class OrderHistoryService {
 
         return orderDetail;
       } catch (error) {
-        console.error("Error extracting order detail:", error);
+        console.error(
+          "[OrderHistoryService] Error extracting order detail:",
+          error,
+        );
         return null;
       }
     }, orderId);

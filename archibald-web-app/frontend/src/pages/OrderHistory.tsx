@@ -67,6 +67,7 @@ export function OrderHistory() {
     status: "",
   });
   const [debouncedCustomer, setDebouncedCustomer] = useState("");
+  const [syncing, setSyncing] = useState(false);
 
   // Debounce customer search input (300ms)
   useEffect(() => {
@@ -98,14 +99,11 @@ export function OrderHistory() {
       if (filters.status) params.append("status", filters.status);
       params.append("limit", "100");
 
-      const response = await fetch(
-        `/api/orders/history?${params.toString()}`,
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
+      const response = await fetch(`/api/orders/history?${params.toString()}`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
         },
-      );
+      });
 
       if (!response.ok) {
         if (response.status === 401) {
@@ -124,9 +122,7 @@ export function OrderHistory() {
       setOrders(data.data.orders);
     } catch (err) {
       console.error("Error fetching orders:", err);
-      setError(
-        err instanceof Error ? err.message : "Errore di rete. Riprova.",
-      );
+      setError(err instanceof Error ? err.message : "Errore di rete. Riprova.");
     } finally {
       setLoading(false);
     }
@@ -204,6 +200,51 @@ export function OrderHistory() {
       dateTo: "",
       status: "",
     });
+  };
+
+  const handleForceSync = async () => {
+    setSyncing(true);
+    setError(null);
+
+    try {
+      const token = localStorage.getItem("archibald_jwt");
+      if (!token) {
+        setError("Non autenticato. Effettua il login.");
+        setSyncing(false);
+        return;
+      }
+
+      const response = await fetch("/api/orders/force-sync", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      if (!response.ok) {
+        if (response.status === 401) {
+          setError("Sessione scaduta. Effettua il login.");
+          localStorage.removeItem("archibald_jwt");
+          return;
+        }
+        throw new Error(`Errore ${response.status}: ${response.statusText}`);
+      }
+
+      const data = await response.json();
+      if (!data.success) {
+        throw new Error("Errore nella sincronizzazione degli ordini");
+      }
+
+      // Reload orders after successful sync
+      await fetchOrders();
+    } catch (err) {
+      console.error("Error forcing sync:", err);
+      setError(
+        err instanceof Error ? err.message : "Errore nella sincronizzazione",
+      );
+    } finally {
+      setSyncing(false);
+    }
   };
 
   const hasActiveFilters =
@@ -443,33 +484,68 @@ export function OrderHistory() {
           </div>
         </div>
 
-        {/* Clear filters button */}
-        {hasActiveFilters && (
+        {/* Action buttons */}
+        <div style={{ display: "flex", gap: "12px" }}>
+          {/* Clear filters button */}
+          {hasActiveFilters && (
+            <button
+              onClick={handleClearFilters}
+              style={{
+                padding: "8px 16px",
+                fontSize: "14px",
+                fontWeight: 600,
+                border: "1px solid #f44336",
+                borderRadius: "8px",
+                backgroundColor: "#fff",
+                color: "#f44336",
+                cursor: "pointer",
+                transition: "all 0.2s",
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.backgroundColor = "#f44336";
+                e.currentTarget.style.color = "#fff";
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.backgroundColor = "#fff";
+                e.currentTarget.style.color = "#f44336";
+              }}
+            >
+              ✕ Cancella filtri
+            </button>
+          )}
+
+          {/* Force sync button */}
           <button
-            onClick={handleClearFilters}
+            onClick={handleForceSync}
+            disabled={syncing || loading}
             style={{
               padding: "8px 16px",
               fontSize: "14px",
               fontWeight: 600,
-              border: "1px solid #f44336",
+              border: "1px solid #1976d2",
               borderRadius: "8px",
-              backgroundColor: "#fff",
-              color: "#f44336",
-              cursor: "pointer",
+              backgroundColor: syncing ? "#e3f2fd" : "#fff",
+              color: syncing ? "#999" : "#1976d2",
+              cursor: syncing || loading ? "not-allowed" : "pointer",
               transition: "all 0.2s",
+              opacity: syncing || loading ? 0.6 : 1,
             }}
             onMouseEnter={(e) => {
-              e.currentTarget.style.backgroundColor = "#f44336";
-              e.currentTarget.style.color = "#fff";
+              if (!syncing && !loading) {
+                e.currentTarget.style.backgroundColor = "#1976d2";
+                e.currentTarget.style.color = "#fff";
+              }
             }}
             onMouseLeave={(e) => {
-              e.currentTarget.style.backgroundColor = "#fff";
-              e.currentTarget.style.color = "#f44336";
+              if (!syncing && !loading) {
+                e.currentTarget.style.backgroundColor = "#fff";
+                e.currentTarget.style.color = "#1976d2";
+              }
             }}
           >
-            ✕ Cancella filtri
+            {syncing ? "⏳ Sincronizzazione..." : "🔄 Forza Sincronizzazione"}
           </button>
-        )}
+        </div>
       </div>
 
       {/* Loading state */}
@@ -517,7 +593,13 @@ export function OrderHistory() {
             border: "2px solid #f44336",
           }}
         >
-          <div style={{ fontSize: "48px", textAlign: "center", marginBottom: "16px" }}>
+          <div
+            style={{
+              fontSize: "48px",
+              textAlign: "center",
+              marginBottom: "16px",
+            }}
+          >
             ⚠️
           </div>
           <p
@@ -569,7 +651,14 @@ export function OrderHistory() {
           }}
         >
           <div style={{ fontSize: "64px", marginBottom: "16px" }}>📭</div>
-          <p style={{ fontSize: "18px", fontWeight: 600, color: "#333", marginBottom: "8px" }}>
+          <p
+            style={{
+              fontSize: "18px",
+              fontWeight: 600,
+              color: "#333",
+              marginBottom: "8px",
+            }}
+          >
             Nessun ordine trovato
           </p>
           <p style={{ fontSize: "14px", color: "#666" }}>

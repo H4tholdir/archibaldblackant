@@ -30,6 +30,9 @@ export class BrowserPool {
   private isInitialized = false;
   private initializationPromise: Promise<void> | null = null;
 
+  // Per-user locks to prevent concurrent login attempts
+  private userLocks: Map<string, Promise<BrowserContext>> = new Map();
+
   private constructor() {}
 
   static getInstance(): BrowserPool {
@@ -79,19 +82,50 @@ export class BrowserPool {
   /**
    * Acquire fresh BrowserContext for an operation
    * Returns a new context with fresh login - caller MUST close it via releaseContext()
+   *
+   * IMPORTANT: Uses per-user lock to prevent concurrent login attempts
+   * If another operation is already logging in for this user, waits for it to complete
    */
   async acquireContext(userId: string): Promise<BrowserContext> {
+    // Check if there's already a login in progress for this user
+    const existingLock = this.userLocks.get(userId);
+    if (existingLock) {
+      logger.info(`[BrowserPool] Login already in progress for user ${userId}, waiting...`);
+      try {
+        // Wait for existing login to complete, then create our own context
+        await existingLock;
+        logger.info(`[BrowserPool] Previous login completed for user ${userId}, proceeding...`);
+      } catch (error) {
+        logger.warn(`[BrowserPool] Previous login failed for user ${userId}, retrying...`);
+        // Continue anyway - we'll try our own login
+      }
+    }
+
     await this.initialize();
 
     logger.info(`[BrowserPool] Creating fresh context for user ${userId}`);
 
-    // Create brand new context
-    const context = await this.browser!.createBrowserContext();
+    // Create a promise for this login operation and store it as a lock
+    const loginPromise = (async () => {
+      try {
+        // Create brand new context
+        const context = await this.browser!.createBrowserContext();
 
-    // Perform fresh login
-    await this.performLogin(context, userId);
+        // Perform fresh login
+        await this.performLogin(context, userId);
 
-    return context;
+        return context;
+      } finally {
+        // Remove lock when done (success or failure)
+        this.userLocks.delete(userId);
+      }
+    })();
+
+    // Store the lock
+    this.userLocks.set(userId, loginPromise);
+
+    // Wait for and return the context
+    return await loginPromise;
   }
 
   /**
