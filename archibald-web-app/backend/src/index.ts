@@ -348,14 +348,10 @@ app.post("/api/auth/logout", authenticateJWT, async (req: AuthRequest, res: Resp
   const username = req.user!.username;
 
   try {
-    // Close user's BrowserContext and clear cached session
-    const pool = BrowserPool.getInstance();
-    await pool.closeUserContext(userId);
-
-    // Clear cached password
+    // Clear cached password (browser contexts are automatically cleaned up per-operation)
     PasswordCache.getInstance().clear(userId);
 
-    logger.info(`User ${username} logged out, session cleaned up`, { userId });
+    logger.info(`User ${username} logged out, password cache cleared`, { userId });
 
     res.json({ success: true, data: { message: "Logout effettuato con successo" } });
   } catch (error) {
