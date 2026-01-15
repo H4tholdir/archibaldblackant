@@ -1,7 +1,9 @@
-import puppeteer, { type Browser, type BrowserContext } from 'puppeteer';
+import puppeteer, { type Browser, type BrowserContext, type Page } from 'puppeteer';
 import { logger } from './logger';
 import { SessionCacheManager } from './session-cache-manager';
 import { config } from './config';
+import { PasswordCache } from './password-cache';
+import { UserDatabase } from './user-db';
 
 /**
  * Browser Pool Manager - Multi-User Architecture
@@ -117,6 +119,9 @@ export class BrowserPool {
       logger.info(`Restored cached session for user ${userId}`);
     }
 
+    // Ensure user is logged in to Archibald
+    await this.ensureLoggedIn(context, userId);
+
     this.userContexts.set(userId, context);
     return context;
   }
@@ -150,6 +155,130 @@ export class BrowserPool {
 
     // Keep context in pool for reuse
     logger.debug(`Context released for user ${userId}, keeping for reuse`);
+  }
+
+  /**
+   * Ensure context is logged in to Archibald
+   * Reuses session if available, performs login if needed
+   * Called once when context is created
+   */
+  private async ensureLoggedIn(context: BrowserContext, userId: string): Promise<void> {
+    logger.info(`[BrowserPool] Ensuring login for user ${userId}`);
+
+    // Get user credentials from PasswordCache
+    const cachedPassword = PasswordCache.getInstance().get(userId);
+    if (!cachedPassword) {
+      throw new Error(
+        `Password not found in cache for user ${userId}. User must login again.`,
+      );
+    }
+
+    // Get username from UserDatabase
+    const user = UserDatabase.getInstance().getUserById(userId);
+    if (!user) {
+      throw new Error(`User ${userId} not found in database`);
+    }
+
+    const username = user.username;
+    logger.info(`[BrowserPool] Using credentials for user ${username}`);
+
+    // Create temporary page to check/perform login
+    const page = await context.newPage();
+    await page.setViewport({ width: 1280, height: 800 });
+
+    try {
+      // Navigate to a page to check if we're already logged in
+      try {
+        await page.goto(`${config.archibald.url}/Default.aspx`, {
+          waitUntil: "networkidle2",
+          timeout: 15000,
+        });
+
+        const currentUrl = page.url();
+        if (!currentUrl.includes("Login.aspx")) {
+          logger.info("[BrowserPool] Already logged in, session valid");
+          await page.close();
+          return;
+        }
+      } catch (error) {
+        logger.warn("[BrowserPool] Error checking login status, will attempt login", { error });
+      }
+
+      // Need to login
+      logger.info("[BrowserPool] Performing login");
+
+      const loginUrl = `${config.archibald.url}/Login.aspx?ReturnUrl=%2fArchibald%2fDefault.aspx`;
+
+      await page.goto(loginUrl, {
+        waitUntil: "networkidle2",
+        timeout: 30000,
+      });
+
+      await new Promise((resolve) => setTimeout(resolve, 2000));
+
+      // Find and fill username field
+      const usernameField = await page.evaluate(() => {
+        const inputs = Array.from(document.querySelectorAll('input[type="text"]'));
+        const userInput = inputs.find(
+          (input) =>
+            input.id.includes("UserName") ||
+            input.name.includes("UserName") ||
+            input.placeholder?.toLowerCase().includes("account") ||
+            input.placeholder?.toLowerCase().includes("username"),
+        );
+        if (userInput) {
+          return (userInput as HTMLInputElement).id || (userInput as HTMLInputElement).name;
+        }
+        if (inputs.length > 0) {
+          return (inputs[0] as HTMLInputElement).id || (inputs[0] as HTMLInputElement).name;
+        }
+        return null;
+      });
+
+      // Find password field
+      const passwordField = await page.evaluate(() => {
+        const inputs = Array.from(document.querySelectorAll('input[type="password"]'));
+        if (inputs.length > 0) {
+          return (inputs[0] as HTMLInputElement).id || (inputs[0] as HTMLInputElement).name;
+        }
+        return null;
+      });
+
+      if (!usernameField || !passwordField) {
+        throw new Error("Login form fields not found");
+      }
+
+      // Type credentials
+      await page.type(`#${usernameField}`, username, { delay: 100 });
+      await page.type(`#${passwordField}`, cachedPassword, { delay: 100 });
+
+      // Find and click login button
+      const loginButton = await page.evaluate(() => {
+        const buttons = Array.from(document.querySelectorAll('input[type="submit"], button[type="submit"]'));
+        if (buttons.length > 0) {
+          return (buttons[0] as HTMLElement).id || (buttons[0] as HTMLElement).outerHTML.match(/id="([^"]+)"/)?.[1];
+        }
+        return null;
+      });
+
+      if (!loginButton) {
+        throw new Error("Login button not found");
+      }
+
+      await page.click(`#${loginButton}`);
+      await page.waitForNavigation({ waitUntil: "networkidle2", timeout: 30000 });
+
+      // Verify login success
+      const finalUrl = page.url();
+      if (finalUrl.includes("Login.aspx")) {
+        throw new Error("Login failed - still on login page");
+      }
+
+      logger.info("[BrowserPool] Login successful");
+    } finally {
+      // Always close the temporary page
+      await page.close();
+    }
   }
 
   /**
