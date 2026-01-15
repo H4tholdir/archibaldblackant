@@ -5,24 +5,24 @@
 See: .planning/PROJECT.md (updated 2026-01-11)
 
 **Core value:** Rendere la creazione ordini Archibald **veloce, affidabile e mobile-friendly** per agenti in movimento
-**Current focus:** Phase 8 — Offline Capability (Cache IndexedDB e bozze persistenti)
+**Current focus:** Phase 10 — Order History (Timeline cronologica con filtri e dettagli ordini)
 
 ## Current Position
 
-Phase: 8 of 12 (Offline Capability) ✅ COMPLETE
-Plan: 8 of 8 complete
-Status: Completed Plan 08-08 (Stale Data Warning & Force Refresh)
-Last activity: 2026-01-15 — Completed Plan 08-08 and Phase 8
-Start time: 2026-01-15 00:00 → End time: 2026-01-15 00:20
+Phase: 10 of 12 (Order History)
+Plan: 1 of 7 complete
+Status: Completed Plan 10-01 (Archibald Order History UI Discovery)
+Last activity: 2026-01-15 — Completed Plan 10-01 with comprehensive UI discovery
+Start time: 2026-01-15 01:27 → End time: 2026-01-15 01:52
 
-Progress: ████████ 100% Phase 8 (8/8 plans complete) ✅
+Progress: ██░░░░░░ 14% Phase 10 (1/7 plans complete)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 52
-- Average duration: 58 min
-- Total execution time: 56.00 hours
+- Total plans completed: 53
+- Average duration: 57 min
+- Total execution time: 56.42 hours
 
 **By Phase:**
 
@@ -37,10 +37,11 @@ Progress: ████████ 100% Phase 8 (8/8 plans complete) ✅
 | 6 | 7 | 209 min | 30 min |
 | 7 | 6 | 243 min | 41 min |
 | 8 | 8 | 204 min | 26 min |
+| 10 | 1 | 25 min | 25 min |
 
 **Recent Trend:**
-- Last 7 plans: 08-03 (15m), 08-04 (22m), 08-05 (11m), 08-06 (11m), 08-07 (80m), 08-08 (20m)
-- Trend: Phase 8 complete with consistent velocity except 08-07 (debugging), average 26min/plan
+- Last 7 plans: 08-04 (22m), 08-05 (11m), 08-06 (11m), 08-07 (80m), 08-08 (20m), 10-01 (25m)
+- Trend: Phase 10 started with efficient discovery plan (25min), comprehensive UI documentation complete
 
 ## Accumulated Context
 
@@ -51,6 +52,11 @@ Recent decisions affecting current work:
 
 | Phase | Decision | Rationale |
 |-------|----------|-----------|
+| 10-01 | Text-based element identification (avoid dynamic IDs) | DevExpress generates dynamic element IDs, text-based selectors (headers, labels) are stable, proven pattern from Phase 3.08 |
+| 10-01 | Two-path tracking access (order detail + DDT menu) | User requirement: tracking badge when available, prefer order detail path for single queries, DDT menu for bulk operations |
+| 10-01 | PDF generation not required for MVP | CONTEXT.md requires document links (metadata), not PDF downloads, MVP focus on references not content parsing |
+| 10-01 | Temporal filter dropdown (defer custom date range) | Archibald UI provides 6 useful presets, custom range not visible in UI, backend can filter post-scraping if needed |
+| 10-01 | Status timeline from document chronology | No explicit status change log found, DDT chronology provides sufficient progression for banking app timeline UX |
 | 08-08 | 3-day threshold for stale cache warning | Balances data freshness with user workflow interruption, matches 08-CONTEXT.md requirements |
 | 08-08 | Explicit confirmation required for stale data | User choice not blocking, informed decision with "Continua comunque" option |
 | 08-08 | Force refresh available anytime from header | Proactive cache updates, not just reactive to stale warning, always accessible |
