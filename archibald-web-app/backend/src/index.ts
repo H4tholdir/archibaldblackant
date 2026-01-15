@@ -24,6 +24,8 @@ import { ProductSyncService } from "./product-sync-service";
 import { PriceSyncService, type PriceSyncProgress } from "./price-sync-service";
 import { SyncCheckpointManager } from "./sync-checkpoint";
 import { SessionCleanupJob } from "./session-cleanup-job";
+import { OrderHistoryService } from "./order-history-service";
+import { PriorityManager } from "./priority-manager";
 
 const app = express();
 const server = createServer(app);
@@ -39,6 +41,8 @@ const priceSyncService = PriceSyncService.getInstance();
 const checkpointManager = SyncCheckpointManager.getInstance();
 const userDb = UserDatabase.getInstance();
 const sessionCleanup = new SessionCleanupJob();
+const orderHistoryService = new OrderHistoryService();
+const priorityManager = PriorityManager.getInstance();
 
 // Global lock per prevenire sync paralleli e conflitti con ordini
 type ActiveOperation = "customers" | "products" | "prices" | "order" | null;
@@ -1434,6 +1438,205 @@ app.get(
         success: false,
         error: error instanceof Error ? error.message : "Errore sconosciuto",
       });
+    }
+  },
+);
+
+// ============================================================================
+// ORDER HISTORY ENDPOINTS (Phase 10)
+// ============================================================================
+
+// Get order history with filters - Protected with JWT
+app.get(
+  "/api/orders/history",
+  authenticateJWT,
+  async (req: AuthRequest, res: Response<ApiResponse>) => {
+    const userId = req.user!.userId;
+    let context = null;
+
+    try {
+      // Parse query parameters
+      const customer = req.query.customer as string | undefined;
+      const dateFrom = req.query.dateFrom as string | undefined;
+      const dateTo = req.query.dateTo as string | undefined;
+      const status = req.query.status as string | undefined;
+      const limit = parseInt((req.query.limit as string) || "100", 10);
+      const offset = parseInt((req.query.offset as string) || "0", 10);
+
+      logger.info(`[OrderHistory] Fetching order history for user ${userId}`, {
+        customer,
+        dateFrom,
+        dateTo,
+        status,
+        limit,
+        offset,
+      });
+
+      // Validate date formats if provided
+      if (dateFrom && isNaN(Date.parse(dateFrom))) {
+        return res.status(400).json({
+          success: false,
+          error: "Invalid dateFrom format. Use ISO 8601 (e.g., 2024-01-01)",
+        });
+      }
+
+      if (dateTo && isNaN(Date.parse(dateTo))) {
+        return res.status(400).json({
+          success: false,
+          error: "Invalid dateTo format. Use ISO 8601 (e.g., 2024-01-31)",
+        });
+      }
+
+      // Pause sync services to avoid conflicts
+      priorityManager.pause();
+
+      // Acquire browser context for user
+      context = await browserPool.acquireContext(userId);
+
+      // Fetch order list from Archibald
+      const result = await orderHistoryService.getOrderList(context, userId, {
+        limit: limit + offset, // Fetch extra for post-filtering
+        offset: 0,
+      });
+
+      // Apply filters in-memory
+      let filteredOrders = result.orders;
+
+      if (customer) {
+        const customerLower = customer.toLowerCase();
+        filteredOrders = filteredOrders.filter((order) =>
+          order.customerName.toLowerCase().includes(customerLower),
+        );
+      }
+
+      if (dateFrom) {
+        const fromDate = new Date(dateFrom);
+        filteredOrders = filteredOrders.filter((order) => {
+          const orderDate = new Date(order.creationDate);
+          return orderDate >= fromDate;
+        });
+      }
+
+      if (dateTo) {
+        const toDate = new Date(dateTo);
+        toDate.setHours(23, 59, 59, 999); // End of day
+        filteredOrders = filteredOrders.filter((order) => {
+          const orderDate = new Date(order.creationDate);
+          return orderDate <= toDate;
+        });
+      }
+
+      if (status) {
+        const statusLower = status.toLowerCase();
+        filteredOrders = filteredOrders.filter(
+          (order) => order.status.toLowerCase() === statusLower,
+        );
+      }
+
+      // Apply pagination to filtered results
+      const paginatedOrders = filteredOrders.slice(offset, offset + limit);
+      const hasMore = filteredOrders.length > offset + limit;
+
+      logger.info(
+        `[OrderHistory] Fetched ${result.orders.length} orders, filtered to ${filteredOrders.length}, returning ${paginatedOrders.length}`,
+        { userId },
+      );
+
+      res.json({
+        success: true,
+        data: {
+          orders: paginatedOrders,
+          total: filteredOrders.length,
+          hasMore,
+        },
+      });
+    } catch (error) {
+      logger.error("[OrderHistory] Error fetching order history", {
+        error,
+        userId,
+      });
+
+      res.status(500).json({
+        success: false,
+        error: "Failed to fetch order history",
+      });
+    } finally {
+      // Always release context and resume services
+      if (context) {
+        await browserPool.releaseContext(userId, context, true);
+      }
+      priorityManager.resume();
+    }
+  },
+);
+
+// Get order detail by ID - Protected with JWT
+app.get(
+  "/api/orders/:id",
+  authenticateJWT,
+  async (req: AuthRequest, res: Response<ApiResponse>) => {
+    const userId = req.user!.userId;
+    const orderId = req.params.id;
+    let context = null;
+
+    try {
+      // Validate orderId format (should be numeric string)
+      if (!orderId || !/^\d+$/.test(orderId)) {
+        return res.status(400).json({
+          success: false,
+          error: "Invalid order ID format. Expected numeric string",
+        });
+      }
+
+      logger.info(`[OrderHistory] Fetching order detail for user ${userId}, order ${orderId}`);
+
+      // Pause sync services to avoid conflicts
+      priorityManager.pause();
+
+      // Acquire browser context for user
+      context = await browserPool.acquireContext(userId);
+
+      // Fetch order detail from Archibald
+      const orderDetail = await orderHistoryService.getOrderDetail(
+        context,
+        userId,
+        orderId,
+      );
+
+      if (!orderDetail) {
+        logger.warn(`[OrderHistory] Order ${orderId} not found for user ${userId}`);
+        return res.status(404).json({
+          success: false,
+          error: "Order not found",
+        });
+      }
+
+      logger.info(
+        `[OrderHistory] Fetched order detail: ${orderDetail.items.length} items, ${orderDetail.statusTimeline.length} status updates`,
+        { userId, orderId },
+      );
+
+      res.json({
+        success: true,
+        data: orderDetail,
+      });
+    } catch (error) {
+      logger.error("[OrderHistory] Error fetching order detail", {
+        error,
+        userId,
+        orderId,
+      });
+
+      res.status(500).json({
+        success: false,
+        error: "Failed to fetch order detail",
+      });
+    } finally {
+      // Always release context and resume services
+      if (context) {
+        await browserPool.releaseContext(userId, context, true);
+      }
+      priorityManager.resume();
     }
   },
 );
