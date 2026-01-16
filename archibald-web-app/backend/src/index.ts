@@ -2214,11 +2214,116 @@ app.post(
           customerName,
         });
 
-        // Sync order from Archibald to get full details
-        logger.info(`[DraftPlace] Syncing order ${orderId} from Archibald`, {
+        // Create order record directly in database instead of scraping
+        // (optimization: we already have all the data from the draft)
+        logger.info(
+          `[DraftPlace] Creating order record in database from draft data`,
+          {
+            userId,
+            orderId,
+          },
+        );
+
+        const now = new Date().toISOString();
+
+        // Calculate totals for the order
+        const subtotal = items.reduce((sum: number, item: any) => {
+          const itemTotal = item.quantity * item.price;
+          const discountAmount = item.discount
+            ? (itemTotal * item.discount) / 100
+            : 0;
+          return sum + (itemTotal - discountAmount);
+        }, 0);
+
+        const discountAmount = discountPercent
+          ? (subtotal * discountPercent) / 100
+          : 0;
+        const netAmount = subtotal - discountAmount;
+        const vatAmount = netAmount * 0.22; // 22% IVA
+        const total = netAmount + vatAmount;
+
+        // Create StoredOrder from draft data
+        const storedOrder = {
+          id: orderId, // Archibald order ID
           userId,
+
+          // Order List fields
+          orderNumber: "", // Empty for "piazzato" orders (Milano assigns ORD/ later)
+          customerProfileId: customerId,
+          customerName,
+          deliveryName: customerName,
+          deliveryAddress: "",
+          creationDate: now,
+          deliveryDate: "",
+          remainingSalesFinancial: null,
+          customerReference: null,
+          salesStatus: "Aperto", // Default status for new orders
+          orderType: "Giornale",
+          documentStatus: "Nessuno",
+          salesOrigin: "App Mobile",
+          transferStatus: null,
+          transferDate: null,
+          completionDate: null,
+          discountPercent: discountPercent ? String(discountPercent) : null,
+          grossAmount: String(subtotal.toFixed(2)),
+          totalAmount: String(total.toFixed(2)),
+
+          // Legacy field
+          status: "Aperto",
+
+          // Metadata
+          lastScraped: now,
+          lastUpdated: now,
+          isOpen: true,
+
+          // Extended data (items detail)
+          detailJson: JSON.stringify({
+            items: items.map((item: any) => ({
+              articleCode: item.articleCode,
+              productName: item.productName || item.articleCode,
+              description: item.description || "",
+              quantity: item.quantity,
+              price: item.price,
+              discount: item.discount || 0,
+              total:
+                item.quantity * item.price * (1 - (item.discount || 0) / 100),
+            })),
+            subtotal,
+            discountPercent: discountPercent || 0,
+            discountAmount,
+            netAmount,
+            vatAmount,
+            total,
+          }),
+
+          // Order management fields
+          sentToMilanoAt: null,
+          currentState: "piazzato", // State: order placed on Archibald but not sent to Milano yet
+
+          // DDT fields (will be populated later after "Invia a Milano")
+          ddtId: null,
+          ddtNumber: null,
+          ddtDeliveryDate: null,
+          ddtOrderNumber: null,
+          ddtCustomerAccount: null,
+          ddtSalesName: null,
+          ddtDeliveryName: null,
+          trackingNumber: null,
+          deliveryTerms: null,
+          deliveryMethod: null,
+          deliveryCity: null,
+          trackingUrl: null,
+          trackingCourier: null,
+        };
+
+        // Save to database
+        orderHistoryService.getOrderDb().upsertOrders(userId, [storedOrder]);
+
+        logger.info(`[DraftPlace] Order record created in database`, {
+          userId,
+          orderId,
+          currentState: "piazzato",
         });
-        await orderHistoryService.syncFromArchibald(userId);
 
         return res.json({
           success: true,
