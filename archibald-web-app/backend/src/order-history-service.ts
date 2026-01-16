@@ -291,7 +291,7 @@ export class OrderHistoryService {
    * - First sync: Scrapes from beginning of current year
    * - Subsequent syncs: Stops when reaching orders already synced 30+ days ago
    */
-  private async syncFromArchibald(userId: string): Promise<void> {
+  public async syncFromArchibald(userId: string): Promise<void> {
     let bot = null;
 
     try {
@@ -319,7 +319,8 @@ export class OrderHistoryService {
 
       // Step 2/3: Scrape DDT data (only for orders we just scraped)
       logger.info("[OrderHistoryService] Step 2/3: Scraping DDT data");
-      const orderNumbers = allOrders.map((o) => o.orderNumber);
+      // Use orderNumber when available (orders with ORD/), fallback to id for orders without ORD/ (piazzato state)
+      const orderNumbers = allOrders.map((o) => o.orderNumber || o.id);
       const ddtData = await this.scrapeDDTData(bot.page, orderNumbers);
       logger.info(
         `[OrderHistoryService] Scraped ${ddtData.length} DDT entries (filtered for ${orderNumbers.length} orders)`,
@@ -449,6 +450,8 @@ export class OrderHistoryService {
     const allDDT: DDTData[] = [];
     let pageNum = 1;
     let matchedCount = 0;
+    let consecutiveEmptyPages = 0;
+    const CONSECUTIVE_EMPTY_PAGES_LIMIT = 10; // Stop if 10 consecutive pages with no matches
 
     do {
       logger.info(
@@ -468,6 +471,19 @@ export class OrderHistoryService {
       logger.info(
         `[OrderHistoryService] Found ${matchedDDT.length}/${pageData.length} matching DDT entries on page ${pageNum}`,
       );
+
+      // Track consecutive empty pages for early stop optimization
+      if (matchedDDT.length === 0) {
+        consecutiveEmptyPages++;
+        if (consecutiveEmptyPages >= CONSECUTIVE_EMPTY_PAGES_LIMIT) {
+          logger.info(
+            `[OrderHistoryService] No matching DDT found in last ${CONSECUTIVE_EMPTY_PAGES_LIMIT} consecutive pages, stopping early at page ${pageNum}`,
+          );
+          break;
+        }
+      } else {
+        consecutiveEmptyPages = 0; // Reset counter when we find matches
+      }
 
       // Early exit optimization: if we've found DDT for all orders, stop scraping
       if (matchedCount >= orderNumbers.length) {
@@ -520,11 +536,13 @@ export class OrderHistoryService {
       for (const order of batch) {
         try {
           // Match DDT data by Order Number (orderNumber ↔ orderId)
-          const ddt = ddtData.find((d) => d.orderId === order.orderNumber);
+          // For orders without ORD/ (piazzato state), match by id
+          const orderIdentifier = order.orderNumber || order.id;
+          const ddt = ddtData.find((d) => d.orderId === orderIdentifier);
 
           if (ddt) {
             logger.info(
-              `[OrderHistoryService] Matched DDT ${ddt.ddtNumber} to order ${order.orderNumber}`,
+              `[OrderHistoryService] Matched DDT ${ddt.ddtNumber} to order ${orderIdentifier}`,
             );
           }
 
@@ -1292,10 +1310,9 @@ export class OrderHistoryService {
             continue;
           }
 
-          // Validate order number
-          if (!orderNumber || !orderNumber.startsWith("ORD/")) {
-            continue;
-          }
+          // Accept orders with or without ORD/ number
+          // Orders in "piazzato" state don't have ORD/ yet (Milano assigns after "Invia a Milano")
+          // For these orders, we use the id as the primary identifier
 
           // Extract all remaining fields using FIXED indices
           const customerProfileId = cells[4]?.textContent?.trim() || "";

@@ -1124,6 +1124,9 @@ export function OrderCardNew({
     "panoramica" | "articoli" | "logistica" | "finanziario" | "storico"
   >("panoramica");
 
+  // Detect order state: "piazzato" orders don't have ORD/ number yet
+  const isPiazzato = !order.orderNumber || order.orderNumber.trim() === "";
+
   // DEBUG: Log order data to check ddt and tracking
   if (order.orderNumber === "ORD/26000387") {
     console.log("[OrderCardNew] Order ORD/26000387 data:", {
@@ -1145,8 +1148,9 @@ export function OrderCardNew({
   return (
     <div
       style={{
-        backgroundColor: "#fff",
+        backgroundColor: isPiazzato ? "#fff8e1" : "#fff", // Yellow/orange light for "piazzato"
         borderRadius: "12px",
+        border: isPiazzato ? "2px solid #ffb300" : "none", // Orange border for "piazzato"
         boxShadow: "0 2px 8px rgba(0, 0, 0, 0.1)",
         marginBottom: "12px",
         overflow: "hidden",
@@ -1202,6 +1206,24 @@ export function OrderCardNew({
                 flexWrap: "wrap",
               }}
             >
+              {/* Special badge for "Piazzato" orders (without ORD/) */}
+              {isPiazzato && (
+                <span
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    padding: "6px 12px",
+                    borderRadius: "16px",
+                    backgroundColor: "#ff9800", // Orange
+                    color: "#fff",
+                    fontSize: "12px",
+                    fontWeight: 600,
+                    gap: "4px",
+                  }}
+                >
+                  📍 Piazzato
+                </span>
+              )}
               <StatusBadge
                 status={order.status}
                 state={order.state}
@@ -1327,7 +1349,9 @@ export function OrderCardNew({
               <OrderActions
                 orderId={order.id}
                 currentState={
-                  order.state?.toLowerCase() || order.status.toLowerCase()
+                  isPiazzato
+                    ? "piazzato"
+                    : order.state?.toLowerCase() || order.status.toLowerCase()
                 }
                 archibaldOrderId={order.orderNumber}
                 onSendToMilano={() =>

@@ -18,6 +18,9 @@ export function OrderActions({
   const showEdit = currentState === "creato";
   const showNotModifiable = !showSendToMilano && !showEdit;
 
+  // Special message for piazzato orders: they can be modified, but only on Archibald
+  const isPiazzato = currentState === "piazzato";
+
   return (
     <div
       style={{
@@ -46,37 +49,59 @@ export function OrderActions({
       >
         {/* Send to Milano Button - only for "piazzato" state */}
         {showSendToMilano && (
-          <button
-            onClick={onSendToMilano}
-            style={{
-              padding: "12px 20px",
-              fontSize: "14px",
-              fontWeight: 600,
-              backgroundColor: "#ffc107",
-              color: "#333",
-              border: "none",
-              borderRadius: "8px",
-              cursor: "pointer",
-              transition: "all 0.2s",
-              display: "flex",
-              alignItems: "center",
-              gap: "8px",
-              boxShadow: "0 2px 4px rgba(0, 0, 0, 0.1)",
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.backgroundColor = "#ffb300";
-              e.currentTarget.style.transform = "translateY(-2px)";
-              e.currentTarget.style.boxShadow = "0 4px 8px rgba(0, 0, 0, 0.15)";
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.backgroundColor = "#ffc107";
-              e.currentTarget.style.transform = "translateY(0)";
-              e.currentTarget.style.boxShadow = "0 2px 4px rgba(0, 0, 0, 0.1)";
-            }}
-          >
-            <span>⚠️</span>
-            <span>Invia a Milano</span>
-          </button>
+          <>
+            <button
+              onClick={onSendToMilano}
+              style={{
+                padding: "12px 20px",
+                fontSize: "14px",
+                fontWeight: 600,
+                backgroundColor: "#ffc107",
+                color: "#333",
+                border: "none",
+                borderRadius: "8px",
+                cursor: "pointer",
+                transition: "all 0.2s",
+                display: "flex",
+                alignItems: "center",
+                gap: "8px",
+                boxShadow: "0 2px 4px rgba(0, 0, 0, 0.1)",
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.backgroundColor = "#ffb300";
+                e.currentTarget.style.transform = "translateY(-2px)";
+                e.currentTarget.style.boxShadow =
+                  "0 4px 8px rgba(0, 0, 0, 0.15)";
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.backgroundColor = "#ffc107";
+                e.currentTarget.style.transform = "translateY(0)";
+                e.currentTarget.style.boxShadow =
+                  "0 2px 4px rgba(0, 0, 0, 0.1)";
+              }}
+            >
+              <span>⚠️</span>
+              <span>Invia a Milano</span>
+            </button>
+            {/* Info message for piazzato orders */}
+            <div
+              style={{
+                padding: "8px 12px",
+                fontSize: "12px",
+                fontWeight: 500,
+                backgroundColor: "#fff3cd",
+                color: "#856404",
+                border: "1px solid #ffeaa7",
+                borderRadius: "6px",
+                display: "flex",
+                alignItems: "center",
+                gap: "6px",
+              }}
+            >
+              <span>ℹ️</span>
+              <span>Modificabile solo su Archibald</span>
+            </div>
+          </>
         )}
 
         {/* Edit Button - only for "creato" state */}
