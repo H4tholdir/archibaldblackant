@@ -5,15 +5,22 @@ import { BrowserPool } from "./browser-pool";
 import { OrderDatabase } from "./order-db";
 
 export interface DDTData {
-  ddtNumber: string; // e.g., "DDT/26000515"
-  orderId: string; // e.g., "ORD/26000552" - used for matching
-  customerAccountId: string; // e.g., "1002209" - secondary match key
-  deliveryDate: string; // ISO 8601
-  deliveryMethod: string; // e.g., "FedEx", "UPS Italia"
-  deliveryCity: string;
-  trackingNumber?: string; // e.g., "445291888246"
-  trackingUrl?: string; // Full courier tracking URL
-  trackingCourier?: string; // Normalized courier name: "fedex", "ups", "dhl"
+  // All 11 columns from CUSTPACKINGSLIPJOUR_ListView table
+  ddtId?: string; // Col 0: ID (DDT internal ID)
+  ddtNumber: string; // Col 1: Documento di trasporto (e.g., "DDT/26000515")
+  ddtDeliveryDate?: string; // Col 2: Data di consegna (ISO 8601)
+  orderId: string; // Col 3: ID di vendita (e.g., "ORD/26000552") - MATCH KEY
+  customerAccountId?: string; // Col 4: Conto dell'ordine (e.g., "1002209")
+  salesName?: string; // Col 5: Nome vendite
+  deliveryName?: string; // Col 6: Nome di consegna
+  trackingNumber?: string; // Col 7: Numero di tracciabilità (e.g., "445291888246")
+  deliveryTerms?: string; // Col 8: Termini di consegna
+  deliveryMethod?: string; // Col 9: Modalità di consegna (e.g., "FedEx", "UPS Italia")
+  deliveryCity?: string; // Col 10: Città di consegna
+
+  // Computed fields
+  trackingUrl?: string; // Full courier tracking URL (computed from tracking)
+  trackingCourier?: string; // Normalized courier name: "fedex", "ups", "dhl" (computed)
 }
 
 export interface SyncResult {
@@ -140,20 +147,29 @@ export class DDTScraperService {
       headers.forEach((header, index) => {
         const text = header.textContent?.trim().toUpperCase() || "";
 
-        if (text.includes("DOCUMENTO DI TRASPORTO") || text.includes("NUMERO DDT")) {
+        // Map all 11 DDT columns based on TABLE-ANALYSIS.md
+        if (text.includes("ID") && !text.includes("VENDITA") && !text.includes("TRACCIABILIT")) {
+          columnMap.ddtId = index;
+        } else if (text.includes("DOCUMENTO DI TRASPORTO") || text.includes("NUMERO DDT")) {
           columnMap.ddtNumber = index;
+        } else if (text.includes("DATA DI CONSEGNA") || text.includes("DATA CONSEGNA")) {
+          columnMap.deliveryDate = index;
         } else if (text.includes("ID DI VENDITA")) {
           columnMap.orderId = index;
         } else if (text.includes("CONTO DELL'ORDINE") || text.includes("CONTO ORDINE")) {
           columnMap.customerAccountId = index;
-        } else if (text.includes("DATA DI CONSEGNA")) {
-          columnMap.deliveryDate = index;
+        } else if (text.includes("NOME VENDITE") || text.includes("NOME VENDITORE")) {
+          columnMap.salesName = index;
+        } else if (text.includes("NOME DI CONSEGNA") || text.includes("NOME CONSEGNA")) {
+          columnMap.deliveryName = index;
+        } else if (text.includes("TRACCIABILITÀ") || text.includes("NUMERO DI TRACCIABILITÀ")) {
+          columnMap.tracking = index;
+        } else if (text.includes("TERMINI DI CONSEGNA") || text.includes("TERMINI CONSEGNA")) {
+          columnMap.deliveryTerms = index;
         } else if (text.includes("MODALITÀ DI CONSEGNA") || text.includes("MODALITA")) {
           columnMap.deliveryMethod = index;
         } else if (text.includes("CITTÀ DI CONSEGNA") || text.includes("CITTA")) {
           columnMap.deliveryCity = index;
-        } else if (text.includes("TRACCIABILITÀ") || text.includes("NUMERO DI TRACCIABILITÀ")) {
-          columnMap.tracking = index;
         }
       });
 
@@ -206,17 +222,21 @@ export class DDTScraperService {
           }
         }
 
-        // Build DDT entry
+        // Build DDT entry with all 11 columns
         ddtData.push({
+          ddtId: columnMap.ddtId !== undefined ? cells[columnMap.ddtId]?.textContent?.trim() : undefined,
           ddtNumber,
-          orderId,
-          customerAccountId: cells[columnMap.customerAccountId]?.textContent?.trim() || "",
-          deliveryDate: cells[columnMap.deliveryDate]?.textContent?.trim() || "",
-          deliveryMethod: cells[columnMap.deliveryMethod]?.textContent?.trim() || "",
-          deliveryCity: cells[columnMap.deliveryCity]?.textContent?.trim() || "",
+          ddtDeliveryDate: columnMap.deliveryDate !== undefined ? cells[columnMap.deliveryDate]?.textContent?.trim() : undefined,
+          orderId, // Match key
+          customerAccountId: columnMap.customerAccountId !== undefined ? cells[columnMap.customerAccountId]?.textContent?.trim() : undefined,
+          salesName: columnMap.salesName !== undefined ? cells[columnMap.salesName]?.textContent?.trim() : undefined,
+          deliveryName: columnMap.deliveryName !== undefined ? cells[columnMap.deliveryName]?.textContent?.trim() : undefined,
           trackingNumber,
           trackingUrl,
           trackingCourier,
+          deliveryTerms: columnMap.deliveryTerms !== undefined ? cells[columnMap.deliveryTerms]?.textContent?.trim() : undefined,
+          deliveryMethod: columnMap.deliveryMethod !== undefined ? cells[columnMap.deliveryMethod]?.textContent?.trim() : undefined,
+          deliveryCity: columnMap.deliveryCity !== undefined ? cells[columnMap.deliveryCity]?.textContent?.trim() : undefined,
         });
       }
 

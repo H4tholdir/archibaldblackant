@@ -21,15 +21,30 @@ import path from "node:path";
 export interface StoredOrder {
   id: string; // Primary key: order ID from Archibald (e.g., "70.614")
   userId: string; // User who owns this order
-  orderNumber: string; // Display order number
-  customerProfileId: string;
-  customerName: string;
-  deliveryName: string;
-  deliveryAddress: string;
-  creationDate: string; // ISO 8601
-  deliveryDate: string; // ISO 8601
-  status: string; // "Ordine aperto", "Consegnato", etc.
-  customerReference: string | null;
+
+  // TABELLA 1: Order List (20 columns from SALESTABLE_ListView_Agent)
+  orderNumber: string; // Col 1: ID di vendita (e.g., "ORD/26000552")
+  customerProfileId: string; // Col 2: Profilo cliente
+  customerName: string; // Col 3: Nome vendite
+  deliveryName: string; // Col 4: Nome di consegna
+  deliveryAddress: string; // Col 5: Indirizzo di consegna
+  creationDate: string; // Col 6: Data di creazione (ISO 8601)
+  deliveryDate: string; // Col 7: Data di consegna (ISO 8601)
+  remainingSalesFinancial: string | null; // Col 8: Rimani vendite finanziarie
+  customerReference: string | null; // Col 9: Riferimento cliente
+  salesStatus: string | null; // Col 10: Stato delle vendite
+  orderType: string | null; // Col 11: Tipo di ordine
+  documentStatus: string | null; // Col 12: Stato del documento
+  salesOrigin: string | null; // Col 13: Origine vendite
+  transferStatus: string | null; // Col 14: Stato del trasferimento
+  transferDate: string | null; // Col 15: Data di trasferimento
+  completionDate: string | null; // Col 16: Data di completamento
+  discountPercent: string | null; // Col 17: Applica sconto %
+  grossAmount: string | null; // Col 18: Importo lordo
+  totalAmount: string | null; // Col 19: Importo totale
+
+  // Legacy field (to be deprecated after migration)
+  status: string; // Deprecated: use salesStatus instead
 
   // Metadata for sync strategy
   lastScraped: string; // ISO 8601 timestamp of last scrape
@@ -43,9 +58,20 @@ export interface StoredOrder {
   sentToMilanoAt: string | null; // ISO 8601 timestamp when sent to Milano
   currentState: string; // Order lifecycle state: creato, piazzato, inviato_milano, etc.
 
-  // DDT and tracking fields (Phase 11-03)
-  ddtNumber: string | null; // DDT document number (e.g., "DDT/26000515")
-  trackingNumber: string | null; // Courier tracking number (e.g., "445291888246")
+  // TABELLA 2: DDT Data (11 columns from CUSTPACKINGSLIPJOUR_ListView)
+  ddtId: string | null; // Col 0: ID (DDT internal ID)
+  ddtNumber: string | null; // Col 1: Documento di trasporto (e.g., "DDT/26000515")
+  ddtDeliveryDate: string | null; // Col 2: Data di consegna (DDT)
+  ddtOrderNumber: string | null; // Col 3: ID di vendita (match key, same as orderNumber)
+  ddtCustomerAccount: string | null; // Col 4: Conto dell'ordine
+  ddtSalesName: string | null; // Col 5: Nome vendite
+  ddtDeliveryName: string | null; // Col 6: Nome di consegna
+  trackingNumber: string | null; // Col 7: Numero di tracciabilità (e.g., "445291888246")
+  deliveryTerms: string | null; // Col 8: Termini di consegna
+  deliveryMethod: string | null; // Col 9: Modalità di consegna (e.g., "FedEx")
+  deliveryCity: string | null; // Col 10: Città di consegna
+
+  // Computed tracking fields
   trackingUrl: string | null; // Full tracking URL (courier-specific)
   trackingCourier: string | null; // Courier name (e.g., "fedex", "ups", "dhl")
 }
@@ -93,6 +119,8 @@ export class OrderDatabase {
       CREATE TABLE IF NOT EXISTS orders (
         id TEXT NOT NULL,
         userId TEXT NOT NULL,
+
+        -- TABELLA 1: Order List (20 columns)
         orderNumber TEXT NOT NULL,
         customerProfileId TEXT,
         customerName TEXT NOT NULL,
@@ -100,20 +128,48 @@ export class OrderDatabase {
         deliveryAddress TEXT,
         creationDate TEXT NOT NULL,
         deliveryDate TEXT,
-        status TEXT NOT NULL,
+        remainingSalesFinancial TEXT,
         customerReference TEXT,
+        salesStatus TEXT,
+        orderType TEXT,
+        documentStatus TEXT,
+        salesOrigin TEXT,
+        transferStatus TEXT,
+        transferDate TEXT,
+        completionDate TEXT,
+        discountPercent TEXT,
+        grossAmount TEXT,
+        totalAmount TEXT,
 
+        -- Legacy field (for backward compatibility)
+        status TEXT NOT NULL,
+
+        -- Metadata
         lastScraped TEXT NOT NULL,
         lastUpdated TEXT NOT NULL,
         isOpen INTEGER NOT NULL DEFAULT 1,
 
+        -- Order detail JSON
         detailJson TEXT,
 
+        -- Order management
         sentToMilanoAt TEXT,
         currentState TEXT DEFAULT 'creato',
 
+        -- TABELLA 2: DDT Data (11 columns)
+        ddtId TEXT,
         ddtNumber TEXT,
+        ddtDeliveryDate TEXT,
+        ddtOrderNumber TEXT,
+        ddtCustomerAccount TEXT,
+        ddtSalesName TEXT,
+        ddtDeliveryName TEXT,
         trackingNumber TEXT,
+        deliveryTerms TEXT,
+        deliveryMethod TEXT,
+        deliveryCity TEXT,
+
+        -- Computed tracking fields
         trackingUrl TEXT,
         trackingCourier TEXT,
 
@@ -159,25 +215,44 @@ export class OrderDatabase {
   /**
    * Upsert orders from scraping
    * Updates existing orders or inserts new ones
+   * Now handles all 20 Order List + 11 DDT columns
    */
   upsertOrders(
     userId: string,
-    orders: Array<
-      Omit<
-        StoredOrder,
-        "lastScraped" | "lastUpdated" | "isOpen" | "detailJson" | "userId" | "sentToMilanoAt" | "currentState" | "ddtNumber" | "trackingNumber" | "trackingUrl" | "trackingCourier"
-      >
-    >,
+    orders: StoredOrder[],
   ): void {
     const now = new Date().toISOString();
 
     const stmt = this.db.prepare(`
       INSERT INTO orders (
-        id, userId, orderNumber, customerProfileId, customerName,
-        deliveryName, deliveryAddress, creationDate, deliveryDate,
-        status, customerReference, lastScraped, lastUpdated, isOpen, detailJson,
-        sentToMilanoAt, currentState, ddtNumber, trackingNumber, trackingUrl, trackingCourier
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        id, userId,
+        orderNumber, customerProfileId, customerName, deliveryName, deliveryAddress,
+        creationDate, deliveryDate, remainingSalesFinancial, customerReference,
+        salesStatus, orderType, documentStatus, salesOrigin, transferStatus,
+        transferDate, completionDate, discountPercent, grossAmount, totalAmount,
+        status,
+        lastScraped, lastUpdated, isOpen,
+        detailJson,
+        sentToMilanoAt, currentState,
+        ddtId, ddtNumber, ddtDeliveryDate, ddtOrderNumber, ddtCustomerAccount,
+        ddtSalesName, ddtDeliveryName, trackingNumber, deliveryTerms,
+        deliveryMethod, deliveryCity,
+        trackingUrl, trackingCourier
+      ) VALUES (
+        ?, ?,
+        ?, ?, ?, ?, ?,
+        ?, ?, ?, ?,
+        ?, ?, ?, ?, ?,
+        ?, ?, ?, ?, ?,
+        ?,
+        ?, ?, ?,
+        ?,
+        ?, ?,
+        ?, ?, ?, ?, ?,
+        ?, ?, ?, ?,
+        ?, ?,
+        ?, ?
+      )
       ON CONFLICT(id, userId) DO UPDATE SET
         orderNumber = excluded.orderNumber,
         customerProfileId = excluded.customerProfileId,
@@ -186,22 +261,50 @@ export class OrderDatabase {
         deliveryAddress = excluded.deliveryAddress,
         creationDate = excluded.creationDate,
         deliveryDate = excluded.deliveryDate,
-        status = excluded.status,
+        remainingSalesFinancial = excluded.remainingSalesFinancial,
         customerReference = excluded.customerReference,
+        salesStatus = excluded.salesStatus,
+        orderType = excluded.orderType,
+        documentStatus = excluded.documentStatus,
+        salesOrigin = excluded.salesOrigin,
+        transferStatus = excluded.transferStatus,
+        transferDate = excluded.transferDate,
+        completionDate = excluded.completionDate,
+        discountPercent = excluded.discountPercent,
+        grossAmount = excluded.grossAmount,
+        totalAmount = excluded.totalAmount,
+        status = excluded.status,
         lastScraped = excluded.lastScraped,
         lastUpdated = CASE
           WHEN status != excluded.status THEN excluded.lastScraped
           ELSE lastUpdated
         END,
-        isOpen = excluded.isOpen
+        isOpen = excluded.isOpen,
+        detailJson = excluded.detailJson,
+        ddtId = excluded.ddtId,
+        ddtNumber = excluded.ddtNumber,
+        ddtDeliveryDate = excluded.ddtDeliveryDate,
+        ddtOrderNumber = excluded.ddtOrderNumber,
+        ddtCustomerAccount = excluded.ddtCustomerAccount,
+        ddtSalesName = excluded.ddtSalesName,
+        ddtDeliveryName = excluded.ddtDeliveryName,
+        trackingNumber = excluded.trackingNumber,
+        deliveryTerms = excluded.deliveryTerms,
+        deliveryMethod = excluded.deliveryMethod,
+        deliveryCity = excluded.deliveryCity,
+        trackingUrl = excluded.trackingUrl,
+        trackingCourier = excluded.trackingCourier
     `);
 
-    const transaction = this.db.transaction((orders: any[]) => {
+    const transaction = this.db.transaction((orders: StoredOrder[]) => {
       for (const order of orders) {
-        const isOpen = this.isOrderOpen(order.status);
+        const isOpen = typeof order.isOpen === 'boolean' ? order.isOpen : this.isOrderOpen(order.status);
         stmt.run(
+          // Primary keys
           order.id,
           userId,
+
+          // Order List fields (20 columns)
           order.orderNumber,
           order.customerProfileId || "",
           order.customerName,
@@ -209,18 +312,50 @@ export class OrderDatabase {
           order.deliveryAddress || "",
           order.creationDate,
           order.deliveryDate || "",
-          order.status,
+          order.remainingSalesFinancial || null,
           order.customerReference || null,
-          now, // lastScraped
-          now, // lastUpdated (will be preserved if status unchanged)
+          order.salesStatus || null,
+          order.orderType || null,
+          order.documentStatus || null,
+          order.salesOrigin || null,
+          order.transferStatus || null,
+          order.transferDate || null,
+          order.completionDate || null,
+          order.discountPercent || null,
+          order.grossAmount || null,
+          order.totalAmount || null,
+
+          // Legacy status field
+          order.status,
+
+          // Metadata
+          order.lastScraped || now,
+          order.lastUpdated || now,
           isOpen ? 1 : 0,
-          null, // detailJson (filled later by detail scraping)
-          null, // sentToMilanoAt
-          "creato", // currentState (default)
-          null, // ddtNumber (filled by DDT scraping)
-          null, // trackingNumber
-          null, // trackingUrl
-          null, // trackingCourier
+
+          // Detail JSON
+          order.detailJson || null,
+
+          // Order management
+          order.sentToMilanoAt || null,
+          order.currentState || "unknown",
+
+          // DDT fields (11 columns)
+          order.ddtId || null,
+          order.ddtNumber || null,
+          order.ddtDeliveryDate || null,
+          order.ddtOrderNumber || null,
+          order.ddtCustomerAccount || null,
+          order.ddtSalesName || null,
+          order.ddtDeliveryName || null,
+          order.trackingNumber || null,
+          order.deliveryTerms || null,
+          order.deliveryMethod || null,
+          order.deliveryCity || null,
+
+          // Computed tracking fields
+          order.trackingUrl || null,
+          order.trackingCourier || null
         );
       }
     });
@@ -285,11 +420,36 @@ export class OrderDatabase {
     return rows.map((row) => ({
       ...row,
       isOpen: Boolean(row.isOpen),
+
+      // Ensure all nullable fields are properly typed
+      remainingSalesFinancial: row.remainingSalesFinancial || null,
       customerReference: row.customerReference || null,
+      salesStatus: row.salesStatus || null,
+      orderType: row.orderType || null,
+      documentStatus: row.documentStatus || null,
+      salesOrigin: row.salesOrigin || null,
+      transferStatus: row.transferStatus || null,
+      transferDate: row.transferDate || null,
+      completionDate: row.completionDate || null,
+      discountPercent: row.discountPercent || null,
+      grossAmount: row.grossAmount || null,
+      totalAmount: row.totalAmount || null,
+
       sentToMilanoAt: row.sentToMilanoAt || null,
       currentState: row.currentState || "creato",
+
+      // DDT fields
+      ddtId: row.ddtId || null,
       ddtNumber: row.ddtNumber || null,
+      ddtDeliveryDate: row.ddtDeliveryDate || null,
+      ddtOrderNumber: row.ddtOrderNumber || null,
+      ddtCustomerAccount: row.ddtCustomerAccount || null,
+      ddtSalesName: row.ddtSalesName || null,
+      ddtDeliveryName: row.ddtDeliveryName || null,
       trackingNumber: row.trackingNumber || null,
+      deliveryTerms: row.deliveryTerms || null,
+      deliveryMethod: row.deliveryMethod || null,
+      deliveryCity: row.deliveryCity || null,
       trackingUrl: row.trackingUrl || null,
       trackingCourier: row.trackingCourier || null,
     }));

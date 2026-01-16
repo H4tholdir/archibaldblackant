@@ -1675,12 +1675,81 @@ app.get(
         const paginatedOrders = filteredOrders.slice(offset, offset + limit);
         const hasMore = filteredOrders.length > offset + limit;
 
-        // Map orders to add frontend-required fields (date, total)
-        const ordersWithFrontendFields = paginatedOrders.map((order) => ({
-          ...order,
-          date: order.creationDate, // Frontend expects 'date' field for timeline grouping
-          total: "N/A", // Placeholder - total will be calculated from items in detail view
-        }));
+        // Map orders to frontend format with nested DDT and tracking
+        const ordersWithFrontendFields = paginatedOrders.map((order) => {
+          // Build nested DDT object if DDT data exists
+          const ddt = order.ddtNumber
+            ? {
+                ddtId: order.ddtId || undefined,
+                ddtNumber: order.ddtNumber || undefined,
+                ddtDeliveryDate: order.ddtDeliveryDate || undefined,
+                orderId: order.ddtOrderNumber || undefined,
+                customerAccountId: order.ddtCustomerAccount || undefined,
+                salesName: order.ddtSalesName || undefined,
+                deliveryName: order.ddtDeliveryName || undefined,
+                deliveryTerms: order.deliveryTerms || undefined,
+                deliveryMethod: order.deliveryMethod || undefined,
+                deliveryCity: order.deliveryCity || undefined,
+                trackingNumber: order.trackingNumber || undefined,
+                trackingUrl: order.trackingUrl || undefined,
+                trackingCourier: order.trackingCourier || undefined,
+              }
+            : undefined;
+
+          // Build nested tracking object (for backward compatibility)
+          const tracking = order.trackingNumber
+            ? {
+                trackingNumber: order.trackingNumber || undefined,
+                trackingUrl: order.trackingUrl || undefined,
+                trackingCourier: order.trackingCourier || undefined,
+              }
+            : undefined;
+
+          return {
+            // Order List fields (20 columns)
+            id: order.id,
+            orderNumber: order.orderNumber,
+            customerProfileId: order.customerProfileId,
+            customerName: order.customerName,
+            agentPersonName: undefined, // Not in current scraping
+            orderDate: order.creationDate,
+            date: order.creationDate, // Alias for backward compatibility
+            orderType: order.orderType || undefined,
+            deliveryTerms: undefined, // Order List doesn't have this (DDT has it)
+            deliveryDate: order.deliveryDate,
+            total: order.totalAmount || "N/A",
+            salesOrigin: order.salesOrigin || undefined,
+            lineDiscount: order.discountPercent || undefined,
+            endDiscount: undefined, // Not in current scraping
+            shippingAddress: order.deliveryAddress,
+            salesResponsible: undefined, // Not in current scraping
+            status: order.status || order.salesStatus || "N/A",
+            state: order.salesStatus || undefined,
+            documentState: order.documentStatus || undefined,
+            transferredToAccountingOffice:
+              order.transferStatus === "Sì" ||
+              order.transferStatus === "Trasferito",
+            deliveryAddress: order.deliveryAddress,
+
+            // DDT nested object (11 columns)
+            ddt,
+
+            // Tracking nested object (3 columns - for backward compatibility)
+            tracking,
+
+            // Metadata (10 columns)
+            botUserId: order.userId,
+            jobId: undefined, // Not in current implementation
+            createdAt: order.lastScraped,
+            lastUpdatedAt: order.lastUpdated,
+            notes: undefined, // Will be in detailJson
+            customerNotes: undefined, // Will be in detailJson
+            items: undefined, // Will be in detailJson
+            stateTimeline: undefined, // Will be fetched separately
+            statusTimeline: undefined, // Will be fetched separately
+            documents: undefined, // Will be in detailJson
+          };
+        });
 
         logger.info(
           `[OrderHistory] Fetched ${result.orders.length} orders, filtered to ${filteredOrders.length}, returning ${paginatedOrders.length}`,
@@ -1811,10 +1880,16 @@ app.post(
 
       try {
         // Clear existing cached orders
+        logger.info(
+          `[OrderHistory] Starting clearUserOrders for user ${userId}`,
+        );
         orderHistoryService.orderDb.clearUserOrders(userId);
         logger.info(`[OrderHistory] Cleared cached orders for user ${userId}`);
 
         // Force sync from Archibald (will scrape all pages)
+        logger.info(
+          `[OrderHistory] Starting syncFromArchibald for user ${userId}`,
+        );
         await orderHistoryService.syncFromArchibald(userId);
         logger.info(`[OrderHistory] Force sync completed for user ${userId}`);
 
@@ -1828,7 +1903,14 @@ app.post(
       }
     } catch (error) {
       logger.error("[OrderHistory] Error during force sync", {
-        error,
+        error:
+          error instanceof Error
+            ? {
+                message: error.message,
+                stack: error.stack,
+                code: (error as any).code,
+              }
+            : error,
         userId,
       });
 
@@ -1990,25 +2072,27 @@ app.post(
         const ddtData = await ddtScraperService.scrapeDDTData(userId);
 
         // Match and sync to database
-        const syncResult = await ddtScraperService.syncDDTToOrders(userId, ddtData);
+        const syncResult = await ddtScraperService.syncDDTToOrders(
+          userId,
+          ddtData,
+        );
 
         logger.info(`[DDT Sync] Completed for user ${userId}`, syncResult);
 
         return res.json({
           success: syncResult.success,
-          message: syncResult.message || `Synced ${syncResult.matched} DDT entries`,
+          message:
+            syncResult.message || `Synced ${syncResult.matched} DDT entries`,
           data: {
             matched: syncResult.matched,
             notFound: syncResult.notFound,
             scrapedCount: syncResult.scrapedCount,
           },
         });
-
       } finally {
         // Always resume background services
         priorityManager.resume();
       }
-
     } catch (error) {
       logger.error(`[DDT Sync] Failed for user ${userId}`, {
         error: error instanceof Error ? error.message : String(error),
@@ -2037,7 +2121,10 @@ app.post(
       });
 
       // Sync order states with cache
-      const syncResult = await stateSyncService.syncOrderStates(userId, forceRefresh);
+      const syncResult = await stateSyncService.syncOrderStates(
+        userId,
+        forceRefresh,
+      );
 
       logger.info(`[State Sync] Completed for user ${userId}`, syncResult);
 
@@ -2052,7 +2139,6 @@ app.post(
           scrapedCount: syncResult.scrapedCount,
         },
       });
-
     } catch (error) {
       logger.error(`[State Sync] Failed for user ${userId}`, {
         error: error instanceof Error ? error.message : String(error),
@@ -2096,7 +2182,6 @@ app.get(
           history,
         },
       });
-
     } catch (error) {
       logger.error(`[State History] Failed for order ${orderId}`, {
         error: error instanceof Error ? error.message : String(error),
