@@ -23,7 +23,11 @@ import { VoicePopulatedBadge } from "./VoicePopulatedBadge";
 import { VoiceDebugPanel, useVoiceDebugLogger } from "./VoiceDebugPanel";
 import { cacheService } from "../services/cache-service";
 import { draftService } from "../services/draft-service";
-import { saveDraftOrder } from "../services/draftOrderStorage";
+import {
+  saveDraftOrder,
+  getDraftOrderById,
+  updateDraftOrder,
+} from "../services/draftOrderStorage";
 import { useNetworkStatus } from "../hooks/useNetworkStatus";
 import { StaleCacheWarning } from "./StaleCacheWarning";
 import type { DraftOrderItem } from "../db/schema";
@@ -72,6 +76,7 @@ export default function OrderForm({
   const [loading, setLoading] = useState(false);
   const [customerId, setCustomerId] = useState("");
   const [customerName, setCustomerName] = useState("");
+  const [editingDraftId, setEditingDraftId] = useState<string | null>(null);
 
   // Customer autocomplete state
   const [customers, setCustomers] = useState<Customer[]>([]);
@@ -436,8 +441,52 @@ export default function OrderForm({
     checkCache();
   }, []);
 
-  // Restore draft on mount
+  // Load draft from localStorage if editing (draftId in query params)
   useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const draftId = params.get("draftId");
+
+    if (draftId) {
+      const draft = getDraftOrderById(draftId);
+      if (draft) {
+        console.log("[OrderForm] Loading draft for editing:", draftId);
+        setEditingDraftId(draftId);
+        setCustomerId(draft.customerId);
+        setCustomerName(draft.customerName);
+        setCustomerSearch(draft.customerName);
+
+        // Convert draft items to OrderItem format
+        const orderItems: OrderItem[] = draft.items.map((item) => ({
+          articleCode: item.articleCode,
+          productName: item.productName || item.articleCode,
+          description: item.description || "",
+          quantity: item.quantity,
+          price: item.price,
+          discount: item.discount || 0,
+        }));
+
+        setDraftItems(orderItems);
+
+        // Set discount if present
+        if (draft.discountPercent) {
+          // The discount will be calculated automatically
+        }
+
+        // Set target total if present
+        if (draft.targetTotalWithVAT) {
+          setTargetTotalWithVAT(draft.targetTotalWithVAT.toString());
+        }
+      } else {
+        console.error("[OrderForm] Draft not found:", draftId);
+      }
+    }
+  }, []);
+
+  // Restore draft on mount (legacy IndexedDB system)
+  useEffect(() => {
+    // Only restore from IndexedDB if not editing a localStorage draft
+    if (editingDraftId) return;
+
     async function restoreDraft() {
       const draft = await draftService.getDraft();
       if (draft && draft.items.length > 0) {
@@ -461,7 +510,7 @@ export default function OrderForm({
       }
     }
     restoreDraft();
-  }, []);
+  }, [editingDraftId]);
 
   // Auto-save draft with debounce
   useEffect(() => {
@@ -898,10 +947,7 @@ export default function OrderForm({
   const submitOrder = async () => {
     setLoading(true);
     try {
-      console.log("[OrderForm] Saving draft order to localStorage...");
-
-      // Save draft to localStorage (new flow: always save as draft)
-      const draft = saveDraftOrder({
+      const draftData = {
         customerId,
         customerName,
         items: draftItems.map((item) => ({
@@ -917,7 +963,21 @@ export default function OrderForm({
         targetTotalWithVAT: targetTotalWithVAT
           ? parseFloat(targetTotalWithVAT)
           : undefined,
-      });
+      };
+
+      let draft;
+      if (editingDraftId) {
+        // Update existing draft
+        console.log("[OrderForm] Updating existing draft:", editingDraftId);
+        draft = updateDraftOrder(editingDraftId, draftData);
+        if (!draft) {
+          throw new Error("Bozza non trovata");
+        }
+      } else {
+        // Create new draft
+        console.log("[OrderForm] Creating new draft...");
+        draft = saveDraftOrder(draftData);
+      }
 
       console.log("[OrderForm] Draft saved with ID:", draft.id);
 
@@ -931,11 +991,13 @@ export default function OrderForm({
       setCustomerName("");
       setCustomerSearch("");
       setTargetTotalWithVAT("");
+      setEditingDraftId(null);
 
       // Show success message
-      alert(
-        `✅ Bozza salvata!\n\nPuoi visualizzarla nella sezione "Bozze" e inviarla ad Archibald quando sei pronto.`,
-      );
+      const message = editingDraftId
+        ? "✅ Bozza aggiornata!\n\nLe modifiche sono state salvate."
+        : '✅ Bozza salvata!\n\nPuoi visualizzarla nella sezione "Bozze" e inviarla ad Archibald quando sei pronto.';
+      alert(message);
 
       // Navigate to drafts page
       navigate("/drafts");

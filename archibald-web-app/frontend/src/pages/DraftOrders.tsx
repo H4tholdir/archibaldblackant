@@ -29,7 +29,7 @@ export function DraftOrders() {
   };
 
   const handleEdit = (id: string) => {
-    navigate(`/order-form?draftId=${id}`);
+    navigate(`/?draftId=${id}`);
   };
 
   const handlePlaceOrder = async (id: string, customerName: string) => {
