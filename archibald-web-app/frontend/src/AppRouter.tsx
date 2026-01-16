@@ -24,7 +24,9 @@ import { CacheRefreshButton } from "./components/CacheRefreshButton";
 import { AdminPage } from "./pages/AdminPage";
 import { OrderHistory } from "./pages/OrderHistory";
 import { PendingOrdersView } from "./pages/PendingOrdersView";
+import { DraftOrders } from "./pages/DraftOrders";
 import { pendingOrdersService } from "./services/pending-orders-service";
+import { getDraftOrders } from "./services/draftOrderStorage";
 
 function AppRouter() {
   const auth = useAuth();
@@ -40,22 +42,27 @@ function AppRouter() {
   } | null>(null);
   const [showLoginForm, setShowLoginForm] = useState(false);
   const [pendingCount, setPendingCount] = useState(0);
+  const [draftCount, setDraftCount] = useState(0);
 
-  // Load pending count on mount and refresh periodically
+  // Load pending count and draft count on mount and refresh periodically
   useEffect(() => {
-    const loadPendingCount = async () => {
+    const loadCounts = async () => {
       try {
         const result = await pendingOrdersService.getPendingOrdersWithCounts();
         setPendingCount(result.counts.pending);
+
+        // Load draft orders count from localStorage
+        const drafts = getDraftOrders();
+        setDraftCount(drafts.length);
       } catch (error) {
-        console.error("[AppRouter] Failed to load pending count:", error);
+        console.error("[AppRouter] Failed to load counts:", error);
       }
     };
 
     if (auth.isAuthenticated) {
-      loadPendingCount();
-      // Refresh count every 30 seconds
-      const interval = setInterval(loadPendingCount, 30000);
+      loadCounts();
+      // Refresh counts every 30 seconds
+      const interval = setInterval(loadCounts, 30000);
       return () => clearInterval(interval);
     }
   }, [auth.isAuthenticated]);
@@ -184,6 +191,32 @@ function AppRouter() {
             </button>
             <button
               type="button"
+              onClick={() => navigate("/drafts")}
+              className={`btn btn-sm ${location.pathname === "/drafts" ? "btn-primary" : "btn-secondary"}`}
+              style={{ position: "relative" }}
+            >
+              📝 Bozze
+              {draftCount > 0 && (
+                <span
+                  style={{
+                    position: "absolute",
+                    top: "-8px",
+                    right: "-8px",
+                    backgroundColor: "#2196f3",
+                    color: "#fff",
+                    borderRadius: "10px",
+                    padding: "2px 6px",
+                    fontSize: "11px",
+                    fontWeight: 600,
+                    minWidth: "20px",
+                  }}
+                >
+                  {draftCount}
+                </span>
+              )}
+            </button>
+            <button
+              type="button"
               onClick={() => navigate("/orders")}
               className={`btn btn-sm ${location.pathname === "/orders" ? "btn-primary" : "btn-secondary"}`}
             >
@@ -195,7 +228,7 @@ function AppRouter() {
               className={`btn btn-sm ${location.pathname === "/pending" ? "btn-primary" : "btn-secondary"}`}
               style={{ position: "relative" }}
             >
-              📋 Coda Ordini Offline
+              📋 Coda Offline
               {pendingCount > 0 && (
                 <span
                   style={{
@@ -249,6 +282,27 @@ function AppRouter() {
             }
           />
         )}
+
+        {/* Draft Orders route */}
+        <Route
+          path="/drafts"
+          element={
+            <div
+              className="app"
+              style={{ marginTop: isOffline ? "64px" : "0" }}
+            >
+              <SyncBanner />
+              <AppHeader />
+              <main className="app-main" style={{ padding: "0" }}>
+                <DraftOrders />
+              </main>
+              <footer className="app-footer">
+                <p>v1.0.0 • Fresis Team</p>
+              </footer>
+              <CacheSyncProgress />
+            </div>
+          }
+        />
 
         {/* Order History route */}
         <Route

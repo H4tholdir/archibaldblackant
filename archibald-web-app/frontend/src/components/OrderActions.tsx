@@ -104,39 +104,76 @@ export function OrderActions({
           </>
         )}
 
-        {/* Edit Button - only for "creato" state */}
+        {/* Buttons for "creato" state (draft orders) */}
         {showEdit && (
-          <button
-            onClick={onEdit}
-            style={{
-              padding: "12px 20px",
-              fontSize: "14px",
-              fontWeight: 600,
-              backgroundColor: "#1976d2",
-              color: "#fff",
-              border: "none",
-              borderRadius: "8px",
-              cursor: "pointer",
-              transition: "all 0.2s",
-              display: "flex",
-              alignItems: "center",
-              gap: "8px",
-              boxShadow: "0 2px 4px rgba(0, 0, 0, 0.1)",
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.backgroundColor = "#1565c0";
-              e.currentTarget.style.transform = "translateY(-2px)";
-              e.currentTarget.style.boxShadow = "0 4px 8px rgba(0, 0, 0, 0.15)";
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.backgroundColor = "#1976d2";
-              e.currentTarget.style.transform = "translateY(0)";
-              e.currentTarget.style.boxShadow = "0 2px 4px rgba(0, 0, 0, 0.1)";
-            }}
-          >
-            <span>✏️</span>
-            <span>Modifica</span>
-          </button>
+          <>
+            <button
+              onClick={onSendToMilano}
+              style={{
+                padding: "12px 20px",
+                fontSize: "14px",
+                fontWeight: 600,
+                backgroundColor: "#4caf50",
+                color: "#fff",
+                border: "none",
+                borderRadius: "8px",
+                cursor: "pointer",
+                transition: "all 0.2s",
+                display: "flex",
+                alignItems: "center",
+                gap: "8px",
+                boxShadow: "0 2px 4px rgba(0, 0, 0, 0.1)",
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.backgroundColor = "#388e3c";
+                e.currentTarget.style.transform = "translateY(-2px)";
+                e.currentTarget.style.boxShadow =
+                  "0 4px 8px rgba(0, 0, 0, 0.15)";
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.backgroundColor = "#4caf50";
+                e.currentTarget.style.transform = "translateY(0)";
+                e.currentTarget.style.boxShadow =
+                  "0 2px 4px rgba(0, 0, 0, 0.1)";
+              }}
+            >
+              <span>🚀</span>
+              <span>Invia ad Archibald</span>
+            </button>
+            <button
+              onClick={onEdit}
+              style={{
+                padding: "12px 20px",
+                fontSize: "14px",
+                fontWeight: 600,
+                backgroundColor: "#1976d2",
+                color: "#fff",
+                border: "none",
+                borderRadius: "8px",
+                cursor: "pointer",
+                transition: "all 0.2s",
+                display: "flex",
+                alignItems: "center",
+                gap: "8px",
+                boxShadow: "0 2px 4px rgba(0, 0, 0, 0.1)",
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.backgroundColor = "#1565c0";
+                e.currentTarget.style.transform = "translateY(-2px)";
+                e.currentTarget.style.boxShadow =
+                  "0 4px 8px rgba(0, 0, 0, 0.15)";
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.backgroundColor = "#1976d2";
+                e.currentTarget.style.transform = "translateY(0)";
+                e.currentTarget.style.boxShadow =
+                  "0 2px 4px rgba(0, 0, 0, 0.1)";
+              }}
+            >
+              <span>✏️</span>
+              <span>Modifica</span>
+            </button>
+          </>
         )}
 
         {/* Not Modifiable Message - for all other states */}

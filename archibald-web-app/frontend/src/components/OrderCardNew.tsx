@@ -1124,8 +1124,14 @@ export function OrderCardNew({
     "panoramica" | "articoli" | "logistica" | "finanziario" | "storico"
   >("panoramica");
 
-  // Detect order state: "piazzato" orders don't have ORD/ number yet
-  const isPiazzato = !order.orderNumber || order.orderNumber.trim() === "";
+  // Detect draft orders (created locally but not yet placed on Archibald)
+  const isCreato =
+    order.state?.toLowerCase() === "creato" ||
+    order.status.toLowerCase() === "bozza";
+
+  // Detect order state: "piazzato" orders don't have ORD/ number yet (but only if not a draft)
+  const isPiazzato =
+    !isCreato && (!order.orderNumber || order.orderNumber.trim() === "");
 
   // DEBUG: Log order data to check ddt and tracking
   if (order.orderNumber === "ORD/26000387") {
@@ -1145,12 +1151,36 @@ export function OrderCardNew({
     { id: "storico" as const, label: "Storico", icon: "📜" },
   ];
 
+  // Determine card styling based on order state
+  const getCardStyle = () => {
+    if (isCreato) {
+      // Draft orders: blue/light blue
+      return {
+        backgroundColor: "#e3f2fd", // Light blue
+        border: "2px solid #2196f3", // Blue border
+      };
+    }
+    if (isPiazzato) {
+      // Piazzato orders: yellow/orange
+      return {
+        backgroundColor: "#fff8e1", // Light yellow
+        border: "2px solid #ffb300", // Orange border
+      };
+    }
+    // Normal orders: white
+    return {
+      backgroundColor: "#fff",
+      border: "none",
+    };
+  };
+
+  const cardStyle = getCardStyle();
+
   return (
     <div
       style={{
-        backgroundColor: isPiazzato ? "#fff8e1" : "#fff", // Yellow/orange light for "piazzato"
+        ...cardStyle,
         borderRadius: "12px",
-        border: isPiazzato ? "2px solid #ffb300" : "none", // Orange border for "piazzato"
         boxShadow: "0 2px 8px rgba(0, 0, 0, 0.1)",
         marginBottom: "12px",
         overflow: "hidden",
@@ -1206,6 +1236,24 @@ export function OrderCardNew({
                 flexWrap: "wrap",
               }}
             >
+              {/* Special badge for "Creato" orders (drafts) */}
+              {isCreato && (
+                <span
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    padding: "6px 12px",
+                    borderRadius: "16px",
+                    backgroundColor: "#2196f3", // Blue
+                    color: "#fff",
+                    fontSize: "12px",
+                    fontWeight: 600,
+                    gap: "4px",
+                  }}
+                >
+                  📝 Bozza
+                </span>
+              )}
               {/* Special badge for "Piazzato" orders (without ORD/) */}
               {isPiazzato && (
                 <span
