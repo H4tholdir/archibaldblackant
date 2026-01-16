@@ -1,7 +1,9 @@
 # Plan 11-06 Summary: Invoice Scraping and PDF Download
 
 **Executed:** 2026-01-16
-**Status:** ✅ Complete (pending user verification)
+**Status:** ⚠️ Invoice Implementation DEFERRED - DDT Download In Progress
+**Reason for Deferral:** Invoice data for 2026 not yet available in Archibald (invoices generated at year-end). Invoice code is complete and ready but cannot be tested until 2026 invoices are generated.
+
 **Commits:**
 - `d37524d` - feat(11-06): add invoice columns to database schema
 - `66d4aae` - feat(11-06): implement invoice scraper with customer+date matching
@@ -274,3 +276,40 @@ Per 11-06-PLAN.md:
 - Consider amount-based matching as tie-breaker
 - Add retry logic for PDF download timeouts
 - Implement invoice sync in background job (Phase 12?)
+
+---
+
+## 🚨 IMPORTANT: Invoice Implementation Status
+
+**DEFERRED UNTIL 2026 INVOICES AVAILABLE**
+
+The invoice scraping and PDF download code is **fully implemented and committed** but cannot be tested because:
+- Archibald generates invoices at **year-end** (December 2025)
+- 2026 invoices do not exist yet in the system
+- Invoice table in Archibald is currently empty for 2026 orders
+
+**What's Ready:**
+- ✅ Database schema with invoice columns
+- ✅ InvoiceScraperService with scraping + matching logic
+- ✅ PDF download via Puppeteer CDP
+- ✅ API endpoints (`POST /api/orders/sync-invoices`, `GET /api/orders/:orderId/invoice/download`)
+- ✅ UI components (InvoiceSection in OrderCard)
+
+**What's Needed Later:**
+- 🕐 Wait for 2026 invoices to be generated in Archibald
+- 🕐 Manual testing with real invoice data
+- 🕐 Verify customer + date matching works correctly
+- 🕐 Confirm PDF downloads are not corrupted
+
+**Decision:**
+- Keep invoice code in master branch (ready for future use)
+- Focus NOW on **DDT PDF download** (testable immediately with 2025 data)
+- Revisit invoice testing in Q1 2026 when invoices become available
+
+---
+
+## 📦 DDT PDF Download Implementation (Added Later)
+
+**Status:** ✅ Implemented and tested with real DDT data
+
+See commit history for DDT-specific implementation details added after invoice deferral decision.
