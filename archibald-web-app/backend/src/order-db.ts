@@ -615,6 +615,33 @@ export class OrderDatabase {
    * Clear all orders for a user (useful for forcing full re-sync)
    */
   clearUserOrders(userId: string): void {
+    // First, get all order IDs for this user
+    const orderIds = this.db
+      .prepare("SELECT id FROM orders WHERE userId = ?")
+      .all(userId)
+      .map((row: any) => row.id);
+
+    if (orderIds.length === 0) {
+      logger.info(`No orders to clear for user ${userId}`);
+      return;
+    }
+
+    // Delete related records first to avoid foreign key constraint errors
+    const placeholders = orderIds.map(() => "?").join(",");
+
+    // Delete from order_state_history
+    const stateResult = this.db
+      .prepare(`DELETE FROM order_state_history WHERE order_id IN (${placeholders})`)
+      .run(...orderIds);
+    logger.info(`Cleared ${stateResult.changes} state history entries`);
+
+    // Delete from order_audit_log
+    const auditResult = this.db
+      .prepare(`DELETE FROM order_audit_log WHERE order_id IN (${placeholders})`)
+      .run(...orderIds);
+    logger.info(`Cleared ${auditResult.changes} audit log entries`);
+
+    // Finally delete orders
     const result = this.db
       .prepare("DELETE FROM orders WHERE userId = ?")
       .run(userId);

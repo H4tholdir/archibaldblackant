@@ -668,9 +668,15 @@ export class OrderHistoryService {
     let currentPage = 1;
     let hasMorePages = true;
     const MAX_PAGES = 100; // Increased to handle large order histories (was 10)
+    const DAYS_LIMIT = 60; // Only scrape orders from last 60 days
+    const cutoffDate = new Date();
+    cutoffDate.setDate(cutoffDate.getDate() - DAYS_LIMIT);
 
     logger.info(
-      "[OrderHistoryService] Starting multi-page scraping (up to 100 pages)",
+      `[OrderHistoryService] Starting multi-page scraping (up to 100 pages, last ${DAYS_LIMIT} days)`,
+    );
+    logger.info(
+      `[OrderHistoryService] Cutoff date: ${cutoffDate.toISOString().split("T")[0]}`,
     );
 
     while (
@@ -699,8 +705,26 @@ export class OrderHistoryService {
         break;
       }
 
-      // Add all orders from page (no duplicate check - Archibald data is authoritative)
-      allOrders.push(...pageOrders);
+      // Filter orders by date (only keep orders within last 60 days)
+      const recentOrders = pageOrders.filter((order) => {
+        const orderDate = new Date(order.creationDate);
+        return orderDate >= cutoffDate;
+      });
+
+      logger.info(
+        `[OrderHistoryService] ${recentOrders.length}/${pageOrders.length} orders are within last ${DAYS_LIMIT} days`,
+      );
+
+      // Add recent orders
+      allOrders.push(...recentOrders);
+
+      // If we found old orders, stop scraping (table is sorted by date DESC)
+      if (recentOrders.length < pageOrders.length) {
+        logger.info(
+          `[OrderHistoryService] Found orders older than ${DAYS_LIMIT} days, stopping scraping`,
+        );
+        break;
+      }
 
       // Check if we have enough orders
       if (allOrders.length >= limit) {
@@ -935,6 +959,36 @@ export class OrderHistoryService {
   ): Promise<OrderDetail | null> {
     logger.info(
       `[OrderHistoryService] Fetching order detail for user ${userId}, order ${orderId}`,
+    );
+
+    // First, try to get detail from database cache
+    try {
+      const cachedOrder = this.orderDb.getOrder(orderId, userId);
+      if (cachedOrder && cachedOrder.detailJson) {
+        logger.info(
+          `[OrderHistoryService] Returning cached detail for order ${orderId}`,
+        );
+        const detail = JSON.parse(cachedOrder.detailJson);
+
+        // Add currentState and tracking fields from DB to detail
+        return {
+          ...detail,
+          currentState: cachedOrder.currentState,
+          ddtNumber: cachedOrder.ddtNumber,
+          trackingNumber: cachedOrder.trackingNumber,
+          trackingUrl: cachedOrder.trackingUrl,
+          trackingCourier: cachedOrder.trackingCourier,
+        };
+      }
+    } catch (err) {
+      logger.warn(
+        `[OrderHistoryService] Error reading cached detail for order ${orderId}, falling back to scraping`,
+        { error: err },
+      );
+    }
+
+    logger.info(
+      `[OrderHistoryService] No cached detail found, scraping from Archibald for order ${orderId}`,
     );
 
     let bot = null;
