@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 
 export interface OrderItem {
   articleCode: string;
@@ -25,6 +25,11 @@ export interface Order {
     courier: string;
     trackingNumber: string;
   };
+  invoice?: {
+    invoiceNumber: string;
+    invoiceDate: string;
+    invoiceAmount: number;
+  };
   documents?: Array<{
     type: string;
     name: string;
@@ -41,6 +46,7 @@ interface OrderCardProps {
   onToggle: () => void;
   onDocumentsClick?: (orderId: string) => void;
   timelineComponent?: ReactNode;
+  token?: string;
 }
 
 function formatDate(dateString: string): string {
@@ -253,12 +259,186 @@ function DocumentsList({
   );
 }
 
+function InvoiceSection({ order, token }: { order: Order; token?: string }) {
+  const [isDownloading, setIsDownloading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  if (!order.invoice) {
+    return (
+      <div style={{ marginTop: "16px" }}>
+        <div
+          style={{
+            fontSize: "14px",
+            fontWeight: 600,
+            marginBottom: "8px",
+            color: "#333",
+          }}
+        >
+          Fattura
+        </div>
+        <div
+          style={{
+            padding: "12px",
+            backgroundColor: "#f5f5f5",
+            borderRadius: "8px",
+            fontSize: "14px",
+            color: "#666",
+          }}
+        >
+          Fattura non ancora disponibile
+        </div>
+      </div>
+    );
+  }
+
+  const handleDownloadInvoice = async () => {
+    if (!token) {
+      setError("Token di autenticazione mancante");
+      return;
+    }
+
+    setIsDownloading(true);
+    setError(null);
+
+    try {
+      const response = await fetch(`/api/orders/${order.id}/invoice/download`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || "Errore durante il download");
+      }
+
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `invoice-${order.invoice.invoiceNumber.replace(/\//g, "-")}.pdf`;
+      a.click();
+      window.URL.revokeObjectURL(url);
+    } catch (err) {
+      const errorMessage =
+        err instanceof Error ? err.message : "Errore sconosciuto";
+      setError(errorMessage);
+      console.error("Invoice download error:", err);
+    } finally {
+      setIsDownloading(false);
+    }
+  };
+
+  const formatCurrency = (amount: number) => {
+    return new Intl.NumberFormat("it-IT", {
+      style: "currency",
+      currency: "EUR",
+    }).format(amount);
+  };
+
+  return (
+    <div style={{ marginTop: "16px" }}>
+      <div
+        style={{
+          fontSize: "14px",
+          fontWeight: 600,
+          marginBottom: "8px",
+          color: "#333",
+        }}
+      >
+        Fattura
+      </div>
+      <div
+        style={{
+          padding: "12px",
+          backgroundColor: "#e8f5e9",
+          borderRadius: "8px",
+          border: "1px solid #a5d6a7",
+        }}
+      >
+        <div
+          style={{
+            fontSize: "14px",
+            color: "#333",
+            marginBottom: "4px",
+          }}
+        >
+          <strong>Numero:</strong> {order.invoice.invoiceNumber}
+        </div>
+        <div
+          style={{
+            fontSize: "14px",
+            color: "#333",
+            marginBottom: "4px",
+          }}
+        >
+          <strong>Data:</strong> {formatDate(order.invoice.invoiceDate)}
+        </div>
+        <div
+          style={{
+            fontSize: "14px",
+            color: "#333",
+            marginBottom: "12px",
+          }}
+        >
+          <strong>Importo:</strong>{" "}
+          {formatCurrency(order.invoice.invoiceAmount)}
+        </div>
+        <button
+          onClick={handleDownloadInvoice}
+          disabled={isDownloading}
+          style={{
+            padding: "8px 16px",
+            backgroundColor: isDownloading ? "#ccc" : "#4caf50",
+            color: "#fff",
+            border: "none",
+            borderRadius: "6px",
+            fontSize: "14px",
+            fontWeight: 600,
+            cursor: isDownloading ? "not-allowed" : "pointer",
+            display: "flex",
+            alignItems: "center",
+            gap: "8px",
+            width: "100%",
+            justifyContent: "center",
+          }}
+        >
+          {isDownloading ? (
+            <>
+              <span>⏳</span>
+              <span>Download in corso...</span>
+            </>
+          ) : (
+            <>
+              <span>📄</span>
+              <span>Scarica fattura</span>
+            </>
+          )}
+        </button>
+        {error && (
+          <div
+            style={{
+              marginTop: "8px",
+              padding: "8px",
+              backgroundColor: "#ffebee",
+              borderRadius: "4px",
+              fontSize: "12px",
+              color: "#c62828",
+            }}
+          >
+            {error}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export function OrderCard({
   order,
   expanded,
   onToggle,
   onDocumentsClick,
   timelineComponent,
+  token,
 }: OrderCardProps) {
   const handleCardClick = () => {
     onToggle();
@@ -476,6 +656,9 @@ export function OrderCard({
               </div>
             </div>
           )}
+
+          {/* Invoice details */}
+          <InvoiceSection order={order} token={token} />
 
           {/* Documents */}
           {order.documents && order.documents.length > 0 && (
