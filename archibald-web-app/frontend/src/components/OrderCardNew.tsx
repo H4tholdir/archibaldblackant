@@ -554,7 +554,9 @@ function TabLogistica({ order, token }: { order: Order; token?: string }) {
     setDdtError(null);
 
     try {
-      const response = await fetch(`/api/orders/${order.id}/ddt/download`, {
+      // Use orderNumber (ORD/xxxxxxxx) instead of internal id for API call
+      const orderIdentifier = order.orderNumber || order.id;
+      const response = await fetch(`/api/orders/${orderIdentifier}/ddt/download`, {
         headers: { Authorization: `Bearer ${token}` },
       });
 

@@ -2558,6 +2558,19 @@ app.get(
   },
 );
 
+// Debug endpoint to check JWT userId
+app.get("/api/debug/me", authenticateJWT, (req: AuthRequest, res: Response) => {
+  const userId = req.userId!;
+  const orderDb = OrderDatabase.getInstance();
+  const userOrders = orderDb.getOrders(userId);
+
+  return res.json({
+    userId,
+    orderCount: userOrders.length,
+    sampleOrderIds: userOrders.slice(0, 3).map(o => o.id),
+  });
+});
+
 // Download DDT PDF - GET /api/orders/:orderId/ddt/download
 app.get(
   "/api/orders/:orderId/ddt/download",
@@ -2575,7 +2588,21 @@ app.get(
       );
 
       // Verify order belongs to user
-      const order = orderDb.getOrderById(userId, orderId);
+      // Try to find by internal id first, then by orderNumber (ORD/xxxxxxxx format)
+      let order = orderDb.getOrderById(userId, orderId);
+
+      if (!order) {
+        // Try finding by orderNumber instead
+        const allOrders = orderDb.getOrders(userId);
+        order = allOrders.find(o => o.orderNumber === orderId) || null;
+
+        if (order) {
+          logger.info(
+            `[DDT Download] Order found by orderNumber: ${order.id}`,
+          );
+        }
+      }
+
       if (!order) {
         logger.warn(
           `[DDT Download] Order not found: orderId=${orderId}, userId=${userId}`,
@@ -2587,7 +2614,7 @@ app.get(
       }
 
       logger.info(
-        `[DDT Download] Order found: ${order.id}, ddtNumber: ${order.ddtNumber}, trackingNumber: ${order.trackingNumber}`,
+        `[DDT Download] Order found: ${order.id}, orderNumber: ${order.orderNumber}, ddtNumber: ${order.ddtNumber}, trackingNumber: ${order.trackingNumber}`,
       );
 
       // Verify DDT exists
