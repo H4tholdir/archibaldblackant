@@ -439,74 +439,111 @@ export class DDTScraperService {
           timeout: 60000,
         });
 
-        // Wait for table to load
-        logger.info("[DDTScraper] Waiting for table to load (2s)");
+        // Wait for page to load
+        logger.info("[DDTScraper] Waiting for page to load (2s)");
         await new Promise((resolve) => setTimeout(resolve, 2000));
 
-        // Scrape DDT page to find the matching DDT
-        logger.info("[DDTScraper] Scraping DDT page for matching entry");
-        const ddtList = await this.scrapeDDTPage(page);
-        logger.info(`[DDTScraper] Scraped ${ddtList.length} DDT entries`);
-
-        // Find DDT by order ID (direct match)
-        const matchedDDT = ddtList.find(
-          (ddt) => ddt.orderId === order.orderNumber,
-        );
-
-        if (!matchedDDT) {
-          logger.error(`[DDTScraper] No DDT match found`, {
-            orderId: order.id,
-            orderNumber: order.orderNumber,
-            ddtNumber: order.ddtNumber,
-            scrapedDDTs: ddtList.length,
-            sampleDDTs: ddtList.slice(0, 3).map(d => ({ orderId: d.orderId, ddtNumber: d.ddtNumber })),
-          });
-          throw new Error(
-            `No DDT found for order ${order.id} (orderNumber: ${order.orderNumber})`,
-          );
-        }
-
+        // Use search bar to filter for specific order
         logger.info(
-          `[DDTScraper] Found DDT ${matchedDDT.ddtNumber} for order ${order.id}`,
+          `[DDTScraper] Using search bar to filter for order ${order.orderNumber}`,
         );
+        const searchInputSelector =
+          'input[id*="SearchAC"][id*="Ed_I"][type="text"]';
+        await page.waitForSelector(searchInputSelector, { timeout: 10000 });
 
-        // Find the row ID for checkbox selection
-        logger.info(`[DDTScraper] Finding row ID for DDT ${matchedDDT.ddtNumber}`);
-        const rowId = await page.evaluate((ddtNumber) => {
-          const rows = document.querySelectorAll(
-            "tr.dxgvDataRow, tr.dxgvDataRow_XafTheme",
-          );
-          for (const row of Array.from(rows)) {
-            const cells = row.querySelectorAll("td");
-            for (const cell of Array.from(cells)) {
-              if (cell.textContent?.trim() === ddtNumber) {
-                return row.id;
+        // Click on search field to focus it
+        await page.click(searchInputSelector);
+        await new Promise((resolve) => setTimeout(resolve, 300));
+
+        // Paste order number (faster than typing)
+        logger.info(`[DDTScraper] Pasting order number "${order.orderNumber}" into search field`);
+        await page.evaluate((selector, orderNumber) => {
+          const input = document.querySelector(selector) as HTMLInputElement;
+          if (input) {
+            // Clear existing value
+            input.value = "";
+            input.focus();
+
+            // Set new value
+            input.value = orderNumber || "";
+
+            // Trigger all relevant events that DevExpress might listen to
+            input.dispatchEvent(new Event("input", { bubbles: true }));
+            input.dispatchEvent(new Event("change", { bubbles: true }));
+            input.dispatchEvent(new KeyboardEvent("keyup", { bubbles: true, key: "Enter", keyCode: 13 }));
+
+            // Trigger DevExpress-specific events if they exist
+            if (typeof (window as any).ASPx !== "undefined") {
+              const aspx = (window as any).ASPx;
+              if (aspx.EValueChanged) {
+                aspx.EValueChanged(input.id);
               }
             }
           }
-          return null;
-        }, matchedDDT.ddtNumber);
+        }, searchInputSelector, order.orderNumber);
+
+        // Small delay for DevExpress to process
+        await new Promise((resolve) => setTimeout(resolve, 300));
+
+        // Trigger search by pressing Enter
+        logger.info("[DDTScraper] Triggering search with Enter key");
+        await page.keyboard.press("Enter");
+
+        // Wait for filtered results to load
+        logger.info("[DDTScraper] Waiting for filtered results (3s)");
+        await new Promise((resolve) => setTimeout(resolve, 3000));
+
+        // Verify that we have exactly 1 result row
+        logger.info("[DDTScraper] Verifying filtered results");
+        const rowCount = await page.evaluate(() => {
+          const rows = document.querySelectorAll(
+            "tr.dxgvDataRow, tr.dxgvDataRow_XafTheme",
+          );
+          return rows.length;
+        });
+
+        logger.info(`[DDTScraper] Found ${rowCount} row(s) after filtering`);
+
+        if (rowCount === 0) {
+          throw new Error(
+            `No DDT found for order ${order.orderNumber} after search`,
+          );
+        }
+
+        // Get the row ID from the first (and should be only) result
+        logger.info("[DDTScraper] Getting row ID from filtered result");
+        const rowId = await page.evaluate(() => {
+          const row = document.querySelector(
+            "tr.dxgvDataRow, tr.dxgvDataRow_XafTheme",
+          );
+          return row?.id || null;
+        });
 
         if (!rowId) {
-          logger.error(`[DDTScraper] Row not found for DDT`, {
-            ddtNumber: matchedDDT.ddtNumber,
-            orderId: order.id,
-          });
-          throw new Error(`Row not found for DDT ${matchedDDT.ddtNumber}`);
+          throw new Error(`Could not find row ID for order ${order.orderNumber}`);
         }
 
         logger.info(`[DDTScraper] Found row ID: ${rowId}`);
 
-        // Select DDT row by clicking checkbox
+        // Select DDT row by clicking checkbox (DevExpress style)
         logger.info(`[DDTScraper] Selecting DDT row (rowId: ${rowId})`);
         await page.evaluate((id) => {
-          const checkbox = document.querySelector(
-            `input[type="checkbox"][id*="${id}"]`,
-          ) as HTMLInputElement;
-          if (checkbox) {
-            checkbox.click();
+          // Find the row first
+          const row = document.getElementById(id);
+          if (!row) {
+            throw new Error(`Row not found with id: ${id}`);
+          }
+
+          // Find the td.dxgvCommandColumn with onclick attribute
+          const checkboxTd = row.querySelector(
+            'td.dxgvCommandColumn_XafTheme[onclick*="Select"]',
+          ) as HTMLElement;
+
+          if (checkboxTd) {
+            // Click the td element (DevExpress handles the rest)
+            checkboxTd.click();
           } else {
-            throw new Error(`Checkbox not found for row ${id}`);
+            throw new Error(`Checkbox td not found for row ${id}`);
           }
         }, rowId);
 
@@ -518,10 +555,10 @@ export class DDTScraperService {
         logger.info('[DDTScraper] Clicking "Scarica PDF" button');
         await page.click('li[title="Scarica PDF"] a.dxm-content');
 
-        // Wait for PDF link to appear (td selector for DDT)
+        // Wait for PDF link to appear (div selector for DDT)
         logger.info("[DDTScraper] Waiting for PDF link generation (15s timeout)");
         await page.waitForSelector(
-          'td[id$="_xaf_InvoicePDF"] a.XafFileDataAnchor',
+          'div[id$="_xaf_InvoicePDF"] a.XafFileDataAnchor',
           {
             timeout: 15000,
           },
@@ -544,7 +581,7 @@ export class DDTScraperService {
         logger.info("[DDTScraper] Clicking PDF link to download");
 
         // Click PDF link
-        await page.click('td[id$="_xaf_InvoicePDF"] a.XafFileDataAnchor');
+        await page.click('div[id$="_xaf_InvoicePDF"] a.XafFileDataAnchor');
 
         // Wait for download to complete
         logger.info("[DDTScraper] Waiting for download to complete (5s)");

@@ -2374,7 +2374,10 @@ app.post(
   "/api/orders/sync-ddt",
   authenticateJWT,
   async (req: AuthRequest, res: Response) => {
-    const userId = req.userId!;
+    const userId = req.user?.userId;
+    if (!userId) {
+      return res.status(401).json({ success: false, error: "Unauthorized" });
+    }
     const orderDb = OrderDatabase.getInstance();
     const ddtScraperService = new DDTScraperService();
     const priorityManager = PriorityManager.getInstance();
@@ -2429,7 +2432,10 @@ app.post(
   "/api/orders/sync-invoices",
   authenticateJWT,
   async (req: AuthRequest, res: Response) => {
-    const userId = req.userId!;
+    const userId = req.user?.userId;
+    if (!userId) {
+      return res.status(401).json({ success: false, error: "Unauthorized" });
+    }
     const orderDb = OrderDatabase.getInstance();
     const invoiceScraperService = new (
       await import("./invoice-scraper-service")
@@ -2487,7 +2493,10 @@ app.get(
   "/api/orders/:orderId/invoice/download",
   authenticateJWT,
   async (req: AuthRequest, res: Response) => {
-    const userId = req.userId!;
+    const userId = req.user?.userId;
+    if (!userId) {
+      return res.status(401).json({ success: false, error: "Unauthorized" });
+    }
     const { orderId } = req.params;
     const orderDb = OrderDatabase.getInstance();
     const invoiceScraperService = new (
@@ -2560,7 +2569,10 @@ app.get(
 
 // Debug endpoint to check JWT userId
 app.get("/api/debug/me", authenticateJWT, (req: AuthRequest, res: Response) => {
-  const userId = req.userId!;
+  const userId = req.user?.userId;
+  if (!userId) {
+    return res.status(401).json({ error: "Unauthorized" });
+  }
   const orderDb = OrderDatabase.getInstance();
   const userOrders = orderDb.getOrdersByUser(userId);
 
@@ -2578,7 +2590,10 @@ app.get(
   "/api/orders/:orderId/ddt/download",
   authenticateJWT,
   async (req: AuthRequest, res: Response) => {
-    const userId = req.userId!;
+    const userId = req.user?.userId;
+    if (!userId) {
+      return res.status(401).json({ success: false, error: "Unauthorized" });
+    }
     // Decode the orderId parameter (handles ORD%2F26000567 -> ORD/26000567)
     const orderId = decodeURIComponent(req.params.orderId);
     const orderDb = OrderDatabase.getInstance();
@@ -2688,7 +2703,10 @@ app.post(
   "/api/orders/sync-states",
   authenticateJWT,
   async (req: AuthRequest, res: Response) => {
-    const userId = req.userId!;
+    const userId = req.user?.userId;
+    if (!userId) {
+      return res.status(401).json({ success: false, error: "Unauthorized" });
+    }
     const forceRefresh = req.query.forceRefresh === "true";
     const stateSyncService = new OrderStateSyncService();
 
@@ -2734,7 +2752,10 @@ app.get(
   "/api/orders/:orderId/state-history",
   authenticateJWT,
   async (req: AuthRequest, res: Response) => {
-    const userId = req.userId!;
+    const userId = req.user?.userId;
+    if (!userId) {
+      return res.status(401).json({ success: false, error: "Unauthorized" });
+    }
     const orderId = req.params.orderId;
     const orderDb = OrderDatabase.getInstance();
 
