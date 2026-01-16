@@ -13,6 +13,7 @@ interface OrderCardProps {
   onToggle: () => void;
   onSendToMilano?: (orderId: string, customerName: string) => void;
   onEdit?: (orderId: string) => void;
+  token?: string;
 }
 
 // ============================================================================
@@ -525,12 +526,58 @@ function TabArticoli({ items }: { items?: OrderItem[] }) {
   );
 }
 
-function TabLogistica({ order }: { order: Order }) {
+function TabLogistica({ order, token }: { order: Order; token?: string }) {
+  const [isDownloadingDDT, setIsDownloadingDDT] = useState(false);
+  const [ddtError, setDdtError] = useState<string | null>(null);
+
   const ddt = order.ddt;
   const tracking = order.tracking || {
     trackingNumber: ddt?.trackingNumber,
     trackingUrl: ddt?.trackingUrl,
     trackingCourier: ddt?.trackingCourier,
+  };
+
+  const handleDownloadDDT = async () => {
+    if (!token) {
+      setDdtError("Token di autenticazione mancante");
+      return;
+    }
+
+    if (!ddt?.trackingNumber) {
+      setDdtError(
+        "Tracking non disponibile: il PDF DDT non può essere generato senza un codice di tracciamento attivo",
+      );
+      return;
+    }
+
+    setIsDownloadingDDT(true);
+    setDdtError(null);
+
+    try {
+      const response = await fetch(`/api/orders/${order.id}/ddt/download`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || "Errore durante il download");
+      }
+
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `ddt-${ddt.ddtNumber?.replace(/\//g, "-") || "documento"}.pdf`;
+      a.click();
+      window.URL.revokeObjectURL(url);
+    } catch (err) {
+      const errorMessage =
+        err instanceof Error ? err.message : "Errore sconosciuto";
+      setDdtError(errorMessage);
+      console.error("DDT download error:", err);
+    } finally {
+      setIsDownloadingDDT(false);
+    }
   };
 
   return (
@@ -562,6 +609,75 @@ function TabLogistica({ order }: { order: Order }) {
               value={formatDate(ddt.ddtDeliveryDate)}
             />
             <InfoField label="ID Ordine Vendita" value={ddt.orderId} />
+          </div>
+
+          {/* DDT PDF Download Button */}
+          <div style={{ marginTop: "16px" }}>
+            <button
+              onClick={handleDownloadDDT}
+              disabled={isDownloadingDDT || !ddt.trackingNumber}
+              style={{
+                width: "100%",
+                padding: "12px",
+                backgroundColor:
+                  isDownloadingDDT || !ddt.trackingNumber ? "#ccc" : "#4caf50",
+                color: "#fff",
+                border: "none",
+                borderRadius: "8px",
+                fontSize: "14px",
+                fontWeight: 600,
+                cursor:
+                  isDownloadingDDT || !ddt.trackingNumber
+                    ? "not-allowed"
+                    : "pointer",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: "8px",
+                transition: "background-color 0.2s",
+              }}
+              onMouseEnter={(e) => {
+                if (!isDownloadingDDT && ddt.trackingNumber) {
+                  e.currentTarget.style.backgroundColor = "#388e3c";
+                }
+              }}
+              onMouseLeave={(e) => {
+                if (!isDownloadingDDT && ddt.trackingNumber) {
+                  e.currentTarget.style.backgroundColor = "#4caf50";
+                }
+              }}
+            >
+              {isDownloadingDDT ? (
+                <>
+                  <span>⏳</span>
+                  <span>Download in corso...</span>
+                </>
+              ) : !ddt.trackingNumber ? (
+                <>
+                  <span>🔒</span>
+                  <span>Download disponibile dopo attivazione tracking</span>
+                </>
+              ) : (
+                <>
+                  <span>📄</span>
+                  <span>Scarica PDF DDT</span>
+                </>
+              )}
+            </button>
+            {ddtError && (
+              <div
+                style={{
+                  marginTop: "8px",
+                  padding: "8px",
+                  backgroundColor: "#ffebee",
+                  borderRadius: "4px",
+                  fontSize: "12px",
+                  color: "#c62828",
+                }}
+              >
+                {ddtError}
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -1119,6 +1235,7 @@ export function OrderCardNew({
   onToggle,
   onSendToMilano,
   onEdit,
+  token,
 }: OrderCardProps) {
   const [activeTab, setActiveTab] = useState<
     "panoramica" | "articoli" | "logistica" | "finanziario" | "storico"
@@ -1386,7 +1503,9 @@ export function OrderCardNew({
           <div style={{ minHeight: "300px" }}>
             {activeTab === "panoramica" && <TabPanoramica order={order} />}
             {activeTab === "articoli" && <TabArticoli items={order.items} />}
-            {activeTab === "logistica" && <TabLogistica order={order} />}
+            {activeTab === "logistica" && (
+              <TabLogistica order={order} token={token} />
+            )}
             {activeTab === "finanziario" && <TabFinanziario order={order} />}
             {activeTab === "storico" && <TabStorico order={order} />}
           </div>

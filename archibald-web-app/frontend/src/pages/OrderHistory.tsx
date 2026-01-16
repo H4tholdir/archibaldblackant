@@ -849,6 +849,7 @@ export function OrderHistory() {
                       onToggle={() => handleToggle(order.id)}
                       onSendToMilano={handleSendToMilano}
                       onEdit={handleEdit}
+                      token={localStorage.getItem("archibald_jwt") || undefined}
                     />
                   );
                 })}
