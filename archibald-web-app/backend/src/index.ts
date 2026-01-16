@@ -2562,7 +2562,7 @@ app.get(
 app.get("/api/debug/me", authenticateJWT, (req: AuthRequest, res: Response) => {
   const userId = req.userId!;
   const orderDb = OrderDatabase.getInstance();
-  const userOrders = orderDb.getOrders(userId);
+  const userOrders = orderDb.getOrdersByUser(userId);
 
   return res.json({
     userId,
@@ -2596,7 +2596,7 @@ app.get(
 
       if (!order) {
         // Try finding by orderNumber instead
-        const allOrders = orderDb.getOrders(userId);
+        const allOrders = orderDb.getOrdersByUser(userId);
         order = allOrders.find(o => o.orderNumber === orderId) || null;
 
         if (order) {
