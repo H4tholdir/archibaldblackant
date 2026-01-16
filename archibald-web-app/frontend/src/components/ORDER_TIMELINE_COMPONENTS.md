@@ -4,9 +4,11 @@ Banking app style components for displaying order history with expandable cards,
 
 ## Components
 
-### OrderCard
+### OrderCardNew
 
 Expandable card component for displaying order information with collapsed and expanded states.
+
+**Note:** This component replaces the deprecated `OrderCard.tsx`.
 
 **Props:**
 ```typescript
@@ -52,19 +54,16 @@ interface Order {
 
 **Example:**
 ```tsx
-import { OrderCard } from './components/OrderCard';
+import { OrderCardNew } from './components/OrderCardNew';
 import { OrderTimeline } from './components/OrderTimeline';
 
-<OrderCard
+<OrderCardNew
   order={order}
   expanded={expandedOrderId === order.id}
   onToggle={() => setExpandedOrderId(order.id)}
-  onDocumentsClick={(id) => console.log('Open docs for', id)}
-  timelineComponent={
-    order.statusTimeline ? (
-      <OrderTimeline updates={order.statusTimeline} />
-    ) : null
-  }
+  onSendToMilano={(id, name) => console.log('Send to Milano', id, name)}
+  onEdit={(id) => console.log('Edit order', id)}
+  token={jwtToken}
 />
 ```
 
@@ -163,7 +162,7 @@ const groupedOrders = groupOrdersByPeriod(orders);
   <div key={group.period}>
     <h3>{group.period}</h3>
     {group.orders.map(order => (
-      <OrderCard key={order.id} order={order} ... />
+      <OrderCardNew key={order.id} order={order} ... />
     ))}
   </div>
 ))}
@@ -220,10 +219,9 @@ npm test -- src/utils/orderGrouping.spec.ts --run
 
 ## Integration Example
 
-See `OrderCard.example.tsx` for complete integration examples showing:
-1. Single order card with timeline
-2. Grouped orders by period
-3. Standalone timeline component
+For complete integration examples, see:
+- `OrderHistory.tsx` - Full order history page with grouping, filters, and actions
+- `DraftOrders.tsx` - Draft orders management page
 
 ---
 
@@ -238,11 +236,12 @@ All components and utilities are fully typed with TypeScript:
 
 ## Best Practices
 
-1. **Use timelineComponent prop** - Pass OrderTimeline as a prop to OrderCard for flexible composition
-2. **Handle click events separately** - Card toggle and documents button have separate handlers
+1. **Use tab-based layout** - OrderCardNew uses tabs (Panoramica, Articoli, Logistica, Finanziario, Storico) for organized content
+2. **Handle click events separately** - Card toggle, send to Milano, and edit actions have separate handlers
 3. **Format dates/totals before passing** - Components expect pre-formatted strings for display
 4. **Use groupOrdersByPeriod for lists** - Temporal grouping improves UX for large order histories
-5. **Control expanded state externally** - OrderCard is controlled component for flexible state management
+5. **Control expanded state externally** - OrderCardNew is controlled component for flexible state management
+6. **Pass JWT token** - Required for authenticated actions like DDT PDF download
 
 ---
 
