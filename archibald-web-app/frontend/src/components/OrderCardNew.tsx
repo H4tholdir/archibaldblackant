@@ -556,7 +556,9 @@ function TabLogistica({ order, token }: { order: Order; token?: string }) {
     try {
       // Use orderNumber (ORD/xxxxxxxx) instead of internal id for API call
       const orderIdentifier = order.orderNumber || order.id;
-      const response = await fetch(`/api/orders/${orderIdentifier}/ddt/download`, {
+      // Encode the order identifier to handle slashes in ORD/xxxxxxxx format
+      const encodedId = encodeURIComponent(orderIdentifier);
+      const response = await fetch(`/api/orders/${encodedId}/ddt/download`, {
         headers: { Authorization: `Bearer ${token}` },
       });
 

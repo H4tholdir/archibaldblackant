@@ -2577,7 +2577,8 @@ app.get(
   authenticateJWT,
   async (req: AuthRequest, res: Response) => {
     const userId = req.userId!;
-    const { orderId } = req.params;
+    // Decode the orderId parameter (handles ORD%2F26000567 -> ORD/26000567)
+    const orderId = decodeURIComponent(req.params.orderId);
     const orderDb = OrderDatabase.getInstance();
     const ddtScraperService = new DDTScraperService();
     const priorityManager = PriorityManager.getInstance();
