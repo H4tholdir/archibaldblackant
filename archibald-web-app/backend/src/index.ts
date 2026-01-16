@@ -2570,16 +2570,25 @@ app.get(
     const priorityManager = PriorityManager.getInstance();
 
     try {
-      logger.info(`[DDT Download] Starting PDF download for order ${orderId}`);
+      logger.info(
+        `[DDT Download] Starting PDF download for order ${orderId}, userId: ${userId}`,
+      );
 
       // Verify order belongs to user
       const order = orderDb.getOrderById(userId, orderId);
       if (!order) {
+        logger.warn(
+          `[DDT Download] Order not found: orderId=${orderId}, userId=${userId}`,
+        );
         return res.status(404).json({
           success: false,
           error: "Order not found",
         });
       }
+
+      logger.info(
+        `[DDT Download] Order found: ${order.id}, ddtNumber: ${order.ddtNumber}, trackingNumber: ${order.trackingNumber}`,
+      );
 
       // Verify DDT exists
       if (!order.ddtNumber) {
