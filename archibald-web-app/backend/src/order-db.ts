@@ -786,26 +786,38 @@ export class OrderDatabase {
       return;
     }
 
-    // Delete related records first to avoid foreign key constraint errors
-    const placeholders = orderIds.map(() => "?").join(",");
+    // Temporarily disable foreign key constraints to avoid mismatch errors
+    this.db.prepare("PRAGMA foreign_keys = OFF").run();
 
-    // Delete from order_state_history
-    const stateResult = this.db
-      .prepare(`DELETE FROM order_state_history WHERE order_id IN (${placeholders})`)
-      .run(...orderIds);
-    logger.info(`Cleared ${stateResult.changes} state history entries`);
+    try {
+      // Delete related records first to avoid foreign key constraint errors
+      const placeholders = orderIds.map(() => "?").join(",");
 
-    // Delete from order_audit_log
-    const auditResult = this.db
-      .prepare(`DELETE FROM order_audit_log WHERE order_id IN (${placeholders})`)
-      .run(...orderIds);
-    logger.info(`Cleared ${auditResult.changes} audit log entries`);
+      // Delete from order_state_history
+      const stateResult = this.db
+        .prepare(
+          `DELETE FROM order_state_history WHERE order_id IN (${placeholders})`,
+        )
+        .run(...orderIds);
+      logger.info(`Cleared ${stateResult.changes} state history entries`);
 
-    // Finally delete orders
-    const result = this.db
-      .prepare("DELETE FROM orders WHERE userId = ?")
-      .run(userId);
-    logger.info(`Cleared ${result.changes} orders for user ${userId}`);
+      // Delete from order_audit_log
+      const auditResult = this.db
+        .prepare(
+          `DELETE FROM order_audit_log WHERE order_id IN (${placeholders})`,
+        )
+        .run(...orderIds);
+      logger.info(`Cleared ${auditResult.changes} audit log entries`);
+
+      // Finally delete orders
+      const result = this.db
+        .prepare("DELETE FROM orders WHERE userId = ?")
+        .run(userId);
+      logger.info(`Cleared ${result.changes} orders for user ${userId}`);
+    } finally {
+      // Re-enable foreign key constraints
+      this.db.prepare("PRAGMA foreign_keys = ON").run();
+    }
   }
 
   /**

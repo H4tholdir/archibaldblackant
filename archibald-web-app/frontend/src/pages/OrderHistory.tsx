@@ -10,6 +10,7 @@ import { OrderActions } from "../components/OrderActions";
 import { SendToMilanoModal } from "../components/SendToMilanoModal";
 import { groupOrdersByPeriod } from "../utils/orderGrouping";
 import type { Order } from "../types/order";
+import { useAuth } from "../hooks/useAuth";
 
 interface OrderFilters {
   customer: string;
@@ -58,6 +59,7 @@ interface OrderDetailResponse {
 }
 
 export function OrderHistory() {
+  const auth = useAuth();
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -76,6 +78,7 @@ export function OrderHistory() {
   });
   const [debouncedCustomer, setDebouncedCustomer] = useState("");
   const [syncing, setSyncing] = useState(false);
+  const [resetting, setResetting] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
   const [modalOrderId, setModalOrderId] = useState<string | null>(null);
   const [modalCustomerName, setModalCustomerName] = useState<string>("");
@@ -299,6 +302,61 @@ export function OrderHistory() {
       );
     } finally {
       setSyncing(false);
+    }
+  };
+
+  const handleResetDB = async () => {
+    // Confirmation dialog
+    const confirmed = window.confirm(
+      "⚠️ ATTENZIONE: Questa operazione cancellerà TUTTI gli ordini dal database e avvierà una sincronizzazione completa. Sei sicuro di voler continuare?",
+    );
+
+    if (!confirmed) {
+      return;
+    }
+
+    setResetting(true);
+    setError(null);
+
+    try {
+      const token = localStorage.getItem("archibald_jwt");
+      if (!token) {
+        setError("Non autenticato. Effettua il login.");
+        setResetting(false);
+        return;
+      }
+
+      const response = await fetch("/api/orders/reset-and-sync", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      if (!response.ok) {
+        if (response.status === 401) {
+          setError("Sessione scaduta. Effettua il login.");
+          localStorage.removeItem("archibald_jwt");
+          return;
+        }
+        throw new Error(`Errore ${response.status}: ${response.statusText}`);
+      }
+
+      const data = await response.json();
+      if (!data.success) {
+        throw new Error("Errore nel reset e sincronizzazione");
+      }
+
+      // Reload orders after successful reset and sync
+      await fetchOrders();
+      alert("Database resettato e sincronizzazione completata con successo!");
+    } catch (err) {
+      console.error("Error resetting DB:", err);
+      setError(
+        err instanceof Error ? err.message : "Errore nel reset del database",
+      );
+    } finally {
+      setResetting(false);
     }
   };
 
@@ -600,6 +658,41 @@ export function OrderHistory() {
           >
             {syncing ? "⏳ Sincronizzazione..." : "🔄 Sincronizza"}
           </button>
+
+          {/* Admin-only Reset DB button */}
+          {auth.user?.role === "admin" && (
+            <button
+              onClick={handleResetDB}
+              disabled={resetting || loading || syncing}
+              style={{
+                padding: "8px 16px",
+                fontSize: "14px",
+                fontWeight: 600,
+                border: "1px solid #f44336",
+                borderRadius: "8px",
+                backgroundColor: resetting ? "#ffebee" : "#fff",
+                color: resetting ? "#999" : "#f44336",
+                cursor:
+                  resetting || loading || syncing ? "not-allowed" : "pointer",
+                transition: "all 0.2s",
+                opacity: resetting || loading || syncing ? 0.6 : 1,
+              }}
+              onMouseEnter={(e) => {
+                if (!resetting && !loading && !syncing) {
+                  e.currentTarget.style.backgroundColor = "#f44336";
+                  e.currentTarget.style.color = "#fff";
+                }
+              }}
+              onMouseLeave={(e) => {
+                if (!resetting && !loading && !syncing) {
+                  e.currentTarget.style.backgroundColor = "#fff";
+                  e.currentTarget.style.color = "#f44336";
+                }
+              }}
+            >
+              {resetting ? "⏳ Reset in corso..." : "🗑️ Reset DB e Forza Sync"}
+            </button>
+          )}
         </div>
       </div>
 
