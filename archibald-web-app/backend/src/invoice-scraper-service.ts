@@ -355,6 +355,169 @@ export class InvoiceScraperService {
   }
 
   /**
+   * Download invoice PDF for a specific order
+   * Workflow:
+   * 1. Navigate to invoice page
+   * 2. Find invoice by customer ID + date matching
+   * 3. Select invoice row
+   * 4. Click "Scarica PDF" button
+   * 5. Wait for PDF link generation
+   * 6. Download PDF via Puppeteer CDP
+   */
+  async downloadInvoicePDF(
+    userId: string,
+    order: StoredOrder,
+  ): Promise<Buffer> {
+    logger.info(
+      `[InvoiceScraper] Downloading invoice PDF for order ${order.id}`,
+    );
+
+    const browserPool = BrowserPool.getInstance();
+    let context: BrowserContext | null = null;
+    let success = false;
+
+    try {
+      // Acquire browser context
+      context = await browserPool.acquireContext(userId);
+      const page = await context.newPage();
+
+      try {
+        // Navigate to Invoice page
+        logger.info("[InvoiceScraper] Navigating to Invoice page");
+        await page.goto(this.invoicePageUrl, {
+          waitUntil: "domcontentloaded",
+          timeout: 60000,
+        });
+
+        // Wait for table to load
+        await new Promise((resolve) => setTimeout(resolve, 2000));
+
+        // Scrape invoices to find the matching one
+        const invoices = await this.scrapeInvoicePage(page);
+
+        // Match invoice to order
+        const matchedInvoice = invoices.find((inv) => {
+          // Match by customer ID
+          if (inv.customerAccountId !== order.customerProfileId) {
+            return false;
+          }
+          // Match by date (invoice after order placed)
+          if (inv.invoiceDate && order.creationDate) {
+            return inv.invoiceDate >= order.creationDate;
+          }
+          return true;
+        });
+
+        if (!matchedInvoice) {
+          throw new Error(
+            `No invoice found for order ${order.id} (customer: ${order.customerProfileId})`,
+          );
+        }
+
+        logger.info(
+          `[InvoiceScraper] Found invoice ${matchedInvoice.invoiceNumber} for order ${order.id}`,
+        );
+
+        // Select invoice row by clicking checkbox
+        if (!matchedInvoice.rowId) {
+          throw new Error(
+            `Invoice ${matchedInvoice.invoiceNumber} has no row ID`,
+          );
+        }
+
+        logger.info("[InvoiceScraper] Selecting invoice row");
+        await page.evaluate((rowId) => {
+          const checkbox = document.querySelector(
+            `input[type="checkbox"][id*="${rowId}"]`,
+          ) as HTMLInputElement;
+          if (checkbox) {
+            checkbox.click();
+          } else {
+            throw new Error(`Checkbox not found for row ${rowId}`);
+          }
+        }, matchedInvoice.rowId);
+
+        // Wait for selection to register
+        await new Promise((resolve) => setTimeout(resolve, 1000));
+
+        // Trigger PDF generation
+        logger.info('[InvoiceScraper] Clicking "Scarica PDF" button');
+        await page.click('li[title="Scarica PDF"] a.dxm-content');
+
+        // Wait for PDF link to appear (different selector than DDT)
+        logger.info("[InvoiceScraper] Waiting for PDF link generation");
+        await page.waitForSelector(
+          'div[id$="_xaf_InvoicePDF"] a.XafFileDataAnchor',
+          {
+            timeout: 15000,
+          },
+        );
+
+        // Setup Puppeteer download interception via CDP
+        const client = await (page.target() as any).createCDPSession();
+        const tmpDir = "/tmp/archibald-invoices";
+
+        // Ensure tmp directory exists
+        const fs = await import("node:fs/promises");
+        await fs.mkdir(tmpDir, { recursive: true });
+
+        await client.send("Page.setDownloadBehavior", {
+          behavior: "allow",
+          downloadPath: tmpDir,
+        });
+
+        logger.info("[InvoiceScraper] Clicking PDF link to download");
+
+        // Click PDF link
+        await page.click('div[id$="_xaf_InvoicePDF"] a.XafFileDataAnchor');
+
+        // Wait for download to complete
+        logger.info("[InvoiceScraper] Waiting for download to complete");
+        await new Promise((resolve) => setTimeout(resolve, 5000));
+
+        // Find the downloaded file
+        const files = await fs.readdir(tmpDir);
+        const pdfFile = files.find((f) => f.endsWith(".pdf"));
+
+        if (!pdfFile) {
+          throw new Error("PDF file not found in download directory");
+        }
+
+        const pdfPath = `${tmpDir}/${pdfFile}`;
+        logger.info(`[InvoiceScraper] Reading PDF from ${pdfPath}`);
+
+        // Read PDF into Buffer
+        const pdfBuffer = await fs.readFile(pdfPath);
+
+        // Clean up temp file
+        await fs.unlink(pdfPath).catch(() => {});
+
+        logger.info(
+          `[InvoiceScraper] Successfully downloaded invoice PDF (${pdfBuffer.length} bytes)`,
+        );
+
+        success = true;
+        return pdfBuffer;
+      } finally {
+        if (!page.isClosed()) {
+          await page.close().catch(() => {});
+        }
+      }
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
+      logger.error("[InvoiceScraper] Failed to download invoice PDF", {
+        error: errorMessage,
+      });
+      throw error;
+    } finally {
+      if (context) {
+        await browserPool.releaseContext(userId, context, success);
+      }
+    }
+  }
+
+  /**
    * Check if there's a next page
    */
   private async hasNextPage(page: Page): Promise<boolean> {
