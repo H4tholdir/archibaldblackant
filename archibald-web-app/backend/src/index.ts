@@ -1922,6 +1922,66 @@ app.post(
   },
 );
 
+// Reset DB and force sync - Admin only - POST /api/orders/reset-and-sync
+app.post(
+  "/api/orders/reset-and-sync",
+  authenticateJWT,
+  requireAdmin,
+  async (req: AuthRequest, res: Response<ApiResponse>) => {
+    const userId = req.user!.userId;
+
+    try {
+      logger.info(
+        `[OrderHistory] Reset DB and force sync requested by admin user ${userId}`,
+      );
+
+      // Pause sync services to avoid conflicts
+      priorityManager.pause();
+
+      try {
+        // Clear ALL orders from database
+        logger.info(
+          `[OrderHistory] Clearing all orders for user ${userId} (admin reset)`,
+        );
+        orderHistoryService.orderDb.clearUserOrders(userId);
+        logger.info(`[OrderHistory] Database cleared for user ${userId}`);
+
+        // Force complete sync from beginning of year
+        logger.info(
+          `[OrderHistory] Starting complete sync from Archibald for user ${userId}`,
+        );
+        await orderHistoryService.syncFromArchibald(userId);
+        logger.info(`[OrderHistory] Complete sync finished for user ${userId}`);
+
+        res.json({
+          success: true,
+          message: "Database reset and complete sync successful",
+        });
+      } finally {
+        // Always resume services
+        priorityManager.resume();
+      }
+    } catch (error) {
+      logger.error("[OrderHistory] Error during reset and sync", {
+        error:
+          error instanceof Error
+            ? {
+                message: error.message,
+                stack: error.stack,
+                code: (error as any).code,
+              }
+            : error,
+        userId,
+      });
+
+      res.status(500).json({
+        success: false,
+        error: "Failed to reset database and sync orders",
+      });
+    }
+  },
+);
+
 // Send order to Milano - POST /api/orders/:orderId/send-to-milano
 app.post(
   "/api/orders/:orderId/send-to-milano",
@@ -2046,6 +2106,116 @@ app.post(
       return res.status(500).json({
         success: false,
         error: "An unexpected error occurred while sending order to Milano",
+      });
+    }
+  },
+);
+
+// Place draft order to Archibald - POST /api/orders/draft/place
+app.post(
+  "/api/orders/draft/place",
+  authenticateJWT,
+  async (req: AuthRequest, res: Response<ApiResponse>) => {
+    const userId = req.user!.userId;
+
+    try {
+      logger.info(`[DraftPlace] Draft order place request received`, { userId });
+
+      // Validate request body
+      const { customerId, customerName, items, discountPercent, targetTotalWithVAT } = req.body;
+
+      if (!customerId || !customerName || !items || !Array.isArray(items) || items.length === 0) {
+        return res.status(400).json({
+          success: false,
+          error: "Missing required fields: customerId, customerName, items",
+        });
+      }
+
+      // Validate items structure
+      for (const item of items) {
+        if (!item.articleCode || typeof item.quantity !== "number" || typeof item.price !== "number") {
+          return res.status(400).json({
+            success: false,
+            error: "Invalid item structure: articleCode, quantity, and price are required",
+          });
+        }
+      }
+
+      logger.info(`[DraftPlace] Validated draft order`, {
+        userId,
+        customerId,
+        customerName,
+        itemCount: items.length,
+      });
+
+      // Pause background services to avoid bot conflicts
+      priorityManager.pause();
+      logger.info(`[DraftPlace] Background services paused`);
+
+      try {
+        // Create order using bot (same logic as order creation endpoint)
+        const bot = await BotManager.getInstance().getBotOrCreate(userId);
+
+        if (!bot) {
+          throw new Error("Failed to get or create bot instance");
+        }
+
+        logger.info(`[DraftPlace] Bot acquired, creating order on Archibald`, {
+          userId,
+          customerName,
+        });
+
+        // Create order on Archibald
+        const orderData = {
+          customerId,
+          customerName,
+          items,
+          discountPercent,
+          targetTotalWithVAT,
+        };
+
+        const result = await bot.createOrder(orderData);
+
+        if (!result.success) {
+          throw new Error(result.error || "Failed to create order on Archibald");
+        }
+
+        const orderId = result.orderId;
+
+        logger.info(`[DraftPlace] Order created successfully on Archibald`, {
+          userId,
+          orderId,
+          customerName,
+        });
+
+        // Sync order from Archibald to get full details
+        logger.info(`[DraftPlace] Syncing order ${orderId} from Archibald`, { userId });
+        await orderHistoryService.syncFromArchibald(userId);
+
+        return res.json({
+          success: true,
+          message: `Order created and placed successfully`,
+          data: {
+            orderId,
+            customerName,
+          },
+        });
+      } finally {
+        // Always resume background services
+        priorityManager.resume();
+        logger.info(`[DraftPlace] Background services resumed`);
+      }
+    } catch (error) {
+      logger.error("[DraftPlace] Error placing draft order", {
+        error,
+        userId,
+        message: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : undefined,
+      });
+
+      return res.status(500).json({
+        success: false,
+        error: error instanceof Error ? error.message : "Failed to place draft order",
       });
     }
   },
