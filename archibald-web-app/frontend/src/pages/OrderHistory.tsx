@@ -754,6 +754,8 @@ export function OrderHistory() {
                       order={mergedOrder}
                       expanded={isExpanded}
                       onToggle={() => handleToggle(order.id)}
+                      onSendToMilano={handleSendToMilano}
+                      onEdit={handleEdit}
                     />
                   );
                 })}

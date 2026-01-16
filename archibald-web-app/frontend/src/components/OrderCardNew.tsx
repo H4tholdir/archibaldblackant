@@ -5,11 +5,14 @@ import type {
   StatusUpdate,
   DocumentInfo,
 } from "../types/order";
+import { OrderActions } from "./OrderActions";
 
 interface OrderCardProps {
   order: Order;
   expanded: boolean;
   onToggle: () => void;
+  onSendToMilano?: (orderId: string, customerName: string) => void;
+  onEdit?: (orderId: string) => void;
 }
 
 // ============================================================================
@@ -1110,7 +1113,13 @@ const tableCellStyle: React.CSSProperties = {
 // MAIN COMPONENT
 // ============================================================================
 
-export function OrderCardNew({ order, expanded, onToggle }: OrderCardProps) {
+export function OrderCardNew({
+  order,
+  expanded,
+  onToggle,
+  onSendToMilano,
+  onEdit,
+}: OrderCardProps) {
   const [activeTab, setActiveTab] = useState<
     "panoramica" | "articoli" | "logistica" | "finanziario" | "storico"
   >("panoramica");
@@ -1311,6 +1320,23 @@ export function OrderCardNew({ order, expanded, onToggle }: OrderCardProps) {
             {activeTab === "finanziario" && <TabFinanziario order={order} />}
             {activeTab === "storico" && <TabStorico order={order} />}
           </div>
+
+          {/* Order Actions - Always visible regardless of tab */}
+          {(onSendToMilano || onEdit) && (
+            <div style={{ padding: "0 16px 16px 16px" }}>
+              <OrderActions
+                orderId={order.id}
+                currentState={
+                  order.state?.toLowerCase() || order.status.toLowerCase()
+                }
+                archibaldOrderId={order.orderNumber}
+                onSendToMilano={() =>
+                  onSendToMilano?.(order.id, order.customerName)
+                }
+                onEdit={() => onEdit?.(order.id)}
+              />
+            </div>
+          )}
         </div>
       )}
     </div>
