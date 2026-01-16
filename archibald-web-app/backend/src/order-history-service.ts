@@ -2,6 +2,7 @@ import { Page } from "puppeteer";
 import { logger } from "./logger";
 import { config } from "./config";
 import { OrderDatabase, type StoredOrder } from "./order-db";
+import type { DDTData } from "./ddt-scraper-service";
 
 /**
  * Options for fetching order list
@@ -35,16 +36,30 @@ export interface OrderListResult {
  * Single order in list view
  */
 export interface Order {
-  id: string; // Internal ID
-  orderNumber: string; // e.g., "ORD/26000405"
-  customerProfileId: string; // e.g., "1002209"
-  customerName: string; // Seller name
-  deliveryName: string; // Delivery recipient
-  deliveryAddress: string; // Full delivery address
-  creationDate: string; // ISO 8601 format
-  deliveryDate: string; // ISO 8601 format
-  status: string; // e.g., "Ordine aperto", "Consegnato", "Ordine di vendita"
-  customerReference?: string; // Optional customer reference
+  // All 20 columns from SALESTABLE_ListView_Agent table
+  id: string; // Col 0: ID interno
+  orderNumber: string; // Col 1: ID di vendita (e.g., "ORD/26000405")
+  customerProfileId: string; // Col 2: Profilo cliente (e.g., "1002209")
+  customerName: string; // Col 3: Nome vendite
+  deliveryName: string; // Col 4: Nome di consegna
+  deliveryAddress: string; // Col 5: Indirizzo di consegna
+  creationDate: string; // Col 6: Data di creazione (ISO 8601)
+  deliveryDate: string; // Col 7: Data di consegna (ISO 8601)
+  remainingSalesFinancial: string | null; // Col 8: Rimani vendite finanziarie
+  customerReference: string | null; // Col 9: Riferimento cliente
+  salesStatus: string | null; // Col 10: Stato delle vendite
+  orderType: string | null; // Col 11: Tipo di ordine
+  documentStatus: string | null; // Col 12: Stato del documento
+  salesOrigin: string | null; // Col 13: Origine vendite
+  transferStatus: string | null; // Col 14: Stato del trasferimento
+  transferDate: string | null; // Col 15: Data di trasferimento
+  completionDate: string | null; // Col 16: Data di completamento
+  discountPercent: string | null; // Col 17: Applica sconto %
+  grossAmount: string | null; // Col 18: Importo lordo
+  totalAmount: string | null; // Col 19: Importo totale
+
+  // Legacy field (for backward compatibility)
+  status: string; // Deprecated: use salesStatus instead
 }
 
 /**
@@ -269,7 +284,8 @@ export class OrderHistoryService {
 
   /**
    * Sync orders from Archibald and save to DB
-   * This is the actual scraping logic (extracted from old getOrderList)
+   * UNIFIED STRATEGY: Scrape order list, DDT data, and order details in one session
+   * All data is matched and combined before saving to DB
    */
   private async syncFromArchibald(userId: string): Promise<void> {
     let bot = null;
@@ -287,61 +303,42 @@ export class OrderHistoryService {
       }
 
       logger.info(
-        "[OrderHistoryService] ArchibaldBot initialized (legacy mode), navigating to order list...",
+        "[OrderHistoryService] ArchibaldBot initialized (legacy mode), starting unified sync...",
       );
 
-      // Navigate to order list page (direct URL like customer sync)
-      const orderListUrl = `${config.archibald.url}/SALESTABLE_ListView_Agent/`;
-
-      await bot.page.goto(orderListUrl, {
-        waitUntil: "networkidle2",
-        timeout: 60000,
-      });
-
-      logger.info(`[OrderHistoryService] Navigated to ${orderListUrl}`);
-
-      // Wait for table to be present
-      await bot.page.waitForSelector("table", { timeout: 10000 });
-
-      // Wait for DevExpress table to be fully loaded
-      logger.info("[OrderHistoryService] Waiting for DevExpress table to fully render...");
-      await this.waitForDevExpressTableReady(bot.page);
-
-      // Additional wait for dynamic content
-      await new Promise((resolve) => setTimeout(resolve, 2000));
-
-      // Ensure "Tutti gli ordini" filter is selected
+      // Step 1/3: Scrape order list
+      logger.info("[OrderHistoryService] Step 1/3: Scraping order list");
+      const allOrders = await this.scrapeOrderList(bot.page);
       logger.info(
-        "[OrderHistoryService] Verifying 'Tutti gli ordini' filter is selected...",
+        `[OrderHistoryService] Scraped ${allOrders.length} orders from order list`,
       );
-      await this.ensureAllOrdersFilterSelected(bot.page);
 
-      // Navigate to page 1 (in case we're on a different page when forcing sync)
-      logger.info("[OrderHistoryService] Ensuring we start from page 1...");
-      await this.navigateToFirstPage(bot.page);
-
-      // Sort table by creation date DESC (newest first)
-      // sortTableByCreationDate already includes waits for table reload
+      // Step 2/3: Scrape DDT data (only for orders we just scraped)
+      logger.info("[OrderHistoryService] Step 2/3: Scraping DDT data");
+      const orderNumbers = allOrders.map((o) => o.orderNumber);
+      const ddtData = await this.scrapeDDTData(bot.page, orderNumbers);
       logger.info(
-        "[OrderHistoryService] Sorting table by creation date (newest first)...",
+        `[OrderHistoryService] Scraped ${ddtData.length} DDT entries (filtered for ${orderNumbers.length} orders)`,
       );
-      await this.sortTableByCreationDate(bot.page);
 
-      // Scrape ALL orders (no limit - we want full sync)
-      const allOrders = await this.scrapeAllPages(
+      // Step 3/3: Enrich orders with details and DDT data
+      logger.info(
+        "[OrderHistoryService] Step 3/3: Enriching orders with details and DDT data",
+      );
+      const enrichedOrders = await this.enrichOrdersWithDetails(
         bot.page,
-        Number.MAX_SAFE_INTEGER,
+        allOrders,
+        ddtData,
       );
-
       logger.info(
-        `[OrderHistoryService] Scraped ${allOrders.length} orders from Archibald`,
+        `[OrderHistoryService] Enriched ${enrichedOrders.length} orders with full details`,
       );
 
       // Save to DB (upsert - updates existing, inserts new)
-      this.orderDb.upsertOrders(userId, allOrders);
+      this.orderDb.upsertOrders(userId, enrichedOrders);
 
       logger.info(
-        `[OrderHistoryService] Saved ${allOrders.length} orders to DB for user ${userId}`,
+        `[OrderHistoryService] Unified sync completed: ${enrichedOrders.length} orders with full details saved to DB`,
       );
     } catch (error) {
       logger.error(
@@ -362,77 +359,339 @@ export class OrderHistoryService {
   }
 
   /**
+   * Step 1: Scrape order list from SALESTABLE_ListView_Agent
+   * Returns base order data without details or DDT info
+   */
+  private async scrapeOrderList(page: Page): Promise<Order[]> {
+    // Navigate to order list page
+    const orderListUrl = `${config.archibald.url}/SALESTABLE_ListView_Agent/`;
+
+    await page.goto(orderListUrl, {
+      waitUntil: "networkidle2",
+      timeout: 60000,
+    });
+
+    logger.info(`[OrderHistoryService] Navigated to ${orderListUrl}`);
+
+    // Wait for table to be present
+    await page.waitForSelector("table", { timeout: 10000 });
+
+    // Wait for DevExpress table to be fully loaded
+    await this.waitForDevExpressTableReady(page);
+
+    // Additional wait for dynamic content
+    await new Promise((resolve) => setTimeout(resolve, 2000));
+
+    // Ensure "Tutti gli ordini" filter is selected
+    await this.ensureAllOrdersFilterSelected(page);
+
+    // Navigate to page 1
+    await this.navigateToFirstPage(page);
+
+    // Sort table by creation date DESC (newest first)
+    await this.sortTableByCreationDate(page);
+
+    // Scrape ALL orders (no limit - we want full sync)
+    const allOrders = await this.scrapeAllPages(page, Number.MAX_SAFE_INTEGER);
+
+    return allOrders;
+  }
+
+  /**
+   * Step 2: Scrape DDT data from CUSTPACKINGSLIPJOUR_ListView
+   * Only scrapes DDT entries that match the provided order numbers
+   * @param page Browser page with active session
+   * @param orderNumbers Array of order numbers to match (e.g., ["ORD/26000552"])
+   * @returns DDT entries with tracking info (filtered by orderNumbers)
+   */
+  private async scrapeDDTData(
+    page: Page,
+    orderNumbers: string[],
+  ): Promise<DDTData[]> {
+    const ddtUrl = `${config.archibald.url}/CUSTPACKINGSLIPJOUR_ListView/`;
+
+    await page.goto(ddtUrl, {
+      waitUntil: "networkidle2",
+      timeout: 60000,
+    });
+
+    logger.info(`[OrderHistoryService] Navigated to ${ddtUrl}`);
+
+    // Wait for table to load
+    await new Promise((resolve) => setTimeout(resolve, 2000));
+
+    // Ensure we're on page 1 and table is loaded
+    await this.ensureDDTPageOne(page);
+
+    // Create a Set for O(1) lookup performance
+    const orderNumberSet = new Set(orderNumbers);
+
+    const allDDT: DDTData[] = [];
+    let pageNum = 1;
+    let matchedCount = 0;
+
+    do {
+      logger.info(
+        `[OrderHistoryService] Scraping DDT page ${pageNum} (matched ${matchedCount}/${orderNumbers.length} so far)`,
+      );
+
+      const pageData = await this.scrapeDDTPage(page);
+
+      // Filter: only keep DDT entries that match our order numbers
+      const matchedDDT = pageData.filter((ddt) =>
+        orderNumberSet.has(ddt.orderId),
+      );
+
+      allDDT.push(...matchedDDT);
+      matchedCount = allDDT.length;
+
+      logger.info(
+        `[OrderHistoryService] Found ${matchedDDT.length}/${pageData.length} matching DDT entries on page ${pageNum}`,
+      );
+
+      // Early exit optimization: if we've found DDT for all orders, stop scraping
+      if (matchedCount >= orderNumbers.length) {
+        logger.info(
+          `[OrderHistoryService] Found DDT for all ${orderNumbers.length} orders, stopping early at page ${pageNum}`,
+        );
+        break;
+      }
+
+      const hasNext = await this.hasNextPageDDT(page);
+      if (!hasNext) break;
+
+      await this.clickNextPageDDT(page);
+      await new Promise((resolve) => setTimeout(resolve, 2000));
+      pageNum++;
+    } while (pageNum <= 20); // Safety limit
+
+    logger.info(
+      `[OrderHistoryService] DDT scraping complete: ${matchedCount}/${orderNumbers.length} orders have DDT data`,
+    );
+
+    return allDDT;
+  }
+
+  /**
+   * Step 3: Enrich orders with details and match DDT data
+   * Processes orders in batches to avoid overwhelming the system
+   */
+  private async enrichOrdersWithDetails(
+    page: Page,
+    orders: Order[],
+    ddtData: DDTData[],
+  ): Promise<StoredOrder[]> {
+    const BATCH_SIZE = 5; // Process 5 orders at a time
+    const results: StoredOrder[] = [];
+
+    logger.info(
+      `[OrderHistoryService] Enriching ${orders.length} orders in batches of ${BATCH_SIZE}`,
+    );
+
+    for (let i = 0; i < orders.length; i += BATCH_SIZE) {
+      const batch = orders.slice(i, i + BATCH_SIZE);
+      const batchNum = Math.floor(i / BATCH_SIZE) + 1;
+      const totalBatches = Math.ceil(orders.length / BATCH_SIZE);
+
+      logger.info(
+        `[OrderHistoryService] Processing batch ${batchNum}/${totalBatches} (${batch.length} orders)`,
+      );
+
+      for (const order of batch) {
+        try {
+          // Match DDT data by Order Number (orderNumber ↔ orderId)
+          const ddt = ddtData.find((d) => d.orderId === order.orderNumber);
+
+          if (ddt) {
+            logger.info(
+              `[OrderHistoryService] Matched DDT ${ddt.ddtNumber} to order ${order.orderNumber}`,
+            );
+          }
+
+          // SKIP detail scraping - we have all data from Order List + DDT
+          // const detail = await this.scrapeOrderDetailFromPage(page, order.id);
+
+          // Build enriched order with all DDT fields
+          const enrichedOrder: StoredOrder = {
+            ...order,
+            lastScraped: new Date().toISOString(),
+            lastUpdated: new Date().toISOString(),
+            isOpen: order.status.toLowerCase().includes("aperto"),
+            detailJson: null, // No detail scraping needed
+            sentToMilanoAt: null,
+            currentState: "unknown", // Will be set when order lifecycle is managed
+
+            // DDT fields (all 11 columns)
+            ddtId: ddt?.ddtId || null,
+            ddtNumber: ddt?.ddtNumber || null,
+            ddtDeliveryDate: ddt?.ddtDeliveryDate || null,
+            ddtOrderNumber: ddt?.orderId || null, // Match key
+            ddtCustomerAccount: ddt?.customerAccountId || null,
+            ddtSalesName: ddt?.salesName || null,
+            ddtDeliveryName: ddt?.deliveryName || null,
+            trackingNumber: ddt?.trackingNumber || null,
+            deliveryTerms: ddt?.deliveryTerms || null,
+            deliveryMethod: ddt?.deliveryMethod || null,
+            deliveryCity: ddt?.deliveryCity || null,
+
+            // Computed tracking fields
+            trackingUrl: ddt?.trackingUrl || null,
+            trackingCourier: ddt?.trackingCourier || null,
+          };
+
+          results.push(enrichedOrder);
+        } catch (error) {
+          logger.error(
+            `[OrderHistoryService] Error enriching order ${order.id}`,
+            { error },
+          );
+
+          // Add order without detail on error (graceful degradation)
+          const fallbackOrder: StoredOrder = {
+            ...order,
+            lastScraped: new Date().toISOString(),
+            lastUpdated: new Date().toISOString(),
+            isOpen: order.status.toLowerCase().includes("aperto"),
+            detailJson: null,
+            sentToMilanoAt: null,
+            currentState: "unknown",
+
+            // DDT fields (all null in fallback)
+            ddtId: null,
+            ddtNumber: null,
+            ddtDeliveryDate: null,
+            ddtOrderNumber: null,
+            ddtCustomerAccount: null,
+            ddtSalesName: null,
+            ddtDeliveryName: null,
+            trackingNumber: null,
+            deliveryTerms: null,
+            deliveryMethod: null,
+            deliveryCity: null,
+            trackingUrl: null,
+            trackingCourier: null,
+          };
+
+          results.push(fallbackOrder);
+        }
+      }
+    }
+
+    return results;
+  }
+
+  /**
    * Navigate to page 1 of the order list
-   * Required when forcing sync while on a different page
+   * ALWAYS clicks page 1 button to ensure we're on the correct page
+   * Includes scroll trigger to ensure table loads properly
    */
   private async navigateToFirstPage(page: Page): Promise<void> {
     try {
-      logger.info("[OrderHistoryService] Checking current page and navigating to page 1...");
+      logger.info("[OrderHistoryService] FORCING navigation to page 1...");
 
-      // Check if we're already on page 1
-      const currentPage = await page.evaluate(() => {
-        const currentPageSpan = document.querySelector(
-          'span[id*="xaf_a1DXDataPager_PSI"]',
-        ) as HTMLSpanElement;
-        return currentPageSpan?.textContent?.trim() || "1";
+      // Scroll to table to trigger any lazy loading
+      await page.evaluate(() => {
+        const table = document.querySelector("table");
+        if (table) {
+          table.scrollIntoView({ behavior: "auto", block: "start" });
+        }
       });
 
-      logger.info(`[OrderHistoryService] Current page: ${currentPage}`);
+      await new Promise((resolve) => setTimeout(resolve, 1000));
 
-      if (currentPage === "1") {
-        logger.info("[OrderHistoryService] Already on page 1, skipping navigation");
-        return;
-      }
-
-      // Find and click page 1 button
-      logger.info("[OrderHistoryService] Navigating to page 1...");
-      const navigatedToFirst = await page.evaluate(() => {
-        // Look for first page button - usually has class "dxp-num" and text "1"
+      // ALWAYS click page 1 button (don't just check)
+      logger.info("[OrderHistoryService] Clicking page 1 button...");
+      const clickedPageOne = await page.evaluate(() => {
+        // Strategy 1: Look for button with text "1"
         const pageButtons = Array.from(
-          document.querySelectorAll('div[id*="xaf_a1DXDataPager"] div.dxp-num'),
+          document.querySelectorAll('div[id*="DXDataPager"] div.dxp-num, div[id*="DXDataPager"] span'),
         );
 
         for (const button of pageButtons) {
-          if (button.textContent?.trim() === "1") {
+          const text = button.textContent?.trim();
+          if (text === "1") {
             (button as HTMLElement).click();
             return true;
           }
         }
 
-        // Alternative: Look for "First" button with class "dxp-lead"
-        const firstButton = Array.from(
-          document.querySelectorAll('div[id*="xaf_a1DXDataPager"] div.dxp-lead'),
-        ).find((el) => el.textContent?.includes("<<"));
+        // Strategy 2: Look for "First" button (<<)
+        const firstButtons = Array.from(
+          document.querySelectorAll('div[id*="DXDataPager"] *'),
+        );
 
-        if (firstButton) {
-          (firstButton as HTMLElement).click();
-          return true;
+        for (const btn of firstButtons) {
+          const text = btn.textContent?.trim();
+          if (text?.includes("<<") || text?.includes("First")) {
+            (btn as HTMLElement).click();
+            return true;
+          }
+        }
+
+        // Strategy 3: Look for any clickable element with "1" in pager area
+        const allPagerElements = Array.from(
+          document.querySelectorAll('div[id*="Pager"] *'),
+        );
+
+        for (const elem of allPagerElements) {
+          if (elem.textContent?.trim() === "1") {
+            (elem as HTMLElement).click();
+            return true;
+          }
         }
 
         return false;
       });
 
-      if (!navigatedToFirst) {
-        logger.warn("[OrderHistoryService] Could not find page 1 button");
-        return;
+      if (!clickedPageOne) {
+        logger.error("[OrderHistoryService] FAILED to find and click page 1 button!");
+        // Continue anyway, might already be on page 1
+      } else {
+        logger.info("[OrderHistoryService] Successfully clicked page 1 button");
       }
 
-      // Wait for table to reload
-      await new Promise((resolve) => setTimeout(resolve, 2000));
-      await page.waitForSelector("table tbody tr", { timeout: 10000 });
+      // Wait for table to reload after click
+      await new Promise((resolve) => setTimeout(resolve, 3000));
 
-      logger.info("[OrderHistoryService] Successfully navigated to page 1");
+      // Scroll to trigger loading
+      await page.evaluate(() => {
+        const table = document.querySelector("table tbody");
+        if (table) {
+          window.scrollBy(0, 150);
+        }
+      });
+
+      await new Promise((resolve) => setTimeout(resolve, 500));
+
+      await page.evaluate(() => {
+        window.scrollBy(0, -150);
+      });
+
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+
+      // Wait for table rows
+      await page.waitForSelector("table tbody tr", { timeout: 15000 });
+
+      // Verify we're on page 1
+      const finalPage = await page.evaluate(() => {
+        const pageSpan = document.querySelector('span[id*="DXDataPager_PSI"]');
+        return pageSpan?.textContent?.trim() || "?";
+      });
+
+      logger.info(`[OrderHistoryService] Final page after navigation: ${finalPage}`);
     } catch (error) {
       logger.error("[OrderHistoryService] Error navigating to page 1", { error });
+      throw error; // Re-throw to stop sync if page 1 navigation fails
     }
   }
 
   /**
    * Convert StoredOrder (DB) to Order (API response)
-   * Removes DB metadata fields
+   * Removes DB metadata fields and DDT data
    */
   private storedOrderToOrder(stored: StoredOrder): Order {
     return {
+      // All 20 Order List columns
       id: stored.id,
       orderNumber: stored.orderNumber,
       customerProfileId: stored.customerProfileId,
@@ -441,8 +700,44 @@ export class OrderHistoryService {
       deliveryAddress: stored.deliveryAddress,
       creationDate: stored.creationDate,
       deliveryDate: stored.deliveryDate,
+      remainingSalesFinancial: stored.remainingSalesFinancial,
+      customerReference: stored.customerReference,
+      salesStatus: stored.salesStatus,
+      orderType: stored.orderType,
+      documentStatus: stored.documentStatus,
+      salesOrigin: stored.salesOrigin,
+      transferStatus: stored.transferStatus,
+      transferDate: stored.transferDate,
+      completionDate: stored.completionDate,
+      discountPercent: stored.discountPercent,
+      grossAmount: stored.grossAmount,
+      totalAmount: stored.totalAmount,
+
+      // Legacy status field
       status: stored.status,
-      customerReference: stored.customerReference || undefined,
+
+      // DDT fields (11 columns)
+      ddtId: stored.ddtId,
+      ddtNumber: stored.ddtNumber,
+      ddtDeliveryDate: stored.ddtDeliveryDate,
+      ddtOrderNumber: stored.ddtOrderNumber,
+      ddtCustomerAccount: stored.ddtCustomerAccount,
+      ddtSalesName: stored.ddtSalesName,
+      ddtDeliveryName: stored.ddtDeliveryName,
+      trackingNumber: stored.trackingNumber,
+      deliveryTerms: stored.deliveryTerms,
+      deliveryMethod: stored.deliveryMethod,
+      deliveryCity: stored.deliveryCity,
+
+      // Computed tracking fields
+      trackingUrl: stored.trackingUrl,
+      trackingCourier: stored.trackingCourier,
+
+      // Metadata
+      userId: stored.userId,
+      lastScraped: stored.lastScraped,
+      lastUpdated: stored.lastUpdated,
+      detailJson: stored.detailJson,
     };
   }
 
@@ -863,68 +1158,90 @@ export class OrderHistoryService {
       logger.warn("[OrderHistoryService] DevExpress main table selector not found");
     });
 
-    // Use $$eval with VERY SPECIFIC table selector - only the main order grid
-    // This avoids scraping calendars, filter dropdowns, and other auxiliary tables
-    const orders = await page.$$eval('table[id$="_DXMainTable"].dxgvTable_XafTheme tbody tr', (rows) => {
+    // Use header-based column detection (robust to column reordering)
+    const orders = await page.evaluate(() => {
+      // Find table
+      const table = document.querySelector('table[id$="_DXMainTable"].dxgvTable_XafTheme');
+      if (!table) {
+        console.error("[OrderHistoryService] Order table not found");
+        return [];
+      }
+
+      // Extract data from rows using FIXED column indices
+      // DevExpress table structure: 24 cells per row
+      // [0]: empty, [1]: JavaScript, [2-22]: actual data, [23]: empty
+      const dataRows = Array.from(table.querySelectorAll("tbody tr.dxgvDataRow, tbody tr.dxgvDataRow_XafTheme"));
       const results: any[] = [];
 
-      for (const row of rows) {
+      console.log(`[OrderHistoryService] Found ${dataRows.length} data rows`);
+
+      for (const row of dataRows) {
         try {
           const cells = Array.from(row.querySelectorAll("td"));
 
-          // DEBUG: Log cell count and first row content for verification
-          if (results.length === 0) {
-            const cellContents = cells.slice(0, 15).map((c, i) => `[${i}]=${c.textContent?.trim()}`);
-            console.log(`[DEBUG] First row has ${cells.length} cells`);
-            console.log(`[DEBUG] First 15 cell contents: ${cellContents.join(', ')}`);
-          }
-
-          if (cells.length < 10) {
+          if (cells.length < 23) {
+            console.warn(`[OrderHistoryService] Row has only ${cells.length} cells, expected 24`);
             continue;
           }
 
-          // Extract all visible columns based on actual HTML structure from elementi pagina ordini.txt
-          // Cell mapping verified from real page HTML:
-          // [0] = checkbox, [1] = edit button with scripts
-          // [2] = ID, [3] = Order Number, [4] = Customer Profile ID
-          // [5] = Customer Name, [6] = Delivery Name, [7] = Delivery Address
-          // [8] = Creation Date, [9] = Delivery Date, [10-11] = empty
-          // [12] = Status, [13-19] = other fields, [20-22] = amounts, [23] = checkbox
+          // Extract all 20 columns using FIXED indices (verified via physical scraping)
           const id = cells[2]?.textContent?.trim() || "";
           const orderNumber = cells[3]?.textContent?.trim() || "";
+
+          // Validation - check if id looks valid
+          if (!id || id.includes("Loading") || id.includes("<") || !/\d/.test(id)) {
+            continue;
+          }
+
+          // Validate order number
+          if (!orderNumber || !orderNumber.startsWith("ORD/")) {
+            continue;
+          }
+
+          // Extract all remaining fields using FIXED indices
           const customerProfileId = cells[4]?.textContent?.trim() || "";
           const customerName = cells[5]?.textContent?.trim() || "";
           const deliveryName = cells[6]?.textContent?.trim() || "";
           const deliveryAddress = cells[7]?.textContent?.trim() || "";
           const creationDateText = cells[8]?.textContent?.trim() || "";
           const deliveryDateText = cells[9]?.textContent?.trim() || "";
-          const customerReference = cells[10]?.textContent?.trim() || "";
-          const status = cells[12]?.textContent?.trim() || "";
+          const remainingSalesFinancial = cells[10]?.textContent?.trim() || "";
+          const customerReference = cells[11]?.textContent?.trim() || "";
+          const salesStatus = cells[12]?.textContent?.trim() || "";
+          const orderType = cells[13]?.textContent?.trim() || "";
+          const documentStatus = cells[14]?.textContent?.trim() || "";
+          const salesOrigin = cells[15]?.textContent?.trim() || "";
+          const transferStatus = cells[16]?.textContent?.trim() || "";
+          const transferDateText = cells[17]?.textContent?.trim() || "";
+          const completionDateText = cells[18]?.textContent?.trim() || "";
+          // cells[19] contains unknown field ("No"/"Yes")
+          const discountPercent = cells[20]?.textContent?.trim() || "";
+          const grossAmount = cells[21]?.textContent?.trim() || "";
+          const totalAmount = cells[22]?.textContent?.trim() || "";
 
-          // Validation - check if id looks like a valid order ID (numeric or "XX.XXX" format)
-          if (!id || id.includes("Loading") || id.includes("<") || !/\d/.test(id)) {
-            continue;
-          }
-
-          // Additional validation - check if this looks like a real order row
-          if (!customerName && !deliveryName) {
-            continue; // Skip rows with no customer data
-          }
-
-          if (id) {
-            results.push({
-              id,
-              orderNumber: orderNumber || id,
-              customerProfileId: customerProfileId || "",
-              customerName,
-              deliveryName,
-              deliveryAddress,
-              creationDate: creationDateText,
-              deliveryDate: deliveryDateText,
-              status,
-              customerReference: customerReference || undefined,
-            });
-          }
+          results.push({
+            id,
+            orderNumber,
+            customerProfileId,
+            customerName,
+            deliveryName,
+            deliveryAddress,
+            creationDate: creationDateText,
+            deliveryDate: deliveryDateText,
+            remainingSalesFinancial: remainingSalesFinancial || null,
+            customerReference: customerReference || null,
+            salesStatus: salesStatus || null,
+            orderType: orderType || null,
+            documentStatus: documentStatus || null,
+            salesOrigin: salesOrigin || null,
+            transferStatus: transferStatus || null,
+            transferDate: transferDateText || null,
+            completionDate: completionDateText || null,
+            discountPercent: discountPercent || null,
+            grossAmount: grossAmount || null,
+            totalAmount: totalAmount || null,
+            status: salesStatus || "Unknown",
+          });
         } catch (error) {
           console.error("[OrderHistoryService] Error parsing row:", error);
         }
@@ -942,6 +1259,8 @@ export class OrderHistoryService {
       ...order,
       creationDate: this.parseDate(order.creationDate),
       deliveryDate: this.parseDate(order.deliveryDate),
+      transferDate: order.transferDate ? this.parseDate(order.transferDate) : null,
+      completionDate: order.completionDate ? this.parseDate(order.completionDate) : null,
     }));
 
     return ordersWithParsedDates;
@@ -961,10 +1280,29 @@ export class OrderHistoryService {
       `[OrderHistoryService] Fetching order detail for user ${userId}, order ${orderId}`,
     );
 
-    // First, try to get detail from database cache
-    try {
-      const cachedOrder = this.orderDb.getOrder(orderId, userId);
-      if (cachedOrder && cachedOrder.detailJson) {
+    // First, check if order exists and try to get cached detail
+    const cachedOrder = this.orderDb.getOrderById(userId, orderId);
+
+    if (!cachedOrder) {
+      logger.warn(
+        `[OrderHistoryService] Order ${orderId} not found in database for user ${userId}`,
+      );
+      return null;
+    }
+
+    logger.info(
+      `[OrderHistoryService] Database lookup result for order ${orderId}`,
+      {
+        found: true,
+        hasDetailJson: !!cachedOrder.detailJson,
+        userId,
+        orderId
+      }
+    );
+
+    // If detail is already cached, return it
+    if (cachedOrder.detailJson) {
+      try {
         logger.info(
           `[OrderHistoryService] Returning cached detail for order ${orderId}`,
         );
@@ -979,73 +1317,22 @@ export class OrderHistoryService {
           trackingUrl: cachedOrder.trackingUrl,
           trackingCourier: cachedOrder.trackingCourier,
         };
+      } catch (err) {
+        logger.warn(
+          `[OrderHistoryService] Error parsing cached detail for order ${orderId}, will scrape`,
+          { error: err },
+        );
       }
-    } catch (err) {
-      logger.warn(
-        `[OrderHistoryService] Error reading cached detail for order ${orderId}, falling back to scraping`,
-        { error: err },
-      );
     }
 
-    logger.info(
-      `[OrderHistoryService] No cached detail found, scraping from Archibald for order ${orderId}`,
+    // No cached detail available
+    // With unified scraping, all details should be pre-populated during sync
+    // If we reach here, it means the order exists but detail wasn't scraped
+    logger.warn(
+      `[OrderHistoryService] No cached detail found for order ${orderId}. Order may need to be synced again.`,
     );
 
-    let bot = null;
-
-    try {
-      // Use legacy ArchibaldBot for system sync operations (like customer-sync)
-      const { ArchibaldBot } = await import("./archibald-bot");
-      bot = new ArchibaldBot(); // No userId = legacy mode
-      await bot.initialize();
-      await bot.login(); // Uses config credentials
-
-      if (!bot.page) {
-        throw new Error("Browser page is null after initialization");
-      }
-
-      // Navigate directly to order detail URL
-      const detailUrl = `${config.archibald.url}/SALESTABLE_DetailViewAgent/${orderId}?mode=View`;
-
-      await bot.page.goto(detailUrl, {
-        waitUntil: "networkidle2",
-        timeout: 60000,
-      });
-
-      // Wait for detail view to load (check for "Panoramica" tab)
-      await bot.page.waitForSelector("text=Panoramica", { timeout: 30000 });
-
-      logger.info(
-        `[OrderHistoryService] Order detail page loaded for order ${orderId}`,
-      );
-
-      // Extract order detail data
-      const orderDetail = await this.extractOrderDetail(bot.page, orderId);
-
-      if (!orderDetail) {
-        logger.warn(
-          `[OrderHistoryService] Failed to extract data for order ${orderId}`,
-        );
-        return null;
-      }
-
-      logger.info(
-        `[OrderHistoryService] Extracted ${orderDetail.items.length} items, ${orderDetail.statusTimeline.length} status updates for order ${orderId}`,
-      );
-
-      return orderDetail;
-    } catch (error) {
-      logger.error(
-        `[OrderHistoryService] Error fetching order detail for user ${userId}, order ${orderId}`,
-        { error },
-      );
-
-      return null;
-    } finally {
-      if (bot) {
-        await bot.close();
-      }
-    }
+    return null;
   }
 
   /**
@@ -1468,5 +1755,289 @@ export class OrderHistoryService {
         return null;
       }
     }, orderId);
+  }
+
+  /**
+   * Scrape DDT data from current page
+   * Reuses logic from DDTScraperService but works with existing page session
+   */
+  private async scrapeDDTPage(page: Page): Promise<DDTData[]> {
+    return await page.evaluate(() => {
+      // Find table
+      const table = document.querySelector('table[id$="_DXMainTable"]');
+      if (!table) {
+        console.error("[OrderHistoryService] DDT table not found");
+        return [];
+      }
+
+      // Extract data from rows using FIXED column indices
+      // DDT table structure: 22 cells per row
+      // ALL 11 REQUIRED COLUMNS (verified via header inspection):
+      // [6]=ID, [7]=DDT#, [8]=Date, [9]=OrderID, [10]=Account, [11]=Sales, [12]=Delivery,
+      // [15]=DeliveryTerms, [17]=Tracking, [18]=DeliveryCity, [19]=Method
+      const dataRows = Array.from(table.querySelectorAll("tr.dxgvDataRow, tr.dxgvDataRow_XafTheme"));
+      const ddtData: any[] = [];
+
+      console.log(`[OrderHistoryService] Found ${dataRows.length} DDT rows`);
+
+      for (const row of dataRows) {
+        const cells = Array.from(row.querySelectorAll("td"));
+
+        if (cells.length < 20) {
+          console.warn(`[OrderHistoryService] DDT row has only ${cells.length} cells, expected 22`);
+          continue;
+        }
+
+        // Extract ALL 11 columns using FIXED indices (verified via physical scraping & header mapping)
+        // cells[0-5]: UI elements, empty, JavaScript
+        const ddtId = cells[6]?.textContent?.trim() || "";
+        const ddtNumber = cells[7]?.textContent?.trim() || "";
+        const ddtDeliveryDate = cells[8]?.textContent?.trim() || "";
+        const orderId = cells[9]?.textContent?.trim() || "";
+        const customerAccountId = cells[10]?.textContent?.trim() || "";
+        const salesName = cells[11]?.textContent?.trim() || "";
+        const deliveryName = cells[12]?.textContent?.trim() || "";
+        // cells[13-14, 16]: other data (address, etc.)
+        const deliveryTerms = cells[15]?.textContent?.trim() || undefined;
+        const trackingText = cells[17]?.textContent?.trim() || "";
+        const deliveryCity = cells[18]?.textContent?.trim() || undefined;
+        const deliveryMethod = cells[19]?.textContent?.trim() || "";
+
+        // Validation
+        if (!ddtNumber || !ddtNumber.startsWith("DDT/")) {
+          continue;
+        }
+
+        if (!orderId || !orderId.startsWith("ORD/")) {
+          console.warn(`[OrderHistoryService] Skipping DDT ${ddtNumber} - missing order ID`);
+          continue;
+        }
+
+        // Extract tracking as clickable link
+        let trackingNumber: string | undefined;
+        let trackingCourier: string | undefined;
+        let trackingUrl: string | undefined;
+
+        const trackingCell = cells[17];
+        const trackingLink = trackingCell?.querySelector("a");
+
+        if (trackingLink) {
+          // Extract link URL and text
+          trackingUrl = trackingLink.getAttribute("href") || undefined;
+          const linkText = trackingLink.textContent?.trim() || "";
+
+          if (linkText) {
+            // Parse "Ups 1Z4V26Y86872714384" or "fedex 445291888246"
+            const parts = linkText.split(/\s+/);
+            if (parts.length >= 2) {
+              trackingCourier = parts[0].toLowerCase();
+              trackingNumber = parts.slice(1).join(" ");
+            } else {
+              trackingNumber = linkText;
+            }
+          }
+        } else if (trackingText && trackingText !== "") {
+          // Fallback: no link, just text
+          const parts = trackingText.split(/\s+/);
+          if (parts.length >= 2) {
+            trackingCourier = parts[0].toLowerCase();
+            trackingNumber = parts.slice(1).join(" ");
+          } else {
+            trackingNumber = trackingText;
+          }
+        }
+
+        // All 11 DDT columns mapped (some may be empty/undefined if not populated in source)
+        ddtData.push({
+          ddtId,
+          ddtNumber,
+          ddtDeliveryDate,
+          orderId, // Match key: orderId (DDT) ↔ orderNumber (Order List)
+          customerAccountId,
+          salesName,
+          deliveryName,
+          trackingNumber,
+          trackingUrl,
+          trackingCourier,
+          deliveryTerms, // cells[15] - may be empty
+          deliveryMethod,
+          deliveryCity, // cells[18] - may be empty
+        });
+      }
+
+      console.log(`[OrderHistoryService] Extracted ${ddtData.length} DDT entries`);
+      return ddtData;
+    });
+  }
+
+  /**
+   * Check if there's a next page for DDT table
+   */
+  private async hasNextPageDDT(page: Page): Promise<boolean> {
+    return await page.evaluate(() => {
+      const nextBtn = document.querySelector('img[alt="Next"]');
+      return nextBtn && !nextBtn.closest(".dxp-disabled") ? true : false;
+    });
+  }
+
+  /**
+   * Click next page button for DDT table
+   */
+  private async clickNextPageDDT(page: Page): Promise<void> {
+    await page.evaluate(() => {
+      const nextBtn = document.querySelector('img[alt="Next"]');
+      if (nextBtn) {
+        (nextBtn as HTMLElement).click();
+      }
+    });
+  }
+
+  /**
+   * Scrape order detail from page (used during unified sync)
+   * Reuses existing extractOrderDetail logic but with explicit page parameter
+   */
+  private async scrapeOrderDetailFromPage(
+    page: Page,
+    orderId: string,
+  ): Promise<OrderDetail | null> {
+    try {
+      // Navigate directly to order detail URL
+      const detailUrl = `${config.archibald.url}/SALESTABLE_DetailViewAgent/${orderId}?mode=View`;
+
+      logger.info(
+        `[OrderHistoryService] Navigating to order detail URL: ${detailUrl}`,
+      );
+
+      await page.goto(detailUrl, {
+        waitUntil: "domcontentloaded", // Changed from networkidle2 - faster
+        timeout: 10000, // Reduced from 60000ms to 10000ms
+      });
+
+      // Wait for detail view to load (check for "Panoramica" tab)
+      await page.waitForSelector("text=Panoramica", { timeout: 5000 }); // Reduced from 30000ms to 5000ms
+
+      logger.info(
+        `[OrderHistoryService] Order detail page loaded for order ${orderId}`,
+      );
+
+      // Extract order detail data (reuse existing method)
+      const orderDetail = await this.extractOrderDetail(page, orderId);
+
+      if (!orderDetail) {
+        logger.warn(
+          `[OrderHistoryService] Failed to extract data for order ${orderId}`,
+        );
+        return null;
+      }
+
+      logger.info(
+        `[OrderHistoryService] Extracted ${orderDetail.items.length} items, ${orderDetail.statusTimeline.length} status updates for order ${orderId}`,
+      );
+
+      return orderDetail;
+    } catch (error) {
+      logger.error(
+        `[OrderHistoryService] Error scraping detail for order ${orderId}`,
+        { error },
+      );
+      return null;
+    }
+  }
+
+  /**
+   * Ensure DDT table is on page 1 with scroll trigger
+   * ALWAYS clicks page 1 button to ensure we're on the correct page
+   */
+  private async ensureDDTPageOne(page: Page): Promise<void> {
+    try {
+      logger.info("[OrderHistoryService] FORCING DDT table navigation to page 1...");
+
+      // Scroll to table to trigger any lazy loading
+      await page.evaluate(() => {
+        const table = document.querySelector("table");
+        if (table) {
+          table.scrollIntoView({ behavior: "auto", block: "start" });
+        }
+      });
+
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+
+      // ALWAYS click page 1 button (don't just check)
+      logger.info("[OrderHistoryService] Clicking DDT page 1 button...");
+      const clickedPageOne = await page.evaluate(() => {
+        // Strategy 1: Look for button with text "1"
+        const pageButtons = Array.from(
+          document.querySelectorAll('div[id*="DXDataPager"] div.dxp-num, div[id*="DXDataPager"] span'),
+        );
+
+        for (const button of pageButtons) {
+          const text = button.textContent?.trim();
+          if (text === "1") {
+            (button as HTMLElement).click();
+            return true;
+          }
+        }
+
+        // Strategy 2: Look for "First" button (<<)
+        const firstButtons = Array.from(
+          document.querySelectorAll('div[id*="DXDataPager"] *'),
+        );
+
+        for (const btn of firstButtons) {
+          const text = btn.textContent?.trim();
+          if (text?.includes("<<") || text?.includes("First")) {
+            (btn as HTMLElement).click();
+            return true;
+          }
+        }
+
+        // Strategy 3: Look for any clickable element with "1" in pager area
+        const allPagerElements = Array.from(
+          document.querySelectorAll('div[id*="Pager"] *'),
+        );
+
+        for (const elem of allPagerElements) {
+          if (elem.textContent?.trim() === "1") {
+            (elem as HTMLElement).click();
+            return true;
+          }
+        }
+
+        return false;
+      });
+
+      if (!clickedPageOne) {
+        logger.error("[OrderHistoryService] FAILED to find and click DDT page 1 button!");
+      } else {
+        logger.info("[OrderHistoryService] Successfully clicked DDT page 1 button");
+      }
+
+      // Wait for table to reload after click
+      await new Promise((resolve) => setTimeout(resolve, 3000));
+
+      // Scroll to trigger loading
+      await page.evaluate(() => {
+        window.scrollBy(0, 150);
+      });
+
+      await new Promise((resolve) => setTimeout(resolve, 500));
+
+      await page.evaluate(() => {
+        window.scrollBy(0, -150);
+      });
+
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+
+      // Verify we're on page 1
+      const finalPage = await page.evaluate(() => {
+        const pageSpan = document.querySelector('span[id*="DXDataPager_PSI"]');
+        return pageSpan?.textContent?.trim() || "?";
+      });
+
+      logger.info(`[OrderHistoryService] DDT table final page after navigation: ${finalPage}`);
+    } catch (error) {
+      logger.error("[OrderHistoryService] Error ensuring DDT page 1", { error });
+      throw error; // Re-throw to stop sync if page 1 navigation fails
+    }
   }
 }
