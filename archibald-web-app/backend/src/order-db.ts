@@ -472,6 +472,11 @@ export class OrderDatabase {
       deliveryCity: row.deliveryCity || null,
       trackingUrl: row.trackingUrl || null,
       trackingCourier: row.trackingCourier || null,
+
+      // Invoice fields
+      invoiceNumber: row.invoice_number || null,
+      invoiceDate: row.invoice_date || null,
+      invoiceAmount: row.invoice_amount || null,
     }));
   }
 
@@ -508,6 +513,11 @@ export class OrderDatabase {
       trackingNumber: row.trackingNumber || null,
       trackingUrl: row.trackingUrl || null,
       trackingCourier: row.trackingCourier || null,
+
+      // Invoice fields
+      invoiceNumber: row.invoice_number || null,
+      invoiceDate: row.invoice_date || null,
+      invoiceAmount: row.invoice_amount || null,
     }));
   }
 
@@ -662,6 +672,37 @@ export class OrderDatabase {
       );
 
     logger.info(`Updated order ${orderId} DDT data for user ${userId}`);
+  }
+
+  /**
+   * Update order invoice data
+   */
+  updateInvoiceData(
+    userId: string,
+    orderId: string,
+    invoiceData: {
+      invoiceNumber: string;
+      invoiceDate: string | null;
+      invoiceAmount: number | null;
+    },
+  ): void {
+    this.db
+      .prepare(
+        `
+      UPDATE orders
+      SET invoice_number = ?, invoice_date = ?, invoice_amount = ?
+      WHERE id = ? AND userId = ?
+    `,
+      )
+      .run(
+        invoiceData.invoiceNumber,
+        invoiceData.invoiceDate,
+        invoiceData.invoiceAmount,
+        orderId,
+        userId,
+      );
+
+    logger.info(`Updated order ${orderId} invoice data for user ${userId}`);
   }
 
   /**
