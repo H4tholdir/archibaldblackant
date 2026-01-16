@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import { useNavigate } from "react-router-dom";
 import { useVoiceInput } from "../hooks/useVoiceInput";
 import {
   parseVoiceOrder,
@@ -22,7 +23,7 @@ import { VoicePopulatedBadge } from "./VoicePopulatedBadge";
 import { VoiceDebugPanel, useVoiceDebugLogger } from "./VoiceDebugPanel";
 import { cacheService } from "../services/cache-service";
 import { draftService } from "../services/draft-service";
-import { pendingOrdersService } from "../services/pending-orders-service";
+import { saveDraftOrder } from "../services/draftOrderStorage";
 import { useNetworkStatus } from "../hooks/useNetworkStatus";
 import { StaleCacheWarning } from "./StaleCacheWarning";
 import type { DraftOrderItem } from "../db/schema";
@@ -49,7 +50,14 @@ interface OrderFormProps {
   isAdmin?: boolean;
 }
 
-export default function OrderForm({ token, onOrderCreated, isAdmin = false }: OrderFormProps) {
+export default function OrderForm({
+  token,
+  onOrderCreated,
+  isAdmin = false,
+}: OrderFormProps) {
+  // Navigation
+  const navigate = useNavigate();
+
   // Network status
   const { isOffline } = useNetworkStatus();
 
@@ -890,102 +898,50 @@ export default function OrderForm({ token, onOrderCreated, isAdmin = false }: Or
   const submitOrder = async () => {
     setLoading(true);
     try {
-      // If offline, queue the order instead of sending immediately
-      if (isOffline) {
-        console.log("[OrderForm] Offline detected, queuing order...");
+      console.log("[OrderForm] Saving draft order to localStorage...");
 
-        // Prepare order data in the same format as the API expects
-        const orderData = {
-          customerId,
-          customerName,
-          items: draftItems.map((item) => ({
-            articleCode: item.articleCode,
-            productName: item.productName,
-            description: item.description,
-            quantity: item.quantity,
-            price: item.price,
-            discount: item.discount,
-          })),
-          discountPercent:
-            calculatedDiscount > 0 ? calculatedDiscount : undefined,
-          targetTotalWithVAT: targetTotalWithVAT
-            ? parseFloat(targetTotalWithVAT)
-            : undefined,
-        };
-
-        const orderId = await pendingOrdersService.addPendingOrder(orderData);
-
-        console.log(
-          "[OrderForm] Order added to pending queue with ID:",
-          orderId,
-        );
-
-        // Verify the order was written by reading it back
-        const allPending =
-          await pendingOrdersService.getPendingOrdersWithCounts();
-        console.log(
-          "[OrderForm] Current pending orders count:",
-          allPending.counts,
-        );
-        console.log("[OrderForm] All pending orders:", allPending.orders);
-
-        alert(
-          `✅ Ordine #${orderId} aggiunto alla coda offline. Sarà inviato automaticamente quando torni online.`,
-        );
-
-        // Clear draft from IndexedDB after queuing
-        await draftService.clearDraft();
-        // Clear draft items and close modal
-        setDraftItems([]);
-        setShowConfirmModal(false);
-        setLoading(false);
-        return;
-      }
-
-      // Online: send order immediately
-      const response = await fetch("/api/orders/create", {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          customerId,
-          customerName,
-          items: draftItems,
-          discountPercent:
-            calculatedDiscount > 0 ? calculatedDiscount : undefined,
-          targetTotalWithVAT: targetTotalWithVAT
-            ? parseFloat(targetTotalWithVAT)
-            : undefined,
-        }),
+      // Save draft to localStorage (new flow: always save as draft)
+      const draft = saveDraftOrder({
+        customerId,
+        customerName,
+        items: draftItems.map((item) => ({
+          articleCode: item.articleCode,
+          productName: item.productName,
+          description: item.description,
+          quantity: item.quantity,
+          price: item.price,
+          discount: item.discount,
+        })),
+        discountPercent:
+          calculatedDiscount > 0 ? calculatedDiscount : undefined,
+        targetTotalWithVAT: targetTotalWithVAT
+          ? parseFloat(targetTotalWithVAT)
+          : undefined,
       });
 
-      const data = await response.json();
+      console.log("[OrderForm] Draft saved with ID:", draft.id);
 
-      if (!response.ok) {
-        if (response.status === 401) {
-          alert("Sessione scaduta. Effettua nuovamente il login.");
-          // Token expired or invalid - user should be redirected to login
-          // This will be handled by the parent component (App.tsx)
-          return;
-        }
-        alert(`Errore: ${data.error || "Errore sconosciuto"}`);
-        return;
-      }
+      // Clear old draft from IndexedDB (legacy system)
+      await draftService.clearDraft();
 
-      if (data.success) {
-        onOrderCreated(data.data.jobId);
-        // Clear draft from IndexedDB after successful submission
-        await draftService.clearDraft();
-        // Clear draft items and close modal
-        setDraftItems([]);
-        setShowConfirmModal(false);
-      } else {
-        alert(`Errore: ${data.error}`);
-      }
+      // Clear form
+      setDraftItems([]);
+      setShowConfirmModal(false);
+      setCustomerId("");
+      setCustomerName("");
+      setCustomerSearch("");
+      setTargetTotalWithVAT("");
+
+      // Show success message
+      alert(
+        `✅ Bozza salvata!\n\nPuoi visualizzarla nella sezione "Bozze" e inviarla ad Archibald quando sei pronto.`,
+      );
+
+      // Navigate to drafts page
+      navigate("/drafts");
     } catch (error) {
-      alert(`Errore di rete: ${error}`);
+      console.error("[OrderForm] Error saving draft:", error);
+      alert(`Errore durante il salvataggio della bozza: ${error}`);
     } finally {
       setLoading(false);
     }
@@ -2338,9 +2294,10 @@ export default function OrderForm({ token, onOrderCreated, isAdmin = false }: Or
           onClick={() => setShowConfirmModal(false)}
         >
           <div className="confirm-modal" onClick={(e) => e.stopPropagation()}>
-            <h2>Confirm Order</h2>
+            <h2>Salva Bozza</h2>
             <div className="onboarding-hint" style={{ marginBottom: "1rem" }}>
-              💡 Final check: Ensure all details are correct before submitting
+              💡 La bozza verrà salvata localmente. Potrai inviarla ad Archibald
+              dalla sezione "Bozze"
             </div>
             <div className="confirm-modal-body">
               <div className="confirm-section">
@@ -2511,10 +2468,10 @@ export default function OrderForm({ token, onOrderCreated, isAdmin = false }: Or
                 {loading ? (
                   <>
                     <span className="spinner" />
-                    Submitting...
+                    Salvataggio...
                   </>
                 ) : (
-                  <>✓ Confirm & Submit</>
+                  <>✓ Salva Bozza</>
                 )}
               </button>
             </div>
@@ -2538,7 +2495,11 @@ export default function OrderForm({ token, onOrderCreated, isAdmin = false }: Or
 
       {/* Voice Debug Panel - Only for admin users */}
       {isAdmin && (
-        <VoiceDebugPanel logs={logs} onClear={clearLogs} onExport={exportLogs} />
+        <VoiceDebugPanel
+          logs={logs}
+          onClear={clearLogs}
+          onExport={exportLogs}
+        />
       )}
     </form>
   );
