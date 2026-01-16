@@ -2119,12 +2119,26 @@ app.post(
     const userId = req.user!.userId;
 
     try {
-      logger.info(`[DraftPlace] Draft order place request received`, { userId });
+      logger.info(`[DraftPlace] Draft order place request received`, {
+        userId,
+      });
 
       // Validate request body
-      const { customerId, customerName, items, discountPercent, targetTotalWithVAT } = req.body;
+      const {
+        customerId,
+        customerName,
+        items,
+        discountPercent,
+        targetTotalWithVAT,
+      } = req.body;
 
-      if (!customerId || !customerName || !items || !Array.isArray(items) || items.length === 0) {
+      if (
+        !customerId ||
+        !customerName ||
+        !items ||
+        !Array.isArray(items) ||
+        items.length === 0
+      ) {
         return res.status(400).json({
           success: false,
           error: "Missing required fields: customerId, customerName, items",
@@ -2133,10 +2147,15 @@ app.post(
 
       // Validate items structure
       for (const item of items) {
-        if (!item.articleCode || typeof item.quantity !== "number" || typeof item.price !== "number") {
+        if (
+          !item.articleCode ||
+          typeof item.quantity !== "number" ||
+          typeof item.price !== "number"
+        ) {
           return res.status(400).json({
             success: false,
-            error: "Invalid item structure: articleCode, quantity, and price are required",
+            error:
+              "Invalid item structure: articleCode, quantity, and price are required",
           });
         }
       }
@@ -2148,24 +2167,35 @@ app.post(
         itemCount: items.length,
       });
 
-      // Pause background services to avoid bot conflicts
-      priorityManager.pause();
-      logger.info(`[DraftPlace] Background services paused`);
+      let bot: any = null;
 
       try {
-        // Create order using bot (same logic as order creation endpoint)
-        const bot = await BotManager.getInstance().getBotOrCreate(userId);
+        // Create order using bot with dedicated browser (same logic as queue-manager)
+        logger.info(
+          `[DraftPlace] Creating bot with dedicated browser for order`,
+          {
+            userId,
+            customerName,
+          },
+        );
 
-        if (!bot) {
-          throw new Error("Failed to get or create bot instance");
-        }
+        const { ArchibaldBot } = await import("./archibald-bot");
 
-        logger.info(`[DraftPlace] Bot acquired, creating order on Archibald`, {
-          userId,
-          customerName,
-        });
+        // Create bot with userId to use password cache and per-user sessions
+        bot = new ArchibaldBot(userId);
 
-        // Create order on Archibald
+        // Initialize dedicated browser and login
+        await bot.initializeDedicatedBrowser();
+
+        logger.info(
+          `[DraftPlace] Bot initialized, creating order on Archibald`,
+          {
+            userId,
+            customerName,
+          },
+        );
+
+        // Create order on Archibald with priority lock (pauses all sync services)
         const orderData = {
           customerId,
           customerName,
@@ -2174,13 +2204,9 @@ app.post(
           targetTotalWithVAT,
         };
 
-        const result = await bot.createOrder(orderData);
-
-        if (!result.success) {
-          throw new Error(result.error || "Failed to create order on Archibald");
-        }
-
-        const orderId = result.orderId;
+        const orderId = await priorityManager.withPriority(async () => {
+          return await bot.createOrder(orderData);
+        });
 
         logger.info(`[DraftPlace] Order created successfully on Archibald`, {
           userId,
@@ -2189,7 +2215,9 @@ app.post(
         });
 
         // Sync order from Archibald to get full details
-        logger.info(`[DraftPlace] Syncing order ${orderId} from Archibald`, { userId });
+        logger.info(`[DraftPlace] Syncing order ${orderId} from Archibald`, {
+          userId,
+        });
         await orderHistoryService.syncFromArchibald(userId);
 
         return res.json({
@@ -2200,10 +2228,22 @@ app.post(
             customerName,
           },
         });
+      } catch (error) {
+        // Mark bot as having error so context will be closed on release
+        if (bot) {
+          (bot as any).hasError = true;
+        }
+        throw error;
       } finally {
-        // Always resume background services
-        priorityManager.resume();
-        logger.info(`[DraftPlace] Background services resumed`);
+        // Close bot browser
+        if (bot) {
+          try {
+            await bot.close();
+            logger.info(`[DraftPlace] Bot browser closed`);
+          } catch (error) {
+            logger.error(`[DraftPlace] Error closing bot browser`, { error });
+          }
+        }
       }
     } catch (error) {
       logger.error("[DraftPlace] Error placing draft order", {
@@ -2215,7 +2255,10 @@ app.post(
 
       return res.status(500).json({
         success: false,
-        error: error instanceof Error ? error.message : "Failed to place draft order",
+        error:
+          error instanceof Error
+            ? error.message
+            : "Failed to place draft order",
       });
     }
   },
