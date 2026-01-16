@@ -1,0 +1,869 @@
+{
+  "tableFound": true,
+  "headerColumns": [],
+  "sampleRows": [
+    {
+      "rowIndex": 0,
+      "cells": [
+        {
+          "cellIndex": 0,
+          "text": "",
+          "hasLink": false,
+          "linkHref": null,
+          "linkText": null,
+          "hasButton": false,
+          "buttonInfo": null
+        },
+        {
+          "cellIndex": 1,
+          "text": "",
+          "hasLink": false,
+          "linkHref": null,
+          "linkText": null,
+          "hasButton": false,
+          "buttonInfo": null
+        },
+        {
+          "cellIndex": 2,
+          "text": "",
+          "hasLink": false,
+          "linkHref": null,
+          "linkText": null,
+          "hasButton": false,
+          "buttonInfo": null
+        },
+        {
+          "cellIndex": 3,
+          "text": "FATTURA PDF",
+          "hasLink": false,
+          "linkHref": null,
+          "linkText": null,
+          "hasButton": false,
+          "buttonInfo": null
+        },
+        {
+          "cellIndex": 4,
+          "text": "FATTURA PDF",
+          "hasLink": false,
+          "linkHref": null,
+          "linkText": null,
+          "hasButton": false,
+          "buttonInfo": null
+        },
+        {
+          "cellIndex": 5,
+          "text": "",
+          "hasLink": false,
+          "linkHref": null,
+          "linkText": null,
+          "hasButton": false,
+          "buttonInfo": null
+        },
+        {
+          "cellIndex": 6,
+          "text": "ID FATTURA",
+          "hasLink": false,
+          "linkHref": null,
+          "linkText": null,
+          "hasButton": false,
+          "buttonInfo": {
+            "type": "image",
+            "alt": "Not filtered",
+            "src": "/Archibald/DXR.axd?r=1_87-he14u",
+            "onclick": null
+          }
+        },
+        {
+          "cellIndex": 7,
+          "text": "ID FATTURA",
+          "hasLink": false,
+          "linkHref": null,
+          "linkText": null,
+          "hasButton": false,
+          "buttonInfo": null
+        },
+        {
+          "cellIndex": 8,
+          "text": "",
+          "hasLink": false,
+          "linkHref": null,
+          "linkText": null,
+          "hasButton": false,
+          "buttonInfo": {
+            "type": "image",
+            "alt": "Not filtered",
+            "src": "/Archibald/DXR.axd?r=1_87-he14u",
+            "onclick": null
+          }
+        },
+        {
+          "cellIndex": 9,
+          "text": "DATA FATTURA",
+          "hasLink": false,
+          "linkHref": null,
+          "linkText": null,
+          "hasButton": false,
+          "buttonInfo": {
+            "type": "image",
+            "alt": "Descending",
+            "src": "/Archibald/DXR.axd?r=1_87-he14u",
+            "onclick": null
+          }
+        },
+        {
+          "cellIndex": 10,
+          "text": "DATA FATTURA",
+          "hasLink": false,
+          "linkHref": null,
+          "linkText": null,
+          "hasButton": false,
+          "buttonInfo": null
+        },
+        {
+          "cellIndex": 11,
+          "text": "",
+          "hasLink": false,
+          "linkHref": null,
+          "linkText": null,
+          "hasButton": false,
+          "buttonInfo": {
+            "type": "image",
+            "alt": "Descending",
+            "src": "/Archibald/DXR.axd?r=1_87-he14u",
+            "onclick": null
+          }
+        },
+        {
+          "cellIndex": 12,
+          "text": "CONTO FATTURE",
+          "hasLink": false,
+          "linkHref": null,
+          "linkText": null,
+          "hasButton": false,
+          "buttonInfo": {
+            "type": "image",
+            "alt": "Not filtered",
+            "src": "/Archibald/DXR.axd?r=1_87-he14u",
+            "onclick": null
+          }
+        },
+        {
+          "cellIndex": 13,
+          "text": "CONTO FATTURE",
+          "hasLink": false,
+          "linkHref": null,
+          "linkText": null,
+          "hasButton": false,
+          "buttonInfo": null
+        },
+        {
+          "cellIndex": 14,
+          "text": "",
+          "hasLink": false,
+          "linkHref": null,
+          "linkText": null,
+          "hasButton": false,
+          "buttonInfo": {
+            "type": "image",
+            "alt": "Not filtered",
+            "src": "/Archibald/DXR.axd?r=1_87-he14u",
+            "onclick": null
+          }
+        },
+        {
+          "cellIndex": 15,
+          "text": "NOME DI FATTURAZIONE",
+          "hasLink": false,
+          "linkHref": null,
+          "linkText": null,
+          "hasButton": false,
+          "buttonInfo": {
+            "type": "image",
+            "alt": "Not filtered",
+            "src": "/Archibald/DXR.axd?r=1_87-he14u",
+            "onclick": null
+          }
+        },
+        {
+          "cellIndex": 16,
+          "text": "NOME DI FATTURAZIONE",
+          "hasLink": false,
+          "linkHref": null,
+          "linkText": null,
+          "hasButton": false,
+          "buttonInfo": null
+        },
+        {
+          "cellIndex": 17,
+          "text": "",
+          "hasLink": false,
+          "linkHref": null,
+          "linkText": null,
+          "hasButton": false,
+          "buttonInfo": {
+            "type": "image",
+            "alt": "Not filtered",
+            "src": "/Archibald/DXR.axd?r=1_87-he14u",
+            "onclick": null
+          }
+        },
+        {
+          "cellIndex": 18,
+          "text": "QUANTITÀ",
+          "hasLink": false,
+          "linkHref": null,
+          "linkText": null,
+          "hasButton": false,
+          "buttonInfo": {
+            "type": "image",
+            "alt": "Not filtered",
+            "src": "/Archibald/DXR.axd?r=1_87-he14u",
+            "onclick": null
+          }
+        },
+        {
+          "cellIndex": 19,
+          "text": "QUANTITÀ",
+          "hasLink": false,
+          "linkHref": null,
+          "linkText": null,
+          "hasButton": false,
+          "buttonInfo": null
+        },
+        {
+          "cellIndex": 20,
+          "text": "",
+          "hasLink": false,
+          "linkHref": null,
+          "linkText": null,
+          "hasButton": false,
+          "buttonInfo": {
+            "type": "image",
+            "alt": "Not filtered",
+            "src": "/Archibald/DXR.axd?r=1_87-he14u",
+            "onclick": null
+          }
+        },
+        {
+          "cellIndex": 21,
+          "text": "SALDO VENDITE MST",
+          "hasLink": false,
+          "linkHref": null,
+          "linkText": null,
+          "hasButton": false,
+          "buttonInfo": {
+            "type": "image",
+            "alt": "Not filtered",
+            "src": "/Archibald/DXR.axd?r=1_87-he14u",
+            "onclick": null
+          }
+        },
+        {
+          "cellIndex": 22,
+          "text": "SALDO VENDITE MST",
+          "hasLink": false,
+          "linkHref": null,
+          "linkText": null,
+          "hasButton": false,
+          "buttonInfo": null
+        },
+        {
+          "cellIndex": 23,
+          "text": "",
+          "hasLink": false,
+          "linkHref": null,
+          "linkText": null,
+          "hasButton": false,
+          "buttonInfo": {
+            "type": "image",
+            "alt": "Not filtered",
+            "src": "/Archibald/DXR.axd?r=1_87-he14u",
+            "onclick": null
+          }
+        },
+        {
+          "cellIndex": 24,
+          "text": "SOMMA LINEA SCONTO MST",
+          "hasLink": false,
+          "linkHref": null,
+          "linkText": null,
+          "hasButton": false,
+          "buttonInfo": {
+            "type": "image",
+            "alt": "Not filtered",
+            "src": "/Archibald/DXR.axd?r=1_87-he14u",
+            "onclick": null
+          }
+        },
+        {
+          "cellIndex": 25,
+          "text": "SOMMA LINEA SCONTO MST",
+          "hasLink": false,
+          "linkHref": null,
+          "linkText": null,
+          "hasButton": false,
+          "buttonInfo": null
+        },
+        {
+          "cellIndex": 26,
+          "text": "",
+          "hasLink": false,
+          "linkHref": null,
+          "linkText": null,
+          "hasButton": false,
+          "buttonInfo": {
+            "type": "image",
+            "alt": "Not filtered",
+            "src": "/Archibald/DXR.axd?r=1_87-he14u",
+            "onclick": null
+          }
+        },
+        {
+          "cellIndex": 27,
+          "text": "SCONTO TOTALE:",
+          "hasLink": false,
+          "linkHref": null,
+          "linkText": null,
+          "hasButton": false,
+          "buttonInfo": {
+            "type": "image",
+            "alt": "Not filtered",
+            "src": "/Archibald/DXR.axd?r=1_87-he14u",
+            "onclick": null
+          }
+        },
+        {
+          "cellIndex": 28,
+          "text": "SCONTO TOTALE:",
+          "hasLink": false,
+          "linkHref": null,
+          "linkText": null,
+          "hasButton": false,
+          "buttonInfo": null
+        },
+        {
+          "cellIndex": 29,
+          "text": "",
+          "hasLink": false,
+          "linkHref": null,
+          "linkText": null,
+          "hasButton": false,
+          "buttonInfo": {
+            "type": "image",
+            "alt": "Not filtered",
+            "src": "/Archibald/DXR.axd?r=1_87-he14u",
+            "onclick": null
+          }
+        },
+        {
+          "cellIndex": 30,
+          "text": "SOMMA FISCALE MST",
+          "hasLink": false,
+          "linkHref": null,
+          "linkText": null,
+          "hasButton": false,
+          "buttonInfo": {
+            "type": "image",
+            "alt": "Not filtered",
+            "src": "/Archibald/DXR.axd?r=1_87-he14u",
+            "onclick": null
+          }
+        },
+        {
+          "cellIndex": 31,
+          "text": "SOMMA FISCALE MST",
+          "hasLink": false,
+          "linkHref": null,
+          "linkText": null,
+          "hasButton": false,
+          "buttonInfo": null
+        },
+        {
+          "cellIndex": 32,
+          "text": "",
+          "hasLink": false,
+          "linkHref": null,
+          "linkText": null,
+          "hasButton": false,
+          "buttonInfo": {
+            "type": "image",
+            "alt": "Not filtered",
+            "src": "/Archibald/DXR.axd?r=1_87-he14u",
+            "onclick": null
+          }
+        },
+        {
+          "cellIndex": 33,
+          "text": "IMPORTO FATTURA MST",
+          "hasLink": false,
+          "linkHref": null,
+          "linkText": null,
+          "hasButton": false,
+          "buttonInfo": {
+            "type": "image",
+            "alt": "Not filtered",
+            "src": "/Archibald/DXR.axd?r=1_87-he14u",
+            "onclick": null
+          }
+        },
+        {
+          "cellIndex": 34,
+          "text": "IMPORTO FATTURA MST",
+          "hasLink": false,
+          "linkHref": null,
+          "linkText": null,
+          "hasButton": false,
+          "buttonInfo": null
+        },
+        {
+          "cellIndex": 35,
+          "text": "",
+          "hasLink": false,
+          "linkHref": null,
+          "linkText": null,
+          "hasButton": false,
+          "buttonInfo": {
+            "type": "image",
+            "alt": "Not filtered",
+            "src": "/Archibald/DXR.axd?r=1_87-he14u",
+            "onclick": null
+          }
+        },
+        {
+          "cellIndex": 36,
+          "text": "ORDINE DI ACQUISTO",
+          "hasLink": false,
+          "linkHref": null,
+          "linkText": null,
+          "hasButton": false,
+          "buttonInfo": {
+            "type": "image",
+            "alt": "Not filtered",
+            "src": "/Archibald/DXR.axd?r=1_87-he14u",
+            "onclick": null
+          }
+        },
+        {
+          "cellIndex": 37,
+          "text": "ORDINE DI ACQUISTO",
+          "hasLink": false,
+          "linkHref": null,
+          "linkText": null,
+          "hasButton": false,
+          "buttonInfo": null
+        },
+        {
+          "cellIndex": 38,
+          "text": "",
+          "hasLink": false,
+          "linkHref": null,
+          "linkText": null,
+          "hasButton": false,
+          "buttonInfo": {
+            "type": "image",
+            "alt": "Not filtered",
+            "src": "/Archibald/DXR.axd?r=1_87-he14u",
+            "onclick": null
+          }
+        },
+        {
+          "cellIndex": 39,
+          "text": "RIFERIMENTO CLIENTE",
+          "hasLink": false,
+          "linkHref": null,
+          "linkText": null,
+          "hasButton": false,
+          "buttonInfo": {
+            "type": "image",
+            "alt": "Not filtered",
+            "src": "/Archibald/DXR.axd?r=1_87-he14u",
+            "onclick": null
+          }
+        },
+        {
+          "cellIndex": 40,
+          "text": "RIFERIMENTO CLIENTE",
+          "hasLink": false,
+          "linkHref": null,
+          "linkText": null,
+          "hasButton": false,
+          "buttonInfo": null
+        },
+        {
+          "cellIndex": 41,
+          "text": "",
+          "hasLink": false,
+          "linkHref": null,
+          "linkText": null,
+          "hasButton": false,
+          "buttonInfo": {
+            "type": "image",
+            "alt": "Not filtered",
+            "src": "/Archibald/DXR.axd?r=1_87-he14u",
+            "onclick": null
+          }
+        },
+        {
+          "cellIndex": 42,
+          "text": "SCADENZA",
+          "hasLink": false,
+          "linkHref": null,
+          "linkText": null,
+          "hasButton": false,
+          "buttonInfo": {
+            "type": "image",
+            "alt": "Not filtered",
+            "src": "/Archibald/DXR.axd?r=1_87-he14u",
+            "onclick": null
+          }
+        },
+        {
+          "cellIndex": 43,
+          "text": "SCADENZA",
+          "hasLink": false,
+          "linkHref": null,
+          "linkText": null,
+          "hasButton": false,
+          "buttonInfo": null
+        },
+        {
+          "cellIndex": 44,
+          "text": "",
+          "hasLink": false,
+          "linkHref": null,
+          "linkText": null,
+          "hasButton": false,
+          "buttonInfo": {
+            "type": "image",
+            "alt": "Not filtered",
+            "src": "/Archibald/DXR.axd?r=1_87-he14u",
+            "onclick": null
+          }
+        },
+        {
+          "cellIndex": 45,
+          "text": "ID TERMINE DI PAGAMENTO",
+          "hasLink": false,
+          "linkHref": null,
+          "linkText": null,
+          "hasButton": false,
+          "buttonInfo": {
+            "type": "image",
+            "alt": "Not filtered",
+            "src": "/Archibald/DXR.axd?r=1_87-he14u",
+            "onclick": null
+          }
+        },
+        {
+          "cellIndex": 46,
+          "text": "ID TERMINE DI PAGAMENTO",
+          "hasLink": false,
+          "linkHref": null,
+          "linkText": null,
+          "hasButton": false,
+          "buttonInfo": null
+        },
+        {
+          "cellIndex": 47,
+          "text": "",
+          "hasLink": false,
+          "linkHref": null,
+          "linkText": null,
+          "hasButton": false,
+          "buttonInfo": {
+            "type": "image",
+            "alt": "Not filtered",
+            "src": "/Archibald/DXR.axd?r=1_87-he14u",
+            "onclick": null
+          }
+        },
+        {
+          "cellIndex": 48,
+          "text": "OLTRE I GIORNI DI SCADENZA",
+          "hasLink": false,
+          "linkHref": null,
+          "linkText": null,
+          "hasButton": false,
+          "buttonInfo": {
+            "type": "image",
+            "alt": "Not filtered",
+            "src": "/Archibald/DXR.axd?r=1_87-he14u",
+            "onclick": null
+          }
+        },
+        {
+          "cellIndex": 49,
+          "text": "OLTRE I GIORNI DI SCADENZA",
+          "hasLink": false,
+          "linkHref": null,
+          "linkText": null,
+          "hasButton": false,
+          "buttonInfo": null
+        },
+        {
+          "cellIndex": 50,
+          "text": "",
+          "hasLink": false,
+          "linkHref": null,
+          "linkText": null,
+          "hasButton": false,
+          "buttonInfo": {
+            "type": "image",
+            "alt": "Not filtered",
+            "src": "/Archibald/DXR.axd?r=1_87-he14u",
+            "onclick": null
+          }
+        },
+        {
+          "cellIndex": 51,
+          "text": "LIQUIDA IMPORTO MST",
+          "hasLink": false,
+          "linkHref": null,
+          "linkText": null,
+          "hasButton": false,
+          "buttonInfo": {
+            "type": "image",
+            "alt": "Not filtered",
+            "src": "/Archibald/DXR.axd?r=1_87-he14u",
+            "onclick": null
+          }
+        },
+        {
+          "cellIndex": 52,
+          "text": "LIQUIDA IMPORTO MST",
+          "hasLink": false,
+          "linkHref": null,
+          "linkText": null,
+          "hasButton": false,
+          "buttonInfo": null
+        },
+        {
+          "cellIndex": 53,
+          "text": "",
+          "hasLink": false,
+          "linkHref": null,
+          "linkText": null,
+          "hasButton": false,
+          "buttonInfo": {
+            "type": "image",
+            "alt": "Not filtered",
+            "src": "/Archibald/DXR.axd?r=1_87-he14u",
+            "onclick": null
+          }
+        },
+        {
+          "cellIndex": 54,
+          "text": "IDENTIFICATIVO ULTIMO PAGAMENTO:",
+          "hasLink": false,
+          "linkHref": null,
+          "linkText": null,
+          "hasButton": false,
+          "buttonInfo": {
+            "type": "image",
+            "alt": "Not filtered",
+            "src": "/Archibald/DXR.axd?r=1_87-he14u",
+            "onclick": null
+          }
+        },
+        {
+          "cellIndex": 55,
+          "text": "IDENTIFICATIVO ULTIMO PAGAMENTO:",
+          "hasLink": false,
+          "linkHref": null,
+          "linkText": null,
+          "hasButton": false,
+          "buttonInfo": null
+        },
+        {
+          "cellIndex": 56,
+          "text": "",
+          "hasLink": false,
+          "linkHref": null,
+          "linkText": null,
+          "hasButton": false,
+          "buttonInfo": {
+            "type": "image",
+            "alt": "Not filtered",
+            "src": "/Archibald/DXR.axd?r=1_87-he14u",
+            "onclick": null
+          }
+        },
+        {
+          "cellIndex": 57,
+          "text": "DATA DI ULTIMA LIQUIDAZIONE",
+          "hasLink": false,
+          "linkHref": null,
+          "linkText": null,
+          "hasButton": false,
+          "buttonInfo": {
+            "type": "image",
+            "alt": "Not filtered",
+            "src": "/Archibald/DXR.axd?r=1_87-he14u",
+            "onclick": null
+          }
+        },
+        {
+          "cellIndex": 58,
+          "text": "DATA DI ULTIMA LIQUIDAZIONE",
+          "hasLink": false,
+          "linkHref": null,
+          "linkText": null,
+          "hasButton": false,
+          "buttonInfo": null
+        },
+        {
+          "cellIndex": 59,
+          "text": "",
+          "hasLink": false,
+          "linkHref": null,
+          "linkText": null,
+          "hasButton": false,
+          "buttonInfo": {
+            "type": "image",
+            "alt": "Not filtered",
+            "src": "/Archibald/DXR.axd?r=1_87-he14u",
+            "onclick": null
+          }
+        },
+        {
+          "cellIndex": 60,
+          "text": "CHIUSO",
+          "hasLink": false,
+          "linkHref": null,
+          "linkText": null,
+          "hasButton": false,
+          "buttonInfo": {
+            "type": "image",
+            "alt": "Not filtered",
+            "src": "/Archibald/DXR.axd?r=1_87-he14u",
+            "onclick": null
+          }
+        },
+        {
+          "cellIndex": 61,
+          "text": "CHIUSO",
+          "hasLink": false,
+          "linkHref": null,
+          "linkText": null,
+          "hasButton": false,
+          "buttonInfo": null
+        },
+        {
+          "cellIndex": 62,
+          "text": "",
+          "hasLink": false,
+          "linkHref": null,
+          "linkText": null,
+          "hasButton": false,
+          "buttonInfo": {
+            "type": "image",
+            "alt": "Not filtered",
+            "src": "/Archibald/DXR.axd?r=1_87-he14u",
+            "onclick": null
+          }
+        },
+        {
+          "cellIndex": 63,
+          "text": "IMPORTO RIMANENTE MST",
+          "hasLink": false,
+          "linkHref": null,
+          "linkText": null,
+          "hasButton": false,
+          "buttonInfo": {
+            "type": "image",
+            "alt": "Not filtered",
+            "src": "/Archibald/DXR.axd?r=1_87-he14u",
+            "onclick": null
+          }
+        },
+        {
+          "cellIndex": 64,
+          "text": "IMPORTO RIMANENTE MST",
+          "hasLink": false,
+          "linkHref": null,
+          "linkText": null,
+          "hasButton": false,
+          "buttonInfo": null
+        },
+        {
+          "cellIndex": 65,
+          "text": "",
+          "hasLink": false,
+          "linkHref": null,
+          "linkText": null,
+          "hasButton": false,
+          "buttonInfo": {
+            "type": "image",
+            "alt": "Not filtered",
+            "src": "/Archibald/DXR.axd?r=1_87-he14u",
+            "onclick": null
+          }
+        }
+      ]
+    },
+    {
+      "rowIndex": 1,
+      "cells": [
+        {
+          "cellIndex": 0,
+          "text": "",
+          "hasLink": false,
+          "linkHref": null,
+          "linkText": null,
+          "hasButton": false,
+          "buttonInfo": null
+        },
+        {
+          "cellIndex": 1,
+          "text": "",
+          "hasLink": false,
+          "linkHref": null,
+          "linkText": null,
+          "hasButton": false,
+          "buttonInfo": null
+        }
+      ]
+    },
+    {
+      "rowIndex": 2,
+      "cells": [
+        {
+          "cellIndex": 0,
+          "text": "FATTURA PDF",
+          "hasLink": false,
+          "linkHref": null,
+          "linkText": null,
+          "hasButton": false,
+          "buttonInfo": null
+        },
+        {
+          "cellIndex": 1,
+          "text": "",
+          "hasLink": false,
+          "linkHref": null,
+          "linkText": null,
+          "hasButton": false,
+          "buttonInfo": null
+        }
+      ]
+    }
+  ],
+  "pdfDownloadButtons": [],
+  "paginationElements": [
+    {
+      "selector": "img[alt=\"Next\"]",
+      "count": 1,
+      "sampleText": ""
+    },
+    {
+      "selector": ".dxp-button",
+      "count": 2,
+      "sampleText": ""
+    },
+    {
+      "selector": ".dxp-num",
+      "count": 6,
+      "sampleText": "1"
+    }
+  ]
+}
