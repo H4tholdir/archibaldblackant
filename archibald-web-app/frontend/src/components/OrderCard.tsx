@@ -25,6 +25,10 @@ export interface Order {
     courier: string;
     trackingNumber: string;
   };
+  ddt?: {
+    ddtNumber: string;
+    hasTracking: boolean;
+  };
   invoice?: {
     invoiceNumber: string;
     invoiceDate: string;
@@ -119,6 +123,25 @@ function TrackingBadge() {
       }}
     >
       📦 Tracking disponibile
+    </span>
+  );
+}
+
+function DDTBadge() {
+  return (
+    <span
+      style={{
+        display: "inline-block",
+        padding: "4px 12px",
+        borderRadius: "16px",
+        backgroundColor: "#e8f5e9",
+        color: "#2e7d32",
+        fontSize: "12px",
+        fontWeight: 600,
+        border: "1px solid #a5d6a7",
+      }}
+    >
+      📄 DDT disponibile
     </span>
   );
 }
@@ -254,6 +277,145 @@ function DocumentsList({
             </div>
           </a>
         ))}
+      </div>
+    </div>
+  );
+}
+
+function DDTSection({ order, token }: { order: Order; token?: string }) {
+  const [isDownloading, setIsDownloading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  if (!order.ddt) {
+    return null;
+  }
+
+  const handleDownloadDDT = async () => {
+    if (!token) {
+      setError("Token di autenticazione mancante");
+      return;
+    }
+
+    if (!order.ddt.hasTracking) {
+      setError(
+        "Tracking non disponibile: il PDF DDT non può essere generato senza un codice di tracciamento attivo",
+      );
+      return;
+    }
+
+    setIsDownloading(true);
+    setError(null);
+
+    try {
+      const response = await fetch(`/api/orders/${order.id}/ddt/download`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || "Errore durante il download");
+      }
+
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `ddt-${order.ddt.ddtNumber.replace(/\//g, "-")}.pdf`;
+      a.click();
+      window.URL.revokeObjectURL(url);
+    } catch (err) {
+      const errorMessage =
+        err instanceof Error ? err.message : "Errore sconosciuto";
+      setError(errorMessage);
+      console.error("DDT download error:", err);
+    } finally {
+      setIsDownloading(false);
+    }
+  };
+
+  return (
+    <div style={{ marginTop: "16px" }}>
+      <div
+        style={{
+          fontSize: "14px",
+          fontWeight: 600,
+          marginBottom: "8px",
+          color: "#333",
+        }}
+      >
+        Documento di Trasporto (DDT)
+      </div>
+      <div
+        style={{
+          padding: "12px",
+          backgroundColor: "#e8f5e9",
+          borderRadius: "8px",
+          border: "1px solid #a5d6a7",
+        }}
+      >
+        <div
+          style={{
+            fontSize: "14px",
+            color: "#333",
+            marginBottom: "12px",
+          }}
+        >
+          <strong>Numero DDT:</strong> {order.ddt.ddtNumber}
+        </div>
+        <button
+          onClick={handleDownloadDDT}
+          disabled={isDownloading || !order.ddt.hasTracking}
+          style={{
+            padding: "8px 16px",
+            backgroundColor:
+              isDownloading || !order.ddt.hasTracking ? "#ccc" : "#4caf50",
+            color: "#fff",
+            border: "none",
+            borderRadius: "6px",
+            fontSize: "14px",
+            fontWeight: 600,
+            cursor:
+              isDownloading || !order.ddt.hasTracking
+                ? "not-allowed"
+                : "pointer",
+            display: "flex",
+            alignItems: "center",
+            gap: "8px",
+            width: "100%",
+            justifyContent: "center",
+          }}
+        >
+          {isDownloading ? (
+            <>
+              <span>⏳</span>
+              <span>Download in corso...</span>
+            </>
+          ) : !order.ddt.hasTracking ? (
+            <>
+              <span>🔒</span>
+              <span>Download disponibile dopo attivazione tracking</span>
+            </>
+          ) : (
+            <>
+              <span>📄</span>
+              <span>Scarica DDT</span>
+            </>
+          )}
+        </button>
+        {error && (
+          <div
+            style={{
+              marginTop: "8px",
+              padding: "8px",
+              backgroundColor: "#ffebee",
+              borderRadius: "4px",
+              fontSize: "12px",
+              color: "#c62828",
+            }}
+          >
+            {error}
+          </div>
+        )}
       </div>
     </div>
   );
@@ -510,6 +672,7 @@ export function OrderCard({
           >
             <StatusBadge status={order.status} />
             {order.tracking && <TrackingBadge />}
+            {order.ddt && <DDTBadge />}
           </div>
         </div>
         <div style={{ textAlign: "right", marginLeft: "16px" }}>
@@ -656,6 +819,9 @@ export function OrderCard({
               </div>
             </div>
           )}
+
+          {/* DDT details */}
+          <DDTSection order={order} token={token} />
 
           {/* Invoice details */}
           <InvoiceSection order={order} token={token} />
