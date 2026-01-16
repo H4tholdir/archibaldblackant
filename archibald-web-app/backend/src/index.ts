@@ -2571,6 +2571,71 @@ app.get("/api/debug/me", authenticateJWT, (req: AuthRequest, res: Response) => {
   });
 });
 
+// Debug endpoint to test DDT scraping without download
+app.get("/api/debug/ddt/:orderId", authenticateJWT, async (req: AuthRequest, res: Response) => {
+  const userId = req.userId!;
+  const orderId = decodeURIComponent(req.params.orderId);
+  const orderDb = OrderDatabase.getInstance();
+  const ddtScraperService = new DDTScraperService();
+
+  try {
+    // Find order
+    let order = orderDb.getOrderById(userId, orderId);
+    if (!order) {
+      const allOrders = orderDb.getOrders(userId);
+      order = allOrders.find(o => o.orderNumber === orderId) || null;
+    }
+
+    if (!order) {
+      return res.status(404).json({ error: "Order not found", orderId, userId });
+    }
+
+    // Try to acquire browser and scrape
+    const browserPool = BrowserPool.getInstance();
+    const context = await browserPool.acquireContext(userId);
+    const page = await context.newPage();
+
+    try {
+      await page.goto("https://4.231.124.90/Archibald/CUSTPACKINGSLIPJOUR_ListView/", {
+        waitUntil: "domcontentloaded",
+        timeout: 60000,
+      });
+
+      await new Promise((resolve) => setTimeout(resolve, 2000));
+
+      const ddtList = await ddtScraperService["scrapeDDTPage"](page);
+      const matchedDDT = ddtList.find((ddt) => ddt.orderId === order!.orderNumber);
+
+      await page.close();
+      await browserPool.releaseContext(userId, context, true);
+
+      return res.json({
+        success: true,
+        order: {
+          id: order.id,
+          orderNumber: order.orderNumber,
+          ddtNumber: order.ddtNumber,
+          trackingNumber: order.trackingNumber,
+        },
+        scrapedDDTs: ddtList.length,
+        matchedDDT: matchedDDT ? {
+          ddtNumber: matchedDDT.ddtNumber,
+          orderId: matchedDDT.orderId,
+        } : null,
+      });
+    } catch (error) {
+      await page.close();
+      await browserPool.releaseContext(userId, context, false);
+      throw error;
+    }
+  } catch (error) {
+    return res.status(500).json({
+      error: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : undefined,
+    });
+  }
+});
+
 // Download DDT PDF - GET /api/orders/:orderId/ddt/download
 app.get(
   "/api/orders/:orderId/ddt/download",
