@@ -99,22 +99,24 @@ export class DDTScraperService {
           pageNum++;
         } while (pageNum <= 20); // Safety limit
 
-        logger.info(`[DDTScraper] Scraped ${allDDTData.length} DDT entries from ${pageNum} pages`);
+        logger.info(
+          `[DDTScraper] Scraped ${allDDTData.length} DDT entries from ${pageNum} pages`,
+        );
 
         success = true;
         return allDDTData;
-
       } finally {
         if (!page.isClosed()) {
           await page.close().catch(() => {});
         }
       }
-
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      logger.error("[DDTScraper] Failed to scrape DDT data", { error: errorMessage });
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
+      logger.error("[DDTScraper] Failed to scrape DDT data", {
+        error: errorMessage,
+      });
       throw error;
-
     } finally {
       if (context) {
         await browserPool.releaseContext(userId, context, success);
@@ -148,39 +150,75 @@ export class DDTScraperService {
         const text = header.textContent?.trim().toUpperCase() || "";
 
         // Map all 11 DDT columns based on TABLE-ANALYSIS.md
-        if (text.includes("ID") && !text.includes("VENDITA") && !text.includes("TRACCIABILIT")) {
+        if (
+          text.includes("ID") &&
+          !text.includes("VENDITA") &&
+          !text.includes("TRACCIABILIT")
+        ) {
           columnMap.ddtId = index;
-        } else if (text.includes("DOCUMENTO DI TRASPORTO") || text.includes("NUMERO DDT")) {
+        } else if (
+          text.includes("DOCUMENTO DI TRASPORTO") ||
+          text.includes("NUMERO DDT")
+        ) {
           columnMap.ddtNumber = index;
-        } else if (text.includes("DATA DI CONSEGNA") || text.includes("DATA CONSEGNA")) {
+        } else if (
+          text.includes("DATA DI CONSEGNA") ||
+          text.includes("DATA CONSEGNA")
+        ) {
           columnMap.deliveryDate = index;
         } else if (text.includes("ID DI VENDITA")) {
           columnMap.orderId = index;
-        } else if (text.includes("CONTO DELL'ORDINE") || text.includes("CONTO ORDINE")) {
+        } else if (
+          text.includes("CONTO DELL'ORDINE") ||
+          text.includes("CONTO ORDINE")
+        ) {
           columnMap.customerAccountId = index;
-        } else if (text.includes("NOME VENDITE") || text.includes("NOME VENDITORE")) {
+        } else if (
+          text.includes("NOME VENDITE") ||
+          text.includes("NOME VENDITORE")
+        ) {
           columnMap.salesName = index;
-        } else if (text.includes("NOME DI CONSEGNA") || text.includes("NOME CONSEGNA")) {
+        } else if (
+          text.includes("NOME DI CONSEGNA") ||
+          text.includes("NOME CONSEGNA")
+        ) {
           columnMap.deliveryName = index;
-        } else if (text.includes("TRACCIABILITÀ") || text.includes("NUMERO DI TRACCIABILITÀ")) {
+        } else if (
+          text.includes("TRACCIABILITÀ") ||
+          text.includes("NUMERO DI TRACCIABILITÀ")
+        ) {
           columnMap.tracking = index;
-        } else if (text.includes("TERMINI DI CONSEGNA") || text.includes("TERMINI CONSEGNA")) {
+        } else if (
+          text.includes("TERMINI DI CONSEGNA") ||
+          text.includes("TERMINI CONSEGNA")
+        ) {
           columnMap.deliveryTerms = index;
-        } else if (text.includes("MODALITÀ DI CONSEGNA") || text.includes("MODALITA")) {
+        } else if (
+          text.includes("MODALITÀ DI CONSEGNA") ||
+          text.includes("MODALITA")
+        ) {
           columnMap.deliveryMethod = index;
-        } else if (text.includes("CITTÀ DI CONSEGNA") || text.includes("CITTA")) {
+        } else if (
+          text.includes("CITTÀ DI CONSEGNA") ||
+          text.includes("CITTA")
+        ) {
           columnMap.deliveryCity = index;
         }
       });
 
       // Validate required columns
-      if (columnMap.ddtNumber === undefined || columnMap.orderId === undefined) {
+      if (
+        columnMap.ddtNumber === undefined ||
+        columnMap.orderId === undefined
+      ) {
         console.error("[DDTScraper] Required columns not found", columnMap);
         return [];
       }
 
       // Extract data from rows
-      const dataRows = Array.from(table.querySelectorAll("tr.dxgvDataRow, tr.dxgvDataRow_XafTheme"));
+      const dataRows = Array.from(
+        table.querySelectorAll("tr.dxgvDataRow, tr.dxgvDataRow_XafTheme"),
+      );
       const ddtData: any[] = [];
 
       for (const row of dataRows) {
@@ -195,7 +233,9 @@ export class DDTScraperService {
         // Extract order ID
         const orderId = cells[columnMap.orderId]?.textContent?.trim();
         if (!orderId || !orderId.startsWith("ORD/")) {
-          console.warn(`[DDTScraper] Skipping DDT ${ddtNumber} - missing order ID`);
+          console.warn(
+            `[DDTScraper] Skipping DDT ${ddtNumber} - missing order ID`,
+          );
           continue;
         }
 
@@ -224,19 +264,43 @@ export class DDTScraperService {
 
         // Build DDT entry with all 11 columns
         ddtData.push({
-          ddtId: columnMap.ddtId !== undefined ? cells[columnMap.ddtId]?.textContent?.trim() : undefined,
+          ddtId:
+            columnMap.ddtId !== undefined
+              ? cells[columnMap.ddtId]?.textContent?.trim()
+              : undefined,
           ddtNumber,
-          ddtDeliveryDate: columnMap.deliveryDate !== undefined ? cells[columnMap.deliveryDate]?.textContent?.trim() : undefined,
+          ddtDeliveryDate:
+            columnMap.deliveryDate !== undefined
+              ? cells[columnMap.deliveryDate]?.textContent?.trim()
+              : undefined,
           orderId, // Match key
-          customerAccountId: columnMap.customerAccountId !== undefined ? cells[columnMap.customerAccountId]?.textContent?.trim() : undefined,
-          salesName: columnMap.salesName !== undefined ? cells[columnMap.salesName]?.textContent?.trim() : undefined,
-          deliveryName: columnMap.deliveryName !== undefined ? cells[columnMap.deliveryName]?.textContent?.trim() : undefined,
+          customerAccountId:
+            columnMap.customerAccountId !== undefined
+              ? cells[columnMap.customerAccountId]?.textContent?.trim()
+              : undefined,
+          salesName:
+            columnMap.salesName !== undefined
+              ? cells[columnMap.salesName]?.textContent?.trim()
+              : undefined,
+          deliveryName:
+            columnMap.deliveryName !== undefined
+              ? cells[columnMap.deliveryName]?.textContent?.trim()
+              : undefined,
           trackingNumber,
           trackingUrl,
           trackingCourier,
-          deliveryTerms: columnMap.deliveryTerms !== undefined ? cells[columnMap.deliveryTerms]?.textContent?.trim() : undefined,
-          deliveryMethod: columnMap.deliveryMethod !== undefined ? cells[columnMap.deliveryMethod]?.textContent?.trim() : undefined,
-          deliveryCity: columnMap.deliveryCity !== undefined ? cells[columnMap.deliveryCity]?.textContent?.trim() : undefined,
+          deliveryTerms:
+            columnMap.deliveryTerms !== undefined
+              ? cells[columnMap.deliveryTerms]?.textContent?.trim()
+              : undefined,
+          deliveryMethod:
+            columnMap.deliveryMethod !== undefined
+              ? cells[columnMap.deliveryMethod]?.textContent?.trim()
+              : undefined,
+          deliveryCity:
+            columnMap.deliveryCity !== undefined
+              ? cells[columnMap.deliveryCity]?.textContent?.trim()
+              : undefined,
         });
       }
 
@@ -269,8 +333,13 @@ export class DDTScraperService {
   /**
    * Match DDT data to orders and update database
    */
-  async syncDDTToOrders(userId: string, ddtData: DDTData[]): Promise<SyncResult> {
-    logger.info(`[DDTScraper] Syncing ${ddtData.length} DDT entries for user ${userId}`);
+  async syncDDTToOrders(
+    userId: string,
+    ddtData: DDTData[],
+  ): Promise<SyncResult> {
+    logger.info(
+      `[DDTScraper] Syncing ${ddtData.length} DDT entries for user ${userId}`,
+    );
 
     let matched = 0;
     let notFound = 0;
@@ -282,7 +351,9 @@ export class DDTScraperService {
 
         if (!order) {
           notFound++;
-          logger.warn(`[DDTScraper] Order ${ddt.orderId} not found in database for DDT ${ddt.ddtNumber}`);
+          logger.warn(
+            `[DDTScraper] Order ${ddt.orderId} not found in database for DDT ${ddt.ddtNumber}`,
+          );
           continue;
         }
 
@@ -295,7 +366,9 @@ export class DDTScraperService {
         });
 
         matched++;
-        logger.info(`[DDTScraper] Matched DDT ${ddt.ddtNumber} to order ${ddt.orderId}`);
+        logger.info(
+          `[DDTScraper] Matched DDT ${ddt.ddtNumber} to order ${ddt.orderId}`,
+        );
       }
 
       const message = `Synced ${matched} DDT entries, ${notFound} not found in database`;
@@ -308,10 +381,12 @@ export class DDTScraperService {
         scrapedCount: ddtData.length,
         message,
       };
-
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      logger.error("[DDTScraper] Failed to sync DDT data", { error: errorMessage });
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
+      logger.error("[DDTScraper] Failed to sync DDT data", {
+        error: errorMessage,
+      });
 
       return {
         success: false,
@@ -324,9 +399,181 @@ export class DDTScraperService {
   }
 
   /**
+   * Download DDT PDF for a specific order
+   * Workflow:
+   * 1. Navigate to DDT page
+   * 2. Find DDT by order ID (direct match via ddtOrderNumber)
+   * 3. Select DDT row
+   * 4. Click "Scarica PDF" button
+   * 5. Wait for PDF link generation
+   * 6. Download PDF via Puppeteer CDP
+   */
+  async downloadDDTPDF(userId: string, order: StoredOrder): Promise<Buffer> {
+    logger.info(`[DDTScraper] Downloading DDT PDF for order ${order.id}`);
+
+    // Verify order has DDT
+    if (!order.ddtNumber) {
+      throw new Error(`Order ${order.id} has no DDT number`);
+    }
+
+    const browserPool = BrowserPool.getInstance();
+    let context: BrowserContext | null = null;
+    let success = false;
+
+    try {
+      // Acquire browser context
+      context = await browserPool.acquireContext(userId);
+      const page = await context.newPage();
+
+      try {
+        // Navigate to DDT page
+        logger.info("[DDTScraper] Navigating to DDT page");
+        await page.goto(this.ddtPageUrl, {
+          waitUntil: "domcontentloaded",
+          timeout: 60000,
+        });
+
+        // Wait for table to load
+        await new Promise((resolve) => setTimeout(resolve, 2000));
+
+        // Scrape DDT page to find the matching DDT
+        const ddtList = await this.scrapeDDTPage(page);
+
+        // Find DDT by order ID (direct match)
+        const matchedDDT = ddtList.find(
+          (ddt) => ddt.orderId === order.orderNumber,
+        );
+
+        if (!matchedDDT) {
+          throw new Error(
+            `No DDT found for order ${order.id} (orderNumber: ${order.orderNumber})`,
+          );
+        }
+
+        logger.info(
+          `[DDTScraper] Found DDT ${matchedDDT.ddtNumber} for order ${order.id}`,
+        );
+
+        // Find the row ID for checkbox selection
+        const rowId = await page.evaluate((ddtNumber) => {
+          const rows = document.querySelectorAll(
+            "tr.dxgvDataRow, tr.dxgvDataRow_XafTheme",
+          );
+          for (const row of Array.from(rows)) {
+            const cells = row.querySelectorAll("td");
+            for (const cell of Array.from(cells)) {
+              if (cell.textContent?.trim() === ddtNumber) {
+                return row.id;
+              }
+            }
+          }
+          return null;
+        }, matchedDDT.ddtNumber);
+
+        if (!rowId) {
+          throw new Error(`Row not found for DDT ${matchedDDT.ddtNumber}`);
+        }
+
+        // Select DDT row by clicking checkbox
+        logger.info("[DDTScraper] Selecting DDT row");
+        await page.evaluate((id) => {
+          const checkbox = document.querySelector(
+            `input[type="checkbox"][id*="${id}"]`,
+          ) as HTMLInputElement;
+          if (checkbox) {
+            checkbox.click();
+          } else {
+            throw new Error(`Checkbox not found for row ${id}`);
+          }
+        }, rowId);
+
+        // Wait for selection to register
+        await new Promise((resolve) => setTimeout(resolve, 1000));
+
+        // Trigger PDF generation
+        logger.info('[DDTScraper] Clicking "Scarica PDF" button');
+        await page.click('li[title="Scarica PDF"] a.dxm-content');
+
+        // Wait for PDF link to appear (td selector for DDT)
+        logger.info("[DDTScraper] Waiting for PDF link generation");
+        await page.waitForSelector(
+          'td[id$="_xaf_InvoicePDF"] a.XafFileDataAnchor',
+          {
+            timeout: 15000,
+          },
+        );
+
+        // Setup Puppeteer download interception via CDP
+        const client = await (page.target() as any).createCDPSession();
+        const tmpDir = "/tmp/archibald-ddt";
+
+        // Ensure tmp directory exists
+        const fs = await import("node:fs/promises");
+        await fs.mkdir(tmpDir, { recursive: true });
+
+        await client.send("Page.setDownloadBehavior", {
+          behavior: "allow",
+          downloadPath: tmpDir,
+        });
+
+        logger.info("[DDTScraper] Clicking PDF link to download");
+
+        // Click PDF link
+        await page.click('td[id$="_xaf_InvoicePDF"] a.XafFileDataAnchor');
+
+        // Wait for download to complete
+        logger.info("[DDTScraper] Waiting for download to complete");
+        await new Promise((resolve) => setTimeout(resolve, 5000));
+
+        // Find the downloaded file
+        const files = await fs.readdir(tmpDir);
+        const pdfFile = files.find((f) => f.endsWith(".pdf"));
+
+        if (!pdfFile) {
+          throw new Error("PDF file not found in download directory");
+        }
+
+        const pdfPath = `${tmpDir}/${pdfFile}`;
+        logger.info(`[DDTScraper] Reading PDF from ${pdfPath}`);
+
+        // Read PDF into Buffer
+        const pdfBuffer = await fs.readFile(pdfPath);
+
+        // Clean up temp file
+        await fs.unlink(pdfPath).catch(() => {});
+
+        logger.info(
+          `[DDTScraper] Successfully downloaded DDT PDF (${pdfBuffer.length} bytes)`,
+        );
+
+        success = true;
+        return pdfBuffer;
+      } finally {
+        if (!page.isClosed()) {
+          await page.close().catch(() => {});
+        }
+      }
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
+      logger.error("[DDTScraper] Failed to download DDT PDF", {
+        error: errorMessage,
+      });
+      throw error;
+    } finally {
+      if (context) {
+        await browserPool.releaseContext(userId, context, success);
+      }
+    }
+  }
+
+  /**
    * Normalize tracking URL by courier
    */
-  private normalizeTrackingUrl(courier: string, trackingNumber: string): string {
+  private normalizeTrackingUrl(
+    courier: string,
+    trackingNumber: string,
+  ): string {
     const courierLower = courier.toLowerCase();
 
     switch (courierLower) {
@@ -340,7 +587,9 @@ export class DDTScraperService {
         return `https://www.dhl.com/it-it/home/tracking.html?tracking-id=${trackingNumber}`;
 
       default:
-        logger.warn(`[DDTScraper] Unknown courier: ${courier}, cannot normalize URL`);
+        logger.warn(
+          `[DDTScraper] Unknown courier: ${courier}, cannot normalize URL`,
+        );
         return "";
     }
   }
