@@ -1,6 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { OrderCard } from "../components/OrderCard";
-import type { Order as OrderCardOrder } from "../components/OrderCard";
+import { OrderCardNew } from "../components/OrderCardNew";
 import { OrderTimeline } from "../components/OrderTimeline";
 import type {
   StatusUpdate,
@@ -10,7 +9,7 @@ import { OrderTracking } from "../components/OrderTracking";
 import { OrderActions } from "../components/OrderActions";
 import { SendToMilanoModal } from "../components/SendToMilanoModal";
 import { groupOrdersByPeriod } from "../utils/orderGrouping";
-import type { Order } from "../utils/orderGrouping";
+import type { Order } from "../types/order";
 
 interface OrderFilters {
   customer: string;
@@ -146,76 +145,13 @@ export function OrderHistory() {
   }, [fetchOrders]);
 
   // Fetch order detail and state history when expanding
-  const handleToggle = async (orderId: string) => {
+  const handleToggle = (orderId: string) => {
     if (expandedOrderId === orderId) {
       // Collapse
       setExpandedOrderId(null);
-      return;
-    }
-
-    // Expand - check if detail already cached
-    if (orderDetails.has(orderId)) {
+    } else {
+      // Expand - all data already available from /api/orders/history
       setExpandedOrderId(orderId);
-      return;
-    }
-
-    // Fetch detail and state history in parallel
-    try {
-      const token = localStorage.getItem("archibald_jwt");
-      if (!token) {
-        setError("Non autenticato. Effettua il login.");
-        return;
-      }
-
-      const [detailResponse, stateHistoryResponse] = await Promise.all([
-        fetch(`/api/orders/${orderId}`, {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        }),
-        fetch(`/api/orders/${orderId}/state-history`, {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        }),
-      ]);
-
-      if (!detailResponse.ok) {
-        if (detailResponse.status === 404) {
-          setError("Ordine non trovato.");
-          return;
-        }
-        throw new Error(
-          `Errore ${detailResponse.status}: ${detailResponse.statusText}`,
-        );
-      }
-
-      const detailData: OrderDetailResponse = await detailResponse.json();
-      if (!detailData.success) {
-        throw new Error("Errore nel caricamento del dettaglio ordine");
-      }
-
-      // Cache detail
-      setOrderDetails((prev) => new Map(prev).set(orderId, detailData.data));
-
-      // Fetch state history (non-blocking if fails)
-      if (stateHistoryResponse.ok) {
-        const historyData = await stateHistoryResponse.json();
-        if (historyData.success && historyData.data) {
-          setStateHistory((prev) =>
-            new Map(prev).set(orderId, historyData.data),
-          );
-        }
-      }
-
-      setExpandedOrderId(orderId);
-    } catch (err) {
-      console.error("Error fetching order detail:", err);
-      setError(
-        err instanceof Error
-          ? err.message
-          : "Errore nel caricamento del dettaglio",
-      );
     }
   };
 
@@ -373,13 +309,13 @@ export function OrderHistory() {
   const orderGroups = groupOrdersByPeriod(orders);
 
   // Get merged order data (base + detail if available)
-  const getMergedOrder = (order: Order): OrderCardOrder => {
+  const getMergedOrder = (order: Order): Order => {
     const detail = orderDetails.get(order.id);
     if (!detail) {
-      // Return base order cast to OrderCardOrder via unknown
-      return order as unknown as OrderCardOrder;
+      // Return base order as-is
+      return order;
     }
-    return { ...order, ...detail } as unknown as OrderCardOrder;
+    return { ...order, ...detail };
   };
 
   return (
@@ -811,60 +747,13 @@ export function OrderHistory() {
                 {group.orders.map((order) => {
                   const mergedOrder = getMergedOrder(order);
                   const isExpanded = expandedOrderId === order.id;
-                  const detail = orderDetails.get(order.id);
-                  const history = stateHistory.get(order.id);
-
-                  // Create combined component for expanded view
-                  const expandedContent = isExpanded ? (
-                    <>
-                      {/* State Timeline */}
-                      {(history || detail?.statusTimeline) && (
-                        <div style={{ marginBottom: "16px" }}>
-                          <OrderTimeline
-                            stateHistory={history}
-                            updates={detail?.statusTimeline}
-                            currentState={
-                              (detail as any)?.currentState || order.status
-                            }
-                          />
-                        </div>
-                      )}
-
-                      {/* Tracking Information */}
-                      {(detail?.ddtNumber || detail?.trackingNumber) && (
-                        <div style={{ marginBottom: "16px" }}>
-                          <OrderTracking
-                            ddtNumber={(detail as any)?.ddtNumber}
-                            trackingNumber={(detail as any)?.trackingNumber}
-                            trackingUrl={(detail as any)?.trackingUrl}
-                            trackingCourier={(detail as any)?.trackingCourier}
-                          />
-                        </div>
-                      )}
-
-                      {/* Order Actions */}
-                      <OrderActions
-                        orderId={order.id}
-                        currentState={
-                          (detail as any)?.currentState || order.status
-                        }
-                        archibaldOrderId={(detail as any)?.archibaldOrderId}
-                        onSendToMilano={() =>
-                          handleSendToMilano(order.id, order.customerName)
-                        }
-                        onEdit={() => handleEdit(order.id)}
-                      />
-                    </>
-                  ) : undefined;
 
                   return (
-                    <OrderCard
+                    <OrderCardNew
                       key={order.id}
                       order={mergedOrder}
                       expanded={isExpanded}
                       onToggle={() => handleToggle(order.id)}
-                      onDocumentsClick={handleDocumentsClick}
-                      timelineComponent={expandedContent}
                     />
                   );
                 })}
