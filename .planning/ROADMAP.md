@@ -527,8 +527,8 @@ Plans:
 - [x] 11-02: Implement "Send to Milano" Feature (Step 2 automation + database migration)
 - [x] 11-03: Implement DDT and Tracking Number Scraping (CUSTPACKINGSLIPJOUR_ListView) - COMPLETE (35min)
 - [x] 11-04: Implement Status Tracking Backend with Cache (2-hour TTL, on-demand sync) - COMPLETE (45min)
-- [ ] 11-05: Build Status Tracking UI with Timeline (OrderTimeline, OrderTracking, SendToMilanoModal)
-- [ ] 11-06: Implement Invoice Scraping and PDF Download (CUSTINVOICEJOUR_ListView)
+- [x] 11-05: Build Status Tracking UI with Timeline (OrderTimeline, OrderTracking, SendToMilanoModal) - COMPLETE (15min)
+- [x] 11-06: Implement Invoice Scraping and PDF Download (CUSTINVOICEJOUR_ListView) - COMPLETE (30min)
 - [ ] 11-07: Integration Testing, Error Handling & Audit Log (E2E tests, edge cases, audit verification)
 
 ### Phase 12: Deployment & Infrastructure

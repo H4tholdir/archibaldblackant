@@ -10,18 +10,18 @@ See: .planning/PROJECT.md (updated 2026-01-11)
 ## Current Position
 
 Phase: 11 of 12 (Order Management)
-Plan: 5 of 7 in current phase
+Plan: 6 of 7 in current phase
 Status: In progress
-Last activity: 2026-01-16 — Completed 11-05-PLAN.md (Status tracking UI with OrderActions integration)
+Last activity: 2026-01-16 — Completed 11-06-PLAN.md (Invoice scraping and PDF download)
 
-Progress: ████████░░ 91% (75/82 plans complete)
+Progress: ████████░░ 93% (76/82 plans complete)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 75
-- Average duration: 57 min
-- Total execution time: 71.5 hours
+- Total plans completed: 76
+- Average duration: 56 min
+- Total execution time: 72 hours
 
 **By Phase:**
 
@@ -38,10 +38,10 @@ Progress: ████████░░ 91% (75/82 plans complete)
 | 8 | 8 | 204 min | 26 min |
 | 9 | 3 | 32 min | 11 min |
 | 10 | 7 | 738 min | 105 min |
-| 11 | 5 | 220 min | 44 min |
+| 11 | 6 | 250 min | 42 min |
 
 **Recent Trend:**
-- Last 10 plans: 10-05 (45m), 10-06 (46m), 10-07 (521m), 09-01 (2m), 09-02 (15m), 09-03 (15m), 11-01 (120m), 11-02 (5m), 11-03 (35m), 11-04 (45m), 11-05 (15m)
+- Last 10 plans: 10-06 (46m), 10-07 (521m), 09-01 (2m), 09-02 (15m), 09-03 (15m), 11-01 (120m), 11-02 (5m), 11-03 (35m), 11-04 (45m), 11-05 (15m), 11-06 (30m)
 - Phase 9 extremely fast (avg 11m) - leveraging existing Phase 8-07 infrastructure
 - Phase 10 high avg (105m) - includes 521m for Plan 10-07 (heavy login debugging)
 
@@ -54,6 +54,9 @@ Recent decisions affecting current work:
 
 | Phase | Decision | Rationale |
 |-------|----------|-----------|
+| 11-06 | Customer + date matching for invoices (no direct order ID) | Invoice table lacks "ID DI VENDITA" column, match by customerAccountId + date range (invoice after order), most reliable heuristic given Archibald constraints |
+| 11-06 | Different selector for invoice PDF link (div vs td) | DevExpress XAF uses different HTML structure for invoice page (div[id$="_xaf_InvoicePDF"]) vs DDT page (td[id$="_xaf_InvoicePDF"]), discovered via 11-01-RESEARCH.md |
+| 11-06 | PDF download via Puppeteer CDP to /tmp | Chrome DevTools Protocol allows download interception, more reliable than parsing href (server-side PDF generation), temp file cleaned after Buffer read |
 | 09-03 | Sequential per-order review (one at a time) | Banking app UX focus on one critical decision, prevents information overload, progress banner provides context, clear workflow |
 | 09-03 | Confirm syncs, cancel marks as error | Clear consequences for each action, confirm=accept changes/proceed, cancel=reject/preserve in queue with error status for manual retry later |
 | 09-03 | Price changes color-coded (red=higher, green=lower) | Semantic colors consistent with banking/finance UX, immediate visual feedback, red=cost increase (bad), green=decrease (good) |
