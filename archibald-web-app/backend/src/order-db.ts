@@ -74,6 +74,11 @@ export interface StoredOrder {
   // Computed tracking fields
   trackingUrl: string | null; // Full tracking URL (courier-specific)
   trackingCourier: string | null; // Courier name (e.g., "fedex", "ups", "dhl")
+
+  // TABELLA 3: Invoice Data (Phase 11-06)
+  invoiceNumber: string | null; // Invoice number (e.g., "FT/2026/00123")
+  invoiceDate: string | null; // Invoice date (ISO 8601)
+  invoiceAmount: number | null; // Invoice total amount
 }
 
 export interface OrderAuditLog {
@@ -173,6 +178,11 @@ export class OrderDatabase {
         trackingUrl TEXT,
         trackingCourier TEXT,
 
+        -- TABELLA 3: Invoice Data (Phase 11-06)
+        invoice_number TEXT,
+        invoice_date TEXT,
+        invoice_amount REAL,
+
         PRIMARY KEY (id, userId)
       );
 
@@ -217,10 +227,7 @@ export class OrderDatabase {
    * Updates existing orders or inserts new ones
    * Now handles all 20 Order List + 11 DDT columns
    */
-  upsertOrders(
-    userId: string,
-    orders: StoredOrder[],
-  ): void {
+  upsertOrders(userId: string, orders: StoredOrder[]): void {
     const now = new Date().toISOString();
 
     const stmt = this.db.prepare(`
@@ -237,7 +244,8 @@ export class OrderDatabase {
         ddtId, ddtNumber, ddtDeliveryDate, ddtOrderNumber, ddtCustomerAccount,
         ddtSalesName, ddtDeliveryName, trackingNumber, deliveryTerms,
         deliveryMethod, deliveryCity,
-        trackingUrl, trackingCourier
+        trackingUrl, trackingCourier,
+        invoice_number, invoice_date, invoice_amount
       ) VALUES (
         ?, ?,
         ?, ?, ?, ?, ?,
@@ -251,7 +259,8 @@ export class OrderDatabase {
         ?, ?, ?, ?, ?,
         ?, ?, ?, ?,
         ?, ?,
-        ?, ?
+        ?, ?,
+        ?, ?, ?
       )
       ON CONFLICT(id, userId) DO UPDATE SET
         orderNumber = excluded.orderNumber,
@@ -293,12 +302,18 @@ export class OrderDatabase {
         deliveryMethod = excluded.deliveryMethod,
         deliveryCity = excluded.deliveryCity,
         trackingUrl = excluded.trackingUrl,
-        trackingCourier = excluded.trackingCourier
+        trackingCourier = excluded.trackingCourier,
+        invoice_number = excluded.invoice_number,
+        invoice_date = excluded.invoice_date,
+        invoice_amount = excluded.invoice_amount
     `);
 
     const transaction = this.db.transaction((orders: StoredOrder[]) => {
       for (const order of orders) {
-        const isOpen = typeof order.isOpen === 'boolean' ? order.isOpen : this.isOrderOpen(order.status);
+        const isOpen =
+          typeof order.isOpen === "boolean"
+            ? order.isOpen
+            : this.isOrderOpen(order.status);
         stmt.run(
           // Primary keys
           order.id,
@@ -355,7 +370,12 @@ export class OrderDatabase {
 
           // Computed tracking fields
           order.trackingUrl || null,
-          order.trackingCourier || null
+          order.trackingCourier || null,
+
+          // Invoice fields
+          order.invoiceNumber || null,
+          order.invoiceDate || null,
+          order.invoiceAmount || null,
         );
       }
     });
@@ -753,7 +773,9 @@ export class OrderDatabase {
     // Record in history
     this.insertStateHistory(orderId, newState, changedBy, notes);
 
-    logger.info(`Updated order ${orderId} state to ${newState} for user ${userId}`);
+    logger.info(
+      `Updated order ${orderId} state to ${newState} for user ${userId}`,
+    );
   }
 
   /**

@@ -25,3 +25,8 @@ ALTER TABLE orders ADD COLUMN ddtDeliveryName TEXT;
 ALTER TABLE orders ADD COLUMN deliveryTerms TEXT;
 ALTER TABLE orders ADD COLUMN deliveryMethod TEXT;
 ALTER TABLE orders ADD COLUMN deliveryCity TEXT;
+
+-- Add Invoice columns (Phase 11-06)
+ALTER TABLE orders ADD COLUMN invoice_number TEXT;
+ALTER TABLE orders ADD COLUMN invoice_date TEXT;  -- ISO 8601
+ALTER TABLE orders ADD COLUMN invoice_amount REAL;
