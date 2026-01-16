@@ -2558,6 +2558,84 @@ app.get(
   },
 );
 
+// Download DDT PDF - GET /api/orders/:orderId/ddt/download
+app.get(
+  "/api/orders/:orderId/ddt/download",
+  authenticateJWT,
+  async (req: AuthRequest, res: Response) => {
+    const userId = req.userId!;
+    const { orderId } = req.params;
+    const orderDb = OrderDatabase.getInstance();
+    const ddtScraperService = new DDTScraperService();
+    const priorityManager = PriorityManager.getInstance();
+
+    try {
+      logger.info(`[DDT Download] Starting PDF download for order ${orderId}`);
+
+      // Verify order belongs to user
+      const order = orderDb.getOrderById(userId, orderId);
+      if (!order) {
+        return res.status(404).json({
+          success: false,
+          error: "Order not found",
+        });
+      }
+
+      // Verify DDT exists
+      if (!order.ddtNumber) {
+        return res.status(404).json({
+          success: false,
+          error: "DDT not available for this order",
+        });
+      }
+
+      // Verify tracking exists (requirement: no tracking = no PDF download)
+      if (!order.trackingNumber) {
+        return res.status(400).json({
+          success: false,
+          error:
+            "DDT PDF not available: tracking number required for PDF generation",
+        });
+      }
+
+      // Pause background services
+      priorityManager.pause();
+
+      try {
+        // Download DDT PDF
+        const pdfBuffer = await ddtScraperService.downloadDDTPDF(userId, order);
+
+        logger.info(
+          `[DDT Download] Successfully downloaded PDF for order ${orderId} (${pdfBuffer.length} bytes)`,
+        );
+
+        // Set response headers
+        res.setHeader("Content-Type", "application/pdf");
+        res.setHeader(
+          "Content-Disposition",
+          `attachment; filename="ddt-${order.ddtNumber.replace(/\//g, "-")}.pdf"`,
+        );
+        res.setHeader("Content-Length", pdfBuffer.length);
+
+        // Stream PDF to response
+        return res.send(pdfBuffer);
+      } finally {
+        // Always resume background services
+        priorityManager.resume();
+      }
+    } catch (error) {
+      logger.error(`[DDT Download] Failed for order ${orderId}`, {
+        error: error instanceof Error ? error.message : String(error),
+      });
+
+      return res.status(500).json({
+        success: false,
+        error: "Failed to download DDT PDF. Please try again later.",
+      });
+    }
+  },
+);
+
 // Sync order states - POST /api/orders/sync-states
 app.post(
   "/api/orders/sync-states",
