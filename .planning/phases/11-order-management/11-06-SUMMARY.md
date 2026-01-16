@@ -1,7 +1,7 @@
 # Plan 11-06 Summary: Invoice Scraping and PDF Download
 
-**Executed:** 2026-01-16
-**Status:** ⚠️ Invoice Implementation DEFERRED - DDT Download In Progress
+**Executed:** 2026-01-16 to 2026-01-17
+**Status:** ✅ DDT Download COMPLETE | ⚠️ Invoice Implementation DEFERRED
 **Reason for Deferral:** Invoice data for 2026 not yet available in Archibald (invoices generated at year-end). Invoice code is complete and ready but cannot be tested until 2026 invoices are generated.
 
 **Commits:**
@@ -10,6 +10,7 @@
 - `a3df22c` - feat(11-06): add PDF download service for invoices
 - `74bb7a9` - feat(11-06): add API endpoints for invoice sync and PDF download
 - `8f25ba2` - feat(11-06): add invoice UI section to OrderCard
+- `6751b85` - feat(11-06): complete DDT PDF download with optimized search
 
 ---
 
@@ -308,8 +309,45 @@ The invoice scraping and PDF download code is **fully implemented and committed*
 
 ---
 
-## 📦 DDT PDF Download Implementation (Added Later)
+## 📦 DDT PDF Download Implementation
 
-**Status:** ✅ Implemented and tested with real DDT data
+**Status:** ✅ COMPLETE - Implemented and tested with real DDT data
+**Duration:** 2026-01-16 evening to 2026-01-17 morning
+**Commit:** `6751b85`
 
-See commit history for DDT-specific implementation details added after invoice deferral decision.
+### Implementation Summary
+
+Complete DDT PDF download workflow with DevExpress handling and optimized search:
+
+**Search Bar Optimization:**
+- Paste optimization instead of typing (saves ~1 second per download)
+- DevExpress event triggering: `ASPx.EValueChanged()` for proper detection
+- Focus → paste → trigger events → Enter key sequence
+- From ~1.7s (typing) to ~0.6s (paste) ⚡
+
+**DevExpress Checkbox Handling:**
+- Click on `<td class="dxgvCommandColumn_XafTheme">` wrapper (not hidden input)
+- DevExpress `onclick` attribute triggers selection properly
+- Handles complex span structure with hidden checkbox
+
+**PDF Selector Fix:**
+- Correct selector: `div[id$="_xaf_InvoicePDF"]` (not `td[id$="_xaf_InvoicePDF"]`)
+- DDT uses `<div>` container, Invoice uses different structure
+- Link appears after "Scarica PDF" button click
+
+**Authentication Fixes:**
+- Fixed `req.userId` → `req.user?.userId` in 7 endpoints
+- Backend now properly extracts userId from JWT middleware
+- Order lookup supports both internal id and orderNumber format
+
+**Frontend Integration:**
+- OrderCardNew TabLogistica: 3-state button (enabled/disabled/downloading)
+- Button disabled when tracking number missing (Archibald requirement)
+- PDF flows via HTTP: Buffer → Blob → browser download
+- Proper URL encoding for `ORD/xxxxxxxx` format
+
+**Ready for Production:**
+- Complete end-to-end workflow tested
+- PWA architecture confirmed: Backend server + Frontend mobile device
+- PDF transfer via HTTP response body (no filesystem access needed from mobile)
+- Download time: ~15-20 seconds total
