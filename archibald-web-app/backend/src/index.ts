@@ -2424,6 +2424,140 @@ app.post(
   },
 );
 
+// Sync invoices - POST /api/orders/sync-invoices
+app.post(
+  "/api/orders/sync-invoices",
+  authenticateJWT,
+  async (req: AuthRequest, res: Response) => {
+    const userId = req.userId!;
+    const orderDb = OrderDatabase.getInstance();
+    const invoiceScraperService = new (
+      await import("./invoice-scraper-service")
+    ).InvoiceScraperService();
+    const priorityManager = PriorityManager.getInstance();
+
+    try {
+      logger.info(`[Invoice Sync] Starting invoice sync for user ${userId}`);
+
+      // Pause background services to prevent bot conflicts
+      priorityManager.pause();
+
+      try {
+        // Scrape invoice data from Archibald
+        const invoiceData =
+          await invoiceScraperService.scrapeInvoiceData(userId);
+
+        // Match and sync to database
+        const syncResult = await invoiceScraperService.syncInvoicesToOrders(
+          userId,
+          invoiceData,
+        );
+
+        logger.info(`[Invoice Sync] Completed for user ${userId}`, syncResult);
+
+        return res.json({
+          success: syncResult.success,
+          message:
+            syncResult.message || `Synced ${syncResult.matched} invoices`,
+          data: {
+            matched: syncResult.matched,
+            notFound: syncResult.notFound,
+            scrapedCount: syncResult.scrapedCount,
+          },
+        });
+      } finally {
+        // Always resume background services
+        priorityManager.resume();
+      }
+    } catch (error) {
+      logger.error(`[Invoice Sync] Failed for user ${userId}`, {
+        error: error instanceof Error ? error.message : String(error),
+      });
+
+      return res.status(500).json({
+        success: false,
+        error: "Failed to sync invoice data. Please try again later.",
+      });
+    }
+  },
+);
+
+// Download invoice PDF - GET /api/orders/:orderId/invoice/download
+app.get(
+  "/api/orders/:orderId/invoice/download",
+  authenticateJWT,
+  async (req: AuthRequest, res: Response) => {
+    const userId = req.userId!;
+    const { orderId } = req.params;
+    const orderDb = OrderDatabase.getInstance();
+    const invoiceScraperService = new (
+      await import("./invoice-scraper-service")
+    ).InvoiceScraperService();
+    const priorityManager = PriorityManager.getInstance();
+
+    try {
+      logger.info(
+        `[Invoice Download] Starting PDF download for order ${orderId}`,
+      );
+
+      // Verify order belongs to user
+      const order = orderDb.getOrderById(userId, orderId);
+      if (!order) {
+        return res.status(404).json({
+          success: false,
+          error: "Order not found",
+        });
+      }
+
+      // Verify invoice exists
+      if (!order.invoiceNumber) {
+        return res.status(404).json({
+          success: false,
+          error: "Invoice not available for this order",
+        });
+      }
+
+      // Pause background services
+      priorityManager.pause();
+
+      try {
+        // Download invoice PDF
+        const pdfBuffer = await invoiceScraperService.downloadInvoicePDF(
+          userId,
+          order,
+        );
+
+        logger.info(
+          `[Invoice Download] Successfully downloaded PDF for order ${orderId} (${pdfBuffer.length} bytes)`,
+        );
+
+        // Set response headers
+        res.setHeader("Content-Type", "application/pdf");
+        res.setHeader(
+          "Content-Disposition",
+          `attachment; filename="invoice-${order.invoiceNumber.replace(/\//g, "-")}.pdf"`,
+        );
+        res.setHeader("Content-Length", pdfBuffer.length);
+
+        // Stream PDF to response
+        return res.send(pdfBuffer);
+      } finally {
+        // Always resume background services
+        priorityManager.resume();
+      }
+    } catch (error) {
+      logger.error(`[Invoice Download] Failed for order ${orderId}`, {
+        error: error instanceof Error ? error.message : String(error),
+      });
+
+      return res.status(500).json({
+        success: false,
+        error: "Failed to download invoice PDF. Please try again later.",
+      });
+    }
+  },
+);
+
 // Sync order states - POST /api/orders/sync-states
 app.post(
   "/api/orders/sync-states",
