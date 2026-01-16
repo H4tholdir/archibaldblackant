@@ -409,7 +409,12 @@ export class DDTScraperService {
    * 6. Download PDF via Puppeteer CDP
    */
   async downloadDDTPDF(userId: string, order: StoredOrder): Promise<Buffer> {
-    logger.info(`[DDTScraper] Downloading DDT PDF for order ${order.id}`);
+    logger.info(`[DDTScraper] Downloading DDT PDF for order ${order.id}`, {
+      orderId: order.id,
+      orderNumber: order.orderNumber,
+      ddtNumber: order.ddtNumber,
+      trackingNumber: order.trackingNumber,
+    });
 
     // Verify order has DDT
     if (!order.ddtNumber) {
@@ -422,22 +427,26 @@ export class DDTScraperService {
 
     try {
       // Acquire browser context
+      logger.info(`[DDTScraper] Acquiring browser context for user ${userId}`);
       context = await browserPool.acquireContext(userId);
       const page = await context.newPage();
 
       try {
         // Navigate to DDT page
-        logger.info("[DDTScraper] Navigating to DDT page");
+        logger.info(`[DDTScraper] Navigating to DDT page: ${this.ddtPageUrl}`);
         await page.goto(this.ddtPageUrl, {
           waitUntil: "domcontentloaded",
           timeout: 60000,
         });
 
         // Wait for table to load
+        logger.info("[DDTScraper] Waiting for table to load (2s)");
         await new Promise((resolve) => setTimeout(resolve, 2000));
 
         // Scrape DDT page to find the matching DDT
+        logger.info("[DDTScraper] Scraping DDT page for matching entry");
         const ddtList = await this.scrapeDDTPage(page);
+        logger.info(`[DDTScraper] Scraped ${ddtList.length} DDT entries`);
 
         // Find DDT by order ID (direct match)
         const matchedDDT = ddtList.find(
@@ -445,6 +454,13 @@ export class DDTScraperService {
         );
 
         if (!matchedDDT) {
+          logger.error(`[DDTScraper] No DDT match found`, {
+            orderId: order.id,
+            orderNumber: order.orderNumber,
+            ddtNumber: order.ddtNumber,
+            scrapedDDTs: ddtList.length,
+            sampleDDTs: ddtList.slice(0, 3).map(d => ({ orderId: d.orderId, ddtNumber: d.ddtNumber })),
+          });
           throw new Error(
             `No DDT found for order ${order.id} (orderNumber: ${order.orderNumber})`,
           );
@@ -455,6 +471,7 @@ export class DDTScraperService {
         );
 
         // Find the row ID for checkbox selection
+        logger.info(`[DDTScraper] Finding row ID for DDT ${matchedDDT.ddtNumber}`);
         const rowId = await page.evaluate((ddtNumber) => {
           const rows = document.querySelectorAll(
             "tr.dxgvDataRow, tr.dxgvDataRow_XafTheme",
@@ -471,11 +488,17 @@ export class DDTScraperService {
         }, matchedDDT.ddtNumber);
 
         if (!rowId) {
+          logger.error(`[DDTScraper] Row not found for DDT`, {
+            ddtNumber: matchedDDT.ddtNumber,
+            orderId: order.id,
+          });
           throw new Error(`Row not found for DDT ${matchedDDT.ddtNumber}`);
         }
 
+        logger.info(`[DDTScraper] Found row ID: ${rowId}`);
+
         // Select DDT row by clicking checkbox
-        logger.info("[DDTScraper] Selecting DDT row");
+        logger.info(`[DDTScraper] Selecting DDT row (rowId: ${rowId})`);
         await page.evaluate((id) => {
           const checkbox = document.querySelector(
             `input[type="checkbox"][id*="${id}"]`,
@@ -488,6 +511,7 @@ export class DDTScraperService {
         }, rowId);
 
         // Wait for selection to register
+        logger.info("[DDTScraper] Waiting for selection to register (1s)");
         await new Promise((resolve) => setTimeout(resolve, 1000));
 
         // Trigger PDF generation
@@ -495,13 +519,14 @@ export class DDTScraperService {
         await page.click('li[title="Scarica PDF"] a.dxm-content');
 
         // Wait for PDF link to appear (td selector for DDT)
-        logger.info("[DDTScraper] Waiting for PDF link generation");
+        logger.info("[DDTScraper] Waiting for PDF link generation (15s timeout)");
         await page.waitForSelector(
           'td[id$="_xaf_InvoicePDF"] a.XafFileDataAnchor',
           {
             timeout: 15000,
           },
         );
+        logger.info("[DDTScraper] PDF link appeared");
 
         // Setup Puppeteer download interception via CDP
         const client = await (page.target() as any).createCDPSession();
@@ -522,14 +547,20 @@ export class DDTScraperService {
         await page.click('td[id$="_xaf_InvoicePDF"] a.XafFileDataAnchor');
 
         // Wait for download to complete
-        logger.info("[DDTScraper] Waiting for download to complete");
+        logger.info("[DDTScraper] Waiting for download to complete (5s)");
         await new Promise((resolve) => setTimeout(resolve, 5000));
 
         // Find the downloaded file
+        logger.info(`[DDTScraper] Looking for PDF in ${tmpDir}`);
         const files = await fs.readdir(tmpDir);
+        logger.info(`[DDTScraper] Found ${files.length} files in download dir: ${files.join(", ")}`);
         const pdfFile = files.find((f) => f.endsWith(".pdf"));
 
         if (!pdfFile) {
+          logger.error(`[DDTScraper] PDF file not found in download directory`, {
+            tmpDir,
+            filesFound: files,
+          });
           throw new Error("PDF file not found in download directory");
         }
 
@@ -558,10 +589,16 @@ export class DDTScraperService {
         error instanceof Error ? error.message : String(error);
       logger.error("[DDTScraper] Failed to download DDT PDF", {
         error: errorMessage,
+        stack: error instanceof Error ? error.stack : undefined,
+        orderId: order.id,
+        orderNumber: order.orderNumber,
+        ddtNumber: order.ddtNumber,
+        userId,
       });
       throw error;
     } finally {
       if (context) {
+        logger.info(`[DDTScraper] Releasing browser context (success: ${success})`);
         await browserPool.releaseContext(userId, context, success);
       }
     }
