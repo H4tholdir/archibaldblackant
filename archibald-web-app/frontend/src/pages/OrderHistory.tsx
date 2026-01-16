@@ -598,7 +598,7 @@ export function OrderHistory() {
               }
             }}
           >
-            {syncing ? "⏳ Sincronizzazione..." : "🔄 Forza Sincronizzazione"}
+            {syncing ? "⏳ Sincronizzazione..." : "🔄 Sincronizza"}
           </button>
         </div>
       </div>

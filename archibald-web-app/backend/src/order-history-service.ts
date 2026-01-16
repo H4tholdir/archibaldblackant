@@ -286,6 +286,10 @@ export class OrderHistoryService {
    * Sync orders from Archibald and save to DB
    * UNIFIED STRATEGY: Scrape order list, DDT data, and order details in one session
    * All data is matched and combined before saving to DB
+   *
+   * INTELLIGENT SYNC:
+   * - First sync: Scrapes from beginning of current year
+   * - Subsequent syncs: Stops when reaching orders already synced 30+ days ago
    */
   private async syncFromArchibald(userId: string): Promise<void> {
     let bot = null;
@@ -306,9 +310,9 @@ export class OrderHistoryService {
         "[OrderHistoryService] ArchibaldBot initialized (legacy mode), starting unified sync...",
       );
 
-      // Step 1/3: Scrape order list
+      // Step 1/3: Scrape order list (with intelligent stop)
       logger.info("[OrderHistoryService] Step 1/3: Scraping order list");
-      const allOrders = await this.scrapeOrderList(bot.page);
+      const allOrders = await this.scrapeOrderList(bot.page, userId);
       logger.info(
         `[OrderHistoryService] Scraped ${allOrders.length} orders from order list`,
       );
@@ -361,8 +365,15 @@ export class OrderHistoryService {
   /**
    * Step 1: Scrape order list from SALESTABLE_ListView_Agent
    * Returns base order data without details or DDT info
+   *
+   * INTELLIGENT SYNC:
+   * - Scrapes from beginning of current year
+   * - Stops when reaching orders already synced 30+ days ago
+   *
+   * @param page - Puppeteer page with active session
+   * @param userId - User ID for DB lookup (optional for early termination)
    */
-  private async scrapeOrderList(page: Page): Promise<Order[]> {
+  private async scrapeOrderList(page: Page, userId?: string): Promise<Order[]> {
     // Navigate to order list page
     const orderListUrl = `${config.archibald.url}/SALESTABLE_ListView_Agent/`;
 
@@ -391,8 +402,12 @@ export class OrderHistoryService {
     // Sort table by creation date DESC (newest first)
     await this.sortTableByCreationDate(page);
 
-    // Scrape ALL orders (no limit - we want full sync)
-    const allOrders = await this.scrapeAllPages(page, Number.MAX_SAFE_INTEGER);
+    // Scrape orders with intelligent stop (pass userId for DB lookup)
+    const allOrders = await this.scrapeAllPages(
+      page,
+      Number.MAX_SAFE_INTEGER,
+      userId,
+    );
 
     return allOrders;
   }
@@ -400,6 +415,11 @@ export class OrderHistoryService {
   /**
    * Step 2: Scrape DDT data from CUSTPACKINGSLIPJOUR_ListView
    * Only scrapes DDT entries that match the provided order numbers
+   *
+   * INTELLIGENT SYNC:
+   * - Inherits date filtering from order list (only DDT for current year orders)
+   * - Early exit when all matching DDT entries found
+   *
    * @param page Browser page with active session
    * @param orderNumbers Array of order numbers to match (e.g., ["ORD/26000552"])
    * @returns DDT entries with tracking info (filtered by orderNumbers)
@@ -463,7 +483,7 @@ export class OrderHistoryService {
       await this.clickNextPageDDT(page);
       await new Promise((resolve) => setTimeout(resolve, 2000));
       pageNum++;
-    } while (pageNum <= 20); // Safety limit
+    } while (pageNum <= 100); // Safety limit (increased to match order scraper)
 
     logger.info(
       `[OrderHistoryService] DDT scraping complete: ${matchedCount}/${orderNumbers.length} orders have DDT data`,
@@ -604,7 +624,9 @@ export class OrderHistoryService {
       const clickedPageOne = await page.evaluate(() => {
         // Strategy 1: Look for button with text "1"
         const pageButtons = Array.from(
-          document.querySelectorAll('div[id*="DXDataPager"] div.dxp-num, div[id*="DXDataPager"] span'),
+          document.querySelectorAll(
+            'div[id*="DXDataPager"] div.dxp-num, div[id*="DXDataPager"] span',
+          ),
         );
 
         for (const button of pageButtons) {
@@ -644,7 +666,9 @@ export class OrderHistoryService {
       });
 
       if (!clickedPageOne) {
-        logger.error("[OrderHistoryService] FAILED to find and click page 1 button!");
+        logger.error(
+          "[OrderHistoryService] FAILED to find and click page 1 button!",
+        );
         // Continue anyway, might already be on page 1
       } else {
         logger.info("[OrderHistoryService] Successfully clicked page 1 button");
@@ -678,9 +702,13 @@ export class OrderHistoryService {
         return pageSpan?.textContent?.trim() || "?";
       });
 
-      logger.info(`[OrderHistoryService] Final page after navigation: ${finalPage}`);
+      logger.info(
+        `[OrderHistoryService] Final page after navigation: ${finalPage}`,
+      );
     } catch (error) {
-      logger.error("[OrderHistoryService] Error navigating to page 1", { error });
+      logger.error("[OrderHistoryService] Error navigating to page 1", {
+        error,
+      });
       throw error; // Re-throw to stop sync if page 1 navigation fails
     }
   }
@@ -763,11 +791,16 @@ export class OrderHistoryService {
           }
           return false;
         },
-        { timeout: 15000 }
+        { timeout: 15000 },
       );
-      logger.info("[OrderHistoryService] DevExpress table ready with data rows");
+      logger.info(
+        "[OrderHistoryService] DevExpress table ready with data rows",
+      );
     } catch (error) {
-      logger.warn("[OrderHistoryService] Timeout waiting for table data, proceeding anyway", { error });
+      logger.warn(
+        "[OrderHistoryService] Timeout waiting for table data, proceeding anyway",
+        { error },
+      );
     }
   }
 
@@ -958,20 +991,33 @@ export class OrderHistoryService {
     }
   }
 
-  private async scrapeAllPages(page: Page, limit: number): Promise<Order[]> {
+  private async scrapeAllPages(
+    page: Page,
+    limit: number,
+    userId?: string,
+  ): Promise<Order[]> {
     const allOrders: Order[] = [];
     let currentPage = 1;
     let hasMorePages = true;
-    const MAX_PAGES = 100; // Increased to handle large order histories (was 10)
-    const DAYS_LIMIT = 60; // Only scrape orders from last 60 days
-    const cutoffDate = new Date();
-    cutoffDate.setDate(cutoffDate.getDate() - DAYS_LIMIT);
+    const MAX_PAGES = 100; // Safety limit
+
+    // Date cutoff: Beginning of current year
+    const currentYear = new Date().getFullYear();
+    const yearStartDate = new Date(currentYear, 0, 1); // January 1st of current year
+
+    // Early termination: Stop when reaching orders synced 30+ days ago
+    const EARLY_STOP_DAYS = 30;
+    const earlyStopDate = new Date();
+    earlyStopDate.setDate(earlyStopDate.getDate() - EARLY_STOP_DAYS);
 
     logger.info(
-      `[OrderHistoryService] Starting multi-page scraping (up to 100 pages, last ${DAYS_LIMIT} days)`,
+      `[OrderHistoryService] Starting intelligent multi-page scraping (up to 100 pages)`,
     );
     logger.info(
-      `[OrderHistoryService] Cutoff date: ${cutoffDate.toISOString().split("T")[0]}`,
+      `[OrderHistoryService] Year cutoff: ${yearStartDate.toISOString().split("T")[0]} (beginning of ${currentYear})`,
+    );
+    logger.info(
+      `[OrderHistoryService] Early stop: Orders synced before ${earlyStopDate.toISOString().split("T")[0]} (30+ days ago)`,
     );
 
     while (
@@ -1000,23 +1046,61 @@ export class OrderHistoryService {
         break;
       }
 
-      // Filter orders by date (only keep orders within last 60 days)
-      const recentOrders = pageOrders.filter((order) => {
+      // Filter orders by date (only keep orders from current year)
+      const currentYearOrders = pageOrders.filter((order) => {
         const orderDate = new Date(order.creationDate);
-        return orderDate >= cutoffDate;
+        return orderDate >= yearStartDate;
       });
 
       logger.info(
-        `[OrderHistoryService] ${recentOrders.length}/${pageOrders.length} orders are within last ${DAYS_LIMIT} days`,
+        `[OrderHistoryService] ${currentYearOrders.length}/${pageOrders.length} orders are from year ${currentYear}`,
       );
 
-      // Add recent orders
-      allOrders.push(...recentOrders);
+      // Early termination check: If userId provided, check DB for already-synced orders
+      if (userId && currentYearOrders.length > 0) {
+        // Check if any order on this page was synced 30+ days ago
+        const ordersToCheck = currentYearOrders.slice(0, 5); // Check first 5 orders
+        let foundOldSyncedOrder = false;
 
-      // If we found old orders, stop scraping (table is sorted by date DESC)
-      if (recentOrders.length < pageOrders.length) {
+        for (const order of ordersToCheck) {
+          try {
+            const existingOrder = this.orderDb.getOrderById(
+              order.id,
+              userId as any,
+            );
+            if (existingOrder && existingOrder.lastScraped) {
+              const lastScraped = new Date(existingOrder.lastScraped);
+              if (lastScraped < earlyStopDate) {
+                logger.info(
+                  `[OrderHistoryService] Found order ${order.orderNumber} synced ${Math.floor((Date.now() - lastScraped.getTime()) / (1000 * 60 * 60 * 24))} days ago (before ${EARLY_STOP_DAYS}-day threshold)`,
+                );
+                foundOldSyncedOrder = true;
+                break;
+              }
+            }
+          } catch (error) {
+            // Order not in DB yet, continue
+            continue;
+          }
+        }
+
+        if (foundOldSyncedOrder) {
+          logger.info(
+            `[OrderHistoryService] Reached orders already synced 30+ days ago, stopping scraping (intelligent early termination)`,
+          );
+          // Add orders from this page before stopping
+          allOrders.push(...currentYearOrders);
+          break;
+        }
+      }
+
+      // Add current year orders
+      allOrders.push(...currentYearOrders);
+
+      // If we found orders older than current year, stop scraping (table is sorted by date DESC)
+      if (currentYearOrders.length < pageOrders.length) {
         logger.info(
-          `[OrderHistoryService] Found orders older than ${DAYS_LIMIT} days, stopping scraping`,
+          `[OrderHistoryService] Found orders older than year ${currentYear}, stopping scraping`,
         );
         break;
       }
@@ -1155,13 +1239,17 @@ export class OrderHistoryService {
     // Based on actual page structure: id ends with "_DXMainTable" and has class "dxgvTable_XafTheme"
     const tableSelector = 'table[id$="_DXMainTable"].dxgvTable_XafTheme';
     await page.waitForSelector(tableSelector, { timeout: 10000 }).catch(() => {
-      logger.warn("[OrderHistoryService] DevExpress main table selector not found");
+      logger.warn(
+        "[OrderHistoryService] DevExpress main table selector not found",
+      );
     });
 
     // Use header-based column detection (robust to column reordering)
     const orders = await page.evaluate(() => {
       // Find table
-      const table = document.querySelector('table[id$="_DXMainTable"].dxgvTable_XafTheme');
+      const table = document.querySelector(
+        'table[id$="_DXMainTable"].dxgvTable_XafTheme',
+      );
       if (!table) {
         console.error("[OrderHistoryService] Order table not found");
         return [];
@@ -1170,7 +1258,11 @@ export class OrderHistoryService {
       // Extract data from rows using FIXED column indices
       // DevExpress table structure: 24 cells per row
       // [0]: empty, [1]: JavaScript, [2-22]: actual data, [23]: empty
-      const dataRows = Array.from(table.querySelectorAll("tbody tr.dxgvDataRow, tbody tr.dxgvDataRow_XafTheme"));
+      const dataRows = Array.from(
+        table.querySelectorAll(
+          "tbody tr.dxgvDataRow, tbody tr.dxgvDataRow_XafTheme",
+        ),
+      );
       const results: any[] = [];
 
       console.log(`[OrderHistoryService] Found ${dataRows.length} data rows`);
@@ -1180,7 +1272,9 @@ export class OrderHistoryService {
           const cells = Array.from(row.querySelectorAll("td"));
 
           if (cells.length < 23) {
-            console.warn(`[OrderHistoryService] Row has only ${cells.length} cells, expected 24`);
+            console.warn(
+              `[OrderHistoryService] Row has only ${cells.length} cells, expected 24`,
+            );
             continue;
           }
 
@@ -1189,7 +1283,12 @@ export class OrderHistoryService {
           const orderNumber = cells[3]?.textContent?.trim() || "";
 
           // Validation - check if id looks valid
-          if (!id || id.includes("Loading") || id.includes("<") || !/\d/.test(id)) {
+          if (
+            !id ||
+            id.includes("Loading") ||
+            id.includes("<") ||
+            !/\d/.test(id)
+          ) {
             continue;
           }
 
@@ -1259,8 +1358,12 @@ export class OrderHistoryService {
       ...order,
       creationDate: this.parseDate(order.creationDate),
       deliveryDate: this.parseDate(order.deliveryDate),
-      transferDate: order.transferDate ? this.parseDate(order.transferDate) : null,
-      completionDate: order.completionDate ? this.parseDate(order.completionDate) : null,
+      transferDate: order.transferDate
+        ? this.parseDate(order.transferDate)
+        : null,
+      completionDate: order.completionDate
+        ? this.parseDate(order.completionDate)
+        : null,
     }));
 
     return ordersWithParsedDates;
@@ -1296,8 +1399,8 @@ export class OrderHistoryService {
         found: true,
         hasDetailJson: !!cachedOrder.detailJson,
         userId,
-        orderId
-      }
+        orderId,
+      },
     );
 
     // If detail is already cached, return it
@@ -1775,7 +1878,9 @@ export class OrderHistoryService {
       // ALL 11 REQUIRED COLUMNS (verified via header inspection):
       // [6]=ID, [7]=DDT#, [8]=Date, [9]=OrderID, [10]=Account, [11]=Sales, [12]=Delivery,
       // [15]=DeliveryTerms, [17]=Tracking, [18]=DeliveryCity, [19]=Method
-      const dataRows = Array.from(table.querySelectorAll("tr.dxgvDataRow, tr.dxgvDataRow_XafTheme"));
+      const dataRows = Array.from(
+        table.querySelectorAll("tr.dxgvDataRow, tr.dxgvDataRow_XafTheme"),
+      );
       const ddtData: any[] = [];
 
       console.log(`[OrderHistoryService] Found ${dataRows.length} DDT rows`);
@@ -1784,7 +1889,9 @@ export class OrderHistoryService {
         const cells = Array.from(row.querySelectorAll("td"));
 
         if (cells.length < 20) {
-          console.warn(`[OrderHistoryService] DDT row has only ${cells.length} cells, expected 22`);
+          console.warn(
+            `[OrderHistoryService] DDT row has only ${cells.length} cells, expected 22`,
+          );
           continue;
         }
 
@@ -1809,7 +1916,9 @@ export class OrderHistoryService {
         }
 
         if (!orderId || !orderId.startsWith("ORD/")) {
-          console.warn(`[OrderHistoryService] Skipping DDT ${ddtNumber} - missing order ID`);
+          console.warn(
+            `[OrderHistoryService] Skipping DDT ${ddtNumber} - missing order ID`,
+          );
           continue;
         }
 
@@ -1865,7 +1974,9 @@ export class OrderHistoryService {
         });
       }
 
-      console.log(`[OrderHistoryService] Extracted ${ddtData.length} DDT entries`);
+      console.log(
+        `[OrderHistoryService] Extracted ${ddtData.length} DDT entries`,
+      );
       return ddtData;
     });
   }
@@ -1950,7 +2061,9 @@ export class OrderHistoryService {
    */
   private async ensureDDTPageOne(page: Page): Promise<void> {
     try {
-      logger.info("[OrderHistoryService] FORCING DDT table navigation to page 1...");
+      logger.info(
+        "[OrderHistoryService] FORCING DDT table navigation to page 1...",
+      );
 
       // Scroll to table to trigger any lazy loading
       await page.evaluate(() => {
@@ -1967,7 +2080,9 @@ export class OrderHistoryService {
       const clickedPageOne = await page.evaluate(() => {
         // Strategy 1: Look for button with text "1"
         const pageButtons = Array.from(
-          document.querySelectorAll('div[id*="DXDataPager"] div.dxp-num, div[id*="DXDataPager"] span'),
+          document.querySelectorAll(
+            'div[id*="DXDataPager"] div.dxp-num, div[id*="DXDataPager"] span',
+          ),
         );
 
         for (const button of pageButtons) {
@@ -2007,9 +2122,13 @@ export class OrderHistoryService {
       });
 
       if (!clickedPageOne) {
-        logger.error("[OrderHistoryService] FAILED to find and click DDT page 1 button!");
+        logger.error(
+          "[OrderHistoryService] FAILED to find and click DDT page 1 button!",
+        );
       } else {
-        logger.info("[OrderHistoryService] Successfully clicked DDT page 1 button");
+        logger.info(
+          "[OrderHistoryService] Successfully clicked DDT page 1 button",
+        );
       }
 
       // Wait for table to reload after click
@@ -2034,9 +2153,13 @@ export class OrderHistoryService {
         return pageSpan?.textContent?.trim() || "?";
       });
 
-      logger.info(`[OrderHistoryService] DDT table final page after navigation: ${finalPage}`);
+      logger.info(
+        `[OrderHistoryService] DDT table final page after navigation: ${finalPage}`,
+      );
     } catch (error) {
-      logger.error("[OrderHistoryService] Error ensuring DDT page 1", { error });
+      logger.error("[OrderHistoryService] Error ensuring DDT page 1", {
+        error,
+      });
       throw error; // Re-throw to stop sync if page 1 navigation fails
     }
   }
