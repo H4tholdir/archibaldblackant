@@ -156,16 +156,39 @@ router.get(
  * Real-time progress stream for active syncs
  *
  * Usage (frontend):
- * const eventSource = new EventSource('/api/sync/progress');
+ * const eventSource = new EventSource('/api/sync/progress?token=YOUR_JWT');
  * eventSource.onmessage = (event) => {
  *   const progress = JSON.parse(event.data);
  *   console.log(progress);
  * };
  */
-router.get(
-  "/api/sync/progress",
-  authenticateJWT,
-  async (req: AuthRequest, res: Response) => {
+router.get("/api/sync/progress", async (req, res: Response) => {
+  try {
+    // EventSource doesn't support custom headers, so we accept JWT via query param
+    const token = req.query.token as string;
+
+    if (!token) {
+      res.status(401).json({
+        success: false,
+        error: "Authentication token required",
+      });
+      return;
+    }
+
+    // Manually verify JWT (reusing authenticateJWT logic)
+    const jwt = require("jsonwebtoken");
+    const JWT_SECRET = process.env.JWT_SECRET || "your-secret-key";
+
+    try {
+      jwt.verify(token, JWT_SECRET);
+    } catch (error) {
+      res.status(401).json({
+        success: false,
+        error: "Invalid or expired token",
+      });
+      return;
+    }
+
     // Set SSE headers
     res.setHeader("Content-Type", "text/event-stream");
     res.setHeader("Cache-Control", "no-cache");
@@ -186,8 +209,14 @@ router.get(
       syncProgressEmitter.off("progress", progressListener);
       res.end();
     });
-  },
-);
+  } catch (error: any) {
+    logger.error("SSE connection failed", { error });
+    res.status(500).json({
+      success: false,
+      error: error.message,
+    });
+  }
+});
 
 /**
  * POST /api/sync/all

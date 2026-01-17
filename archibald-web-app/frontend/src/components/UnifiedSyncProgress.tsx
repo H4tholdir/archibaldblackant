@@ -52,8 +52,15 @@ export function UnifiedSyncProgress({
   const [dismissedAt, setDismissedAt] = useState<number>(0);
 
   useEffect(() => {
-    // Connect to SSE for real-time progress
-    const eventSource = new EventSource("/api/sync/progress");
+    // Get JWT from localStorage for SSE authentication
+    const jwt = localStorage.getItem("archibald_jwt");
+    if (!jwt) {
+      console.warn("[SyncProgress] No JWT found, cannot connect to SSE");
+      return;
+    }
+
+    // Connect to SSE for real-time progress (pass JWT as query param)
+    const eventSource = new EventSource(`/api/sync/progress?token=${jwt}`);
 
     eventSource.onmessage = (event) => {
       const progress: SyncProgress = JSON.parse(event.data);

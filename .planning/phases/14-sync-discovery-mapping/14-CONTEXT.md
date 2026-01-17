@@ -13,13 +13,20 @@ Il sistema di sync attuale ha **problemi multipli**:
 - Dati non aggiornati quando l'utente ne ha bisogno
 - Conflitti tra sync concorrenti che causano race conditions o performance degradate
 
-Per risolvere questi problemi nelle fasi successive, PRIMA dobbiamo **capire completamente come funziona il sistema oggi**.
+In questa fase dobbiamo **capire completamente come funziona il sistema oggi E RISOLVERE I PROBLEMI CRITICI TROVATI**.
 
-**Deliverable finale:** 4 documenti narrativi atomici (uno per ogni database) che raccontano la storia completa di come funziona ogni sync:
-- `customers-sync.md` - Come funziona il customer sync (per-user)
-- `products-sync.md` - Come funziona il product sync (shared 1:1)
-- `prices-sync.md` - Come funziona il price sync (shared 1:1)
-- `orders-sync.md` - Come funziona il order sync (per-user)
+**Deliverable finale:**
+1. **4 documenti narrativi atomici** (uno per ogni database) che raccontano la storia completa di come funziona ogni sync:
+   - `customers-sync.md` - Come funziona il customer sync (per-user)
+   - `products-sync.md` - Come funziona il product sync (shared 1:1)
+   - `prices-sync.md` - Come funziona il price sync (shared 1:1)
+   - `orders-sync.md` - Come funziona il order sync (per-user)
+
+2. **Codice refactorato e ottimizzato** con problemi critici risolti:
+   - Race conditions fixate
+   - Blocking UI eliminato
+   - Concurrency gestita correttamente
+   - Performance ottimizzate
 
 Ogni documento specifica se è shared o per-user e come questo impatta il comportamento del sync.
 
@@ -28,7 +35,9 @@ Ogni documento specifica se è shared o per-user e come questo impatta il compor
 <essential>
 ## What Must Be Nailed
 
-Per ogni sync (customers, products, prices, orders), dobbiamo documentare **tutti questi aspetti critici**:
+Per ogni sync (customers, products, prices, orders), dobbiamo:
+
+### PARTE 1: Discovery & Documentazione
 
 1. **Trigger Points** - Quando parte il sync
    - Automatic triggers: login, reconnect, stale data detection
@@ -54,54 +63,112 @@ Per ogni sync (customers, products, prices, orders), dobbiamo documentare **tutt
    - Lentezza, blocking UI, errori frequenti, dati inconsistenti
    - Cosa NON funziona bene nel sistema attuale
 
-**Formato:** Documenti narrativi atomici — stile "storia di come funziona ogni sync". Non tabelle aride, ma spiegazione step-by-step che racconta il flusso.
+### PARTE 2: Fix & Implementazione
+
+6. **Risolvere Problemi Critici** - Fix immediati
+   - Eliminare race conditions identificate
+   - Risolvere blocking UI
+   - Fixare errori di concurrency
+   - Gestire correttamente le dipendenze
+
+7. **Refactoring & Ottimizzazione**
+   - Migliorare architettura se necessario
+   - Ottimizzare performance dei colli di bottiglia
+   - Implementare pattern migliori per concurrency
+
+8. **Testing & Validazione**
+   - Creare backup prima delle modifiche
+   - Testare ogni fix implementato
+   - Validare che i problemi siano risolti
+
+**Formato:**
+- Documenti narrativi atomici — stile "storia di come funziona ogni sync"
+- Codice pulito e refactorato con problemi risolti
+- Test che validano i fix implementati
 
 </essential>
 
 <boundaries>
 ## What's Out of Scope
 
-Questa fase è **SOLO discovery e mappatura**. Zero implementazione.
+Questa fase è **discovery + fix problemi critici**. Include analisi e implementazione.
 
-**Non facciamo in Phase 14:**
-- ❌ Non tocchiamo il codice dei sync (solo analisi e documentazione)
-- ❌ Non testiamo i sync (il testing formale è Phase 15)
-- ❌ Non progettiamo soluzioni (scheduler, coordination, optimization vengono dopo)
-- ❌ Non ottimizziamo performance
-- ❌ Non rifactoriamo codice esistente
+**Facciamo in Phase 14:**
+- ✅ Analizzare il codice esistente (lettura profonda)
+- ✅ Documentare come funziona ogni sync (narrativo)
+- ✅ Identificare problemi critici (race conditions, blocking UI, bottleneck)
+- ✅ **RISOLVERE i problemi critici identificati** (con backup preventivo)
+- ✅ Testare i fix implementati
+- ✅ Refactorare codice problematico
+- ✅ Ottimizzare colli di bottiglia evidenti
 
-**Possiamo fare:**
-- ✅ Analizzare il codice esistente (read-only)
-- ✅ Eseguire sync per osservare il comportamento (non stress testing formale)
-- ✅ Documentare problemi osservati (ma non risolverli)
-- ✅ Identificare race conditions e bottleneck (ma non fixarli)
+**NON facciamo in Phase 14:**
+- ❌ Progettare nuovi sistemi complessi (scheduler, orchestrator) → Phase 18
+- ❌ Testing formale estensivo con tutti gli scenari edge case → Phase 15
+- ❌ Monitoring e observability avanzati → Phase 19
+- ❌ Retry strategies e error recovery complessi → Phase 20
+- ❌ Performance optimization completa e sistematica → Phase 21
 
-**Principio guida:** Capiamo prima, agiamo dopo. Questa fase costruisce la conoscenza necessaria per le fasi successive.
+**Principio guida:** Capiamo E agiamo. Questa fase risolve i problemi critici immediati mentre documenta il sistema. Le fasi successive aggiungono features avanzate (monitoring, retry, optimization sistematica).
+
+**Approccio sicuro:**
+1. Backup del codice prima di ogni modifica
+2. Fix incrementali con test immediati
+3. Commit atomici per ogni problema risolto
+4. Possibilità di rollback se necessario
 
 </boundaries>
 
 <specifics>
 ## Specific Ideas
 
-1. **4 Documenti Atomici** - Struttura definitiva:
-   - `customers-sync.md` (per-user sync)
-   - `products-sync.md` (shared sync)
-   - `prices-sync.md` (shared sync)
-   - `orders-sync.md` (per-user sync)
+### Workflow per Ogni Sync
 
-2. **Differenziazione Shared vs Per-User:**
-   - Ogni documento specifica chiaramente: "Questo è un sync **shared**" o "Questo è un sync **per-user**"
-   - Documentare come questa caratteristica impatta triggers, concurrency, cache invalidation
+**Step 1: Analisi & Discovery** (read-only)
+1. Leggere il codice del service (`*-sync-service.ts`)
+2. Identificare tutti i trigger points
+3. Mappare lo step-by-step flow
+4. Analizzare concurrency scenarios
+5. Identificare dependencies
+6. Documentare current issues
 
-3. **Focus Concurrency:**
-   - **Priorità alta:** Single-user concurrency (un agente, multipli sync nella stessa sessione)
-   - Esempio da analizzare: login triggera customers+products+prices → come vengono orchestrati?
-   - Multi-user concurrency (shared resources) può essere accennato ma non è il focus principale di questa fase
+**Step 2: Documentazione Narrativa**
+1. Creare documento `{sync-name}-sync.md`
+2. Scrivere in stile narrativo (non tabelle)
+3. Specificare chiaramente se shared o per-user
+4. Documentare problemi trovati con evidenze
 
-4. **Stile Narrativo:**
-   - Non elenchi puntati aridi
-   - Racconta una storia: "Quando l'utente fa login, il customer sync parte perché... poi fa X, poi fa Y, poi scrive Z..."
-   - Spiegazioni step-by-step che chiunque può seguire
+**Step 3: Fix & Implementation** (con backup)
+1. Creare backup del file originale (`*.ts.backup`)
+2. Implementare fix per problemi critici
+3. Testare ogni fix immediatamente
+4. Commit atomico per ogni problema risolto
+5. Aggiornare documentazione con soluzioni implementate
+
+**Step 4: Validazione**
+1. Eseguire sync in vari scenari
+2. Verificare che problemi siano risolti
+3. Documentare risultati test
+4. Aggiornare metrics se performance migliorate
+
+### 4 Documenti Atomici - Struttura
+Ogni documento include:
+- **Type**: Shared o Per-User
+- **Trigger Points**: Come viene attivato
+- **Flow**: Step-by-step narrativo
+- **Concurrency**: Scenari di esecuzione concorrente
+- **Dependencies**: Cosa serve prima
+- **Issues Found**: Problemi identificati
+- **Fixes Implemented**: Soluzioni applicate
+- **Test Results**: Validazione dei fix
+
+### Focus Concurrency
+- **Priorità alta:** Single-user concurrency (un agente, multipli sync)
+- Esempio: login triggera customers+products+prices → come vengono orchestrati?
+- Race conditions da identificare e fixare
+
+### Stile Narrativo
+Racconta una storia: "Quando l'utente fa login, il customer sync parte perché... poi fa X, poi fa Y, poi scrive Z... PROBLEMA: qui si verifica una race condition perché... FIX: abbiamo risolto con..."
 
 </specifics>
 
@@ -112,7 +179,7 @@ Questa fase è **SOLO discovery e mappatura**. Zero implementazione.
 
 **Milestone Goal:** "Bulletproof sync reliability with comprehensive analysis of all 4 database sync systems, concurrent scenario testing, and intelligent sync orchestration."
 
-**Phase 14 Position:** Prima fase del milestone v2.0 — costruisce le fondamenta di conoscenza per tutte le 7 fasi successive (15-21).
+**Phase 14 Position:** Prima fase del milestone v2.0 — costruisce le fondamenta di conoscenza E risolve problemi critici per tutte le 7 fasi successive (15-21).
 
 **Stato codice sync esistente:**
 - Backend services: `customer-sync-service.ts`, `product-sync-service.ts`, `price-sync-service.ts`
@@ -127,7 +194,16 @@ Questa fase è **SOLO discovery e mappatura**. Zero implementazione.
 - Phase 8-08: 3-day threshold per stale data warning
 - Phase 9: Conflict detection e resolution per dati stale
 
-Questi pattern esistenti devono essere analizzati e documentati in Phase 14.
+Questi pattern esistenti devono essere analizzati, documentati E migliorati in Phase 14.
+
+**Approccio Phase 14 vs Fasi Successive:**
+- **Phase 14**: Discovery + fix problemi critici immediati (race conditions, blocking UI, bottleneck evidenti)
+- **Phase 15**: Testing formale estensivo con scenari edge case completi
+- **Phase 16-17**: Analisi scenari concorrenti avanzati e differenziazione auto/manual
+- **Phase 18**: Progettazione e implementazione sync scheduler intelligente
+- **Phase 19**: Monitoring e observability avanzati (metriche, dashboard, alerting)
+- **Phase 20**: Retry strategies sofisticate e error recovery robusto
+- **Phase 21**: Performance optimization sistematica e completa
 
 </notes>
 

@@ -70,6 +70,9 @@ export class SyncScheduler {
     this.isRunning = true;
     logger.info("🔄 Sync Scheduler avviato", { schedule: SCHEDULE });
 
+    // Listen to progress events from sync services
+    this.setupProgressListeners();
+
     // Schedule all sync types in priority order
     this.scheduleSync("customers", SCHEDULE.customers);
     this.scheduleSync("orders", SCHEDULE.orders);
@@ -81,6 +84,97 @@ export class SyncScheduler {
     setTimeout(() => this.runDeltaSync("orders"), 15000);
     setTimeout(() => this.runDeltaSync("products"), 25000);
     setTimeout(() => this.runDeltaSync("prices"), 35000);
+  }
+
+  private setupProgressListeners() {
+    // Listen to product sync progress
+    productSyncService.on("progress", (progress: any) => {
+      const normalizedStatus =
+        progress.status === "syncing"
+          ? "running"
+          : progress.status === "completed"
+            ? "completed"
+            : progress.status === "error"
+              ? "error"
+              : "running";
+
+      const percentage =
+        normalizedStatus === "completed"
+          ? 100
+          : progress.totalPages > 0
+            ? Math.round((progress.currentPage / progress.totalPages) * 100)
+            : 0;
+
+      this.notifyProgress({
+        syncType: "products",
+        mode: "full",
+        status: normalizedStatus,
+        currentPage: progress.currentPage,
+        totalPages: progress.totalPages,
+        itemsProcessed: progress.productsProcessed || 0,
+        itemsChanged: progress.newProducts || 0,
+        percentage,
+        startedAt: progress.startedAt || Date.now(),
+      });
+    });
+
+    // Listen to price sync progress
+    priceSyncService.on("progress", (progress: any) => {
+      const normalizedStatus =
+        progress.status === "syncing"
+          ? "running"
+          : progress.status === "completed"
+            ? "completed"
+            : progress.status === "error"
+              ? "error"
+              : "running";
+
+      const percentage =
+        normalizedStatus === "completed"
+          ? 100
+          : progress.totalPages > 0
+            ? Math.round((progress.currentPage / progress.totalPages) * 100)
+            : 0;
+
+      this.notifyProgress({
+        syncType: "prices",
+        mode: "full",
+        status: normalizedStatus,
+        currentPage: progress.currentPage,
+        totalPages: progress.totalPages,
+        itemsProcessed: progress.pricesProcessed || 0,
+        itemsChanged: progress.updatedPrices || 0,
+        percentage,
+        startedAt: progress.startedAt || Date.now(),
+      });
+    });
+
+    // Listen to customer sync progress
+    customerSyncService.on("progress", (progress: any) => {
+      const normalizedStatus =
+        progress.status === "syncing"
+          ? "running"
+          : progress.status === "completed"
+            ? "completed"
+            : progress.status === "error"
+              ? "error"
+              : "running";
+
+      const percentage =
+        normalizedStatus === "completed" ? 100 : progress.percentage || 0;
+
+      this.notifyProgress({
+        syncType: "customers",
+        mode: "full",
+        status: normalizedStatus,
+        itemsProcessed: progress.customersProcessed || 0,
+        itemsChanged: progress.newCustomers || 0,
+        percentage,
+        startedAt: progress.startedAt || Date.now(),
+      });
+    });
+
+    logger.debug("Progress listeners configured for all sync services");
   }
 
   private scheduleSync(
@@ -199,8 +293,10 @@ export class SyncScheduler {
 
           // Orders sync requires user-specific context
           logger.info(`Starting orders sync for userId: ${userId}`);
-          const { OrderHistoryService } = await import("./order-history-service");
-          const { UserDatabase: UserDatabaseOrders } = await import("./user-db");
+          const { OrderHistoryService } =
+            await import("./order-history-service");
+          const { UserDatabase: UserDatabaseOrders } =
+            await import("./user-db");
           const orderHistoryService = new OrderHistoryService();
           await orderHistoryService.syncFromArchibald(userId);
 
