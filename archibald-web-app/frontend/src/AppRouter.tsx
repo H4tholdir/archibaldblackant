@@ -26,6 +26,8 @@ import { AdminPage } from "./pages/AdminPage";
 import { OrderHistory } from "./pages/OrderHistory";
 import { PendingOrdersView } from "./pages/PendingOrdersView";
 import { DraftOrders } from "./pages/DraftOrders";
+import { CustomerList } from "./pages/CustomerList";
+import { CustomerEdit } from "./pages/CustomerEdit";
 import { pendingOrdersService } from "./services/pending-orders-service";
 import { getDraftOrders } from "./services/draftOrderStorage";
 
@@ -231,6 +233,13 @@ function AppRouter() {
             </button>
             <button
               type="button"
+              onClick={() => navigate("/customers")}
+              className={`btn btn-sm ${location.pathname === "/customers" ? "btn-primary" : "btn-secondary"}`}
+            >
+              👥 Clienti
+            </button>
+            <button
+              type="button"
               onClick={() => navigate("/pending")}
               className={`btn btn-sm ${location.pathname === "/pending" ? "btn-primary" : "btn-secondary"}`}
               style={{ position: "relative" }}
@@ -344,6 +353,48 @@ function AppRouter() {
               <AppHeader />
               <main className="app-main" style={{ padding: "0" }}>
                 <PendingOrdersView />
+              </main>
+              <footer className="app-footer">
+                <p>v1.0.0 • Fresis Team</p>
+              </footer>
+              <CacheSyncProgress />
+            </div>
+          }
+        />
+
+        {/* Customers route */}
+        <Route
+          path="/customers"
+          element={
+            <div
+              className="app"
+              style={{ marginTop: isOffline ? "64px" : "0" }}
+            >
+              <SyncBanner />
+              <AppHeader />
+              <main className="app-main" style={{ padding: "0" }}>
+                <CustomerList />
+              </main>
+              <footer className="app-footer">
+                <p>v1.0.0 • Fresis Team</p>
+              </footer>
+              <CacheSyncProgress />
+            </div>
+          }
+        />
+
+        {/* Customer Edit route */}
+        <Route
+          path="/customers/:customerProfile/edit"
+          element={
+            <div
+              className="app"
+              style={{ marginTop: isOffline ? "64px" : "0" }}
+            >
+              <SyncBanner />
+              <AppHeader />
+              <main className="app-main" style={{ padding: "0" }}>
+                <CustomerEdit />
               </main>
               <footer className="app-footer">
                 <p>v1.0.0 • Fresis Team</p>

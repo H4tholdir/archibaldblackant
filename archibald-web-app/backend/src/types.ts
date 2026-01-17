@@ -24,6 +24,25 @@ export type Product = {
   price: number;
 };
 
+export interface CustomerFormData {
+  // Required fields
+  name: string;
+
+  // Optional fields - Dettagli tab
+  vatNumber?: string;
+  pec?: string;
+  sdi?: string;
+  street?: string;
+  postalCode?: string;
+  phone?: string;
+  email?: string;
+
+  // Optional fields - Dropdowns/Lookups
+  deliveryMode?: "FedEx" | string; // Default: FedEx
+  paymentTerms?: string; // Default: "206"
+  lineDiscount?: "N/A" | string; // Default: N/A
+}
+
 export type ApiResponse<T = unknown> = {
   success: boolean;
   data?: T;

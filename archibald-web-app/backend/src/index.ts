@@ -668,12 +668,10 @@ app.get("/api/customers", (req: Request, res: Response<ApiResponse>) => {
 
     res.json({
       success: true,
-      data: customers.map((c) => ({
-        id: c.id,
-        name: c.name,
-        vatNumber: c.vatNumber,
-        email: c.email,
-      })),
+      data: {
+        customers: customers,
+        total: totalCount,
+      },
       message: searchQuery
         ? `${customers.length} clienti trovati per "${searchQuery}"`
         : `${totalCount} clienti disponibili`,
@@ -716,10 +714,13 @@ app.get("/api/customers/search", (req: Request, res: Response<ApiResponse>) => {
     res.json({
       success: true,
       data: results.map((r) => ({
-        id: r.customer.id,
+        id: r.customer.customerProfile,
         name: r.customer.name,
         vatNumber: r.customer.vatNumber,
-        email: r.customer.email,
+        email: r.customer.pec, // PEC is the email field now
+        customerProfile: r.customer.customerProfile,
+        city: r.customer.city,
+        phone: r.customer.phone,
         confidence: Math.round(r.confidence * 100), // Convert to percentage
         matchReason:
           r.confidence >= 0.95
@@ -804,6 +805,52 @@ app.post(
           error instanceof Error
             ? error.message
             : "Errore durante l'avvio della sincronizzazione",
+      });
+    }
+  },
+);
+
+// Update customer endpoint
+app.put(
+  "/api/customers/:customerProfile",
+  async (req: Request, res: Response<ApiResponse>) => {
+    try {
+      const { customerProfile } = req.params;
+      const customerData = req.body as import("./types").CustomerFormData;
+
+      logger.info("Richiesta aggiornamento cliente", {
+        customerProfile,
+        customerData,
+      });
+
+      // Initialize bot
+      const bot = new ArchibaldBot();
+      await bot.initialize();
+      await bot.login();
+
+      // Update customer in Archibald
+      await bot.updateCustomer(customerProfile, customerData);
+
+      await bot.close();
+
+      // Trigger sync to update local DB
+      syncService.syncCustomers().catch((error) => {
+        logger.error("Errore sync dopo update cliente", { error });
+      });
+
+      res.json({
+        success: true,
+        message: `Cliente ${customerProfile} aggiornato con successo`,
+      });
+    } catch (error) {
+      logger.error("Errore API /api/customers/:customerProfile", { error });
+
+      res.status(500).json({
+        success: false,
+        error:
+          error instanceof Error
+            ? error.message
+            : "Errore durante l'aggiornamento del cliente",
       });
     }
   },

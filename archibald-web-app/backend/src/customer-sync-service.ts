@@ -220,7 +220,7 @@ export class CustomerSyncService extends EventEmitter {
       }
 
       logger.info("Navigazione alla pagina clienti...");
-      await page.goto(`${config.archibald.url}/CUSTTABLE_ListView/`, {
+      await page.goto(`${config.archibald.url}/CUSTTABLE_ListView_Agent/`, {
         waitUntil: "networkidle2",
         timeout: 60000,
       });
@@ -664,10 +664,33 @@ export class CustomerSyncService extends EventEmitter {
       }
 
       const allCustomers: Array<{
-        id: string;
+        customerProfile: string;
+        internalId?: string;
         name: string;
         vatNumber?: string;
-        email?: string;
+        fiscalCode?: string;
+        sdi?: string;
+        pec?: string;
+        phone?: string;
+        mobile?: string;
+        url?: string;
+        attentionTo?: string;
+        street?: string;
+        logisticsAddress?: string;
+        postalCode?: string;
+        city?: string;
+        customerType?: string;
+        type?: string;
+        deliveryTerms?: string;
+        description?: string;
+        lastOrderDate?: string;
+        actualOrderCount?: number;
+        previousOrderCount1?: number;
+        previousSales1?: number;
+        previousOrderCount2?: number;
+        previousSales2?: number;
+        externalAccountNumber?: string;
+        ourAccountNumber?: string;
       }> = [];
       let currentPage = resumePoint; // Inizia da resumePoint invece di 1
       let hasMorePages = true;
@@ -718,7 +741,7 @@ export class CustomerSyncService extends EventEmitter {
 
       logger.info("Inizio estrazione clienti con paginazione...");
 
-      while (hasMorePages && currentPage <= 100 && !this.shouldStop) {
+      while (hasMorePages && !this.shouldStop) {
         this.updateProgress({
           status: "syncing",
           currentPage,
@@ -731,56 +754,146 @@ export class CustomerSyncService extends EventEmitter {
         await new Promise((resolve) => setTimeout(resolve, 500));
 
         const pageCustomers = await page.evaluate(() => {
-          const rows = Array.from(
-            document.querySelectorAll("table tbody tr"),
-          ) as Element[];
+          // Find all TR elements with ID containing "DXDataRow" (actual data rows)
+          const allTr = Array.from(document.querySelectorAll("tr"));
+          const dataRows = allTr.filter((tr) => {
+            const id = (tr as HTMLElement).id || "";
+            return id.includes("DXDataRow");
+          });
+
           const results: Array<{
-            id: string;
+            customerProfile: string;
+            internalId?: string;
             name: string;
             vatNumber?: string;
-            email?: string;
+            fiscalCode?: string;
+            sdi?: string;
+            pec?: string;
+            phone?: string;
+            mobile?: string;
+            url?: string;
+            attentionTo?: string;
+            street?: string;
+            logisticsAddress?: string;
+            postalCode?: string;
+            city?: string;
+            customerType?: string;
+            type?: string;
+            deliveryTerms?: string;
+            description?: string;
+            lastOrderDate?: string;
+            actualOrderCount?: number;
+            previousOrderCount1?: number;
+            previousSales1?: number;
+            previousOrderCount2?: number;
+            previousSales2?: number;
+            externalAccountNumber?: string;
+            ourAccountNumber?: string;
           }> = [];
 
-          for (const row of rows) {
+          for (const row of dataRows) {
             const cells = Array.from(row.querySelectorAll("td")) as Element[];
-            if (cells.length < 3) continue;
+            if (cells.length < 20) continue; // Skip rows with too few cells
 
-            const id = (cells[1] as Element)?.textContent?.trim() || "";
-            const accountNumber =
-              (cells[2] as Element)?.textContent?.trim() || "";
-            const customerCode =
-              (cells[3] as Element)?.textContent?.trim() || "";
-            const companyName =
-              (cells[4] as Element)?.textContent?.trim() || "";
-            const vatNumber = (cells[5] as Element)?.textContent?.trim() || "";
-            const email = (cells[6] as Element)?.textContent?.trim() || "";
+            // Extract data from 25-cell structure (cells[0-1] are UI, cells[2-24] are data)
+            const internalId = cells[2]?.textContent?.trim() || "";
+            const customerProfileRaw = cells[3]?.textContent?.trim() || "";
+            // If customerProfile is empty, use internalId as fallback
+            const customerProfile = customerProfileRaw || internalId;
+            const name = cells[4]?.textContent?.trim() || "";
+            const vatNumber = cells[5]?.textContent?.trim() || undefined;
+            const pec = cells[6]?.textContent?.trim() || undefined;
+            const sdi = cells[7]?.textContent?.trim() || undefined;
+            const fiscalCode = cells[8]?.textContent?.trim() || undefined;
+            const deliveryTerms = cells[9]?.textContent?.trim() || undefined;
+            const street = cells[10]?.textContent?.trim() || undefined;
+            const postalCode = cells[11]?.textContent?.trim() || undefined;
+            const city = cells[12]?.textContent?.trim() || undefined;
+            const phone = cells[13]?.textContent?.trim() || undefined;
+            const mobile = cells[14]?.textContent?.trim() || undefined;
+            const url = cells[15]?.textContent?.trim() || undefined;
+            const attentionTo = cells[16]?.textContent?.trim() || undefined;
+            const lastOrderDate = cells[17]?.textContent?.trim() || undefined;
+            const actualOrderCountRaw = cells[18]?.textContent?.trim() || "0";
+            // Cell 19 appears to be a sales amount, skipping for now
+            const previousOrderCount1Raw =
+              cells[20]?.textContent?.trim() || "0";
+            const previousSales1Raw = cells[21]?.textContent?.trim() || "0";
+            const previousOrderCount2Raw =
+              cells[22]?.textContent?.trim() || "0";
+            const previousSales2Raw = cells[23]?.textContent?.trim() || "0";
+            const type = cells[24]?.textContent?.trim() || undefined;
 
-            // Usa il nome dell'azienda come "name", con fallback al codice cliente
-            const displayName = companyName || customerCode;
+            // Fields not visible in 25-cell structure (would need horizontal scrolling)
+            const logisticsAddress = undefined;
+            const customerType = undefined;
+            const description = undefined;
+            const externalAccountNumber = undefined;
+            const ourAccountNumber = undefined;
 
-            // Filtra garbage data (HTML, loading indicators, righe non valide)
-            // Validazione: accountNumber deve essere numerico (può avere o no il punto)
-            // displayName deve essere lungo almeno 3 caratteri (no singole cifre come "1", "22")
+            // Parse numeric fields
+            const actualOrderCount =
+              parseInt(actualOrderCountRaw.replace(/[^\d]/g, "")) || 0;
+            const previousOrderCount1 =
+              parseInt(previousOrderCount1Raw.replace(/[^\d]/g, "")) || 0;
+            const previousSales1 =
+              parseFloat(
+                previousSales1Raw
+                  .replace(/[^\d.,]/g, "")
+                  .replace(/\./g, "")
+                  .replace(",", "."),
+              ) || 0.0;
+            const previousOrderCount2 =
+              parseInt(previousOrderCount2Raw.replace(/[^\d]/g, "")) || 0;
+            const previousSales2 =
+              parseFloat(
+                previousSales2Raw
+                  .replace(/[^\d.,]/g, "")
+                  .replace(/\./g, "")
+                  .replace(",", "."),
+              ) || 0.0;
+
+            // Validation: customerProfile must be numeric, name must be > 3 chars
             if (
-              !accountNumber ||
-              accountNumber.includes("Loading") ||
-              accountNumber.includes("<") ||
-              !displayName ||
-              displayName.length < 3 ||
-              !/\d/.test(accountNumber)
+              !customerProfile ||
+              customerProfile.includes("Loading") ||
+              customerProfile.includes("<") ||
+              !name ||
+              name.length < 3 ||
+              !/\d/.test(customerProfile)
             ) {
-              // accountNumber deve contenere almeno una cifra
               continue;
             }
 
-            if (accountNumber || id) {
-              results.push({
-                id: accountNumber || id,
-                name: displayName,
-                vatNumber: vatNumber || undefined,
-                email: email || undefined,
-              });
-            }
+            results.push({
+              customerProfile,
+              internalId: internalId || undefined,
+              name,
+              vatNumber,
+              fiscalCode,
+              sdi,
+              pec,
+              phone,
+              mobile,
+              url,
+              attentionTo,
+              street,
+              logisticsAddress,
+              postalCode,
+              city,
+              customerType,
+              type,
+              deliveryTerms,
+              description,
+              lastOrderDate,
+              actualOrderCount,
+              previousOrderCount1,
+              previousSales1,
+              previousOrderCount2,
+              previousSales2,
+              externalAccountNumber,
+              ourAccountNumber,
+            });
           }
 
           return results;
@@ -931,7 +1044,7 @@ export class CustomerSyncService extends EventEmitter {
         message: "Pulizia clienti eliminati...",
       });
 
-      const currentIds = allCustomers.map((c) => c.id);
+      const currentIds = allCustomers.map((c) => c.customerProfile);
       const deletedIds = this.db.findDeletedCustomers(currentIds);
 
       let deletedCount = 0;

@@ -4,12 +4,50 @@ import path from "path";
 import { logger } from "./logger";
 
 export interface Customer {
-  id: string;
-  name: string;
-  vatNumber?: string;
-  email?: string;
-  hash: string;
-  lastSync: number;
+  // Primary Identification
+  customerProfile: string; // Account number (PRIMARY KEY)
+  internalId?: string; // Archibald internal ID
+  name: string; // Company/Customer name
+
+  // Italian Fiscal Data
+  vatNumber?: string; // Partita IVA (11 digits)
+  fiscalCode?: string; // Codice Fiscale (16 chars)
+  sdi?: string; // Codice SDI (7 chars)
+  pec?: string; // PEC email
+
+  // Contact Information
+  phone?: string; // Telefono
+  mobile?: string; // Cellulare
+  url?: string; // Website
+  attentionTo?: string; // Contact person
+
+  // Address Information
+  street?: string; // Via
+  logisticsAddress?: string; // Indirizzo Logistico
+  postalCode?: string; // CAP
+  city?: string; // Città
+
+  // Business Information
+  customerType?: string; // Tipo di Cliente
+  type?: string; // Type classification
+  deliveryTerms?: string; // Termini di Consegna
+  description?: string; // Descrizione
+
+  // Order History & Analytics
+  lastOrderDate?: string; // Data ultimo ordine (ISO 8601)
+  actualOrderCount?: number; // Conteggio ordini effettivi
+  previousOrderCount1?: number; // Conteggio ordini precedente
+  previousSales1?: number; // Vendite precedente
+  previousOrderCount2?: number; // Conteggio ordini precedente 2
+  previousSales2?: number; // Vendite precedente 2
+
+  // Account References
+  externalAccountNumber?: string; // Numero conto esterno
+  ourAccountNumber?: string; // Il nostro numero di conto
+
+  // System Fields
+  hash: string; // SHA256 hash for change detection
+  lastSync: number; // Unix timestamp of last sync
 }
 
 export class CustomerDatabase {
@@ -32,29 +70,169 @@ export class CustomerDatabase {
   private initializeSchema(): void {
     this.db.exec(`
       CREATE TABLE IF NOT EXISTS customers (
-        id TEXT PRIMARY KEY,
+        -- Primary Identification
+        customerProfile TEXT PRIMARY KEY,
+        internalId TEXT,
         name TEXT NOT NULL,
+
+        -- Italian Fiscal Data
         vatNumber TEXT,
-        email TEXT,
+        fiscalCode TEXT,
+        sdi TEXT,
+        pec TEXT,
+
+        -- Contact Information
+        phone TEXT,
+        mobile TEXT,
+        url TEXT,
+        attentionTo TEXT,
+
+        -- Address Information
+        street TEXT,
+        logisticsAddress TEXT,
+        postalCode TEXT,
+        city TEXT,
+
+        -- Business Information
+        customerType TEXT,
+        type TEXT,
+        deliveryTerms TEXT,
+        description TEXT,
+
+        -- Order History & Analytics
+        lastOrderDate TEXT,
+        actualOrderCount INTEGER DEFAULT 0,
+        previousOrderCount1 INTEGER DEFAULT 0,
+        previousSales1 REAL DEFAULT 0.0,
+        previousOrderCount2 INTEGER DEFAULT 0,
+        previousSales2 REAL DEFAULT 0.0,
+
+        -- Account References
+        externalAccountNumber TEXT,
+        ourAccountNumber TEXT,
+
+        -- System Fields
         hash TEXT NOT NULL,
         lastSync INTEGER NOT NULL,
         createdAt INTEGER DEFAULT (strftime('%s', 'now')),
         updatedAt INTEGER DEFAULT (strftime('%s', 'now'))
       );
 
-      CREATE INDEX IF NOT EXISTS idx_name ON customers(name);
-      CREATE INDEX IF NOT EXISTS idx_hash ON customers(hash);
-      CREATE INDEX IF NOT EXISTS idx_lastSync ON customers(lastSync);
+      -- Performance Indexes
+      CREATE INDEX IF NOT EXISTS idx_customers_name ON customers(name);
+      CREATE INDEX IF NOT EXISTS idx_customers_hash ON customers(hash);
+      CREATE INDEX IF NOT EXISTS idx_customers_lastSync ON customers(lastSync);
+      CREATE INDEX IF NOT EXISTS idx_customers_vatNumber ON customers(vatNumber);
+      CREATE INDEX IF NOT EXISTS idx_customers_fiscalCode ON customers(fiscalCode);
+      CREATE INDEX IF NOT EXISTS idx_customers_city ON customers(city);
+      CREATE INDEX IF NOT EXISTS idx_customers_customerType ON customers(customerType);
+      CREATE INDEX IF NOT EXISTS idx_customers_lastOrderDate ON customers(lastOrderDate);
     `);
 
-    logger.info("Database schema initialized");
+    // Migration: Add new columns if they don't exist (backward compatibility)
+    this.migrateSchema();
+
+    logger.info("Customer database schema initialized");
+  }
+
+  /**
+   * Schema migration for existing databases
+   * Adds new columns introduced in the 27-field expansion
+   */
+  private migrateSchema(): void {
+    const migrations = [
+      // Add customerProfile column and migrate from id
+      { column: "customerProfile", type: "TEXT" },
+      { column: "internalId", type: "TEXT" },
+      { column: "fiscalCode", type: "TEXT" },
+      { column: "sdi", type: "TEXT" },
+      { column: "pec", type: "TEXT" },
+      { column: "phone", type: "TEXT" },
+      { column: "mobile", type: "TEXT" },
+      { column: "url", type: "TEXT" },
+      { column: "attentionTo", type: "TEXT" },
+      { column: "street", type: "TEXT" },
+      { column: "logisticsAddress", type: "TEXT" },
+      { column: "postalCode", type: "TEXT" },
+      { column: "city", type: "TEXT" },
+      { column: "customerType", type: "TEXT" },
+      { column: "type", type: "TEXT" },
+      { column: "deliveryTerms", type: "TEXT" },
+      { column: "description", type: "TEXT" },
+      { column: "lastOrderDate", type: "TEXT" },
+      { column: "actualOrderCount", type: "INTEGER DEFAULT 0" },
+      { column: "previousOrderCount1", type: "INTEGER DEFAULT 0" },
+      { column: "previousSales1", type: "REAL DEFAULT 0.0" },
+      { column: "previousOrderCount2", type: "INTEGER DEFAULT 0" },
+      { column: "previousSales2", type: "REAL DEFAULT 0.0" },
+      { column: "externalAccountNumber", type: "TEXT" },
+      { column: "ourAccountNumber", type: "TEXT" },
+    ];
+
+    for (const migration of migrations) {
+      try {
+        this.db.exec(
+          `ALTER TABLE customers ADD COLUMN ${migration.column} ${migration.type}`,
+        );
+        logger.info(`Added column ${migration.column} to customers table`);
+      } catch (error) {
+        // Column already exists, ignore error
+      }
+    }
+
+    // Migrate existing data: id → customerProfile (if old schema exists)
+    try {
+      const hasOldId = this.db
+        .prepare("SELECT id FROM customers LIMIT 1")
+        .get();
+      if (hasOldId) {
+        this.db.exec(
+          `UPDATE customers SET customerProfile = id WHERE customerProfile IS NULL`,
+        );
+        logger.info("Migrated id to customerProfile for existing customers");
+      }
+    } catch (error) {
+      // Old id column doesn't exist, skip migration
+    }
   }
 
   /**
    * Calcola hash per un cliente (per rilevare modifiche)
+   * Include tutti i 27 campi per rilevare qualsiasi modifica
    */
   static calculateHash(customer: Omit<Customer, "hash" | "lastSync">): string {
-    const data = `${customer.id}|${customer.name}|${customer.vatNumber || ""}|${customer.email || ""}`;
+    const data = [
+      customer.customerProfile,
+      customer.internalId,
+      customer.name,
+      customer.vatNumber,
+      customer.fiscalCode,
+      customer.sdi,
+      customer.pec,
+      customer.phone,
+      customer.mobile,
+      customer.url,
+      customer.attentionTo,
+      customer.street,
+      customer.logisticsAddress,
+      customer.postalCode,
+      customer.city,
+      customer.customerType,
+      customer.type,
+      customer.deliveryTerms,
+      customer.description,
+      customer.lastOrderDate,
+      customer.actualOrderCount,
+      customer.previousOrderCount1,
+      customer.previousSales1,
+      customer.previousOrderCount2,
+      customer.previousSales2,
+      customer.externalAccountNumber,
+      customer.ourAccountNumber,
+    ]
+      .map((v) => String(v ?? "")) // Handle undefined/null
+      .join("|");
+
     return createHash("sha256").update(data).digest("hex");
   }
 
@@ -72,12 +250,46 @@ export class CustomerDatabase {
     let unchanged = 0;
 
     const insertStmt = this.db.prepare(`
-      INSERT INTO customers (id, name, vatNumber, email, hash, lastSync)
-      VALUES (?, ?, ?, ?, ?, ?)
-      ON CONFLICT(id) DO UPDATE SET
+      INSERT INTO customers (
+        customerProfile, internalId, name,
+        vatNumber, fiscalCode, sdi, pec,
+        phone, mobile, url, attentionTo,
+        street, logisticsAddress, postalCode, city,
+        customerType, type, deliveryTerms, description,
+        lastOrderDate, actualOrderCount,
+        previousOrderCount1, previousSales1,
+        previousOrderCount2, previousSales2,
+        externalAccountNumber, ourAccountNumber,
+        hash, lastSync
+      )
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT(customerProfile) DO UPDATE SET
+        internalId = excluded.internalId,
         name = excluded.name,
         vatNumber = excluded.vatNumber,
-        email = excluded.email,
+        fiscalCode = excluded.fiscalCode,
+        sdi = excluded.sdi,
+        pec = excluded.pec,
+        phone = excluded.phone,
+        mobile = excluded.mobile,
+        url = excluded.url,
+        attentionTo = excluded.attentionTo,
+        street = excluded.street,
+        logisticsAddress = excluded.logisticsAddress,
+        postalCode = excluded.postalCode,
+        city = excluded.city,
+        customerType = excluded.customerType,
+        type = excluded.type,
+        deliveryTerms = excluded.deliveryTerms,
+        description = excluded.description,
+        lastOrderDate = excluded.lastOrderDate,
+        actualOrderCount = excluded.actualOrderCount,
+        previousOrderCount1 = excluded.previousOrderCount1,
+        previousSales1 = excluded.previousSales1,
+        previousOrderCount2 = excluded.previousOrderCount2,
+        previousSales2 = excluded.previousSales2,
+        externalAccountNumber = excluded.externalAccountNumber,
+        ourAccountNumber = excluded.ourAccountNumber,
         hash = excluded.hash,
         lastSync = excluded.lastSync,
         updatedAt = strftime('%s', 'now')
@@ -85,33 +297,79 @@ export class CustomerDatabase {
     `);
 
     const checkStmt = this.db.prepare(
-      "SELECT hash FROM customers WHERE id = ?",
+      "SELECT hash FROM customers WHERE customerProfile = ?",
     );
 
     const transaction = this.db.transaction(
       (customersToSync: Array<Omit<Customer, "hash" | "lastSync">>) => {
         for (const customer of customersToSync) {
           const hash = CustomerDatabase.calculateHash(customer);
-          const existing = checkStmt.get(customer.id) as
+          const existing = checkStmt.get(customer.customerProfile) as
             | { hash: string }
             | undefined;
 
           if (!existing) {
             insertStmt.run(
-              customer.id,
+              customer.customerProfile,
+              customer.internalId ?? null,
               customer.name,
-              customer.vatNumber,
-              customer.email,
+              customer.vatNumber ?? null,
+              customer.fiscalCode ?? null,
+              customer.sdi ?? null,
+              customer.pec ?? null,
+              customer.phone ?? null,
+              customer.mobile ?? null,
+              customer.url ?? null,
+              customer.attentionTo ?? null,
+              customer.street ?? null,
+              customer.logisticsAddress ?? null,
+              customer.postalCode ?? null,
+              customer.city ?? null,
+              customer.customerType ?? null,
+              customer.type ?? null,
+              customer.deliveryTerms ?? null,
+              customer.description ?? null,
+              customer.lastOrderDate ?? null,
+              customer.actualOrderCount ?? 0,
+              customer.previousOrderCount1 ?? 0,
+              customer.previousSales1 ?? 0.0,
+              customer.previousOrderCount2 ?? 0,
+              customer.previousSales2 ?? 0.0,
+              customer.externalAccountNumber ?? null,
+              customer.ourAccountNumber ?? null,
               hash,
               now,
             );
             inserted++;
           } else if (existing.hash !== hash) {
             insertStmt.run(
-              customer.id,
+              customer.customerProfile,
+              customer.internalId ?? null,
               customer.name,
-              customer.vatNumber,
-              customer.email,
+              customer.vatNumber ?? null,
+              customer.fiscalCode ?? null,
+              customer.sdi ?? null,
+              customer.pec ?? null,
+              customer.phone ?? null,
+              customer.mobile ?? null,
+              customer.url ?? null,
+              customer.attentionTo ?? null,
+              customer.street ?? null,
+              customer.logisticsAddress ?? null,
+              customer.postalCode ?? null,
+              customer.city ?? null,
+              customer.customerType ?? null,
+              customer.type ?? null,
+              customer.deliveryTerms ?? null,
+              customer.description ?? null,
+              customer.lastOrderDate ?? null,
+              customer.actualOrderCount ?? 0,
+              customer.previousOrderCount1 ?? 0,
+              customer.previousSales1 ?? 0.0,
+              customer.previousOrderCount2 ?? 0,
+              customer.previousSales2 ?? 0.0,
+              customer.externalAccountNumber ?? null,
+              customer.ourAccountNumber ?? null,
               hash,
               now,
             );
@@ -138,12 +396,14 @@ export class CustomerDatabase {
 
     const placeholders = currentIds.map(() => "?").join(",");
     const stmt = this.db.prepare(`
-      SELECT id FROM customers
-      WHERE id NOT IN (${placeholders})
+      SELECT customerProfile FROM customers
+      WHERE customerProfile NOT IN (${placeholders})
     `);
 
-    const deleted = stmt.all(...currentIds) as Array<{ id: string }>;
-    return deleted.map((c) => c.id);
+    const deleted = stmt.all(...currentIds) as Array<{
+      customerProfile: string;
+    }>;
+    return deleted.map((c) => c.customerProfile);
   }
 
   /**
@@ -156,7 +416,7 @@ export class CustomerDatabase {
 
     const placeholders = ids.map(() => "?").join(",");
     const stmt = this.db.prepare(
-      `DELETE FROM customers WHERE id IN (${placeholders})`,
+      `DELETE FROM customers WHERE customerProfile IN (${placeholders})`,
     );
     const result = stmt.run(...ids);
     return result.changes;
@@ -171,18 +431,20 @@ export class CustomerDatabase {
     if (searchQuery) {
       const query = `%${searchQuery}%`;
       stmt = this.db.prepare(`
-        SELECT id, name, vatNumber, email, hash, lastSync
-        FROM customers
-        WHERE name LIKE ? OR id LIKE ? OR vatNumber LIKE ?
+        SELECT * FROM customers
+        WHERE name LIKE ?
+           OR customerProfile LIKE ?
+           OR vatNumber LIKE ?
+           OR city LIKE ?
+           OR fiscalCode LIKE ?
         ORDER BY name ASC
         LIMIT 100
       `);
-      return stmt.all(query, query, query) as Customer[];
+      return stmt.all(query, query, query, query, query) as Customer[];
     }
 
     stmt = this.db.prepare(`
-      SELECT id, name, vatNumber, email, hash, lastSync
-      FROM customers
+      SELECT * FROM customers
       ORDER BY name ASC
     `);
     return stmt.all() as Customer[];
@@ -222,8 +484,7 @@ export class CustomerDatabase {
     const allCustomers = this.db
       .prepare(
         `
-      SELECT id, name, vatNumber, email, hash, lastSync
-      FROM customers
+      SELECT * FROM customers
       ORDER BY lastSync DESC
     `,
       )
@@ -354,13 +615,30 @@ export class CustomerDatabase {
   /**
    * Get all customers for cache export
    */
-  getAllCustomers(): Customer[] {
-    const stmt = this.db.prepare(`
-      SELECT id, name, vatNumber, email, hash, lastSync
-      FROM customers
+  getAllCustomers(limit?: number, offset?: number): Customer[] {
+    let query = `
+      SELECT * FROM customers
       ORDER BY name ASC
-    `);
+    `;
+
+    if (limit !== undefined) {
+      query += ` LIMIT ${limit}`;
+      if (offset !== undefined) {
+        query += ` OFFSET ${offset}`;
+      }
+    }
+
+    const stmt = this.db.prepare(query);
     return stmt.all() as Customer[];
+  }
+
+  /**
+   * Count total customers in database
+   */
+  countCustomers(): number {
+    const stmt = this.db.prepare(`SELECT COUNT(*) as count FROM customers`);
+    const result = stmt.get() as { count: number };
+    return result.count;
   }
 
   /**

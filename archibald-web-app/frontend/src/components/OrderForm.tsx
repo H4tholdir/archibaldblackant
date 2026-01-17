@@ -560,7 +560,7 @@ export default function OrderForm({
           if (!isMounted) return;
 
           if (data.success) {
-            setCustomers(data.data);
+            setCustomers(data.data.customers || data.data); // Handle new API structure
             setCustomersLoaded(true);
           } else {
             console.error("Errore dal server:", data.error);

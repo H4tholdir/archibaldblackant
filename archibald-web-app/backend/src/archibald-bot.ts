@@ -6255,4 +6255,806 @@ export class ArchibaldBot {
       csvPath,
     };
   }
+
+  async createCustomer(
+    customerData: import("./types").CustomerFormData,
+  ): Promise<string> {
+    if (!this.page) {
+      throw new Error("Browser page is null");
+    }
+
+    logger.info("Creating new customer", { name: customerData.name });
+
+    const page = this.page;
+
+    logger.info("Navigating to customer list");
+    await page.goto(`${config.archibald.url}/CUSTTABLE_ListView_Agent/`, {
+      waitUntil: "networkidle2",
+      timeout: 60000,
+    });
+
+    await page.waitForSelector("table", { timeout: 10000 });
+    await new Promise((resolve) => setTimeout(resolve, 3000));
+
+    logger.info("Clicking 'Nuovo' button");
+    const nuovoClicked = await page.evaluate(() => {
+      const allElements = Array.from(document.querySelectorAll("*"));
+      const nuovoElements = allElements.filter((el) => {
+        const text = el.textContent?.trim() || "";
+        return text === "Nuovo" || text.startsWith("Nuovo");
+      });
+
+      for (const el of nuovoElements) {
+        const clickable =
+          el.tagName === "A" || el.tagName === "BUTTON"
+            ? el
+            : el.closest("a") || el.closest("button");
+
+        if (clickable) {
+          (clickable as HTMLElement).click();
+          return true;
+        }
+      }
+
+      return false;
+    });
+
+    if (!nuovoClicked) {
+      throw new Error("Could not find or click 'Nuovo' button");
+    }
+
+    logger.info("Waiting for customer form to load");
+    await new Promise((resolve) => setTimeout(resolve, 5000));
+    await page.waitForSelector("input[type='text']", { timeout: 10000 });
+
+    await page.screenshot({
+      path: "/Users/hatholdir/Downloads/Archibald/archibald-web-app/backend/logs/customer-form-loaded.png",
+      fullPage: false,
+    });
+
+    const allInputIds = await page.evaluate(() => {
+      const inputs = Array.from(document.querySelectorAll("input[type='text']"));
+      return inputs.slice(0, 30).map((input) => input.id);
+    });
+
+    logger.info("Found input fields", { count: allInputIds.length, sample: allInputIds });
+
+    logger.info("Filling customer form fields");
+
+    // Fill Name field
+    logger.info("Filling: Name");
+    await this.fillFieldByPattern(/xaf_dviNAME_Edit_I$/, customerData.name);
+    await new Promise((resolve) => setTimeout(resolve, 1000));
+
+    // Fill VAT Number field
+    if (customerData.vatNumber) {
+      logger.info("Filling: VAT Number");
+      await this.fillFieldByPattern(
+        /xaf_dviVATNUM_Edit_I$/,
+        customerData.vatNumber,
+      );
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+    }
+
+    // Fill PEC field
+    if (customerData.pec) {
+      logger.info("Filling: PEC");
+      await this.fillFieldByPattern(
+        /xaf_dviLEGALEMAIL_Edit_I$/,
+        customerData.pec,
+      );
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+    }
+
+    // Fill SDI field
+    if (customerData.sdi) {
+      logger.info("Filling: SDI");
+      await this.fillFieldByPattern(
+        /xaf_dviLEGALAUTHORITY_Edit_I$/,
+        customerData.sdi,
+      );
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+    }
+
+    // Fill Street field
+    if (customerData.street) {
+      logger.info("Filling: Street");
+      await this.fillFieldByPattern(/xaf_dviSTREET_Edit_I$/, customerData.street);
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+    }
+
+    // Fill Phone field
+    if (customerData.phone) {
+      logger.info("Filling: Phone");
+      await this.fillFieldByPattern(/xaf_dviPHONE_Edit_I$/, customerData.phone);
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+    }
+
+    // Fill Email field
+    if (customerData.email) {
+      logger.info("Filling: Email");
+      await this.fillFieldByPattern(/xaf_dviEMAIL_Edit_I$/, customerData.email);
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+    }
+
+    // Select Delivery Mode dropdown
+    if (customerData.deliveryMode) {
+      logger.info("Selecting: Delivery Mode");
+      await this.selectFromDropdown(
+        /xaf_dviDLVMODE_Edit_dropdown_DD_I$/,
+        customerData.deliveryMode,
+      );
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+    }
+
+    // Select Payment Terms lookup
+    if (customerData.paymentTerms) {
+      logger.info("Selecting: Payment Terms");
+      await this.selectFromLookup(
+        /xaf_dviPAYMTERMID_Edit_find_B$/,
+        customerData.paymentTerms,
+      );
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+    }
+
+    // Select Postal Code lookup
+    if (customerData.postalCode) {
+      logger.info("Selecting: Postal Code");
+      await this.selectFromLookup(
+        /xaf_dviLOGISTICSADDRESSZIPCODE_Edit_find_B$/,
+        customerData.postalCode,
+      );
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+    }
+
+    logger.info("Clicking 'Prezzi e sconti' tab");
+    await page.evaluate(() => {
+      const allElements = Array.from(document.querySelectorAll("*"));
+      const tabElement = allElements.find((el) => {
+        const text = el.textContent?.trim() || "";
+        return text === "Prezzi e sconti";
+      });
+
+      if (tabElement) {
+        const clickable =
+          tabElement.tagName === "A"
+            ? tabElement
+            : tabElement.closest("a") || tabElement.closest("li");
+        if (clickable) {
+          (clickable as HTMLElement).click();
+        }
+      }
+    });
+
+    await new Promise((resolve) => setTimeout(resolve, 2000));
+
+    if (customerData.lineDiscount) {
+      await this.selectFromDropdown(
+        /xaf_dviLINEDISC_Edit_dropdown_DD_I$/,
+        customerData.lineDiscount,
+      );
+    }
+
+    await this.saveCustomer();
+
+    const customerProfileId = await this.getCustomerProfileId();
+    logger.info("Customer created successfully", {
+      customerProfileId,
+      name: customerData.name,
+    });
+
+    return customerProfileId;
+  }
+
+  private async fillFieldByPattern(
+    pattern: RegExp,
+    value: string,
+  ): Promise<void> {
+    if (!this.page) {
+      throw new Error("Browser page is null");
+    }
+
+    const page = this.page;
+
+    const filled = await page.evaluate(
+      (regex, val) => {
+        const inputs = Array.from(document.querySelectorAll("input"));
+        const targetInput = inputs.find((input) =>
+          new RegExp(regex).test(input.id),
+        );
+
+        if (targetInput) {
+          targetInput.value = val;
+          targetInput.dispatchEvent(new Event("input", { bubbles: true }));
+          targetInput.dispatchEvent(new Event("change", { bubbles: true }));
+          return true;
+        }
+        return false;
+      },
+      pattern.source,
+      value,
+    );
+
+    if (!filled) {
+      throw new Error(`Could not find input field matching pattern ${pattern}`);
+    }
+  }
+
+  private async selectFromDropdown(
+    inputPattern: RegExp,
+    value: string,
+  ): Promise<void> {
+    if (!this.page) {
+      throw new Error("Browser page is null");
+    }
+
+    const page = this.page;
+
+    const inputId = await page.evaluate((regex) => {
+      const inputs = Array.from(document.querySelectorAll("input"));
+      const targetInput = inputs.find((input) =>
+        new RegExp(regex).test(input.id),
+      );
+
+      if (!targetInput) {
+        return null;
+      }
+
+      return targetInput.id;
+    }, inputPattern.source);
+
+    if (!inputId) {
+      throw new Error(
+        `Could not find dropdown input matching pattern ${inputPattern}`,
+      );
+    }
+
+    logger.info("Typing value into dropdown", { inputId, value });
+
+    await page.evaluate((id) => {
+      const input = document.getElementById(id) as HTMLInputElement;
+      if (input) {
+        input.focus();
+        input.click();
+      }
+    }, inputId);
+
+    await new Promise((resolve) => setTimeout(resolve, 500));
+
+    await page.evaluate((id, val) => {
+      const input = document.getElementById(id) as HTMLInputElement;
+      if (input) {
+        input.value = val;
+        input.dispatchEvent(new Event("input", { bubbles: true }));
+        input.dispatchEvent(new Event("change", { bubbles: true }));
+      }
+    }, inputId, value);
+
+    await new Promise((resolve) => setTimeout(resolve, 1000));
+
+    await page.keyboard.press("Tab");
+    await new Promise((resolve) => setTimeout(resolve, 1000));
+
+    const finalValue = await page.evaluate((id) => {
+      const input = document.getElementById(id) as HTMLInputElement;
+      return input ? input.value : "";
+    }, inputId);
+
+    logger.info("Dropdown value set", {
+      inputId,
+      requestedValue: value,
+      finalValue,
+    });
+  }
+
+  private async selectFromLookup(
+    buttonPattern: RegExp,
+    value: string,
+  ): Promise<void> {
+    if (!this.page) {
+      throw new Error("Browser page is null");
+    }
+
+    const page = this.page;
+
+    logger.info("Clicking lookup button", { pattern: buttonPattern.source, value });
+
+    const clicked = await page.evaluate((regex) => {
+      const elements = Array.from(
+        document.querySelectorAll("button, img, td, a, div"),
+      );
+      const targetButton = elements.find((el) =>
+        new RegExp(regex).test(el.id),
+      );
+
+      if (targetButton) {
+        console.log(`Found lookup button: ${targetButton.id}`);
+        (targetButton as HTMLElement).click();
+        return { success: true, id: targetButton.id };
+      }
+
+      console.log("Looking for alternative lookup button patterns...");
+      const inputFieldRegex = regex.replace("_B$", "_Edit_I");
+      const inputs = Array.from(document.querySelectorAll("input"));
+      const lookupInput = inputs.find((input) =>
+        new RegExp(inputFieldRegex).test(input.id),
+      );
+
+      if (lookupInput) {
+        const inputId = lookupInput.id;
+        console.log(`Found lookup input: ${inputId}`);
+
+        const possibleButtonIds = [
+          inputId.replace(/_I$/, "_B0"),
+          inputId.replace(/_I$/, "_B-1"),
+          inputId.replace(/_I$/, "_B"),
+          inputId.replace(/_Edit_I$/, "_Edit_B0"),
+          inputId.replace(/_find_Edit_I$/, "_find_Edit_B0"),
+        ];
+
+        console.log(`Trying button IDs: ${possibleButtonIds.join(", ")}`);
+
+        for (const btnId of possibleButtonIds) {
+          const btn = document.getElementById(btnId);
+          if (btn) {
+            console.log(`✓ Found alternative lookup button: ${btnId}`);
+            (btn as HTMLElement).click();
+            return { success: true, id: btnId };
+          }
+        }
+
+        console.log("❌ None of the button IDs found");
+      }
+
+      return { success: false };
+    }, buttonPattern.source);
+
+    if (!clicked.success) {
+      throw new Error(
+        `Could not find lookup button matching pattern ${buttonPattern}`,
+      );
+    }
+
+    logger.info("Lookup button clicked successfully", { buttonId: clicked.id });
+
+    logger.info("Waiting for lookup dialog to load (3 seconds)...");
+    await new Promise((resolve) => setTimeout(resolve, 3000));
+
+    logger.info("Taking screenshot of opened dialog");
+    await page.screenshot({
+      path: "/Users/hatholdir/Downloads/Archibald/archibald-web-app/backend/logs/lookup-dialog-opened.png",
+      fullPage: true,
+    });
+
+    logger.info("Typing value directly into dialog", { value });
+    await page.keyboard.type(value);
+
+    logger.info("Pressing Enter to activate filter");
+    await page.keyboard.press("Enter");
+
+    logger.info("Waiting for filtered results to load (500ms)...");
+    await new Promise((resolve) => setTimeout(resolve, 500));
+
+    logger.info("Taking screenshot after filtering");
+    await page.screenshot({
+      path: "/Users/hatholdir/Downloads/Archibald/archibald-web-app/backend/logs/lookup-after-filter.png",
+      fullPage: true,
+    });
+
+    // Use physical mouse interaction to click the filtered row
+    const mouseX = 380; // X coordinate of first column data
+    const mouseY = 340; // Y coordinate of data row (not header)
+
+    logger.info(`Moving mouse to coordinates (${mouseX}, ${mouseY})`);
+    await page.mouse.move(mouseX, mouseY);
+
+    await new Promise((resolve) => setTimeout(resolve, 500));
+
+    logger.info("Performing double-click on row");
+    await page.mouse.click(mouseX, mouseY, { clickCount: 2 });
+
+    logger.info("Waiting for selection to register (500ms)");
+    await new Promise((resolve) => setTimeout(resolve, 500));
+
+    // Check if dialog is still open - if yes, do single click + OK button
+    const dialogStatus = await page.evaluate(() => {
+      const okButtons = Array.from(document.querySelectorAll("span, button, a, td")).filter(el => {
+        const text = el.textContent?.trim() || "";
+        return text === "OK" || text === "Ok";
+      });
+      return { dialogOpen: okButtons.length > 0 };
+    });
+
+    if (dialogStatus.dialogOpen) {
+      logger.info("Dialog still open, performing single click + OK button");
+      await page.mouse.click(mouseX, mouseY); // Single click to select
+      await new Promise((resolve) => setTimeout(resolve, 500));
+    }
+
+    logger.info("Clicking OK button to confirm selection");
+    const okClicked = await page.evaluate(() => {
+      const okButtons = Array.from(document.querySelectorAll("span, button, a, td")).filter(el => {
+        const text = el.textContent?.trim() || "";
+        return text === "OK" || text === "Ok";
+      });
+
+      if (okButtons.length > 0) {
+        const okButton = okButtons[0] as HTMLElement;
+        console.log(`✓ Found OK button, clicking it`);
+        okButton.click();
+        return { success: true };
+      }
+
+      console.log("❌ OK button not found");
+      return { success: false };
+    });
+
+    if (!okClicked.success) {
+      logger.warn("Could not find OK button");
+      throw new Error("Could not find OK button to confirm selection");
+    }
+
+    logger.info("OK button clicked successfully");
+
+    logger.info("Waiting for dialog to close (1 second)...");
+    await new Promise((resolve) => setTimeout(resolve, 1000));
+  }
+
+  private async saveCustomer(): Promise<void> {
+    if (!this.page) {
+      throw new Error("Browser page is null");
+    }
+
+    const page = this.page;
+
+    logger.info("Saving customer");
+
+    const saved = await page.evaluate(() => {
+      const allElements = Array.from(document.querySelectorAll("button, a, li, span"));
+
+      const saveAndCloseButton = allElements.find((el) => {
+        const text = el.textContent?.trim().toLowerCase() || "";
+        const title = el.getAttribute("title")?.toLowerCase() || "";
+        return (
+          text.includes("salva e chiudi") ||
+          text.includes("salva") ||
+          title.includes("salva e chiudi") ||
+          title.includes("salvare")
+        );
+      });
+
+      if (saveAndCloseButton) {
+        console.log(`Found save button: ${saveAndCloseButton.tagName} - title="${saveAndCloseButton.getAttribute("title")}" text="${saveAndCloseButton.textContent?.trim().substring(0, 50)}"`);
+
+        const clickTarget =
+          saveAndCloseButton.tagName === "A"
+            ? saveAndCloseButton
+            : saveAndCloseButton.querySelector("a") || saveAndCloseButton;
+
+        (clickTarget as HTMLElement).click();
+        return {
+          success: true,
+          element: saveAndCloseButton.tagName,
+          text: saveAndCloseButton.textContent?.trim().substring(0, 30),
+        };
+      }
+
+      console.log("Save button not found");
+      return { success: false };
+    });
+
+    if (!saved.success) {
+      throw new Error("Could not find save button");
+    }
+
+    logger.info("Save button clicked", saved);
+
+    await new Promise((resolve) => setTimeout(resolve, 3000));
+
+    // Check for warning popup with checkbox (ErrorInfo)
+    logger.info("Checking for warning popup with checkbox");
+
+    const warningFound = await page.evaluate(() => {
+      // Look for checkbox with ID pattern matching Vertical_ErrorInfo_Ch_S
+      const checkbox = document.querySelector(
+        'input[id$="_ErrorInfo_Ch_S"]',
+      ) as HTMLInputElement | null;
+
+      if (checkbox) {
+        console.log("Found warning checkbox, clicking it");
+        // Click the checkbox wrapper span to check it
+        const checkboxWrapper = checkbox.closest(
+          'span[id$="_ErrorInfo_Ch_S_D"]',
+        );
+        if (checkboxWrapper) {
+          (checkboxWrapper as HTMLElement).click();
+        } else {
+          // Fallback: click the checkbox directly
+          checkbox.click();
+        }
+        return true;
+      }
+
+      return false;
+    });
+
+    if (warningFound) {
+      logger.info("Warning checkbox clicked, waiting before second save");
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+
+      // Click "Salva e chiudi" again after checking the warning checkbox
+      logger.info("Clicking save button again after warning acknowledgment");
+
+      const secondSave = await page.evaluate(() => {
+        const allElements = Array.from(
+          document.querySelectorAll("button, a, li, span"),
+        );
+
+        const saveAndCloseButton = allElements.find((el) => {
+          const text = el.textContent?.trim().toLowerCase() || "";
+          const title = el.getAttribute("title")?.toLowerCase() || "";
+          return (
+            text.includes("salva e chiudi") ||
+            text.includes("salva") ||
+            title.includes("salva e chiudi") ||
+            title.includes("salvare")
+          );
+        });
+
+        if (saveAndCloseButton) {
+          const clickTarget =
+            saveAndCloseButton.tagName === "A"
+              ? saveAndCloseButton
+              : saveAndCloseButton.querySelector("a") || saveAndCloseButton;
+
+          (clickTarget as HTMLElement).click();
+          return { success: true };
+        }
+
+        return { success: false };
+      });
+
+      if (!secondSave.success) {
+        throw new Error("Could not find save button for second click");
+      }
+
+      logger.info("Second save button clicked after warning");
+      await new Promise((resolve) => setTimeout(resolve, 3000));
+    } else {
+      logger.info("No warning popup found, proceeding normally");
+      await new Promise((resolve) => setTimeout(resolve, 2000));
+    }
+  }
+
+  private async getCustomerProfileId(): Promise<string> {
+    if (!this.page) {
+      throw new Error("Browser page is null");
+    }
+
+    const page = this.page;
+
+    await new Promise((resolve) => setTimeout(resolve, 3000));
+
+    const profileId = await page.evaluate(() => {
+      const inputs = Array.from(document.querySelectorAll("input"));
+      const profileInput = inputs.find((input) =>
+        /xaf_dviACCOUNTNUM_Edit_I$/.test(input.id),
+      );
+
+      if (profileInput) {
+        const value = (profileInput as HTMLInputElement).value;
+        console.log(`Found ACCOUNTNUM field with value: "${value}"`);
+        return value;
+      }
+
+      console.log("ACCOUNTNUM field not found");
+      return "";
+    });
+
+    if (!profileId || profileId.trim() === "") {
+      logger.warn("Could not extract customer profile ID, checking URL");
+
+      const currentUrl = page.url();
+      logger.info("Current URL after save", { url: currentUrl });
+
+      return "UNKNOWN";
+    }
+
+    return profileId;
+  }
+
+  async updateCustomer(
+    customerProfile: string,
+    customerData: import("./types").CustomerFormData,
+  ): Promise<void> {
+    if (!this.page) {
+      throw new Error("Browser page is null");
+    }
+
+    logger.info("Updating customer", {
+      customerProfile,
+      name: customerData.name,
+    });
+
+    const page = this.page;
+
+    // Navigate to customer list page
+    logger.info("Navigating to customer list page");
+    await page.goto(`${config.archibald.url}/CUSTTABLE_ListView_Agent/`, {
+      waitUntil: "networkidle2",
+      timeout: 60000,
+    });
+
+    // Wait for search input to be available
+    await page.waitForSelector('input.dxeEditArea_XafTheme[id*="SearchAC"]', {
+      timeout: 10000,
+    });
+    await new Promise((resolve) => setTimeout(resolve, 2000));
+
+    // Click on search input and paste customer name
+    logger.info("Searching for customer by name", { name: customerData.name });
+    const searchInput = await page.$('input.dxeEditArea_XafTheme[id*="SearchAC"]');
+    if (!searchInput) {
+      throw new Error("Search input not found");
+    }
+
+    await searchInput.click();
+    await new Promise((resolve) => setTimeout(resolve, 500));
+
+    // Clear existing value and paste new search (faster than typing)
+    await searchInput.evaluate(
+      (el, value) => {
+        (el as HTMLInputElement).value = "";
+        (el as HTMLInputElement).value = value;
+        // Trigger input event to notify DevExpress
+        el.dispatchEvent(new Event("input", { bubbles: true }));
+        el.dispatchEvent(new Event("change", { bubbles: true }));
+      },
+      customerData.name,
+    );
+    await new Promise((resolve) => setTimeout(resolve, 500));
+
+    // Press Enter to trigger search
+    await searchInput.press("Enter");
+    await new Promise((resolve) => setTimeout(resolve, 3000));
+
+    // Find and click the Edit button (matita) for the first result
+    logger.info("Clicking Edit button for customer");
+    const editButton = await page.$(
+      'a.dxbButton_XafTheme.dxgvCommandColumnItem_XafTheme[data-args*="Edit"]',
+    );
+    if (!editButton) {
+      throw new Error("Edit button not found - customer may not exist");
+    }
+
+    await editButton.click();
+    await new Promise((resolve) => setTimeout(resolve, 3000));
+
+    // Wait for edit form to load
+    await page.waitForSelector("input[type='text']", { timeout: 10000 });
+    await new Promise((resolve) => setTimeout(resolve, 2000));
+
+    // Update form fields (same logic as createCustomer, but updating instead)
+    logger.info("Updating customer form fields");
+
+    if (customerData.name) {
+      logger.info("Updating: Name");
+      await this.fillFieldByPattern(/xaf_dviNAME_Edit_I$/, customerData.name);
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+    }
+
+    if (customerData.vatNumber) {
+      logger.info("Updating: VAT Number");
+      await this.fillFieldByPattern(
+        /xaf_dviVATNUM_Edit_I$/,
+        customerData.vatNumber,
+      );
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+    }
+
+    if (customerData.pec) {
+      logger.info("Updating: PEC");
+      await this.fillFieldByPattern(
+        /xaf_dviLEGALEMAIL_Edit_I$/,
+        customerData.pec,
+      );
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+    }
+
+    if (customerData.sdi) {
+      logger.info("Updating: SDI");
+      await this.fillFieldByPattern(
+        /xaf_dviLEGALAUTHORITY_Edit_I$/,
+        customerData.sdi,
+      );
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+    }
+
+    if (customerData.street) {
+      logger.info("Updating: Street");
+      await this.fillFieldByPattern(
+        /xaf_dviSTREET_Edit_I$/,
+        customerData.street,
+      );
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+    }
+
+    if (customerData.phone) {
+      logger.info("Updating: Phone");
+      await this.fillFieldByPattern(/xaf_dviPHONE_Edit_I$/, customerData.phone);
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+    }
+
+    if (customerData.email) {
+      logger.info("Updating: Email");
+      await this.fillFieldByPattern(/xaf_dviEMAIL_Edit_I$/, customerData.email);
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+    }
+
+    if (customerData.deliveryMode) {
+      logger.info("Updating: Delivery Mode");
+      await this.selectFromDropdown(
+        /xaf_dviDLVMODE_Edit_dropdown_DD_I$/,
+        customerData.deliveryMode,
+      );
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+    }
+
+    if (customerData.paymentTerms) {
+      logger.info("Updating: Payment Terms");
+      await this.selectFromLookup(
+        /xaf_dviPAYMTERMID_Edit_find_B$/,
+        customerData.paymentTerms,
+      );
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+    }
+
+    if (customerData.postalCode) {
+      logger.info("Updating: Postal Code");
+      await this.selectFromLookup(
+        /xaf_dviLOGISTICSADDRESSZIPCODE_Edit_find_B$/,
+        customerData.postalCode,
+      );
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+    }
+
+    // Click "Prezzi e sconti" tab if lineDiscount is provided
+    if (customerData.lineDiscount) {
+      logger.info("Clicking 'Prezzi e sconti' tab");
+      await page.evaluate(() => {
+        const allElements = Array.from(document.querySelectorAll("*"));
+        const tabElement = allElements.find((el) => {
+          const text = el.textContent?.trim() || "";
+          return text === "Prezzi e sconti";
+        });
+
+        if (tabElement) {
+          const clickable =
+            tabElement.tagName === "A"
+              ? tabElement
+              : tabElement.closest("a") || tabElement.closest("li");
+          if (clickable) {
+            (clickable as HTMLElement).click();
+          }
+        }
+      });
+
+      await new Promise((resolve) => setTimeout(resolve, 2000));
+
+      logger.info("Updating: Line Discount");
+      await this.selectFromDropdown(
+        /xaf_dviLINEDISC_Edit_dropdown_DD_I$/,
+        customerData.lineDiscount,
+      );
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+    }
+
+    // Save customer
+    await this.saveCustomer();
+
+    logger.info("Customer updated successfully", {
+      customerProfile,
+      name: customerData.name,
+    });
+  }
 }

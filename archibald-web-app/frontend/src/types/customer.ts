@@ -1,0 +1,33 @@
+export interface Customer {
+  customerProfile: string;
+  internalId: string;
+  name: string;
+  vatNumber: string | null;
+  fiscalCode: string | null;
+  sdi: string | null;
+  pec: string | null;
+  phone: string | null;
+  mobile: string | null;
+  url: string | null;
+  attentionTo: string | null;
+  street: string | null;
+  logisticsAddress: string | null;
+  postalCode: string | null;
+  city: string | null;
+  customerType: string | null;
+  type: string | null;
+  deliveryTerms: string | null;
+  description: string | null;
+  lastOrderDate: string | null;
+  actualOrderCount: number;
+  previousOrderCount1: number;
+  previousSales1: number;
+  previousOrderCount2: number;
+  previousSales2: number;
+  externalAccountNumber: string | null;
+  ourAccountNumber: string | null;
+  hash: string;
+  lastSync: number;
+  createdAt: number;
+  updatedAt: number;
+}
