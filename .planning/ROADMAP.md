@@ -22,7 +22,7 @@ None (full-stack web app con pattern standard)
 - [x] **Phase 8: Offline Capability** - Cache IndexedDB e bozze persistenti ✅ COMPLETE (8/8 plans)
 - [x] **Phase 9: Offline Queue** - Coda ordini offline con sync manuale ✅
 - [ ] **Phase 10: Order History** - Storico ordini da Archibald
-- [ ] **Phase 11: Order Management** - Modifica, duplica e tracking ordini
+- [x] **Phase 11: Order Management** - Tracking ordini, invio Milano, DDT e fatture ✅ COMPLETE (7/7 plans)
 - [x] **Phase 12: Deployment & Infrastructure** - Setup produzione VPS ✅ COMPLETE (3/4 plans complete, Part D deferred)
 - [ ] **Phase 13: Security Audit & Sensitive Data Cleanup** - Rimozione dati sensibili da codice, documentazione e git history 🔒
 - [ ] **Phase 5: Order Submission (POSTPONED)** - Invio ordine ottimizzato con tracking 📋
@@ -514,7 +514,7 @@ Plans:
 
 **Note**: Phase 10 was completed BEFORE Phase 9 despite theoretical dependency. Critical login issues (PasswordCache TTL mismatch, BrowserPool race conditions) resolved in 10-FIX plan.
 
-### Phase 11: Order Management
+### Phase 11: Order Management ✅ COMPLETE
 **Goal**: Modifica ordini pendenti, duplica ordine e tracking stato spedizione
 **Depends on**: Phase 10
 **Research**: Complete (11-CONTEXT.md from /gsd:discuss-phase 11)
