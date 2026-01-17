@@ -10,11 +10,11 @@ See: .planning/PROJECT.md (updated 2026-01-11)
 ## Current Position
 
 Phase: 14 of 21 (Sync System Discovery & Mapping)
-Plan: 2 of 4 in current phase
+Plan: 3 of 4 in current phase
 Status: In progress
-Last activity: 2026-01-17 — Completed 14-02-PLAN.md (Product Sync Analysis)
+Last activity: 2026-01-17 — Completed 14-03-PLAN.md (Price Sync Analysis)
 
-Progress: ██░░░░░░░░ 20% (v2.0: 2/? plans complete, estimate ~10-12 total)
+Progress: ███░░░░░░░ 30% (v2.0: 3/? plans complete, estimate ~10-12 total)
 
 ## Performance Metrics
 
@@ -41,10 +41,10 @@ Progress: ██░░░░░░░░ 20% (v2.0: 2/? plans complete, estimate
 | 11 | 6 | 250 min | 42 min |
 
 **Recent Trend:**
-- Last 10 plans: 09-02 (15m), 09-03 (15m), 11-01 (120m), 11-02 (5m), 11-03 (35m), 11-04 (45m), 11-05 (15m), 11-06 (30m), 14-01 (4m), 14-02 (8m)
+- Last 10 plans: 09-03 (15m), 11-01 (120m), 11-02 (5m), 11-03 (35m), 11-04 (45m), 11-05 (15m), 11-06 (30m), 14-01 (4m), 14-02 (8m), 14-03 (10m)
 - Phase 9 extremely fast (avg 11m) - leveraging existing Phase 8-07 infrastructure
 - Phase 10 high avg (105m) - includes 521m for Plan 10-07 (heavy login debugging)
-- Phase 14 (discovery) very fast (avg 6m) - analysis + documentation, no code changes
+- Phase 14 (discovery) very fast (avg 7m) - analysis + documentation, no code changes
 
 ## Accumulated Context
 
@@ -55,6 +55,11 @@ Recent decisions affecting current work:
 
 | Phase | Decision | Rationale |
 |-------|----------|-----------|
+| 14-03 | Price sync writes to SAME table as product sync (no coordination) | Both services update products.db, concurrent write risk identified, requires Phase 15 testing |
+| 14-03 | Multi-level matching (ID → name exact → name normalized) | Robust against Archibald data quality issues, 70-80% ID match, 15-20% name exact, 5% normalized |
+| 14-03 | Transaction-based batch updates | Atomic all-or-nothing within single sync, provides audit trail via price_changes table |
+| 14-03 | Unmatched prices silently dropped | Requires product sync to run first (foreign key dependency), orchestration gap identified |
+| 14-03 | Defer concurrent write fixes to Phase 15 testing | CRITICAL issue requires empirical verification (spawn both syncs, measure SQLite behavior) |
 | 14-02 | Product sync is system-managed (NOT per-user) | Products are shared catalog, scheduler-driven not per-user lifecycle, avoids BrowserPool contention |
 | 14-02 | Legacy ArchibaldBot for product sync (not BrowserPool) | System-wide sync uses system credentials, dedicated bot instance prevents user session conflicts |
 | 14-02 | Quick hash delta optimization (MD5 of first 10 products) | Saves ~3h/day by skipping unchanged syncs, 2-hour delta checks with smart change detection |
@@ -529,6 +534,6 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-01-17 (evening)
-Stopped at: Completed Plan 14-02 (Product Sync Analysis & Documentation)
-Next: /gsd:execute-plan .planning/phases/14-sync-discovery-mapping/14-03-PLAN.md
+Stopped at: Completed Plan 14-03 (Price Sync Analysis & Documentation)
+Next: /gsd:execute-plan .planning/phases/14-sync-discovery-mapping/14-04-PLAN.md
 Resume file: None
