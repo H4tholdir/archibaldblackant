@@ -63,13 +63,15 @@ jobs:
             git pull origin master
 
             # Log in to GitHub Container Registry
+            # Note: Using GITHUB_TOKEN for workflow authentication
+            # For persistent access, the VPS should have GHCR_PAT configured in /home/deploy/.docker/config.json
             echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
 
-            # Pull new images
-            docker compose pull backend frontend
+            # Pull new images from GHCR
+            docker compose -f docker-compose.yml -f docker-compose.prod.yml pull backend frontend
 
-            # Restart services with graceful shutdown
-            docker compose up -d --no-deps backend frontend
+            # Restart services with graceful shutdown using production config
+            docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --no-deps backend frontend
 
             # Wait for services to be healthy
             sleep 10
