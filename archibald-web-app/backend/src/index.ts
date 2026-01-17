@@ -3266,7 +3266,23 @@ server.listen(config.server.port, async () => {
   // Avvia session cleanup job (ogni ora)
   sessionCleanup.start();
 
-  // Run migration 004 (sync infrastructure)
+  // Run database migrations in order
+  try {
+    const { runMigration002 } = require("./migrations/002-price-vat-audit");
+    runMigration002();
+    logger.info("✅ Migration 002 completed (price and VAT tracking)");
+  } catch (error) {
+    logger.warn("⚠️  Migration 002 failed or already applied", { error });
+  }
+
+  try {
+    const { runMigration003 } = require("./migrations/003-extend-price-fields");
+    runMigration003();
+    logger.info("✅ Migration 003 completed (extended price fields)");
+  } catch (error) {
+    logger.warn("⚠️  Migration 003 failed or already applied", { error });
+  }
+
   try {
     const { runMigration004 } = require("./migrations/004-sync-infrastructure");
     runMigration004();
