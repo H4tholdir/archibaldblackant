@@ -30,6 +30,12 @@ import {
 } from "./customer-sync-service";
 import { operationTracker } from "./operation-tracker";
 import { ProductDatabase } from "./product-db";
+import {
+  register as metricsRegister,
+  httpRequestCounter,
+  httpRequestDuration,
+  activeOperationsGauge,
+} from "./metrics";
 import { ProductSyncService } from "./product-sync-service";
 import { PriceSyncService, type PriceSyncProgress } from "./price-sync-service";
 import { SyncCheckpointManager } from "./sync-checkpoint";
@@ -223,6 +229,24 @@ app.get("/api/health", (req: Request, res: Response<ApiResponse>) => {
       version: "1.0.0",
     },
   });
+});
+
+// Prometheus metrics endpoint
+app.get("/metrics", async (req: Request, res: Response) => {
+  try {
+    // Update active operations gauge
+    activeOperationsGauge.set(operationTracker.getCount());
+
+    // Set content type for Prometheus
+    res.set("Content-Type", metricsRegister.contentType);
+
+    // Return metrics
+    const metrics = await metricsRegister.metrics();
+    res.end(metrics);
+  } catch (error) {
+    logger.error("Error generating metrics", { error });
+    res.status(500).end();
+  }
 });
 
 // ========== CACHE EXPORT ENDPOINT ==========
