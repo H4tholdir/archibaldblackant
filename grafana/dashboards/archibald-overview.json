@@ -1,9 +1,8 @@
 {
-  "dashboard": {
-    "title": "Archibald - System Overview",
-    "tags": ["archibald", "overview"],
-    "timezone": "browser",
-    "panels": [
+  "title": "Archibald - System Overview",
+  "tags": ["archibald", "overview"],
+  "timezone": "browser",
+  "panels": [
       {
         "id": 1,
         "title": "HTTP Requests Rate",
@@ -115,5 +114,4 @@
     "schemaVersion": 36,
     "version": 1,
     "refresh": "10s"
-  }
 }
