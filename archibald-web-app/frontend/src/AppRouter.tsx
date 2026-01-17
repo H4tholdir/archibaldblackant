@@ -31,6 +31,7 @@ import { CustomerEdit } from "./pages/CustomerEdit";
 import { ArticoliList } from "./pages/ArticoliList";
 import { pendingOrdersService } from "./services/pending-orders-service";
 import { getDraftOrders } from "./services/draftOrderStorage";
+import { UnifiedSyncProgress } from "./components/UnifiedSyncProgress";
 
 function AppRouter() {
   const auth = useAuth();
@@ -295,6 +296,10 @@ function AppRouter() {
   return (
     <BrowserRouter>
       <OfflineBanner />
+      {/* Unified sync progress - banner mode for manual syncs */}
+      <UnifiedSyncProgress mode="banner" />
+      {/* Badge mode for automatic background syncs */}
+      <UnifiedSyncProgress mode="badge" />
       <Routes>
         {/* Admin-only route */}
         {isAdmin && (

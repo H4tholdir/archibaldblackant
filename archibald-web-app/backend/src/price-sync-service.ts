@@ -749,4 +749,20 @@ export class PriceSyncService extends EventEmitter {
     this.emit("progress", this.progress);
     logger.debug("Sync prezzi progress", this.progress);
   }
+
+  /**
+   * Get quick hash of first 10 prices for delta sync change detection
+   * Used by SyncScheduler to detect if PRICEDISCTABLE has changed
+   */
+  async getQuickHash(): Promise<string> {
+    const crypto = require("crypto");
+
+    // Get first 10 prices from DB (sorted by id)
+    const prices = this.db.db.all(
+      "SELECT id, price, vat FROM products WHERE price IS NOT NULL ORDER BY id LIMIT 10",
+    );
+
+    const data = JSON.stringify(prices);
+    return crypto.createHash("md5").update(data).digest("hex");
+  }
 }

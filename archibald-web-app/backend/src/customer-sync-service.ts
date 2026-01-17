@@ -1104,4 +1104,21 @@ export class CustomerSyncService extends EventEmitter {
     this.emit("progress", this.progress);
     logger.debug("Sync progress", this.progress);
   }
+
+  /**
+   * Get quick hash of first 10 customers for delta sync change detection
+   * Used by SyncScheduler to detect if customer data has changed
+   */
+  async getQuickHash(): Promise<string> {
+    const crypto = require("crypto");
+    const { customerDb } = require("./customer-db");
+
+    // Get first 10 customers from DB (sorted by id)
+    const customers = customerDb.db.all(
+      "SELECT id, name, code FROM customers ORDER BY id LIMIT 10",
+    );
+
+    const data = JSON.stringify(customers);
+    return crypto.createHash("md5").update(data).digest("hex");
+  }
 }

@@ -48,6 +48,9 @@ import {
 import { SyncCheckpointManager } from "./sync-checkpoint";
 import { SessionCleanupJob } from "./session-cleanup-job";
 import { OrderHistoryService } from "./order-history-service";
+import { syncScheduler } from "./sync-scheduler";
+import syncControlRoutes from "./routes/sync-control";
+import deltaSyncRoutes from "./routes/delta-sync";
 import { SendToMilanoService } from "./send-to-milano-service";
 import { DDTScraperService } from "./ddt-scraper-service";
 import { OrderDatabase } from "./order-db";
@@ -172,6 +175,12 @@ app.use((req, res, next) => {
   });
   next();
 });
+
+// Sync control routes (manual/forced sync, status, history)
+app.use(syncControlRoutes);
+
+// Delta sync routes (incremental sync API)
+app.use(deltaSyncRoutes);
 
 // WebSocket per notifiche sync in real-time
 wss.on("connection", (ws) => {
@@ -3257,9 +3266,25 @@ server.listen(config.server.port, async () => {
   // Avvia session cleanup job (ogni ora)
   sessionCleanup.start();
 
-  // SCHEDULER SYNC GIORNALIERO DISABILITATO
+  // Run migration 004 (sync infrastructure)
+  try {
+    const { runMigration004 } = require("./migrations/004-sync-infrastructure");
+    runMigration004();
+    logger.info("✅ Migration 004 completed (sync infrastructure)");
+  } catch (error) {
+    logger.warn("⚠️  Migration 004 failed or already applied", { error });
+  }
+
+  // Start adaptive sync scheduler (NEW - replaces old commented code)
+  try {
+    await syncScheduler.start();
+    logger.info("✅ Adaptive Sync Scheduler started (customers>orders>products>prices)");
+  } catch (error) {
+    logger.error("❌ Failed to start Sync Scheduler", { error });
+  }
+
+  // OLD SCHEDULER SYNC GIORNALIERO (now replaced by SyncScheduler)
   // Sync manuale disponibile tramite API endpoint /api/sync/*
-  // Automatic sync disabled to prevent global lock issues
   /*
   const scheduleNextSync = () => {
     const now = new Date();
@@ -3334,6 +3359,7 @@ process.on("SIGTERM", async () => {
   // Stop background services
   logger.info("Stopping background services...");
   sessionCleanup.stop();
+  syncScheduler.stop(); // NEW: Stop adaptive scheduler
   syncService.stopAutoSync();
   productSyncService.stopAutoSync();
   priceSyncService.stopAutoSync();
@@ -3366,6 +3392,7 @@ process.on("SIGINT", async () => {
   // Stop background services
   logger.info("Stopping background services...");
   sessionCleanup.stop();
+  syncScheduler.stop(); // NEW: Stop adaptive scheduler
   syncService.stopAutoSync();
   productSyncService.stopAutoSync();
   priceSyncService.stopAutoSync();

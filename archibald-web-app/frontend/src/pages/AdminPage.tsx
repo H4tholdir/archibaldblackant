@@ -1,6 +1,7 @@
 import { useNavigate } from "react-router-dom";
 import { useState, useEffect } from "react";
 import SyncBars from "../components/SyncBars";
+import { ExcelPriceManager } from "../components/ExcelPriceManager";
 import "../styles/AdminPage.css";
 
 interface AdminPageProps {
@@ -167,6 +168,10 @@ export function AdminPage({ onLogout, userName }: AdminPageProps) {
           <div className="sync-bars-container">
             <SyncBars />
           </div>
+        </section>
+
+        <section className="admin-section">
+          <ExcelPriceManager />
         </section>
 
         <section className="admin-section">

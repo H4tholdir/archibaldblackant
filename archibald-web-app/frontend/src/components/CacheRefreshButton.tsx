@@ -1,9 +1,7 @@
 import { useState } from "react";
-import { cachePopulationService } from "../services/cache-population";
 
 export function CacheRefreshButton() {
   const [refreshing, setRefreshing] = useState(false);
-  const [progress, setProgress] = useState(0);
 
   async function handleRefresh() {
     const jwt = localStorage.getItem("archibald_jwt");
@@ -14,18 +12,30 @@ export function CacheRefreshButton() {
 
     setRefreshing(true);
 
-    const result = await cachePopulationService.populateCache(jwt, (prog) =>
-      setProgress(prog.percentage),
-    );
+    try {
+      // Trigger manual sync for all types (priority order)
+      const response = await fetch("/api/sync/all", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${jwt}`,
+        },
+      });
 
-    setRefreshing(false);
+      const result = await response.json();
 
-    if (result.success) {
-      alert(
-        `Dati aggiornati: ${result.recordCounts?.customers} clienti, ${result.recordCounts?.products} prodotti`,
-      );
-    } else {
-      alert(`Errore: ${result.error}`);
+      if (!result.success) {
+        throw new Error(result.error || "Sync failed");
+      }
+
+      // Progress will be shown via UnifiedSyncProgress component (SSE)
+      // Auto-hide button loading state after 2 seconds
+      setTimeout(() => {
+        setRefreshing(false);
+      }, 2000);
+    } catch (error: any) {
+      console.error("Manual sync failed:", error);
+      alert(`Errore: ${error.message}`);
+      setRefreshing(false);
     }
   }
 
@@ -33,6 +43,7 @@ export function CacheRefreshButton() {
     <button
       onClick={handleRefresh}
       disabled={refreshing}
+      className="cache-refresh-btn"
       style={{
         padding: "8px 16px",
         borderRadius: "4px",
@@ -43,7 +54,7 @@ export function CacheRefreshButton() {
         fontWeight: 600,
       }}
     >
-      {refreshing ? `Aggiornamento... ${progress}%` : "🔄 Aggiorna dati"}
+      {refreshing ? "⏳ Avviando..." : "🔄 Aggiorna dati"}
     </button>
   );
 }

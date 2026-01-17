@@ -884,4 +884,20 @@ export class ProductSyncService extends EventEmitter {
     this.emit("progress", this.progress);
     logger.debug("Sync progress", this.progress);
   }
+
+  /**
+   * Get quick hash of first 10 products for delta sync change detection
+   * Used by SyncScheduler to detect if product catalog has changed
+   */
+  async getQuickHash(): Promise<string> {
+    const crypto = require("crypto");
+
+    // Get first 10 products from DB (sorted by id)
+    const products = this.db.db.all(
+      "SELECT id, name, description FROM products ORDER BY id LIMIT 10",
+    );
+
+    const data = JSON.stringify(products);
+    return crypto.createHash("md5").update(data).digest("hex");
+  }
 }
