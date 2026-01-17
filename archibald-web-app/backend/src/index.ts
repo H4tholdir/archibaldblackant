@@ -345,13 +345,47 @@ app.post(
         });
       }
 
-      // 3. Store password in memory for lazy validation
-      // Password will be validated on first order creation via Puppeteer
-      // This makes login INSTANT (no 30s Puppeteer wait)
-      PasswordCache.getInstance().set(user.id, password);
-      logger.info(
-        `Password cached for user ${username} - will validate on first order`,
-      );
+      // 3. Validate password with Puppeteer (if not already cached)
+      const cachedPassword = PasswordCache.getInstance().get(user.id);
+      const needsValidation = cachedPassword !== password;
+
+      if (needsValidation) {
+        // First login or password changed - validate with Puppeteer
+        logger.info(
+          `First login or password change for ${username} - validating with Puppeteer...`,
+        );
+
+        try {
+          // Temporarily cache password for validation
+          PasswordCache.getInstance().set(user.id, password);
+
+          // Attempt Puppeteer login to validate credentials
+          const browserPool = BrowserPool.getInstance();
+          const context = await browserPool.acquireContext(user.id);
+          await browserPool.releaseContext(user.id, context, true);
+
+          logger.info(
+            `Password validated successfully for ${username} via Puppeteer`,
+          );
+        } catch (puppeteerError) {
+          // Clear invalid password from cache
+          PasswordCache.getInstance().clear(user.id);
+
+          logger.warn(
+            `Puppeteer validation failed for ${username}: ${puppeteerError instanceof Error ? puppeteerError.message : String(puppeteerError)}`,
+          );
+
+          return res.status(401).json({
+            success: false,
+            error: "Credenziali non valide",
+          });
+        }
+      } else {
+        // Password already cached and valid (within 24h) - instant login
+        logger.info(
+          `Password already cached for ${username} - instant login (no Puppeteer validation)`,
+        );
+      }
 
       // 4. Update lastLogin timestamp
       userDb.updateLastLogin(user.id);
