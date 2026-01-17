@@ -23,7 +23,7 @@ None (full-stack web app con pattern standard)
 - [x] **Phase 9: Offline Queue** - Coda ordini offline con sync manuale ✅
 - [ ] **Phase 10: Order History** - Storico ordini da Archibald
 - [ ] **Phase 11: Order Management** - Modifica, duplica e tracking ordini
-- [x] **Phase 12: Deployment & Infrastructure** - Setup produzione VPS ✅ COMPLETE (2/10 consolidated)
+- [x] **Phase 12: Deployment & Infrastructure** - Setup produzione VPS ✅ COMPLETE (3/4 plans complete, Part D deferred)
 - [ ] **Phase 13: Security Audit & Sensitive Data Cleanup** - Rimozione dati sensibili da codice, documentazione e git history 🔒
 - [ ] **Phase 5: Order Submission (POSTPONED)** - Invio ordine ottimizzato con tracking 📋
 
@@ -532,11 +532,11 @@ Plans:
 - [ ] 11-07: Integration Testing, Error Handling & Audit Log (E2E tests, edge cases, audit verification)
 
 ### Phase 12: Deployment & Infrastructure ✅ COMPLETE
-**Goal**: Setup produzione VPS con Docker, SSL e deployment automatizzato
+**Goal**: Setup produzione VPS con Docker, SSL, deployment automatizzato e monitoring
 **Depends on**: Phase 11
-**Research**: Complete (Docker best practices, Nginx SSL config, Let's Encrypt)
-**Plans**: 2 consolidated plans (originally 10, consolidated for efficiency)
-**Status**: ✅ COMPLETE - Application live on https://formicanera.com
+**Research**: Complete (Docker best practices, Nginx SSL config, Let's Encrypt, Prometheus/Grafana)
+**Plans**: 4 plans (Part A, B, C complete; Part D deferred)
+**Status**: ✅ COMPLETE - Application live on https://formicanera.com with monitoring
 **Completion Date**: 2026-01-17
 
 Plans:
@@ -558,8 +558,23 @@ Plans:
   - **User Management**: Admin user created and login tested
   - **Production Verified**: Application accessible on https://formicanera.com
 
+- [x] ✅ **12-03: Production Operations & Automation** (3/4 parts COMPLETE)
+  - **Part A: Graceful Shutdown** ✅ COMPLETE - SIGTERM handling, operation tracking
+  - **Part B: Monitoring & Observability** ✅ COMPLETE - Prometheus + Grafana stack
+    - Metrics: HTTP requests, duration, active operations, queue, memory, CPU
+    - Dashboard: 6 panels with 10s auto-refresh
+    - Retention: 30 days
+    - Access: SSH tunnel (localhost:3001 Grafana, localhost:9090 Prometheus)
+  - **Part C: CI/CD Pipeline** ✅ COMPLETE - GitHub Actions automation
+    - CI: Type checking, tests, Docker builds on every push
+    - CD: Automated deployment to VPS
+    - GHCR: Docker images in GitHub Container Registry
+  - **Part D: Blue-Green Deployment** ⏭️ DEFERRED
+    - Rationale: Low traffic, minimal downtime benefit, high complexity
+    - Can revisit when traffic increases
+
 **Consolidated Approach**:
-Original 10 plans consolidated into 2 comprehensive execution plans for efficiency. All functionality from original plans delivered:
+Original 10 plans consolidated into 4 comprehensive execution plans for efficiency. All critical functionality delivered:
 - ✅ VPS research & provisioning (12-01)
 - ✅ Backend Dockerfile multi-stage (12-02)
 - ✅ Frontend Dockerfile + Nginx (12-02)
@@ -567,11 +582,22 @@ Original 10 plans consolidated into 2 comprehensive execution plans for efficien
 - ✅ Nginx reverse proxy + SSL (12-02)
 - ✅ Domain DNS setup (12-01)
 - ✅ Health checks implemented (12-02)
-- ⏭️ Graceful shutdown (deferred to 12-03)
-- ⏭️ CI/CD pipeline (deferred to 12-03)
+- ✅ Graceful shutdown (12-03-A)
+- ✅ CI/CD pipeline (12-03-C)
+- ✅ Monitoring stack (12-03-B)
 - ✅ Production deployment & testing (12-02)
+- ⏭️ Blue-green deployment (deferred - low ROI for current traffic)
 
-**Next Phase**: 12-03 will focus on Blue-Green deployment, monitoring, and CI/CD automation.
+**Summary Documents**:
+- `.planning/milestones/12/12-03-A-SUMMARY.md` (Graceful Shutdown)
+- `.planning/milestones/12/12-03-B-SUMMARY.md` (Monitoring & Observability)
+- `.planning/milestones/12/12-03-C-SUMMARY.md` (CI/CD Pipeline)
+
+**Production Status**: ✅ OPERATIONAL
+- Application: https://formicanera.com
+- Monitoring: Accessible via SSH tunnel
+- CI/CD: Automated on every push to master
+- Uptime: Monitored via Prometheus
 
 ### Phase 13: Security Audit & Sensitive Data Cleanup
 **Goal**: Rimuovere completamente dati sensibili (username, password, credenziali) da codice, documentazione e git history prima della pubblicazione
@@ -613,10 +639,11 @@ Plans:
 | 8. Offline Capability | 8/8 | ✅ Complete | 2026-01-15 |
 | 9. Offline Queue | 3/3 | ✅ Complete | 2026-01-15 |
 | 10. Order History | 7/7 | ✅ Complete | 2026-01-15 |
-| 11. Order Management | 0/7 | ✅ Planning complete | 2026-01-15 (planning) |
-| 12. Deployment & Infrastructure | 0/10 | Not started | - |
+| 11. Order Management | 6/7 | 🔄 In progress | 2026-01-15 |
+| 12. Deployment & Infrastructure | 3/4 | ✅ Complete (Part D deferred) | 2026-01-17 |
 | 5. Order Submission (POSTPONED) | 0/6 | ⚠️ Postponed (rolled back) | - |
 
-**Total Plans**: 89 across 12+ phases (Phase 9 reduced from 7→3, Phase 10 expanded from 6→7, Phase 11 confirmed 7 plans)
-**Completed**: 74/89 plans (83%)
-**Planning Complete**: 3/89 plans ready for execution (Phase 11 plans 11-05 to 11-07)
+**Total Plans**: 90 across 12+ phases (Phase 12 now 4 plans: 12-01, 12-02, 12-03 with 3 parts, Part D deferred)
+**Completed**: 80/90 plans (89%)
+**In Progress**: Phase 11 (6/7 plans complete, 11-07 remaining)
+**Deferred**: Phase 12-03-D (Blue-Green Deployment) - low ROI for current traffic
