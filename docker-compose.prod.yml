@@ -1,0 +1,14 @@
+# Production docker-compose configuration
+# Uses pre-built images from GitHub Container Registry
+#
+# Usage:
+#   docker-compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+
+services:
+  frontend:
+    image: ghcr.io/h4tholdir/archibald-frontend:latest
+    build: null  # Disable build in production
+
+  backend:
+    image: ghcr.io/h4tholdir/archibald-backend:latest
+    build: null  # Disable build in production

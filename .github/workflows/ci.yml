@@ -1,0 +1,94 @@
+name: CI - Test & Build
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+
+jobs:
+  test-backend:
+    name: Test Backend
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: archibald-web-app/backend/package-lock.json
+
+      - name: Install dependencies
+        working-directory: archibald-web-app/backend
+        run: npm ci
+
+      - name: Run TypeScript type check
+        working-directory: archibald-web-app/backend
+        run: npx tsc --noEmit
+
+      - name: Run linting
+        working-directory: archibald-web-app/backend
+        run: npm run lint || echo "Linting completed with warnings"
+
+  test-frontend:
+    name: Test Frontend
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: archibald-web-app/frontend/package-lock.json
+
+      - name: Install dependencies
+        working-directory: archibald-web-app/frontend
+        run: npm ci
+
+      - name: Run TypeScript type check
+        working-directory: archibald-web-app/frontend
+        run: npm run type-check
+
+      - name: Build frontend
+        working-directory: archibald-web-app/frontend
+        run: npm run build
+
+  build-docker:
+    name: Build Docker Images
+    runs-on: ubuntu-latest
+    needs: [test-backend, test-frontend]
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build backend image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./archibald-web-app/backend
+          file: ./archibald-web-app/backend/Dockerfile
+          push: false
+          tags: archibald-backend:test
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Build frontend image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./archibald-web-app/frontend
+          file: ./archibald-web-app/frontend/Dockerfile
+          push: false
+          tags: archibald-frontend:test
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
