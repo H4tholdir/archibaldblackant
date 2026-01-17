@@ -49,7 +49,7 @@ import { SyncCheckpointManager } from "./sync-checkpoint";
 import { SessionCleanupJob } from "./session-cleanup-job";
 import { OrderHistoryService } from "./order-history-service";
 import { syncScheduler } from "./sync-scheduler";
-import syncControlRoutes from "./routes/sync-control";
+import syncControlRoutes, { syncProgressEmitter } from "./routes/sync-control";
 import deltaSyncRoutes from "./routes/delta-sync";
 import { SendToMilanoService } from "./send-to-milano-service";
 import { DDTScraperService } from "./ddt-scraper-service";
@@ -407,11 +407,15 @@ app.post(
       userDb.updateLastLogin(user.id);
 
       // 4b. Check and trigger background sync for customers+orders if needed (Opzione B)
-      const { userSpecificSyncService } = await import("./user-specific-sync-service");
+      const { userSpecificSyncService } =
+        await import("./user-specific-sync-service");
       userSpecificSyncService
         .checkAndSyncOnLogin(user.id, user.username)
         .catch((error) => {
-          logger.error("Background user-specific sync check failed", { error, userId: user.id });
+          logger.error("Background user-specific sync check failed", {
+            error,
+            userId: user.id,
+          });
         });
 
       // 5. Generate JWT
@@ -2259,6 +2263,7 @@ app.get(
 
 // Force sync orders - Protected with JWT
 // Clears cached orders and forces a fresh scrape from Archibald
+// NON-BLOCKING: Returns immediately while sync runs in background
 app.post(
   "/api/orders/force-sync",
   authenticateJWT,
@@ -2268,45 +2273,127 @@ app.post(
     try {
       logger.info(`[OrderHistory] Force sync requested by user ${userId}`);
 
-      // Pause sync services to avoid conflicts
-      priorityManager.pause();
+      // Respond immediately - sync will run in background
+      res.json({
+        success: true,
+        message: "Order sync started in background",
+        data: {
+          status: "started",
+          message:
+            "Sync is running. Check progress via SSE endpoint /api/sync/progress",
+        },
+      });
 
-      try {
-        // Clear existing cached orders
-        logger.info(
-          `[OrderHistory] Starting clearUserOrders for user ${userId}`,
-        );
-        orderHistoryService.orderDb.clearUserOrders(userId);
-        logger.info(`[OrderHistory] Cleared cached orders for user ${userId}`);
+      // Run sync in background (non-blocking)
+      (async () => {
+        try {
+          // Emit progress: starting
+          syncProgressEmitter.emit("progress", {
+            syncType: "orders",
+            mode: "full",
+            status: "running",
+            percentage: 0,
+            itemsProcessed: 0,
+            itemsChanged: 0,
+            startedAt: Date.now(),
+          });
 
-        // Force sync from Archibald (will scrape all pages)
-        logger.info(
-          `[OrderHistory] Starting syncFromArchibald for user ${userId}`,
-        );
-        await orderHistoryService.syncFromArchibald(userId);
+          // Pause sync services to avoid conflicts
+          priorityManager.pause();
 
-        // Get count of synced orders
-        const syncedOrders =
-          orderHistoryService.orderDb.getOrdersByUser(userId);
-        const syncedCount = syncedOrders.length;
+          try {
+            // Clear existing cached orders
+            logger.info(
+              `[OrderHistory] Starting clearUserOrders for user ${userId}`,
+            );
+            orderHistoryService.orderDb.clearUserOrders(userId);
+            logger.info(
+              `[OrderHistory] Cleared cached orders for user ${userId}`,
+            );
 
-        logger.info(
-          `[OrderHistory] Force sync completed for user ${userId}: ${syncedCount} orders`,
-        );
+            // Emit progress: cleared cache
+            syncProgressEmitter.emit("progress", {
+              syncType: "orders",
+              mode: "full",
+              status: "running",
+              percentage: 10,
+              itemsProcessed: 0,
+              itemsChanged: 0,
+              startedAt: Date.now(),
+            });
 
-        res.json({
-          success: true,
-          message: "Orders re-synced successfully",
-          data: {
-            syncedCount,
-          },
-        });
-      } finally {
-        // Always resume services
-        priorityManager.resume();
-      }
+            // Force sync from Archibald (will scrape all pages)
+            logger.info(
+              `[OrderHistory] Starting syncFromArchibald for user ${userId}`,
+            );
+
+            // Emit progress: syncing
+            syncProgressEmitter.emit("progress", {
+              syncType: "orders",
+              mode: "full",
+              status: "running",
+              percentage: 20,
+              itemsProcessed: 0,
+              itemsChanged: 0,
+              startedAt: Date.now(),
+            });
+
+            await orderHistoryService.syncFromArchibald(userId);
+
+            // Get count of synced orders
+            const syncedOrders =
+              orderHistoryService.orderDb.getOrdersByUser(userId);
+            const syncedCount = syncedOrders.length;
+
+            logger.info(
+              `[OrderHistory] Force sync completed for user ${userId}: ${syncedCount} orders`,
+            );
+
+            // Emit progress: completed
+            syncProgressEmitter.emit("progress", {
+              syncType: "orders",
+              mode: "full",
+              status: "completed",
+              percentage: 100,
+              itemsProcessed: syncedCount,
+              itemsChanged: syncedCount,
+              startedAt: Date.now(),
+            });
+          } finally {
+            // Always resume services
+            priorityManager.resume();
+          }
+        } catch (error) {
+          logger.error("[OrderHistory] Error during force sync (background)", {
+            error:
+              error instanceof Error
+                ? {
+                    message: error.message,
+                    stack: error.stack,
+                    code: (error as any).code,
+                  }
+                : error,
+            userId,
+          });
+
+          // Emit progress: error
+          syncProgressEmitter.emit("progress", {
+            syncType: "orders",
+            mode: "full",
+            status: "error",
+            percentage: 0,
+            itemsProcessed: 0,
+            itemsChanged: 0,
+            error:
+              error instanceof Error
+                ? error.message
+                : "Unknown error during sync",
+            startedAt: Date.now(),
+          });
+        }
+      })();
     } catch (error) {
-      logger.error("[OrderHistory] Error during force sync", {
+      logger.error("[OrderHistory] Error starting force sync", {
         error:
           error instanceof Error
             ? {
@@ -2320,13 +2407,14 @@ app.post(
 
       res.status(500).json({
         success: false,
-        error: "Failed to force sync orders",
+        error: "Failed to start force sync",
       });
     }
   },
 );
 
 // Reset DB and force sync - Admin only - POST /api/orders/reset-and-sync
+// NON-BLOCKING: Returns immediately while sync runs in background
 app.post(
   "/api/orders/reset-and-sync",
   authenticateJWT,
@@ -2339,45 +2427,128 @@ app.post(
         `[OrderHistory] Reset DB and force sync requested by admin user ${userId}`,
       );
 
-      // Pause sync services to avoid conflicts
-      priorityManager.pause();
+      // Respond immediately - sync will run in background
+      res.json({
+        success: true,
+        message: "Database reset and sync started in background",
+        data: {
+          status: "started",
+          message:
+            "Reset and sync is running. Check progress via SSE endpoint /api/sync/progress",
+        },
+      });
 
-      try {
-        // Clear ALL orders from database
-        logger.info(
-          `[OrderHistory] Clearing all orders for user ${userId} (admin reset)`,
-        );
-        orderHistoryService.orderDb.clearUserOrders(userId);
-        logger.info(`[OrderHistory] Database cleared for user ${userId}`);
+      // Run reset and sync in background (non-blocking)
+      (async () => {
+        try {
+          // Emit progress: starting
+          syncProgressEmitter.emit("progress", {
+            syncType: "orders",
+            mode: "reset",
+            status: "running",
+            percentage: 0,
+            itemsProcessed: 0,
+            itemsChanged: 0,
+            startedAt: Date.now(),
+          });
 
-        // Force complete sync from beginning of year
-        logger.info(
-          `[OrderHistory] Starting complete sync from Archibald for user ${userId}`,
-        );
-        await orderHistoryService.syncFromArchibald(userId);
+          // Pause sync services to avoid conflicts
+          priorityManager.pause();
 
-        // Get count of synced orders
-        const syncedOrders =
-          orderHistoryService.orderDb.getOrdersByUser(userId);
-        const syncedCount = syncedOrders.length;
+          try {
+            // Clear ALL orders from database
+            logger.info(
+              `[OrderHistory] Clearing all orders for user ${userId} (admin reset)`,
+            );
+            orderHistoryService.orderDb.clearUserOrders(userId);
+            logger.info(`[OrderHistory] Database cleared for user ${userId}`);
 
-        logger.info(
-          `[OrderHistory] Complete sync finished for user ${userId}: ${syncedCount} orders`,
-        );
+            // Emit progress: cleared
+            syncProgressEmitter.emit("progress", {
+              syncType: "orders",
+              mode: "reset",
+              status: "running",
+              percentage: 10,
+              itemsProcessed: 0,
+              itemsChanged: 0,
+              startedAt: Date.now(),
+            });
 
-        res.json({
-          success: true,
-          message: "Database reset and complete sync successful",
-          data: {
-            syncedCount,
-          },
-        });
-      } finally {
-        // Always resume services
-        priorityManager.resume();
-      }
+            // Force complete sync from beginning of year
+            logger.info(
+              `[OrderHistory] Starting complete sync from Archibald for user ${userId}`,
+            );
+
+            // Emit progress: syncing
+            syncProgressEmitter.emit("progress", {
+              syncType: "orders",
+              mode: "reset",
+              status: "running",
+              percentage: 20,
+              itemsProcessed: 0,
+              itemsChanged: 0,
+              startedAt: Date.now(),
+            });
+
+            await orderHistoryService.syncFromArchibald(userId);
+
+            // Get count of synced orders
+            const syncedOrders =
+              orderHistoryService.orderDb.getOrdersByUser(userId);
+            const syncedCount = syncedOrders.length;
+
+            logger.info(
+              `[OrderHistory] Complete sync finished for user ${userId}: ${syncedCount} orders`,
+            );
+
+            // Emit progress: completed
+            syncProgressEmitter.emit("progress", {
+              syncType: "orders",
+              mode: "reset",
+              status: "completed",
+              percentage: 100,
+              itemsProcessed: syncedCount,
+              itemsChanged: syncedCount,
+              startedAt: Date.now(),
+            });
+          } finally {
+            // Always resume services
+            priorityManager.resume();
+          }
+        } catch (error) {
+          logger.error(
+            "[OrderHistory] Error during reset and sync (background)",
+            {
+              error:
+                error instanceof Error
+                  ? {
+                      message: error.message,
+                      stack: error.stack,
+                      code: (error as any).code,
+                    }
+                  : error,
+              userId,
+            },
+          );
+
+          // Emit progress: error
+          syncProgressEmitter.emit("progress", {
+            syncType: "orders",
+            mode: "reset",
+            status: "error",
+            percentage: 0,
+            itemsProcessed: 0,
+            itemsChanged: 0,
+            error:
+              error instanceof Error
+                ? error.message
+                : "Unknown error during reset and sync",
+            startedAt: Date.now(),
+          });
+        }
+      })();
     } catch (error) {
-      logger.error("[OrderHistory] Error during reset and sync", {
+      logger.error("[OrderHistory] Error starting reset and sync", {
         error:
           error instanceof Error
             ? {
@@ -2391,7 +2562,7 @@ app.post(
 
       res.status(500).json({
         success: false,
-        error: "Failed to reset database and sync orders",
+        error: "Failed to start reset and sync",
       });
     }
   },
@@ -3300,7 +3471,9 @@ server.listen(config.server.port, async () => {
   }
 
   try {
-    const { runMigration005 } = require("./migrations/005-add-order-sync-tracking");
+    const {
+      runMigration005,
+    } = require("./migrations/005-add-order-sync-tracking");
     runMigration005();
     logger.info("✅ Migration 005 completed (order sync tracking)");
   } catch (error) {
@@ -3308,7 +3481,9 @@ server.listen(config.server.port, async () => {
   }
 
   try {
-    const { runMigration006 } = require("./migrations/006-add-customer-sync-tracking");
+    const {
+      runMigration006,
+    } = require("./migrations/006-add-customer-sync-tracking");
     runMigration006();
     logger.info("✅ Migration 006 completed (customer sync tracking)");
   } catch (error) {
@@ -3318,7 +3493,9 @@ server.listen(config.server.port, async () => {
   // Start adaptive sync scheduler (NEW - replaces old commented code)
   try {
     await syncScheduler.start();
-    logger.info("✅ Adaptive Sync Scheduler started (customers>orders>products>prices)");
+    logger.info(
+      "✅ Adaptive Sync Scheduler started (customers>orders>products>prices)",
+    );
   } catch (error) {
     logger.error("❌ Failed to start Sync Scheduler", { error });
   }

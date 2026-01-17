@@ -7,7 +7,8 @@ import { EventEmitter } from "events";
 const router = Router();
 
 // SSE (Server-Sent Events) for real-time progress
-const syncProgressEmitter = new EventEmitter();
+// Export so other modules can emit progress events
+export const syncProgressEmitter = new EventEmitter();
 
 // Register scheduler progress to SSE
 syncScheduler.onProgress((progress: SyncProgress) => {
