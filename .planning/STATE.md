@@ -5,16 +5,16 @@
 See: .planning/PROJECT.md (updated 2026-01-11)
 
 **Core value:** Rendere la creazione ordini Archibald **veloce, affidabile e mobile-friendly** per agenti in movimento
-**Current focus:** Phase 11 — Order Management (planning complete, ready for execution)
+**Current focus:** v2.0 Sync System Analysis & Optimization — Phase 14 ready to plan
 
 ## Current Position
 
-Phase: 11 of 12 (Order Management)
-Plan: 6 of 7 in current phase
-Status: In progress
-Last activity: 2026-01-16 — Completed 11-06-PLAN.md (Invoice scraping and PDF download)
+Phase: 14 of 21 (Sync System Discovery & Mapping)
+Plan: Not started
+Status: Ready to plan
+Last activity: 2026-01-17 — Milestone v2.0 created (8 phases: 14-21)
 
-Progress: ████████░░ 93% (76/82 plans complete)
+Progress: ░░░░░░░░░░ 0% (v2.0: 0/? plans complete)
 
 ## Performance Metrics
 
@@ -237,6 +237,12 @@ None yet.
 None yet.
 
 ### Roadmap Evolution
+
+- **2026-01-17 (Afternoon)**: Milestone v2.0 created - Sync System Analysis & Optimization (8 phases: 14-21)
+  - **Focus**: Comprehensive sync system analysis for all 4 databases (customers, products, prices, orders)
+  - **Scope**: Discovery, testing, concurrent scenarios, automatic vs manual differentiation, orchestration, monitoring, reliability, optimization
+  - **Phases**: 14 (Discovery) → 15 (Testing) → 16 (Concurrent) → 17 (Auto/Manual) → 18 (Scheduler) → 19 (Monitoring) → 20 (Reliability) → 21 (Optimization)
+  - **Goal**: Bulletproof sync reliability with intelligent orchestration
 
 - **2026-01-12 (Early)**: Plan 03-08 (Critical Bot Refactor) executed
   - **Priority**: CRITICAL - BLOCKED ALL PHASE 3 WORK
@@ -516,6 +522,7 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-01-16 (morning)
-Stopped at: Completed Plan 11-05 (Status Tracking UI - integrated OrderActions and SendToMilanoModal)
-Next: Execute Plan 11-06 (Invoice PDF Download) - download and display invoices
+Last session: 2026-01-17 (afternoon)
+Stopped at: Milestone v2.0 initialization complete
+Next: /gsd:discuss-phase 14 (gather context) or /gsd:plan-phase 14 (start planning)
+Resume file: None

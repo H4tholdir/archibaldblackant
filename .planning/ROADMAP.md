@@ -21,13 +21,109 @@ None (full-stack web app con pattern standard)
 - [x] **Phase 7: Credential Management** - Storage sicuro credenziali su device ✅ COMPLETE (6/6 plans)
 - [x] **Phase 8: Offline Capability** - Cache IndexedDB e bozze persistenti ✅ COMPLETE (8/8 plans)
 - [x] **Phase 9: Offline Queue** - Coda ordini offline con sync manuale ✅
-- [ ] **Phase 10: Order History** - Storico ordini da Archibald
+- [x] **Phase 10: Order History** - Storico ordini da Archibald ✅ COMPLETE (7/7 plans)
 - [x] **Phase 11: Order Management** - Tracking ordini, invio Milano, DDT e fatture ✅ COMPLETE (7/7 plans)
 - [x] **Phase 12: Deployment & Infrastructure** - Setup produzione VPS ✅ COMPLETE (3/4 plans complete, Part D deferred)
 - [x] **Phase 13: Security Audit & Sensitive Data Cleanup** - Audit completo e sanitizzazione ✅ COMPLETE (1/6 plans, rest optional)
 - [x] **Phase 5: Order Submission** - Invio ordine ottimizzato con tracking ✅ COMPLETE (goals achieved via other phases)
 
+## Milestones
+
+- ✅ **v1.0 MVP & Production Deployment** - Phases 1-13 (shipped 2026-01-17)
+- 🚧 **v2.0 Sync System Analysis & Optimization** - Phases 14-21 (in progress)
+
 ## Phase Details
+
+<details>
+<summary>✅ v1.0 MVP & Production Deployment (Phases 1-13) - SHIPPED 2026-01-17</summary>
+
+See phases 1-13 below for complete details of v1.0 milestone.
+
+</details>
+
+### 🚧 v2.0 Sync System Analysis & Optimization (In Progress)
+
+**Milestone Goal**: Achieve bulletproof sync reliability with comprehensive analysis of all 4 database sync systems (customers, products, prices, orders), concurrent scenario testing, and intelligent sync orchestration for maximum reliability and performance.
+
+#### Phase 14: Sync System Discovery & Mapping
+**Goal**: Creare una mappa completa e atomica di tutti i flussi di sync, identificando trigger automatici/manuali e scenari di esecuzione concorrente
+**Depends on**: Phase 13 (v1.0 complete)
+**Research**: Likely (need to analyze existing sync implementations, identify all trigger points, concurrent execution patterns)
+**Research topics**: Sync service architecture patterns, concurrent execution strategies, automatic vs manual triggers, race condition scenarios
+**Plans**: TBD
+
+Plans:
+- [ ] 14-01: TBD (run /gsd:discuss-phase 14 or /gsd:plan-phase 14 to break down)
+
+#### Phase 15: Individual Sync Testing & Validation
+**Goal**: Testare ogni tipo di sync in isolamento, stabilire baseline di performance e identificare failure modes
+**Depends on**: Phase 14
+**Research**: Unlikely (testing existing implementations, standard testing patterns)
+**Plans**: TBD
+
+Plans:
+- [ ] 15-01: TBD
+
+#### Phase 16: Concurrent Sync Scenario Analysis
+**Goal**: Analizzare e testare scenari di sync concorrente (single-user e multi-user), identificare race conditions e documentare pattern sicuri
+**Depends on**: Phase 15
+**Research**: Likely (concurrent execution patterns, race condition analysis, conflict resolution strategies)
+**Research topics**: Concurrency control patterns, distributed locking, conflict resolution algorithms, multi-user coordination
+**Plans**: TBD
+
+Plans:
+- [ ] 16-01: TBD
+
+#### Phase 17: Automatic vs Manual Sync Differentiation
+**Goal**: Analizzare differenze comportamentali tra sync automatici (login, reconnect, stale) e manuali (user-initiated, force refresh), progettare strategia unificata
+**Depends on**: Phase 16
+**Research**: Unlikely (analyzing existing trigger mechanisms, standard orchestration patterns)
+**Plans**: TBD
+
+Plans:
+- [ ] 17-01: TBD
+
+#### Phase 18: Sync Scheduler & Coordination Layer
+**Goal**: Implementare sync scheduler intelligente con conflict detection, priority management e backoff strategies
+**Depends on**: Phase 17
+**Research**: Likely (scheduling algorithms, priority queue implementations, backoff strategies)
+**Research topics**: Job scheduling patterns, priority queue implementations, exponential backoff, sync conflict detection
+**Plans**: TBD
+
+Plans:
+- [ ] 18-01: TBD
+
+#### Phase 19: Sync Monitoring & Observability
+**Goal**: Aggiungere metriche complete, health dashboard, alerting per failure e debugging tools
+**Depends on**: Phase 18
+**Research**: Unlikely (Prometheus/Grafana already integrated, standard metrics patterns)
+**Plans**: TBD
+
+Plans:
+- [ ] 19-01: TBD
+
+#### Phase 20: Sync Reliability & Error Recovery
+**Goal**: Implementare retry strategies per ogni sync type, partial recovery, rollback mechanisms e consistency verification
+**Depends on**: Phase 19
+**Research**: Likely (error recovery patterns, consistency verification algorithms, rollback strategies)
+**Research topics**: Retry patterns, circuit breakers, partial sync recovery, consistency verification, rollback mechanisms
+**Plans**: TBD
+
+Plans:
+- [ ] 20-01: TBD
+
+#### Phase 21: Sync Performance Optimization
+**Goal**: Ottimizzare query database, implementare incremental sync, caching layers e concurrent sync performance
+**Depends on**: Phase 20
+**Research**: Unlikely (optimization of existing code, standard performance patterns)
+**Plans**: TBD
+
+Plans:
+- [ ] 21-01: TBD
+
+---
+
+### v1.0 Completed Phases (For Reference)
 
 ### Phase 1: Security Critical Fixes
 **Goal**: Eliminare vulnerabilità security critical (credenziali test in chiaro, bug runtime) per fondamenta sicure
@@ -519,8 +615,8 @@ Plans:
 **Depends on**: Phase 10
 **Research**: Complete (11-CONTEXT.md from /gsd:discuss-phase 11)
 **Research topics**: DDT page structure, Fatture page structure, order states from ARCHIBALD AGENTI.pptx, "Invio" button workflow
-**Plans**: 7 plans (planning complete 2026-01-15)
-**Status**: ✅ Planning Complete (ready for execution)
+**Plans**: 7 plans (all complete 2026-01-16)
+**Status**: ✅ COMPLETE
 
 Plans:
 - [x] 11-01: Research Order Management Pages and Workflows (DDT, Fatture, "Invio" workflow)
@@ -529,7 +625,7 @@ Plans:
 - [x] 11-04: Implement Status Tracking Backend with Cache (2-hour TTL, on-demand sync) - COMPLETE (45min)
 - [x] 11-05: Build Status Tracking UI with Timeline (OrderTimeline, OrderTracking, SendToMilanoModal) - COMPLETE (15min)
 - [x] 11-06: Implement Invoice Scraping and PDF Download (CUSTINVOICEJOUR_ListView) - COMPLETE (30min)
-- [ ] 11-07: Integration Testing, Error Handling & Audit Log (E2E tests, edge cases, audit verification)
+- [x] 11-07: Integration Testing, Error Handling & Audit Log (E2E tests, edge cases, audit verification) - COMPLETE
 
 ### Phase 12: Deployment & Infrastructure ✅ COMPLETE
 **Goal**: Setup produzione VPS con Docker, SSL, deployment automatizzato e monitoring
@@ -625,26 +721,33 @@ Plans:
 
 ## Progress
 
-| Phase | Plans Complete | Status | Completed |
-|-------|----------------|--------|-----------|
-| 1. Security Critical Fixes | 5/5 | ✅ Complete | 2026-01-12 |
-| 2. Code Quality Foundation | 8/8 | ✅ Complete | 2026-01-12 |
-| 3. MVP Order Form | 8/8 | ✅ Complete | 2026-01-12 |
-| 3.1. Bot Performance Profiling & Optimization (INSERTED) | 3/3 | ✅ Complete | 2026-01-12 |
-| 3.2. Bot Performance Implementation (INSERTED) | 1/6 partial | ✅ Complete (closed early) | 2026-01-13 |
-| 4. Voice Input Enhancement | 4/4 | ✅ Complete | 2026-01-13 |
-| 4.1. Critical Production Fixes (INSERTED) | 4/4 | ✅ Complete | 2026-01-13 |
-| 6. Multi-User Authentication | 7/7 | ✅ Complete | 2026-01-14 |
-| 7. Credential Management | 6/6 | ✅ Complete | 2026-01-14 |
-| 8. Offline Capability | 8/8 | ✅ Complete | 2026-01-15 |
-| 9. Offline Queue | 3/3 | ✅ Complete | 2026-01-15 |
-| 10. Order History | 7/7 | ✅ Complete | 2026-01-15 |
-| 11. Order Management | 6/7 | 🔄 In progress | 2026-01-15 |
-| 12. Deployment & Infrastructure | 3/4 | ✅ Complete (Part D deferred) | 2026-01-17 |
-| 13. Security Audit & Cleanup | 1/6 | ✅ Complete (audit done, rest optional) | 2026-01-17 |
-| 5. Order Submission (POSTPONED) | 0/6 | ⚠️ Postponed (rolled back) | - |
+| Phase | Milestone | Plans Complete | Status | Completed |
+|-------|-----------|----------------|--------|-----------|
+| 1. Security Critical Fixes | v1.0 | 5/5 | ✅ Complete | 2026-01-12 |
+| 2. Code Quality Foundation | v1.0 | 8/8 | ✅ Complete | 2026-01-12 |
+| 3. MVP Order Form | v1.0 | 8/8 | ✅ Complete | 2026-01-12 |
+| 3.1. Bot Performance Profiling & Optimization (INSERTED) | v1.0 | 3/3 | ✅ Complete | 2026-01-12 |
+| 3.2. Bot Performance Implementation (INSERTED) | v1.0 | 1/6 partial | ✅ Complete (closed early) | 2026-01-13 |
+| 4. Voice Input Enhancement | v1.0 | 4/4 | ✅ Complete | 2026-01-13 |
+| 4.1. Critical Production Fixes (INSERTED) | v1.0 | 4/4 | ✅ Complete | 2026-01-13 |
+| 6. Multi-User Authentication | v1.0 | 7/7 | ✅ Complete | 2026-01-14 |
+| 7. Credential Management | v1.0 | 6/6 | ✅ Complete | 2026-01-14 |
+| 8. Offline Capability | v1.0 | 8/8 | ✅ Complete | 2026-01-15 |
+| 9. Offline Queue | v1.0 | 3/3 | ✅ Complete | 2026-01-15 |
+| 10. Order History | v1.0 | 7/7 | ✅ Complete | 2026-01-15 |
+| 11. Order Management | v1.0 | 7/7 | ✅ Complete | 2026-01-16 |
+| 12. Deployment & Infrastructure | v1.0 | 3/4 | ✅ Complete (Part D deferred) | 2026-01-17 |
+| 13. Security Audit & Cleanup | v1.0 | 1/6 | ✅ Complete (audit done, rest optional) | 2026-01-17 |
+| 5. Order Submission (POSTPONED) | v1.0 | 0/6 | ⚠️ Postponed (rolled back) | - |
+| 14. Sync Discovery & Mapping | v2.0 | 0/? | Not started | - |
+| 15. Individual Sync Testing | v2.0 | 0/? | Not started | - |
+| 16. Concurrent Sync Scenarios | v2.0 | 0/? | Not started | - |
+| 17. Automatic vs Manual Sync | v2.0 | 0/? | Not started | - |
+| 18. Sync Scheduler & Coordination | v2.0 | 0/? | Not started | - |
+| 19. Sync Monitoring & Observability | v2.0 | 0/? | Not started | - |
+| 20. Sync Reliability & Recovery | v2.0 | 0/? | Not started | - |
+| 21. Sync Performance Optimization | v2.0 | 0/? | Not started | - |
 
-**Total Plans**: 90 across 12+ phases (Phase 12 now 4 plans: 12-01, 12-02, 12-03 with 3 parts, Part D deferred)
-**Completed**: 80/90 plans (89%)
-**In Progress**: Phase 11 (6/7 plans complete, 11-07 remaining)
-**Deferred**: Phase 12-03-D (Blue-Green Deployment) - low ROI for current traffic
+**v1.0 Total**: 81/90 plans (90%) - ✅ SHIPPED 2026-01-17
+**v2.0 Progress**: 0/? plans (TBD - planning phase)
+**In Progress**: Phase 14 (Sync Discovery & Mapping) - ready to plan
