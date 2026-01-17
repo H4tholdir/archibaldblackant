@@ -9,15 +9,17 @@ export default defineConfig({
       registerType: 'autoUpdate',
       includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'mask-icon.svg'],
       manifest: {
-        name: 'Archibald Mobile',
-        short_name: 'Archibald',
-        description: 'App mobile per inserimento ordini Archibald',
+        name: 'Formicanera - Archibald Rework',
+        short_name: 'Formicanera',
+        description: 'Gestione ordini Archibald per agenti Komet - by Francesco Formicola',
         theme_color: '#1976d2',
         background_color: '#ffffff',
         display: 'standalone',
         orientation: 'portrait',
         scope: '/',
         start_url: '/',
+        categories: ['business', 'productivity'],
+        lang: 'it',
         icons: [
           {
             src: 'pwa-192x192.png',

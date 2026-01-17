@@ -19,8 +19,8 @@ export function LoginModal({ onLogin, error, isLoading }: LoginModalProps) {
   return (
     <div className="login-modal-overlay">
       <div className="login-modal">
-        <h1>🐜 Archibald Black Ant</h1>
-        <p className="subtitle">Accedi con le tue credenziali Archibald</p>
+        <h1>🐜 Formicanera</h1>
+        <p className="subtitle">Archibald Rework - Accedi con le tue credenziali</p>
 
         <form onSubmit={handleSubmit}>
           <div className="form-group">

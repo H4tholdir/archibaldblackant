@@ -1,4 +1,26 @@
 {
+  "name": "formicanera-archibald-rework",
+  "version": "1.0.0",
+  "description": "Sistema di gestione ordini Archibald per agenti Komet - Soluzione SaaS con abbonamento mensile",
+  "author": {
+    "name": "Francesco Formicola",
+    "email": "francesco@formicanera.com"
+  },
+  "license": "PROPRIETARY",
+  "private": true,
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/H4tholdir/archibaldblackant.git"
+  },
+  "keywords": [
+    "Archibald",
+    "Komet",
+    "ordini",
+    "gestione",
+    "PWA",
+    "SaaS",
+    "B2B"
+  ],
   "dependencies": {
     "fuse.js": "^7.1.0"
   }
