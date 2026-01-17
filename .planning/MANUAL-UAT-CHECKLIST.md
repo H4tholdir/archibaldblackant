@@ -62,10 +62,28 @@ File: [archibald-web-app/backend/src/index.ts:348-388](../archibald-web-app/back
 **Trade-off**:
 - ✅ Sicurezza: Password validata prima di issue JWT
 - ✅ UX: Login successivi instant (entro 24h)
-- ⚠️ UX: Primo login più lento (30-60s Puppeteer wait)
+- ⚠️ UX: Primo login più lento (~10-15s Puppeteer wait, optimized from 30-60s)
 
-**Status**: ✅ FIXED - Commit pending
+**Status**: ✅ FIXED & DEPLOYED
+**Commits**:
+- 9d025ab: Password validation at login
+- 48cd6eb: Performance optimizations (instant paste, fast selectors)
+- 57ef654: Animated liquid loader for better UX
+
+**Performance Improvements**:
+- Login validation: ~30-60s → ~10-15s (3-4x faster)
+- Form fill: instant paste instead of letter-by-letter typing
+- Wait times: fixed 2s → dynamic <500ms
+- slowMo: 50ms (fast but stable)
+
+**UX Improvements**:
+- Professional animated liquid loader during authentication
+- Gradient color-shifting animation
+- Text glow and pulsing dots
+- Dark theme matching app style
+
 **Test Required**: Manual test con password corretta e errata
+**Last Deployment**: 2026-01-17 11:29 UTC - All containers healthy
 
 ---
 
