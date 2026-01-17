@@ -7,7 +7,7 @@ interface ProductFilters {
   groupCode: string;
 }
 
-export function ProductList() {
+export function ArticoliList() {
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -124,10 +124,10 @@ export function ProductList() {
             marginBottom: "8px",
           }}
         >
-          📦 Prodotti
+          📦 Articoli
         </h1>
         <p style={{ fontSize: "16px", color: "#666" }}>
-          Catalogo prodotti con immagini e informazioni complete
+          Catalogo articoli con prezzi, IVA e informazioni complete
         </p>
         {!loading && totalCount > 0 && (
           <div
@@ -137,7 +137,7 @@ export function ProductList() {
               marginTop: "8px",
             }}
           >
-            {totalCount.toLocaleString("it-IT")} prodotti totali nel database
+            {totalCount.toLocaleString("it-IT")} articoli totali nel database
             {limited && (
               <span style={{ color: "#ff9800", marginLeft: "8px" }}>
                 (visualizzati primi {returnedCount})

@@ -258,7 +258,7 @@ export function ProductCard({ product, expanded, onToggle }: ProductCardProps) {
                 marginBottom: "12px",
               }}
             >
-              💰 Prezzi
+              💰 Prezzi e IVA
             </h3>
             <div
               style={{
@@ -270,12 +270,75 @@ export function ProductCard({ product, expanded, onToggle }: ProductCardProps) {
             >
               <div>
                 <strong style={{ color: "#666" }}>Prezzo:</strong>{" "}
-                {formatCurrency(product.price)}
+                {formatCurrency(product.price)}{" "}
+                {product.priceCurrency && product.priceCurrency !== "EUR" && (
+                  <span style={{ color: "#999" }}>
+                    ({product.priceCurrency})
+                  </span>
+                )}
+                {product.priceSource && (
+                  <span
+                    style={{
+                      marginLeft: "8px",
+                      fontSize: "12px",
+                      padding: "2px 6px",
+                      borderRadius: "4px",
+                      backgroundColor:
+                        product.priceSource === "excel" ? "#e3f2fd" : "#fff3e0",
+                      color:
+                        product.priceSource === "excel" ? "#1976d2" : "#f57c00",
+                    }}
+                  >
+                    {product.priceSource === "excel" ? "Excel" : "Archibald"}
+                  </span>
+                )}
               </div>
+              {product.vat !== undefined && product.vat !== null && (
+                <div>
+                  <strong style={{ color: "#666" }}>IVA:</strong> {product.vat}%{" "}
+                  {product.vatSource && (
+                    <span
+                      style={{
+                        marginLeft: "8px",
+                        fontSize: "12px",
+                        padding: "2px 6px",
+                        borderRadius: "4px",
+                        backgroundColor: "#e8f5e9",
+                        color: "#2e7d32",
+                      }}
+                    >
+                      {product.vatSource}
+                    </span>
+                  )}
+                </div>
+              )}
               {product.priceUnit && (
                 <div>
-                  <strong style={{ color: "#666" }}>Unità di misura:</strong>{" "}
+                  <strong style={{ color: "#666" }}>Unità:</strong>{" "}
                   {product.priceUnit}
+                </div>
+              )}
+              {product.accountDescription && (
+                <div>
+                  <strong style={{ color: "#666" }}>Account:</strong>{" "}
+                  {product.accountDescription}
+                  {product.accountCode && (
+                    <span style={{ color: "#999", marginLeft: "4px" }}>
+                      ({product.accountCode})
+                    </span>
+                  )}
+                </div>
+              )}
+              {product.priceValidFrom && product.priceValidTo && (
+                <div>
+                  <strong style={{ color: "#666" }}>Validità:</strong>{" "}
+                  {product.priceValidFrom} → {product.priceValidTo}
+                </div>
+              )}
+              {product.priceQtyFrom && product.priceQtyTo && (
+                <div>
+                  <strong style={{ color: "#666" }}>Range quantità:</strong>{" "}
+                  {product.priceQtyFrom} - {product.priceQtyTo}
                 </div>
               )}
             </div>

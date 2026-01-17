@@ -21,6 +21,20 @@ export interface Product {
   priceUnit?: string;
   productGroupId?: string;
   productGroupDescription?: string;
+  // VAT and price tracking (from migration 002)
+  vat?: number;
+  vatSource?: string;
+  vatUpdatedAt?: number;
+  priceSource?: string;
+  priceUpdatedAt?: number;
+  // Price table fields (from migration 003)
+  accountCode?: string;
+  accountDescription?: string;
+  priceValidFrom?: string;
+  priceValidTo?: string;
+  priceQtyFrom?: string;
+  priceQtyTo?: string;
+  priceCurrency?: string;
 }
 
 export interface ProductsResponse {
@@ -141,6 +155,30 @@ export async function getProductChanges(
 ) {
   const response = await fetch(
     `${API_BASE_URL}/api/products/${productId}/changes?limit=${limit}`,
+    {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    },
+  );
+
+  if (!response.ok) {
+    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+  }
+
+  return response.json();
+}
+
+/**
+ * Get price change history for a specific product
+ */
+export async function getProductPriceHistory(
+  token: string,
+  productId: string,
+  limit: number = 100,
+) {
+  const response = await fetch(
+    `${API_BASE_URL}/api/prices/${productId}/history?limit=${limit}`,
     {
       headers: {
         Authorization: `Bearer ${token}`,

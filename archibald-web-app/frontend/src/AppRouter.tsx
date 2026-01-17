@@ -28,7 +28,7 @@ import { PendingOrdersView } from "./pages/PendingOrdersView";
 import { DraftOrders } from "./pages/DraftOrders";
 import { CustomerList } from "./pages/CustomerList";
 import { CustomerEdit } from "./pages/CustomerEdit";
-import { ProductList } from "./pages/ProductList";
+import { ArticoliList } from "./pages/ArticoliList";
 import { pendingOrdersService } from "./services/pending-orders-service";
 import { getDraftOrders } from "./services/draftOrderStorage";
 
@@ -246,7 +246,7 @@ function AppRouter() {
               onClick={() => navigate("/products")}
               className={`btn btn-sm ${location.pathname === "/products" ? "btn-primary" : "btn-secondary"}`}
             >
-              📦 Prodotti
+              📦 Articoli
             </button>
             <button
               type="button"
@@ -425,7 +425,7 @@ function AppRouter() {
               <SyncBanner />
               <AppHeader />
               <main className="app-main" style={{ padding: "0" }}>
-                <ProductList />
+                <ArticoliList />
               </main>
               <footer className="app-footer">
                 <p>v1.0.0 • Fresis Team</p>

@@ -300,148 +300,105 @@ export class PriceSyncService extends EventEmitter {
         await bot.page!.waitForSelector("table tbody tr", { timeout: 10000 });
         await new Promise((resolve) => setTimeout(resolve, 500));
 
-        const pagePrices = await bot.page!.evaluate(
-          (debugFirstRow: boolean) => {
-            // Cerca la tabella principale dei dati
-            let dataTable =
-              document.querySelector(".dxgvControl") ||
-              document.querySelector('table[id*="GridView"]');
+        const pagePrices = await bot.page!.evaluate(() => {
+          // Use same table detection as product-sync (DevExtreme table structure)
+          const table = document.querySelector('table[id*="_DXMainTable"]');
 
-            if (!dataTable) {
-              const allTables = Array.from(document.querySelectorAll("table"));
-              let maxRows = 0;
-              for (const table of allTables) {
-                const rowCount = table.querySelectorAll("tbody tr").length;
-                if (rowCount > maxRows) {
-                  maxRows = rowCount;
-                  dataTable = table;
-                }
+          if (!table) {
+            return { prices: [], error: "Table not found" };
+          }
+
+          // Get data rows (same pattern as product-sync)
+          const dataRows = Array.from(
+            table.querySelectorAll('tbody tr[id*="_DXDataRow"]'),
+          ) as Element[];
+
+          const results: Array<{
+            itemSelection: string;
+            itemDescription: string;
+            price: number;
+            accountCode: string;
+            accountDescription: string;
+            fromDate: string;
+            toDate: string;
+            qtyFrom: string;
+            qtyTo: string;
+            currency: string;
+          }> = [];
+
+          for (const row of dataRows) {
+            const cells = Array.from(row.querySelectorAll("td")) as Element[];
+
+            // Need at least 14 cells for price data
+            if (cells.length < 14) continue;
+
+            /**
+             * PRICEDISCTABLE Column Mapping (based on test-price-data-cells.ts):
+             * [6] = ITEM SELECTION (ID prodotto: "10004473", "051953K0")
+             * [7] = ITEM DESCRIPTION (Nome: "XTD3324.314.", "TD3233.314.")
+             * [8] = DA DATA (from date: "01/07/2022")
+             * [9] = DATA (to date: "31/12/2154")
+             * [10] = QUANTITÀ FROM (qty from: "1")
+             * [11] = QUANTITÀ TO (qty to: "100.000.000")
+             * [13] = VALUTA/PREZZO ("234,59 €", "275,00 €")
+             * [14] = CURRENCY ("EUR")
+             * [4] = Account code (es. "002")
+             * [5] = Account description (es. "DETTAGLIO (consigliato)")
+             */
+
+            const itemSelection =
+              (cells[6] as Element)?.textContent?.trim() || "";
+            const itemDescription =
+              (cells[7] as Element)?.textContent?.trim() || "";
+            const fromDate = (cells[8] as Element)?.textContent?.trim() || "";
+            const toDate = (cells[9] as Element)?.textContent?.trim() || "";
+            const qtyFrom = (cells[10] as Element)?.textContent?.trim() || "";
+            const qtyTo = (cells[11] as Element)?.textContent?.trim() || "";
+            const priceText = (cells[13] as Element)?.textContent?.trim() || "";
+            const currency = (cells[14] as Element)?.textContent?.trim() || "";
+            const accountCode =
+              (cells[4] as Element)?.textContent?.trim() || "";
+            const accountDescription =
+              (cells[5] as Element)?.textContent?.trim() || "";
+
+            // Validazione: need at least ITEM SELECTION or ITEM DESCRIPTION
+            if (
+              (!itemDescription && !itemSelection) ||
+              itemDescription.includes("Loading") ||
+              itemDescription.includes("<") ||
+              itemSelection.includes("Loading")
+            ) {
+              continue;
+            }
+
+            // Parse prezzo (format: "234,59 €")
+            let price = 0;
+            if (priceText) {
+              const priceStr = priceText
+                .replace(/[€\s]/g, "")
+                .replace(",", ".");
+              const parsedPrice = parseFloat(priceStr);
+              if (!isNaN(parsedPrice) && parsedPrice >= 0) {
+                price = parsedPrice;
               }
             }
 
-            if (!dataTable) {
-              return { prices: [], debug: null };
-            }
+            results.push({
+              itemSelection, // ID ARTICOLO per matching primario
+              itemDescription, // NOME ARTICOLO per matching secondario
+              price,
+              accountCode,
+              accountDescription,
+              fromDate,
+              toDate,
+              qtyFrom,
+              qtyTo,
+              currency,
+            });
+          }
 
-            const rows = Array.from(
-              dataTable.querySelectorAll("tbody tr"),
-            ) as Element[];
-            const results: Array<{
-              itemSelection: string;
-              itemDescription: string;
-              price: number;
-            }> = [];
-            let debugInfo = null;
-
-            for (let i = 0; i < rows.length; i++) {
-              const row = rows[i];
-              const cells = Array.from(row.querySelectorAll("td")) as Element[];
-
-              if (cells.length < 14) continue;
-
-              // DEBUG: Log first DATA row (skip empty/header rows) to find correct columns
-              if (debugFirstRow && !debugInfo) {
-                // Try to find a row with numeric product code
-                const allCellTexts = cells.map((cell, idx) => ({
-                  index: idx,
-                  text:
-                    (cell as Element)?.textContent?.trim().substring(0, 50) ||
-                    "",
-                }));
-
-                // Check if this row has an item description (product name)
-                const hasProductId = allCellTexts.some((c) =>
-                  /^[A-Z0-9]{2,}[0-9./-]{2,}$/i.test(c.text),
-                );
-
-                if (hasProductId) {
-                  debugInfo = {
-                    rowIndex: i,
-                    cellCount: cells.length,
-                    cellContents: allCellTexts.slice(0, 60), // First 60 columns only
-                  };
-                }
-              }
-
-              // Search for ITEM SELECTION (ID), ITEM DESCRIPTION (name), and PRICE
-              let itemSelection = ""; // ID prodotto (es. "10004473", "051953K0")
-              let itemDescription = ""; // Nome prodotto (es. "XTD3324.314.", "TD3233.314.")
-              let priceText = "";
-
-              // Extract all cells for analysis
-              for (
-                let colIdx = 0;
-                colIdx < Math.min(cells.length, 60);
-                colIdx++
-              ) {
-                const cellText =
-                  (cells[colIdx] as Element)?.textContent?.trim() || "";
-
-                // ITEM SELECTION: numeric ID (8-9 characters, alphanumeric)
-                // Examples: "10004473", "051953K0", "0217252K1"
-                if (
-                  !itemSelection &&
-                  /^[0-9A-Z]{7,10}$/i.test(cellText) &&
-                  !/[./-]/.test(cellText) // No dots/dashes (distinguishes from ITEM DESCRIPTION)
-                ) {
-                  itemSelection = cellText;
-                }
-
-                // ITEM DESCRIPTION: product name with dots/dashes
-                // Examples: "XTD3324.314.", "TD3233.314.", "9686.204.040", "KP6830L.314.012"
-                // NOTE: Exclude short codes like "12.565" (price IDs) - real product names are longer
-                if (
-                  !itemDescription &&
-                  cellText.length >= 8 && // Real product names are at least 8 chars
-                  /^[A-Z0-9]{2,}[0-9./-]{2,}$/i.test(cellText) &&
-                  /[./-]/.test(cellText) // Must contain dots or dashes
-                ) {
-                  itemDescription = cellText;
-                }
-
-                // PRICE: format like "234,59 €"
-                if (!priceText && /\d+[,.]?\d*\s*€/.test(cellText)) {
-                  priceText = cellText;
-                }
-              }
-
-              // Validazione: need at least ITEM DESCRIPTION or ITEM SELECTION
-              if (
-                (!itemDescription && !itemSelection) ||
-                (itemDescription && itemDescription.includes("Loading")) ||
-                (itemDescription && itemDescription.includes("<"))
-              ) {
-                continue;
-              }
-
-              // Parse prezzo
-              let price = 0;
-              if (priceText) {
-                const priceStr = priceText
-                  .replace(/[€\s]/g, "")
-                  .replace(",", ".");
-                const parsedPrice = parseFloat(priceStr);
-                if (!isNaN(parsedPrice) && parsedPrice >= 0) {
-                  price = parsedPrice;
-                }
-              }
-
-              results.push({
-                itemSelection, // ID ARTICOLO per matching primario
-                itemDescription, // NOME ARTICOLO per matching secondario
-                price,
-              });
-            }
-
-            return { prices: results, debug: debugInfo };
-          },
-          currentPage === 1,
-        );
-
-        // DEBUG: Log table structure on first page
-        if (currentPage === 1 && pagePrices.debug) {
-          logger.info("DEBUG - First row cell contents:", pagePrices.debug);
-        }
+          return { prices: results };
+        });
 
         const prices = pagePrices.prices;
         logger.info(
@@ -450,11 +407,18 @@ export class PriceSyncService extends EventEmitter {
 
         // DEBUG: Log first 3 price entries to verify data format
         if (currentPage === 1 && prices.length > 0) {
-          logger.info("DEBUG - Sample price entries:", {
+          logger.info("DEBUG - Sample price entries (with all fields):", {
             samples: prices.slice(0, 3).map((p) => ({
               itemSelection: p.itemSelection,
               itemDescription: p.itemDescription,
               price: p.price,
+              accountCode: p.accountCode,
+              accountDescription: p.accountDescription,
+              fromDate: p.fromDate,
+              toDate: p.toDate,
+              qtyFrom: p.qtyFrom,
+              qtyTo: p.qtyTo,
+              currency: p.currency,
             })),
           });
         }
@@ -466,23 +430,57 @@ export class PriceSyncService extends EventEmitter {
           })),
         );
 
-        // Aggiorna i prezzi nel database con MATCHING MULTI-LIVELLO ROBUSTO
+        // Aggiorna i prezzi nel database con MATCHING MULTI-LIVELLO ROBUSTO + AUDIT LOG
         if (prices.length > 0) {
-          // Prepare statements for multi-level matching
-          const updateById = this.db["db"].prepare(
-            "UPDATE products SET price = ? WHERE id = ?",
-          );
-          const updateByNameExact = this.db["db"].prepare(
-            "UPDATE products SET price = ? WHERE name = ?",
-          );
-          const updateByNameNormalized = this.db["db"].prepare(
-            "UPDATE products SET price = ? WHERE REPLACE(REPLACE(REPLACE(LOWER(name), '.', ''), ' ', ''), '-', '') = ?",
-          );
+          const now = Math.floor(Date.now() / 1000);
+
+          // Prepare statements for multi-level matching with FULL FIELDS
+          const getProductById = this.db["db"].prepare(`
+            SELECT id, price, priceSource, priceUpdatedAt,
+                   accountCode, accountDescription, priceValidFrom, priceValidTo,
+                   priceQtyFrom, priceQtyTo, priceCurrency
+            FROM products WHERE id = ?
+          `);
+
+          const getProductByNameExact = this.db["db"].prepare(`
+            SELECT id, price, priceSource, priceUpdatedAt,
+                   accountCode, accountDescription, priceValidFrom, priceValidTo,
+                   priceQtyFrom, priceQtyTo, priceCurrency
+            FROM products WHERE name = ?
+          `);
+
+          const getProductByNameNormalized = this.db["db"].prepare(`
+            SELECT id, price, priceSource, priceUpdatedAt,
+                   accountCode, accountDescription, priceValidFrom, priceValidTo,
+                   priceQtyFrom, priceQtyTo, priceCurrency
+            FROM products
+            WHERE REPLACE(REPLACE(REPLACE(LOWER(name), '.', ''), ' ', ''), '-', '') = ?
+          `);
+
+          const updateProduct = this.db["db"].prepare(`
+            UPDATE products
+            SET price = ?, priceSource = ?, priceUpdatedAt = ?,
+                accountCode = ?, accountDescription = ?,
+                priceValidFrom = ?, priceValidTo = ?,
+                priceQtyFrom = ?, priceQtyTo = ?,
+                priceCurrency = ?
+            WHERE id = ?
+          `);
+
+          const insertPriceChange = this.db["db"].prepare(`
+            INSERT INTO price_changes (
+              productId, changeType,
+              oldPrice, oldVat, oldPriceSource, oldVatSource,
+              newPrice, newVat, newPriceSource, newVatSource,
+              changedAt, syncSessionId, source
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'archibald_sync')
+          `);
 
           let matchedById = 0;
           let matchedByNameExact = 0;
           let matchedByNameNormalized = 0;
           let unmatchedCount = 0;
+          let pricesUpdated = 0;
 
           const transaction = this.db["db"].transaction(
             (
@@ -490,55 +488,53 @@ export class PriceSyncService extends EventEmitter {
                 itemSelection: string;
                 itemDescription: string;
                 price: number;
+                accountCode: string;
+                accountDescription: string;
+                fromDate: string;
+                toDate: string;
+                qtyFrom: string;
+                qtyTo: string;
+                currency: string;
               }>,
             ) => {
               for (const priceEntry of priceList) {
-                let matched = false;
+                let product: any = null;
+                let matchLevel = "";
 
                 // LEVEL 1: Match by ID (ITEM SELECTION -> products.id)
                 if (priceEntry.itemSelection) {
-                  const result = updateById.run(
-                    priceEntry.price,
-                    priceEntry.itemSelection,
-                  );
-                  if (result.changes > 0) {
+                  product = getProductById.get(priceEntry.itemSelection);
+                  if (product) {
                     matchedById++;
-                    matched = true;
-                    continue;
+                    matchLevel = "id";
                   }
                 }
 
                 // LEVEL 2: Match by exact name (ITEM DESCRIPTION -> products.name)
-                if (priceEntry.itemDescription && !matched) {
-                  const result = updateByNameExact.run(
-                    priceEntry.price,
+                if (priceEntry.itemDescription && !product) {
+                  product = getProductByNameExact.get(
                     priceEntry.itemDescription,
                   );
-                  if (result.changes > 0) {
+                  if (product) {
                     matchedByNameExact++;
-                    matched = true;
-                    continue;
+                    matchLevel = "name_exact";
                   }
                 }
 
                 // LEVEL 3: Match by normalized name (remove dots, spaces, dashes, lowercase)
-                if (priceEntry.itemDescription && !matched) {
+                if (priceEntry.itemDescription && !product) {
                   const normalizedName = priceEntry.itemDescription
                     .toLowerCase()
                     .replace(/[.\s-]/g, "");
-                  const result = updateByNameNormalized.run(
-                    priceEntry.price,
-                    normalizedName,
-                  );
-                  if (result.changes > 0) {
+                  product = getProductByNameNormalized.get(normalizedName);
+                  if (product) {
                     matchedByNameNormalized++;
-                    matched = true;
-                    continue;
+                    matchLevel = "name_normalized";
                   }
                 }
 
                 // No match found
-                if (!matched) {
+                if (!product) {
                   unmatchedCount++;
                   if (unmatchedCount <= 5) {
                     // Log first 5 unmatched for debugging
@@ -546,6 +542,49 @@ export class PriceSyncService extends EventEmitter {
                       `Unmatched price entry: ID=${priceEntry.itemSelection} Name=${priceEntry.itemDescription} Price=${priceEntry.price}`,
                     );
                   }
+                  continue;
+                }
+
+                // Check if price changed (only update if different)
+                const oldPrice = product.price;
+                const oldPriceSource = product.priceSource;
+                const newPrice = priceEntry.price;
+
+                const priceChanged = newPrice !== oldPrice && newPrice > 0;
+
+                if (priceChanged) {
+                  // Update product with ALL new fields
+                  updateProduct.run(
+                    newPrice,
+                    "archibald", // priceSource
+                    now, // priceUpdatedAt
+                    priceEntry.accountCode,
+                    priceEntry.accountDescription,
+                    priceEntry.fromDate,
+                    priceEntry.toDate,
+                    priceEntry.qtyFrom,
+                    priceEntry.qtyTo,
+                    priceEntry.currency,
+                    product.id,
+                  );
+
+                  pricesUpdated++;
+
+                  // Create audit log entry
+                  insertPriceChange.run(
+                    product.id,
+                    "price_updated",
+                    oldPrice,
+                    null, // oldVat (not tracked in price sync)
+                    oldPriceSource,
+                    null, // oldVatSource
+                    newPrice,
+                    null, // newVat (not tracked in price sync)
+                    "archibald",
+                    null, // newVatSource
+                    now,
+                    null, // syncSessionId (could add if needed)
+                  );
                 }
               }
             },
@@ -555,7 +594,7 @@ export class PriceSyncService extends EventEmitter {
           const totalMatched =
             matchedById + matchedByNameExact + matchedByNameNormalized;
           logger.info(
-            `Pagina ${currentPage}: ${prices.length} prezzi → ${totalMatched} matched (ID: ${matchedById}, Name exact: ${matchedByNameExact}, Name normalized: ${matchedByNameNormalized}) | ${unmatchedCount} unmatched`,
+            `Pagina ${currentPage}: ${prices.length} prezzi → ${totalMatched} matched (ID: ${matchedById}, Name exact: ${matchedByNameExact}, Name normalized: ${matchedByNameNormalized}) | ${unmatchedCount} unmatched | ${pricesUpdated} updated`,
           );
         }
 
