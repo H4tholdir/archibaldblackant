@@ -4,27 +4,85 @@ import path from "path";
 import { logger } from "./logger";
 
 export interface Product {
-  id: string; // ID ARTICOLO
-  name: string; // NOME ARTICOLO
-  description?: string; // DESCRIZIONE
-  groupCode?: string; // GRUPPO ARTICOLO
-  searchName?: string; // NOME DELLA RICERCA
-  priceUnit?: string; // UNITÀ DI PREZZO
-  productGroupId?: string; // ID GRUPPO DI PRODOTTI
-  productGroupDescription?: string; // DESCRIZIONE GRUPPO ARTICOLO
-  packageContent?: string; // CONTENUTO DELL'IMBALLAGGIO
-  minQty?: number; // QTÀ MINIMA
-  multipleQty?: number; // QTÀ MULTIPLA
-  maxQty?: number; // QTÀ MASSIMA
-  price?: number; // PREZZO dal listino (PREZZO NETTO BRASSELER)
-  hash: string;
-  lastSync: number;
+  // ========== CORE FIELDS ==========
+  id: string; // ID ARTICOLO (Cell[2])
+  name: string; // NOME ARTICOLO (Cell[3])
+
+  // ========== DESCRIPTIVE FIELDS ==========
+  description?: string; // DESCRIZIONE (Cell[4])
+  groupCode?: string; // GRUPPO ARTICOLO (Cell[5])
+
+  // ========== IMAGE FIELDS ==========
+  imageUrl?: string; // IMMAGINE URL from Archibald (Cell[6])
+  imageLocalPath?: string; // Local storage: "images/{name}.jpg"
+  imageDownloadedAt?: number; // Unix timestamp of last image download
+
+  // ========== PACKAGE & SEARCH FIELDS ==========
+  packageContent?: string; // CONTENUTO DELL'IMBALLAGGIO (Cell[7])
+  searchName?: string; // NOME DELLA RICERCA (Cell[8])
+  priceUnit?: string; // UNITÀ DI PREZZO (Cell[9])
+
+  // ========== PRODUCT GROUP FIELDS ==========
+  productGroupId?: string; // ID GRUPPO DI PRODOTTI (Cell[10])
+  productGroupDescription?: string; // DESCRIZIONE GRUPPO ARTICOLO (Cell[11])
+
+  // ========== QUANTITY FIELDS ==========
+  minQty?: number; // QTÀ MINIMA (Cell[12])
+  multipleQty?: number; // QTÀ MULTIPLA (Cell[13])
+  maxQty?: number; // QTÀ MASSIMA (Cell[14])
+
+  // ========== DEPRECATED FIELD ==========
+  price?: number; // @deprecated Use PriceSyncService instead
+
+  // ========== SYSTEM FIELDS ==========
+  hash: string; // SHA256 hash for change detection
+  lastSync: number; // Unix timestamp of last sync
 }
 
 export interface ValidationResult {
   valid: boolean;
   errors: string[];
   suggestions?: number[];
+}
+
+export interface ProductChange {
+  id?: number;
+  productId: string;
+  changeType: "created" | "updated" | "deleted";
+  fieldChanged?: string;
+  oldValue?: string;
+  newValue?: string;
+  changedAt: number;
+  syncSessionId: string;
+}
+
+export interface SyncSession {
+  id: string; // UUID v4
+  syncType: "products";
+  startedAt: number;
+  completedAt?: number;
+  status: "running" | "completed" | "failed" | "partial";
+  totalPages?: number;
+  pagesProcessed?: number;
+  itemsProcessed?: number;
+  itemsCreated?: number;
+  itemsUpdated?: number;
+  itemsDeleted?: number;
+  imagesDownloaded?: number;
+  errorMessage?: string;
+  syncMode: "full" | "incremental" | "forced";
+}
+
+export interface ProductImage {
+  productId: string;
+  imageUrl?: string;
+  localPath?: string;
+  downloadedAt?: number;
+  fileSize?: number;
+  mimeType?: string;
+  hash?: string;
+  width?: number;
+  height?: number;
 }
 
 export class ProductDatabase {
@@ -45,6 +103,7 @@ export class ProductDatabase {
   }
 
   private initializeSchema(): void {
+    // Create base products table
     this.db.exec(`
       CREATE TABLE IF NOT EXISTS products (
         id TEXT PRIMARY KEY,
@@ -73,29 +132,124 @@ export class ProductDatabase {
       CREATE INDEX IF NOT EXISTS idx_product_groupCode ON products(groupCode);
     `);
 
-    // Migrazione: aggiungi colonna price se non esiste
+    // Legacy migration: add price column if missing
     try {
       this.db.exec(`ALTER TABLE products ADD COLUMN price REAL`);
       logger.info("Added price column to products table");
     } catch (error) {
-      // Colonna già esistente, ignora l'errore
+      // Column already exists, ignore
+    }
+
+    // Run migration to add image and audit tables
+    try {
+      // Import and run migration inline to avoid circular dependencies
+      const tableInfo = this.db.prepare("PRAGMA table_info(products)").all() as Array<{
+        name: string;
+      }>;
+      const existingColumns = new Set(tableInfo.map((col: any) => col.name));
+
+      if (!existingColumns.has("imageUrl")) {
+        logger.info("Running schema migration to add image and audit tables...");
+        this.runMigration001();
+      }
+    } catch (error) {
+      logger.warn("Migration already applied or failed:", error);
     }
 
     logger.info("Product database schema initialized");
   }
 
+  private runMigration001(): void {
+    logger.info("  ➡️  Adding image columns to products table...");
+
+    // Add image columns
+    this.db.exec(`
+      ALTER TABLE products ADD COLUMN imageUrl TEXT;
+      ALTER TABLE products ADD COLUMN imageLocalPath TEXT;
+      ALTER TABLE products ADD COLUMN imageDownloadedAt INTEGER;
+
+      CREATE INDEX IF NOT EXISTS idx_product_imageLocalPath
+      ON products(imageLocalPath);
+    `);
+
+    // Create audit tables
+    logger.info("  ➡️  Creating audit tables...");
+
+    this.db.exec(`
+      CREATE TABLE IF NOT EXISTS product_changes (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        productId TEXT NOT NULL,
+        changeType TEXT NOT NULL CHECK(changeType IN ('created', 'updated', 'deleted')),
+        fieldChanged TEXT,
+        oldValue TEXT,
+        newValue TEXT,
+        changedAt INTEGER NOT NULL,
+        syncSessionId TEXT NOT NULL,
+        FOREIGN KEY (productId) REFERENCES products(id) ON DELETE CASCADE
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_changes_productId ON product_changes(productId);
+      CREATE INDEX IF NOT EXISTS idx_changes_changedAt ON product_changes(changedAt);
+      CREATE INDEX IF NOT EXISTS idx_changes_syncSessionId ON product_changes(syncSessionId);
+      CREATE INDEX IF NOT EXISTS idx_changes_changeType ON product_changes(changeType);
+
+      CREATE TABLE IF NOT EXISTS sync_sessions (
+        id TEXT PRIMARY KEY,
+        syncType TEXT NOT NULL CHECK(syncType = 'products'),
+        startedAt INTEGER NOT NULL,
+        completedAt INTEGER,
+        status TEXT NOT NULL CHECK(status IN ('running', 'completed', 'failed', 'partial')),
+        totalPages INTEGER,
+        pagesProcessed INTEGER,
+        itemsProcessed INTEGER,
+        itemsCreated INTEGER DEFAULT 0,
+        itemsUpdated INTEGER DEFAULT 0,
+        itemsDeleted INTEGER DEFAULT 0,
+        imagesDownloaded INTEGER DEFAULT 0,
+        errorMessage TEXT,
+        syncMode TEXT NOT NULL CHECK(syncMode IN ('full', 'incremental', 'forced'))
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_sessions_startedAt ON sync_sessions(startedAt);
+      CREATE INDEX IF NOT EXISTS idx_sessions_status ON sync_sessions(status);
+      CREATE INDEX IF NOT EXISTS idx_sessions_syncMode ON sync_sessions(syncMode);
+
+      CREATE TABLE IF NOT EXISTS product_images (
+        productId TEXT PRIMARY KEY,
+        imageUrl TEXT,
+        localPath TEXT,
+        downloadedAt INTEGER,
+        fileSize INTEGER,
+        mimeType TEXT,
+        hash TEXT,
+        width INTEGER,
+        height INTEGER,
+        FOREIGN KEY (productId) REFERENCES products(id) ON DELETE CASCADE
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_product_images_hash ON product_images(hash);
+      CREATE INDEX IF NOT EXISTS idx_product_images_downloadedAt ON product_images(downloadedAt);
+    `);
+
+    logger.info("  ✅ Migration 001 completed");
+  }
+
   /**
    * Calcola hash per un prodotto (per rilevare modifiche)
+   * Include TUTTI i campi estrattibili per rilevare qualsiasi cambiamento
    */
   static calculateHash(product: Omit<Product, "hash" | "lastSync">): string {
-    const data = `${product.id}|${product.name}|${product.description || ""}|${product.groupCode || ""}|${product.searchName || ""}|${product.priceUnit || ""}|${product.productGroupId || ""}|${product.productGroupDescription || ""}|${product.packageContent || ""}|${product.minQty || ""}|${product.multipleQty || ""}|${product.maxQty || ""}|${product.price || ""}`;
+    const data = `${product.id}|${product.name}|${product.description || ""}|${product.groupCode || ""}|${product.imageUrl || ""}|${product.packageContent || ""}|${product.searchName || ""}|${product.priceUnit || ""}|${product.productGroupId || ""}|${product.productGroupDescription || ""}|${product.minQty || ""}|${product.multipleQty || ""}|${product.maxQty || ""}|${product.price || ""}`;
     return createHash("sha256").update(data).digest("hex");
   }
 
   /**
    * Inserisce o aggiorna prodotti in batch
    */
-  upsertProducts(products: Array<Omit<Product, "hash" | "lastSync">>): {
+  upsertProducts(
+    products: Array<Omit<Product, "hash" | "lastSync">>,
+    syncSessionId?: string,
+  ): {
     inserted: number;
     updated: number;
     unchanged: number;
@@ -106,12 +260,13 @@ export class ProductDatabase {
     let unchanged = 0;
 
     const insertStmt = this.db.prepare(`
-      INSERT INTO products (id, name, description, groupCode, searchName, priceUnit, productGroupId, productGroupDescription, packageContent, minQty, multipleQty, maxQty, price, hash, lastSync)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO products (id, name, description, groupCode, imageUrl, searchName, priceUnit, productGroupId, productGroupDescription, packageContent, minQty, multipleQty, maxQty, price, hash, lastSync)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       ON CONFLICT(id) DO UPDATE SET
         name = excluded.name,
         description = excluded.description,
         groupCode = excluded.groupCode,
+        imageUrl = excluded.imageUrl,
         searchName = excluded.searchName,
         priceUnit = excluded.priceUnit,
         productGroupId = excluded.productGroupId,
@@ -122,27 +277,40 @@ export class ProductDatabase {
         maxQty = excluded.maxQty,
         price = excluded.price,
         hash = excluded.hash,
-        lastSync = excluded.lastSync,
-        updatedAt = strftime('%s', 'now')
+        lastSync = excluded.lastSync
       WHERE products.hash != excluded.hash
     `);
 
-    const checkStmt = this.db.prepare("SELECT hash FROM products WHERE id = ?");
+    const checkStmt = this.db.prepare(
+      "SELECT * FROM products WHERE id = ?",
+    );
+
+    const changeLogStmt = syncSessionId
+      ? this.db.prepare(`
+        INSERT INTO product_changes (
+          productId, changeType, fieldChanged, oldValue, newValue, changedAt, syncSessionId
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+      `)
+      : null;
 
     const transaction = this.db.transaction(
-      (productsToSync: Array<Omit<Product, "hash" | "lastSync">>) => {
+      (
+        productsToSync: Array<Omit<Product, "hash" | "lastSync">>,
+        sessionId?: string,
+      ) => {
         for (const product of productsToSync) {
           const hash = ProductDatabase.calculateHash(product);
-          const existing = checkStmt.get(product.id) as
-            | { hash: string }
-            | undefined;
+          const existing = checkStmt.get(product.id) as Product | undefined;
 
           if (!existing) {
+            // NEW PRODUCT
             insertStmt.run(
               product.id,
               product.name,
               product.description,
               product.groupCode,
+              product.imageUrl,
               product.searchName,
               product.priceUnit,
               product.productGroupId,
@@ -156,12 +324,27 @@ export class ProductDatabase {
               now,
             );
             inserted++;
+
+            // Log creation
+            if (changeLogStmt && sessionId) {
+              changeLogStmt.run(
+                product.id,
+                "created",
+                null,
+                null,
+                null,
+                now,
+                sessionId,
+              );
+            }
           } else if (existing.hash !== hash) {
+            // PRODUCT UPDATED
             insertStmt.run(
               product.id,
               product.name,
               product.description,
               product.groupCode,
+              product.imageUrl,
               product.searchName,
               product.priceUnit,
               product.productGroupId,
@@ -175,6 +358,27 @@ export class ProductDatabase {
               now,
             );
             updated++;
+
+            // Log field-level changes
+            if (changeLogStmt && sessionId) {
+              const fieldChanges = this.detectFieldChanges(existing, {
+                ...product,
+                hash,
+                lastSync: now,
+              });
+
+              for (const change of fieldChanges) {
+                changeLogStmt.run(
+                  product.id,
+                  "updated",
+                  change.field,
+                  change.oldValue,
+                  change.newValue,
+                  now,
+                  sessionId,
+                );
+              }
+            }
           } else {
             unchanged++;
           }
@@ -182,9 +386,51 @@ export class ProductDatabase {
       },
     );
 
-    transaction(products);
+    transaction(products, syncSessionId);
 
     return { inserted, updated, unchanged };
+  }
+
+  /**
+   * Detect field-level changes between old and new product
+   */
+  private detectFieldChanges(
+    oldProduct: Product,
+    newProduct: Product,
+  ): Array<{ field: string; oldValue: string; newValue: string }> {
+    const changes: Array<{ field: string; oldValue: string; newValue: string }> =
+      [];
+
+    const fields: Array<keyof Product> = [
+      "name",
+      "description",
+      "groupCode",
+      "imageUrl",
+      "packageContent",
+      "searchName",
+      "priceUnit",
+      "productGroupId",
+      "productGroupDescription",
+      "minQty",
+      "multipleQty",
+      "maxQty",
+      "price",
+    ];
+
+    for (const field of fields) {
+      const oldValue = oldProduct[field];
+      const newValue = newProduct[field];
+
+      if (oldValue !== newValue) {
+        changes.push({
+          field,
+          oldValue: String(oldValue ?? ""),
+          newValue: String(newValue ?? ""),
+        });
+      }
+    }
+
+    return changes;
   }
 
   /**
@@ -581,6 +827,221 @@ export class ProductDatabase {
     `);
 
     return stmt.all() as any[];
+  }
+
+  /**
+   * Create a new sync session
+   */
+  createSyncSession(syncMode: "full" | "incremental" | "forced"): string {
+    const sessionId = `sync-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+
+    const stmt = this.db.prepare(`
+      INSERT INTO sync_sessions (
+        id, syncType, startedAt, status, syncMode
+      )
+      VALUES (?, 'products', ?, 'running', ?)
+    `);
+
+    stmt.run(sessionId, Date.now(), syncMode);
+    return sessionId;
+  }
+
+  /**
+   * Update sync session progress
+   */
+  updateSyncSession(
+    sessionId: string,
+    data: {
+      totalPages?: number;
+      pagesProcessed?: number;
+      itemsProcessed?: number;
+      itemsCreated?: number;
+      itemsUpdated?: number;
+      itemsDeleted?: number;
+      imagesDownloaded?: number;
+    },
+  ): void {
+    const updates: string[] = [];
+    const values: any[] = [];
+
+    if (data.totalPages !== undefined) {
+      updates.push("totalPages = ?");
+      values.push(data.totalPages);
+    }
+    if (data.pagesProcessed !== undefined) {
+      updates.push("pagesProcessed = ?");
+      values.push(data.pagesProcessed);
+    }
+    if (data.itemsProcessed !== undefined) {
+      updates.push("itemsProcessed = ?");
+      values.push(data.itemsProcessed);
+    }
+    if (data.itemsCreated !== undefined) {
+      updates.push("itemsCreated = ?");
+      values.push(data.itemsCreated);
+    }
+    if (data.itemsUpdated !== undefined) {
+      updates.push("itemsUpdated = ?");
+      values.push(data.itemsUpdated);
+    }
+    if (data.itemsDeleted !== undefined) {
+      updates.push("itemsDeleted = ?");
+      values.push(data.itemsDeleted);
+    }
+    if (data.imagesDownloaded !== undefined) {
+      updates.push("imagesDownloaded = ?");
+      values.push(data.imagesDownloaded);
+    }
+
+    if (updates.length === 0) return;
+
+    values.push(sessionId);
+
+    const stmt = this.db.prepare(`
+      UPDATE sync_sessions
+      SET ${updates.join(", ")}
+      WHERE id = ?
+    `);
+
+    stmt.run(...values);
+  }
+
+  /**
+   * Complete sync session
+   */
+  completeSyncSession(
+    sessionId: string,
+    status: "completed" | "failed" | "partial",
+    errorMessage?: string,
+  ): void {
+    const stmt = this.db.prepare(`
+      UPDATE sync_sessions
+      SET status = ?, completedAt = ?, errorMessage = ?
+      WHERE id = ?
+    `);
+
+    stmt.run(status, Date.now(), errorMessage || null, sessionId);
+  }
+
+  /**
+   * Get sync session by ID
+   */
+  getSyncSession(sessionId: string): SyncSession | null {
+    const stmt = this.db.prepare("SELECT * FROM sync_sessions WHERE id = ?");
+    return (stmt.get(sessionId) as SyncSession) || null;
+  }
+
+  /**
+   * Get recent sync sessions
+   */
+  getRecentSyncSessions(limit: number = 10): SyncSession[] {
+    const stmt = this.db.prepare(`
+      SELECT * FROM sync_sessions
+      ORDER BY startedAt DESC
+      LIMIT ?
+    `);
+    return stmt.all(limit) as SyncSession[];
+  }
+
+  /**
+   * Log a product change
+   */
+  logProductChange(change: Omit<ProductChange, "id" | "changedAt">): void {
+    const stmt = this.db.prepare(`
+      INSERT INTO product_changes (
+        productId, changeType, fieldChanged, oldValue, newValue, changedAt, syncSessionId
+      )
+      VALUES (?, ?, ?, ?, ?, ?, ?)
+    `);
+
+    stmt.run(
+      change.productId,
+      change.changeType,
+      change.fieldChanged || null,
+      change.oldValue || null,
+      change.newValue || null,
+      Date.now(),
+      change.syncSessionId,
+    );
+  }
+
+  /**
+   * Get product change history
+   */
+  getProductChangeHistory(
+    productId: string,
+    limit: number = 50,
+  ): ProductChange[] {
+    const stmt = this.db.prepare(`
+      SELECT * FROM product_changes
+      WHERE productId = ?
+      ORDER BY changedAt DESC
+      LIMIT ?
+    `);
+    return stmt.all(productId, limit) as ProductChange[];
+  }
+
+  /**
+   * Get all changes for a sync session
+   */
+  getChangesForSession(sessionId: string): ProductChange[] {
+    const stmt = this.db.prepare(`
+      SELECT * FROM product_changes
+      WHERE syncSessionId = ?
+      ORDER BY changedAt ASC
+    `);
+    return stmt.all(sessionId) as ProductChange[];
+  }
+
+  /**
+   * Update product image metadata (imageLocalPath, imageDownloadedAt)
+   */
+  updateProductImage(
+    productId: string,
+    imageLocalPath: string,
+    downloadedAt: number,
+  ): void {
+    const stmt = this.db.prepare(`
+      UPDATE products
+      SET imageLocalPath = ?, imageDownloadedAt = ?
+      WHERE id = ?
+    `);
+
+    stmt.run(imageLocalPath, downloadedAt, productId);
+  }
+
+  /**
+   * Upsert product image metadata in product_images table
+   */
+  upsertProductImage(imageData: ProductImage): void {
+    const stmt = this.db.prepare(`
+      INSERT INTO product_images (
+        productId, imageUrl, localPath, downloadedAt,
+        fileSize, mimeType, hash, width, height
+      )
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT(productId) DO UPDATE SET
+        imageUrl = excluded.imageUrl,
+        localPath = excluded.localPath,
+        downloadedAt = excluded.downloadedAt,
+        fileSize = excluded.fileSize,
+        mimeType = excluded.mimeType,
+        hash = excluded.hash,
+        width = excluded.width,
+        height = excluded.height
+    `);
+
+    stmt.run(
+      imageData.productId,
+      imageData.imageUrl || null,
+      imageData.localPath || null,
+      imageData.downloadedAt || null,
+      imageData.fileSize || null,
+      imageData.mimeType || null,
+      imageData.hash || null,
+      imageData.width || null,
+      imageData.height || null,
+    );
   }
 
   /**

@@ -122,23 +122,31 @@ export class SyncCheckpointManager {
       return 1;
     }
 
-    // Se l'ultima sync è completata, verifichiamo se è recente (< 1 ora)
+    // Se l'ultima sync è completata, verifichiamo se è recente (< 24 ore)
     if (checkpoint.status === "completed") {
       const now = Date.now();
       const completedAt = checkpoint.completedAt || checkpoint.startedAt;
-      const ageMinutes = (now - completedAt) / (1000 * 60);
+      const ageHours = (now - completedAt) / (1000 * 60 * 60);
 
-      // Se la sync è recente (< 60 minuti), skippa
-      if (ageMinutes < 60) {
+      // Se la sync è molto recente (< 1 ora), skippa
+      if (ageHours < 1) {
         logger.info(
-          `Sync ${syncType} completata ${Math.round(ageMinutes)} minuti fa, skip`,
+          `Sync ${syncType} completata ${Math.round(ageHours * 60)} minuti fa, skip`,
         );
         return -1; // Segnale per saltare la sync
       }
 
-      // Altrimenti re-sync completo
+      // Se la sync è recente (< 24 ore), skippa
+      if (ageHours < 24) {
+        logger.info(
+          `Sync ${syncType} completata ${Math.round(ageHours)} ore fa, skip (threshold 24h)`,
+        );
+        return -1; // Segnale per saltare la sync
+      }
+
+      // Altrimenti re-sync completo (>= 24 ore)
       logger.info(
-        `Sync ${syncType} completata ${Math.round(ageMinutes)} minuti fa, re-sync da pagina 1`,
+        `Sync ${syncType} completata ${Math.round(ageHours)} ore fa, re-sync completo da pagina 1`,
       );
       return 1;
     }

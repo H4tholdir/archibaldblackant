@@ -28,6 +28,7 @@ import { PendingOrdersView } from "./pages/PendingOrdersView";
 import { DraftOrders } from "./pages/DraftOrders";
 import { CustomerList } from "./pages/CustomerList";
 import { CustomerEdit } from "./pages/CustomerEdit";
+import { ProductList } from "./pages/ProductList";
 import { pendingOrdersService } from "./services/pending-orders-service";
 import { getDraftOrders } from "./services/draftOrderStorage";
 
@@ -88,13 +89,15 @@ function AppRouter() {
   // Show loading spinner while checking auth
   if (auth.isLoading) {
     return (
-      <div style={{
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        minHeight: "100vh",
-        background: "#1a1a1a"
-      }}>
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          minHeight: "100vh",
+          background: "#1a1a1a",
+        }}
+      >
         <LiquidLoader text="Caricamento" />
       </div>
     );
@@ -237,6 +240,13 @@ function AppRouter() {
               className={`btn btn-sm ${location.pathname === "/customers" ? "btn-primary" : "btn-secondary"}`}
             >
               👥 Clienti
+            </button>
+            <button
+              type="button"
+              onClick={() => navigate("/products")}
+              className={`btn btn-sm ${location.pathname === "/products" ? "btn-primary" : "btn-secondary"}`}
+            >
+              📦 Prodotti
             </button>
             <button
               type="button"
@@ -395,6 +405,27 @@ function AppRouter() {
               <AppHeader />
               <main className="app-main" style={{ padding: "0" }}>
                 <CustomerEdit />
+              </main>
+              <footer className="app-footer">
+                <p>v1.0.0 • Fresis Team</p>
+              </footer>
+              <CacheSyncProgress />
+            </div>
+          }
+        />
+
+        {/* Products route */}
+        <Route
+          path="/products"
+          element={
+            <div
+              className="app"
+              style={{ marginTop: isOffline ? "64px" : "0" }}
+            >
+              <SyncBanner />
+              <AppHeader />
+              <main className="app-main" style={{ padding: "0" }}>
+                <ProductList />
               </main>
               <footer className="app-footer">
                 <p>v1.0.0 • Fresis Team</p>

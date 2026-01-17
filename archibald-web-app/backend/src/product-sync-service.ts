@@ -4,6 +4,8 @@ import { BrowserPool } from "./browser-pool";
 import { logger } from "./logger";
 import { SyncCheckpointManager } from "./sync-checkpoint";
 import { config } from "./config";
+import { ImageDownloader } from "./image-downloader";
+import type { Product } from "./product-db";
 
 export interface SyncProgress {
   status: "idle" | "syncing" | "completed" | "error";
@@ -19,6 +21,7 @@ export class ProductSyncService extends EventEmitter {
   private db: ProductDatabase;
   private browserPool: BrowserPool;
   private checkpointManager: SyncCheckpointManager;
+  private imageDownloader: ImageDownloader;
   private syncInProgress = false;
   private shouldStop = false;
   private paused = false;
@@ -36,6 +39,7 @@ export class ProductSyncService extends EventEmitter {
     this.db = ProductDatabase.getInstance();
     this.browserPool = BrowserPool.getInstance();
     this.checkpointManager = SyncCheckpointManager.getInstance();
+    this.imageDownloader = new ImageDownloader();
   }
 
   static getInstance(): ProductSyncService {
@@ -173,6 +177,11 @@ export class ProductSyncService extends EventEmitter {
 
     // Segna sync come iniziata
     this.checkpointManager.startSync("products");
+
+    // Create sync session for audit logging
+    const syncMode = resumePoint > 1 ? "incremental" : "full";
+    const syncSessionId = this.db.createSyncSession(syncMode);
+    logger.info(`📝 Created sync session: ${syncSessionId} (mode: ${syncMode})`);
 
     this.updateProgress({
       status: "syncing",
@@ -431,6 +440,7 @@ export class ProductSyncService extends EventEmitter {
             name: string;
             description?: string;
             groupCode?: string;
+            imageUrl?: string;
             searchName?: string;
             priceUnit?: string;
             productGroupId?: string;
@@ -452,7 +462,18 @@ export class ProductSyncService extends EventEmitter {
             const description =
               (cells[4] as Element)?.textContent?.trim() || "";
             const groupCode = (cells[5] as Element)?.textContent?.trim() || "";
-            // cells[6] è IMMAGINE (skip)
+
+            // cells[6] è IMMAGINE - extract URL from img src attribute
+            let imageUrl = "";
+            try {
+              const imgElement = cells[6]?.querySelector("img");
+              if (imgElement) {
+                imageUrl = imgElement.getAttribute("src") || "";
+              }
+            } catch (e) {
+              // Ignore image extraction errors
+            }
+
             const packageContent =
               (cells[7] as Element)?.textContent?.trim() || "";
             const searchName = (cells[8] as Element)?.textContent?.trim() || "";
@@ -495,6 +516,7 @@ export class ProductSyncService extends EventEmitter {
               name: productName,
               description: description || undefined,
               groupCode: groupCode || undefined,
+              imageUrl: imageUrl || undefined,
               searchName: searchName || undefined,
               priceUnit: priceUnit || undefined,
               productGroupId: productGroupId || undefined,
@@ -519,10 +541,86 @@ export class ProductSyncService extends EventEmitter {
 
         // Scrivi immediatamente nel database (aggiornamento progressivo)
         if (pageProducts.length > 0) {
-          const batchStats = this.db.upsertProducts(pageProducts);
+          const batchStats = this.db.upsertProducts(
+            pageProducts,
+            syncSessionId,
+          );
           logger.info(
             `Pagina ${currentPage} salvata nel DB: ${batchStats.inserted} nuovi, ${batchStats.updated} aggiornati${batchStats.unchanged > 0 ? `, ${batchStats.unchanged} invariati` : ""}`,
           );
+
+          // Update sync session counters
+          this.db.updateSyncSession(syncSessionId, {
+            totalPages,
+            pagesProcessed: currentPage,
+            itemsProcessed: allProducts.length + pageProducts.length,
+            itemsCreated: batchStats.inserted,
+            itemsUpdated: batchStats.updated,
+          });
+
+          // Download images for products with imageUrl
+          const productsWithImages = pageProducts.filter((p) => p.imageUrl);
+          if (productsWithImages.length > 0) {
+            logger.info(
+              `📥 Downloading ${productsWithImages.length} images from page ${currentPage}...`,
+            );
+
+            const imageResults = await this.imageDownloader.downloadBatch(
+              productsWithImages.map((p) => ({
+                imageUrl: p.imageUrl!,
+                productName: p.name,
+              })),
+              bot.page!,
+              (current, total) => {
+                if (current % 10 === 0 || current === total) {
+                  logger.debug(`Image download progress: ${current}/${total}`);
+                }
+              },
+            );
+
+            const successCount = imageResults.filter((r) => r.success).length;
+            const failedCount = imageResults.length - successCount;
+            logger.info(
+              `✅ Downloaded ${successCount}/${productsWithImages.length} images${failedCount > 0 ? ` (${failedCount} failed)` : ""}`,
+            );
+
+            // Update sync session with images downloaded
+            const currentSession = this.db.getSyncSession(syncSessionId);
+            if (currentSession) {
+              this.db.updateSyncSession(syncSessionId, {
+                imagesDownloaded:
+                  (currentSession.imagesDownloaded || 0) + successCount,
+              });
+            }
+
+            // Update products with image metadata
+            for (let i = 0; i < productsWithImages.length; i++) {
+              const product = productsWithImages[i];
+              const imageResult = imageResults[i];
+
+              if (imageResult.success && imageResult.localPath) {
+                // Update product with image local path
+                this.db.updateProductImage(
+                  product.id,
+                  imageResult.localPath,
+                  Date.now(),
+                );
+
+                // Store image metadata in product_images table
+                this.db.upsertProductImage({
+                  productId: product.id,
+                  imageUrl: product.imageUrl,
+                  localPath: imageResult.localPath,
+                  downloadedAt: Date.now(),
+                  fileSize: imageResult.fileSize,
+                  mimeType: imageResult.mimeType,
+                  hash: imageResult.hash,
+                  width: imageResult.width,
+                  height: imageResult.height,
+                });
+              }
+            }
+          }
         }
 
         // Salva checkpoint dopo ogni pagina completata
@@ -712,12 +810,27 @@ export class ProductSyncService extends EventEmitter {
         message: `Sincronizzazione completata: ${totalInDb} prodotti disponibili${deletedCount > 0 ? ` (${deletedCount} eliminati)` : ""}`,
       });
 
+      // Complete sync session successfully
+      this.db.completeSyncSession(syncSessionId, "completed");
+      logger.info("✅ Sync session completed successfully", {
+        sessionId: syncSessionId,
+        totalInDb,
+        deletedCount,
+      });
+
       logger.info("Sincronizzazione completata con successo", {
         totalInDb,
         deletedCount,
       });
     } catch (error) {
       logger.error("Errore durante la sincronizzazione", { error });
+
+      // Complete sync session with error
+      this.db.completeSyncSession(
+        syncSessionId,
+        "failed",
+        error instanceof Error ? error.message : "Errore sconosciuto",
+      );
 
       // Segna checkpoint come fallito (mantiene lastSuccessfulPage per ripresa)
       this.checkpointManager.failSync(
@@ -740,6 +853,30 @@ export class ProductSyncService extends EventEmitter {
       }
       this.syncInProgress = false;
     }
+  }
+
+  /**
+   * Force a full sync by resetting the checkpoint
+   * This will trigger a complete re-sync on the next sync operation
+   */
+  forceFullSync(): void {
+    this.checkpointManager.resetCheckpoint("products");
+    logger.info("🔄 Full sync forced - checkpoint reset");
+  }
+
+  /**
+   * Get last sync session info
+   */
+  getLastSyncSession() {
+    const recentSessions = this.db.getRecentSyncSessions(1);
+    return recentSessions.length > 0 ? recentSessions[0] : null;
+  }
+
+  /**
+   * Get sync history
+   */
+  getSyncHistory(limit: number = 10) {
+    return this.db.getRecentSyncSessions(limit);
   }
 
   private updateProgress(progress: SyncProgress): void {

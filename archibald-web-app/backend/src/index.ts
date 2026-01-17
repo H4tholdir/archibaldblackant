@@ -1002,6 +1002,215 @@ app.get(
   },
 );
 
+// Get product sync history (last N sync sessions)
+app.get(
+  "/api/products/sync-history",
+  (req: Request, res: Response<ApiResponse>) => {
+    try {
+      const limitParam = req.query.limit as string | undefined;
+      const limit = limitParam ? parseInt(limitParam, 10) : 10;
+
+      logger.info("Richiesta storico sync prodotti", { limit });
+
+      const sessions = productSyncService.getSyncHistory(limit);
+
+      res.json({
+        success: true,
+        data: {
+          sessions: sessions.map((s) => ({
+            ...s,
+            startedAt: new Date(s.startedAt).toISOString(),
+            completedAt: s.completedAt
+              ? new Date(s.completedAt).toISOString()
+              : null,
+            duration: s.completedAt
+              ? s.completedAt - s.startedAt
+              : Date.now() - s.startedAt,
+          })),
+          count: sessions.length,
+        },
+      });
+    } catch (error) {
+      logger.error("Errore API /api/products/sync-history", { error });
+
+      res.status(500).json({
+        success: false,
+        error:
+          error instanceof Error
+            ? error.message
+            : "Errore durante il recupero dello storico sync",
+      });
+    }
+  },
+);
+
+// Get last sync session details
+app.get(
+  "/api/products/last-sync",
+  (req: Request, res: Response<ApiResponse>) => {
+    try {
+      logger.info("Richiesta ultima sessione sync prodotti");
+
+      const lastSession = productSyncService.getLastSyncSession();
+
+      if (!lastSession) {
+        return res.json({
+          success: true,
+          data: null,
+          message: "Nessuna sincronizzazione trovata",
+        });
+      }
+
+      res.json({
+        success: true,
+        data: {
+          ...lastSession,
+          startedAt: new Date(lastSession.startedAt).toISOString(),
+          completedAt: lastSession.completedAt
+            ? new Date(lastSession.completedAt).toISOString()
+            : null,
+          duration: lastSession.completedAt
+            ? lastSession.completedAt - lastSession.startedAt
+            : Date.now() - lastSession.startedAt,
+        },
+      });
+    } catch (error) {
+      logger.error("Errore API /api/products/last-sync", { error });
+
+      res.status(500).json({
+        success: false,
+        error:
+          error instanceof Error
+            ? error.message
+            : "Errore durante il recupero dell'ultima sync",
+      });
+    }
+  },
+);
+
+// Get product change history by product ID
+app.get(
+  "/api/products/:productId/changes",
+  (req: Request, res: Response<ApiResponse>) => {
+    try {
+      const { productId } = req.params;
+      const limitParam = req.query.limit as string | undefined;
+      const limit = limitParam ? parseInt(limitParam, 10) : 50;
+
+      logger.info("Richiesta storico modifiche prodotto", { productId, limit });
+
+      const changes = productDb.getProductChangeHistory(productId, limit);
+
+      res.json({
+        success: true,
+        data: {
+          productId,
+          changes: changes.map((c) => ({
+            ...c,
+            changedAt: new Date(c.changedAt).toISOString(),
+          })),
+          count: changes.length,
+        },
+      });
+    } catch (error) {
+      logger.error("Errore API /api/products/:productId/changes", { error });
+
+      res.status(500).json({
+        success: false,
+        error:
+          error instanceof Error
+            ? error.message
+            : "Errore durante il recupero dello storico modifiche",
+      });
+    }
+  },
+);
+
+// Get all changes for a specific sync session
+app.get(
+  "/api/products/sync-session/:sessionId/changes",
+  (req: Request, res: Response<ApiResponse>) => {
+    try {
+      const { sessionId } = req.params;
+
+      logger.info("Richiesta modifiche per sessione sync", { sessionId });
+
+      const session = productDb.getSyncSession(sessionId);
+      if (!session) {
+        return res.status(404).json({
+          success: false,
+          error: "Sessione di sync non trovata",
+        });
+      }
+
+      const changes = productDb.getChangesForSession(sessionId);
+
+      res.json({
+        success: true,
+        data: {
+          session: {
+            ...session,
+            startedAt: new Date(session.startedAt).toISOString(),
+            completedAt: session.completedAt
+              ? new Date(session.completedAt).toISOString()
+              : null,
+          },
+          changes: changes.map((c) => ({
+            ...c,
+            changedAt: new Date(c.changedAt).toISOString(),
+          })),
+          changeCount: changes.length,
+        },
+      });
+    } catch (error) {
+      logger.error(
+        "Errore API /api/products/sync-session/:sessionId/changes",
+        { error },
+      );
+
+      res.status(500).json({
+        success: false,
+        error:
+          error instanceof Error
+            ? error.message
+            : "Errore durante il recupero delle modifiche",
+      });
+    }
+  },
+);
+
+// Force full product sync (admin only)
+app.post(
+  "/api/products/force-full-sync",
+  authenticateJWT,
+  requireAdmin,
+  (req: AuthRequest, res: Response<ApiResponse>) => {
+    try {
+      logger.info("Richiesta force full sync prodotti", {
+        userId: req.user?.userId,
+      });
+
+      productSyncService.forceFullSync();
+
+      res.json({
+        success: true,
+        message:
+          "Full sync forzato. La prossima sincronizzazione sarà completa.",
+      });
+    } catch (error) {
+      logger.error("Errore API /api/products/force-full-sync", { error });
+
+      res.status(500).json({
+        success: false,
+        error:
+          error instanceof Error
+            ? error.message
+            : "Errore durante il force full sync",
+      });
+    }
+  },
+);
+
 // Quick check endpoint - verifies if sync is needed (fast check)
 app.get(
   "/api/sync/quick-check",

@@ -1,0 +1,897 @@
+[
+  {
+    "totalCells": 15,
+    "cells": [
+      {
+        "index": 0,
+        "text": "",
+        "innerHTML": "<span class=\"dxWeb_edtCheckBoxUnchecked_XafTheme dxICheckBox_XafTheme dxichSys dx-not-acc\" id=\"Vertical_v26_62153608_LE_v26_DXSelBtn0_D\"><span class=\"dxKBSW\"><input id=\"Vertical_v26_62153608_LE_v26_DX",
+        "hasImage": false,
+        "hasCheckbox": false,
+        "hasButton": false,
+        "classes": "dxgvCommandColumn_XafTheme dxgv dx-ac"
+      },
+      {
+        "index": 1,
+        "text": "<!--\nASPx.AddDisabledItems('Vertical_v26_62153608_LE_v26_DXCBtn0',[[['dxbDisabled_XafTheme'],[''],[''],['','TC']]]);\n\n//-->",
+        "innerHTML": "<a class=\"dxbButton_XafTheme dxgvCommandColumnItem_XafTheme dxgv__cci dxbButtonSys\" data-args=\"[['CustomButton','Edit',0],1]\" data-isimage=\"true\" id=\"Vertical_v26_62153608_LE_v26_DXCBtn0\" href=\"javasc",
+        "hasImage": true,
+        "hasCheckbox": false,
+        "hasButton": false,
+        "classes": "dxgvCommandColumn_XafTheme ActionCell dxgv dx-ac",
+        "image": {
+          "src": "/Archibald/DXX.axd?handlerName=ImageResource&name=Action_Edit&enbl=True&fldr=TemplatesV2Images&v=4e7a4043c47298d1c0d5fc61309c91a9",
+          "alt": "Modifica",
+          "width": "",
+          "height": "",
+          "className": "dx-vam",
+          "isDataUri": false,
+          "hasOnClick": false,
+          "parentHtml": "<a class=\"dxbButton_XafTheme dxgvCommandColumnItem_XafTheme dxgv__cci dxbButtonSys\" data-args=\"[['CustomButton','Edit',0],1]\" data-isimage=\"true\" id=\"Vertical_v26_62153608_LE_v26_DXCBtn0\" href=\"javascript:;\"><img title=\"Modifica\" class=\"dx-vam\" src=\"/Archibald/DXX.axd?handlerName=ImageResource&amp;n"
+        }
+      },
+      {
+        "index": 2,
+        "text": "10019200",
+        "innerHTML": "10019200",
+        "hasImage": false,
+        "hasCheckbox": false,
+        "hasButton": false,
+        "classes": "dxgv dx-al"
+      },
+      {
+        "index": 3,
+        "text": "ENGO03.000",
+        "innerHTML": "ENGO03.000",
+        "hasImage": false,
+        "hasCheckbox": false,
+        "hasButton": false,
+        "classes": "dxgv dx-al"
+      },
+      {
+        "index": 4,
+        "text": "ENGO Charging base",
+        "innerHTML": "ENGO Charging base",
+        "hasImage": false,
+        "hasCheckbox": false,
+        "hasButton": false,
+        "classes": "dxgv dx-al"
+      },
+      {
+        "index": 5,
+        "text": "69",
+        "innerHTML": "69",
+        "hasImage": false,
+        "hasCheckbox": false,
+        "hasButton": false,
+        "classes": "dxgv dx-al"
+      },
+      {
+        "index": 6,
+        "text": "",
+        "innerHTML": "<div id=\"Vertical_v26_62153608_LE_v26_cell0_16_xaf_ImageCalc\" class=\"WebEditorCell \" style=\"text-align:center;\">\n\t\t\t\t\t\t\t\t<div id=\"Vertical_v26_62153608_LE_v26_cell0_16_xaf_ImageCalc_View\">\n\t\t\t\t\t\t\t\t\t<d",
+        "hasImage": true,
+        "hasCheckbox": false,
+        "hasButton": false,
+        "classes": "dxgv dx-ac",
+        "image": {
+          "src": "/Archibald/DXX.axd?handlerName=BinaryDataHttpHandler&processorID=xafkidemovb.Module.CRMKI.INVENTTABLE(4994)ImageCalc&d=PropertyName%3dImageCalc%26ObjectHandle%3dxafkidemovb.Module.CRMKI.INVENTTABLE(4994)%26OS%3d46419042%26TimeStamp%3d1189796702",
+          "alt": "",
+          "width": "",
+          "height": "",
+          "className": "",
+          "isDataUri": false,
+          "hasOnClick": false,
+          "parentHtml": "<div id=\"Vertical_v26_62153608_LE_v26_cell0_16_xaf_ImageCalc_View_ctl01\" style=\"overflow:hidden;height:48px;\">\n\t\t\t\t\t\t\t\t\t\t\t<img id=\"Vertical_v26_62153608_LE_v26_cell0_16_xaf_ImageCalc_View_IC\" onload=\"SetControlVisibility(&quot;Vertical_v26_62153608_LE_v26_cell0_16_xaf_ImageCalc_View_ctl01&quot;, tru"
+        }
+      },
+      {
+        "index": 7,
+        "text": "1",
+        "innerHTML": "1",
+        "hasImage": false,
+        "hasCheckbox": false,
+        "hasButton": false,
+        "classes": "dxgv dx-ar"
+      },
+      {
+        "index": 8,
+        "text": "ENGO03.000",
+        "innerHTML": "ENGO03.000",
+        "hasImage": false,
+        "hasCheckbox": false,
+        "hasButton": false,
+        "classes": "dxgv dx-al"
+      },
+      {
+        "index": 9,
+        "text": "0,00",
+        "innerHTML": "0,00",
+        "hasImage": false,
+        "hasCheckbox": false,
+        "hasButton": false,
+        "classes": "dxgv dx-ar"
+      },
+      {
+        "index": 10,
+        "text": "11660",
+        "innerHTML": "11660",
+        "hasImage": false,
+        "hasCheckbox": false,
+        "hasButton": false,
+        "classes": "dxgv dx-al"
+      },
+      {
+        "index": 11,
+        "text": "STRUMENTI ENDO",
+        "innerHTML": "STRUMENTI ENDO",
+        "hasImage": false,
+        "hasCheckbox": false,
+        "hasButton": false,
+        "classes": "dxgv dx-al"
+      },
+      {
+        "index": 12,
+        "text": "1,00",
+        "innerHTML": "1,00",
+        "hasImage": false,
+        "hasCheckbox": false,
+        "hasButton": false,
+        "classes": "dxgv dx-ar"
+      },
+      {
+        "index": 13,
+        "text": "1,00",
+        "innerHTML": "1,00",
+        "hasImage": false,
+        "hasCheckbox": false,
+        "hasButton": false,
+        "classes": "dxgv dx-ar"
+      },
+      {
+        "index": 14,
+        "text": "100,00",
+        "innerHTML": "100,00",
+        "hasImage": false,
+        "hasCheckbox": false,
+        "hasButton": false,
+        "classes": "dxgv dx-ar"
+      }
+    ],
+    "mapped": {
+      "id": "10019200",
+      "name": "ENGO03.000",
+      "description": "ENGO Charging base",
+      "groupCode": "69",
+      "imageCell": {
+        "text": "",
+        "html": "<div id=\"Vertical_v26_62153608_LE_v26_cell0_16_xaf_ImageCalc\" class=\"WebEditorCell \" style=\"text-align:center;\">\n\t\t\t\t\t\t\t\t<div id=\"Vertical_v26_62153608_LE_v26_cell0_16_xaf_ImageCalc_View\">\n\t\t\t\t\t\t\t\t\t<div style=\"height:48px;\">\n\t\t\t\t\t\t\t\t\t\t<div id=\"Vertical_v26_62153608_LE_v26_cell0_16_xaf_ImageCalc_View_ctl01\" style=\"overflow:hidden;height:48px;\">\n\t\t\t\t\t\t\t\t\t\t\t<img id=\"Vertical_v26_62153608_LE_v26_cell0_16_xaf_ImageCalc_View_IC\" onload=\"SetControlVisibility(&quot;Vertical_v26_62153608_LE_v26_cell0_16_",
+        "hasImg": true
+      },
+      "packageContent": "1",
+      "searchName": "ENGO03.000",
+      "priceUnit": "0,00",
+      "productGroupId": "11660",
+      "productGroupDescription": "STRUMENTI ENDO",
+      "minQty": "1,00",
+      "multipleQty": "1,00",
+      "maxQty": "100,00"
+    }
+  },
+  {
+    "totalCells": 15,
+    "cells": [
+      {
+        "index": 0,
+        "text": "",
+        "innerHTML": "<span class=\"dxWeb_edtCheckBoxUnchecked_XafTheme dxICheckBox_XafTheme dxichSys dx-not-acc\" id=\"Vertical_v26_62153608_LE_v26_DXSelBtn1_D\"><span class=\"dxKBSW\"><input id=\"Vertical_v26_62153608_LE_v26_DX",
+        "hasImage": false,
+        "hasCheckbox": false,
+        "hasButton": false,
+        "classes": "dxgvCommandColumn_XafTheme dxgv dx-ac"
+      },
+      {
+        "index": 1,
+        "text": "<!--\nASPx.AddDisabledItems('Vertical_v26_62153608_LE_v26_DXCBtn1',[[['dxbDisabled_XafTheme'],[''],[''],['','TC']]]);\n\n//-->",
+        "innerHTML": "<a class=\"dxbButton_XafTheme dxgvCommandColumnItem_XafTheme dxgv__cci dxbButtonSys\" data-args=\"[['CustomButton','Edit',1],1]\" data-isimage=\"true\" id=\"Vertical_v26_62153608_LE_v26_DXCBtn1\" href=\"javasc",
+        "hasImage": true,
+        "hasCheckbox": false,
+        "hasButton": false,
+        "classes": "dxgvCommandColumn_XafTheme ActionCell dxgv dx-ac",
+        "image": {
+          "src": "/Archibald/DXX.axd?handlerName=ImageResource&name=Action_Edit&enbl=True&fldr=TemplatesV2Images&v=4e7a4043c47298d1c0d5fc61309c91a9",
+          "alt": "Modifica",
+          "width": "",
+          "height": "",
+          "className": "dx-vam",
+          "isDataUri": false,
+          "hasOnClick": false,
+          "parentHtml": "<a class=\"dxbButton_XafTheme dxgvCommandColumnItem_XafTheme dxgv__cci dxbButtonSys\" data-args=\"[['CustomButton','Edit',1],1]\" data-isimage=\"true\" id=\"Vertical_v26_62153608_LE_v26_DXCBtn1\" href=\"javascript:;\"><img title=\"Modifica\" class=\"dx-vam\" src=\"/Archibald/DXX.axd?handlerName=ImageResource&amp;n"
+        }
+      },
+      {
+        "index": 2,
+        "text": "10019197",
+        "innerHTML": "10019197",
+        "hasImage": false,
+        "hasCheckbox": false,
+        "hasButton": false,
+        "classes": "dxgv dx-al"
+      },
+      {
+        "index": 3,
+        "text": "ENGO01.000",
+        "innerHTML": "ENGO01.000",
+        "hasImage": false,
+        "hasCheckbox": false,
+        "hasButton": false,
+        "classes": "dxgv dx-al"
+      },
+      {
+        "index": 4,
+        "text": "ENGO Handpiece EU + UK",
+        "innerHTML": "ENGO Handpiece EU + UK",
+        "hasImage": false,
+        "hasCheckbox": false,
+        "hasButton": false,
+        "classes": "dxgv dx-al"
+      },
+      {
+        "index": 5,
+        "text": "69",
+        "innerHTML": "69",
+        "hasImage": false,
+        "hasCheckbox": false,
+        "hasButton": false,
+        "classes": "dxgv dx-al"
+      },
+      {
+        "index": 6,
+        "text": "",
+        "innerHTML": "<div id=\"Vertical_v26_62153608_LE_v26_cell1_16_xaf_ImageCalc\" class=\"WebEditorCell \" style=\"text-align:center;\">\n\t\t\t\t\t\t\t\t<div id=\"Vertical_v26_62153608_LE_v26_cell1_16_xaf_ImageCalc_View\">\n\t\t\t\t\t\t\t\t\t<d",
+        "hasImage": true,
+        "hasCheckbox": false,
+        "hasButton": false,
+        "classes": "dxgv dx-ac",
+        "image": {
+          "src": "/Archibald/DXX.axd?handlerName=BinaryDataHttpHandler&processorID=xafkidemovb.Module.CRMKI.INVENTTABLE(5089)ImageCalc&d=PropertyName%3dImageCalc%26ObjectHandle%3dxafkidemovb.Module.CRMKI.INVENTTABLE(5089)%26OS%3d46419042%26TimeStamp%3d1189796702",
+          "alt": "",
+          "width": "",
+          "height": "",
+          "className": "",
+          "isDataUri": false,
+          "hasOnClick": false,
+          "parentHtml": "<div id=\"Vertical_v26_62153608_LE_v26_cell1_16_xaf_ImageCalc_View_ctl01\" style=\"overflow:hidden;height:48px;\">\n\t\t\t\t\t\t\t\t\t\t\t<img id=\"Vertical_v26_62153608_LE_v26_cell1_16_xaf_ImageCalc_View_IC\" onload=\"SetControlVisibility(&quot;Vertical_v26_62153608_LE_v26_cell1_16_xaf_ImageCalc_View_ctl01&quot;, tru"
+        }
+      },
+      {
+        "index": 7,
+        "text": "1",
+        "innerHTML": "1",
+        "hasImage": false,
+        "hasCheckbox": false,
+        "hasButton": false,
+        "classes": "dxgv dx-ar"
+      },
+      {
+        "index": 8,
+        "text": "ENGO01.000",
+        "innerHTML": "ENGO01.000",
+        "hasImage": false,
+        "hasCheckbox": false,
+        "hasButton": false,
+        "classes": "dxgv dx-al"
+      },
+      {
+        "index": 9,
+        "text": "0,00",
+        "innerHTML": "0,00",
+        "hasImage": false,
+        "hasCheckbox": false,
+        "hasButton": false,
+        "classes": "dxgv dx-ar"
+      },
+      {
+        "index": 10,
+        "text": "11660",
+        "innerHTML": "11660",
+        "hasImage": false,
+        "hasCheckbox": false,
+        "hasButton": false,
+        "classes": "dxgv dx-al"
+      },
+      {
+        "index": 11,
+        "text": "STRUMENTI ENDO",
+        "innerHTML": "STRUMENTI ENDO",
+        "hasImage": false,
+        "hasCheckbox": false,
+        "hasButton": false,
+        "classes": "dxgv dx-al"
+      },
+      {
+        "index": 12,
+        "text": "1,00",
+        "innerHTML": "1,00",
+        "hasImage": false,
+        "hasCheckbox": false,
+        "hasButton": false,
+        "classes": "dxgv dx-ar"
+      },
+      {
+        "index": 13,
+        "text": "1,00",
+        "innerHTML": "1,00",
+        "hasImage": false,
+        "hasCheckbox": false,
+        "hasButton": false,
+        "classes": "dxgv dx-ar"
+      },
+      {
+        "index": 14,
+        "text": "100,00",
+        "innerHTML": "100,00",
+        "hasImage": false,
+        "hasCheckbox": false,
+        "hasButton": false,
+        "classes": "dxgv dx-ar"
+      }
+    ],
+    "mapped": {
+      "id": "10019197",
+      "name": "ENGO01.000",
+      "description": "ENGO Handpiece EU + UK",
+      "groupCode": "69",
+      "imageCell": {
+        "text": "",
+        "html": "<div id=\"Vertical_v26_62153608_LE_v26_cell1_16_xaf_ImageCalc\" class=\"WebEditorCell \" style=\"text-align:center;\">\n\t\t\t\t\t\t\t\t<div id=\"Vertical_v26_62153608_LE_v26_cell1_16_xaf_ImageCalc_View\">\n\t\t\t\t\t\t\t\t\t<div style=\"height:48px;\">\n\t\t\t\t\t\t\t\t\t\t<div id=\"Vertical_v26_62153608_LE_v26_cell1_16_xaf_ImageCalc_View_ctl01\" style=\"overflow:hidden;height:48px;\">\n\t\t\t\t\t\t\t\t\t\t\t<img id=\"Vertical_v26_62153608_LE_v26_cell1_16_xaf_ImageCalc_View_IC\" onload=\"SetControlVisibility(&quot;Vertical_v26_62153608_LE_v26_cell1_16_",
+        "hasImg": true
+      },
+      "packageContent": "1",
+      "searchName": "ENGO01.000",
+      "priceUnit": "0,00",
+      "productGroupId": "11660",
+      "productGroupDescription": "STRUMENTI ENDO",
+      "minQty": "1,00",
+      "multipleQty": "1,00",
+      "maxQty": "100,00"
+    }
+  },
+  {
+    "totalCells": 15,
+    "cells": [
+      {
+        "index": 0,
+        "text": "",
+        "innerHTML": "<span class=\"dxWeb_edtCheckBoxUnchecked_XafTheme dxICheckBox_XafTheme dxichSys dx-not-acc\" id=\"Vertical_v26_62153608_LE_v26_DXSelBtn2_D\"><span class=\"dxKBSW\"><input id=\"Vertical_v26_62153608_LE_v26_DX",
+        "hasImage": false,
+        "hasCheckbox": false,
+        "hasButton": false,
+        "classes": "dxgvCommandColumn_XafTheme dxgv dx-ac"
+      },
+      {
+        "index": 1,
+        "text": "<!--\nASPx.AddDisabledItems('Vertical_v26_62153608_LE_v26_DXCBtn2',[[['dxbDisabled_XafTheme'],[''],[''],['','TC']]]);\n\n//-->",
+        "innerHTML": "<a class=\"dxbButton_XafTheme dxgvCommandColumnItem_XafTheme dxgv__cci dxbButtonSys\" data-args=\"[['CustomButton','Edit',2],1]\" data-isimage=\"true\" id=\"Vertical_v26_62153608_LE_v26_DXCBtn2\" href=\"javasc",
+        "hasImage": true,
+        "hasCheckbox": false,
+        "hasButton": false,
+        "classes": "dxgvCommandColumn_XafTheme ActionCell dxgv dx-ac",
+        "image": {
+          "src": "/Archibald/DXX.axd?handlerName=ImageResource&name=Action_Edit&enbl=True&fldr=TemplatesV2Images&v=4e7a4043c47298d1c0d5fc61309c91a9",
+          "alt": "Modifica",
+          "width": "",
+          "height": "",
+          "className": "dx-vam",
+          "isDataUri": false,
+          "hasOnClick": false,
+          "parentHtml": "<a class=\"dxbButton_XafTheme dxgvCommandColumnItem_XafTheme dxgv__cci dxbButtonSys\" data-args=\"[['CustomButton','Edit',2],1]\" data-isimage=\"true\" id=\"Vertical_v26_62153608_LE_v26_DXCBtn2\" href=\"javascript:;\"><img title=\"Modifica\" class=\"dx-vam\" src=\"/Archibald/DXX.axd?handlerName=ImageResource&amp;n"
+        }
+      },
+      {
+        "index": 2,
+        "text": "10019199",
+        "innerHTML": "10019199",
+        "hasImage": false,
+        "hasCheckbox": false,
+        "hasButton": false,
+        "classes": "dxgv dx-al"
+      },
+      {
+        "index": 3,
+        "text": "ENGO02.000",
+        "innerHTML": "ENGO02.000",
+        "hasImage": false,
+        "hasCheckbox": false,
+        "hasButton": false,
+        "classes": "dxgv dx-al"
+      },
+      {
+        "index": 4,
+        "text": "ENGO Contra angle CA161",
+        "innerHTML": "ENGO Contra angle CA161",
+        "hasImage": false,
+        "hasCheckbox": false,
+        "hasButton": false,
+        "classes": "dxgv dx-al"
+      },
+      {
+        "index": 5,
+        "text": "69",
+        "innerHTML": "69",
+        "hasImage": false,
+        "hasCheckbox": false,
+        "hasButton": false,
+        "classes": "dxgv dx-al"
+      },
+      {
+        "index": 6,
+        "text": "",
+        "innerHTML": "<div id=\"Vertical_v26_62153608_LE_v26_cell2_16_xaf_ImageCalc\" class=\"WebEditorCell \" style=\"text-align:center;\">\n\t\t\t\t\t\t\t\t<div id=\"Vertical_v26_62153608_LE_v26_cell2_16_xaf_ImageCalc_View\">\n\t\t\t\t\t\t\t\t\t<d",
+        "hasImage": true,
+        "hasCheckbox": false,
+        "hasButton": false,
+        "classes": "dxgv dx-ac",
+        "image": {
+          "src": "/Archibald/DXX.axd?handlerName=BinaryDataHttpHandler&processorID=xafkidemovb.Module.CRMKI.INVENTTABLE(5090)ImageCalc&d=PropertyName%3dImageCalc%26ObjectHandle%3dxafkidemovb.Module.CRMKI.INVENTTABLE(5090)%26OS%3d46419042%26TimeStamp%3d1189796702",
+          "alt": "",
+          "width": "",
+          "height": "",
+          "className": "",
+          "isDataUri": false,
+          "hasOnClick": false,
+          "parentHtml": "<div id=\"Vertical_v26_62153608_LE_v26_cell2_16_xaf_ImageCalc_View_ctl01\" style=\"overflow:hidden;height:48px;\">\n\t\t\t\t\t\t\t\t\t\t\t<img id=\"Vertical_v26_62153608_LE_v26_cell2_16_xaf_ImageCalc_View_IC\" onload=\"SetControlVisibility(&quot;Vertical_v26_62153608_LE_v26_cell2_16_xaf_ImageCalc_View_ctl01&quot;, tru"
+        }
+      },
+      {
+        "index": 7,
+        "text": "1",
+        "innerHTML": "1",
+        "hasImage": false,
+        "hasCheckbox": false,
+        "hasButton": false,
+        "classes": "dxgv dx-ar"
+      },
+      {
+        "index": 8,
+        "text": "ENGO02.000",
+        "innerHTML": "ENGO02.000",
+        "hasImage": false,
+        "hasCheckbox": false,
+        "hasButton": false,
+        "classes": "dxgv dx-al"
+      },
+      {
+        "index": 9,
+        "text": "0,00",
+        "innerHTML": "0,00",
+        "hasImage": false,
+        "hasCheckbox": false,
+        "hasButton": false,
+        "classes": "dxgv dx-ar"
+      },
+      {
+        "index": 10,
+        "text": "11660",
+        "innerHTML": "11660",
+        "hasImage": false,
+        "hasCheckbox": false,
+        "hasButton": false,
+        "classes": "dxgv dx-al"
+      },
+      {
+        "index": 11,
+        "text": "STRUMENTI ENDO",
+        "innerHTML": "STRUMENTI ENDO",
+        "hasImage": false,
+        "hasCheckbox": false,
+        "hasButton": false,
+        "classes": "dxgv dx-al"
+      },
+      {
+        "index": 12,
+        "text": "1,00",
+        "innerHTML": "1,00",
+        "hasImage": false,
+        "hasCheckbox": false,
+        "hasButton": false,
+        "classes": "dxgv dx-ar"
+      },
+      {
+        "index": 13,
+        "text": "1,00",
+        "innerHTML": "1,00",
+        "hasImage": false,
+        "hasCheckbox": false,
+        "hasButton": false,
+        "classes": "dxgv dx-ar"
+      },
+      {
+        "index": 14,
+        "text": "100,00",
+        "innerHTML": "100,00",
+        "hasImage": false,
+        "hasCheckbox": false,
+        "hasButton": false,
+        "classes": "dxgv dx-ar"
+      }
+    ],
+    "mapped": {
+      "id": "10019199",
+      "name": "ENGO02.000",
+      "description": "ENGO Contra angle CA161",
+      "groupCode": "69",
+      "imageCell": {
+        "text": "",
+        "html": "<div id=\"Vertical_v26_62153608_LE_v26_cell2_16_xaf_ImageCalc\" class=\"WebEditorCell \" style=\"text-align:center;\">\n\t\t\t\t\t\t\t\t<div id=\"Vertical_v26_62153608_LE_v26_cell2_16_xaf_ImageCalc_View\">\n\t\t\t\t\t\t\t\t\t<div style=\"height:48px;\">\n\t\t\t\t\t\t\t\t\t\t<div id=\"Vertical_v26_62153608_LE_v26_cell2_16_xaf_ImageCalc_View_ctl01\" style=\"overflow:hidden;height:48px;\">\n\t\t\t\t\t\t\t\t\t\t\t<img id=\"Vertical_v26_62153608_LE_v26_cell2_16_xaf_ImageCalc_View_IC\" onload=\"SetControlVisibility(&quot;Vertical_v26_62153608_LE_v26_cell2_16_",
+        "hasImg": true
+      },
+      "packageContent": "1",
+      "searchName": "ENGO02.000",
+      "priceUnit": "0,00",
+      "productGroupId": "11660",
+      "productGroupDescription": "STRUMENTI ENDO",
+      "minQty": "1,00",
+      "multipleQty": "1,00",
+      "maxQty": "100,00"
+    }
+  },
+  {
+    "totalCells": 15,
+    "cells": [
+      {
+        "index": 0,
+        "text": "",
+        "innerHTML": "<span class=\"dxWeb_edtCheckBoxUnchecked_XafTheme dxICheckBox_XafTheme dxichSys dx-not-acc\" id=\"Vertical_v26_62153608_LE_v26_DXSelBtn3_D\"><span class=\"dxKBSW\"><input id=\"Vertical_v26_62153608_LE_v26_DX",
+        "hasImage": false,
+        "hasCheckbox": false,
+        "hasButton": false,
+        "classes": "dxgvCommandColumn_XafTheme dxgv dx-ac"
+      },
+      {
+        "index": 1,
+        "text": "<!--\nASPx.AddDisabledItems('Vertical_v26_62153608_LE_v26_DXCBtn3',[[['dxbDisabled_XafTheme'],[''],[''],['','TC']]]);\n\n//-->",
+        "innerHTML": "<a class=\"dxbButton_XafTheme dxgvCommandColumnItem_XafTheme dxgv__cci dxbButtonSys\" data-args=\"[['CustomButton','Edit',3],1]\" data-isimage=\"true\" id=\"Vertical_v26_62153608_LE_v26_DXCBtn3\" href=\"javasc",
+        "hasImage": true,
+        "hasCheckbox": false,
+        "hasButton": false,
+        "classes": "dxgvCommandColumn_XafTheme ActionCell dxgv dx-ac",
+        "image": {
+          "src": "/Archibald/DXX.axd?handlerName=ImageResource&name=Action_Edit&enbl=True&fldr=TemplatesV2Images&v=4e7a4043c47298d1c0d5fc61309c91a9",
+          "alt": "Modifica",
+          "width": "",
+          "height": "",
+          "className": "dx-vam",
+          "isDataUri": false,
+          "hasOnClick": false,
+          "parentHtml": "<a class=\"dxbButton_XafTheme dxgvCommandColumnItem_XafTheme dxgv__cci dxbButtonSys\" data-args=\"[['CustomButton','Edit',3],1]\" data-isimage=\"true\" id=\"Vertical_v26_62153608_LE_v26_DXCBtn3\" href=\"javascript:;\"><img title=\"Modifica\" class=\"dx-vam\" src=\"/Archibald/DXX.axd?handlerName=ImageResource&amp;n"
+        }
+      },
+      {
+        "index": 2,
+        "text": "10019201",
+        "innerHTML": "10019201",
+        "hasImage": false,
+        "hasCheckbox": false,
+        "hasButton": false,
+        "classes": "dxgv dx-al"
+      },
+      {
+        "index": 3,
+        "text": "ENGO04.000",
+        "innerHTML": "ENGO04.000",
+        "hasImage": false,
+        "hasCheckbox": false,
+        "hasButton": false,
+        "classes": "dxgv dx-al"
+      },
+      {
+        "index": 4,
+        "text": "ENGO Measuring wire",
+        "innerHTML": "ENGO Measuring wire",
+        "hasImage": false,
+        "hasCheckbox": false,
+        "hasButton": false,
+        "classes": "dxgv dx-al"
+      },
+      {
+        "index": 5,
+        "text": "69",
+        "innerHTML": "69",
+        "hasImage": false,
+        "hasCheckbox": false,
+        "hasButton": false,
+        "classes": "dxgv dx-al"
+      },
+      {
+        "index": 6,
+        "text": "",
+        "innerHTML": "<div id=\"Vertical_v26_62153608_LE_v26_cell3_16_xaf_ImageCalc\" class=\"WebEditorCell \" style=\"text-align:center;\">\n\t\t\t\t\t\t\t\t<div id=\"Vertical_v26_62153608_LE_v26_cell3_16_xaf_ImageCalc_View\">\n\t\t\t\t\t\t\t\t\t<d",
+        "hasImage": true,
+        "hasCheckbox": false,
+        "hasButton": false,
+        "classes": "dxgv dx-ac",
+        "image": {
+          "src": "/Archibald/DXX.axd?handlerName=BinaryDataHttpHandler&processorID=xafkidemovb.Module.CRMKI.INVENTTABLE(5091)ImageCalc&d=PropertyName%3dImageCalc%26ObjectHandle%3dxafkidemovb.Module.CRMKI.INVENTTABLE(5091)%26OS%3d46419042%26TimeStamp%3d1189796702",
+          "alt": "",
+          "width": "",
+          "height": "",
+          "className": "",
+          "isDataUri": false,
+          "hasOnClick": false,
+          "parentHtml": "<div id=\"Vertical_v26_62153608_LE_v26_cell3_16_xaf_ImageCalc_View_ctl01\" style=\"overflow:hidden;height:48px;\">\n\t\t\t\t\t\t\t\t\t\t\t<img id=\"Vertical_v26_62153608_LE_v26_cell3_16_xaf_ImageCalc_View_IC\" onload=\"SetControlVisibility(&quot;Vertical_v26_62153608_LE_v26_cell3_16_xaf_ImageCalc_View_ctl01&quot;, tru"
+        }
+      },
+      {
+        "index": 7,
+        "text": "1",
+        "innerHTML": "1",
+        "hasImage": false,
+        "hasCheckbox": false,
+        "hasButton": false,
+        "classes": "dxgv dx-ar"
+      },
+      {
+        "index": 8,
+        "text": "ENGO04.000",
+        "innerHTML": "ENGO04.000",
+        "hasImage": false,
+        "hasCheckbox": false,
+        "hasButton": false,
+        "classes": "dxgv dx-al"
+      },
+      {
+        "index": 9,
+        "text": "0,00",
+        "innerHTML": "0,00",
+        "hasImage": false,
+        "hasCheckbox": false,
+        "hasButton": false,
+        "classes": "dxgv dx-ar"
+      },
+      {
+        "index": 10,
+        "text": "11660",
+        "innerHTML": "11660",
+        "hasImage": false,
+        "hasCheckbox": false,
+        "hasButton": false,
+        "classes": "dxgv dx-al"
+      },
+      {
+        "index": 11,
+        "text": "STRUMENTI ENDO",
+        "innerHTML": "STRUMENTI ENDO",
+        "hasImage": false,
+        "hasCheckbox": false,
+        "hasButton": false,
+        "classes": "dxgv dx-al"
+      },
+      {
+        "index": 12,
+        "text": "1,00",
+        "innerHTML": "1,00",
+        "hasImage": false,
+        "hasCheckbox": false,
+        "hasButton": false,
+        "classes": "dxgv dx-ar"
+      },
+      {
+        "index": 13,
+        "text": "1,00",
+        "innerHTML": "1,00",
+        "hasImage": false,
+        "hasCheckbox": false,
+        "hasButton": false,
+        "classes": "dxgv dx-ar"
+      },
+      {
+        "index": 14,
+        "text": "100,00",
+        "innerHTML": "100,00",
+        "hasImage": false,
+        "hasCheckbox": false,
+        "hasButton": false,
+        "classes": "dxgv dx-ar"
+      }
+    ],
+    "mapped": {
+      "id": "10019201",
+      "name": "ENGO04.000",
+      "description": "ENGO Measuring wire",
+      "groupCode": "69",
+      "imageCell": {
+        "text": "",
+        "html": "<div id=\"Vertical_v26_62153608_LE_v26_cell3_16_xaf_ImageCalc\" class=\"WebEditorCell \" style=\"text-align:center;\">\n\t\t\t\t\t\t\t\t<div id=\"Vertical_v26_62153608_LE_v26_cell3_16_xaf_ImageCalc_View\">\n\t\t\t\t\t\t\t\t\t<div style=\"height:48px;\">\n\t\t\t\t\t\t\t\t\t\t<div id=\"Vertical_v26_62153608_LE_v26_cell3_16_xaf_ImageCalc_View_ctl01\" style=\"overflow:hidden;height:48px;\">\n\t\t\t\t\t\t\t\t\t\t\t<img id=\"Vertical_v26_62153608_LE_v26_cell3_16_xaf_ImageCalc_View_IC\" onload=\"SetControlVisibility(&quot;Vertical_v26_62153608_LE_v26_cell3_16_",
+        "hasImg": true
+      },
+      "packageContent": "1",
+      "searchName": "ENGO04.000",
+      "priceUnit": "0,00",
+      "productGroupId": "11660",
+      "productGroupDescription": "STRUMENTI ENDO",
+      "minQty": "1,00",
+      "multipleQty": "1,00",
+      "maxQty": "100,00"
+    }
+  },
+  {
+    "totalCells": 15,
+    "cells": [
+      {
+        "index": 0,
+        "text": "",
+        "innerHTML": "<span class=\"dxWeb_edtCheckBoxUnchecked_XafTheme dxICheckBox_XafTheme dxichSys dx-not-acc\" id=\"Vertical_v26_62153608_LE_v26_DXSelBtn4_D\"><span class=\"dxKBSW\"><input id=\"Vertical_v26_62153608_LE_v26_DX",
+        "hasImage": false,
+        "hasCheckbox": false,
+        "hasButton": false,
+        "classes": "dxgvCommandColumn_XafTheme dxgv dx-ac"
+      },
+      {
+        "index": 1,
+        "text": "<!--\nASPx.AddDisabledItems('Vertical_v26_62153608_LE_v26_DXCBtn4',[[['dxbDisabled_XafTheme'],[''],[''],['','TC']]]);\n\n//-->",
+        "innerHTML": "<a class=\"dxbButton_XafTheme dxgvCommandColumnItem_XafTheme dxgv__cci dxbButtonSys\" data-args=\"[['CustomButton','Edit',4],1]\" data-isimage=\"true\" id=\"Vertical_v26_62153608_LE_v26_DXCBtn4\" href=\"javasc",
+        "hasImage": true,
+        "hasCheckbox": false,
+        "hasButton": false,
+        "classes": "dxgvCommandColumn_XafTheme ActionCell dxgv dx-ac",
+        "image": {
+          "src": "/Archibald/DXX.axd?handlerName=ImageResource&name=Action_Edit&enbl=True&fldr=TemplatesV2Images&v=4e7a4043c47298d1c0d5fc61309c91a9",
+          "alt": "Modifica",
+          "width": "",
+          "height": "",
+          "className": "dx-vam",
+          "isDataUri": false,
+          "hasOnClick": false,
+          "parentHtml": "<a class=\"dxbButton_XafTheme dxgvCommandColumnItem_XafTheme dxgv__cci dxbButtonSys\" data-args=\"[['CustomButton','Edit',4],1]\" data-isimage=\"true\" id=\"Vertical_v26_62153608_LE_v26_DXCBtn4\" href=\"javascript:;\"><img title=\"Modifica\" class=\"dx-vam\" src=\"/Archibald/DXX.axd?handlerName=ImageResource&amp;n"
+        }
+      },
+      {
+        "index": 2,
+        "text": "10019202",
+        "innerHTML": "10019202",
+        "hasImage": false,
+        "hasCheckbox": false,
+        "hasButton": false,
+        "classes": "dxgv dx-al"
+      },
+      {
+        "index": 3,
+        "text": "ENGO05.000",
+        "innerHTML": "ENGO05.000",
+        "hasImage": false,
+        "hasCheckbox": false,
+        "hasButton": false,
+        "classes": "dxgv dx-al"
+      },
+      {
+        "index": 4,
+        "text": "ENGO AC/DC Adapter EU",
+        "innerHTML": "ENGO AC/DC Adapter EU",
+        "hasImage": false,
+        "hasCheckbox": false,
+        "hasButton": false,
+        "classes": "dxgv dx-al"
+      },
+      {
+        "index": 5,
+        "text": "69",
+        "innerHTML": "69",
+        "hasImage": false,
+        "hasCheckbox": false,
+        "hasButton": false,
+        "classes": "dxgv dx-al"
+      },
+      {
+        "index": 6,
+        "text": "",
+        "innerHTML": "<div id=\"Vertical_v26_62153608_LE_v26_cell4_16_xaf_ImageCalc\" class=\"WebEditorCell \" style=\"text-align:center;\">\n\t\t\t\t\t\t\t\t<div id=\"Vertical_v26_62153608_LE_v26_cell4_16_xaf_ImageCalc_View\">\n\t\t\t\t\t\t\t\t\t<d",
+        "hasImage": true,
+        "hasCheckbox": false,
+        "hasButton": false,
+        "classes": "dxgv dx-ac",
+        "image": {
+          "src": "/Archibald/DXX.axd?handlerName=BinaryDataHttpHandler&processorID=xafkidemovb.Module.CRMKI.INVENTTABLE(5092)ImageCalc&d=PropertyName%3dImageCalc%26ObjectHandle%3dxafkidemovb.Module.CRMKI.INVENTTABLE(5092)%26OS%3d46419042%26TimeStamp%3d1189796702",
+          "alt": "",
+          "width": "",
+          "height": "",
+          "className": "",
+          "isDataUri": false,
+          "hasOnClick": false,
+          "parentHtml": "<div id=\"Vertical_v26_62153608_LE_v26_cell4_16_xaf_ImageCalc_View_ctl01\" style=\"overflow:hidden;height:48px;\">\n\t\t\t\t\t\t\t\t\t\t\t<img id=\"Vertical_v26_62153608_LE_v26_cell4_16_xaf_ImageCalc_View_IC\" onload=\"SetControlVisibility(&quot;Vertical_v26_62153608_LE_v26_cell4_16_xaf_ImageCalc_View_ctl01&quot;, tru"
+        }
+      },
+      {
+        "index": 7,
+        "text": "1",
+        "innerHTML": "1",
+        "hasImage": false,
+        "hasCheckbox": false,
+        "hasButton": false,
+        "classes": "dxgv dx-ar"
+      },
+      {
+        "index": 8,
+        "text": "ENGO05.000",
+        "innerHTML": "ENGO05.000",
+        "hasImage": false,
+        "hasCheckbox": false,
+        "hasButton": false,
+        "classes": "dxgv dx-al"
+      },
+      {
+        "index": 9,
+        "text": "0,00",
+        "innerHTML": "0,00",
+        "hasImage": false,
+        "hasCheckbox": false,
+        "hasButton": false,
+        "classes": "dxgv dx-ar"
+      },
+      {
+        "index": 10,
+        "text": "11660",
+        "innerHTML": "11660",
+        "hasImage": false,
+        "hasCheckbox": false,
+        "hasButton": false,
+        "classes": "dxgv dx-al"
+      },
+      {
+        "index": 11,
+        "text": "STRUMENTI ENDO",
+        "innerHTML": "STRUMENTI ENDO",
+        "hasImage": false,
+        "hasCheckbox": false,
+        "hasButton": false,
+        "classes": "dxgv dx-al"
+      },
+      {
+        "index": 12,
+        "text": "1,00",
+        "innerHTML": "1,00",
+        "hasImage": false,
+        "hasCheckbox": false,
+        "hasButton": false,
+        "classes": "dxgv dx-ar"
+      },
+      {
+        "index": 13,
+        "text": "1,00",
+        "innerHTML": "1,00",
+        "hasImage": false,
+        "hasCheckbox": false,
+        "hasButton": false,
+        "classes": "dxgv dx-ar"
+      },
+      {
+        "index": 14,
+        "text": "100,00",
+        "innerHTML": "100,00",
+        "hasImage": false,
+        "hasCheckbox": false,
+        "hasButton": false,
+        "classes": "dxgv dx-ar"
+      }
+    ],
+    "mapped": {
+      "id": "10019202",
+      "name": "ENGO05.000",
+      "description": "ENGO AC/DC Adapter EU",
+      "groupCode": "69",
+      "imageCell": {
+        "text": "",
+        "html": "<div id=\"Vertical_v26_62153608_LE_v26_cell4_16_xaf_ImageCalc\" class=\"WebEditorCell \" style=\"text-align:center;\">\n\t\t\t\t\t\t\t\t<div id=\"Vertical_v26_62153608_LE_v26_cell4_16_xaf_ImageCalc_View\">\n\t\t\t\t\t\t\t\t\t<div style=\"height:48px;\">\n\t\t\t\t\t\t\t\t\t\t<div id=\"Vertical_v26_62153608_LE_v26_cell4_16_xaf_ImageCalc_View_ctl01\" style=\"overflow:hidden;height:48px;\">\n\t\t\t\t\t\t\t\t\t\t\t<img id=\"Vertical_v26_62153608_LE_v26_cell4_16_xaf_ImageCalc_View_IC\" onload=\"SetControlVisibility(&quot;Vertical_v26_62153608_LE_v26_cell4_16_",
+        "hasImg": true
+      },
+      "packageContent": "1",
+      "searchName": "ENGO05.000",
+      "priceUnit": "0,00",
+      "productGroupId": "11660",
+      "productGroupDescription": "STRUMENTI ENDO",
+      "minQty": "1,00",
+      "multipleQty": "1,00",
+      "maxQty": "100,00"
+    }
+  }
+]

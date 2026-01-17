@@ -1,10 +1,12 @@
 // API client for products endpoints
 
+const API_BASE_URL = "";
+
 export interface Product {
   id: string;
   name: string;
-  articleName: string;
-  variantId: string;
+  articleName?: string;
+  variantId?: string;
   description?: string;
   groupCode?: string;
   price?: number;
@@ -12,6 +14,40 @@ export interface Product {
   minQty?: number;
   multipleQty?: number;
   maxQty?: number;
+  imageUrl?: string;
+  imageLocalPath?: string;
+  imageDownloadedAt?: number;
+  searchName?: string;
+  priceUnit?: string;
+  productGroupId?: string;
+  productGroupDescription?: string;
+}
+
+export interface ProductsResponse {
+  success: boolean;
+  data: {
+    products: Product[];
+    totalCount: number;
+    returnedCount: number;
+    totalMatches?: number;
+    limited: boolean;
+  };
+}
+
+export interface SearchResult {
+  id: string;
+  name: string;
+  description?: string;
+  packageContent?: string;
+  multipleQty?: number;
+  price?: number;
+  confidence: number;
+  matchReason: string;
+}
+
+export interface SearchResponse {
+  success: boolean;
+  data: SearchResult[];
 }
 
 /**
@@ -40,4 +76,81 @@ export async function getProductVariants(
   }
 
   return result.data;
+}
+
+/**
+ * Get products with optional search filter
+ */
+export async function getProducts(
+  token: string,
+  searchQuery?: string,
+  limit: number = 100,
+): Promise<ProductsResponse> {
+  const params = new URLSearchParams();
+  if (searchQuery) params.append("search", searchQuery);
+  params.append("limit", limit.toString());
+
+  const response = await fetch(`${API_BASE_URL}/api/products?${params}`, {
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+
+  if (!response.ok) {
+    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+  }
+
+  return response.json();
+}
+
+/**
+ * Fuzzy search products with confidence scores
+ */
+export async function searchProducts(
+  token: string,
+  query: string,
+  limit: number = 10,
+): Promise<SearchResponse> {
+  const params = new URLSearchParams();
+  params.append("q", query);
+  params.append("limit", limit.toString());
+
+  const response = await fetch(
+    `${API_BASE_URL}/api/products/search?${params}`,
+    {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    },
+  );
+
+  if (!response.ok) {
+    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+  }
+
+  return response.json();
+}
+
+/**
+ * Get product change history
+ */
+export async function getProductChanges(
+  token: string,
+  productId: string,
+  limit: number = 10,
+) {
+  const response = await fetch(
+    `${API_BASE_URL}/api/products/${productId}/changes?limit=${limit}`,
+    {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    },
+  );
+
+  if (!response.ok) {
+    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+  }
+
+  return response.json();
 }
