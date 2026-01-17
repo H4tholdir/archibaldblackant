@@ -52,13 +52,15 @@ function App() {
   // Show loading spinner while checking auth
   if (auth.isLoading) {
     return (
-      <div style={{
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        minHeight: "100vh",
-        background: "#1a1a1a"
-      }}>
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          minHeight: "100vh",
+          background: "#1a1a1a",
+        }}
+      >
         <LiquidLoader text="Caricamento" />
       </div>
     );
@@ -120,9 +122,11 @@ function App() {
   }
 
   // Show PIN setup wizard if needed
-  if (auth.needsPinSetup && tempCredentials) {
+  if (auth.needsPinSetup && tempCredentials && auth.user) {
     return (
       <PinSetupWizard
+        userId={auth.user.id}
+        username={auth.user.username}
         onComplete={async (pin) => {
           await auth.completePinSetup(
             pin,

@@ -160,9 +160,11 @@ function AppRouter() {
   }
 
   // Show PIN setup wizard if needed
-  if (auth.needsPinSetup && tempCredentials) {
+  if (auth.needsPinSetup && tempCredentials && auth.user) {
     return (
       <PinSetupWizard
+        userId={auth.user.id}
+        username={auth.user.username}
         onComplete={async (pin) => {
           await auth.completePinSetup(
             pin,

@@ -1777,6 +1777,41 @@
   color: #333;
 }
 
+/* Biometric Setup Step */
+.biometric-setup-info {
+  text-align: center;
+  padding: 1.5rem 0;
+}
+
+.biometric-icon {
+  font-size: 3rem;
+  margin-bottom: 1rem;
+}
+
+.biometric-description {
+  color: #666;
+  font-size: 0.95rem;
+  line-height: 1.5;
+  margin: 0;
+  max-width: 350px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.wizard-actions-vertical {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  margin-top: 2rem;
+  width: 100%;
+  max-width: 300px;
+}
+
+.wizard-actions-vertical .wizard-button-primary,
+.wizard-actions-vertical .wizard-button-secondary {
+  width: 100%;
+}
+
 /* Unlock Screen */
 .unlock-screen {
   position: fixed;
@@ -1889,7 +1924,9 @@
   border: none;
   border-radius: 12px;
   cursor: pointer;
-  transition: transform 0.2s, box-shadow 0.2s;
+  transition:
+    transform 0.2s,
+    box-shadow 0.2s;
   box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
 }
 
@@ -1914,7 +1951,7 @@
 
 .unlock-divider::before,
 .unlock-divider::after {
-  content: '';
+  content: "";
   flex: 1;
   height: 1px;
   background: #ddd;
@@ -1928,7 +1965,9 @@
   border-radius: 8px;
   font-size: 1rem;
   cursor: pointer;
-  transition: background-color 0.2s, color 0.2s;
+  transition:
+    background-color 0.2s,
+    color 0.2s;
 }
 
 .use-pin-button:hover:not(:disabled) {
