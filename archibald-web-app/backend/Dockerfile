@@ -38,8 +38,9 @@ COPY --from=deps /app/node_modules ./node_modules
 COPY --from=builder /app/dist ./dist
 COPY package*.json ./
 
-# Create data directory for SQLite databases
-RUN mkdir -p /app/data && chown node:node /app/data
+# Create directories for application runtime
+RUN mkdir -p /app/data /app/.cache /app/logs && \
+    chown -R node:node /app/data /app/.cache /app/logs
 
 # Run as non-root user
 USER node
