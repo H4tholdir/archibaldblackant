@@ -14,6 +14,7 @@ export interface User {
   createdAt: number;
   lastLoginAt: number | null;
   lastOrderSyncAt?: number | null;
+  lastCustomerSyncAt?: number | null;
 }
 
 /**
@@ -271,6 +272,7 @@ export class UserDatabase {
       createdAt: row.createdAt,
       lastLoginAt: row.lastLoginAt,
       lastOrderSyncAt: row.lastOrderSyncAt || null,
+      lastCustomerSyncAt: row.lastCustomerSyncAt || null,
     };
   }
 
@@ -318,6 +320,29 @@ export class UserDatabase {
       });
     } catch (error) {
       logger.error("Error updating lastOrderSyncAt", { userId, error });
+      throw error;
+    }
+  }
+
+  /**
+   * Update user's lastCustomerSyncAt timestamp
+   */
+  updateLastCustomerSync(userId: string, timestamp: number): void {
+    try {
+      const stmt = this.db.prepare(`
+        UPDATE users
+        SET lastCustomerSyncAt = ?
+        WHERE id = ?
+      `);
+
+      stmt.run(timestamp, userId);
+
+      logger.info("User lastCustomerSyncAt updated", {
+        userId,
+        timestamp: new Date(timestamp).toISOString(),
+      });
+    } catch (error) {
+      logger.error("Error updating lastCustomerSyncAt", { userId, error });
       throw error;
     }
   }

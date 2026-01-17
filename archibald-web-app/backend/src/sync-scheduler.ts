@@ -167,7 +167,23 @@ export class SyncScheduler {
       // Note: Sync services emit progress events, no callback needed
       switch (type) {
         case "customers":
-          await customerSyncService.syncCustomers();
+          // Customers sync can be:
+          // 1. Global sync (from scheduler) - userId is undefined
+          // 2. User-specific sync (from manual trigger) - userId is provided
+          if (userId) {
+            logger.info(`Starting customers sync for userId: ${userId}`);
+            const { UserDatabase } = await import("./user-db");
+            await customerSyncService.syncCustomers();
+
+            // Update lastCustomerSyncAt timestamp
+            const userDb = UserDatabase.getInstance();
+            userDb.updateLastCustomerSync(userId, Date.now());
+
+            logger.info(`✅ Customers sync completed for userId: ${userId}`);
+          } else {
+            // Global sync (from scheduler)
+            await customerSyncService.syncCustomers();
+          }
           break;
         case "products":
           await productSyncService.syncProducts();
@@ -184,13 +200,13 @@ export class SyncScheduler {
           // Orders sync requires user-specific context
           logger.info(`Starting orders sync for userId: ${userId}`);
           const { OrderHistoryService } = await import("./order-history-service");
-          const { UserDatabase } = await import("./user-db");
+          const { UserDatabase: UserDatabaseOrders } = await import("./user-db");
           const orderHistoryService = new OrderHistoryService();
           await orderHistoryService.syncFromArchibald(userId);
 
           // Update lastOrderSyncAt timestamp
-          const userDb = UserDatabase.getInstance();
-          userDb.updateLastOrderSync(userId, Date.now());
+          const userDbOrders = UserDatabaseOrders.getInstance();
+          userDbOrders.updateLastOrderSync(userId, Date.now());
 
           logger.info(`✅ Orders sync completed for userId: ${userId}`);
           break;
