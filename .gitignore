@@ -106,3 +106,9 @@ backups/
 *.pid
 *.seed
 *.pid.lock
+
+# Customer test and debug files
+archibald-web-app/backend/src/test-customer-*.ts
+archibald-web-app/backend/src/debug-*.ts
+archibald-web-app/backend/data/*.backup*
+client.jpg
