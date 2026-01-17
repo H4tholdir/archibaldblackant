@@ -76,6 +76,10 @@ jobs:
             # Wait for services to be healthy
             sleep 10
 
+            # Restart nginx to refresh upstream connections to new container IPs
+            docker compose restart nginx-proxy
+            sleep 5
+
             # Verify deployment
             curl -f https://formicanera.com/api/health || exit 1
 
