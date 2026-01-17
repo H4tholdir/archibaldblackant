@@ -30,7 +30,8 @@ export interface SendToMilanoResult {
  */
 export class SendToMilanoService {
   private readonly ordersPageUrl = `${config.archibald.url}/SALESTABLE_ListView_Agent/`;
-  private readonly invioButtonSelector = 'li[id="Vertical_mainMenu_Menu_DXI3_"] a[id="Vertical_mainMenu_Menu_DXI3_T"]';
+  private readonly invioButtonSelector =
+    'li[id="Vertical_mainMenu_Menu_DXI3_"] a[id="Vertical_mainMenu_Menu_DXI3_T"]';
 
   /**
    * Send order to Milano warehouse
@@ -39,14 +40,18 @@ export class SendToMilanoService {
     orderId: string,
     userId: string,
   ): Promise<SendToMilanoResult> {
-    logger.info(`[SendToMilano] Starting for order ${orderId}`, { userId, orderId });
+    logger.info(`[SendToMilano] Starting for order ${orderId}`, {
+      userId,
+      orderId,
+    });
 
     // Check feature flag
     if (!config.features.sendToMilanoEnabled) {
       logger.warn(`[SendToMilano] Feature disabled for order ${orderId}`);
       return {
         success: false,
-        error: "Send to Milano feature is currently disabled. Please contact administrator.",
+        error:
+          "Send to Milano feature is currently disabled. Please contact administrator.",
         orderId,
       };
     }
@@ -62,7 +67,9 @@ export class SendToMilanoService {
 
       try {
         // Navigate to orders page
-        logger.info(`[SendToMilano] Navigating to orders page for order ${orderId}`);
+        logger.info(
+          `[SendToMilano] Navigating to orders page for order ${orderId}`,
+        );
         await page.goto(this.ordersPageUrl, {
           waitUntil: "domcontentloaded",
           timeout: 60000,
@@ -95,7 +102,9 @@ export class SendToMilanoService {
           throw new Error("Failed to verify success after sending to Milano");
         }
 
-        logger.info(`[SendToMilano] Order ${orderId} sent to Milano successfully`);
+        logger.info(
+          `[SendToMilano] Order ${orderId} sent to Milano successfully`,
+        );
 
         success = true;
         const sentAt = new Date().toISOString();
@@ -106,15 +115,14 @@ export class SendToMilanoService {
           orderId,
           sentAt,
         };
-
       } finally {
         if (!page.isClosed()) {
           await page.close().catch(() => {});
         }
       }
-
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
       logger.error(`[SendToMilano] Failed to send order ${orderId}`, {
         error: errorMessage,
         userId,
@@ -126,7 +134,6 @@ export class SendToMilanoService {
         error: `Failed to send order to Milano: ${errorMessage}`,
         orderId,
       };
-
     } finally {
       if (context) {
         await browserPool.releaseContext(userId, context, success);
@@ -137,7 +144,10 @@ export class SendToMilanoService {
   /**
    * Find order row by ID and select its checkbox
    */
-  private async selectOrderCheckbox(page: Page, orderId: string): Promise<boolean> {
+  private async selectOrderCheckbox(
+    page: Page,
+    orderId: string,
+  ): Promise<boolean> {
     return await page.evaluate((id) => {
       // Find table rows
       const table = document.querySelector('table[id$="_DXMainTable"]');
@@ -151,11 +161,15 @@ export class SendToMilanoService {
       // Search for order by ID in row cells
       for (const row of rows) {
         const cells = Array.from(row.querySelectorAll("td"));
-        const hasOrderId = cells.some((cell) => cell.textContent?.trim() === id);
+        const hasOrderId = cells.some(
+          (cell) => cell.textContent?.trim() === id,
+        );
 
         if (hasOrderId) {
           // Find checkbox in this row (look for DevExpress checkbox pattern)
-          const checkbox = row.querySelector('span[class*="dxICheckBox_XafTheme"]');
+          const checkbox = row.querySelector(
+            'span[class*="dxICheckBox_XafTheme"]',
+          );
           if (checkbox) {
             (checkbox as HTMLElement).click();
             console.log(`[SendToMilano] Checkbox clicked for order ${id}`);
@@ -187,7 +201,8 @@ export class SendToMilanoService {
       await new Promise((resolve) => setTimeout(resolve, 1000));
 
       // Look for DevExpress modal confirmation button
-      const confirmButtonSelector = 'div[id*="ConfirmDialog"] a[id*="btnOk"], button[id*="btnOk"]';
+      const confirmButtonSelector =
+        'div[id*="ConfirmDialog"] a[id*="btnOk"], button[id*="btnOk"]';
       const confirmButton = await page.$(confirmButtonSelector);
 
       if (confirmButton) {
@@ -213,7 +228,7 @@ export class SendToMilanoService {
       // Look for success indicators:
       // 1. Success toast/alert message
       const successMessages = document.querySelectorAll(
-        '.success, .alert-success, [class*="success"], [class*="Success"]'
+        '.success, .alert-success, [class*="success"], [class*="Success"]',
       );
       if (successMessages.length > 0) {
         const messageText = Array.from(successMessages)
@@ -225,7 +240,7 @@ export class SendToMilanoService {
 
       // 2. No error messages present
       const errorMessages = document.querySelectorAll(
-        '.error, .alert-error, [class*="error"], [class*="Error"]'
+        '.error, .alert-error, [class*="error"], [class*="Error"]',
       );
       if (errorMessages.length > 0) {
         const errorText = Array.from(errorMessages)
@@ -236,7 +251,9 @@ export class SendToMilanoService {
       }
 
       // 3. Default to success if no error indicators
-      console.log("[SendToMilano] No explicit success/error indicators, assuming success");
+      console.log(
+        "[SendToMilano] No explicit success/error indicators, assuming success",
+      );
       return true;
     });
   }

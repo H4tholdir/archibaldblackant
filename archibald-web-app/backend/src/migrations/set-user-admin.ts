@@ -20,7 +20,9 @@ export function setUserAdmin(username: string, dbPath?: string): void {
 
     // Check if user exists
     const user = db
-      .prepare("SELECT id, username, fullName, role FROM users WHERE username = ?")
+      .prepare(
+        "SELECT id, username, fullName, role FROM users WHERE username = ?",
+      )
       .get(username);
 
     if (!user) {
@@ -42,7 +44,9 @@ export function setUserAdmin(username: string, dbPath?: string): void {
 
     // Verify update
     const updatedUser = db
-      .prepare("SELECT id, username, fullName, role FROM users WHERE username = ?")
+      .prepare(
+        "SELECT id, username, fullName, role FROM users WHERE username = ?",
+      )
       .get(username);
 
     logger.info("Verification", updatedUser);
@@ -61,7 +65,9 @@ if (require.main === module) {
   const username = process.argv[2];
 
   if (!username) {
-    console.error("❌ Usage: ts-node src/migrations/set-user-admin.ts <username>");
+    console.error(
+      "❌ Usage: ts-node src/migrations/set-user-admin.ts <username>",
+    );
     process.exit(1);
   }
 

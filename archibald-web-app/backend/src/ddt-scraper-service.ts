@@ -2,7 +2,7 @@ import type { BrowserContext, Page } from "puppeteer";
 import { logger } from "./logger";
 import { config } from "./config";
 import { BrowserPool } from "./browser-pool";
-import { OrderDatabase } from "./order-db";
+import { OrderDatabase, type StoredOrder } from "./order-db";
 
 export interface DDTData {
   // All 11 columns from CUSTPACKINGSLIPJOUR_ListView table
@@ -456,31 +456,43 @@ export class DDTScraperService {
         await new Promise((resolve) => setTimeout(resolve, 300));
 
         // Paste order number (faster than typing)
-        logger.info(`[DDTScraper] Pasting order number "${order.orderNumber}" into search field`);
-        await page.evaluate((selector, orderNumber) => {
-          const input = document.querySelector(selector) as HTMLInputElement;
-          if (input) {
-            // Clear existing value
-            input.value = "";
-            input.focus();
+        logger.info(
+          `[DDTScraper] Pasting order number "${order.orderNumber}" into search field`,
+        );
+        await page.evaluate(
+          (selector, orderNumber) => {
+            const input = document.querySelector(selector) as HTMLInputElement;
+            if (input) {
+              // Clear existing value
+              input.value = "";
+              input.focus();
 
-            // Set new value
-            input.value = orderNumber || "";
+              // Set new value
+              input.value = orderNumber || "";
 
-            // Trigger all relevant events that DevExpress might listen to
-            input.dispatchEvent(new Event("input", { bubbles: true }));
-            input.dispatchEvent(new Event("change", { bubbles: true }));
-            input.dispatchEvent(new KeyboardEvent("keyup", { bubbles: true, key: "Enter", keyCode: 13 }));
+              // Trigger all relevant events that DevExpress might listen to
+              input.dispatchEvent(new Event("input", { bubbles: true }));
+              input.dispatchEvent(new Event("change", { bubbles: true }));
+              input.dispatchEvent(
+                new KeyboardEvent("keyup", {
+                  bubbles: true,
+                  key: "Enter",
+                  keyCode: 13,
+                }),
+              );
 
-            // Trigger DevExpress-specific events if they exist
-            if (typeof (window as any).ASPx !== "undefined") {
-              const aspx = (window as any).ASPx;
-              if (aspx.EValueChanged) {
-                aspx.EValueChanged(input.id);
+              // Trigger DevExpress-specific events if they exist
+              if (typeof (window as any).ASPx !== "undefined") {
+                const aspx = (window as any).ASPx;
+                if (aspx.EValueChanged) {
+                  aspx.EValueChanged(input.id);
+                }
               }
             }
-          }
-        }, searchInputSelector, order.orderNumber);
+          },
+          searchInputSelector,
+          order.orderNumber,
+        );
 
         // Small delay for DevExpress to process
         await new Promise((resolve) => setTimeout(resolve, 300));
@@ -520,7 +532,9 @@ export class DDTScraperService {
         });
 
         if (!rowId) {
-          throw new Error(`Could not find row ID for order ${order.orderNumber}`);
+          throw new Error(
+            `Could not find row ID for order ${order.orderNumber}`,
+          );
         }
 
         logger.info(`[DDTScraper] Found row ID: ${rowId}`);
@@ -556,7 +570,9 @@ export class DDTScraperService {
         await page.click('li[title="Scarica PDF"] a.dxm-content');
 
         // Wait for PDF link to appear (div selector for DDT)
-        logger.info("[DDTScraper] Waiting for PDF link generation (15s timeout)");
+        logger.info(
+          "[DDTScraper] Waiting for PDF link generation (15s timeout)",
+        );
         await page.waitForSelector(
           'div[id$="_xaf_InvoicePDF"] a.XafFileDataAnchor',
           {
@@ -590,14 +606,19 @@ export class DDTScraperService {
         // Find the downloaded file
         logger.info(`[DDTScraper] Looking for PDF in ${tmpDir}`);
         const files = await fs.readdir(tmpDir);
-        logger.info(`[DDTScraper] Found ${files.length} files in download dir: ${files.join(", ")}`);
+        logger.info(
+          `[DDTScraper] Found ${files.length} files in download dir: ${files.join(", ")}`,
+        );
         const pdfFile = files.find((f) => f.endsWith(".pdf"));
 
         if (!pdfFile) {
-          logger.error(`[DDTScraper] PDF file not found in download directory`, {
-            tmpDir,
-            filesFound: files,
-          });
+          logger.error(
+            `[DDTScraper] PDF file not found in download directory`,
+            {
+              tmpDir,
+              filesFound: files,
+            },
+          );
           throw new Error("PDF file not found in download directory");
         }
 
@@ -635,7 +656,9 @@ export class DDTScraperService {
       throw error;
     } finally {
       if (context) {
-        logger.info(`[DDTScraper] Releasing browser context (success: ${success})`);
+        logger.info(
+          `[DDTScraper] Releasing browser context (success: ${success})`,
+        );
         await browserPool.releaseContext(userId, context, success);
       }
     }

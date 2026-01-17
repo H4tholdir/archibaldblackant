@@ -68,10 +68,13 @@ export class OrderStateSyncService {
       const now = new Date();
 
       if (cacheData && !forceRefresh) {
-        const cacheAge = now.getTime() - new Date(cacheData.lastSyncAt).getTime();
+        const cacheAge =
+          now.getTime() - new Date(cacheData.lastSyncAt).getTime();
 
         if (cacheAge < this.CACHE_TTL_MS) {
-          const minutesRemaining = Math.round((this.CACHE_TTL_MS - cacheAge) / 60000);
+          const minutesRemaining = Math.round(
+            (this.CACHE_TTL_MS - cacheAge) / 60000,
+          );
           logger.info(`[StateSyncService] Cache hit for user ${userId}`, {
             cacheAge: `${Math.round(cacheAge / 60000)}m ago`,
             remainingTTL: `${minutesRemaining}m`,
@@ -89,20 +92,27 @@ export class OrderStateSyncService {
       }
 
       // Cache miss or force refresh - sync states
-      logger.info(`[StateSyncService] Cache miss or force refresh for user ${userId}`, {
-        forceRefresh,
-        cacheAge: cacheData
-          ? `${Math.round((now.getTime() - new Date(cacheData.lastSyncAt).getTime()) / 60000)}m`
-          : "no cache",
-      });
+      logger.info(
+        `[StateSyncService] Cache miss or force refresh for user ${userId}`,
+        {
+          forceRefresh,
+          cacheAge: cacheData
+            ? `${Math.round((now.getTime() - new Date(cacheData.lastSyncAt).getTime()) / 60000)}m`
+            : "no cache",
+        },
+      );
 
       // Get orders from last 3 weeks
-      const threeWeeksAgo = new Date(now.getTime() - this.THREE_WEEKS_AGO_MS).toISOString();
+      const threeWeeksAgo = new Date(
+        now.getTime() - this.THREE_WEEKS_AGO_MS,
+      ).toISOString();
       const orders = this.orderDb.getOrdersByUser(userId, {
         dateFrom: threeWeeksAgo,
       });
 
-      logger.info(`[StateSyncService] Found ${orders.length} orders from last 3 weeks`);
+      logger.info(
+        `[StateSyncService] Found ${orders.length} orders from last 3 weeks`,
+      );
 
       // Process orders and detect states
       let updated = 0;
@@ -127,12 +137,15 @@ export class OrderStateSyncService {
               `Auto-detected from ${detection.source}: ${detection.notes || ""}`,
             );
 
-            logger.info(`[StateSyncService] State changed for order ${order.id}`, {
-              oldState: currentState,
-              newState: detection.state,
-              confidence: detection.confidence,
-              source: detection.source,
-            });
+            logger.info(
+              `[StateSyncService] State changed for order ${order.id}`,
+              {
+                oldState: currentState,
+                newState: detection.state,
+                confidence: detection.confidence,
+                source: detection.source,
+              },
+            );
 
             updated++;
           } else {
@@ -140,7 +153,8 @@ export class OrderStateSyncService {
           }
         } catch (error) {
           errors++;
-          const errorMessage = error instanceof Error ? error.message : String(error);
+          const errorMessage =
+            error instanceof Error ? error.message : String(error);
           logger.error(`[StateSyncService] Error syncing order ${order.id}`, {
             error: errorMessage,
           });
@@ -173,10 +187,14 @@ export class OrderStateSyncService {
         scrapedCount: orders.length,
       };
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      logger.error(`[StateSyncService] Failed to sync states for user ${userId}`, {
-        error: errorMessage,
-      });
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
+      logger.error(
+        `[StateSyncService] Failed to sync states for user ${userId}`,
+        {
+          error: errorMessage,
+        },
+      );
 
       return {
         success: false,

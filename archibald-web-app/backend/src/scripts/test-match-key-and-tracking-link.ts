@@ -17,13 +17,13 @@ async function main() {
     console.log("✅ Logged in successfully\n");
 
     // Test 1: Extract Order List IDs
-    console.log("=" .repeat(80));
+    console.log("=".repeat(80));
     console.log("TEST 1: ORDER LIST - Extract ID (Match Key)");
     console.log("=".repeat(80));
 
     await bot.page.goto(
       "https://4.231.124.90/Archibald/SALESTABLE_ListView_Agent/",
-      { waitUntil: "domcontentloaded", timeout: 60000 }
+      { waitUntil: "domcontentloaded", timeout: 60000 },
     );
 
     await new Promise((resolve) => setTimeout(resolve, 3000));
@@ -32,7 +32,9 @@ async function main() {
       const table = document.querySelector('table[id$="_DXMainTable"]');
       if (!table) return { error: "Order table not found" };
 
-      const dataRows = Array.from(table.querySelectorAll("tr.dxgvDataRow, tr.dxgvDataRow_XafTheme"));
+      const dataRows = Array.from(
+        table.querySelectorAll("tr.dxgvDataRow, tr.dxgvDataRow_XafTheme"),
+      );
       const results: any[] = [];
 
       for (let i = 0; i < Math.min(3, dataRows.length); i++) {
@@ -63,7 +65,7 @@ async function main() {
 
     await bot.page.goto(
       "https://4.231.124.90/Archibald/CUSTPACKINGSLIPJOUR_ListView/",
-      { waitUntil: "domcontentloaded", timeout: 60000 }
+      { waitUntil: "domcontentloaded", timeout: 60000 },
     );
 
     await new Promise((resolve) => setTimeout(resolve, 3000));
@@ -72,7 +74,9 @@ async function main() {
       const table = document.querySelector('table[id$="_DXMainTable"]');
       if (!table) return { error: "DDT table not found" };
 
-      const dataRows = Array.from(table.querySelectorAll("tr.dxgvDataRow, tr.dxgvDataRow_XafTheme"));
+      const dataRows = Array.from(
+        table.querySelectorAll("tr.dxgvDataRow, tr.dxgvDataRow_XafTheme"),
+      );
       const results: any[] = [];
 
       for (let i = 0; i < Math.min(3, dataRows.length); i++) {
@@ -120,7 +124,9 @@ async function main() {
         console.log(`   DDT Number:         "${row.ddtNumber}"`);
         console.log(`   Tracking Number:    "${row.trackingNumber}"`);
         console.log(`   Tracking URL:       "${row.trackingUrl}"`);
-        console.log(`   Has Clickable Link: ${row.hasLink ? "✅ YES" : "❌ NO"}`);
+        console.log(
+          `   Has Clickable Link: ${row.hasLink ? "✅ YES" : "❌ NO"}`,
+        );
       });
     }
 
@@ -133,7 +139,9 @@ async function main() {
       console.log("\n📊 Checking if Order IDs match DDT IDs...\n");
 
       orderIds.results.forEach((order: any) => {
-        const matchingDdt = ddtData.results.find((ddt: any) => ddt.ddtId === order.id);
+        const matchingDdt = ddtData.results.find(
+          (ddt: any) => ddt.ddtId === order.id,
+        );
 
         if (matchingDdt) {
           console.log(`✅ MATCH FOUND:`);
@@ -151,7 +159,6 @@ async function main() {
     console.log("\n" + "=".repeat(80));
     console.log("✅ TEST COMPLETATO");
     console.log("=".repeat(80));
-
   } catch (error) {
     console.error("\n❌ Error:", error);
     process.exit(1);

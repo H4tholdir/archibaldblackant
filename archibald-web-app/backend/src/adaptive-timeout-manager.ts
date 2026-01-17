@@ -1,6 +1,6 @@
-import * as fs from 'fs/promises';
-import * as path from 'path';
-import { logger } from './logger';
+import * as fs from "fs/promises";
+import * as path from "path";
+import { logger } from "./logger";
 
 /**
  * Statistiche per un'operazione
@@ -41,7 +41,7 @@ export class AdaptiveTimeoutManager {
   private statsFilePath: string;
 
   private constructor() {
-    this.statsFilePath = path.join(__dirname, '../data/adaptive-timeouts.json');
+    this.statsFilePath = path.join(__dirname, "../data/adaptive-timeouts.json");
     this.loadStats();
   }
 
@@ -57,7 +57,7 @@ export class AdaptiveTimeoutManager {
    */
   registerOperation(
     operationName: string,
-    config: Partial<AdaptiveTimeoutConfig> = {}
+    config: Partial<AdaptiveTimeoutConfig> = {},
   ): void {
     const defaultConfig: AdaptiveTimeoutConfig = {
       minTimeout: 100,
@@ -94,7 +94,9 @@ export class AdaptiveTimeoutManager {
   getTimeout(operationName: string): number {
     const stats = this.stats.get(operationName);
     if (!stats) {
-      logger.warn(`Operazione ${operationName} non registrata, uso timeout default 1000ms`);
+      logger.warn(
+        `Operazione ${operationName} non registrata, uso timeout default 1000ms`,
+      );
       return 1000;
     }
     return stats.currentTimeout;
@@ -113,7 +115,9 @@ export class AdaptiveTimeoutManager {
     stats.maxTime = Math.max(stats.maxTime, actualTime);
     stats.avgTime = stats.totalTime / (stats.successCount + stats.failureCount);
 
-    logger.debug(`✅ ${operationName}: ${actualTime}ms (timeout: ${stats.currentTimeout}ms, avg: ${stats.avgTime.toFixed(0)}ms)`);
+    logger.debug(
+      `✅ ${operationName}: ${actualTime}ms (timeout: ${stats.currentTimeout}ms, avg: ${stats.avgTime.toFixed(0)}ms)`,
+    );
 
     this.adjustTimeout(operationName);
   }
@@ -155,21 +159,26 @@ export class AdaptiveTimeoutManager {
       // Usa il massimo tra avgTime * 1.5 e currentTimeout - step
       const targetTimeout = Math.max(
         stats.avgTime * 1.5, // 50% di margine sopra il tempo medio
-        stats.currentTimeout - config.adjustmentStep
+        stats.currentTimeout - config.adjustmentStep,
       );
-      stats.currentTimeout = Math.max(config.minTimeout, Math.floor(targetTimeout));
+      stats.currentTimeout = Math.max(
+        config.minTimeout,
+        Math.floor(targetTimeout),
+      );
     }
     // Se il tasso di fallimento è alto, aumenta il timeout
-    else if (successRate <= (1 - config.failureThreshold)) {
+    else if (successRate <= 1 - config.failureThreshold) {
       stats.currentTimeout = Math.min(
         config.maxTimeout,
-        stats.currentTimeout + config.adjustmentStep
+        stats.currentTimeout + config.adjustmentStep,
       );
     }
 
     if (stats.currentTimeout !== oldTimeout) {
       stats.lastAdjustment = Date.now();
-      logger.info(`🔧 ${operationName}: timeout ${oldTimeout}ms → ${stats.currentTimeout}ms (success: ${(successRate * 100).toFixed(1)}%, avg: ${stats.avgTime.toFixed(0)}ms)`);
+      logger.info(
+        `🔧 ${operationName}: timeout ${oldTimeout}ms → ${stats.currentTimeout}ms (success: ${(successRate * 100).toFixed(1)}%, avg: ${stats.avgTime.toFixed(0)}ms)`,
+      );
       this.saveStats();
     }
   }
@@ -241,7 +250,7 @@ export class AdaptiveTimeoutManager {
       await fs.mkdir(dir, { recursive: true });
       await fs.writeFile(this.statsFilePath, JSON.stringify(data, null, 2));
     } catch (error) {
-      logger.error('Errore salvando statistiche timeout adattivi', { error });
+      logger.error("Errore salvando statistiche timeout adattivi", { error });
     }
   }
 
@@ -250,7 +259,7 @@ export class AdaptiveTimeoutManager {
    */
   private async loadStats(): Promise<void> {
     try {
-      const data = await fs.readFile(this.statsFilePath, 'utf-8');
+      const data = await fs.readFile(this.statsFilePath, "utf-8");
       const stats = JSON.parse(data);
 
       for (const stat of stats) {
@@ -258,10 +267,14 @@ export class AdaptiveTimeoutManager {
         this.stats.set(name, statData);
       }
 
-      logger.info(`📊 Caricati timeout adattivi per ${stats.length} operazioni`);
+      logger.info(
+        `📊 Caricati timeout adattivi per ${stats.length} operazioni`,
+      );
     } catch (error) {
       // File non esiste ancora, normale al primo avvio
-      logger.debug('Nessun file statistiche timeout adattivi trovato, inizializzo da zero');
+      logger.debug(
+        "Nessun file statistiche timeout adattivi trovato, inizializzo da zero",
+      );
     }
   }
 }

@@ -17,13 +17,13 @@ async function main() {
     console.log("✅ Logged in successfully\n");
 
     // ==================== ORDER LIST ====================
-    console.log("=" .repeat(80));
+    console.log("=".repeat(80));
     console.log("STEP 1: ORDER LIST - Navigate to Page 1 and Sort");
     console.log("=".repeat(80));
 
     await bot.page.goto(
       "https://4.231.124.90/Archibald/SALESTABLE_ListView_Agent/",
-      { waitUntil: "domcontentloaded", timeout: 60000 }
+      { waitUntil: "domcontentloaded", timeout: 60000 },
     );
 
     await new Promise((resolve) => setTimeout(resolve, 3000));
@@ -33,7 +33,9 @@ async function main() {
     // Find and click delivery date header to sort
     const orderSortResult = await bot.page.evaluate(() => {
       // Find all header cells
-      const headers = Array.from(document.querySelectorAll('td[class*="dxgvHeader"]'));
+      const headers = Array.from(
+        document.querySelectorAll('td[class*="dxgvHeader"]'),
+      );
 
       console.log(`Found ${headers.length} header cells`);
 
@@ -70,15 +72,19 @@ async function main() {
 
       // Click again for descending order
       await bot.page.evaluate(() => {
-        const headers = Array.from(document.querySelectorAll('td[class*="dxgvHeader"]'));
-        const deliveryDateHeader = headers.find(h =>
-          h.textContent?.trim().toUpperCase().includes("DATA DI CONSEGNA")
+        const headers = Array.from(
+          document.querySelectorAll('td[class*="dxgvHeader"]'),
+        );
+        const deliveryDateHeader = headers.find((h) =>
+          h.textContent?.trim().toUpperCase().includes("DATA DI CONSEGNA"),
         );
         if (deliveryDateHeader) {
           const clickableLink = deliveryDateHeader.querySelector("a");
           if (clickableLink) {
             (clickableLink as HTMLElement).click();
-            console.log("Clicked delivery date header (second time - descending)");
+            console.log(
+              "Clicked delivery date header (second time - descending)",
+            );
           }
         }
       });
@@ -92,10 +98,12 @@ async function main() {
 
     const orderPageResult = await bot.page.evaluate(() => {
       // Find page 1 button
-      const pageButtons = Array.from(document.querySelectorAll('a[class*="dxp"], div[class*="dxp"]'));
+      const pageButtons = Array.from(
+        document.querySelectorAll('a[class*="dxp"], div[class*="dxp"]'),
+      );
 
       let page1Button: Element | null = null;
-      pageButtons.forEach(btn => {
+      pageButtons.forEach((btn) => {
         const text = btn.textContent?.trim() || "";
         if (text === "1") {
           page1Button = btn;
@@ -119,7 +127,9 @@ async function main() {
       const table = document.querySelector('table[id$="_DXMainTable"]');
       if (!table) return { error: "Order table not found" };
 
-      const dataRows = Array.from(table.querySelectorAll("tr.dxgvDataRow, tr.dxgvDataRow_XafTheme"));
+      const dataRows = Array.from(
+        table.querySelectorAll("tr.dxgvDataRow, tr.dxgvDataRow_XafTheme"),
+      );
       const results: any[] = [];
 
       for (let i = 0; i < Math.min(5, dataRows.length); i++) {
@@ -137,9 +147,13 @@ async function main() {
     if ("error" in orderData) {
       console.error(`\n❌ ${orderData.error}`);
     } else {
-      console.log("\n📦 First 5 Orders (sorted by delivery date, newest first):");
+      console.log(
+        "\n📦 First 5 Orders (sorted by delivery date, newest first):",
+      );
       orderData.results.forEach((row: any, idx: number) => {
-        console.log(`   ${idx + 1}. ID: "${row.id}", Order#: "${row.orderNumber}", Date: "${row.deliveryDate}"`);
+        console.log(
+          `   ${idx + 1}. ID: "${row.id}", Order#: "${row.orderNumber}", Date: "${row.deliveryDate}"`,
+        );
       });
     }
 
@@ -150,7 +164,7 @@ async function main() {
 
     await bot.page.goto(
       "https://4.231.124.90/Archibald/CUSTPACKINGSLIPJOUR_ListView/",
-      { waitUntil: "domcontentloaded", timeout: 60000 }
+      { waitUntil: "domcontentloaded", timeout: 60000 },
     );
 
     await new Promise((resolve) => setTimeout(resolve, 3000));
@@ -159,7 +173,9 @@ async function main() {
 
     // Find and click delivery date header to sort
     const ddtSortResult = await bot.page.evaluate(() => {
-      const headers = Array.from(document.querySelectorAll('td[class*="dxgvHeader"]'));
+      const headers = Array.from(
+        document.querySelectorAll('td[class*="dxgvHeader"]'),
+      );
 
       console.log(`Found ${headers.length} header cells`);
 
@@ -194,15 +210,19 @@ async function main() {
 
       // Click again for descending order
       await bot.page.evaluate(() => {
-        const headers = Array.from(document.querySelectorAll('td[class*="dxgvHeader"]'));
-        const deliveryDateHeader = headers.find(h =>
-          h.textContent?.trim().toUpperCase().includes("DATA DI CONSEGNA")
+        const headers = Array.from(
+          document.querySelectorAll('td[class*="dxgvHeader"]'),
+        );
+        const deliveryDateHeader = headers.find((h) =>
+          h.textContent?.trim().toUpperCase().includes("DATA DI CONSEGNA"),
         );
         if (deliveryDateHeader) {
           const clickableLink = deliveryDateHeader.querySelector("a");
           if (clickableLink) {
             (clickableLink as HTMLElement).click();
-            console.log("Clicked delivery date header (second time - descending)");
+            console.log(
+              "Clicked delivery date header (second time - descending)",
+            );
           }
         }
       });
@@ -215,10 +235,12 @@ async function main() {
     console.log("\n🔍 Navigating to page 1...");
 
     const ddtPageResult = await bot.page.evaluate(() => {
-      const pageButtons = Array.from(document.querySelectorAll('a[class*="dxp"], div[class*="dxp"]'));
+      const pageButtons = Array.from(
+        document.querySelectorAll('a[class*="dxp"], div[class*="dxp"]'),
+      );
 
       let page1Button: Element | null = null;
-      pageButtons.forEach(btn => {
+      pageButtons.forEach((btn) => {
         const text = btn.textContent?.trim() || "";
         if (text === "1") {
           page1Button = btn;
@@ -242,7 +264,9 @@ async function main() {
       const table = document.querySelector('table[id$="_DXMainTable"]');
       if (!table) return { error: "DDT table not found" };
 
-      const dataRows = Array.from(table.querySelectorAll("tr.dxgvDataRow, tr.dxgvDataRow_XafTheme"));
+      const dataRows = Array.from(
+        table.querySelectorAll("tr.dxgvDataRow, tr.dxgvDataRow_XafTheme"),
+      );
       const results: any[] = [];
 
       for (let i = 0; i < Math.min(5, dataRows.length); i++) {
@@ -261,9 +285,13 @@ async function main() {
     if ("error" in ddtData) {
       console.error(`\n❌ ${ddtData.error}`);
     } else {
-      console.log("\n📄 First 5 DDT entries (sorted by delivery date, newest first):");
+      console.log(
+        "\n📄 First 5 DDT entries (sorted by delivery date, newest first):",
+      );
       ddtData.results.forEach((row: any, idx: number) => {
-        console.log(`   ${idx + 1}. DDT ID: "${row.ddtId}", DDT#: "${row.ddtNumber}", Date: "${row.deliveryDate}", OrderID: "${row.orderId}"`);
+        console.log(
+          `   ${idx + 1}. DDT ID: "${row.ddtId}", DDT#: "${row.ddtNumber}", Date: "${row.deliveryDate}", OrderID: "${row.orderId}"`,
+        );
       });
     }
 
@@ -277,11 +305,17 @@ async function main() {
 
       let matchCount = 0;
       orderData.results.forEach((order: any) => {
-        const matchingDdt = ddtData.results.find((ddt: any) => ddt.ddtId === order.id);
+        const matchingDdt = ddtData.results.find(
+          (ddt: any) => ddt.ddtId === order.id,
+        );
         if (matchingDdt) {
           matchCount++;
-          console.log(`✅ MATCH: Order ID "${order.id}" = DDT ID "${matchingDdt.ddtId}"`);
-          console.log(`   Order Date: ${order.deliveryDate}, DDT Date: ${matchingDdt.deliveryDate}`);
+          console.log(
+            `✅ MATCH: Order ID "${order.id}" = DDT ID "${matchingDdt.ddtId}"`,
+          );
+          console.log(
+            `   Order Date: ${order.deliveryDate}, DDT Date: ${matchingDdt.deliveryDate}`,
+          );
         }
       });
 
@@ -290,7 +324,9 @@ async function main() {
         console.log("\n   This could mean:");
         console.log("   1. The match key is NOT the ID field");
         console.log("   2. OR the data is still from different time periods");
-        console.log("   3. OR we need to use orderNumber ↔ orderId for matching");
+        console.log(
+          "   3. OR we need to use orderNumber ↔ orderId for matching",
+        );
       } else {
         console.log(`\n✅ Found ${matchCount} matches!`);
       }
@@ -299,7 +335,6 @@ async function main() {
     console.log("\n" + "=".repeat(80));
     console.log("✅ TEST COMPLETATO");
     console.log("=".repeat(80));
-
   } catch (error) {
     console.error("\n❌ Error:", error);
     process.exit(1);

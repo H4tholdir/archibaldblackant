@@ -18,7 +18,7 @@ async function main() {
 
     await bot.page.goto(
       "https://4.231.124.90/Archibald/CUSTPACKINGSLIPJOUR_ListView/",
-      { waitUntil: "domcontentloaded", timeout: 60000 }
+      { waitUntil: "domcontentloaded", timeout: 60000 },
     );
 
     await new Promise((resolve) => setTimeout(resolve, 3000));
@@ -30,7 +30,9 @@ async function main() {
       }
 
       // Find header row
-      const headerRow = table.querySelector("tr.dxgvHeader, tr.dxgvHeader_XafTheme");
+      const headerRow = table.querySelector(
+        "tr.dxgvHeader, tr.dxgvHeader_XafTheme",
+      );
       if (!headerRow) {
         return { error: "Header row not found" };
       }
@@ -88,16 +90,17 @@ async function main() {
 
       required.forEach((col, idx) => {
         const found = headerAnalysis.headers.find((h: any) =>
-          h.text.toLowerCase().includes(col.toLowerCase())
+          h.text.toLowerCase().includes(col.toLowerCase()),
         );
         if (found) {
-          console.log(`   ✅ [${idx + 1}] "${col}" → FOUND at index ${found.index}`);
+          console.log(
+            `   ✅ [${idx + 1}] "${col}" → FOUND at index ${found.index}`,
+          );
         } else {
           console.log(`   ❌ [${idx + 1}] "${col}" → NOT FOUND`);
         }
       });
     }
-
   } catch (error) {
     console.error("\n❌ Error:", error);
     process.exit(1);

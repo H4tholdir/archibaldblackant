@@ -98,11 +98,14 @@ export class CredentialStore {
       // 2. Derive key from PIN with stored salt
       const key = await this.deriveKeyFromPin(pin, stored.salt);
 
-      // 3. Decrypt
+      // 3. Decrypt - convert to Uint8Array to ensure proper BufferSource type
+      const encryptedData = new Uint8Array(stored.encryptedData);
+      const ivData = new Uint8Array(stored.iv);
+
       const decryptedData = await crypto.subtle.decrypt(
-        { name: "AES-GCM", iv: stored.iv },
+        { name: "AES-GCM", iv: ivData },
         key,
-        stored.encryptedData,
+        encryptedData,
       );
 
       // 4. Parse JSON
@@ -146,7 +149,7 @@ export class CredentialStore {
    */
   async storeBiometricCredential(
     userId: string,
-    credentialId: string
+    credentialId: string,
   ): Promise<void> {
     const stored = await this.getStoredCredential(userId);
     if (stored) {
@@ -168,7 +171,7 @@ export class CredentialStore {
    * Returns decrypted credentials if biometric auth succeeds
    */
   async getCredentialsWithBiometric(
-    userId: string
+    userId: string,
   ): Promise<DecryptedCredentials | null> {
     const stored = await this.getStoredCredential(userId);
     if (!stored || !stored.biometricCredentialId) {
@@ -177,13 +180,13 @@ export class CredentialStore {
 
     try {
       // Import BiometricAuth
-      const { getBiometricAuth } = await import('./biometric-auth');
+      const { getBiometricAuth } = await import("./biometric-auth");
       const bioAuth = getBiometricAuth();
 
       // Authenticate with biometric
       const keyMaterial = await bioAuth.authenticate(
         userId,
-        stored.biometricCredentialId
+        stored.biometricCredentialId,
       );
       if (!keyMaterial) {
         return null; // Biometric failed or cancelled
@@ -192,11 +195,14 @@ export class CredentialStore {
       // Derive encryption key from biometric key material
       const key = await this.deriveKeyFromBiometric(keyMaterial, stored.salt);
 
-      // Decrypt credentials
+      // Decrypt credentials - convert to Uint8Array to ensure proper BufferSource type
+      const encryptedData = new Uint8Array(stored.encryptedData);
+      const ivData = new Uint8Array(stored.iv);
+
       const decryptedData = await crypto.subtle.decrypt(
-        { name: 'AES-GCM', iv: stored.iv },
+        { name: "AES-GCM", iv: ivData },
         key,
-        stored.encryptedData
+        encryptedData,
       );
 
       const decoder = new TextDecoder();
@@ -208,7 +214,7 @@ export class CredentialStore {
 
       return credentials;
     } catch (error) {
-      console.error('Biometric unlock failed', error);
+      console.error("Biometric unlock failed", error);
       return null;
     }
   }
@@ -230,7 +236,7 @@ export class CredentialStore {
     // Import PIN as raw key material
     const keyMaterial = await crypto.subtle.importKey(
       "raw",
-      pinData,
+      pinData as BufferSource,
       "PBKDF2",
       false,
       ["deriveKey"],
@@ -240,7 +246,7 @@ export class CredentialStore {
     const key = await crypto.subtle.deriveKey(
       {
         name: "PBKDF2",
-        salt,
+        salt: salt as BufferSource,
         iterations: this.pbkdf2Iterations,
         hash: "SHA-256",
       },
@@ -258,29 +264,29 @@ export class CredentialStore {
    */
   private async deriveKeyFromBiometric(
     keyMaterial: Uint8Array,
-    salt: Uint8Array
+    salt: Uint8Array,
   ): Promise<CryptoKey> {
     // Import raw key material
     const importedKey = await crypto.subtle.importKey(
-      'raw',
-      keyMaterial,
-      'PBKDF2',
+      "raw",
+      keyMaterial as BufferSource,
+      "PBKDF2",
       false,
-      ['deriveKey']
+      ["deriveKey"],
     );
 
     // Derive AES-GCM key using PBKDF2
     const key = await crypto.subtle.deriveKey(
       {
-        name: 'PBKDF2',
-        salt,
+        name: "PBKDF2",
+        salt: salt as BufferSource,
         iterations: this.pbkdf2Iterations,
-        hash: 'SHA-256',
+        hash: "SHA-256",
       },
       importedKey,
-      { name: 'AES-GCM', length: 256 },
+      { name: "AES-GCM", length: 256 },
       false,
-      ['encrypt', 'decrypt']
+      ["encrypt", "decrypt"],
     );
 
     return key;

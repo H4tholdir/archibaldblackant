@@ -1,4 +1,4 @@
-import { useRef, KeyboardEvent } from 'react';
+import { useRef, KeyboardEvent } from "react";
 
 interface PinInputProps {
   length?: number;
@@ -7,7 +7,12 @@ interface PinInputProps {
   autoFocus?: boolean;
 }
 
-export function PinInput({ length = 6, value, onChange, autoFocus = false }: PinInputProps) {
+export function PinInput({
+  length = 6,
+  value,
+  onChange,
+  autoFocus = false,
+}: PinInputProps) {
   const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
 
   const handleChange = (index: number, digit: string) => {
@@ -15,9 +20,9 @@ export function PinInput({ length = 6, value, onChange, autoFocus = false }: Pin
     if (!/^\d*$/.test(digit)) return;
 
     // Update value at index
-    const newValue = value.split('');
+    const newValue = value.split("");
     newValue[index] = digit;
-    const newPin = newValue.join('');
+    const newPin = newValue.join("");
 
     onChange(newPin.slice(0, length));
 
@@ -28,7 +33,7 @@ export function PinInput({ length = 6, value, onChange, autoFocus = false }: Pin
   };
 
   const handleKeyDown = (index: number, e: KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Backspace' && !value[index] && index > 0) {
+    if (e.key === "Backspace" && !value[index] && index > 0) {
       // Focus previous input on backspace if current is empty
       inputRefs.current[index - 1]?.focus();
     }
@@ -36,7 +41,7 @@ export function PinInput({ length = 6, value, onChange, autoFocus = false }: Pin
 
   const handlePaste = (e: React.ClipboardEvent) => {
     e.preventDefault();
-    const pastedText = e.clipboardData.getData('text').replace(/\D/g, '');
+    const pastedText = e.clipboardData.getData("text").replace(/\D/g, "");
     onChange(pastedText.slice(0, length));
   };
 
@@ -45,12 +50,14 @@ export function PinInput({ length = 6, value, onChange, autoFocus = false }: Pin
       {Array.from({ length }).map((_, index) => (
         <input
           key={index}
-          ref={(el) => (inputRefs.current[index] = el)}
+          ref={(el) => {
+            inputRefs.current[index] = el;
+          }}
           type="tel"
           inputMode="numeric"
           pattern="\d"
           maxLength={1}
-          value={value[index] || ''}
+          value={value[index] || ""}
           onChange={(e) => handleChange(index, e.target.value)}
           onKeyDown={(e) => handleKeyDown(index, e)}
           autoFocus={autoFocus && index === 0}

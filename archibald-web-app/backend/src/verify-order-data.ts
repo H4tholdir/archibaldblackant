@@ -92,7 +92,9 @@ console.log(`5.  Delivery Name:           ${order.deliveryName || "N/A"}`);
 console.log(`6.  Delivery Address:        ${order.deliveryAddress || "N/A"}`);
 console.log(`7.  Order Date:              ${order.orderDate || "N/A"}`);
 console.log(`8.  Delivery Date:           ${order.deliveryDate || "N/A"}`);
-console.log(`9.  Remaining Sales Fin.:    ${order.remainingSalesFinancial || "N/A"}`);
+console.log(
+  `9.  Remaining Sales Fin.:    ${order.remainingSalesFinancial || "N/A"}`,
+);
 console.log(`10. Customer Reference:      ${order.customerReference || "N/A"}`);
 console.log(`11. Sales Status:            ${order.salesStatus || "N/A"}`);
 console.log(`12. Order Type:              ${order.orderType || "N/A"}`);
@@ -126,11 +128,15 @@ console.log(
 console.log(
   `7.  DDT Delivery Name:       ${order.ddtDeliveryName || "❌ MANCANTE"}`,
 );
-console.log(`8.  Delivery Terms:          ${order.deliveryTerms || "❌ MANCANTE"}`);
+console.log(
+  `8.  Delivery Terms:          ${order.deliveryTerms || "❌ MANCANTE"}`,
+);
 console.log(
   `9.  Delivery Method:         ${order.deliveryMethod || "❌ MANCANTE"}`,
 );
-console.log(`10. Delivery City:           ${order.deliveryCity || "❌ MANCANTE"}`);
+console.log(
+  `10. Delivery City:           ${order.deliveryCity || "❌ MANCANTE"}`,
+);
 console.log(
   `11. Tracking Number:         ${order.trackingNumber || "❌ MANCANTE"}`,
 );
@@ -142,7 +148,9 @@ console.log("━".repeat(80));
 console.log(
   `1.  Tracking Number:         ${order.trackingNumber || "❌ MANCANTE"}`,
 );
-console.log(`2.  Tracking URL:            ${order.trackingUrl || "❌ MANCANTE"}`);
+console.log(
+  `2.  Tracking URL:            ${order.trackingUrl || "❌ MANCANTE"}`,
+);
 console.log(
   `3.  Tracking Courier:        ${order.trackingCourier || "❌ MANCANTE"}`,
 );
@@ -154,7 +162,9 @@ console.log("━".repeat(80));
 console.log(`User ID:                 ${order.userId || "N/A"}`);
 console.log(`Last Scraped:            ${order.lastScraped || "N/A"}`);
 console.log(`Last Updated:            ${order.lastUpdated || "N/A"}`);
-console.log(`Detail JSON:             ${order.detailJson ? "✅ Presente" : "❌ Assente"}`);
+console.log(
+  `Detail JSON:             ${order.detailJson ? "✅ Presente" : "❌ Assente"}`,
+);
 
 // CONFRONTO CON DATI ATTESI (dalle screenshot)
 console.log("\n" + "=".repeat(80));
@@ -285,8 +295,12 @@ if (issues.length === 0) {
   console.log(
     "   1. Il DDT non è stato matchato correttamente (orderNumber ↔ orderId)",
   );
-  console.log("   2. Il tracking non è presente nella tabella DDT su Archibald");
-  console.log("   3. Lo scraping del DDT non estrae correttamente i dati tracking");
+  console.log(
+    "   2. Il tracking non è presente nella tabella DDT su Archibald",
+  );
+  console.log(
+    "   3. Lo scraping del DDT non estrae correttamente i dati tracking",
+  );
   console.log(
     "   4. Il formato del tracking URL non è riconosciuto dal parser",
   );

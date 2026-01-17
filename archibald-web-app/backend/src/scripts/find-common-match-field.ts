@@ -17,13 +17,13 @@ async function main() {
     console.log("✅ Logged in successfully\n");
 
     // Extract Order List data (ALL fields)
-    console.log("=" .repeat(80));
+    console.log("=".repeat(80));
     console.log("EXTRACTING ORDER LIST DATA (First 2 rows)");
     console.log("=".repeat(80));
 
     await bot.page.goto(
       "https://4.231.124.90/Archibald/SALESTABLE_ListView_Agent/",
-      { waitUntil: "domcontentloaded", timeout: 60000 }
+      { waitUntil: "domcontentloaded", timeout: 60000 },
     );
 
     await new Promise((resolve) => setTimeout(resolve, 3000));
@@ -32,7 +32,9 @@ async function main() {
       const table = document.querySelector('table[id$="_DXMainTable"]');
       if (!table) return { error: "Order table not found" };
 
-      const dataRows = Array.from(table.querySelectorAll("tr.dxgvDataRow, tr.dxgvDataRow_XafTheme"));
+      const dataRows = Array.from(
+        table.querySelectorAll("tr.dxgvDataRow, tr.dxgvDataRow_XafTheme"),
+      );
       const results: any[] = [];
 
       for (let i = 0; i < Math.min(2, dataRows.length); i++) {
@@ -70,7 +72,7 @@ async function main() {
 
     await bot.page.goto(
       "https://4.231.124.90/Archibald/CUSTPACKINGSLIPJOUR_ListView/",
-      { waitUntil: "domcontentloaded", timeout: 60000 }
+      { waitUntil: "domcontentloaded", timeout: 60000 },
     );
 
     await new Promise((resolve) => setTimeout(resolve, 3000));
@@ -79,7 +81,9 @@ async function main() {
       const table = document.querySelector('table[id$="_DXMainTable"]');
       if (!table) return { error: "DDT table not found" };
 
-      const dataRows = Array.from(table.querySelectorAll("tr.dxgvDataRow, tr.dxgvDataRow_XafTheme"));
+      const dataRows = Array.from(
+        table.querySelectorAll("tr.dxgvDataRow, tr.dxgvDataRow_XafTheme"),
+      );
       const results: any[] = [];
 
       for (let i = 0; i < Math.min(2, dataRows.length); i++) {
@@ -122,9 +126,15 @@ async function main() {
     console.log("\n📊 Comparing fields between Order List and DDT:\n");
 
     console.log("Potential match fields:");
-    console.log("   1. Order.id          ↔️  DDT.ddtId          (Different sequences)");
-    console.log("   2. Order.orderNumber ↔️  DDT.orderId        (Both ORD/XXXXX format) ⭐");
-    console.log("   3. Order.customerProfileId ↔️  DDT.customerAccount (Customer ID)");
+    console.log(
+      "   1. Order.id          ↔️  DDT.ddtId          (Different sequences)",
+    );
+    console.log(
+      "   2. Order.orderNumber ↔️  DDT.orderId        (Both ORD/XXXXX format) ⭐",
+    );
+    console.log(
+      "   3. Order.customerProfileId ↔️  DDT.customerAccount (Customer ID)",
+    );
 
     console.log("\n" + "=".repeat(80));
     console.log("💡 CONCLUSION");
@@ -132,9 +142,12 @@ async function main() {
     console.log("\nThe correct MATCH KEY is:");
     console.log("   Order List: orderNumber (cells[3]) → 'ORD/25020453'");
     console.log("   DDT:        orderId (cells[9])     → 'ORD/23000787'");
-    console.log("\n⚠️  NOTE: These are DIFFERENT orders, so no match expected.");
-    console.log("   The match should be done by orderNumber/orderId field, NOT by id/ddtId.");
-
+    console.log(
+      "\n⚠️  NOTE: These are DIFFERENT orders, so no match expected.",
+    );
+    console.log(
+      "   The match should be done by orderNumber/orderId field, NOT by id/ddtId.",
+    );
   } catch (error) {
     console.error("\n❌ Error:", error);
     process.exit(1);

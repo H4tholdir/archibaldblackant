@@ -1,8 +1,8 @@
-import { SessionCacheManager } from './session-cache-manager';
-import { BrowserPool } from './browser-pool';
-import { logger } from './logger';
-import fs from 'fs';
-import path from 'path';
+import { SessionCacheManager } from "./session-cache-manager";
+import { BrowserPool } from "./browser-pool";
+import { logger } from "./logger";
+import fs from "fs";
+import path from "path";
 
 /**
  * Background job to cleanup expired sessions
@@ -13,7 +13,7 @@ export class SessionCleanupJob {
   private readonly CLEANUP_INTERVAL_MS = 60 * 60 * 1000; // 1 hour
 
   start(): void {
-    logger.info('Starting session cleanup job (runs every 1 hour)');
+    logger.info("Starting session cleanup job (runs every 1 hour)");
 
     this.intervalId = setInterval(() => {
       this.cleanup();
@@ -27,35 +27,35 @@ export class SessionCleanupJob {
     if (this.intervalId) {
       clearInterval(this.intervalId);
       this.intervalId = null;
-      logger.info('Session cleanup job stopped');
+      logger.info("Session cleanup job stopped");
     }
   }
 
   private async cleanup(): Promise<void> {
     try {
-      logger.info('Running session cleanup job...');
+      logger.info("Running session cleanup job...");
 
-      const cacheDir = path.join(__dirname, '..', '.cache');
+      const cacheDir = path.join(__dirname, "..", ".cache");
       if (!fs.existsSync(cacheDir)) {
         return;
       }
 
-      const files = fs.readdirSync(cacheDir).filter(f => f.startsWith('session-'));
+      const files = fs
+        .readdirSync(cacheDir)
+        .filter((f) => f.startsWith("session-"));
       let expiredCount = 0;
 
       for (const file of files) {
         const filePath = path.join(cacheDir, file);
         try {
-          const data = JSON.parse(fs.readFileSync(filePath, 'utf-8'));
+          const data = JSON.parse(fs.readFileSync(filePath, "utf-8"));
 
           if (Date.now() > data.expiresAt) {
             // Session expired
             const userId = data.userId;
             fs.unlinkSync(filePath);
 
-            // Close BrowserContext if still open
-            const pool = BrowserPool.getInstance();
-            await pool.closeUserContext(userId);
+            // Note: BrowserPool uses fresh contexts per operation, no need to close
 
             expiredCount++;
             logger.info(`Cleaned up expired session for user ${userId}`);
@@ -71,9 +71,8 @@ export class SessionCleanupJob {
         totalSessions: files.length,
         expiredSessions: expiredCount,
       });
-
     } catch (error) {
-      logger.error('Error in session cleanup job', { error });
+      logger.error("Error in session cleanup job", { error });
     }
   }
 }

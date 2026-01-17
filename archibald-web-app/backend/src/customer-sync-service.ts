@@ -55,7 +55,9 @@ export class CustomerSyncService extends EventEmitter {
 
     // If sync is currently running, wait for it to complete
     if (this.syncInProgress) {
-      logger.info("[CustomerSyncService] Waiting for current sync to complete...");
+      logger.info(
+        "[CustomerSyncService] Waiting for current sync to complete...",
+      );
       // Wait for sync to finish by polling syncInProgress
       while (this.syncInProgress) {
         await new Promise((resolve) => setTimeout(resolve, 500));
@@ -183,7 +185,9 @@ export class CustomerSyncService extends EventEmitter {
           : "Avvio sincronizzazione...",
     });
 
-    let bot = null;
+    // Use legacy ArchibaldBot for system sync operations
+    const { ArchibaldBot } = await import("./archibald-bot");
+    let bot: InstanceType<typeof ArchibaldBot> | null = null;
 
     try {
       logger.info(
@@ -192,8 +196,6 @@ export class CustomerSyncService extends EventEmitter {
           : "Inizio sincronizzazione clienti da Archibald",
       );
 
-      // Use legacy ArchibaldBot for system sync operations
-      const { ArchibaldBot } = await import('./archibald-bot');
       bot = new ArchibaldBot(); // No userId = legacy mode
       await bot.initialize();
       await bot.login(); // Uses config credentials
@@ -203,28 +205,27 @@ export class CustomerSyncService extends EventEmitter {
         throw new Error("Browser page is null");
       }
 
+      // Store reference for TypeScript flow analysis
+      const page = bot.page;
+
       try {
-        const url = bot.page.url();
+        const url = page.url();
         logger.info(`Pagina corrente: ${url}`);
       } catch (error) {
         logger.warn("Frame detached, ricarico la pagina...");
-        // Verifica nuovamente che la pagina esista prima di navigare
-        if (!bot.page) {
-          throw new Error("Browser page is null after detached frame");
-        }
-        await bot.page.goto(config.archibald.url, {
+        await page.goto(config.archibald.url, {
           waitUntil: "networkidle2",
           timeout: 60000,
         });
       }
 
       logger.info("Navigazione alla pagina clienti...");
-      await bot.page.goto(`${config.archibald.url}/CUSTTABLE_ListView/`, {
+      await page.goto(`${config.archibald.url}/CUSTTABLE_ListView/`, {
         waitUntil: "networkidle2",
         timeout: 60000,
       });
 
-      await bot.page!.waitForSelector("table", { timeout: 10000 });
+      await page.waitForSelector("table", { timeout: 10000 });
 
       // Aspetta che la pagina sia completamente caricata (no "Loading...")
       logger.info("Attesa caricamento completo pagina...");
@@ -232,7 +233,7 @@ export class CustomerSyncService extends EventEmitter {
 
       // Pulisci qualsiasi filtro di ricerca applicato
       logger.info("Pulizia filtri di ricerca...");
-      await bot.page!.evaluate(() => {
+      await page.evaluate(() => {
         // Trova la casella di ricerca e svuotala
         const searchInputs = Array.from(
           document.querySelectorAll('input[type="text"]'),
@@ -250,11 +251,11 @@ export class CustomerSyncService extends EventEmitter {
         }
       });
       await new Promise((resolve) => setTimeout(resolve, 2000));
-      await bot.page!.waitForSelector("table tbody tr", { timeout: 10000 });
+      await page.waitForSelector("table tbody tr", { timeout: 10000 });
 
       // Forza il reset alla pagina 1 (il browser pool potrebbe essere rimasto su un'altra pagina)
       logger.info("Verifica posizionamento su pagina 1...");
-      const isOnFirstPage = await bot.page!.evaluate(() => {
+      const isOnFirstPage = await page.evaluate(() => {
         // Cerca il pulsante "1" della paginazione
         const pageButtons = Array.from(
           document.querySelectorAll("a, span, td"),
@@ -280,7 +281,7 @@ export class CustomerSyncService extends EventEmitter {
 
       if (!isOnFirstPage) {
         logger.warn("⚠ Non siamo sulla pagina 1, torno all'inizio...");
-        await bot.page!.evaluate(() => {
+        await page.evaluate(() => {
           // Clicca sul pulsante pagina 1
           const pageButtons = Array.from(
             document.querySelectorAll("a, span, td"),
@@ -304,7 +305,7 @@ export class CustomerSyncService extends EventEmitter {
           }
         });
         await new Promise((resolve) => setTimeout(resolve, 2000));
-        await bot.page!.waitForSelector("table tbody tr", { timeout: 10000 });
+        await page.waitForSelector("table tbody tr", { timeout: 10000 });
       }
 
       // Helper function per impostare il filtro "Tutti i clienti"
@@ -312,7 +313,7 @@ export class CustomerSyncService extends EventEmitter {
         logger.info('Verifica selezione filtro "Tutti i clienti"...');
         try {
           // Prima, trova tutti i dropdown e logga le informazioni per debugging
-          const dropdownsInfo = await bot.page!.evaluate(() => {
+          const dropdownsInfo = await page.evaluate(() => {
             // Cerca tutti gli elementi che hanno ID che finisce con "_Cb" (ComboBox DevExpress)
             const allElements = Array.from(
               document.querySelectorAll('[id$="_Cb"]'),
@@ -348,7 +349,7 @@ export class CustomerSyncService extends EventEmitter {
 
           logger.debug("Controlli trovati nella pagina", dropdownsInfo);
 
-          const filterDropdownSelected = await bot.page!.evaluate(() => {
+          const filterDropdownSelected = await page.evaluate(() => {
             // Cerca tutti gli input che hanno ID che finisce con "_Cb_I" (ComboBox Input DevExpress)
             const allInputs = Array.from(
               document.querySelectorAll('input[id$="_Cb_I"]'),
@@ -433,7 +434,7 @@ export class CustomerSyncService extends EventEmitter {
 
               // Strategia DevExpress: imposta il campo nascosto _VI e l'input, poi triggera callback
               try {
-                const result = await bot.page!.evaluate(() => {
+                const result = await page.evaluate(() => {
                   // Debug: trova TUTTI gli input e campi nascosti
                   const allInputs = Array.from(
                     document.querySelectorAll("input"),
@@ -519,7 +520,7 @@ export class CustomerSyncService extends EventEmitter {
                     },
                   );
                   await new Promise((resolve) => setTimeout(resolve, 2500));
-                  await bot.page!.waitForSelector("table tbody tr", {
+                  await page.waitForSelector("table tbody tr", {
                     timeout: 10000,
                   });
                 } else {
@@ -538,7 +539,7 @@ export class CustomerSyncService extends EventEmitter {
               );
               // Attendi che la pagina si aggiorni dopo il cambio filtro
               await new Promise((resolve) => setTimeout(resolve, 2000));
-              await bot.page!.waitForSelector("table tbody tr", {
+              await page.waitForSelector("table tbody tr", {
                 timeout: 10000,
               });
             } else {
@@ -563,8 +564,10 @@ export class CustomerSyncService extends EventEmitter {
       await ensureAllCustomersFilter();
 
       // Imposta sort descending su colonna ID per processare clienti più recenti per primi
-      logger.info("Verifica ordinamento ID descending per priorità clienti recenti...");
-      const sortResult = await bot.page!.evaluate(() => {
+      logger.info(
+        "Verifica ordinamento ID descending per priorità clienti recenti...",
+      );
+      const sortResult = await page.evaluate(() => {
         // Cerca l'header della colonna "ID" nella tabella
         const allCells = Array.from(document.querySelectorAll("td, th"));
         let idHeaderCell: HTMLElement | null = null;
@@ -650,7 +653,7 @@ export class CustomerSyncService extends EventEmitter {
           (sortResult.clicksNeeded as number) > 0
         ) {
           await new Promise((resolve) => setTimeout(resolve, 2500));
-          await bot.page!.waitForSelector("table tbody tr", { timeout: 10000 });
+          await page.waitForSelector("table tbody tr", { timeout: 10000 });
           logger.info("✓ Pagina aggiornata con sort descending");
         }
       } else {
@@ -674,8 +677,8 @@ export class CustomerSyncService extends EventEmitter {
         logger.info(`Navigazione a pagina ${resumePoint}...`);
         // Implementazione navigazione diretta alla pagina
         // Per ora, iteriamo fino alla pagina desiderata
-        for (let page = 1; page < resumePoint; page++) {
-          const clicked = await bot.page!.evaluate(() => {
+        for (let pageNum = 1; pageNum < resumePoint; pageNum++) {
+          const clicked = await page.evaluate(() => {
             const nextButtons = [
               document.querySelector('img[alt="Next"]'),
               document.querySelector('img[title="Next"]'),
@@ -708,7 +711,7 @@ export class CustomerSyncService extends EventEmitter {
 
           if (!clicked) break;
           await new Promise((resolve) => setTimeout(resolve, 1000));
-          await bot.page!.waitForSelector("table tbody tr", { timeout: 10000 });
+          await page.waitForSelector("table tbody tr", { timeout: 10000 });
         }
         logger.info(`✓ Posizionato su pagina ${resumePoint}`);
       }
@@ -724,10 +727,10 @@ export class CustomerSyncService extends EventEmitter {
           message: `Estrazione pagina ${currentPage}...`,
         });
 
-        await bot.page!.waitForSelector("table tbody tr", { timeout: 10000 });
+        await page.waitForSelector("table tbody tr", { timeout: 10000 });
         await new Promise((resolve) => setTimeout(resolve, 500));
 
-        const pageCustomers = await bot.page!.evaluate(() => {
+        const pageCustomers = await page.evaluate(() => {
           const rows = Array.from(
             document.querySelectorAll("table tbody tr"),
           ) as Element[];
@@ -804,7 +807,7 @@ export class CustomerSyncService extends EventEmitter {
           allCustomers.length,
         );
 
-        hasMorePages = await bot.page!.evaluate(() => {
+        hasMorePages = await page.evaluate(() => {
           const nextButtons = [
             document.querySelector('img[alt="Next"]'),
             document.querySelector('img[title="Next"]'),
@@ -830,7 +833,7 @@ export class CustomerSyncService extends EventEmitter {
         });
 
         if (hasMorePages) {
-          const clicked = await bot.page!.evaluate(() => {
+          const clicked = await page.evaluate(() => {
             const nextButtons = [
               document.querySelector('img[alt="Next"]'),
               document.querySelector('img[title="Next"]'),
@@ -867,7 +870,7 @@ export class CustomerSyncService extends EventEmitter {
           } else {
             // Attendi il caricamento della pagina successiva
             await new Promise((resolve) => setTimeout(resolve, 2000));
-            await bot.page!.waitForSelector("table tbody tr", {
+            await page.waitForSelector("table tbody tr", {
               timeout: 10000,
             });
 
@@ -880,7 +883,7 @@ export class CustomerSyncService extends EventEmitter {
 
             // Attendi che il filtro venga applicato
             await new Promise((resolve) => setTimeout(resolve, 2000));
-            await bot.page!.waitForSelector("table tbody tr", {
+            await page.waitForSelector("table tbody tr", {
               timeout: 10000,
             });
 
@@ -894,7 +897,12 @@ export class CustomerSyncService extends EventEmitter {
         logger.warn("⚠️ Sync clienti interrotto su richiesta");
 
         // Salva checkpoint alla pagina corrente per permettere ripresa
-        this.checkpointManager.saveCheckpoint("customers", currentPage);
+        this.checkpointManager.updateProgress(
+          "customers",
+          currentPage,
+          currentPage,
+          allCustomers.length,
+        );
 
         this.updateProgress({
           status: "idle",

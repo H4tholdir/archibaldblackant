@@ -3,7 +3,7 @@ import path from "node:path";
 
 /**
  * Migration 011: Add Order Management Fields
- * 
+ *
  * Adds fields needed for "Send to Milano" feature:
  * - sent_to_milano_at: timestamp when order sent to Milano
  * - current_state: order lifecycle state (creato, piazzato, inviato_milano, etc.)
@@ -42,13 +42,16 @@ try {
   // Verify schema changes
   const ordersInfo = db.prepare("PRAGMA table_info(orders)").all();
   const auditInfo = db.prepare("PRAGMA table_info(order_audit_log)").all();
-  
-  console.log("\n[Migration 011] Orders table columns:");
-  console.log(ordersInfo.map((col: any) => `  - ${col.name}: ${col.type}`).join("\n"));
-  
-  console.log("\n[Migration 011] Audit log table columns:");
-  console.log(auditInfo.map((col: any) => `  - ${col.name}: ${col.type}`).join("\n"));
 
+  console.log("\n[Migration 011] Orders table columns:");
+  console.log(
+    ordersInfo.map((col: any) => `  - ${col.name}: ${col.type}`).join("\n"),
+  );
+
+  console.log("\n[Migration 011] Audit log table columns:");
+  console.log(
+    auditInfo.map((col: any) => `  - ${col.name}: ${col.type}`).join("\n"),
+  );
 } catch (error) {
   console.error("[Migration 011] Migration failed:", error);
   process.exit(1);

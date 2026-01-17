@@ -29,6 +29,14 @@ export type ApiResponse<T = unknown> = {
   data?: T;
   error?: string;
   message?: string;
+  metadata?: Record<string, unknown>;
+  token?: string;
+  user?: {
+    id: string;
+    username: string;
+    fullName: string;
+    role: string;
+  };
 };
 
 export interface ProfilingData {
@@ -41,15 +49,18 @@ export interface ProfilingData {
     averageOperationMs: number;
     peakMemoryBytes: number;
   };
-  categories: Record<string, {
-    count: number;
-    totalDurationMs: number;
-    avgDurationMs: number;
-    p50Ms: number;
-    p95Ms: number;
-    p99Ms: number;
-    avgMemoryBytes: number;
-  }>;
+  categories: Record<
+    string,
+    {
+      count: number;
+      totalDurationMs: number;
+      avgDurationMs: number;
+      p50Ms: number;
+      p95Ms: number;
+      p99Ms: number;
+      avgMemoryBytes: number;
+    }
+  >;
   retries: Array<{
     operationId: number;
     name: string;

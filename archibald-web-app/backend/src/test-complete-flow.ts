@@ -57,7 +57,9 @@ async function main() {
     logger.info(`  Expected Package: 1 (lowest variant)`);
     logger.info(`  Variants Available:`);
     variants.forEach((v) => {
-      logger.info(`    - ${v.id}: package=${v.packageContent}, multipleQty=${v.multipleQty}`);
+      logger.info(
+        `    - ${v.id}: package=${v.packageContent}, multipleQty=${v.multipleQty}`,
+      );
     });
     logger.info("");
 
@@ -101,7 +103,9 @@ async function main() {
     logger.info("  [Multi-article test for OPT-04: New button optimization]");
     logger.info("");
 
-    logger.info("Creating order... (screenshots will be saved to logs/ directory)");
+    logger.info(
+      "Creating order... (screenshots will be saved to logs/ directory)",
+    );
     const orderId = await bot.createOrder(orderData);
 
     logger.info("");
@@ -114,7 +118,7 @@ async function main() {
 
     // Generate performance dashboard
     logger.info("📊 Generating performance dashboard...");
-    const paths = await bot.generatePerformanceDashboard('./profiling-reports');
+    const paths = await bot.generatePerformanceDashboard("./profiling-reports");
     logger.info("✅ Dashboard generated:");
     logger.info(`   📄 HTML: ${paths.htmlPath}`);
     logger.info(`   📊 JSON: ${paths.jsonPath}`);
@@ -136,11 +140,12 @@ async function main() {
 
     await bot.close();
     logger.info("✅ Test complete!");
-
   } catch (error) {
     logger.error("❌ Test failed:", error);
     logger.error("");
-    logger.error("Check logs/ directory for debug screenshots to identify the issue.");
+    logger.error(
+      "Check logs/ directory for debug screenshots to identify the issue.",
+    );
     await bot.close();
     process.exit(1);
   }

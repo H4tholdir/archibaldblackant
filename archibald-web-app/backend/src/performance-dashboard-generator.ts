@@ -1,6 +1,6 @@
-import type { ProfilingData } from './types';
-import * as fs from 'fs/promises';
-import * as path from 'path';
+import type { ProfilingData } from "./types";
+import * as fs from "fs/promises";
+import * as path from "path";
 
 export class PerformanceDashboardGenerator {
   /**
@@ -11,13 +11,15 @@ export class PerformanceDashboardGenerator {
     options?: {
       title?: string;
       comparisonData?: ProfilingData[];
-    }
+    },
   ): string {
     const timestamp = new Date().toISOString();
-    const title = options?.title || 'Archibald Bot Performance Dashboard';
+    const title = options?.title || "Archibald Bot Performance Dashboard";
 
     const dataJson = JSON.stringify(profilingData, null, 2);
-    const comparisonJson = options?.comparisonData ? JSON.stringify(options.comparisonData, null, 2) : 'null';
+    const comparisonJson = options?.comparisonData
+      ? JSON.stringify(options.comparisonData, null, 2)
+      : "null";
 
     return `<!DOCTYPE html>
 <html lang="en">
@@ -381,7 +383,7 @@ export class PerformanceDashboardGenerator {
       </table>
     </section>
 
-    ${options?.comparisonData ? '<section id="trends"><h2>Trend Comparison</h2><div id="trend-charts"></div></section>' : ''}
+    ${options?.comparisonData ? '<section id="trends"><h2>Trend Comparison</h2><div id="trend-charts"></div></section>' : ""}
   </main>
 
   <script>
@@ -876,30 +878,30 @@ export class PerformanceDashboardGenerator {
    */
   static exportCSV(profilingData: ProfilingData): string {
     const escapeCSV = (value: string | number | undefined): string => {
-      if (value === undefined || value === null) return '';
+      if (value === undefined || value === null) return "";
       const str = String(value);
-      if (str.includes(',') || str.includes('"') || str.includes('\n')) {
+      if (str.includes(",") || str.includes('"') || str.includes("\n")) {
         return `"${str.replace(/"/g, '""')}"`;
       }
       return str;
     };
 
     const headers = [
-      'Operation ID',
-      'Name',
-      'Category',
-      'Status',
-      'Duration (ms)',
-      'Gap (ms)',
-      'Retry Attempt',
-      'Memory Before (MB)',
-      'Memory After (MB)',
-      'Start Time',
-      'End Time',
-      'Error Message'
+      "Operation ID",
+      "Name",
+      "Category",
+      "Status",
+      "Duration (ms)",
+      "Gap (ms)",
+      "Retry Attempt",
+      "Memory Before (MB)",
+      "Memory After (MB)",
+      "Start Time",
+      "End Time",
+      "Error Message",
     ];
 
-    const rows = profilingData.operations.map(op => [
+    const rows = profilingData.operations.map((op) => [
       op.id,
       escapeCSV(op.name),
       escapeCSV(op.category),
@@ -911,15 +913,12 @@ export class PerformanceDashboardGenerator {
       (op.memoryAfter / 1024 / 1024).toFixed(2),
       escapeCSV(op.startIso),
       escapeCSV(op.endIso),
-      escapeCSV(op.errorMessage)
+      escapeCSV(op.errorMessage),
     ]);
 
-    const csvLines = [
-      headers.join(','),
-      ...rows.map(row => row.join(','))
-    ];
+    const csvLines = [headers.join(","), ...rows.map((row) => row.join(","))];
 
-    return csvLines.join('\n');
+    return csvLines.join("\n");
   }
 
   /**
@@ -928,9 +927,9 @@ export class PerformanceDashboardGenerator {
   static async saveDashboard(
     profilingData: ProfilingData,
     outputPath: string,
-    options?: { format: 'html' | 'json' | 'csv' }
+    options?: { format: "html" | "json" | "csv" },
   ): Promise<void> {
-    const format = options?.format || 'html';
+    const format = options?.format || "html";
 
     const parentDir = path.dirname(outputPath);
     await fs.mkdir(parentDir, { recursive: true });
@@ -938,20 +937,20 @@ export class PerformanceDashboardGenerator {
     let content: string;
 
     switch (format) {
-      case 'html':
+      case "html":
         content = this.generateHTML(profilingData);
         break;
-      case 'json':
+      case "json":
         content = JSON.stringify(profilingData, null, 2);
         break;
-      case 'csv':
+      case "csv":
         content = this.exportCSV(profilingData);
         break;
       default:
         throw new Error(`Unsupported format: ${format}`);
     }
 
-    await fs.writeFile(outputPath, content, 'utf-8');
+    await fs.writeFile(outputPath, content, "utf-8");
     console.log(`Dashboard saved: ${outputPath}`);
   }
 }

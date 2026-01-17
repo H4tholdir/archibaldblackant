@@ -18,7 +18,7 @@ async function main() {
 
     await bot.page.goto(
       "https://4.231.124.90/Archibald/CUSTPACKINGSLIPJOUR_ListView/",
-      { waitUntil: "domcontentloaded", timeout: 60000 }
+      { waitUntil: "domcontentloaded", timeout: 60000 },
     );
 
     await new Promise((resolve) => setTimeout(resolve, 3000));
@@ -29,7 +29,9 @@ async function main() {
         return { error: "Table not found" };
       }
 
-      const dataRows = Array.from(table.querySelectorAll("tr.dxgvDataRow, tr.dxgvDataRow_XafTheme"));
+      const dataRows = Array.from(
+        table.querySelectorAll("tr.dxgvDataRow, tr.dxgvDataRow_XafTheme"),
+      );
 
       console.log(`Found ${dataRows.length} data rows\n`);
 
@@ -99,7 +101,9 @@ async function main() {
 
       Object.values(cellAnalysis).forEach((analysis: any) => {
         if (analysis.filledCount > 0) {
-          console.log(`[${analysis.index}] Filled: ${analysis.filledCount}/10, Empty: ${analysis.emptyCount}/10`);
+          console.log(
+            `[${analysis.index}] Filled: ${analysis.filledCount}/10, Empty: ${analysis.emptyCount}/10`,
+          );
           console.log(`     Samples: ${analysis.sampleValues.join(" | ")}`);
         } else {
           console.log(`[${analysis.index}] ALWAYS EMPTY (0/10 filled)`);
@@ -113,20 +117,29 @@ async function main() {
       console.log("   [6]  → id                    (ID)");
       console.log("   [7]  → documento di trasporto (DOCUMENTO DI TRASPORTO)");
       console.log("   [8]  → data di consegna      (DATA DI CONSEGNA)");
-      console.log("   [9]  → id di vendita         (ID DI VENDITA) ⭐ MATCH KEY");
+      console.log(
+        "   [9]  → id di vendita         (ID DI VENDITA) ⭐ MATCH KEY",
+      );
       console.log("   [10] → conto dell'ordine     (CONTO DELL'ORDINE)");
       console.log("   [11] → nome vendite          (NOME VENDITE)");
       console.log("   [12] → nome di consegna      (NOME DI CONSEGNA)");
-      console.log("   [17] → numero di tracciabilità (NUMERO DI TRACCIABILITÀ)");
-      console.log("   [15] → termini di consegna   (TERMINI DI CONSEGNA) - may be empty");
+      console.log(
+        "   [17] → numero di tracciabilità (NUMERO DI TRACCIABILITÀ)",
+      );
+      console.log(
+        "   [15] → termini di consegna   (TERMINI DI CONSEGNA) - may be empty",
+      );
       console.log("   [19] → modalità di consegna  (MODALITÀ DI CONSEGNA)");
-      console.log("   [18] → città di consegna     (CITTÀ DI CONSEGNA) - may be empty");
+      console.log(
+        "   [18] → città di consegna     (CITTÀ DI CONSEGNA) - may be empty",
+      );
 
       console.log("\n" + "=".repeat(80));
       console.log("✅ All 11 columns mapped to cell indices.");
-      console.log("   Some fields may be empty in current data but mapping is correct.");
+      console.log(
+        "   Some fields may be empty in current data but mapping is correct.",
+      );
     }
-
   } catch (error) {
     console.error("\n❌ Error:", error);
     process.exit(1);

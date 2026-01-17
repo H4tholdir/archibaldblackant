@@ -1,12 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
 import { OrderCardNew } from "../components/OrderCardNew";
-import { OrderTimeline } from "../components/OrderTimeline";
-import type {
-  StatusUpdate,
-  StateHistoryEntry,
-} from "../components/OrderTimeline";
-import { OrderTracking } from "../components/OrderTracking";
-import { OrderActions } from "../components/OrderActions";
 import { SendToMilanoModal } from "../components/SendToMilanoModal";
 import { groupOrdersByPeriod } from "../utils/orderGrouping";
 import type { Order } from "../types/order";
@@ -19,31 +12,6 @@ interface OrderFilters {
   status: string;
 }
 
-interface OrderDetail extends Order {
-  customerName: string;
-  total: string;
-  status: string;
-  tracking?: {
-    courier: string;
-    trackingNumber: string;
-  };
-  documents?: Array<{
-    type: string;
-    name: string;
-    url: string;
-  }>;
-  items?: Array<{
-    articleCode: string;
-    productName?: string;
-    description: string;
-    quantity: number;
-    price: number;
-    discount?: number;
-  }>;
-  statusTimeline?: StatusUpdate[];
-  customerNotes?: string;
-}
-
 interface OrderHistoryResponse {
   success: boolean;
   data: {
@@ -53,23 +21,12 @@ interface OrderHistoryResponse {
   };
 }
 
-interface OrderDetailResponse {
-  success: boolean;
-  data: OrderDetail;
-}
-
 export function OrderHistory() {
   const auth = useAuth();
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [expandedOrderId, setExpandedOrderId] = useState<string | null>(null);
-  const [orderDetails, setOrderDetails] = useState<Map<string, OrderDetail>>(
-    new Map(),
-  );
-  const [stateHistory, setStateHistory] = useState<
-    Map<string, StateHistoryEntry[]>
-  >(new Map());
   const [filters, setFilters] = useState<OrderFilters>({
     customer: "",
     dateFrom: "",
@@ -155,13 +112,6 @@ export function OrderHistory() {
     } else {
       // Expand - all data already available from /api/orders/history
       setExpandedOrderId(orderId);
-    }
-  };
-
-  const handleDocumentsClick = (orderId: string) => {
-    // For now, just expand the card to show documents
-    if (expandedOrderId !== orderId) {
-      handleToggle(orderId);
     }
   };
 
@@ -366,14 +316,9 @@ export function OrderHistory() {
   // Group orders by period
   const orderGroups = groupOrdersByPeriod(orders);
 
-  // Get merged order data (base + detail if available)
+  // Get merged order data (base order as-is since we removed orderDetails state)
   const getMergedOrder = (order: Order): Order => {
-    const detail = orderDetails.get(order.id);
-    if (!detail) {
-      // Return base order as-is
-      return order;
-    }
-    return { ...order, ...detail };
+    return order;
   };
 
   return (

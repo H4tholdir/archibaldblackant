@@ -137,18 +137,17 @@ export function draftToOrder(draft: DraftOrder): Order {
     items: draft.items.map((item) => ({
       name: item.productName || item.articleCode,
       articleCode: item.articleCode,
+      description: item.description || "", // Add required description field
       quantity: item.quantity,
-      price: `€ ${item.price.toFixed(2)}`,
-      total: `€ ${(item.quantity * item.price * (1 - (item.discount || 0) / 100)).toFixed(2)}`,
+      price: item.price,
       discount: item.discount,
     })),
     orderType: "Giornale",
     documentState: "Nessuno",
     salesOrigin: "App Mobile",
-    deliveryDate: null,
+    deliveryDate: undefined, // Use undefined instead of null for optional string
     transferredToAccountingOffice: false,
     shippingAddress: "",
-    lastScraped: null,
     lastUpdatedAt: draft.updatedAt,
   };
 }

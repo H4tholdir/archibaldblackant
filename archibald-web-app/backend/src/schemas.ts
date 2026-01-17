@@ -7,6 +7,8 @@ export const orderItemSchema = z.object({
   quantity: z.number().int().positive("Quantità deve essere > 0"),
   price: z.number().nonnegative("Prezzo deve essere >= 0"),
   discount: z.number().min(0).max(100).optional(),
+  articleId: z.string().optional(),
+  packageContent: z.number().optional(),
 });
 
 export const createOrderSchema = z.object({

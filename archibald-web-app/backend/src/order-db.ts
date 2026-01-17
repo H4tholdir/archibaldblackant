@@ -435,7 +435,7 @@ export class OrderDatabase {
       }
     }
 
-    const rows = this.db.prepare(query).all(...params) as StoredOrder[];
+    const rows = this.db.prepare(query).all(...params) as any[];
 
     return rows.map((row) => ({
       ...row,
@@ -473,7 +473,7 @@ export class OrderDatabase {
       trackingUrl: row.trackingUrl || null,
       trackingCourier: row.trackingCourier || null,
 
-      // Invoice fields
+      // Invoice fields (map from snake_case DB columns)
       invoiceNumber: row.invoice_number || null,
       invoiceDate: row.invoice_date || null,
       invoiceAmount: row.invoice_amount || null,
@@ -502,7 +502,7 @@ export class OrderDatabase {
       LIMIT 50
     `,
       )
-      .all(userId, cutoffDate) as StoredOrder[];
+      .all(userId, cutoffDate) as any[];
 
     return rows.map((row) => ({
       ...row,
@@ -514,7 +514,7 @@ export class OrderDatabase {
       trackingUrl: row.trackingUrl || null,
       trackingCourier: row.trackingCourier || null,
 
-      // Invoice fields
+      // Invoice fields (map from snake_case DB columns)
       invoiceNumber: row.invoice_number || null,
       invoiceDate: row.invoice_date || null,
       invoiceAmount: row.invoice_amount || null,

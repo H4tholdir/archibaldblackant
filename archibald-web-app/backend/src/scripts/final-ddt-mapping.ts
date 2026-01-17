@@ -18,7 +18,7 @@ async function main() {
 
     await bot.page.goto(
       "https://4.231.124.90/Archibald/CUSTPACKINGSLIPJOUR_ListView/",
-      { waitUntil: "domcontentloaded", timeout: 60000 }
+      { waitUntil: "domcontentloaded", timeout: 60000 },
     );
 
     await new Promise((resolve) => setTimeout(resolve, 3000));
@@ -48,7 +48,9 @@ async function main() {
       });
 
       // Data rows (22 cells)
-      const dataRows = Array.from(table.querySelectorAll("tr.dxgvDataRow, tr.dxgvDataRow_XafTheme"));
+      const dataRows = Array.from(
+        table.querySelectorAll("tr.dxgvDataRow, tr.dxgvDataRow_XafTheme"),
+      );
       const firstDataRow = dataRows[0];
       const dataCells = Array.from(firstDataRow.querySelectorAll("td"));
 
@@ -93,7 +95,9 @@ async function main() {
       console.log("\n" + "=".repeat(80));
       console.log("💡 CONCLUSION:");
       console.log("=".repeat(80));
-      console.log("\nThe header row (54 cells) does NOT match data row structure (22 cells).");
+      console.log(
+        "\nThe header row (54 cells) does NOT match data row structure (22 cells).",
+      );
       console.log("We must use FIXED INDICES from physical data extraction:");
       console.log("\n  Known mappings from previous debug:");
       console.log("    cells[6]  → ID");
@@ -108,9 +112,10 @@ async function main() {
       console.log("\n  MISSING - Need to identify:");
       console.log("    cells[?]  → Termini di consegna");
       console.log("    cells[?]  → Città di consegna");
-      console.log("\n  Based on current output, let's check cells[13-16], [18], [20-21]");
+      console.log(
+        "\n  Based on current output, let's check cells[13-16], [18], [20-21]",
+      );
     }
-
   } catch (error) {
     console.error("\n❌ Error:", error);
     process.exit(1);

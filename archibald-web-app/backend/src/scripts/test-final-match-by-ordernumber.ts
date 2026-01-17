@@ -17,22 +17,24 @@ async function main() {
     console.log("✅ Logged in successfully\n");
 
     // ==================== ORDER LIST ====================
-    console.log("=" .repeat(80));
+    console.log("=".repeat(80));
     console.log("STEP 1: Extract Order List (sorted by delivery date, page 1)");
     console.log("=".repeat(80));
 
     await bot.page.goto(
       "https://4.231.124.90/Archibald/SALESTABLE_ListView_Agent/",
-      { waitUntil: "domcontentloaded", timeout: 60000 }
+      { waitUntil: "domcontentloaded", timeout: 60000 },
     );
 
     await new Promise((resolve) => setTimeout(resolve, 3000));
 
     // Sort by delivery date (descending)
     await bot.page.evaluate(() => {
-      const headers = Array.from(document.querySelectorAll('td[class*="dxgvHeader"]'));
-      const deliveryDateHeader = headers.find(h =>
-        h.textContent?.trim().toUpperCase().includes("DATA DI CONSEGNA")
+      const headers = Array.from(
+        document.querySelectorAll('td[class*="dxgvHeader"]'),
+      );
+      const deliveryDateHeader = headers.find((h) =>
+        h.textContent?.trim().toUpperCase().includes("DATA DI CONSEGNA"),
       );
       if (deliveryDateHeader) {
         const clickableLink = deliveryDateHeader.querySelector("a");
@@ -46,9 +48,11 @@ async function main() {
 
     // Click again for descending
     await bot.page.evaluate(() => {
-      const headers = Array.from(document.querySelectorAll('td[class*="dxgvHeader"]'));
-      const deliveryDateHeader = headers.find(h =>
-        h.textContent?.trim().toUpperCase().includes("DATA DI CONSEGNA")
+      const headers = Array.from(
+        document.querySelectorAll('td[class*="dxgvHeader"]'),
+      );
+      const deliveryDateHeader = headers.find((h) =>
+        h.textContent?.trim().toUpperCase().includes("DATA DI CONSEGNA"),
       );
       if (deliveryDateHeader) {
         const clickableLink = deliveryDateHeader.querySelector("a");
@@ -64,7 +68,9 @@ async function main() {
       const table = document.querySelector('table[id$="_DXMainTable"]');
       if (!table) return { error: "Order table not found" };
 
-      const dataRows = Array.from(table.querySelectorAll("tr.dxgvDataRow, tr.dxgvDataRow_XafTheme"));
+      const dataRows = Array.from(
+        table.querySelectorAll("tr.dxgvDataRow, tr.dxgvDataRow_XafTheme"),
+      );
       const results: any[] = [];
 
       for (let i = 0; i < Math.min(20, dataRows.length); i++) {
@@ -91,7 +97,9 @@ async function main() {
     console.log(`\n✅ Extracted ${orderData.results.length} orders`);
     console.log("\nFirst 5 orders:");
     orderData.results.slice(0, 5).forEach((row: any, idx: number) => {
-      console.log(`   ${idx + 1}. Order#: "${row.orderNumber}", Date: "${row.deliveryDate}"`);
+      console.log(
+        `   ${idx + 1}. Order#: "${row.orderNumber}", Date: "${row.deliveryDate}"`,
+      );
     });
 
     // ==================== DDT TABLE ====================
@@ -101,16 +109,18 @@ async function main() {
 
     await bot.page.goto(
       "https://4.231.124.90/Archibald/CUSTPACKINGSLIPJOUR_ListView/",
-      { waitUntil: "domcontentloaded", timeout: 60000 }
+      { waitUntil: "domcontentloaded", timeout: 60000 },
     );
 
     await new Promise((resolve) => setTimeout(resolve, 3000));
 
     // Sort by delivery date (descending)
     await bot.page.evaluate(() => {
-      const headers = Array.from(document.querySelectorAll('td[class*="dxgvHeader"]'));
-      const deliveryDateHeader = headers.find(h =>
-        h.textContent?.trim().toUpperCase().includes("DATA DI CONSEGNA")
+      const headers = Array.from(
+        document.querySelectorAll('td[class*="dxgvHeader"]'),
+      );
+      const deliveryDateHeader = headers.find((h) =>
+        h.textContent?.trim().toUpperCase().includes("DATA DI CONSEGNA"),
       );
       if (deliveryDateHeader) {
         const clickableLink = deliveryDateHeader.querySelector("a");
@@ -124,9 +134,11 @@ async function main() {
 
     // Click again for descending
     await bot.page.evaluate(() => {
-      const headers = Array.from(document.querySelectorAll('td[class*="dxgvHeader"]'));
-      const deliveryDateHeader = headers.find(h =>
-        h.textContent?.trim().toUpperCase().includes("DATA DI CONSEGNA")
+      const headers = Array.from(
+        document.querySelectorAll('td[class*="dxgvHeader"]'),
+      );
+      const deliveryDateHeader = headers.find((h) =>
+        h.textContent?.trim().toUpperCase().includes("DATA DI CONSEGNA"),
       );
       if (deliveryDateHeader) {
         const clickableLink = deliveryDateHeader.querySelector("a");
@@ -142,7 +154,9 @@ async function main() {
       const table = document.querySelector('table[id$="_DXMainTable"]');
       if (!table) return { error: "DDT table not found" };
 
-      const dataRows = Array.from(table.querySelectorAll("tr.dxgvDataRow, tr.dxgvDataRow_XafTheme"));
+      const dataRows = Array.from(
+        table.querySelectorAll("tr.dxgvDataRow, tr.dxgvDataRow_XafTheme"),
+      );
       const results: any[] = [];
 
       for (let i = 0; i < Math.min(20, dataRows.length); i++) {
@@ -152,7 +166,10 @@ async function main() {
         const trackingCell = cells[17];
         const trackingLink = trackingCell?.querySelector("a");
         const trackingUrl = trackingLink?.getAttribute("href") || "";
-        const trackingNumber = trackingLink?.textContent?.trim() || cells[17]?.textContent?.trim() || "";
+        const trackingNumber =
+          trackingLink?.textContent?.trim() ||
+          cells[17]?.textContent?.trim() ||
+          "";
 
         results.push({
           ddtId: cells[6]?.textContent?.trim() || "",
@@ -175,7 +192,9 @@ async function main() {
     console.log(`\n✅ Extracted ${ddtData.results.length} DDT entries`);
     console.log("\nFirst 5 DDT entries:");
     ddtData.results.slice(0, 5).forEach((row: any, idx: number) => {
-      console.log(`   ${idx + 1}. OrderID: "${row.orderId}", Date: "${row.deliveryDate}"`);
+      console.log(
+        `   ${idx + 1}. OrderID: "${row.orderId}", Date: "${row.deliveryDate}"`,
+      );
     });
 
     // ==================== MATCH TEST ====================
@@ -187,7 +206,9 @@ async function main() {
     const matches: any[] = [];
 
     orderData.results.forEach((order: any) => {
-      const matchingDdt = ddtData.results.find((ddt: any) => ddt.orderId === order.orderNumber);
+      const matchingDdt = ddtData.results.find(
+        (ddt: any) => ddt.orderId === order.orderNumber,
+      );
 
       if (matchingDdt) {
         matchCount++;
@@ -206,7 +227,9 @@ async function main() {
     console.log(`   Orders:     ${orderData.results.length}`);
     console.log(`   DDT:        ${ddtData.results.length}`);
     console.log(`   Matches:    ${matchCount}`);
-    console.log(`   Match rate: ${((matchCount/orderData.results.length)*100).toFixed(1)}%`);
+    console.log(
+      `   Match rate: ${((matchCount / orderData.results.length) * 100).toFixed(1)}%`,
+    );
 
     if (matchCount > 0) {
       console.log(`\n✅ SUCCESS! Found ${matchCount} matches!\n`);
@@ -219,7 +242,9 @@ async function main() {
         console.log(`      DDT Number:       "${match.ddtNumber}"`);
         console.log(`      DDT Date:         "${match.ddtDate}"`);
         console.log(`      Tracking:         "${match.trackingNumber}"`);
-        console.log(`      Tracking URL:     "${match.trackingUrl.substring(0, 60)}..."`);
+        console.log(
+          `      Tracking URL:     "${match.trackingUrl.substring(0, 60)}..."`,
+        );
       });
 
       console.log("\n" + "=".repeat(80));
@@ -228,7 +253,6 @@ async function main() {
       console.log("\n   ✅ Match key: orderNumber (Order) ↔ orderId (DDT)");
       console.log("   ✅ Tracking links extracted correctly");
       console.log("   ✅ All 11 DDT columns ready for extraction");
-
     } else {
       console.log("\n❌ NO MATCHES FOUND!");
     }
@@ -236,7 +260,6 @@ async function main() {
     console.log("\n" + "=".repeat(80));
     console.log("✅ TEST COMPLETATO");
     console.log("=".repeat(80));
-
   } catch (error) {
     console.error("\n❌ Error:", error);
     process.exit(1);

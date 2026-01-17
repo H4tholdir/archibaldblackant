@@ -21,7 +21,7 @@ async function main() {
     console.log("Navigating to DDT table...");
     await bot.page.goto(
       "https://4.231.124.90/Archibald/CUSTPACKINGSLIPJOUR_ListView/",
-      { waitUntil: "domcontentloaded", timeout: 60000 }
+      { waitUntil: "domcontentloaded", timeout: 60000 },
     );
 
     await new Promise((resolve) => setTimeout(resolve, 3000));
@@ -32,7 +32,9 @@ async function main() {
         return { error: "Table not found" };
       }
 
-      const dataRows = Array.from(table.querySelectorAll("tr.dxgvDataRow, tr.dxgvDataRow_XafTheme"));
+      const dataRows = Array.from(
+        table.querySelectorAll("tr.dxgvDataRow, tr.dxgvDataRow_XafTheme"),
+      );
 
       console.log(`Found ${dataRows.length} data rows`);
 
@@ -61,7 +63,6 @@ async function main() {
 
     console.log("\n📊 DDT Table Analysis:");
     console.log(JSON.stringify(analysis, null, 2));
-
   } catch (error) {
     console.error("\n❌ Error:", error);
     process.exit(1);

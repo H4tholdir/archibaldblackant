@@ -60,6 +60,24 @@ export interface Order {
 
   // Legacy field (for backward compatibility)
   status: string; // Deprecated: use salesStatus instead
+
+  // Extended fields (filled by DB layer or DDT scraping)
+  userId?: string;
+  lastScraped?: string;
+  lastUpdated?: string;
+  ddtId?: string | null;
+  ddtNumber?: string | null;
+  ddtDeliveryDate?: string | null;
+  ddtOrderNumber?: string | null;
+  ddtCustomerAccount?: string | null;
+  ddtSalesName?: string | null;
+  ddtDeliveryName?: string | null;
+  trackingNumber?: string | null;
+  deliveryTerms?: string | null;
+  deliveryMethod?: string | null;
+  deliveryCity?: string | null;
+  trackingUrl?: string | null;
+  trackingCourier?: string | null;
 }
 
 /**
@@ -334,6 +352,7 @@ export class OrderHistoryService {
         bot.page,
         allOrders,
         ddtData,
+        userId,
       );
       logger.info(
         `[OrderHistoryService] Enriched ${enrichedOrders.length} orders with full details`,
@@ -516,6 +535,7 @@ export class OrderHistoryService {
     page: Page,
     orders: Order[],
     ddtData: DDTData[],
+    userId: string,
   ): Promise<StoredOrder[]> {
     const BATCH_SIZE = 5; // Process 5 orders at a time
     const results: StoredOrder[] = [];
@@ -552,6 +572,7 @@ export class OrderHistoryService {
           // Build enriched order with all DDT fields
           const enrichedOrder: StoredOrder = {
             ...order,
+            userId,
             lastScraped: new Date().toISOString(),
             lastUpdated: new Date().toISOString(),
             isOpen: order.status.toLowerCase().includes("aperto"),
@@ -575,6 +596,11 @@ export class OrderHistoryService {
             // Computed tracking fields
             trackingUrl: ddt?.trackingUrl || null,
             trackingCourier: ddt?.trackingCourier || null,
+
+            // Invoice fields (not yet scraped)
+            invoiceNumber: null,
+            invoiceDate: null,
+            invoiceAmount: null,
           };
 
           results.push(enrichedOrder);
@@ -587,6 +613,7 @@ export class OrderHistoryService {
           // Add order without detail on error (graceful degradation)
           const fallbackOrder: StoredOrder = {
             ...order,
+            userId,
             lastScraped: new Date().toISOString(),
             lastUpdated: new Date().toISOString(),
             isOpen: order.status.toLowerCase().includes("aperto"),
@@ -608,6 +635,11 @@ export class OrderHistoryService {
             deliveryCity: null,
             trackingUrl: null,
             trackingCourier: null,
+
+            // Invoice fields (not yet scraped)
+            invoiceNumber: null,
+            invoiceDate: null,
+            invoiceAmount: null,
           };
 
           results.push(fallbackOrder);
@@ -779,11 +811,10 @@ export class OrderHistoryService {
       trackingUrl: stored.trackingUrl,
       trackingCourier: stored.trackingCourier,
 
-      // Metadata
+      // Metadata (only include fields in Order interface)
       userId: stored.userId,
       lastScraped: stored.lastScraped,
       lastUpdated: stored.lastUpdated,
-      detailJson: stored.detailJson,
     };
   }
 
@@ -1472,8 +1503,10 @@ export class OrderHistoryService {
             // Look for adjacent cell or next sibling with value
             const parent = label.parentElement;
             if (parent) {
-              const cells = Array.from(parent.querySelectorAll("td"));
-              const labelIndex = cells.indexOf(label as HTMLElement);
+              const cells = Array.from(
+                parent.querySelectorAll<HTMLTableCellElement>("td"),
+              );
+              const labelIndex = cells.indexOf(label as HTMLTableCellElement);
               if (labelIndex >= 0 && labelIndex + 1 < cells.length) {
                 return cells[labelIndex + 1].textContent?.trim() || "";
               }

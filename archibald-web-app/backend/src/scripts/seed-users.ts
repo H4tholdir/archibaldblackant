@@ -14,9 +14,7 @@ async function seedUsers() {
 
   const userDb = UserDatabase.getInstance();
 
-  const testUsers = [
-    { username: "ikiA0930", fullName: "Francesco Formicola" },
-  ];
+  const testUsers = [{ username: "ikiA0930", fullName: "Francesco Formicola" }];
 
   try {
     for (const testUser of testUsers) {

@@ -1,7 +1,7 @@
-import fs from 'fs';
-import path from 'path';
-import type { Protocol } from 'puppeteer';
-import { logger } from './logger';
+import fs from "fs";
+import path from "path";
+import type { Protocol } from "puppeteer";
+import { logger } from "./logger";
 
 export interface UserSessionData {
   userId: string;
@@ -20,7 +20,7 @@ export class SessionCacheManager {
   private readonly SESSION_DURATION_MS = 24 * 60 * 60 * 1000; // 24h
 
   private constructor() {
-    this.cacheDir = path.join(__dirname, '..', '.cache');
+    this.cacheDir = path.join(__dirname, "..", ".cache");
     if (!fs.existsSync(this.cacheDir)) {
       fs.mkdirSync(this.cacheDir, { recursive: true });
     }
@@ -40,7 +40,10 @@ export class SessionCacheManager {
   /**
    * Save user's session cookies
    */
-  async saveSession(userId: string, cookies: Protocol.Network.Cookie[]): Promise<void> {
+  async saveSession(
+    userId: string,
+    cookies: Protocol.Network.Cookie[],
+  ): Promise<void> {
     const sessionData: UserSessionData = {
       userId,
       cookies,
@@ -53,7 +56,7 @@ export class SessionCacheManager {
       fs.writeFileSync(filePath, JSON.stringify(sessionData, null, 2));
       logger.info(`Session saved for user ${userId}`, {
         cookieCount: cookies.length,
-        expiresIn: '24h',
+        expiresIn: "24h",
       });
     } catch (error) {
       logger.error(`Error saving session for user ${userId}`, { error });
@@ -72,7 +75,7 @@ export class SessionCacheManager {
     }
 
     try {
-      const data = fs.readFileSync(filePath, 'utf-8');
+      const data = fs.readFileSync(filePath, "utf-8");
       const sessionData: UserSessionData = JSON.parse(data);
 
       // Verify session is still valid
@@ -83,7 +86,7 @@ export class SessionCacheManager {
       }
 
       const remainingHours = Math.round(
-        (sessionData.expiresAt - Date.now()) / (60 * 60 * 1000)
+        (sessionData.expiresAt - Date.now()) / (60 * 60 * 1000),
       );
       logger.info(`Loaded cached session for user ${userId}`, {
         cookieCount: sessionData.cookies.length,
@@ -121,8 +124,10 @@ export class SessionCacheManager {
    * Clear all cached sessions (for maintenance)
    */
   clearAllSessions(): void {
-    const files = fs.readdirSync(this.cacheDir).filter(f => f.startsWith('session-'));
-    files.forEach(file => {
+    const files = fs
+      .readdirSync(this.cacheDir)
+      .filter((f) => f.startsWith("session-"));
+    files.forEach((file) => {
       fs.unlinkSync(path.join(this.cacheDir, file));
     });
     logger.info(`Cleared ${files.length} cached sessions`);

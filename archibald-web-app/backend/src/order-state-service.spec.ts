@@ -171,8 +171,12 @@ describe("OrderStateService", () => {
   describe("hasStateProgressed", () => {
     test("returns true when state progresses linearly", () => {
       expect(service.hasStateProgressed("creato", "piazzato")).toBe(true);
-      expect(service.hasStateProgressed("piazzato", "inviato_milano")).toBe(true);
-      expect(service.hasStateProgressed("inviato_milano", "trasferito")).toBe(true);
+      expect(service.hasStateProgressed("piazzato", "inviato_milano")).toBe(
+        true,
+      );
+      expect(service.hasStateProgressed("inviato_milano", "trasferito")).toBe(
+        true,
+      );
       expect(service.hasStateProgressed("ordine_aperto", "spedito")).toBe(true);
       expect(service.hasStateProgressed("spedito", "consegnato")).toBe(true);
       expect(service.hasStateProgressed("consegnato", "fatturato")).toBe(true);
@@ -181,7 +185,9 @@ describe("OrderStateService", () => {
     test("returns false when state does not progress", () => {
       expect(service.hasStateProgressed("spedito", "creato")).toBe(false);
       expect(service.hasStateProgressed("consegnato", "piazzato")).toBe(false);
-      expect(service.hasStateProgressed("fatturato", "ordine_aperto")).toBe(false);
+      expect(service.hasStateProgressed("fatturato", "ordine_aperto")).toBe(
+        false,
+      );
     });
 
     test("returns false when state is the same", () => {
@@ -190,8 +196,12 @@ describe("OrderStateService", () => {
     });
 
     test("handles branching states (modifica, transfer_error)", () => {
-      expect(service.hasStateProgressed("inviato_milano", "modifica")).toBe(true);
-      expect(service.hasStateProgressed("inviato_milano", "transfer_error")).toBe(true);
+      expect(service.hasStateProgressed("inviato_milano", "modifica")).toBe(
+        true,
+      );
+      expect(
+        service.hasStateProgressed("inviato_milano", "transfer_error"),
+      ).toBe(true);
       expect(service.hasStateProgressed("modifica", "modifica")).toBe(false);
     });
   });
@@ -203,7 +213,9 @@ describe("OrderStateService", () => {
       expect(service.getStateLabel("inviato_milano")).toBe("Inviato a Milano");
       expect(service.getStateLabel("modifica")).toBe("In modifica");
       expect(service.getStateLabel("trasferito")).toBe("Trasferito");
-      expect(service.getStateLabel("transfer_error")).toBe("Errore trasferimento");
+      expect(service.getStateLabel("transfer_error")).toBe(
+        "Errore trasferimento",
+      );
       expect(service.getStateLabel("ordine_aperto")).toBe("Ordine aperto");
       expect(service.getStateLabel("spedito")).toBe("Spedito");
       expect(service.getStateLabel("consegnato")).toBe("Consegnato");

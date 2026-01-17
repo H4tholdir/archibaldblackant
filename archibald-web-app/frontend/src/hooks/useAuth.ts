@@ -1,8 +1,8 @@
-import { useState, useEffect } from 'react';
-import * as authApi from '../api/auth';
+import { useState, useEffect } from "react";
+import * as authApi from "../api/auth";
 
-const TOKEN_KEY = 'archibald_jwt';
-const LAST_USER_KEY = 'archibald_last_user';
+const TOKEN_KEY = "archibald_jwt";
+const LAST_USER_KEY = "archibald_last_user";
 
 export interface AuthState {
   isAuthenticated: boolean;
@@ -33,8 +33,9 @@ export function useAuth() {
 
     if (token) {
       // Verify token by fetching user profile
-      authApi.getMe(token)
-        .then(response => {
+      authApi
+        .getMe(token)
+        .then((response) => {
           if (response.success && response.data?.user) {
             setState({
               isAuthenticated: true,
@@ -48,24 +49,28 @@ export function useAuth() {
           } else {
             // Token invalid, clear it
             localStorage.removeItem(TOKEN_KEY);
-            setState(prev => ({ ...prev, isLoading: false, lastUser }));
+            setState((prev) => ({ ...prev, isLoading: false, lastUser }));
           }
         })
         .catch(() => {
           localStorage.removeItem(TOKEN_KEY);
-          setState(prev => ({ ...prev, isLoading: false, lastUser }));
+          setState((prev) => ({ ...prev, isLoading: false, lastUser }));
         });
     } else if (lastUser) {
       // No token but have lastUser → prepare unlock flow
-      setState(prev => ({ ...prev, lastUser, isLoading: false }));
+      setState((prev) => ({ ...prev, lastUser, isLoading: false }));
     } else {
       // No token, no lastUser → standard login
-      setState(prev => ({ ...prev, isLoading: false }));
+      setState((prev) => ({ ...prev, isLoading: false }));
     }
   }, []);
 
-  const login = async (username: string, password: string, rememberCredentials: boolean = false): Promise<boolean> => {
-    setState(prev => ({ ...prev, isLoading: true, error: null }));
+  const login = async (
+    username: string,
+    password: string,
+    rememberCredentials: boolean = false,
+  ): Promise<boolean> => {
+    setState((prev) => ({ ...prev, isLoading: true, error: null }));
 
     try {
       const response = await authApi.login({ username, password });
@@ -94,18 +99,18 @@ export function useAuth() {
         });
         return true;
       } else {
-        setState(prev => ({
+        setState((prev) => ({
           ...prev,
           isLoading: false,
-          error: response.error || 'Login failed',
+          error: response.error || "Login failed",
         }));
         return false;
       }
     } catch (error) {
-      setState(prev => ({
+      setState((prev) => ({
         ...prev,
         isLoading: false,
-        error: 'Network error',
+        error: "Network error",
       }));
       return false;
     }
@@ -127,23 +132,35 @@ export function useAuth() {
     });
   };
 
-  const completePinSetup = async (pin: string, username: string, password: string): Promise<void> => {
+  const completePinSetup = async (
+    pin: string,
+    username: string,
+    password: string,
+  ): Promise<void> => {
     if (!state.user) return;
 
-    const { getCredentialStore } = await import('../services/credential-store');
+    const { getCredentialStore } = await import("../services/credential-store");
     const credentialStore = getCredentialStore();
     await credentialStore.initialize();
-    await credentialStore.storeCredentials(state.user.id, username, password, pin);
+    await credentialStore.storeCredentials(
+      state.user.id,
+      username,
+      password,
+      pin,
+    );
 
-    setState(prev => ({ ...prev, needsPinSetup: false }));
+    setState((prev) => ({ ...prev, needsPinSetup: false }));
   };
 
   const skipPinSetup = () => {
-    setState(prev => ({ ...prev, needsPinSetup: false }));
+    setState((prev) => ({ ...prev, needsPinSetup: false }));
   };
 
-  const unlockWithPin = async (username: string, password: string): Promise<boolean> => {
-    setState(prev => ({ ...prev, isLoading: true, error: null }));
+  const unlockWithPin = async (
+    username: string,
+    password: string,
+  ): Promise<boolean> => {
+    setState((prev) => ({ ...prev, isLoading: true, error: null }));
 
     try {
       // Use existing login API (same as manual login)
@@ -158,22 +175,25 @@ export function useAuth() {
           isLoading: false,
           error: null,
           needsPinSetup: false,
-          lastUser: { userId: response.user.id, fullName: response.user.fullName },
+          lastUser: {
+            userId: response.user.id,
+            fullName: response.user.fullName,
+          },
         });
         return true;
       } else {
-        setState(prev => ({
+        setState((prev) => ({
           ...prev,
           isLoading: false,
-          error: response.error || 'Unlock failed',
+          error: response.error || "Unlock failed",
         }));
         return false;
       }
     } catch (error) {
-      setState(prev => ({
+      setState((prev) => ({
         ...prev,
         isLoading: false,
-        error: 'Network error',
+        error: "Network error",
       }));
       return false;
     }
@@ -185,7 +205,8 @@ export function useAuth() {
       const lastUser = JSON.parse(lastUserJson);
 
       // Delete credentials from IndexedDB
-      const { getCredentialStore } = await import('../services/credential-store');
+      const { getCredentialStore } =
+        await import("../services/credential-store");
       const credStore = getCredentialStore();
       await credStore.initialize();
       await credStore.deleteCredentials(lastUser.userId);
@@ -193,12 +214,12 @@ export function useAuth() {
 
     // Clear lastUser from localStorage
     localStorage.removeItem(LAST_USER_KEY);
-    setState(prev => ({ ...prev, lastUser: null }));
+    setState((prev) => ({ ...prev, lastUser: null }));
   };
 
   const switchAccount = () => {
     // Keep credentials but switch to login form
-    setState(prev => ({ ...prev, lastUser: null }));
+    setState((prev) => ({ ...prev, lastUser: null }));
   };
 
   return {

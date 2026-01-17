@@ -169,7 +169,7 @@ function TimelineItem({
 export function OrderTimeline({
   updates,
   stateHistory,
-  currentState,
+  currentState: _currentState,
 }: OrderTimelineProps) {
   // Convert stateHistory to StatusUpdate format if provided
   let sortedUpdates: StatusUpdate[];

@@ -58,7 +58,10 @@ async function waitForDevExpressTable(bot: ArchibaldBot): Promise<void> {
 /**
  * Analyze DDT page structure (Task 1)
  */
-async function analyzeDDTPage(bot: ArchibaldBot, screenshotsDir: string): Promise<void> {
+async function analyzeDDTPage(
+  bot: ArchibaldBot,
+  screenshotsDir: string,
+): Promise<void> {
   logger.info("=== TASK 1: Analyzing DDT Page Structure ===");
 
   if (!bot.page) {
@@ -96,7 +99,9 @@ async function analyzeDDTPage(bot: ArchibaldBot, screenshotsDir: string): Promis
     };
 
     // Find main DevExpress table (same pattern as order-history-service.ts)
-    const mainTable = document.querySelector('table[id$="_DXMainTable"].dxgvTable_XafTheme') as HTMLTableElement;
+    const mainTable = document.querySelector(
+      'table[id$="_DXMainTable"].dxgvTable_XafTheme',
+    ) as HTMLTableElement;
 
     if (!mainTable) {
       return results;
@@ -113,7 +118,10 @@ async function analyzeDDTPage(bot: ArchibaldBot, screenshotsDir: string): Promis
     }));
 
     // Extract first 3 data rows as samples
-    const dataRows = Array.from(mainTable.querySelectorAll("tbody tr")).slice(0, 3);
+    const dataRows = Array.from(mainTable.querySelectorAll("tbody tr")).slice(
+      0,
+      3,
+    );
     results.sampleRows = dataRows.map((row, rowIndex) => {
       const cells = Array.from(row.querySelectorAll("td"));
       return {
@@ -215,7 +223,10 @@ async function analyzeDDTPage(bot: ArchibaldBot, screenshotsDir: string): Promis
 /**
  * Analyze Invoice page structure (Task 2)
  */
-async function analyzeInvoicePage(bot: ArchibaldBot, screenshotsDir: string): Promise<void> {
+async function analyzeInvoicePage(
+  bot: ArchibaldBot,
+  screenshotsDir: string,
+): Promise<void> {
   logger.info("\n=== TASK 2: Analyzing Invoice Page Structure ===");
 
   if (!bot.page) {
@@ -238,7 +249,10 @@ async function analyzeInvoicePage(bot: ArchibaldBot, screenshotsDir: string): Pr
   await new Promise((resolve) => setTimeout(resolve, 2000));
 
   // Take full page screenshot
-  const screenshotPath = path.join(screenshotsDir, "11-01-invoice-page-full.png");
+  const screenshotPath = path.join(
+    screenshotsDir,
+    "11-01-invoice-page-full.png",
+  );
   await bot.page.screenshot({ path: screenshotPath, fullPage: true });
   logger.info(`Screenshot saved: ${screenshotPath}`);
 
@@ -253,7 +267,9 @@ async function analyzeInvoicePage(bot: ArchibaldBot, screenshotsDir: string): Pr
     };
 
     // Find main DevExpress table (same pattern as order-history-service.ts)
-    const mainTable = document.querySelector('table[id$="_DXMainTable"].dxgvTable_XafTheme') as HTMLTableElement;
+    const mainTable = document.querySelector(
+      'table[id$="_DXMainTable"].dxgvTable_XafTheme',
+    ) as HTMLTableElement;
 
     if (!mainTable) {
       return results;
@@ -270,7 +286,10 @@ async function analyzeInvoicePage(bot: ArchibaldBot, screenshotsDir: string): Pr
     }));
 
     // Extract first 3 data rows as samples
-    const dataRows = Array.from(mainTable.querySelectorAll("tbody tr")).slice(0, 3);
+    const dataRows = Array.from(mainTable.querySelectorAll("tbody tr")).slice(
+      0,
+      3,
+    );
     results.sampleRows = dataRows.map((row, rowIndex) => {
       const cells = Array.from(row.querySelectorAll("td"));
       return {
@@ -281,7 +300,9 @@ async function analyzeInvoicePage(bot: ArchibaldBot, screenshotsDir: string): Pr
           hasLink: cell.querySelector("a") !== null,
           linkHref: cell.querySelector("a")?.getAttribute("href") || null,
           linkText: cell.querySelector("a")?.textContent?.trim() || null,
-          hasButton: cell.querySelector("button") !== null || cell.querySelector('img[alt*="Download"]') !== null,
+          hasButton:
+            cell.querySelector("button") !== null ||
+            cell.querySelector('img[alt*="Download"]') !== null,
           buttonInfo: (() => {
             const button = cell.querySelector("button");
             const img = cell.querySelector("img");
@@ -296,7 +317,9 @@ async function analyzeInvoicePage(bot: ArchibaldBot, screenshotsDir: string): Pr
                 type: "image",
                 alt: img.getAttribute("alt"),
                 src: img.getAttribute("src"),
-                onclick: img.getAttribute("onclick") || img.parentElement?.getAttribute("onclick"),
+                onclick:
+                  img.getAttribute("onclick") ||
+                  img.parentElement?.getAttribute("onclick"),
               };
             }
             return null;
@@ -383,9 +406,13 @@ async function analyzeInvoicePage(bot: ArchibaldBot, screenshotsDir: string): Pr
     });
   });
 
-  logger.info(`\nPDF download buttons found: ${invoiceAnalysis.pdfDownloadButtons.length}`);
+  logger.info(
+    `\nPDF download buttons found: ${invoiceAnalysis.pdfDownloadButtons.length}`,
+  );
   invoiceAnalysis.pdfDownloadButtons.forEach((btn: any, idx: number) => {
-    logger.info(`  ${idx + 1}. <${btn.tagName}> "${btn.text || btn.alt}" → ${btn.href || btn.onclick}`);
+    logger.info(
+      `  ${idx + 1}. <${btn.tagName}> "${btn.text || btn.alt}" → ${btn.href || btn.onclick}`,
+    );
   });
 
   logger.info(`\nPagination elements:`);

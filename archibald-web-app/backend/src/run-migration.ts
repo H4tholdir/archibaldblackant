@@ -11,7 +11,9 @@ const dbPath = path.join(process.cwd(), "data", "orders.db");
 
 if (!fs.existsSync(dbPath)) {
   console.log("No database found at", dbPath);
-  console.log("Migration not needed - schema will be created fresh on first run");
+  console.log(
+    "Migration not needed - schema will be created fresh on first run",
+  );
   process.exit(0);
 }
 
@@ -21,7 +23,9 @@ console.log("Running migration: Add all 20 Order List + 11 DDT columns");
 
 try {
   // Check if columns already exist
-  const tableInfo = db.prepare("PRAGMA table_info(orders)").all() as Array<{ name: string }>;
+  const tableInfo = db.prepare("PRAGMA table_info(orders)").all() as Array<{
+    name: string;
+  }>;
   const existingColumns = new Set(tableInfo.map((col) => col.name));
 
   const columnsToAdd: Array<[string, string]> = [
@@ -66,7 +70,6 @@ try {
   console.log(`\n✅ Migration complete! Added ${addedCount} new columns.`);
   console.log(`   Existing columns: ${existingColumns.size}`);
   console.log(`   Total columns now: ${existingColumns.size + addedCount}`);
-
 } catch (error) {
   console.error("❌ Migration failed:", error);
   process.exit(1);

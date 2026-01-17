@@ -45,7 +45,8 @@ async function main() {
     const sortedVariants = variants.sort(
       (a, b) => (b.multipleQty || 0) - (a.multipleQty || 0),
     );
-    const lowestMultiple = sortedVariants[sortedVariants.length - 1].multipleQty || 1;
+    const lowestMultiple =
+      sortedVariants[sortedVariants.length - 1].multipleQty || 1;
     const testQuantity = 3; // Low quantity to test smallest package
 
     logger.info("Test Configuration:");
@@ -125,7 +126,9 @@ async function main() {
     logger.info(`  2. Customer: ${orderData.customerName}`);
     logger.info(`  3. Article: ${testArticleName}`);
     logger.info(`  4. Quantity: ${testQuantity}`);
-    logger.info(`  5. Package: ${lowestMultiple} (variant ${selectedVariant?.id})`);
+    logger.info(
+      `  5. Package: ${lowestMultiple} (variant ${selectedVariant?.id})`,
+    );
     logger.info(`  6. ⚠️  DISCOUNT: 20% applied correctly`);
     logger.info("");
 

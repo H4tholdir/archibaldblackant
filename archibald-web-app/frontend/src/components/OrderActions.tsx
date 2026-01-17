@@ -7,9 +7,9 @@ export interface OrderActionsProps {
 }
 
 export function OrderActions({
-  orderId,
+  orderId: _orderId,
   currentState,
-  archibaldOrderId,
+  archibaldOrderId: _archibaldOrderId,
   onSendToMilano,
   onEdit,
 }: OrderActionsProps) {
@@ -17,9 +17,6 @@ export function OrderActions({
   const showSendToMilano = currentState === "piazzato";
   const showEdit = currentState === "creato";
   const showNotModifiable = !showSendToMilano && !showEdit;
-
-  // Special message for piazzato orders: they can be modified, but only on Archibald
-  const isPiazzato = currentState === "piazzato";
 
   return (
     <div

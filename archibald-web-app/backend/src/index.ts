@@ -1364,7 +1364,8 @@ app.post(
       const validationErrors: string[] = [];
       for (const item of orderData.items) {
         try {
-          const product = await productDb.getByNameOrId(item.articleCode);
+          const products = productDb.getProducts(item.articleCode);
+          const product = products.length > 0 ? products[0] : null;
 
           if (product) {
             const validation = productDb.validateQuantity(
@@ -2314,10 +2315,15 @@ app.post(
           deliveryCity: null,
           trackingUrl: null,
           trackingCourier: null,
+
+          // Invoice fields (will be populated later)
+          invoiceNumber: null,
+          invoiceDate: null,
+          invoiceAmount: null,
         };
 
         // Save to database
-        orderHistoryService.getOrderDb().upsertOrders(userId, [storedOrder]);
+        orderHistoryService.orderDb.upsertOrders(userId, [storedOrder]);
 
         logger.info(`[DraftPlace] Order record created in database`, {
           userId,
@@ -2579,7 +2585,7 @@ app.get("/api/debug/me", authenticateJWT, (req: AuthRequest, res: Response) => {
   return res.json({
     userId,
     orderCount: userOrders.length,
-    sampleOrderIds: userOrders.slice(0, 3).map(o => o.id),
+    sampleOrderIds: userOrders.slice(0, 3).map((o) => o.id),
   });
 });
 
@@ -2612,12 +2618,10 @@ app.get(
       if (!order) {
         // Try finding by orderNumber instead
         const allOrders = orderDb.getOrdersByUser(userId);
-        order = allOrders.find(o => o.orderNumber === orderId) || null;
+        order = allOrders.find((o) => o.orderNumber === orderId) || null;
 
         if (order) {
-          logger.info(
-            `[DDT Download] Order found by orderNumber: ${order.id}`,
-          );
+          logger.info(`[DDT Download] Order found by orderNumber: ${order.id}`);
         }
       }
 
@@ -2686,12 +2690,13 @@ app.get(
       });
 
       // Return detailed error in development, generic in production
-      const isDevelopment = process.env.NODE_ENV !== 'production';
+      const isDevelopment = process.env.NODE_ENV !== "production";
       return res.status(500).json({
         success: false,
-        error: isDevelopment && error instanceof Error
-          ? error.message
-          : "Failed to download DDT PDF. Please try again later.",
+        error:
+          isDevelopment && error instanceof Error
+            ? error.message
+            : "Failed to download DDT PDF. Please try again later.",
         ...(isDevelopment && error instanceof Error && { stack: error.stack }),
       });
     }

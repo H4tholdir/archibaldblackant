@@ -1,8 +1,12 @@
-import puppeteer, { type Browser, type BrowserContext, type Page } from 'puppeteer';
-import { logger } from './logger';
-import { config } from './config';
-import { PasswordCache } from './password-cache';
-import { UserDatabase } from './user-db';
+import puppeteer, {
+  type Browser,
+  type BrowserContext,
+  type Page,
+} from "puppeteer";
+import { logger } from "./logger";
+import { config } from "./config";
+import { PasswordCache } from "./password-cache";
+import { UserDatabase } from "./user-db";
 
 /**
  * Browser Pool Manager - Simplified Session-per-Operation Architecture
@@ -51,13 +55,18 @@ export class BrowserPool {
         // Test if browser is really connected by checking process and connection
         const browserProcess = this.browser.process();
         if (browserProcess?.pid && browserProcess.pid > 0) {
-          logger.debug('[BrowserPool] Browser already initialized and connected');
+          logger.debug(
+            "[BrowserPool] Browser already initialized and connected",
+          );
           return;
         }
       } catch (error) {
-        logger.warn('[BrowserPool] Browser connection check failed, reinitializing...', {
-          error: error instanceof Error ? error.message : String(error)
-        });
+        logger.warn(
+          "[BrowserPool] Browser connection check failed, reinitializing...",
+          {
+            error: error instanceof Error ? error.message : String(error),
+          },
+        );
         this.browser = null;
         this.initializationPromise = null;
       }
@@ -68,17 +77,17 @@ export class BrowserPool {
     }
 
     this.initializationPromise = (async () => {
-      logger.info('[BrowserPool] Initializing shared Browser');
+      logger.info("[BrowserPool] Initializing shared Browser");
 
       this.browser = await puppeteer.launch({
         headless: config.puppeteer.headless,
         slowMo: config.puppeteer.slowMo, // CRITICAL: Prevents browser crashes with shared instance
         ignoreHTTPSErrors: true,
         args: [
-          '--no-sandbox',
-          '--disable-setuid-sandbox',
-          '--disable-web-security',
-          '--ignore-certificate-errors',
+          "--no-sandbox",
+          "--disable-setuid-sandbox",
+          "--disable-web-security",
+          "--ignore-certificate-errors",
         ],
         defaultViewport: {
           width: 1280,
@@ -87,8 +96,8 @@ export class BrowserPool {
       });
 
       this.initializationPromise = null; // Reset promise after successful init
-      logger.info('[BrowserPool] Browser launched successfully', {
-        pid: this.browser.process()?.pid
+      logger.info("[BrowserPool] Browser launched successfully", {
+        pid: this.browser.process()?.pid,
       });
     })();
 
@@ -106,13 +115,19 @@ export class BrowserPool {
     // Check if there's already a login in progress for this user
     const existingLock = this.userLocks.get(userId);
     if (existingLock) {
-      logger.info(`[BrowserPool] Login already in progress for user ${userId}, waiting...`);
+      logger.info(
+        `[BrowserPool] Login already in progress for user ${userId}, waiting...`,
+      );
       try {
         // Wait for existing login to complete, then create our own context
         await existingLock;
-        logger.info(`[BrowserPool] Previous login completed for user ${userId}, proceeding...`);
+        logger.info(
+          `[BrowserPool] Previous login completed for user ${userId}, proceeding...`,
+        );
       } catch (error) {
-        logger.warn(`[BrowserPool] Previous login failed for user ${userId}, retrying...`);
+        logger.warn(
+          `[BrowserPool] Previous login failed for user ${userId}, retrying...`,
+        );
         // Continue anyway - we'll try our own login
       }
     }
@@ -130,10 +145,13 @@ export class BrowserPool {
           context = await this.browser!.createBrowserContext();
         } catch (error) {
           // Browser crashed - force reinitialization and retry once
-          logger.warn(`[BrowserPool] Failed to create context, reinitializing browser...`, {
-            error: error instanceof Error ? error.message : String(error),
-            userId
-          });
+          logger.warn(
+            `[BrowserPool] Failed to create context, reinitializing browser...`,
+            {
+              error: error instanceof Error ? error.message : String(error),
+              userId,
+            },
+          );
 
           // Force reinit by clearing browser
           this.browser = null;
@@ -144,7 +162,9 @@ export class BrowserPool {
 
           // Retry context creation
           context = await this.browser!.createBrowserContext();
-          logger.info(`[BrowserPool] Context created successfully after browser reinit`);
+          logger.info(
+            `[BrowserPool] Context created successfully after browser reinit`,
+          );
         }
 
         // Perform fresh login
@@ -171,15 +191,17 @@ export class BrowserPool {
   async releaseContext(
     userId: string,
     context: BrowserContext,
-    success: boolean
+    success: boolean,
   ): Promise<void> {
     try {
-      logger.info(`[BrowserPool] Closing context for user ${userId} (success: ${success})`);
+      logger.info(
+        `[BrowserPool] Closing context for user ${userId} (success: ${success})`,
+      );
       await context.close();
     } catch (error) {
-      logger.error('[BrowserPool] Error closing context', {
+      logger.error("[BrowserPool] Error closing context", {
         error: error instanceof Error ? error.message : String(error),
-        userId
+        userId,
       });
     }
   }
@@ -188,7 +210,10 @@ export class BrowserPool {
    * Perform fresh login to Archibald
    * Private method - only called during acquireContext
    */
-  private async performLogin(context: BrowserContext, userId: string): Promise<void> {
+  private async performLogin(
+    context: BrowserContext,
+    userId: string,
+  ): Promise<void> {
     logger.info(`[BrowserPool] Performing fresh login for user ${userId}`);
 
     // Get credentials from cache
@@ -214,7 +239,7 @@ export class BrowserPool {
       // Navigate to login page
       const loginUrl = `${config.archibald.url}/Login.aspx?ReturnUrl=%2fArchibald%2fDefault.aspx`;
 
-      logger.info('[BrowserPool] Navigating to login page');
+      logger.info("[BrowserPool] Navigating to login page");
       await page.goto(loginUrl, {
         waitUntil: "domcontentloaded",
         timeout: 30000,
@@ -225,27 +250,33 @@ export class BrowserPool {
 
       // Find form fields
       const usernameField = await page.evaluate(() => {
-        const inputs = Array.from(document.querySelectorAll('input[type="text"]'));
+        const inputs = Array.from(
+          document.querySelectorAll<HTMLInputElement>('input[type="text"]'),
+        );
         const userInput = inputs.find(
           (input) =>
-            input.id.includes("UserName") ||
-            input.name.includes("UserName") ||
+            input.name?.includes("UserName") ||
             input.placeholder?.toLowerCase().includes("account") ||
             input.placeholder?.toLowerCase().includes("username"),
         );
         if (userInput) {
-          return (userInput as HTMLInputElement).id || (userInput as HTMLInputElement).name;
+          return userInput.id || userInput.name;
         }
         if (inputs.length > 0) {
-          return (inputs[0] as HTMLInputElement).id || (inputs[0] as HTMLInputElement).name;
+          return inputs[0].id || inputs[0].name;
         }
         return null;
       });
 
       const passwordField = await page.evaluate(() => {
-        const inputs = Array.from(document.querySelectorAll('input[type="password"]'));
+        const inputs = Array.from(
+          document.querySelectorAll('input[type="password"]'),
+        );
         if (inputs.length > 0) {
-          return (inputs[0] as HTMLInputElement).id || (inputs[0] as HTMLInputElement).name;
+          return (
+            (inputs[0] as HTMLInputElement).id ||
+            (inputs[0] as HTMLInputElement).name
+          );
         }
         return null;
       });
@@ -255,27 +286,27 @@ export class BrowserPool {
       }
 
       // Fill credentials
-      logger.info('[BrowserPool] Filling login credentials');
+      logger.info("[BrowserPool] Filling login credentials");
       await page.evaluate((fieldId) => {
         const input = document.getElementById(fieldId) as HTMLInputElement;
-        if (input) input.value = '';
+        if (input) input.value = "";
       }, usernameField);
       await page.type(`#${usernameField}`, username, { delay: 100 });
 
       await page.evaluate((fieldId) => {
         const input = document.getElementById(fieldId) as HTMLInputElement;
-        if (input) input.value = '';
+        if (input) input.value = "";
       }, passwordField);
       await page.type(`#${passwordField}`, cachedPassword, { delay: 100 });
 
       // Submit form
-      logger.info('[BrowserPool] Submitting login form');
-      await page.keyboard.press('Enter');
+      logger.info("[BrowserPool] Submitting login form");
+      await page.keyboard.press("Enter");
 
       // Wait for navigation
       await page.waitForNavigation({
         waitUntil: "domcontentloaded",
-        timeout: 30000
+        timeout: 30000,
       });
 
       // Verify login success
@@ -284,18 +315,20 @@ export class BrowserPool {
 
       if (finalUrl.includes("Login.aspx")) {
         const errorMessage = await page.evaluate(() => {
-          const errorElements = document.querySelectorAll('.error, .alert, [class*="error"], [class*="alert"]');
+          const errorElements = document.querySelectorAll(
+            '.error, .alert, [class*="error"], [class*="alert"]',
+          );
           if (errorElements.length > 0) {
             return Array.from(errorElements)
-              .map(el => el.textContent?.trim())
-              .filter(t => t && t.length > 0)
-              .join('; ');
+              .map((el) => el.textContent?.trim())
+              .filter((t) => t && t.length > 0)
+              .join("; ");
           }
           return null;
         });
 
         throw new Error(
-          `Login failed - still on login page. ${errorMessage ? `Error: ${errorMessage}` : 'Possible invalid credentials or Archibald issue.'}`
+          `Login failed - still on login page. ${errorMessage ? `Error: ${errorMessage}` : "Possible invalid credentials or Archibald issue."}`,
         );
       }
 
@@ -303,12 +336,12 @@ export class BrowserPool {
 
       // Close the login page - context remains open for operation
       await page.close();
-
     } catch (loginError) {
-      logger.error('[BrowserPool] Login failed', {
-        error: loginError instanceof Error ? loginError.message : String(loginError),
+      logger.error("[BrowserPool] Login failed", {
+        error:
+          loginError instanceof Error ? loginError.message : String(loginError),
         userId,
-        username
+        username,
       });
 
       // Close page if still open
@@ -324,7 +357,7 @@ export class BrowserPool {
    * Shutdown: close browser
    */
   async shutdown(): Promise<void> {
-    logger.info('[BrowserPool] Shutting down...');
+    logger.info("[BrowserPool] Shutting down...");
 
     if (this.browser) {
       await this.browser.close();
@@ -333,7 +366,7 @@ export class BrowserPool {
 
     this.initializationPromise = null;
 
-    logger.info('[BrowserPool] Shutdown complete');
+    logger.info("[BrowserPool] Shutdown complete");
   }
 
   /**

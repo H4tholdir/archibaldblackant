@@ -18,7 +18,7 @@ async function main() {
 
     await bot.page.goto(
       "https://4.231.124.90/Archibald/CUSTPACKINGSLIPJOUR_ListView/",
-      { waitUntil: "domcontentloaded", timeout: 60000 }
+      { waitUntil: "domcontentloaded", timeout: 60000 },
     );
 
     await new Promise((resolve) => setTimeout(resolve, 3000));
@@ -29,7 +29,9 @@ async function main() {
         return { error: "Table not found" };
       }
 
-      const dataRows = Array.from(table.querySelectorAll("tr.dxgvDataRow, tr.dxgvDataRow_XafTheme"));
+      const dataRows = Array.from(
+        table.querySelectorAll("tr.dxgvDataRow, tr.dxgvDataRow_XafTheme"),
+      );
 
       console.log(`Found ${dataRows.length} data rows\n`);
 
@@ -55,7 +57,10 @@ async function main() {
 
         // Parse tracking
         const parts = trackingText.split(/\s+/);
-        const trackingFull = parts.length >= 2 ? `${parts[0]} ${parts.slice(1).join(" ")}` : trackingText;
+        const trackingFull =
+          parts.length >= 2
+            ? `${parts[0]} ${parts.slice(1).join(" ")}`
+            : trackingText;
 
         rows.push({
           col1_id: ddtId,
@@ -86,15 +91,31 @@ async function main() {
         console.log(`\n🔹 RIGA ${idx + 1}:`);
         console.log(`   [1]  ID:                     "${row.col1_id}"`);
         console.log(`   [2]  Documento di trasporto: "${row.col2_ddtNumber}"`);
-        console.log(`   [3]  Data di consegna:       "${row.col3_deliveryDate}"`);
-        console.log(`   [4]  ID di vendita:          "${row.col4_orderId}"  ⭐ MATCH KEY`);
-        console.log(`   [5]  Conto dell'ordine:      "${row.col5_customerAccount}"`);
+        console.log(
+          `   [3]  Data di consegna:       "${row.col3_deliveryDate}"`,
+        );
+        console.log(
+          `   [4]  ID di vendita:          "${row.col4_orderId}"  ⭐ MATCH KEY`,
+        );
+        console.log(
+          `   [5]  Conto dell'ordine:      "${row.col5_customerAccount}"`,
+        );
         console.log(`   [6]  Nome vendite:           "${row.col6_salesName}"`);
-        console.log(`   [7]  Nome di consegna:       "${row.col7_deliveryName}"`);
-        console.log(`   [8]  Numero tracciabilità:   "${row.col8_trackingNumber}"`);
-        console.log(`   [9]  Termini di consegna:    "${row.col9_deliveryTerms}"`);
-        console.log(`   [10] Modalità di consegna:   "${row.col10_deliveryMethod}"`);
-        console.log(`   [11] Città di consegna:      "${row.col11_deliveryCity}"`);
+        console.log(
+          `   [7]  Nome di consegna:       "${row.col7_deliveryName}"`,
+        );
+        console.log(
+          `   [8]  Numero tracciabilità:   "${row.col8_trackingNumber}"`,
+        );
+        console.log(
+          `   [9]  Termini di consegna:    "${row.col9_deliveryTerms}"`,
+        );
+        console.log(
+          `   [10] Modalità di consegna:   "${row.col10_deliveryMethod}"`,
+        );
+        console.log(
+          `   [11] Città di consegna:      "${row.col11_deliveryCity}"`,
+        );
       });
 
       console.log("\n" + "=".repeat(80));
@@ -102,11 +123,12 @@ async function main() {
       console.log("=".repeat(80));
       console.log("\n📊 SUMMARY:");
       console.log("   ✅ All 11 DDT columns extracted successfully");
-      console.log("   ✅ Columns [9] and [11] may be empty (not populated in current data)");
+      console.log(
+        "   ✅ Columns [9] and [11] may be empty (not populated in current data)",
+      );
       console.log("   ✅ Mapping is correct based on header structure");
       console.log("   ✅ Service updated with complete column mapping");
     }
-
   } catch (error) {
     console.error("\n❌ Error:", error);
     process.exit(1);

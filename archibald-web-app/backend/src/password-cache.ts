@@ -51,7 +51,7 @@ export class PasswordCache {
   set(userId: string, password: string): void {
     this.cache.set(userId, {
       password,
-      timestamp: Date.now()
+      timestamp: Date.now(),
     });
   }
 

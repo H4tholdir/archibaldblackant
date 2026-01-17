@@ -203,7 +203,7 @@ export class PriceSyncService extends EventEmitter {
       );
 
       // Use legacy ArchibaldBot for system sync operations
-      const { ArchibaldBot } = await import('./archibald-bot');
+      const { ArchibaldBot } = await import("./archibald-bot");
       bot = new ArchibaldBot(); // No userId = legacy mode
       await bot.initialize();
       await bot.login(); // Uses config credentials
@@ -459,7 +459,12 @@ export class PriceSyncService extends EventEmitter {
           });
         }
 
-        allPrices.push(...prices);
+        allPrices.push(
+          ...prices.map((p) => ({
+            productId: p.itemSelection,
+            price: p.price,
+          })),
+        );
 
         // Aggiorna i prezzi nel database con MATCHING MULTI-LIVELLO ROBUSTO
         if (prices.length > 0) {
@@ -632,7 +637,12 @@ export class PriceSyncService extends EventEmitter {
         // Salva checkpoint alla pagina corrente per permettere ripresa
         const lastProcessedPage =
           allPrices.length > 0 ? Math.ceil(allPrices.length / 20) : resumePoint;
-        this.checkpointManager.saveCheckpoint("prices", lastProcessedPage);
+        this.checkpointManager.updateProgress(
+          "prices",
+          lastProcessedPage,
+          totalPages,
+          allPrices.length,
+        );
 
         this.updateProgress({
           status: "idle",

@@ -28,7 +28,6 @@ import {
   getDraftOrderById,
   updateDraftOrder,
 } from "../services/draftOrderStorage";
-import { useNetworkStatus } from "../hooks/useNetworkStatus";
 import { StaleCacheWarning } from "./StaleCacheWarning";
 import type { DraftOrderItem } from "../db/schema";
 
@@ -55,15 +54,12 @@ interface OrderFormProps {
 }
 
 export default function OrderForm({
-  token,
-  onOrderCreated,
+  token: _token,
+  onOrderCreated: _onOrderCreated,
   isAdmin = false,
 }: OrderFormProps) {
   // Navigation
   const navigate = useNavigate();
-
-  // Network status
-  const { isOffline } = useNetworkStatus();
 
   // Debug logger
   const {
@@ -524,7 +520,7 @@ export default function OrderForm({
       // Convert OrderItem[] to DraftOrderItem[]
       const draftOrderItems: DraftOrderItem[] = draftItems.map((item) => ({
         productId: item.articleCode, // Use articleCode as productId
-        productName: item.productName,
+        productName: item.productName || item.articleCode, // Fallback to articleCode if productName is undefined
         article: item.articleCode,
         variantId: "", // Not used in current flow
         quantity: item.quantity,

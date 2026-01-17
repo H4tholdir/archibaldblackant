@@ -21,15 +21,17 @@ async function main() {
     console.log("Navigating to DDT table...");
     await bot.page.goto(
       "https://4.231.124.90/Archibald/CUSTPACKINGSLIPJOUR_ListView/",
-      { waitUntil: "domcontentloaded", timeout: 60000 }
+      { waitUntil: "domcontentloaded", timeout: 60000 },
     );
 
     await new Promise((resolve) => setTimeout(resolve, 3000));
 
     const structure = await bot.page.evaluate(() => {
       // Find all tables
-      const allTables = Array.from(document.querySelectorAll('table'));
-      const mainTables = Array.from(document.querySelectorAll('table[id$="_DXMainTable"]'));
+      const allTables = Array.from(document.querySelectorAll("table"));
+      const mainTables = Array.from(
+        document.querySelectorAll('table[id$="_DXMainTable"]'),
+      );
 
       console.log(`Total tables: ${allTables.length}`);
       console.log(`Tables with _DXMainTable: ${mainTables.length}`);
@@ -42,7 +44,9 @@ async function main() {
       console.log(`Using table with id: ${table.id}`);
 
       const allRows = Array.from(table.querySelectorAll("tr"));
-      const dataRows = Array.from(table.querySelectorAll("tr.dxgvDataRow, tr.dxgvDataRow_XafTheme"));
+      const dataRows = Array.from(
+        table.querySelectorAll("tr.dxgvDataRow, tr.dxgvDataRow_XafTheme"),
+      );
 
       console.log(`Total rows in table: ${allRows.length}`);
       console.log(`Data rows (dxgvDataRow): ${dataRows.length}`);
@@ -57,7 +61,9 @@ async function main() {
       for (let i = 0; i < Math.min(3, dataRows.length); i++) {
         const row = dataRows[i];
         const cells = Array.from(row.querySelectorAll("td"));
-        const cellTexts = cells.map(c => c.textContent?.trim().substring(0, 40) || "");
+        const cellTexts = cells.map(
+          (c) => c.textContent?.trim().substring(0, 40) || "",
+        );
 
         info.firstDataRows.push({
           index: i,
@@ -72,7 +78,6 @@ async function main() {
 
     console.log("\n📊 DDT Table Structure:");
     console.log(JSON.stringify(structure, null, 2));
-
   } catch (error) {
     console.error("\n❌ Error:", error);
     process.exit(1);

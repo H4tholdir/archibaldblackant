@@ -1,7 +1,7 @@
-import { Request, Response, NextFunction } from 'express';
-import { verifyJWT } from '../auth-utils';
-import { logger } from '../logger';
-import type { UserRole } from '../user-db';
+import { Request, Response, NextFunction } from "express";
+import { verifyJWT } from "../auth-utils";
+import { logger } from "../logger";
+import type { UserRole } from "../user-db";
 
 export interface AuthRequest extends Request {
   user?: {
@@ -14,19 +14,19 @@ export interface AuthRequest extends Request {
 export async function authenticateJWT(
   req: AuthRequest,
   res: Response,
-  next: NextFunction
+  next: NextFunction,
 ) {
   const authHeader = req.headers.authorization;
 
-  if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    return res.status(401).json({ error: 'Token non fornito' });
+  if (!authHeader || !authHeader.startsWith("Bearer ")) {
+    return res.status(401).json({ error: "Token non fornito" });
   }
 
-  const token = authHeader.split(' ')[1];
+  const token = authHeader.split(" ")[1];
   const payload = await verifyJWT(token);
 
   if (!payload) {
-    return res.status(401).json({ error: 'Token non valido o scaduto' });
+    return res.status(401).json({ error: "Token non valido o scaduto" });
   }
 
   req.user = payload;
@@ -39,19 +39,19 @@ export async function authenticateJWT(
 export async function requireAdmin(
   req: AuthRequest,
   res: Response,
-  next: NextFunction
+  next: NextFunction,
 ) {
   if (!req.user) {
-    return res.status(401).json({ error: 'Authentication required' });
+    return res.status(401).json({ error: "Authentication required" });
   }
 
-  if (req.user.role !== 'admin') {
-    logger.warn('Non-admin user attempted to access admin endpoint', {
+  if (req.user.role !== "admin") {
+    logger.warn("Non-admin user attempted to access admin endpoint", {
       userId: req.user.userId,
       username: req.user.username,
       role: req.user.role,
     });
-    return res.status(403).json({ error: 'Admin access required' });
+    return res.status(403).json({ error: "Admin access required" });
   }
 
   next();

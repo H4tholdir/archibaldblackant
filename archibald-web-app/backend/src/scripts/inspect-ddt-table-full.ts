@@ -18,7 +18,7 @@ async function main() {
 
     await bot.page.goto(
       "https://4.231.124.90/Archibald/CUSTPACKINGSLIPJOUR_ListView/",
-      { waitUntil: "domcontentloaded", timeout: 60000 }
+      { waitUntil: "domcontentloaded", timeout: 60000 },
     );
 
     await new Promise((resolve) => setTimeout(resolve, 3000));
@@ -45,19 +45,22 @@ async function main() {
         const row = allRows[i];
         const cells = Array.from(row.querySelectorAll("td, th"));
 
-        const cellTexts = cells.slice(0, 15).map(c => c.textContent?.trim().substring(0, 40) || "");
+        const cellTexts = cells
+          .slice(0, 15)
+          .map((c) => c.textContent?.trim().substring(0, 40) || "");
 
         info.first20Rows.push({
           index: i,
           className: row.className,
           cellCount: cells.length,
-          cellTypes: cells.slice(0, 3).map(c => c.tagName),
+          cellTypes: cells.slice(0, 3).map((c) => c.tagName),
           first15Cells: cellTexts,
           // Check if this is header row (contains "ID", "Documento", etc.)
-          looksLikeHeader: cellTexts.some(t =>
-            t.toLowerCase().includes("documento") ||
-            t.toLowerCase().includes("consegna") ||
-            t.toLowerCase().includes("vendita")
+          looksLikeHeader: cellTexts.some(
+            (t) =>
+              t.toLowerCase().includes("documento") ||
+              t.toLowerCase().includes("consegna") ||
+              t.toLowerCase().includes("vendita"),
           ),
         });
       }
@@ -80,7 +83,9 @@ async function main() {
       analysis.first20Rows.forEach((row: any) => {
         const headerFlag = row.looksLikeHeader ? " ⭐ POTENTIAL HEADER" : "";
         console.log(`\n[Row ${row.index}] ${row.className}${headerFlag}`);
-        console.log(`  Cells: ${row.cellCount}, Types: ${row.cellTypes.join(", ")}`);
+        console.log(
+          `  Cells: ${row.cellCount}, Types: ${row.cellTypes.join(", ")}`,
+        );
 
         if (row.first15Cells.some((c: string) => c !== "")) {
           console.log(`  Content preview:`);
@@ -92,7 +97,6 @@ async function main() {
         }
       });
     }
-
   } catch (error) {
     console.error("\n❌ Error:", error);
     process.exit(1);

@@ -47,7 +47,8 @@ async function main() {
       (a, b) => (b.multipleQty || 0) - (a.multipleQty || 0),
     );
     const highestMultiple = sortedVariants[0].multipleQty || 1;
-    const lowestMultiple = sortedVariants[sortedVariants.length - 1].multipleQty || 1;
+    const lowestMultiple =
+      sortedVariants[sortedVariants.length - 1].multipleQty || 1;
 
     // Create test cases with different quantities
     const lowQuantity = Math.max(1, highestMultiple - 1); // Should select smallest package
@@ -64,7 +65,9 @@ async function main() {
     });
     logger.info("");
     logger.info("Test Cases:");
-    logger.info(`  1. Quantity ${lowQuantity} → Expected package: ${lowestMultiple} (smallest)`);
+    logger.info(
+      `  1. Quantity ${lowQuantity} → Expected package: ${lowestMultiple} (smallest)`,
+    );
     logger.info(
       `  2. Quantity ${thresholdQuantity} → Expected package: ${highestMultiple} (largest, at threshold)`,
     );
@@ -166,12 +169,16 @@ async function main() {
     logger.info(`  Line 2:`);
     logger.info(`    - Article: ${testArticleName}`);
     logger.info(`    - Quantity: ${thresholdQuantity}`);
-    logger.info(`    - Package: ${highestMultiple} (variant ${sortedVariants[0].id})`);
+    logger.info(
+      `    - Package: ${highestMultiple} (variant ${sortedVariants[0].id})`,
+    );
     logger.info("");
     logger.info(`  Line 3:`);
     logger.info(`    - Article: ${testArticleName}`);
     logger.info(`    - Quantity: ${highQuantity}`);
-    logger.info(`    - Package: ${highestMultiple} (variant ${sortedVariants[0].id})`);
+    logger.info(
+      `    - Package: ${highestMultiple} (variant ${sortedVariants[0].id})`,
+    );
     logger.info("");
 
     await bot.close();

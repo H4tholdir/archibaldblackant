@@ -18,7 +18,7 @@ async function main() {
 
     await bot.page.goto(
       "https://4.231.124.90/Archibald/CUSTPACKINGSLIPJOUR_ListView/",
-      { waitUntil: "domcontentloaded", timeout: 60000 }
+      { waitUntil: "domcontentloaded", timeout: 60000 },
     );
 
     await new Promise((resolve) => setTimeout(resolve, 3000));
@@ -29,7 +29,9 @@ async function main() {
         return { error: "Table not found" };
       }
 
-      const dataRows = Array.from(table.querySelectorAll("tr.dxgvDataRow, tr.dxgvDataRow_XafTheme"));
+      const dataRows = Array.from(
+        table.querySelectorAll("tr.dxgvDataRow, tr.dxgvDataRow_XafTheme"),
+      );
       const firstRow = dataRows[0];
       const cells = Array.from(firstRow.querySelectorAll("td"));
 
@@ -94,11 +96,14 @@ async function main() {
       console.log("\n" + "=".repeat(80));
       console.log("💡 NEXT STEPS:");
       console.log("=".repeat(80));
-      console.log("\n1. Check if 'Termini di consegna' is in [14], [15], [16], [18], or [20]");
-      console.log("2. Check if 'Città di consegna' is in [14], [15], [16], [18], or [20]");
+      console.log(
+        "\n1. Check if 'Termini di consegna' is in [14], [15], [16], [18], or [20]",
+      );
+      console.log(
+        "2. Check if 'Città di consegna' is in [14], [15], [16], [18], or [20]",
+      );
       console.log("3. If not found, extract city from address field [13]");
     }
-
   } catch (error) {
     console.error("\n❌ Error:", error);
     process.exit(1);

@@ -78,6 +78,9 @@ export interface Order {
   transferredToAccountingOffice?: boolean;
   deliveryAddress?: string;
 
+  // Index signature for compatibility with orderGrouping
+  [key: string]: unknown;
+
   // DDT (11 columns)
   ddt?: DDTInfo;
 

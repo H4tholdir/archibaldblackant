@@ -21,30 +21,46 @@ async function main() {
     console.log("Navigating to Order List...");
     await bot.page.goto(
       "https://4.231.124.90/Archibald/SALESTABLE_ListView_Agent/",
-      { waitUntil: "domcontentloaded", timeout: 60000 }
+      { waitUntil: "domcontentloaded", timeout: 60000 },
     );
 
     await new Promise((resolve) => setTimeout(resolve, 3000));
 
     const structure = await bot.page.evaluate(() => {
       // Find all tables
-      const allTables = Array.from(document.querySelectorAll('table'));
-      const mainTables = Array.from(document.querySelectorAll('table[id$="_DXMainTable"]'));
-      const themedTables = Array.from(document.querySelectorAll('table[id$="_DXMainTable"].dxgvTable_XafTheme'));
+      const allTables = Array.from(document.querySelectorAll("table"));
+      const mainTables = Array.from(
+        document.querySelectorAll('table[id$="_DXMainTable"]'),
+      );
+      const themedTables = Array.from(
+        document.querySelectorAll(
+          'table[id$="_DXMainTable"].dxgvTable_XafTheme',
+        ),
+      );
 
       console.log(`Total tables: ${allTables.length}`);
       console.log(`Tables with _DXMainTable: ${mainTables.length}`);
-      console.log(`Tables with both _DXMainTable and dxgvTable_XafTheme: ${themedTables.length}`);
+      console.log(
+        `Tables with both _DXMainTable and dxgvTable_XafTheme: ${themedTables.length}`,
+      );
 
-      const table = document.querySelector('table[id$="_DXMainTable"].dxgvTable_XafTheme');
+      const table = document.querySelector(
+        'table[id$="_DXMainTable"].dxgvTable_XafTheme',
+      );
       if (!table) {
-        return { error: "Themed table not found", tablesFound: allTables.length, mainTables: mainTables.length };
+        return {
+          error: "Themed table not found",
+          tablesFound: allTables.length,
+          mainTables: mainTables.length,
+        };
       }
 
       console.log(`Using table with id: ${table.id}`);
 
       const allRows = Array.from(table.querySelectorAll("tr"));
-      const dataRows = Array.from(table.querySelectorAll("tr.dxgvDataRow, tr.dxgvDataRow_XafTheme"));
+      const dataRows = Array.from(
+        table.querySelectorAll("tr.dxgvDataRow, tr.dxgvDataRow_XafTheme"),
+      );
 
       console.log(`Total rows in table: ${allRows.length}`);
       console.log(`Data rows (dxgvDataRow): ${dataRows.length}`);
@@ -61,7 +77,9 @@ async function main() {
         const row = allRows[i];
         const cells = Array.from(row.querySelectorAll("td, th"));
 
-        const cellTexts = cells.slice(0, 10).map(c => c.textContent?.trim().substring(0, 30) || "");
+        const cellTexts = cells
+          .slice(0, 10)
+          .map((c) => c.textContent?.trim().substring(0, 30) || "");
 
         info.firstFewRows.push({
           index: i,
@@ -69,10 +87,10 @@ async function main() {
           tagName: row.tagName,
           cellCount: cells.length,
           firstCellText: cells[0]?.textContent?.trim().substring(0, 50) || "",
-          cellTypes: cells.slice(0, 5).map(c => c.tagName),
+          cellTypes: cells.slice(0, 5).map((c) => c.tagName),
           first10Cells: cellTexts,
           // Check if looks like data row (has "ORD/" in some cell)
-          hasOrderNumber: cellTexts.some(t => t.includes("ORD/")),
+          hasOrderNumber: cellTexts.some((t) => t.includes("ORD/")),
         });
       }
 
@@ -80,7 +98,9 @@ async function main() {
       for (let i = 0; i < Math.min(3, dataRows.length); i++) {
         const row = dataRows[i];
         const cells = Array.from(row.querySelectorAll("td"));
-        const cellTexts = cells.map(c => c.textContent?.trim().substring(0, 30) || "");
+        const cellTexts = cells.map(
+          (c) => c.textContent?.trim().substring(0, 30) || "",
+        );
 
         info.firstDataRows.push({
           index: i,
@@ -95,7 +115,6 @@ async function main() {
 
     console.log("\n📊 Table Structure:");
     console.log(JSON.stringify(structure, null, 2));
-
   } catch (error) {
     console.error("\n❌ Error:", error);
     process.exit(1);

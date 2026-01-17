@@ -19,9 +19,27 @@ console.log("🔧 Assegnazione prezzi di default ai prodotti...\n");
 
 // Step 1: Pulisci record spazzatura (giorni settimana, mesi)
 console.log("Step 1: Pulizia record spazzatura");
-const garbageIds = ["lun", "mar", "mer", "gio", "ven", "sab", "dom",
-                     "Gen", "Feb", "Mar", "Apr", "Mag", "Giu",
-                     "Lug", "Ago", "Set", "Ott", "Nov", "Dic"];
+const garbageIds = [
+  "lun",
+  "mar",
+  "mer",
+  "gio",
+  "ven",
+  "sab",
+  "dom",
+  "Gen",
+  "Feb",
+  "Mar",
+  "Apr",
+  "Mag",
+  "Giu",
+  "Lug",
+  "Ago",
+  "Set",
+  "Ott",
+  "Nov",
+  "Dic",
+];
 const deleteGarbage = db.prepare("DELETE FROM products WHERE id = ?");
 let garbageDeleted = 0;
 for (const id of garbageIds) {
@@ -32,7 +50,9 @@ console.log(`✅ Eliminati ${garbageDeleted} record spazzatura\n`);
 
 // Step 2: Calcola prezzo medio per gruppo
 console.log("Step 2: Calcolo prezzi medi per gruppo");
-const groupAverages = db.prepare(`
+const groupAverages = db
+  .prepare(
+    `
   SELECT
     groupCode,
     ROUND(AVG(price), 2) as avg_price,
@@ -40,16 +60,26 @@ const groupAverages = db.prepare(`
   FROM products
   WHERE price > 0 AND groupCode IS NOT NULL
   GROUP BY groupCode
-`).all() as Array<{ groupCode: string; avg_price: number; products_with_price: number }>;
+`,
+  )
+  .all() as Array<{
+  groupCode: string;
+  avg_price: number;
+  products_with_price: number;
+}>;
 
 console.log(`📊 ${groupAverages.length} gruppi con prezzi medi calcolati`);
 
 // Step 3: Calcola prezzo medio globale (fallback)
-const globalAvg = db.prepare(`
+const globalAvg = db
+  .prepare(
+    `
   SELECT ROUND(AVG(price), 2) as avg_price
   FROM products
   WHERE price > 0
-`).get() as { avg_price: number };
+`,
+  )
+  .get() as { avg_price: number };
 
 console.log(`📊 Prezzo medio globale: €${globalAvg.avg_price}\n`);
 
@@ -65,13 +95,19 @@ const updatePrice = db.prepare(`
 let assignedByGroup = 0;
 let assignedGlobal = 0;
 
-const productsWithoutPrice = db.prepare(`
+const productsWithoutPrice = db
+  .prepare(
+    `
   SELECT id, name, groupCode
   FROM products
   WHERE price IS NULL OR price = 0
-`).all() as Array<{ id: string; name: string; groupCode: string | null }>;
+`,
+  )
+  .all() as Array<{ id: string; name: string; groupCode: string | null }>;
 
-console.log(`🔍 Trovati ${productsWithoutPrice.length} prodotti senza prezzo\n`);
+console.log(
+  `🔍 Trovati ${productsWithoutPrice.length} prodotti senza prezzo\n`,
+);
 
 const transaction = db.transaction((products: typeof productsWithoutPrice) => {
   for (const product of products) {
@@ -79,7 +115,9 @@ const transaction = db.transaction((products: typeof productsWithoutPrice) => {
 
     // Cerca prezzo medio del gruppo
     if (product.groupCode) {
-      const groupAvg = groupAverages.find(g => g.groupCode === product.groupCode);
+      const groupAvg = groupAverages.find(
+        (g) => g.groupCode === product.groupCode,
+      );
       if (groupAvg) {
         priceToAssign = groupAvg.avg_price;
         assignedByGroup++;
@@ -98,11 +136,15 @@ transaction(productsWithoutPrice);
 
 console.log(`✅ Assegnati prezzi di default:`);
 console.log(`   - ${assignedByGroup} prodotti con prezzo medio del gruppo`);
-console.log(`   - ${assignedGlobal} prodotti con prezzo medio globale (€${globalAvg.avg_price})`);
+console.log(
+  `   - ${assignedGlobal} prodotti con prezzo medio globale (€${globalAvg.avg_price})`,
+);
 
 // Step 5: Statistiche finali
 console.log("\n📊 Statistiche finali:");
-const stats = db.prepare(`
+const stats = db
+  .prepare(
+    `
   SELECT
     COUNT(*) as total_products,
     COUNT(CASE WHEN price > 0 THEN 1 END) as products_with_price,
@@ -111,7 +153,9 @@ const stats = db.prepare(`
     ROUND(MAX(price), 2) as max_price,
     ROUND(AVG(price), 2) as avg_price
   FROM products
-`).get() as {
+`,
+  )
+  .get() as {
   total_products: number;
   products_with_price: number;
   coverage_percentage: number;
@@ -121,7 +165,9 @@ const stats = db.prepare(`
 };
 
 console.log(`   Total prodotti: ${stats.total_products}`);
-console.log(`   Prodotti con prezzo: ${stats.products_with_price} (${stats.coverage_percentage}%)`);
+console.log(
+  `   Prodotti con prezzo: ${stats.products_with_price} (${stats.coverage_percentage}%)`,
+);
 console.log(`   Range prezzi: €${stats.min_price} - €${stats.max_price}`);
 console.log(`   Prezzo medio: €${stats.avg_price}`);
 

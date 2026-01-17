@@ -96,9 +96,18 @@ describe("OrderStateSyncService", () => {
       mockOrderDb.getOrdersByUser.mockReturnValue(orders);
 
       // Mock state detection to return different states
-      const mockDetect = vi.fn()
-        .mockResolvedValueOnce({ state: "piazzato", confidence: "high", source: "database" })
-        .mockResolvedValueOnce({ state: "spedito", confidence: "high", source: "database" });
+      const mockDetect = vi
+        .fn()
+        .mockResolvedValueOnce({
+          state: "piazzato",
+          confidence: "high",
+          source: "database",
+        })
+        .mockResolvedValueOnce({
+          state: "spedito",
+          confidence: "high",
+          source: "database",
+        });
       (service as any).stateService.detectOrderState = mockDetect;
 
       const result = await service.syncOrderStates("test-user", false);
@@ -150,7 +159,7 @@ describe("OrderStateSyncService", () => {
         "ORD/001",
         "piazzato",
         "system",
-        expect.stringContaining("Auto-detected from database")
+        expect.stringContaining("Auto-detected from database"),
       );
     });
 
@@ -163,10 +172,19 @@ describe("OrderStateSyncService", () => {
 
       mockOrderDb.getOrdersByUser.mockReturnValue(orders);
 
-      const mockDetect = vi.fn()
-        .mockResolvedValueOnce({ state: "piazzato", confidence: "high", source: "database" })
+      const mockDetect = vi
+        .fn()
+        .mockResolvedValueOnce({
+          state: "piazzato",
+          confidence: "high",
+          source: "database",
+        })
         .mockRejectedValueOnce(new Error("Detection failed"))
-        .mockResolvedValueOnce({ state: "spedito", confidence: "high", source: "database" });
+        .mockResolvedValueOnce({
+          state: "spedito",
+          confidence: "high",
+          source: "database",
+        });
       (service as any).stateService.detectOrderState = mockDetect;
 
       const result = await service.syncOrderStates("test-user", false);
@@ -184,9 +202,18 @@ describe("OrderStateSyncService", () => {
 
       mockOrderDb.getOrdersByUser.mockReturnValue(orders);
 
-      const mockDetect = vi.fn()
-        .mockResolvedValueOnce({ state: "creato", confidence: "high", source: "database" })
-        .mockResolvedValueOnce({ state: "piazzato", confidence: "high", source: "database" });
+      const mockDetect = vi
+        .fn()
+        .mockResolvedValueOnce({
+          state: "creato",
+          confidence: "high",
+          source: "database",
+        })
+        .mockResolvedValueOnce({
+          state: "piazzato",
+          confidence: "high",
+          source: "database",
+        });
       (service as any).stateService.detectOrderState = mockDetect;
 
       const result = await service.syncOrderStates("test-user", false);
@@ -203,7 +230,9 @@ describe("OrderStateSyncService", () => {
       await service.syncOrderStates("test-user", false);
 
       expect(mockOrderDb.getOrdersByUser).toHaveBeenCalledWith("test-user", {
-        dateFrom: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/),
+        dateFrom: expect.stringMatching(
+          /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/,
+        ),
       });
     });
 

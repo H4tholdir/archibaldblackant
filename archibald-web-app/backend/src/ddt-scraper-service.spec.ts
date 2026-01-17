@@ -31,8 +31,12 @@ describe("DDTScraperService", () => {
 
   describe("scrapeDDTData", () => {
     test("successfully scrapes DDT data with tracking info", async () => {
-      vi.spyOn(BrowserPool.getInstance(), "acquireContext").mockResolvedValue(mockContext);
-      vi.spyOn(BrowserPool.getInstance(), "releaseContext").mockResolvedValue(undefined);
+      vi.spyOn(BrowserPool.getInstance(), "acquireContext").mockResolvedValue(
+        mockContext,
+      );
+      vi.spyOn(BrowserPool.getInstance(), "releaseContext").mockResolvedValue(
+        undefined,
+      );
 
       // Mock page scraping
       (mockPage.evaluate as any)
@@ -45,7 +49,8 @@ describe("DDTScraperService", () => {
             deliveryMethod: "FedEx",
             deliveryCity: "Milano",
             trackingNumber: "445291888246",
-            trackingUrl: "https://www.fedex.com/fedextrack/?trknbr=445291888246",
+            trackingUrl:
+              "https://www.fedex.com/fedextrack/?trknbr=445291888246",
             trackingCourier: "fedex",
           },
         ])
@@ -61,8 +66,12 @@ describe("DDTScraperService", () => {
     });
 
     test("handles pagination correctly", async () => {
-      vi.spyOn(BrowserPool.getInstance(), "acquireContext").mockResolvedValue(mockContext);
-      vi.spyOn(BrowserPool.getInstance(), "releaseContext").mockResolvedValue(undefined);
+      vi.spyOn(BrowserPool.getInstance(), "acquireContext").mockResolvedValue(
+        mockContext,
+      );
+      vi.spyOn(BrowserPool.getInstance(), "releaseContext").mockResolvedValue(
+        undefined,
+      );
 
       // Mock page 1 data
       (mockPage.evaluate as any)
@@ -98,8 +107,12 @@ describe("DDTScraperService", () => {
     });
 
     test("handles empty table gracefully", async () => {
-      vi.spyOn(BrowserPool.getInstance(), "acquireContext").mockResolvedValue(mockContext);
-      vi.spyOn(BrowserPool.getInstance(), "releaseContext").mockResolvedValue(undefined);
+      vi.spyOn(BrowserPool.getInstance(), "acquireContext").mockResolvedValue(
+        mockContext,
+      );
+      vi.spyOn(BrowserPool.getInstance(), "releaseContext").mockResolvedValue(
+        undefined,
+      );
 
       (mockPage.evaluate as any)
         .mockResolvedValueOnce([]) // empty page
@@ -111,14 +124,27 @@ describe("DDTScraperService", () => {
     });
 
     test("releases context even on error", async () => {
-      const releaseContextSpy = vi.spyOn(BrowserPool.getInstance(), "releaseContext");
-      vi.spyOn(BrowserPool.getInstance(), "acquireContext").mockResolvedValue(mockContext);
+      const releaseContextSpy = vi.spyOn(
+        BrowserPool.getInstance(),
+        "releaseContext",
+      );
+      vi.spyOn(BrowserPool.getInstance(), "acquireContext").mockResolvedValue(
+        mockContext,
+      );
 
-      (mockPage.goto as any).mockRejectedValueOnce(new Error("Navigation failed"));
+      (mockPage.goto as any).mockRejectedValueOnce(
+        new Error("Navigation failed"),
+      );
 
-      await expect(service.scrapeDDTData("testUserId")).rejects.toThrow("Navigation failed");
+      await expect(service.scrapeDDTData("testUserId")).rejects.toThrow(
+        "Navigation failed",
+      );
 
-      expect(releaseContextSpy).toHaveBeenCalledWith("testUserId", mockContext, false);
+      expect(releaseContextSpy).toHaveBeenCalledWith(
+        "testUserId",
+        mockContext,
+        false,
+      );
     });
   });
 
@@ -186,7 +212,9 @@ describe("DDTScraperService", () => {
       const order = orderDb.getOrderById(userId, "ORD/26000552");
       expect(order?.ddtNumber).toBe("DDT/26000515");
       expect(order?.trackingNumber).toBe("445291888246");
-      expect(order?.trackingUrl).toBe("https://www.fedex.com/fedextrack/?trknbr=445291888246");
+      expect(order?.trackingUrl).toBe(
+        "https://www.fedex.com/fedextrack/?trknbr=445291888246",
+      );
       expect(order?.trackingCourier).toBe("fedex");
     });
 

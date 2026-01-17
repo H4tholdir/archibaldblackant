@@ -18,7 +18,7 @@ async function main() {
 
     await bot.page.goto(
       "https://4.231.124.90/Archibald/CUSTPACKINGSLIPJOUR_ListView/",
-      { waitUntil: "domcontentloaded", timeout: 60000 }
+      { waitUntil: "domcontentloaded", timeout: 60000 },
     );
 
     await new Promise((resolve) => setTimeout(resolve, 3000));
@@ -75,7 +75,9 @@ async function main() {
       console.log(JSON.stringify(columnMap, null, 2));
 
       // Find data rows
-      const dataRows = Array.from(table.querySelectorAll("tr.dxgvDataRow, tr.dxgvDataRow_XafTheme"));
+      const dataRows = Array.from(
+        table.querySelectorAll("tr.dxgvDataRow, tr.dxgvDataRow_XafTheme"),
+      );
       console.log(`\nFound ${dataRows.length} data rows`);
 
       // Extract first 2 rows using column map
@@ -87,22 +89,32 @@ async function main() {
 
         console.log(`\nRow ${i + 1}: ${cells.length} cells`);
 
-        const trackingText = cells[columnMap.trackingNumber]?.textContent?.trim() || "";
+        const trackingText =
+          cells[columnMap.trackingNumber]?.textContent?.trim() || "";
         const parts = trackingText.split(/\s+/);
-        const trackingFull = parts.length >= 2 ? `${parts[0]} ${parts.slice(1).join(" ")}` : trackingText;
+        const trackingFull =
+          parts.length >= 2
+            ? `${parts[0]} ${parts.slice(1).join(" ")}`
+            : trackingText;
 
         const rowData: any = {
           id: cells[columnMap.id]?.textContent?.trim() || "",
           ddtNumber: cells[columnMap.ddtNumber]?.textContent?.trim() || "",
-          deliveryDate: cells[columnMap.deliveryDate]?.textContent?.trim() || "",
+          deliveryDate:
+            cells[columnMap.deliveryDate]?.textContent?.trim() || "",
           orderId: cells[columnMap.orderId]?.textContent?.trim() || "",
-          customerAccount: cells[columnMap.customerAccount]?.textContent?.trim() || "",
+          customerAccount:
+            cells[columnMap.customerAccount]?.textContent?.trim() || "",
           salesName: cells[columnMap.salesName]?.textContent?.trim() || "",
-          deliveryName: cells[columnMap.deliveryName]?.textContent?.trim() || "",
+          deliveryName:
+            cells[columnMap.deliveryName]?.textContent?.trim() || "",
           trackingNumber: trackingFull,
-          deliveryTerms: cells[columnMap.deliveryTerms]?.textContent?.trim() || "",
-          deliveryMethod: cells[columnMap.deliveryMethod]?.textContent?.trim() || "",
-          deliveryCity: cells[columnMap.deliveryCity]?.textContent?.trim() || "",
+          deliveryTerms:
+            cells[columnMap.deliveryTerms]?.textContent?.trim() || "",
+          deliveryMethod:
+            cells[columnMap.deliveryMethod]?.textContent?.trim() || "",
+          deliveryCity:
+            cells[columnMap.deliveryCity]?.textContent?.trim() || "",
         };
 
         rows.push(rowData);
@@ -132,7 +144,9 @@ async function main() {
         console.log(`   [1]  ID:                    "${row.id}"`);
         console.log(`   [2]  Documento di trasporto: "${row.ddtNumber}"`);
         console.log(`   [3]  Data di consegna:       "${row.deliveryDate}"`);
-        console.log(`   [4]  ID di vendita:          "${row.orderId}"  ⭐ MATCH KEY`);
+        console.log(
+          `   [4]  ID di vendita:          "${row.orderId}"  ⭐ MATCH KEY`,
+        );
         console.log(`   [5]  Conto dell'ordine:      "${row.customerAccount}"`);
         console.log(`   [6]  Nome vendite:           "${row.salesName}"`);
         console.log(`   [7]  Nome di consegna:       "${row.deliveryName}"`);
@@ -143,10 +157,13 @@ async function main() {
       });
 
       console.log("\n" + "=".repeat(80));
-      console.log("\n✅ RISULTATO: Tutte le 11 colonne DDT sono state estratte!");
-      console.log("   Gli indici delle colonne verranno ora usati nel service definitivo.");
+      console.log(
+        "\n✅ RISULTATO: Tutte le 11 colonne DDT sono state estratte!",
+      );
+      console.log(
+        "   Gli indici delle colonne verranno ora usati nel service definitivo.",
+      );
     }
-
   } catch (error) {
     console.error("\n❌ Error:", error);
     process.exit(1);

@@ -51,7 +51,7 @@ export class QueueManager {
 
     // Inizializza la coda
     this.queue = new Queue<OrderJobData, OrderJobResult>("orders", {
-      connection: this.redisConnection,
+      connection: this.redisConnection as any,
     });
 
     // Inizializza il browser pool
@@ -99,8 +99,7 @@ export class QueueManager {
       return;
     }
 
-    // Inizializza il browser pool
-    await this.browserPool.initialize();
+    // BrowserPool will initialize automatically on first use
 
     this.worker = new Worker<OrderJobData, OrderJobResult>(
       "orders",
@@ -108,7 +107,7 @@ export class QueueManager {
         return this.processOrder(job);
       },
       {
-        connection: this.redisConnection,
+        connection: this.redisConnection as any,
         concurrency: 1, // Processa un ordine alla volta (sequenziale)
       },
     );
@@ -123,9 +122,12 @@ export class QueueManager {
 
     this.worker.on(
       "failed",
-      (job: Job<OrderJobData, OrderJobResult> | undefined, err: Error) => {
+      (
+        job: Job<OrderJobData, OrderJobResult> | undefined,
+        err: Error | any,
+      ) => {
         logger.error(`Job ${job?.id} fallito`, {
-          error: err.message,
+          error: err?.message || String(err),
           orderData: job?.data.orderData,
         });
       },
@@ -133,7 +135,10 @@ export class QueueManager {
 
     this.worker.on(
       "progress",
-      (job: Job<OrderJobData, OrderJobResult>, progress: number | object) => {
+      (
+        job: Job<OrderJobData, OrderJobResult>,
+        progress: number | object | string | boolean,
+      ) => {
         logger.debug(`Job ${job.id} progress`, { progress });
       },
     );
@@ -281,7 +286,7 @@ export class QueueManager {
       // Chiudi sempre il browser dedicato
       if (bot) {
         logger.info("🧹 Chiusura browser dedicato...");
-        await bot.close().catch((err) => {
+        await bot.close().catch((err: unknown) => {
           logger.error("Errore durante chiusura browser", { error: err });
         });
       }
@@ -386,7 +391,9 @@ export class QueueManager {
 
     return {
       status: state,
-      progress: progress || undefined,
+      progress: (typeof progress === "number" || typeof progress === "object"
+        ? progress
+        : undefined) as number | object | undefined,
     };
   }
 

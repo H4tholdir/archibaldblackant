@@ -27,10 +27,7 @@ async function wait(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-async function takeScreenshot(
-  page: Page,
-  name: string
-): Promise<void> {
+async function takeScreenshot(page: Page, name: string): Promise<void> {
   if (!fs.existsSync(SCREENSHOTS_DIR)) {
     fs.mkdirSync(SCREENSHOTS_DIR, { recursive: true });
   }
@@ -42,7 +39,7 @@ async function takeScreenshot(
 async function captureHTML(
   page: Page,
   name: string,
-  selector?: string
+  selector?: string,
 ): Promise<void> {
   const html = selector
     ? await page.$eval(selector, (el) => el.outerHTML)
@@ -55,7 +52,7 @@ async function captureHTML(
 
 async function investigateOrderCreationFlow(): Promise<void> {
   console.log("🔍 Starting Archibald Order Creation UI Investigation");
-  console.log("=" .repeat(60));
+  console.log("=".repeat(60));
 
   if (!BASE_URL || !USERNAME || !PASSWORD) {
     throw new Error("Missing Archibald credentials in .env");
@@ -91,7 +88,10 @@ async function investigateOrderCreationFlow(): Promise<void> {
       await usernameInput.type(USERNAME);
       await passwordInput.type(PASSWORD);
       await loginButton.click();
-      await page.waitForNavigation({ waitUntil: "networkidle2", timeout: 30000 });
+      await page.waitForNavigation({
+        waitUntil: "networkidle2",
+        timeout: 30000,
+      });
       console.log("✅ Logged in successfully");
     }
 
@@ -118,7 +118,9 @@ async function investigateOrderCreationFlow(): Promise<void> {
 
     // Find customer input using the same logic as archibald-bot.ts
     const customerInputSelector = await page.evaluate(() => {
-      const inputs = Array.from(document.querySelectorAll('input[type="text"]'));
+      const inputs = Array.from(
+        document.querySelectorAll('input[type="text"]'),
+      );
 
       const customerInput = inputs.find((input) => {
         const id = (input as HTMLInputElement).id.toLowerCase();
@@ -293,9 +295,10 @@ async function investigateOrderCreationFlow(): Promise<void> {
     await testArticleSelection(page, "h129fsq.104.023", "TEST2");
 
     console.log("\n" + "=".repeat(60));
-    console.log("✅ Investigation complete! Check investigation-screenshots/ folder");
+    console.log(
+      "✅ Investigation complete! Check investigation-screenshots/ folder",
+    );
     console.log("🔍 Review HTML files to understand DevExpress selectors");
-
   } catch (error) {
     console.error("❌ Error during investigation:", error);
     await takeScreenshot(page, "ERROR-final");
@@ -303,14 +306,16 @@ async function investigateOrderCreationFlow(): Promise<void> {
   } finally {
     await wait(5000); // Keep browser open for manual inspection
     // await browser.close(); // Commented out for manual review
-    console.log("\n⏸️  Browser left open for manual inspection. Close it manually when done.");
+    console.log(
+      "\n⏸️  Browser left open for manual inspection. Close it manually when done.",
+    );
   }
 }
 
 async function testArticleSelection(
   page: Page,
   articleCode: string,
-  testName: string
+  testName: string,
 ): Promise<void> {
   console.log(`\n🔬 Testing article: ${articleCode}`);
 
@@ -360,7 +365,7 @@ async function testArticleSelection(
   fs.writeFileSync(
     path.join(SCREENSHOTS_DIR, `${testName}-02-popup-structure.html`),
     popupHTML,
-    "utf-8"
+    "utf-8",
   );
 
   // Look for grid rows
@@ -390,7 +395,7 @@ async function testArticleSelection(
     cellsData.forEach((cell) => {
       if (cell.textContent) {
         console.log(
-          `         [${cell.index}]: "${cell.textContent}" (${cell.className || "no class"})`
+          `         [${cell.index}]: "${cell.textContent}" (${cell.className || "no class"})`,
         );
       }
     });
@@ -398,13 +403,13 @@ async function testArticleSelection(
     fs.writeFileSync(
       path.join(SCREENSHOTS_DIR, `${testName}-03-row-${i + 1}.html`),
       rowHTML,
-      "utf-8"
+      "utf-8",
     );
 
     fs.writeFileSync(
       path.join(SCREENSHOTS_DIR, `${testName}-03-row-${i + 1}-cells.json`),
       JSON.stringify(cellsData, null, 2),
-      "utf-8"
+      "utf-8",
     );
   }
 
@@ -433,13 +438,10 @@ async function testArticleSelection(
 
     // Look for radio buttons
     const allRadios = Array.from(
-      document.querySelectorAll('input[type="radio"]')
+      document.querySelectorAll<HTMLInputElement>('input[type="radio"]'),
     );
     allRadios.forEach((radio, idx) => {
-      const label =
-        radio.labels?.[0]?.textContent ||
-        (radio as HTMLInputElement).value ||
-        "";
+      const label = radio.labels?.[0]?.textContent || radio.value || "";
       const id = radio.id;
       const name = radio.name;
       if (
@@ -476,7 +478,7 @@ async function testArticleSelection(
   fs.writeFileSync(
     path.join(SCREENSHOTS_DIR, `${testName}-04-package-selectors.json`),
     JSON.stringify(packageSelectors, null, 2),
-    "utf-8"
+    "utf-8",
   );
 
   // Click first article result to proceed
@@ -500,7 +502,7 @@ async function testArticleSelection(
         }> = [];
 
         const allElements = Array.from(
-          document.querySelectorAll("select, input, [id*='combo']")
+          document.querySelectorAll("select, input, [id*='combo']"),
         );
         allElements.forEach((el) => {
           const element = el as HTMLElement;
@@ -536,13 +538,18 @@ async function testArticleSelection(
 
       console.log("📦 Post-selection package selectors:");
       postSelectionPackageSelectors.forEach((sel) =>
-        console.log(`   ${sel.type} #${sel.id} - ${sel.label} [visible: ${sel.visible}]`)
+        console.log(
+          `   ${sel.type} #${sel.id} - ${sel.label} [visible: ${sel.visible}]`,
+        ),
       );
 
       fs.writeFileSync(
-        path.join(SCREENSHOTS_DIR, `${testName}-06-post-selection-package-selectors.json`),
+        path.join(
+          SCREENSHOTS_DIR,
+          `${testName}-06-post-selection-package-selectors.json`,
+        ),
         JSON.stringify(postSelectionPackageSelectors, null, 2),
-        "utf-8"
+        "utf-8",
       );
     }
   }

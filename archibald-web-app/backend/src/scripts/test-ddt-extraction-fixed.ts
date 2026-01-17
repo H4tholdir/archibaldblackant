@@ -24,7 +24,7 @@ async function extractDDTSample(page: Page): Promise<DDTRow[]> {
 
   await page.goto(
     "https://4.231.124.90/Archibald/CUSTPACKINGSLIPJOUR_ListView/",
-    { waitUntil: "domcontentloaded", timeout: 60000 }
+    { waitUntil: "domcontentloaded", timeout: 60000 },
   );
 
   await new Promise((resolve) => setTimeout(resolve, 3000));
@@ -38,7 +38,9 @@ async function extractDDTSample(page: Page): Promise<DDTRow[]> {
       return [];
     }
 
-    const dataRows = Array.from(table.querySelectorAll("tr.dxgvDataRow, tr.dxgvDataRow_XafTheme"));
+    const dataRows = Array.from(
+      table.querySelectorAll("tr.dxgvDataRow, tr.dxgvDataRow_XafTheme"),
+    );
     const results: any[] = [];
 
     console.log(`✓ Found ${dataRows.length} data rows\n`);
@@ -52,7 +54,10 @@ async function extractDDTSample(page: Page): Promise<DDTRow[]> {
 
       const trackingText = cells[17]?.textContent?.trim() || "";
       const parts = trackingText.split(/\s+/);
-      const trackingFull = parts.length >= 2 ? `${parts[0]} ${parts.slice(1).join(" ")}` : trackingText;
+      const trackingFull =
+        parts.length >= 2
+          ? `${parts[0]} ${parts.slice(1).join(" ")}`
+          : trackingText;
 
       const rowData: any = {
         col0_ddtId: cells[6]?.textContent?.trim() || "",
@@ -75,20 +80,34 @@ async function extractDDTSample(page: Page): Promise<DDTRow[]> {
 
 function printDDTResults(rows: DDTRow[]) {
   console.log("\n" + "=".repeat(80));
-  console.log("📋 TABELLA 2: CUSTPACKINGSLIPJOUR_ListView - RISULTATI ESTRATTI");
+  console.log(
+    "📋 TABELLA 2: CUSTPACKINGSLIPJOUR_ListView - RISULTATI ESTRATTI",
+  );
   console.log("=".repeat(80));
 
   rows.forEach((row, index) => {
     console.log(`\n🔹 RIGA ${index + 1}:`);
     console.log(`   Col 0  [ID]:                      "${row.col0_ddtId}"`);
     console.log(`   Col 1  [DOCUMENTO DI TRASPORTO]:  "${row.col1_ddtNumber}"`);
-    console.log(`   Col 2  [DATA DI CONSEGNA]:        "${row.col2_ddtDeliveryDate}"`);
-    console.log(`   Col 3  [ID DI VENDITA]:           "${row.col3_orderId}"  ⭐ MATCH KEY`);
-    console.log(`   Col 4  [CONTO DELL'ORDINE]:       "${row.col4_customerAccount}"`);
+    console.log(
+      `   Col 2  [DATA DI CONSEGNA]:        "${row.col2_ddtDeliveryDate}"`,
+    );
+    console.log(
+      `   Col 3  [ID DI VENDITA]:           "${row.col3_orderId}"  ⭐ MATCH KEY`,
+    );
+    console.log(
+      `   Col 4  [CONTO DELL'ORDINE]:       "${row.col4_customerAccount}"`,
+    );
     console.log(`   Col 5  [NOME VENDITE]:            "${row.col5_salesName}"`);
-    console.log(`   Col 6  [NOME DI CONSEGNA]:        "${row.col6_deliveryName}"`);
-    console.log(`   Col 7  [NUMERO TRACCIABILITÀ]:    "${row.col7_trackingNumber}"`);
-    console.log(`   Col 8  [MODALITÀ DI CONSEGNA]:    "${row.col8_deliveryMethod}"`);
+    console.log(
+      `   Col 6  [NOME DI CONSEGNA]:        "${row.col6_deliveryName}"`,
+    );
+    console.log(
+      `   Col 7  [NUMERO TRACCIABILITÀ]:    "${row.col7_trackingNumber}"`,
+    );
+    console.log(
+      `   Col 8  [MODALITÀ DI CONSEGNA]:    "${row.col8_deliveryMethod}"`,
+    );
   });
 }
 
@@ -116,8 +135,9 @@ async function main() {
     console.log("   1. Tutti i campi DDT siano popolati correttamente");
     console.log("   2. L'ID di vendita (col 3) inizi con 'ORD/'");
     console.log("   3. Il numero DDT (col 1) inizi con 'DDT/'");
-    console.log("   4. Il numero di tracciabilità sia nel formato 'Corriere XXXXX'\n");
-
+    console.log(
+      "   4. Il numero di tracciabilità sia nel formato 'Corriere XXXXX'\n",
+    );
   } catch (error) {
     console.error("\n❌ Error:", error);
     process.exit(1);

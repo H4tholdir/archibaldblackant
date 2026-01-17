@@ -55,7 +55,9 @@ export class ProductSyncService extends EventEmitter {
 
     // If sync is currently running, wait for it to complete
     if (this.syncInProgress) {
-      logger.info("[ProductSyncService] Waiting for current sync to complete...");
+      logger.info(
+        "[ProductSyncService] Waiting for current sync to complete...",
+      );
       // Wait for sync to finish by polling syncInProgress
       while (this.syncInProgress) {
         await new Promise((resolve) => setTimeout(resolve, 500));
@@ -193,7 +195,7 @@ export class ProductSyncService extends EventEmitter {
       );
 
       // Use legacy ArchibaldBot for system sync operations
-      const { ArchibaldBot } = await import('./archibald-bot');
+      const { ArchibaldBot } = await import("./archibald-bot");
       bot = new ArchibaldBot(); // No userId = legacy mode
       await bot.initialize();
       await bot.login(); // Uses config credentials
@@ -652,7 +654,12 @@ export class ProductSyncService extends EventEmitter {
           allProducts.length > 0
             ? Math.ceil(allProducts.length / 20)
             : resumePoint;
-        this.checkpointManager.saveCheckpoint("products", lastProcessedPage);
+        this.checkpointManager.updateProgress(
+          "products",
+          lastProcessedPage,
+          totalPages,
+          allProducts.length,
+        );
 
         this.updateProgress({
           status: "idle",

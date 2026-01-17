@@ -4,6 +4,9 @@ import { groupOrdersByPeriod, type Order, type Period } from "./orderGrouping";
 const createOrder = (id: string, date: string): Order => ({
   id,
   date,
+  customerName: "Test Customer",
+  total: "0.00",
+  status: "test",
 });
 
 describe("groupOrdersByPeriod", () => {

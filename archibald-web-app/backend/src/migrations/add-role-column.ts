@@ -48,7 +48,9 @@ export function migrateAddRoleColumn(dbPath?: string): void {
       logger.info("Migration completed: role column added successfully");
 
       // Log statistics
-      const stats = db.prepare("SELECT COUNT(*) as total FROM users").get() as { total: number };
+      const stats = db.prepare("SELECT COUNT(*) as total FROM users").get() as {
+        total: number;
+      };
       logger.info("Migration stats", {
         totalUsers: stats.total,
         allSetToAgent: true,

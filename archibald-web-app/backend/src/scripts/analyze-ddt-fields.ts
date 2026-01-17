@@ -19,7 +19,7 @@ async function main() {
     // Navigate to DDT table
     await bot.page.goto(
       "https://4.231.124.90/Archibald/CUSTPACKINGSLIPJOUR_ListView/",
-      { waitUntil: "domcontentloaded", timeout: 60000 }
+      { waitUntil: "domcontentloaded", timeout: 60000 },
     );
 
     await new Promise((resolve) => setTimeout(resolve, 3000));
@@ -30,7 +30,9 @@ async function main() {
         return { error: "Table not found" };
       }
 
-      const dataRows = Array.from(table.querySelectorAll("tr.dxgvDataRow, tr.dxgvDataRow_XafTheme"));
+      const dataRows = Array.from(
+        table.querySelectorAll("tr.dxgvDataRow, tr.dxgvDataRow_XafTheme"),
+      );
 
       const rows: any[] = [];
 
@@ -59,7 +61,7 @@ async function main() {
     });
 
     console.log("\n📊 DDT FIELD ANALYSIS (5 rows):\n");
-    console.log("=" .repeat(80));
+    console.log("=".repeat(80));
 
     if ("error" in analysis) {
       console.error(analysis.error);
@@ -79,15 +81,20 @@ async function main() {
 
       console.log("\n" + "=".repeat(80));
       console.log("\n📌 OBSERVATIONS:");
-      console.log("   - Full Address (cell[13]) contains: street + ZIP + CITY + province");
+      console.log(
+        "   - Full Address (cell[13]) contains: street + ZIP + CITY + province",
+      );
       console.log("   - Cell[14]: Unknown numeric field");
       console.log("   - Cell[16]: Unknown numeric field");
-      console.log("   - 'Termini di consegna' (delivery terms): NOT FOUND in table");
+      console.log(
+        "   - 'Termini di consegna' (delivery terms): NOT FOUND in table",
+      );
       console.log("\n💡 SOLUTION:");
       console.log("   - Extract CITY from full address using regex pattern");
-      console.log("   - 'Termini di consegna' may need to be fetched from DDT detail page");
+      console.log(
+        "   - 'Termini di consegna' may need to be fetched from DDT detail page",
+      );
     }
-
   } catch (error) {
     console.error("\n❌ Error:", error);
     process.exit(1);

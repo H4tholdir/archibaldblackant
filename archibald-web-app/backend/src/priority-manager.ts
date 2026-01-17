@@ -1,5 +1,5 @@
-import { EventEmitter } from 'events';
-import { logger } from './logger';
+import { EventEmitter } from "events";
+import { logger } from "./logger";
 
 /**
  * PriorityManager - Singleton that coordinates pausing/resuming background services
@@ -45,7 +45,7 @@ export class PriorityManager extends EventEmitter {
    * Pause all registered services
    */
   public async pause(): Promise<void> {
-    logger.info('[PriorityManager] Pausing all services...');
+    logger.info("[PriorityManager] Pausing all services...");
     const pausePromises: Promise<void>[] = [];
 
     this.services.forEach((service, name) => {
@@ -54,20 +54,22 @@ export class PriorityManager extends EventEmitter {
         service.pause().then(() => {
           this.pausedServices.add(name);
           logger.debug(`[PriorityManager] Service paused: ${name}`);
-        })
+        }),
       );
     });
 
     await Promise.all(pausePromises);
-    this.emit('pause');
-    logger.info(`[PriorityManager] All services paused (${this.pausedServices.size} services)`);
+    this.emit("pause");
+    logger.info(
+      `[PriorityManager] All services paused (${this.pausedServices.size} services)`,
+    );
   }
 
   /**
    * Resume all paused services
    */
   public resume(): void {
-    logger.info('[PriorityManager] Resuming all services...');
+    logger.info("[PriorityManager] Resuming all services...");
 
     this.services.forEach((service, name) => {
       if (this.pausedServices.has(name)) {
@@ -78,32 +80,34 @@ export class PriorityManager extends EventEmitter {
       }
     });
 
-    this.emit('resume');
-    logger.info('[PriorityManager] All services resumed');
+    this.emit("resume");
+    logger.info("[PriorityManager] All services resumed");
   }
 
   /**
    * Execute an async function with priority lock (pause services, execute, resume)
    */
   public async withPriority<T>(fn: () => Promise<T>): Promise<T> {
-    logger.info('[PriorityManager] Acquiring priority lock...');
+    logger.info("[PriorityManager] Acquiring priority lock...");
 
     try {
       // Pause all services
       await this.pause();
 
-      logger.info('[PriorityManager] Priority lock acquired, executing operation...');
+      logger.info(
+        "[PriorityManager] Priority lock acquired, executing operation...",
+      );
 
       // Execute the priority operation
       const result = await fn();
 
-      logger.info('[PriorityManager] Priority operation complete');
+      logger.info("[PriorityManager] Priority operation complete");
 
       return result;
     } finally {
       // Always resume services, even if operation fails
       this.resume();
-      logger.info('[PriorityManager] Priority lock released');
+      logger.info("[PriorityManager] Priority lock released");
     }
   }
 }

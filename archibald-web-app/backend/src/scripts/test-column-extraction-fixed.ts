@@ -33,23 +33,29 @@ interface OrderListRow {
 async function extractOrderListSample(page: Page): Promise<OrderListRow[]> {
   console.log("\n🔍 Navigating to Order List table...");
 
-  await page.goto(
-    "https://4.231.124.90/Archibald/SALESTABLE_ListView_Agent/",
-    { waitUntil: "domcontentloaded", timeout: 60000 }
-  );
+  await page.goto("https://4.231.124.90/Archibald/SALESTABLE_ListView_Agent/", {
+    waitUntil: "domcontentloaded",
+    timeout: 60000,
+  });
 
   await new Promise((resolve) => setTimeout(resolve, 3000));
 
   console.log("📊 Extracting first 2 rows with FIXED column indices...\n");
 
   return await page.evaluate(() => {
-    const table = document.querySelector('table[id$="_DXMainTable"].dxgvTable_XafTheme');
+    const table = document.querySelector(
+      'table[id$="_DXMainTable"].dxgvTable_XafTheme',
+    );
     if (!table) {
       console.error("❌ Table not found!");
       return [];
     }
 
-    const dataRows = Array.from(table.querySelectorAll("tbody tr.dxgvDataRow, tbody tr.dxgvDataRow_XafTheme"));
+    const dataRows = Array.from(
+      table.querySelectorAll(
+        "tbody tr.dxgvDataRow, tbody tr.dxgvDataRow_XafTheme",
+      ),
+    );
     const results: any[] = [];
 
     console.log(`✓ Found ${dataRows.length} data rows\n`);
@@ -99,25 +105,63 @@ function printOrderListResults(rows: OrderListRow[]) {
   rows.forEach((row, index) => {
     console.log(`\n🔹 RIGA ${index + 1}:`);
     console.log(`   Col 0  [ID]:                         "${row.col0_id}"`);
-    console.log(`   Col 1  [ID DI VENDITA]:              "${row.col1_orderNumber}"`);
-    console.log(`   Col 2  [PROFILO CLIENTE]:            "${row.col2_customerProfileId}"`);
-    console.log(`   Col 3  [NOME VENDITE]:               "${row.col3_customerName}"`);
-    console.log(`   Col 4  [NOME DI CONSEGNA]:           "${row.col4_deliveryName}"`);
-    console.log(`   Col 5  [INDIRIZZO DI CONSEGNA]:      "${row.col5_deliveryAddress.substring(0, 40)}..."`);
-    console.log(`   Col 6  [DATA DI CREAZIONE]:          "${row.col6_creationDate}"`);
-    console.log(`   Col 7  [DATA DI CONSEGNA]:           "${row.col7_deliveryDate}"`);
-    console.log(`   Col 8  [RIMANI VENDITE FINANZIARIE]: "${row.col8_remainingSalesFinancial}"`);
-    console.log(`   Col 9  [RIFERIMENTO CLIENTE]:        "${row.col9_customerReference}"`);
-    console.log(`   Col 10 [STATO DELLE VENDITE]:        "${row.col10_salesStatus}"`);
-    console.log(`   Col 11 [TIPO DI ORDINE]:             "${row.col11_orderType}"`);
-    console.log(`   Col 12 [STATO DEL DOCUMENTO]:        "${row.col12_documentStatus}"`);
-    console.log(`   Col 13 [ORIGINE VENDITE]:            "${row.col13_salesOrigin}"`);
-    console.log(`   Col 14 [STATO DEL TRASFERIMENTO]:    "${row.col14_transferStatus}"`);
-    console.log(`   Col 15 [DATA DI TRASFERIMENTO]:      "${row.col15_transferDate}"`);
-    console.log(`   Col 16 [DATA DI COMPLETAMENTO]:      "${row.col16_completionDate}"`);
-    console.log(`   Col 17 [APPLICA SCONTO %]:           "${row.col17_discountPercent}"`);
-    console.log(`   Col 18 [IMPORTO LORDO]:              "${row.col18_grossAmount}"`);
-    console.log(`   Col 19 [IMPORTO TOTALE]:             "${row.col19_totalAmount}"`);
+    console.log(
+      `   Col 1  [ID DI VENDITA]:              "${row.col1_orderNumber}"`,
+    );
+    console.log(
+      `   Col 2  [PROFILO CLIENTE]:            "${row.col2_customerProfileId}"`,
+    );
+    console.log(
+      `   Col 3  [NOME VENDITE]:               "${row.col3_customerName}"`,
+    );
+    console.log(
+      `   Col 4  [NOME DI CONSEGNA]:           "${row.col4_deliveryName}"`,
+    );
+    console.log(
+      `   Col 5  [INDIRIZZO DI CONSEGNA]:      "${row.col5_deliveryAddress.substring(0, 40)}..."`,
+    );
+    console.log(
+      `   Col 6  [DATA DI CREAZIONE]:          "${row.col6_creationDate}"`,
+    );
+    console.log(
+      `   Col 7  [DATA DI CONSEGNA]:           "${row.col7_deliveryDate}"`,
+    );
+    console.log(
+      `   Col 8  [RIMANI VENDITE FINANZIARIE]: "${row.col8_remainingSalesFinancial}"`,
+    );
+    console.log(
+      `   Col 9  [RIFERIMENTO CLIENTE]:        "${row.col9_customerReference}"`,
+    );
+    console.log(
+      `   Col 10 [STATO DELLE VENDITE]:        "${row.col10_salesStatus}"`,
+    );
+    console.log(
+      `   Col 11 [TIPO DI ORDINE]:             "${row.col11_orderType}"`,
+    );
+    console.log(
+      `   Col 12 [STATO DEL DOCUMENTO]:        "${row.col12_documentStatus}"`,
+    );
+    console.log(
+      `   Col 13 [ORIGINE VENDITE]:            "${row.col13_salesOrigin}"`,
+    );
+    console.log(
+      `   Col 14 [STATO DEL TRASFERIMENTO]:    "${row.col14_transferStatus}"`,
+    );
+    console.log(
+      `   Col 15 [DATA DI TRASFERIMENTO]:      "${row.col15_transferDate}"`,
+    );
+    console.log(
+      `   Col 16 [DATA DI COMPLETAMENTO]:      "${row.col16_completionDate}"`,
+    );
+    console.log(
+      `   Col 17 [APPLICA SCONTO %]:           "${row.col17_discountPercent}"`,
+    );
+    console.log(
+      `   Col 18 [IMPORTO LORDO]:              "${row.col18_grossAmount}"`,
+    );
+    console.log(
+      `   Col 19 [IMPORTO TOTALE]:             "${row.col19_totalAmount}"`,
+    );
   });
 }
 
@@ -142,11 +186,12 @@ async function main() {
     console.log("✅ TEST COMPLETATO");
     console.log("=".repeat(80));
     console.log("\n📌 VERIFICA CHE:");
-    console.log("   1. Tutte le 20 colonne della Tabella 1 siano popolate correttamente");
+    console.log(
+      "   1. Tutte le 20 colonne della Tabella 1 siano popolate correttamente",
+    );
     console.log("   2. I dati estratti siano leggibili e corretti");
     console.log("   3. L'ID di vendita inizi con 'ORD/'");
     console.log("   4. Tutti i campi siano nel formato atteso\n");
-
   } catch (error) {
     console.error("\n❌ Error:", error);
     process.exit(1);

@@ -1,10 +1,5 @@
 import { useState } from "react";
-import type {
-  Order,
-  OrderItem,
-  StatusUpdate,
-  DocumentInfo,
-} from "../types/order";
+import type { Order, OrderItem } from "../types/order";
 import { OrderActions } from "./OrderActions";
 
 interface OrderCardProps {

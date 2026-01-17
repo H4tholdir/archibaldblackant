@@ -219,11 +219,15 @@ export class CustomerDatabase {
     const normalizedQuery = query.toLowerCase().trim();
 
     // Get all customers for fuzzy matching (ordered by most recent first)
-    const allCustomers = this.db.prepare(`
+    const allCustomers = this.db
+      .prepare(
+        `
       SELECT id, name, vatNumber, email, hash, lastSync
       FROM customers
       ORDER BY lastSync DESC
-    `).all() as Customer[];
+    `,
+      )
+      .all() as Customer[];
 
     // Calculate similarity scores with recency boost
     const now = Date.now();
@@ -237,7 +241,8 @@ export class CustomerDatabase {
 
         // Small recency boost: +0.02 for customers synced in last 7 days
         if (customer.lastSync) {
-          const daysSinceSync = (now - customer.lastSync) / (1000 * 60 * 60 * 24);
+          const daysSinceSync =
+            (now - customer.lastSync) / (1000 * 60 * 60 * 24);
           if (daysSinceSync <= 7) {
             confidence = Math.min(1.0, confidence + 0.02);
           }

@@ -3,7 +3,7 @@ import { v4 as uuidv4 } from "uuid";
 import path from "path";
 import { logger } from "./logger";
 
-export type UserRole = 'agent' | 'admin';
+export type UserRole = "agent" | "admin";
 
 export interface User {
   id: string;
@@ -62,7 +62,11 @@ export class UserDatabase {
   /**
    * Create a new user
    */
-  createUser(username: string, fullName: string, role: UserRole = 'agent'): User {
+  createUser(
+    username: string,
+    fullName: string,
+    role: UserRole = "agent",
+  ): User {
     const user: User = {
       id: uuidv4(),
       username,
@@ -86,7 +90,7 @@ export class UserDatabase {
         user.role,
         user.whitelisted ? 1 : 0,
         user.createdAt,
-        user.lastLoginAt
+        user.lastLoginAt,
       );
 
       logger.info("User created", {
@@ -261,7 +265,7 @@ export class UserDatabase {
       id: row.id,
       username: row.username,
       fullName: row.fullName,
-      role: (row.role || 'agent') as UserRole,
+      role: (row.role || "agent") as UserRole,
       whitelisted: row.whitelisted === 1,
       createdAt: row.createdAt,
       lastLoginAt: row.lastLoginAt,

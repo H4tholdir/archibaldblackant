@@ -4,6 +4,7 @@ import OrderForm from "./OrderForm";
 
 describe("OrderForm - Voice Hybrid Workflow", () => {
   const mockOnOrderCreated = vi.fn();
+  const mockToken = "test-token";
 
   beforeEach(() => {
     mockOnOrderCreated.mockClear();
@@ -13,7 +14,7 @@ describe("OrderForm - Voice Hybrid Workflow", () => {
 
   test("voice input populates form without closing modal", async () => {
     const { container } = render(
-      <OrderForm onOrderCreated={mockOnOrderCreated} />,
+      <OrderForm token={mockToken} onOrderCreated={mockOnOrderCreated} />,
     );
 
     // Note: This is a basic test structure

@@ -129,7 +129,10 @@ export class OrderStateService {
       };
     }
 
-    if (statusLower.includes("consegnato") || statusLower.includes("delivered")) {
+    if (
+      statusLower.includes("consegnato") ||
+      statusLower.includes("delivered")
+    ) {
       return {
         state: "consegnato",
         confidence: "high",
@@ -147,7 +150,10 @@ export class OrderStateService {
       };
     }
 
-    if (statusLower.includes("trasferito") || statusLower.includes("transferred")) {
+    if (
+      statusLower.includes("trasferito") ||
+      statusLower.includes("transferred")
+    ) {
       return {
         state: "trasferito",
         confidence: "high",
@@ -156,7 +162,10 @@ export class OrderStateService {
       };
     }
 
-    if (statusLower.includes("modifica") || statusLower.includes("modification")) {
+    if (
+      statusLower.includes("modifica") ||
+      statusLower.includes("modification")
+    ) {
       return {
         state: "modifica",
         confidence: "medium",
@@ -175,7 +184,11 @@ export class OrderStateService {
     }
 
     // Fallback to current state from database or inviato_milano
-    if (order.currentState && order.currentState !== "creato" && order.currentState !== "piazzato") {
+    if (
+      order.currentState &&
+      order.currentState !== "creato" &&
+      order.currentState !== "piazzato"
+    ) {
       return {
         state: order.currentState as OrderState,
         confidence: "low",

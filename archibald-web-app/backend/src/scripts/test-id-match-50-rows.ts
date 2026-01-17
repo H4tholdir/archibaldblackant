@@ -17,13 +17,13 @@ async function main() {
     console.log("✅ Logged in successfully\n");
 
     // Extract Order List (50 rows)
-    console.log("=" .repeat(80));
+    console.log("=".repeat(80));
     console.log("STEP 1: Extracting 50 rows from ORDER LIST");
     console.log("=".repeat(80));
 
     await bot.page.goto(
       "https://4.231.124.90/Archibald/SALESTABLE_ListView_Agent/",
-      { waitUntil: "domcontentloaded", timeout: 60000 }
+      { waitUntil: "domcontentloaded", timeout: 60000 },
     );
 
     await new Promise((resolve) => setTimeout(resolve, 3000));
@@ -32,7 +32,9 @@ async function main() {
       const table = document.querySelector('table[id$="_DXMainTable"]');
       if (!table) return { error: "Order table not found" };
 
-      const dataRows = Array.from(table.querySelectorAll("tr.dxgvDataRow, tr.dxgvDataRow_XafTheme"));
+      const dataRows = Array.from(
+        table.querySelectorAll("tr.dxgvDataRow, tr.dxgvDataRow_XafTheme"),
+      );
       console.log(`Found ${dataRows.length} order rows`);
 
       const results: any[] = [];
@@ -59,7 +61,9 @@ async function main() {
     console.log(`\n✅ Extracted ${orderData.count} valid orders`);
     console.log(`\nFirst 3 orders:`);
     orderData.results.slice(0, 3).forEach((row: any, idx: number) => {
-      console.log(`   ${idx + 1}. ID: "${row.id}", Order#: "${row.orderNumber}"`);
+      console.log(
+        `   ${idx + 1}. ID: "${row.id}", Order#: "${row.orderNumber}"`,
+      );
     });
 
     // Extract DDT (50 rows)
@@ -69,7 +73,7 @@ async function main() {
 
     await bot.page.goto(
       "https://4.231.124.90/Archibald/CUSTPACKINGSLIPJOUR_ListView/",
-      { waitUntil: "domcontentloaded", timeout: 60000 }
+      { waitUntil: "domcontentloaded", timeout: 60000 },
     );
 
     await new Promise((resolve) => setTimeout(resolve, 3000));
@@ -78,7 +82,9 @@ async function main() {
       const table = document.querySelector('table[id$="_DXMainTable"]');
       if (!table) return { error: "DDT table not found" };
 
-      const dataRows = Array.from(table.querySelectorAll("tr.dxgvDataRow, tr.dxgvDataRow_XafTheme"));
+      const dataRows = Array.from(
+        table.querySelectorAll("tr.dxgvDataRow, tr.dxgvDataRow_XafTheme"),
+      );
       console.log(`Found ${dataRows.length} DDT rows`);
 
       const results: any[] = [];
@@ -106,7 +112,9 @@ async function main() {
     console.log(`\n✅ Extracted ${ddtData.count} valid DDT entries`);
     console.log(`\nFirst 3 DDT entries:`);
     ddtData.results.slice(0, 3).forEach((row: any, idx: number) => {
-      console.log(`   ${idx + 1}. DDT ID: "${row.ddtId}", DDT#: "${row.ddtNumber}", OrderID: "${row.orderId}"`);
+      console.log(
+        `   ${idx + 1}. DDT ID: "${row.ddtId}", DDT#: "${row.ddtNumber}", OrderID: "${row.orderId}"`,
+      );
     });
 
     // Match by ID
@@ -118,7 +126,9 @@ async function main() {
     const matches: any[] = [];
 
     orderData.results.forEach((order: any) => {
-      const matchingDdt = ddtData.results.find((ddt: any) => ddt.ddtId === order.id);
+      const matchingDdt = ddtData.results.find(
+        (ddt: any) => ddt.ddtId === order.id,
+      );
 
       if (matchingDdt) {
         matchCount++;
@@ -155,13 +165,16 @@ async function main() {
       console.log("\n✅ The match key is CONFIRMED:");
       console.log("   Order List: id (cells[2])");
       console.log("   DDT:        ddtId (cells[6])");
-      console.log(`\n   Match rate: ${matchCount}/${orderData.count} orders (${((matchCount/orderData.count)*100).toFixed(1)}%)`);
-
+      console.log(
+        `\n   Match rate: ${matchCount}/${orderData.count} orders (${((matchCount / orderData.count) * 100).toFixed(1)}%)`,
+      );
     } else {
       console.log("\n❌ NO MATCHES FOUND!");
       console.log("\nThis means:");
       console.log("   - The ID fields are from different sequences");
-      console.log("   - OR these are different datasets (different time periods)");
+      console.log(
+        "   - OR these are different datasets (different time periods)",
+      );
       console.log("   - Need to use a different match key");
 
       console.log("\n" + "=".repeat(80));
@@ -172,7 +185,9 @@ async function main() {
       const altMatches: any[] = [];
 
       orderData.results.forEach((order: any) => {
-        const matchingDdt = ddtData.results.find((ddt: any) => ddt.orderId === order.orderNumber);
+        const matchingDdt = ddtData.results.find(
+          (ddt: any) => ddt.orderId === order.orderNumber,
+        );
 
         if (matchingDdt) {
           altMatchCount++;
@@ -210,7 +225,6 @@ async function main() {
     console.log("\n" + "=".repeat(80));
     console.log("✅ TEST COMPLETATO");
     console.log("=".repeat(80));
-
   } catch (error) {
     console.error("\n❌ Error:", error);
     process.exit(1);

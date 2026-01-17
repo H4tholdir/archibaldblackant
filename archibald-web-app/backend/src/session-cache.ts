@@ -92,7 +92,9 @@ export class SessionCacheManager {
         return null;
       }
 
-      const remainingHours = Math.round((cache.expiresAt - now) / (1000 * 60 * 60));
+      const remainingHours = Math.round(
+        (cache.expiresAt - now) / (1000 * 60 * 60),
+      );
       logger.info("Session loaded from cache", {
         cookieCount: cache.cookies.length,
         createdAt: new Date(cache.createdAt).toISOString(),
