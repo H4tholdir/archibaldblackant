@@ -23,7 +23,6 @@ export function PinSetupWizard({
   const [confirmPin, setConfirmPin] = useState("");
   const [error, setError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [biometricAvailable, setBiometricAvailable] = useState(false);
   const [biometricLabel, setBiometricLabel] = useState("");
   const [isRegisteringBiometric, setIsRegisteringBiometric] = useState(false);
 
@@ -92,7 +91,6 @@ export function PinSetupWizard({
 
     if (capability.available) {
       // Biometric available → show biometric setup step
-      setBiometricAvailable(true);
       setBiometricLabel(capability.platformLabel);
       setStep("biometric");
     } else {
