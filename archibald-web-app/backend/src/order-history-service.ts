@@ -3,6 +3,7 @@ import { logger } from "./logger";
 import { config } from "./config";
 import { OrderDatabase, type StoredOrder } from "./order-db";
 import type { DDTData } from "./ddt-scraper-service";
+import { EventEmitter } from "events";
 
 /**
  * Options for fetching order list
@@ -164,12 +165,35 @@ export interface OrderDocument {
  * - Direct navigation to URL with waitUntil: "networkidle2" (like customer sync)
  * - Simplified scraping with table tbody tr selector (no complex DevExpress selectors)
  */
+export interface SyncProgressEvent {
+  phase: "init" | "step1" | "step2" | "step3" | "completed";
+  percentage: number;
+  message: string;
+  itemsProcessed?: number;
+}
+
 export class OrderHistoryService {
   public orderDb: OrderDatabase; // Public for force-sync endpoint access
   private readonly SYNC_INTERVAL_MS = 10 * 60 * 1000; // 10 minutes
+  private progressEmitter: EventEmitter;
 
   constructor() {
     this.orderDb = OrderDatabase.getInstance();
+    this.progressEmitter = new EventEmitter();
+  }
+
+  /**
+   * Allow external listeners to track sync progress
+   */
+  public onProgress(callback: (progress: SyncProgressEvent) => void): void {
+    this.progressEmitter.on("progress", callback);
+  }
+
+  /**
+   * Emit progress event (for internal use)
+   */
+  private emitProgress(progress: SyncProgressEvent): void {
+    this.progressEmitter.emit("progress", progress);
   }
 
   /**
@@ -313,6 +337,13 @@ export class OrderHistoryService {
     let bot = null;
 
     try {
+      // Emit: Initializing (10%)
+      this.emitProgress({
+        phase: "init",
+        percentage: 10,
+        message: "Inizializzazione browser e login...",
+      });
+
       // Use legacy ArchibaldBot for system sync operations (like customer-sync)
       const { ArchibaldBot } = await import("./archibald-bot");
       bot = new ArchibaldBot(); // No userId = legacy mode
@@ -329,13 +360,33 @@ export class OrderHistoryService {
       );
 
       // Step 1/3: Scrape order list (with intelligent stop)
+      this.emitProgress({
+        phase: "step1",
+        percentage: 20,
+        message: "Step 1/3: Lettura lista ordini da Archibald...",
+      });
+
       logger.info("[OrderHistoryService] Step 1/3: Scraping order list");
       const allOrders = await this.scrapeOrderList(bot.page, userId);
       logger.info(
         `[OrderHistoryService] Scraped ${allOrders.length} orders from order list`,
       );
 
+      // Emit: Step 1 completed (40%)
+      this.emitProgress({
+        phase: "step1",
+        percentage: 40,
+        message: `Step 1/3 completato: ${allOrders.length} ordini trovati`,
+        itemsProcessed: allOrders.length,
+      });
+
       // Step 2/3: Scrape DDT data (only for orders we just scraped)
+      this.emitProgress({
+        phase: "step2",
+        percentage: 50,
+        message: "Step 2/3: Lettura dati DDT (documenti di trasporto)...",
+      });
+
       logger.info("[OrderHistoryService] Step 2/3: Scraping DDT data");
       // Use orderNumber when available (orders with ORD/), fallback to id for orders without ORD/ (piazzato state)
       const orderNumbers = allOrders.map((o) => o.orderNumber || o.id);
@@ -344,7 +395,21 @@ export class OrderHistoryService {
         `[OrderHistoryService] Scraped ${ddtData.length} DDT entries (filtered for ${orderNumbers.length} orders)`,
       );
 
+      // Emit: Step 2 completed (75%)
+      this.emitProgress({
+        phase: "step2",
+        percentage: 75,
+        message: `Step 2/3 completato: ${ddtData.length} DDT trovati`,
+        itemsProcessed: ddtData.length,
+      });
+
       // Step 3/3: Enrich orders with details and DDT data
+      this.emitProgress({
+        phase: "step3",
+        percentage: 85,
+        message: "Step 3/3: Arricchimento ordini con dettagli...",
+      });
+
       logger.info(
         "[OrderHistoryService] Step 3/3: Enriching orders with details and DDT data",
       );
@@ -364,6 +429,14 @@ export class OrderHistoryService {
       logger.info(
         `[OrderHistoryService] Unified sync completed: ${enrichedOrders.length} orders with full details saved to DB`,
       );
+
+      // Emit: Completed (100%)
+      this.emitProgress({
+        phase: "completed",
+        percentage: 100,
+        message: `Sincronizzazione completata: ${enrichedOrders.length} ordini sincronizzati`,
+        itemsProcessed: enrichedOrders.length,
+      });
     } catch (error) {
       logger.error(
         `[OrderHistoryService] Error syncing from Archibald for user ${userId}`,

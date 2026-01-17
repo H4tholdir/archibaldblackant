@@ -2311,54 +2311,34 @@ app.post(
               `[OrderHistory] Cleared cached orders for user ${userId}`,
             );
 
-            // Emit progress: cleared cache
-            syncProgressEmitter.emit("progress", {
-              syncType: "orders",
-              mode: "full",
-              status: "running",
-              percentage: 10,
-              itemsProcessed: 0,
-              itemsChanged: 0,
-              startedAt: Date.now(),
-            });
-
             // Force sync from Archibald (will scrape all pages)
             logger.info(
               `[OrderHistory] Starting syncFromArchibald for user ${userId}`,
             );
 
-            // Emit progress: syncing
-            syncProgressEmitter.emit("progress", {
-              syncType: "orders",
-              mode: "full",
-              status: "running",
-              percentage: 20,
-              itemsProcessed: 0,
-              itemsChanged: 0,
-              startedAt: Date.now(),
+            // Listen to OrderHistoryService progress events and forward to SSE
+            orderHistoryService.onProgress((serviceProgress) => {
+              // Map service progress to SSE format
+              syncProgressEmitter.emit("progress", {
+                syncType: "orders",
+                mode: "full",
+                status:
+                  serviceProgress.phase === "completed"
+                    ? "completed"
+                    : "running",
+                percentage: serviceProgress.percentage,
+                itemsProcessed: serviceProgress.itemsProcessed || 0,
+                itemsChanged: serviceProgress.itemsProcessed || 0,
+                message: serviceProgress.message,
+                startedAt: Date.now(),
+              });
             });
 
             await orderHistoryService.syncFromArchibald(userId);
 
-            // Get count of synced orders
-            const syncedOrders =
-              orderHistoryService.orderDb.getOrdersByUser(userId);
-            const syncedCount = syncedOrders.length;
-
             logger.info(
-              `[OrderHistory] Force sync completed for user ${userId}: ${syncedCount} orders`,
+              `[OrderHistory] Force sync completed for user ${userId}`,
             );
-
-            // Emit progress: completed
-            syncProgressEmitter.emit("progress", {
-              syncType: "orders",
-              mode: "full",
-              status: "completed",
-              percentage: 100,
-              itemsProcessed: syncedCount,
-              itemsChanged: syncedCount,
-              startedAt: Date.now(),
-            });
           } finally {
             // Always resume services
             priorityManager.resume();
@@ -2463,54 +2443,34 @@ app.post(
             orderHistoryService.orderDb.clearUserOrders(userId);
             logger.info(`[OrderHistory] Database cleared for user ${userId}`);
 
-            // Emit progress: cleared
-            syncProgressEmitter.emit("progress", {
-              syncType: "orders",
-              mode: "reset",
-              status: "running",
-              percentage: 10,
-              itemsProcessed: 0,
-              itemsChanged: 0,
-              startedAt: Date.now(),
-            });
-
             // Force complete sync from beginning of year
             logger.info(
               `[OrderHistory] Starting complete sync from Archibald for user ${userId}`,
             );
 
-            // Emit progress: syncing
-            syncProgressEmitter.emit("progress", {
-              syncType: "orders",
-              mode: "reset",
-              status: "running",
-              percentage: 20,
-              itemsProcessed: 0,
-              itemsChanged: 0,
-              startedAt: Date.now(),
+            // Listen to OrderHistoryService progress events and forward to SSE
+            orderHistoryService.onProgress((serviceProgress) => {
+              // Map service progress to SSE format
+              syncProgressEmitter.emit("progress", {
+                syncType: "orders",
+                mode: "reset",
+                status:
+                  serviceProgress.phase === "completed"
+                    ? "completed"
+                    : "running",
+                percentage: serviceProgress.percentage,
+                itemsProcessed: serviceProgress.itemsProcessed || 0,
+                itemsChanged: serviceProgress.itemsProcessed || 0,
+                message: serviceProgress.message,
+                startedAt: Date.now(),
+              });
             });
 
             await orderHistoryService.syncFromArchibald(userId);
 
-            // Get count of synced orders
-            const syncedOrders =
-              orderHistoryService.orderDb.getOrdersByUser(userId);
-            const syncedCount = syncedOrders.length;
-
             logger.info(
-              `[OrderHistory] Complete sync finished for user ${userId}: ${syncedCount} orders`,
+              `[OrderHistory] Complete sync finished for user ${userId}`,
             );
-
-            // Emit progress: completed
-            syncProgressEmitter.emit("progress", {
-              syncType: "orders",
-              mode: "reset",
-              status: "completed",
-              percentage: 100,
-              itemsProcessed: syncedCount,
-              itemsChanged: syncedCount,
-              startedAt: Date.now(),
-            });
           } finally {
             // Always resume services
             priorityManager.resume();

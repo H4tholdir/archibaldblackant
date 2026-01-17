@@ -20,7 +20,11 @@ export function useSyncProgress() {
   });
 
   const startSync = useCallback(
-    async (type: "sync" | "reset", token: string) => {
+    async (
+      type: "sync" | "reset",
+      token: string,
+      onCompleted?: () => void | Promise<void>,
+    ) => {
       setProgress({
         isRunning: true,
         phase: "starting",
@@ -30,29 +34,11 @@ export function useSyncProgress() {
       });
 
       try {
-        // Phase 1: Starting
-        setProgress((prev) => ({
-          ...prev,
-          phase: "connecting",
-          message: "Connessione ad Archibald...",
-          progress: 10,
-        }));
-
-        await new Promise((resolve) => setTimeout(resolve, 500));
-
-        // Phase 2: Execute sync
+        // Start sync (non-blocking endpoint)
         const endpoint =
-          type === "reset" ? "/api/orders/reset-and-sync" : "/api/orders/force-sync";
-
-        setProgress((prev) => ({
-          ...prev,
-          phase: "scraping",
-          message:
-            type === "reset"
-              ? "Reset database in corso..."
-              : "Lettura ordini da Archibald...",
-          progress: 20,
-        }));
+          type === "reset"
+            ? "/api/orders/reset-and-sync"
+            : "/api/orders/force-sync";
 
         const syncResponse = await fetch(endpoint, {
           method: "POST",
@@ -73,64 +59,69 @@ export function useSyncProgress() {
         const syncData = await syncResponse.json();
 
         if (!syncData.success) {
-          throw new Error(
-            syncData.message || "Errore nella sincronizzazione degli ordini",
-          );
+          throw new Error(syncData.message || "Errore avvio sincronizzazione");
         }
 
-        setProgress((prev) => ({
-          ...prev,
-          phase: "processing",
-          message: `Elaborazione completata: ${syncData.data?.syncedCount || 0} ordini`,
-          progress: 60,
-          ordersProcessed: syncData.data?.syncedCount,
-          totalOrders: syncData.data?.syncedCount,
-        }));
+        // Listen to SSE for real-time progress
+        const eventSource = new EventSource(
+          `/api/sync/progress?token=${token}`,
+        );
 
-        await new Promise((resolve) => setTimeout(resolve, 1000));
+        return new Promise((resolve, reject) => {
+          eventSource.onmessage = (event) => {
+            const progressData = JSON.parse(event.data);
 
-        // Phase 3: Sync states
-        setProgress((prev) => ({
-          ...prev,
-          phase: "syncing-states",
-          message: "Sincronizzazione stati ordini...",
-          progress: 75,
-        }));
+            // Only handle order sync events
+            if (progressData.syncType !== "orders") return;
 
-        const stateResponse = await fetch("/api/orders/sync-states?forceRefresh=true", {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
+            // Update progress state
+            setProgress({
+              isRunning: progressData.status === "running",
+              phase:
+                progressData.status === "completed" ? "completed" : "scraping",
+              message:
+                progressData.message ||
+                `Sincronizzazione in corso... ${progressData.percentage}%`,
+              progress: progressData.percentage,
+              ordersProcessed: progressData.itemsProcessed,
+              totalOrders: progressData.itemsProcessed,
+              error: progressData.error || null,
+            });
+
+            // Handle completion
+            if (progressData.status === "completed") {
+              eventSource.close();
+
+              // Call completion callback
+              if (onCompleted) {
+                Promise.resolve(onCompleted()).catch((err) => {
+                  console.error("Error in onCompleted callback:", err);
+                });
+              }
+
+              resolve({
+                success: true,
+                data: { syncedCount: progressData.itemsProcessed },
+              });
+            }
+
+            // Handle error
+            if (progressData.status === "error") {
+              eventSource.close();
+              reject(
+                new Error(
+                  progressData.error || "Errore durante la sincronizzazione",
+                ),
+              );
+            }
+          };
+
+          eventSource.onerror = (error) => {
+            console.error("SSE error:", error);
+            eventSource.close();
+            reject(new Error("Errore di connessione al server"));
+          };
         });
-
-        // State sync is best-effort, don't fail if it errors
-        if (stateResponse.ok) {
-          const stateData = await stateResponse.json();
-          console.log("State sync result:", stateData);
-        }
-
-        setProgress((prev) => ({
-          ...prev,
-          phase: "finalizing",
-          message: "Completamento sincronizzazione...",
-          progress: 90,
-        }));
-
-        await new Promise((resolve) => setTimeout(resolve, 500));
-
-        // Phase 4: Complete
-        setProgress({
-          isRunning: false,
-          phase: "completed",
-          message: `Sincronizzazione completata con successo! ${syncData.data?.syncedCount || 0} ordini sincronizzati.`,
-          progress: 100,
-          ordersProcessed: syncData.data?.syncedCount,
-          totalOrders: syncData.data?.syncedCount,
-          error: null,
-        });
-
-        return { success: true, data: syncData.data };
       } catch (err) {
         console.error("Sync error:", err);
         const errorMessage =

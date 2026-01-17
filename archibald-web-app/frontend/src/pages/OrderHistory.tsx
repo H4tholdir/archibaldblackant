@@ -208,12 +208,13 @@ export function OrderHistory() {
     setSyncModalOpen(true);
     setError(null);
 
-    const result = await startSync("sync", token);
-
-    if (result.success) {
-      // Reload orders after successful sync
+    const result = await startSync("sync", token, async () => {
+      // Auto-refresh orders list when sync completes
+      console.log("Sync completed, refreshing orders list...");
       await fetchOrders();
-    } else {
+    });
+
+    if (!result.success) {
       setError(result.error || "Errore nella sincronizzazione");
     }
   };
@@ -239,12 +240,13 @@ export function OrderHistory() {
     setSyncModalOpen(true);
     setError(null);
 
-    const result = await startSync("reset", token);
-
-    if (result.success) {
-      // Reload orders after successful reset and sync
+    const result = await startSync("reset", token, async () => {
+      // Auto-refresh orders list when sync completes
+      console.log("Reset and sync completed, refreshing orders list...");
       await fetchOrders();
-    } else {
+    });
+
+    if (!result.success) {
       setError(result.error || "Errore nel reset del database");
     }
   };
@@ -556,7 +558,8 @@ export function OrderHistory() {
                 borderRadius: "8px",
                 backgroundColor: progress.isRunning ? "#ffebee" : "#fff",
                 color: progress.isRunning ? "#999" : "#f44336",
-                cursor: progress.isRunning || loading ? "not-allowed" : "pointer",
+                cursor:
+                  progress.isRunning || loading ? "not-allowed" : "pointer",
                 transition: "all 0.2s",
                 opacity: progress.isRunning || loading ? 0.6 : 1,
               }}
