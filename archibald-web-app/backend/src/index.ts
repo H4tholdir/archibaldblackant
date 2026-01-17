@@ -2019,11 +2019,19 @@ app.post(
           `[OrderHistory] Starting syncFromArchibald for user ${userId}`,
         );
         await orderHistoryService.syncFromArchibald(userId);
-        logger.info(`[OrderHistory] Force sync completed for user ${userId}`);
+
+        // Get count of synced orders
+        const syncedOrders = orderHistoryService.orderDb.getOrdersByUser(userId);
+        const syncedCount = syncedOrders.length;
+
+        logger.info(`[OrderHistory] Force sync completed for user ${userId}: ${syncedCount} orders`);
 
         res.json({
           success: true,
           message: "Orders re-synced successfully",
+          data: {
+            syncedCount,
+          },
         });
       } finally {
         // Always resume services
@@ -2079,11 +2087,19 @@ app.post(
           `[OrderHistory] Starting complete sync from Archibald for user ${userId}`,
         );
         await orderHistoryService.syncFromArchibald(userId);
-        logger.info(`[OrderHistory] Complete sync finished for user ${userId}`);
+
+        // Get count of synced orders
+        const syncedOrders = orderHistoryService.orderDb.getOrdersByUser(userId);
+        const syncedCount = syncedOrders.length;
+
+        logger.info(`[OrderHistory] Complete sync finished for user ${userId}: ${syncedCount} orders`);
 
         res.json({
           success: true,
           message: "Database reset and complete sync successful",
+          data: {
+            syncedCount,
+          },
         });
       } finally {
         // Always resume services

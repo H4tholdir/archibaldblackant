@@ -1,9 +1,11 @@
 import { useState, useEffect, useCallback } from "react";
 import { OrderCardNew } from "../components/OrderCardNew";
 import { SendToMilanoModal } from "../components/SendToMilanoModal";
+import { SyncProgressModal } from "../components/SyncProgressModal";
 import { groupOrdersByPeriod } from "../utils/orderGrouping";
 import type { Order } from "../types/order";
 import { useAuth } from "../hooks/useAuth";
+import { useSyncProgress } from "../hooks/useSyncProgress";
 
 interface OrderFilters {
   customer: string;
@@ -23,6 +25,7 @@ interface OrderHistoryResponse {
 
 export function OrderHistory() {
   const auth = useAuth();
+  const { progress, startSync, reset: resetProgress } = useSyncProgress();
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -34,8 +37,8 @@ export function OrderHistory() {
     status: "",
   });
   const [debouncedCustomer, setDebouncedCustomer] = useState("");
-  const [syncing, setSyncing] = useState(false);
-  const [resetting, setResetting] = useState(false);
+  const [syncModalOpen, setSyncModalOpen] = useState(false);
+  const [syncType, setSyncType] = useState<"sync" | "reset">("sync");
   const [modalOpen, setModalOpen] = useState(false);
   const [modalOrderId, setModalOrderId] = useState<string | null>(null);
   const [modalCustomerName, setModalCustomerName] = useState<string>("");
@@ -194,64 +197,24 @@ export function OrderHistory() {
   };
 
   const handleForceSync = async () => {
-    setSyncing(true);
+    const token = localStorage.getItem("archibald_jwt");
+    if (!token) {
+      setError("Non autenticato. Effettua il login.");
+      return;
+    }
+
+    // Open modal and start sync
+    setSyncType("sync");
+    setSyncModalOpen(true);
     setError(null);
 
-    try {
-      const token = localStorage.getItem("archibald_jwt");
-      if (!token) {
-        setError("Non autenticato. Effettua il login.");
-        setSyncing(false);
-        return;
-      }
+    const result = await startSync("sync", token);
 
-      // Call both force-sync and sync-states endpoints in parallel
-      const [syncResponse, stateResponse] = await Promise.all([
-        fetch("/api/orders/force-sync", {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        }),
-        fetch("/api/orders/sync-states?forceRefresh=true", {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        }),
-      ]);
-
-      if (!syncResponse.ok) {
-        if (syncResponse.status === 401) {
-          setError("Sessione scaduta. Effettua il login.");
-          localStorage.removeItem("archibald_jwt");
-          return;
-        }
-        throw new Error(
-          `Errore ${syncResponse.status}: ${syncResponse.statusText}`,
-        );
-      }
-
-      const data = await syncResponse.json();
-      if (!data.success) {
-        throw new Error("Errore nella sincronizzazione degli ordini");
-      }
-
-      // State sync is best-effort (don't fail if it errors)
-      if (stateResponse.ok) {
-        const stateData = await stateResponse.json();
-        console.log("State sync result:", stateData);
-      }
-
+    if (result.success) {
       // Reload orders after successful sync
       await fetchOrders();
-    } catch (err) {
-      console.error("Error forcing sync:", err);
-      setError(
-        err instanceof Error ? err.message : "Errore nella sincronizzazione",
-      );
-    } finally {
-      setSyncing(false);
+    } else {
+      setError(result.error || "Errore nella sincronizzazione");
     }
   };
 
@@ -265,48 +228,24 @@ export function OrderHistory() {
       return;
     }
 
-    setResetting(true);
+    const token = localStorage.getItem("archibald_jwt");
+    if (!token) {
+      setError("Non autenticato. Effettua il login.");
+      return;
+    }
+
+    // Open modal and start reset
+    setSyncType("reset");
+    setSyncModalOpen(true);
     setError(null);
 
-    try {
-      const token = localStorage.getItem("archibald_jwt");
-      if (!token) {
-        setError("Non autenticato. Effettua il login.");
-        setResetting(false);
-        return;
-      }
+    const result = await startSync("reset", token);
 
-      const response = await fetch("/api/orders/reset-and-sync", {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
-
-      if (!response.ok) {
-        if (response.status === 401) {
-          setError("Sessione scaduta. Effettua il login.");
-          localStorage.removeItem("archibald_jwt");
-          return;
-        }
-        throw new Error(`Errore ${response.status}: ${response.statusText}`);
-      }
-
-      const data = await response.json();
-      if (!data.success) {
-        throw new Error("Errore nel reset e sincronizzazione");
-      }
-
+    if (result.success) {
       // Reload orders after successful reset and sync
       await fetchOrders();
-      alert("Database resettato e sincronizzazione completata con successo!");
-    } catch (err) {
-      console.error("Error resetting DB:", err);
-      setError(
-        err instanceof Error ? err.message : "Errore nel reset del database",
-      );
-    } finally {
-      setResetting(false);
+    } else {
+      setError(result.error || "Errore nel reset del database");
     }
   };
 
@@ -575,67 +514,68 @@ export function OrderHistory() {
           {/* Force sync button */}
           <button
             onClick={handleForceSync}
-            disabled={syncing || loading}
+            disabled={progress.isRunning || loading}
             style={{
               padding: "8px 16px",
               fontSize: "14px",
               fontWeight: 600,
               border: "1px solid #1976d2",
               borderRadius: "8px",
-              backgroundColor: syncing ? "#e3f2fd" : "#fff",
-              color: syncing ? "#999" : "#1976d2",
-              cursor: syncing || loading ? "not-allowed" : "pointer",
+              backgroundColor: progress.isRunning ? "#e3f2fd" : "#fff",
+              color: progress.isRunning ? "#999" : "#1976d2",
+              cursor: progress.isRunning || loading ? "not-allowed" : "pointer",
               transition: "all 0.2s",
-              opacity: syncing || loading ? 0.6 : 1,
+              opacity: progress.isRunning || loading ? 0.6 : 1,
             }}
             onMouseEnter={(e) => {
-              if (!syncing && !loading) {
+              if (!progress.isRunning && !loading) {
                 e.currentTarget.style.backgroundColor = "#1976d2";
                 e.currentTarget.style.color = "#fff";
               }
             }}
             onMouseLeave={(e) => {
-              if (!syncing && !loading) {
+              if (!progress.isRunning && !loading) {
                 e.currentTarget.style.backgroundColor = "#fff";
                 e.currentTarget.style.color = "#1976d2";
               }
             }}
           >
-            {syncing ? "⏳ Sincronizzazione..." : "🔄 Sincronizza"}
+            {progress.isRunning ? "⏳ Sincronizzazione..." : "🔄 Sincronizza"}
           </button>
 
           {/* Admin-only Reset DB button */}
           {auth.user?.role === "admin" && (
             <button
               onClick={handleResetDB}
-              disabled={resetting || loading || syncing}
+              disabled={progress.isRunning || loading}
               style={{
                 padding: "8px 16px",
                 fontSize: "14px",
                 fontWeight: 600,
                 border: "1px solid #f44336",
                 borderRadius: "8px",
-                backgroundColor: resetting ? "#ffebee" : "#fff",
-                color: resetting ? "#999" : "#f44336",
-                cursor:
-                  resetting || loading || syncing ? "not-allowed" : "pointer",
+                backgroundColor: progress.isRunning ? "#ffebee" : "#fff",
+                color: progress.isRunning ? "#999" : "#f44336",
+                cursor: progress.isRunning || loading ? "not-allowed" : "pointer",
                 transition: "all 0.2s",
-                opacity: resetting || loading || syncing ? 0.6 : 1,
+                opacity: progress.isRunning || loading ? 0.6 : 1,
               }}
               onMouseEnter={(e) => {
-                if (!resetting && !loading && !syncing) {
+                if (!progress.isRunning && !loading) {
                   e.currentTarget.style.backgroundColor = "#f44336";
                   e.currentTarget.style.color = "#fff";
                 }
               }}
               onMouseLeave={(e) => {
-                if (!resetting && !loading && !syncing) {
+                if (!progress.isRunning && !loading) {
                   e.currentTarget.style.backgroundColor = "#fff";
                   e.currentTarget.style.color = "#f44336";
                 }
               }}
             >
-              {resetting ? "⏳ Reset in corso..." : "🗑️ Reset DB e Forza Sync"}
+              {progress.isRunning && syncType === "reset"
+                ? "⏳ Reset in corso..."
+                : "🗑️ Reset DB e Forza Sync"}
             </button>
           )}
         </div>
@@ -816,6 +756,17 @@ export function OrderHistory() {
         orderId={modalOrderId || ""}
         customerName={modalCustomerName}
         isLoading={sendingToMilano}
+      />
+
+      {/* Sync Progress Modal */}
+      <SyncProgressModal
+        isOpen={syncModalOpen}
+        type={syncType}
+        progress={progress}
+        onClose={() => {
+          setSyncModalOpen(false);
+          resetProgress();
+        }}
       />
     </div>
   );
