@@ -19,6 +19,7 @@ export function LoginModal({ onLogin, error, isLoading }: LoginModalProps) {
   return (
     <div className="login-modal-overlay">
       <div className="login-modal">
+        <img src="/logo.png" alt="Formicanera" className="login-modal-logo" />
         <h1>🐜 Formicanera</h1>
         <p className="subtitle">Archibald Rework - Accedi con le tue credenziali</p>
 
