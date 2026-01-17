@@ -164,15 +164,16 @@ export class SyncScheduler {
       };
 
       // Execute sync based on type
+      // Note: Sync services emit progress events, no callback needed
       switch (type) {
         case "customers":
-          await customerSyncService.syncCustomers({ progressCallback });
+          await customerSyncService.syncCustomers();
           break;
         case "products":
-          await productSyncService.syncProducts({ progressCallback });
+          await productSyncService.syncProducts();
           break;
         case "prices":
-          await priceSyncService.syncPrices(true, { progressCallback });
+          await priceSyncService.syncPrices();
           break;
         case "orders":
           // Orders sync not yet implemented (future)

@@ -1111,14 +1111,18 @@ export class CustomerSyncService extends EventEmitter {
    */
   async getQuickHash(): Promise<string> {
     const crypto = require("crypto");
-    const { customerDb } = require("./customer-db");
 
-    // Get first 10 customers from DB (sorted by id)
-    const customers = customerDb.db.all(
-      "SELECT id, name, code FROM customers ORDER BY id LIMIT 10",
-    );
+    // Get first 10 customers from DB (sorted by customerProfile)
+    const customers = this.db.getAllCustomers(10).map((c) => ({
+      customerProfile: c.customerProfile,
+      name: c.name,
+      internalId: c.internalId,
+    }));
 
     const data = JSON.stringify(customers);
     return crypto.createHash("md5").update(data).digest("hex");
   }
 }
+
+// Export singleton instance
+export const customerSyncService = CustomerSyncService.getInstance();

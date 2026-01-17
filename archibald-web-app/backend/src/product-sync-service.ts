@@ -181,7 +181,9 @@ export class ProductSyncService extends EventEmitter {
     // Create sync session for audit logging
     const syncMode = resumePoint > 1 ? "incremental" : "full";
     const syncSessionId = this.db.createSyncSession(syncMode);
-    logger.info(`📝 Created sync session: ${syncSessionId} (mode: ${syncMode})`);
+    logger.info(
+      `📝 Created sync session: ${syncSessionId} (mode: ${syncMode})`,
+    );
 
     this.updateProgress({
       status: "syncing",
@@ -893,11 +895,15 @@ export class ProductSyncService extends EventEmitter {
     const crypto = require("crypto");
 
     // Get first 10 products from DB (sorted by id)
-    const products = this.db.db.all(
-      "SELECT id, name, description FROM products ORDER BY id LIMIT 10",
-    );
+    const products = this.db
+      .getAllProducts()
+      .slice(0, 10)
+      .map((p) => ({ id: p.id, name: p.name, description: p.description }));
 
     const data = JSON.stringify(products);
     return crypto.createHash("md5").update(data).digest("hex");
   }
 }
+
+// Export singleton instance
+export const productSyncService = ProductSyncService.getInstance();

@@ -758,11 +758,16 @@ export class PriceSyncService extends EventEmitter {
     const crypto = require("crypto");
 
     // Get first 10 prices from DB (sorted by id)
-    const prices = this.db.db.all(
-      "SELECT id, price, vat FROM products WHERE price IS NOT NULL ORDER BY id LIMIT 10",
-    );
+    const prices = this.db
+      .getAllProducts()
+      .filter((p) => p.price !== null && p.price !== undefined)
+      .slice(0, 10)
+      .map((p) => ({ id: p.id, price: p.price, vat: p.vat }));
 
     const data = JSON.stringify(prices);
     return crypto.createHash("md5").update(data).digest("hex");
   }
 }
+
+// Export singleton instance
+export const priceSyncService = PriceSyncService.getInstance();

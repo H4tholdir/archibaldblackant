@@ -31,8 +31,13 @@ export interface Product {
   multipleQty?: number; // QTÀ MULTIPLA (Cell[13])
   maxQty?: number; // QTÀ MASSIMA (Cell[14])
 
-  // ========== DEPRECATED FIELD ==========
-  price?: number; // @deprecated Use PriceSyncService instead
+  // ========== PRICE & VAT FIELDS ==========
+  price?: number; // Prezzo (from PriceSyncService or Excel)
+  priceSource?: "archibald" | "excel" | null; // Source of price data
+  priceUpdatedAt?: number; // Unix timestamp of last price update
+  vat?: number; // IVA percentage (from Excel)
+  vatSource?: "archibald" | "excel" | null; // Source of VAT data
+  vatUpdatedAt?: number; // Unix timestamp of last VAT update
 
   // ========== SYSTEM FIELDS ==========
   hash: string; // SHA256 hash for change detection
@@ -143,13 +148,17 @@ export class ProductDatabase {
     // Run migration to add image and audit tables
     try {
       // Import and run migration inline to avoid circular dependencies
-      const tableInfo = this.db.prepare("PRAGMA table_info(products)").all() as Array<{
+      const tableInfo = this.db
+        .prepare("PRAGMA table_info(products)")
+        .all() as Array<{
         name: string;
       }>;
       const existingColumns = new Set(tableInfo.map((col: any) => col.name));
 
       if (!existingColumns.has("imageUrl")) {
-        logger.info("Running schema migration to add image and audit tables...");
+        logger.info(
+          "Running schema migration to add image and audit tables...",
+        );
         this.runMigration001();
       }
     } catch (error) {
@@ -281,9 +290,7 @@ export class ProductDatabase {
       WHERE products.hash != excluded.hash
     `);
 
-    const checkStmt = this.db.prepare(
-      "SELECT * FROM products WHERE id = ?",
-    );
+    const checkStmt = this.db.prepare("SELECT * FROM products WHERE id = ?");
 
     const changeLogStmt = syncSessionId
       ? this.db.prepare(`
@@ -398,8 +405,11 @@ export class ProductDatabase {
     oldProduct: Product,
     newProduct: Product,
   ): Array<{ field: string; oldValue: string; newValue: string }> {
-    const changes: Array<{ field: string; oldValue: string; newValue: string }> =
-      [];
+    const changes: Array<{
+      field: string;
+      oldValue: string;
+      newValue: string;
+    }> = [];
 
     const fields: Array<keyof Product> = [
       "name",
@@ -1045,9 +1055,36 @@ export class ProductDatabase {
   }
 
   /**
+   * Execute a database query that modifies data (INSERT, UPDATE, DELETE)
+   * @returns RunResult with lastInsertRowid and changes
+   */
+  run(sql: string, params?: any[]): Database.RunResult {
+    return this.db.prepare(sql).run(...(params || []));
+  }
+
+  /**
+   * Execute a database query that returns a single row
+   * @returns Single row object or undefined if not found
+   */
+  get<T = any>(sql: string, params?: any[]): T | undefined {
+    return this.db.prepare(sql).get(...(params || [])) as T | undefined;
+  }
+
+  /**
+   * Execute a database query that returns multiple rows
+   * @returns Array of row objects
+   */
+  all<T = any>(sql: string, params?: any[]): T[] {
+    return this.db.prepare(sql).all(...(params || [])) as T[];
+  }
+
+  /**
    * Chiude la connessione al database
    */
   close(): void {
     this.db.close();
   }
 }
+
+// Export singleton instance
+export const productDb = ProductDatabase.getInstance();

@@ -1,5 +1,5 @@
 import { Router, Response } from "express";
-import { AuthRequest, authenticateJWT } from "../auth-middleware";
+import { AuthRequest, authenticateJWT } from "../middleware/auth";
 import { syncScheduler, SyncProgress } from "../sync-scheduler";
 import { logger } from "../logger";
 import { EventEmitter } from "events";

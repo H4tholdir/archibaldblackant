@@ -1,5 +1,5 @@
 import { Router, Response } from "express";
-import { AuthRequest, authenticateJWT } from "../auth-middleware";
+import { AuthRequest, authenticateJWT } from "../middleware/auth";
 import { productDb } from "../product-db";
 import { logger } from "../logger";
 
