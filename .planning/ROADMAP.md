@@ -63,10 +63,13 @@ Plans:
 **Goal**: Testare ogni tipo di sync in isolamento, stabilire baseline di performance e identificare failure modes
 **Depends on**: Phase 14
 **Research**: Unlikely (testing existing implementations, standard testing patterns)
-**Plans**: TBD
+**Plans**: 3 plans
+**Status**: 📋 Planned (ready to execute)
 
 Plans:
-- [ ] 15-01: TBD
+- [ ] 15-01: Critical Concurrency Testing (C-1 Product+Price concurrent writes, C-3 Order same-user concurrent)
+- [ ] 15-02: Performance Baseline Testing (P-1 Customer sync, P-2 Product sync + images, P-3 Delta sync, P-4 Multi-user concurrent)
+- [ ] 15-03: Data Integrity & Resilience Testing (D-1 Checkpoint crash recovery, D-2 Concurrent write integrity, D-3 Order early termination)
 
 #### Phase 16: Concurrent Sync Scenario Analysis
 **Goal**: Analizzare e testare scenari di sync concorrente (single-user e multi-user), identificare race conditions e documentare pattern sicuri
@@ -743,8 +746,8 @@ Plans:
 | 12. Deployment & Infrastructure | v1.0 | 3/4 | ✅ Complete (Part D deferred) | 2026-01-17 |
 | 13. Security Audit & Cleanup | v1.0 | 1/6 | ✅ Complete (audit done, rest optional) | 2026-01-17 |
 | 5. Order Submission (POSTPONED) | v1.0 | 0/6 | ⚠️ Postponed (rolled back) | - |
-| 14. Sync Discovery & Mapping | v2.0 | 0/? | Not started | - |
-| 15. Individual Sync Testing | v2.0 | 0/? | Not started | - |
+| 14. Sync Discovery & Mapping | v2.0 | 4/4 | ✅ Complete | 2026-01-17 |
+| 15. Individual Sync Testing | v2.0 | 0/3 | 📋 Planned | - |
 | 16. Concurrent Sync Scenarios | v2.0 | 0/? | Not started | - |
 | 17. Automatic vs Manual Sync | v2.0 | 0/? | Not started | - |
 | 18. Sync Scheduler & Coordination | v2.0 | 0/? | Not started | - |
@@ -753,5 +756,5 @@ Plans:
 | 21. Sync Performance Optimization | v2.0 | 0/? | Not started | - |
 
 **v1.0 Total**: 81/90 plans (90%) - ✅ SHIPPED 2026-01-17
-**v2.0 Progress**: 0/? plans (TBD - planning phase)
-**In Progress**: Phase 14 (Sync Discovery & Mapping) - ready to plan
+**v2.0 Progress**: 4/? plans (Phase 14: 4/4 complete, Phase 15: 3 plans ready)
+**In Progress**: Phase 15 (Individual Sync Testing) - ready to execute
