@@ -60,8 +60,8 @@ async function testPriceTableColumns() {
       }
 
       // Find header row (usually first row or a row with <th> elements)
-      const headerRow = dataTable.querySelector("thead tr") ||
-                       dataTable.querySelector("tr");
+      const headerRow =
+        dataTable.querySelector("thead tr") || dataTable.querySelector("tr");
 
       const headers: string[] = [];
       if (headerRow) {
@@ -72,7 +72,10 @@ async function testPriceTableColumns() {
       }
 
       // Get first 5 data rows
-      const rows = Array.from(dataTable.querySelectorAll("tbody tr")).slice(0, 5);
+      const rows = Array.from(dataTable.querySelectorAll("tbody tr")).slice(
+        0,
+        5,
+      );
       const sampleRows: Array<{ [key: string]: string }> = [];
 
       for (const row of rows) {
@@ -96,7 +99,8 @@ async function testPriceTableColumns() {
         headers: headers,
         sampleRowCount: sampleRows.length,
         sampleRows: sampleRows,
-        totalCellsInFirstRow: sampleRows.length > 0 ? Object.keys(sampleRows[0]).length : 0,
+        totalCellsInFirstRow:
+          sampleRows.length > 0 ? Object.keys(sampleRows[0]).length : 0,
       };
     });
 
@@ -110,7 +114,7 @@ async function testPriceTableColumns() {
     logger.info(`   Sample rows: ${tableAnalysis.sampleRowCount}`);
     logger.info(`   Cells per row: ${tableAnalysis.totalCellsInFirstRow}`);
 
-    if (tableAnalysis.headers.length > 0) {
+    if (tableAnalysis.headers && tableAnalysis.headers.length > 0) {
       logger.info("\n📑 Column Headers:");
       tableAnalysis.headers.forEach((header, idx) => {
         logger.info(`   [${idx}] "${header}"`);
@@ -118,53 +122,71 @@ async function testPriceTableColumns() {
     }
 
     logger.info("\n📊 Sample Data (first 5 rows):");
-    tableAnalysis.sampleRows.forEach((row, rowIdx) => {
-      logger.info(`\n   ROW ${rowIdx + 1}:`);
-      Object.entries(row).forEach(([colKey, value]) => {
-        if (value && value !== "") {
-          const colIdx = colKey.replace("col_", "");
-          const headerName = tableAnalysis.headers[parseInt(colIdx)] || "Unknown";
-          logger.info(`      [${colIdx}] ${headerName}: "${value}"`);
-        }
+    if (tableAnalysis.sampleRows) {
+      tableAnalysis.sampleRows.forEach((row, rowIdx) => {
+        logger.info(`\n   ROW ${rowIdx + 1}:`);
+        Object.entries(row).forEach(([colKey, value]) => {
+          if (value && value !== "") {
+            const colIdx = colKey.replace("col_", "");
+            const headerName = tableAnalysis.headers
+              ? tableAnalysis.headers[parseInt(colIdx)]
+              : undefined;
+            logger.info(
+              `      [${colIdx}] ${headerName || "Unknown"}: "${value}"`,
+            );
+          }
+        });
       });
-    });
+    }
 
     // Analyze which columns contain useful data
     logger.info("\n🔍 Column Analysis:");
 
-    const columnStats: { [key: number]: { empty: number; filled: number; samples: string[] } } = {};
+    const columnStats: {
+      [key: number]: { empty: number; filled: number; samples: string[] };
+    } = {};
 
-    tableAnalysis.sampleRows.forEach((row) => {
-      Object.entries(row).forEach(([colKey, value]) => {
-        const colIdx = parseInt(colKey.replace("col_", ""));
-        if (!columnStats[colIdx]) {
-          columnStats[colIdx] = { empty: 0, filled: 0, samples: [] };
-        }
-        if (value && value !== "") {
-          columnStats[colIdx].filled++;
-          if (columnStats[colIdx].samples.length < 3) {
-            columnStats[colIdx].samples.push(value);
+    if (tableAnalysis.sampleRows) {
+      tableAnalysis.sampleRows.forEach((row) => {
+        Object.entries(row).forEach(([colKey, value]) => {
+          const colIdx = parseInt(colKey.replace("col_", ""));
+          if (!columnStats[colIdx]) {
+            columnStats[colIdx] = { empty: 0, filled: 0, samples: [] };
           }
-        } else {
-          columnStats[colIdx].empty++;
-        }
+          if (value && value !== "") {
+            columnStats[colIdx].filled++;
+            if (columnStats[colIdx].samples.length < 3) {
+              columnStats[colIdx].samples.push(value);
+            }
+          } else {
+            columnStats[colIdx].empty++;
+          }
+        });
       });
-    });
+    }
 
     Object.entries(columnStats)
       .sort(([a], [b]) => parseInt(a) - parseInt(b))
       .forEach(([colIdx, stats]) => {
-        const headerName = tableAnalysis.headers[parseInt(colIdx)] || "Unknown";
-        const fillRate = ((stats.filled / (stats.filled + stats.empty)) * 100).toFixed(0);
-        logger.info(`   [${colIdx}] ${headerName}`);
-        logger.info(`      Fill rate: ${fillRate}% (${stats.filled}/${stats.filled + stats.empty})`);
+        const headerName = tableAnalysis.headers
+          ? tableAnalysis.headers[parseInt(colIdx)]
+          : undefined;
+        const fillRate = (
+          (stats.filled / (stats.filled + stats.empty)) *
+          100
+        ).toFixed(0);
+        logger.info(`   [${colIdx}] ${headerName || "Unknown"}`);
+        logger.info(
+          `      Fill rate: ${fillRate}% (${stats.filled}/${stats.filled + stats.empty})`,
+        );
         if (stats.samples.length > 0) {
-          logger.info(`      Samples: ${stats.samples.slice(0, 3).join(" | ")}`);
+          logger.info(
+            `      Samples: ${stats.samples.slice(0, 3).join(" | ")}`,
+          );
         }
       });
 
     logger.info("\n✅ Analysis complete!");
-
   } catch (error) {
     logger.error("❌ Test failed:", error);
     throw error;
