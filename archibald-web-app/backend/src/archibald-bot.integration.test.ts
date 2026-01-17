@@ -3,7 +3,10 @@ import { ArchibaldBot } from "./archibald-bot";
 import { ProductDatabase } from "./product-db";
 import * as fixtures from "./test-fixtures/orders";
 
-describe("Package Selection Integration Tests", () => {
+// Skip integration tests in CI environment (no Archibald access)
+const skipInCI = process.env.CI === "true" ? describe.skip : describe;
+
+skipInCI("Package Selection Integration Tests", () => {
   let bot: ArchibaldBot;
 
   beforeAll(async () => {

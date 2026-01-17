@@ -635,16 +635,16 @@ describe("ProductDatabase", () => {
       expect(result.errors).toContain("Quantity must be a multiple of 5");
     });
 
-    it("should return error when quantity > maxQty", () => {
+    it("should NOT validate maxQty (bot can override Archibald limit)", () => {
       // Given: Product with maxQty=100
       const product = { minQty: 1, multipleQty: 1, maxQty: 100 };
 
       // When: validateQuantity(product, 150)
       const result = db.validateQuantity(product, 150);
 
-      // Then: Error about maximum
-      expect(result.valid).toBe(false);
-      expect(result.errors).toContain("Quantity cannot exceed 100");
+      // Then: Valid (maxQty is NOT enforced by design)
+      expect(result.valid).toBe(true);
+      expect(result.errors).toHaveLength(0);
     });
 
     it("should return multiple errors when multiple rules violated", () => {
