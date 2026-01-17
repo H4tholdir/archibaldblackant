@@ -21,7 +21,7 @@ export const config = {
   },
   puppeteer: {
     headless: process.env.NODE_ENV === "production" ? true : false, // Headless in production, visible in dev
-    slowMo: process.env.NODE_ENV === "production" ? 0 : 200, // No slowdown in production
+    slowMo: process.env.NODE_ENV === "production" ? 50 : 200, // 50ms in production (fast but stable), 200ms in dev
     timeout: 60000, // Increased to 60s for slow Archibald responses
   },
   features: {

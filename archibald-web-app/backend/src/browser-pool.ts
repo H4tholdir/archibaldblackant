@@ -245,59 +245,56 @@ export class BrowserPool {
         timeout: 30000,
       });
 
-      // Wait for form to be ready
-      await new Promise((resolve) => setTimeout(resolve, 2000));
+      // Wait for form fields to be available (fast selector wait instead of fixed 2s timeout)
+      await page.waitForSelector('input[type="text"]', { timeout: 5000 });
+      await page.waitForSelector('input[type="password"]', { timeout: 5000 });
 
-      // Find form fields
-      const usernameField = await page.evaluate(() => {
-        const inputs = Array.from(
-          document.querySelectorAll<HTMLInputElement>('input[type="text"]'),
-        );
-        const userInput = inputs.find(
-          (input) =>
-            input.name?.includes("UserName") ||
-            input.placeholder?.toLowerCase().includes("account") ||
-            input.placeholder?.toLowerCase().includes("username"),
-        );
-        if (userInput) {
-          return userInput.id || userInput.name;
-        }
-        if (inputs.length > 0) {
-          return inputs[0].id || inputs[0].name;
-        }
-        return null;
-      });
-
-      const passwordField = await page.evaluate(() => {
-        const inputs = Array.from(
-          document.querySelectorAll('input[type="password"]'),
-        );
-        if (inputs.length > 0) {
-          return (
-            (inputs[0] as HTMLInputElement).id ||
-            (inputs[0] as HTMLInputElement).name
+      // Fill credentials INSTANTLY via evaluate (no typing delay, like paste)
+      logger.info("[BrowserPool] Filling login credentials");
+      const filled = await page.evaluate(
+        (user, pass) => {
+          // Find username field
+          const inputs = Array.from(
+            document.querySelectorAll<HTMLInputElement>('input[type="text"]'),
           );
-        }
-        return null;
-      });
+          const userInput = inputs.find(
+            (input) =>
+              input.name?.includes("UserName") ||
+              input.placeholder?.toLowerCase().includes("account") ||
+              input.placeholder?.toLowerCase().includes("username"),
+          );
+          const usernameField = userInput || inputs[0];
 
-      if (!usernameField || !passwordField) {
+          // Find password field
+          const passwordField = document.querySelector<HTMLInputElement>(
+            'input[type="password"]',
+          );
+
+          if (!usernameField || !passwordField) {
+            return false;
+          }
+
+          // Fill fields instantly (like paste, no typing delay)
+          usernameField.value = user;
+          passwordField.value = pass;
+
+          // Trigger input events for form validation
+          usernameField.dispatchEvent(
+            new Event("input", { bubbles: true, cancelable: true }),
+          );
+          passwordField.dispatchEvent(
+            new Event("input", { bubbles: true, cancelable: true }),
+          );
+
+          return true;
+        },
+        username,
+        cachedPassword,
+      );
+
+      if (!filled) {
         throw new Error("Login form fields not found");
       }
-
-      // Fill credentials
-      logger.info("[BrowserPool] Filling login credentials");
-      await page.evaluate((fieldId) => {
-        const input = document.getElementById(fieldId) as HTMLInputElement;
-        if (input) input.value = "";
-      }, usernameField);
-      await page.type(`#${usernameField}`, username, { delay: 100 });
-
-      await page.evaluate((fieldId) => {
-        const input = document.getElementById(fieldId) as HTMLInputElement;
-        if (input) input.value = "";
-      }, passwordField);
-      await page.type(`#${passwordField}`, cachedPassword, { delay: 100 });
 
       // Submit form
       logger.info("[BrowserPool] Submitting login form");
