@@ -266,7 +266,7 @@ npx tsc --noEmit
 
 ### **Manual UAT Required:**
 1. Start backend: `npm run dev` (port 3000)
-2. Login with credenziali Archibald: `ikiA0930` / `Fresis26@`
+2. Login with credenziali Archibald: `ikiA0930` / `<password>`
 3. Navigate to "📦 Storico"
 4. Verificare:
    - ✅ Login successful (no timeout)
