@@ -24,7 +24,7 @@ None (full-stack web app con pattern standard)
 - [ ] **Phase 10: Order History** - Storico ordini da Archibald
 - [x] **Phase 11: Order Management** - Tracking ordini, invio Milano, DDT e fatture ✅ COMPLETE (7/7 plans)
 - [x] **Phase 12: Deployment & Infrastructure** - Setup produzione VPS ✅ COMPLETE (3/4 plans complete, Part D deferred)
-- [ ] **Phase 13: Security Audit & Sensitive Data Cleanup** - Rimozione dati sensibili da codice, documentazione e git history 🔒
+- [x] **Phase 13: Security Audit & Sensitive Data Cleanup** - Audit completo e sanitizzazione ✅ COMPLETE (1/6 plans, rest optional)
 - [x] **Phase 5: Order Submission** - Invio ordine ottimizzato con tracking ✅ COMPLETE (goals achieved via other phases)
 
 ## Phase Details
@@ -599,7 +599,7 @@ Original 10 plans consolidated into 4 comprehensive execution plans for efficien
 - CI/CD: Automated on every push to master
 - Uptime: Monitored via Prometheus
 
-### Phase 13: Security Audit & Sensitive Data Cleanup
+### Phase 13: Security Audit & Sensitive Data Cleanup ✅ COMPLETE
 **Goal**: Rimuovere completamente dati sensibili (username, password, credenziali) da codice, documentazione e git history prima della pubblicazione
 **Depends on**: Phase 12
 **Research**: Likely (git history rewriting techniques, BFG Repo-Cleaner, git-filter-repo)
@@ -641,6 +641,7 @@ Plans:
 | 10. Order History | 7/7 | ✅ Complete | 2026-01-15 |
 | 11. Order Management | 6/7 | 🔄 In progress | 2026-01-15 |
 | 12. Deployment & Infrastructure | 3/4 | ✅ Complete (Part D deferred) | 2026-01-17 |
+| 13. Security Audit & Cleanup | 1/6 | ✅ Complete (audit done, rest optional) | 2026-01-17 |
 | 5. Order Submission (POSTPONED) | 0/6 | ⚠️ Postponed (rolled back) | - |
 
 **Total Plans**: 90 across 12+ phases (Phase 12 now 4 plans: 12-01, 12-02, 12-03 with 3 parts, Part D deferred)
