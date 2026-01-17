@@ -1314,3 +1314,44 @@ File: [archibald-web-app/backend/src/index.ts:348-388](../archibald-web-app/back
 **Total Test Cases**: 100+
 **Estimated Testing Time**: 4-6 hours (complete suite)
 **Recommended**: Test in batches (Phase by Phase)
+
+---
+
+## 🎨 BRANDING UPDATE - 2026-01-17
+
+### App Rebranding Complete
+**Date**: 2026-01-17 11:35 UTC
+**Status**: ✅ DEPLOYED
+
+**New Branding**:
+- **Name**: Formicanera - Archibald Rework
+- **Short Name**: Formicanera
+- **Author**: Francesco Formicola
+- **Target**: Agenti Komet
+- **Business Model**: SaaS con abbonamento mensile
+
+**Assets Updated**:
+- ✅ Logo Formicanera (1024x1024 - quadrato)
+- ✅ PWA Icons: 192x192, 512x512
+- ✅ Apple Touch Icon: 180x180
+- ✅ Favicons: 32x32, 16x16, .ico
+- ✅ Manifest: Updated metadata, categories, language
+- ✅ Index.html: Title, meta tags, author
+- ✅ LoginModal: App title "🐜 Formicanera"
+
+**Documentation Added**:
+- ✅ README.md: Complete project documentation
+- ✅ LICENSE: Proprietary software license
+- ✅ package.json: Author metadata
+
+**Verification**:
+- ✅ Production URL: https://formicanera.com
+- ✅ Title: "Formicanera - Archibald Rework"
+- ✅ Meta author: "Francesco Formicola"
+- ✅ Manifest categories: business, productivity
+- ✅ Language: it (Italian)
+
+**Commits**:
+- c4d855a: Complete rebranding
+- 4d82844: Proprietary license
+
