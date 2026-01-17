@@ -340,27 +340,46 @@ File: [archibald-web-app/backend/src/index.ts:348-388](../archibald-web-app/back
 ### 6.1 Login Flow
 
 **Test Scenario 1: First-time login**
-1. [ ] Open app (incognito/private mode)
-2. [ ] Verify login screen appears
-3. [ ] Enter username: `ikiA0930`
-4. [ ] Enter Archibald password
-5. [ ] Click "Accedi"
-6. [ ] Wait for login (~60-90s)
-7. [ ] Verify redirect to order form
-8. [ ] Verify user name in header: "Francesco Formicola"
+1. [x] Open app (incognito/private mode) ✅
+2. [x] Verify login screen appears ✅
+3. [x] Verify modern UI design:
+   - [x] Gradient background (purple to blue) ✅
+   - [x] Logo Formicanera rettangolare visible ✅
+   - [x] Glass morphism card effect ✅
+4. [x] Enter username: `ikiA0930` ✅
+5. [x] Enter Archibald password ✅
+6. [x] Click "Accedi" ✅
+7. [x] Wait for login (~10-15s optimized, was 60-90s) ✅
+8. [x] Verify animated liquid loader during authentication ✅
+9. [x] Verify redirect to order form ✅
+10. [x] Verify user name in header: "Francesco Formicola" ✅
 
 **Test Scenario 2: Invalid credentials**
-1. [ ] Logout
-2. [ ] Enter wrong password
-3. [ ] Click "Accedi"
-4. [ ] Verify error message: "Login failed - invalid credentials"
-5. [ ] Verify error message extracted from Archibald
+1. [x] Logout ✅
+2. [x] Enter wrong password ✅
+3. [x] Click "Accedi" ✅
+4. [x] Verify error message: "Credenziali non valide" ✅
+5. [x] Verify login BLOCKED (security fix for BUG-001) ✅
+
+**Test Scenario 3: Re-login with cached password (within 24h)**
+1. [x] Login successfully (first time) ✅
+2. [x] Logout ✅
+3. [x] Login again with same credentials ✅
+4. [x] Verify instant login (~1-2s, no Puppeteer validation) ✅
+5. [x] Verify password cached correctly ✅
 
 **Expected**:
 - ✅ Login successful with valid credentials
 - ✅ User name displayed in header
 - ✅ Error message for invalid credentials
 - ✅ No timeout errors
+- ✅ Modern UI with gradient and logo
+- ✅ Animated liquid loader
+- ✅ Password validation at login (BUG-001 fixed)
+- ✅ Cached re-login within 24h
+
+**Test Date**: 2026-01-17 12:00 UTC
+**Test Result**: ✅ PASSED (All scenarios)
 
 ---
 
