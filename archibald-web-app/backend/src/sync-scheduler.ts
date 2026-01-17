@@ -176,8 +176,23 @@ export class SyncScheduler {
           await priceSyncService.syncPrices();
           break;
         case "orders":
-          // Orders sync not yet implemented (future)
-          logger.info("Orders sync not yet implemented");
+          if (!userId) {
+            logger.warn("Orders sync requires userId, skipping");
+            break;
+          }
+
+          // Orders sync requires user-specific context
+          logger.info(`Starting orders sync for userId: ${userId}`);
+          const { OrderHistoryService } = await import("./order-history-service");
+          const { UserDatabase } = await import("./user-db");
+          const orderHistoryService = new OrderHistoryService();
+          await orderHistoryService.syncFromArchibald(userId);
+
+          // Update lastOrderSyncAt timestamp
+          const userDb = UserDatabase.getInstance();
+          userDb.updateLastOrderSync(userId, Date.now());
+
+          logger.info(`✅ Orders sync completed for userId: ${userId}`);
           break;
       }
 
