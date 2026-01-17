@@ -13,6 +13,7 @@ export interface User {
   whitelisted: boolean;
   createdAt: number;
   lastLoginAt: number | null;
+  lastOrderSyncAt?: number | null;
 }
 
 /**
@@ -269,6 +270,7 @@ export class UserDatabase {
       whitelisted: row.whitelisted === 1,
       createdAt: row.createdAt,
       lastLoginAt: row.lastLoginAt,
+      lastOrderSyncAt: row.lastOrderSyncAt || null,
     };
   }
 
@@ -293,6 +295,29 @@ export class UserDatabase {
       });
     } catch (error) {
       logger.error("Error updating user role", { id, role, error });
+      throw error;
+    }
+  }
+
+  /**
+   * Update last order sync timestamp for user
+   */
+  updateLastOrderSync(userId: string, timestamp: number): void {
+    try {
+      const stmt = this.db.prepare(`
+        UPDATE users
+        SET lastOrderSyncAt = ?
+        WHERE id = ?
+      `);
+
+      stmt.run(timestamp, userId);
+
+      logger.info("User lastOrderSyncAt updated", {
+        userId,
+        timestamp: new Date(timestamp).toISOString(),
+      });
+    } catch (error) {
+      logger.error("Error updating lastOrderSyncAt", { userId, error });
       throw error;
     }
   }

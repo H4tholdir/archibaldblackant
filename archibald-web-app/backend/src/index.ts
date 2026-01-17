@@ -406,6 +406,14 @@ app.post(
       // 4. Update lastLogin timestamp
       userDb.updateLastLogin(user.id);
 
+      // 4b. Check and trigger background order sync if needed (Opzione B)
+      const { userOrderSyncService } = await import("./user-order-sync-service");
+      userOrderSyncService
+        .checkAndSyncOnLogin(user.id, user.username)
+        .catch((error) => {
+          logger.error("Background order sync check failed", { error, userId: user.id });
+        });
+
       // 5. Generate JWT
       const token = await generateJWT({
         userId: user.id,
@@ -3289,6 +3297,14 @@ server.listen(config.server.port, async () => {
     logger.info("✅ Migration 004 completed (sync infrastructure)");
   } catch (error) {
     logger.warn("⚠️  Migration 004 failed or already applied", { error });
+  }
+
+  try {
+    const { runMigration005 } = require("./migrations/005-add-order-sync-tracking");
+    runMigration005();
+    logger.info("✅ Migration 005 completed (order sync tracking)");
+  } catch (error) {
+    logger.warn("⚠️  Migration 005 failed or already applied", { error });
   }
 
   // Start adaptive sync scheduler (NEW - replaces old commented code)
