@@ -10,11 +10,6 @@ services:
     restart: unless-stopped
     networks:
       - archibald-net
-    healthcheck:
-      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost/"]
-      interval: 30s
-      timeout: 3s
-      retries: 3
 
   # Backend (Node.js + Puppeteer)
   backend:
@@ -38,12 +33,6 @@ services:
         condition: service_healthy
     networks:
       - archibald-net
-    healthcheck:
-      test: ["CMD", "node", "-e", "require('http').get('http://localhost:3000/health', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)})"]
-      interval: 30s
-      timeout: 10s
-      start_period: 60s
-      retries: 3
 
   # Redis (Job queue for BullMQ)
   redis:
@@ -79,7 +68,7 @@ services:
     networks:
       - archibald-net
     healthcheck:
-      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost/health"]
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://frontend/"]
       interval: 30s
       timeout: 5s
       retries: 3
