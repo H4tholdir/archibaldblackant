@@ -6,6 +6,7 @@ import { useAutomaticSync } from "./hooks/useAutomaticSync";
 import { LoginModal } from "./components/LoginModal";
 import { PinSetupWizard } from "./components/PinSetupWizard";
 import { UnlockScreen } from "./components/UnlockScreen";
+import { LiquidLoader } from "./components/LiquidLoader";
 import OrderForm from "./components/OrderForm";
 import OrderStatus from "./components/OrderStatus";
 import OrdersList from "./components/OrdersList";
@@ -51,8 +52,14 @@ function App() {
   // Show loading spinner while checking auth
   if (auth.isLoading) {
     return (
-      <div style={{ textAlign: "center", padding: "2rem" }}>
-        <p>Caricamento...</p>
+      <div style={{
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        minHeight: "100vh",
+        background: "#1a1a1a"
+      }}>
+        <LiquidLoader text="Caricamento" />
       </div>
     );
   }
