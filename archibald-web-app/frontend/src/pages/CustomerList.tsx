@@ -2,7 +2,6 @@ import { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { CustomerCard } from "../components/CustomerCard";
 import type { Customer } from "../types/customer";
-import { useAuth } from "../hooks/useAuth";
 
 interface CustomerFilters {
   search: string;
@@ -19,7 +18,6 @@ interface CustomerListResponse {
 }
 
 export function CustomerList() {
-  const auth = useAuth();
   const navigate = useNavigate();
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [loading, setLoading] = useState(true);
