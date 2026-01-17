@@ -20,7 +20,7 @@ export const config = {
     level: process.env.LOG_LEVEL || "info",
   },
   puppeteer: {
-    headless: process.env.NODE_ENV === "production" ? "new" : false, // Headless in production, visible in dev
+    headless: process.env.NODE_ENV === "production" ? true : false, // Headless in production, visible in dev
     slowMo: process.env.NODE_ENV === "production" ? 0 : 200, // No slowdown in production
     timeout: 60000, // Increased to 60s for slow Archibald responses
   },
