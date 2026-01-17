@@ -26,6 +26,7 @@
   "license": "MIT",
   "dependencies": {
     "@types/better-sqlite3": "^7.6.13",
+    "@types/multer": "^2.0.0",
     "@types/ws": "^8.18.1",
     "better-sqlite3": "^12.5.0",
     "bullmq": "^5.66.4",
@@ -35,10 +36,12 @@
     "helmet": "^7.1.0",
     "ioredis": "^5.9.1",
     "jose": "^6.1.3",
+    "multer": "^2.0.2",
     "prom-client": "^15.1.3",
     "puppeteer": "^22.0.0",
     "winston": "^3.11.0",
     "ws": "^8.19.0",
+    "xlsx": "^0.18.5",
     "zod": "^3.22.4"
   },
   "devDependencies": {

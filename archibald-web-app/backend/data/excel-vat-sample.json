@@ -1,0 +1,124 @@
+{
+  "headers": [
+    "Nome Gruppi",
+    "ID",
+    "Codice Articolo",
+    "Descrizione",
+    "Conf.",
+    "Prezzo di listino unit.",
+    "Prezzo di listino conf.",
+    "IVA"
+  ],
+  "sampleData": [
+    [
+      "Nome Gruppi",
+      "ID",
+      "Codice Articolo",
+      "Descrizione",
+      "Conf.",
+      "Prezzo di listino unit.",
+      "Prezzo di listino conf.",
+      "IVA"
+    ],
+    [
+      "11110 - FRESE PER CAVITA' - ACC",
+      "001627K0",
+      "1.204.005",
+      "FRESA ACC - Rosetta",
+      10,
+      1.9569999999999999,
+      19.57,
+      22
+    ],
+    [
+      "11110 - FRESE PER CAVITA' - ACC",
+      "001628K0",
+      "1.204.006",
+      "FRESA ACC - Rosetta",
+      10,
+      1.9569999999999999,
+      19.57,
+      22
+    ],
+    [
+      "11110 - FRESE PER CAVITA' - ACC",
+      "001629K0",
+      "1.204.007",
+      "FRESA ACC - Rosetta",
+      10,
+      1.9569999999999999,
+      19.57,
+      22
+    ],
+    [
+      "11110 - FRESE PER CAVITA' - ACC",
+      "001630K0",
+      "1.204.008",
+      "FRESA ACC - Rosetta",
+      10,
+      1.9569999999999999,
+      19.57,
+      22
+    ],
+    [
+      "11110 - FRESE PER CAVITA' - ACC",
+      "001631K0",
+      "1.204.009",
+      "FRESA ACC - Rosetta",
+      10,
+      1.9569999999999999,
+      19.57,
+      22
+    ],
+    [
+      "11110 - FRESE PER CAVITA' - ACC",
+      "001632K0",
+      "1.204.010",
+      "FRESA ACC - Rosetta",
+      10,
+      1.9569999999999999,
+      19.57,
+      22
+    ],
+    [
+      "11110 - FRESE PER CAVITA' - ACC",
+      "001633K0",
+      "1.204.012",
+      "FRESA ACC - Rosetta",
+      10,
+      1.9569999999999999,
+      19.57,
+      22
+    ],
+    [
+      "11110 - FRESE PER CAVITA' - ACC",
+      "001634K0",
+      "1.204.014",
+      "FRESA ACC - Rosetta",
+      10,
+      1.9569999999999999,
+      19.57,
+      22
+    ],
+    [
+      "11110 - FRESE PER CAVITA' - ACC",
+      "001635K0",
+      "1.204.016",
+      "FRESA ACC - Rosetta",
+      10,
+      1.9569999999999999,
+      19.57,
+      22
+    ],
+    [
+      "11110 - FRESE PER CAVITA' - ACC",
+      "001636K0",
+      "1.204.018",
+      "FRESA ACC - Rosetta",
+      10,
+      1.9569999999999999,
+      19.57,
+      22
+    ]
+  ]
+}

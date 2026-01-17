@@ -38,6 +38,13 @@ import {
 } from "./metrics";
 import { ProductSyncService } from "./product-sync-service";
 import { PriceSyncService, type PriceSyncProgress } from "./price-sync-service";
+import {
+  uploadExcelVat,
+  getProductPriceHistory,
+  getRecentPriceChanges,
+  getImportHistory,
+  getUnmatchedProducts,
+} from "./price-endpoints";
 import { SyncCheckpointManager } from "./sync-checkpoint";
 import { SessionCleanupJob } from "./session-cleanup-job";
 import { OrderHistoryService } from "./order-history-service";
@@ -1163,10 +1170,9 @@ app.get(
         },
       });
     } catch (error) {
-      logger.error(
-        "Errore API /api/products/sync-session/:sessionId/changes",
-        { error },
-      );
+      logger.error("Errore API /api/products/sync-session/:sessionId/changes", {
+        error,
+      });
 
       res.status(500).json({
         success: false,
@@ -1499,6 +1505,39 @@ app.get("/api/sync/stats", async (req: Request, res: Response<ApiResponse>) => {
     });
   }
 });
+
+// ============================================================================
+// PRICE MANAGEMENT ENDPOINTS
+// ============================================================================
+
+// Upload Excel file with VAT data
+app.post(
+  "/api/prices/import-excel",
+  authenticateJWT,
+  requireAdmin,
+  ...uploadExcelVat,
+);
+
+// Get price change history for a specific product
+app.get(
+  "/api/prices/:productId/history",
+  authenticateJWT,
+  getProductPriceHistory,
+);
+
+// Get recent price changes across all products
+app.get("/api/prices/history/recent", authenticateJWT, getRecentPriceChanges);
+
+// Get Excel import history
+app.get("/api/prices/imports", authenticateJWT, requireAdmin, getImportHistory);
+
+// Get products without VAT
+app.get(
+  "/api/prices/unmatched",
+  authenticateJWT,
+  requireAdmin,
+  getUnmatchedProducts,
+);
 
 // ============================================================================
 // ADAPTIVE TIMEOUT STATS ENDPOINTS
@@ -2230,10 +2269,13 @@ app.post(
         await orderHistoryService.syncFromArchibald(userId);
 
         // Get count of synced orders
-        const syncedOrders = orderHistoryService.orderDb.getOrdersByUser(userId);
+        const syncedOrders =
+          orderHistoryService.orderDb.getOrdersByUser(userId);
         const syncedCount = syncedOrders.length;
 
-        logger.info(`[OrderHistory] Force sync completed for user ${userId}: ${syncedCount} orders`);
+        logger.info(
+          `[OrderHistory] Force sync completed for user ${userId}: ${syncedCount} orders`,
+        );
 
         res.json({
           success: true,
@@ -2298,10 +2340,13 @@ app.post(
         await orderHistoryService.syncFromArchibald(userId);
 
         // Get count of synced orders
-        const syncedOrders = orderHistoryService.orderDb.getOrdersByUser(userId);
+        const syncedOrders =
+          orderHistoryService.orderDb.getOrdersByUser(userId);
         const syncedCount = syncedOrders.length;
 
-        logger.info(`[OrderHistory] Complete sync finished for user ${userId}: ${syncedCount} orders`);
+        logger.info(
+          `[OrderHistory] Complete sync finished for user ${userId}: ${syncedCount} orders`,
+        );
 
         res.json({
           success: true,
