@@ -28,6 +28,7 @@ import {
   CustomerSyncService,
   type SyncProgress,
 } from "./customer-sync-service";
+import { operationTracker } from "./operation-tracker";
 import { ProductDatabase } from "./product-db";
 import { ProductSyncService } from "./product-sync-service";
 import { PriceSyncService, type PriceSyncProgress } from "./price-sync-service";
@@ -196,10 +197,28 @@ wss.on("connection", (ws) => {
 
 // Health check
 app.get("/api/health", (req: Request, res: Response<ApiResponse>) => {
+  const isShuttingDown = operationTracker.isShutdown();
+  const activeOps = operationTracker.getCount();
+
+  if (isShuttingDown) {
+    // Return 503 during drain to signal unhealthy state
+    res.status(503).json({
+      success: false,
+      data: {
+        status: "draining",
+        activeOperations: activeOps,
+        timestamp: new Date().toISOString(),
+        version: "1.0.0",
+      },
+    });
+    return;
+  }
+
   res.json({
     success: true,
     data: {
       status: "healthy",
+      activeOperations: activeOps,
       timestamp: new Date().toISOString(),
       version: "1.0.0",
     },
@@ -1341,98 +1360,101 @@ app.post(
   "/api/orders/create",
   authenticateJWT,
   async (req: AuthRequest, res: Response<ApiResponse<{ jobId: string }>>) => {
-    try {
-      // Extract user info from JWT
-      const userId = req.user!.userId;
-      const username = req.user!.username;
+    // Track this operation for graceful shutdown
+    return operationTracker.track(async () => {
+      try {
+        // Extract user info from JWT
+        const userId = req.user!.userId;
+        const username = req.user!.username;
 
-      // Valida input
-      const orderData = createOrderSchema.parse(req.body) as OrderData;
+        // Valida input
+        const orderData = createOrderSchema.parse(req.body) as OrderData;
 
-      logger.info("📥 API: Ricevuta richiesta creazione ordine", {
-        userId,
-        username,
-        customerName: orderData.customerName,
-        itemsCount: orderData.items.length,
-        items: orderData.items.map((item) => ({
-          name: item.productName || item.articleCode,
-          qty: item.quantity,
-        })),
-      });
+        logger.info("📥 API: Ricevuta richiesta creazione ordine", {
+          userId,
+          username,
+          customerName: orderData.customerName,
+          itemsCount: orderData.items.length,
+          items: orderData.items.map((item) => ({
+            name: item.productName || item.articleCode,
+            qty: item.quantity,
+          })),
+        });
 
-      // Validate package constraints for each item
-      const validationErrors: string[] = [];
-      for (const item of orderData.items) {
-        try {
-          const products = productDb.getProducts(item.articleCode);
-          const product = products.length > 0 ? products[0] : null;
+        // Validate package constraints for each item
+        const validationErrors: string[] = [];
+        for (const item of orderData.items) {
+          try {
+            const products = productDb.getProducts(item.articleCode);
+            const product = products.length > 0 ? products[0] : null;
 
-          if (product) {
-            const validation = productDb.validateQuantity(
-              product,
-              item.quantity,
-            );
+            if (product) {
+              const validation = productDb.validateQuantity(
+                product,
+                item.quantity,
+              );
 
-            if (!validation.valid) {
-              const errorMsg =
-                `Quantity ${item.quantity} is invalid for article ${item.articleCode}` +
-                (product.name ? ` (${product.name})` : "") +
-                `: ${validation.errors.join(", ")}` +
-                (validation.suggestions?.length
-                  ? ` Suggested quantities: ${validation.suggestions.join(", ")}`
-                  : "");
-              validationErrors.push(errorMsg);
+              if (!validation.valid) {
+                const errorMsg =
+                  `Quantity ${item.quantity} is invalid for article ${item.articleCode}` +
+                  (product.name ? ` (${product.name})` : "") +
+                  `: ${validation.errors.join(", ")}` +
+                  (validation.suggestions?.length
+                    ? ` Suggested quantities: ${validation.suggestions.join(", ")}`
+                    : "");
+                validationErrors.push(errorMsg);
+              }
             }
+          } catch (error) {
+            logger.warn("Could not validate product constraints", {
+              articleCode: item.articleCode,
+              error,
+            });
+            // Continue even if product not found in DB - let bot handle it
           }
-        } catch (error) {
-          logger.warn("Could not validate product constraints", {
-            articleCode: item.articleCode,
-            error,
-          });
-          // Continue even if product not found in DB - let bot handle it
         }
-      }
 
-      // If validation errors exist, reject the order
-      if (validationErrors.length > 0) {
-        logger.warn("❌ API: Order rejected due to validation errors", {
-          errors: validationErrors,
+        // If validation errors exist, reject the order
+        if (validationErrors.length > 0) {
+          logger.warn("❌ API: Order rejected due to validation errors", {
+            errors: validationErrors,
+          });
+
+          res.status(400).json({
+            success: false,
+            error: validationErrors.join("; "),
+          });
+          return;
+        }
+
+        // Aggiungi alla coda con userId
+        const job = await queueManager.addOrder(orderData, userId);
+
+        logger.info("✅ API: Ordine aggiunto alla coda con successo", {
+          jobId: job.id,
+          userId,
+          username,
+          itemsCount: orderData.items.length,
         });
 
-        res.status(400).json({
+        res.json({
+          success: true,
+          data: { jobId: job.id! },
+          message:
+            "Ordine aggiunto alla coda. Usa /api/orders/status/:jobId per verificare lo stato",
+        });
+      } catch (error) {
+        logger.error("Errore API /api/orders/create", { error });
+
+        const errorMessage =
+          error instanceof Error ? error.message : "Errore sconosciuto";
+
+        res.status(500).json({
           success: false,
-          error: validationErrors.join("; "),
+          error: errorMessage,
         });
-        return;
       }
-
-      // Aggiungi alla coda con userId
-      const job = await queueManager.addOrder(orderData, userId);
-
-      logger.info("✅ API: Ordine aggiunto alla coda con successo", {
-        jobId: job.id,
-        userId,
-        username,
-        itemsCount: orderData.items.length,
-      });
-
-      res.json({
-        success: true,
-        data: { jobId: job.id! },
-        message:
-          "Ordine aggiunto alla coda. Usa /api/orders/status/:jobId per verificare lo stato",
-      });
-    } catch (error) {
-      logger.error("Errore API /api/orders/create", { error });
-
-      const errorMessage =
-        error instanceof Error ? error.message : "Errore sconosciuto";
-
-      res.status(500).json({
-        success: false,
-        error: errorMessage,
-      });
-    }
+    });
   },
 );
 
@@ -2923,25 +2945,65 @@ server.listen(config.server.port, async () => {
 
 // Graceful shutdown
 process.on("SIGTERM", async () => {
-  logger.info("SIGTERM ricevuto, shutdown graceful...");
+  logger.info("SIGTERM ricevuto, iniziando graceful shutdown...");
+
+  // Drain active operations (max 60s)
+  const drained = await operationTracker.drain();
+
+  if (!drained) {
+    logger.warn(
+      "Force shutdown after timeout, some operations may have been interrupted",
+    );
+  }
+
+  // Stop background services
+  logger.info("Stopping background services...");
   sessionCleanup.stop();
   syncService.stopAutoSync();
   productSyncService.stopAutoSync();
   priceSyncService.stopAutoSync();
+
+  // Shutdown queue manager
+  logger.info("Shutting down queue manager...");
   await queueManager.shutdown();
+
+  // Close databases
+  logger.info("Closing databases...");
   customerDb.close();
   productDb.close();
+
+  logger.info("Graceful shutdown complete");
   process.exit(0);
 });
 
 process.on("SIGINT", async () => {
-  logger.info("SIGINT ricevuto, shutdown graceful...");
+  logger.info("SIGINT ricevuto (Ctrl+C), iniziando graceful shutdown...");
+
+  // Drain active operations (max 60s)
+  const drained = await operationTracker.drain();
+
+  if (!drained) {
+    logger.warn(
+      "Force shutdown after timeout, some operations may have been interrupted",
+    );
+  }
+
+  // Stop background services
+  logger.info("Stopping background services...");
   sessionCleanup.stop();
   syncService.stopAutoSync();
   productSyncService.stopAutoSync();
   priceSyncService.stopAutoSync();
+
+  // Shutdown queue manager
+  logger.info("Shutting down queue manager...");
   await queueManager.shutdown();
+
+  // Close databases
+  logger.info("Closing databases...");
   customerDb.close();
   productDb.close();
+
+  logger.info("Graceful shutdown complete");
   process.exit(0);
 });

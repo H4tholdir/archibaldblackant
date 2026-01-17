@@ -8,6 +8,7 @@ import { PriorityManager } from "./priority-manager";
 import { CustomerSyncService } from "./customer-sync-service";
 import { ProductSyncService } from "./product-sync-service";
 import { PriceSyncService } from "./price-sync-service";
+import { operationTracker } from "./operation-tracker";
 
 /**
  * Job data per la coda ordini
@@ -169,133 +170,136 @@ export class QueueManager {
   private async processOrder(
     job: Job<OrderJobData, OrderJobResult>,
   ): Promise<OrderJobResult> {
-    const startTime = Date.now();
-    const { orderData, userId, username } = job.data;
+    // Track this operation for graceful shutdown
+    return operationTracker.track(async () => {
+      const startTime = Date.now();
+      const { orderData, userId, username } = job.data;
 
-    // Acquisisci il lock per ordini (blocca sync)
-    if (this.onOrderStart) {
-      let acquired = false;
-      let attempts = 0;
-      const maxAttempts = 60; // Max 1 minuto di attesa
+      // Acquisisci il lock per ordini (blocca sync)
+      if (this.onOrderStart) {
+        let acquired = false;
+        let attempts = 0;
+        const maxAttempts = 60; // Max 1 minuto di attesa
 
-      while (!acquired && attempts < maxAttempts) {
-        acquired = this.onOrderStart();
+        while (!acquired && attempts < maxAttempts) {
+          acquired = this.onOrderStart();
+          if (!acquired) {
+            logger.info(
+              `⏳ Attendo rilascio operazione in corso... (tentativo ${attempts + 1}/${maxAttempts})`,
+            );
+            await new Promise((resolve) => setTimeout(resolve, 1000));
+            attempts++;
+          }
+        }
+
         if (!acquired) {
-          logger.info(
-            `⏳ Attendo rilascio operazione in corso... (tentativo ${attempts + 1}/${maxAttempts})`,
+          throw new Error(
+            "Impossibile acquisire il lock per creare l'ordine dopo 60 secondi",
           );
-          await new Promise((resolve) => setTimeout(resolve, 1000));
-          attempts++;
         }
       }
 
-      if (!acquired) {
-        throw new Error(
-          "Impossibile acquisire il lock per creare l'ordine dopo 60 secondi",
-        );
-      }
-    }
-
-    logger.info(`📋 QUEUE: INIZIO processamento ordine`, {
-      jobId: job.id,
-      userId,
-      username,
-      customerName: orderData.customerName,
-      itemsCount: orderData.items.length,
-      items: orderData.items.map((item) => ({
-        name: item.productName || item.articleCode,
-        qty: item.quantity,
-      })),
-    });
-
-    let bot: any = null;
-
-    try {
-      // Pulizia browser zombie prima di crearne uno nuovo
-      await this.cleanupZombieBrowsers();
-
-      // Per gli ordini, usa il bot con browser dedicato (non BrowserPool)
-      // IMPORTANTE: Passa userId per usare password cache, ma il bot creerà browser dedicato
-      logger.info("🔧 Creazione bot con browser dedicato per ordine...");
-
-      const { ArchibaldBot } = await import("./archibald-bot");
-
-      // Create bot with userId to use password cache and per-user sessions
-      // The bot will use BrowserPool by default, but we'll force dedicated browser
-      bot = new ArchibaldBot(userId);
-
-      // WORKAROUND: Force bot to use dedicated browser instead of BrowserPool
-      // by initializing browser directly before calling initialize()
-      await bot.initializeDedicatedBrowser();
-
-      logger.info(
-        `🔐 Using dedicated browser for user ${username} (${userId})`,
-      );
-
-      // Bot already logged in during initializeDedicatedBrowser()
-      // No need to call login() again
-
-      // Aggiorna progress
-      await job.updateProgress(25);
-
-      // Crea l'ordine con priority lock (pausa tutti i servizi di sync)
-      logger.debug(
-        "[QueueManager] Acquiring priority lock for order creation...",
-      );
-      const orderId = await PriorityManager.getInstance().withPriority(
-        async () => {
-          return await bot.createOrder(orderData);
-        },
-      );
-      logger.debug("[QueueManager] Priority lock released");
-
-      // Aggiorna progress
-      await job.updateProgress(100);
-
-      const duration = Date.now() - startTime;
-
-      logger.info(`📋 QUEUE: FINE processamento ordine`, {
-        orderId,
-        duration: `${(duration / 1000).toFixed(2)}s`,
+      logger.info(`📋 QUEUE: INIZIO processamento ordine`, {
         jobId: job.id,
         userId,
         username,
         customerName: orderData.customerName,
         itemsCount: orderData.items.length,
+        items: orderData.items.map((item) => ({
+          name: item.productName || item.articleCode,
+          qty: item.quantity,
+        })),
       });
 
-      return {
-        orderId,
-        duration,
-        timestamp: Date.now(),
-      };
-    } catch (error) {
-      // Mark bot as having error so context will be closed on release
-      if (bot) {
-        (bot as any).hasError = true;
-      }
-      logger.error("Errore durante creazione ordine", {
-        error,
-        jobId: job.id,
-        userId,
-        username,
-        orderData,
-      });
-      throw error;
-    } finally {
-      // Chiudi sempre il browser dedicato
-      if (bot) {
-        logger.info("🧹 Chiusura browser dedicato...");
-        await bot.close().catch((err: unknown) => {
-          logger.error("Errore durante chiusura browser", { error: err });
+      let bot: any = null;
+
+      try {
+        // Pulizia browser zombie prima di crearne uno nuovo
+        await this.cleanupZombieBrowsers();
+
+        // Per gli ordini, usa il bot con browser dedicato (non BrowserPool)
+        // IMPORTANTE: Passa userId per usare password cache, ma il bot creerà browser dedicato
+        logger.info("🔧 Creazione bot con browser dedicato per ordine...");
+
+        const { ArchibaldBot } = await import("./archibald-bot");
+
+        // Create bot with userId to use password cache and per-user sessions
+        // The bot will use BrowserPool by default, but we'll force dedicated browser
+        bot = new ArchibaldBot(userId);
+
+        // WORKAROUND: Force bot to use dedicated browser instead of BrowserPool
+        // by initializing browser directly before calling initialize()
+        await bot.initializeDedicatedBrowser();
+
+        logger.info(
+          `🔐 Using dedicated browser for user ${username} (${userId})`,
+        );
+
+        // Bot already logged in during initializeDedicatedBrowser()
+        // No need to call login() again
+
+        // Aggiorna progress
+        await job.updateProgress(25);
+
+        // Crea l'ordine con priority lock (pausa tutti i servizi di sync)
+        logger.debug(
+          "[QueueManager] Acquiring priority lock for order creation...",
+        );
+        const orderId = await PriorityManager.getInstance().withPriority(
+          async () => {
+            return await bot.createOrder(orderData);
+          },
+        );
+        logger.debug("[QueueManager] Priority lock released");
+
+        // Aggiorna progress
+        await job.updateProgress(100);
+
+        const duration = Date.now() - startTime;
+
+        logger.info(`📋 QUEUE: FINE processamento ordine`, {
+          orderId,
+          duration: `${(duration / 1000).toFixed(2)}s`,
+          jobId: job.id,
+          userId,
+          username,
+          customerName: orderData.customerName,
+          itemsCount: orderData.items.length,
         });
-      }
 
-      // Rilascia il lock degli ordini
-      if (this.onOrderEnd) {
-        this.onOrderEnd();
+        return {
+          orderId,
+          duration,
+          timestamp: Date.now(),
+        };
+      } catch (error) {
+        // Mark bot as having error so context will be closed on release
+        if (bot) {
+          (bot as any).hasError = true;
+        }
+        logger.error("Errore durante creazione ordine", {
+          error,
+          jobId: job.id,
+          userId,
+          username,
+          orderData,
+        });
+        throw error;
+      } finally {
+        // Chiudi sempre il browser dedicato
+        if (bot) {
+          logger.info("🧹 Chiusura browser dedicato...");
+          await bot.close().catch((err: unknown) => {
+            logger.error("Errore durante chiusura browser", { error: err });
+          });
+        }
+
+        // Rilascia il lock degli ordini
+        if (this.onOrderEnd) {
+          this.onOrderEnd();
+        }
       }
-    }
+    });
   }
 
   /**
