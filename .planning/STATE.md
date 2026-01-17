@@ -10,11 +10,11 @@ See: .planning/PROJECT.md (updated 2026-01-11)
 ## Current Position
 
 Phase: 14 of 21 (Sync System Discovery & Mapping)
-Plan: 1 of 4 in current phase
+Plan: 2 of 4 in current phase
 Status: In progress
-Last activity: 2026-01-17 — Completed 14-01-PLAN.md (Customer Sync Analysis)
+Last activity: 2026-01-17 — Completed 14-02-PLAN.md (Product Sync Analysis)
 
-Progress: █░░░░░░░░░ 10% (v2.0: 1/? plans complete, estimate ~10-12 total)
+Progress: ██░░░░░░░░ 20% (v2.0: 2/? plans complete, estimate ~10-12 total)
 
 ## Performance Metrics
 
@@ -41,9 +41,10 @@ Progress: █░░░░░░░░░ 10% (v2.0: 1/? plans complete, estimate
 | 11 | 6 | 250 min | 42 min |
 
 **Recent Trend:**
-- Last 10 plans: 10-06 (46m), 10-07 (521m), 09-01 (2m), 09-02 (15m), 09-03 (15m), 11-01 (120m), 11-02 (5m), 11-03 (35m), 11-04 (45m), 11-05 (15m), 11-06 (30m)
+- Last 10 plans: 09-02 (15m), 09-03 (15m), 11-01 (120m), 11-02 (5m), 11-03 (35m), 11-04 (45m), 11-05 (15m), 11-06 (30m), 14-01 (4m), 14-02 (8m)
 - Phase 9 extremely fast (avg 11m) - leveraging existing Phase 8-07 infrastructure
 - Phase 10 high avg (105m) - includes 521m for Plan 10-07 (heavy login debugging)
+- Phase 14 (discovery) very fast (avg 6m) - analysis + documentation, no code changes
 
 ## Accumulated Context
 
@@ -54,6 +55,11 @@ Recent decisions affecting current work:
 
 | Phase | Decision | Rationale |
 |-------|----------|-----------|
+| 14-02 | Product sync is system-managed (NOT per-user) | Products are shared catalog, scheduler-driven not per-user lifecycle, avoids BrowserPool contention |
+| 14-02 | Legacy ArchibaldBot for product sync (not BrowserPool) | System-wide sync uses system credentials, dedicated bot instance prevents user session conflicts |
+| 14-02 | Quick hash delta optimization (MD5 of first 10 products) | Saves ~3h/day by skipping unchanged syncs, 2-hour delta checks with smart change detection |
+| 14-02 | Image downloads during sync loop (blocking) | Simplicity over performance for MVP, deferred to Phase 16 for background worker optimization |
+| 14-02 | Defer concurrent write testing to Phase 15 | Product+price sync both write to products.db, requires empirical testing not immediate fix |
 | 11-06 | Customer + date matching for invoices (no direct order ID) | Invoice table lacks "ID DI VENDITA" column, match by customerAccountId + date range (invoice after order), most reliable heuristic given Archibald constraints |
 | 11-06 | Different selector for invoice PDF link (div vs td) | DevExpress XAF uses different HTML structure for invoice page (div[id$="_xaf_InvoicePDF"]) vs DDT page (td[id$="_xaf_InvoicePDF"]), discovered via 11-01-RESEARCH.md |
 | 11-06 | PDF download via Puppeteer CDP to /tmp | Chrome DevTools Protocol allows download interception, more reliable than parsing href (server-side PDF generation), temp file cleaned after Buffer read |
@@ -523,6 +529,6 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-01-17 (evening)
-Stopped at: Completed Plan 14-01 (Customer Sync Analysis & Documentation)
-Next: /gsd:execute-plan .planning/phases/14-sync-discovery-mapping/14-02-PLAN.md
+Stopped at: Completed Plan 14-02 (Product Sync Analysis & Documentation)
+Next: /gsd:execute-plan .planning/phases/14-sync-discovery-mapping/14-03-PLAN.md
 Resume file: None
