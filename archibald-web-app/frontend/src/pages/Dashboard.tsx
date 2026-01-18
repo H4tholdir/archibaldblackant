@@ -39,13 +39,13 @@ export function Dashboard() {
 
       try {
         const [targetRes, budgetRes, ordersRes] = await Promise.all([
-          fetch("http://localhost:3000/api/users/me/target", {
+          fetch("/api/users/me/target", {
             headers: { Authorization: `Bearer ${token}` },
           }),
-          fetch("http://localhost:3000/api/metrics/budget", {
+          fetch("/api/metrics/budget", {
             headers: { Authorization: `Bearer ${token}` },
           }),
-          fetch("http://localhost:3000/api/metrics/orders", {
+          fetch("/api/metrics/orders", {
             headers: { Authorization: `Bearer ${token}` },
           }),
         ]);
