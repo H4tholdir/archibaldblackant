@@ -165,12 +165,12 @@ export function Dashboard() {
       <div style={{ marginBottom: "20px" }}>
         <BudgetWidget
           currentBudget={budgetData?.currentBudget ?? 0}
-          targetBudget={targetData.monthlyTarget ?? 0}
-          currency={targetData.currency ?? "EUR"}
-          yearlyTarget={targetData.yearlyTarget ?? 0}
-          bonusInterval={targetData.bonusInterval ?? 75000}
-          bonusAmount={targetData.bonusAmount ?? 5000}
-          commissionRate={targetData.commissionRate ?? 0.18}
+          targetBudget={targetData?.monthlyTarget ?? 0}
+          currency={targetData?.currency ?? "EUR"}
+          yearlyTarget={targetData?.yearlyTarget ?? 0}
+          bonusInterval={targetData?.bonusInterval ?? 75000}
+          bonusAmount={targetData?.bonusAmount ?? 5000}
+          commissionRate={targetData?.commissionRate ?? 0.18}
         />
       </div>
 
@@ -193,15 +193,15 @@ export function Dashboard() {
         {/* Commissions Widget */}
         <CommissionsWidget
           currentBudget={budgetData?.currentBudget ?? 0}
-          yearlyTarget={targetData.yearlyTarget ?? 0}
-          commissionRate={targetData.commissionRate ?? 0.18}
-          bonusAmount={targetData.bonusAmount ?? 5000}
-          bonusInterval={targetData.bonusInterval ?? 75000}
-          extraBudgetInterval={targetData.extraBudgetInterval ?? 50000}
-          extraBudgetReward={targetData.extraBudgetReward ?? 6000}
-          monthlyAdvance={targetData.monthlyAdvance ?? 3500}
-          currency={targetData.currency ?? "EUR"}
-          hideCommissions={targetData.hideCommissions ?? false}
+          yearlyTarget={targetData?.yearlyTarget ?? 0}
+          commissionRate={targetData?.commissionRate ?? 0.18}
+          bonusAmount={targetData?.bonusAmount ?? 5000}
+          bonusInterval={targetData?.bonusInterval ?? 75000}
+          extraBudgetInterval={targetData?.extraBudgetInterval ?? 50000}
+          extraBudgetReward={targetData?.extraBudgetReward ?? 6000}
+          monthlyAdvance={targetData?.monthlyAdvance ?? 3500}
+          currency={targetData?.currency ?? "EUR"}
+          hideCommissions={targetData?.hideCommissions ?? false}
         />
       </div>
 
