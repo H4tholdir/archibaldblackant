@@ -684,6 +684,53 @@ app.delete(
   },
 );
 
+// Get current user's target
+app.get("/api/users/me/target", authenticateJWT, (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user!.userId;
+    const userDb = UserDatabase.getInstance();
+    const target = userDb.getUserTarget(userId);
+
+    if (!target) {
+      return res.status(404).json({ error: "User not found" });
+    }
+
+    res.json(target);
+  } catch (error) {
+    logger.error("Error getting user target", { error });
+    res.status(500).json({ error: "Error getting user target" });
+  }
+});
+
+// Update current user's target
+app.put("/api/users/me/target", authenticateJWT, (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user!.userId;
+    const { monthlyTarget, currency } = req.body;
+
+    // Validation
+    if (typeof monthlyTarget !== "number" || monthlyTarget < 0) {
+      return res.status(400).json({ error: "monthlyTarget must be a non-negative number" });
+    }
+    if (typeof currency !== "string" || currency.length !== 3) {
+      return res.status(400).json({ error: "currency must be a 3-letter ISO code (e.g., EUR)" });
+    }
+
+    const userDb = UserDatabase.getInstance();
+    const success = userDb.updateUserTarget(userId, monthlyTarget, currency);
+
+    if (!success) {
+      return res.status(404).json({ error: "User not found" });
+    }
+
+    logger.info("[API] User target updated", { userId, monthlyTarget, currency });
+    res.json({ monthlyTarget, currency, targetUpdatedAt: new Date().toISOString() });
+  } catch (error) {
+    logger.error("Error updating user target", { error });
+    res.status(500).json({ error: "Error updating user target" });
+  }
+});
+
 // Get customers endpoint (legge dal database locale)
 app.get("/api/customers", (req: Request, res: Response<ApiResponse>) => {
   try {
