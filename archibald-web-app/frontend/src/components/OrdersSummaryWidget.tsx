@@ -1,3 +1,5 @@
+import { useNavigate } from "react-router-dom";
+
 interface OrdersSummaryWidgetProps {
   todayCount: number;
   weekCount: number;
@@ -10,6 +12,8 @@ interface SummaryCardProps {
   borderColor: string;
   trend?: string; // e.g., "+15%" or "-8%"
   trendDirection?: "up" | "down" | "neutral";
+  onClick?: () => void;
+  ariaLabel?: string;
 }
 
 function SummaryCard({
@@ -18,6 +22,8 @@ function SummaryCard({
   borderColor,
   trend,
   trendDirection = "neutral",
+  onClick,
+  ariaLabel,
 }: SummaryCardProps) {
   const trendIcon =
     trendDirection === "up" ? "↑" : trendDirection === "down" ? "↓" : "→";
@@ -30,6 +36,16 @@ function SummaryCard({
 
   return (
     <div
+      role="button"
+      tabIndex={0}
+      aria-label={ariaLabel}
+      onClick={onClick}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          onClick?.();
+        }
+      }}
       style={{
         background: "#f8f9fa",
         borderLeft: `4px solid ${borderColor}`,
@@ -47,6 +63,13 @@ function SummaryCard({
       onMouseLeave={(e) => {
         e.currentTarget.style.transform = "scale(1)";
         e.currentTarget.style.boxShadow = "none";
+      }}
+      onMouseDown={(e) => {
+        // Active state feedback on click
+        e.currentTarget.style.background = "#e9ecef";
+      }}
+      onMouseUp={(e) => {
+        e.currentTarget.style.background = "#f8f9fa";
       }}
     >
       {/* Count */}
@@ -93,6 +116,21 @@ export function OrdersSummaryWidget({
   weekCount,
   monthCount,
 }: OrdersSummaryWidgetProps) {
+  const navigate = useNavigate();
+
+  // TODO Phase 17: OrderHistory should read filter query param and apply date range
+  const handleTodayClick = () => {
+    navigate("/orders?filter=today");
+  };
+
+  const handleWeekClick = () => {
+    navigate("/orders?filter=week");
+  };
+
+  const handleMonthClick = () => {
+    navigate("/orders?filter=month");
+  };
+
   return (
     <div
       style={{
@@ -129,6 +167,8 @@ export function OrdersSummaryWidget({
           borderColor="#3498db"
           trend="+2"
           trendDirection="up"
+          onClick={handleTodayClick}
+          ariaLabel="Visualizza ordini di oggi"
         />
 
         {/* Card 2: Questa Settimana */}
@@ -138,6 +178,8 @@ export function OrdersSummaryWidget({
           borderColor="#27ae60"
           trend="+15%"
           trendDirection="up"
+          onClick={handleWeekClick}
+          ariaLabel="Visualizza ordini della settimana"
         />
 
         {/* Card 3: Questo Mese */}
@@ -147,6 +189,8 @@ export function OrdersSummaryWidget({
           borderColor="#9b59b6"
           trend="-8%"
           trendDirection="down"
+          onClick={handleMonthClick}
+          ariaLabel="Visualizza ordini del mese"
         />
       </div>
 
