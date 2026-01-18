@@ -28,6 +28,7 @@ import { CustomerList } from "./pages/CustomerList";
 import { CustomerEdit } from "./pages/CustomerEdit";
 import { ArticoliList } from "./pages/ArticoliList";
 import { Dashboard } from "./pages/Dashboard";
+import { ProfilePage } from "./pages/ProfilePage";
 import { DashboardNav } from "./components/DashboardNav";
 import { UnifiedSyncProgress } from "./components/UnifiedSyncProgress";
 
@@ -414,6 +415,26 @@ function AppRouter() {
               <AppHeader />
               <main className="app-main" style={{ padding: "0" }}>
                 <ArticoliList />
+              </main>
+              <footer className="app-footer">
+                <p>v1.0.0 • Fresis Team</p>
+              </footer>
+            </div>
+          }
+        />
+
+        {/* Profile route */}
+        <Route
+          path="/profile"
+          element={
+            <div
+              className="app"
+              style={{ marginTop: isOffline ? "64px" : "0" }}
+            >
+              <SyncBanner />
+              <AppHeader />
+              <main className="app-main" style={{ padding: "0" }}>
+                <ProfilePage />
               </main>
               <footer className="app-footer">
                 <p>v1.0.0 • Fresis Team</p>
