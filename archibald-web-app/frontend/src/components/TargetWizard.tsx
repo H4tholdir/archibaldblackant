@@ -39,10 +39,6 @@ export function TargetWizard({ isOpen, onComplete }: TargetWizardProps) {
     }).format(amount);
   };
 
-  const formatPercent = (rate: number) => {
-    return `${(rate * 100).toFixed(0)}%`;
-  };
-
   const handleConfirm = () => {
     const config = {
       yearlyTarget: parseFloat(yearlyTarget),
