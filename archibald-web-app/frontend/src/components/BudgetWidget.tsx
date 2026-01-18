@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 
 interface BudgetWidgetProps {
   currentBudget: number; // Current month's orders total
@@ -11,6 +12,7 @@ export function BudgetWidget({
   targetBudget,
   currency = "EUR",
 }: BudgetWidgetProps) {
+  const navigate = useNavigate();
   const [animatedProgress, setAnimatedProgress] = useState(0);
 
   // Calculate progress percentage
@@ -99,22 +101,46 @@ export function BudgetWidget({
       {/* Header */}
       <div
         style={{
-          fontSize: "18px",
-          fontWeight: "bold",
-          marginBottom: "15px",
-          color: "#2c3e50",
           display: "flex",
+          justifyContent: "space-between",
           alignItems: "center",
-          gap: "8px",
+          marginBottom: "15px",
         }}
       >
-        Budget Mensile
-        <span
-          style={{ fontSize: "14px", color: "#7f8c8d", fontWeight: "normal" }}
-          title="Progressi vs target mensile"
+        <div
+          style={{
+            fontSize: "18px",
+            fontWeight: "bold",
+            color: "#2c3e50",
+            display: "flex",
+            alignItems: "center",
+            gap: "8px",
+          }}
         >
-          ℹ️
-        </span>
+          Budget Mensile
+          <span
+            style={{ fontSize: "14px", color: "#7f8c8d", fontWeight: "normal" }}
+            title="Progressi vs target mensile"
+          >
+            ℹ️
+          </span>
+        </div>
+        <button
+          onClick={() => navigate("/profile")}
+          style={{
+            backgroundColor: "transparent",
+            border: "none",
+            color: "#7f8c8d",
+            fontSize: "14px",
+            cursor: "pointer",
+            textDecoration: "underline",
+            transition: "color 0.2s",
+          }}
+          onMouseEnter={(e) => (e.currentTarget.style.color = "#3498db")}
+          onMouseLeave={(e) => (e.currentTarget.style.color = "#7f8c8d")}
+        >
+          Modifica target
+        </button>
       </div>
 
       {/* Stats Section - 3 columns */}
