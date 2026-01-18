@@ -28,7 +28,7 @@ None (full-stack web app con pattern standard)
 - [x] **Phase 5: Order Submission** - Invio ordine ottimizzato con tracking ✅ COMPLETE (goals achieved via other phases)
 - [x] **Phase 14: Fix IndexedDB Critical Error** - Risolvere errore IDBObjectStore 'put' ✅ COMPLETE
 - [x] **Phase 15: Dashboard Homepage UI** - Layout, budget widgets, visualizzazioni progresso ✅ COMPLETE
-- [ ] **Phase 16: Target Wizard & Setup** - Wizard setup iniziale + modifica profilo (2/4 plans)
+- [x] **Phase 16: Target Wizard & Setup** - Wizard setup iniziale + modifica profilo ✅ COMPLETE
 - [ ] **Phase 17: Dashboard Metrics Backend** - API budget, ordini, progressi
 - [ ] **Phase 18: Customers Sync Analysis & Optimization** - Analisi completa + background + manual
 - [ ] **Phase 19: Products Sync Analysis & Optimization** - Analisi + background + manual + images
@@ -83,16 +83,17 @@ Plans:
 - [x] 15-03: Orders Summary Widget (temporal breakdown, clickable navigation) — 20min
 - [x] 15-04: Target Visualization Widget (circular chart, motivational messages) — 25min
 
-#### Phase 16: Target Wizard & Setup
+#### Phase 16: Target Wizard & Setup ✅
 **Goal**: Wizard setup iniziale target agente (obbligatorio primo accesso) + UI modifica da profilo
 **Depends on**: Phase 15
 **Research**: Unlikely (form wizard pattern, localStorage persistence - established patterns)
-**Plans**: 3/4 complete
+**Plans**: 4/4 complete
 
 Plans:
 - [x] 16-01: Backend Storage & API (monthlyTarget, currency, REST endpoints) — 21min
 - [x] 16-02: First-Time Wizard UI (3-step onboarding modal, banking app UX) — 51min
 - [x] 16-03: Profile Target Editor (ProfilePage component, /profile route, Profilo nav link) — 2min
+- [x] 16-04: Dashboard Integration & Real Data (fetch target API, replace mock data, Modifica target link) — 3min
 
 #### Phase 17: Dashboard Metrics Backend
 **Goal**: API backend per metriche dashboard (budget, ordini mensili, progressi vs target)
