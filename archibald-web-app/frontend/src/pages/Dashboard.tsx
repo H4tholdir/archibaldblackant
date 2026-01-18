@@ -2,7 +2,6 @@ import { useState, useEffect } from "react";
 import { useAuth } from "../hooks/useAuth";
 import { BudgetWidget } from "../components/BudgetWidget";
 import { OrdersSummaryWidget } from "../components/OrdersSummaryWidget";
-import { TargetVisualizationWidget } from "../components/TargetVisualizationWidget";
 import { CommissionsWidget } from "../components/CommissionsWidget";
 
 export function Dashboard() {
@@ -57,7 +56,7 @@ export function Dashboard() {
         } else {
           console.error(
             "[Dashboard] Failed to load target:",
-            await targetRes.text()
+            await targetRes.text(),
           );
         }
 
@@ -70,7 +69,7 @@ export function Dashboard() {
         } else {
           console.error(
             "[Dashboard] Failed to load budget metrics:",
-            await budgetRes.text()
+            await budgetRes.text(),
           );
         }
 
@@ -84,7 +83,7 @@ export function Dashboard() {
         } else {
           console.error(
             "[Dashboard] Failed to load order metrics:",
-            await ordersRes.text()
+            await ordersRes.text(),
           );
         }
       } catch (error) {
@@ -151,7 +150,9 @@ export function Dashboard() {
         }}
       >
         <div>
-          <h1 style={{ margin: "0 0 5px 0", fontSize: "28px", fontWeight: "600" }}>
+          <h1
+            style={{ margin: "0 0 5px 0", fontSize: "28px", fontWeight: "600" }}
+          >
             Dashboard
           </h1>
           <p style={{ margin: 0, color: "#666", fontSize: "14px" }}>
@@ -160,7 +161,20 @@ export function Dashboard() {
         </div>
       </div>
 
-      {/* Widget Grid */}
+      {/* Hero Widget - Full Width Budget */}
+      <div style={{ marginBottom: "20px" }}>
+        <BudgetWidget
+          currentBudget={budgetData?.currentBudget ?? 0}
+          targetBudget={targetData.monthlyTarget}
+          currency={targetData.currency}
+          yearlyTarget={targetData.yearlyTarget}
+          bonusInterval={targetData.bonusInterval}
+          bonusAmount={targetData.bonusAmount}
+          commissionRate={targetData.commissionRate}
+        />
+      </div>
+
+      {/* Secondary Widgets Grid */}
       <div
         style={{
           display: "grid",
@@ -169,13 +183,6 @@ export function Dashboard() {
         }}
         className="dashboard-grid"
       >
-        {/* Budget Widget */}
-        <BudgetWidget
-          currentBudget={budgetData?.currentBudget ?? 0}
-          targetBudget={targetData.monthlyTarget}
-          currency={targetData.currency}
-        />
-
         {/* Orders Summary Widget */}
         <OrdersSummaryWidget
           todayCount={orderMetrics?.todayCount ?? 0}
@@ -183,7 +190,7 @@ export function Dashboard() {
           monthCount={orderMetrics?.monthCount ?? 0}
         />
 
-        {/* Commissions Widget (NEW) */}
+        {/* Commissions Widget */}
         <CommissionsWidget
           currentBudget={budgetData?.currentBudget ?? 0}
           yearlyTarget={targetData.yearlyTarget}
@@ -195,16 +202,6 @@ export function Dashboard() {
           monthlyAdvance={targetData.monthlyAdvance}
           currency={targetData.currency}
           hideCommissions={targetData.hideCommissions}
-        />
-
-        {/* Target Visualization Widget */}
-        <TargetVisualizationWidget
-          currentProgress={budgetData?.progress ?? 0}
-          targetDescription="Target Mensile"
-          periodLabel={new Date().toLocaleDateString("it-IT", {
-            month: "long",
-            year: "numeric",
-          })}
         />
       </div>
 

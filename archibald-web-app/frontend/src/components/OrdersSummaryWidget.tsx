@@ -9,9 +9,8 @@ interface OrdersSummaryWidgetProps {
 interface SummaryCardProps {
   label: string;
   count: number;
-  borderColor: string;
-  trend?: string; // e.g., "+15%" or "-8%"
-  trendDirection?: "up" | "down" | "neutral";
+  icon: string;
+  color: string;
   onClick?: () => void;
   ariaLabel?: string;
 }
@@ -19,21 +18,11 @@ interface SummaryCardProps {
 function SummaryCard({
   label,
   count,
-  borderColor,
-  trend,
-  trendDirection = "neutral",
+  icon,
+  color,
   onClick,
   ariaLabel,
 }: SummaryCardProps) {
-  const trendIcon =
-    trendDirection === "up" ? "↑" : trendDirection === "down" ? "↓" : "→";
-  const trendColor =
-    trendDirection === "up"
-      ? "#27ae60"
-      : trendDirection === "down"
-        ? "#e74c3c"
-        : "#7f8c8d";
-
   return (
     <div
       role="button"
@@ -47,37 +36,63 @@ function SummaryCard({
         }
       }}
       style={{
-        background: "#f8f9fa",
-        borderLeft: `4px solid ${borderColor}`,
-        borderRadius: "8px",
-        padding: "15px",
+        background: "#fff",
+        borderRadius: "12px",
+        padding: "20px",
         cursor: "pointer",
-        transition: "all 0.2s ease",
+        transition: "all 0.3s ease",
         flex: 1,
         minWidth: "150px",
+        border: `2px solid ${color}`,
+        position: "relative",
+        overflow: "hidden",
       }}
       onMouseEnter={(e) => {
-        e.currentTarget.style.transform = "scale(1.02)";
-        e.currentTarget.style.boxShadow = "0 4px 12px rgba(0,0,0,0.15)";
+        e.currentTarget.style.transform = "translateY(-4px)";
+        e.currentTarget.style.boxShadow = `0 8px 20px ${color}40`;
       }}
       onMouseLeave={(e) => {
-        e.currentTarget.style.transform = "scale(1)";
+        e.currentTarget.style.transform = "translateY(0)";
         e.currentTarget.style.boxShadow = "none";
       }}
-      onMouseDown={(e) => {
-        // Active state feedback on click
-        e.currentTarget.style.background = "#e9ecef";
-      }}
-      onMouseUp={(e) => {
-        e.currentTarget.style.background = "#f8f9fa";
-      }}
     >
+      {/* Background Icon */}
+      <div
+        style={{
+          position: "absolute",
+          top: "-10px",
+          right: "-10px",
+          fontSize: "80px",
+          opacity: 0.08,
+        }}
+      >
+        {icon}
+      </div>
+
+      {/* Icon Badge */}
+      <div
+        style={{
+          width: "48px",
+          height: "48px",
+          borderRadius: "12px",
+          background: `${color}15`,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          fontSize: "24px",
+          marginBottom: "15px",
+        }}
+      >
+        {icon}
+      </div>
+
       {/* Count */}
       <div
         style={{
-          fontSize: "32px",
+          fontSize: "36px",
           fontWeight: "bold",
-          color: "#2c3e50",
+          color: color,
+          marginBottom: "8px",
         }}
       >
         {count}
@@ -88,25 +103,11 @@ function SummaryCard({
         style={{
           fontSize: "14px",
           color: "#7f8c8d",
-          marginTop: "5px",
+          fontWeight: "600",
         }}
       >
         {label}
       </div>
-
-      {/* Trend (optional) */}
-      {trend && (
-        <div
-          style={{
-            fontSize: "12px",
-            marginTop: "5px",
-            color: trendColor,
-            fontWeight: "bold",
-          }}
-        >
-          {trendIcon} {trend}
-        </div>
-      )}
     </div>
   );
 }
@@ -118,7 +119,6 @@ export function OrdersSummaryWidget({
 }: OrdersSummaryWidgetProps) {
   const navigate = useNavigate();
 
-  // TODO Phase 17: OrderHistory should read filter query param and apply date range
   const handleTodayClick = () => {
     navigate("/orders?filter=today");
   };
@@ -135,21 +135,41 @@ export function OrdersSummaryWidget({
     <div
       style={{
         background: "#fff",
-        borderRadius: "10px",
-        padding: "20px",
-        boxShadow: "0 2px 8px rgba(0,0,0,0.1)",
+        borderRadius: "12px",
+        padding: "25px",
+        boxShadow: "0 2px 12px rgba(0,0,0,0.08)",
       }}
     >
       {/* Header */}
       <div
         style={{
-          fontSize: "18px",
-          fontWeight: "bold",
-          marginBottom: "15px",
-          color: "#2c3e50",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          marginBottom: "20px",
         }}
       >
-        Ordini Recenti
+        <div>
+          <h3
+            style={{
+              margin: "0 0 5px 0",
+              fontSize: "20px",
+              fontWeight: "bold",
+              color: "#2c3e50",
+            }}
+          >
+            📦 Ordini Recenti
+          </h3>
+          <p
+            style={{
+              margin: 0,
+              fontSize: "13px",
+              color: "#7f8c8d",
+            }}
+          >
+            Panoramica temporale
+          </p>
+        </div>
       </div>
 
       {/* Summary Cards Container */}
@@ -164,9 +184,8 @@ export function OrdersSummaryWidget({
         <SummaryCard
           label="Oggi"
           count={todayCount}
-          borderColor="#3498db"
-          trend="+2"
-          trendDirection="up"
+          icon="⚡"
+          color="#3498db"
           onClick={handleTodayClick}
           ariaLabel="Visualizza ordini di oggi"
         />
@@ -175,9 +194,8 @@ export function OrdersSummaryWidget({
         <SummaryCard
           label="Questa Settimana"
           count={weekCount}
-          borderColor="#27ae60"
-          trend="+15%"
-          trendDirection="up"
+          icon="📊"
+          color="#27ae60"
           onClick={handleWeekClick}
           ariaLabel="Visualizza ordini della settimana"
         />
@@ -186,9 +204,8 @@ export function OrdersSummaryWidget({
         <SummaryCard
           label="Questo Mese"
           count={monthCount}
-          borderColor="#9b59b6"
-          trend="-8%"
-          trendDirection="down"
+          icon="📈"
+          color="#9b59b6"
           onClick={handleMonthClick}
           ariaLabel="Visualizza ordini del mese"
         />
