@@ -16,8 +16,17 @@ export interface User {
   lastOrderSyncAt?: number | null;
   lastCustomerSyncAt?: number | null;
   monthlyTarget: number;
+  yearlyTarget: number;
   currency: string;
   targetUpdatedAt: string | null;
+  // Commission configuration
+  commissionRate: number;
+  bonusAmount: number;
+  bonusInterval: number;
+  extraBudgetInterval: number;
+  extraBudgetReward: number;
+  monthlyAdvance: number;
+  hideCommissions: boolean;
 }
 
 /**
@@ -74,6 +83,22 @@ export class UserDatabase {
       logger.info("[UserDatabase] Migrated to schema v2 (target fields)");
     }
 
+    if (currentVersion < 3) {
+      // Migrate to version 3: add commission configuration fields
+      this.db.exec(`
+        ALTER TABLE users ADD COLUMN yearlyTarget REAL DEFAULT 0;
+        ALTER TABLE users ADD COLUMN commissionRate REAL DEFAULT 0.18;
+        ALTER TABLE users ADD COLUMN bonusAmount REAL DEFAULT 5000;
+        ALTER TABLE users ADD COLUMN bonusInterval REAL DEFAULT 75000;
+        ALTER TABLE users ADD COLUMN extraBudgetInterval REAL DEFAULT 50000;
+        ALTER TABLE users ADD COLUMN extraBudgetReward REAL DEFAULT 6000;
+        ALTER TABLE users ADD COLUMN monthlyAdvance REAL DEFAULT 3500;
+        ALTER TABLE users ADD COLUMN hideCommissions INTEGER DEFAULT 0;
+        PRAGMA user_version = 3;
+      `);
+      logger.info("[UserDatabase] Migrated to schema v3 (commission fields)");
+    }
+
     logger.info("User database schema initialized");
   }
 
@@ -94,14 +119,27 @@ export class UserDatabase {
       createdAt: Date.now(),
       lastLoginAt: null,
       monthlyTarget: 0,
+      yearlyTarget: 0,
       currency: "EUR",
       targetUpdatedAt: null,
+      commissionRate: 0.18,
+      bonusAmount: 5000,
+      bonusInterval: 75000,
+      extraBudgetInterval: 50000,
+      extraBudgetReward: 6000,
+      monthlyAdvance: 3500,
+      hideCommissions: false,
     };
 
     try {
       const stmt = this.db.prepare(`
-        INSERT INTO users (id, username, fullName, role, whitelisted, createdAt, lastLoginAt, monthlyTarget, currency, targetUpdatedAt)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO users (
+          id, username, fullName, role, whitelisted, createdAt, lastLoginAt,
+          monthlyTarget, yearlyTarget, currency, targetUpdatedAt,
+          commissionRate, bonusAmount, bonusInterval,
+          extraBudgetInterval, extraBudgetReward, monthlyAdvance, hideCommissions
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `);
 
       stmt.run(
@@ -113,8 +151,16 @@ export class UserDatabase {
         user.createdAt,
         user.lastLoginAt,
         user.monthlyTarget,
+        user.yearlyTarget,
         user.currency,
         user.targetUpdatedAt,
+        user.commissionRate,
+        user.bonusAmount,
+        user.bonusInterval,
+        user.extraBudgetInterval,
+        user.extraBudgetReward,
+        user.monthlyAdvance,
+        user.hideCommissions ? 1 : 0,
       );
 
       logger.info("User created", {
@@ -296,8 +342,16 @@ export class UserDatabase {
       lastOrderSyncAt: row.lastOrderSyncAt || null,
       lastCustomerSyncAt: row.lastCustomerSyncAt || null,
       monthlyTarget: row.monthlyTarget || 0,
+      yearlyTarget: row.yearlyTarget || 0,
       currency: row.currency || "EUR",
       targetUpdatedAt: row.targetUpdatedAt || null,
+      commissionRate: row.commissionRate || 0.18,
+      bonusAmount: row.bonusAmount || 5000,
+      bonusInterval: row.bonusInterval || 75000,
+      extraBudgetInterval: row.extraBudgetInterval || 50000,
+      extraBudgetReward: row.extraBudgetReward || 6000,
+      monthlyAdvance: row.monthlyAdvance || 3500,
+      hideCommissions: row.hideCommissions === 1,
     };
   }
 
@@ -373,29 +427,85 @@ export class UserDatabase {
   }
 
   /**
-   * Get user's target
+   * Get user's target and commission config
    */
-  getUserTarget(userId: string): { monthlyTarget: number; currency: string; targetUpdatedAt: string | null } | null {
+  getUserTarget(userId: string): {
+    monthlyTarget: number;
+    yearlyTarget: number;
+    currency: string;
+    targetUpdatedAt: string | null;
+    commissionRate: number;
+    bonusAmount: number;
+    bonusInterval: number;
+    extraBudgetInterval: number;
+    extraBudgetReward: number;
+    monthlyAdvance: number;
+    hideCommissions: boolean;
+  } | null {
     const user = this.getUserById(userId);
     if (!user) return null;
     return {
       monthlyTarget: user.monthlyTarget,
+      yearlyTarget: user.yearlyTarget,
       currency: user.currency,
-      targetUpdatedAt: user.targetUpdatedAt
+      targetUpdatedAt: user.targetUpdatedAt,
+      commissionRate: user.commissionRate,
+      bonusAmount: user.bonusAmount,
+      bonusInterval: user.bonusInterval,
+      extraBudgetInterval: user.extraBudgetInterval,
+      extraBudgetReward: user.extraBudgetReward,
+      monthlyAdvance: user.monthlyAdvance,
+      hideCommissions: user.hideCommissions,
     };
   }
 
   /**
-   * Update user's target
+   * Update user's target and commission config
    */
-  updateUserTarget(userId: string, monthlyTarget: number, currency: string): boolean {
+  updateUserTarget(
+    userId: string,
+    yearlyTarget: number,
+    currency: string,
+    commissionRate: number,
+    bonusAmount: number,
+    bonusInterval: number,
+    extraBudgetInterval: number,
+    extraBudgetReward: number,
+    monthlyAdvance: number,
+    hideCommissions: boolean
+  ): boolean {
+    const monthlyTarget = Math.round(yearlyTarget / 12);
     const stmt = this.db.prepare(`
       UPDATE users
-      SET monthlyTarget = ?, currency = ?, targetUpdatedAt = ?
+      SET
+        monthlyTarget = ?,
+        yearlyTarget = ?,
+        currency = ?,
+        targetUpdatedAt = ?,
+        commissionRate = ?,
+        bonusAmount = ?,
+        bonusInterval = ?,
+        extraBudgetInterval = ?,
+        extraBudgetReward = ?,
+        monthlyAdvance = ?,
+        hideCommissions = ?
       WHERE id = ?
     `);
     const now = new Date().toISOString();
-    const result = stmt.run(monthlyTarget, currency, now, userId);
+    const result = stmt.run(
+      monthlyTarget,
+      yearlyTarget,
+      currency,
+      now,
+      commissionRate,
+      bonusAmount,
+      bonusInterval,
+      extraBudgetInterval,
+      extraBudgetReward,
+      monthlyAdvance,
+      hideCommissions ? 1 : 0,
+      userId
+    );
     return result.changes > 0;
   }
 
