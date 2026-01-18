@@ -70,16 +70,18 @@ See phases 1-13 below for complete details of v1.0 milestone.
 Plans:
 - [x] 14-01: IndexedDB Error Audit & Fix (sanitize undefined fields, structured logging) — 8min
 
-#### Phase 15: Dashboard Homepage UI
+#### Phase 15: Dashboard Homepage UI ✅ COMPLETE
 **Goal**: Creare layout homepage dashboard con budget widgets e visualizzazioni progresso motivazionali
 **Depends on**: Phase 14
 **Research**: Unlikely (React components with existing patterns, UI libraries already in stack)
-**Plans**: 3/TBD
+**Plans**: 4/4
+**Completed**: 2026-01-18
 
 Plans:
 - [x] 15-01: Homepage Layout & Navigation (Dashboard route, DashboardNav global, cleanup) — 45min
 - [x] 15-02: Budget Progress Widget (color-coded progress bar, status badge) — 15min
 - [x] 15-03: Orders Summary Widget (temporal breakdown, clickable navigation) — 20min
+- [x] 15-04: Target Visualization Widget (circular chart, motivational messages) — 25min
 
 #### Phase 16: Target Wizard & Setup
 **Goal**: Wizard setup iniziale target agente (obbligatorio primo accesso) + UI modifica da profilo
@@ -209,7 +211,7 @@ Plans:
 | Phase | Milestone | Plans Complete | Status | Completed |
 |-------|-----------|----------------|--------|-----------|
 | 14. Fix IndexedDB Critical Error | v2.0 | 1/1 | Complete | 2026-01-18 |
-| 15. Dashboard Homepage UI | v2.0 | 3/? | In progress | - |
+| 15. Dashboard Homepage UI | v2.0 | 4/4 | Complete | 2026-01-18 |
 | 16. Target Wizard & Setup | v2.0 | 0/? | Not started | - |
 | 17. Dashboard Metrics Backend | v2.0 | 0/? | Not started | - |
 | 18. Customers Sync Analysis & Optimization | v2.0 | 0/? | Not started | - |
