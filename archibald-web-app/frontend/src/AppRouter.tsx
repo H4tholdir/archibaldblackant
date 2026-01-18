@@ -71,7 +71,7 @@ function AppRouter() {
       }
 
       try {
-        const response = await fetch("http://localhost:3000/api/users/me/target", {
+        const response = await fetch("/api/users/me/target", {
           headers: { Authorization: `Bearer ${auth.token}` },
         });
 
@@ -105,7 +105,7 @@ function AppRouter() {
     if (!token) return;
 
     try {
-      const response = await fetch("http://localhost:3000/api/users/me/target", {
+      const response = await fetch("/api/users/me/target", {
         method: "PUT",
         headers: {
           Authorization: `Bearer ${token}`,

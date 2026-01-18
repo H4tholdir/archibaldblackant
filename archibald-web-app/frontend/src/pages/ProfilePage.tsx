@@ -56,12 +56,9 @@ export function ProfilePage() {
       }
 
       try {
-        const response = await fetch(
-          "http://localhost:3000/api/users/me/target",
-          {
-            headers: { Authorization: `Bearer ${token}` },
-          }
-        );
+        const response = await fetch("/api/users/me/target", {
+          headers: { Authorization: `Bearer ${token}` },
+        });
 
         if (response.ok) {
           const data: TargetData = await response.json();
@@ -180,27 +177,24 @@ export function ProfilePage() {
     const token = localStorage.getItem("archibald_jwt");
 
     try {
-      const response = await fetch(
-        "http://localhost:3000/api/users/me/target",
-        {
-          method: "PUT",
-          headers: {
-            Authorization: `Bearer ${token}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            yearlyTarget: parseFloat(editYearlyTarget),
-            currency: editCurrency,
-            commissionRate: parseFloat(editCommissionRate) / 100,
-            bonusAmount: parseFloat(editBonusAmount),
-            bonusInterval: parseFloat(editBonusInterval),
-            extraBudgetInterval: parseFloat(editExtraBudgetInterval),
-            extraBudgetReward: parseFloat(editExtraBudgetReward),
-            monthlyAdvance: parseFloat(editMonthlyAdvance),
-            hideCommissions: editHideCommissions,
-          }),
-        }
-      );
+      const response = await fetch("/api/users/me/target", {
+        method: "PUT",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          yearlyTarget: parseFloat(editYearlyTarget),
+          currency: editCurrency,
+          commissionRate: parseFloat(editCommissionRate) / 100,
+          bonusAmount: parseFloat(editBonusAmount),
+          bonusInterval: parseFloat(editBonusInterval),
+          extraBudgetInterval: parseFloat(editExtraBudgetInterval),
+          extraBudgetReward: parseFloat(editExtraBudgetReward),
+          monthlyAdvance: parseFloat(editMonthlyAdvance),
+          hideCommissions: editHideCommissions,
+        }),
+      });
 
       if (response.ok) {
         const data: TargetData = await response.json();
