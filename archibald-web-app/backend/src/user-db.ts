@@ -15,6 +15,9 @@ export interface User {
   lastLoginAt: number | null;
   lastOrderSyncAt?: number | null;
   lastCustomerSyncAt?: number | null;
+  monthlyTarget: number;
+  currency: string;
+  targetUpdatedAt: string | null;
 }
 
 /**
@@ -58,6 +61,19 @@ export class UserDatabase {
       CREATE INDEX IF NOT EXISTS idx_role ON users(role);
     `);
 
+    // Schema versioning and migration
+    const currentVersion = this.db.pragma("user_version", { simple: true }) as number;
+    if (currentVersion < 2) {
+      // Migrate to version 2: add target fields
+      this.db.exec(`
+        ALTER TABLE users ADD COLUMN monthlyTarget REAL DEFAULT 0;
+        ALTER TABLE users ADD COLUMN currency TEXT DEFAULT 'EUR';
+        ALTER TABLE users ADD COLUMN targetUpdatedAt TEXT;
+        PRAGMA user_version = 2;
+      `);
+      logger.info("[UserDatabase] Migrated to schema v2 (target fields)");
+    }
+
     logger.info("User database schema initialized");
   }
 
@@ -77,12 +93,15 @@ export class UserDatabase {
       whitelisted: true,
       createdAt: Date.now(),
       lastLoginAt: null,
+      monthlyTarget: 0,
+      currency: "EUR",
+      targetUpdatedAt: null,
     };
 
     try {
       const stmt = this.db.prepare(`
-        INSERT INTO users (id, username, fullName, role, whitelisted, createdAt, lastLoginAt)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO users (id, username, fullName, role, whitelisted, createdAt, lastLoginAt, monthlyTarget, currency, targetUpdatedAt)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `);
 
       stmt.run(
@@ -93,6 +112,9 @@ export class UserDatabase {
         user.whitelisted ? 1 : 0,
         user.createdAt,
         user.lastLoginAt,
+        user.monthlyTarget,
+        user.currency,
+        user.targetUpdatedAt,
       );
 
       logger.info("User created", {
@@ -273,6 +295,9 @@ export class UserDatabase {
       lastLoginAt: row.lastLoginAt,
       lastOrderSyncAt: row.lastOrderSyncAt || null,
       lastCustomerSyncAt: row.lastCustomerSyncAt || null,
+      monthlyTarget: row.monthlyTarget || 0,
+      currency: row.currency || "EUR",
+      targetUpdatedAt: row.targetUpdatedAt || null,
     };
   }
 
@@ -345,6 +370,33 @@ export class UserDatabase {
       logger.error("Error updating lastCustomerSyncAt", { userId, error });
       throw error;
     }
+  }
+
+  /**
+   * Get user's target
+   */
+  getUserTarget(userId: string): { monthlyTarget: number; currency: string; targetUpdatedAt: string | null } | null {
+    const user = this.getUserById(userId);
+    if (!user) return null;
+    return {
+      monthlyTarget: user.monthlyTarget,
+      currency: user.currency,
+      targetUpdatedAt: user.targetUpdatedAt
+    };
+  }
+
+  /**
+   * Update user's target
+   */
+  updateUserTarget(userId: string, monthlyTarget: number, currency: string): boolean {
+    const stmt = this.db.prepare(`
+      UPDATE users
+      SET monthlyTarget = ?, currency = ?, targetUpdatedAt = ?
+      WHERE id = ?
+    `);
+    const now = new Date().toISOString();
+    const result = stmt.run(monthlyTarget, currency, now, userId);
+    return result.changes > 0;
   }
 
   /**
