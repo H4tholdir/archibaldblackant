@@ -1,3 +1,4 @@
+import { useState, useEffect } from "react";
 import { useAuth } from "../hooks/useAuth";
 import { BudgetWidget } from "../components/BudgetWidget";
 import { OrdersSummaryWidget } from "../components/OrdersSummaryWidget";
@@ -5,6 +6,80 @@ import { TargetVisualizationWidget } from "../components/TargetVisualizationWidg
 
 export function Dashboard() {
   const auth = useAuth();
+  const [targetData, setTargetData] = useState<{
+    monthlyTarget: number;
+    currency: string;
+  } | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchTarget = async () => {
+      const token = localStorage.getItem("archibald_jwt");
+      if (!token) {
+        setLoading(false);
+        return;
+      }
+
+      try {
+        const response = await fetch(
+          "http://localhost:3000/api/users/me/target",
+          {
+            headers: { Authorization: `Bearer ${token}` },
+          }
+        );
+
+        if (response.ok) {
+          const data = await response.json();
+          setTargetData(data);
+        } else {
+          console.error(
+            "[Dashboard] Failed to load target:",
+            await response.text()
+          );
+        }
+      } catch (error) {
+        console.error("[Dashboard] Target fetch error:", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchTarget();
+  }, []);
+
+  if (loading) {
+    return (
+      <div
+        style={{
+          maxWidth: "1200px",
+          margin: "0 auto",
+          padding: "20px",
+          textAlign: "center",
+        }}
+      >
+        <p style={{ fontSize: "18px", color: "#7f8c8d" }}>
+          Caricamento dashboard...
+        </p>
+      </div>
+    );
+  }
+
+  if (!targetData) {
+    return (
+      <div
+        style={{
+          maxWidth: "1200px",
+          margin: "0 auto",
+          padding: "20px",
+          textAlign: "center",
+        }}
+      >
+        <p style={{ fontSize: "18px", color: "#e74c3c" }}>
+          Errore nel caricare il target.
+        </p>
+      </div>
+    );
+  }
 
   return (
     <div
@@ -45,16 +120,23 @@ export function Dashboard() {
         className="dashboard-grid"
       >
         {/* Budget Widget */}
-        <BudgetWidget currentBudget={12500} targetBudget={20000} />
+        <BudgetWidget
+          currentBudget={0}
+          targetBudget={targetData.monthlyTarget}
+          currency={targetData.currency}
+        />
 
         {/* Orders Summary Widget */}
         <OrdersSummaryWidget todayCount={3} weekCount={12} monthCount={45} />
 
         {/* Target Visualization Widget */}
         <TargetVisualizationWidget
-          currentProgress={67}
+          currentProgress={0}
           targetDescription="Target Mensile"
-          periodLabel="Gennaio 2026"
+          periodLabel={new Date().toLocaleDateString("it-IT", {
+            month: "long",
+            year: "numeric",
+          })}
         />
       </div>
 
