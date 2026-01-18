@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { PinInput } from "./PinInput";
 import { getBiometricAuth } from "../services/biometric-auth";
 import { getCredentialStore } from "../services/credential-store";
@@ -16,8 +16,8 @@ export function PinSetupWizard({
   onComplete,
   onCancel,
 }: PinSetupWizardProps) {
-  const [step, setStep] = useState<"create" | "confirm" | "biometric">(
-    "create",
+  const [step, setStep] = useState<"choice" | "create" | "confirm" | "biometric">(
+    "choice",
   );
   const [pin, setPin] = useState("");
   const [confirmPin, setConfirmPin] = useState("");
@@ -25,6 +25,56 @@ export function PinSetupWizard({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [biometricLabel, setBiometricLabel] = useState("");
   const [isRegisteringBiometric, setIsRegisteringBiometric] = useState(false);
+  const [biometricAvailable, setBiometricAvailable] = useState(false);
+  const [checkingBiometric, setCheckingBiometric] = useState(true);
+
+  // Check biometric availability on mount
+  useEffect(() => {
+    const checkBiometric = async () => {
+      const bioAuth = getBiometricAuth();
+      const capability = await bioAuth.checkAvailability();
+      setBiometricAvailable(capability.available);
+      setBiometricLabel(capability.platformLabel);
+      setCheckingBiometric(false);
+
+      // If biometric not available, skip choice screen
+      if (!capability.available) {
+        setStep("create");
+      }
+    };
+    checkBiometric();
+  }, []);
+
+  const handleChoosePin = () => {
+    setStep("create");
+  };
+
+  const handleChooseBiometric = async () => {
+    setError("");
+    setIsRegisteringBiometric(true);
+
+    try {
+      const bioAuth = getBiometricAuth();
+      const credentialId = await bioAuth.registerCredential(userId, username);
+
+      if (!credentialId) {
+        throw new Error("Registrazione biometrica fallita");
+      }
+
+      // Save credential ID
+      const credStore = getCredentialStore();
+      await credStore.initialize();
+      await credStore.storeBiometricCredential(userId, credentialId);
+
+      // Complete without PIN (biometric only)
+      setIsSubmitting(true);
+      await onComplete(""); // Empty PIN since we're using biometric
+    } catch (err: any) {
+      console.error("Biometric registration error:", err);
+      setError("Impossibile abilitare la biometria. Scegli PIN invece.");
+      setIsRegisteringBiometric(false);
+    }
+  };
 
   const validatePin = (pinValue: string): string | null => {
     if (pinValue.length !== 6) {
@@ -162,17 +212,42 @@ export function PinSetupWizard({
     <div className="pin-setup-wizard-overlay">
       <div className="pin-setup-wizard">
         <div className="wizard-header">
-          <h2>Configura PIN di sicurezza</h2>
+          <h2>Configura accesso sicuro</h2>
           <p className="wizard-subtitle">
-            {step === "create"
-              ? "Crea un PIN di 6 cifre per proteggere le tue credenziali"
-              : step === "confirm"
-                ? "Conferma il PIN inserito"
-                : `Abilita ${biometricLabel} per sblocco rapido`}
+            {step === "choice"
+              ? "Scegli come proteggere le tue credenziali"
+              : step === "create"
+                ? "Crea un PIN di 6 cifre per proteggere le tue credenziali"
+                : step === "confirm"
+                  ? "Conferma il PIN inserito"
+                  : `Abilita ${biometricLabel} per sblocco rapido`}
           </p>
         </div>
 
         <div className="wizard-body">
+          {step === "choice" && !checkingBiometric && biometricAvailable && (
+            <div className="choice-container" style={{ display: "flex", flexDirection: "column", gap: "16px", padding: "20px 0" }}>
+              <button
+                onClick={handleChooseBiometric}
+                disabled={isRegisteringBiometric}
+                className="wizard-button-primary"
+                style={{ padding: "20px", fontSize: "16px" }}
+              >
+                {isRegisteringBiometric ? "Configurazione..." : `🔐 Usa ${biometricLabel}`}
+              </button>
+              <button
+                onClick={handleChoosePin}
+                className="wizard-button-secondary"
+                style={{ padding: "20px", fontSize: "16px" }}
+              >
+                🔢 Usa PIN (6 cifre)
+              </button>
+              <p style={{ fontSize: "14px", color: "#666", textAlign: "center", marginTop: "10px" }}>
+                Puoi scegliere solo uno dei due metodi
+              </p>
+            </div>
+          )}
+
           {step === "create" && (
             <>
               <PinInput value={pin} onChange={setPin} autoFocus />

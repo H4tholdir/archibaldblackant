@@ -4,13 +4,14 @@ import {
   Route,
   Navigate,
 } from "react-router-dom";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import "./App.css";
 import { useAuth } from "./hooks/useAuth";
 import { useNetworkStatus } from "./hooks/useNetworkStatus";
 import { useAutomaticSync } from "./hooks/useAutomaticSync";
 import { LoginModal } from "./components/LoginModal";
 import { PinSetupWizard } from "./components/PinSetupWizard";
+import { TargetWizard } from "./components/TargetWizard";
 import { UnlockScreen } from "./components/UnlockScreen";
 import { LiquidLoader } from "./components/LiquidLoader";
 import OrderForm from "./components/OrderForm";
@@ -43,6 +44,8 @@ function AppRouter() {
     password: string;
   } | null>(null);
   const [showLoginForm, setShowLoginForm] = useState(false);
+  const [showTargetWizard, setShowTargetWizard] = useState(false);
+  const [hasTarget, setHasTarget] = useState(true); // assume true, check on mount
 
   const handleOrderCreated = (newJobId: string) => {
     setJobId(newJobId);
@@ -57,6 +60,70 @@ function AppRouter() {
   const handleViewOrder = (selectedJobId: string) => {
     setJobId(selectedJobId);
     setView("status");
+  };
+
+  // Check if user has set target after authentication
+  useEffect(() => {
+    const checkTarget = async () => {
+      if (!auth.isAuthenticated || !auth.token) {
+        return;
+      }
+
+      try {
+        const response = await fetch("http://localhost:3000/api/users/me/target", {
+          headers: { Authorization: `Bearer ${auth.token}` },
+        });
+
+        if (response.ok) {
+          const targetData = await response.json();
+          const hasConfiguredTarget = targetData.yearlyTarget > 0;
+          setHasTarget(hasConfiguredTarget);
+          setShowTargetWizard(!hasConfiguredTarget);
+        }
+      } catch (error) {
+        console.error("[AppRouter] Failed to check target:", error);
+      }
+    };
+
+    checkTarget();
+  }, [auth.isAuthenticated, auth.token]);
+
+  // Handle target wizard completion
+  const handleTargetComplete = async (config: {
+    yearlyTarget: number;
+    currency: string;
+    commissionRate: number;
+    bonusAmount: number;
+    bonusInterval: number;
+    extraBudgetInterval: number;
+    extraBudgetReward: number;
+    monthlyAdvance: number;
+    hideCommissions: boolean;
+  }) => {
+    const token = auth.token;
+    if (!token) return;
+
+    try {
+      const response = await fetch("http://localhost:3000/api/users/me/target", {
+        method: "PUT",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(config),
+      });
+
+      if (response.ok) {
+        setHasTarget(true);
+        setShowTargetWizard(false);
+      } else {
+        console.error("[AppRouter] Failed to set target:", await response.text());
+        alert("Errore nel salvare la configurazione. Riprova.");
+      }
+    } catch (error) {
+      console.error("[AppRouter] Target set error:", error);
+      alert("Errore di connessione. Riprova.");
+    }
   };
 
   // Show loading spinner while checking auth
@@ -131,7 +198,7 @@ function AppRouter() {
     );
   }
 
-  // Show PIN setup wizard if needed
+  // Show PIN setup wizard if needed (FIRST: before target wizard)
   if (auth.needsPinSetup && tempCredentials && auth.user) {
     return (
       <PinSetupWizard
@@ -149,6 +216,16 @@ function AppRouter() {
           auth.skipPinSetup();
           setTempCredentials(null); // Clear from memory
         }}
+      />
+    );
+  }
+
+  // Show target wizard if authenticated but no target set (SECOND: after PIN setup)
+  if (auth.isAuthenticated && showTargetWizard && !hasTarget) {
+    return (
+      <TargetWizard
+        isOpen={showTargetWizard}
+        onComplete={handleTargetComplete}
       />
     );
   }
