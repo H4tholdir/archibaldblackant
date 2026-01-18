@@ -129,9 +129,10 @@ export class CachePopulationService {
         message: `Salvataggio ${variants.length} varianti...`,
       });
 
-      // Filter out undefined id fields (backend doesn't provide id for auto-increment tables)
+      // Clear existing variants and add new ones (avoid key path errors with auto-increment)
+      await db.productVariants.clear();
       const cleanedVariants = variants.map(({ id, ...rest }: any) => rest);
-      await db.productVariants.bulkPut(cleanedVariants as ProductVariant[]);
+      await db.productVariants.bulkAdd(cleanedVariants as ProductVariant[]);
 
       onProgress?.({
         stage: "variants",
@@ -146,9 +147,10 @@ export class CachePopulationService {
         message: `Salvataggio ${prices.length} prezzi...`,
       });
 
-      // Filter out undefined id fields (backend doesn't provide id for auto-increment tables)
+      // Clear existing prices and add new ones (avoid key path errors with auto-increment)
+      await db.prices.clear();
       const cleanedPrices = prices.map(({ id, ...rest }: any) => rest);
-      await db.prices.bulkPut(cleanedPrices as Price[]);
+      await db.prices.bulkAdd(cleanedPrices as Price[]);
 
       onProgress?.({
         stage: "prices",
