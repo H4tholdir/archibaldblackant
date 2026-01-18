@@ -110,10 +110,14 @@ Plans:
 **Goal**: Analisi completa sync clienti + background sync automatico + sync manuale granulare
 **Depends on**: Phase 17
 **Research**: Unlikely (analyzing existing scraping code, standard optimization techniques)
-**Plans**: TBD
+**Plans**: 0/5
 
 Plans:
-- [ ] 18-01: TBD
+- [ ] 18-01: Customer Sync Performance Analysis (profiling instrumentation, PERF-DATA.json, ANALYSIS.md)
+- [ ] 18-02: Background Sync Enhancement (intelligent scheduling, error recovery, health monitoring)
+- [ ] 18-03: Incremental Sync Strategy (delta sync for changed customers only)
+- [ ] 18-04: Manual Sync API & UI (full/incremental/single customer endpoints + UI controls)
+- [ ] 18-05: Performance Optimization & Verification (apply optimizations, comprehensive checkpoint)
 
 #### Phase 19: Products Sync Analysis & Optimization
 **Goal**: Analisi completa sync articoli + background sync + sync manuale + image handling optimization
@@ -217,9 +221,9 @@ Plans:
 |-------|-----------|----------------|--------|-----------|
 | 14. Fix IndexedDB Critical Error | v2.0 | 1/1 | Complete | 2026-01-18 |
 | 15. Dashboard Homepage UI | v2.0 | 4/4 | Complete | 2026-01-18 |
-| 16. Target Wizard & Setup | v2.0 | 3/4 | In progress | - |
-| 17. Dashboard Metrics Backend | v2.0 | 0/? | Not started | - |
-| 18. Customers Sync Analysis & Optimization | v2.0 | 0/? | Not started | - |
+| 16. Target Wizard & Setup | v2.0 | 4/4 | Complete | 2026-01-18 |
+| 17. Dashboard Metrics Backend | v2.0 | 1/1 | Complete | 2026-01-18 |
+| 18. Customers Sync Analysis & Optimization | v2.0 | 0/5 | Not started | - |
 | 19. Products Sync Analysis & Optimization | v2.0 | 0/? | Not started | - |
 | 20. Prices Sync Analysis & Optimization | v2.0 | 0/? | Not started | - |
 | 21. Orders Sync Analysis & Optimization | v2.0 | 0/? | Not started | - |
