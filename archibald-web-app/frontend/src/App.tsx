@@ -66,7 +66,7 @@ function App() {
 
         if (response.ok) {
           const targetData = await response.json();
-          const hasConfiguredTarget = targetData.monthlyTarget > 0;
+          const hasConfiguredTarget = targetData.yearlyTarget > 0;
           setHasTarget(hasConfiguredTarget);
           setShowTargetWizard(!hasConfiguredTarget);
         }
@@ -79,7 +79,17 @@ function App() {
   }, [auth.isAuthenticated, auth.token]);
 
   // Handle target wizard completion
-  const handleTargetComplete = async (target: number, currency: string) => {
+  const handleTargetComplete = async (config: {
+    yearlyTarget: number;
+    currency: string;
+    commissionRate: number;
+    bonusAmount: number;
+    bonusInterval: number;
+    extraBudgetInterval: number;
+    extraBudgetReward: number;
+    monthlyAdvance: number;
+    hideCommissions: boolean;
+  }) => {
     const token = auth.token;
     if (!token) return;
 
@@ -90,16 +100,16 @@ function App() {
           Authorization: `Bearer ${token}`,
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ monthlyTarget: target, currency }),
+        body: JSON.stringify(config),
       });
 
       if (response.ok) {
-        console.log("[App] Target set successfully:", { target, currency });
+        console.log("[App] Target and commission config set successfully:", config);
         setHasTarget(true);
         setShowTargetWizard(false);
       } else {
         console.error("[App] Failed to set target:", await response.text());
-        alert("Errore nel salvare l'obiettivo. Riprova.");
+        alert("Errore nel salvare la configurazione. Riprova.");
       }
     } catch (error) {
       console.error("[App] Target set error:", error);
