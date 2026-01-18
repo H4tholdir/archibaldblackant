@@ -793,6 +793,115 @@ app.put("/api/users/me/target", authenticateJWT, (req: AuthRequest, res: Respons
   }
 });
 
+// Get current month budget metrics
+app.get("/api/metrics/budget", authenticateJWT, (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user!.userId;
+    const userDb = UserDatabase.getInstance();
+    const orderDb = OrderDatabase.getInstance();
+
+    // Get user's target
+    const target = userDb.getUserTarget(userId);
+    if (!target) {
+      return res.status(404).json({ error: "User not found" });
+    }
+
+    // Calculate current month date range
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = now.getMonth();
+    const startOfMonth = new Date(year, month, 1, 0, 0, 0).toISOString();
+    const endOfMonth = new Date(year, month + 1, 0, 23, 59, 59).toISOString();
+    const monthLabel = now.toISOString().slice(0, 7); // "2026-01"
+
+    // Query current month budget from orders
+    const query = `
+      SELECT SUM(CAST(totalAmount AS REAL)) as total
+      FROM orders
+      WHERE userId = ?
+        AND creationDate >= ?
+        AND creationDate <= ?
+        AND totalAmount IS NOT NULL
+        AND totalAmount != ''
+    `;
+
+    const result = orderDb["db"].prepare(query).get(userId, startOfMonth, endOfMonth) as { total: number | null };
+    const currentBudget = result?.total || 0;
+
+    // Calculate progress percentage
+    const monthlyTarget = target.monthlyTarget;
+    const progress = monthlyTarget > 0 ? Math.min((currentBudget / monthlyTarget) * 100, 100) : 0;
+
+    res.json({
+      currentBudget,
+      targetBudget: monthlyTarget,
+      currency: target.currency,
+      progress: Math.round(progress * 10) / 10, // Round to 1 decimal place
+      month: monthLabel,
+    });
+  } catch (error) {
+    logger.error("Error getting budget metrics", { error });
+    res.status(500).json({ error: "Error getting budget metrics" });
+  }
+});
+
+// Get order counts by temporal period
+app.get("/api/metrics/orders", authenticateJWT, (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user!.userId;
+    const orderDb = OrderDatabase.getInstance();
+
+    // Calculate temporal boundaries
+    const now = new Date();
+
+    // Today: Start of today (00:00:00) to now
+    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0).toISOString();
+
+    // This week: Start of Monday to now (ISO week definition)
+    const dayOfWeek = now.getDay(); // 0=Sunday, 1=Monday, ..., 6=Saturday
+    const daysToMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1; // If Sunday, go back 6 days; else go back to Monday
+    const weekStart = new Date(now.getFullYear(), now.getMonth(), now.getDate() - daysToMonday, 0, 0, 0).toISOString();
+
+    // This month: First day of month to now
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0).toISOString();
+
+    // Query order counts for each period
+    const todayQuery = `
+      SELECT COUNT(*) as count
+      FROM orders
+      WHERE userId = ? AND creationDate >= ?
+    `;
+    const todayResult = orderDb["db"].prepare(todayQuery).get(userId, todayStart) as { count: number };
+    const todayCount = todayResult?.count || 0;
+
+    const weekQuery = `
+      SELECT COUNT(*) as count
+      FROM orders
+      WHERE userId = ? AND creationDate >= ?
+    `;
+    const weekResult = orderDb["db"].prepare(weekQuery).get(userId, weekStart) as { count: number };
+    const weekCount = weekResult?.count || 0;
+
+    const monthQuery = `
+      SELECT COUNT(*) as count
+      FROM orders
+      WHERE userId = ? AND creationDate >= ?
+    `;
+    const monthResult = orderDb["db"].prepare(monthQuery).get(userId, monthStart) as { count: number };
+    const monthCount = monthResult?.count || 0;
+
+    res.json({
+      todayCount,
+      weekCount,
+      monthCount,
+      timestamp: now.toISOString(),
+    });
+  } catch (error) {
+    logger.error("Error getting order metrics", { error });
+    res.status(500).json({ error: "Error getting order metrics" });
+  }
+});
+
 // Get customers endpoint (legge dal database locale)
 app.get("/api/customers", (req: Request, res: Response<ApiResponse>) => {
   try {
