@@ -44,7 +44,12 @@ export class PendingOrdersService {
     };
 
     const id = await db.pendingOrders.add(order);
-    console.log("[PendingOrders] Added:", id);
+    console.log("[IndexedDB:PendingOrders]", {
+      operation: "add",
+      table: "pendingOrders",
+      orderId: id,
+      timestamp: new Date().toISOString(),
+    });
     return id;
   }
 
@@ -85,7 +90,12 @@ export class PendingOrdersService {
       return { success: 0, failed: 0 };
     }
 
-    console.log("[PendingOrders] Syncing", pending.length, "orders");
+    console.log("[IndexedDB:PendingOrders]", {
+      operation: "syncPendingOrders",
+      table: "pendingOrders",
+      recordCount: pending.length,
+      timestamp: new Date().toISOString(),
+    });
 
     let success = 0;
     let failed = 0;
@@ -123,7 +133,13 @@ export class PendingOrdersService {
         await db.pendingOrders.delete(order.id!);
         success++;
 
-        console.log("[PendingOrders] Synced:", order.id, "→ Job", result.jobId);
+        console.log("[IndexedDB:PendingOrders]", {
+          operation: "delete",
+          table: "pendingOrders",
+          orderId: order.id,
+          jobId: result.jobId,
+          timestamp: new Date().toISOString(),
+        });
 
         // Show push notification
         if ("Notification" in window && Notification.permission === "granted") {
@@ -135,7 +151,14 @@ export class PendingOrdersService {
 
         onProgress?.(i + 1, pending.length);
       } catch (error) {
-        console.error("[PendingOrders] Sync failed:", order.id, error);
+        console.error("[IndexedDB:PendingOrders]", {
+          operation: "syncPendingOrders",
+          table: "pendingOrders",
+          orderId: order.id,
+          error: error instanceof Error ? error.message : String(error),
+          stack: error instanceof Error ? error.stack : undefined,
+          timestamp: new Date().toISOString(),
+        });
 
         // Mark as error and increment retry count
         await db.pendingOrders.update(order.id!, {

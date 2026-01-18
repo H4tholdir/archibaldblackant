@@ -197,7 +197,12 @@ export class CachePopulationService {
         durationMs,
       };
     } catch (error) {
-      console.error("[CachePopulation] Failed:", error);
+      console.error("[IndexedDB:CachePopulation]", {
+        operation: "populateAllData",
+        error: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : undefined,
+        timestamp: new Date().toISOString(),
+      });
 
       return {
         success: false,

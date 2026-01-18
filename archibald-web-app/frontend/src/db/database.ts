@@ -19,19 +19,28 @@ export async function initializeDatabase(): Promise<{
     // Open database (triggers schema creation if needed)
     await db.open();
 
-    console.log('[IndexedDB] Database initialized successfully');
-    console.log('[IndexedDB] Database version:', db.verno);
-
-    // Log storage quota
     const quota = await getStorageQuota();
-    console.log(
-      '[IndexedDB] Storage:',
-      `${quota.used}MB / ${quota.available}MB (${quota.percentage}%)`
-    );
+    console.log('[IndexedDB:Database]', {
+      operation: 'initialization',
+      status: 'success',
+      version: db.verno,
+      storage: {
+        used: quota.used,
+        available: quota.available,
+        percentage: quota.percentage,
+      },
+      timestamp: new Date().toISOString(),
+    });
 
     return { success: true };
   } catch (error) {
-    console.error('[IndexedDB] Initialization failed:', error);
+    console.error('[IndexedDB:Database]', {
+      operation: 'initialization',
+      status: 'failed',
+      error: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : undefined,
+      timestamp: new Date().toISOString(),
+    });
 
     // Handle common errors
     if (error instanceof Error) {
@@ -133,8 +142,6 @@ export async function getCacheFreshness(): Promise<Map<string, Date>> {
  * Handle database upgrade (version migration)
  */
 db.on('ready', async () => {
-  console.log('[IndexedDB] Database ready');
-
   // Log current record counts
   const counts = {
     customers: await db.customers.count(),
@@ -145,7 +152,11 @@ db.on('ready', async () => {
     pending: await db.pendingOrders.count()
   };
 
-  console.log('[IndexedDB] Record counts:', counts);
+  console.log('[IndexedDB:Database]', {
+    operation: 'ready',
+    recordCounts: counts,
+    timestamp: new Date().toISOString(),
+  });
 });
 
 /**

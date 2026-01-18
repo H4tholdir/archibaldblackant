@@ -124,7 +124,12 @@ export class ArchibaldDatabase extends Dexie {
       pendingOrders: '++id, status, createdAt'
     }).upgrade(async (trans) => {
       // Clear old pending orders with incompatible schema
-      console.log('[IndexedDB] Migration v1→v2: Clearing old pending orders');
+      console.log('[IndexedDB:Schema]', {
+        operation: 'migration',
+        version: 'v1→v2',
+        action: 'Clearing old pending orders',
+        timestamp: new Date().toISOString(),
+      });
       await trans.table('pendingOrders').clear();
     });
 
@@ -140,7 +145,12 @@ export class ArchibaldDatabase extends Dexie {
       cacheMetadata: 'key, lastSynced'
     }).upgrade(async (trans) => {
       // Clear all draft orders to fix corrupted entries with undefined id
-      console.log('[IndexedDB] Migration v2→v3: Clearing corrupted draft orders');
+      console.log('[IndexedDB:Schema]', {
+        operation: 'migration',
+        version: 'v2→v3',
+        action: 'Clearing corrupted draft orders',
+        timestamp: new Date().toISOString(),
+      });
       await trans.table('draftOrders').clear();
     });
   }
