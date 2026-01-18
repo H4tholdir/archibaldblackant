@@ -1,7 +1,30 @@
+import { useState } from "react";
 import { useAuth } from "../hooks/useAuth";
 
 export function Dashboard() {
   const auth = useAuth();
+  const [resetting, setResetting] = useState(false);
+
+  const handleResetCache = async () => {
+    if (!confirm("Cancellare tutti i dati offline e risincronizzare? Questa operazione richiederà qualche minuto.")) {
+      return;
+    }
+
+    setResetting(true);
+
+    try {
+      // Delete IndexedDB databases
+      await indexedDB.deleteDatabase("ArchibaldOfflineDB");
+      await indexedDB.deleteDatabase("ArchibaldCredentials");
+
+      // Reload page to trigger fresh sync
+      window.location.reload();
+    } catch (error) {
+      console.error("Error resetting cache:", error);
+      alert("Errore durante il reset. Riprova.");
+      setResetting(false);
+    }
+  };
 
   return (
     <div
@@ -29,6 +52,24 @@ export function Dashboard() {
           <p style={{ margin: 0, color: "#666", fontSize: "14px" }}>
             Benvenuto, {auth.user?.fullName}
           </p>
+        </div>
+        <div>
+          <button
+            onClick={handleResetCache}
+            disabled={resetting}
+            style={{
+              padding: "10px 20px",
+              backgroundColor: resetting ? "#ccc" : "#ff5722",
+              color: "#fff",
+              border: "none",
+              borderRadius: "5px",
+              cursor: resetting ? "not-allowed" : "pointer",
+              fontSize: "14px",
+              fontWeight: "500",
+            }}
+          >
+            {resetting ? "Resetting..." : "🔄 Reset Cache & Resync"}
+          </button>
         </div>
       </div>
 
