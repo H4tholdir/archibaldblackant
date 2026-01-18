@@ -26,9 +26,9 @@ None (full-stack web app con pattern standard)
 - [x] **Phase 12: Deployment & Infrastructure** - Setup produzione VPS ✅ COMPLETE (3/4 plans complete, Part D deferred)
 - [x] **Phase 13: Security Audit & Sensitive Data Cleanup** - Audit completo e sanitizzazione ✅ COMPLETE (1/6 plans, rest optional)
 - [x] **Phase 5: Order Submission** - Invio ordine ottimizzato con tracking ✅ COMPLETE (goals achieved via other phases)
-- [ ] **Phase 14: Fix IndexedDB Critical Error** - Risolvere errore IDBObjectStore 'put'
-- [ ] **Phase 15: Dashboard Homepage UI** - Layout, budget widgets, visualizzazioni progresso
-- [ ] **Phase 16: Target Wizard & Setup** - Wizard setup iniziale + modifica profilo
+- [x] **Phase 14: Fix IndexedDB Critical Error** - Risolvere errore IDBObjectStore 'put' ✅ COMPLETE
+- [x] **Phase 15: Dashboard Homepage UI** - Layout, budget widgets, visualizzazioni progresso ✅ COMPLETE
+- [ ] **Phase 16: Target Wizard & Setup** - Wizard setup iniziale + modifica profilo (2/4 plans)
 - [ ] **Phase 17: Dashboard Metrics Backend** - API budget, ordini, progressi
 - [ ] **Phase 18: Customers Sync Analysis & Optimization** - Analisi completa + background + manual
 - [ ] **Phase 19: Products Sync Analysis & Optimization** - Analisi + background + manual + images
@@ -87,10 +87,11 @@ Plans:
 **Goal**: Wizard setup iniziale target agente (obbligatorio primo accesso) + UI modifica da profilo
 **Depends on**: Phase 15
 **Research**: Unlikely (form wizard pattern, localStorage persistence - established patterns)
-**Plans**: 1/4 complete
+**Plans**: 2/4 complete
 
 Plans:
 - [x] 16-01: Backend Storage & API (monthlyTarget, currency, REST endpoints) — 21min
+- [x] 16-02: First-Time Wizard UI (3-step onboarding modal, banking app UX) — 51min
 
 #### Phase 17: Dashboard Metrics Backend
 **Goal**: API backend per metriche dashboard (budget, ordini mensili, progressi vs target)
