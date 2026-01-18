@@ -1,5 +1,6 @@
 import { useAuth } from "../hooks/useAuth";
 import { BudgetWidget } from "../components/BudgetWidget";
+import { OrdersSummaryWidget } from "../components/OrdersSummaryWidget";
 
 export function Dashboard() {
   const auth = useAuth();
@@ -45,22 +46,8 @@ export function Dashboard() {
         {/* Budget Widget */}
         <BudgetWidget currentBudget={12500} targetBudget={20000} />
 
-        {/* Widget Placeholder 2 */}
-        <div
-          style={{
-            border: "2px dashed #ccc",
-            borderRadius: "8px",
-            padding: "20px",
-            minHeight: "200px",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            color: "#999",
-            fontSize: "14px",
-          }}
-        >
-          Widget 2 - Placeholder
-        </div>
+        {/* Orders Summary Widget */}
+        <OrdersSummaryWidget todayCount={3} weekCount={12} monthCount={45} />
 
         {/* Widget Placeholder 3 */}
         <div
