@@ -1,8 +1,14 @@
-import { db } from '../db/schema';
-import type { Customer, Product, ProductVariant, Price } from '../db/schema';
+import { db } from "../db/schema";
+import type { Customer, Product, ProductVariant, Price } from "../db/schema";
 
 export interface CachePopulationProgress {
-  stage: 'fetching' | 'customers' | 'products' | 'variants' | 'prices' | 'complete';
+  stage:
+    | "fetching"
+    | "customers"
+    | "products"
+    | "variants"
+    | "prices"
+    | "complete";
   percentage: number;
   message: string;
 }
@@ -36,22 +42,22 @@ export class CachePopulationService {
    */
   async populateCache(
     jwt: string,
-    onProgress?: (progress: CachePopulationProgress) => void
+    onProgress?: (progress: CachePopulationProgress) => void,
   ): Promise<CachePopulationResult> {
     const startTime = Date.now();
 
     try {
       // Stage 1: Fetch data from backend
       onProgress?.({
-        stage: 'fetching',
+        stage: "fetching",
         percentage: 5,
-        message: 'Scaricamento dati dal server...'
+        message: "Scaricamento dati dal server...",
       });
 
-      const response = await fetch('/api/cache/export', {
+      const response = await fetch("/api/cache/export", {
         headers: {
-          'Authorization': `Bearer ${jwt}`
-        }
+          Authorization: `Bearer ${jwt}`,
+        },
       });
 
       if (!response.ok) {
@@ -61,99 +67,123 @@ export class CachePopulationService {
       const result = await response.json();
 
       if (!result.success) {
-        throw new Error(result.error || 'Export failed');
+        throw new Error(result.error || "Export failed");
       }
 
       const { customers, products, variants, prices } = result.data;
 
       // Stage 2: Populate customers (20% → 40%)
       onProgress?.({
-        stage: 'customers',
+        stage: "customers",
         percentage: 20,
-        message: `Salvataggio ${customers.length} clienti...`
+        message: `Salvataggio ${customers.length} clienti...`,
       });
 
-      await db.customers.bulkPut(customers as Customer[]);
+      // Ensure no undefined fields that could cause IndexedDB errors
+      const cleanedCustomers = customers.map((c: any) => {
+        const cleaned: any = {};
+        for (const key in c) {
+          if (c[key] !== undefined) {
+            cleaned[key] = c[key];
+          }
+        }
+        return cleaned;
+      });
+      await db.customers.bulkPut(cleanedCustomers as Customer[]);
 
       onProgress?.({
-        stage: 'customers',
+        stage: "customers",
         percentage: 40,
-        message: `${customers.length} clienti salvati`
+        message: `${customers.length} clienti salvati`,
       });
 
       // Stage 3: Populate products (40% → 60%)
       onProgress?.({
-        stage: 'products',
+        stage: "products",
         percentage: 40,
-        message: `Salvataggio ${products.length} prodotti...`
+        message: `Salvataggio ${products.length} prodotti...`,
       });
 
-      await db.products.bulkPut(products as Product[]);
+      // Ensure no undefined fields
+      const cleanedProducts = products.map((p: any) => {
+        const cleaned: any = {};
+        for (const key in p) {
+          if (p[key] !== undefined) {
+            cleaned[key] = p[key];
+          }
+        }
+        return cleaned;
+      });
+      await db.products.bulkPut(cleanedProducts as Product[]);
 
       onProgress?.({
-        stage: 'products',
+        stage: "products",
         percentage: 60,
-        message: `${products.length} prodotti salvati`
+        message: `${products.length} prodotti salvati`,
       });
 
       // Stage 4: Populate variants (60% → 80%)
       onProgress?.({
-        stage: 'variants',
+        stage: "variants",
         percentage: 60,
-        message: `Salvataggio ${variants.length} varianti...`
+        message: `Salvataggio ${variants.length} varianti...`,
       });
 
-      await db.productVariants.bulkPut(variants as ProductVariant[]);
+      // Filter out undefined id fields (backend doesn't provide id for auto-increment tables)
+      const cleanedVariants = variants.map(({ id, ...rest }: any) => rest);
+      await db.productVariants.bulkPut(cleanedVariants as ProductVariant[]);
 
       onProgress?.({
-        stage: 'variants',
+        stage: "variants",
         percentage: 80,
-        message: `${variants.length} varianti salvate`
+        message: `${variants.length} varianti salvate`,
       });
 
       // Stage 5: Populate prices (80% → 95%)
       onProgress?.({
-        stage: 'prices',
+        stage: "prices",
         percentage: 80,
-        message: `Salvataggio ${prices.length} prezzi...`
+        message: `Salvataggio ${prices.length} prezzi...`,
       });
 
-      await db.prices.bulkPut(prices as Price[]);
+      // Filter out undefined id fields (backend doesn't provide id for auto-increment tables)
+      const cleanedPrices = prices.map(({ id, ...rest }: any) => rest);
+      await db.prices.bulkPut(cleanedPrices as Price[]);
 
       onProgress?.({
-        stage: 'prices',
+        stage: "prices",
         percentage: 95,
-        message: `${prices.length} prezzi salvati`
+        message: `${prices.length} prezzi salvati`,
       });
 
       // Stage 6: Update metadata (95% → 100%)
       await db.cacheMetadata.bulkPut([
         {
-          key: 'customers',
+          key: "customers",
           lastSynced: result.metadata.exportedAt,
           recordCount: customers.length,
-          version: 1
+          version: 1,
         },
         {
-          key: 'products',
+          key: "products",
           lastSynced: result.metadata.exportedAt,
           recordCount: products.length,
-          version: 1
+          version: 1,
         },
         {
-          key: 'prices',
+          key: "prices",
           lastSynced: result.metadata.exportedAt,
           recordCount: prices.length,
-          version: 1
-        }
+          version: 1,
+        },
       ]);
 
       const durationMs = Date.now() - startTime;
 
       onProgress?.({
-        stage: 'complete',
+        stage: "complete",
         percentage: 100,
-        message: 'Cache aggiornata con successo'
+        message: "Cache aggiornata con successo",
       });
 
       return {
@@ -162,16 +192,16 @@ export class CachePopulationService {
           customers: customers.length,
           products: products.length,
           variants: variants.length,
-          prices: prices.length
+          prices: prices.length,
         },
-        durationMs
+        durationMs,
       };
     } catch (error) {
-      console.error('[CachePopulation] Failed:', error);
+      console.error("[CachePopulation] Failed:", error);
 
       return {
         success: false,
-        error: error instanceof Error ? error.message : 'Errore imprevisto'
+        error: error instanceof Error ? error.message : "Errore imprevisto",
       };
     }
   }
@@ -180,7 +210,7 @@ export class CachePopulationService {
    * Check if cache needs refresh (more than 24 hours old)
    */
   async needsRefresh(): Promise<boolean> {
-    const metadata = await db.cacheMetadata.get('customers');
+    const metadata = await db.cacheMetadata.get("customers");
 
     if (!metadata) {
       return true; // No cache, needs initial sync
@@ -196,7 +226,7 @@ export class CachePopulationService {
    * Get cache age in hours
    */
   async getCacheAge(): Promise<number | null> {
-    const metadata = await db.cacheMetadata.get('customers');
+    const metadata = await db.cacheMetadata.get("customers");
 
     if (!metadata) {
       return null;

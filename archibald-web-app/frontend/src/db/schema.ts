@@ -127,6 +127,22 @@ export class ArchibaldDatabase extends Dexie {
       console.log('[IndexedDB] Migration v1→v2: Clearing old pending orders');
       await trans.table('pendingOrders').clear();
     });
+
+    // Version 3: Clean up corrupted draft orders with undefined id
+    this.version(3).stores({
+      // Same schema as v2
+      customers: 'id, name, code, city, *hash',
+      products: 'id, name, article, *hash',
+      productVariants: '++id, productId, variantId',
+      prices: '++id, articleId, articleName',
+      draftOrders: '++id, customerId, createdAt, updatedAt',
+      pendingOrders: '++id, status, createdAt',
+      cacheMetadata: 'key, lastSynced'
+    }).upgrade(async (trans) => {
+      // Clear all draft orders to fix corrupted entries with undefined id
+      console.log('[IndexedDB] Migration v2→v3: Clearing corrupted draft orders');
+      await trans.table('draftOrders').clear();
+    });
   }
 }
 
