@@ -30,7 +30,7 @@ import { ArticoliList } from "./pages/ArticoliList";
 import { Dashboard } from "./pages/Dashboard";
 import { ProfilePage } from "./pages/ProfilePage";
 import { DashboardNav } from "./components/DashboardNav";
-import { UnifiedSyncProgress } from "./components/UnifiedSyncProgress";
+// import { UnifiedSyncProgress } from "./components/UnifiedSyncProgress"; // Temporarily disabled
 
 function AppRouter() {
   const auth = useAuth();
