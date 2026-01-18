@@ -1,3 +1,5 @@
+import { useState, useEffect } from "react";
+
 interface BudgetWidgetProps {
   currentBudget: number; // Current month's orders total
   targetBudget: number; // Monthly target budget
@@ -9,9 +11,47 @@ export function BudgetWidget({
   targetBudget,
   currency = "EUR",
 }: BudgetWidgetProps) {
+  const [animatedProgress, setAnimatedProgress] = useState(0);
+
   // Calculate progress percentage
   const progress = Math.min((currentBudget / targetBudget) * 100, 100);
   const remaining = Math.max(targetBudget - currentBudget, 0);
+
+  // Color coding logic
+  const getStatusColor = (
+    progress: number
+  ): { color: string; bgColor: string; text: string; icon: string } => {
+    if (progress >= 80)
+      return {
+        color: "#27ae60",
+        bgColor: "rgba(39, 174, 96, 0.2)",
+        text: "In Target",
+        icon: "🎯",
+      };
+    if (progress >= 50)
+      return {
+        color: "#f39c12",
+        bgColor: "rgba(243, 156, 18, 0.2)",
+        text: "Attenzione",
+        icon: "⚠️",
+      };
+    return {
+      color: "#e74c3c",
+      bgColor: "rgba(231, 76, 60, 0.2)",
+      text: "Critico",
+      icon: "🔴",
+    };
+  };
+
+  const status = getStatusColor(progress);
+
+  // Animate progress bar on mount
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setAnimatedProgress(progress);
+    }, 100);
+    return () => clearTimeout(timer);
+  }, [progress]);
 
   // Format currency using Italian locale
   const formatCurrency = (amount: number) => {
@@ -24,12 +64,38 @@ export function BudgetWidget({
   return (
     <div
       style={{
+        position: "relative",
         background: "#fff",
         borderRadius: "10px",
         padding: "20px",
         boxShadow: "0 2px 8px rgba(0,0,0,0.1)",
+        transition: "box-shadow 0.3s ease",
+      }}
+      onMouseEnter={(e) => {
+        e.currentTarget.style.boxShadow = "0 4px 12px rgba(0,0,0,0.15)";
+      }}
+      onMouseLeave={(e) => {
+        e.currentTarget.style.boxShadow = "0 2px 8px rgba(0,0,0,0.1)";
       }}
     >
+      {/* Status Badge - Top Right */}
+      <div
+        style={{
+          position: "absolute",
+          top: "15px",
+          right: "15px",
+          padding: "5px 10px",
+          borderRadius: "15px",
+          fontSize: "12px",
+          fontWeight: "bold",
+          color: status.color,
+          backgroundColor: status.bgColor,
+          border: `1px solid ${status.color}`,
+        }}
+      >
+        {status.icon} {status.text}
+      </div>
+
       {/* Header */}
       <div
         style={{
@@ -82,7 +148,7 @@ export function BudgetWidget({
             style={{
               fontSize: "24px",
               fontWeight: "bold",
-              color: "#2c3e50",
+              color: status.color,
               marginBottom: "5px",
             }}
           >
@@ -119,9 +185,9 @@ export function BudgetWidget({
       >
         <div
           style={{
-            width: `${progress}%`,
+            width: `${animatedProgress}%`,
             height: "100%",
-            background: "#3498db",
+            background: status.color,
             transition: "width 0.3s ease",
             borderRadius: "10px",
           }}
