@@ -208,14 +208,16 @@ export function OrderHistory() {
     setSyncModalOpen(true);
     setError(null);
 
-    const result = await startSync("sync", token, async () => {
-      // Auto-refresh orders list when sync completes
-      console.log("Sync completed, refreshing orders list...");
-      await fetchOrders();
-    });
-
-    if (!result.success) {
-      setError(result.error || "Errore nella sincronizzazione");
+    try {
+      await startSync("sync", token, async () => {
+        // Auto-refresh orders list when sync completes
+        console.log("Sync completed, refreshing orders list...");
+        await fetchOrders();
+      });
+    } catch (err) {
+      const errorMessage =
+        err instanceof Error ? err.message : "Errore nella sincronizzazione";
+      setError(errorMessage);
     }
   };
 
@@ -240,14 +242,16 @@ export function OrderHistory() {
     setSyncModalOpen(true);
     setError(null);
 
-    const result = await startSync("reset", token, async () => {
-      // Auto-refresh orders list when sync completes
-      console.log("Reset and sync completed, refreshing orders list...");
-      await fetchOrders();
-    });
-
-    if (!result.success) {
-      setError(result.error || "Errore nel reset del database");
+    try {
+      await startSync("reset", token, async () => {
+        // Auto-refresh orders list when sync completes
+        console.log("Reset and sync completed, refreshing orders list...");
+        await fetchOrders();
+      });
+    } catch (err) {
+      const errorMessage =
+        err instanceof Error ? err.message : "Errore nel reset del database";
+      setError(errorMessage);
     }
   };
 
