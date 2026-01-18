@@ -3,12 +3,21 @@ import { useAuth } from "../hooks/useAuth";
 import { BudgetWidget } from "../components/BudgetWidget";
 import { OrdersSummaryWidget } from "../components/OrdersSummaryWidget";
 import { TargetVisualizationWidget } from "../components/TargetVisualizationWidget";
+import { CommissionsWidget } from "../components/CommissionsWidget";
 
 export function Dashboard() {
   const auth = useAuth();
   const [targetData, setTargetData] = useState<{
     monthlyTarget: number;
+    yearlyTarget: number;
     currency: string;
+    commissionRate: number;
+    bonusAmount: number;
+    bonusInterval: number;
+    extraBudgetInterval: number;
+    extraBudgetReward: number;
+    monthlyAdvance: number;
+    hideCommissions: boolean;
   } | null>(null);
   const [budgetData, setBudgetData] = useState<{
     currentBudget: number;
@@ -172,6 +181,20 @@ export function Dashboard() {
           todayCount={orderMetrics?.todayCount ?? 0}
           weekCount={orderMetrics?.weekCount ?? 0}
           monthCount={orderMetrics?.monthCount ?? 0}
+        />
+
+        {/* Commissions Widget (NEW) */}
+        <CommissionsWidget
+          currentBudget={budgetData?.currentBudget ?? 0}
+          yearlyTarget={targetData.yearlyTarget}
+          commissionRate={targetData.commissionRate}
+          bonusAmount={targetData.bonusAmount}
+          bonusInterval={targetData.bonusInterval}
+          extraBudgetInterval={targetData.extraBudgetInterval}
+          extraBudgetReward={targetData.extraBudgetReward}
+          monthlyAdvance={targetData.monthlyAdvance}
+          currency={targetData.currency}
+          hideCommissions={targetData.hideCommissions}
         />
 
         {/* Target Visualization Widget */}
