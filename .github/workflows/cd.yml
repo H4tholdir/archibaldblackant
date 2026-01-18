@@ -57,31 +57,44 @@ jobs:
           username: ${{ secrets.VPS_USER }}
           key: ${{ secrets.VPS_SSH_KEY }}
           script: |
-            cd /home/deploy/archibald-app
+            set -e  # Exit on error
 
-            # Pull latest code
-            git pull origin master
+            echo "📂 Navigating to deployment directory..."
+            cd /home/deploy/archibald-app || { echo "❌ Failed to cd to /home/deploy/archibald-app"; exit 1; }
 
-            # Log in to GitHub Container Registry
-            # Note: Using GITHUB_TOKEN for workflow authentication
-            # For persistent access, the VPS should have GHCR_PAT configured in /home/deploy/.docker/config.json
-            echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+            echo "📥 Pulling latest code..."
+            git pull origin master || { echo "❌ Git pull failed"; exit 1; }
 
-            # Pull new images from GHCR
-            docker compose -f docker-compose.yml -f docker-compose.prod.yml pull backend frontend
+            echo "🔐 Logging in to GitHub Container Registry..."
+            echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin || { echo "❌ Docker login failed"; exit 1; }
 
-            # Restart services with graceful shutdown using production config
-            docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --no-deps backend frontend
+            echo "📦 Pulling new images from GHCR..."
+            docker compose -f docker-compose.yml -f docker-compose.prod.yml pull backend frontend || { echo "❌ Docker pull failed"; exit 1; }
 
-            # Wait for services to be healthy
-            sleep 10
+            echo "🔄 Restarting services with graceful shutdown..."
+            docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --no-deps backend frontend || { echo "❌ Docker compose up failed"; exit 1; }
 
-            # Restart nginx to refresh upstream connections to new container IPs
-            docker compose restart nginx-proxy
+            echo "⏳ Waiting for services to be healthy (15s)..."
+            sleep 15
+
+            echo "🔄 Restarting nginx to refresh upstream connections..."
+            docker compose restart nginx-proxy || { echo "❌ Nginx restart failed"; exit 1; }
             sleep 5
 
-            # Verify deployment
-            curl -f https://formicanera.com/api/health || exit 1
+            echo "🏥 Verifying deployment health..."
+            for i in {1..5}; do
+              if curl -f -s https://formicanera.com/api/health > /dev/null; then
+                echo "✅ Health check passed!"
+                break
+              else
+                echo "⚠️  Health check attempt $i/5 failed, retrying in 5s..."
+                if [ $i -eq 5 ]; then
+                  echo "❌ Health check failed after 5 attempts"
+                  exit 1
+                fi
+                sleep 5
+              fi
+            done
 
             echo "✅ Deployment successful!"
 
