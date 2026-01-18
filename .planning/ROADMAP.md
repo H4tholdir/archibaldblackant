@@ -29,7 +29,7 @@ None (full-stack web app con pattern standard)
 - [x] **Phase 14: Fix IndexedDB Critical Error** - Risolvere errore IDBObjectStore 'put' ✅ COMPLETE
 - [x] **Phase 15: Dashboard Homepage UI** - Layout, budget widgets, visualizzazioni progresso ✅ COMPLETE
 - [x] **Phase 16: Target Wizard & Setup** - Wizard setup iniziale + modifica profilo ✅ COMPLETE
-- [ ] **Phase 17: Dashboard Metrics Backend** - API budget, ordini, progressi
+- [x] **Phase 17: Dashboard Metrics Backend** - API budget, ordini, progressi
 - [ ] **Phase 18: Customers Sync Analysis & Optimization** - Analisi completa + background + manual
 - [ ] **Phase 19: Products Sync Analysis & Optimization** - Analisi + background + manual + images
 - [ ] **Phase 20: Prices Sync Analysis & Optimization** - Analisi + background + manual + Excel listino
@@ -99,10 +99,12 @@ Plans:
 **Goal**: API backend per metriche dashboard (budget, ordini mensili, progressi vs target)
 **Depends on**: Phase 16
 **Research**: Unlikely (REST API endpoints, database queries - existing patterns)
-**Plans**: TBD
+**Plans**: 1/1 complete
+**Status**: Complete ✅
+**Completed**: 2026-01-18
 
 Plans:
-- [ ] 17-01: TBD
+- [x] 17-01: Dashboard Metrics Backend API (GET /api/metrics/budget, GET /api/metrics/orders, Dashboard integration) — 3min
 
 #### Phase 18: Customers Sync Analysis & Optimization
 **Goal**: Analisi completa sync clienti + background sync automatico + sync manuale granulare
