@@ -702,29 +702,91 @@ app.get("/api/users/me/target", authenticateJWT, (req: AuthRequest, res: Respons
   }
 });
 
-// Update current user's target
+// Update current user's target and commission config
 app.put("/api/users/me/target", authenticateJWT, (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user!.userId;
-    const { monthlyTarget, currency } = req.body;
+    const {
+      yearlyTarget,
+      currency,
+      commissionRate,
+      bonusAmount,
+      bonusInterval,
+      extraBudgetInterval,
+      extraBudgetReward,
+      monthlyAdvance,
+      hideCommissions
+    } = req.body;
 
     // Validation
-    if (typeof monthlyTarget !== "number" || monthlyTarget < 0) {
-      return res.status(400).json({ error: "monthlyTarget must be a non-negative number" });
+    if (typeof yearlyTarget !== "number" || yearlyTarget < 0) {
+      return res.status(400).json({ error: "yearlyTarget must be a non-negative number" });
     }
     if (typeof currency !== "string" || currency.length !== 3) {
       return res.status(400).json({ error: "currency must be a 3-letter ISO code (e.g., EUR)" });
     }
+    if (typeof commissionRate !== "number" || commissionRate < 0 || commissionRate > 1) {
+      return res.status(400).json({ error: "commissionRate must be between 0 and 1 (e.g., 0.18 for 18%)" });
+    }
+    if (typeof bonusAmount !== "number" || bonusAmount < 0) {
+      return res.status(400).json({ error: "bonusAmount must be a non-negative number" });
+    }
+    if (typeof bonusInterval !== "number" || bonusInterval <= 0) {
+      return res.status(400).json({ error: "bonusInterval must be a positive number" });
+    }
+    if (typeof extraBudgetInterval !== "number" || extraBudgetInterval <= 0) {
+      return res.status(400).json({ error: "extraBudgetInterval must be a positive number" });
+    }
+    if (typeof extraBudgetReward !== "number" || extraBudgetReward < 0) {
+      return res.status(400).json({ error: "extraBudgetReward must be a non-negative number" });
+    }
+    if (typeof monthlyAdvance !== "number" || monthlyAdvance < 0) {
+      return res.status(400).json({ error: "monthlyAdvance must be a non-negative number" });
+    }
+    if (typeof hideCommissions !== "boolean") {
+      return res.status(400).json({ error: "hideCommissions must be a boolean" });
+    }
 
     const userDb = UserDatabase.getInstance();
-    const success = userDb.updateUserTarget(userId, monthlyTarget, currency);
+    const success = userDb.updateUserTarget(
+      userId,
+      yearlyTarget,
+      currency,
+      commissionRate,
+      bonusAmount,
+      bonusInterval,
+      extraBudgetInterval,
+      extraBudgetReward,
+      monthlyAdvance,
+      hideCommissions
+    );
 
     if (!success) {
       return res.status(404).json({ error: "User not found" });
     }
 
-    logger.info("[API] User target updated", { userId, monthlyTarget, currency });
-    res.json({ monthlyTarget, currency, targetUpdatedAt: new Date().toISOString() });
+    const monthlyTarget = Math.round(yearlyTarget / 12);
+    logger.info("[API] User target and commission config updated", {
+      userId,
+      yearlyTarget,
+      monthlyTarget,
+      currency,
+      commissionRate,
+      hideCommissions
+    });
+    res.json({
+      monthlyTarget,
+      yearlyTarget,
+      currency,
+      targetUpdatedAt: new Date().toISOString(),
+      commissionRate,
+      bonusAmount,
+      bonusInterval,
+      extraBudgetInterval,
+      extraBudgetReward,
+      monthlyAdvance,
+      hideCommissions
+    });
   } catch (error) {
     logger.error("Error updating user target", { error });
     res.status(500).json({ error: "Error updating user target" });
