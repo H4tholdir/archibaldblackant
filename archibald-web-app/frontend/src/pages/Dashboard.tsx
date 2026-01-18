@@ -10,10 +10,19 @@ export function Dashboard() {
     monthlyTarget: number;
     currency: string;
   } | null>(null);
+  const [budgetData, setBudgetData] = useState<{
+    currentBudget: number;
+    progress: number;
+  } | null>(null);
+  const [orderMetrics, setOrderMetrics] = useState<{
+    todayCount: number;
+    weekCount: number;
+    monthCount: number;
+  } | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const fetchTarget = async () => {
+    const fetchDashboardData = async () => {
       const token = localStorage.getItem("archibald_jwt");
       if (!token) {
         setLoading(false);
@@ -21,30 +30,62 @@ export function Dashboard() {
       }
 
       try {
-        const response = await fetch(
-          "http://localhost:3000/api/users/me/target",
-          {
+        const [targetRes, budgetRes, ordersRes] = await Promise.all([
+          fetch("http://localhost:3000/api/users/me/target", {
             headers: { Authorization: `Bearer ${token}` },
-          }
-        );
+          }),
+          fetch("http://localhost:3000/api/metrics/budget", {
+            headers: { Authorization: `Bearer ${token}` },
+          }),
+          fetch("http://localhost:3000/api/metrics/orders", {
+            headers: { Authorization: `Bearer ${token}` },
+          }),
+        ]);
 
-        if (response.ok) {
-          const data = await response.json();
+        if (targetRes.ok) {
+          const data = await targetRes.json();
           setTargetData(data);
         } else {
           console.error(
             "[Dashboard] Failed to load target:",
-            await response.text()
+            await targetRes.text()
+          );
+        }
+
+        if (budgetRes.ok) {
+          const data = await budgetRes.json();
+          setBudgetData({
+            currentBudget: data.currentBudget,
+            progress: data.progress,
+          });
+        } else {
+          console.error(
+            "[Dashboard] Failed to load budget metrics:",
+            await budgetRes.text()
+          );
+        }
+
+        if (ordersRes.ok) {
+          const data = await ordersRes.json();
+          setOrderMetrics({
+            todayCount: data.todayCount,
+            weekCount: data.weekCount,
+            monthCount: data.monthCount,
+          });
+        } else {
+          console.error(
+            "[Dashboard] Failed to load order metrics:",
+            await ordersRes.text()
           );
         }
       } catch (error) {
-        console.error("[Dashboard] Target fetch error:", error);
+        console.error("[Dashboard] Failed to load metrics:", error);
       } finally {
         setLoading(false);
       }
     };
 
-    fetchTarget();
+    fetchDashboardData();
   }, []);
 
   if (loading) {
@@ -121,17 +162,21 @@ export function Dashboard() {
       >
         {/* Budget Widget */}
         <BudgetWidget
-          currentBudget={0}
+          currentBudget={budgetData?.currentBudget ?? 0}
           targetBudget={targetData.monthlyTarget}
           currency={targetData.currency}
         />
 
         {/* Orders Summary Widget */}
-        <OrdersSummaryWidget todayCount={3} weekCount={12} monthCount={45} />
+        <OrdersSummaryWidget
+          todayCount={orderMetrics?.todayCount ?? 0}
+          weekCount={orderMetrics?.weekCount ?? 0}
+          monthCount={orderMetrics?.monthCount ?? 0}
+        />
 
         {/* Target Visualization Widget */}
         <TargetVisualizationWidget
-          currentProgress={0}
+          currentProgress={budgetData?.progress ?? 0}
           targetDescription="Target Mensile"
           periodLabel={new Date().toLocaleDateString("it-IT", {
             month: "long",
