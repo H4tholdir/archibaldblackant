@@ -26,10 +26,26 @@ None (full-stack web app con pattern standard)
 - [x] **Phase 12: Deployment & Infrastructure** - Setup produzione VPS ✅ COMPLETE (3/4 plans complete, Part D deferred)
 - [x] **Phase 13: Security Audit & Sensitive Data Cleanup** - Audit completo e sanitizzazione ✅ COMPLETE (1/6 plans, rest optional)
 - [x] **Phase 5: Order Submission** - Invio ordine ottimizzato con tracking ✅ COMPLETE (goals achieved via other phases)
+- [ ] **Phase 14: Fix IndexedDB Critical Error** - Risolvere errore IDBObjectStore 'put'
+- [ ] **Phase 15: Dashboard Homepage UI** - Layout, budget widgets, visualizzazioni progresso
+- [ ] **Phase 16: Target Wizard & Setup** - Wizard setup iniziale + modifica profilo
+- [ ] **Phase 17: Dashboard Metrics Backend** - API budget, ordini, progressi
+- [ ] **Phase 18: Customers Sync Analysis & Optimization** - Analisi completa + background + manual
+- [ ] **Phase 19: Products Sync Analysis & Optimization** - Analisi + background + manual + images
+- [ ] **Phase 20: Prices Sync Analysis & Optimization** - Analisi + background + manual + Excel listino
+- [ ] **Phase 21: Orders Sync Analysis & Optimization** - Analisi + background + manual
+- [ ] **Phase 22: Sync Orchestration Layer** - Coordinator anti-overlap, staggered scheduling
+- [ ] **Phase 23: Sync UI Controls** - Bottoni granulari + sync generale
+- [ ] **Phase 24: Background Sync Service** - Service worker sync automatici silent
+- [ ] **Phase 25: Sync Monitoring Dashboard** - Admin UI monitoraggio sync
+- [ ] **Phase 26: Universal Fast Login** - Login veloce per tutte le operazioni
+- [ ] **Phase 27: Bot Performance Profiling v2** - Profile dettagliato post optimizations
+- [ ] **Phase 28: Bot Performance Optimization v2** - Target < 60s per ordine
 
 ## Milestones
 
 - ✅ **v1.0 MVP & Production Deployment** - Phases 1-13 (shipped 2026-01-17)
+- 🚧 **v2.0 Agent Dashboard & Sync Reliability** - Phases 14-28 (in progress)
 
 ## Phase Details
 
@@ -40,4 +56,167 @@ See phases 1-13 below for complete details of v1.0 milestone.
 
 </details>
 
+### 🚧 v2.0 Agent Dashboard & Sync Reliability (In Progress)
+
+**Milestone Goal**: Potenziare l'app con dashboard motivazionale per agenti, sistema di sync bulletproof con orchestrazione intelligente, e performance critiche ottimizzate per produttività massima.
+
+#### Phase 14: Fix IndexedDB Critical Error
+**Goal**: Risolvere completamente l'errore `IDBObjectStore 'put'` che appare su tutte le pagine della PWA
+**Depends on**: Phase 13 (v1.0 complete)
+**Research**: Unlikely (debugging existing IndexedDB implementation, standard error patterns)
+**Plans**: TBD
+
+Plans:
+- [ ] 14-01: TBD (run /gsd:plan-phase 14 to break down)
+
+#### Phase 15: Dashboard Homepage UI
+**Goal**: Creare layout homepage dashboard con budget widgets e visualizzazioni progresso motivazionali
+**Depends on**: Phase 14
+**Research**: Unlikely (React components with existing patterns, UI libraries already in stack)
+**Plans**: TBD
+
+Plans:
+- [ ] 15-01: TBD
+
+#### Phase 16: Target Wizard & Setup
+**Goal**: Wizard setup iniziale target agente (obbligatorio primo accesso) + UI modifica da profilo
+**Depends on**: Phase 15
+**Research**: Unlikely (form wizard pattern, localStorage persistence - established patterns)
+**Plans**: TBD
+
+Plans:
+- [ ] 16-01: TBD
+
+#### Phase 17: Dashboard Metrics Backend
+**Goal**: API backend per metriche dashboard (budget, ordini mensili, progressi vs target)
+**Depends on**: Phase 16
+**Research**: Unlikely (REST API endpoints, database queries - existing patterns)
+**Plans**: TBD
+
+Plans:
+- [ ] 17-01: TBD
+
+#### Phase 18: Customers Sync Analysis & Optimization
+**Goal**: Analisi completa sync clienti + background sync automatico + sync manuale granulare
+**Depends on**: Phase 17
+**Research**: Unlikely (analyzing existing scraping code, standard optimization techniques)
+**Plans**: TBD
+
+Plans:
+- [ ] 18-01: TBD
+
+#### Phase 19: Products Sync Analysis & Optimization
+**Goal**: Analisi completa sync articoli + background sync + sync manuale + image handling optimization
+**Depends on**: Phase 18
+**Research**: Unlikely (analyzing existing scraping + image handling already in codebase)
+**Plans**: TBD
+
+Plans:
+- [ ] 19-01: TBD
+
+#### Phase 20: Prices Sync Analysis & Optimization
+**Goal**: Analisi completa sync prezzi + background sync + sync manuale + Excel listino integration
+**Depends on**: Phase 19
+**Research**: Unlikely (analyzing existing sync + Excel parsing already integrated in v1.0)
+**Plans**: TBD
+
+Plans:
+- [ ] 20-01: TBD
+
+#### Phase 21: Orders Sync Analysis & Optimization
+**Goal**: Analisi completa sync ordini + background sync + sync manuale
+**Depends on**: Phase 20
+**Research**: Unlikely (analyzing existing order sync implementation)
+**Plans**: TBD
+
+Plans:
+- [ ] 21-01: TBD
+
+#### Phase 22: Sync Orchestration Layer
+**Goal**: Coordinator centrale per evitare overlap sync + staggered scheduling (15min intervals)
+**Depends on**: Phase 21
+**Research**: Likely (distributed coordination patterns, staggered scheduling algorithms)
+**Research topics**: Job scheduling patterns, mutex/locking mechanisms, distributed coordination, event-driven architectures
+**Plans**: TBD
+
+Plans:
+- [ ] 22-01: TBD
+
+#### Phase 23: Sync UI Controls
+**Goal**: Bottoni UI granulari per ogni singolo sync + bottone sync generale
+**Depends on**: Phase 22
+**Research**: Unlikely (UI buttons and controls, existing React patterns)
+**Plans**: TBD
+
+Plans:
+- [ ] 23-01: TBD
+
+#### Phase 24: Background Sync Service
+**Goal**: Service worker per sync automatici silent in background ogni 30min
+**Depends on**: Phase 23
+**Research**: Likely (Service Worker API for background operations, silent sync patterns)
+**Research topics**: Service Worker lifecycle, Background Sync API, PWA background tasks, silent notifications
+**Plans**: TBD
+
+Plans:
+- [ ] 24-01: TBD
+
+#### Phase 25: Sync Monitoring Dashboard
+**Goal**: UI admin per monitorare sync status, tempi esecuzione, errori
+**Depends on**: Phase 24
+**Research**: Unlikely (admin UI with metrics display, existing monitoring patterns from v1.0 Phase 12)
+**Plans**: TBD
+
+Plans:
+- [ ] 25-01: TBD
+
+#### Phase 26: Universal Fast Login
+**Goal**: Login veloce (come login iniziale) per tutte le operazioni (sync, bot, queries, reconnect)
+**Depends on**: Phase 25
+**Research**: Unlikely (optimizing existing Puppeteer login flow, caching strategies already known)
+**Plans**: TBD
+
+Plans:
+- [ ] 26-01: TBD
+
+#### Phase 27: Bot Performance Profiling v2
+**Goal**: Profile dettagliato post Phase 3.1 optimizations per identificare nuovi colli di bottiglia
+**Depends on**: Phase 26
+**Research**: Unlikely (extending existing profiling system from Phase 3.1, same patterns)
+**Plans**: TBD
+
+Plans:
+- [ ] 27-01: TBD
+
+#### Phase 28: Bot Performance Optimization v2
+**Goal**: Raggiungere target < 60s per ordine (attualmente ~82s, riduzione -22s)
+**Depends on**: Phase 27
+**Research**: Unlikely (applying optimizations to existing bot code, leveraging Phase 3.1 analysis)
+**Plans**: TBD
+
+Plans:
+- [ ] 28-01: TBD
+
+---
+
 ### v1.0 Completed Phases (For Reference)
+
+## Progress
+
+| Phase | Milestone | Plans Complete | Status | Completed |
+|-------|-----------|----------------|--------|-----------|
+| 14. Fix IndexedDB Critical Error | v2.0 | 0/? | Not started | - |
+| 15. Dashboard Homepage UI | v2.0 | 0/? | Not started | - |
+| 16. Target Wizard & Setup | v2.0 | 0/? | Not started | - |
+| 17. Dashboard Metrics Backend | v2.0 | 0/? | Not started | - |
+| 18. Customers Sync Analysis & Optimization | v2.0 | 0/? | Not started | - |
+| 19. Products Sync Analysis & Optimization | v2.0 | 0/? | Not started | - |
+| 20. Prices Sync Analysis & Optimization | v2.0 | 0/? | Not started | - |
+| 21. Orders Sync Analysis & Optimization | v2.0 | 0/? | Not started | - |
+| 22. Sync Orchestration Layer | v2.0 | 0/? | Not started | - |
+| 23. Sync UI Controls | v2.0 | 0/? | Not started | - |
+| 24. Background Sync Service | v2.0 | 0/? | Not started | - |
+| 25. Sync Monitoring Dashboard | v2.0 | 0/? | Not started | - |
+| 26. Universal Fast Login | v2.0 | 0/? | Not started | - |
+| 27. Bot Performance Profiling v2 | v2.0 | 0/? | Not started | - |
+| 28. Bot Performance Optimization v2 | v2.0 | 0/? | Not started | - |

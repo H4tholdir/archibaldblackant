@@ -5,16 +5,16 @@
 See: .planning/PROJECT.md (updated 2026-01-11)
 
 **Core value:** Rendere la creazione ordini Archibald **veloce, affidabile e mobile-friendly** per agenti in movimento
-**Current focus:** Planning next milestone
+**Current focus:** v2.0 Agent Dashboard & Sync Reliability — Phase 14 ready to plan
 
 ## Current Position
 
-Phase: 13 complete, next milestone TBD
-Plan: N/A
-Status: ✅ v1.0 shipped, ready for next milestone
-Last activity: 2026-01-18 — Cleaned up v2.0, ready for new milestone planning
+Phase: 14 of 28 (Fix IndexedDB Critical Error)
+Plan: Not started
+Status: Ready to plan
+Last activity: 2026-01-18 — Milestone v2.0 created (15 phases)
 
-Progress: ████████████ 100% (v1.0: 81/90 plans shipped)
+Progress: ░░░░░░░░░░ 0% (v2.0: 0/15 phases, 0/? plans)
 
 ## Performance Metrics
 
@@ -255,7 +255,13 @@ None yet.
 
 ### Roadmap Evolution
 
-- **2026-01-18**: Milestone v2.0 cancelled and removed - Phase 14 discovery completed but remaining work not aligned with priorities
+- **2026-01-18 (evening)**: Milestone v2.0 created - Agent Dashboard & Sync Reliability (15 phases: 14-28)
+  - **Focus**: Dashboard motivazionale agenti + sync system bulletproof + performance critiche
+  - **Scope**: Fix IndexedDB critico, homepage dashboard con budget/target, sync analysis completo (clienti/articoli/prezzi/ordini), orchestrazione intelligente, background sync automatico, login veloce universale, bot optimization < 60s
+  - **Phases**: 14 (Fix IndexedDB) → 15-17 (Dashboard) → 18-25 (Sync System) → 26-28 (Performance)
+  - **Research**: 2 phases likely (22: Sync Orchestration, 24: Background Sync Service)
+
+- **2026-01-18 (afternoon)**: Milestone v2.0 cancelled and removed - Phase 14 discovery completed but remaining work not aligned with priorities
   - **Decision**: Remove Phases 14-21 from roadmap to start fresh with new milestone v2.0
   - **Preserved**: Phase 14 discovery documentation available in git history if needed
   - **Next**: Plan new milestone v2.0 with revised priorities
@@ -538,14 +544,14 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-01-18 (afternoon)
-Stopped at: ✅ Cleaned up v2.0 milestone (Phases 14-21 removed)
-Next: /gsd:new-milestone — Plan fresh v2.0 with new objectives
+Last session: 2026-01-18 (evening)
+Stopped at: Milestone v2.0 created and initialized
+Next: /gsd:plan-phase 14 — Plan first phase (Fix IndexedDB Critical Error)
 Resume file: None
 
-**Cleanup Summary**:
-- ✅ Removed Phases 14-21 directories
-- ✅ Updated ROADMAP.md (removed v2.0 sections)
-- ✅ Updated STATE.md (current focus: planning next milestone)
-- ✅ Backup files created (.planning/*.backup)
-- 📋 Ready to create new milestone v2.0 from scratch
+**Milestone v2.0 Creation Summary**:
+- ✅ Created 15 phases (14-28) in ROADMAP.md
+- ✅ Created phase directories (.planning/phases/14-* through 28-*)
+- ✅ Updated STATE.md for new milestone
+- ✅ Deleted temporary MILESTONE-CONTEXT.md
+- 📋 Ready to start planning Phase 14
