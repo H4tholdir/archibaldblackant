@@ -87,11 +87,12 @@ Plans:
 **Goal**: Wizard setup iniziale target agente (obbligatorio primo accesso) + UI modifica da profilo
 **Depends on**: Phase 15
 **Research**: Unlikely (form wizard pattern, localStorage persistence - established patterns)
-**Plans**: 2/4 complete
+**Plans**: 3/4 complete
 
 Plans:
 - [x] 16-01: Backend Storage & API (monthlyTarget, currency, REST endpoints) — 21min
 - [x] 16-02: First-Time Wizard UI (3-step onboarding modal, banking app UX) — 51min
+- [x] 16-03: Profile Target Editor (ProfilePage component, /profile route, Profilo nav link) — 2min
 
 #### Phase 17: Dashboard Metrics Backend
 **Goal**: API backend per metriche dashboard (budget, ordini mensili, progressi vs target)
@@ -213,7 +214,7 @@ Plans:
 |-------|-----------|----------------|--------|-----------|
 | 14. Fix IndexedDB Critical Error | v2.0 | 1/1 | Complete | 2026-01-18 |
 | 15. Dashboard Homepage UI | v2.0 | 4/4 | Complete | 2026-01-18 |
-| 16. Target Wizard & Setup | v2.0 | 1/4 | In progress | - |
+| 16. Target Wizard & Setup | v2.0 | 3/4 | In progress | - |
 | 17. Dashboard Metrics Backend | v2.0 | 0/? | Not started | - |
 | 18. Customers Sync Analysis & Optimization | v2.0 | 0/? | Not started | - |
 | 19. Products Sync Analysis & Optimization | v2.0 | 0/? | Not started | - |
