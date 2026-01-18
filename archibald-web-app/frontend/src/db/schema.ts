@@ -153,6 +153,30 @@ export class ArchibaldDatabase extends Dexie {
       });
       await trans.table('draftOrders').clear();
     });
+
+    // Version 4: Fix corrupted productVariants and prices from bulkPut issue
+    this.version(4).stores({
+      // Same schema as v3
+      customers: 'id, name, code, city, *hash',
+      products: 'id, name, article, *hash',
+      productVariants: '++id, productId, variantId',
+      prices: '++id, articleId, articleName',
+      draftOrders: '++id, customerId, createdAt, updatedAt',
+      pendingOrders: '++id, status, createdAt',
+      cacheMetadata: 'key, lastSynced'
+    }).upgrade(async (trans) => {
+      // Clear productVariants and prices to fix bulkPut→bulkAdd migration
+      console.log('[IndexedDB:Schema]', {
+        operation: 'migration',
+        version: 'v3→v4',
+        action: 'Clearing corrupted variants and prices (bulkPut fix)',
+        timestamp: new Date().toISOString(),
+      });
+      await trans.table('productVariants').clear();
+      await trans.table('prices').clear();
+      // Force re-sync by clearing cache metadata
+      await trans.table('cacheMetadata').clear();
+    });
   }
 }
 
