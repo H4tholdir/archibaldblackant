@@ -22,16 +22,28 @@ export class DraftService {
   ): Promise<void> {
     const existing = await this.getDraft();
 
-    const draft: DraftOrder = {
-      ...(existing?.id ? { id: existing.id } : {}), // Only include id if exists (for update)
-      customerId,
-      customerName,
-      items,
-      createdAt: existing?.createdAt || new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    };
-
-    await db.draftOrders.put(draft);
+    if (existing?.id) {
+      // Update existing draft
+      const draft: DraftOrder = {
+        id: existing.id,
+        customerId,
+        customerName,
+        items,
+        createdAt: existing.createdAt,
+        updatedAt: new Date().toISOString(),
+      };
+      await db.draftOrders.put(draft);
+    } else {
+      // Create new draft (omit id for auto-increment)
+      const draft: DraftOrder = {
+        customerId,
+        customerName,
+        items,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
+      await db.draftOrders.add(draft);
+    }
   }
 
   /**

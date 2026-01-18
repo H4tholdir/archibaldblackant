@@ -3,10 +3,8 @@ import {
   Routes,
   Route,
   Navigate,
-  useNavigate,
-  useLocation,
 } from "react-router-dom";
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import "./App.css";
 import { useAuth } from "./hooks/useAuth";
 import { useNetworkStatus } from "./hooks/useNetworkStatus";
@@ -30,8 +28,7 @@ import { CustomerList } from "./pages/CustomerList";
 import { CustomerEdit } from "./pages/CustomerEdit";
 import { ArticoliList } from "./pages/ArticoliList";
 import { Dashboard } from "./pages/Dashboard";
-import { pendingOrdersService } from "./services/pending-orders-service";
-import { getDraftOrders } from "./services/draftOrderStorage";
+import { DashboardNav } from "./components/DashboardNav";
 import { UnifiedSyncProgress } from "./components/UnifiedSyncProgress";
 
 function AppRouter() {
@@ -47,31 +44,6 @@ function AppRouter() {
     password: string;
   } | null>(null);
   const [showLoginForm, setShowLoginForm] = useState(false);
-  const [pendingCount, setPendingCount] = useState(0);
-  const [draftCount, setDraftCount] = useState(0);
-
-  // Load pending count and draft count on mount and refresh periodically
-  useEffect(() => {
-    const loadCounts = async () => {
-      try {
-        const result = await pendingOrdersService.getPendingOrdersWithCounts();
-        setPendingCount(result.counts.pending);
-
-        // Load draft orders count from localStorage
-        const drafts = getDraftOrders();
-        setDraftCount(drafts.length);
-      } catch (error) {
-        console.error("[AppRouter] Failed to load counts:", error);
-      }
-    };
-
-    if (auth.isAuthenticated) {
-      loadCounts();
-      // Refresh counts every 30 seconds
-      const interval = setInterval(loadCounts, 30000);
-      return () => clearInterval(interval);
-    }
-  }, [auth.isAuthenticated]);
 
   const handleOrderCreated = (newJobId: string) => {
     setJobId(newJobId);
@@ -185,11 +157,8 @@ function AppRouter() {
   // Main app - authenticated users
   const isAdmin = auth.user?.role === "admin";
 
-  // Shared Header component
+  // Shared Header component (simplified - navigation moved to DashboardNav)
   function AppHeader() {
-    const navigate = useNavigate();
-    const location = useLocation();
-
     return (
       <header className="app-header">
         <div>
@@ -197,88 +166,6 @@ function AppRouter() {
           <p>Inserimento ordini</p>
         </div>
         <div style={{ display: "flex", gap: "1rem", alignItems: "center" }}>
-          <div style={{ display: "flex", gap: "0.5rem" }}>
-            <button
-              type="button"
-              onClick={() => navigate("/order-form")}
-              className={`btn btn-sm ${location.pathname === "/order-form" && view === "form" ? "btn-primary" : "btn-secondary"}`}
-            >
-              📝 Nuovo Ordine
-            </button>
-            <button
-              type="button"
-              onClick={() => navigate("/drafts")}
-              className={`btn btn-sm ${location.pathname === "/drafts" ? "btn-primary" : "btn-secondary"}`}
-              style={{ position: "relative" }}
-            >
-              📝 Bozze
-              {draftCount > 0 && (
-                <span
-                  style={{
-                    position: "absolute",
-                    top: "-8px",
-                    right: "-8px",
-                    backgroundColor: "#2196f3",
-                    color: "#fff",
-                    borderRadius: "10px",
-                    padding: "2px 6px",
-                    fontSize: "11px",
-                    fontWeight: 600,
-                    minWidth: "20px",
-                  }}
-                >
-                  {draftCount}
-                </span>
-              )}
-            </button>
-            <button
-              type="button"
-              onClick={() => navigate("/orders")}
-              className={`btn btn-sm ${location.pathname === "/orders" ? "btn-primary" : "btn-secondary"}`}
-            >
-              📦 Storico
-            </button>
-            <button
-              type="button"
-              onClick={() => navigate("/customers")}
-              className={`btn btn-sm ${location.pathname === "/customers" ? "btn-primary" : "btn-secondary"}`}
-            >
-              👥 Clienti
-            </button>
-            <button
-              type="button"
-              onClick={() => navigate("/products")}
-              className={`btn btn-sm ${location.pathname === "/products" ? "btn-primary" : "btn-secondary"}`}
-            >
-              📦 Articoli
-            </button>
-            <button
-              type="button"
-              onClick={() => navigate("/pending")}
-              className={`btn btn-sm ${location.pathname === "/pending" ? "btn-primary" : "btn-secondary"}`}
-              style={{ position: "relative" }}
-            >
-              📋 Coda Offline
-              {pendingCount > 0 && (
-                <span
-                  style={{
-                    position: "absolute",
-                    top: "-8px",
-                    right: "-8px",
-                    backgroundColor: "#ff9800",
-                    color: "#fff",
-                    borderRadius: "10px",
-                    padding: "2px 6px",
-                    fontSize: "11px",
-                    fontWeight: 600,
-                    minWidth: "20px",
-                  }}
-                >
-                  {pendingCount}
-                </span>
-              )}
-            </button>
-          </div>
           <CacheRefreshButton />
           <div className="user-info">
             <span>{auth.user?.fullName}</span>
@@ -303,6 +190,8 @@ function AppRouter() {
       <UnifiedSyncProgress mode="banner" />
       {/* Badge mode for automatic background syncs */}
       <UnifiedSyncProgress mode="badge" />
+      {/* Global Dashboard Navigation */}
+      <DashboardNav />
       <Routes>
         {/* Dashboard route */}
         <Route

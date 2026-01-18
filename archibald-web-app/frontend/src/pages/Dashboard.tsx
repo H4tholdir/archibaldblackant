@@ -1,22 +1,16 @@
 import { useAuth } from "../hooks/useAuth";
-import { DashboardNav } from "../components/DashboardNav";
 
 export function Dashboard() {
   const auth = useAuth();
 
   return (
-    <>
-      {/* Navigation Bar - Full width, sticky */}
-      <DashboardNav />
-
-      {/* Dashboard Content */}
-      <div
-        style={{
-          maxWidth: "1200px",
-          margin: "0 auto",
-          padding: "20px",
-        }}
-      >
+    <div
+      style={{
+        maxWidth: "1200px",
+        margin: "0 auto",
+        padding: "20px",
+      }}
+    >
       {/* Header Section */}
       <div
         style={{
@@ -107,7 +101,6 @@ export function Dashboard() {
           }
         }
       `}</style>
-      </div>
-    </>
+    </div>
   );
 }
