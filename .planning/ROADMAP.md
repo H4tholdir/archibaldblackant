@@ -74,10 +74,11 @@ Plans:
 **Goal**: Creare layout homepage dashboard con budget widgets e visualizzazioni progresso motivazionali
 **Depends on**: Phase 14
 **Research**: Unlikely (React components with existing patterns, UI libraries already in stack)
-**Plans**: TBD
+**Plans**: 2/TBD
 
 Plans:
-- [ ] 15-01: TBD
+- [x] 15-01: Homepage Layout & Navigation (Dashboard route, DashboardNav global, cleanup) — 45min
+- [x] 15-02: Budget Progress Widget (color-coded progress bar, status badge) — 15min
 
 #### Phase 16: Target Wizard & Setup
 **Goal**: Wizard setup iniziale target agente (obbligatorio primo accesso) + UI modifica da profilo
@@ -206,8 +207,8 @@ Plans:
 
 | Phase | Milestone | Plans Complete | Status | Completed |
 |-------|-----------|----------------|--------|-----------|
-| 14. Fix IndexedDB Critical Error | v2.0 | 0/? | Not started | - |
-| 15. Dashboard Homepage UI | v2.0 | 0/? | Not started | - |
+| 14. Fix IndexedDB Critical Error | v2.0 | 1/1 | Complete | 2026-01-18 |
+| 15. Dashboard Homepage UI | v2.0 | 2/? | In progress | - |
 | 16. Target Wizard & Setup | v2.0 | 0/? | Not started | - |
 | 17. Dashboard Metrics Backend | v2.0 | 0/? | Not started | - |
 | 18. Customers Sync Analysis & Optimization | v2.0 | 0/? | Not started | - |
