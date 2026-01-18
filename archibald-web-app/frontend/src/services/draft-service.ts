@@ -23,7 +23,7 @@ export class DraftService {
     const existing = await this.getDraft();
 
     const draft: DraftOrder = {
-      id: existing?.id, // Reuse ID for upsert
+      ...(existing?.id ? { id: existing.id } : {}), // Only include id if exists (for update)
       customerId,
       customerName,
       items,
