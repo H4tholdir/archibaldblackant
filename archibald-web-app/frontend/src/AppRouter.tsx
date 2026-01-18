@@ -29,6 +29,7 @@ import { DraftOrders } from "./pages/DraftOrders";
 import { CustomerList } from "./pages/CustomerList";
 import { CustomerEdit } from "./pages/CustomerEdit";
 import { ArticoliList } from "./pages/ArticoliList";
+import { Dashboard } from "./pages/Dashboard";
 import { pendingOrdersService } from "./services/pending-orders-service";
 import { getDraftOrders } from "./services/draftOrderStorage";
 import { UnifiedSyncProgress } from "./components/UnifiedSyncProgress";
@@ -199,8 +200,8 @@ function AppRouter() {
           <div style={{ display: "flex", gap: "0.5rem" }}>
             <button
               type="button"
-              onClick={() => navigate("/")}
-              className={`btn btn-sm ${location.pathname === "/" && view === "form" ? "btn-primary" : "btn-secondary"}`}
+              onClick={() => navigate("/order-form")}
+              className={`btn btn-sm ${location.pathname === "/order-form" && view === "form" ? "btn-primary" : "btn-secondary"}`}
             >
               📝 Nuovo Ordine
             </button>
@@ -303,6 +304,27 @@ function AppRouter() {
       {/* Badge mode for automatic background syncs */}
       <UnifiedSyncProgress mode="badge" />
       <Routes>
+        {/* Dashboard route */}
+        <Route
+          path="/"
+          element={
+            <div
+              className="app"
+              style={{ marginTop: isOffline ? "64px" : "0" }}
+            >
+              <SyncBanner />
+              <AppHeader />
+              <main className="app-main" style={{ padding: "0" }}>
+                <Dashboard />
+              </main>
+              <footer className="app-footer">
+                <p>v1.0.0 • Fresis Team</p>
+              </footer>
+              <CacheSyncProgress />
+            </div>
+          }
+        />
+
         {/* Admin-only route */}
         {isAdmin && (
           <Route
@@ -442,9 +464,9 @@ function AppRouter() {
           }
         />
 
-        {/* Main app route */}
+        {/* Order Form route */}
         <Route
-          path="/"
+          path="/order-form"
           element={
             <div
               className="app"
