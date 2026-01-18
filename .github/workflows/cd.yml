@@ -98,6 +98,14 @@ jobs:
 
             echo "✅ Deployment successful!"
 
+            echo "🧹 Cleaning up old Docker images and cache..."
+            docker image prune -af --filter "until=168h" || echo "⚠️  Image cleanup had warnings (non-critical)"
+            docker builder prune -af --filter "until=72h" || echo "⚠️  Build cache cleanup had warnings (non-critical)"
+
+            echo "📊 Disk space after cleanup:"
+            df -h / | grep -E "^/dev"
+            docker system df
+
       - name: Notify deployment status
         if: always()
         run: |
