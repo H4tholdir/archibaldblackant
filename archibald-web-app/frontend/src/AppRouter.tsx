@@ -17,7 +17,6 @@ import OrderForm from "./components/OrderForm";
 import OrderStatus from "./components/OrderStatus";
 import OrdersList from "./components/OrdersList";
 import SyncBanner from "./components/SyncBanner";
-import { CacheSyncProgress } from "./components/CacheSyncProgress";
 import { OfflineBanner } from "./components/OfflineBanner";
 import { CacheRefreshButton } from "./components/CacheRefreshButton";
 import { AdminPage } from "./pages/AdminPage";
@@ -209,7 +208,6 @@ function AppRouter() {
               <footer className="app-footer">
                 <p>v1.0.0 • Fresis Team</p>
               </footer>
-              <CacheSyncProgress />
             </div>
           }
         />
@@ -243,7 +241,6 @@ function AppRouter() {
               <footer className="app-footer">
                 <p>v1.0.0 • Fresis Team</p>
               </footer>
-              <CacheSyncProgress />
             </div>
           }
         />
@@ -264,7 +261,6 @@ function AppRouter() {
               <footer className="app-footer">
                 <p>v1.0.0 • Fresis Team</p>
               </footer>
-              <CacheSyncProgress />
             </div>
           }
         />
@@ -285,7 +281,6 @@ function AppRouter() {
               <footer className="app-footer">
                 <p>v1.0.0 • Fresis Team</p>
               </footer>
-              <CacheSyncProgress />
             </div>
           }
         />
@@ -306,7 +301,6 @@ function AppRouter() {
               <footer className="app-footer">
                 <p>v1.0.0 • Fresis Team</p>
               </footer>
-              <CacheSyncProgress />
             </div>
           }
         />
@@ -327,7 +321,6 @@ function AppRouter() {
               <footer className="app-footer">
                 <p>v1.0.0 • Fresis Team</p>
               </footer>
-              <CacheSyncProgress />
             </div>
           }
         />
@@ -348,7 +341,6 @@ function AppRouter() {
               <footer className="app-footer">
                 <p>v1.0.0 • Fresis Team</p>
               </footer>
-              <CacheSyncProgress />
             </div>
           }
         />
@@ -386,7 +378,6 @@ function AppRouter() {
               </footer>
 
               {/* Cache sync progress bar */}
-              <CacheSyncProgress />
             </div>
           }
         />
