@@ -263,10 +263,9 @@ function AppRouter() {
   return (
     <BrowserRouter>
       <OfflineBanner />
-      {/* Unified sync progress - banner mode for manual syncs */}
-      <UnifiedSyncProgress mode="banner" />
-      {/* Badge mode for automatic background syncs */}
-      <UnifiedSyncProgress mode="badge" />
+      {/* Unified sync progress - temporarily disabled due to SSE errors */}
+      {/* <UnifiedSyncProgress mode="banner" /> */}
+      {/* <UnifiedSyncProgress mode="badge" /> */}
       {/* Global Dashboard Navigation */}
       <DashboardNav />
       <Routes>
