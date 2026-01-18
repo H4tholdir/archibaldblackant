@@ -28,8 +28,16 @@ export class PendingOrdersService {
     discountPercent?: number;
     targetTotalWithVAT?: number;
   }): Promise<number> {
+    // Sanitize undefined fields to prevent IndexedDB DataError
+    const sanitizedData: any = {};
+    for (const key in orderData) {
+      if ((orderData as any)[key] !== undefined) {
+        sanitizedData[key] = (orderData as any)[key];
+      }
+    }
+
     const order: PendingOrder = {
-      ...orderData,
+      ...sanitizedData,
       createdAt: new Date().toISOString(),
       status: "pending",
       retryCount: 0,
@@ -157,7 +165,7 @@ export class PendingOrdersService {
     for (const order of failed) {
       await db.pendingOrders.update(order.id!, {
         status: "pending",
-        errorMessage: undefined,
+        // Don't set errorMessage to undefined - omit it instead
       });
     }
 
