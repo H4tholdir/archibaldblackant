@@ -9,12 +9,12 @@ See: .planning/PROJECT.md (updated 2026-01-11)
 
 ## Current Position
 
-Phase: 18 of 28 (Customers Sync Analysis & Optimization)
-Plan: 5 of 5 in current phase
-Status: Complete (All 5 plans complete - Phase 18 finished)
-Last activity: 2026-01-19 — Completed Plan 18-05 (Comprehensive Testing & Performance Validation)
+Phase: 19 of 28 (Products Sync Analysis & Optimization)
+Plan: 0 of 5 in current phase
+Status: Ready to Execute (Phase 19 planning complete - 5 plans created)
+Last activity: 2026-01-19 — Completed Phase 19 planning (PDF-based sync, eliminate images)
 
-Progress: █████░░░░░ 25% (v2.0: 6/15 phases complete, 14/60 plans)
+Progress: █████░░░░░ 27% (v2.0: 6/15 phases complete, 14/60 plans + Phase 19 planned)
 
 ## Performance Metrics
 
@@ -63,6 +63,9 @@ Recent decisions affecting current work:
 
 | Phase | Decision | Rationale |
 |-------|----------|-----------|
+| 19-planning | Eliminate image management completely | User requirement: simplify codebase, remove ImageDownloader (~500 lines), no image downloads/storage/URLs, focus on business data only |
+| 19-planning | Extract ALL PDF fields (26+ fields) | User requirement: comprehensive data extraction from 8-page product PDF, update DB schema, migrate VPS database |
+| 19-planning | Performance target <60s for ~4,540 products | 3x customer count, scaled from Phase 18 (15-20s for 1,515), breakdown: download 8-10s, parse 18s, delta 3-4s, DB 3-5s |
 | 18-01 | Use child_process.spawn for Python execution | Better for large output vs exec, 10MB buffer handles ~2,000 customers, non-blocking streaming |
 | 18-01 | 30s timeout for PDF parsing | Conservative limit to prevent hanging (actual parsing 6-15s), protects Node.js from zombie processes |
 | 18-01 | Health check returns 503 when dependencies missing | Proper HTTP semantics (503 = unavailable, 500 = error), allows monitoring systems to detect deployment issues |

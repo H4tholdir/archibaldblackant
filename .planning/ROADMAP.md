@@ -141,13 +141,17 @@ Plans:
 - [x] 18-05: Comprehensive Testing & Performance Validation (test suite created: 8 unit + 15 integration tests, benchmark script, UAT checklist) ✅ COMPLETE (45min)
 
 #### Phase 19: Products Sync Analysis & Optimization
-**Goal**: Analisi completa sync articoli + background sync + sync manuale + image handling optimization
+**Goal**: Migrazione completa da HTML scraping a PDF-based sync: parser 8-page, bot download, delta sync, manual UI, background scheduler, eliminazione gestione immagini
 **Depends on**: Phase 18
-**Research**: Unlikely (analyzing existing scraping + image handling already in codebase)
-**Plans**: TBD
+**Research**: Completed (Phase 18.1 - PDF approach proven, reuse patterns)
+**Plans**: 5/5 planned ⏳ READY TO EXECUTE
 
 Plans:
-- [ ] 19-01: TBD
+- [ ] 19-01: PDF Parser Enhancement & Node.js Integration (8-page cycle, 26+ fields, no images, Node wrapper, health check) — est. 60min
+- [ ] 19-02: PDF Download Bot Flow & ProductSyncService Refactor (bot download, eliminate HTML scraping, hash delta, eliminate ImageDownloader) — est. 60min
+- [ ] 19-03: Manual Sync UI & API Endpoint (🔄 button, ManualSyncBanner, JWT-protected POST /api/products/sync) — est. 45min
+- [ ] 19-04: Background Sync Scheduler & Monitoring (30min interval, retry logic, metrics endpoint, admin controls) — est. 60min
+- [ ] 19-05: Comprehensive Testing & Performance Validation (8 unit + 13 integration tests, benchmark <60s, UAT checklist) — est. 45min
 
 #### Phase 20: Prices Sync Analysis & Optimization
 **Goal**: Analisi completa sync prezzi + background sync + sync manuale + Excel listino integration
