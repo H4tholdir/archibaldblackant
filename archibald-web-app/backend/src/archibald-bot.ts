@@ -6418,6 +6418,85 @@ export class ArchibaldBot {
     }
   }
 
+  /**
+   * Download products PDF export from Archibald
+   * @param context Browser context to use
+   * @returns Path to downloaded PDF file in /tmp
+   */
+  async downloadProductsPDF(context: BrowserContext): Promise<string> {
+    const page = await context.newPage();
+    const startTime = Date.now();
+    const timestamp = Date.now();
+    const userId = this.userId || "system";
+    const downloadPath = `/tmp/articoli-${timestamp}-${userId}.pdf`;
+
+    try {
+      logger.info("[ArchibaldBot] Downloading products PDF...", {
+        userId,
+        downloadPath,
+      });
+
+      // Navigate to products page
+      await page.goto(
+        "https://4.231.124.90/Archibald/INVENTTABLE_ListView/",
+        {
+          waitUntil: "networkidle2",
+          timeout: 30000,
+        },
+      );
+
+      logger.info("[ArchibaldBot] Products page loaded");
+
+      // Configure download behavior
+      const client = await page.target().createCDPSession();
+      await client.send("Page.setDownloadBehavior", {
+        behavior: "allow",
+        downloadPath: "/tmp",
+      });
+
+      // Click export button (text-based selector for stability)
+      const exportButtonSelector = 'text=/Esport.*PDF/i';
+      await page.waitForSelector(exportButtonSelector, { timeout: 10000 });
+      await page.click(exportButtonSelector);
+
+      logger.info(
+        "[ArchibaldBot] Export button clicked, waiting for download...",
+      );
+
+      // Wait for download to complete (15s timeout for large file)
+      await new Promise((resolve) => setTimeout(resolve, 15000));
+
+      // Verify file exists and has content
+      const fs = await import("fs/promises");
+      const stats = await fs.stat(downloadPath);
+
+      if (!stats.size) {
+        throw new Error("Downloaded PDF is empty");
+      }
+
+      const duration = Date.now() - startTime;
+      logger.info("[ArchibaldBot] Products PDF downloaded successfully", {
+        downloadPath,
+        sizeKB: Math.round(stats.size / 1024),
+        durationMs: duration,
+      });
+
+      return downloadPath;
+    } catch (error: any) {
+      const duration = Date.now() - startTime;
+      logger.error("[ArchibaldBot] Products PDF download failed", {
+        error,
+        durationMs: duration,
+      });
+      throw error;
+    } finally {
+      // Close page to free resources
+      if (!page.isClosed()) {
+        await page.close().catch(() => {});
+      }
+    }
+  }
+
   private formatDateForArchibald(isoDate: string): string {
     // Converte da YYYY-MM-DD a DD/MM/YYYY
     const [year, month, day] = isoDate.split("-");
