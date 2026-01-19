@@ -6237,16 +6237,36 @@ export class ArchibaldBot {
       });
 
       // 3. Trigger PDF export
-      // Look for "Esportare in" button by ID (most stable selector)
-      const exportButtonSelector =
-        '#Vertical_mainMenu_Menu_DXI6_T[title="Esportare in PDF File"]';
+      // Try multiple selectors for the "Esportare in" button
+      const exportButtonSelectors = [
+        '#Vertical_mainMenu_Menu_DXI6_T[title="Esportare in PDF File"]',
+        '#Vertical_mainMenu_Menu_DXI6_T',
+        'a[title="Esportare in PDF File"]',
+        'a.dxm-content:has-text("Esportare in")',
+      ];
 
-      try {
-        await page.waitForSelector(exportButtonSelector, { timeout: 5000 });
-        logger.info("[ArchibaldBot] Export button found in DOM");
-      } catch (error) {
+      let exportButtonSelector: string | null = null;
+
+      // Try each selector with longer timeout
+      for (const selector of exportButtonSelectors) {
+        try {
+          await page.waitForSelector(selector, { timeout: 10000, visible: true });
+          exportButtonSelector = selector;
+          logger.info(`[ArchibaldBot] Export button found with selector: ${selector}`);
+          break;
+        } catch (error) {
+          logger.debug(`[ArchibaldBot] Selector failed: ${selector}`);
+        }
+      }
+
+      if (!exportButtonSelector) {
+        // Take screenshot for debugging
+        const screenshotPath = `/tmp/clienti-page-debug-${Date.now()}.png`;
+        await page.screenshot({ path: screenshotPath, fullPage: true });
+        logger.error(`[ArchibaldBot] Screenshot saved to: ${screenshotPath}`);
+
         throw new Error(
-          'PDF export button "Esportare in" not found on Clienti page',
+          'PDF export button "Esportare in" not found on Clienti page. Check screenshot for details.',
         );
       }
 
