@@ -3982,6 +3982,13 @@ server.listen(config.server.port, async () => {
     "✅ Background customer sync scheduler started (30 min interval)",
   );
 
+  // Start background products sync (30 min interval)
+  const productSyncService = ProductSyncService.getInstance();
+  productSyncService.startAutoSync(30);
+  logger.info(
+    "✅ Background products sync scheduler started (30 min interval)",
+  );
+
   // OLD SCHEDULER SYNC GIORNALIERO (now replaced by SyncScheduler)
   // Sync manuale disponibile tramite API endpoint /api/sync/*
   /*
