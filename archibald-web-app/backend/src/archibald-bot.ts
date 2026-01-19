@@ -6303,18 +6303,21 @@ export class ArchibaldBot {
 
         // Poll for file creation
         const checkFile = setInterval(() => {
-          // Look for Clienti.pdf (Archibald's default name) or our custom pattern
+          // Look for Clienti.pdf/Customers.pdf (Archibald's default names) or our custom pattern
           const files = fs.readdirSync("/tmp");
           const pdfFiles = files.filter(
             (f: string) =>
               f === "Clienti.pdf" ||
-              (f.startsWith("clienti-") && f.endsWith(".pdf")),
+              f === "Customers.pdf" ||
+              (f.startsWith("clienti-") && f.endsWith(".pdf")) ||
+              (f.startsWith("customers-") && f.endsWith(".pdf")),
           );
 
           if (pdfFiles.length > 0) {
-            // Find the most recent one (prefer Clienti.pdf if it exists)
+            // Find the most recent one (prefer Clienti.pdf/Customers.pdf if they exist)
             const recentPdf =
               pdfFiles.find((f: string) => f === "Clienti.pdf") ||
+              pdfFiles.find((f: string) => f === "Customers.pdf") ||
               pdfFiles[pdfFiles.length - 1];
             const tempPath = `/tmp/${recentPdf}`;
 
