@@ -14,8 +14,8 @@ services:
   # Backend (Node.js + Puppeteer)
   backend:
     build:
-      context: ./archibald-web-app/backend
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: ./archibald-web-app/backend/Dockerfile
     container_name: archibald-backend
     restart: unless-stopped
     env_file:
