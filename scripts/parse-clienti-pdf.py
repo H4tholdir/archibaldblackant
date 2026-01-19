@@ -44,6 +44,20 @@ class ParsedCustomer:
     url: Optional[str] = None  # URL
     attention_to: Optional[str] = None  # ALL'ATTENZIONE DI
     last_order_date: Optional[str] = None  # DATA DELL'ULTIMO ORDINE
+    # Page 4: Order Analytics
+    actual_order_count: Optional[int] = None  # CONTEGGI DEGLI ORDINI EFFETTIVI
+    customer_type: Optional[str] = None  # TIPO DI CLIENTE
+    previous_order_count_1: Optional[int] = None  # CONTEGGIO DEGLI ORDINI PRECEDENTE
+    # Page 5: Sales Analytics
+    previous_sales_1: Optional[float] = None  # VENDITE PRECEDENTE
+    previous_order_count_2: Optional[int] = None  # CONTEGGIO DEGLI ORDINI PRECEDENTE 2
+    previous_sales_2: Optional[float] = None  # VENDITE PRECEDENTE
+    # Page 6: Business Info & Accounts
+    description: Optional[str] = None  # DESCRIZIONE
+    type: Optional[str] = None  # TYPE
+    external_account_number: Optional[str] = None  # NUMERO DI CONTO ESTERNO
+    # Page 7: Internal Account
+    our_account_number: Optional[str] = None  # IL NOSTRO NUMERO DI CONTO
 
     def to_dict(self) -> dict:
         """Convert to dictionary, excluding None values"""
@@ -71,42 +85,53 @@ class CustomerPDFParser:
                 lines = [line.strip() for line in page_text.split('\n') if line.strip()]
                 all_pages_lines.append(lines)
 
-        # PDF has 4-page cycles: [IDs, Fiscal, Address, Contact]
+        # PDF has 8-page cycles: [IDs, Fiscal, Address, Contact, OrderAnalytics, SalesAnalytics, BusinessInfo, InternalAccount]
         customers = self._parse_cyclic_pages(all_pages_lines)
 
         return customers
 
     def _parse_cyclic_pages(self, all_pages_lines: List[List[str]]) -> List[ParsedCustomer]:
-        """Parse pages in 4-page cycles and combine data"""
+        """Parse pages in 8-page cycles and combine data"""
         customers = []
 
         # Determine cycle positions
         num_pages = len(all_pages_lines)
-        cycles = num_pages // 4
+        cycles = num_pages // 8
 
         for cycle in range(cycles):
-            page_0 = cycle * 4  # IDs, Names, VAT
-            page_1 = cycle * 4 + 1  # PEC, SDI, Fiscal Code, Delivery
-            page_2 = cycle * 4 + 2  # Street, Address, Postal, City
-            page_3 = cycle * 4 + 3  # Phone, Mobile, URL, Attention, Date
+            base_idx = cycle * 8
 
-            # Parse each page type
-            ids_data = self._parse_ids_page(all_pages_lines[page_0])
-            fiscal_data = self._parse_fiscal_page(all_pages_lines[page_1])
-            address_data = self._parse_address_page(all_pages_lines[page_2])
-            contact_data = self._parse_contact_page(all_pages_lines[page_3])
+            # Pages 0-3: Basic info (existing)
+            ids_data = self._parse_ids_page(all_pages_lines[base_idx])
+            fiscal_data = self._parse_fiscal_page(all_pages_lines[base_idx + 1])
+            address_data = self._parse_address_page(all_pages_lines[base_idx + 2])
+            contact_data = self._parse_contact_page(all_pages_lines[base_idx + 3])
+
+            # Pages 4-7: Analytics & accounts (NEW)
+            order_analytics = self._parse_order_analytics_page(all_pages_lines[base_idx + 4])
+            sales_analytics = self._parse_sales_analytics_page(all_pages_lines[base_idx + 5])
+            business_info = self._parse_business_info_page(all_pages_lines[base_idx + 6])
+            internal_account = self._parse_internal_account_page(all_pages_lines[base_idx + 7])
 
             # Combine data by row index
-            max_rows = max(len(ids_data), len(fiscal_data), len(address_data), len(contact_data))
+            max_rows = max(
+                len(ids_data), len(fiscal_data), len(address_data), len(contact_data),
+                len(order_analytics), len(sales_analytics), len(business_info), len(internal_account)
+            )
 
             for row_idx in range(max_rows):
                 ids = ids_data[row_idx] if row_idx < len(ids_data) else {}
                 fiscal = fiscal_data[row_idx] if row_idx < len(fiscal_data) else {}
                 address = address_data[row_idx] if row_idx < len(address_data) else {}
                 contact = contact_data[row_idx] if row_idx < len(contact_data) else {}
+                order_ana = order_analytics[row_idx] if row_idx < len(order_analytics) else {}
+                sales_ana = sales_analytics[row_idx] if row_idx < len(sales_analytics) else {}
+                biz_info = business_info[row_idx] if row_idx < len(business_info) else {}
+                int_acct = internal_account[row_idx] if row_idx < len(internal_account) else {}
 
-                # Merge all data
+                # Merge all 8 pages of data
                 customer = ParsedCustomer(
+                    # Pages 0-3 (existing)
                     customer_profile=ids.get('customer_profile', ''),
                     name=ids.get('name', ''),
                     vat_number=ids.get('vat_number'),
@@ -122,11 +147,22 @@ class CustomerPDFParser:
                     mobile=contact.get('mobile'),
                     url=contact.get('url'),
                     attention_to=contact.get('attention_to'),
-                    last_order_date=contact.get('last_order_date')
+                    last_order_date=contact.get('last_order_date'),
+                    # Pages 4-7 (NEW)
+                    actual_order_count=order_ana.get('actual_order_count'),
+                    customer_type=order_ana.get('customer_type'),
+                    previous_order_count_1=order_ana.get('previous_order_count_1'),
+                    previous_sales_1=sales_ana.get('previous_sales_1'),
+                    previous_order_count_2=sales_ana.get('previous_order_count_2'),
+                    previous_sales_2=sales_ana.get('previous_sales_2'),
+                    description=biz_info.get('description'),
+                    type=biz_info.get('type'),
+                    external_account_number=biz_info.get('external_account_number'),
+                    our_account_number=int_acct.get('our_account_number')
                 )
 
-                # Only add if has valid customer_profile
-                if customer.customer_profile:
+                # Filter garbage: ID="0" and valid customer_profile required
+                if customer.customer_profile and customer.customer_profile != "0":
                     customers.append(customer)
 
         return customers
@@ -292,6 +328,146 @@ class CustomerPDFParser:
 
         return rows
 
+    def _parse_order_analytics_page(self, lines: List[str]) -> List[Dict]:
+        """Parse page 4: CONTEGGI DEGLI ORDINI EFFETTIVI, TIPO DI CLIENTE, CONTEGGIO DEGLI ORDINI PRECEDENTE"""
+        rows = []
+        data_lines = lines[1:] if lines else []
+
+        for line in data_lines:
+            parts = line.split()
+
+            actual_order_count = None
+            customer_type = None
+            previous_order_count_1 = None
+
+            # Pattern: "4 1.792,97 € 97"
+            # First column: integer (actualOrderCount)
+            # Second+Third: currency amount (skip for MVP - not in schema)
+            # Last column: integer (previousOrderCount1)
+
+            if len(parts) >= 1 and parts[0].isdigit():
+                actual_order_count = int(parts[0])
+
+            # Last numeric value is previousOrderCount1
+            for part in reversed(parts):
+                if part.isdigit():
+                    previous_order_count_1 = int(part)
+                    break
+
+            # Customer type might be in middle (text field)
+            # For MVP, skip if not easily identifiable
+
+            rows.append({
+                'actual_order_count': actual_order_count,
+                'customer_type': customer_type,
+                'previous_order_count_1': previous_order_count_1
+            })
+
+        return rows
+
+    def _parse_sales_analytics_page(self, lines: List[str]) -> List[Dict]:
+        """Parse page 5: VENDITE PRECEDENTE, CONTEGGIO DEGLI ORDINI PRECEDENTE 2, VENDITE PRECEDENTE"""
+        rows = []
+        data_lines = lines[1:] if lines else []
+
+        for line in data_lines:
+            # Pattern: "124.497,43 € 112 185.408,57 €"
+            # Extract currency amounts and integer
+
+            # Remove € symbols and split
+            clean_line = line.replace('€', '').strip()
+            parts = clean_line.split()
+
+            previous_sales_1 = None
+            previous_order_count_2 = None
+            previous_sales_2 = None
+
+            # Find integers and currency amounts
+            integers = []
+            currencies = []
+
+            for part in parts:
+                # Check if currency (contains comma and digits)
+                if ',' in part and any(c.isdigit() for c in part):
+                    # Convert Italian format to float: 124.497,43 → 124497.43
+                    value = part.replace('.', '').replace(',', '.')
+                    try:
+                        currencies.append(float(value))
+                    except ValueError:
+                        pass
+                elif part.isdigit():
+                    integers.append(int(part))
+
+            # Assign based on position
+            if len(currencies) >= 1:
+                previous_sales_1 = currencies[0]
+            if len(integers) >= 1:
+                previous_order_count_2 = integers[0]
+            if len(currencies) >= 2:
+                previous_sales_2 = currencies[1]
+
+            rows.append({
+                'previous_sales_1': previous_sales_1,
+                'previous_order_count_2': previous_order_count_2,
+                'previous_sales_2': previous_sales_2
+            })
+
+        return rows
+
+    def _parse_business_info_page(self, lines: List[str]) -> List[Dict]:
+        """Parse page 6: DESCRIZIONE, TYPE, NUMERO DI CONTO ESTERNO"""
+        rows = []
+        data_lines = lines[1:] if lines else []
+
+        for line in data_lines:
+            # Pattern: "Debitor Debitor 50"
+            # Pattern: "Customer from Concessionario CustFromConcess 223"
+
+            parts = line.split()
+
+            description = None
+            type_field = None
+            external_account_number = None
+
+            # External account number is last numeric value
+            if parts and parts[-1].isdigit():
+                external_account_number = parts[-1]
+                parts = parts[:-1]
+
+            # Type is known codes (Debitor, CustFromConcess, PotFromCon, etc.)
+            known_types = ['Debitor', 'CustFromConcess', 'PotFromCon']
+            for part in parts:
+                if part in known_types:
+                    type_field = part
+
+            # Description is remaining text
+            description_parts = [p for p in parts if p != type_field]
+            if description_parts:
+                description = ' '.join(description_parts)
+
+            rows.append({
+                'description': description,
+                'type': type_field,
+                'external_account_number': external_account_number
+            })
+
+        return rows
+
+    def _parse_internal_account_page(self, lines: List[str]) -> List[Dict]:
+        """Parse page 7: IL NOSTRO NUMERO DI CONTO"""
+        rows = []
+        data_lines = lines[1:] if lines else []
+
+        for line in data_lines:
+            # Single column: our account number
+            our_account_number = line.strip() if line.strip() else None
+
+            rows.append({
+                'our_account_number': our_account_number
+            })
+
+        return rows
+
 
 def main():
     """Main CLI entry point"""
@@ -320,7 +496,7 @@ def main():
 
         elif output_format == 'csv':
             # Print CSV header
-            print('customer_profile,name,vat_number,pec,sdi,fiscal_code,delivery_terms,street,logistics_address,postal_code,city,phone,mobile,url,attention_to,last_order_date')
+            print('customer_profile,name,vat_number,pec,sdi,fiscal_code,delivery_terms,street,logistics_address,postal_code,city,phone,mobile,url,attention_to,last_order_date,actual_order_count,customer_type,previous_order_count_1,previous_sales_1,previous_order_count_2,previous_sales_2,description,type,external_account_number,our_account_number')
 
             # Print data rows
             for c in customers:
@@ -340,7 +516,18 @@ def main():
                     c.mobile or '',
                     c.url or '',
                     c.attention_to or '',
-                    c.last_order_date or ''
+                    c.last_order_date or '',
+                    # NEW FIELDS
+                    str(c.actual_order_count) if c.actual_order_count is not None else '',
+                    c.customer_type or '',
+                    str(c.previous_order_count_1) if c.previous_order_count_1 is not None else '',
+                    str(c.previous_sales_1) if c.previous_sales_1 is not None else '',
+                    str(c.previous_order_count_2) if c.previous_order_count_2 is not None else '',
+                    str(c.previous_sales_2) if c.previous_sales_2 is not None else '',
+                    c.description or '',
+                    c.type or '',
+                    c.external_account_number or '',
+                    c.our_account_number or ''
                 ]
                 # Escape quotes in CSV
                 row = [f'"{field}"' if ',' in field or '"' in field else field for field in row]
