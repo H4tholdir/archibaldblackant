@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { ProductCard } from "../components/ProductCard";
-import { getProducts, type Product } from "../api/products";
+import { getProducts, syncProducts, type Product } from "../api/products";
+import { ManualSyncBanner } from "../components/ManualSyncBanner";
 
 interface ProductFilters {
   search: string;
@@ -22,6 +23,11 @@ export function ArticoliList() {
   const [totalCount, setTotalCount] = useState(0);
   const [returnedCount, setReturnedCount] = useState(0);
   const [limited, setLimited] = useState(false);
+  const [syncStatus, setSyncStatus] = useState<
+    "idle" | "syncing" | "success" | "error"
+  >("idle");
+  const [syncMessage, setSyncMessage] = useState<string>("");
+  const [isSyncing, setIsSyncing] = useState(false);
 
   // Debounce search input (300ms)
   useEffect(() => {
@@ -97,6 +103,39 @@ export function ArticoliList() {
     });
   };
 
+  const handleManualSync = async () => {
+    setIsSyncing(true);
+    setSyncStatus("syncing");
+    setSyncMessage("⏳ Aggiornamento articoli in corso...");
+
+    try {
+      const result = await syncProducts();
+
+      setSyncStatus("success");
+      setSyncMessage(
+        `✅ Sincronizzazione completata: ${result.newProducts} nuovi, ${result.updatedProducts} aggiornati`,
+      );
+
+      // Auto-hide success banner after 3s
+      setTimeout(() => {
+        setSyncStatus("idle");
+        setSyncMessage("");
+      }, 3000);
+
+      // Refresh products list
+      await fetchProducts();
+    } catch (error) {
+      setSyncStatus("error");
+      setSyncMessage(
+        error instanceof Error
+          ? `❌ Errore: ${error.message}`
+          : "❌ Errore durante la sincronizzazione",
+      );
+    } finally {
+      setIsSyncing(false);
+    }
+  };
+
   const hasActiveFilters = filters.search || filters.groupCode;
 
   // Extract unique group codes for filter dropdown
@@ -114,6 +153,22 @@ export function ArticoliList() {
         minHeight: "100vh",
       }}
     >
+      {/* Manual sync banner */}
+      <ManualSyncBanner
+        status={syncStatus}
+        message={syncMessage}
+        onClose={
+          syncStatus === "error"
+            ? handleManualSync
+            : syncStatus === "success"
+              ? () => {
+                  setSyncStatus("idle");
+                  setSyncMessage("");
+                }
+              : undefined
+        }
+      />
+
       {/* Header */}
       <div style={{ marginBottom: "24px" }}>
         <h1
@@ -284,6 +339,38 @@ export function ArticoliList() {
               ✕ Cancella filtri
             </button>
           )}
+
+          {/* Manual sync button */}
+          <button
+            onClick={handleManualSync}
+            disabled={isSyncing}
+            style={{
+              padding: "8px 16px",
+              fontSize: "14px",
+              fontWeight: 600,
+              border: "1px solid #1976d2",
+              borderRadius: "8px",
+              backgroundColor: isSyncing ? "#e3f2fd" : "#fff",
+              color: isSyncing ? "#999" : "#1976d2",
+              cursor: isSyncing ? "not-allowed" : "pointer",
+              transition: "all 0.2s",
+              opacity: isSyncing ? 0.6 : 1,
+            }}
+            onMouseEnter={(e) => {
+              if (!isSyncing) {
+                e.currentTarget.style.backgroundColor = "#1976d2";
+                e.currentTarget.style.color = "#fff";
+              }
+            }}
+            onMouseLeave={(e) => {
+              if (!isSyncing) {
+                e.currentTarget.style.backgroundColor = "#fff";
+                e.currentTarget.style.color = "#1976d2";
+              }
+            }}
+          >
+            {isSyncing ? "⏳ Aggiornamento..." : "🔄 Aggiorna Articoli"}
+          </button>
         </div>
       </div>
 
