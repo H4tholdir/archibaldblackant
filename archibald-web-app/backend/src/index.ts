@@ -1056,26 +1056,43 @@ app.post(
   "/api/customers/sync",
   async (req: Request, res: Response<ApiResponse>) => {
     try {
-      logger.info("Richiesta sync manuale dei clienti");
+      // Check if sync already in progress
+      if (syncService.isSyncInProgress()) {
+        return res.status(409).json({
+          success: false,
+          error: "Sync already in progress",
+          message: "Un aggiornamento è già in corso. Attendere il completamento.",
+        });
+      }
 
-      // Avvia sync in background (non blocca la risposta)
-      syncService.syncCustomers().catch((error) => {
-        logger.error("Errore sync manuale", { error });
-      });
+      logger.info("[API] Manual customer sync triggered");
 
-      res.json({
-        success: true,
-        message: "Sincronizzazione avviata",
-      });
-    } catch (error) {
-      logger.error("Errore API /api/customers/sync", { error });
+      // Execute sync and wait for completion
+      const result = await syncService.syncCustomers();
+
+      if (result.success) {
+        res.json({
+          success: true,
+          customersProcessed: result.customersProcessed,
+          newCustomers: result.newCustomers,
+          updatedCustomers: result.updatedCustomers,
+          duration: result.duration,
+          message: `Aggiornamento completato: ${result.newCustomers} nuovi, ${result.updatedCustomers} modificati`,
+        });
+      } else {
+        res.status(500).json({
+          success: false,
+          error: result.error,
+          message: "Errore durante l'aggiornamento",
+        });
+      }
+    } catch (error: any) {
+      logger.error("[API] Manual sync failed:", error);
 
       res.status(500).json({
         success: false,
-        error:
-          error instanceof Error
-            ? error.message
-            : "Errore durante l'avvio della sincronizzazione",
+        error: error.message,
+        message: "Errore durante l'aggiornamento clienti",
       });
     }
   },
