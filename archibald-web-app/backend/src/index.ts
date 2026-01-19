@@ -1199,6 +1199,45 @@ app.get("/api/customers/sync/metrics", (req: Request, res: Response) => {
   });
 });
 
+/**
+ * Update sync frequency (admin)
+ * POST /api/admin/sync/frequency
+ * Body: { intervalMinutes: number }
+ */
+app.post(
+  "/api/admin/sync/frequency",
+  (req: Request, res: Response) => {
+    // TODO: Add authentication in Phase 26 (admin routes)
+
+    const { intervalMinutes } = req.body;
+
+    if (
+      !intervalMinutes ||
+      intervalMinutes < 5 ||
+      intervalMinutes > 1440
+    ) {
+      return res.status(400).json({
+        error: "Invalid interval",
+        message: "Interval must be between 5 and 1440 minutes (1 day)",
+      });
+    }
+
+    // Restart scheduler with new interval
+    syncService.stopAutoSync();
+    syncService.startAutoSync(intervalMinutes);
+
+    logger.info(
+      `[CustomerSync] Frequency updated to ${intervalMinutes} minutes`,
+    );
+
+    res.json({
+      success: true,
+      intervalMinutes,
+      message: `Sync frequency updated to ${intervalMinutes} minutes`,
+    });
+  },
+);
+
 // Update customer endpoint
 app.put(
   "/api/customers/:customerProfile",

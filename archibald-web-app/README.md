@@ -11,6 +11,55 @@ Mobile-first PWA for Archibald ERP order entry with voice input and multi-user s
 - **Offline-First**: PWA with IndexedDB caching for customer and product data
 - **Background Automation**: Puppeteer-based RPA for seamless Archibald ERP integration
 
+## Background Customer Sync
+
+The system automatically syncs customer data from Archibald every **30 minutes** in the background.
+
+### Sync Behavior
+
+- **Initial sync**: 5 seconds after server start
+- **Recurring sync**: Every 30 minutes
+- **Duration**: ~15-20 seconds per sync
+- **Retry logic**: 3 attempts with exponential backoff (5s, 10s, 20s)
+- **Alert threshold**: 3 consecutive failures
+
+### Manual Sync
+
+Users can trigger manual sync anytime via "🔄 Aggiorna Clienti" button in the Clienti page.
+
+### Monitoring
+
+- **Metrics endpoint**: `GET /api/customers/sync/metrics`
+- **Status endpoint**: `GET /api/customers/sync/status`
+- **Health indicator**: `"healthy"` if < 3 consecutive failures, `"degraded"` otherwise
+
+### Configuration
+
+Default interval: 30 minutes (configurable via `startAutoSync(intervalMinutes)`)
+
+To adjust frequency (admin):
+
+```bash
+curl -X POST http://localhost:3000/api/admin/sync/frequency \
+  -H "Content-Type: application/json" \
+  -d '{"intervalMinutes": 15}'
+```
+
+### Performance Targets
+
+- Sync duration: < 20s (target: 15-20s)
+- Error rate: < 5%
+- Delta efficiency: > 95% unchanged records skipped
+
+### Troubleshooting
+
+If sync fails repeatedly:
+
+1. Check bot credentials: `curl http://localhost:3000/api/health/pdf-parser`
+2. Check Python/pdfplumber installation: `python3 --version && pip3 list | grep pdfplumber`
+3. Check disk space for /tmp PDFs: `df -h /tmp`
+4. Review logs: `tail -f logs/backend.log | grep CustomerSync`
+
 ## Multi-User Support
 
 The system supports multiple users with individual Archibald sessions:
