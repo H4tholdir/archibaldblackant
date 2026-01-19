@@ -4,44 +4,66 @@ import path from "path";
 import { logger } from "./logger";
 
 export interface Product {
-  // ========== CORE FIELDS ==========
-  id: string; // ID ARTICOLO (Cell[2])
-  name: string; // NOME ARTICOLO (Cell[3])
+  // ========== CORE FIELDS (Page 1) ==========
+  id: string; // ID ARTICOLO
+  name: string; // NOME ARTICOLO
+  description?: string; // DESCRIZIONE
 
-  // ========== DESCRIPTIVE FIELDS ==========
-  description?: string; // DESCRIZIONE (Cell[4])
-  groupCode?: string; // GRUPPO ARTICOLO (Cell[5])
+  // ========== PAGE 2 FIELDS ==========
+  groupCode?: string; // GRUPPO ARTICOLO
+  packageContent?: string; // CONTENUTO DELL'IMBALLAGGIO
+  searchName?: string; // NOME DELLA RICERCA
 
-  // ========== IMAGE FIELDS ==========
-  imageUrl?: string; // IMMAGINE URL from Archibald (Cell[6])
-  imageLocalPath?: string; // Local storage: "images/{name}.jpg"
-  imageDownloadedAt?: number; // Unix timestamp of last image download
+  // ========== PAGE 3 FIELDS ==========
+  priceUnit?: string; // UNITÀ DI PREZZO
+  productGroupId?: string; // ID GRUPPO DI PRODOTTI
+  productGroupDescription?: string; // DESCRIZIONE GRUPPO ARTICOLO
+  minQty?: number; // QTÀ MINIMA
 
-  // ========== PACKAGE & SEARCH FIELDS ==========
-  packageContent?: string; // CONTENUTO DELL'IMBALLAGGIO (Cell[7])
-  searchName?: string; // NOME DELLA RICERCA (Cell[8])
-  priceUnit?: string; // UNITÀ DI PREZZO (Cell[9])
+  // ========== PAGE 4 FIELDS ==========
+  multipleQty?: number; // QTÀ MULTIPLI
+  maxQty?: number; // QTÀ MASSIMA
+  figure?: string; // FIGURA
+  bulkArticleId?: string; // ID IN BLOCCO DELL'ARTICOLO
+  legPackage?: string; // PACCO GAMBA
 
-  // ========== PRODUCT GROUP FIELDS ==========
-  productGroupId?: string; // ID GRUPPO DI PRODOTTI (Cell[10])
-  productGroupDescription?: string; // DESCRIZIONE GRUPPO ARTICOLO (Cell[11])
+  // ========== PAGE 5 FIELDS ==========
+  size?: string; // GRANDEZZA
+  configurationId?: string; // ID DI CONFIGURAZIONE
+  createdBy?: string; // CREATO DA
+  createdDate?: string; // DATA CREATA
+  dataAreaId?: string; // DATAAREAID
 
-  // ========== QUANTITY FIELDS ==========
-  minQty?: number; // QTÀ MINIMA (Cell[12])
-  multipleQty?: number; // QTÀ MULTIPLA (Cell[13])
-  maxQty?: number; // QTÀ MASSIMA (Cell[14])
+  // ========== PAGE 6 FIELDS ==========
+  defaultQty?: string; // QTÀ PREDEFINITA
+  displayProductNumber?: string; // VISUALIZZA IL NUMERO DI PRODOTTO
+  totalAbsoluteDiscount?: string; // SCONTO ASSOLUTO TOTALE
+  productId?: string; // ID (duplicate?)
 
-  // ========== PRICE & VAT FIELDS ==========
-  price?: number; // Prezzo (from PriceSyncService or Excel)
-  priceSource?: "archibald" | "excel" | null; // Source of price data
-  priceUpdatedAt?: number; // Unix timestamp of last price update
-  vat?: number; // IVA percentage (from Excel)
-  vatSource?: "archibald" | "excel" | null; // Source of VAT data
-  vatUpdatedAt?: number; // Unix timestamp of last VAT update
+  // ========== PAGE 7 FIELDS ==========
+  lineDiscount?: string; // SCONTO LINEA
+  modifiedBy?: string; // MODIFICATO DA
+  modifiedDatetime?: string; // DATETIME MODIFICATO
+  orderableArticle?: string; // ARTICOLO ORDINABILE
+
+  // ========== PAGE 8 FIELDS ==========
+  purchPrice?: string; // PURCH PRICE
+  pcsStandardConfigurationId?: string; // PCS ID DI CONFIGURAZIONE STANDARD
+  standardQty?: string; // QTÀ STANDARD
+  stopped?: string; // FERMATO
+  unitId?: string; // ID UNITÀ
+
+  // ========== PRICE FIELDS (keep existing) ==========
+  price?: number;
+  priceSource?: "archibald" | "excel" | null;
+  priceUpdatedAt?: number;
+  vat?: number;
+  vatSource?: "archibald" | "excel" | null;
+  vatUpdatedAt?: number;
 
   // ========== SYSTEM FIELDS ==========
-  hash: string; // SHA256 hash for change detection
-  lastSync: number; // Unix timestamp of last sync
+  hash: string; // MD5 hash for delta detection
+  lastSync: number; // Unix timestamp
 }
 
 export interface ValidationResult {
@@ -248,7 +270,7 @@ export class ProductDatabase {
    * Include TUTTI i campi estrattibili per rilevare qualsiasi cambiamento
    */
   static calculateHash(product: Omit<Product, "hash" | "lastSync">): string {
-    const data = `${product.id}|${product.name}|${product.description || ""}|${product.groupCode || ""}|${product.imageUrl || ""}|${product.packageContent || ""}|${product.searchName || ""}|${product.priceUnit || ""}|${product.productGroupId || ""}|${product.productGroupDescription || ""}|${product.minQty || ""}|${product.multipleQty || ""}|${product.maxQty || ""}|${product.price || ""}`;
+    const data = `${product.id}|${product.name}|${product.description || ""}|${product.groupCode || ""}|${product.packageContent || ""}|${product.searchName || ""}|${product.priceUnit || ""}|${product.productGroupId || ""}|${product.productGroupDescription || ""}|${product.minQty || ""}|${product.multipleQty || ""}|${product.maxQty || ""}|${product.figure || ""}|${product.bulkArticleId || ""}|${product.legPackage || ""}|${product.size || ""}|${product.configurationId || ""}|${product.createdBy || ""}|${product.createdDate || ""}|${product.dataAreaId || ""}|${product.defaultQty || ""}|${product.displayProductNumber || ""}|${product.totalAbsoluteDiscount || ""}|${product.productId || ""}|${product.lineDiscount || ""}|${product.modifiedBy || ""}|${product.modifiedDatetime || ""}|${product.orderableArticle || ""}|${product.purchPrice || ""}|${product.pcsStandardConfigurationId || ""}|${product.standardQty || ""}|${product.stopped || ""}|${product.unitId || ""}|${product.price || ""}`;
     return createHash("sha256").update(data).digest("hex");
   }
 
@@ -415,7 +437,6 @@ export class ProductDatabase {
       "name",
       "description",
       "groupCode",
-      "imageUrl",
       "packageContent",
       "searchName",
       "priceUnit",
@@ -424,6 +445,27 @@ export class ProductDatabase {
       "minQty",
       "multipleQty",
       "maxQty",
+      "figure",
+      "bulkArticleId",
+      "legPackage",
+      "size",
+      "configurationId",
+      "createdBy",
+      "createdDate",
+      "dataAreaId",
+      "defaultQty",
+      "displayProductNumber",
+      "totalAbsoluteDiscount",
+      "productId",
+      "lineDiscount",
+      "modifiedBy",
+      "modifiedDatetime",
+      "orderableArticle",
+      "purchPrice",
+      "pcsStandardConfigurationId",
+      "standardQty",
+      "stopped",
+      "unitId",
       "price",
     ];
 
