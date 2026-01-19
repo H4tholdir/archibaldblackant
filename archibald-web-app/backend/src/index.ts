@@ -710,137 +710,173 @@ app.delete(
 );
 
 // Get current user's target
-app.get("/api/users/me/target", authenticateJWT, (req: AuthRequest, res: Response) => {
-  try {
-    const userId = req.user!.userId;
-    const userDb = UserDatabase.getInstance();
-    const target = userDb.getUserTarget(userId);
+app.get(
+  "/api/users/me/target",
+  authenticateJWT,
+  (req: AuthRequest, res: Response) => {
+    try {
+      const userId = req.user!.userId;
+      const userDb = UserDatabase.getInstance();
+      const target = userDb.getUserTarget(userId);
 
-    if (!target) {
-      return res.status(404).json({ error: "User not found" });
+      if (!target) {
+        return res.status(404).json({ error: "User not found" });
+      }
+
+      res.json(target);
+    } catch (error) {
+      logger.error("Error getting user target", { error });
+      res.status(500).json({ error: "Error getting user target" });
     }
-
-    res.json(target);
-  } catch (error) {
-    logger.error("Error getting user target", { error });
-    res.status(500).json({ error: "Error getting user target" });
-  }
-});
+  },
+);
 
 // Update current user's target and commission config
-app.put("/api/users/me/target", authenticateJWT, (req: AuthRequest, res: Response) => {
-  try {
-    const userId = req.user!.userId;
-    const {
-      yearlyTarget,
-      currency,
-      commissionRate,
-      bonusAmount,
-      bonusInterval,
-      extraBudgetInterval,
-      extraBudgetReward,
-      monthlyAdvance,
-      hideCommissions
-    } = req.body;
+app.put(
+  "/api/users/me/target",
+  authenticateJWT,
+  (req: AuthRequest, res: Response) => {
+    try {
+      const userId = req.user!.userId;
+      const {
+        yearlyTarget,
+        currency,
+        commissionRate,
+        bonusAmount,
+        bonusInterval,
+        extraBudgetInterval,
+        extraBudgetReward,
+        monthlyAdvance,
+        hideCommissions,
+      } = req.body;
 
-    // Validation
-    if (typeof yearlyTarget !== "number" || yearlyTarget < 0) {
-      return res.status(400).json({ error: "yearlyTarget must be a non-negative number" });
-    }
-    if (typeof currency !== "string" || currency.length !== 3) {
-      return res.status(400).json({ error: "currency must be a 3-letter ISO code (e.g., EUR)" });
-    }
-    if (typeof commissionRate !== "number" || commissionRate < 0 || commissionRate > 1) {
-      return res.status(400).json({ error: "commissionRate must be between 0 and 1 (e.g., 0.18 for 18%)" });
-    }
-    if (typeof bonusAmount !== "number" || bonusAmount < 0) {
-      return res.status(400).json({ error: "bonusAmount must be a non-negative number" });
-    }
-    if (typeof bonusInterval !== "number" || bonusInterval <= 0) {
-      return res.status(400).json({ error: "bonusInterval must be a positive number" });
-    }
-    if (typeof extraBudgetInterval !== "number" || extraBudgetInterval <= 0) {
-      return res.status(400).json({ error: "extraBudgetInterval must be a positive number" });
-    }
-    if (typeof extraBudgetReward !== "number" || extraBudgetReward < 0) {
-      return res.status(400).json({ error: "extraBudgetReward must be a non-negative number" });
-    }
-    if (typeof monthlyAdvance !== "number" || monthlyAdvance < 0) {
-      return res.status(400).json({ error: "monthlyAdvance must be a non-negative number" });
-    }
-    if (typeof hideCommissions !== "boolean") {
-      return res.status(400).json({ error: "hideCommissions must be a boolean" });
-    }
+      // Validation
+      if (typeof yearlyTarget !== "number" || yearlyTarget < 0) {
+        return res
+          .status(400)
+          .json({ error: "yearlyTarget must be a non-negative number" });
+      }
+      if (typeof currency !== "string" || currency.length !== 3) {
+        return res
+          .status(400)
+          .json({ error: "currency must be a 3-letter ISO code (e.g., EUR)" });
+      }
+      if (
+        typeof commissionRate !== "number" ||
+        commissionRate < 0 ||
+        commissionRate > 1
+      ) {
+        return res
+          .status(400)
+          .json({
+            error:
+              "commissionRate must be between 0 and 1 (e.g., 0.18 for 18%)",
+          });
+      }
+      if (typeof bonusAmount !== "number" || bonusAmount < 0) {
+        return res
+          .status(400)
+          .json({ error: "bonusAmount must be a non-negative number" });
+      }
+      if (typeof bonusInterval !== "number" || bonusInterval <= 0) {
+        return res
+          .status(400)
+          .json({ error: "bonusInterval must be a positive number" });
+      }
+      if (typeof extraBudgetInterval !== "number" || extraBudgetInterval <= 0) {
+        return res
+          .status(400)
+          .json({ error: "extraBudgetInterval must be a positive number" });
+      }
+      if (typeof extraBudgetReward !== "number" || extraBudgetReward < 0) {
+        return res
+          .status(400)
+          .json({ error: "extraBudgetReward must be a non-negative number" });
+      }
+      if (typeof monthlyAdvance !== "number" || monthlyAdvance < 0) {
+        return res
+          .status(400)
+          .json({ error: "monthlyAdvance must be a non-negative number" });
+      }
+      if (typeof hideCommissions !== "boolean") {
+        return res
+          .status(400)
+          .json({ error: "hideCommissions must be a boolean" });
+      }
 
-    const userDb = UserDatabase.getInstance();
-    const success = userDb.updateUserTarget(
-      userId,
-      yearlyTarget,
-      currency,
-      commissionRate,
-      bonusAmount,
-      bonusInterval,
-      extraBudgetInterval,
-      extraBudgetReward,
-      monthlyAdvance,
-      hideCommissions
-    );
+      const userDb = UserDatabase.getInstance();
+      const success = userDb.updateUserTarget(
+        userId,
+        yearlyTarget,
+        currency,
+        commissionRate,
+        bonusAmount,
+        bonusInterval,
+        extraBudgetInterval,
+        extraBudgetReward,
+        monthlyAdvance,
+        hideCommissions,
+      );
 
-    if (!success) {
-      return res.status(404).json({ error: "User not found" });
+      if (!success) {
+        return res.status(404).json({ error: "User not found" });
+      }
+
+      const monthlyTarget = Math.round(yearlyTarget / 12);
+      logger.info("[API] User target and commission config updated", {
+        userId,
+        yearlyTarget,
+        monthlyTarget,
+        currency,
+        commissionRate,
+        hideCommissions,
+      });
+      res.json({
+        monthlyTarget,
+        yearlyTarget,
+        currency,
+        targetUpdatedAt: new Date().toISOString(),
+        commissionRate,
+        bonusAmount,
+        bonusInterval,
+        extraBudgetInterval,
+        extraBudgetReward,
+        monthlyAdvance,
+        hideCommissions,
+      });
+    } catch (error) {
+      logger.error("Error updating user target", { error });
+      res.status(500).json({ error: "Error updating user target" });
     }
-
-    const monthlyTarget = Math.round(yearlyTarget / 12);
-    logger.info("[API] User target and commission config updated", {
-      userId,
-      yearlyTarget,
-      monthlyTarget,
-      currency,
-      commissionRate,
-      hideCommissions
-    });
-    res.json({
-      monthlyTarget,
-      yearlyTarget,
-      currency,
-      targetUpdatedAt: new Date().toISOString(),
-      commissionRate,
-      bonusAmount,
-      bonusInterval,
-      extraBudgetInterval,
-      extraBudgetReward,
-      monthlyAdvance,
-      hideCommissions
-    });
-  } catch (error) {
-    logger.error("Error updating user target", { error });
-    res.status(500).json({ error: "Error updating user target" });
-  }
-});
+  },
+);
 
 // Get current month budget metrics
-app.get("/api/metrics/budget", authenticateJWT, (req: AuthRequest, res: Response) => {
-  try {
-    const userId = req.user!.userId;
-    const userDb = UserDatabase.getInstance();
-    const orderDb = OrderDatabase.getInstance();
+app.get(
+  "/api/metrics/budget",
+  authenticateJWT,
+  (req: AuthRequest, res: Response) => {
+    try {
+      const userId = req.user!.userId;
+      const userDb = UserDatabase.getInstance();
+      const orderDb = OrderDatabase.getInstance();
 
-    // Get user's target
-    const target = userDb.getUserTarget(userId);
-    if (!target) {
-      return res.status(404).json({ error: "User not found" });
-    }
+      // Get user's target
+      const target = userDb.getUserTarget(userId);
+      if (!target) {
+        return res.status(404).json({ error: "User not found" });
+      }
 
-    // Calculate current month date range
-    const now = new Date();
-    const year = now.getFullYear();
-    const month = now.getMonth();
-    const startOfMonth = new Date(year, month, 1, 0, 0, 0).toISOString();
-    const endOfMonth = new Date(year, month + 1, 0, 23, 59, 59).toISOString();
-    const monthLabel = now.toISOString().slice(0, 7); // "2026-01"
+      // Calculate current month date range
+      const now = new Date();
+      const year = now.getFullYear();
+      const month = now.getMonth();
+      const startOfMonth = new Date(year, month, 1, 0, 0, 0).toISOString();
+      const endOfMonth = new Date(year, month + 1, 0, 23, 59, 59).toISOString();
+      const monthLabel = now.toISOString().slice(0, 7); // "2026-01"
 
-    // Query current month budget from orders
-    const query = `
+      // Query current month budget from orders
+      const query = `
       SELECT SUM(CAST(totalAmount AS REAL)) as total
       FROM orders
       WHERE userId = ?
@@ -850,82 +886,119 @@ app.get("/api/metrics/budget", authenticateJWT, (req: AuthRequest, res: Response
         AND totalAmount != ''
     `;
 
-    const result = orderDb["db"].prepare(query).get(userId, startOfMonth, endOfMonth) as { total: number | null };
-    const currentBudget = result?.total || 0;
+      const result = orderDb["db"]
+        .prepare(query)
+        .get(userId, startOfMonth, endOfMonth) as { total: number | null };
+      const currentBudget = result?.total || 0;
 
-    // Calculate progress percentage
-    const monthlyTarget = target.monthlyTarget;
-    const progress = monthlyTarget > 0 ? Math.min((currentBudget / monthlyTarget) * 100, 100) : 0;
+      // Calculate progress percentage
+      const monthlyTarget = target.monthlyTarget;
+      const progress =
+        monthlyTarget > 0
+          ? Math.min((currentBudget / monthlyTarget) * 100, 100)
+          : 0;
 
-    res.json({
-      currentBudget,
-      targetBudget: monthlyTarget,
-      currency: target.currency,
-      progress: Math.round(progress * 10) / 10, // Round to 1 decimal place
-      month: monthLabel,
-    });
-  } catch (error) {
-    logger.error("Error getting budget metrics", { error });
-    res.status(500).json({ error: "Error getting budget metrics" });
-  }
-});
+      res.json({
+        currentBudget,
+        targetBudget: monthlyTarget,
+        currency: target.currency,
+        progress: Math.round(progress * 10) / 10, // Round to 1 decimal place
+        month: monthLabel,
+      });
+    } catch (error) {
+      logger.error("Error getting budget metrics", { error });
+      res.status(500).json({ error: "Error getting budget metrics" });
+    }
+  },
+);
 
 // Get order counts by temporal period
-app.get("/api/metrics/orders", authenticateJWT, (req: AuthRequest, res: Response) => {
-  try {
-    const userId = req.user!.userId;
-    const orderDb = OrderDatabase.getInstance();
+app.get(
+  "/api/metrics/orders",
+  authenticateJWT,
+  (req: AuthRequest, res: Response) => {
+    try {
+      const userId = req.user!.userId;
+      const orderDb = OrderDatabase.getInstance();
 
-    // Calculate temporal boundaries
-    const now = new Date();
+      // Calculate temporal boundaries
+      const now = new Date();
 
-    // Today: Start of today (00:00:00) to now
-    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0).toISOString();
+      // Today: Start of today (00:00:00) to now
+      const todayStart = new Date(
+        now.getFullYear(),
+        now.getMonth(),
+        now.getDate(),
+        0,
+        0,
+        0,
+      ).toISOString();
 
-    // This week: Start of Monday to now (ISO week definition)
-    const dayOfWeek = now.getDay(); // 0=Sunday, 1=Monday, ..., 6=Saturday
-    const daysToMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1; // If Sunday, go back 6 days; else go back to Monday
-    const weekStart = new Date(now.getFullYear(), now.getMonth(), now.getDate() - daysToMonday, 0, 0, 0).toISOString();
+      // This week: Start of Monday to now (ISO week definition)
+      const dayOfWeek = now.getDay(); // 0=Sunday, 1=Monday, ..., 6=Saturday
+      const daysToMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1; // If Sunday, go back 6 days; else go back to Monday
+      const weekStart = new Date(
+        now.getFullYear(),
+        now.getMonth(),
+        now.getDate() - daysToMonday,
+        0,
+        0,
+        0,
+      ).toISOString();
 
-    // This month: First day of month to now
-    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0).toISOString();
+      // This month: First day of month to now
+      const monthStart = new Date(
+        now.getFullYear(),
+        now.getMonth(),
+        1,
+        0,
+        0,
+        0,
+      ).toISOString();
 
-    // Query order counts for each period
-    const todayQuery = `
+      // Query order counts for each period
+      const todayQuery = `
       SELECT COUNT(*) as count
       FROM orders
       WHERE userId = ? AND creationDate >= ?
     `;
-    const todayResult = orderDb["db"].prepare(todayQuery).get(userId, todayStart) as { count: number };
-    const todayCount = todayResult?.count || 0;
+      const todayResult = orderDb["db"]
+        .prepare(todayQuery)
+        .get(userId, todayStart) as { count: number };
+      const todayCount = todayResult?.count || 0;
 
-    const weekQuery = `
+      const weekQuery = `
       SELECT COUNT(*) as count
       FROM orders
       WHERE userId = ? AND creationDate >= ?
     `;
-    const weekResult = orderDb["db"].prepare(weekQuery).get(userId, weekStart) as { count: number };
-    const weekCount = weekResult?.count || 0;
+      const weekResult = orderDb["db"]
+        .prepare(weekQuery)
+        .get(userId, weekStart) as { count: number };
+      const weekCount = weekResult?.count || 0;
 
-    const monthQuery = `
+      const monthQuery = `
       SELECT COUNT(*) as count
       FROM orders
       WHERE userId = ? AND creationDate >= ?
     `;
-    const monthResult = orderDb["db"].prepare(monthQuery).get(userId, monthStart) as { count: number };
-    const monthCount = monthResult?.count || 0;
+      const monthResult = orderDb["db"]
+        .prepare(monthQuery)
+        .get(userId, monthStart) as { count: number };
+      const monthCount = monthResult?.count || 0;
 
-    res.json({
-      todayCount,
-      weekCount,
-      monthCount,
-      timestamp: now.toISOString(),
-    });
-  } catch (error) {
-    logger.error("Error getting order metrics", { error });
-    res.status(500).json({ error: "Error getting order metrics" });
-  }
-});
+      res.json({
+        todayCount,
+        weekCount,
+        monthCount,
+        timestamp: now.toISOString(),
+      });
+    } catch (error) {
+      logger.error("Error getting order metrics", { error });
+      res.status(500).json({ error: "Error getting order metrics" });
+    }
+  },
+);
 
 // Get customers endpoint (legge dal database locale)
 app.get("/api/customers", (req: Request, res: Response<ApiResponse>) => {
@@ -1064,7 +1137,8 @@ app.post(
         return res.status(409).json({
           success: false,
           error: "Sync already in progress",
-          message: "Un aggiornamento è già in corso. Attendere il completamento.",
+          message:
+            "Un aggiornamento è già in corso. Attendere il completamento.",
         });
       }
 
@@ -3722,6 +3796,12 @@ server.listen(config.server.port, async () => {
   } catch (error) {
     logger.error("❌ Failed to start Sync Scheduler", { error });
   }
+
+  // Start background customer sync (30 min interval)
+  syncService.startAutoSync(30);
+  logger.info(
+    "✅ Background customer sync scheduler started (30 min interval)",
+  );
 
   // OLD SCHEDULER SYNC GIORNALIERO (now replaced by SyncScheduler)
   // Sync manuale disponibile tramite API endpoint /api/sync/*
