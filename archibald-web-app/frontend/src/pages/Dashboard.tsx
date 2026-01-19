@@ -1,8 +1,8 @@
 import { useState, useEffect } from "react";
 import { useAuth } from "../hooks/useAuth";
-// TEST: Widgets imports temporarily disabled to identify TDZ source
+// TEST: Testing widgets one by one to identify TDZ source
 // import { BudgetWidget } from "../components/BudgetWidget";
-// import { OrdersSummaryWidget } from "../components/OrdersSummaryWidget";
+import { OrdersSummaryWidget } from "../components/OrdersSummaryWidget";
 // import { CommissionsWidget } from "../components/CommissionsWidget";
 
 export function Dashboard() {
@@ -162,13 +162,10 @@ export function Dashboard() {
         </div>
       </div>
 
-      {/* TEST: All widgets temporarily disabled to identify TDZ source */}
-      <div style={{ padding: "40px", textAlign: "center" }}>
-        <h2>Dashboard Test Mode</h2>
-        <p>All widgets disabled for debugging</p>
-        <p>Data loaded: {targetData ? '✅' : '❌'}</p>
-        <p>Budget loaded: {budgetData ? '✅' : '❌'}</p>
-        <p>Orders loaded: {orderMetrics ? '✅' : '❌'}</p>
+      {/* TEST: Phase 1 - Testing OrdersSummaryWidget only */}
+      <div style={{ padding: "40px", textAlign: "center", marginBottom: "20px" }}>
+        <h2>🔍 Test Phase 1: OrdersSummaryWidget Only</h2>
+        <p>Data loaded: {targetData ? '✅' : '❌'} | Budget: {budgetData ? '✅' : '❌'} | Orders: {orderMetrics ? '✅' : '❌'}</p>
       </div>
 
       {/* Hero Widget - Full Width Budget */}
@@ -185,20 +182,20 @@ export function Dashboard() {
       </div> */}
 
       {/* Secondary Widgets Grid */}
-      {/* <div
+      <div
         style={{
           display: "grid",
           gridTemplateColumns: "1fr",
           gap: "20px",
         }}
         className="dashboard-grid"
-      > */}
-        {/* Orders Summary Widget */}
-        {/* <OrdersSummaryWidget
+      >
+        {/* Orders Summary Widget - ENABLED FOR TEST */}
+        <OrdersSummaryWidget
           todayCount={orderMetrics?.todayCount ?? 0}
           weekCount={orderMetrics?.weekCount ?? 0}
           monthCount={orderMetrics?.monthCount ?? 0}
-        /> */}
+        />
 
         {/* Commissions Widget */}
         {/* <CommissionsWidget
@@ -213,7 +210,7 @@ export function Dashboard() {
           currency={targetData?.currency ?? "EUR"}
           hideCommissions={targetData?.hideCommissions ?? false}
         /> */}
-      {/* </div> */}
+      </div>
 
       {/* Responsive Grid Media Query via inline style tag */}
       <style>{`
