@@ -6224,6 +6224,9 @@ export class ArchibaldBot {
       // Wait for dynamic content to load (same pattern as DDT download)
       await new Promise((resolve) => setTimeout(resolve, 2000));
 
+      // Additional delay for slower, more reliable execution
+      await new Promise((resolve) => setTimeout(resolve, 200));
+
       // 2. Setup download handling (Puppeteer approach)
       const timestamp = Date.now();
       const userId = this.userId || "unknown";
@@ -6235,6 +6238,9 @@ export class ArchibaldBot {
         behavior: "allow",
         downloadPath: "/tmp",
       });
+
+      // Additional delay before starting button search
+      await new Promise((resolve) => setTimeout(resolve, 200));
 
       // 3. Trigger PDF export
       // Try multiple selectors for the "Esportare in" button
@@ -6269,6 +6275,9 @@ export class ArchibaldBot {
           'PDF export button "Esportare in" not found on Clienti page. Check screenshot for details.',
         );
       }
+
+      // Additional delay after finding button, before setting up download
+      await new Promise((resolve) => setTimeout(resolve, 200));
 
       // Setup download promise before clicking
       const downloadComplete = new Promise<void>((resolve, reject) => {
@@ -6310,6 +6319,10 @@ export class ArchibaldBot {
 
       // Click using evaluate to avoid clickability issues (pattern from DDT download)
       logger.info('[ArchibaldBot] Clicking "Esportare in" button');
+
+      // Additional delay before clicking
+      await new Promise((resolve) => setTimeout(resolve, 200));
+
       await page.evaluate((selector) => {
         const button = document.querySelector(selector);
         if (button) {
@@ -6319,6 +6332,9 @@ export class ArchibaldBot {
         }
       }, exportButtonSelector);
       logger.info('[ArchibaldBot] Button clicked successfully');
+
+      // Additional delay after clicking before waiting for download
+      await new Promise((resolve) => setTimeout(resolve, 200));
 
       // 4. Wait for download to complete
       await downloadComplete;
