@@ -6243,37 +6243,48 @@ export class ArchibaldBot {
       await new Promise((resolve) => setTimeout(resolve, 200));
 
       // 3. Trigger PDF export
-      // Try multiple selectors for the "Esportare in" button
-      const exportButtonSelectors = [
-        '#Vertical_mainMenu_Menu_DXI6_T[title="Esportare in PDF File"]',
-        '#Vertical_mainMenu_Menu_DXI6_T',
-        'a[title="Esportare in PDF File"]',
-        'a.dxm-content:has-text("Esportare in")',
-      ];
+      // The button structure: <li id="Vertical_mainMenu_Menu_DXI6_"> <a id="Vertical_mainMenu_Menu_DXI6_T">
+      // We need to find and interact with this complex menu item
 
-      let exportButtonSelector: string | null = null;
+      logger.info('[ArchibaldBot] Searching for PDF export button...');
 
-      // Try each selector with longer timeout
-      for (const selector of exportButtonSelectors) {
+      // Wait for the menu container to be present
+      await page.waitForSelector('#Vertical_mainMenu_Menu_DXI6_', {
+        timeout: 10000
+      });
+
+      logger.info('[ArchibaldBot] Menu container found');
+      await new Promise((resolve) => setTimeout(resolve, 200));
+
+      // Check if button is already visible or needs hover
+      const isVisible = await page.evaluate(() => {
+        const li = document.querySelector('#Vertical_mainMenu_Menu_DXI6_');
+        const a = document.querySelector('#Vertical_mainMenu_Menu_DXI6_T');
+
+        if (!li || !a) return false;
+
+        const liRect = li.getBoundingClientRect();
+        const aRect = a.getBoundingClientRect();
+
+        return liRect.width > 0 && liRect.height > 0 &&
+               aRect.width > 0 && aRect.height > 0;
+      });
+
+      logger.info(`[ArchibaldBot] Button visibility check: ${isVisible}`);
+
+      // If not visible, might need to hover on parent menu
+      if (!isVisible) {
+        logger.info('[ArchibaldBot] Button not visible, checking for parent menu...');
+
+        // Try to find and hover on parent menu item
+        const parentMenuSelector = 'a.dxm-content';
         try {
-          await page.waitForSelector(selector, { timeout: 10000, visible: true });
-          exportButtonSelector = selector;
-          logger.info(`[ArchibaldBot] Export button found with selector: ${selector}`);
-          break;
+          await page.hover(parentMenuSelector);
+          logger.info('[ArchibaldBot] Hovered on parent menu');
+          await new Promise((resolve) => setTimeout(resolve, 500));
         } catch (error) {
-          logger.debug(`[ArchibaldBot] Selector failed: ${selector}`);
+          logger.warn('[ArchibaldBot] Could not hover on parent menu, proceeding anyway');
         }
-      }
-
-      if (!exportButtonSelector) {
-        // Take screenshot for debugging
-        const screenshotPath = `/tmp/clienti-page-debug-${Date.now()}.png`;
-        await page.screenshot({ path: screenshotPath, fullPage: true });
-        logger.error(`[ArchibaldBot] Screenshot saved to: ${screenshotPath}`);
-
-        throw new Error(
-          'PDF export button "Esportare in" not found on Clienti page. Check screenshot for details.',
-        );
       }
 
       // Additional delay after finding button, before setting up download
@@ -6317,21 +6328,46 @@ export class ArchibaldBot {
         }, 500);
       });
 
-      // Click using evaluate to avoid clickability issues (pattern from DDT download)
-      logger.info('[ArchibaldBot] Clicking "Esportare in" button');
+      // Click using evaluate to avoid clickability issues
+      // We need to click the <a> element with ID Vertical_mainMenu_Menu_DXI6_T
+      logger.info('[ArchibaldBot] Clicking PDF export button...');
 
       // Additional delay before clicking
       await new Promise((resolve) => setTimeout(resolve, 200));
 
-      await page.evaluate((selector) => {
-        const button = document.querySelector(selector);
-        if (button) {
-          (button as HTMLElement).click();
-        } else {
-          throw new Error(`Button not found: ${selector}`);
+      // Trigger the click on the specific menu item
+      const clickResult = await page.evaluate(() => {
+        const button = document.querySelector('#Vertical_mainMenu_Menu_DXI6_T') as HTMLElement;
+
+        if (!button) {
+          return { success: false, error: 'Button element not found' };
         }
-      }, exportButtonSelector);
-      logger.info('[ArchibaldBot] Button clicked successfully');
+
+        // Try multiple click approaches for DevExpress menu
+        try {
+          // 1. Standard click
+          button.click();
+
+          // 2. Also dispatch mousedown/mouseup events (DevExpress may listen to these)
+          button.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
+          button.dispatchEvent(new MouseEvent('mouseup', { bubbles: true }));
+          button.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+
+          return { success: true, buttonText: button.textContent || '' };
+        } catch (err: any) {
+          return { success: false, error: err.message };
+        }
+      });
+
+      if (!clickResult.success) {
+        // Take screenshot for debugging
+        const screenshotPath = `/tmp/clienti-click-failed-${Date.now()}.png`;
+        await page.screenshot({ path: screenshotPath, fullPage: true });
+        logger.error(`[ArchibaldBot] Click failed. Screenshot: ${screenshotPath}`);
+        throw new Error(`Failed to click PDF export button: ${clickResult.error}`);
+      }
+
+      logger.info(`[ArchibaldBot] Button clicked successfully (text: "${clickResult.buttonText}")`);
 
       // Additional delay after clicking before waiting for download
       await new Promise((resolve) => setTimeout(resolve, 200));
