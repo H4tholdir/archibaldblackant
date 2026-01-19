@@ -3884,7 +3884,6 @@ server.listen(config.server.port, async () => {
   scheduleNextSync();
   logger.info("✅ Sync automatico giornaliero configurato (ore 12:00)");
   */
-  logger.info("ℹ️ Sync automatico disabilitato - solo sync manuale via API");
 });
 
 // Graceful shutdown
