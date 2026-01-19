@@ -6212,29 +6212,35 @@ export class ArchibaldBot {
     try {
       logger.info("[ArchibaldBot] Starting Clienti PDF download");
 
-      // 1. Navigate to Clienti page via menu
-      await page.click('a[href*="Clienti"]', { timeout: 5000 });
+      // 1. Navigate to Clienti ListView page
+      const clientiUrl =
+        "https://4.231.124.90/Archibald/CUSTTABLE_ListView_Agent/";
+      await page.goto(clientiUrl, { timeout: 10000 });
       await page.waitForLoadState("networkidle", { timeout: 10000 });
-      logger.info("[ArchibaldBot] Navigated to Clienti page");
+      logger.info("[ArchibaldBot] Navigated to Clienti ListView page");
 
       // 2. Setup download handling
       const timestamp = Date.now();
       const userId = this.userId || "unknown";
       const downloadPath = `/tmp/clienti-${timestamp}-${userId}.pdf`;
 
-      // Wait for download event
-      const downloadPromise = page.waitForEvent("download", { timeout: 15000 });
+      // Wait for download event (20s to allow for PDF generation)
+      const downloadPromise = page.waitForEvent("download", { timeout: 20000 });
 
       // 3. Trigger PDF export
-      // Look for export button (text-based selector for stability)
-      const exportButton = await page.locator("text=/Esporta.*PDF/i").first();
+      // Look for "Esportare in" button by ID (most stable selector)
+      const exportButton = await page.locator(
+        '#Vertical_mainMenu_Menu_DXI6_T[title="Esportare in PDF File"]',
+      );
 
       if (!(await exportButton.isVisible({ timeout: 5000 }))) {
-        throw new Error("PDF export button not found on Clienti page");
+        throw new Error(
+          'PDF export button "Esportare in" not found on Clienti page',
+        );
       }
 
       await exportButton.click();
-      logger.info("[ArchibaldBot] Clicked PDF export button");
+      logger.info('[ArchibaldBot] Clicked "Esportare in" button');
 
       // 4. Wait for download to complete
       const download = await downloadPromise;
@@ -6268,7 +6274,7 @@ export class ArchibaldBot {
       // Enhance error messages
       if (error.message?.includes("timeout")) {
         throw new Error(
-          "PDF download timeout (15s exceeded). Archibald may be slow or button selector changed.",
+          "PDF download timeout (20s exceeded). Archibald may be generating PDF or button selector changed.",
         );
       }
 
