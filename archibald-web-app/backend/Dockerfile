@@ -15,7 +15,7 @@ RUN npm run build
 # Stage 3: Production runtime with Chromium
 FROM node:20-alpine
 
-# Install Chromium and dependencies for Puppeteer
+# Install Chromium, Python3, and dependencies for Puppeteer + PDF parsing
 RUN apk add --no-cache \
     chromium \
     nss \
@@ -23,7 +23,12 @@ RUN apk add --no-cache \
     harfbuzz \
     ca-certificates \
     ttf-freefont \
-    font-noto-emoji
+    font-noto-emoji \
+    python3 \
+    py3-pip
+
+# Install Python PDF parsing library
+RUN pip3 install --no-cache-dir pdfplumber==0.11.4 --break-system-packages
 
 # Chromium executable path for Puppeteer
 ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium-browser
@@ -37,6 +42,9 @@ COPY --from=deps /app/node_modules ./node_modules
 # Copy built application
 COPY --from=builder /app/dist ./dist
 COPY package*.json ./
+
+# Copy Python scripts for PDF parsing
+COPY --chown=node:node ../../scripts /scripts
 
 # Create directories for application runtime
 RUN mkdir -p /app/data /app/.cache /app/logs && \
