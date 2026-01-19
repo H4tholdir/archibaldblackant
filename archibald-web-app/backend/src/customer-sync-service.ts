@@ -156,8 +156,10 @@ export class CustomerSyncService extends EventEmitter {
       progressCallback?.(progress5);
 
       if (pdfPath) {
-        fs.unlinkSync(pdfPath);
-        logger.info(`[CustomerSync] Cleaned up temp PDF: ${pdfPath}`);
+        // TEMPORARY: Keep PDF for debugging
+        logger.info(`[CustomerSync] [DEBUG] Keeping PDF for analysis: ${pdfPath}`);
+        // fs.unlinkSync(pdfPath);
+        // logger.info(`[CustomerSync] Cleaned up temp PDF: ${pdfPath}`);
       }
 
       // Release browser context
