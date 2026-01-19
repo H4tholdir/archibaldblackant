@@ -91,7 +91,7 @@ export class PDFParserService {
         `python3 "${this.parserPath}" "${pdfPath}" --output json`,
         {
           maxBuffer: 10 * 1024 * 1024, // 10MB buffer for large PDFs
-          timeout: 30000, // 30s timeout
+          timeout: 120000, // 120s timeout (2 minutes) for large PDFs
         },
       );
 
@@ -125,7 +125,7 @@ export class PDFParserService {
       }
 
       if (error.killed) {
-        throw new Error("PDF parsing timeout (30s exceeded)");
+        throw new Error("PDF parsing timeout (120s exceeded)");
       }
 
       throw new Error(`PDF parsing failed: ${error.message}`);
