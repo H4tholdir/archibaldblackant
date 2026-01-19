@@ -57,6 +57,7 @@ import { OrderDatabase } from "./order-db";
 import { PriorityManager } from "./priority-manager";
 import { OrderStateSyncService } from "./order-state-sync-service";
 import { pdfParserService } from "./pdf-parser-service";
+import { PDFParserProductsService } from "./pdf-parser-products-service";
 
 const app = express();
 const server = createServer(app);
@@ -268,6 +269,26 @@ app.get("/api/health/pdf-parser", async (req, res) => {
     res.status(500).json({
       status: "error",
       message: error.message,
+    });
+  }
+});
+
+// Products PDF Parser health check
+app.get("/api/health/pdf-parser-products", async (req, res) => {
+  try {
+    const service = PDFParserProductsService.getInstance();
+    const health = await service.healthCheck();
+
+    if (health.healthy) {
+      res.status(200).json(health);
+    } else {
+      res.status(503).json(health); // Service Unavailable
+    }
+  } catch (error: any) {
+    logger.error("[Health] Products PDF parser check failed", { error });
+    res.status(500).json({
+      healthy: false,
+      error: error instanceof Error ? error.message : String(error),
     });
   }
 });
