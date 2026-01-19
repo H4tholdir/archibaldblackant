@@ -12,7 +12,7 @@ async function testPDFDownload() {
 
     // Acquire context
     const context = await browserPool.acquireContext(syncUserId);
-    const bot = new ArchibaldBot({ userId: syncUserId });
+    const bot = new ArchibaldBot(syncUserId);
 
     // Download PDF
     const pdfPath = await bot.downloadCustomersPDF(context);

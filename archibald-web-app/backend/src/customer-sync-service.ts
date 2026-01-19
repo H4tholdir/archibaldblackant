@@ -1,3 +1,4 @@
+import { EventEmitter } from "events";
 import { ArchibaldBot } from "./archibald-bot";
 import { CustomerDatabase, Customer } from "./customer-db";
 import { pdfParserService, ParsedCustomer } from "./pdf-parser-service";
@@ -11,6 +12,7 @@ export interface SyncProgress {
   current: number;
   total: number;
   message: string;
+  status?: "idle" | "syncing" | "completed" | "error"; // For backward compatibility
 }
 
 export type ProgressCallback = (progress: SyncProgress) => void;
@@ -29,14 +31,22 @@ export interface SyncResult {
  * Service for syncing customers from Archibald PDF export
  * Replaces old HTML scraping approach with faster, more stable PDF parsing
  */
-export class CustomerSyncService {
+export class CustomerSyncService extends EventEmitter {
   private static instance: CustomerSyncService;
   private db: CustomerDatabase;
   private browserPool: BrowserPool;
   private syncInProgress = false;
   private lastSyncTime: Date | null = null;
+  private currentProgress: SyncProgress = {
+    stage: "idle",
+    current: 0,
+    total: 0,
+    message: "Nessuna sincronizzazione in corso",
+    status: "idle",
+  };
 
   private constructor() {
+    super();
     this.db = CustomerDatabase.getInstance();
     this.browserPool = BrowserPool.getInstance();
   }
@@ -46,6 +56,14 @@ export class CustomerSyncService {
       CustomerSyncService.instance = new CustomerSyncService();
     }
     return CustomerSyncService.instance;
+  }
+
+  /**
+   * Update progress and emit events
+   */
+  private updateProgress(progress: SyncProgress): void {
+    this.currentProgress = progress;
+    this.emit("progress", progress);
   }
 
   /**
@@ -70,36 +88,43 @@ export class CustomerSyncService {
       logger.info("[CustomerSync] Starting PDF-based customer sync");
 
       // Stage 1: Acquire bot context
-      progressCallback?.({
+      const progress1 = {
         stage: "login",
         current: 0,
         total: 5,
         message: "Connessione ad Archibald...",
-      });
+        status: "syncing" as const,
+      };
+      this.updateProgress(progress1);
+      progressCallback?.(progress1);
 
       // Use a dedicated user ID for sync operations
       const syncUserId = "customer-sync-service";
       const context = await this.browserPool.acquireContext(syncUserId);
-      const bot = new ArchibaldBot({ userId: syncUserId });
+      const bot = new ArchibaldBot(syncUserId);
 
       // Stage 2: Download PDF
-      progressCallback?.({
+      const progress2 = {
         stage: "download",
         current: 1,
         total: 5,
         message: "Scaricamento PDF clienti...",
-      });
+      };
+      this.updateProgress(progress2);
+      progressCallback?.(progress2);
 
       pdfPath = await bot.downloadCustomersPDF(context);
       logger.info(`[CustomerSync] PDF downloaded: ${pdfPath}`);
 
       // Stage 3: Parse PDF
-      progressCallback?.({
+      const progress3 = {
         stage: "parse",
         current: 2,
         total: 5,
         message: "Analisi PDF in corso...",
-      });
+      };
+      this.updateProgress(progress3);
+      progressCallback?.(progress3);
 
       const parseResult = await pdfParserService.parsePDF(pdfPath);
       logger.info(
@@ -107,22 +132,26 @@ export class CustomerSyncService {
       );
 
       // Stage 4: Delta detection & DB update
-      progressCallback?.({
+      const progress4 = {
         stage: "update",
         current: 3,
         total: 5,
         message: `Aggiornamento ${parseResult.total_customers} clienti...`,
-      });
+      };
+      this.updateProgress(progress4);
+      progressCallback?.(progress4);
 
       const deltaResult = await this.applyDelta(parseResult.customers);
 
       // Stage 5: Cleanup
-      progressCallback?.({
+      const progress5 = {
         stage: "cleanup",
         current: 4,
         total: 5,
         message: "Finalizzazione...",
-      });
+      };
+      this.updateProgress(progress5);
+      progressCallback?.(progress5);
 
       if (pdfPath) {
         fs.unlinkSync(pdfPath);
@@ -146,12 +175,15 @@ export class CustomerSyncService {
 
       logger.info(`[CustomerSync] Completed in ${duration}ms:`, result);
 
-      progressCallback?.({
+      const progress6 = {
         stage: "complete",
         current: 5,
         total: 5,
         message: `Completato: ${result.newCustomers} nuovi, ${result.updatedCustomers} aggiornati`,
-      });
+        status: "completed" as const,
+      };
+      this.updateProgress(progress6);
+      progressCallback?.(progress6);
 
       return result;
     } catch (error: any) {
@@ -309,6 +341,56 @@ export class CustomerSyncService {
    */
   isSyncInProgress(): boolean {
     return this.syncInProgress;
+  }
+
+  /**
+   * Get current progress (for compatibility with old interface)
+   */
+  getProgress(): SyncProgress {
+    return this.currentProgress;
+  }
+
+  /**
+   * Request sync stop (for compatibility - not implemented in MVP)
+   */
+  requestStop(): void {
+    logger.warn(
+      "[CustomerSync] requestStop called but not implemented in PDF-based sync",
+    );
+  }
+
+  /**
+   * Stop auto sync (for compatibility - not implemented in MVP)
+   */
+  stopAutoSync(): void {
+    logger.warn(
+      "[CustomerSync] stopAutoSync called but not implemented in PDF-based sync",
+    );
+  }
+
+  /**
+   * Get quick hash (for compatibility - returns empty string in MVP)
+   */
+  getQuickHash(): string {
+    return "";
+  }
+
+  /**
+   * Pause sync (for PriorityManager compatibility)
+   */
+  async pause(): Promise<void> {
+    logger.info("[CustomerSync] Pause requested");
+    // Wait for current sync to complete if running
+    while (this.syncInProgress) {
+      await new Promise((resolve) => setTimeout(resolve, 500));
+    }
+  }
+
+  /**
+   * Resume sync (for PriorityManager compatibility)
+   */
+  resume(): void {
+    logger.info("[CustomerSync] Resume requested");
   }
 }
 

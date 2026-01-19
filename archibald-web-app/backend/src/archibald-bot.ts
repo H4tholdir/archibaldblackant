@@ -6206,7 +6206,8 @@ export class ArchibaldBot {
    * @throws Error if navigation fails, download times out, or file not found
    */
   async downloadCustomersPDF(context: BrowserContext): Promise<string> {
-    const page = context.pages()[0];
+    const pages = await context.pages();
+    const page = pages[0];
     const startTime = Date.now();
 
     try {
@@ -6215,36 +6216,73 @@ export class ArchibaldBot {
       // 1. Navigate to Clienti ListView page
       const clientiUrl =
         "https://4.231.124.90/Archibald/CUSTTABLE_ListView_Agent/";
-      await page.goto(clientiUrl, { timeout: 10000 });
-      await page.waitForLoadState("networkidle", { timeout: 10000 });
+      await page.goto(clientiUrl, { timeout: 10000, waitUntil: "networkidle2" });
       logger.info("[ArchibaldBot] Navigated to Clienti ListView page");
 
-      // 2. Setup download handling
+      // 2. Setup download handling (Puppeteer approach)
       const timestamp = Date.now();
       const userId = this.userId || "unknown";
       const downloadPath = `/tmp/clienti-${timestamp}-${userId}.pdf`;
 
-      // Wait for download event (20s to allow for PDF generation)
-      const downloadPromise = page.waitForEvent("download", { timeout: 20000 });
+      // Enable download interception
+      const client = await page.target().createCDPSession();
+      await client.send("Page.setDownloadBehavior", {
+        behavior: "allow",
+        downloadPath: "/tmp",
+      });
 
       // 3. Trigger PDF export
       // Look for "Esportare in" button by ID (most stable selector)
-      const exportButton = await page.locator(
-        '#Vertical_mainMenu_Menu_DXI6_T[title="Esportare in PDF File"]',
-      );
+      const exportButtonSelector =
+        '#Vertical_mainMenu_Menu_DXI6_T[title="Esportare in PDF File"]';
 
-      if (!(await exportButton.isVisible({ timeout: 5000 }))) {
+      try {
+        await page.waitForSelector(exportButtonSelector, { timeout: 5000 });
+      } catch (error) {
         throw new Error(
           'PDF export button "Esportare in" not found on Clienti page',
         );
       }
 
-      await exportButton.click();
+      // Setup download promise before clicking
+      const downloadComplete = new Promise<void>((resolve, reject) => {
+        const fs = require("fs");
+        const timeout = setTimeout(() => {
+          reject(
+            new Error(
+              "PDF download timeout (20s exceeded). Archibald may be generating PDF.",
+            ),
+          );
+        }, 20000);
+
+        // Poll for file creation
+        const checkFile = setInterval(() => {
+          // Look for recently created PDF files in /tmp
+          const files = fs.readdirSync("/tmp");
+          const pdfFiles = files.filter(
+            (f: string) => f.startsWith("clienti-") && f.endsWith(".pdf"),
+          );
+
+          if (pdfFiles.length > 0) {
+            // Find the most recent one
+            const recentPdf = pdfFiles[pdfFiles.length - 1];
+            const tempPath = `/tmp/${recentPdf}`;
+
+            // Rename to our expected path
+            fs.renameSync(tempPath, downloadPath);
+
+            clearTimeout(timeout);
+            clearInterval(checkFile);
+            resolve();
+          }
+        }, 500);
+      });
+
+      await page.click(exportButtonSelector);
       logger.info('[ArchibaldBot] Clicked "Esportare in" button');
 
       // 4. Wait for download to complete
-      const download = await downloadPromise;
-      await download.saveAs(downloadPath);
+      await downloadComplete;
 
       const duration = Date.now() - startTime;
       logger.info(
@@ -6252,8 +6290,7 @@ export class ArchibaldBot {
       );
 
       // 5. Verify file exists and has content
-      const fs = require("fs");
-      const stats = fs.statSync(downloadPath);
+      const stats = require("fs").statSync(downloadPath);
 
       if (stats.size === 0) {
         throw new Error("Downloaded PDF is empty (0 bytes)");
