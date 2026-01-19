@@ -1,8 +1,8 @@
 import { useState, useEffect } from "react";
 import { useAuth } from "../hooks/useAuth";
 // TEST: Testing widgets one by one to identify TDZ source
-// import { BudgetWidget } from "../components/BudgetWidget";
-import { OrdersSummaryWidget } from "../components/OrdersSummaryWidget";
+import { BudgetWidget } from "../components/BudgetWidget";
+// import { OrdersSummaryWidget } from "../components/OrdersSummaryWidget";
 // import { CommissionsWidget } from "../components/CommissionsWidget";
 
 export function Dashboard() {
@@ -162,14 +162,14 @@ export function Dashboard() {
         </div>
       </div>
 
-      {/* TEST: Phase 1 - Testing OrdersSummaryWidget only */}
+      {/* TEST: Phase 2 - Testing BudgetWidget only */}
       <div style={{ padding: "40px", textAlign: "center", marginBottom: "20px" }}>
-        <h2>🔍 Test Phase 1: OrdersSummaryWidget Only</h2>
+        <h2>🔍 Test Phase 2: BudgetWidget Only</h2>
         <p>Data loaded: {targetData ? '✅' : '❌'} | Budget: {budgetData ? '✅' : '❌'} | Orders: {orderMetrics ? '✅' : '❌'}</p>
       </div>
 
-      {/* Hero Widget - Full Width Budget */}
-      {/* <div style={{ marginBottom: "20px" }}>
+      {/* Hero Widget - Full Width Budget - ENABLED FOR TEST */}
+      <div style={{ marginBottom: "20px" }}>
         <BudgetWidget
           currentBudget={budgetData?.currentBudget ?? 0}
           targetBudget={targetData?.monthlyTarget ?? 0}
@@ -179,7 +179,7 @@ export function Dashboard() {
           bonusAmount={targetData?.bonusAmount ?? 5000}
           commissionRate={targetData?.commissionRate ?? 0.18}
         />
-      </div> */}
+      </div>
 
       {/* Secondary Widgets Grid */}
       <div
@@ -190,12 +190,12 @@ export function Dashboard() {
         }}
         className="dashboard-grid"
       >
-        {/* Orders Summary Widget - ENABLED FOR TEST */}
-        <OrdersSummaryWidget
+        {/* Orders Summary Widget */}
+        {/* <OrdersSummaryWidget
           todayCount={orderMetrics?.todayCount ?? 0}
           weekCount={orderMetrics?.weekCount ?? 0}
           monthCount={orderMetrics?.monthCount ?? 0}
-        />
+        /> */}
 
         {/* Commissions Widget */}
         {/* <CommissionsWidget
