@@ -35,8 +35,12 @@ skipInCI("ProductSyncService integration", () => {
     mockBot = { page: mockPage as Page };
 
     // Mock BrowserPool
-    vi.spyOn(BrowserPool.getInstance(), "acquire").mockResolvedValue(mockBot);
-    vi.spyOn(BrowserPool.getInstance(), "release").mockResolvedValue(undefined);
+    const mockContext = {
+      newPage: vi.fn().mockResolvedValue(mockPage),
+      close: vi.fn().mockResolvedValue(undefined),
+    };
+    vi.spyOn(BrowserPool.getInstance(), "acquireContext").mockResolvedValue(mockContext as any);
+    vi.spyOn(BrowserPool.getInstance(), "releaseContext").mockResolvedValue(undefined);
 
     // Get service and inject test dependencies
     service = ProductSyncService.getInstance();

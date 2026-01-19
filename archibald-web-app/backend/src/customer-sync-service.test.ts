@@ -34,9 +34,13 @@ skipInCI("CustomerSyncService integration", () => {
 
     mockBot = { page: mockPage as Page };
 
-    // Mock BrowserPool to return our mock bot
-    vi.spyOn(BrowserPool.getInstance(), "acquire").mockResolvedValue(mockBot);
-    vi.spyOn(BrowserPool.getInstance(), "release").mockResolvedValue(undefined);
+    // Mock BrowserPool to return our mock context
+    const mockContext = {
+      newPage: vi.fn().mockResolvedValue(mockPage),
+      close: vi.fn().mockResolvedValue(undefined),
+    };
+    vi.spyOn(BrowserPool.getInstance(), "acquireContext").mockResolvedValue(mockContext as any);
+    vi.spyOn(BrowserPool.getInstance(), "releaseContext").mockResolvedValue(undefined);
 
     // Get singleton service instance and inject test dependencies
     service = CustomerSyncService.getInstance();

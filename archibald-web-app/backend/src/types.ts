@@ -56,6 +56,12 @@ export type ApiResponse<T = unknown> = {
     fullName: string;
     role: string;
   };
+  // Sync-specific fields (optional, for customer/product/price sync endpoints)
+  customersProcessed?: number;
+  newCustomers?: number;
+  updatedCustomers?: number;
+  deletedCustomers?: number;
+  duration?: number;
 };
 
 export interface ProfilingData {
