@@ -27,6 +27,14 @@ export interface SyncResult {
   error?: string;
 }
 
+export interface SyncMetrics {
+  lastSyncTime: Date | null;
+  lastSyncResult: SyncResult | null;
+  totalSyncs: number;
+  consecutiveFailures: number;
+  averageDuration: number;
+}
+
 /**
  * Service for syncing customers from Archibald PDF export
  * Replaces old HTML scraping approach with faster, more stable PDF parsing
@@ -37,12 +45,22 @@ export class CustomerSyncService extends EventEmitter {
   private browserPool: BrowserPool;
   private syncInProgress = false;
   private lastSyncTime: Date | null = null;
+  private syncInterval: NodeJS.Timeout | null = null;
   private currentProgress: SyncProgress = {
     stage: "idle",
     current: 0,
     total: 0,
     message: "Nessuna sincronizzazione in corso",
     status: "idle",
+  };
+
+  // Metrics tracking
+  private metrics: SyncMetrics = {
+    lastSyncTime: null,
+    lastSyncResult: null,
+    totalSyncs: 0,
+    consecutiveFailures: 0,
+    averageDuration: 0,
   };
 
   private constructor() {
@@ -216,9 +234,7 @@ export class CustomerSyncService extends EventEmitter {
    * @param pdfCustomers Customers from PDF parser
    * @returns Stats: inserted, updated, skipped
    */
-  private async applyDelta(
-    pdfCustomers: ParsedCustomer[],
-  ): Promise<{
+  private async applyDelta(pdfCustomers: ParsedCustomer[]): Promise<{
     inserted: number;
     updated: number;
     skipped: number;
@@ -362,12 +378,130 @@ export class CustomerSyncService extends EventEmitter {
   }
 
   /**
-   * Stop auto sync (for compatibility - not implemented in MVP)
+   * Start automatic background sync
+   * @param intervalMinutes Sync frequency in minutes (default: 30)
+   */
+  startAutoSync(intervalMinutes: number = 30): void {
+    if (this.syncInterval) {
+      logger.warn("[CustomerSync] Auto-sync already running");
+      return;
+    }
+
+    const intervalMs = intervalMinutes * 60 * 1000;
+    logger.info(
+      `[CustomerSync] Starting auto-sync every ${intervalMinutes} minutes`,
+    );
+
+    // Initial sync after 5s (let server stabilize)
+    setTimeout(() => {
+      this.runBackgroundSync();
+    }, 5000);
+
+    // Recurring sync
+    this.syncInterval = setInterval(() => {
+      this.runBackgroundSync();
+    }, intervalMs);
+
+    logger.info("[CustomerSync] Auto-sync scheduler started");
+  }
+
+  /**
+   * Stop automatic background sync
    */
   stopAutoSync(): void {
-    logger.warn(
-      "[CustomerSync] stopAutoSync called but not implemented in PDF-based sync",
-    );
+    if (this.syncInterval) {
+      clearInterval(this.syncInterval);
+      this.syncInterval = null;
+      logger.info("[CustomerSync] Auto-sync scheduler stopped");
+    }
+  }
+
+  /**
+   * Run background sync with retry logic
+   * @private
+   */
+  private async runBackgroundSync(): Promise<void> {
+    const maxRetries = 3;
+    let attempt = 0;
+
+    while (attempt < maxRetries) {
+      try {
+        logger.info(
+          `[CustomerSync] Background sync attempt ${attempt + 1}/${maxRetries}`,
+        );
+
+        const result = await this.syncCustomers();
+
+        // Update metrics
+        this.updateMetrics(result);
+
+        if (result.success) {
+          logger.info("[CustomerSync] Background sync successful:", {
+            new: result.newCustomers,
+            updated: result.updatedCustomers,
+            duration: result.duration,
+          });
+
+          // Reset failure counter on success
+          this.metrics.consecutiveFailures = 0;
+          return;
+        } else {
+          throw new Error(result.error || "Sync failed");
+        }
+      } catch (error: any) {
+        attempt++;
+        logger.error(
+          `[CustomerSync] Background sync failed (attempt ${attempt}):`,
+          error,
+        );
+
+        if (attempt < maxRetries) {
+          // Exponential backoff: 5s, 10s, 20s
+          const delayMs = 5000 * Math.pow(2, attempt - 1);
+          logger.info(`[CustomerSync] Retrying in ${delayMs / 1000}s...`);
+          await new Promise((resolve) => setTimeout(resolve, delayMs));
+        } else {
+          // All retries exhausted
+          logger.error("[CustomerSync] All retries exhausted, giving up");
+          this.metrics.consecutiveFailures++;
+
+          // Alert if 3 consecutive background syncs failed
+          if (this.metrics.consecutiveFailures >= 3) {
+            logger.error(
+              "🚨 [CustomerSync] ALERT: 3 consecutive sync failures detected!",
+            );
+            // TODO: Send alert (email, Slack, etc.) - deferred to Phase 25
+          }
+        }
+      }
+    }
+  }
+
+  /**
+   * Update sync metrics
+   * @private
+   */
+  private updateMetrics(result: SyncResult): void {
+    this.metrics.lastSyncTime = new Date();
+    this.metrics.lastSyncResult = result;
+    this.metrics.totalSyncs++;
+
+    // Update average duration (rolling average)
+    if (this.metrics.averageDuration === 0) {
+      this.metrics.averageDuration = result.duration;
+    } else {
+      this.metrics.averageDuration =
+        (this.metrics.averageDuration * (this.metrics.totalSyncs - 1) +
+          result.duration) /
+        this.metrics.totalSyncs;
+    }
+  }
+
+  /**
+   * Get sync metrics (for monitoring endpoint)
+   */
+  getMetrics(): SyncMetrics {
+    return { ...this.metrics };
   }
 
   /**
