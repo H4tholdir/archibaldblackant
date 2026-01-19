@@ -766,12 +766,9 @@ app.put(
         commissionRate < 0 ||
         commissionRate > 1
       ) {
-        return res
-          .status(400)
-          .json({
-            error:
-              "commissionRate must be between 0 and 1 (e.g., 0.18 for 18%)",
-          });
+        return res.status(400).json({
+          error: "commissionRate must be between 0 and 1 (e.g., 0.18 for 18%)",
+        });
       }
       if (typeof bonusAmount !== "number" || bonusAmount < 0) {
         return res
@@ -1174,6 +1171,33 @@ app.post(
     }
   },
 );
+
+/**
+ * Get sync metrics (monitoring)
+ * GET /api/customers/sync/metrics
+ * Returns: sync statistics for monitoring
+ */
+app.get("/api/customers/sync/metrics", (req: Request, res: Response) => {
+  const metrics = syncService.getMetrics();
+
+  res.json({
+    lastSyncTime: metrics.lastSyncTime?.toISOString() || null,
+    lastResult: metrics.lastSyncResult
+      ? {
+          success: metrics.lastSyncResult.success,
+          customersProcessed: metrics.lastSyncResult.customersProcessed,
+          newCustomers: metrics.lastSyncResult.newCustomers,
+          updatedCustomers: metrics.lastSyncResult.updatedCustomers,
+          duration: metrics.lastSyncResult.duration,
+          error: metrics.lastSyncResult.error,
+        }
+      : null,
+    totalSyncs: metrics.totalSyncs,
+    consecutiveFailures: metrics.consecutiveFailures,
+    averageDuration: Math.round(metrics.averageDuration),
+    health: metrics.consecutiveFailures < 3 ? "healthy" : "degraded",
+  });
+});
 
 // Update customer endpoint
 app.put(
