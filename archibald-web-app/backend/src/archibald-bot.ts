@@ -6199,6 +6199,83 @@ export class ArchibaldBot {
     }
   }
 
+  /**
+   * Download Clienti PDF export from Archibald
+   * @param context Existing browser context (must be logged in)
+   * @returns Absolute path to downloaded PDF file
+   * @throws Error if navigation fails, download times out, or file not found
+   */
+  async downloadCustomersPDF(context: BrowserContext): Promise<string> {
+    const page = context.pages()[0];
+    const startTime = Date.now();
+
+    try {
+      logger.info("[ArchibaldBot] Starting Clienti PDF download");
+
+      // 1. Navigate to Clienti page via menu
+      await page.click('a[href*="Clienti"]', { timeout: 5000 });
+      await page.waitForLoadState("networkidle", { timeout: 10000 });
+      logger.info("[ArchibaldBot] Navigated to Clienti page");
+
+      // 2. Setup download handling
+      const timestamp = Date.now();
+      const userId = this.userId || "unknown";
+      const downloadPath = `/tmp/clienti-${timestamp}-${userId}.pdf`;
+
+      // Wait for download event
+      const downloadPromise = page.waitForEvent("download", { timeout: 15000 });
+
+      // 3. Trigger PDF export
+      // Look for export button (text-based selector for stability)
+      const exportButton = await page.locator("text=/Esporta.*PDF/i").first();
+
+      if (!(await exportButton.isVisible({ timeout: 5000 }))) {
+        throw new Error("PDF export button not found on Clienti page");
+      }
+
+      await exportButton.click();
+      logger.info("[ArchibaldBot] Clicked PDF export button");
+
+      // 4. Wait for download to complete
+      const download = await downloadPromise;
+      await download.saveAs(downloadPath);
+
+      const duration = Date.now() - startTime;
+      logger.info(
+        `[ArchibaldBot] PDF downloaded to ${downloadPath} in ${duration}ms`,
+      );
+
+      // 5. Verify file exists and has content
+      const fs = require("fs");
+      const stats = fs.statSync(downloadPath);
+
+      if (stats.size === 0) {
+        throw new Error("Downloaded PDF is empty (0 bytes)");
+      }
+
+      logger.info(
+        `[ArchibaldBot] PDF file size: ${(stats.size / 1024).toFixed(2)} KB`,
+      );
+
+      return downloadPath;
+    } catch (error: any) {
+      const duration = Date.now() - startTime;
+      logger.error(
+        `[ArchibaldBot] PDF download failed after ${duration}ms:`,
+        error,
+      );
+
+      // Enhance error messages
+      if (error.message?.includes("timeout")) {
+        throw new Error(
+          "PDF download timeout (15s exceeded). Archibald may be slow or button selector changed.",
+        );
+      }
+
+      throw new Error(`PDF download failed: ${error.message}`);
+    }
+  }
+
   private formatDateForArchibald(isoDate: string): string {
     // Converte da YYYY-MM-DD a DD/MM/YYYY
     const [year, month, day] = isoDate.split("-");
