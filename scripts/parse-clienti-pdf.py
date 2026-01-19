@@ -183,16 +183,20 @@ class CustomerPDFParser:
         return customers
 
     def _parse_page0(self, row: List[str]) -> Dict[str, Optional[str]]:
-        """Parse page 0: ID PROFILO CLIENTE, NOME, PARTITA IVA
-        Columns: [ID_part1, ID_part2, NOME, PARTITA_IVA]
+        """Parse page 0: ID, PROFILO CLIENTE, NOME, PARTITA IVA
+        Columns: [ID, PROFILO_CLIENTE, NOME, PARTITA_IVA]
+
+        Note: ID is the primary identifier (always present)
+              PROFILO CLIENTE is rarely populated (optional field)
         """
         if len(row) < 3:
             return {'customer_profile': '', 'name': '', 'vat_number': None}
 
-        # Combine first two columns for full ID
-        id_part1 = (row[0] or '').strip()
-        id_part2 = (row[1] or '').strip()
-        customer_profile = id_part1 + id_part2
+        # ID is the primary identifier (column 0)
+        customer_profile = (row[0] or '').strip()
+
+        # PROFILO CLIENTE is optional (column 1) - rarely used
+        # We don't store it separately for now as it's rarely populated
 
         name = (row[2] or '').strip()
         vat_number = (row[3] or '').strip() if len(row) > 3 else None
