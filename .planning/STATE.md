@@ -9,12 +9,12 @@ See: .planning/PROJECT.md (updated 2026-01-11)
 
 ## Current Position
 
-Phase: 17 of 28 (Dashboard Metrics Backend)
-Plan: 1 of 1 in current phase
-Status: Complete ✅
-Last activity: 2026-01-18 — Completed 17-01-PLAN.md (Dashboard Metrics Backend API)
+Phase: 18 of 28 (Customers Sync Analysis & Optimization)
+Plan: 0 of 5 in current phase
+Status: Ready to plan
+Last activity: 2026-01-19 — Completed Phase 18.1 discovery (PDF feasibility validated)
 
-Progress: ███░░░░░░░ 17% (v2.0: 4/15 phases, 9/60 plans)
+Progress: ████░░░░░░ 20% (v2.0: 5/15 phases complete, 9/60 plans)
 
 ## Performance Metrics
 
@@ -263,6 +263,13 @@ None yet.
 None yet.
 
 ### Roadmap Evolution
+
+- **2026-01-19 (evening)**: Phase 18.1 inserted after Phase 17 (PDF Export Discovery & Validation) - URGENT
+  - **Reason**: Game-changing discovery - Archibald has PDF export functionality that could replace complex scraping
+  - **Impact**: If PDF parsing is feasible, eliminates HTML scraping complexity in Phases 18-21 (Customers, Products, Prices, Orders sync)
+  - **Priority**: CRITICAL - Must validate before proceeding with sync optimization plans
+  - **Research**: High (exploring PDF export capabilities, data completeness, parsing libraries)
+  - **Next**: Plan Phase 18.1 to break down PDF discovery and validation work
 
 - **2026-01-18 (evening)**: Milestone v2.0 created - Agent Dashboard & Sync Reliability (15 phases: 14-28)
   - **Focus**: Dashboard motivazionale agenti + sync system bulletproof + performance critiche

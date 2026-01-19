@@ -29,8 +29,9 @@ None (full-stack web app con pattern standard)
 - [x] **Phase 14: Fix IndexedDB Critical Error** - Risolvere errore IDBObjectStore 'put' ✅ COMPLETE
 - [x] **Phase 15: Dashboard Homepage UI** - Layout, budget widgets, visualizzazioni progresso ✅ COMPLETE
 - [x] **Phase 16: Target Wizard & Setup** - Wizard setup iniziale + modifica profilo ✅ COMPLETE
-- [x] **Phase 17: Dashboard Metrics Backend** - API budget, ordini, progressi
-- [ ] **Phase 18: Customers Sync Analysis & Optimization** - Analisi completa + background + manual
+- [x] **Phase 17: Dashboard Metrics Backend** - API budget, ordini, progressi ✅ COMPLETE
+- [x] **Phase 18.1: PDF Export Discovery & Validation (INSERTED)** - Validare possibilità estrazione dati da PDF ✅ COMPLETE
+- [ ] **Phase 18: Customers Sync Analysis & Optimization** - Migrazione da HTML a PDF sync
 - [ ] **Phase 19: Products Sync Analysis & Optimization** - Analisi + background + manual + images
 - [ ] **Phase 20: Prices Sync Analysis & Optimization** - Analisi + background + manual + Excel listino
 - [ ] **Phase 21: Orders Sync Analysis & Optimization** - Analisi + background + manual
@@ -105,6 +106,24 @@ Plans:
 
 Plans:
 - [x] 17-01: Dashboard Metrics Backend API (GET /api/metrics/budget, GET /api/metrics/orders, Dashboard integration) — 3min
+
+#### Phase 18.1: PDF Export Discovery & Validation (INSERTED) ✅
+**Goal**: Validare la possibilità di estrarre dati completi da PDF Archibald invece di scraping HTML
+**Depends on**: Phase 17
+**Research**: High (exploring PDF export capabilities, data completeness, parsing libraries)
+**Plans**: 0 plans (discovery only)
+**Status**: ✅ COMPLETE - Discovery validated feasibility
+**Completed**: 2026-01-19
+
+Discovery Results:
+- ✅ PDF parsing is FEASIBLE and RECOMMENDED
+- ✅ Performance: 15-20s (PDF) vs 30-60s (HTML) - **50-67% faster**
+- ✅ Stability: High (file format stable) vs Low (UI-dependent)
+- ✅ Data: 1,515 valid customers, all critical fields covered
+- ✅ Parser: Python script working (`scripts/parse-clienti-pdf.py`)
+- See: `.planning/phases/18.1-pdf-export-discovery-validation/DISCOVERY.md`
+
+**Rationale**: Scoperta game-changing della funzionalità di esportazione PDF in Archibald validata con successo. PDF parsing è più veloce, stabile e manutenibile del scraping HTML. Phase 18 procederà con implementazione PDF-based.
 
 #### Phase 18: Customers Sync Analysis & Optimization
 **Goal**: Analisi completa sync clienti + background sync automatico + sync manuale granulare
@@ -223,6 +242,7 @@ Plans:
 | 15. Dashboard Homepage UI | v2.0 | 4/4 | Complete | 2026-01-18 |
 | 16. Target Wizard & Setup | v2.0 | 4/4 | Complete | 2026-01-18 |
 | 17. Dashboard Metrics Backend | v2.0 | 1/1 | Complete | 2026-01-18 |
+| 18.1. PDF Export Discovery & Validation (INSERTED) | v2.0 | 0 (discovery) | Complete | 2026-01-19 |
 | 18. Customers Sync Analysis & Optimization | v2.0 | 0/5 | Not started | - |
 | 19. Products Sync Analysis & Optimization | v2.0 | 0/? | Not started | - |
 | 20. Prices Sync Analysis & Optimization | v2.0 | 0/? | Not started | - |
