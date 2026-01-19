@@ -97,7 +97,7 @@ export interface SyncSession {
   itemsDeleted?: number;
   imagesDownloaded?: number;
   errorMessage?: string;
-  syncMode: "full" | "incremental" | "forced";
+  syncMode: "full" | "incremental" | "forced" | "auto";
 }
 
 export interface ProductImage {
@@ -238,7 +238,7 @@ export class ProductDatabase {
         itemsDeleted INTEGER DEFAULT 0,
         imagesDownloaded INTEGER DEFAULT 0,
         errorMessage TEXT,
-        syncMode TEXT NOT NULL CHECK(syncMode IN ('full', 'incremental', 'forced'))
+        syncMode TEXT NOT NULL CHECK(syncMode IN ('full', 'incremental', 'forced', 'auto'))
       );
 
       CREATE INDEX IF NOT EXISTS idx_sessions_startedAt ON sync_sessions(startedAt);
@@ -884,7 +884,7 @@ export class ProductDatabase {
   /**
    * Create a new sync session
    */
-  createSyncSession(syncMode: "full" | "incremental" | "forced"): string {
+  createSyncSession(syncMode: "full" | "incremental" | "forced" | "auto"): string {
     const sessionId = `sync-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
 
     const stmt = this.db.prepare(`
@@ -993,6 +993,71 @@ export class ProductDatabase {
       LIMIT ?
     `);
     return stmt.all(limit) as SyncSession[];
+  }
+
+  /**
+   * Get sync history (last N sessions)
+   */
+  getSyncHistory(limit: number = 20): SyncSession[] {
+    const stmt = this.db.prepare(`
+      SELECT * FROM sync_sessions
+      WHERE syncType = 'products'
+      ORDER BY startedAt DESC
+      LIMIT ?
+    `);
+
+    return stmt.all(limit) as SyncSession[];
+  }
+
+  /**
+   * Get sync metrics (success rate, avg duration, last sync)
+   */
+  getSyncMetrics(): {
+    totalSyncs: number;
+    successfulSyncs: number;
+    failedSyncs: number;
+    successRate: number;
+    avgDurationMs: number;
+    lastSyncAt: number | null;
+    lastSyncStatus: string | null;
+  } {
+    const stats = this.db.prepare(`
+      SELECT
+        COUNT(*) as totalSyncs,
+        SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END) as successfulSyncs,
+        SUM(CASE WHEN status = 'failed' THEN 1 ELSE 0 END) as failedSyncs,
+        AVG(CASE WHEN completedAt IS NOT NULL THEN completedAt - startedAt ELSE NULL END) as avgDurationMs,
+        MAX(startedAt) as lastSyncAt
+      FROM sync_sessions
+      WHERE syncType = 'products'
+    `).get() as any;
+
+    const lastSync = this.db.prepare(`
+      SELECT status FROM sync_sessions
+      WHERE syncType = 'products'
+      ORDER BY startedAt DESC
+      LIMIT 1
+    `).get() as any;
+
+    return {
+      totalSyncs: stats.totalSyncs || 0,
+      successfulSyncs: stats.successfulSyncs || 0,
+      failedSyncs: stats.failedSyncs || 0,
+      successRate: stats.totalSyncs > 0 ? (stats.successfulSyncs / stats.totalSyncs) * 100 : 0,
+      avgDurationMs: stats.avgDurationMs || 0,
+      lastSyncAt: stats.lastSyncAt || null,
+      lastSyncStatus: lastSync?.status || null,
+    };
+  }
+
+  /**
+   * Get product by ID
+   */
+  getProductById(productId: string): Product | undefined {
+    const stmt = this.db.prepare(`
+      SELECT * FROM products WHERE id = ?
+    `);
+    return stmt.get(productId) as Product | undefined;
   }
 
   /**
