@@ -1244,6 +1244,54 @@ app.get("/api/products/sync/metrics", authenticateJWT, async (req: AuthRequest, 
 });
 
 /**
+ * Start products auto-sync scheduler
+ * POST /api/products/sync/start
+ * Body: { intervalMinutes?: number }
+ */
+app.post("/api/products/sync/start", authenticateJWT, async (req: AuthRequest, res: Response) => {
+  try {
+    const { intervalMinutes = 30 } = req.body;
+
+    logger.info("[API] Starting products auto-sync", {
+      userId: req.user?.userId,
+      intervalMinutes,
+    });
+
+    const service = ProductSyncService.getInstance();
+    service.startAutoSync(intervalMinutes);
+
+    res.json({ success: true, intervalMinutes });
+  } catch (error) {
+    logger.error("[API] Failed to start products auto-sync", { error });
+    res.status(500).json({
+      error: error instanceof Error ? error.message : "Unknown error",
+    });
+  }
+});
+
+/**
+ * Stop products auto-sync scheduler
+ * POST /api/products/sync/stop
+ */
+app.post("/api/products/sync/stop", authenticateJWT, async (req: AuthRequest, res: Response) => {
+  try {
+    logger.info("[API] Stopping products auto-sync", {
+      userId: req.user?.userId,
+    });
+
+    const service = ProductSyncService.getInstance();
+    service.stopAutoSync();
+
+    res.json({ success: true });
+  } catch (error) {
+    logger.error("[API] Failed to stop products auto-sync", { error });
+    res.status(500).json({
+      error: error instanceof Error ? error.message : "Unknown error",
+    });
+  }
+});
+
+/**
  * Update sync frequency (admin)
  * POST /api/admin/sync/frequency
  * Body: { intervalMinutes: number }
