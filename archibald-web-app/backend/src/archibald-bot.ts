@@ -6206,8 +6206,7 @@ export class ArchibaldBot {
    * @throws Error if navigation fails, download times out, or file not found
    */
   async downloadCustomersPDF(context: BrowserContext): Promise<string> {
-    const pages = await context.pages();
-    const page = pages[0];
+    const page = await context.newPage();
     const startTime = Date.now();
 
     try {
@@ -6216,8 +6215,14 @@ export class ArchibaldBot {
       // 1. Navigate to Clienti ListView page
       const clientiUrl =
         "https://4.231.124.90/Archibald/CUSTTABLE_ListView_Agent/";
-      await page.goto(clientiUrl, { timeout: 10000, waitUntil: "networkidle2" });
+      await page.goto(clientiUrl, {
+        waitUntil: "domcontentloaded",
+        timeout: 60000,
+      });
       logger.info("[ArchibaldBot] Navigated to Clienti ListView page");
+
+      // Wait for dynamic content to load (same pattern as DDT download)
+      await new Promise((resolve) => setTimeout(resolve, 2000));
 
       // 2. Setup download handling (Puppeteer approach)
       const timestamp = Date.now();
@@ -6238,6 +6243,7 @@ export class ArchibaldBot {
 
       try {
         await page.waitForSelector(exportButtonSelector, { timeout: 5000 });
+        logger.info("[ArchibaldBot] Export button found in DOM");
       } catch (error) {
         throw new Error(
           'PDF export button "Esportare in" not found on Clienti page',
@@ -6257,15 +6263,19 @@ export class ArchibaldBot {
 
         // Poll for file creation
         const checkFile = setInterval(() => {
-          // Look for recently created PDF files in /tmp
+          // Look for Clienti.pdf (Archibald's default name) or our custom pattern
           const files = fs.readdirSync("/tmp");
           const pdfFiles = files.filter(
-            (f: string) => f.startsWith("clienti-") && f.endsWith(".pdf"),
+            (f: string) =>
+              f === "Clienti.pdf" ||
+              (f.startsWith("clienti-") && f.endsWith(".pdf")),
           );
 
           if (pdfFiles.length > 0) {
-            // Find the most recent one
-            const recentPdf = pdfFiles[pdfFiles.length - 1];
+            // Find the most recent one (prefer Clienti.pdf if it exists)
+            const recentPdf =
+              pdfFiles.find((f: string) => f === "Clienti.pdf") ||
+              pdfFiles[pdfFiles.length - 1];
             const tempPath = `/tmp/${recentPdf}`;
 
             // Rename to our expected path
@@ -6278,8 +6288,17 @@ export class ArchibaldBot {
         }, 500);
       });
 
-      await page.click(exportButtonSelector);
-      logger.info('[ArchibaldBot] Clicked "Esportare in" button');
+      // Click using evaluate to avoid clickability issues (pattern from DDT download)
+      logger.info('[ArchibaldBot] Clicking "Esportare in" button');
+      await page.evaluate((selector) => {
+        const button = document.querySelector(selector);
+        if (button) {
+          (button as HTMLElement).click();
+        } else {
+          throw new Error(`Button not found: ${selector}`);
+        }
+      }, exportButtonSelector);
+      logger.info('[ArchibaldBot] Button clicked successfully');
 
       // 4. Wait for download to complete
       await downloadComplete;
@@ -6316,6 +6335,11 @@ export class ArchibaldBot {
       }
 
       throw new Error(`PDF download failed: ${error.message}`);
+    } finally {
+      // Close page to free resources
+      if (!page.isClosed()) {
+        await page.close().catch(() => {});
+      }
     }
   }
 

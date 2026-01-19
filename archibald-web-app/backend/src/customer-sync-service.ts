@@ -69,10 +69,12 @@ export class CustomerSyncService extends EventEmitter {
   /**
    * Sync customers from Archibald PDF export
    * @param progressCallback Optional callback for progress updates
+   * @param userId Optional user ID for browser context (defaults to "customer-sync-service")
    * @returns Sync result summary
    */
   async syncCustomers(
     progressCallback?: ProgressCallback,
+    userId?: string,
   ): Promise<SyncResult> {
     // Prevent concurrent syncs
     if (this.syncInProgress) {
@@ -98,8 +100,8 @@ export class CustomerSyncService extends EventEmitter {
       this.updateProgress(progress1);
       progressCallback?.(progress1);
 
-      // Use a dedicated user ID for sync operations
-      const syncUserId = "customer-sync-service";
+      // Use provided userId or default to "customer-sync-service"
+      const syncUserId = userId || "customer-sync-service";
       const context = await this.browserPool.acquireContext(syncUserId);
       const bot = new ArchibaldBot(syncUserId);
 
