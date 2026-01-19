@@ -45,13 +45,9 @@ export class UserSpecificSyncService {
    * Called automatically on login
    */
   async checkAndSyncOnLogin(userId: string, username: string): Promise<void> {
-    // NOTE: Background customer sync temporarily disabled (Phase 18-03)
-    // Will be re-implemented properly in future phases with correct userId passing
-    // Only order sync runs on login for now
+    // Trigger both order and customer sync in background if needed
     await this.checkAndSyncOrders(userId, username);
-
-    // DISABLED: Background customer sync
-    // await this.checkAndSyncCustomers(userId, username);
+    await this.checkAndSyncCustomers(userId, username);
   }
 
   /**
@@ -237,7 +233,8 @@ export class UserSpecificSyncService {
 
     try {
       // Run the sync (this scrapes all customers from Archibald)
-      await customerSyncService.syncCustomers();
+      // Pass userId as second parameter so BrowserPool can use the cached credentials
+      await customerSyncService.syncCustomers(undefined, userId);
 
       const duration = Date.now() - startTime;
       logger.info(
