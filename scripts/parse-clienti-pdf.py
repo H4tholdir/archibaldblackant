@@ -222,17 +222,25 @@ class CustomerPDFParser:
         for line in data_lines:
             # Pattern: ID NAME VAT
             # Example: "50049421 Fresis Soc Cooperativa 08246131216"
-            parts = line.split()
+            # Special case: "50.451Studio Ass.Odontostomatologia..." (ID attached to text)
 
-            if not parts:
+            if not line.strip():
                 continue
 
-            # First part is always ID
-            customer_profile = parts[0]
+            # Extract customer_profile (ID with optional dots, stops at first non-digit/non-dot)
+            match = re.match(r'^([\d.]+)', line)
+            if not match:
+                continue
+
+            customer_profile = match.group(1)
+
+            # Rest of line after ID is name + optional VAT
+            rest = line[len(customer_profile):].strip()
+            parts = rest.split() if rest else []
 
             # Last part might be VAT (11 digits) or part of name
             vat_number = None
-            name_parts = parts[1:]
+            name_parts = parts
 
             # Check if last part is a VAT number (11 digits)
             if name_parts and re.match(r'^\d{11}$', name_parts[-1]):
@@ -467,6 +475,7 @@ class CustomerPDFParser:
         for line in data_lines:
             # Pattern: "Debitor Debitor 50"
             # Pattern: "Customer from Concessionario CustFromConcess 223"
+            # Pattern: "Potential customer from database Italia PotDentiItal 50451"
 
             parts = line.split()
 
@@ -474,21 +483,25 @@ class CustomerPDFParser:
             type_field = None
             external_account_number = None
 
+            if not parts:
+                rows.append({
+                    'description': description,
+                    'type': type_field,
+                    'external_account_number': external_account_number
+                })
+                continue
+
             # External account number is last numeric value
-            if parts and parts[-1].isdigit():
+            if parts[-1].isdigit():
                 external_account_number = parts[-1]
                 parts = parts[:-1]
 
-            # Type is known codes (Debitor, CustFromConcess, PotFromCon, etc.)
-            known_types = ['Debitor', 'CustFromConcess', 'PotFromCon']
-            for part in parts:
-                if part in known_types:
-                    type_field = part
-
-            # Description is remaining text
-            description_parts = [p for p in parts if p != type_field]
-            if description_parts:
-                description = ' '.join(description_parts)
+            # Type is the LAST word before account number
+            # Description is everything before the type
+            if parts:
+                type_field = parts[-1]
+                description_parts = parts[:-1]
+                description = ' '.join(description_parts) if description_parts else None
 
             rows.append({
                 'description': description,
