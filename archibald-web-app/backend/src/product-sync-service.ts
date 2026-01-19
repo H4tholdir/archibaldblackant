@@ -87,6 +87,9 @@ export class ProductSyncService extends EventEmitter {
     this.syncInProgress = true;
     let tempPdfPath: string | null = null;
 
+    // Create sync session record
+    const sessionId = this.db.createSyncSession("auto");
+
     try {
       // Stage 1: Login & acquire context
       progressCallback?.({
@@ -148,6 +151,14 @@ export class ProductSyncService extends EventEmitter {
 
       const duration = Date.now() - startTime;
 
+      // Update session as completed
+      this.db.updateSyncSession(sessionId, {
+        itemsProcessed: parsedProducts.length,
+        itemsCreated: newProducts,
+        itemsUpdated: updatedProducts,
+      });
+      this.db.completeSyncSession(sessionId, "completed");
+
       logger.info("[ProductSyncService] Sync completed", {
         productsProcessed: parsedProducts.length,
         newProducts,
@@ -163,6 +174,13 @@ export class ProductSyncService extends EventEmitter {
       };
     } catch (error: any) {
       logger.error("[ProductSyncService] Sync failed", { error });
+
+      // Update session as failed
+      this.db.completeSyncSession(
+        sessionId,
+        "failed",
+        error instanceof Error ? error.message : String(error),
+      );
 
       // Cleanup on error
       if (tempPdfPath) {
@@ -324,28 +342,60 @@ export class ProductSyncService extends EventEmitter {
   }
 
   /**
-   * Start automatic background sync
+   * Start automatic background sync with retry logic
    */
   startAutoSync(intervalMinutes: number = 30): void {
     logger.info(
       `[ProductSyncService] Starting auto-sync every ${intervalMinutes} minutes`,
     );
 
-    // Initial sync after 5s
+    // Initial sync after 5s with retry
     setTimeout(() => {
-      this.syncProducts().catch((error) => {
-        logger.error("[ProductSyncService] Initial sync failed", { error });
-      });
+      this.syncWithRetry();
     }, 5000);
 
     // Recurring sync
     this.syncInterval = setInterval(() => {
       if (!this.paused) {
-        this.syncProducts().catch((error) => {
-          logger.error("[ProductSyncService] Auto-sync failed", { error });
-        });
+        this.syncWithRetry();
       }
     }, intervalMinutes * 60 * 1000);
+  }
+
+  /**
+   * Sync with exponential backoff retry (3 attempts)
+   */
+  private async syncWithRetry(attempt: number = 1): Promise<void> {
+    const maxAttempts = 3;
+    const backoffDelays = [5000, 10000, 20000]; // 5s, 10s, 20s
+
+    try {
+      await this.syncProducts();
+      logger.info("[ProductSyncService] Auto-sync successful", { attempt });
+    } catch (error) {
+      logger.error("[ProductSyncService] Auto-sync failed", { attempt, error });
+
+      if (attempt < maxAttempts) {
+        const delay = backoffDelays[attempt - 1];
+        logger.info(
+          `[ProductSyncService] Retrying in ${delay}ms (attempt ${attempt + 1}/${maxAttempts})`,
+        );
+
+        await new Promise((resolve) => setTimeout(resolve, delay));
+        return this.syncWithRetry(attempt + 1);
+      } else {
+        logger.error("[ProductSyncService] All retry attempts exhausted", {
+          attempts: maxAttempts,
+          error,
+        });
+
+        // Emit event for monitoring/alerts
+        this.emit("sync-failure", {
+          attempts: maxAttempts,
+          error: error instanceof Error ? error.message : String(error),
+        });
+      }
+    }
   }
 
   /**
