@@ -34,6 +34,11 @@ RUN pip3 install --no-cache-dir pdfplumber==0.11.4 --break-system-packages
 ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium-browser
 ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true
 
+# Force Italian locale for consistent PDF structure
+ENV LANG=it_IT.UTF-8
+ENV LANGUAGE=it_IT:it
+ENV LC_ALL=it_IT.UTF-8
+
 WORKDIR /app
 
 # Copy production dependencies
