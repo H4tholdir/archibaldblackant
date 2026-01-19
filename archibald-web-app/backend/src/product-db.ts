@@ -339,7 +339,7 @@ export class ProductDatabase {
               product.name,
               product.description,
               product.groupCode,
-              product.imageUrl,
+              null, // imageUrl - removed in Phase 19
               product.searchName,
               product.priceUnit,
               product.productGroupId,
@@ -373,7 +373,7 @@ export class ProductDatabase {
               product.name,
               product.description,
               product.groupCode,
-              product.imageUrl,
+              null, // imageUrl - removed in Phase 19
               product.searchName,
               product.priceUnit,
               product.productGroupId,

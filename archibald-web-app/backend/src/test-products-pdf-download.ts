@@ -5,10 +5,11 @@ import { promises as fs } from "fs";
 
 async function testProductsPDFDownload() {
   logger.info("=== Products PDF Download Test ===");
+  let context: any = null;
 
   try {
     // Acquire context
-    const context = await BrowserPool.getInstance().acquireContext(
+    context = await BrowserPool.getInstance().acquireContext(
       "test-products-download",
     );
 
@@ -36,11 +37,13 @@ async function testProductsPDFDownload() {
     process.exit(0);
   } catch (error) {
     logger.error("❌ Test failed", { error });
-    await BrowserPool.getInstance().releaseContext(
-      "test-products-download",
-      undefined,
-      false,
-    );
+    if (context) {
+      await BrowserPool.getInstance().releaseContext(
+        "test-products-download",
+        context,
+        false,
+      );
+    }
     process.exit(1);
   }
 }

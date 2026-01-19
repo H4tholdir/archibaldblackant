@@ -1,5 +1,5 @@
 import { EventEmitter } from "events";
-import { ProductDatabase, Product } from "./product-db";
+import { ProductDatabase, Product, SyncSession } from "./product-db";
 import { BrowserPool } from "./browser-pool";
 import { ArchibaldBot } from "./archibald-bot";
 import {
@@ -14,6 +14,7 @@ export interface SyncProgress {
   stage: "login" | "download" | "parse" | "update" | "cleanup";
   message: string;
   productsProcessed?: number;
+  status?: "idle" | "syncing" | "completed" | "error"; // For backward compatibility
 }
 
 export interface SyncResult {
@@ -30,6 +31,10 @@ export class ProductSyncService extends EventEmitter {
   private syncInProgress = false;
   private paused = false;
   private syncInterval: NodeJS.Timeout | null = null;
+  private currentProgress: SyncProgress = {
+    stage: "login",
+    message: "Idle",
+  };
 
   private constructor() {
     super();
@@ -86,36 +91,40 @@ export class ProductSyncService extends EventEmitter {
 
     this.syncInProgress = true;
     let tempPdfPath: string | null = null;
+    let context: any = null;
 
     // Create sync session record
     const sessionId = this.db.createSyncSession("auto");
 
     try {
       // Stage 1: Login & acquire context
-      progressCallback?.({
+      this.currentProgress = {
         stage: "login",
         message: "Connessione ad Archibald...",
-      });
+      };
+      progressCallback?.(this.currentProgress);
 
-      const context = await BrowserPool.getInstance().acquireContext(
+      context = await BrowserPool.getInstance().acquireContext(
         "product-sync-service",
       );
 
       const bot = new ArchibaldBot("system");
 
       // Stage 2: Download PDF
-      progressCallback?.({
+      this.currentProgress = {
         stage: "download",
         message: "Scaricamento PDF articoli...",
-      });
+      };
+      progressCallback?.(this.currentProgress);
 
       tempPdfPath = await bot.downloadProductsPDF(context);
 
       // Stage 3: Parse PDF
-      progressCallback?.({
+      this.currentProgress = {
         stage: "parse",
         message: "Analisi PDF in corso...",
-      });
+      };
+      progressCallback?.(this.currentProgress);
 
       const parsedProducts = await this.pdfParser.parsePDF(tempPdfPath);
 
@@ -124,19 +133,22 @@ export class ProductSyncService extends EventEmitter {
       );
 
       // Stage 4: Apply delta and update DB
-      progressCallback?.({
+      this.currentProgress = {
         stage: "update",
         message: `Aggiornamento ${parsedProducts.length} articoli...`,
-      });
+        productsProcessed: parsedProducts.length,
+      };
+      progressCallback?.(this.currentProgress);
 
       const { newProducts, updatedProducts } =
         await this.applyDelta(parsedProducts);
 
       // Stage 5: Cleanup
-      progressCallback?.({
+      this.currentProgress = {
         stage: "cleanup",
         message: "Finalizzazione...",
-      });
+      };
+      progressCallback?.(this.currentProgress);
 
       if (tempPdfPath) {
         await fs.unlink(tempPdfPath);
@@ -191,11 +203,13 @@ export class ProductSyncService extends EventEmitter {
         }
       }
 
-      await BrowserPool.getInstance().releaseContext(
-        "product-sync-service",
-        undefined,
-        false, // error
-      );
+      if (context) {
+        await BrowserPool.getInstance().releaseContext(
+          "product-sync-service",
+          context,
+          false, // error
+        );
+      }
 
       throw error;
     } finally {
@@ -220,15 +234,11 @@ export class ProductSyncService extends EventEmitter {
 
       if (!existing) {
         // New product
-        this.db.upsertProducts([
-          { ...productData, hash, lastSync: Date.now() },
-        ]);
+        this.db.upsertProducts([productData]);
         newProducts++;
       } else if (existing.hash !== hash) {
         // Changed product
-        this.db.upsertProducts([
-          { ...productData, hash, lastSync: Date.now() },
-        ]);
+        this.db.upsertProducts([productData]);
         updatedProducts++;
       }
       // else: unchanged, skip
@@ -407,6 +417,53 @@ export class ProductSyncService extends EventEmitter {
       this.syncInterval = null;
       logger.info("[ProductSyncService] Auto-sync stopped");
     }
+  }
+
+  /**
+   * Get current sync progress
+   */
+  getProgress(): SyncProgress {
+    return this.currentProgress;
+  }
+
+  /**
+   * Request sync stop (for compatibility - not implemented in PDF-based sync)
+   */
+  requestStop(): void {
+    logger.warn(
+      "[ProductSyncService] requestStop called but not implemented in PDF-based sync",
+    );
+  }
+
+  /**
+   * Get sync history
+   */
+  getSyncHistory(limit: number = 20): SyncSession[] {
+    return this.db.getSyncHistory(limit);
+  }
+
+  /**
+   * Get last sync session
+   */
+  getLastSyncSession(): SyncSession | null {
+    const sessions = this.db.getSyncHistory(1);
+    return sessions.length > 0 ? sessions[0] : null;
+  }
+
+  /**
+   * Force full sync on next run (for compatibility - always full sync in PDF mode)
+   */
+  forceFullSync(): void {
+    logger.info(
+      "[ProductSyncService] forceFullSync called - PDF mode always does full sync",
+    );
+  }
+
+  /**
+   * Get quick hash (for compatibility - returns empty string)
+   */
+  getQuickHash(): string {
+    return "";
   }
 }
 

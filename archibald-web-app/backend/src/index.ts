@@ -1537,7 +1537,7 @@ app.get(
       res.json({
         success: true,
         data: {
-          sessions: sessions.map((s) => ({
+          sessions: sessions.map((s: any) => ({
             ...s,
             startedAt: new Date(s.startedAt).toISOString(),
             completedAt: s.completedAt
