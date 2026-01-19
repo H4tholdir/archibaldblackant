@@ -45,11 +45,13 @@ export class UserSpecificSyncService {
    * Called automatically on login
    */
   async checkAndSyncOnLogin(userId: string, username: string): Promise<void> {
-    // Trigger both syncs in parallel
-    await Promise.all([
-      this.checkAndSyncOrders(userId, username),
-      this.checkAndSyncCustomers(userId, username),
-    ]);
+    // NOTE: Background customer sync temporarily disabled (Phase 18-03)
+    // Will be re-implemented properly in future phases with correct userId passing
+    // Only order sync runs on login for now
+    await this.checkAndSyncOrders(userId, username);
+
+    // DISABLED: Background customer sync
+    // await this.checkAndSyncCustomers(userId, username);
   }
 
   /**
