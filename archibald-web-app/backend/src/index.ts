@@ -1221,6 +1221,29 @@ app.get("/api/customers/sync/metrics", (req: Request, res: Response) => {
 });
 
 /**
+ * Get products sync metrics (monitoring)
+ * GET /api/products/sync/metrics
+ * Returns: sync statistics and history for monitoring
+ */
+app.get("/api/products/sync/metrics", authenticateJWT, async (req: AuthRequest, res: Response) => {
+  try {
+    const db = ProductDatabase.getInstance();
+    const metrics = db.getSyncMetrics();
+    const history = db.getSyncHistory(10); // Last 10 syncs
+
+    res.json({
+      metrics,
+      history,
+    });
+  } catch (error) {
+    logger.error("[API] Failed to get products sync metrics", { error });
+    res.status(500).json({
+      error: error instanceof Error ? error.message : "Unknown error",
+    });
+  }
+});
+
+/**
  * Update sync frequency (admin)
  * POST /api/admin/sync/frequency
  * Body: { intervalMinutes: number }
