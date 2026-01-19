@@ -10,18 +10,18 @@ See: .planning/PROJECT.md (updated 2026-01-11)
 ## Current Position
 
 Phase: 19 of 28 (Products Sync Analysis & Optimization)
-Plan: 0 of 5 in current phase
-Status: Ready to Execute (Phase 19 planning complete - 5 plans created)
-Last activity: 2026-01-19 — Completed Phase 19 planning (PDF-based sync, eliminate images)
+Plan: 1 of 5 in current phase
+Status: In progress
+Last activity: 2026-01-19 — Completed 19-01-PLAN.md (PDF Parser Enhancement)
 
-Progress: █████░░░░░ 27% (v2.0: 6/15 phases complete, 14/60 plans + Phase 19 planned)
+Progress: █████░░░░░ 28% (v2.0: 6/15 phases complete, 15/65 plans)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 90
+- Total plans completed: 91
 - Average duration: 50 min
-- Total execution time: 79.25 hours
+- Total execution time: 80 hours
 
 **By Phase:**
 
@@ -43,7 +43,8 @@ Progress: █████░░░░░ 27% (v2.0: 6/15 phases complete, 14/60 
 | 15 | 4 | 105 min | 26 min |
 | 16 | 4 | 77 min | 19 min |
 | 17 | 1 | 3 min | 3 min |
-| 18 | 2 | 107 min | 54 min |
+| 18 | 5 | 302 min | 60 min |
+| 19 | 1 | 45 min | 45 min |
 
 **Recent Trend:**
 - Last 10 plans: 15-02 (15m), 15-03 (20m), 15-04 (25m), 16-01 (21m), 16-02 (51m), 16-03 (2m), 16-04 (3m), 17-01 (3m), 18-01 (62m), 18-02 (45m)
@@ -63,6 +64,10 @@ Recent decisions affecting current work:
 
 | Phase | Decision | Rationale |
 |-------|----------|-----------|
+| 19-01 | Use pdfplumber instead of PyPDF2 for products | Archibald products PDF is table-based, pdfplumber superior table detection (extract_tables()), aligns with Phase 18 pattern, more reliable field extraction |
+| 19-01 | 20MB buffer for products parser (vs 10MB customers) | 3x more products (~4,540 vs ~1,515), larger JSON output, prevents truncation, child_process.spawn maxBuffer parameter |
+| 19-01 | Fields stored as TEXT in SQLite | Flexible for Italian numeric formats (commas, periods), future-proof for schema evolution, avoids parsing complexity |
+| 19-01 | Dual migration strategy (DROP COLUMN + table recreation) | SQLite 3.35+ supports DROP COLUMN, older versions need table recreation, VPS may have older SQLite |
 | 19-planning | Eliminate image management completely | User requirement: simplify codebase, remove ImageDownloader (~500 lines), no image downloads/storage/URLs, focus on business data only |
 | 19-planning | Extract ALL PDF fields (26+ fields) | User requirement: comprehensive data extraction from 8-page product PDF, update DB schema, migrate VPS database |
 | 19-planning | Performance target <60s for ~4,540 products | 3x customer count, scaled from Phase 18 (15-20s for 1,515), breakdown: download 8-10s, parse 18s, delta 3-4s, DB 3-5s |
@@ -572,8 +577,8 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-01-19 (night)
-Stopped at: Completed Phase 18 (Customers Sync Analysis & Optimization) - All 5 plans complete
-Next: Plan Phase 19 (Products Sync Analysis & Optimization)
+Stopped at: Completed Plan 19-01 (PDF Parser Enhancement & Node.js Integration)
+Next: Plan 19-02 (PDF Download Bot Flow & ProductSyncService Refactor)
 Resume file: None
 
 **Milestone v2.0 Creation Summary**:

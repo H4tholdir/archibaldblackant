@@ -144,10 +144,10 @@ Plans:
 **Goal**: Migrazione completa da HTML scraping a PDF-based sync: parser 8-page, bot download, delta sync, manual UI, background scheduler, eliminazione gestione immagini
 **Depends on**: Phase 18
 **Research**: Completed (Phase 18.1 - PDF approach proven, reuse patterns)
-**Plans**: 5/5 planned ⏳ READY TO EXECUTE
+**Plans**: 1/5 complete 🚧 IN PROGRESS
 
 Plans:
-- [ ] 19-01: PDF Parser Enhancement & Node.js Integration (8-page cycle, 26+ fields, no images, Node wrapper, health check) — est. 60min
+- [x] 19-01: PDF Parser Enhancement & Node.js Integration (8-page cycle, 26+ fields, no images, Node wrapper, health check) ✅ COMPLETE (45min)
 - [ ] 19-02: PDF Download Bot Flow & ProductSyncService Refactor (bot download, eliminate HTML scraping, hash delta, eliminate ImageDownloader) — est. 60min
 - [ ] 19-03: Manual Sync UI & API Endpoint (🔄 button, ManualSyncBanner, JWT-protected POST /api/products/sync) — est. 45min
 - [ ] 19-04: Background Sync Scheduler & Monitoring (30min interval, retry logic, metrics endpoint, admin controls) — est. 60min
