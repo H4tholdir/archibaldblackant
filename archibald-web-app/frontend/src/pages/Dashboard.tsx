@@ -1,8 +1,9 @@
 import { useState, useEffect } from "react";
 import { useAuth } from "../hooks/useAuth";
-import { BudgetWidget } from "../components/BudgetWidget";
-import { OrdersSummaryWidget } from "../components/OrdersSummaryWidget";
-import { CommissionsWidget } from "../components/CommissionsWidget";
+// TEST: Widgets imports temporarily disabled to identify TDZ source
+// import { BudgetWidget } from "../components/BudgetWidget";
+// import { OrdersSummaryWidget } from "../components/OrdersSummaryWidget";
+// import { CommissionsWidget } from "../components/CommissionsWidget";
 
 export function Dashboard() {
   const auth = useAuth();
