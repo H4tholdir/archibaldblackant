@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """
-PDF Customer Parser - Proof of Concept
+PDF Customer Parser - Using pdfplumber for accurate table extraction
 
 Parses Archibald "Clienti.pdf" export and extracts structured customer data.
+Uses pdfplumber to preserve column positions and table structure.
 
 Usage:
     python3 parse-clienti-pdf.py <path-to-pdf> [--output json|csv]
@@ -14,14 +15,14 @@ Example:
 import sys
 import json
 import re
-from typing import List, Dict, Optional, Tuple
+from typing import List, Dict, Optional
 from dataclasses import dataclass, asdict
 from pathlib import Path
 
 try:
-    import PyPDF2
+    import pdfplumber
 except ImportError:
-    print("Error: PyPDF2 not installed. Run: pip3 install PyPDF2", file=sys.stderr)
+    print("Error: pdfplumber not installed. Run: pip3 install pdfplumber", file=sys.stderr)
     sys.exit(1)
 
 
@@ -65,7 +66,7 @@ class ParsedCustomer:
 
 
 class CustomerPDFParser:
-    """Parser for Archibald Customer PDF exports"""
+    """Parser for Archibald Customer PDF exports using pdfplumber"""
 
     def __init__(self, pdf_path: str):
         self.pdf_path = Path(pdf_path)
@@ -74,457 +75,306 @@ class CustomerPDFParser:
 
     def parse(self) -> List[ParsedCustomer]:
         """Parse PDF and return list of structured customers"""
-        with open(self.pdf_path, 'rb') as f:
-            reader = PyPDF2.PdfReader(f)
-            total_pages = len(reader.pages)
+        with pdfplumber.open(self.pdf_path) as pdf:
+            total_pages = len(pdf.pages)
 
-            # Extract lines from all pages
-            all_pages_lines = []
+            # Extract tables from all pages
+            all_tables = []
             for page_num in range(total_pages):
-                page_text = reader.pages[page_num].extract_text()
-                lines = [line.strip() for line in page_text.split('\n') if line.strip()]
-                all_pages_lines.append(lines)
+                page = pdf.pages[page_num]
+                tables = page.extract_tables()
 
-        # PDF has 8-page cycles: [IDs, Fiscal, Address, Contact, OrderAnalytics, SalesAnalytics, BusinessInfo, InternalAccount]
-        customers = self._parse_cyclic_pages(all_pages_lines)
+                if tables:
+                    # Get first (and usually only) table on page
+                    table = tables[0]
+                    all_tables.append(table)
+                else:
+                    # No table found, append empty
+                    all_tables.append([])
+
+        # PDF has 8-page cycles
+        customers = self._parse_cyclic_tables(all_tables)
 
         return customers
 
-    def _parse_cyclic_pages(self, all_pages_lines: List[List[str]]) -> List[ParsedCustomer]:
-        """Parse pages in 8-page cycles and combine data"""
+    def _parse_cyclic_tables(self, all_tables: List[List[List[str]]]) -> List[ParsedCustomer]:
+        """Parse tables in 8-page cycles and combine data"""
         customers = []
 
-        # Determine cycle positions
-        num_pages = len(all_pages_lines)
+        num_pages = len(all_tables)
         cycles = num_pages // 8
 
         for cycle in range(cycles):
             base_idx = cycle * 8
 
-            # Pages 0-3: Basic info (existing)
-            ids_data = self._parse_ids_page(all_pages_lines[base_idx])
-            fiscal_data = self._parse_fiscal_page(all_pages_lines[base_idx + 1])
-            address_data = self._parse_address_page(all_pages_lines[base_idx + 2])
-            contact_data = self._parse_contact_page(all_pages_lines[base_idx + 3])
+            # Get tables for this cycle (skip headers)
+            page0_data = all_tables[base_idx][1:] if len(all_tables[base_idx]) > 1 else []
+            page1_data = all_tables[base_idx + 1][1:] if len(all_tables[base_idx + 1]) > 1 else []
+            page2_data = all_tables[base_idx + 2][1:] if len(all_tables[base_idx + 2]) > 1 else []
+            page3_data = all_tables[base_idx + 3][1:] if len(all_tables[base_idx + 3]) > 1 else []
+            page4_data = all_tables[base_idx + 4][1:] if len(all_tables[base_idx + 4]) > 1 else []
+            page5_data = all_tables[base_idx + 5][1:] if len(all_tables[base_idx + 5]) > 1 else []
+            page6_data = all_tables[base_idx + 6][1:] if len(all_tables[base_idx + 6]) > 1 else []
+            page7_data = all_tables[base_idx + 7][1:] if len(all_tables[base_idx + 7]) > 1 else []
 
-            # Pages 4-7: Analytics & accounts (NEW)
-            order_analytics = self._parse_order_analytics_page(all_pages_lines[base_idx + 4])
-            sales_analytics = self._parse_sales_analytics_page(all_pages_lines[base_idx + 5])
-            business_info = self._parse_business_info_page(all_pages_lines[base_idx + 6])
-            internal_account = self._parse_internal_account_page(all_pages_lines[base_idx + 7])
-
-            # Combine data by row index
+            # All pages should have same number of rows
             max_rows = max(
-                len(ids_data), len(fiscal_data), len(address_data), len(contact_data),
-                len(order_analytics), len(sales_analytics), len(business_info), len(internal_account)
+                len(page0_data), len(page1_data), len(page2_data), len(page3_data),
+                len(page4_data), len(page5_data), len(page6_data), len(page7_data)
             )
 
+            # Combine data row by row
             for row_idx in range(max_rows):
-                ids = ids_data[row_idx] if row_idx < len(ids_data) else {}
-                fiscal = fiscal_data[row_idx] if row_idx < len(fiscal_data) else {}
-                address = address_data[row_idx] if row_idx < len(address_data) else {}
-                contact = contact_data[row_idx] if row_idx < len(contact_data) else {}
-                order_ana = order_analytics[row_idx] if row_idx < len(order_analytics) else {}
-                sales_ana = sales_analytics[row_idx] if row_idx < len(sales_analytics) else {}
-                biz_info = business_info[row_idx] if row_idx < len(business_info) else {}
-                int_acct = internal_account[row_idx] if row_idx < len(internal_account) else {}
+                page0 = page0_data[row_idx] if row_idx < len(page0_data) else []
+                page1 = page1_data[row_idx] if row_idx < len(page1_data) else []
+                page2 = page2_data[row_idx] if row_idx < len(page2_data) else []
+                page3 = page3_data[row_idx] if row_idx < len(page3_data) else []
+                page4 = page4_data[row_idx] if row_idx < len(page4_data) else []
+                page5 = page5_data[row_idx] if row_idx < len(page5_data) else []
+                page6 = page6_data[row_idx] if row_idx < len(page6_data) else []
+                page7 = page7_data[row_idx] if row_idx < len(page7_data) else []
 
-                # Merge all 8 pages of data
+                # Parse each page's columns
+                ids_data = self._parse_page0(page0)
+                fiscal_data = self._parse_page1(page1)
+                address_data = self._parse_page2(page2)
+                contact_data = self._parse_page3(page3)
+                order_data = self._parse_page4(page4)
+                sales_data = self._parse_page5(page5)
+                business_data = self._parse_page6(page6)
+                account_data = self._parse_page7(page7)
+
+                # Combine into customer object
                 customer = ParsedCustomer(
-                    # Pages 0-3 (existing)
-                    customer_profile=ids.get('customer_profile', ''),
-                    name=ids.get('name', ''),
-                    vat_number=ids.get('vat_number'),
-                    pec=fiscal.get('pec'),
-                    sdi=fiscal.get('sdi'),
-                    fiscal_code=fiscal.get('fiscal_code'),
-                    delivery_terms=fiscal.get('delivery_terms'),
-                    street=address.get('street'),
-                    logistics_address=address.get('logistics_address'),
-                    postal_code=address.get('postal_code'),
-                    city=address.get('city'),
-                    phone=contact.get('phone'),
-                    mobile=contact.get('mobile'),
-                    url=contact.get('url'),
-                    attention_to=contact.get('attention_to'),
-                    last_order_date=contact.get('last_order_date'),
-                    # Pages 4-7 (NEW)
-                    actual_order_count=order_ana.get('actual_order_count'),
-                    customer_type=order_ana.get('customer_type'),
-                    previous_order_count_1=order_ana.get('previous_order_count_1'),
-                    previous_sales_1=sales_ana.get('previous_sales_1'),
-                    previous_order_count_2=sales_ana.get('previous_order_count_2'),
-                    previous_sales_2=sales_ana.get('previous_sales_2'),
-                    description=biz_info.get('description'),
-                    type=biz_info.get('type'),
-                    external_account_number=biz_info.get('external_account_number'),
-                    our_account_number=int_acct.get('our_account_number')
+                    customer_profile=ids_data.get('customer_profile', ''),
+                    name=ids_data.get('name', ''),
+                    vat_number=ids_data.get('vat_number'),
+                    pec=fiscal_data.get('pec'),
+                    sdi=fiscal_data.get('sdi'),
+                    fiscal_code=fiscal_data.get('fiscal_code'),
+                    delivery_terms=fiscal_data.get('delivery_terms'),
+                    street=address_data.get('street'),
+                    logistics_address=address_data.get('logistics_address'),
+                    postal_code=address_data.get('postal_code'),
+                    city=address_data.get('city'),
+                    phone=contact_data.get('phone'),
+                    mobile=contact_data.get('mobile'),
+                    url=contact_data.get('url'),
+                    attention_to=contact_data.get('attention_to'),
+                    last_order_date=contact_data.get('last_order_date'),
+                    actual_order_count=order_data.get('actual_order_count'),
+                    customer_type=order_data.get('customer_type'),
+                    previous_order_count_1=order_data.get('previous_order_count_1'),
+                    previous_sales_1=sales_data.get('previous_sales_1'),
+                    previous_order_count_2=sales_data.get('previous_order_count_2'),
+                    previous_sales_2=sales_data.get('previous_sales_2'),
+                    description=business_data.get('description'),
+                    type=business_data.get('type'),
+                    external_account_number=business_data.get('external_account_number'),
+                    our_account_number=account_data.get('our_account_number')
                 )
 
-                # Filter only PDF footer line (e.g., "Count=1.455")
-                # Keep everything else - let the DB/backend decide what's valid
-                if customer.customer_profile.startswith("Count="):
+                # Skip empty rows or footer rows
+                if not customer.customer_profile or customer.customer_profile.startswith('Count='):
                     continue
 
                 customers.append(customer)
 
         return customers
 
-    def _merge_continuation_lines(self, lines: List[str]) -> List[str]:
+    def _parse_page0(self, row: List[str]) -> Dict[str, Optional[str]]:
+        """Parse page 0: ID PROFILO CLIENTE, NOME, PARTITA IVA
+        Columns: [ID_part1, ID_part2, NOME, PARTITA_IVA]
         """
-        Merge lines that are continuations of long names/fields.
-        A line is a continuation if it doesn't start with a number/pattern.
+        if len(row) < 3:
+            return {'customer_profile': '', 'name': '', 'vat_number': None}
 
-        Example:
-          Line 1: "55.644S.A.O Studio Ass. Di Odontoiatria Dott. Nicola De"
-          Line 2: "Rosa"
-          Result: "55.644S.A.O Studio Ass. Di Odontoiatria Dott. Nicola De Rosa"
+        # Combine first two columns for full ID
+        id_part1 = (row[0] or '').strip()
+        id_part2 = (row[1] or '').strip()
+        customer_profile = id_part1 + id_part2
+
+        name = (row[2] or '').strip()
+        vat_number = (row[3] or '').strip() if len(row) > 3 else None
+
+        # Clean empty strings to None
+        vat_number = vat_number if vat_number else None
+
+        return {
+            'customer_profile': customer_profile,
+            'name': name,
+            'vat_number': vat_number
+        }
+
+    def _parse_page1(self, row: List[str]) -> Dict[str, Optional[str]]:
+        """Parse page 1: PEC, SDI, CODICE FISCALE, TERMINI DI CONSEGNA
+        Columns: [PEC, SDI, CODICE_FISCALE, TERMINI_DI_CONSEGNA]
         """
-        if not lines:
-            return []
-
-        merged = []
-        current = lines[0]
-
-        for i in range(1, len(lines)):
-            line = lines[i]
-
-            # Check if this line starts with a customer profile ID or footer
-            # Customer IDs: digits with optional dots (50049421, 55.102, 1.117)
-            # May or may not have space after ID (e.g., "55.644S.A.O" vs "55.102 St.")
-            # Footer: "Count=", "Sum="
-            starts_with_id = re.match(r'^[\d.]+', line) and not line[0].isalpha() or line.startswith('Count=') or line.startswith('Sum=')
-
-            if starts_with_id:
-                # New customer/footer - save previous and start new
-                merged.append(current)
-                current = line
-            else:
-                # Continuation line - append to current
-                current += ' ' + line
-
-        # Don't forget the last line
-        merged.append(current)
-
-        return merged
-
-    def _parse_ids_page(self, lines: List[str]) -> List[Dict[str, str]]:
-        """Parse page 0: ID PROFILO CLIENTE, NOME, PARTITA IVA"""
-        rows = []
-
-        # Skip header line
-        data_lines = lines[1:] if lines else []
-
-        # Merge continuation lines (long names that wrap)
-        # ONLY FOR PAGE 0 - other pages don't have customer IDs at start of line
-        data_lines = self._merge_continuation_lines(data_lines)
-
-        for line in data_lines:
-            # Pattern: ID NAME VAT
-            # Example: "50049421 Fresis Soc Cooperativa 08246131216"
-            # Special case: "50.451Studio Ass.Odontostomatologia..." (ID attached to text)
-
-            if not line.strip():
-                continue
-
-            # Extract customer_profile (ID with optional dots, stops at first non-digit/non-dot)
-            match = re.match(r'^([\d.]+)', line)
-            if not match:
-                continue
-
-            customer_profile = match.group(1)
-
-            # Rest of line after ID is name + optional VAT
-            rest = line[len(customer_profile):].strip()
-            parts = rest.split() if rest else []
-
-            # Last part might be VAT (11 digits) or part of name
-            vat_number = None
-            name_parts = parts
-
-            # Check if last part is a VAT number (11 digits)
-            if name_parts and re.match(r'^\d{11}$', name_parts[-1]):
-                vat_number = name_parts[-1]
-                name_parts = name_parts[:-1]
-
-            name = ' '.join(name_parts) if name_parts else ''
-
-            rows.append({
-                'customer_profile': customer_profile,
-                'name': name,
-                'vat_number': vat_number
-            })
-
-        return rows
-
-    def _parse_fiscal_page(self, lines: List[str]) -> List[Dict[str, Optional[str]]]:
-        """Parse page 1: PEC, SDI, CODICE FISCALE, TERMINI DI CONSEGNA"""
-        rows = []
-
-        # Skip header line
-        data_lines = lines[1:] if lines else []
-
-        for line in data_lines:
-            parts = line.split()
-
-            pec = None
-            sdi = None
-            fiscal_code = None
-            delivery_terms = None
-
-            # Identify components
-            for part in parts:
-                if '@' in part and not pec:
-                    pec = part
-                elif re.match(r'^[A-Z0-9]{7}$', part) and not sdi:
-                    sdi = part
-                elif re.match(r'^[A-Z]{6}\d{2}[A-Z]\d{2}[A-Z]\d{3}[A-Z]$', part) and not fiscal_code:
-                    fiscal_code = part
-                elif not delivery_terms:
-                    delivery_terms = part
-
-            rows.append({
-                'pec': pec,
-                'sdi': sdi,
-                'fiscal_code': fiscal_code,
-                'delivery_terms': delivery_terms
-            })
-
-        return rows
-
-    def _parse_address_page(self, lines: List[str]) -> List[Dict[str, Optional[str]]]:
-        """Parse page 2: VIA, INDIRIZZO LOGISTICO, CAP, CITTÀ"""
-        rows = []
-
-        # Skip header line
-        data_lines = lines[1:] if lines else []
-
-        for line in data_lines:
-            # Pattern: "Via San Vito, 43 80056 Ercolano"
-            # Address CAP City
-
-            # Find postal code (5 digits)
-            postal_match = re.search(r'\b(\d{5})\b', line)
-
-            if postal_match:
-                postal_code = postal_match.group(1)
-                pos = postal_match.start()
-
-                # Everything before postal code is address
-                address_part = line[:pos].strip()
-
-                # Everything after postal code is city
-                city = line[pos + 5:].strip()
-
-                # Split address into street and logistics address if possible
-                # For now, use the full address as logistics_address
-                street = address_part
-                logistics_address = address_part
-
-                rows.append({
-                    'street': street,
-                    'logistics_address': logistics_address,
-                    'postal_code': postal_code,
-                    'city': city
-                })
-            else:
-                # No postal code found, treat entire line as address
-                rows.append({
-                    'street': line,
-                    'logistics_address': line,
-                    'postal_code': None,
-                    'city': None
-                })
-
-        return rows
-
-    def _parse_contact_page(self, lines: List[str]) -> List[Dict[str, Optional[str]]]:
-        """Parse page 3: TELEFONO, CELLULARE, URL, ALL'ATTENZIONE DI, DATA DELL'ULTIMO ORDINE"""
-        rows = []
-
-        # Skip header line
-        data_lines = lines[1:] if lines else []
-
-        for line in data_lines:
-            parts = line.split()
-
-            phone = None
-            mobile = None
-            url = None
-            attention_to = None
-            last_order_date = None
-
-            # Identify components
-            for part in parts:
-                # Phone numbers start with +39 or similar
-                if part.startswith('+') and phone is None:
-                    phone = part
-                elif part.startswith('+') and phone and mobile is None:
-                    mobile = part
-                # URLs contain http or www
-                elif ('http' in part or 'www' in part) and not url:
-                    url = part
-                # Dates in DD/MM/YYYY format
-                elif re.match(r'^\d{2}/\d{2}/\d{4}$', part) and not last_order_date:
-                    last_order_date = part
-                # Anything else could be attention_to (rare)
-                elif not part.startswith('+') and not attention_to:
-                    attention_to = part
-
-            rows.append({
-                'phone': phone,
-                'mobile': mobile,
-                'url': url,
-                'attention_to': attention_to,
-                'last_order_date': last_order_date
-            })
-
-        return rows
-
-    def _parse_order_analytics_page(self, lines: List[str]) -> List[Dict]:
-        """Parse page 4: CONTEGGI DEGLI ORDINI EFFETTIVI, TIPO DI CLIENTE, CONTEGGIO DEGLI ORDINI PRECEDENTE"""
-        rows = []
-        data_lines = lines[1:] if lines else []
-
-        for line in data_lines:
-            parts = line.split()
-
-            actual_order_count = None
-            customer_type = None
-            previous_order_count_1 = None
-
-            # Pattern: "4 1.792,97 € 97"
-            # First column: integer (actualOrderCount)
-            # Second+Third: currency amount (skip for MVP - not in schema)
-            # Last column: integer (previousOrderCount1)
-
-            if len(parts) >= 1 and parts[0].isdigit():
-                actual_order_count = int(parts[0])
-
-            # Last numeric value is previousOrderCount1
-            for part in reversed(parts):
-                if part.isdigit():
-                    previous_order_count_1 = int(part)
-                    break
-
-            # Customer type might be in middle (text field)
-            # For MVP, skip if not easily identifiable
-
-            rows.append({
-                'actual_order_count': actual_order_count,
-                'customer_type': customer_type,
-                'previous_order_count_1': previous_order_count_1
-            })
-
-        return rows
-
-    def _parse_sales_analytics_page(self, lines: List[str]) -> List[Dict]:
-        """Parse page 5: VENDITE PRECEDENTE, CONTEGGIO DEGLI ORDINI PRECEDENTE 2, VENDITE PRECEDENTE"""
-        rows = []
-        data_lines = lines[1:] if lines else []
-
-        for line in data_lines:
-            # Pattern: "124.497,43 € 112 185.408,57 €"
-            # Extract currency amounts and integer
-
-            # Remove € symbols and split
-            clean_line = line.replace('€', '').strip()
-            parts = clean_line.split()
-
-            previous_sales_1 = None
-            previous_order_count_2 = None
-            previous_sales_2 = None
-
-            # Find integers and currency amounts
-            integers = []
-            currencies = []
-
-            for part in parts:
-                # Check if currency (contains comma and digits)
-                if ',' in part and any(c.isdigit() for c in part):
-                    # Convert Italian format to float: 124.497,43 → 124497.43
-                    value = part.replace('.', '').replace(',', '.')
-                    try:
-                        currencies.append(float(value))
-                    except ValueError:
-                        pass
-                elif part.isdigit():
-                    integers.append(int(part))
-
-            # Assign based on position
-            if len(currencies) >= 1:
-                previous_sales_1 = currencies[0]
-            if len(integers) >= 1:
-                previous_order_count_2 = integers[0]
-            if len(currencies) >= 2:
-                previous_sales_2 = currencies[1]
-
-            rows.append({
-                'previous_sales_1': previous_sales_1,
-                'previous_order_count_2': previous_order_count_2,
-                'previous_sales_2': previous_sales_2
-            })
-
-        return rows
-
-    def _parse_business_info_page(self, lines: List[str]) -> List[Dict]:
-        """Parse page 6: DESCRIZIONE, TYPE, NUMERO DI CONTO ESTERNO"""
-        rows = []
-        data_lines = lines[1:] if lines else []
-
-        for line in data_lines:
-            # Pattern: "Debitor Debitor 50"
-            # Pattern: "Customer from Concessionario CustFromConcess 223"
-            # Pattern: "Potential customer from database Italia PotDentiItal 50451"
-
-            parts = line.split()
-
-            description = None
-            type_field = None
-            external_account_number = None
-
-            if not parts:
-                rows.append({
-                    'description': description,
-                    'type': type_field,
-                    'external_account_number': external_account_number
-                })
-                continue
-
-            # External account number is last numeric value
-            if parts[-1].isdigit():
-                external_account_number = parts[-1]
-                parts = parts[:-1]
-
-            # Type is the LAST word before account number
-            # Description is everything before the type
-            if parts:
-                type_field = parts[-1]
-                description_parts = parts[:-1]
-                description = ' '.join(description_parts) if description_parts else None
-
-            rows.append({
-                'description': description,
-                'type': type_field,
-                'external_account_number': external_account_number
-            })
-
-        return rows
-
-    def _parse_internal_account_page(self, lines: List[str]) -> List[Dict]:
-        """Parse page 7: IL NOSTRO NUMERO DI CONTO"""
-        rows = []
-        data_lines = lines[1:] if lines else []
-
-        for line in data_lines:
-            # Single column: our account number
-            our_account_number = line.strip() if line.strip() else None
-
-            rows.append({
-                'our_account_number': our_account_number
-            })
-
-        return rows
+        pec = (row[0] or '').strip() if len(row) > 0 else None
+        sdi = (row[1] or '').strip() if len(row) > 1 else None
+        fiscal_code = (row[2] or '').strip() if len(row) > 2 else None
+        delivery_terms = (row[3] or '').strip() if len(row) > 3 else None
+
+        # Clean empty strings to None
+        pec = pec if pec else None
+        sdi = sdi if sdi else None
+        fiscal_code = fiscal_code if fiscal_code else None
+        delivery_terms = delivery_terms if delivery_terms else None
+
+        return {
+            'pec': pec,
+            'sdi': sdi,
+            'fiscal_code': fiscal_code,
+            'delivery_terms': delivery_terms
+        }
+
+    def _parse_page2(self, row: List[str]) -> Dict[str, Optional[str]]:
+        """Parse page 2: VIA, INDIRIZZO LOGISTICO CAP, CITTÀ
+        Columns: [VIA, CAP, CITTÀ]
+        """
+        street = (row[0] or '').strip() if len(row) > 0 else None
+        postal_code = (row[1] or '').strip() if len(row) > 1 else None
+        city = (row[2] or '').strip() if len(row) > 2 else None
+
+        # Clean empty strings to None
+        street = street if street else None
+        postal_code = postal_code if postal_code else None
+        city = city if city else None
+
+        # logistics_address is same as street in this structure
+        logistics_address = street
+
+        return {
+            'street': street,
+            'logistics_address': logistics_address,
+            'postal_code': postal_code,
+            'city': city
+        }
+
+    def _parse_page3(self, row: List[str]) -> Dict[str, Optional[str]]:
+        """Parse page 3: TELEFONO, CELLULARE, URL, ALL'ATTENZIONE DI, DATA DELL'ULTIMO ORDINE
+        Columns: [TELEFONO, CELLULARE, URL, ALL_ATTENZIONE_DI, DATA_ULTIMO_ORDINE]
+        """
+        phone = (row[0] or '').strip() if len(row) > 0 else None
+        mobile = (row[1] or '').strip() if len(row) > 1 else None
+        url = (row[2] or '').strip() if len(row) > 2 else None
+        attention_to = (row[3] or '').strip() if len(row) > 3 else None
+        last_order_date = (row[4] or '').strip() if len(row) > 4 else None
+
+        # Clean empty strings to None
+        phone = phone if phone else None
+        mobile = mobile if mobile else None
+        url = url if url else None
+        attention_to = attention_to if attention_to else None
+        last_order_date = last_order_date if last_order_date else None
+
+        return {
+            'phone': phone,
+            'mobile': mobile,
+            'url': url,
+            'attention_to': attention_to,
+            'last_order_date': last_order_date
+        }
+
+    def _parse_page4(self, row: List[str]) -> Dict[str, Optional[int]]:
+        """Parse page 4: CONTEGGI DEGLI ORDINI EFFETTIVI, TIPO DI CLIENTE, CONTEGGIO DEGLI ORDINI PRECEDENTE
+        Columns: [ACTUAL_ORDER_COUNT, CUSTOMER_TYPE, PREVIOUS_ORDER_COUNT_1]
+        """
+        actual_order_count = None
+        customer_type = None
+        previous_order_count_1 = None
+
+        if len(row) > 0:
+            try:
+                actual_order_count = int((row[0] or '').strip())
+            except (ValueError, AttributeError):
+                pass
+
+        if len(row) > 1:
+            # Customer type is the middle column (but might be currency format)
+            customer_type_str = (row[1] or '').strip()
+            # If it's a currency, skip it (we don't have a field for it)
+            if '€' not in customer_type_str and customer_type_str:
+                customer_type = customer_type_str
+
+        if len(row) > 2:
+            try:
+                previous_order_count_1 = int((row[2] or '').strip())
+            except (ValueError, AttributeError):
+                pass
+
+        return {
+            'actual_order_count': actual_order_count,
+            'customer_type': customer_type,
+            'previous_order_count_1': previous_order_count_1
+        }
+
+    def _parse_page5(self, row: List[str]) -> Dict[str, Optional[float]]:
+        """Parse page 5: VENDITE PRECEDENTE, CONTEGGIO DEGLI ORDINI PRECEDENTE 2, VENDITE PRECEDENTE
+        Columns: [PREVIOUS_SALES_1, PREVIOUS_ORDER_COUNT_2, PREVIOUS_SALES_2]
+        """
+        previous_sales_1 = None
+        previous_order_count_2 = None
+        previous_sales_2 = None
+
+        if len(row) > 0:
+            # Parse Italian currency format: "124.497,43 €" → 124497.43
+            sales_str = (row[0] or '').replace('€', '').replace('.', '').replace(',', '.').strip()
+            try:
+                previous_sales_1 = float(sales_str)
+            except (ValueError, AttributeError):
+                pass
+
+        if len(row) > 1:
+            try:
+                previous_order_count_2 = int((row[1] or '').strip())
+            except (ValueError, AttributeError):
+                pass
+
+        if len(row) > 2:
+            sales_str = (row[2] or '').replace('€', '').replace('.', '').replace(',', '.').strip()
+            try:
+                previous_sales_2 = float(sales_str)
+            except (ValueError, AttributeError):
+                pass
+
+        return {
+            'previous_sales_1': previous_sales_1,
+            'previous_order_count_2': previous_order_count_2,
+            'previous_sales_2': previous_sales_2
+        }
+
+    def _parse_page6(self, row: List[str]) -> Dict[str, Optional[str]]:
+        """Parse page 6: DESCRIZIONE, TYPE, NUMERO DI CONTO ESTERNO
+        Columns: [DESCRIZIONE, TYPE, EXTERNAL_ACCOUNT_NUMBER]
+        """
+        description = (row[0] or '').strip() if len(row) > 0 else None
+        type_field = (row[1] or '').strip() if len(row) > 1 else None
+        external_account_number = (row[2] or '').strip() if len(row) > 2 else None
+
+        # Clean empty strings to None
+        description = description if description else None
+        type_field = type_field if type_field else None
+        external_account_number = external_account_number if external_account_number else None
+
+        return {
+            'description': description,
+            'type': type_field,
+            'external_account_number': external_account_number
+        }
+
+    def _parse_page7(self, row: List[str]) -> Dict[str, Optional[str]]:
+        """Parse page 7: IL NOSTRO NUMERO DI CONTO
+        Columns: [OUR_ACCOUNT_NUMBER]
+        """
+        our_account_number = (row[0] or '').strip() if len(row) > 0 else None
+
+        # Clean empty strings to None
+        our_account_number = our_account_number if our_account_number else None
+
+        return {
+            'our_account_number': our_account_number
+        }
 
 
 def main():
@@ -575,7 +425,6 @@ def main():
                     c.url or '',
                     c.attention_to or '',
                     c.last_order_date or '',
-                    # NEW FIELDS
                     str(c.actual_order_count) if c.actual_order_count is not None else '',
                     c.customer_type or '',
                     str(c.previous_order_count_1) if c.previous_order_count_1 is not None else '',
@@ -588,7 +437,7 @@ def main():
                     c.our_account_number or ''
                 ]
                 # Escape quotes in CSV
-                row = [f'"{field}"' if ',' in field or '"' in field else field for field in row]
+                row = [f'"{field.replace(chr(34), chr(34)+chr(34))}"' if ',' in field or '"' in field else field for field in row]
                 print(','.join(row))
 
         else:
