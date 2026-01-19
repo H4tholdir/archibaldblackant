@@ -161,11 +161,52 @@ class CustomerPDFParser:
                     our_account_number=int_acct.get('our_account_number')
                 )
 
-                # Filter garbage: ID="0" and valid customer_profile required
-                if customer.customer_profile and customer.customer_profile != "0":
-                    customers.append(customer)
+                # Filter only PDF footer line (e.g., "Count=1.455")
+                # Keep everything else - let the DB/backend decide what's valid
+                if customer.customer_profile.startswith("Count="):
+                    continue
+
+                customers.append(customer)
 
         return customers
+
+    def _merge_continuation_lines(self, lines: List[str]) -> List[str]:
+        """
+        Merge lines that are continuations of long names/fields.
+        A line is a continuation if it doesn't start with a number/pattern.
+
+        Example:
+          Line 1: "55.644S.A.O Studio Ass. Di Odontoiatria Dott. Nicola De"
+          Line 2: "Rosa"
+          Result: "55.644S.A.O Studio Ass. Di Odontoiatria Dott. Nicola De Rosa"
+        """
+        if not lines:
+            return []
+
+        merged = []
+        current = lines[0]
+
+        for i in range(1, len(lines)):
+            line = lines[i]
+
+            # Check if this line starts with a customer profile ID or footer
+            # Customer IDs: digits with optional dots (50049421, 55.102, 1.117)
+            # May or may not have space after ID (e.g., "55.644S.A.O" vs "55.102 St.")
+            # Footer: "Count=", "Sum="
+            starts_with_id = re.match(r'^[\d.]+', line) and not line[0].isalpha() or line.startswith('Count=') or line.startswith('Sum=')
+
+            if starts_with_id:
+                # New customer/footer - save previous and start new
+                merged.append(current)
+                current = line
+            else:
+                # Continuation line - append to current
+                current += ' ' + line
+
+        # Don't forget the last line
+        merged.append(current)
+
+        return merged
 
     def _parse_ids_page(self, lines: List[str]) -> List[Dict[str, str]]:
         """Parse page 0: ID PROFILO CLIENTE, NOME, PARTITA IVA"""
@@ -173,6 +214,10 @@ class CustomerPDFParser:
 
         # Skip header line
         data_lines = lines[1:] if lines else []
+
+        # Merge continuation lines (long names that wrap)
+        # ONLY FOR PAGE 0 - other pages don't have customer IDs at start of line
+        data_lines = self._merge_continuation_lines(data_lines)
 
         for line in data_lines:
             # Pattern: ID NAME VAT
