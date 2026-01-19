@@ -88,6 +88,7 @@ export class BrowserPool {
           "--disable-setuid-sandbox",
           "--disable-web-security",
           "--ignore-certificate-errors",
+          "--lang=it-IT", // Force Italian locale for consistent PDF column order
         ],
         defaultViewport: {
           width: 1280,
