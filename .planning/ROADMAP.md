@@ -33,6 +33,7 @@ None (full-stack web app con pattern standard)
 - [x] **Phase 18.1: PDF Export Discovery & Validation (INSERTED)** - Validare possibilità estrazione dati da PDF ✅ COMPLETE
 - [x] **Phase 18: Customers Sync Analysis & Optimization** - Migrazione da HTML a PDF sync ✅ COMPLETE
 - [ ] **Phase 19: Products Sync Analysis & Optimization** - Analisi + background + manual + images
+- [ ] **Phase 19.1: Product Cards UI Enhancement (INSERTED)** - Visualizzazione 26+ campi + gestione varianti
 - [ ] **Phase 20: Prices Sync Analysis & Optimization** - Analisi + background + manual + Excel listino
 - [ ] **Phase 21: Orders Sync Analysis & Optimization** - Analisi + background + manual
 - [ ] **Phase 22: Sync Orchestration Layer** - Coordinator anti-overlap, staggered scheduling
@@ -153,9 +154,27 @@ Plans:
 - [ ] 19-04: Background Sync Scheduler & Monitoring (30min interval, retry logic, metrics endpoint, admin controls) — est. 60min
 - [ ] 19-05: Comprehensive Testing & Performance Validation (8 unit + 13 integration tests, benchmark <60s, UAT checklist) — est. 45min
 
+#### Phase 19.1: Product Cards UI Enhancement (INSERTED)
+**Goal**: Visualizzare tutti i 26+ campi nelle schede articolo e unificare varianti (stesso ID, diverso contenuto imballaggio)
+**Depends on**: Phase 19-02 (Products sync working)
+**Research**: Unlikely (UI components, variant grouping logic - standard React patterns)
+**Plans**: TBD (est. 3-4 plans)
+**Priority**: HIGH - Users need to see complete product data
+
+**Key Requirements:**
+- Show all 26+ PDF fields in product cards (Figura, Grandezza, Quantità Standard, Sconti, ecc.)
+- Unify products with same base ID but different `packageContent` into single card
+- Variant selector for package options (5 colli vs 1 collo)
+- Display price/VAT from database (already populated by Phase 4.1-02)
+- ProductDetailModal with complete info
+- Mobile-responsive layout
+
+Plans:
+- [ ] 19.1-01: TBD (after context approval)
+
 #### Phase 20: Prices Sync Analysis & Optimization
 **Goal**: Analisi completa sync prezzi + background sync + sync manuale + Excel listino integration
-**Depends on**: Phase 19
+**Depends on**: Phase 19.1 (Product UI complete)
 **Research**: Unlikely (analyzing existing sync + Excel parsing already integrated in v1.0)
 **Plans**: TBD
 
