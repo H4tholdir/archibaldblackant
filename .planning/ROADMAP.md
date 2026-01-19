@@ -116,11 +116,12 @@ Plans:
 **Completed**: 2026-01-19
 
 Discovery Results:
-- ✅ PDF parsing is FEASIBLE and RECOMMENDED
+- ✅ PDF parsing is HIGHLY RECOMMENDED - **96% field coverage (27/28 fields)**
 - ✅ Performance: 15-20s (PDF) vs 30-60s (HTML) - **50-67% faster**
 - ✅ Stability: High (file format stable) vs Low (UI-dependent)
-- ✅ Data: 1,515 valid customers, all critical fields covered
-- ✅ Parser: Python script working (`scripts/parse-clienti-pdf.py`)
+- ✅ Data: 1,515 valid customers, **ALL business fields covered**
+- ✅ Structure: 8-page cycles (pages 0-7) with complete analytics & accounts
+- ✅ Parser: Python script working (`scripts/parse-clienti-pdf.py`) - needs 8-page update
 - See: `.planning/phases/18.1-pdf-export-discovery-validation/DISCOVERY.md`
 
 **Rationale**: Scoperta game-changing della funzionalità di esportazione PDF in Archibald validata con successo. PDF parsing è più veloce, stabile e manutenibile del scraping HTML. Phase 18 procederà con implementazione PDF-based.
