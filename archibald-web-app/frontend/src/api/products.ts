@@ -192,3 +192,37 @@ export async function getProductPriceHistory(
 
   return response.json();
 }
+
+export interface SyncProductsResult {
+  success: boolean;
+  productsProcessed?: number;
+  newProducts?: number;
+  updatedProducts?: number;
+  duration?: number;
+  error?: string;
+}
+
+/**
+ * Trigger manual products sync from Archibald
+ */
+export async function syncProducts(): Promise<SyncProductsResult> {
+  const response = await fetch("/api/products/sync", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${localStorage.getItem("archibald_jwt")}`,
+    },
+  });
+
+  if (!response.ok) {
+    if (response.status === 409) {
+      throw new Error("Sincronizzazione già in corso");
+    }
+    if (response.status === 401) {
+      throw new Error("Sessione scaduta");
+    }
+    throw new Error(`Errore sincronizzazione: ${response.status}`);
+  }
+
+  return response.json();
+}
