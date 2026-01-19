@@ -2120,32 +2120,56 @@ app.post(
   },
 );
 
-// Trigger manual products sync endpoint
+// Manual products sync endpoint (JWT-protected)
 app.post(
   "/api/products/sync",
-  async (req: Request, res: Response<ApiResponse>) => {
+  authenticateJWT,
+  async (req: AuthRequest, res: Response<ApiResponse>) => {
     try {
-      logger.info("Richiesta sync manuale dei prodotti");
+      const startTime = Date.now();
+      logger.info("[API] Manual products sync requested", {
+        userId: req.user?.userId,
+      });
 
-      // Avvia sync in background (non blocca la risposta)
-      productSyncService.syncProducts().catch((error) => {
-        logger.error("Errore durante il sync dei prodotti", { error });
+      const service = ProductSyncService.getInstance();
+
+      const result = await service.syncProducts((progress) => {
+        // Progress callback (can be extended with WebSockets in future)
+        logger.info("[API] Sync progress", {
+          stage: progress.stage,
+          message: progress.message,
+        });
+      });
+
+      const duration = Date.now() - startTime;
+
+      logger.info("[API] Products sync completed", {
+        userId: req.user?.userId,
+        result,
+        durationMs: duration,
       });
 
       res.json({
         success: true,
-        message: "Sincronizzazione prodotti avviata",
+        ...result,
       });
     } catch (error) {
-      logger.error("Errore API /api/products/sync", { error });
-
-      res.status(500).json({
-        success: false,
-        error:
-          error instanceof Error
-            ? error.message
-            : "Errore durante l'avvio della sincronizzazione",
+      logger.error("[API] Products sync failed", {
+        userId: req.user?.userId,
+        error,
       });
+
+      if (error instanceof Error && error.message === "Sync already in progress") {
+        res.status(409).json({
+          success: false,
+          error: "Sincronizzazione già in corso",
+        });
+      } else {
+        res.status(500).json({
+          success: false,
+          error: error instanceof Error ? error.message : "Errore sconosciuto",
+        });
+      }
     }
   },
 );
