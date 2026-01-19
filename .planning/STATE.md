@@ -10,18 +10,18 @@ See: .planning/PROJECT.md (updated 2026-01-11)
 ## Current Position
 
 Phase: 18 of 28 (Customers Sync Analysis & Optimization)
-Plan: 0 of 5 in current phase
-Status: Planned (5 plans ready for execution)
-Last activity: 2026-01-19 — Planned Phase 18 (5 plans: PDF parser, bot flow, UI, scheduler, testing)
+Plan: 1 of 5 in current phase
+Status: Executing (Plan 18-01 complete, 4 plans remaining)
+Last activity: 2026-01-19 — Completed Plan 18-01 (PDF Parser Enhancement & Node.js Integration)
 
-Progress: ████░░░░░░ 20% (v2.0: 5/15 phases complete, 9/60 plans)
+Progress: ████░░░░░░ 21% (v2.0: 5/15 phases complete, 10/60 plans)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 86
+- Total plans completed: 87
 - Average duration: 49 min
-- Total execution time: 75.22 hours
+- Total execution time: 76.25 hours
 
 **By Phase:**
 
@@ -43,9 +43,10 @@ Progress: ████░░░░░░ 20% (v2.0: 5/15 phases complete, 9/60 p
 | 15 | 4 | 105 min | 26 min |
 | 16 | 4 | 77 min | 19 min |
 | 17 | 1 | 3 min | 3 min |
+| 18 | 1 | 62 min | 62 min |
 
 **Recent Trend:**
-- Last 10 plans: 14-01-exec (8m), 15-01 (45m), 15-02 (15m), 15-03 (20m), 15-04 (25m), 16-01 (21m), 16-02 (51m), 16-03 (2m), 16-04 (3m), 17-01 (3m)
+- Last 10 plans: 15-01 (45m), 15-02 (15m), 15-03 (20m), 15-04 (25m), 16-01 (21m), 16-02 (51m), 16-03 (2m), 16-04 (3m), 17-01 (3m), 18-01 (62m)
 - Phase 9 extremely fast (avg 11m) - leveraging existing Phase 8-07 infrastructure
 - Phase 10 high avg (105m) - includes 521m for Plan 10-07 (heavy login debugging)
 - Phase 14 complete (5 plans avg 9m) - 4 discovery plans + 1 execution plan, all IndexedDB errors fixed ✅ COMPLETE
@@ -62,6 +63,13 @@ Recent decisions affecting current work:
 
 | Phase | Decision | Rationale |
 |-------|----------|-----------|
+| 18-01 | Use child_process.spawn for Python execution | Better for large output vs exec, 10MB buffer handles ~2,000 customers, non-blocking streaming |
+| 18-01 | 30s timeout for PDF parsing | Conservative limit to prevent hanging (actual parsing 6-15s), protects Node.js from zombie processes |
+| 18-01 | Health check returns 503 when dependencies missing | Proper HTTP semantics (503 = unavailable, 500 = error), allows monitoring systems to detect deployment issues |
+| 18-01 | Singleton PDFParserService pattern | Centralized configuration (parser path, timeout), reused across multiple requests, consistent error handling |
+| 18-01 | Type-safe ParsedCustomer interface matching Python | Cross-language consistency, TypeScript compiler catches field mismatches, safer API integration |
+| 18-01 | 8-page PDF cycle structure (not 4-page) | Validated from Clienti.pdf (256 pages = 32 × 8), captures 100% business fields (26 fields vs 16) |
+| 18-01 | Italian currency format conversion in parser | Archibald exports Italian format (124.497,43 €), convert to float (124497.43) for JSON numeric compatibility |
 | 14-01 | Pattern A: Filter undefined fields before IndexedDB bulkPut | External data (API, scraping) may have undefined fields causing DataError, for-in loop filters before write |
 | 14-01 | Pattern B: Conditionally include auto-increment id with spread | Auto-increment requires omitting id for new records, including id for updates, spread operator pattern |
 | 14-01 | Structured logging: [IndexedDB:ServiceName] prefix + object params | Production logs filterable by prefix, stack traces captured, chronological analysis enabled |
@@ -561,8 +569,8 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-01-19 (afternoon)
-Stopped at: Completed Phase 18 planning - 5 plans created (18-01 through 18-05)
-Next: Execute Phase 18 plans starting with 18-01 (PDF Parser Enhancement)
+Stopped at: Completed Plan 18-01 (PDF Parser Enhancement & Node.js Integration)
+Next: Execute Plan 18-02 (PDF Download Bot Flow)
 Resume file: None
 
 **Milestone v2.0 Creation Summary**:
