@@ -45,12 +45,15 @@ export class UserSpecificSyncService {
    * Called automatically on login
    */
   async checkAndSyncOnLogin(userId: string, username: string): Promise<void> {
-    // Only trigger order sync in background
-    // Customer sync is available via manual sync button in UI
-    await this.checkAndSyncOrders(userId, username);
+    // NOTE: All background syncs disabled - user can trigger manually via UI
+    // This prevents automatic sync interference during testing and development
 
-    // NOTE: Background customer sync disabled to avoid interference with manual sync
+    // await this.checkAndSyncOrders(userId, username);
     // await this.checkAndSyncCustomers(userId, username);
+
+    logger.info(`Background sync skipped for ${username} (manually disabled)`, {
+      userId,
+    });
   }
 
   /**
