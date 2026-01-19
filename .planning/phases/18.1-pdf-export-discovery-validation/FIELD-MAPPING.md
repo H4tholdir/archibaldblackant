@@ -1,70 +1,88 @@
 # PDF → Database Field Mapping
 
 ## Analysis Date
-2026-01-19
+2026-01-19 (Updated: complete 8-page cycle analysis)
 
 ## Summary
 - **PDF valid customers**: 1,515 (excluding 1,424 with ID="0" garbage records)
 - **Database customers**: 1,452
 - **Difference**: 63 customers (4.3% new/missing)
+- **PDF Structure**: 8 pages per cycle (256 total pages = 32 cycles)
 
-## Field Mapping
+## PDF 8-Page Cycle Structure
 
-| DB Schema Field | PDF Parser Field | Coverage | Notes |
-|-----------------|------------------|----------|-------|
-| **Primary Identification** ||||
-| `customerProfile` | `customer_profile` | ✅ 100% | PRIMARY KEY |
-| `internalId` | ❌ N/A | ⚠️ Not in PDF | May need to preserve existing |
-| `name` | `name` | ✅ 100% | Required field |
-| **Italian Fiscal Data** ||||
-| `vatNumber` | `vat_number` | ✅ ~70% | 11-digit Italian VAT |
-| `fiscalCode` | `fiscal_code` | ✅ ~40% | 16-char Italian fiscal code |
-| `sdi` | `sdi` | ✅ ~60% | 7-char electronic invoice code |
-| `pec` | `pec` | ✅ ~50% | Certified email |
-| **Contact Information** ||||
-| `phone` | `phone` | ✅ ~80% | Primary phone |
-| `mobile` | `mobile` | ✅ ~40% | Mobile phone |
-| `url` | `url` | ✅ ~10% | Website URL |
-| `attentionTo` | `attention_to` | ✅ ~5% | Contact person |
-| **Address Information** ||||
-| `street` | `street` | ✅ 95% | Street address |
-| `logisticsAddress` | `logistics_address` | ✅ 95% | Same as street in PDF |
-| `postalCode` | `postal_code` | ✅ 90% | 5-digit Italian CAP |
-| `city` | `city` | ✅ 95% | City name |
-| **Business Information** ||||
-| `customerType` | ❌ N/A | ⚠️ Not in PDF | May need to preserve |
-| `type` | ❌ N/A | ⚠️ Not in PDF | May need to preserve |
-| `deliveryTerms` | `delivery_terms` | ✅ 80% | Delivery conditions |
-| `description` | ❌ N/A | ⚠️ Not in PDF | May need to preserve |
-| **Order History & Analytics** ||||
-| `lastOrderDate` | `last_order_date` | ✅ ~60% | DD/MM/YYYY format |
-| `actualOrderCount` | ❌ N/A | ⚠️ Not in PDF | Computed field |
-| `previousOrderCount1` | ❌ N/A | ⚠️ Not in PDF | Analytics field |
-| `previousSales1` | ❌ N/A | ⚠️ Not in PDF | Analytics field |
-| `previousOrderCount2` | ❌ N/A | ⚠️ Not in PDF | Analytics field |
-| `previousSales2` | ❌ N/A | ⚠️ Not in PDF | Analytics field |
-| **Account References** ||||
-| `externalAccountNumber` | ❌ N/A | ⚠️ Not in PDF | May need to preserve |
-| `ourAccountNumber` | ❌ N/A | ⚠️ Not in PDF | May need to preserve |
-| **System Fields** ||||
-| `hash` | ❌ Computed | ✅ Generate | MD5/SHA hash for delta detection |
-| `lastSync` | ❌ Computed | ✅ Generate | Timestamp of sync |
-| `createdAt` | ❌ Computed | ✅ Generate | First insert timestamp |
-| `updatedAt` | ❌ Computed | ✅ Generate | Last update timestamp |
+| Page | Italian Headers | English Translation | DB Fields Covered |
+|------|----------------|---------------------|-------------------|
+| 0 | ID PROFILO CLIENTE, NOME, PARTITA IVA | Customer Profile ID, Name, VAT Number | `customerProfile`, `name`, `vatNumber` |
+| 1 | PEC, SDI, CODICE FISCALE, TERMINI DI CONSEGNA | PEC, SDI, Fiscal Code, Delivery Terms | `pec`, `sdi`, `fiscalCode`, `deliveryTerms` |
+| 2 | VIA, INDIRIZZO LOGISTICO, CAP, CITTÀ | Street, Logistics Address, Postal Code, City | `street`, `logisticsAddress`, `postalCode`, `city` |
+| 3 | TELEFONO, CELLULARE, URL, ALL'ATTENZIONE DI, DATA DELL'ULTIMO ORDINE | Phone, Mobile, URL, Attention To, Last Order Date | `phone`, `mobile`, `url`, `attentionTo`, `lastOrderDate` |
+| 4 | CONTEGGI DEGLI ORDINI EFFETTIVI, TIPO DI CLIENTE, CONTEGGIO DEGLI ORDINI PRECEDENTE | Actual Order Count, Customer Type, Previous Order Count | `actualOrderCount`, `customerType`, `previousOrderCount1` |
+| 5 | VENDITE PRECEDENTE, CONTEGGIO DEGLI ORDINI PRECEDENTE 2, VENDITE PRECEDENTE | Previous Sales, Previous Order Count 2, Previous Sales | `previousSales1`, `previousOrderCount2`, `previousSales2` |
+| 6 | DESCRIZIONE, TYPE, NUMERO DI CONTO ESTERNO | Description, Type, External Account Number | `description`, `type`, `externalAccountNumber` |
+| 7 | IL NOSTRO NUMERO DI CONTO | Our Account Number | `ourAccountNumber` |
+
+## Complete Field Mapping
+
+| DB Schema Field | PDF Page | Italian Column Name | Coverage | Notes |
+|-----------------|----------|---------------------|----------|-------|
+| **Primary Identification** |||||
+| `customerProfile` | 0 | ID PROFILO CLIENTE | ✅ 100% | PRIMARY KEY |
+| `internalId` | N/A | N/A | ⚠️ Not in PDF | Internal system field only |
+| `name` | 0 | NOME | ✅ 100% | Required field |
+| **Italian Fiscal Data** |||||
+| `vatNumber` | 0 | PARTITA IVA | ✅ ~70% | 11-digit Italian VAT |
+| `fiscalCode` | 1 | CODICE FISCALE | ✅ ~40% | 16-char Italian fiscal code |
+| `sdi` | 1 | SDI | ✅ ~60% | 7-char electronic invoice code |
+| `pec` | 1 | PEC | ✅ ~50% | Certified email |
+| **Contact Information** |||||
+| `phone` | 3 | TELEFONO | ✅ ~80% | Primary phone |
+| `mobile` | 3 | CELLULARE | ✅ ~40% | Mobile phone |
+| `url` | 3 | URL | ✅ ~10% | Website URL |
+| `attentionTo` | 3 | ALL'ATTENZIONE DI | ✅ ~5% | Contact person |
+| **Address Information** |||||
+| `street` | 2 | VIA | ✅ 95% | Street address |
+| `logisticsAddress` | 2 | INDIRIZZO LOGISTICO | ✅ 95% | Logistics address |
+| `postalCode` | 2 | CAP | ✅ 90% | 5-digit Italian CAP |
+| `city` | 2 | CITTÀ | ✅ 95% | City name |
+| **Business Information** |||||
+| `customerType` | 4 | TIPO DI CLIENTE | ✅ 100% | Customer type classification |
+| `type` | 6 | TYPE | ✅ 100% | Record type (Debitor, CustFromConcess, etc.) |
+| `deliveryTerms` | 1 | TERMINI DI CONSEGNA | ✅ 80% | Delivery conditions |
+| `description` | 6 | DESCRIZIONE | ✅ ~30% | Customer description/notes |
+| **Order History & Analytics** |||||
+| `lastOrderDate` | 3 | DATA DELL'ULTIMO ORDINE | ✅ ~60% | DD/MM/YYYY format |
+| `actualOrderCount` | 4 | CONTEGGI DEGLI ORDINI EFFETTIVI | ✅ 100% | Current order count |
+| `previousOrderCount1` | 4 | CONTEGGIO DEGLI ORDINI PRECEDENTE | ✅ 100% | Previous period 1 count |
+| `previousSales1` | 5 | VENDITE PRECEDENTE | ✅ 100% | Previous period 1 sales |
+| `previousOrderCount2` | 5 | CONTEGGIO DEGLI ORDINI PRECEDENTE 2 | ✅ 100% | Previous period 2 count |
+| `previousSales2` | 5 | VENDITE PRECEDENTE (2nd) | ✅ 100% | Previous period 2 sales |
+| **Account References** |||||
+| `externalAccountNumber` | 6 | NUMERO DI CONTO ESTERNO | ✅ 100% | External account reference |
+| `ourAccountNumber` | 7 | IL NOSTRO NUMERO DI CONTO | ✅ ~90% | Internal account number |
+| **System Fields** |||||
+| `hash` | N/A | Computed | ✅ Generate | MD5/SHA hash for delta detection |
+| `lastSync` | N/A | Computed | ✅ Generate | Timestamp of sync |
+| `createdAt` | N/A | Computed | ✅ Generate | First insert timestamp |
+| `updatedAt` | N/A | Computed | ✅ Generate | Last update timestamp |
 
 ## Coverage Analysis
 
-### ✅ Fully Covered by PDF (12 fields)
+### ✅ Fully Covered by PDF (27 fields) - ALL BUSINESS FIELDS!
+**Pages 0-3 (Basic Info):**
 - customerProfile, name, vatNumber, fiscalCode, sdi, pec
 - phone, mobile, url, attentionTo
 - street, logisticsAddress, postalCode, city
 - deliveryTerms, lastOrderDate
 
-### ⚠️ Not in PDF - Preserve Existing (9 fields)
-- internalId, customerType, type, description
+**Pages 4-7 (Analytics & Accounts):**
+- customerType, type, description
 - actualOrderCount, previousOrderCount1, previousSales1
 - previousOrderCount2, previousSales2
 - externalAccountNumber, ourAccountNumber
+
+### ⚠️ Not in PDF - Internal Only (1 field)
+- `internalId` - Internal system field, not exported by Archibald
 
 ### ✅ System Generated (4 fields)
 - hash, lastSync, createdAt, updatedAt
@@ -91,18 +109,34 @@
 
 ## Hash Strategy
 ```typescript
-// Fields to include in hash (deterministic order)
+// ALL fields from PDF to include in hash (deterministic order)
+// Organized by PDF page for clarity
 const hashFields = [
-  'name', 'vatNumber', 'fiscalCode', 'sdi', 'pec',
-  'phone', 'mobile', 'street', 'postalCode', 'city',
-  'deliveryTerms', 'lastOrderDate'
+  // Page 0: Identification
+  'customerProfile', 'name', 'vatNumber',
+  // Page 1: Fiscal & Delivery
+  'pec', 'sdi', 'fiscalCode', 'deliveryTerms',
+  // Page 2: Address
+  'street', 'logisticsAddress', 'postalCode', 'city',
+  // Page 3: Contact & Last Order
+  'phone', 'mobile', 'url', 'attentionTo', 'lastOrderDate',
+  // Page 4: Order Analytics 1
+  'actualOrderCount', 'customerType', 'previousOrderCount1',
+  // Page 5: Sales Analytics
+  'previousSales1', 'previousOrderCount2', 'previousSales2',
+  // Page 6: Business Info & Accounts
+  'description', 'type', 'externalAccountNumber',
+  // Page 7: Internal Account
+  'ourAccountNumber'
 ];
 
-// Generate MD5 hash
+// Generate MD5 hash from ALL PDF fields
 const hash = crypto.createHash('md5')
   .update(hashFields.map(f => customer[f] || '').join('|'))
   .digest('hex');
 ```
+
+**Note**: `internalId` is NOT included in hash as it's internal-only and not from PDF.
 
 ## Data Quality Issues
 
@@ -123,8 +157,10 @@ const hash = crypto.createHash('md5')
 
 ## Recommendations
 
-1. **✅ PDF parsing is FEASIBLE** - covers all critical customer data
-2. **⚠️ Preserve non-PDF fields** during update (internalId, analytics, accounts)
-3. **✅ Hash-based delta** detection is efficient
-4. **✅ Filter ID="0"** garbage records
-5. **✅ Performance target achievable** - 1,515 customers in ~5-8 seconds
+1. **✅ PDF parsing is HIGHLY RECOMMENDED** - covers **ALL 27 business fields** (100% coverage except internal `internalId`)
+2. **✅ 8-page cycle structure confirmed** - parser must handle pages 0-7, not just 0-3
+3. **✅ Hash-based delta** detection with ALL 27 fields is efficient and comprehensive
+4. **✅ Filter ID="0"** garbage records (1,424 invalid records)
+5. **⚠️ Preserve `internalId`** during sync - it's internal-only, not in PDF
+6. **✅ Performance target achievable** - estimated 15-20s for full sync (PDF download + parse + DB update)
+7. **✅ Parser update required** - add methods for pages 4-7 to extract analytics and account fields

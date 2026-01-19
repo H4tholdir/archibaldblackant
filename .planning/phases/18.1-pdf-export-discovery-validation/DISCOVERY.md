@@ -7,14 +7,15 @@
 
 ## Executive Summary
 
-**✅ RECOMMENDATION: Proceed with PDF-based sync replacement**
+**✅ STRONG RECOMMENDATION: Proceed with PDF-based sync replacement**
 
-PDF parsing è **feasible, faster, and more stable** del current HTML scraping approach. Il proof-of-concept ha validato:
+PDF parsing è **feasible, faster, more complete, and more stable** del current HTML scraping approach. Il proof-of-concept ha validato:
 
-- ✅ **Performance**: 6s parsing vs 30-60s HTML scraping (**~75-90% faster**)
-- ✅ **Data completeness**: Covers all critical customer fields
+- ✅ **Data completeness**: **96% coverage** (27/28 fields) - ALL business fields covered!
+- ✅ **Performance**: 15-20s total vs 30-60s HTML scraping (**50-67% faster**)
 - ✅ **Stability**: Single file download vs fragile multi-page scraping
 - ✅ **Maintainability**: DevExpress UI changes don't break PDF structure
+- ✅ **8-page cycle structure**: All analytics and account fields discovered (pages 4-7)
 
 ---
 
@@ -51,19 +52,37 @@ Difference: +63 customers (4.3% new/modified)
 
 See [FIELD-MAPPING.md](./FIELD-MAPPING.md) for complete mapping.
 
-#### ✅ Fully Covered by PDF (16 fields)
-- **Identification**: customerProfile ✅, name ✅
-- **Fiscal**: vatNumber ✅ (~70%), fiscalCode ✅ (~40%), sdi ✅ (~60%), pec ✅ (~50%)
-- **Contact**: phone ✅ (~80%), mobile ✅ (~40%), url ✅ (~10%), attentionTo ✅ (~5%)
-- **Address**: street ✅ (95%), logisticsAddress ✅ (95%), postalCode ✅ (90%), city ✅ (95%)
-- **Business**: deliveryTerms ✅ (80%), lastOrderDate ✅ (~60%)
+#### ✅ **ALL BUSINESS FIELDS COVERED BY PDF** (27/28 fields - 96% coverage!)
 
-#### ⚠️ Not in PDF - Must Preserve (9 fields)
-- internalId, customerType, type, description
-- actualOrderCount, previousOrderCount1/2, previousSales1/2
+**PDF 8-Page Cycle Structure:**
+- **Page 0**: ID PROFILO CLIENTE, NOME, PARTITA IVA
+- **Page 1**: PEC, SDI, CODICE FISCALE, TERMINI DI CONSEGNA
+- **Page 2**: VIA, INDIRIZZO LOGISTICO, CAP, CITTÀ
+- **Page 3**: TELEFONO, CELLULARE, URL, ALL'ATTENZIONE DI, DATA DELL'ULTIMO ORDINE
+- **Page 4**: CONTEGGI DEGLI ORDINI EFFETTIVI, TIPO DI CLIENTE, CONTEGGIO DEGLI ORDINI PRECEDENTE
+- **Page 5**: VENDITE PRECEDENTE, CONTEGGIO DEGLI ORDINI PRECEDENTE 2, VENDITE PRECEDENTE
+- **Page 6**: DESCRIZIONE, TYPE, NUMERO DI CONTO ESTERNO
+- **Page 7**: IL NOSTRO NUMERO DI CONTO
+
+**Pages 0-3 (Basic Info - 16 fields):**
+- customerProfile, name, vatNumber, fiscalCode, sdi, pec
+- phone, mobile, url, attentionTo
+- street, logisticsAddress, postalCode, city
+- deliveryTerms, lastOrderDate
+
+**Pages 4-7 (Analytics & Accounts - 11 fields):**
+- customerType, type, description
+- actualOrderCount, previousOrderCount1, previousSales1
+- previousOrderCount2, previousSales2
 - externalAccountNumber, ourAccountNumber
 
-**Strategy**: UPDATE existing fields from PDF, PRESERVE non-PDF fields during sync.
+#### ⚠️ Not in PDF - Internal Only (1 field)
+- `internalId` - Internal system field, not exported by Archibald
+
+**Strategy**:
+- **UPDATE** all 27 PDF fields from export
+- **PRESERVE** `internalId` (internal-only field)
+- **HASH** all 27 PDF fields for delta detection
 
 ---
 
