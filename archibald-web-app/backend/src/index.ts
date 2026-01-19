@@ -56,6 +56,7 @@ import { DDTScraperService } from "./ddt-scraper-service";
 import { OrderDatabase } from "./order-db";
 import { PriorityManager } from "./priority-manager";
 import { OrderStateSyncService } from "./order-state-sync-service";
+import { pdfParserService } from "./pdf-parser-service";
 
 const app = express();
 const server = createServer(app);
@@ -245,6 +246,30 @@ app.get("/api/health", (req: Request, res: Response<ApiResponse>) => {
       version: "1.0.0",
     },
   });
+});
+
+// PDF Parser health check
+app.get("/api/health/pdf-parser", async (req, res) => {
+  try {
+    const isHealthy = await pdfParserService.healthCheck();
+
+    if (isHealthy) {
+      res.json({
+        status: "ok",
+        message: "PDF parser ready (Python3 + PyPDF2 available)",
+      });
+    } else {
+      res.status(503).json({
+        status: "error",
+        message: "PDF parser not ready. Check logs for details.",
+      });
+    }
+  } catch (error: any) {
+    res.status(500).json({
+      status: "error",
+      message: error.message,
+    });
+  }
 });
 
 // Prometheus metrics endpoint
