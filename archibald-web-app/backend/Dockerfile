@@ -1,14 +1,14 @@
 # Stage 1: Dependencies
 FROM node:20-alpine AS deps
 WORKDIR /app
-COPY package*.json ./
+COPY archibald-web-app/backend/package*.json ./
 RUN npm ci --only=production
 
 # Stage 2: Build TypeScript
 FROM node:20-alpine AS builder
 WORKDIR /app
-COPY package*.json tsconfig.json ./
-COPY src ./src
+COPY archibald-web-app/backend/package*.json archibald-web-app/backend/tsconfig.json ./
+COPY archibald-web-app/backend/src ./src
 RUN npm ci
 RUN npm run build
 
@@ -41,10 +41,10 @@ COPY --from=deps /app/node_modules ./node_modules
 
 # Copy built application
 COPY --from=builder /app/dist ./dist
-COPY package*.json ./
+COPY archibald-web-app/backend/package*.json ./
 
 # Copy Python scripts for PDF parsing
-COPY --chown=node:node ../../scripts /scripts
+COPY --chown=node:node scripts /scripts
 
 # Create directories for application runtime
 RUN mkdir -p /app/data /app/.cache /app/logs && \
