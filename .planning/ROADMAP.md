@@ -128,17 +128,17 @@ Discovery Results:
 **Rationale**: Scoperta game-changing della funzionalità di esportazione PDF in Archibald validata con successo. PDF parsing è più veloce, stabile e manutenibile del scraping HTML. Phase 18 procederà con implementazione PDF-based.
 
 #### Phase 18: Customers Sync Analysis & Optimization
-**Goal**: Analisi completa sync clienti + background sync automatico + sync manuale granulare
+**Goal**: Migrazione completa da HTML scraping a PDF-based sync: parser 8-page, bot download, delta sync, manual UI, background scheduler
 **Depends on**: Phase 17
-**Research**: Unlikely (analyzing existing scraping code, standard optimization techniques)
-**Plans**: 0/5
+**Research**: Completed (Phase 18.1 - PDF feasibility validated with 100% field coverage)
+**Plans**: 5/5
 
 Plans:
-- [ ] 18-01: Customer Sync Performance Analysis (profiling instrumentation, PERF-DATA.json, ANALYSIS.md)
-- [ ] 18-02: Background Sync Enhancement (intelligent scheduling, error recovery, health monitoring)
-- [ ] 18-03: Incremental Sync Strategy (delta sync for changed customers only)
-- [ ] 18-04: Manual Sync API & UI (full/incremental/single customer endpoints + UI controls)
-- [ ] 18-05: Performance Optimization & Verification (apply optimizations, comprehensive checkpoint)
+- [ ] 18-01: PDF Parser Enhancement & Node.js Integration (8-page cycle support, 27 business fields, Node wrapper, health check)
+- [ ] 18-02: PDF Download Bot Flow (bot download method, CustomerSyncService refactor, hash delta detection)
+- [ ] 18-03: Manual Sync UI & API Endpoint (🔄 button, SyncBanner component, POST /api/customers/sync)
+- [ ] 18-04: Background Sync Scheduler & Monitoring (30min interval, retry logic, metrics tracking, graceful shutdown)
+- [ ] 18-05: Comprehensive Testing & Performance Validation (unit tests, integration tests, 15-20s target, stress tests, UAT)
 
 #### Phase 19: Products Sync Analysis & Optimization
 **Goal**: Analisi completa sync articoli + background sync + sync manuale + image handling optimization
