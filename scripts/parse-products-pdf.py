@@ -198,14 +198,14 @@ class ProductsPDFParser:
         }
 
     def _parse_page_2(self, row: List[str]) -> Dict[str, Optional[str]]:
-        """Parse page 2: GRUPPO ARTICOLO, CONTENUTO DELL'IMBALLAGGIO, NOME DELLA RICERCA
-        Columns: [GRUPPO_ARTICOLO, CONTENUTO_IMBALLAGGIO, NOME_RICERCA]
-        Note: IMMAGINE field is skipped per user requirement
+        """Parse page 2: GRUPPO ARTICOLO, IMMAGINE, CONTENUTO DELL'IMBALLAGGIO, NOME DELLA RICERCA
+        Columns: [GRUPPO_ARTICOLO, IMMAGINE (skip), CONTENUTO_IMBALLAGGIO, NOME_RICERCA]
+        Note: IMMAGINE field (col 1) is skipped per user requirement
         """
         gruppo_articolo = (row[0] or '').strip() if len(row) > 0 else None
-        # Skip IMMAGINE field - not storing images
-        contenuto_imballaggio = (row[1] or '').strip() if len(row) > 1 else None
-        nome_ricerca = (row[2] or '').strip() if len(row) > 2 else None
+        # Skip IMMAGINE field (col 1) - contains System.Byte[]
+        contenuto_imballaggio = (row[2] or '').strip() if len(row) > 2 else None  # FIX: col 2, not col 1
+        nome_ricerca = (row[3] or '').strip() if len(row) > 3 else None  # FIX: col 3, not col 2
 
         # Clean empty strings to None
         gruppo_articolo = gruppo_articolo if gruppo_articolo else None
@@ -241,21 +241,25 @@ class ProductsPDFParser:
         }
 
     def _parse_page_4(self, row: List[str]) -> Dict[str, Optional[str]]:
-        """Parse page 4: QTÀ MULTIPLI, QTÀ MASSIMA, FIGURA, ID IN BLOCCO DELL'ARTICOLO, PACCO GAMBA
-        Columns: [QTA_MULTIPLI, QTA_MASSIMA, FIGURA, ID_BLOCCO_ARTICOLO, PACCO_GAMBA]
+        """Parse page 4: QTÀ MULTIPLI, QTÀ MASSIMA, FIGURA, ID IN BLOCCO DELL'ARTICOLO, PACCO, GAMBA
+        Columns: [QTA_MULTIPLI, QTA_MASSIMA, FIGURA, ID_BLOCCO_ARTICOLO, PACCO, GAMBA]
+        Note: PACCO (col 4) and GAMBA (col 5) are combined into pacco_gamba
         """
         qta_multipli = (row[0] or '').strip() if len(row) > 0 else None
         qta_massima = (row[1] or '').strip() if len(row) > 1 else None
         figura = (row[2] or '').strip() if len(row) > 2 else None
         id_blocco_articolo = (row[3] or '').strip() if len(row) > 3 else None
-        pacco_gamba = (row[4] or '').strip() if len(row) > 4 else None
+
+        # FIX: Combine PACCO (col 4) and GAMBA (col 5) into pacco_gamba
+        pacco = (row[4] or '').strip() if len(row) > 4 else ''
+        gamba = (row[5] or '').strip() if len(row) > 5 else ''
+        pacco_gamba = f"{pacco}{gamba}".strip() if pacco or gamba else None
 
         # Clean empty strings to None
         qta_multipli = qta_multipli if qta_multipli else None
         qta_massima = qta_massima if qta_massima else None
         figura = figura if figura else None
         id_blocco_articolo = id_blocco_articolo if id_blocco_articolo else None
-        pacco_gamba = pacco_gamba if pacco_gamba else None
 
         return {
             'qta_multipli': qta_multipli,
