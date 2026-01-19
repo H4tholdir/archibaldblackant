@@ -8,6 +8,7 @@
 - **Database customers**: 1,452
 - **Difference**: 63 customers (4.3% new/missing)
 - **PDF Structure**: 8 pages per cycle (256 total pages = 32 cycles)
+- **Field Coverage**: 26/26 business fields (100% coverage) + 4 system fields
 
 ## PDF 8-Page Cycle Structure
 
@@ -28,7 +29,6 @@
 |-----------------|----------|---------------------|----------|-------|
 | **Primary Identification** |||||
 | `customerProfile` | 0 | ID PROFILO CLIENTE | ✅ 100% | PRIMARY KEY |
-| `internalId` | N/A | N/A | ⚠️ Not in PDF | Internal system field only |
 | `name` | 0 | NOME | ✅ 100% | Required field |
 | **Italian Fiscal Data** |||||
 | `vatNumber` | 0 | PARTITA IVA | ✅ ~70% | 11-digit Italian VAT |
@@ -68,35 +68,35 @@
 
 ## Coverage Analysis
 
-### ✅ Fully Covered by PDF (27 fields) - ALL BUSINESS FIELDS!
-**Pages 0-3 (Basic Info):**
+### ✅ 100% Coverage - ALL Business Fields from PDF! (26 fields)
+
+**Pages 0-3 (Basic Info - 15 fields):**
 - customerProfile, name, vatNumber, fiscalCode, sdi, pec
 - phone, mobile, url, attentionTo
 - street, logisticsAddress, postalCode, city
 - deliveryTerms, lastOrderDate
 
-**Pages 4-7 (Analytics & Accounts):**
+**Pages 4-7 (Analytics & Accounts - 11 fields):**
 - customerType, type, description
 - actualOrderCount, previousOrderCount1, previousSales1
 - previousOrderCount2, previousSales2
 - externalAccountNumber, ourAccountNumber
 
-### ⚠️ Not in PDF - Internal Only (1 field)
-- `internalId` - Internal system field, not exported by Archibald
-
 ### ✅ System Generated (4 fields)
 - hash, lastSync, createdAt, updatedAt
+
+**Total Database Fields**: 30 (26 from PDF + 4 system generated)
 
 ## Sync Strategy
 
 ### Full Sync (First Run or Force)
 1. Parse PDF → extract all valid customers (ID ≠ "0")
 2. For each customer:
-   - Compute hash from PDF data
+   - Compute hash from all 26 PDF fields
    - Check if exists in DB by `customerProfile`
-   - **INSERT**: New customer → add with PDF data
-   - **UPDATE**: Existing → update PDF fields, **preserve** non-PDF fields
-   - **DELETE**: Not in PDF → mark as inactive or delete
+   - **INSERT**: New customer → add with all 26 PDF fields + system fields
+   - **UPDATE**: Existing → update all 26 PDF fields + system fields
+   - **DELETE**: Not in PDF → mark as inactive or delete (strategy TBD)
 
 ### Delta Sync (Incremental)
 1. Parse PDF → extract all valid customers
@@ -136,7 +136,7 @@ const hash = crypto.createHash('md5')
   .digest('hex');
 ```
 
-**Note**: `internalId` is NOT included in hash as it's internal-only and not from PDF.
+**Note**: All 26 PDF business fields are included in hash for comprehensive change detection.
 
 ## Data Quality Issues
 
@@ -157,10 +157,10 @@ const hash = crypto.createHash('md5')
 
 ## Recommendations
 
-1. **✅ PDF parsing is HIGHLY RECOMMENDED** - covers **ALL 27 business fields** (100% coverage except internal `internalId`)
+1. **✅ PDF parsing is HIGHLY RECOMMENDED** - covers **ALL 26 business fields (100% coverage)**
 2. **✅ 8-page cycle structure confirmed** - parser must handle pages 0-7, not just 0-3
-3. **✅ Hash-based delta** detection with ALL 27 fields is efficient and comprehensive
+3. **✅ Hash-based delta** detection with all 26 fields is efficient and comprehensive
 4. **✅ Filter ID="0"** garbage records (1,424 invalid records)
-5. **⚠️ Preserve `internalId`** during sync - it's internal-only, not in PDF
+5. **✅ Database cleaned** - removed legacy `internalId` field (was redundant)
 6. **✅ Performance target achievable** - estimated 15-20s for full sync (PDF download + parse + DB update)
 7. **✅ Parser update required** - add methods for pages 4-7 to extract analytics and account fields

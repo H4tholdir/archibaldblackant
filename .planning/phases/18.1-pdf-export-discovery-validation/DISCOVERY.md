@@ -11,11 +11,12 @@
 
 PDF parsing è **feasible, faster, more complete, and more stable** del current HTML scraping approach. Il proof-of-concept ha validato:
 
-- ✅ **Data completeness**: **96% coverage** (27/28 fields) - ALL business fields covered!
+- ✅ **Data completeness**: **100% coverage** (26/26 fields) - ALL business fields covered!
 - ✅ **Performance**: 15-20s total vs 30-60s HTML scraping (**50-67% faster**)
 - ✅ **Stability**: Single file download vs fragile multi-page scraping
 - ✅ **Maintainability**: DevExpress UI changes don't break PDF structure
 - ✅ **8-page cycle structure**: All analytics and account fields discovered (pages 4-7)
+- ✅ **Database cleaned**: Removed legacy `internalId` field (redundant, unused)
 
 ---
 
@@ -52,7 +53,7 @@ Difference: +63 customers (4.3% new/modified)
 
 See [FIELD-MAPPING.md](./FIELD-MAPPING.md) for complete mapping.
 
-#### ✅ **ALL BUSINESS FIELDS COVERED BY PDF** (27/28 fields - 96% coverage!)
+#### ✅ **ALL BUSINESS FIELDS COVERED BY PDF** (26/26 fields - 100% coverage!)
 
 **PDF 8-Page Cycle Structure:**
 - **Page 0**: ID PROFILO CLIENTE, NOME, PARTITA IVA
@@ -64,7 +65,7 @@ See [FIELD-MAPPING.md](./FIELD-MAPPING.md) for complete mapping.
 - **Page 6**: DESCRIZIONE, TYPE, NUMERO DI CONTO ESTERNO
 - **Page 7**: IL NOSTRO NUMERO DI CONTO
 
-**Pages 0-3 (Basic Info - 16 fields):**
+**Pages 0-3 (Basic Info - 15 fields):**
 - customerProfile, name, vatNumber, fiscalCode, sdi, pec
 - phone, mobile, url, attentionTo
 - street, logisticsAddress, postalCode, city
@@ -76,13 +77,11 @@ See [FIELD-MAPPING.md](./FIELD-MAPPING.md) for complete mapping.
 - previousOrderCount2, previousSales2
 - externalAccountNumber, ourAccountNumber
 
-#### ⚠️ Not in PDF - Internal Only (1 field)
-- `internalId` - Internal system field, not exported by Archibald
-
 **Strategy**:
-- **UPDATE** all 27 PDF fields from export
-- **PRESERVE** `internalId` (internal-only field)
-- **HASH** all 27 PDF fields for delta detection
+- **UPDATE** all 26 PDF fields from export
+- **HASH** all 26 PDF fields for delta detection
+- **GENERATE** 4 system fields (hash, lastSync, createdAt, updatedAt)
+- **Total DB fields**: 30 (26 business + 4 system)
 
 ---
 
