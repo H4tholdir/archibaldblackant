@@ -1054,8 +1054,11 @@ app.get(
 // Trigger manual sync endpoint
 app.post(
   "/api/customers/sync",
-  async (req: Request, res: Response<ApiResponse>) => {
+  authenticateJWT,
+  async (req: AuthRequest, res: Response<ApiResponse>) => {
     try {
+      const userId = req.user!.userId;
+
       // Check if sync already in progress
       if (syncService.isSyncInProgress()) {
         return res.status(409).json({
@@ -1065,10 +1068,10 @@ app.post(
         });
       }
 
-      logger.info("[API] Manual customer sync triggered");
+      logger.info("[API] Manual customer sync triggered", { userId });
 
-      // Execute sync and wait for completion
-      const result = await syncService.syncCustomers();
+      // Execute sync and wait for completion (pass userId for BrowserPool)
+      const result = await syncService.syncCustomers(undefined, userId);
 
       if (result.success) {
         res.json({
