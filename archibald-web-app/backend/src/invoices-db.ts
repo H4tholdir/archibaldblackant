@@ -81,9 +81,7 @@ export class InvoicesDatabase {
     `);
   }
 
-  private computeHash(
-    invoice: Omit<InvoiceRecord, "lastSync">,
-  ): string {
+  private computeHash(invoice: Omit<InvoiceRecord, "lastSync">): string {
     const hashInput = [
       invoice.id,
       invoice.invoiceNumber,

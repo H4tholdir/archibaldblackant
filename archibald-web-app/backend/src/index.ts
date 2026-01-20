@@ -64,6 +64,7 @@ import { PDFParserProductsService } from "./pdf-parser-products-service";
 import { PDFParserPricesService } from "./pdf-parser-prices-service";
 import { PDFParserOrdersService } from "./pdf-parser-orders-service";
 import { PDFParserDDTService } from "./pdf-parser-ddt-service";
+import { PDFParserInvoicesService } from "./pdf-parser-invoices-service";
 
 const app = express();
 const server = createServer(app);
@@ -373,6 +374,27 @@ app.get("/api/health/pdf-parser-ddt", (req, res) => {
     res.status(503).json({
       success: false,
       message: "DDT PDF parser not available",
+      ...health,
+    });
+  }
+});
+
+app.get("/api/health/pdf-parser-invoices", (req, res) => {
+  const parserService = PDFParserInvoicesService.getInstance();
+
+  const health = {
+    available: parserService.isAvailable(),
+    parser: "parse-invoices-pdf.py",
+    timeout: "120s",
+    maxBuffer: "20MB",
+  };
+
+  if (health.available) {
+    res.json({ success: true, ...health });
+  } else {
+    res.status(503).json({
+      success: false,
+      message: "Invoices PDF parser not available",
       ...health,
     });
   }
