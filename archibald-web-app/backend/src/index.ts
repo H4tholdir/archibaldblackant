@@ -118,7 +118,8 @@ function acquireOrderLock(): boolean {
     } else if (activeOperation === "products") {
       productSyncService.requestStop();
     } else if (activeOperation === "prices") {
-      priceSyncService.requestStop();
+      // Price sync no longer has requestStop - it's simpler one-shot sync
+      logger.warn("Price sync in progress, cannot request stop");
     }
     return false;
   }
@@ -145,11 +146,15 @@ function acquireOrderLock(): boolean {
     return false;
   }
 
-  if (priceProgress.status === "syncing") {
+  if (
+    priceProgress.status === "downloading" ||
+    priceProgress.status === "parsing" ||
+    priceProgress.status === "saving"
+  ) {
     logger.warn(
-      `⚠️ Sync prezzi in corso (status check), richiedo interruzione...`,
+      `⚠️ Sync prezzi in corso (status: ${priceProgress.status}), cannot interrupt`,
     );
-    priceSyncService.requestStop();
+    // Price sync no longer has requestStop - it's simpler one-shot sync
     return false;
   }
 
@@ -1941,7 +1946,7 @@ app.post(
           if (!acquireSyncLock("prices")) return;
           try {
             logger.info("3️⃣ Sync prezzi (full sync)...");
-            await priceSyncService.syncPrices(true); // Force full sync
+            await priceSyncService.syncPrices(); // PDF-based sync
             logger.info("✅ Sync prezzi completato");
           } finally {
             releaseSyncLock();
@@ -2086,7 +2091,7 @@ app.post(
       // Avvia sync in background
       (async () => {
         try {
-          await priceSyncService.syncPrices(forceFullSync);
+          await priceSyncService.syncPrices(); // PDF-based sync (no force parameter)
           logger.info("✅ Sync prezzi completato");
         } catch (error) {
           logger.error("❌ Errore sync prezzi", { error });
@@ -4234,7 +4239,7 @@ process.on("SIGTERM", async () => {
   syncScheduler.stop(); // NEW: Stop adaptive scheduler
   syncService.stopAutoSync();
   productSyncService.stopAutoSync();
-  priceSyncService.stopAutoSync();
+  // priceSyncService.stopAutoSync(); // Price sync no longer has auto-sync
 
   // Shutdown queue manager
   logger.info("Shutting down queue manager...");
@@ -4267,7 +4272,7 @@ process.on("SIGINT", async () => {
   syncScheduler.stop(); // NEW: Stop adaptive scheduler
   syncService.stopAutoSync();
   productSyncService.stopAutoSync();
-  priceSyncService.stopAutoSync();
+  // priceSyncService.stopAutoSync(); // Price sync no longer has auto-sync
 
   // Shutdown queue manager
   logger.info("Shutting down queue manager...");

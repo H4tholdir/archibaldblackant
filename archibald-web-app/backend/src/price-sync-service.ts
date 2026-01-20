@@ -1,4 +1,5 @@
 import { EventEmitter } from "events";
+import { ArchibaldBot } from "./archibald-bot";
 import { BrowserPool } from "./browser-pool";
 import { logger } from "./logger";
 import { SyncCheckpointManager } from "./sync-checkpoint";
@@ -182,77 +183,152 @@ export class PriceSyncService extends EventEmitter {
 
   /**
    * Download prices PDF via bot
-   * Follows Phase 18/19 bot pattern with Italian locale forcing
+   * Follows Phase 18/19 bot pattern - uses BrowserPool and ArchibaldBot
    */
   private async downloadPricesPDF(): Promise<string> {
-    const browser = await this.browserPool.acquire("price-sync");
+    // Use browser pool context (same pattern as customer/product sync)
+    const syncUserId = "price-sync-service";
+    const context = await this.browserPool.acquireContext(syncUserId);
+    const bot = new ArchibaldBot(syncUserId);
 
     try {
-      const page = await browser.newPage();
+      // Download PDF using bot with context
+      const pdfPath = await this.downloadPricesPDFFromContext(context, bot);
 
-      // Set Italian locale (following Phase 18/19 pattern)
+      return pdfPath;
+    } finally {
+      await this.browserPool.releaseContext(syncUserId, context, true);
+    }
+  }
+
+  /**
+   * Download prices PDF from authenticated context
+   * Same pattern as downloadProductsPDF but for PRICEDISCTABLE_ListView
+   */
+  private async downloadPricesPDFFromContext(
+    context: any,
+    bot: ArchibaldBot,
+  ): Promise<string> {
+    const page = await context.newPage();
+    const startTime = Date.now();
+
+    try {
+      logger.info("[PriceSyncService] Starting Prices PDF download");
+
+      // Force Italian language for PDF export
       await page.setExtraHTTPHeaders({
-        "Accept-Language": "it-IT,it;q=0.9",
+        "Accept-Language": "it-IT,it;q=0.9,en-US;q=0.8,en;q=0.7",
       });
 
-      // Navigate to products list page
-      await page.goto("https://4.231.124.90/Archibald/INVENTTABLE_ListView/", {
-        waitUntil: "networkidle0",
+      // Navigate to Prices ListView page
+      const pricesUrl =
+        "https://4.231.124.90/Archibald/PRICEDISCTABLE_ListView/";
+      await page.goto(pricesUrl, {
+        waitUntil: "domcontentloaded",
         timeout: 60000,
       });
+      logger.info("[PriceSyncService] Navigated to Prices ListView page");
 
-      logger.info("[PriceSyncService] Navigated to products page");
-
-      // Wait for page to load
-      await page.waitForSelector("body", { timeout: 10000 });
+      // Wait for dynamic content to load (same pattern as products/customers sync)
+      await new Promise((resolve) => setTimeout(resolve, 2000));
+      await new Promise((resolve) => setTimeout(resolve, 200));
 
       // Setup download handling
-      const downloadPath = path.join("/tmp", `prezzi-${Date.now()}.pdf`);
+      const timestamp = Date.now();
+      const downloadPath = `/tmp/prezzi-${timestamp}.pdf`;
+
       const client = await page.target().createCDPSession();
       await client.send("Page.setDownloadBehavior", {
         behavior: "allow",
         downloadPath: "/tmp",
       });
 
-      // Click "Esportare in PDF File" button
-      // NOTE: Exact selector needs verification with real page
-      // This is a placeholder - adjust based on actual page structure
-      await page.evaluate(() => {
-        const buttons = Array.from(document.querySelectorAll("button, a"));
-        const pdfButton = buttons.find((btn) =>
-          btn.textContent?.includes("Esportare in PDF"),
-        );
-        if (pdfButton) {
-          (pdfButton as HTMLElement).click();
-        } else {
-          throw new Error("PDF export button not found");
-        }
+      await new Promise((resolve) => setTimeout(resolve, 200));
+
+      // Trigger PDF export - same button ID as products
+      // Button ID: Vertical_mainMenu_Menu_DXI3_T
+      logger.info("[PriceSyncService] Searching for PDF export button...");
+
+      await page.waitForSelector("#Vertical_mainMenu_Menu_DXI3_", {
+        timeout: 10000,
       });
 
-      logger.info("[PriceSyncService] Clicked PDF export button");
+      logger.info("[PriceSyncService] Menu container found");
+      await new Promise((resolve) => setTimeout(resolve, 200));
 
-      // Wait for download to complete (max 60s)
-      const maxWait = 60000;
-      const startWait = Date.now();
+      // Check button visibility
+      const isVisible = await page.evaluate(() => {
+        const li = document.querySelector("#Vertical_mainMenu_Menu_DXI3_");
+        const a = document.querySelector("#Vertical_mainMenu_Menu_DXI3_T");
 
-      while (Date.now() - startWait < maxWait) {
-        const files = await fs.readdir("/tmp");
-        const pdfFile = files.find(
-          (f) => f.startsWith("prezzi-") && f.endsWith(".pdf"),
+        if (!li || !a) return false;
+
+        const liRect = li.getBoundingClientRect();
+        const aRect = a.getBoundingClientRect();
+
+        return (
+          liRect.width > 0 &&
+          liRect.height > 0 &&
+          aRect.width > 0 &&
+          aRect.height > 0
+        );
+      });
+
+      logger.info(`[PriceSyncService] Button visibility: ${isVisible}`);
+
+      if (!isVisible) {
+        logger.info(
+          "[PriceSyncService] Button not visible, checking parent menu...",
         );
 
-        if (pdfFile) {
-          const fullPath = path.join("/tmp", pdfFile);
-          logger.info(`[PriceSyncService] PDF download complete: ${fullPath}`);
-          return fullPath;
+        try {
+          await page.hover("a.dxm-content");
+          logger.info("[PriceSyncService] Hovered on parent menu");
+          await new Promise((resolve) => setTimeout(resolve, 500));
+        } catch (error) {
+          logger.warn(
+            "[PriceSyncService] Could not hover on parent menu, proceeding anyway",
+          );
         }
-
-        await new Promise((resolve) => setTimeout(resolve, 1000));
       }
 
-      throw new Error("PDF download timeout (60s)");
+      await new Promise((resolve) => setTimeout(resolve, 200));
+
+      // Setup download promise before clicking
+      const downloadComplete = new Promise<void>((resolve, reject) => {
+        const fs = require("fs");
+        const maxWait = 60000;
+        const startWait = Date.now();
+
+        const checkInterval = setInterval(() => {
+          if (fs.existsSync(downloadPath)) {
+            clearInterval(checkInterval);
+            resolve();
+          } else if (Date.now() - startWait > maxWait) {
+            clearInterval(checkInterval);
+            reject(new Error("Download timeout"));
+          }
+        }, 1000);
+      });
+
+      // Click PDF export button
+      await page.click("#Vertical_mainMenu_Menu_DXI3_T");
+      logger.info("[PriceSyncService] Clicked PDF export button");
+
+      // Wait for download to complete
+      await downloadComplete;
+
+      const duration = Date.now() - startTime;
+      logger.info(
+        `[PriceSyncService] PDF download complete in ${duration}ms: ${downloadPath}`,
+      );
+
+      return downloadPath;
+    } catch (error) {
+      logger.error("[PriceSyncService] PDF download failed", { error });
+      throw error;
     } finally {
-      await this.browserPool.release(browser);
+      await page.close();
     }
   }
 
@@ -275,20 +351,24 @@ export class PriceSyncService extends EventEmitter {
       // Map ParsedPrice to Price schema
       const priceData = {
         productId: parsedPrice.product_id,
-        productName: parsedPrice.product_name,
+        productName: parsedPrice.product_name ?? "",
         unitPrice: parsedPrice.unit_price ?? null,
         itemSelection: parsedPrice.item_selection ?? null,
-        packagingDescription: parsedPrice.packaging_description ?? null,
+        packagingDescription: null, // Not available in ParsedPrice
         currency: parsedPrice.currency ?? null,
         priceValidFrom: parsedPrice.price_valid_from ?? null,
         priceValidTo: parsedPrice.price_valid_to ?? null,
         priceUnit: parsedPrice.price_unit ?? null,
         accountDescription: parsedPrice.account_description ?? null,
         accountCode: parsedPrice.account_code ?? null,
-        priceQtyFrom: parsedPrice.price_qty_from ?? null,
-        priceQtyTo: parsedPrice.price_qty_to ?? null,
-        lastModified: parsedPrice.last_modified ?? null,
-        dataAreaId: parsedPrice.data_area_id ?? null,
+        priceQtyFrom: parsedPrice.quantity_from
+          ? parseInt(parsedPrice.quantity_from)
+          : null,
+        priceQtyTo: parsedPrice.quantity_to
+          ? parseInt(parsedPrice.quantity_to)
+          : null,
+        lastModified: null, // Not available in ParsedPrice
+        dataAreaId: null, // Not available in ParsedPrice
         lastSync: now,
       };
 

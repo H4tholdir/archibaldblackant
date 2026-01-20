@@ -13,10 +13,10 @@ async function testOptimizedPriceSync() {
   const priceSync = PriceSyncService.getInstance();
 
   try {
-    // Force full sync to test extraction logic
-    logger.info("Starting full price sync (first page only for test)...");
+    // Test price sync (PDF-based, no force parameter needed)
+    logger.info("Starting price sync test...");
 
-    await priceSync.syncPrices(true); // force full sync
+    await priceSync.syncPrices();
 
     logger.info("\n✅ Test completed! Check logs above for sample data.");
   } catch (error) {

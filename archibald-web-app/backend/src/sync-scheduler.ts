@@ -1,9 +1,11 @@
 import { logger } from "./logger";
 import { customerSyncService } from "./customer-sync-service";
 import { productSyncService } from "./product-sync-service";
-import { priceSyncService } from "./price-sync-service";
+import { PriceSyncService } from "./price-sync-service";
 import { productDb } from "./product-db";
 import crypto from "crypto";
+
+const priceSyncService = PriceSyncService.getInstance();
 
 /**
  * Sync priority order (from user requirement):
@@ -369,7 +371,8 @@ export class SyncScheduler {
       let newHash: string;
       switch (type) {
         case "prices":
-          newHash = await priceSyncService.getQuickHash();
+          // NOTE: Price sync no longer has getQuickHash - always returns empty to force sync
+          newHash = "";
           break;
         case "products":
           newHash = await productSyncService.getQuickHash();
