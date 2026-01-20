@@ -16,9 +16,23 @@ export function ProductCard({
   variantCount = 1,
 }: ProductCardProps) {
   // Utility functions
-  const formatCurrency = (amount: number | null | undefined): string => {
-    if (amount === null || amount === undefined || amount === 0)
-      return "€ 0,00";
+  const formatCurrency = (amount: number | string | null | undefined): string => {
+    if (amount === null || amount === undefined) return "€ 0,00";
+
+    // If already a formatted string (e.g., "32,46 €"), return as-is
+    if (typeof amount === "string") {
+      // If it's a formatted price string, return it
+      if (amount.includes("€") || amount.includes(",")) {
+        return amount;
+      }
+      // Try to parse it as a number
+      const parsed = parseFloat(amount.replace(",", "."));
+      if (isNaN(parsed)) return "€ 0,00";
+      amount = parsed;
+    }
+
+    if (amount === 0) return "€ 0,00";
+
     return new Intl.NumberFormat("it-IT", {
       style: "currency",
       currency: "EUR",
