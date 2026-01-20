@@ -283,6 +283,25 @@ export class PriceDatabase {
   }
 
   /**
+   * Get all prices (for matching with products)
+   * Returns all price records ordered by productId
+   */
+  getAllPrices(): Price[] {
+    return this.db
+      .prepare("SELECT * FROM prices ORDER BY productId, itemSelection")
+      .all() as Price[];
+  }
+
+  /**
+   * Search prices by product name (fuzzy match)
+   */
+  searchPricesByName(searchTerm: string): Price[] {
+    return this.db
+      .prepare("SELECT * FROM prices WHERE productName LIKE ? ORDER BY productName")
+      .all(`%${searchTerm}%`) as Price[];
+  }
+
+  /**
    * Get sync statistics
    */
   getSyncStats(): {
