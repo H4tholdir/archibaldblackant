@@ -1395,7 +1395,7 @@ app.get("/api/products", (req: Request, res: Response<ApiResponse>) => {
       const productNames = db.getAllProductNames(searchQuery, limit);
       const products = productNames.map(name => db.getBaseProduct(name)!).filter(Boolean);
 
-      const totalCount = productNames.length;
+      const totalUniqueNames = db.getUniqueProductNamesCount(searchQuery); // Total in DB
       const returnedCount = products.length;
 
       logger.info(`Retrieved ${returnedCount} grouped products (search: "${searchQuery}")`);
@@ -1404,9 +1404,9 @@ app.get("/api/products", (req: Request, res: Response<ApiResponse>) => {
         success: true,
         data: {
           products: products,
-          totalCount: totalCount,
-          returnedCount: returnedCount,
-          limited: returnedCount >= limit,
+          totalCount: totalUniqueNames, // Total unique product names in DB
+          returnedCount: returnedCount,  // Number returned in this response
+          limited: returnedCount >= limit, // Are we limiting results?
           grouped: true, // Indicate grouped mode in response
         },
       });

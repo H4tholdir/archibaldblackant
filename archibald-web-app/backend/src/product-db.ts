@@ -633,6 +633,27 @@ export class ProductDatabase {
   }
 
   /**
+   * Get total count of unique product names (for grouped mode)
+   */
+  getUniqueProductNamesCount(searchTerm?: string): number {
+    let query = `
+      SELECT COUNT(DISTINCT name) as count
+      FROM products
+    `;
+    const params: any[] = [];
+
+    if (searchTerm) {
+      query += ` WHERE name LIKE ? OR id LIKE ? OR searchName LIKE ?`;
+      const searchPattern = `%${searchTerm}%`;
+      params.push(searchPattern, searchPattern, searchPattern);
+    }
+
+    const stmt = this.db.prepare(query);
+    const result = stmt.get(...params) as { count: number };
+    return result.count;
+  }
+
+  /**
    * Select correct package variant based on quantity ordered.
    *
    * Logic:
