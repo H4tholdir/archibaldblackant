@@ -1240,6 +1240,49 @@ export class ProductDatabase {
   }
 
   /**
+   * Update product price and VAT
+   * Used by price matching service
+   *
+   * @returns true if updated, false if product not found
+   */
+  updateProductPrice(
+    productId: string,
+    price: string | number,
+    vat: number | null,
+    priceSource: "archibald" | "excel" | "prices-db",
+    vatSource: "archibald" | "excel" | null
+  ): boolean {
+    const now = Math.floor(Date.now() / 1000);
+
+    const result = this.db
+      .prepare(
+        `
+      UPDATE products SET
+        price = ?,
+        vat = ?,
+        priceSource = ?,
+        vatSource = ?,
+        priceUpdatedAt = ?,
+        vatUpdatedAt = ?
+      WHERE id = ?
+    `
+      )
+      .run(price, vat, priceSource, vatSource, now, now, productId);
+
+    return result.changes > 0;
+  }
+
+  /**
+   * Get products by name (for matching with prices.db)
+   * Returns all variants with matching name
+   */
+  getProductsByName(productName: string): Product[] {
+    return this.db
+      .prepare("SELECT * FROM products WHERE name = ? ORDER BY packageContent")
+      .all(productName) as Product[];
+  }
+
+  /**
    * Chiude la connessione al database
    */
   close(): void {
