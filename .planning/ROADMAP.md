@@ -179,14 +179,14 @@ Plans:
 **Goal**: Analisi completa sync prezzi + background sync + sync manuale + Excel listino integration
 **Depends on**: Phase 19.1 (Product UI complete)
 **Research**: Unlikely (analyzing existing sync + Excel parsing already integrated in v1.0)
-**Plans**: 6 plans (4/6 complete)
+**Plans**: 6 plans (5/6 complete)
 
 Plans:
 - [x] 20-01: PDF Parser Enhancement & Node.js Integration (Prices) — 45min
 - [x] 20-02: PDF Download Bot Flow & Separate Prices Database — 105min
 - [x] 20-03: Excel IVA Upload Enhancement & Price Matching — 30min
 - [x] 20-04: Price History Tracking System — 30min
-- [ ] 20-05: Price Variations Dashboard & Notifications UI
+- [x] 20-05: Price Variations Dashboard & Notifications UI — 60min
 - [ ] 20-06: Manual Sync UI & Comprehensive Testing
 
 #### Phase 21: Orders Sync Analysis & Optimization

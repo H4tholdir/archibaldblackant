@@ -10,11 +10,11 @@ See: .planning/PROJECT.md (updated 2026-01-11)
 ## Current Position
 
 Phase: 20 of 28 (Prices Sync Analysis & Optimization)
-Plan: 4 of 6 in current phase
+Plan: 5 of 6 in current phase
 Status: Complete
-Last activity: 2026-01-20 — Completed 20-04-PLAN.md (Price History Tracking System)
+Last activity: 2026-01-20 — Completed 20-05-PLAN.md (Price Variations Dashboard & Notifications UI)
 
-Progress: █████░░░░░ 37% (v2.0: 8/15 phases complete, 26/68 plans)
+Progress: █████░░░░░ 38% (v2.0: 8/15 phases complete, 27/68 plans)
 
 ## Performance Metrics
 
@@ -46,10 +46,10 @@ Progress: █████░░░░░ 37% (v2.0: 8/15 phases complete, 26/68 
 | 18 | 5 | 302 min | 60 min |
 | 19 | 5 | 194 min | 39 min |
 | 19.1 | 3 | 25 min | 8 min |
-| 20 | 4 | 210 min | 53 min |
+| 20 | 5 | 270 min | 54 min |
 
 **Recent Trend:**
-- Last 10 plans: 19-03 (40m), 19-04 (60m), 19-05 (45m), 19.1-01 (5m), 19.1-02 (5m), 19.1-03 (15m), 20-01 (45m), 20-02 (105m), 20-03 (30m), 20-04 (30m)
+- Last 10 plans: 19-04 (60m), 19-05 (45m), 19.1-01 (5m), 19.1-02 (5m), 19.1-03 (15m), 20-01 (45m), 20-02 (105m), 20-03 (30m), 20-04 (30m), 20-05 (60m)
 - Phase 9 extremely fast (avg 11m) - leveraging existing Phase 8-07 infrastructure
 - Phase 10 high avg (105m) - includes 521m for Plan 10-07 (heavy login debugging)
 - Phase 14 complete (5 plans avg 9m) - 4 discovery plans + 1 execution plan, all IndexedDB errors fixed ✅ COMPLETE
@@ -66,6 +66,10 @@ Recent decisions affecting current work:
 
 | Phase | Decision | Rationale |
 |-------|----------|-----------|
+| 20-05 | Inline styles for all React components | Consistent with codebase convention (ProductCard, DashboardNav), simpler than CSS modules, no import overhead |
+| 20-05 | PriceHistoryModal as separate component | Reusable modal for per-article history, clean separation from page logic, easier testing |
+| 20-05 | Client-side filtering and sorting | Better UX without API calls, data already loaded (30 days max), instant response |
+| 20-05 | Toast auto-dismiss after 10s | Longer than standard 3s toast, allows time to read counts, user can dismiss early |
 | 20-04 | Price history in prices.db (not products.db) | Centralize all pricing data, keep products.db for product catalog only, cleaner separation of concerns |
 | 20-04 | Retention via query filters (not deletion) | 30-day dashboard uses WHERE syncDate >= cutoff, full history kept for per-article queries, storage cheap, history valuable |
 | 20-04 | Parse Italian prices before comparison | unitPrice in prices.db is string ("234,59 €"), Product.price is number, parseFloat after replacing €/spaces/comma ensures type safety |
@@ -583,8 +587,8 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-01-20 (evening)
-Stopped at: Completed Plan 20-02 (PDF Download Bot Flow & Separate Prices Database)
-Next: Execute Plan 20-03 (Excel IVA Upload Enhancement & Price Matching)
+Stopped at: Completed Plan 20-05 (Price Variations Dashboard & Notifications UI)
+Next: Execute Plan 20-06 (Manual Sync UI & Comprehensive Testing) - final plan in Phase 20
 Resume file: None
 
 ### Session 95 (2026-01-20)
@@ -708,3 +712,58 @@ Resume file: None
 - ✅ 100% coverage (0 null prices)
 
 **Next:** Plan 20-03 (Excel IVA Upload Enhancement & Price Matching)
+
+### Session 98 (2026-01-20)
+**Command:** Execute Plan 20-05 (Price Variations Dashboard & Notifications UI)
+**Outcome:** Plan 20-05 complete — Frontend UI for price variations dashboard
+**Duration:** 60 minutes actual
+
+**What Was Built:**
+1. PriceVariationsPage component with dashboard, filters, and table
+2. PriceHistoryModal component with timeline visualization
+3. PriceSyncNotification toast component with 10s auto-dismiss
+4. Navigation integration (route + DashboardNav link)
+
+**Key Features:**
+- Statistics summary: increases 🔴, decreases 🟢, new prices 🆕
+- Filterable table: All / Increases Only / Decreases Only
+- Sortable by percentage (default) or date
+- Per-article history modal with timeline dots
+- Color-coded changes: Red (#c62828) increases, Green (#2e7d32) decreases
+- Toast notification with navigation to dashboard
+- JWT-protected API calls with error handling
+- Italian locale for dates and currency
+
+**Components Created:**
+1. `/archibald-web-app/frontend/src/pages/PriceVariationsPage.tsx` (262 lines)
+2. `/archibald-web-app/frontend/src/components/PriceHistoryModal.tsx` (241 lines)
+3. `/archibald-web-app/frontend/src/components/PriceSyncNotification.tsx` (106 lines)
+
+**Files Modified:**
+1. `/archibald-web-app/frontend/src/AppRouter.tsx` - Added route
+2. `/archibald-web-app/frontend/src/components/DashboardNav.tsx` - Added link
+
+**Technical Decisions:**
+- Inline styles consistent with codebase
+- Client-side filtering/sorting for better UX
+- Separate modal component for reusability
+- 10s toast auto-dismiss (vs standard 3s)
+- Functional React with hooks pattern
+
+**Commits:** 4 atomic commits
+- 1b6f2a7: feat(20-05): create price variations dashboard page
+- eee8ce6: feat(20-05): create price history timeline modal
+- 8265ba4: feat(20-05): add post-sync price variation toast notification
+- 6108275: feat(20-05): add price variations page to navigation
+
+**All Success Criteria Met:** 8/8 ✅
+- ✅ Dashboard page with 30-day price changes
+- ✅ Statistics summary with color-coded badges
+- ✅ Filters (all/increases/decreases)
+- ✅ Sorting (percentage/date)
+- ✅ Price history modal with timeline
+- ✅ Toast notification component
+- ✅ Navigation route and link
+- ✅ Ready for API integration (Plan 20-04 endpoints)
+
+**Next:** Plan 20-06 (Manual Sync UI & Comprehensive Testing) - final plan in Phase 20
