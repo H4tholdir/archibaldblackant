@@ -62,6 +62,7 @@ import { OrderStateSyncService } from "./order-state-sync-service";
 import { pdfParserService } from "./pdf-parser-service";
 import { PDFParserProductsService } from "./pdf-parser-products-service";
 import { PDFParserPricesService } from "./pdf-parser-prices-service";
+import { PDFParserOrdersService } from "./pdf-parser-orders-service";
 
 const app = express();
 const server = createServer(app);
@@ -328,6 +329,28 @@ app.get("/api/health/pdf-parser-prices", async (req, res) => {
       status: "error",
       healthy: false,
       error: error instanceof Error ? error.message : String(error),
+    });
+  }
+});
+
+// Orders PDF Parser health check (7-page cycles)
+app.get("/api/health/pdf-parser-orders", (req, res) => {
+  const parserService = PDFParserOrdersService.getInstance();
+
+  const health = {
+    available: parserService.isAvailable(),
+    parser: "parse-orders-pdf.py",
+    timeout: "300s",
+    maxBuffer: "20MB",
+  };
+
+  if (health.available) {
+    res.json({ success: true, ...health });
+  } else {
+    res.status(503).json({
+      success: false,
+      message: "Orders PDF parser not available",
+      ...health,
     });
   }
 });
