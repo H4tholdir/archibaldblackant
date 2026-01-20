@@ -172,7 +172,7 @@ Plans:
 
 Plans:
 - [x] 19.1-01: Backend Variant Grouping API (getProductVariants, grouped mode, frontend API client) — 5min
-- [ ] 19.1-02: ProductCard Enhancement with All 26+ Fields (6 sections, price badges, variant badges)
+- [x] 19.1-02: ProductCard Enhancement with All 26+ Fields (6 sections, price badges, variant badges) — 5min
 - [ ] 19.1-03: Variant Selector & ArticoliList Deduplication (VariantSelector, ProductDetailModal, grouped ArticoliList)
 
 #### Phase 20: Prices Sync Analysis & Optimization
