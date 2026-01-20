@@ -45,15 +45,27 @@ export class PriceMatchingService {
   }
 
   /**
+   * Parse Italian price format to number
+   * Converts "1.234,56 €" to 1234.56
+   */
+  private parseItalianPrice(price: string | null): number | null {
+    if (!price) return null;
+
+    // Remove € symbol and spaces, then replace comma with dot
+    const cleanPrice = price.replace(/[€\s]/g, "").replace(",", ".");
+    const parsed = parseFloat(cleanPrice);
+
+    return !isNaN(parsed) && parsed >= 0 ? parsed : null;
+  }
+
+  /**
    * Match all prices from prices.db to products in products.db
    * Updates product price/vat fields with priceSource='prices-db'
    *
    * @param excelVatMap Optional map of productId → IVA percentage from Excel
    * @returns Match statistics and unmatched prices list
    */
-  async matchPricesToProducts(
-    excelVatMap?: Map<string, number>
-  ): Promise<{
+  async matchPricesToProducts(excelVatMap?: Map<string, number>): Promise<{
     result: PriceMatchResult;
     unmatchedPrices: UnmatchedPrice[];
   }> {
@@ -71,7 +83,9 @@ export class PriceMatchingService {
     const allPriceRecords = this.priceDb.getAllPrices();
     const totalPrices = allPriceRecords.length;
 
-    logger.info(`[PriceMatchingService] Processing ${totalPrices} price records`);
+    logger.info(
+      `[PriceMatchingService] Processing ${totalPrices} price records`,
+    );
 
     for (const priceRecord of allPriceRecords) {
       // Skip if price is null
@@ -91,7 +105,7 @@ export class PriceMatchingService {
 
       // Find matching product variants in products.db
       const matchingProducts = this.productDb.getProductsByName(
-        priceRecord.productName
+        priceRecord.productName,
       );
 
       if (matchingProducts.length === 0) {
@@ -108,7 +122,7 @@ export class PriceMatchingService {
       // Match by item selection (variant)
       const matchedProduct = this.matchVariant(
         matchingProducts,
-        priceRecord.itemSelection
+        priceRecord.itemSelection,
       );
 
       if (!matchedProduct) {
@@ -128,14 +142,26 @@ export class PriceMatchingService {
 
       // Get old price for history tracking
       const oldPrice = matchedProduct.price ?? null;
-      const newPrice = priceRecord.unitPrice;
+      const newPriceString = priceRecord.unitPrice;
+      const newPriceNumber = this.parseItalianPrice(newPriceString);
+
+      // Skip if we couldn't parse the price
+      if (newPriceNumber === null) {
+        logger.warn("[PriceMatchingService] Failed to parse price", {
+          productId: matchedProduct.id,
+          price: newPriceString,
+        });
+        continue;
+      }
 
       const updated = this.productDb.updateProductPrice(
         matchedProduct.id,
-        newPrice,
+        newPriceNumber,
         vatPercentage,
         "prices-db", // priceSource
-        vatPercentage && excelVatMap?.has(priceRecord.productId) ? "excel" : null // vatSource (Excel if provided, else null)
+        vatPercentage && excelVatMap?.has(priceRecord.productId)
+          ? "excel"
+          : null, // vatSource (Excel if provided, else null)
       );
 
       if (updated) {
@@ -143,13 +169,13 @@ export class PriceMatchingService {
         updatedProducts++;
 
         // Record price change in history (only if price actually changed)
-        if (oldPrice !== newPrice) {
+        if (oldPrice !== newPriceNumber) {
           this.historyDb.recordPriceChange({
             productId: matchedProduct.id,
             productName: matchedProduct.name,
             variantId: priceRecord.itemSelection,
             oldPrice,
-            newPrice,
+            newPrice: newPriceNumber,
             source: "pdf-sync",
             currency: priceRecord.currency ?? "EUR",
           });
@@ -187,7 +213,7 @@ export class PriceMatchingService {
    */
   private matchVariant(
     products: Product[],
-    itemSelection: string | null
+    itemSelection: string | null,
   ): Product | null {
     if (!itemSelection) {
       // No variant specified - return first product
@@ -206,7 +232,9 @@ export class PriceMatchingService {
     const expectedPackage = variantMap[itemSelection];
 
     if (expectedPackage) {
-      const matched = products.find((p) => p.packageContent === expectedPackage);
+      const matched = products.find(
+        (p) => p.packageContent === expectedPackage,
+      );
       if (matched) return matched;
     }
 
