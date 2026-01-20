@@ -1,6 +1,6 @@
-import { spawn } from 'child_process';
-import path from 'path';
-import { logger } from './logger';
+import { spawn } from "child_process";
+import path from "path";
+import { logger } from "./logger";
 
 /**
  * Parsed price record from PDF (matches Python parser output)
@@ -9,7 +9,7 @@ import { logger } from './logger';
 export interface ParsedPrice {
   // Page 1: Identificazione
   product_id: string;
-  item_selection?: string | null;  // K2, K3, etc.
+  item_selection?: string | null; // K2, K3, etc.
   account_code?: string | null;
   account_description?: string | null;
 
@@ -21,10 +21,10 @@ export interface ParsedPrice {
   quantity_to?: string | null;
 
   // Page 3: Prezzi (KEY PAGE)
-  unit_price?: string | null;  // IMPORTO UNITARIO (Italian format: "1.234,56 €")
+  unit_price?: string | null; // IMPORTO UNITARIO (Italian format: "1.234,56 €")
   currency?: string | null;
   price_unit?: string | null;
-  net_price_brasseler?: string | null;  // PREZZO NETTO (Italian format)
+  net_price_brasseler?: string | null; // PREZZO NETTO (Italian format)
 }
 
 /**
@@ -39,7 +39,10 @@ export class PDFParserPricesService {
 
   private constructor() {
     // Path relative to backend root
-    this.parserPath = path.join(__dirname, '../../../scripts/parse-prices-pdf.py');
+    this.parserPath = path.join(
+      __dirname,
+      "../../../scripts/parse-prices-pdf.py",
+    );
   }
 
   static getInstance(): PDFParserPricesService {
@@ -61,65 +64,73 @@ export class PDFParserPricesService {
 
     return new Promise((resolve, reject) => {
       // Spawn Python process (NOT exec - better for large output)
-      const python = spawn('python3', [this.parserPath, pdfPath], {
+      const python = spawn("python3", [this.parserPath, pdfPath], {
         timeout: this.timeout,
-        maxBuffer: 20 * 1024 * 1024, // 20MB buffer for large JSON output
       });
 
-      let stdout = '';
-      let stderr = '';
+      let stdout = "";
+      let stderr = "";
 
       // Collect stdout data
-      python.stdout.on('data', (data) => {
+      python.stdout.on("data", (data: Buffer) => {
         stdout += data.toString();
       });
 
       // Collect stderr data (warnings/errors)
-      python.stderr.on('data', (data) => {
+      python.stderr.on("data", (data: Buffer) => {
         stderr += data.toString();
       });
 
       // Handle process completion
-      python.on('close', (code) => {
+      python.on("close", (code: number | null) => {
         const duration = Date.now() - startTime;
 
         if (code === 0) {
           try {
             const prices = JSON.parse(stdout) as ParsedPrice[];
-            logger.info(`[PDFParserPricesService] Parsed ${prices.length} prices in ${duration}ms (3-page cycles)`);
+            logger.info(
+              `[PDFParserPricesService] Parsed ${prices.length} prices in ${duration}ms (3-page cycles)`,
+            );
             resolve(prices);
           } catch (error) {
-            logger.error('[PDFParserPricesService] JSON parse error', {
+            logger.error("[PDFParserPricesService] JSON parse error", {
               error,
               stdout: stdout.slice(0, 500),
-              stderr
+              stderr,
             });
             reject(new Error(`Failed to parse JSON output: ${error}`));
           }
         } else {
-          logger.error('[PDFParserPricesService] Python script failed', {
+          logger.error("[PDFParserPricesService] Python script failed", {
             code,
             stderr,
-            duration
+            duration,
           });
-          reject(new Error(`Python script exited with code ${code}: ${stderr}`));
+          reject(
+            new Error(`Python script exited with code ${code}: ${stderr}`),
+          );
         }
       });
 
       // Handle spawn errors
-      python.on('error', (error) => {
-        logger.error('[PDFParserPricesService] Spawn error', { error });
+      python.on("error", (error: Error) => {
+        logger.error("[PDFParserPricesService] Spawn error", { error });
         reject(new Error(`Failed to spawn Python process: ${error.message}`));
       });
 
       // Handle timeout
-      python.on('exit', (code, signal) => {
-        if (signal === 'SIGTERM') {
-          const duration = Date.now() - startTime;
-          logger.error('[PDFParserPricesService] Process timeout', { duration });
-          reject(new Error(`PDF parsing timeout after ${duration}ms`));
-        }
-      });
+      python.on(
+        "exit",
+        (code: number | null, signal: NodeJS.Signals | null) => {
+          if (signal === "SIGTERM") {
+            const duration = Date.now() - startTime;
+            logger.error("[PDFParserPricesService] Process timeout", {
+              duration,
+            });
+            reject(new Error(`PDF parsing timeout after ${duration}ms`));
+          }
+        },
+      );
     });
   }
 
@@ -131,18 +142,18 @@ export class PDFParserPricesService {
     healthy: boolean;
     pythonVersion?: string;
     pyPDF2Available?: boolean;
-    error?: string
+    error?: string;
   }> {
     try {
       // Check Python version
       const pythonVersion = await new Promise<string>((resolve, reject) => {
-        const python = spawn('python3', ['--version']);
-        let output = '';
+        const python = spawn("python3", ["--version"]);
+        let output = "";
 
-        python.stdout.on('data', (data) => output += data.toString());
-        python.stderr.on('data', (data) => output += data.toString());
+        python.stdout.on("data", (data: Buffer) => (output += data.toString()));
+        python.stderr.on("data", (data: Buffer) => (output += data.toString()));
 
-        python.on('close', (code) => {
+        python.on("close", (code: number | null) => {
           if (code === 0) {
             resolve(output.trim());
           } else {
@@ -153,19 +164,19 @@ export class PDFParserPricesService {
 
       // Check PyPDF2 library
       const pyPDF2Check = await new Promise<boolean>((resolve) => {
-        const python = spawn('python3', ['-c', 'import PyPDF2; print("OK")']);
-        let output = '';
+        const python = spawn("python3", ["-c", 'import PyPDF2; print("OK")']);
+        let output = "";
 
-        python.stdout.on('data', (data) => output += data.toString());
+        python.stdout.on("data", (data: Buffer) => (output += data.toString()));
 
-        python.on('close', (code) => {
-          resolve(code === 0 && output.includes('OK'));
+        python.on("close", (code: number | null) => {
+          resolve(code === 0 && output.includes("OK"));
         });
       });
 
-      logger.info('[PDFParserPricesService] Health check passed', {
+      logger.info("[PDFParserPricesService] Health check passed", {
         pythonVersion,
-        pyPDF2Available: pyPDF2Check
+        pyPDF2Available: pyPDF2Check,
       });
 
       return {
@@ -174,7 +185,7 @@ export class PDFParserPricesService {
         pyPDF2Available: pyPDF2Check,
       };
     } catch (error) {
-      logger.error('[PDFParserPricesService] Health check failed', { error });
+      logger.error("[PDFParserPricesService] Health check failed", { error });
       return {
         healthy: false,
         error: error instanceof Error ? error.message : String(error),
