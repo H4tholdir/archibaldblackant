@@ -1491,6 +1491,50 @@ app.get(
   },
 );
 
+// GET /api/products/:name/variants - Get all variants for a product name
+app.get(
+  "/api/products/:name/variants",
+  authenticateJWT,
+  (req: AuthRequest, res: Response) => {
+    try {
+      const { name } = req.params;
+      const decodedName = decodeURIComponent(name);
+
+      const db = ProductDatabase.getInstance();
+      const variants = db.getProductVariants(decodedName);
+
+      if (variants.length === 0) {
+        res.status(404).json({
+          success: false,
+          error: "Product not found",
+        });
+        return;
+      }
+
+      logger.info(`Retrieved ${variants.length} variants for product: ${decodedName}`);
+
+      res.json({
+        success: true,
+        data: {
+          productName: decodedName,
+          variantCount: variants.length,
+          variants: variants,
+        },
+      });
+    } catch (error: any) {
+      logger.error("Error fetching product variants", {
+        error: error.message,
+        stack: error.stack,
+      });
+
+      res.status(500).json({
+        success: false,
+        error: "Failed to fetch product variants",
+      });
+    }
+  }
+);
+
 // Get products sync status endpoint
 app.get(
   "/api/products/sync-status",
