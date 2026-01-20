@@ -406,7 +406,7 @@ export function OrderHistory() {
             marginBottom: "8px",
           }}
         >
-          📦 Storico Ordini
+          📦 Ordini
         </h1>
         <p style={{ fontSize: "16px", color: "#666" }}>
           Consulta lo storico dei tuoi ordini e il loro stato
