@@ -9,19 +9,19 @@ See: .planning/PROJECT.md (updated 2026-01-11)
 
 ## Current Position
 
-Phase: 20 of 28 (Prices Sync Analysis & Optimization)
-Plan: 6 of 6 in current phase
-Status: Complete ✅
-Last activity: 2026-01-20 — Completed 20-06-PLAN.md (Manual Sync UI & Comprehensive Testing)
+Phase: 21 of 28 (Orders Sync Analysis & Optimization)
+Plan: 1 of 5 in current phase
+Status: In progress
+Last activity: 2026-01-20 — Completed 21-01-PLAN.md (Orders PDF Parser & Separate Database)
 
-Progress: █████░░░░░ 40% (v2.0: 9/15 phases complete, 31/68 plans)
+Progress: █████░░░░░ 42% (v2.0: 9/15 phases complete, 32/68 plans)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 101
-- Average duration: 47 min
-- Total execution time: 86.58 hours
+- Total plans completed: 102
+- Average duration: 48 min
+- Total execution time: 88.08 hours
 
 **By Phase:**
 
@@ -47,9 +47,10 @@ Progress: █████░░░░░ 40% (v2.0: 9/15 phases complete, 31/68 
 | 19 | 5 | 194 min | 39 min |
 | 19.1 | 3 | 25 min | 8 min |
 | 20 | 6 | 330 min | 55 min |
+| 21 | 1 | 90 min | 90 min |
 
 **Recent Trend:**
-- Last 10 plans: 19-05 (45m), 19.1-01 (5m), 19.1-02 (5m), 19.1-03 (15m), 20-01 (45m), 20-02 (105m), 20-03 (30m), 20-04 (30m), 20-05 (60m), 20-06 (60m)
+- Last 10 plans: 19.1-01 (5m), 19.1-02 (5m), 19.1-03 (15m), 20-01 (45m), 20-02 (105m), 20-03 (30m), 20-04 (30m), 20-05 (60m), 20-06 (60m), 21-01 (90m)
 - Phase 9 extremely fast (avg 11m) - leveraging existing Phase 8-07 infrastructure
 - Phase 10 high avg (105m) - includes 521m for Plan 10-07 (heavy login debugging)
 - Phase 14 complete (5 plans avg 9m) - 4 discovery plans + 1 execution plan, all IndexedDB errors fixed ✅ COMPLETE
@@ -66,6 +67,10 @@ Recent decisions affecting current work:
 
 | Phase | Decision | Rationale |
 |-------|----------|-----------|
+| 21-01 | Streaming line-by-line JSON output | Better memory efficiency for large 280-page PDFs, process one order at a time instead of loading all into array |
+| 21-01 | Snake_case database columns with camelCase mapping | SQL conventions use snake_case, TypeScript uses camelCase, mapping layer provides clean separation |
+| 21-01 | Separate orders-new.db database | Avoid conflicts with existing orders.db schema, clean slate for PDF-based sync, simpler migration path |
+| 21-01 | Hash key fields for delta detection | MD5 hash of id, orderNumber, salesStatus, documentStatus, transferStatus, totalAmount captures meaningful changes |
 | 20-05 | Inline styles for all React components | Consistent with codebase convention (ProductCard, DashboardNav), simpler than CSS modules, no import overhead |
 | 20-05 | PriceHistoryModal as separate component | Reusable modal for per-article history, clean separation from page logic, easier testing |
 | 20-05 | Client-side filtering and sorting | Better UX without API calls, data already loaded (30 days max), instant response |
@@ -587,8 +592,8 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-01-20 (evening)
-Stopped at: Completed Phase 20 (Prices Sync Analysis & Optimization)
-Next: Plan Phase 21 (Orders Sync Analysis & Optimization) or continue with v2.0 priorities
+Stopped at: Completed 21-01-PLAN.md (Orders PDF Parser & Separate Database)
+Next: Plan 21-02 (DDT PDF Parser & Tracking Database)
 Resume file: None
 
 ### Session 95 (2026-01-20)

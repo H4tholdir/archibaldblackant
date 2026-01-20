@@ -35,7 +35,7 @@ None (full-stack web app con pattern standard)
 - [x] **Phase 19: Products Sync Analysis & Optimization** - Analisi + background + manual + images ✅ COMPLETE
 - [x] **Phase 19.1: Product Cards UI Enhancement (INSERTED)** - Visualizzazione 26+ campi + gestione varianti ✅ COMPLETE
 - [x] **Phase 20: Prices Sync Analysis & Optimization** - Analisi + background + manual + Excel listino ✅ COMPLETE
-- [ ] **Phase 21: Orders Sync Analysis & Optimization** - Analisi + background + manual
+- [ ] **Phase 21: Orders Sync Analysis & Optimization** - Analisi + background + manual (1/5 plans)
 - [ ] **Phase 22: Sync Orchestration Layer** - Coordinator anti-overlap, staggered scheduling
 - [ ] **Phase 23: Sync UI Controls** - Bottoni granulari + sync generale
 - [ ] **Phase 24: Background Sync Service** - Service worker sync automatici silent
@@ -191,13 +191,17 @@ Plans:
 - [x] 20-06: Manual Sync UI & Comprehensive Testing — 60min
 
 #### Phase 21: Orders Sync Analysis & Optimization
-**Goal**: Analisi completa sync ordini + background sync + sync manuale
+**Goal**: Migrazione completa da HTML scraping a PDF-based sync: parser multi-cycle (orders 7-page, DDT 6-page, invoices 7-page), 3 database separati (orders/ddt/invoices), tracking URLs, order matching, manual sync UI
 **Depends on**: Phase 20
-**Research**: Unlikely (analyzing existing order sync implementation)
-**Plans**: TBD
+**Research**: Completed (Discovery: 3 PDFs analizzati, cycle patterns identificati, matching strategies definite)
+**Plans**: 1/5 complete — In progress
 
 Plans:
-- [ ] 21-01: TBD
+- [x] 21-01: Orders PDF Parser & Separate Database (90min) — 7-page cycle, 20 campi, orders.db, delta detection ✅
+- [ ] 21-02: DDT PDF Parser & Separate Database with Tracking (60min) — 6-page cycle, tracking URLs, ddt.db, courier normalization
+- [ ] 21-03: Invoices PDF Parser & Database with Order Matching (60min) — 7-page cycle, invoices.db, many-to-many matching
+- [ ] 21-04: PDF Download Bot Flows (90min) — 3 download methods, sync services integration, Italian locale forcing
+- [ ] 21-05: Manual Sync UI & Order History Enhancements (120min) — Sync buttons, filter updates (Spediti/Consegnati/Fatturati), toggle essenziali, invoice download
 
 #### Phase 22: Sync Orchestration Layer
 **Goal**: Coordinator centrale per evitare overlap sync + staggered scheduling (15min intervals)
