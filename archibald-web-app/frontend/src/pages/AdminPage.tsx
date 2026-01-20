@@ -1,7 +1,5 @@
 import { useNavigate } from "react-router-dom";
 import { useState, useEffect } from "react";
-import SyncBars from "../components/SyncBars";
-import { ExcelPriceManager } from "../components/ExcelPriceManager";
 import "../styles/AdminPage.css";
 
 interface AdminPageProps {
@@ -221,17 +219,6 @@ export function AdminPage({ onLogout, userName }: AdminPageProps) {
 
       <main className="admin-main">
         <section className="admin-section">
-          <h2>🔄 Sincronizzazione Dati da Archibald ERP</h2>
-          <p className="admin-description">
-            Sincronizza clienti, prodotti e prezzi dal sistema Archibald ERP al
-            database backend. Le barre mostrano il progresso in tempo reale.
-          </p>
-          <div className="sync-bars-container">
-            <SyncBars />
-          </div>
-        </section>
-
-        <section className="admin-section">
           <h2>📊 Carica Listino Excel (Solo IVA)</h2>
           <p className="admin-description">
             Carica un file Excel con dati IVA (Listino_2026_vendita.xlsx). Il
@@ -349,10 +336,6 @@ export function AdminPage({ onLogout, userName }: AdminPageProps) {
               </ul>
             </div>
           </div>
-        </section>
-
-        <section className="admin-section">
-          <ExcelPriceManager />
         </section>
 
         <section className="admin-section">
@@ -600,24 +583,26 @@ export function AdminPage({ onLogout, userName }: AdminPageProps) {
           <h2>ℹ️ Informazioni</h2>
           <div className="info-grid">
             <div className="info-card">
-              <h3>🔵 Barra Clienti</h3>
+              <h3>📊 Caricamento Excel IVA</h3>
               <p>
-                Sincronizza l'elenco completo dei clienti da Archibald ERP.
-                Include nome, codice, città e dati di contatto.
+                Carica un file Excel (Listino_2026_vendita.xlsx) per aggiornare
+                i valori IVA dei prodotti. Il sistema matcha automaticamente i
+                prodotti per ID e Codice Articolo.
               </p>
             </div>
             <div className="info-card">
-              <h3>🟡 Barra Prodotti</h3>
+              <h3>🔄 Jobs Queue</h3>
               <p>
-                Sincronizza il catalogo prodotti con tutte le varianti e codici
-                articolo disponibili.
+                Monitora lo stato degli ordini inviati dagli utenti. Puoi
+                visualizzare, filtrare e ritentare ordini falliti dal pannello
+                di gestione.
               </p>
             </div>
             <div className="info-card">
-              <h3>🟠 Barra Prezzi</h3>
+              <h3>🔐 Accesso Admin</h3>
               <p>
-                Sincronizza i listini prezzi aggiornati per tutti i prodotti e
-                clienti.
+                Questo pannello è accessibile solo agli amministratori. Tutte le
+                operazioni vengono tracciate per sicurezza e audit.
               </p>
             </div>
           </div>
