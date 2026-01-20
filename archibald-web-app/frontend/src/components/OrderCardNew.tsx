@@ -839,7 +839,56 @@ function TabLogistica({ order, token }: { order: Order; token?: string }) {
   );
 }
 
-function TabFinanziario({ order }: { order: Order }) {
+function TabFinanziario({ order, token }: { order: Order; token?: string }) {
+  const [isDownloadingInvoice, setIsDownloadingInvoice] = useState(false);
+  const [invoiceError, setInvoiceError] = useState<string | null>(null);
+
+  const handleDownloadInvoice = async () => {
+    if (!token) {
+      setInvoiceError("Token di autenticazione mancante");
+      return;
+    }
+
+    if (!order.invoiceNumber) {
+      setInvoiceError("Nessuna fattura disponibile per questo ordine");
+      return;
+    }
+
+    setIsDownloadingInvoice(true);
+    setInvoiceError(null);
+
+    try {
+      const orderIdentifier = order.orderNumber || order.id;
+      const encodedId = encodeURIComponent(orderIdentifier);
+      const response = await fetch(
+        `/api/orders/${encodedId}/invoice/download`,
+        {
+          headers: { Authorization: `Bearer ${token}` },
+        },
+      );
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || "Errore durante il download");
+      }
+
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `fattura-${order.invoiceNumber?.replace(/\//g, "-") || "documento"}.pdf`;
+      a.click();
+      window.URL.revokeObjectURL(url);
+    } catch (err) {
+      const errorMessage =
+        err instanceof Error ? err.message : "Errore sconosciuto";
+      setInvoiceError(errorMessage);
+      console.error("Invoice download error:", err);
+    } finally {
+      setIsDownloadingInvoice(false);
+    }
+  };
+
   return (
     <div style={{ padding: "16px" }}>
       {/* Totali */}
@@ -919,6 +968,85 @@ function TabFinanziario({ order }: { order: Order }) {
             </div>
           </div>
         </div>
+      </div>
+
+      {/* Fattura */}
+      <div style={{ marginBottom: "24px" }}>
+        <h3
+          style={{
+            fontSize: "16px",
+            fontWeight: 600,
+            marginBottom: "12px",
+            color: "#333",
+          }}
+        >
+          Fattura
+        </h3>
+        <button
+          onClick={handleDownloadInvoice}
+          disabled={isDownloadingInvoice || !order.invoiceNumber}
+          style={{
+            width: "100%",
+            padding: "12px",
+            backgroundColor:
+              isDownloadingInvoice || !order.invoiceNumber ? "#ccc" : "#4caf50",
+            color: "#fff",
+            border: "none",
+            borderRadius: "8px",
+            fontSize: "14px",
+            fontWeight: 600,
+            cursor:
+              isDownloadingInvoice || !order.invoiceNumber
+                ? "not-allowed"
+                : "pointer",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            gap: "8px",
+            transition: "background-color 0.2s",
+          }}
+          onMouseEnter={(e) => {
+            if (!isDownloadingInvoice && order.invoiceNumber) {
+              e.currentTarget.style.backgroundColor = "#388e3c";
+            }
+          }}
+          onMouseLeave={(e) => {
+            if (!isDownloadingInvoice && order.invoiceNumber) {
+              e.currentTarget.style.backgroundColor = "#4caf50";
+            }
+          }}
+        >
+          {isDownloadingInvoice ? (
+            <>
+              <span>⏳</span>
+              <span>Download in corso...</span>
+            </>
+          ) : !order.invoiceNumber ? (
+            <>
+              <span>📄</span>
+              <span>Nessuna fattura disponibile</span>
+            </>
+          ) : (
+            <>
+              <span>📄</span>
+              <span>Scarica Fattura {order.invoiceNumber}</span>
+            </>
+          )}
+        </button>
+        {invoiceError && (
+          <div
+            style={{
+              marginTop: "8px",
+              padding: "8px",
+              backgroundColor: "#ffebee",
+              borderRadius: "4px",
+              fontSize: "12px",
+              color: "#c62828",
+            }}
+          >
+            {invoiceError}
+          </div>
+        )}
       </div>
     </div>
   );
@@ -1548,7 +1676,9 @@ export function OrderCardNew({
             {activeTab === "logistica" && (
               <TabLogistica order={order} token={token} />
             )}
-            {activeTab === "finanziario" && <TabFinanziario order={order} />}
+            {activeTab === "finanziario" && (
+              <TabFinanziario order={order} token={token} />
+            )}
             {activeTab === "storico" && <TabStorico order={order} />}
           </div>
 

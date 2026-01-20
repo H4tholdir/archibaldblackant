@@ -98,4 +98,7 @@ export interface Order {
   stateTimeline?: StatusUpdate[]; // JSON field
   statusTimeline?: StatusUpdate[]; // Alias for stateTimeline
   documents?: DocumentInfo[]; // JSON field
+
+  // Invoice (from order_invoice_mapping)
+  invoiceNumber?: string;
 }
