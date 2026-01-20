@@ -252,6 +252,36 @@ export class QueueManager {
         );
         logger.debug("[QueueManager] Priority lock released");
 
+        // Save order articles to database
+        try {
+          const { OrderDatabaseNew } = await import("./order-db-new");
+          const orderDb = OrderDatabaseNew.getInstance();
+
+          const articles = orderData.items.map((item) => ({
+            orderId,
+            articleCode: item.articleCode,
+            articleDescription: item.description,
+            quantity: item.quantity,
+            unitPrice: item.price,
+            discountPercent: item.discount,
+            lineAmount:
+              item.price * item.quantity * (1 - (item.discount || 0) / 100),
+          }));
+
+          const saved = orderDb.saveOrderArticles(articles);
+          logger.info(
+            `[QueueManager] Saved ${saved} articles for order ${orderId}`,
+          );
+        } catch (err) {
+          logger.error(
+            `[QueueManager] Failed to save articles for order ${orderId}`,
+            {
+              error: err instanceof Error ? err.message : String(err),
+            },
+          );
+          // Don't fail the order creation if article saving fails
+        }
+
         // Aggiorna progress
         await job.updateProgress(100);
 

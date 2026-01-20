@@ -28,6 +28,16 @@ export interface OrderRecord {
   lastSync: number;
 }
 
+export interface OrderArticleRecord {
+  orderId: string;
+  articleCode: string;
+  articleDescription?: string;
+  quantity: number;
+  unitPrice?: number;
+  discountPercent?: number;
+  lineAmount?: number;
+}
+
 export class OrderDatabaseNew {
   private static instance: OrderDatabaseNew;
   private db: Database.Database;
@@ -81,6 +91,22 @@ export class OrderDatabaseNew {
       CREATE INDEX IF NOT EXISTS idx_orders_customer ON orders(customer_profile_id);
       CREATE INDEX IF NOT EXISTS idx_orders_sync ON orders(last_sync);
       CREATE INDEX IF NOT EXISTS idx_orders_status ON orders(sales_status);
+
+      CREATE TABLE IF NOT EXISTS order_articles (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        order_id TEXT NOT NULL,
+        article_code TEXT NOT NULL,
+        article_description TEXT,
+        quantity REAL NOT NULL,
+        unit_price REAL,
+        discount_percent REAL,
+        line_amount REAL,
+        created_at TEXT NOT NULL,
+        FOREIGN KEY (order_id) REFERENCES orders(id)
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_articles_order_id ON order_articles(order_id);
+      CREATE INDEX IF NOT EXISTS idx_articles_code ON order_articles(article_code);
     `);
   }
 
@@ -261,6 +287,74 @@ export class OrderDatabaseNew {
       grossAmount: row.gross_amount,
       totalAmount: row.total_amount,
       lastSync: row.last_sync,
+    }));
+  }
+
+  saveOrderArticles(articles: OrderArticleRecord[]): number {
+    if (articles.length === 0) {
+      return 0;
+    }
+
+    const insert = this.db.prepare(`
+      INSERT INTO order_articles (
+        order_id, article_code, article_description, quantity,
+        unit_price, discount_percent, line_amount, created_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    `);
+
+    const now = new Date().toISOString();
+    const insertMany = this.db.transaction(
+      (articlesToInsert: OrderArticleRecord[]) => {
+        for (const article of articlesToInsert) {
+          insert.run(
+            article.orderId,
+            article.articleCode,
+            article.articleDescription || null,
+            article.quantity,
+            article.unitPrice || null,
+            article.discountPercent || null,
+            article.lineAmount || null,
+            now,
+          );
+        }
+      },
+    );
+
+    insertMany(articles);
+    logger.info(
+      `[OrderDatabaseNew] Saved ${articles.length} articles for order ${articles[0]?.orderId}`,
+    );
+    return articles.length;
+  }
+
+  getOrderArticles(orderId: string): OrderArticleRecord[] {
+    const rows = this.db
+      .prepare(
+        `SELECT
+          order_id, article_code, article_description, quantity,
+          unit_price, discount_percent, line_amount
+        FROM order_articles
+        WHERE order_id = ?
+        ORDER BY id`,
+      )
+      .all(orderId) as Array<{
+      order_id: string;
+      article_code: string;
+      article_description: string | null;
+      quantity: number;
+      unit_price: number | null;
+      discount_percent: number | null;
+      line_amount: number | null;
+    }>;
+
+    return rows.map((row) => ({
+      orderId: row.order_id,
+      articleCode: row.article_code,
+      articleDescription: row.article_description || undefined,
+      quantity: row.quantity,
+      unitPrice: row.unit_price || undefined,
+      discountPercent: row.discount_percent || undefined,
+      lineAmount: row.line_amount || undefined,
     }));
   }
 
