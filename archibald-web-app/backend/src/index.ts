@@ -4037,27 +4037,45 @@ server.listen(config.server.port, async () => {
     logger.warn("⚠️  Migration 006 failed or already applied", { error });
   }
 
-  // Start adaptive sync scheduler (NEW - replaces old commented code)
-  try {
-    await syncScheduler.start();
-    logger.info(
-      "✅ Adaptive Sync Scheduler started (customers>orders>products>prices)",
-    );
-  } catch (error) {
-    logger.error("❌ Failed to start Sync Scheduler", { error });
-  }
+  // ========== AUTOMATIC SYNC SCHEDULERS - TEMPORARILY DISABLED ==========
+  // TODO Phase 20: Build robust orchestrator for background sync management
+  // Current state: Manual sync works perfectly (multi-layer Italian localization)
+  // Next phase will implement:
+  // - Centralized sync orchestrator with priority queues
+  // - Smart scheduling based on data change frequency
+  // - Error recovery and retry logic
+  // - WebSocket real-time progress updates
+  // - Admin dashboard for sync monitoring
+  //
+  // Manual sync still available via:
+  // - Frontend buttons (Customers: "Aggiorna Clienti", Products: "Aggiorna Articoli")
+  // - API endpoints: POST /api/customers/sync, POST /api/products/sync
 
-  // Start background customer sync (30 min interval)
-  syncService.startAutoSync(30);
-  logger.info(
-    "✅ Background customer sync scheduler started (30 min interval)",
-  );
+  // DISABLED: Adaptive sync scheduler
+  // try {
+  //   await syncScheduler.start();
+  //   logger.info(
+  //     "✅ Adaptive Sync Scheduler started (customers>orders>products>prices)",
+  //   );
+  // } catch (error) {
+  //   logger.error("❌ Failed to start Sync Scheduler", { error });
+  // }
 
-  // Start background products sync (30 min interval)
-  const productSyncService = ProductSyncService.getInstance();
-  productSyncService.startAutoSync(30);
+  // DISABLED: Background customer sync (30 min interval)
+  // syncService.startAutoSync(30);
+  // logger.info(
+  //   "✅ Background customer sync scheduler started (30 min interval)",
+  // );
+
+  // DISABLED: Background products sync (30 min interval)
+  // const productSyncService = ProductSyncService.getInstance();
+  // productSyncService.startAutoSync(30);
+  // logger.info(
+  //   "✅ Background products sync scheduler started (30 min interval)",
+  // );
+
   logger.info(
-    "✅ Background products sync scheduler started (30 min interval)",
+    "⏸️  Automatic sync schedulers disabled - Manual sync available via API",
   );
 
   // OLD SCHEDULER SYNC GIORNALIERO (now replaced by SyncScheduler)
