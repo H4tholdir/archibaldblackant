@@ -26,9 +26,24 @@ export function VariantSelector({
     return extractNumber(b.packageContent) - extractNumber(a.packageContent);
   });
 
-  const formatCurrency = (amount: number | null | undefined): string => {
-    if (amount === null || amount === undefined || amount === 0)
-      return "€ 0,00";
+  const formatCurrency = (
+    amount: number | string | null | undefined,
+  ): string => {
+    if (amount === null || amount === undefined) return "€ 0,00";
+
+    // If already a formatted string (e.g., "32,46 €"), return as-is
+    if (typeof amount === "string") {
+      if (amount.includes("€") || amount.includes(",")) {
+        return amount;
+      }
+      // Try to parse it as a number
+      const parsed = parseFloat(amount.replace(",", "."));
+      if (isNaN(parsed)) return "€ 0,00";
+      amount = parsed;
+    }
+
+    if (amount === 0) return "€ 0,00";
+
     return new Intl.NumberFormat("it-IT", {
       style: "currency",
       currency: "EUR",
@@ -151,30 +166,33 @@ export function VariantSelector({
                 </div>
 
                 {/* Price (if available) */}
-                {variant.price !== undefined && variant.price !== null && (
-                  <div
-                    style={{
-                      marginTop: "8px",
-                      fontSize: "14px",
-                      fontWeight: 600,
-                      color: isSelected ? "#1976d2" : "#333",
-                    }}
-                  >
-                    {formatCurrency(variant.price)}
-                    {variant.vat !== undefined && variant.vat !== null && (
-                      <span
-                        style={{
-                          marginLeft: "8px",
-                          fontSize: "12px",
-                          fontWeight: 400,
-                          color: "#666",
-                        }}
-                      >
-                        (IVA {variant.vat}%)
-                      </span>
-                    )}
-                  </div>
-                )}
+                {variant.price !== undefined &&
+                  variant.price !== null &&
+                  variant.price !== "" &&
+                  variant.price !== 0 && (
+                    <div
+                      style={{
+                        marginTop: "8px",
+                        fontSize: "14px",
+                        fontWeight: 600,
+                        color: isSelected ? "#1976d2" : "#333",
+                      }}
+                    >
+                      {formatCurrency(variant.price)}
+                      {variant.vat !== undefined && variant.vat !== null && (
+                        <span
+                          style={{
+                            marginLeft: "8px",
+                            fontSize: "12px",
+                            fontWeight: 400,
+                            color: "#666",
+                          }}
+                        >
+                          (IVA {variant.vat}%)
+                        </span>
+                      )}
+                    </div>
+                  )}
               </div>
             </label>
           );
