@@ -3,38 +3,76 @@
 const API_BASE_URL = "";
 
 export interface Product {
+  // ========== CORE FIELDS ==========
   id: string;
   name: string;
   articleName?: string;
   variantId?: string;
   description?: string;
-  groupCode?: string;
-  price?: number;
+
+  // ========== IDENTIFICATION ==========
+  searchName?: string;
+  displayProductNumber?: string;
+
+  // ========== CHARACTERISTICS ==========
+  figure?: string; // FIGURA
+  size?: string; // GRANDEZZA
   packageContent?: string;
+  groupCode?: string;
+  productGroupId?: string;
+  productGroupDescription?: string;
+  bulkArticleId?: string; // ID IN BLOCCO DELL'ARTICOLO
+  legPackage?: string; // PACCO GAMBA
+  configurationId?: string; // ID DI CONFIGURAZIONE
+  pcsStandardConfigurationId?: string; // PCS ID DI CONFIGURAZIONE STANDARD
+
+  // ========== QUANTITY ==========
   minQty?: number;
   multipleQty?: number;
   maxQty?: number;
-  imageUrl?: string;
-  imageLocalPath?: string;
-  imageDownloadedAt?: number;
-  searchName?: string;
-  priceUnit?: string;
-  productGroupId?: string;
-  productGroupDescription?: string;
-  // VAT and price tracking (from migration 002)
+  standardQty?: string; // QTÀ STANDARD (string in DB)
+  defaultQty?: string; // QTÀ PREDEFINITA (string in DB)
+  unitId?: string; // ID UNITÀ
+
+  // ========== PRICING & DISCOUNTS ==========
+  price?: number;
+  priceSource?: string;
+  priceUpdatedAt?: number;
+  priceCurrency?: string;
   vat?: number;
   vatSource?: string;
   vatUpdatedAt?: number;
-  priceSource?: string;
-  priceUpdatedAt?: number;
-  // Price table fields (from migration 003)
+  priceUnit?: string;
+  lineDiscount?: string; // SCONTO LINEA
+  totalAbsoluteDiscount?: string; // SCONTO ASSOLUTO TOTALE
+  purchPrice?: string; // PURCH PRICE
+
+  // ========== METADATA ==========
+  createdBy?: string;
+  createdDate?: string;
+  modifiedBy?: string;
+  modifiedDatetime?: string;
+  dataAreaId?: string;
+  orderableArticle?: string; // ARTICOLO ORDINABILE
+  stopped?: string; // FERMATO
+  productId?: string;
+
+  // ========== IMAGE ==========
+  imageUrl?: string;
+  imageLocalPath?: string;
+  imageDownloadedAt?: number;
+
+  // ========== SYSTEM ==========
+  hash?: string;
+  lastSync?: number;
+
+  // ========== EXCEL LISTINO FIELDS (from Phase 4.1) ==========
   accountCode?: string;
   accountDescription?: string;
   priceValidFrom?: string;
   priceValidTo?: string;
   priceQtyFrom?: string;
   priceQtyTo?: string;
-  priceCurrency?: string;
 }
 
 export interface ProductsResponse {
