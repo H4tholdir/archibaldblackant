@@ -1052,7 +1052,7 @@ function TabFinanziario({ order, token }: { order: Order; token?: string }) {
   );
 }
 
-function TabStorico({ order }: { order: Order }) {
+function TabCronologia({ order }: { order: Order }) {
   const timeline = order.stateTimeline || order.statusTimeline || [];
   const documents = order.documents || [];
 
@@ -1404,7 +1404,7 @@ export function OrderCardNew({
     { id: "articoli" as const, label: "Articoli", icon: "📦" },
     { id: "logistica" as const, label: "Logistica", icon: "🚚" },
     { id: "finanziario" as const, label: "Finanziario", icon: "💰" },
-    { id: "storico" as const, label: "Storico", icon: "📜" },
+    { id: "storico" as const, label: "Cronologia", icon: "📜" },
   ];
 
   // Determine card styling based on order state
@@ -1679,7 +1679,7 @@ export function OrderCardNew({
             {activeTab === "finanziario" && (
               <TabFinanziario order={order} token={token} />
             )}
-            {activeTab === "storico" && <TabStorico order={order} />}
+            {activeTab === "storico" && <TabCronologia order={order} />}
           </div>
 
           {/* Order Actions - Always visible regardless of tab */}

@@ -93,7 +93,7 @@ export function DraftOrders() {
       loadDrafts();
 
       alert(
-        `✅ Ordine creato e piazzato con successo!\n\nID Ordine: ${data.orderId}\n\nL'ordine è ora visibile nello Storico Ordini.`,
+        `✅ Ordine creato e piazzato con successo!\n\nID Ordine: ${data.orderId}\n\nL'ordine è ora visibile negli Ordini.`,
       );
 
       // Navigate to order history

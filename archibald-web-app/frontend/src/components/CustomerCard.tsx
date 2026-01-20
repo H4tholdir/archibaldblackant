@@ -335,7 +335,7 @@ export function CustomerCard({
                 marginBottom: "12px",
               }}
             >
-              📊 Storico Ordini
+              📊 Ordini
             </h3>
             <div
               style={{
