@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { ProductCard } from "../components/ProductCard";
+import { ProductDetailModal } from "../components/ProductDetailModal";
 import { getProducts, syncProducts, type Product } from "../api/products";
 import { ManualSyncBanner } from "../components/ManualSyncBanner";
 
@@ -12,9 +13,8 @@ export function ArticoliList() {
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [expandedProductId, setExpandedProductId] = useState<string | null>(
-    null,
-  );
+  const [modalProduct, setModalProduct] = useState<Product | null>(null);
+  const [isModalOpen, setIsModalOpen] = useState(false);
   const [filters, setFilters] = useState<ProductFilters>({
     search: "",
     groupCode: "",
@@ -28,6 +28,9 @@ export function ArticoliList() {
   >("idle");
   const [syncMessage, setSyncMessage] = useState<string>("");
   const [isSyncing, setIsSyncing] = useState(false);
+  const [variantCounts, setVariantCounts] = useState<Record<string, number>>(
+    {},
+  );
 
   // Debounce search input (300ms)
   useEffect(() => {
@@ -51,7 +54,12 @@ export function ArticoliList() {
         return;
       }
 
-      const response = await getProducts(token, debouncedSearch, 200);
+      const response = await getProducts(
+        token,
+        debouncedSearch,
+        200,
+        true, // grouped=true
+      );
 
       if (!response.success) {
         throw new Error("Errore nel caricamento dei prodotti");
@@ -69,6 +77,15 @@ export function ArticoliList() {
       setTotalCount(response.data.totalCount);
       setReturnedCount(response.data.returnedCount);
       setLimited(response.data.limited);
+
+      // Build variant counts map from products
+      const counts: Record<string, number> = {};
+      filteredProducts.forEach((p) => {
+        if (p.name) {
+          counts[p.name] = (counts[p.name] || 0) + 1;
+        }
+      });
+      setVariantCounts(counts);
     } catch (err) {
       console.error("Error fetching products:", err);
       if (err instanceof Error && err.message.includes("401")) {
@@ -88,12 +105,14 @@ export function ArticoliList() {
     fetchProducts();
   }, [fetchProducts]);
 
-  const handleToggle = (productId: string) => {
-    if (expandedProductId === productId) {
-      setExpandedProductId(null);
-    } else {
-      setExpandedProductId(productId);
-    }
+  const handleCardClick = (product: Product) => {
+    setModalProduct(product);
+    setIsModalOpen(true);
+  };
+
+  const handleCloseModal = () => {
+    setIsModalOpen(false);
+    setModalProduct(null);
   };
 
   const handleClearFilters = () => {
@@ -516,20 +535,27 @@ export function ArticoliList() {
               gap: "16px",
             }}
           >
-            {products.map((product) => {
-              const isExpanded = expandedProductId === product.id;
-
-              return (
-                <ProductCard
-                  key={product.id}
-                  product={product}
-                  expanded={isExpanded}
-                  onToggle={() => handleToggle(product.id)}
-                />
-              );
-            })}
+            {products.map((product) => (
+              <ProductCard
+                key={product.id}
+                product={product}
+                expanded={false}
+                onToggle={() => handleCardClick(product)}
+                showVariantBadge={true}
+                variantCount={variantCounts[product.name] || 1}
+              />
+            ))}
           </div>
         </div>
+      )}
+
+      {/* Product Detail Modal */}
+      {modalProduct && (
+        <ProductDetailModal
+          product={modalProduct}
+          isOpen={isModalOpen}
+          onClose={handleCloseModal}
+        />
       )}
     </div>
   );
