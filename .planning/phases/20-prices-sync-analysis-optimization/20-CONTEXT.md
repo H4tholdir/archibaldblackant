@@ -21,18 +21,25 @@ Il sync è **manuale** (no scheduler automatico), con bottone 🔄 sotto quello 
 
 Quando l'utente vede un prodotto nell'OrderForm o ArticoliList, deve vedere il prezzo corretto per la variante specifica (5 colli vs 1 collo) con l'IVA corretta dall'Excel.
 
+**Dopo ogni sync**, il sistema mostra:
+- **Badge rosso/verde**: Toast/banner con summary "15 articoli aumentati 🔴 / 8 articoli diminuiti 🟢" + link a dashboard variazioni
+- **Dashboard variazioni**: Vista globale ultimi 30 giorni con tutti gli articoli che hanno cambiato prezzo, ordinati per % variazione
+- **Storico per articolo**: Cronologia completa per ogni prodotto (data, prezzo vecchio, prezzo nuovo, variazione %)
+
 </vision>
 
 <essential>
 ## What Must Be Nailed
 
-Due aspetti ugualmente critici:
+Tre aspetti ugualmente critici:
 
 1. **Prezzi corretti per variante** - Il matching deve essere perfetto al 100%. Ogni confezionamento (5 colli, 1 collo) deve avere il suo prezzo specifico se diverso. Nessun errore di abbinamento articolo-prezzo-variante.
 
 2. **Excel IVA upload admin** - L'admin deve poter caricare facilmente il file `Listino_2026_vendita.xlsx` (formato standard Komet) per popolare le percentuali IVA che Archibald non fornisce. Il formato Excel è quello in root del progetto.
 
-Se questi due punti non funzionano perfettamente, l'intera funzionalità prezzi è inutilizzabile per gli agenti.
+3. **Storico e notifiche variazioni** - Dopo ogni sync, l'agente deve vedere immediatamente quali prezzi sono cambiati (badge rosso/verde), avere accesso a dashboard variazioni ultimi 30 giorni, e poter consultare storico completo per ogni articolo.
+
+Se questi tre punti non funzionano perfettamente, l'intera funzionalità prezzi è inutilizzabile per gli agenti.
 
 </essential>
 
@@ -43,8 +50,8 @@ Esplicitamente NON in questa fase:
 
 - **Sync automatico schedulato** - Disabilitato, solo manuale. L'orchestratore schedulato sarà Phase 22
 - **Gestione listini multipli** - Un solo listino prezzi globale, no listini personalizzati per cliente
-- **Storico modifiche prezzi** - Per ora tracciamo solo storico nella `price_changes` table (già esistente da v1.0), non cronologia completa
-- **Notifiche variazioni prezzo** - Nessun alert quando i prezzi cambiano dopo sync
+- **Alert email variazioni** - No email automatiche all'admin dopo sync, solo UI feedback
+- **Alert per variazioni critiche** - No notifiche speciali per variazioni > soglia (es: ±10%), tutte le variazioni sono trattate ugualmente
 
 </boundaries>
 
@@ -57,6 +64,11 @@ Esplicitamente NON in questa fase:
   - `importo_unitario` (dal PDF Archibald) → `price` nel prodotto
   - `item_selection` (dal PDF Archibald) → identifica confezionamento variante
   - `iva` (dall'Excel Komet) → `vat` nel prodotto
+- **Storico prezzi**: Estendere `price_changes` table (già esistente) o nuova `price_history` table con:
+  - `productId`, `variantId`
+  - `oldPrice`, `newPrice`, `percentageChange`
+  - `syncDate`, `source` (PDF/Excel)
+  - Retention: ultimi 30 giorni per dashboard, storico completo per query per articolo
 
 ### Excel IVA Format
 - File di riferimento: `Listino_2026_vendita.xlsx` nella root del progetto
@@ -81,6 +93,19 @@ Riutilizzare TUTTE le best practices consolidate:
 - **Sync button**: Sotto il bottone sync prodotti in ArticoliList
 - **Label chiaro**: "🔄 Sincronizza Prezzi" (distinto da "🔄 Sincronizza Articoli")
 - **Progress feedback**: Come Phase 18-03 e 19-03 (ManualSyncBanner pattern)
+- **Badge variazioni post-sync**: Toast/banner dopo sync completo:
+  - "15 articoli aumentati 🔴 / 8 articoli diminuiti 🟢"
+  - Link cliccabile → dashboard variazioni
+  - Auto-dismiss dopo 10s (più lungo dei toast standard per importanza)
+- **Dashboard variazioni prezzi**: Nuova pagina `/prezzi-variazioni`
+  - Tabella articoli cambiati ultimi 30 giorni
+  - Ordinamento per % variazione (default: maggiori aumenti in alto)
+  - Filtri: solo aumenti, solo diminuzioni, per gruppo articolo
+  - Click articolo → modal con storico completo quel prodotto
+- **Storico articolo modal**: Timeline cronologica prezzi
+  - Asse temporale con punti variazione
+  - Tooltip: data, prezzo vecchio, nuovo, variazione %
+  - Export CSV storico (opzionale)
 
 </specifics>
 
