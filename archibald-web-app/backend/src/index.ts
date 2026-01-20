@@ -58,6 +58,7 @@ import { PriorityManager } from "./priority-manager";
 import { OrderStateSyncService } from "./order-state-sync-service";
 import { pdfParserService } from "./pdf-parser-service";
 import { PDFParserProductsService } from "./pdf-parser-products-service";
+import { PDFParserPricesService } from "./pdf-parser-prices-service";
 
 const app = express();
 const server = createServer(app);
@@ -289,6 +290,35 @@ app.get("/api/health/pdf-parser-products", async (req, res) => {
     res.status(500).json({
       healthy: false,
       error: error instanceof Error ? error.message : String(error),
+    });
+  }
+});
+
+// Prices PDF Parser health check (3-page cycles)
+app.get("/api/health/pdf-parser-prices", async (req, res) => {
+  try {
+    const service = PDFParserPricesService.getInstance();
+    const health = await service.healthCheck();
+
+    if (health.healthy) {
+      res.status(200).json({
+        status: 'ok',
+        message: 'Prices PDF parser ready (Python3 + PyPDF2 available, 3-page cycles)',
+        ...health
+      });
+    } else {
+      res.status(503).json({
+        status: 'unavailable',
+        message: 'Prices PDF parser not ready. Check logs for details.',
+        ...health
+      }); // Service Unavailable
+    }
+  } catch (error) {
+    logger.error("[Health] Prices PDF parser check failed", { error });
+    res.status(500).json({
+      status: 'error',
+      healthy: false,
+      error: error instanceof Error ? error.message : String(error)
     });
   }
 });
