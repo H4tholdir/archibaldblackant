@@ -12,12 +12,21 @@ import * as fs from "fs/promises";
 import * as path from "path";
 
 export interface PriceSyncProgress {
-  status: "idle" | "downloading" | "parsing" | "saving" | "completed" | "error";
+  status:
+    | "idle"
+    | "downloading"
+    | "parsing"
+    | "saving"
+    | "matching"
+    | "completed"
+    | "error";
   message: string;
   pricesProcessed: number;
   pricesInserted: number;
   pricesUpdated: number;
   pricesSkipped: number;
+  matchedProducts?: number;
+  unmatchedPrices?: number;
   error?: string;
 }
 
@@ -144,7 +153,24 @@ export class PriceSyncService extends EventEmitter {
 
       const saveResults = await this.savePrices(parsedPrices);
 
-      // Step 4: Cleanup PDF
+      // Step 4: Auto-match prices to products
+      this.progress = {
+        ...this.progress,
+        status: "matching",
+        message: "Matching prezzi a prodotti...",
+      };
+      this.emit("progress", this.progress);
+
+      const { PriceMatchingService } = await import("./price-matching-service");
+      const matchingService = PriceMatchingService.getInstance();
+      const matchingResults = await matchingService.matchPricesToProducts();
+
+      logger.info("[PriceSyncService] Price matching completed", {
+        matchedProducts: matchingResults.result.matchedProducts,
+        unmatchedPrices: matchingResults.result.unmatchedPrices,
+      });
+
+      // Step 5: Cleanup PDF
       await fs.unlink(pdfPath).catch((err) => {
         logger.warn(`[PriceSyncService] Failed to delete PDF ${pdfPath}:`, err);
       });
@@ -156,12 +182,15 @@ export class PriceSyncService extends EventEmitter {
         status: "completed",
         message: `✓ Sync completato in ${duration}s`,
         ...saveResults,
+        matchedProducts: matchingResults.result.matchedProducts,
+        unmatchedPrices: matchingResults.result.unmatchedPrices,
       };
       this.emit("progress", this.progress);
 
       logger.info("[PriceSyncService] Sync completed", {
         duration,
         ...saveResults,
+        matching: matchingResults.result,
       });
     } catch (error) {
       const duration = Math.floor((Date.now() - startTime) / 1000);

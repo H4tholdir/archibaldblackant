@@ -31,7 +31,6 @@ export function AdminPage({ onLogout, userName }: AdminPageProps) {
   const [currentPage, setCurrentPage] = useState(1);
   const [retryingJobId, setRetryingJobId] = useState<string | null>(null);
   const [uploadingExcel, setUploadingExcel] = useState(false);
-  const [matchingPrices, setMatchingPrices] = useState(false);
   const [uploadResult, setUploadResult] = useState<any>(null);
   const jobsPerPage = 20;
 
@@ -106,7 +105,7 @@ export function AdminPage({ onLogout, userName }: AdminPageProps) {
     setUploadResult(null);
 
     try {
-      // Step 1: Upload Excel file with IVA data
+      // Upload Excel file with IVA data only
       const formData = new FormData();
       formData.append("file", file);
       formData.append("overwritePrices", "false"); // IVA only, don't overwrite prices
@@ -127,41 +126,16 @@ export function AdminPage({ onLogout, userName }: AdminPageProps) {
         return;
       }
 
-      // Step 2: Trigger price matching automatically
-      setMatchingPrices(true);
-      const matchResponse = await fetch("/api/prices/match", {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${jwt}`,
-          "Content-Type": "application/json",
-        },
+      setUploadResult({
+        upload: uploadData.data,
       });
 
-      const matchData = await matchResponse.json();
-      setMatchingPrices(false);
-
-      if (matchData.success) {
-        setUploadResult({
-          upload: uploadData.data,
-          matching: matchData.result,
-        });
-
-        alert(
-          `✅ IVA caricata e prezzi matchati!\n\n` +
-            `📊 IVA aggiornate: ${uploadData.data.vatUpdatedCount}\n` +
-            `🔗 Prodotti matchati: ${matchData.result.matchedProducts}\n` +
-            `❌ Non matchati: ${matchData.result.unmatchedPrices}`,
-        );
-      } else {
-        alert(
-          `⚠️ IVA caricata ma matching fallito: ${matchData.error}\n\n` +
-            `IVA aggiornate: ${uploadData.data.vatUpdatedCount}`,
-        );
-        setUploadResult({
-          upload: uploadData.data,
-          matchingError: matchData.error,
-        });
-      }
+      alert(
+        `✅ IVA caricata con successo!\n\n` +
+          `📊 Totale righe: ${uploadData.data.totalRows}\n` +
+          `✓ Prodotti matchati: ${uploadData.data.matchedRows}\n` +
+          `🏷️  IVA aggiornate: ${uploadData.data.vatUpdatedCount}`,
+      );
     } catch (error) {
       console.error("Excel IVA upload error:", error);
       alert(
@@ -169,7 +143,6 @@ export function AdminPage({ onLogout, userName }: AdminPageProps) {
       );
     } finally {
       setUploadingExcel(false);
-      setMatchingPrices(false);
       // Reset file input
       event.target.value = "";
     }
@@ -259,11 +232,11 @@ export function AdminPage({ onLogout, userName }: AdminPageProps) {
         </section>
 
         <section className="admin-section">
-          <h2>📊 Carica Listino Excel (IVA + Price Matching)</h2>
+          <h2>📊 Carica Listino Excel (Solo IVA)</h2>
           <p className="admin-description">
-            Carica un file Excel con dati IVA (Listino_2026_vendita.xlsx). Dopo
-            il caricamento, il sistema matcherà automaticamente i prezzi da
-            prices.db a products.db.
+            Carica un file Excel con dati IVA (Listino_2026_vendita.xlsx). Il
+            file aggiorna solo i valori IVA dei prodotti. I prezzi vengono
+            matchati automaticamente durante la sync prezzi.
           </p>
 
           <div
@@ -290,16 +263,13 @@ export function AdminPage({ onLogout, userName }: AdminPageProps) {
                 type="file"
                 accept=".xlsx,.xls"
                 onChange={handleExcelIvaUpload}
-                disabled={uploadingExcel || matchingPrices}
+                disabled={uploadingExcel}
                 style={{
                   padding: "8px",
                   border: "1px solid #ddd",
                   borderRadius: "4px",
                   backgroundColor: "#fff",
-                  cursor:
-                    uploadingExcel || matchingPrices
-                      ? "not-allowed"
-                      : "pointer",
+                  cursor: uploadingExcel ? "not-allowed" : "pointer",
                 }}
               />
             </div>
@@ -317,77 +287,38 @@ export function AdminPage({ onLogout, userName }: AdminPageProps) {
               </div>
             )}
 
-            {matchingPrices && (
-              <div
-                style={{
-                  padding: "12px",
-                  backgroundColor: "#fff3e0",
-                  borderRadius: "4px",
-                  marginTop: "12px",
-                }}
-              >
-                🔄 Matching prezzi da prices.db in corso...
-              </div>
-            )}
-
             {uploadResult && (
               <div
                 style={{
                   marginTop: "16px",
                   padding: "16px",
-                  backgroundColor: uploadResult.matchingError
-                    ? "#fff3cd"
-                    : "#d4edda",
-                  border: `1px solid ${uploadResult.matchingError ? "#ffc107" : "#28a745"}`,
+                  backgroundColor: "#d4edda",
+                  border: "1px solid #28a745",
                   borderRadius: "4px",
                 }}
               >
                 <h3
                   style={{
                     margin: "0 0 12px 0",
-                    color: uploadResult.matchingError ? "#856404" : "#155724",
+                    color: "#155724",
                   }}
                 >
-                  {uploadResult.matchingError
-                    ? "⚠️ Upload completato con warning"
-                    : "✅ Upload e matching completati"}
+                  ✅ Upload completato
                 </h3>
 
                 <div style={{ display: "grid", gap: "8px", fontSize: "14px" }}>
                   <div>
+                    <strong>Totale righe:</strong>{" "}
+                    {uploadResult.upload?.totalRows || 0}
+                  </div>
+                  <div>
+                    <strong>Prodotti matchati:</strong>{" "}
+                    {uploadResult.upload?.matchedRows || 0}
+                  </div>
+                  <div>
                     <strong>IVA aggiornate:</strong>{" "}
                     {uploadResult.upload?.vatUpdatedCount || 0}
                   </div>
-                  {uploadResult.matching && (
-                    <>
-                      <div>
-                        <strong>Prezzi totali (prices.db):</strong>{" "}
-                        {uploadResult.matching.totalPrices}
-                      </div>
-                      <div>
-                        <strong>Prodotti matchati:</strong>{" "}
-                        {uploadResult.matching.matchedProducts}
-                      </div>
-                      <div>
-                        <strong>Non matchati:</strong>{" "}
-                        {uploadResult.matching.unmatchedPrices}
-                      </div>
-                      <div>
-                        <strong>Null prices:</strong>{" "}
-                        {uploadResult.matching.nullPrices}
-                      </div>
-                      <div>
-                        <strong>Variant mismatches:</strong>{" "}
-                        {uploadResult.matching.variantMismatches}
-                      </div>
-                    </>
-                  )}
-                  {uploadResult.matchingError && (
-                    <div style={{ color: "#856404", marginTop: "8px" }}>
-                      <strong>Errore matching:</strong>{" "}
-                      {uploadResult.matchingError}
-                    </div>
-                  )}
                 </div>
               </div>
             )}
@@ -406,12 +337,15 @@ export function AdminPage({ onLogout, userName }: AdminPageProps) {
                 <li>
                   Il file deve avere la struttura standard del listino Excel
                 </li>
-                <li>L'upload carica i dati IVA nel database</li>
+                <li>L'upload carica solo i dati IVA nel database</li>
                 <li>
-                  Dopo l'upload, i prezzi da prices.db vengono matchati
-                  automaticamente
+                  I prezzi vengono matchati automaticamente durante la sync
+                  prezzi (barra arancione sopra)
                 </li>
-                <li>I risultati mostrano statistiche complete del matching</li>
+                <li>
+                  Workflow: 1) Carica IVA da Excel → 2) Avvia sync prezzi → 3)
+                  Matching automatico
+                </li>
               </ul>
             </div>
           </div>
