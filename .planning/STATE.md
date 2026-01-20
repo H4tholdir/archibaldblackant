@@ -10,18 +10,18 @@ See: .planning/PROJECT.md (updated 2026-01-11)
 ## Current Position
 
 Phase: 21 of 28 (Orders Sync Analysis & Optimization)
-Plan: 3 of 5 in current phase
+Plan: 4 of 5 in current phase
 Status: In progress
-Last activity: 2026-01-20 — Completed 21-03-PLAN.md (Invoices PDF Parser & Separate Database with Order Matching)
+Last activity: 2026-01-20 — Completed 21-04-PLAN.md (PDF Download Bot Flows for Orders, DDT & Invoices)
 
-Progress: █████░░░░░ 42% (v2.0: 9/15 phases complete, 34/68 plans)
+Progress: █████░░░░░ 42% (v2.0: 9/15 phases complete, 35/68 plans)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 104
+- Total plans completed: 105
 - Average duration: 47 min
-- Total execution time: 88.95 hours
+- Total execution time: 90.45 hours
 
 **By Phase:**
 
@@ -47,10 +47,10 @@ Progress: █████░░░░░ 42% (v2.0: 9/15 phases complete, 34/68 
 | 19 | 5 | 194 min | 39 min |
 | 19.1 | 3 | 25 min | 8 min |
 | 20 | 6 | 330 min | 55 min |
-| 21 | 3 | 143 min | 48 min |
+| 21 | 4 | 233 min | 58 min |
 
 **Recent Trend:**
-- Last 10 plans: 19.1-03 (15m), 20-01 (45m), 20-02 (105m), 20-03 (30m), 20-04 (30m), 20-05 (60m), 20-06 (60m), 21-01 (90m), 21-02 (8m), 21-03 (45m)
+- Last 10 plans: 20-01 (45m), 20-02 (105m), 20-03 (30m), 20-04 (30m), 20-05 (60m), 20-06 (60m), 21-01 (90m), 21-02 (8m), 21-03 (45m), 21-04 (90m)
 - Phase 9 extremely fast (avg 11m) - leveraging existing Phase 8-07 infrastructure
 - Phase 10 high avg (105m) - includes 521m for Plan 10-07 (heavy login debugging)
 - Phase 14 complete (5 plans avg 9m) - 4 discovery plans + 1 execution plan, all IndexedDB errors fixed ✅ COMPLETE
@@ -67,6 +67,9 @@ Recent decisions affecting current work:
 
 | Phase | Decision | Rationale |
 |-------|----------|-----------|
+| 21-04 | Reuse export button selector across all 3 PDFs | All pages use same selector (#Vertical_mainMenu_Menu_DXI3_T), Archibald UI consistency simplifies implementation |
+| 21-04 | Dual language filename detection | Handle both IT ("Ordini cliente.pdf") and EN ("Customer orders.pdf") for robustness across Archibald versions |
+| 21-04 | Event-driven sync services | EventEmitter pattern enables progress tracking, UI integration, and future observability features |
 | 21-03 | Separate invoices.db database with two tables | Clean schema: invoices + invoice_order_matches, simplifies queries, allows many-to-many relationships |
 | 21-03 | Auto-matching via customerAccount + date proximity | Primary key: customerAccount match, scoring: 1.0 (same day) → 0.0 (30 days), 30-day window for order associations |
 | 21-03 | Many-to-many invoice-order mapping | Real-world: 1 invoice → N orders (cumulative billing), 1 order → N invoices (partial shipments), manual override capability |
@@ -600,8 +603,8 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-01-20 (evening)
-Stopped at: Completed 21-03-PLAN.md (Invoices PDF Parser & Separate Database with Order Matching)
-Next: Plan 21-04 (PDF Download Bot Flows)
+Stopped at: Completed 21-04-PLAN.md (PDF Download Bot Flows for Orders, DDT & Invoices)
+Next: Plan 21-05 (Manual Sync UI & Order History Enhancements)
 Resume file: None
 
 ### Session 95 (2026-01-20)

@@ -194,13 +194,13 @@ Plans:
 **Goal**: Migrazione completa da HTML scraping a PDF-based sync: parser multi-cycle (orders 7-page, DDT 6-page, invoices 7-page), 3 database separati (orders/ddt/invoices), tracking URLs, order matching, manual sync UI
 **Depends on**: Phase 20
 **Research**: Completed (Discovery: 3 PDFs analizzati, cycle patterns identificati, matching strategies definite)
-**Plans**: 3/5 complete — In progress
+**Plans**: 4/5 complete — In progress
 
 Plans:
 - [x] 21-01: Orders PDF Parser & Separate Database (90min) — 7-page cycle, 20 campi, orders.db, delta detection ✅
 - [x] 21-02: DDT PDF Parser & Separate Database with Tracking (8min) — 6-page cycle, tracking URLs, ddt.db, courier normalization ✅
 - [x] 21-03: Invoices PDF Parser & Database with Order Matching (45min) — 7-page cycle, invoices.db, many-to-many matching ✅
-- [ ] 21-04: PDF Download Bot Flows (90min) — 3 download methods, sync services integration, Italian locale forcing
+- [x] 21-04: PDF Download Bot Flows (90min) — 3 download methods, sync services integration, Italian locale forcing ✅
 - [ ] 21-05: Manual Sync UI & Order History Enhancements (120min) — Sync buttons, filter updates (Spediti/Consegnati/Fatturati), toggle essenziali, invoice download
 
 #### Phase 22: Sync Orchestration Layer
