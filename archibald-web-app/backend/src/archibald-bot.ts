@@ -6926,7 +6926,7 @@ export class ArchibaldBot {
       logger.info("[ArchibaldBot] Searching for PDF export button...");
 
       // Wait for the menu container to be present
-      await page.waitForSelector("#Vertical_mainMenu_Menu_DXI7_", {
+      await page.waitForSelector("#Vertical_mainMenu_Menu_DXI3_", {
         timeout: 10000,
       });
 
@@ -6935,8 +6935,8 @@ export class ArchibaldBot {
 
       // Check if button is already visible or needs hover
       const isVisible = await page.evaluate(() => {
-        const li = document.querySelector("#Vertical_mainMenu_Menu_DXI7_");
-        const a = document.querySelector("#Vertical_mainMenu_Menu_DXI7_T");
+        const li = document.querySelector("#Vertical_mainMenu_Menu_DXI3_");
+        const a = document.querySelector("#Vertical_mainMenu_Menu_DXI3_T");
 
         if (!li || !a) return false;
 
@@ -7021,7 +7021,7 @@ export class ArchibaldBot {
 
       const clickResult = await page.evaluate(() => {
         const button = document.querySelector(
-          "#Vertical_mainMenu_Menu_DXI7_T",
+          "#Vertical_mainMenu_Menu_DXI3_T",
         ) as HTMLElement;
 
         if (!button) {
@@ -7113,7 +7113,7 @@ export class ArchibaldBot {
       logger.info("[ArchibaldBot] Searching for PDF export button...");
 
       // Wait for the menu container to be present
-      await page.waitForSelector("#Vertical_mainMenu_Menu_DXI7_", {
+      await page.waitForSelector("#Vertical_mainMenu_Menu_DXI3_", {
         timeout: 10000,
       });
 
@@ -7122,8 +7122,8 @@ export class ArchibaldBot {
 
       // Check if button is already visible or needs hover
       const isVisible = await page.evaluate(() => {
-        const li = document.querySelector("#Vertical_mainMenu_Menu_DXI7_");
-        const a = document.querySelector("#Vertical_mainMenu_Menu_DXI7_T");
+        const li = document.querySelector("#Vertical_mainMenu_Menu_DXI3_");
+        const a = document.querySelector("#Vertical_mainMenu_Menu_DXI3_T");
 
         if (!li || !a) return false;
 
@@ -7210,7 +7210,7 @@ export class ArchibaldBot {
 
       const clickResult = await page.evaluate(() => {
         const button = document.querySelector(
-          "#Vertical_mainMenu_Menu_DXI7_T",
+          "#Vertical_mainMenu_Menu_DXI3_T",
         ) as HTMLElement;
 
         if (!button) {
