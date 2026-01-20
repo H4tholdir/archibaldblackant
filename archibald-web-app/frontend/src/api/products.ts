@@ -57,11 +57,6 @@ export interface Product {
   stopped?: string; // FERMATO
   productId?: string;
 
-  // ========== IMAGE ==========
-  imageUrl?: string;
-  imageLocalPath?: string;
-  imageDownloadedAt?: number;
-
   // ========== SYSTEM ==========
   hash?: string;
   lastSync?: number;

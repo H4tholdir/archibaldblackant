@@ -51,11 +51,6 @@ export function ProductCard({
     }
   };
 
-  // Get product image URL or placeholder
-  const imageUrl = product.imageLocalPath
-    ? `/api/${product.imageLocalPath}`
-    : "https://via.placeholder.com/150?text=No+Image";
-
   // Price badge logic
   const getPriceBadge = () => {
     if (product.price === null || product.price === undefined) {
@@ -110,32 +105,6 @@ export function ProductCard({
             gap: "16px",
           }}
         >
-          {/* Product Image */}
-          <div
-            style={{
-              width: "80px",
-              height: "80px",
-              flexShrink: 0,
-              borderRadius: "8px",
-              overflow: "hidden",
-              backgroundColor: "#f5f5f5",
-            }}
-          >
-            <img
-              src={imageUrl}
-              alt={product.name}
-              style={{
-                width: "100%",
-                height: "100%",
-                objectFit: "cover",
-              }}
-              onError={(e) => {
-                e.currentTarget.src =
-                  "https://via.placeholder.com/150?text=No+Image";
-              }}
-            />
-          </div>
-
           {/* Product info */}
           <div style={{ flex: 1 }}>
             <div
@@ -693,54 +662,6 @@ export function ProductCard({
                   </div>
                 )}
               </div>
-            </div>
-          )}
-
-          {/* SECTION 6: Immagine */}
-          {product.imageLocalPath && (
-            <div style={{ marginTop: "20px" }}>
-              <h3
-                style={{
-                  fontSize: "16px",
-                  fontWeight: 700,
-                  color: "#333",
-                  marginBottom: "12px",
-                }}
-              >
-                🖼️ Immagine Prodotto
-              </h3>
-              <div
-                style={{
-                  maxWidth: "400px",
-                  borderRadius: "8px",
-                  overflow: "hidden",
-                  backgroundColor: "#f5f5f5",
-                }}
-              >
-                <img
-                  src={imageUrl}
-                  alt={product.name}
-                  style={{
-                    width: "100%",
-                    height: "auto",
-                  }}
-                  onError={(e) => {
-                    e.currentTarget.src =
-                      "https://via.placeholder.com/400?text=Immagine+Non+Disponibile";
-                  }}
-                />
-              </div>
-              {product.imageDownloadedAt && (
-                <div
-                  style={{
-                    marginTop: "8px",
-                    fontSize: "13px",
-                    color: "#999",
-                  }}
-                >
-                  Scaricata il: {formatDate(product.imageDownloadedAt)}
-                </div>
-              )}
             </div>
           )}
         </div>
