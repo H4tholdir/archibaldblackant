@@ -68,6 +68,7 @@ import { PDFParserInvoicesService } from "./pdf-parser-invoices-service";
 import { OrderSyncService } from "./order-sync-service";
 import { DDTSyncService } from "./ddt-sync-service";
 import { InvoiceSyncService } from "./invoice-sync-service";
+import { InvoicesDatabase } from "./invoices-db";
 
 const app = express();
 const server = createServer(app);
@@ -2918,9 +2919,45 @@ app.get(
 
         if (status) {
           const statusLower = status.toLowerCase();
-          filteredOrders = filteredOrders.filter(
-            (order) => order.status.toLowerCase() === statusLower,
-          );
+
+          if (statusLower === "spediti") {
+            // Filter orders that have tracking number (DDT shipped)
+            filteredOrders = filteredOrders.filter(
+              (order) =>
+                order.trackingNumber != null &&
+                order.trackingNumber.trim() !== "",
+            );
+          } else if (statusLower === "consegnati") {
+            // Filter orders that are completed or have status "Consegnato"
+            filteredOrders = filteredOrders.filter(
+              (order) =>
+                order.completionDate != null ||
+                order.status.toLowerCase().includes("consegnato"),
+            );
+          } else if (statusLower === "fatturati") {
+            // Filter orders that have invoice mapping
+            // We need to check order_invoice_mapping table
+            const invoicesDb = InvoicesDatabase.getInstance();
+            const invoicedOrderNumbers = new Set<string>();
+
+            // Get all order-invoice mappings
+            const mappings = invoicesDb.getAllMappings();
+            mappings.forEach((mapping) => {
+              invoicedOrderNumbers.add(mapping.orderNumber);
+            });
+
+            filteredOrders = filteredOrders.filter((order) => {
+              // Check if order has orderNumber and it exists in mappings
+              return (
+                order.orderNumber && invoicedOrderNumbers.has(order.orderNumber)
+              );
+            });
+          } else {
+            // Original status filter for backward compatibility
+            filteredOrders = filteredOrders.filter(
+              (order) => order.status.toLowerCase() === statusLower,
+            );
+          }
         }
 
         // Apply pagination to filtered results

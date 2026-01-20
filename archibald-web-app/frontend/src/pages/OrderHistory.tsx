@@ -561,49 +561,51 @@ export function OrderHistory() {
               marginBottom: "8px",
             }}
           >
-            Stato
+            Filtro
           </label>
           <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
-            {["Tutti", "In lavorazione", "Evaso", "Spedito"].map((status) => {
-              const isActive =
-                status === "Tutti"
-                  ? !filters.status
-                  : filters.status === status;
-              return (
-                <button
-                  key={status}
-                  onClick={() =>
-                    setFilters((prev) => ({
-                      ...prev,
-                      status: status === "Tutti" ? "" : status,
-                    }))
-                  }
-                  style={{
-                    padding: "8px 16px",
-                    fontSize: "14px",
-                    fontWeight: 600,
-                    border: isActive ? "2px solid #1976d2" : "1px solid #ddd",
-                    borderRadius: "20px",
-                    backgroundColor: isActive ? "#e3f2fd" : "#fff",
-                    color: isActive ? "#1976d2" : "#666",
-                    cursor: "pointer",
-                    transition: "all 0.2s",
-                  }}
-                  onMouseEnter={(e) => {
-                    if (!isActive) {
-                      e.currentTarget.style.backgroundColor = "#f5f5f5";
+            {["Tutti", "Spediti", "Consegnati", "Fatturati"].map(
+              (filterType) => {
+                const isActive =
+                  filterType === "Tutti"
+                    ? !filters.status
+                    : filters.status === filterType;
+                return (
+                  <button
+                    key={filterType}
+                    onClick={() =>
+                      setFilters((prev) => ({
+                        ...prev,
+                        status: filterType === "Tutti" ? "" : filterType,
+                      }))
                     }
-                  }}
-                  onMouseLeave={(e) => {
-                    if (!isActive) {
-                      e.currentTarget.style.backgroundColor = "#fff";
-                    }
-                  }}
-                >
-                  {status}
-                </button>
-              );
-            })}
+                    style={{
+                      padding: "8px 16px",
+                      fontSize: "14px",
+                      fontWeight: 600,
+                      border: isActive ? "2px solid #1976d2" : "1px solid #ddd",
+                      borderRadius: "20px",
+                      backgroundColor: isActive ? "#e3f2fd" : "#fff",
+                      color: isActive ? "#1976d2" : "#666",
+                      cursor: "pointer",
+                      transition: "all 0.2s",
+                    }}
+                    onMouseEnter={(e) => {
+                      if (!isActive) {
+                        e.currentTarget.style.backgroundColor = "#f5f5f5";
+                      }
+                    }}
+                    onMouseLeave={(e) => {
+                      if (!isActive) {
+                        e.currentTarget.style.backgroundColor = "#fff";
+                      }
+                    }}
+                  >
+                    {filterType}
+                  </button>
+                );
+              },
+            )}
           </div>
         </div>
 

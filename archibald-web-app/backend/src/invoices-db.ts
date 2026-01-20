@@ -375,6 +375,34 @@ export class InvoicesDatabase {
     };
   }
 
+  getAllMappings(): OrderInvoiceMapping[] {
+    const rows = this.db
+      .prepare(
+        `SELECT
+          order_number,
+          invoice_number,
+          match_type,
+          match_score,
+          created_at
+        FROM order_invoice_mapping`,
+      )
+      .all() as Array<{
+      order_number: string;
+      invoice_number: string;
+      match_type: "auto" | "manual";
+      match_score: number;
+      created_at: string;
+    }>;
+
+    return rows.map((row) => ({
+      orderNumber: row.order_number,
+      invoiceNumber: row.invoice_number,
+      matchType: row.match_type,
+      matchScore: row.match_score,
+      createdAt: row.created_at,
+    }));
+  }
+
   close(): void {
     this.db.close();
     logger.info("InvoicesDatabase closed");
