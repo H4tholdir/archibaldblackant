@@ -347,7 +347,7 @@ function TabPanoramica({ order }: { order: Order }) {
             gap: "12px",
           }}
         >
-          <InfoField label="Numero Ordine" value={order.orderNumber} copyable />
+          <InfoField label="Numero Ordine" value={order.orderNumber} bold />
           <InfoField label="ID Interno" value={order.id} small />
           <InfoField
             label="Data Ordine"
@@ -601,7 +601,7 @@ function TabLogistica({ order, token }: { order: Order; token?: string }) {
               gap: "12px",
             }}
           >
-            <InfoField label="Numero DDT" value={ddt.ddtNumber} bold copyable />
+            <InfoField label="Numero DDT" value={ddt.ddtNumber} bold />
             <InfoField label="ID DDT" value={ddt.ddtId} small />
             <InfoField
               label="Data Consegna DDT"
@@ -1240,6 +1240,18 @@ export function OrderCardNew({
     "panoramica" | "articoli" | "logistica" | "finanziario" | "storico"
   >("panoramica");
 
+  // Essenziali toggle state (persisted in localStorage)
+  const [showEssentialsOnly, setShowEssentialsOnly] = useState(() => {
+    const saved = localStorage.getItem("orderCard_showEssentialsOnly");
+    return saved === "true";
+  });
+
+  const handleToggleEssentials = () => {
+    const newValue = !showEssentialsOnly;
+    setShowEssentialsOnly(newValue);
+    localStorage.setItem("orderCard_showEssentialsOnly", String(newValue));
+  };
+
   // Detect draft orders (created locally but not yet placed on Archibald)
   const isCreato =
     order.state?.toLowerCase() === "creato" ||
@@ -1343,6 +1355,31 @@ export function OrderCardNew({
               {formatDate(order.orderDate || order.date)}
             </div>
 
+            {/* Essenziali Toggle */}
+            <div style={{ marginBottom: "8px" }}>
+              <label
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: "8px",
+                  cursor: "pointer",
+                  fontSize: "12px",
+                  color: "#666",
+                }}
+              >
+                <input
+                  type="checkbox"
+                  checked={showEssentialsOnly}
+                  onChange={handleToggleEssentials}
+                  onClick={(e) => e.stopPropagation()}
+                  style={{
+                    cursor: "pointer",
+                  }}
+                />
+                Mostra solo essenziali
+              </label>
+            </div>
+
             {/* Badges */}
             <div
               style={{
@@ -1393,11 +1430,6 @@ export function OrderCardNew({
                 state={order.state}
                 lastUpdatedAt={order.lastUpdatedAt}
               />
-              <OrderTypeBadge orderType={order.orderType} />
-              <DocumentStateBadge documentState={order.documentState} />
-              <TransferBadge
-                transferred={order.transferredToAccountingOffice}
-              />
               <TrackingBadge
                 trackingNumber={
                   order.tracking?.trackingNumber || order.ddt?.trackingNumber
@@ -1409,12 +1441,23 @@ export function OrderCardNew({
                   order.tracking?.trackingCourier || order.ddt?.trackingCourier
                 }
               />
-              <OriginBadge salesOrigin={order.salesOrigin} />
-              <DeliveryMethodBadge deliveryMethod={order.ddt?.deliveryMethod} />
-              <LocationBadge
-                deliveryCity={order.ddt?.deliveryCity}
-                shippingAddress={order.shippingAddress}
-              />
+              {!showEssentialsOnly && (
+                <>
+                  <OrderTypeBadge orderType={order.orderType} />
+                  <DocumentStateBadge documentState={order.documentState} />
+                  <TransferBadge
+                    transferred={order.transferredToAccountingOffice}
+                  />
+                  <OriginBadge salesOrigin={order.salesOrigin} />
+                  <DeliveryMethodBadge
+                    deliveryMethod={order.ddt?.deliveryMethod}
+                  />
+                  <LocationBadge
+                    deliveryCity={order.ddt?.deliveryCity}
+                    shippingAddress={order.shippingAddress}
+                  />
+                </>
+              )}
             </div>
           </div>
 
