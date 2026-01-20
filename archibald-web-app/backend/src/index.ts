@@ -31,6 +31,7 @@ import {
 import { operationTracker } from "./operation-tracker";
 import { ProductDatabase } from "./product-db";
 import { PriceDatabase } from "./price-db";
+import { PriceHistoryDatabase } from "./price-history-db";
 import {
   register as metricsRegister,
   httpRequestCounter,
@@ -2227,6 +2228,85 @@ app.post("/api/prices/match", authenticateJWT, async (req, res) => {
     });
   } catch (error) {
     logger.error("[API] Price matching failed", { error });
+    res.status(500).json({
+      success: false,
+      error: error instanceof Error ? error.message : String(error),
+    });
+  }
+});
+
+// ============================================================================
+// PRICE HISTORY ENDPOINTS (New System)
+// ============================================================================
+
+// Get price history for specific product
+app.get("/api/prices/history/:productId", authenticateJWT, async (req, res) => {
+  try {
+    const { productId } = req.params;
+    const historyDb = PriceHistoryDatabase.getInstance();
+
+    const history = historyDb.getProductHistory(productId);
+
+    res.json({
+      success: true,
+      productId,
+      historyCount: history.length,
+      history,
+    });
+  } catch (error) {
+    logger.error("[API] Get price history failed", { error });
+    res.status(500).json({
+      success: false,
+      error: error instanceof Error ? error.message : String(error),
+    });
+  }
+});
+
+// Get recent price changes (last N days)
+app.get(
+  "/api/prices/history/recent/:days?",
+  authenticateJWT,
+  async (req, res) => {
+    try {
+      const days = parseInt(req.params.days || "30");
+      const historyDb = PriceHistoryDatabase.getInstance();
+
+      const recentChanges = historyDb.getRecentChanges(days);
+      const stats = historyDb.getRecentStats(days);
+
+      res.json({
+        success: true,
+        daysBack: days,
+        stats,
+        changes: recentChanges,
+      });
+    } catch (error) {
+      logger.error("[API] Get recent price changes failed", { error });
+      res.status(500).json({
+        success: false,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+  },
+);
+
+// Get recent increases/decreases summary
+app.get("/api/prices/history/summary", authenticateJWT, async (req, res) => {
+  try {
+    const historyDb = PriceHistoryDatabase.getInstance();
+
+    const increases = historyDb.getRecentIncreases(30);
+    const decreases = historyDb.getRecentDecreases(30);
+    const stats = historyDb.getRecentStats(30);
+
+    res.json({
+      success: true,
+      stats,
+      topIncreases: increases.slice(0, 10),
+      topDecreases: decreases.slice(0, 10),
+    });
+  } catch (error) {
+    logger.error("[API] Get price history summary failed", { error });
     res.status(500).json({
       success: false,
       error: error instanceof Error ? error.message : String(error),
