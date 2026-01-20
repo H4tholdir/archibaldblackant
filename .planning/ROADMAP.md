@@ -33,7 +33,7 @@ None (full-stack web app con pattern standard)
 - [x] **Phase 18.1: PDF Export Discovery & Validation (INSERTED)** - Validare possibilità estrazione dati da PDF ✅ COMPLETE
 - [x] **Phase 18: Customers Sync Analysis & Optimization** - Migrazione da HTML a PDF sync ✅ COMPLETE
 - [x] **Phase 19: Products Sync Analysis & Optimization** - Analisi + background + manual + images ✅ COMPLETE
-- [ ] **Phase 19.1: Product Cards UI Enhancement (INSERTED)** - Visualizzazione 26+ campi + gestione varianti
+- [x] **Phase 19.1: Product Cards UI Enhancement (INSERTED)** - Visualizzazione 26+ campi + gestione varianti ✅ COMPLETE
 - [ ] **Phase 20: Prices Sync Analysis & Optimization** - Analisi + background + manual + Excel listino
 - [ ] **Phase 21: Orders Sync Analysis & Optimization** - Analisi + background + manual
 - [ ] **Phase 22: Sync Orchestration Layer** - Coordinator anti-overlap, staggered scheduling
@@ -173,7 +173,7 @@ Plans:
 Plans:
 - [x] 19.1-01: Backend Variant Grouping API (getProductVariants, grouped mode, frontend API client) — 5min
 - [x] 19.1-02: ProductCard Enhancement with All 26+ Fields (6 sections, price badges, variant badges) — 5min
-- [ ] 19.1-03: Variant Selector & ArticoliList Deduplication (VariantSelector, ProductDetailModal, grouped ArticoliList)
+- [x] 19.1-03: Variant Selector & ArticoliList Deduplication (VariantSelector, ProductDetailModal, grouped ArticoliList) — 16min
 
 #### Phase 20: Prices Sync Analysis & Optimization
 **Goal**: Analisi completa sync prezzi + background sync + sync manuale + Excel listino integration
