@@ -171,7 +171,7 @@ Plans:
 - Mobile-responsive layout
 
 Plans:
-- [ ] 19.1-01: Backend Variant Grouping API (getProductVariants, grouped mode, frontend API client)
+- [x] 19.1-01: Backend Variant Grouping API (getProductVariants, grouped mode, frontend API client) — 5min
 - [ ] 19.1-02: ProductCard Enhancement with All 26+ Fields (6 sections, price badges, variant badges)
 - [ ] 19.1-03: Variant Selector & ArticoliList Deduplication (VariantSelector, ProductDetailModal, grouped ArticoliList)
 
@@ -273,7 +273,7 @@ Plans:
 | 18.1. PDF Export Discovery & Validation (INSERTED) | v2.0 | 0 (discovery) | Complete | 2026-01-19 |
 | 18. Customers Sync Analysis & Optimization | v2.0 | 5/5 | Complete | 2026-01-20 |
 | 19. Products Sync Analysis & Optimization | v2.0 | 5/5 | Complete | 2026-01-20 |
-| 19.1. Product Cards UI Enhancement (INSERTED) | v2.0 | 0/3 | Planned | - |
+| 19.1. Product Cards UI Enhancement (INSERTED) | v2.0 | 1/3 | In progress | - |
 | 20. Prices Sync Analysis & Optimization | v2.0 | 0/? | Not started | - |
 | 21. Orders Sync Analysis & Optimization | v2.0 | 0/? | Not started | - |
 | 22. Sync Orchestration Layer | v2.0 | 0/? | Not started | - |
