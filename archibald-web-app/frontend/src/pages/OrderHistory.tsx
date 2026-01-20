@@ -202,31 +202,6 @@ export function OrderHistory() {
     window.location.href = `/order-form?orderId=${orderId}`;
   };
 
-  const handleForceSync = async () => {
-    const token = localStorage.getItem("archibald_jwt");
-    if (!token) {
-      setError("Non autenticato. Effettua il login.");
-      return;
-    }
-
-    // Open modal and start sync
-    setSyncType("sync");
-    setSyncModalOpen(true);
-    setError(null);
-
-    try {
-      await startSync("sync", token, async () => {
-        // Auto-refresh orders list when sync completes
-        console.log("Sync completed, refreshing orders list...");
-        await fetchOrders();
-      });
-    } catch (err) {
-      const errorMessage =
-        err instanceof Error ? err.message : "Errore nella sincronizzazione";
-      setError(errorMessage);
-    }
-  };
-
   const handleResetDB = async () => {
     // Confirmation dialog
     const confirmed = window.confirm(
