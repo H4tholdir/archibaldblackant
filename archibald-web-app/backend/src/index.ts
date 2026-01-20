@@ -63,6 +63,7 @@ import { pdfParserService } from "./pdf-parser-service";
 import { PDFParserProductsService } from "./pdf-parser-products-service";
 import { PDFParserPricesService } from "./pdf-parser-prices-service";
 import { PDFParserOrdersService } from "./pdf-parser-orders-service";
+import { PDFParserDDTService } from "./pdf-parser-ddt-service";
 
 const app = express();
 const server = createServer(app);
@@ -350,6 +351,28 @@ app.get("/api/health/pdf-parser-orders", (req, res) => {
     res.status(503).json({
       success: false,
       message: "Orders PDF parser not available",
+      ...health,
+    });
+  }
+});
+
+// DDT PDF Parser health check (6-page cycles)
+app.get("/api/health/pdf-parser-ddt", (req, res) => {
+  const parserService = PDFParserDDTService.getInstance();
+
+  const health = {
+    available: parserService.isAvailable(),
+    parser: "parse-ddt-pdf.py",
+    timeout: "180s",
+    maxBuffer: "20MB",
+  };
+
+  if (health.available) {
+    res.json({ success: true, ...health });
+  } else {
+    res.status(503).json({
+      success: false,
+      message: "DDT PDF parser not available",
       ...health,
     });
   }
