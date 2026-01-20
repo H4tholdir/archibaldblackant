@@ -10,18 +10,18 @@ See: .planning/PROJECT.md (updated 2026-01-11)
 ## Current Position
 
 Phase: 20 of 28 (Prices Sync Analysis & Optimization)
-Plan: 2 of 6 in current phase
+Plan: 4 of 6 in current phase
 Status: Complete
-Last activity: 2026-01-20 — Completed 20-02-PLAN.md (PDF Download Bot Flow & Separate Prices Database)
+Last activity: 2026-01-20 — Completed 20-04-PLAN.md (Price History Tracking System)
 
-Progress: █████░░░░░ 36% (v2.0: 8/15 phases complete, 24/68 plans)
+Progress: █████░░░░░ 37% (v2.0: 8/15 phases complete, 26/68 plans)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 99
+- Total plans completed: 101
 - Average duration: 47 min
-- Total execution time: 85.58 hours
+- Total execution time: 86.58 hours
 
 **By Phase:**
 
@@ -46,10 +46,10 @@ Progress: █████░░░░░ 36% (v2.0: 8/15 phases complete, 24/68 
 | 18 | 5 | 302 min | 60 min |
 | 19 | 5 | 194 min | 39 min |
 | 19.1 | 3 | 25 min | 8 min |
-| 20 | 2 | 150 min | 75 min |
+| 20 | 4 | 210 min | 53 min |
 
 **Recent Trend:**
-- Last 10 plans: 19-01 (45m), 19-02 (4m), 19-03 (40m), 19-04 (60m), 19-05 (45m), 19.1-01 (5m), 19.1-02 (5m), 19.1-03 (15m), 20-01 (45m), 20-02 (105m)
+- Last 10 plans: 19-03 (40m), 19-04 (60m), 19-05 (45m), 19.1-01 (5m), 19.1-02 (5m), 19.1-03 (15m), 20-01 (45m), 20-02 (105m), 20-03 (30m), 20-04 (30m)
 - Phase 9 extremely fast (avg 11m) - leveraging existing Phase 8-07 infrastructure
 - Phase 10 high avg (105m) - includes 521m for Plan 10-07 (heavy login debugging)
 - Phase 14 complete (5 plans avg 9m) - 4 discovery plans + 1 execution plan, all IndexedDB errors fixed ✅ COMPLETE
@@ -66,6 +66,10 @@ Recent decisions affecting current work:
 
 | Phase | Decision | Rationale |
 |-------|----------|-----------|
+| 20-04 | Price history in prices.db (not products.db) | Centralize all pricing data, keep products.db for product catalog only, cleaner separation of concerns |
+| 20-04 | Retention via query filters (not deletion) | 30-day dashboard uses WHERE syncDate >= cutoff, full history kept for per-article queries, storage cheap, history valuable |
+| 20-04 | Parse Italian prices before comparison | unitPrice in prices.db is string ("234,59 €"), Product.price is number, parseFloat after replacing €/spaces/comma ensures type safety |
+| 20-04 | Only log when price changes | Skip history record if oldPrice === newPrice, prevents duplicate entries for unchanged syncs |
 | 19-01 | Use pdfplumber instead of PyPDF2 for products | Archibald products PDF is table-based, pdfplumber superior table detection (extract_tables()), aligns with Phase 18 pattern, more reliable field extraction |
 | 19-01 | 20MB buffer for products parser (vs 10MB customers) | 3x more products (~4,540 vs ~1,515), larger JSON output, prevents truncation, child_process.spawn maxBuffer parameter |
 | 19-01 | Fields stored as TEXT in SQLite | Flexible for Italian numeric formats (commas, periods), future-proof for schema evolution, avoids parsing complexity |
