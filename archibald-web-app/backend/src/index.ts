@@ -39,6 +39,7 @@ import {
 } from "./metrics";
 import { ProductSyncService } from "./product-sync-service";
 import { PriceSyncService, type PriceSyncProgress } from "./price-sync-service";
+import { PriceMatchingService } from "./price-matching-service";
 import {
   uploadExcelVat,
   getProductPriceHistory,
@@ -2196,6 +2197,36 @@ app.get("/api/prices/sync/stats", authenticateJWT, async (req, res) => {
     });
   } catch (error) {
     logger.error("[API] Get prices sync stats failed", { error });
+    res.status(500).json({
+      success: false,
+      error: error instanceof Error ? error.message : String(error),
+    });
+  }
+});
+
+// Trigger price matching from prices.db to products.db
+app.post("/api/prices/match", authenticateJWT, async (req, res) => {
+  try {
+    logger.info("[API] Price matching triggered");
+
+    const matchingService = PriceMatchingService.getInstance();
+
+    // Optional: include Excel VAT map if provided
+    const excelVatMap = req.body.excelVatMap as Map<string, number> | undefined;
+
+    const { result, unmatchedPrices } =
+      await matchingService.matchPricesToProducts(excelVatMap);
+
+    logger.info("[API] Price matching completed", result);
+
+    res.json({
+      success: true,
+      result,
+      unmatchedPrices: unmatchedPrices.slice(0, 100), // Limit to first 100 for response size
+      totalUnmatched: unmatchedPrices.length,
+    });
+  } catch (error) {
+    logger.error("[API] Price matching failed", { error });
     res.status(500).json({
       success: false,
       error: error instanceof Error ? error.message : String(error),
