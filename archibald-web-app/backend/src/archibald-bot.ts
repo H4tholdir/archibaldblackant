@@ -6309,10 +6309,10 @@ export class ArchibaldBot {
         const timeout = setTimeout(() => {
           reject(
             new Error(
-              "PDF download timeout (120s exceeded). Archibald may be generating PDF.",
+              "PDF download timeout (300s exceeded). Archibald may be generating PDF.",
             ),
           );
-        }, 120000);
+        }, 300000);
 
         // Poll for file creation
         const checkFile = setInterval(() => {
@@ -6426,7 +6426,7 @@ export class ArchibaldBot {
       // Enhance error messages
       if (error.message?.includes("timeout")) {
         throw new Error(
-          "PDF download timeout (120s exceeded). Archibald may be generating PDF or button selector changed.",
+          "PDF download timeout (300s exceeded). Archibald may be generating PDF or button selector changed.",
         );
       }
 
@@ -6547,10 +6547,10 @@ export class ArchibaldBot {
         const timeout = setTimeout(() => {
           reject(
             new Error(
-              "PDF download timeout (120s exceeded). Archibald may be generating PDF.",
+              "PDF download timeout (300s exceeded). Archibald may be generating PDF.",
             ),
           );
-        }, 120000);
+        }, 300000);
 
         // Poll for file creation
         const checkFile = setInterval(() => {
@@ -6738,10 +6738,10 @@ export class ArchibaldBot {
         const timeout = setTimeout(() => {
           reject(
             new Error(
-              "PDF download timeout (120s exceeded). Archibald may be generating PDF.",
+              "PDF download timeout (300s exceeded). Archibald may be generating PDF.",
             ),
           );
-        }, 120000);
+        }, 300000);
 
         // Poll for file creation
         const checkFile = setInterval(() => {
@@ -6922,10 +6922,10 @@ export class ArchibaldBot {
         const timeout = setTimeout(() => {
           reject(
             new Error(
-              "PDF download timeout (120s exceeded). Archibald may be generating PDF.",
+              "PDF download timeout (300s exceeded). Archibald may be generating PDF.",
             ),
           );
-        }, 120000);
+        }, 300000);
 
         // Poll for file creation
         const checkFile = setInterval(() => {
@@ -7109,10 +7109,10 @@ export class ArchibaldBot {
         const timeout = setTimeout(() => {
           reject(
             new Error(
-              "PDF download timeout (120s exceeded). Archibald may be generating PDF.",
+              "PDF download timeout (300s exceeded). Archibald may be generating PDF.",
             ),
           );
-        }, 120000);
+        }, 300000);
 
         // Poll for file creation
         const checkFile = setInterval(() => {
