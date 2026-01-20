@@ -6487,12 +6487,12 @@ export class ArchibaldBot {
       await new Promise((resolve) => setTimeout(resolve, 200));
 
       // 3. Trigger PDF export
-      // Button ID: Vertical_mainMenu_Menu_DXI3_T
+      // Button ID: Vertical_mainMenu_Menu_DXI7_T
       // Title: "Esportare in PDF File"
       logger.info("[ArchibaldBot] Searching for PDF export button...");
 
       // Wait for the menu container to be present
-      await page.waitForSelector("#Vertical_mainMenu_Menu_DXI3_", {
+      await page.waitForSelector("#Vertical_mainMenu_Menu_DXI7_", {
         timeout: 10000,
       });
 
@@ -6501,8 +6501,8 @@ export class ArchibaldBot {
 
       // Check if button is already visible or needs hover
       const isVisible = await page.evaluate(() => {
-        const li = document.querySelector("#Vertical_mainMenu_Menu_DXI3_");
-        const a = document.querySelector("#Vertical_mainMenu_Menu_DXI3_T");
+        const li = document.querySelector("#Vertical_mainMenu_Menu_DXI7_");
+        const a = document.querySelector("#Vertical_mainMenu_Menu_DXI7_T");
 
         if (!li || !a) return false;
 
@@ -6583,7 +6583,7 @@ export class ArchibaldBot {
       });
 
       // Click using evaluate to avoid clickability issues
-      // We need to click the <a> element with ID Vertical_mainMenu_Menu_DXI3_T
+      // We need to click the <a> element with ID Vertical_mainMenu_Menu_DXI7_T
       logger.info("[ArchibaldBot] Clicking PDF export button...");
 
       // Additional delay before clicking
@@ -6592,7 +6592,7 @@ export class ArchibaldBot {
       // Trigger the click on the specific menu item
       const clickResult = await page.evaluate(() => {
         const button = document.querySelector(
-          "#Vertical_mainMenu_Menu_DXI3_T",
+          "#Vertical_mainMenu_Menu_DXI7_T",
         ) as HTMLElement;
 
         if (!button) {
@@ -6685,7 +6685,7 @@ export class ArchibaldBot {
       logger.info("[ArchibaldBot] Searching for PDF export button...");
 
       // Wait for the menu container to be present
-      await page.waitForSelector("#Vertical_mainMenu_Menu_DXI3_", {
+      await page.waitForSelector("#Vertical_mainMenu_Menu_DXI7_", {
         timeout: 10000,
       });
 
@@ -6694,8 +6694,8 @@ export class ArchibaldBot {
 
       // Check if button is already visible or needs hover
       const isVisible = await page.evaluate(() => {
-        const li = document.querySelector("#Vertical_mainMenu_Menu_DXI3_");
-        const a = document.querySelector("#Vertical_mainMenu_Menu_DXI3_T");
+        const li = document.querySelector("#Vertical_mainMenu_Menu_DXI7_");
+        const a = document.querySelector("#Vertical_mainMenu_Menu_DXI7_T");
 
         if (!li || !a) return false;
 
@@ -6818,7 +6818,7 @@ export class ArchibaldBot {
 
       const clickResult = await page.evaluate(() => {
         const button = document.querySelector(
-          "#Vertical_mainMenu_Menu_DXI3_T",
+          "#Vertical_mainMenu_Menu_DXI7_T",
         ) as HTMLElement;
 
         if (!button) {
@@ -6926,7 +6926,7 @@ export class ArchibaldBot {
       logger.info("[ArchibaldBot] Searching for PDF export button...");
 
       // Wait for the menu container to be present
-      await page.waitForSelector("#Vertical_mainMenu_Menu_DXI3_", {
+      await page.waitForSelector("#Vertical_mainMenu_Menu_DXI7_", {
         timeout: 10000,
       });
 
@@ -6935,8 +6935,8 @@ export class ArchibaldBot {
 
       // Check if button is already visible or needs hover
       const isVisible = await page.evaluate(() => {
-        const li = document.querySelector("#Vertical_mainMenu_Menu_DXI3_");
-        const a = document.querySelector("#Vertical_mainMenu_Menu_DXI3_T");
+        const li = document.querySelector("#Vertical_mainMenu_Menu_DXI7_");
+        const a = document.querySelector("#Vertical_mainMenu_Menu_DXI7_T");
 
         if (!li || !a) return false;
 
@@ -7021,7 +7021,7 @@ export class ArchibaldBot {
 
       const clickResult = await page.evaluate(() => {
         const button = document.querySelector(
-          "#Vertical_mainMenu_Menu_DXI3_T",
+          "#Vertical_mainMenu_Menu_DXI7_T",
         ) as HTMLElement;
 
         if (!button) {
@@ -7113,7 +7113,7 @@ export class ArchibaldBot {
       logger.info("[ArchibaldBot] Searching for PDF export button...");
 
       // Wait for the menu container to be present
-      await page.waitForSelector("#Vertical_mainMenu_Menu_DXI3_", {
+      await page.waitForSelector("#Vertical_mainMenu_Menu_DXI7_", {
         timeout: 10000,
       });
 
@@ -7122,8 +7122,8 @@ export class ArchibaldBot {
 
       // Check if button is already visible or needs hover
       const isVisible = await page.evaluate(() => {
-        const li = document.querySelector("#Vertical_mainMenu_Menu_DXI3_");
-        const a = document.querySelector("#Vertical_mainMenu_Menu_DXI3_T");
+        const li = document.querySelector("#Vertical_mainMenu_Menu_DXI7_");
+        const a = document.querySelector("#Vertical_mainMenu_Menu_DXI7_T");
 
         if (!li || !a) return false;
 
@@ -7210,7 +7210,7 @@ export class ArchibaldBot {
 
       const clickResult = await page.evaluate(() => {
         const button = document.querySelector(
-          "#Vertical_mainMenu_Menu_DXI3_T",
+          "#Vertical_mainMenu_Menu_DXI7_T",
         ) as HTMLElement;
 
         if (!button) {
