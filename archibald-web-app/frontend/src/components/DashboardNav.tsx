@@ -12,6 +12,7 @@ export function DashboardNav() {
     { path: "/pending", label: "📋 Pending" },
     { path: "/customers", label: "👥 Clienti" },
     { path: "/products", label: "📦 Articoli" },
+    { path: "/prezzi-variazioni", label: "📊 Prezzi" },
     { path: "/admin", label: "🔧 Admin" },
   ];
 

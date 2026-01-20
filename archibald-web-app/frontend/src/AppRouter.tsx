@@ -1,9 +1,4 @@
-import {
-  BrowserRouter,
-  Routes,
-  Route,
-  Navigate,
-} from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { useState, useEffect } from "react";
 import "./App.css";
 import { useAuth } from "./hooks/useAuth";
@@ -29,6 +24,7 @@ import { CustomerEdit } from "./pages/CustomerEdit";
 import { ArticoliList } from "./pages/ArticoliList";
 import { Dashboard } from "./pages/Dashboard";
 import { ProfilePage } from "./pages/ProfilePage";
+import { PriceVariationsPage } from "./pages/PriceVariationsPage";
 import { DashboardNav } from "./components/DashboardNav";
 // import { UnifiedSyncProgress } from "./components/UnifiedSyncProgress"; // Temporarily disabled
 
@@ -118,7 +114,10 @@ function AppRouter() {
         setHasTarget(true);
         setShowTargetWizard(false);
       } else {
-        console.error("[AppRouter] Failed to set target:", await response.text());
+        console.error(
+          "[AppRouter] Failed to set target:",
+          await response.text(),
+        );
         alert("Errore nel salvare la configurazione. Riprova.");
       }
     } catch (error) {
@@ -434,6 +433,26 @@ function AppRouter() {
               <AppHeader />
               <main className="app-main" style={{ padding: "0" }}>
                 <ProfilePage />
+              </main>
+              <footer className="app-footer">
+                <p>v1.0.0 • Fresis Team</p>
+              </footer>
+            </div>
+          }
+        />
+
+        {/* Price Variations route */}
+        <Route
+          path="/prezzi-variazioni"
+          element={
+            <div
+              className="app"
+              style={{ marginTop: isOffline ? "64px" : "0" }}
+            >
+              <SyncBanner />
+              <AppHeader />
+              <main className="app-main" style={{ padding: "0" }}>
+                <PriceVariationsPage />
               </main>
               <footer className="app-footer">
                 <p>v1.0.0 • Fresis Team</p>
