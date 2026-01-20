@@ -583,20 +583,53 @@ export class ProductDatabase {
   }
 
   /**
-   * Get all package variants for an article.
-   * Variants are products with same name but different ID ARTICOLO.
-   *
-   * @param articleName - Article name (e.g., "H129FSQ.104.023")
-   * @returns Array of products ordered by multipleQty DESC (highest package first)
+   * Get all package variants for a product by article name
+   * Variants share the same name but have different IDs and packageContent
    */
   getProductVariants(articleName: string): Product[] {
-    const query = `
+    const stmt = this.db.prepare(`
       SELECT * FROM products
       WHERE name = ?
-      ORDER BY multipleQty DESC NULLS LAST, id ASC
-    `;
+      ORDER BY
+        CAST(SUBSTR(packageContent, 1, INSTR(packageContent || ' ', ' ') - 1) AS INTEGER) DESC,
+        packageContent DESC
+    `);
+    return stmt.all(articleName) as Product[];
+  }
 
-    return this.db.prepare(query).all(articleName) as Product[];
+  /**
+   * Get base product (lowest packageContent variant) for article name
+   * Used as representative product in grouped views
+   */
+  getBaseProduct(articleName: string): Product | undefined {
+    const variants = this.getProductVariants(articleName);
+    // Return variant with lowest packageContent (e.g., "1 collo" before "5 colli")
+    return variants.length > 0 ? variants[variants.length - 1] : undefined;
+  }
+
+  /**
+   * Get all unique product names (deduplicated by article name)
+   * Used for ArticoliList to show one card per product
+   */
+  getAllProductNames(searchTerm?: string, limit: number = 100): string[] {
+    let query = `
+      SELECT DISTINCT name
+      FROM products
+    `;
+    const params: any[] = [];
+
+    if (searchTerm) {
+      query += ` WHERE name LIKE ? OR id LIKE ? OR searchName LIKE ?`;
+      const searchPattern = `%${searchTerm}%`;
+      params.push(searchPattern, searchPattern, searchPattern);
+    }
+
+    query += ` ORDER BY name ASC LIMIT ?`;
+    params.push(limit);
+
+    const stmt = this.db.prepare(query);
+    const results = stmt.all(...params) as { name: string }[];
+    return results.map(r => r.name);
   }
 
   /**
