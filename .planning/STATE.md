@@ -10,18 +10,18 @@ See: .planning/PROJECT.md (updated 2026-01-11)
 ## Current Position
 
 Phase: 20 of 28 (Prices Sync Analysis & Optimization)
-Plan: 1 of 6 in current phase
+Plan: 2 of 6 in current phase
 Status: Complete
-Last activity: 2026-01-20 — Completed 20-01-PLAN.md (PDF Parser Enhancement & Node.js Integration for Prices)
+Last activity: 2026-01-20 — Completed 20-02-PLAN.md (PDF Download Bot Flow & Separate Prices Database)
 
-Progress: █████░░░░░ 34% (v2.0: 8/15 phases complete, 23/68 plans)
+Progress: █████░░░░░ 36% (v2.0: 8/15 phases complete, 24/68 plans)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 98
+- Total plans completed: 99
 - Average duration: 47 min
-- Total execution time: 83.83 hours
+- Total execution time: 85.58 hours
 
 **By Phase:**
 
@@ -46,10 +46,10 @@ Progress: █████░░░░░ 34% (v2.0: 8/15 phases complete, 23/68 
 | 18 | 5 | 302 min | 60 min |
 | 19 | 5 | 194 min | 39 min |
 | 19.1 | 3 | 25 min | 8 min |
-| 20 | 1 | 45 min | 45 min |
+| 20 | 2 | 150 min | 75 min |
 
 **Recent Trend:**
-- Last 10 plans: 18-02 (45m), 19-01 (45m), 19-02 (4m), 19-03 (40m), 19-04 (60m), 19-05 (45m), 19.1-01 (5m), 19.1-02 (5m), 19.1-03 (15m), 20-01 (45m)
+- Last 10 plans: 19-01 (45m), 19-02 (4m), 19-03 (40m), 19-04 (60m), 19-05 (45m), 19.1-01 (5m), 19.1-02 (5m), 19.1-03 (15m), 20-01 (45m), 20-02 (105m)
 - Phase 9 extremely fast (avg 11m) - leveraging existing Phase 8-07 infrastructure
 - Phase 10 high avg (105m) - includes 521m for Plan 10-07 (heavy login debugging)
 - Phase 14 complete (5 plans avg 9m) - 4 discovery plans + 1 execution plan, all IndexedDB errors fixed ✅ COMPLETE
@@ -578,9 +578,9 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-01-20 (afternoon)
-Stopped at: Completed Plan 20-01 (PDF Parser Enhancement & Node.js Integration for Prices)
-Next: Execute Plan 20-02 (PDF Download Bot Flow & Separate Prices Database)
+Last session: 2026-01-20 (evening)
+Stopped at: Completed Plan 20-02 (PDF Download Bot Flow & Separate Prices Database)
+Next: Execute Plan 20-03 (Excel IVA Upload Enhancement & Price Matching)
 Resume file: None
 
 ### Session 95 (2026-01-20)
@@ -651,3 +651,56 @@ Resume file: None
 - Check performance (<20s target)
 
 **Next:** Plan 20-02 (PDF Download Bot Flow & Separate Prices Database)
+
+### Session 97 (2026-01-20)
+**Command:** /gsd:execute-plan 20-02-PLAN.md
+**Outcome:** Plan 20-02 complete — PDF Download Bot Flow & Separate Prices Database
+**Duration:** 105 minutes actual (including testing and fixes)
+
+**What Was Built:**
+1. Separate `prices.db` database with delta detection (PriceDatabase singleton)
+2. PriceSyncService refactored from HTML scraping to PDF download via bot
+3. Stats endpoint `/api/prices/sync/stats` with coverage metrics
+4. Full integration test suite validating end-to-end flow
+
+**Key Features:**
+- PDF download via ArchibaldBot + BrowserPool pattern (Phase 18/19)
+- Delta detection with MD5 hash (skip unchanged prices)
+- Italian format preserved: "234,59 €" as TEXT in database
+- Progress tracking: downloading → parsing → saving → completed
+- 100% coverage: 4,976 prices, 0 null prices
+- Stats endpoint with totalPrices, coverage %, lastSyncDate
+
+**Critical Fixes (Commit d8ed5f8):**
+1. **PDF Download Detection:** Fixed filename from "prezzi-{timestamp}.pdf" to "Tabella prezzi.pdf"
+2. **Field Mapping:** Python parser uses Italian names (id, importo_unitario, etc.) - complete mapping added
+3. **Parser Timeout:** Increased from 30s to 300s (PDF is 14,928 pages)
+
+**Test Results:**
+- ✅ PDF downloads successfully in ~18s
+- ✅ Parser extracts 4,976 prices in ~60s (3-page cycles)
+- ✅ Database: 100% coverage (0 null prices)
+- ✅ Delta detection: 4,976 skipped on 2nd sync
+- ✅ Stats endpoint operational
+
+**Performance:**
+- Full sync: ~90s (18s download + 60s parse + 2s save)
+- Delta sync: ~87s (parsing dominates, DB operations <1s)
+
+**Commits:** 5 atomic commits
+- 209ae9f: Separate prices database with delta detection
+- 56ba22a: Refactored PriceSyncService to PDF download
+- 4fb7830: Stats endpoint
+- 24c4377: TypeScript compilation fixes
+- d8ed5f8: PDF download and field mapping fixes
+
+**All Success Criteria Met:** 15/15 ✅
+- ✅ Separate prices.db created
+- ✅ Delta detection working
+- ✅ PDF download from PRICEDISCTABLE_ListView
+- ✅ Italian language forced (Accept-Language header)
+- ✅ Field mapping from Python to TypeScript
+- ✅ 4,976 prices parsed successfully
+- ✅ 100% coverage (0 null prices)
+
+**Next:** Plan 20-03 (Excel IVA Upload Enhancement & Price Matching)
