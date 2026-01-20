@@ -3,6 +3,7 @@ import { ProductCard } from "../components/ProductCard";
 import { ProductDetailModal } from "../components/ProductDetailModal";
 import { getProducts, syncProducts, type Product } from "../api/products";
 import { ManualSyncBanner } from "../components/ManualSyncBanner";
+import PriceSyncNotification from "../components/PriceSyncNotification";
 
 interface ProductFilters {
   search: string;
@@ -31,6 +32,9 @@ export function ArticoliList() {
   const [variantCounts, setVariantCounts] = useState<Record<string, number>>(
     {},
   );
+  const [syncingPrices, setSyncingPrices] = useState(false);
+  const [syncResult, setSyncResult] = useState<any>(null);
+  const [showNotification, setShowNotification] = useState(false);
 
   // Debounce search input (300ms)
   useEffect(() => {
@@ -152,6 +156,67 @@ export function ArticoliList() {
       );
     } finally {
       setIsSyncing(false);
+    }
+  };
+
+  const handlePriceSync = async () => {
+    if (syncingPrices) return;
+
+    setSyncingPrices(true);
+    setSyncResult(null);
+
+    try {
+      const token = localStorage.getItem("archibald_jwt");
+
+      // Step 1: Trigger price sync
+      const syncResponse = await fetch("/api/prices/sync", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+      });
+
+      const syncData = await syncResponse.json();
+
+      if (!syncData.success) {
+        throw new Error(syncData.error || "Sync failed");
+      }
+
+      // Step 2: Trigger price matching
+      const matchResponse = await fetch("/api/prices/match", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+      });
+
+      const matchData = await matchResponse.json();
+
+      // Step 3: Get price variation statistics
+      const statsResponse = await fetch("/api/prices/history/summary", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      const statsData = await statsResponse.json();
+
+      setSyncResult({
+        sync: syncData,
+        match: matchData,
+        stats: statsData,
+      });
+
+      // Show notification toast
+      setShowNotification(true);
+
+      // Refresh products to show updated prices
+      await fetchProducts();
+    } catch (error) {
+      console.error("Price sync error:", error);
+      alert(`❌ Errore sincronizzazione prezzi: ${error}`);
+    } finally {
+      setSyncingPrices(false);
     }
   };
 
@@ -390,8 +455,112 @@ export function ArticoliList() {
           >
             {isSyncing ? "⏳ Aggiornamento..." : "🔄 Aggiorna Articoli"}
           </button>
+
+          {/* Prices sync button */}
+          <button
+            onClick={handlePriceSync}
+            disabled={syncingPrices}
+            style={{
+              padding: "8px 16px",
+              fontSize: "14px",
+              fontWeight: 600,
+              border: "1px solid #4caf50",
+              borderRadius: "8px",
+              backgroundColor: syncingPrices ? "#e8f5e9" : "#fff",
+              color: syncingPrices ? "#999" : "#4caf50",
+              cursor: syncingPrices ? "not-allowed" : "pointer",
+              transition: "all 0.2s",
+              opacity: syncingPrices ? 0.6 : 1,
+            }}
+            onMouseEnter={(e) => {
+              if (!syncingPrices) {
+                e.currentTarget.style.backgroundColor = "#4caf50";
+                e.currentTarget.style.color = "#fff";
+              }
+            }}
+            onMouseLeave={(e) => {
+              if (!syncingPrices) {
+                e.currentTarget.style.backgroundColor = "#fff";
+                e.currentTarget.style.color = "#4caf50";
+              }
+            }}
+          >
+            {syncingPrices
+              ? "⏳ Sincronizzazione Prezzi..."
+              : "💰 Sincronizza Prezzi"}
+          </button>
         </div>
       </div>
+
+      {/* Sync Progress Banner */}
+      {syncingPrices && (
+        <div
+          style={{
+            padding: "15px",
+            backgroundColor: "#e3f2fd",
+            borderRadius: "8px",
+            marginBottom: "20px",
+            boxShadow: "0 2px 8px rgba(0, 0, 0, 0.1)",
+          }}
+        >
+          <div
+            style={{
+              fontSize: "16px",
+              fontWeight: "bold",
+              marginBottom: "5px",
+            }}
+          >
+            ⏳ Sincronizzazione prezzi in corso...
+          </div>
+          <div style={{ fontSize: "14px", color: "#666" }}>
+            Download PDF → Parsing → Salvataggio → Matching con prodotti
+          </div>
+        </div>
+      )}
+
+      {/* Sync Result Summary */}
+      {syncResult && !syncingPrices && (
+        <div
+          style={{
+            padding: "15px",
+            backgroundColor: "#e8f5e9",
+            borderRadius: "8px",
+            marginBottom: "20px",
+            boxShadow: "0 2px 8px rgba(0, 0, 0, 0.1)",
+          }}
+        >
+          <div
+            style={{
+              fontSize: "16px",
+              fontWeight: "bold",
+              color: "#2e7d32",
+              marginBottom: "10px",
+            }}
+          >
+            ✓ Sincronizzazione completata
+          </div>
+          <div style={{ fontSize: "14px", color: "#666" }}>
+            <div>Prezzi processati: {syncResult.sync.pricesProcessed || 0}</div>
+            <div>
+              Prodotti aggiornati:{" "}
+              {syncResult.match?.result?.updatedProducts || 0}
+            </div>
+            <div style={{ marginTop: "5px" }}>
+              Variazioni: {syncResult.stats?.stats?.increases || 0} aumenti 🔴,{" "}
+              {syncResult.stats?.stats?.decreases || 0} diminuzioni 🟢
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Price Variation Notification Toast */}
+      {showNotification && syncResult?.stats?.stats && (
+        <PriceSyncNotification
+          increases={syncResult.stats.stats.increases || 0}
+          decreases={syncResult.stats.stats.decreases || 0}
+          onDismiss={() => setShowNotification(false)}
+        />
+      )}
 
       {/* Loading state */}
       {loading && (
