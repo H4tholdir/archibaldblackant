@@ -158,8 +158,9 @@ Plans:
 **Goal**: Visualizzare tutti i 26+ campi nelle schede articolo e unificare varianti (stesso ID, diverso contenuto imballaggio)
 **Depends on**: Phase 19-02 (Products sync working)
 **Research**: Unlikely (UI components, variant grouping logic - standard React patterns)
-**Plans**: TBD (est. 3-4 plans)
+**Plans**: 3/3
 **Priority**: HIGH - Users need to see complete product data
+**Status**: Planned ⏳
 
 **Key Requirements:**
 - Show all 26+ PDF fields in product cards (Figura, Grandezza, Quantità Standard, Sconti, ecc.)
@@ -170,7 +171,9 @@ Plans:
 - Mobile-responsive layout
 
 Plans:
-- [ ] 19.1-01: TBD (after context approval)
+- [ ] 19.1-01: Backend Variant Grouping API (getProductVariants, grouped mode, frontend API client)
+- [ ] 19.1-02: ProductCard Enhancement with All 26+ Fields (6 sections, price badges, variant badges)
+- [ ] 19.1-03: Variant Selector & ArticoliList Deduplication (VariantSelector, ProductDetailModal, grouped ArticoliList)
 
 #### Phase 20: Prices Sync Analysis & Optimization
 **Goal**: Analisi completa sync prezzi + background sync + sync manuale + Excel listino integration
@@ -268,8 +271,9 @@ Plans:
 | 16. Target Wizard & Setup | v2.0 | 4/4 | Complete | 2026-01-18 |
 | 17. Dashboard Metrics Backend | v2.0 | 1/1 | Complete | 2026-01-18 |
 | 18.1. PDF Export Discovery & Validation (INSERTED) | v2.0 | 0 (discovery) | Complete | 2026-01-19 |
-| 18. Customers Sync Analysis & Optimization | v2.0 | 0/5 | Not started | - |
-| 19. Products Sync Analysis & Optimization | v2.0 | 0/? | Not started | - |
+| 18. Customers Sync Analysis & Optimization | v2.0 | 5/5 | Complete | 2026-01-20 |
+| 19. Products Sync Analysis & Optimization | v2.0 | 5/5 | Complete | 2026-01-20 |
+| 19.1. Product Cards UI Enhancement (INSERTED) | v2.0 | 0/3 | Planned | - |
 | 20. Prices Sync Analysis & Optimization | v2.0 | 0/? | Not started | - |
 | 21. Orders Sync Analysis & Optimization | v2.0 | 0/? | Not started | - |
 | 22. Sync Orchestration Layer | v2.0 | 0/? | Not started | - |
