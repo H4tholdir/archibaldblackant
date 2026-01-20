@@ -45,7 +45,18 @@ export interface ProductsResponse {
     returnedCount: number;
     totalMatches?: number;
     limited: boolean;
+    grouped?: boolean;
   };
+}
+
+export interface ProductVariantsResponse {
+  success: boolean;
+  data: {
+    productName: string;
+    variantCount: number;
+    variants: Product[];
+  };
+  error?: string;
 }
 
 export interface SearchResult {
@@ -65,44 +76,48 @@ export interface SearchResponse {
 }
 
 /**
- * Fetch all package variants for a given article name.
- * Returns variants ordered by multipleQty DESC (highest package first).
- *
- * @param articleName - The article name to search for (e.g., "H129FSQ.104.023")
- * @returns Array of product variants, or empty array if not found
- * @throws Error if the API request fails
+ * Get all package variants for a product by article name
  */
 export async function getProductVariants(
-  articleName: string,
-): Promise<Product[]> {
-  const response = await fetch(
-    `/api/products/variants?name=${encodeURIComponent(articleName)}`,
-  );
+  token: string,
+  productName: string
+): Promise<ProductVariantsResponse> {
+  const encodedName = encodeURIComponent(productName);
+  const response = await fetch(`/api/products/${encodedName}/variants`, {
+    method: "GET",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+    },
+  });
 
   if (!response.ok) {
-    throw new Error("Failed to fetch product variants");
+    if (response.status === 401) {
+      throw new Error("401");
+    }
+    const errorData = await response.json().catch(() => ({}));
+    throw new Error(errorData.error || "Failed to fetch product variants");
   }
 
-  const result = await response.json();
-
-  if (!result.success) {
-    throw new Error(result.error || "Failed to fetch product variants");
-  }
-
-  return result.data;
+  return response.json();
 }
 
 /**
- * Get products with optional search filter
+ * Get products with optional grouping by article name
  */
 export async function getProducts(
   token: string,
   searchQuery?: string,
   limit: number = 100,
+  grouped: boolean = false // NEW: optional grouping parameter
 ): Promise<ProductsResponse> {
   const params = new URLSearchParams();
   if (searchQuery) params.append("search", searchQuery);
   params.append("limit", limit.toString());
+
+  if (grouped) {
+    params.append("grouped", "true");
+  }
 
   const response = await fetch(`${API_BASE_URL}/api/products?${params}`, {
     headers: {
