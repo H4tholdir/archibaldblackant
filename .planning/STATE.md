@@ -10,18 +10,18 @@ See: .planning/PROJECT.md (updated 2026-01-11)
 ## Current Position
 
 Phase: 21 of 28 (Orders Sync Analysis & Optimization)
-Plan: 2 of 5 in current phase
+Plan: 3 of 5 in current phase
 Status: In progress
-Last activity: 2026-01-20 — Completed 21-02-PLAN.md (DDT PDF Parser & Separate Database with Tracking)
+Last activity: 2026-01-20 — Completed 21-03-PLAN.md (Invoices PDF Parser & Separate Database with Order Matching)
 
-Progress: █████░░░░░ 42% (v2.0: 9/15 phases complete, 33/68 plans)
+Progress: █████░░░░░ 42% (v2.0: 9/15 phases complete, 34/68 plans)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 103
+- Total plans completed: 104
 - Average duration: 47 min
-- Total execution time: 88.20 hours
+- Total execution time: 88.95 hours
 
 **By Phase:**
 
@@ -47,10 +47,10 @@ Progress: █████░░░░░ 42% (v2.0: 9/15 phases complete, 33/68 
 | 19 | 5 | 194 min | 39 min |
 | 19.1 | 3 | 25 min | 8 min |
 | 20 | 6 | 330 min | 55 min |
-| 21 | 2 | 98 min | 49 min |
+| 21 | 3 | 143 min | 48 min |
 
 **Recent Trend:**
-- Last 10 plans: 19.1-02 (5m), 19.1-03 (15m), 20-01 (45m), 20-02 (105m), 20-03 (30m), 20-04 (30m), 20-05 (60m), 20-06 (60m), 21-01 (90m), 21-02 (8m)
+- Last 10 plans: 19.1-03 (15m), 20-01 (45m), 20-02 (105m), 20-03 (30m), 20-04 (30m), 20-05 (60m), 20-06 (60m), 21-01 (90m), 21-02 (8m), 21-03 (45m)
 - Phase 9 extremely fast (avg 11m) - leveraging existing Phase 8-07 infrastructure
 - Phase 10 high avg (105m) - includes 521m for Plan 10-07 (heavy login debugging)
 - Phase 14 complete (5 plans avg 9m) - 4 discovery plans + 1 execution plan, all IndexedDB errors fixed ✅ COMPLETE
@@ -67,6 +67,10 @@ Recent decisions affecting current work:
 
 | Phase | Decision | Rationale |
 |-------|----------|-----------|
+| 21-03 | Separate invoices.db database with two tables | Clean schema: invoices + invoice_order_matches, simplifies queries, allows many-to-many relationships |
+| 21-03 | Auto-matching via customerAccount + date proximity | Primary key: customerAccount match, scoring: 1.0 (same day) → 0.0 (30 days), 30-day window for order associations |
+| 21-03 | Many-to-many invoice-order mapping | Real-world: 1 invoice → N orders (cumulative billing), 1 order → N invoices (partial shipments), manual override capability |
+| 21-03 | Score-based match ranking | Linear decay scoring allows frontend to sort by confidence, user can accept best match or manually override |
 | 21-02 | Separate ddt.db database | Clean separation of concerns, DDT data has different lifecycle than orders, simpler queries for tracking lookups |
 | 21-02 | Tracking URL generation per courier | Frontend needs clickable tracking links, 7 major Italian couriers supported (FedEx, UPS, DHL, TNT, GLS, BRT, SDA) |
 | 21-02 | Courier normalization to lowercase | Consistent format for frontend filtering, prevents case mismatches, matches common API patterns |
@@ -596,8 +600,8 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-01-20 (evening)
-Stopped at: Completed 21-02-PLAN.md (DDT PDF Parser & Separate Database with Tracking)
-Next: Plan 21-03 (Invoices PDF Parser & Separate Database)
+Stopped at: Completed 21-03-PLAN.md (Invoices PDF Parser & Separate Database with Order Matching)
+Next: Plan 21-04 (PDF Download Bot Flows)
 Resume file: None
 
 ### Session 95 (2026-01-20)
