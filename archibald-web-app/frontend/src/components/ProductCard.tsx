@@ -233,8 +233,11 @@ export function ProductCard({
             backgroundColor: "#fafafa",
           }}
         >
-          {/* Product Group Info */}
-          {(product.productGroupId || product.productGroupDescription) && (
+          {/* SECTION 1: Identificazione */}
+          {(product.id ||
+            product.searchName ||
+            product.displayProductNumber ||
+            product.productId) && (
             <div style={{ marginBottom: "20px" }}>
               <h3
                 style={{
@@ -244,7 +247,7 @@ export function ProductCard({
                   marginBottom: "12px",
                 }}
               >
-                📦 Gruppo Prodotto
+                🔍 Identificazione
               </h3>
               <div
                 style={{
@@ -254,27 +257,43 @@ export function ProductCard({
                   fontSize: "14px",
                 }}
               >
-                {product.productGroupId && (
+                <div>
+                  <strong style={{ color: "#666" }}>ID Articolo:</strong>{" "}
+                  {product.id}
+                </div>
+                {product.searchName && (
                   <div>
-                    <strong style={{ color: "#666" }}>ID Gruppo:</strong>{" "}
-                    {product.productGroupId}
+                    <strong style={{ color: "#666" }}>Nome ricerca:</strong>{" "}
+                    {product.searchName}
                   </div>
                 )}
-                {product.productGroupDescription && (
+                {product.displayProductNumber && (
                   <div>
-                    <strong style={{ color: "#666" }}>Descrizione:</strong>{" "}
-                    {product.productGroupDescription}
+                    <strong style={{ color: "#666" }}>Numero prodotto:</strong>{" "}
+                    {product.displayProductNumber}
+                  </div>
+                )}
+                {product.productId && product.productId !== product.id && (
+                  <div>
+                    <strong style={{ color: "#666" }}>ID Prodotto:</strong>{" "}
+                    {product.productId}
                   </div>
                 )}
               </div>
             </div>
           )}
 
-          {/* Package Information */}
-          {(product.packageContent ||
-            product.minQty ||
-            product.multipleQty ||
-            product.maxQty) && (
+          {/* SECTION 2: Caratteristiche */}
+          {(product.figure ||
+            product.size ||
+            product.packageContent ||
+            product.groupCode ||
+            product.productGroupId ||
+            product.productGroupDescription ||
+            product.bulkArticleId ||
+            product.legPackage ||
+            product.configurationId ||
+            product.pcsStandardConfigurationId) && (
             <div style={{ marginBottom: "20px" }}>
               <h3
                 style={{
@@ -284,7 +303,109 @@ export function ProductCard({
                   marginBottom: "12px",
                 }}
               >
-                📦 Informazioni Confezione
+                📐 Caratteristiche
+              </h3>
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "repeat(auto-fit, minmax(250px, 1fr))",
+                  gap: "12px",
+                  fontSize: "14px",
+                }}
+              >
+                {product.figure && (
+                  <div>
+                    <strong style={{ color: "#666" }}>⭐ Figura:</strong>{" "}
+                    <span style={{ fontWeight: 600, color: "#1976d2" }}>
+                      {product.figure}
+                    </span>
+                  </div>
+                )}
+                {product.size && (
+                  <div>
+                    <strong style={{ color: "#666" }}>⭐ Grandezza:</strong>{" "}
+                    <span style={{ fontWeight: 600, color: "#1976d2" }}>
+                      {product.size}
+                    </span>
+                  </div>
+                )}
+                {product.packageContent && (
+                  <div>
+                    <strong style={{ color: "#666" }}>
+                      ⭐ Contenuto imballaggio:
+                    </strong>{" "}
+                    <span style={{ fontWeight: 600, color: "#1976d2" }}>
+                      {product.packageContent}
+                    </span>
+                  </div>
+                )}
+                {product.groupCode && (
+                  <div>
+                    <strong style={{ color: "#666" }}>Gruppo articolo:</strong>{" "}
+                    {product.groupCode}
+                  </div>
+                )}
+                {product.productGroupDescription && (
+                  <div>
+                    <strong style={{ color: "#666" }}>
+                      Descrizione gruppo:
+                    </strong>{" "}
+                    {product.productGroupDescription}
+                  </div>
+                )}
+                {product.productGroupId && (
+                  <div>
+                    <strong style={{ color: "#666" }}>ID gruppo prodotti:</strong>{" "}
+                    {product.productGroupId}
+                  </div>
+                )}
+                {product.bulkArticleId && (
+                  <div>
+                    <strong style={{ color: "#666" }}>ID blocco articolo:</strong>{" "}
+                    {product.bulkArticleId}
+                  </div>
+                )}
+                {product.legPackage && (
+                  <div>
+                    <strong style={{ color: "#666" }}>Pacco gamba:</strong>{" "}
+                    {product.legPackage}
+                  </div>
+                )}
+                {product.configurationId && (
+                  <div>
+                    <strong style={{ color: "#666" }}>ID configurazione:</strong>{" "}
+                    {product.configurationId}
+                  </div>
+                )}
+                {product.pcsStandardConfigurationId && (
+                  <div>
+                    <strong style={{ color: "#666" }}>
+                      PCS ID configurazione:
+                    </strong>{" "}
+                    {product.pcsStandardConfigurationId}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* SECTION 3: Quantità */}
+          {(product.minQty !== undefined ||
+            product.multipleQty !== undefined ||
+            product.maxQty !== undefined ||
+            product.standardQty ||
+            product.defaultQty ||
+            product.unitId) && (
+            <div style={{ marginBottom: "20px" }}>
+              <h3
+                style={{
+                  fontSize: "16px",
+                  fontWeight: 700,
+                  color: "#333",
+                  marginBottom: "12px",
+                }}
+              >
+                📊 Quantità
               </h3>
               <div
                 style={{
@@ -294,12 +415,6 @@ export function ProductCard({
                   fontSize: "14px",
                 }}
               >
-                {product.packageContent && (
-                  <div>
-                    <strong style={{ color: "#666" }}>Contenuto:</strong>{" "}
-                    {product.packageContent}
-                  </div>
-                )}
                 {product.minQty !== undefined && product.minQty !== null && (
                   <div>
                     <strong style={{ color: "#666" }}>Qtà minima:</strong>{" "}
@@ -309,7 +424,7 @@ export function ProductCard({
                 {product.multipleQty !== undefined &&
                   product.multipleQty !== null && (
                     <div>
-                      <strong style={{ color: "#666" }}>Multiplo:</strong>{" "}
+                      <strong style={{ color: "#666" }}>Qtà in multipli:</strong>{" "}
                       {product.multipleQty}
                     </div>
                   )}
@@ -319,11 +434,33 @@ export function ProductCard({
                     {product.maxQty}
                   </div>
                 )}
+                {product.standardQty && (
+                  <div>
+                    <strong style={{ color: "#666" }}>⭐ Qtà standard:</strong>{" "}
+                    <span style={{ fontWeight: 600, color: "#1976d2" }}>
+                      {product.standardQty}
+                    </span>
+                  </div>
+                )}
+                {product.defaultQty && (
+                  <div>
+                    <strong style={{ color: "#666" }}>⭐ Qtà predefinita:</strong>{" "}
+                    <span style={{ fontWeight: 600, color: "#1976d2" }}>
+                      {product.defaultQty}
+                    </span>
+                  </div>
+                )}
+                {product.unitId && (
+                  <div>
+                    <strong style={{ color: "#666" }}>Unità:</strong>{" "}
+                    {product.unitId}
+                  </div>
+                )}
               </div>
             </div>
           )}
 
-          {/* Price Information */}
+          {/* SECTION 4: Pricing & Sconti */}
           <div style={{ marginBottom: "20px" }}>
             <h3
               style={{
@@ -333,7 +470,7 @@ export function ProductCard({
                 marginBottom: "12px",
               }}
             >
-              💰 Prezzi e IVA
+              💰 Prezzi e Sconti
             </h3>
             <div
               style={{
@@ -347,9 +484,7 @@ export function ProductCard({
                 <strong style={{ color: "#666" }}>Prezzo:</strong>{" "}
                 {formatCurrency(product.price)}{" "}
                 {product.priceCurrency && product.priceCurrency !== "EUR" && (
-                  <span style={{ color: "#999" }}>
-                    ({product.priceCurrency})
-                  </span>
+                  <span style={{ color: "#999" }}>({product.priceCurrency})</span>
                 )}
                 {product.priceSource && (
                   <span
@@ -366,6 +501,21 @@ export function ProductCard({
                   >
                     {product.priceSource === "excel" ? "Excel" : "Archibald"}
                   </span>
+                )}
+                {priceBadge && (
+                  <div
+                    style={{
+                      marginTop: "4px",
+                      fontSize: "12px",
+                      padding: "4px 8px",
+                      borderRadius: "4px",
+                      backgroundColor: priceBadge.bgColor,
+                      color: priceBadge.color,
+                      display: "inline-block",
+                    }}
+                  >
+                    {priceBadge.text}
+                  </div>
                 )}
               </div>
               {product.vat !== undefined && product.vat !== null && (
@@ -389,8 +539,32 @@ export function ProductCard({
               )}
               {product.priceUnit && (
                 <div>
-                  <strong style={{ color: "#666" }}>Unità:</strong>{" "}
+                  <strong style={{ color: "#666" }}>Unità prezzo:</strong>{" "}
                   {product.priceUnit}
+                </div>
+              )}
+              {product.lineDiscount && (
+                <div>
+                  <strong style={{ color: "#666" }}>⭐ Sconto linea:</strong>{" "}
+                  <span style={{ fontWeight: 600, color: "#1976d2" }}>
+                    {product.lineDiscount}
+                  </span>
+                </div>
+              )}
+              {product.totalAbsoluteDiscount && (
+                <div>
+                  <strong style={{ color: "#666" }}>
+                    ⭐ Sconto assoluto totale:
+                  </strong>{" "}
+                  <span style={{ fontWeight: 600, color: "#1976d2" }}>
+                    {product.totalAbsoluteDiscount}
+                  </span>
+                </div>
+              )}
+              {product.purchPrice && (
+                <div>
+                  <strong style={{ color: "#666" }}>Prezzo acquisto:</strong>{" "}
+                  {product.purchPrice}
                 </div>
               )}
               {product.accountDescription && (
@@ -406,7 +580,7 @@ export function ProductCard({
               )}
               {product.priceValidFrom && product.priceValidTo && (
                 <div>
-                  <strong style={{ color: "#666" }}>Validità:</strong>{" "}
+                  <strong style={{ color: "#666" }}>Validità prezzo:</strong>{" "}
                   {product.priceValidFrom} → {product.priceValidTo}
                 </div>
               )}
@@ -419,45 +593,110 @@ export function ProductCard({
             </div>
           </div>
 
-          {/* Additional Info */}
-          <div style={{ marginBottom: "20px" }}>
-            <h3
-              style={{
-                fontSize: "16px",
-                fontWeight: 700,
-                color: "#333",
-                marginBottom: "12px",
-              }}
-            >
-              📋 Informazioni Aggiuntive
-            </h3>
-            <div
-              style={{
-                display: "grid",
-                gridTemplateColumns: "repeat(auto-fit, minmax(250px, 1fr))",
-                gap: "12px",
-                fontSize: "14px",
-              }}
-            >
-              <div>
-                <strong style={{ color: "#666" }}>Codice:</strong> {product.id}
+          {/* SECTION 5: Metadati */}
+          {(product.createdBy ||
+            product.createdDate ||
+            product.modifiedBy ||
+            product.modifiedDatetime ||
+            product.dataAreaId ||
+            product.orderableArticle ||
+            product.stopped) && (
+            <div style={{ marginBottom: "20px" }}>
+              <h3
+                style={{
+                  fontSize: "16px",
+                  fontWeight: 700,
+                  color: "#333",
+                  marginBottom: "12px",
+                }}
+              >
+                🏷️ Metadati
+              </h3>
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "repeat(auto-fit, minmax(250px, 1fr))",
+                  gap: "12px",
+                  fontSize: "14px",
+                }}
+              >
+                {product.createdBy && (
+                  <div>
+                    <strong style={{ color: "#666" }}>Creato da:</strong>{" "}
+                    {product.createdBy}
+                  </div>
+                )}
+                {product.createdDate && (
+                  <div>
+                    <strong style={{ color: "#666" }}>Data creazione:</strong>{" "}
+                    {formatDateString(product.createdDate)}
+                  </div>
+                )}
+                {product.modifiedBy && (
+                  <div>
+                    <strong style={{ color: "#666" }}>Modificato da:</strong>{" "}
+                    {product.modifiedBy}
+                  </div>
+                )}
+                {product.modifiedDatetime && (
+                  <div>
+                    <strong style={{ color: "#666" }}>Data modifica:</strong>{" "}
+                    {formatDateString(product.modifiedDatetime)}
+                  </div>
+                )}
+                {product.dataAreaId && (
+                  <div>
+                    <strong style={{ color: "#666" }}>DataAreaId:</strong>{" "}
+                    {product.dataAreaId}
+                  </div>
+                )}
+                {product.orderableArticle && (
+                  <div>
+                    <strong style={{ color: "#666" }}>Articolo ordinabile:</strong>{" "}
+                    <span
+                      style={{
+                        color:
+                          product.orderableArticle.toLowerCase() === "yes" ||
+                          product.orderableArticle === "1"
+                            ? "#2e7d32"
+                            : "#c62828",
+                        fontWeight: 600,
+                      }}
+                    >
+                      {product.orderableArticle === "1"
+                        ? "Sì"
+                        : product.orderableArticle}
+                    </span>
+                  </div>
+                )}
+                {product.stopped && (
+                  <div>
+                    <strong style={{ color: "#666" }}>Fermato:</strong>{" "}
+                    <span
+                      style={{
+                        color:
+                          product.stopped.toLowerCase() === "yes" ||
+                          product.stopped === "1"
+                            ? "#c62828"
+                            : "#2e7d32",
+                        fontWeight: 600,
+                      }}
+                    >
+                      {product.stopped === "1" ? "Sì" : product.stopped}
+                    </span>
+                  </div>
+                )}
+                {product.lastSync && (
+                  <div>
+                    <strong style={{ color: "#666" }}>Ultimo sync:</strong>{" "}
+                    {formatDate(product.lastSync)}
+                  </div>
+                )}
               </div>
-              {product.searchName && (
-                <div>
-                  <strong style={{ color: "#666" }}>Nome ricerca:</strong>{" "}
-                  {product.searchName}
-                </div>
-              )}
-              {product.imageDownloadedAt && (
-                <div>
-                  <strong style={{ color: "#666" }}>Immagine scaricata:</strong>{" "}
-                  {formatDate(product.imageDownloadedAt)}
-                </div>
-              )}
             </div>
-          </div>
+          )}
 
-          {/* Full Image Preview */}
+          {/* SECTION 6: Immagine */}
           {product.imageLocalPath && (
             <div style={{ marginTop: "20px" }}>
               <h3
@@ -491,6 +730,17 @@ export function ProductCard({
                   }}
                 />
               </div>
+              {product.imageDownloadedAt && (
+                <div
+                  style={{
+                    marginTop: "8px",
+                    fontSize: "13px",
+                    color: "#999",
+                  }}
+                >
+                  Scaricata il: {formatDate(product.imageDownloadedAt)}
+                </div>
+              )}
             </div>
           )}
         </div>
