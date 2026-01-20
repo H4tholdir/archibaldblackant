@@ -218,20 +218,47 @@ export class BrowserPool {
   ): Promise<void> {
     logger.info(`[BrowserPool] Performing fresh login for user ${userId}`);
 
-    // Get credentials from cache
-    const cachedPassword = PasswordCache.getInstance().get(userId);
-    if (!cachedPassword) {
-      throw new Error(
-        `Password not found in cache for user ${userId}. User must login again.`,
+    // Check if this is a service user (background sync)
+    const isServiceUser =
+      userId === "product-sync-service" ||
+      userId === "customer-sync-service" ||
+      userId === "price-sync-service" ||
+      userId === "order-sync-service";
+
+    let username: string;
+    let password: string;
+
+    if (isServiceUser) {
+      // Service users use credentials from environment variables
+      username = config.archibald.username;
+      password = config.archibald.password;
+
+      if (!username || !password) {
+        throw new Error(
+          `ARCHIBALD_USERNAME and ARCHIBALD_PASSWORD must be set in environment for service user ${userId}`,
+        );
+      }
+
+      logger.info(
+        `[BrowserPool] Using environment credentials for service user ${userId}`,
       );
-    }
+    } else {
+      // Regular users use credentials from cache and database
+      const cachedPassword = PasswordCache.getInstance().get(userId);
+      if (!cachedPassword) {
+        throw new Error(
+          `Password not found in cache for user ${userId}. User must login again.`,
+        );
+      }
 
-    const user = UserDatabase.getInstance().getUserById(userId);
-    if (!user) {
-      throw new Error(`User ${userId} not found in database`);
-    }
+      const user = UserDatabase.getInstance().getUserById(userId);
+      if (!user) {
+        throw new Error(`User ${userId} not found in database`);
+      }
 
-    const username = user.username;
+      username = user.username;
+      password = cachedPassword;
+    }
 
     // Create page for login
     const page = await context.newPage();
@@ -291,7 +318,7 @@ export class BrowserPool {
           return true;
         },
         username,
-        cachedPassword,
+        password,
       );
 
       if (!filled) {
