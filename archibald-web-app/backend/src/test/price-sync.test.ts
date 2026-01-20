@@ -26,7 +26,7 @@ describe("PriceDatabase", () => {
     const result = db.upsertPrice({
       productId: "TEST001",
       productName: "Test Product",
-      unitPrice: 10.5,
+      unitPrice: "10,50 €",
       itemSelection: "K2",
       packagingDescription: "5 colli",
       currency: "EUR",
@@ -49,7 +49,7 @@ describe("PriceDatabase", () => {
     const priceData = {
       productId: "TEST001",
       productName: "Test Product",
-      unitPrice: 10.5,
+      unitPrice: "10,50 €",
       itemSelection: "K2",
       packagingDescription: "5 colli",
       currency: "EUR",
@@ -75,7 +75,7 @@ describe("PriceDatabase", () => {
     const priceData = {
       productId: "TEST001",
       productName: "Test Product",
-      unitPrice: 10.5,
+      unitPrice: "10,50 €",
       itemSelection: "K2",
       packagingDescription: "5 colli",
       currency: "EUR",
@@ -94,7 +94,7 @@ describe("PriceDatabase", () => {
     db.upsertPrice(priceData);
 
     // Change price
-    priceData.unitPrice = 12.0;
+    priceData.unitPrice = "12,00 €";
     const result = db.upsertPrice(priceData);
 
     expect(result).toBe("updated");
@@ -104,7 +104,7 @@ describe("PriceDatabase", () => {
     db.upsertPrice({
       productId: "TEST001",
       productName: "Test Product 1",
-      unitPrice: 10.0,
+      unitPrice: "10,00 €",
       itemSelection: null,
       packagingDescription: null,
       currency: null,
@@ -123,7 +123,7 @@ describe("PriceDatabase", () => {
     db.upsertPrice({
       productId: "TEST002",
       productName: "Test Product 2",
-      unitPrice: 20.0,
+      unitPrice: "20,00 €",
       itemSelection: null,
       packagingDescription: null,
       currency: null,
