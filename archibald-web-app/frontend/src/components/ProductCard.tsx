@@ -4,9 +4,18 @@ interface ProductCardProps {
   product: Product;
   expanded: boolean;
   onToggle: () => void;
+  showVariantBadge?: boolean; // Optional badge showing variant count
+  variantCount?: number; // Number of variants for this product
 }
 
-export function ProductCard({ product, expanded, onToggle }: ProductCardProps) {
+export function ProductCard({
+  product,
+  expanded,
+  onToggle,
+  showVariantBadge = false,
+  variantCount = 1,
+}: ProductCardProps) {
+  // Utility functions
   const formatCurrency = (amount: number | null | undefined): string => {
     if (amount === null || amount === undefined || amount === 0)
       return "€ 0,00";
@@ -19,13 +28,54 @@ export function ProductCard({ product, expanded, onToggle }: ProductCardProps) {
   const formatDate = (timestamp: number | null | undefined): string => {
     if (!timestamp) return "N/A";
     const date = new Date(timestamp * 1000);
-    return date.toLocaleDateString("it-IT");
+    return date.toLocaleDateString("it-IT", {
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+    });
+  };
+
+  const formatDateString = (dateStr: string | null | undefined): string => {
+    if (!dateStr) return "N/A";
+    // Handle various date formats from Archibald
+    try {
+      const date = new Date(dateStr);
+      if (isNaN(date.getTime())) return dateStr; // Return original if invalid
+      return date.toLocaleDateString("it-IT", {
+        day: "2-digit",
+        month: "2-digit",
+        year: "numeric",
+      });
+    } catch {
+      return dateStr;
+    }
   };
 
   // Get product image URL or placeholder
   const imageUrl = product.imageLocalPath
     ? `/api/${product.imageLocalPath}`
     : "https://via.placeholder.com/150?text=No+Image";
+
+  // Price badge logic
+  const getPriceBadge = () => {
+    if (product.price === null || product.price === undefined) {
+      return {
+        text: "⚠️ Prezzo non disponibile",
+        bgColor: "#ffebee",
+        color: "#c62828",
+      };
+    }
+    if (product.priceSource === "default") {
+      return {
+        text: "⚠️ Prezzo stimato",
+        bgColor: "#fff3e0",
+        color: "#f57c00",
+      };
+    }
+    return null;
+  };
+
+  const priceBadge = getPriceBadge();
 
   return (
     <div
@@ -97,6 +147,22 @@ export function ProductCard({ product, expanded, onToggle }: ProductCardProps) {
               }}
             >
               {product.name}
+              {/* Variant badge */}
+              {showVariantBadge && variantCount > 1 && (
+                <span
+                  style={{
+                    marginLeft: "8px",
+                    fontSize: "12px",
+                    fontWeight: 600,
+                    padding: "4px 8px",
+                    borderRadius: "12px",
+                    backgroundColor: "#e3f2fd",
+                    color: "#1976d2",
+                  }}
+                >
+                  {variantCount} confezioni
+                </span>
+              )}
             </div>
             <div
               style={{
@@ -116,14 +182,23 @@ export function ProductCard({ product, expanded, onToggle }: ProductCardProps) {
                 color: "#666",
               }}
             >
+              <span>
+                <strong>Codice:</strong> {product.id}
+              </span>
               {product.groupCode && (
                 <span>
                   <strong>Gruppo:</strong> {product.groupCode}
                 </span>
               )}
-              {product.price !== undefined && product.price !== null && (
+              {/* Show key characteristics in header */}
+              {product.figure && (
                 <span>
-                  <strong>Prezzo:</strong> {formatCurrency(product.price)}
+                  <strong>Figura:</strong> {product.figure}
+                </span>
+              )}
+              {product.size && (
+                <span>
+                  <strong>Grandezza:</strong> {product.size}
                 </span>
               )}
               {product.packageContent && (
