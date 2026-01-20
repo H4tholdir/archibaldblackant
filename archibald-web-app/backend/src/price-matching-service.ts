@@ -1,5 +1,6 @@
 import { PriceDatabase, Price } from "./price-db";
 import { ProductDatabase, Product } from "./product-db";
+import { PriceHistoryDatabase } from "./price-history-db";
 import { logger } from "./logger";
 
 export interface PriceMatchResult {
@@ -28,10 +29,12 @@ export class PriceMatchingService {
   private static instance: PriceMatchingService;
   private priceDb: PriceDatabase;
   private productDb: ProductDatabase;
+  private historyDb: PriceHistoryDatabase;
 
   private constructor() {
     this.priceDb = PriceDatabase.getInstance();
     this.productDb = ProductDatabase.getInstance();
+    this.historyDb = PriceHistoryDatabase.getInstance();
   }
 
   static getInstance(): PriceMatchingService {
@@ -123,9 +126,13 @@ export class PriceMatchingService {
       const vatPercentage =
         excelVatMap?.get(priceRecord.productId) ?? matchedProduct.vat ?? null;
 
+      // Get old price for history tracking
+      const oldPrice = matchedProduct.price ?? null;
+      const newPrice = priceRecord.unitPrice;
+
       const updated = this.productDb.updateProductPrice(
         matchedProduct.id,
-        priceRecord.unitPrice,
+        newPrice,
         vatPercentage,
         "prices-db", // priceSource
         vatPercentage && excelVatMap?.has(priceRecord.productId) ? "excel" : null // vatSource (Excel if provided, else null)
@@ -134,6 +141,19 @@ export class PriceMatchingService {
       if (updated) {
         matchedProducts++;
         updatedProducts++;
+
+        // Record price change in history (only if price actually changed)
+        if (oldPrice !== newPrice) {
+          this.historyDb.recordPriceChange({
+            productId: matchedProduct.id,
+            productName: matchedProduct.name,
+            variantId: priceRecord.itemSelection,
+            oldPrice,
+            newPrice,
+            source: "pdf-sync",
+            currency: priceRecord.currency ?? "EUR",
+          });
+        }
       }
     }
 
