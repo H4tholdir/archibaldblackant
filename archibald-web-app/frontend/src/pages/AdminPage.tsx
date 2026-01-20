@@ -30,6 +30,9 @@ export function AdminPage({ onLogout, userName }: AdminPageProps) {
   const [statusFilter, setStatusFilter] = useState("all");
   const [currentPage, setCurrentPage] = useState(1);
   const [retryingJobId, setRetryingJobId] = useState<string | null>(null);
+  const [uploadingExcel, setUploadingExcel] = useState(false);
+  const [matchingPrices, setMatchingPrices] = useState(false);
+  const [uploadResult, setUploadResult] = useState<any>(null);
   const jobsPerPage = 20;
 
   useEffect(() => {
@@ -84,6 +87,91 @@ export function AdminPage({ onLogout, userName }: AdminPageProps) {
       alert("Error retrying job");
     } finally {
       setRetryingJobId(null);
+    }
+  };
+
+  const handleExcelIvaUpload = async (
+    event: React.ChangeEvent<HTMLInputElement>,
+  ) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    const jwt = localStorage.getItem("archibald_jwt");
+    if (!jwt) {
+      alert("Devi effettuare il login");
+      return;
+    }
+
+    setUploadingExcel(true);
+    setUploadResult(null);
+
+    try {
+      // Step 1: Upload Excel file with IVA data
+      const formData = new FormData();
+      formData.append("file", file);
+      formData.append("overwritePrices", "false"); // IVA only, don't overwrite prices
+
+      const uploadResponse = await fetch("/api/prices/import-excel", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${jwt}`,
+        },
+        body: formData,
+      });
+
+      const uploadData = await uploadResponse.json();
+
+      if (!uploadData.success) {
+        alert(`❌ Errore upload IVA: ${uploadData.error}`);
+        setUploadResult(uploadData);
+        return;
+      }
+
+      // Step 2: Trigger price matching automatically
+      setMatchingPrices(true);
+      const matchResponse = await fetch("/api/prices/match", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${jwt}`,
+          "Content-Type": "application/json",
+        },
+      });
+
+      const matchData = await matchResponse.json();
+      setMatchingPrices(false);
+
+      if (matchData.success) {
+        setUploadResult({
+          upload: uploadData.data,
+          matching: matchData.result,
+        });
+
+        alert(
+          `✅ IVA caricata e prezzi matchati!\n\n` +
+            `📊 IVA aggiornate: ${uploadData.data.vatUpdatedCount}\n` +
+            `🔗 Prodotti matchati: ${matchData.result.matchedProducts}\n` +
+            `❌ Non matchati: ${matchData.result.unmatchedPrices}`,
+        );
+      } else {
+        alert(
+          `⚠️ IVA caricata ma matching fallito: ${matchData.error}\n\n` +
+            `IVA aggiornate: ${uploadData.data.vatUpdatedCount}`,
+        );
+        setUploadResult({
+          upload: uploadData.data,
+          matchingError: matchData.error,
+        });
+      }
+    } catch (error) {
+      console.error("Excel IVA upload error:", error);
+      alert(
+        `❌ Errore durante l'upload: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    } finally {
+      setUploadingExcel(false);
+      setMatchingPrices(false);
+      // Reset file input
+      event.target.value = "";
     }
   };
 
@@ -167,6 +255,165 @@ export function AdminPage({ onLogout, userName }: AdminPageProps) {
           </p>
           <div className="sync-bars-container">
             <SyncBars />
+          </div>
+        </section>
+
+        <section className="admin-section">
+          <h2>📊 Carica Listino Excel (IVA + Price Matching)</h2>
+          <p className="admin-description">
+            Carica un file Excel con dati IVA (Listino_2026_vendita.xlsx). Dopo
+            il caricamento, il sistema matcherà automaticamente i prezzi da
+            prices.db a products.db.
+          </p>
+
+          <div
+            style={{
+              padding: "20px",
+              border: "1px solid #ddd",
+              borderRadius: "8px",
+              backgroundColor: "#fafafa",
+            }}
+          >
+            <div style={{ marginBottom: "16px" }}>
+              <label
+                htmlFor="excel-iva-upload"
+                style={{
+                  display: "block",
+                  fontWeight: 600,
+                  marginBottom: "8px",
+                }}
+              >
+                Seleziona file Excel (.xlsx, .xls)
+              </label>
+              <input
+                id="excel-iva-upload"
+                type="file"
+                accept=".xlsx,.xls"
+                onChange={handleExcelIvaUpload}
+                disabled={uploadingExcel || matchingPrices}
+                style={{
+                  padding: "8px",
+                  border: "1px solid #ddd",
+                  borderRadius: "4px",
+                  backgroundColor: "#fff",
+                  cursor:
+                    uploadingExcel || matchingPrices
+                      ? "not-allowed"
+                      : "pointer",
+                }}
+              />
+            </div>
+
+            {uploadingExcel && (
+              <div
+                style={{
+                  padding: "12px",
+                  backgroundColor: "#e3f2fd",
+                  borderRadius: "4px",
+                  marginTop: "12px",
+                }}
+              >
+                ⏳ Caricamento file Excel in corso...
+              </div>
+            )}
+
+            {matchingPrices && (
+              <div
+                style={{
+                  padding: "12px",
+                  backgroundColor: "#fff3e0",
+                  borderRadius: "4px",
+                  marginTop: "12px",
+                }}
+              >
+                🔄 Matching prezzi da prices.db in corso...
+              </div>
+            )}
+
+            {uploadResult && (
+              <div
+                style={{
+                  marginTop: "16px",
+                  padding: "16px",
+                  backgroundColor: uploadResult.matchingError
+                    ? "#fff3cd"
+                    : "#d4edda",
+                  border: `1px solid ${uploadResult.matchingError ? "#ffc107" : "#28a745"}`,
+                  borderRadius: "4px",
+                }}
+              >
+                <h3
+                  style={{
+                    margin: "0 0 12px 0",
+                    color: uploadResult.matchingError ? "#856404" : "#155724",
+                  }}
+                >
+                  {uploadResult.matchingError
+                    ? "⚠️ Upload completato con warning"
+                    : "✅ Upload e matching completati"}
+                </h3>
+
+                <div style={{ display: "grid", gap: "8px", fontSize: "14px" }}>
+                  <div>
+                    <strong>IVA aggiornate:</strong>{" "}
+                    {uploadResult.upload?.vatUpdatedCount || 0}
+                  </div>
+                  {uploadResult.matching && (
+                    <>
+                      <div>
+                        <strong>Prezzi totali (prices.db):</strong>{" "}
+                        {uploadResult.matching.totalPrices}
+                      </div>
+                      <div>
+                        <strong>Prodotti matchati:</strong>{" "}
+                        {uploadResult.matching.matchedProducts}
+                      </div>
+                      <div>
+                        <strong>Non matchati:</strong>{" "}
+                        {uploadResult.matching.unmatchedPrices}
+                      </div>
+                      <div>
+                        <strong>Null prices:</strong>{" "}
+                        {uploadResult.matching.nullPrices}
+                      </div>
+                      <div>
+                        <strong>Variant mismatches:</strong>{" "}
+                        {uploadResult.matching.variantMismatches}
+                      </div>
+                    </>
+                  )}
+                  {uploadResult.matchingError && (
+                    <div style={{ color: "#856404", marginTop: "8px" }}>
+                      <strong>Errore matching:</strong>{" "}
+                      {uploadResult.matchingError}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            <div
+              style={{
+                marginTop: "16px",
+                padding: "12px",
+                backgroundColor: "#e8f5e9",
+                borderRadius: "4px",
+                fontSize: "13px",
+              }}
+            >
+              <strong>ℹ️ Info:</strong>
+              <ul style={{ margin: "8px 0 0 20px", paddingLeft: 0 }}>
+                <li>
+                  Il file deve avere la struttura standard del listino Excel
+                </li>
+                <li>L'upload carica i dati IVA nel database</li>
+                <li>
+                  Dopo l'upload, i prezzi da prices.db vengono matchati
+                  automaticamente
+                </li>
+                <li>I risultati mostrano statistiche complete del matching</li>
+              </ul>
+            </div>
           </div>
         </section>
 
