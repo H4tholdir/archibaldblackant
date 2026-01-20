@@ -35,7 +35,7 @@ export interface ParsedPrice {
 export class PDFParserPricesService {
   private static instance: PDFParserPricesService;
   private parserPath: string;
-  private timeout: number = 30000; // 30s for ~4,540 prices
+  private timeout: number = 300000; // 5 minutes - prices PDF is large (13,000+ pages)
 
   private constructor() {
     // Path relative to backend root

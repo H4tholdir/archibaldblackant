@@ -297,18 +297,41 @@ export class PriceSyncService extends EventEmitter {
       // Setup download promise before clicking
       const downloadComplete = new Promise<void>((resolve, reject) => {
         const fs = require("fs");
-        const maxWait = 60000;
-        const startWait = Date.now();
+        const timeout = setTimeout(() => {
+          reject(
+            new Error(
+              "PDF download timeout (120s exceeded). Archibald may be generating PDF.",
+            ),
+          );
+        }, 120000);
 
-        const checkInterval = setInterval(() => {
-          if (fs.existsSync(downloadPath)) {
-            clearInterval(checkInterval);
+        // Poll for file creation
+        const checkFile = setInterval(() => {
+          // Look for "Tabella prezzi.pdf" (Italian) or "Price table.pdf" (English) - Archibald's default names
+          const files = fs.readdirSync("/tmp");
+          const pdfFiles = files.filter(
+            (f: string) =>
+              f === "Tabella prezzi.pdf" ||
+              f === "Price table.pdf" ||
+              (f.startsWith("prezzi-") && f.endsWith(".pdf")),
+          );
+
+          if (pdfFiles.length > 0) {
+            // Find the most recent one (prefer "Tabella prezzi.pdf" if it exists)
+            const recentPdf =
+              pdfFiles.find((f: string) => f === "Tabella prezzi.pdf") ||
+              pdfFiles.find((f: string) => f === "Price table.pdf") ||
+              pdfFiles[pdfFiles.length - 1];
+            const tempPath = `/tmp/${recentPdf}`;
+
+            // Rename to our expected path
+            fs.renameSync(tempPath, downloadPath);
+
+            clearTimeout(timeout);
+            clearInterval(checkFile);
             resolve();
-          } else if (Date.now() - startWait > maxWait) {
-            clearInterval(checkInterval);
-            reject(new Error("Download timeout"));
           }
-        }, 1000);
+        }, 500);
       });
 
       // Click PDF export button
@@ -349,26 +372,27 @@ export class PriceSyncService extends EventEmitter {
 
     for (const parsedPrice of parsedPrices) {
       // Map ParsedPrice to Price schema
+      // Python parser uses Italian field names from PDF columns
       const priceData = {
-        productId: parsedPrice.product_id,
-        productName: parsedPrice.product_name ?? "",
-        unitPrice: parsedPrice.unit_price ?? null,
+        productId: (parsedPrice as any).id, // Python: 'id'
+        productName: (parsedPrice as any).item_description ?? "", // Python: 'item_description'
+        unitPrice: (parsedPrice as any).importo_unitario ?? null, // Python: 'importo_unitario'
         itemSelection: parsedPrice.item_selection ?? null,
-        packagingDescription: null, // Not available in ParsedPrice
-        currency: parsedPrice.currency ?? null,
-        priceValidFrom: parsedPrice.price_valid_from ?? null,
-        priceValidTo: parsedPrice.price_valid_to ?? null,
-        priceUnit: parsedPrice.price_unit ?? null,
-        accountDescription: parsedPrice.account_description ?? null,
-        accountCode: parsedPrice.account_code ?? null,
-        priceQtyFrom: parsedPrice.quantity_from
-          ? parseInt(parsedPrice.quantity_from)
-          : null,
-        priceQtyTo: parsedPrice.quantity_to
-          ? parseInt(parsedPrice.quantity_to)
-          : null,
-        lastModified: null, // Not available in ParsedPrice
-        dataAreaId: null, // Not available in ParsedPrice
+        packagingDescription: null, // Not in PDF
+        currency: (parsedPrice as any).valuta ?? null, // Python: 'valuta'
+        priceValidFrom: (parsedPrice as any).da_data ?? null, // Python: 'da_data'
+        priceValidTo: (parsedPrice as any).data ?? null, // Python: 'data'
+        priceUnit: (parsedPrice as any).unita_di_prezzo ?? null, // Python: 'unita_di_prezzo'
+        accountDescription: (parsedPrice as any).descrizione_account ?? null, // Python: 'descrizione_account'
+        accountCode: (parsedPrice as any).account ?? null, // Python: 'account'
+        priceQtyFrom: (parsedPrice as any).quantita_p2
+          ? parseInt((parsedPrice as any).quantita_p2)
+          : null, // Python: 'quantita_p2'
+        priceQtyTo: (parsedPrice as any).quantita_p3
+          ? parseInt((parsedPrice as any).quantita_p3)
+          : null, // Python: 'quantita_p3'
+        lastModified: null, // Not in PDF
+        dataAreaId: null, // Not in PDF
         lastSync: now,
       };
 
