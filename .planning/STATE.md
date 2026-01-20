@@ -10,18 +10,18 @@ See: .planning/PROJECT.md (updated 2026-01-11)
 ## Current Position
 
 Phase: 21 of 28 (Orders Sync Analysis & Optimization)
-Plan: 4 of 5 in current phase
-Status: In progress
-Last activity: 2026-01-20 — Completed 21-04-PLAN.md (PDF Download Bot Flows for Orders, DDT & Invoices)
+Plan: 5 of 5 in current phase
+Status: Complete ✅
+Last activity: 2026-01-20 — Completed 21-05-PLAN.md (Manual Sync UI & Order History Enhancements)
 
-Progress: █████░░░░░ 42% (v2.0: 9/15 phases complete, 35/68 plans)
+Progress: █████░░░░░ 43% (v2.0: 10/15 phases complete, 36/68 plans)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 105
-- Average duration: 47 min
-- Total execution time: 90.45 hours
+- Total plans completed: 106
+- Average duration: 48 min
+- Total execution time: 92.45 hours
 
 **By Phase:**
 
@@ -47,10 +47,10 @@ Progress: █████░░░░░ 42% (v2.0: 9/15 phases complete, 35/68 
 | 19 | 5 | 194 min | 39 min |
 | 19.1 | 3 | 25 min | 8 min |
 | 20 | 6 | 330 min | 55 min |
-| 21 | 4 | 233 min | 58 min |
+| 21 | 5 | 353 min | 71 min |
 
 **Recent Trend:**
-- Last 10 plans: 20-01 (45m), 20-02 (105m), 20-03 (30m), 20-04 (30m), 20-05 (60m), 20-06 (60m), 21-01 (90m), 21-02 (8m), 21-03 (45m), 21-04 (90m)
+- Last 10 plans: 20-02 (105m), 20-03 (30m), 20-04 (30m), 20-05 (60m), 20-06 (60m), 21-01 (90m), 21-02 (8m), 21-03 (45m), 21-04 (90m), 21-05 (120m)
 - Phase 9 extremely fast (avg 11m) - leveraging existing Phase 8-07 infrastructure
 - Phase 10 high avg (105m) - includes 521m for Plan 10-07 (heavy login debugging)
 - Phase 14 complete (5 plans avg 9m) - 4 discovery plans + 1 execution plan, all IndexedDB errors fixed ✅ COMPLETE
@@ -67,6 +67,10 @@ Recent decisions affecting current work:
 
 | Phase | Decision | Rationale |
 |-------|----------|-----------|
+| 21-05 | Three separate sync buttons (no combined) | Each sync type independent lifecycle, user control granularity, simpler UX than combined button with checkboxes |
+| 21-05 | Toggle "essenziali" shows status + tracking only | Reduces visual clutter for mobile agents, most critical info at a glance, localStorage persistence per user |
+| 21-05 | Remove clickable icons from order/DDT numbers | User feedback: icons confusing, numbers already copyable via text selection, cleaner UI |
+| 21-05 | Track articles in separate table (not JSON) | Enables SQL queries, future enrichment via scraping, foreign key relationships, normalized schema |
 | 21-04 | Reuse export button selector across all 3 PDFs | All pages use same selector (#Vertical_mainMenu_Menu_DXI3_T), Archibald UI consistency simplifies implementation |
 | 21-04 | Dual language filename detection | Handle both IT ("Ordini cliente.pdf") and EN ("Customer orders.pdf") for robustness across Archibald versions |
 | 21-04 | Event-driven sync services | EventEmitter pattern enables progress tracking, UI integration, and future observability features |
@@ -603,8 +607,8 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-01-20 (evening)
-Stopped at: Completed 21-04-PLAN.md (PDF Download Bot Flows for Orders, DDT & Invoices)
-Next: Plan 21-05 (Manual Sync UI & Order History Enhancements)
+Stopped at: Completed Phase 21 (Orders Sync Analysis & Optimization) ✅
+Next: Phase 22 (Sync Orchestration Layer)
 Resume file: None
 
 ### Session 95 (2026-01-20)
