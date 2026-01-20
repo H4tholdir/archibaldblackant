@@ -43,6 +43,12 @@ export function OrderHistory() {
   const [modalOrderId, setModalOrderId] = useState<string | null>(null);
   const [modalCustomerName, setModalCustomerName] = useState<string>("");
   const [sendingToMilano, setSendingToMilano] = useState(false);
+  const [syncingOrders, setSyncingOrders] = useState(false);
+  const [syncingDDT, setSyncingDDT] = useState(false);
+  const [syncingInvoices, setSyncingInvoices] = useState(false);
+  const [ordersSyncResult, setOrdersSyncResult] = useState<any>(null);
+  const [ddtSyncResult, setDDTSyncResult] = useState<any>(null);
+  const [invoicesSyncResult, setInvoicesSyncResult] = useState<any>(null);
 
   // Debounce customer search input (300ms)
   useEffect(() => {
@@ -252,6 +258,120 @@ export function OrderHistory() {
       const errorMessage =
         err instanceof Error ? err.message : "Errore nel reset del database";
       setError(errorMessage);
+    }
+  };
+
+  const handleSyncOrders = async () => {
+    if (syncingOrders || syncingDDT || syncingInvoices) return;
+
+    setSyncingOrders(true);
+    setOrdersSyncResult(null);
+    setError(null);
+
+    try {
+      const token = localStorage.getItem("archibald_jwt");
+      if (!token) {
+        setError("Non autenticato. Effettua il login.");
+        return;
+      }
+
+      const response = await fetch("/api/orders/sync", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+      });
+
+      const data = await response.json();
+
+      if (!data.success) {
+        throw new Error(data.error || "Sync failed");
+      }
+
+      setOrdersSyncResult(data);
+      await fetchOrders();
+    } catch (error) {
+      console.error("Orders sync error:", error);
+      setError(`Errore sincronizzazione ordini: ${error}`);
+    } finally {
+      setSyncingOrders(false);
+    }
+  };
+
+  const handleSyncDDT = async () => {
+    if (syncingOrders || syncingDDT || syncingInvoices) return;
+
+    setSyncingDDT(true);
+    setDDTSyncResult(null);
+    setError(null);
+
+    try {
+      const token = localStorage.getItem("archibald_jwt");
+      if (!token) {
+        setError("Non autenticato. Effettua il login.");
+        return;
+      }
+
+      const response = await fetch("/api/ddt/sync", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+      });
+
+      const data = await response.json();
+
+      if (!data.success) {
+        throw new Error(data.error || "Sync failed");
+      }
+
+      setDDTSyncResult(data);
+      await fetchOrders();
+    } catch (error) {
+      console.error("DDT sync error:", error);
+      setError(`Errore sincronizzazione DDT: ${error}`);
+    } finally {
+      setSyncingDDT(false);
+    }
+  };
+
+  const handleSyncInvoices = async () => {
+    if (syncingOrders || syncingDDT || syncingInvoices) return;
+
+    setSyncingInvoices(true);
+    setInvoicesSyncResult(null);
+    setError(null);
+
+    try {
+      const token = localStorage.getItem("archibald_jwt");
+      if (!token) {
+        setError("Non autenticato. Effettua il login.");
+        return;
+      }
+
+      const response = await fetch("/api/invoices/sync", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+      });
+
+      const data = await response.json();
+
+      if (!data.success) {
+        throw new Error(data.error || "Sync failed");
+      }
+
+      setInvoicesSyncResult(data);
+      await fetchOrders();
+    } catch (error) {
+      console.error("Invoices sync error:", error);
+      setError(`Errore sincronizzazione fatture: ${error}`);
+    } finally {
+      setSyncingInvoices(false);
     }
   };
 
@@ -517,36 +637,148 @@ export function OrderHistory() {
             </button>
           )}
 
-          {/* Force sync button */}
+          {/* Sync Orders button */}
           <button
-            onClick={handleForceSync}
-            disabled={progress.isRunning || loading}
+            onClick={handleSyncOrders}
+            disabled={syncingOrders || syncingDDT || syncingInvoices || loading}
             style={{
               padding: "8px 16px",
               fontSize: "14px",
               fontWeight: 600,
               border: "1px solid #1976d2",
               borderRadius: "8px",
-              backgroundColor: progress.isRunning ? "#e3f2fd" : "#fff",
-              color: progress.isRunning ? "#999" : "#1976d2",
-              cursor: progress.isRunning || loading ? "not-allowed" : "pointer",
+              backgroundColor: syncingOrders ? "#e3f2fd" : "#fff",
+              color: syncingOrders ? "#999" : "#1976d2",
+              cursor:
+                syncingOrders || syncingDDT || syncingInvoices || loading
+                  ? "not-allowed"
+                  : "pointer",
               transition: "all 0.2s",
-              opacity: progress.isRunning || loading ? 0.6 : 1,
+              opacity:
+                syncingOrders || syncingDDT || syncingInvoices || loading
+                  ? 0.6
+                  : 1,
             }}
             onMouseEnter={(e) => {
-              if (!progress.isRunning && !loading) {
+              if (
+                !syncingOrders &&
+                !syncingDDT &&
+                !syncingInvoices &&
+                !loading
+              ) {
                 e.currentTarget.style.backgroundColor = "#1976d2";
                 e.currentTarget.style.color = "#fff";
               }
             }}
             onMouseLeave={(e) => {
-              if (!progress.isRunning && !loading) {
+              if (
+                !syncingOrders &&
+                !syncingDDT &&
+                !syncingInvoices &&
+                !loading
+              ) {
                 e.currentTarget.style.backgroundColor = "#fff";
                 e.currentTarget.style.color = "#1976d2";
               }
             }}
           >
-            {progress.isRunning ? "⏳ Sincronizzazione..." : "🔄 Sincronizza"}
+            {syncingOrders ? "⏳ Sync Ordini..." : "🔄 Sync Ordini"}
+          </button>
+
+          {/* Sync DDT button */}
+          <button
+            onClick={handleSyncDDT}
+            disabled={syncingOrders || syncingDDT || syncingInvoices || loading}
+            style={{
+              padding: "8px 16px",
+              fontSize: "14px",
+              fontWeight: 600,
+              border: "1px solid #4caf50",
+              borderRadius: "8px",
+              backgroundColor: syncingDDT ? "#e8f5e9" : "#fff",
+              color: syncingDDT ? "#999" : "#4caf50",
+              cursor:
+                syncingOrders || syncingDDT || syncingInvoices || loading
+                  ? "not-allowed"
+                  : "pointer",
+              transition: "all 0.2s",
+              opacity:
+                syncingOrders || syncingDDT || syncingInvoices || loading
+                  ? 0.6
+                  : 1,
+            }}
+            onMouseEnter={(e) => {
+              if (
+                !syncingOrders &&
+                !syncingDDT &&
+                !syncingInvoices &&
+                !loading
+              ) {
+                e.currentTarget.style.backgroundColor = "#4caf50";
+                e.currentTarget.style.color = "#fff";
+              }
+            }}
+            onMouseLeave={(e) => {
+              if (
+                !syncingOrders &&
+                !syncingDDT &&
+                !syncingInvoices &&
+                !loading
+              ) {
+                e.currentTarget.style.backgroundColor = "#fff";
+                e.currentTarget.style.color = "#4caf50";
+              }
+            }}
+          >
+            {syncingDDT ? "⏳ Sync DDT..." : "🚚 Sync DDT"}
+          </button>
+
+          {/* Sync Invoices button */}
+          <button
+            onClick={handleSyncInvoices}
+            disabled={syncingOrders || syncingDDT || syncingInvoices || loading}
+            style={{
+              padding: "8px 16px",
+              fontSize: "14px",
+              fontWeight: 600,
+              border: "1px solid #ff9800",
+              borderRadius: "8px",
+              backgroundColor: syncingInvoices ? "#fff3e0" : "#fff",
+              color: syncingInvoices ? "#999" : "#ff9800",
+              cursor:
+                syncingOrders || syncingDDT || syncingInvoices || loading
+                  ? "not-allowed"
+                  : "pointer",
+              transition: "all 0.2s",
+              opacity:
+                syncingOrders || syncingDDT || syncingInvoices || loading
+                  ? 0.6
+                  : 1,
+            }}
+            onMouseEnter={(e) => {
+              if (
+                !syncingOrders &&
+                !syncingDDT &&
+                !syncingInvoices &&
+                !loading
+              ) {
+                e.currentTarget.style.backgroundColor = "#ff9800";
+                e.currentTarget.style.color = "#fff";
+              }
+            }}
+            onMouseLeave={(e) => {
+              if (
+                !syncingOrders &&
+                !syncingDDT &&
+                !syncingInvoices &&
+                !loading
+              ) {
+                e.currentTarget.style.backgroundColor = "#fff";
+                e.currentTarget.style.color = "#ff9800";
+              }
+            }}
+          >
+            {syncingInvoices ? "⏳ Sync Fatture..." : "💰 Sync Fatture"}
           </button>
 
           {/* Admin-only Reset DB button */}
@@ -587,6 +819,183 @@ export function OrderHistory() {
           )}
         </div>
       </div>
+
+      {/* Sync Progress Banners */}
+      {syncingOrders && (
+        <div
+          style={{
+            padding: "15px",
+            backgroundColor: "#e3f2fd",
+            borderRadius: "8px",
+            marginBottom: "20px",
+            boxShadow: "0 2px 8px rgba(0, 0, 0, 0.1)",
+          }}
+        >
+          <div
+            style={{
+              fontSize: "16px",
+              fontWeight: "bold",
+              marginBottom: "5px",
+            }}
+          >
+            ⏳ Sincronizzazione ordini in corso...
+          </div>
+          <div style={{ fontSize: "14px", color: "#666" }}>
+            Download PDF → Parsing → Salvataggio database
+          </div>
+        </div>
+      )}
+
+      {syncingDDT && (
+        <div
+          style={{
+            padding: "15px",
+            backgroundColor: "#e8f5e9",
+            borderRadius: "8px",
+            marginBottom: "20px",
+            boxShadow: "0 2px 8px rgba(0, 0, 0, 0.1)",
+          }}
+        >
+          <div
+            style={{
+              fontSize: "16px",
+              fontWeight: "bold",
+              marginBottom: "5px",
+            }}
+          >
+            ⏳ Sincronizzazione DDT in corso...
+          </div>
+          <div style={{ fontSize: "14px", color: "#666" }}>
+            Download PDF → Parsing → Salvataggio database
+          </div>
+        </div>
+      )}
+
+      {syncingInvoices && (
+        <div
+          style={{
+            padding: "15px",
+            backgroundColor: "#fff3e0",
+            borderRadius: "8px",
+            marginBottom: "20px",
+            boxShadow: "0 2px 8px rgba(0, 0, 0, 0.1)",
+          }}
+        >
+          <div
+            style={{
+              fontSize: "16px",
+              fontWeight: "bold",
+              marginBottom: "5px",
+            }}
+          >
+            ⏳ Sincronizzazione fatture in corso...
+          </div>
+          <div style={{ fontSize: "14px", color: "#666" }}>
+            Download PDF → Parsing → Salvataggio database
+          </div>
+        </div>
+      )}
+
+      {/* Sync Result Summary - Orders */}
+      {ordersSyncResult && !syncingOrders && (
+        <div
+          style={{
+            padding: "15px",
+            backgroundColor: "#e8f5e9",
+            borderRadius: "8px",
+            marginBottom: "20px",
+            boxShadow: "0 2px 8px rgba(0, 0, 0, 0.1)",
+          }}
+        >
+          <div
+            style={{
+              fontSize: "16px",
+              fontWeight: "bold",
+              color: "#2e7d32",
+              marginBottom: "10px",
+            }}
+          >
+            ✓ Sincronizzazione ordini completata
+          </div>
+          <div style={{ fontSize: "14px", color: "#666" }}>
+            <div>
+              Ordini processati: {ordersSyncResult.data?.ordersProcessed || 0}
+            </div>
+            <div>
+              Nuovi ordini: {ordersSyncResult.data?.ordersInserted || 0}
+            </div>
+            <div>
+              Ordini aggiornati: {ordersSyncResult.data?.ordersUpdated || 0}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Sync Result Summary - DDT */}
+      {ddtSyncResult && !syncingDDT && (
+        <div
+          style={{
+            padding: "15px",
+            backgroundColor: "#e8f5e9",
+            borderRadius: "8px",
+            marginBottom: "20px",
+            boxShadow: "0 2px 8px rgba(0, 0, 0, 0.1)",
+          }}
+        >
+          <div
+            style={{
+              fontSize: "16px",
+              fontWeight: "bold",
+              color: "#2e7d32",
+              marginBottom: "10px",
+            }}
+          >
+            ✓ Sincronizzazione DDT completata
+          </div>
+          <div style={{ fontSize: "14px", color: "#666" }}>
+            <div>DDT processati: {ddtSyncResult.data?.ddtProcessed || 0}</div>
+            <div>Nuovi DDT: {ddtSyncResult.data?.ddtInserted || 0}</div>
+            <div>DDT aggiornati: {ddtSyncResult.data?.ddtUpdated || 0}</div>
+          </div>
+        </div>
+      )}
+
+      {/* Sync Result Summary - Invoices */}
+      {invoicesSyncResult && !syncingInvoices && (
+        <div
+          style={{
+            padding: "15px",
+            backgroundColor: "#e8f5e9",
+            borderRadius: "8px",
+            marginBottom: "20px",
+            boxShadow: "0 2px 8px rgba(0, 0, 0, 0.1)",
+          }}
+        >
+          <div
+            style={{
+              fontSize: "16px",
+              fontWeight: "bold",
+              color: "#2e7d32",
+              marginBottom: "10px",
+            }}
+          >
+            ✓ Sincronizzazione fatture completata
+          </div>
+          <div style={{ fontSize: "14px", color: "#666" }}>
+            <div>
+              Fatture processate:{" "}
+              {invoicesSyncResult.data?.invoicesProcessed || 0}
+            </div>
+            <div>
+              Nuove fatture: {invoicesSyncResult.data?.invoicesInserted || 0}
+            </div>
+            <div>
+              Fatture aggiornate:{" "}
+              {invoicesSyncResult.data?.invoicesUpdated || 0}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Loading state */}
       {loading && (

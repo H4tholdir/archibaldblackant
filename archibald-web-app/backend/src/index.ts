@@ -65,6 +65,9 @@ import { PDFParserPricesService } from "./pdf-parser-prices-service";
 import { PDFParserOrdersService } from "./pdf-parser-orders-service";
 import { PDFParserDDTService } from "./pdf-parser-ddt-service";
 import { PDFParserInvoicesService } from "./pdf-parser-invoices-service";
+import { OrderSyncService } from "./order-sync-service";
+import { DDTSyncService } from "./ddt-sync-service";
+import { InvoiceSyncService } from "./invoice-sync-service";
 
 const app = express();
 const server = createServer(app);
@@ -84,6 +87,9 @@ const orderHistoryService = new OrderHistoryService();
 const sendToMilanoService = new SendToMilanoService();
 const orderDb = OrderDatabase.getInstance();
 const priorityManager = PriorityManager.getInstance();
+const orderSyncService = OrderSyncService.getInstance();
+const ddtSyncService = DDTSyncService.getInstance();
+const invoiceSyncService = InvoiceSyncService.getInstance();
 
 // Global lock per prevenire sync paralleli e conflitti con ordini
 type ActiveOperation = "customers" | "products" | "prices" | "order" | null;
@@ -3883,6 +3889,164 @@ app.post(
       return res.status(500).json({
         success: false,
         error: "Failed to sync invoice data. Please try again later.",
+      });
+    }
+  },
+);
+
+// Manual sync orders via PDF - POST /api/orders/sync
+app.post(
+  "/api/orders/sync",
+  authenticateJWT,
+  async (req: AuthRequest, res: Response) => {
+    const userId = req.user?.userId;
+    if (!userId) {
+      return res.status(401).json({ success: false, error: "Unauthorized" });
+    }
+
+    try {
+      logger.info(
+        `[Order Sync] Starting PDF-based order sync for user ${userId}`,
+      );
+
+      // Pause background services to prevent bot conflicts
+      priorityManager.pause();
+
+      try {
+        // Use OrderSyncService (PDF-based sync)
+        await orderSyncService.syncOrders(userId);
+
+        const progress = orderSyncService.getProgress();
+
+        logger.info(`[Order Sync] Completed for user ${userId}`, progress);
+
+        return res.json({
+          success: true,
+          message: `Synced ${progress.ordersProcessed} orders`,
+          data: {
+            ordersProcessed: progress.ordersProcessed,
+            ordersInserted: progress.ordersInserted,
+            ordersUpdated: progress.ordersUpdated,
+            ordersSkipped: progress.ordersSkipped,
+          },
+        });
+      } finally {
+        // Always resume background services
+        priorityManager.resume();
+      }
+    } catch (error) {
+      logger.error(`[Order Sync] Failed for user ${userId}`, {
+        error: error instanceof Error ? error.message : String(error),
+      });
+
+      return res.status(500).json({
+        success: false,
+        error: error instanceof Error ? error.message : "Failed to sync orders",
+      });
+    }
+  },
+);
+
+// Manual sync DDT via PDF - POST /api/ddt/sync
+app.post(
+  "/api/ddt/sync",
+  authenticateJWT,
+  async (req: AuthRequest, res: Response) => {
+    const userId = req.user?.userId;
+    if (!userId) {
+      return res.status(401).json({ success: false, error: "Unauthorized" });
+    }
+
+    try {
+      logger.info(`[DDT Sync] Starting PDF-based DDT sync for user ${userId}`);
+
+      // Pause background services to prevent bot conflicts
+      priorityManager.pause();
+
+      try {
+        // Use DDTSyncService (PDF-based sync)
+        await ddtSyncService.syncDDT(userId);
+
+        const progress = ddtSyncService.getProgress();
+
+        logger.info(`[DDT Sync] Completed for user ${userId}`, progress);
+
+        return res.json({
+          success: true,
+          message: `Synced ${progress.ddtProcessed} DDT`,
+          data: {
+            ddtProcessed: progress.ddtProcessed,
+            ddtInserted: progress.ddtInserted,
+            ddtUpdated: progress.ddtUpdated,
+            ddtSkipped: progress.ddtSkipped,
+          },
+        });
+      } finally {
+        // Always resume background services
+        priorityManager.resume();
+      }
+    } catch (error) {
+      logger.error(`[DDT Sync] Failed for user ${userId}`, {
+        error: error instanceof Error ? error.message : String(error),
+      });
+
+      return res.status(500).json({
+        success: false,
+        error: error instanceof Error ? error.message : "Failed to sync DDT",
+      });
+    }
+  },
+);
+
+// Manual sync invoices via PDF - POST /api/invoices/sync
+app.post(
+  "/api/invoices/sync",
+  authenticateJWT,
+  async (req: AuthRequest, res: Response) => {
+    const userId = req.user?.userId;
+    if (!userId) {
+      return res.status(401).json({ success: false, error: "Unauthorized" });
+    }
+
+    try {
+      logger.info(
+        `[Invoice Sync] Starting PDF-based invoice sync for user ${userId}`,
+      );
+
+      // Pause background services to prevent bot conflicts
+      priorityManager.pause();
+
+      try {
+        // Use InvoiceSyncService (PDF-based sync)
+        await invoiceSyncService.syncInvoices(userId);
+
+        const progress = invoiceSyncService.getProgress();
+
+        logger.info(`[Invoice Sync] Completed for user ${userId}`, progress);
+
+        return res.json({
+          success: true,
+          message: `Synced ${progress.invoicesProcessed} invoices`,
+          data: {
+            invoicesProcessed: progress.invoicesProcessed,
+            invoicesInserted: progress.invoicesInserted,
+            invoicesUpdated: progress.invoicesUpdated,
+            invoicesSkipped: progress.invoicesSkipped,
+          },
+        });
+      } finally {
+        // Always resume background services
+        priorityManager.resume();
+      }
+    } catch (error) {
+      logger.error(`[Invoice Sync] Failed for user ${userId}`, {
+        error: error instanceof Error ? error.message : String(error),
+      });
+
+      return res.status(500).json({
+        success: false,
+        error:
+          error instanceof Error ? error.message : "Failed to sync invoices",
       });
     }
   },
