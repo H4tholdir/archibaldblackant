@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 
 interface PriceHistoryRecord {
   id: number;
@@ -125,7 +125,7 @@ export function PriceHistoryModal({ productId, productName, onClose }: Props) {
                   marginLeft: "10px",
                 }}
               >
-                {history.map((record, index) => (
+                {history.map((record) => (
                   <div
                     key={record.id}
                     style={{ marginBottom: "20px", position: "relative" }}

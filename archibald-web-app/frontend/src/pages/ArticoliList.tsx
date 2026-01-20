@@ -3,7 +3,7 @@ import { ProductCard } from "../components/ProductCard";
 import { ProductDetailModal } from "../components/ProductDetailModal";
 import { getProducts, syncProducts, type Product } from "../api/products";
 import { ManualSyncBanner } from "../components/ManualSyncBanner";
-import PriceSyncNotification from "../components/PriceSyncNotification";
+import { PriceSyncNotification } from "../components/PriceSyncNotification";
 
 interface ProductFilters {
   search: string;
