@@ -1384,27 +1384,54 @@ app.get("/api/products", (req: Request, res: Response<ApiResponse>) => {
     const searchQuery = req.query.search as string | undefined;
     const limitParam = req.query.limit as string | undefined;
     const limit = limitParam ? parseInt(limitParam, 10) : 100; // Default limit: 100
+    const grouped = req.query.grouped === "true"; // NEW: grouped mode flag
 
-    logger.info("Richiesta lista prodotti", { searchQuery, limit });
+    logger.info("Richiesta lista prodotti", { searchQuery, limit, grouped });
 
-    let products = productDb.getProducts(searchQuery);
+    const db = ProductDatabase.getInstance();
 
-    // Limit results for performance (especially for autocomplete)
-    const totalMatches = products.length;
-    if (limit > 0 && products.length > limit) {
-      products = products.slice(0, limit);
+    if (grouped) {
+      // NEW: Grouped mode - return one product per article name
+      const productNames = db.getAllProductNames(searchQuery, limit);
+      const products = productNames.map(name => db.getBaseProduct(name)!).filter(Boolean);
+
+      const totalCount = productNames.length;
+      const returnedCount = products.length;
+
+      logger.info(`Retrieved ${returnedCount} grouped products (search: "${searchQuery}")`);
+
+      res.json({
+        success: true,
+        data: {
+          products: products,
+          totalCount: totalCount,
+          returnedCount: returnedCount,
+          limited: returnedCount >= limit,
+          grouped: true, // Indicate grouped mode in response
+        },
+      });
+    } else {
+      // EXISTING: Normal mode - return all variants
+      let products = productDb.getProducts(searchQuery);
+
+      // Limit results for performance (especially for autocomplete)
+      const totalMatches = products.length;
+      if (limit > 0 && products.length > limit) {
+        products = products.slice(0, limit);
+      }
+
+      res.json({
+        success: true,
+        data: {
+          products,
+          totalCount: productDb.getProductCount(),
+          returnedCount: products.length,
+          totalMatches, // Total matches before limit
+          limited: products.length < totalMatches,
+          grouped: false,
+        },
+      });
     }
-
-    res.json({
-      success: true,
-      data: {
-        products,
-        totalCount: productDb.getProductCount(),
-        returnedCount: products.length,
-        totalMatches, // Total matches before limit
-        limited: products.length < totalMatches,
-      },
-    });
   } catch (error) {
     logger.error("Errore API /api/products", { error });
 
