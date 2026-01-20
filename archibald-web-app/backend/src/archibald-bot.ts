@@ -6212,6 +6212,11 @@ export class ArchibaldBot {
     try {
       logger.info("[ArchibaldBot] Starting Clienti PDF download");
 
+      // Force Italian language for PDF export
+      await page.setExtraHTTPHeaders({
+        "Accept-Language": "it-IT,it;q=0.9,en-US;q=0.8,en;q=0.7",
+      });
+
       // 1. Navigate to Clienti ListView page
       const clientiUrl =
         "https://4.231.124.90/Archibald/CUSTTABLE_ListView_Agent/";
@@ -6429,6 +6434,11 @@ export class ArchibaldBot {
 
     try {
       logger.info("[ArchibaldBot] Starting Products PDF download");
+
+      // Force Italian language for PDF export
+      await page.setExtraHTTPHeaders({
+        "Accept-Language": "it-IT,it;q=0.9,en-US;q=0.8,en;q=0.7",
+      });
 
       // 1. Navigate to Products ListView page
       const productsUrl =
