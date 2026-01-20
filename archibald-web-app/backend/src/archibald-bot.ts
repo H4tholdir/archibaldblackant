@@ -6733,9 +6733,15 @@ export class ArchibaldBot {
       await new Promise((resolve) => setTimeout(resolve, 200));
 
       // Setup download promise before clicking
+      logger.info("[ArchibaldBot] Setting up download promise with polling...");
       const downloadComplete = new Promise<void>((resolve, reject) => {
         const fs = require("fs");
+        let pollCount = 0;
         const timeout = setTimeout(() => {
+          logger.error("[ArchibaldBot] PDF download timeout exceeded (300s)", {
+            pollCount,
+            downloadPath,
+          });
           reject(
             new Error(
               "PDF download timeout (300s exceeded). Archibald may be generating PDF.",
@@ -6745,27 +6751,62 @@ export class ArchibaldBot {
 
         // Poll for file creation
         const checkFile = setInterval(() => {
-          const files = fs.readdirSync("/tmp");
-          const pdfFiles = files.filter(
-            (f: string) =>
-              f === "Ordini cliente.pdf" ||
-              f === "Customer orders.pdf" ||
-              (f.startsWith("ordini-") && f.endsWith(".pdf")),
-          );
+          pollCount++;
+          try {
+            const files = fs.readdirSync("/tmp");
+            const pdfFiles = files.filter(
+              (f: string) =>
+                f === "Ordini cliente.pdf" ||
+                f === "Customer orders.pdf" ||
+                (f.startsWith("ordini-") && f.endsWith(".pdf")),
+            );
 
-          if (pdfFiles.length > 0) {
-            const recentPdf =
-              pdfFiles.find((f: string) => f === "Ordini cliente.pdf") ||
-              pdfFiles.find((f: string) => f === "Customer orders.pdf") ||
-              pdfFiles[pdfFiles.length - 1];
-            const tempPath = `/tmp/${recentPdf}`;
+            // Log polling progress every 10 seconds (20 polls at 500ms interval)
+            if (pollCount % 20 === 0) {
+              logger.info("[ArchibaldBot] Still waiting for PDF download...", {
+                pollCount,
+                elapsedSeconds: Math.floor((pollCount * 500) / 1000),
+                pdfFilesFound: pdfFiles.length,
+              });
+            }
 
-            // Rename to our expected path
-            fs.renameSync(tempPath, downloadPath);
+            if (pdfFiles.length > 0) {
+              const recentPdf =
+                pdfFiles.find((f: string) => f === "Ordini cliente.pdf") ||
+                pdfFiles.find((f: string) => f === "Customer orders.pdf") ||
+                pdfFiles[pdfFiles.length - 1];
+              const tempPath = `/tmp/${recentPdf}`;
 
+              logger.info("[ArchibaldBot] PDF file detected, renaming...", {
+                tempPath,
+                downloadPath,
+                pollCount,
+                elapsedSeconds: Math.floor((pollCount * 500) / 1000),
+              });
+
+              // Rename to our expected path
+              fs.renameSync(tempPath, downloadPath);
+
+              logger.info("[ArchibaldBot] PDF file renamed successfully", {
+                downloadPath,
+              });
+
+              clearTimeout(timeout);
+              clearInterval(checkFile);
+              resolve();
+            }
+          } catch (pollError) {
+            logger.error("[ArchibaldBot] Error during PDF polling", {
+              error:
+                pollError instanceof Error
+                  ? pollError.message
+                  : String(pollError),
+              stack: pollError instanceof Error ? pollError.stack : undefined,
+              pollCount,
+            });
             clearTimeout(timeout);
             clearInterval(checkFile);
-            resolve();
+            reject(pollError);
           }
         }, 500);
       });
@@ -6789,17 +6830,33 @@ export class ArchibaldBot {
       });
 
       if (!clickResult.success) {
+        logger.error("[ArchibaldBot] Failed to click PDF export button", {
+          error: clickResult.error,
+        });
         throw new Error(
           `Failed to click PDF export button: ${clickResult.error}`,
         );
       }
 
       logger.info(
-        "[ArchibaldBot] PDF export button clicked, waiting for download...",
+        "[ArchibaldBot] PDF export button clicked successfully, waiting for download...",
       );
 
       // Wait for download to complete
-      await downloadComplete;
+      try {
+        await downloadComplete;
+        logger.info("[ArchibaldBot] Download promise resolved successfully");
+      } catch (downloadError) {
+        logger.error("[ArchibaldBot] Download promise rejected", {
+          error:
+            downloadError instanceof Error
+              ? downloadError.message
+              : String(downloadError),
+          stack:
+            downloadError instanceof Error ? downloadError.stack : undefined,
+        });
+        throw downloadError;
+      }
 
       const duration = Date.now() - startTime;
       logger.info("[ArchibaldBot] Orders PDF downloaded successfully", {
