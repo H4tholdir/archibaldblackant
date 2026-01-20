@@ -20,10 +20,12 @@ export class PDFParserDDTService {
   private static instance: PDFParserDDTService;
   private readonly parserPath: string;
   private readonly timeout: number = 180000; // 3 minutes
-  private readonly maxBuffer: number = 20 * 1024 * 1024; // 20MB
 
   private constructor() {
-    this.parserPath = path.join(process.cwd(), "scripts", "parse-ddt-pdf.py");
+    this.parserPath = path.join(
+      __dirname,
+      "../../../scripts/parse-ddt-pdf.py",
+    );
   }
 
   static getInstance(): PDFParserDDTService {
@@ -42,14 +44,15 @@ export class PDFParserDDTService {
       let stdoutBuffer = "";
 
       const pythonProcess = spawn("python3", [this.parserPath, pdfPath], {
-        maxBuffer: this.maxBuffer,
         timeout: this.timeout,
       });
 
       pythonProcess.stdout.on("data", (data: Buffer) => {
         stdoutBuffer += data.toString();
+
+        // Process complete lines
         const lines = stdoutBuffer.split("\n");
-        stdoutBuffer = lines.pop() || "";
+        stdoutBuffer = lines.pop() || ""; // Keep incomplete line in buffer
 
         for (const line of lines) {
           if (line.trim()) {
@@ -71,7 +74,7 @@ export class PDFParserDDTService {
         });
       });
 
-      pythonProcess.on("close", (code) => {
+      pythonProcess.on("close", (code: number | null) => {
         const duration = Date.now() - startTime;
 
         if (code === 0) {
@@ -89,7 +92,7 @@ export class PDFParserDDTService {
         }
       });
 
-      pythonProcess.on("error", (err) => {
+      pythonProcess.on("error", (err: Error) => {
         logger.error("[PDFParserDDTService] Process error", {
           error: err.message,
         });

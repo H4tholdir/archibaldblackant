@@ -1,15 +1,15 @@
 import { PDFParserDDTService } from "../src/pdf-parser-ddt-service";
 import { DDTDatabase } from "../src/ddt-db";
 import { logger } from "../src/logger";
+import path from "node:path";
 
 async function testDDTSyncE2E() {
   logger.info("=== DDT Sync E2E Test ===");
 
   try {
     const parserService = PDFParserDDTService.getInstance();
-    const parsedDDTs = await parserService.parseDDTPDF(
-      "Documenti di trasporto.pdf",
-    );
+    const pdfPath = path.join(__dirname, "../../../Documenti di trasporto.pdf");
+    const parsedDDTs = await parserService.parseDDTPDF(pdfPath);
     logger.info(`✓ Parsed ${parsedDDTs.length} DDTs`);
 
     const ddtDb = DDTDatabase.getInstance();
