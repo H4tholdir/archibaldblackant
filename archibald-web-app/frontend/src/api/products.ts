@@ -252,12 +252,13 @@ export interface SyncProductsResult {
 
 /**
  * Trigger manual products sync from Archibald
- * Note: PDF parsing can take 3-5 minutes, so we use a long timeout
+ * Note: PDF parsing can take 5-6 minutes, so we use a long timeout
+ * Measured timing: 28s download + 4m34s parsing = 5m07s total
  */
 export async function syncProducts(): Promise<SyncProductsResult> {
-  // Create AbortController with 5-minute timeout
+  // Create AbortController with 7-minute timeout (measured: 5m07s, buffer: 2min)
   const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 5 * 60 * 1000); // 5 minutes
+  const timeoutId = setTimeout(() => controller.abort(), 7 * 60 * 1000); // 7 minutes
 
   try {
     const response = await fetch("/api/products/sync", {

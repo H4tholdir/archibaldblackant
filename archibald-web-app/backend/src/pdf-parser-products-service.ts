@@ -56,7 +56,7 @@ export interface ParsedProduct {
 export class PDFParserProductsService {
   private static instance: PDFParserProductsService;
   private parserPath: string;
-  private timeout: number = 300000; // 300s (5 minutes) - real-world parsing can take 3-4 minutes
+  private timeout: number = 420000; // 420s (7 minutes) - measured: 5m07s, buffer for safety
 
   private constructor() {
     // Path to parse-products-pdf.py

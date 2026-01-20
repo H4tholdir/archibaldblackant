@@ -70,14 +70,14 @@ export interface GetCustomersResponse {
 /**
  * Trigger a manual customer sync from Archibald
  * Returns after sync completes with full results
- * Note: PDF parsing can take 3-5 minutes, so we use a long timeout
+ * Note: PDF parsing can take 5-6 minutes, so we use a long timeout
  */
 export async function syncCustomers(
   token: string,
 ): Promise<SyncCustomersResponse> {
-  // Create AbortController with 5-minute timeout
+  // Create AbortController with 7-minute timeout (buffer for large PDFs)
   const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 5 * 60 * 1000); // 5 minutes
+  const timeoutId = setTimeout(() => controller.abort(), 7 * 60 * 1000); // 7 minutes
 
   try {
     const response = await fetch(`${API_BASE}/api/customers/sync`, {
