@@ -70,25 +70,44 @@ export interface GetCustomersResponse {
 /**
  * Trigger a manual customer sync from Archibald
  * Returns after sync completes with full results
+ * Note: PDF parsing can take 3-5 minutes, so we use a long timeout
  */
 export async function syncCustomers(
   token: string,
 ): Promise<SyncCustomersResponse> {
-  const response = await fetch(`${API_BASE}/api/customers/sync`, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${token}`,
-    },
-  });
+  // Create AbortController with 5-minute timeout
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 5 * 60 * 1000); // 5 minutes
 
-  if (!response.ok) {
-    const errorData = await response.json().catch(() => ({}));
-    throw new Error(
-      errorData.message || `HTTP ${response.status}: ${response.statusText}`,
-    );
+  try {
+    const response = await fetch(`${API_BASE}/api/customers/sync`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+      signal: controller.signal,
+    });
+
+    clearTimeout(timeoutId);
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(
+        errorData.message || `HTTP ${response.status}: ${response.statusText}`,
+      );
+    }
+
+    return response.json();
+  } catch (error) {
+    clearTimeout(timeoutId);
+
+    // Handle abort (timeout)
+    if (error instanceof Error && error.name === "AbortError") {
+      throw new Error("Timeout: la sincronizzazione sta richiedendo troppo tempo");
+    }
+
+    throw error;
   }
-
-  return response.json();
 }
 
 /**

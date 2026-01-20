@@ -252,25 +252,44 @@ export interface SyncProductsResult {
 
 /**
  * Trigger manual products sync from Archibald
+ * Note: PDF parsing can take 3-5 minutes, so we use a long timeout
  */
 export async function syncProducts(): Promise<SyncProductsResult> {
-  const response = await fetch("/api/products/sync", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${localStorage.getItem("archibald_jwt")}`,
-    },
-  });
+  // Create AbortController with 5-minute timeout
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 5 * 60 * 1000); // 5 minutes
 
-  if (!response.ok) {
-    if (response.status === 409) {
-      throw new Error("Sincronizzazione già in corso");
+  try {
+    const response = await fetch("/api/products/sync", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${localStorage.getItem("archibald_jwt")}`,
+      },
+      signal: controller.signal,
+    });
+
+    clearTimeout(timeoutId);
+
+    if (!response.ok) {
+      if (response.status === 409) {
+        throw new Error("Sincronizzazione già in corso");
+      }
+      if (response.status === 401) {
+        throw new Error("Sessione scaduta");
+      }
+      throw new Error(`Errore sincronizzazione: ${response.status}`);
     }
-    if (response.status === 401) {
-      throw new Error("Sessione scaduta");
+
+    return response.json();
+  } catch (error) {
+    clearTimeout(timeoutId);
+
+    // Handle abort (timeout)
+    if (error instanceof Error && error.name === "AbortError") {
+      throw new Error("Timeout: la sincronizzazione sta richiedendo troppo tempo");
     }
-    throw new Error(`Errore sincronizzazione: ${response.status}`);
+
+    throw error;
   }
-
-  return response.json();
 }
