@@ -30,6 +30,7 @@ import {
 } from "./customer-sync-service";
 import { operationTracker } from "./operation-tracker";
 import { ProductDatabase } from "./product-db";
+import { PriceDatabase } from "./price-db";
 import {
   register as metricsRegister,
   httpRequestCounter,
@@ -302,23 +303,24 @@ app.get("/api/health/pdf-parser-prices", async (req, res) => {
 
     if (health.healthy) {
       res.status(200).json({
-        status: 'ok',
-        message: 'Prices PDF parser ready (Python3 + PyPDF2 available, 3-page cycles)',
-        ...health
+        status: "ok",
+        message:
+          "Prices PDF parser ready (Python3 + PyPDF2 available, 3-page cycles)",
+        ...health,
       });
     } else {
       res.status(503).json({
-        status: 'unavailable',
-        message: 'Prices PDF parser not ready. Check logs for details.',
-        ...health
+        status: "unavailable",
+        message: "Prices PDF parser not ready. Check logs for details.",
+        ...health,
       }); // Service Unavailable
     }
   } catch (error) {
     logger.error("[Health] Prices PDF parser check failed", { error });
     res.status(500).json({
-      status: 'error',
+      status: "error",
       healthy: false,
-      error: error instanceof Error ? error.message : String(error)
+      error: error instanceof Error ? error.message : String(error),
     });
   }
 });
@@ -1255,110 +1257,113 @@ app.get("/api/customers/sync/metrics", (req: Request, res: Response) => {
  * GET /api/products/sync/metrics
  * Returns: sync statistics and history for monitoring
  */
-app.get("/api/products/sync/metrics", authenticateJWT, async (req: AuthRequest, res: Response) => {
-  try {
-    const db = ProductDatabase.getInstance();
-    const metrics = db.getSyncMetrics();
-    const history = db.getSyncHistory(10); // Last 10 syncs
+app.get(
+  "/api/products/sync/metrics",
+  authenticateJWT,
+  async (req: AuthRequest, res: Response) => {
+    try {
+      const db = ProductDatabase.getInstance();
+      const metrics = db.getSyncMetrics();
+      const history = db.getSyncHistory(10); // Last 10 syncs
 
-    res.json({
-      metrics,
-      history,
-    });
-  } catch (error) {
-    logger.error("[API] Failed to get products sync metrics", { error });
-    res.status(500).json({
-      error: error instanceof Error ? error.message : "Unknown error",
-    });
-  }
-});
+      res.json({
+        metrics,
+        history,
+      });
+    } catch (error) {
+      logger.error("[API] Failed to get products sync metrics", { error });
+      res.status(500).json({
+        error: error instanceof Error ? error.message : "Unknown error",
+      });
+    }
+  },
+);
 
 /**
  * Start products auto-sync scheduler
  * POST /api/products/sync/start
  * Body: { intervalMinutes?: number }
  */
-app.post("/api/products/sync/start", authenticateJWT, async (req: AuthRequest, res: Response) => {
-  try {
-    const { intervalMinutes = 30 } = req.body;
+app.post(
+  "/api/products/sync/start",
+  authenticateJWT,
+  async (req: AuthRequest, res: Response) => {
+    try {
+      const { intervalMinutes = 30 } = req.body;
 
-    logger.info("[API] Starting products auto-sync", {
-      userId: req.user?.userId,
-      intervalMinutes,
-    });
+      logger.info("[API] Starting products auto-sync", {
+        userId: req.user?.userId,
+        intervalMinutes,
+      });
 
-    const service = ProductSyncService.getInstance();
-    service.startAutoSync(intervalMinutes);
+      const service = ProductSyncService.getInstance();
+      service.startAutoSync(intervalMinutes);
 
-    res.json({ success: true, intervalMinutes });
-  } catch (error) {
-    logger.error("[API] Failed to start products auto-sync", { error });
-    res.status(500).json({
-      error: error instanceof Error ? error.message : "Unknown error",
-    });
-  }
-});
+      res.json({ success: true, intervalMinutes });
+    } catch (error) {
+      logger.error("[API] Failed to start products auto-sync", { error });
+      res.status(500).json({
+        error: error instanceof Error ? error.message : "Unknown error",
+      });
+    }
+  },
+);
 
 /**
  * Stop products auto-sync scheduler
  * POST /api/products/sync/stop
  */
-app.post("/api/products/sync/stop", authenticateJWT, async (req: AuthRequest, res: Response) => {
-  try {
-    logger.info("[API] Stopping products auto-sync", {
-      userId: req.user?.userId,
-    });
+app.post(
+  "/api/products/sync/stop",
+  authenticateJWT,
+  async (req: AuthRequest, res: Response) => {
+    try {
+      logger.info("[API] Stopping products auto-sync", {
+        userId: req.user?.userId,
+      });
 
-    const service = ProductSyncService.getInstance();
-    service.stopAutoSync();
+      const service = ProductSyncService.getInstance();
+      service.stopAutoSync();
 
-    res.json({ success: true });
-  } catch (error) {
-    logger.error("[API] Failed to stop products auto-sync", { error });
-    res.status(500).json({
-      error: error instanceof Error ? error.message : "Unknown error",
-    });
-  }
-});
+      res.json({ success: true });
+    } catch (error) {
+      logger.error("[API] Failed to stop products auto-sync", { error });
+      res.status(500).json({
+        error: error instanceof Error ? error.message : "Unknown error",
+      });
+    }
+  },
+);
 
 /**
  * Update sync frequency (admin)
  * POST /api/admin/sync/frequency
  * Body: { intervalMinutes: number }
  */
-app.post(
-  "/api/admin/sync/frequency",
-  (req: Request, res: Response) => {
-    // TODO: Add authentication in Phase 26 (admin routes)
+app.post("/api/admin/sync/frequency", (req: Request, res: Response) => {
+  // TODO: Add authentication in Phase 26 (admin routes)
 
-    const { intervalMinutes } = req.body;
+  const { intervalMinutes } = req.body;
 
-    if (
-      !intervalMinutes ||
-      intervalMinutes < 5 ||
-      intervalMinutes > 1440
-    ) {
-      return res.status(400).json({
-        error: "Invalid interval",
-        message: "Interval must be between 5 and 1440 minutes (1 day)",
-      });
-    }
-
-    // Restart scheduler with new interval
-    syncService.stopAutoSync();
-    syncService.startAutoSync(intervalMinutes);
-
-    logger.info(
-      `[CustomerSync] Frequency updated to ${intervalMinutes} minutes`,
-    );
-
-    res.json({
-      success: true,
-      intervalMinutes,
-      message: `Sync frequency updated to ${intervalMinutes} minutes`,
+  if (!intervalMinutes || intervalMinutes < 5 || intervalMinutes > 1440) {
+    return res.status(400).json({
+      error: "Invalid interval",
+      message: "Interval must be between 5 and 1440 minutes (1 day)",
     });
-  },
-);
+  }
+
+  // Restart scheduler with new interval
+  syncService.stopAutoSync();
+  syncService.startAutoSync(intervalMinutes);
+
+  logger.info(`[CustomerSync] Frequency updated to ${intervalMinutes} minutes`);
+
+  res.json({
+    success: true,
+    intervalMinutes,
+    message: `Sync frequency updated to ${intervalMinutes} minutes`,
+  });
+});
 
 // Update customer endpoint
 app.put(
@@ -1423,19 +1428,23 @@ app.get("/api/products", (req: Request, res: Response<ApiResponse>) => {
     if (grouped) {
       // NEW: Grouped mode - return one product per article name
       const productNames = db.getAllProductNames(searchQuery, limit);
-      const products = productNames.map(name => db.getBaseProduct(name)!).filter(Boolean);
+      const products = productNames
+        .map((name) => db.getBaseProduct(name)!)
+        .filter(Boolean);
 
       const totalUniqueNames = db.getUniqueProductNamesCount(searchQuery); // Total in DB
       const returnedCount = products.length;
 
-      logger.info(`Retrieved ${returnedCount} grouped products (search: "${searchQuery}")`);
+      logger.info(
+        `Retrieved ${returnedCount} grouped products (search: "${searchQuery}")`,
+      );
 
       res.json({
         success: true,
         data: {
           products: products,
           totalCount: totalUniqueNames, // Total unique product names in DB
-          returnedCount: returnedCount,  // Number returned in this response
+          returnedCount: returnedCount, // Number returned in this response
           limited: returnedCount >= limit, // Are we limiting results?
           grouped: true, // Indicate grouped mode in response
         },
@@ -1568,7 +1577,9 @@ app.get(
         return;
       }
 
-      logger.info(`Retrieved ${variants.length} variants for product: ${decodedName}`);
+      logger.info(
+        `Retrieved ${variants.length} variants for product: ${decodedName}`,
+      );
 
       res.json({
         success: true,
@@ -1589,7 +1600,7 @@ app.get(
         error: "Failed to fetch product variants",
       });
     }
-  }
+  },
 );
 
 // Get products sync status endpoint
@@ -2153,6 +2164,40 @@ app.get(
   getUnmatchedProducts,
 );
 
+// Get prices sync statistics
+app.get("/api/prices/sync/stats", authenticateJWT, async (req, res) => {
+  try {
+    const priceDb = PriceDatabase.getInstance();
+    const stats = priceDb.getSyncStats();
+
+    res.json({
+      success: true,
+      stats: {
+        totalPrices: stats.totalPrices,
+        lastSyncTimestamp: stats.lastSyncTimestamp,
+        lastSyncDate: stats.lastSyncTimestamp
+          ? new Date(stats.lastSyncTimestamp * 1000).toISOString()
+          : null,
+        pricesWithNullPrice: stats.pricesWithNullPrice,
+        coverage:
+          stats.totalPrices > 0
+            ? (
+                ((stats.totalPrices - stats.pricesWithNullPrice) /
+                  stats.totalPrices) *
+                100
+              ).toFixed(2) + "%"
+            : "0%",
+      },
+    });
+  } catch (error) {
+    logger.error("[API] Get prices sync stats failed", { error });
+    res.status(500).json({
+      success: false,
+      error: error instanceof Error ? error.message : String(error),
+    });
+  }
+});
+
 // ============================================================================
 // ADAPTIVE TIMEOUT STATS ENDPOINTS
 // ============================================================================
@@ -2331,7 +2376,10 @@ app.post(
         error,
       });
 
-      if (error instanceof Error && error.message === "Sync already in progress") {
+      if (
+        error instanceof Error &&
+        error.message === "Sync already in progress"
+      ) {
         res.status(409).json({
           success: false,
           error: "Sincronizzazione già in corso",
