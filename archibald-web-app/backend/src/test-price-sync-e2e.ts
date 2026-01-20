@@ -33,20 +33,20 @@ async function testPriceSyncE2E() {
       // Test with first 100
       const result = priceDb.upsertPrice({
         productId: price.product_id,
-        productName: price.product_name,
+        productName: price.product_name ?? "Unknown",
         unitPrice: price.unit_price ?? null,
         itemSelection: price.item_selection ?? null,
-        packagingDescription: price.packaging_description ?? null,
+        packagingDescription: null, // Not in ParsedPrice interface
         currency: price.currency ?? null,
         priceValidFrom: price.price_valid_from ?? null,
         priceValidTo: price.price_valid_to ?? null,
         priceUnit: price.price_unit ?? null,
         accountDescription: price.account_description ?? null,
         accountCode: price.account_code ?? null,
-        priceQtyFrom: price.price_qty_from ?? null,
-        priceQtyTo: price.price_qty_to ?? null,
-        lastModified: price.last_modified ?? null,
-        dataAreaId: price.data_area_id ?? null,
+        priceQtyFrom: price.quantity_from ? parseFloat(price.quantity_from) : null,
+        priceQtyTo: price.quantity_to ? parseFloat(price.quantity_to) : null,
+        lastModified: null, // Not in ParsedPrice interface
+        dataAreaId: null, // Not in ParsedPrice interface
         lastSync: Math.floor(Date.now() / 1000),
       });
       if (result === "inserted") inserted++;
