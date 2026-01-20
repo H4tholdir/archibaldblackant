@@ -84,6 +84,33 @@ def normalize_multiline(text: Optional[str]) -> Optional[str]:
     return re.sub(r"\s+", " ", text.strip())
 
 
+def get_column_value(table: list, row_idx: int, header_text: str) -> Optional[str]:
+    """
+    Extract value from table by matching header text.
+    More robust than hardcoded column indices.
+    """
+    if not table or len(table) < 2:  # Need header + data
+        return None
+
+    header_row = table[0]
+    if row_idx >= len(table):
+        return None
+
+    data_row = table[row_idx]
+
+    # Find column index by header text (case-insensitive, partial match)
+    for idx, header in enumerate(header_row):
+        if header and header_text.upper() in str(header).upper():
+            if idx < len(data_row):
+                value = data_row[idx]
+                # Return None for empty strings
+                if value is None or str(value).strip() == "":
+                    return None
+                return str(value).strip()
+
+    return None
+
+
 def parse_orders_pdf(pdf_path: str):
     """
     Parse Ordini.pdf with 7-page cycle structure.
@@ -125,16 +152,15 @@ def parse_orders_pdf(pdf_path: str):
             num_rows = len(tables[0])
 
             for row_idx in range(1, num_rows):  # Skip header (row 0)
-                # Extract fields from each page
+                # Extract fields from each page using header matching
                 try:
-                    # Page 1/7: Order ID (4 columns)
-                    row1 = (
-                        tables[0][row_idx] if row_idx < len(tables[0]) else [None] * 4
+                    # Page 1/7: ID, ID DI VENDITA, PROFILO CLIENTE, NOME VENDITE (4 columns)
+                    order_id = get_column_value(tables[0], row_idx, "ID")
+                    order_number = get_column_value(tables[0], row_idx, "ID DI VENDITA")
+                    customer_profile_id = get_column_value(
+                        tables[0], row_idx, "PROFILO CLIENTE"
                     )
-                    order_id = row1[0] if len(row1) > 0 else None
-                    order_number = row1[1] if len(row1) > 1 else None
-                    customer_profile_id = row1[2] if len(row1) > 2 else None
-                    customer_name = row1[3] if len(row1) > 3 else None
+                    customer_name = get_column_value(tables[0], row_idx, "NOME VENDITE")
 
                     # Skip if no order ID
                     if not order_id or not order_number:
@@ -144,63 +170,72 @@ def parse_orders_pdf(pdf_path: str):
                     if order_id == "0" or order_number == "0":
                         continue
 
-                    # Page 2/7: Delivery (2 columns)
-                    row2 = (
-                        tables[1][row_idx] if row_idx < len(tables[1]) else [None] * 2
+                    # Page 2/7: NOME DI CONSEGNA, INDIRIZZO DI CONSEGNA (2 columns)
+                    delivery_name = get_column_value(
+                        tables[1], row_idx, "NOME DI CONSEGNA"
                     )
-                    delivery_name = row2[0] if len(row2) > 0 else None
-                    delivery_address = (
-                        normalize_multiline(row2[1]) if len(row2) > 1 else None
+                    delivery_address_raw = get_column_value(
+                        tables[1], row_idx, "INDIRIZZO DI CONSEGNA"
+                    )
+                    delivery_address = normalize_multiline(delivery_address_raw)
+
+                    # Page 3/7: DATA DI CREAZIONE, DATA DI CONSEGNA, RIMANI VENDITE FINANZIARIE (3 columns)
+                    creation_date_raw = get_column_value(
+                        tables[2], row_idx, "DATA DI CREAZIONE"
+                    )
+                    creation_date = parse_italian_datetime(creation_date_raw)
+
+                    delivery_date_raw = get_column_value(
+                        tables[2], row_idx, "DATA DI CONSEGNA"
+                    )
+                    delivery_date = parse_italian_date(delivery_date_raw)
+
+                    remaining_sales_financial = get_column_value(
+                        tables[2], row_idx, "RIMANI VENDITE FINANZIARIE"
                     )
 
-                    # Page 3/7: Dates (3 columns)
-                    row3 = (
-                        tables[2][row_idx] if row_idx < len(tables[2]) else [None] * 3
+                    # Page 4/7: RIFERIMENTO CLIENTE, STATO DELLE VENDITE, TIPO DI ORDINE, STATO DEL DOCUMENTO (4 columns)
+                    customer_reference = get_column_value(
+                        tables[3], row_idx, "RIFERIMENTO CLIENTE"
                     )
-                    creation_date = (
-                        parse_italian_datetime(row3[0]) if len(row3) > 0 else None
+                    sales_status = get_column_value(
+                        tables[3], row_idx, "STATO DELLE VENDITE"
                     )
-                    delivery_date = (
-                        parse_italian_date(row3[1]) if len(row3) > 1 else None
-                    )
-                    remaining_sales_financial = row3[2] if len(row3) > 2 else None
-
-                    # Page 4/7: Status (4 columns)
-                    row4 = (
-                        tables[3][row_idx] if row_idx < len(tables[3]) else [None] * 4
-                    )
-                    customer_reference = row4[0] if len(row4) > 0 else None
-                    sales_status = row4[1] if len(row4) > 1 else None
-                    order_type = row4[2] if len(row4) > 2 else None
-                    document_status = row4[3] if len(row4) > 3 else None
-
-                    # Page 5/7: Transfer (3 columns)
-                    row5 = (
-                        tables[4][row_idx] if row_idx < len(tables[4]) else [None] * 3
-                    )
-                    sales_origin = row5[0] if len(row5) > 0 else None
-                    transfer_status = row5[1] if len(row5) > 1 else None
-                    transfer_date = (
-                        parse_italian_date(row5[2]) if len(row5) > 2 else None
+                    order_type = get_column_value(tables[3], row_idx, "TIPO DI ORDINE")
+                    document_status = get_column_value(
+                        tables[3], row_idx, "STATO DEL DOCUMENTO"
                     )
 
-                    # Page 6/7: Amounts (4 columns)
-                    row6 = (
-                        tables[5][row_idx] if row_idx < len(tables[5]) else [None] * 4
+                    # Page 5/7: ORIGINE VENDITE, STATO DEL TRASFERIMENTO, DATA DI TRASFERIMENTO (3 columns)
+                    sales_origin = get_column_value(
+                        tables[4], row_idx, "ORIGINE VENDITE"
                     )
-                    completion_date = (
-                        parse_italian_date(row6[0]) if len(row6) > 0 else None
+                    transfer_status = get_column_value(
+                        tables[4], row_idx, "STATO DEL TRASFERIMENTO"
                     )
-                    # Skip row6[1] = "Preventivo" (always "No")
-                    discount_percent = row6[2] if len(row6) > 2 else None
-                    gross_amount = row6[3] if len(row6) > 3 else None
 
-                    # Page 7/7: Total (2 columns)
-                    row7 = (
-                        tables[6][row_idx] if row_idx < len(tables[6]) else [None] * 2
+                    transfer_date_raw = get_column_value(
+                        tables[4], row_idx, "DATA DI TRASFERIMENTO"
                     )
-                    total_amount = row7[0] if len(row7) > 0 else None
-                    # Skip row7[1] = "ORDINE OMAGGIO" (gift flag)
+                    transfer_date = parse_italian_date(transfer_date_raw)
+
+                    # Page 6/7: DATA DI COMPLETAMENTO, PREVENTIVO, APPLICA SCONTO %, IMPORTO LORDO (4 columns)
+                    completion_date_raw = get_column_value(
+                        tables[5], row_idx, "DATA DI COMPLETAMENTO"
+                    )
+                    completion_date = parse_italian_date(completion_date_raw)
+
+                    # Skip "PREVENTIVO" column - not needed
+                    discount_percent = get_column_value(
+                        tables[5], row_idx, "APPLICA SCONTO"
+                    )
+                    gross_amount = get_column_value(tables[5], row_idx, "IMPORTO LORDO")
+
+                    # Page 7/7: IMPORTO TOTALE, ORDINE OMAGGIO (2 columns)
+                    total_amount = get_column_value(
+                        tables[6], row_idx, "IMPORTO TOTALE"
+                    )
+                    # Skip "ORDINE OMAGGIO" column - gift flag not needed
 
                     # Create ParsedOrder
                     order = ParsedOrder(
