@@ -183,7 +183,7 @@ Plans:
 
 Plans:
 - [x] 20-01: PDF Parser Enhancement & Node.js Integration (Prices) — 45min
-- [ ] 20-02: PDF Download Bot Flow & Separate Prices Database
+- [x] 20-02: PDF Download Bot Flow & Separate Prices Database — 105min
 - [ ] 20-03: Excel IVA Upload Enhancement & Price Matching
 - [ ] 20-04: Price History Tracking System
 - [ ] 20-05: Price Variations Dashboard & Notifications UI
