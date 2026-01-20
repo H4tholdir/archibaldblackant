@@ -35,7 +35,7 @@ None (full-stack web app con pattern standard)
 - [x] **Phase 19: Products Sync Analysis & Optimization** - Analisi + background + manual + images ✅ COMPLETE
 - [x] **Phase 19.1: Product Cards UI Enhancement (INSERTED)** - Visualizzazione 26+ campi + gestione varianti ✅ COMPLETE
 - [x] **Phase 20: Prices Sync Analysis & Optimization** - Analisi + background + manual + Excel listino ✅ COMPLETE
-- [ ] **Phase 21: Orders Sync Analysis & Optimization** - Analisi + background + manual (1/5 plans)
+- [ ] **Phase 21: Orders Sync Analysis & Optimization** - Analisi + background + manual (2/5 plans)
 - [ ] **Phase 22: Sync Orchestration Layer** - Coordinator anti-overlap, staggered scheduling
 - [ ] **Phase 23: Sync UI Controls** - Bottoni granulari + sync generale
 - [ ] **Phase 24: Background Sync Service** - Service worker sync automatici silent
