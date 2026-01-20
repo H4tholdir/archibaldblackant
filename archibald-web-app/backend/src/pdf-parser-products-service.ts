@@ -56,7 +56,7 @@ export interface ParsedProduct {
 export class PDFParserProductsService {
   private static instance: PDFParserProductsService;
   private parserPath: string;
-  private timeout: number = 30000; // 30s for ~4,540 products
+  private timeout: number = 180000; // 180s for ~4,540 products (measured: ~150s with memory optimization)
 
   private constructor() {
     // Path to parse-products-pdf.py
@@ -102,7 +102,8 @@ export class PDFParserProductsService {
 
         if (code === 0) {
           try {
-            const products = JSON.parse(stdout) as ParsedProduct[];
+            const parsed = JSON.parse(stdout) as { products: ParsedProduct[] };
+            const products = parsed.products;
             logger.info(
               `[PDFParserProductsService] Parsed ${products.length} products in ${duration}ms`,
             );

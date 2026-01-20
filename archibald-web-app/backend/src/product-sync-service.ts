@@ -82,6 +82,7 @@ export class ProductSyncService extends EventEmitter {
    */
   async syncProducts(
     progressCallback?: (progress: SyncProgress) => void,
+    userId?: string,
   ): Promise<SyncResult> {
     const startTime = Date.now();
 
@@ -94,7 +95,10 @@ export class ProductSyncService extends EventEmitter {
     let context: any = null;
 
     // Create sync session record
-    const sessionId = this.db.createSyncSession("auto");
+    const sessionId = this.db.createSyncSession("full");
+
+    // Use provided userId or default to "product-sync-service"
+    const syncUserId = userId || "product-sync-service";
 
     try {
       // Stage 1: Login & acquire context
@@ -104,11 +108,9 @@ export class ProductSyncService extends EventEmitter {
       };
       progressCallback?.(this.currentProgress);
 
-      context = await BrowserPool.getInstance().acquireContext(
-        "product-sync-service",
-      );
+      context = await BrowserPool.getInstance().acquireContext(syncUserId);
 
-      const bot = new ArchibaldBot("system");
+      const bot = new ArchibaldBot(syncUserId);
 
       // Stage 2: Download PDF
       this.currentProgress = {
@@ -156,7 +158,7 @@ export class ProductSyncService extends EventEmitter {
       }
 
       await BrowserPool.getInstance().releaseContext(
-        "product-sync-service",
+        syncUserId,
         context,
         true, // success
       );
@@ -205,7 +207,7 @@ export class ProductSyncService extends EventEmitter {
 
       if (context) {
         await BrowserPool.getInstance().releaseContext(
-          "product-sync-service",
+          syncUserId,
           context,
           false, // error
         );
