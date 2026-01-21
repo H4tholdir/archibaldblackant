@@ -174,17 +174,22 @@ def parse_ddt_pdf(pdf_path: str):
                     row3 = tables[2][row_idx] if row_idx < len(tables[2]) else [None] * 2
                     delivery_name = row3[0] if len(row3) > 0 else None
 
-                    # Page 4/6: TRACKING (3 columns) ⭐ KEY PAGE
-                    # Columns: [TRACKING_NUMBER, DELIVERY_TERMS, DELIVERY_METHOD]
-                    row4 = tables[3][row_idx] if row_idx < len(tables[3]) else [None] * 3
-                    tracking_raw = row4[0] if len(row4) > 0 and row4[0] else None
-                    tracking_number, tracking_courier, tracking_url = extract_tracking_info(tracking_raw) if tracking_raw else (None, None, None)
-                    delivery_terms = row4[1] if len(row4) > 1 else None
-                    delivery_method = row4[2] if len(row4) > 2 else None
+                    # Page 4/6: Totals (3 columns)
+                    # Columns: [TOTALE, RIFERIMENTO CLIENTE, DESCRIZIONE]
+                    # (We don't currently extract these values)
 
-                    # Page 5/6: Location (3 columns)
-                    row5 = tables[4][row_idx] if row_idx < len(tables[4]) else [None] * 3
-                    delivery_city = row5[0] if len(row5) > 0 else None
+                    # Page 5/6: TRACKING (2 columns) ⭐ KEY PAGE
+                    # Columns: [NUMERO DI TRACCIABILITÀ, TERMINI DI CONSEGNA]
+                    row5 = tables[4][row_idx] if row_idx < len(tables[4]) else [None] * 2
+                    tracking_raw = row5[0] if len(row5) > 0 and row5[0] else None
+                    tracking_number, tracking_courier, tracking_url = extract_tracking_info(tracking_raw) if tracking_raw else (None, None, None)
+                    delivery_terms = row5[1] if len(row5) > 1 else None
+
+                    # Page 6/6: Delivery Method & Location (3 columns)
+                    # Columns: [MODALITÀ DI CONSEGNA, ALL'ATTENZIONE DI, CITTÀ DI CONSEGNA]
+                    row6 = tables[5][row_idx] if row_idx < len(tables[5]) else [None] * 3
+                    delivery_method = row6[0] if len(row6) > 0 else None
+                    delivery_city = row6[2] if len(row6) > 2 else None
 
                     # Create ParsedDDT
                     ddt = ParsedDDT(
