@@ -711,7 +711,7 @@ export class OrderDatabaseNew {
 
   getOrderById(userId: string, orderId: string): OrderRecord | null {
     const row = this.db
-      .prepare(`SELECT * FROM orders WHERE user_id = ? AND id = ? LIMIT 1`)
+      .prepare(`SELECT * FROM orders WHERE user_id = ? AND order_number = ? LIMIT 1`)
       .get(userId, orderId) as any;
 
     if (!row) {
