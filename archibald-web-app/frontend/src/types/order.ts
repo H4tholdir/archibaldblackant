@@ -88,6 +88,11 @@ export interface Order {
   // Tracking (3 columns - can be standalone or in DDT)
   tracking?: TrackingInfo;
 
+  // Additional DDT fields stored directly in order
+  deliveryMethod?: string;
+  deliveryCity?: string;
+  attentionTo?: string;
+
   // Metadata (10 columns)
   botUserId?: string;
   jobId?: string;

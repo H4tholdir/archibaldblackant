@@ -707,9 +707,9 @@ function TabLogistica({ order, token }: { order: Order; token?: string }) {
               gap: "12px",
             }}
           >
-            <InfoField label="Conto Cliente" value={ddt.customerAccountId} />
-            <InfoField label="Nome Vendite" value={ddt.salesName} />
-            <InfoField label="Nome Consegna" value={ddt.deliveryName} bold />
+            <InfoField label="Conto Cliente" value={ddt.ddtCustomerAccount} />
+            <InfoField label="Nome Vendite" value={ddt.ddtSalesName} />
+            <InfoField label="Nome Consegna" value={ddt.ddtDeliveryName} bold />
           </div>
         </div>
       )}
