@@ -3,7 +3,7 @@ import { ArchibaldBot } from "./archibald-bot";
 import { BrowserPool } from "./browser-pool";
 import { logger } from "./logger";
 import { PDFParserDDTService, ParsedDDT } from "./pdf-parser-ddt-service";
-import { DDTDatabase } from "./ddt-db";
+import { OrderDatabaseNew } from "./order-db-new";
 import * as fs from "fs/promises";
 
 export interface DDTSyncProgress {
@@ -20,7 +20,7 @@ export class DDTSyncService extends EventEmitter {
   private static instance: DDTSyncService;
   private browserPool: BrowserPool;
   private pdfParser: PDFParserDDTService;
-  private ddtDb: DDTDatabase;
+  private orderDb: OrderDatabaseNew;
   private syncInProgress = false;
   private paused = false;
   private progress: DDTSyncProgress = {
@@ -36,7 +36,7 @@ export class DDTSyncService extends EventEmitter {
     super();
     this.browserPool = BrowserPool.getInstance();
     this.pdfParser = PDFParserDDTService.getInstance();
-    this.ddtDb = DDTDatabase.getInstance();
+    this.orderDb = OrderDatabaseNew.getInstance();
   }
 
   static getInstance(): DDTSyncService {
@@ -116,7 +116,7 @@ export class DDTSyncService extends EventEmitter {
       };
       this.emit("progress", this.progress);
 
-      const saveResults = await this.saveDDTs(parsedDDTs);
+      const saveResults = await this.saveDDTs(userId, parsedDDTs);
 
       // Step 4: Cleanup PDF
       await fs.unlink(pdfPath).catch((err) => {
@@ -167,43 +167,63 @@ export class DDTSyncService extends EventEmitter {
     }
   }
 
-  private async saveDDTs(parsedDDTs: ParsedDDT[]): Promise<{
+  private async saveDDTs(
+    userId: string,
+    parsedDDTs: ParsedDDT[],
+  ): Promise<{
     ddtProcessed: number;
     ddtInserted: number;
     ddtUpdated: number;
     ddtSkipped: number;
   }> {
-    let inserted = 0;
     let updated = 0;
-    let skipped = 0;
+    let notFound = 0;
 
     for (const parsedDDT of parsedDDTs) {
-      const ddtData = {
-        id: parsedDDT.id,
-        ddtNumber: parsedDDT.ddt_number,
-        deliveryDate: parsedDDT.delivery_date,
-        orderNumber: parsedDDT.order_number,
-        customerAccount: parsedDDT.customer_account,
-        salesName: parsedDDT.sales_name,
-        deliveryName: parsedDDT.delivery_name,
-        trackingNumber: parsedDDT.tracking_number,
-        deliveryTerms: parsedDDT.delivery_terms,
-        deliveryMethod: parsedDDT.delivery_method,
-        deliveryCity: parsedDDT.delivery_city,
-      };
+      // Match DDT to order by order number
+      const order = this.orderDb.getOrderById(userId, parsedDDT.order_number);
 
-      const result = this.ddtDb.upsertDDT(ddtData);
+      if (!order) {
+        notFound++;
+        logger.debug(
+          `[DDTSyncService] Order ${parsedDDT.order_number} not found for DDT ${parsedDDT.ddt_number}`,
+        );
+        continue;
+      }
 
-      if (result === "inserted") inserted++;
-      else if (result === "updated") updated++;
-      else if (result === "skipped") skipped++;
+      // Update order with DDT data
+      try {
+        this.orderDb.updateOrderDDT(userId, parsedDDT.order_number, {
+          ddtNumber: parsedDDT.ddt_number,
+          ddtDeliveryDate: parsedDDT.delivery_date || null,
+          ddtId: parsedDDT.id || null,
+          ddtCustomerAccount: parsedDDT.customer_account || null,
+          ddtSalesName: parsedDDT.sales_name || null,
+          ddtDeliveryName: parsedDDT.delivery_name || null,
+          deliveryTerms: parsedDDT.delivery_terms || null,
+          deliveryMethod: parsedDDT.delivery_method || null,
+          deliveryCity: parsedDDT.delivery_city || null,
+          attentionTo: null, // Not in PDF parser
+          trackingNumber: parsedDDT.tracking_number || null,
+          trackingUrl: null, // Computed from tracking number if needed
+          trackingCourier: null, // Computed from tracking number if needed
+        });
+        updated++;
+      } catch (error) {
+        logger.error(
+          `[DDTSyncService] Failed to update order ${parsedDDT.order_number} with DDT ${parsedDDT.ddt_number}`,
+          error,
+        );
+      }
     }
+
+    logger.info(`[DDTSyncService] Updated ${updated} orders, ${notFound} not found`);
 
     return {
       ddtProcessed: parsedDDTs.length,
-      ddtInserted: inserted,
+      ddtInserted: 0, // We don't insert new orders, we update existing ones
       ddtUpdated: updated,
-      ddtSkipped: skipped,
+      ddtSkipped: notFound,
     };
   }
 }
