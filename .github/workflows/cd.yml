@@ -74,25 +74,25 @@ jobs:
             echo "🔄 Restarting services with graceful shutdown..."
             docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --no-deps backend frontend || { echo "❌ Docker compose up failed"; exit 1; }
 
-            echo "⏳ Waiting for services to be healthy (15s)..."
-            sleep 15
+            echo "⏳ Waiting for services to be healthy (30s)..."
+            sleep 30
 
             echo "🔄 Restarting nginx to refresh upstream connections..."
             docker compose restart nginx-proxy || { echo "❌ Nginx restart failed"; exit 1; }
             sleep 5
 
             echo "🏥 Verifying deployment health..."
-            for i in {1..5}; do
+            for i in {1..10}; do
               if curl -f -s https://formicanera.com/api/health > /dev/null; then
                 echo "✅ Health check passed!"
                 break
               else
-                echo "⚠️  Health check attempt $i/5 failed, retrying in 5s..."
-                if [ $i -eq 5 ]; then
-                  echo "❌ Health check failed after 5 attempts"
+                echo "⚠️  Health check attempt $i/10 failed, retrying in 10s..."
+                if [ $i -eq 10 ]; then
+                  echo "❌ Health check failed after 10 attempts"
                   exit 1
                 fi
-                sleep 5
+                sleep 10
               fi
             done
 
