@@ -14,6 +14,7 @@ export interface ParsedInvoice {
   vat_amount: string | null;
   total_amount: string | null;
   payment_terms: string | null;
+  order_number: string | null; // ID VENDITE (e.g., "ORD/26000887") - MATCH KEY
 }
 
 export class PDFParserInvoicesService {

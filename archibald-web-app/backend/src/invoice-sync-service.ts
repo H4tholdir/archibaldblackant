@@ -6,7 +6,7 @@ import {
   PDFParserInvoicesService,
   ParsedInvoice,
 } from "./pdf-parser-invoices-service";
-import { InvoicesDatabase } from "./invoices-db";
+import { OrderDatabaseNew } from "./order-db-new";
 import * as fs from "fs/promises";
 
 export interface InvoiceSyncProgress {
@@ -23,7 +23,7 @@ export class InvoiceSyncService extends EventEmitter {
   private static instance: InvoiceSyncService;
   private browserPool: BrowserPool;
   private pdfParser: PDFParserInvoicesService;
-  private invoiceDb: InvoicesDatabase;
+  private orderDb: OrderDatabaseNew;
   private syncInProgress = false;
   private paused = false;
   private progress: InvoiceSyncProgress = {
@@ -39,7 +39,7 @@ export class InvoiceSyncService extends EventEmitter {
     super();
     this.browserPool = BrowserPool.getInstance();
     this.pdfParser = PDFParserInvoicesService.getInstance();
-    this.invoiceDb = InvoicesDatabase.getInstance();
+    this.orderDb = OrderDatabaseNew.getInstance();
   }
 
   static getInstance(): InvoiceSyncService {
@@ -123,7 +123,7 @@ export class InvoiceSyncService extends EventEmitter {
       };
       this.emit("progress", this.progress);
 
-      const saveResults = await this.saveInvoices(parsedInvoices);
+      const saveResults = await this.saveInvoices(userId, parsedInvoices);
 
       // Step 4: Cleanup PDF
       await fs.unlink(pdfPath).catch((err) => {
@@ -177,43 +177,80 @@ export class InvoiceSyncService extends EventEmitter {
     }
   }
 
-  private async saveInvoices(parsedInvoices: ParsedInvoice[]): Promise<{
+  private async saveInvoices(
+    userId: string,
+    parsedInvoices: ParsedInvoice[],
+  ): Promise<{
     invoicesProcessed: number;
     invoicesInserted: number;
     invoicesUpdated: number;
     invoicesSkipped: number;
   }> {
-    let inserted = 0;
     let updated = 0;
-    let skipped = 0;
+    let notFound = 0;
 
     for (const parsedInvoice of parsedInvoices) {
-      const invoiceData = {
-        id: parsedInvoice.id,
-        invoiceNumber: parsedInvoice.invoice_number,
-        invoiceDate: parsedInvoice.invoice_date,
-        customerAccount: parsedInvoice.customer_account,
-        billingName: parsedInvoice.billing_name,
-        quantity: parsedInvoice.quantity,
-        salesBalance: parsedInvoice.sales_balance,
-        amount: parsedInvoice.amount,
-        vatAmount: parsedInvoice.vat_amount,
-        totalAmount: parsedInvoice.total_amount,
-        paymentTerms: parsedInvoice.payment_terms,
-      };
+      // Skip invoices without order number
+      if (!parsedInvoice.order_number) {
+        notFound++;
+        logger.debug(
+          `[InvoiceSyncService] Invoice ${parsedInvoice.invoice_number} has no order number`,
+        );
+        continue;
+      }
 
-      const result = this.invoiceDb.upsertInvoice(invoiceData);
+      // Match invoice to order by order number
+      const order = this.orderDb.getOrderById(
+        userId,
+        parsedInvoice.order_number,
+      );
 
-      if (result === "inserted") inserted++;
-      else if (result === "updated") updated++;
-      else if (result === "skipped") skipped++;
+      if (!order) {
+        notFound++;
+        logger.debug(
+          `[InvoiceSyncService] Order ${parsedInvoice.order_number} not found for invoice ${parsedInvoice.invoice_number}`,
+        );
+        continue;
+      }
+
+      // Update order with invoice data
+      try {
+        this.orderDb.updateInvoiceData(userId, parsedInvoice.order_number, {
+          invoiceNumber: parsedInvoice.invoice_number,
+          invoiceDate: parsedInvoice.invoice_date || null,
+          invoiceAmount: parsedInvoice.total_amount || null,
+          invoiceCustomerAccount: parsedInvoice.customer_account || null,
+          invoiceBillingName: parsedInvoice.billing_name || null,
+          invoiceQuantity: parsedInvoice.quantity
+            ? parseInt(parsedInvoice.quantity)
+            : null,
+          invoiceRemainingAmount: parsedInvoice.sales_balance || null,
+          invoiceTaxAmount: parsedInvoice.vat_amount || null,
+          invoiceLineDiscount: null, // Not in PDF parser
+          invoiceTotalDiscount: null, // Not in PDF parser
+          invoiceDueDate: null, // Not in PDF parser
+          invoicePaymentTermsId: parsedInvoice.payment_terms || null,
+          invoicePurchaseOrder: null, // Not in PDF parser
+          invoiceClosed: null, // Not in PDF parser
+        });
+        updated++;
+      } catch (error) {
+        logger.error(
+          `[InvoiceSyncService] Failed to update order ${parsedInvoice.order_number} with invoice ${parsedInvoice.invoice_number}`,
+          error,
+        );
+      }
     }
+
+    logger.info(
+      `[InvoiceSyncService] Updated ${updated} orders, ${notFound} not found`,
+    );
 
     return {
       invoicesProcessed: parsedInvoices.length,
-      invoicesInserted: inserted,
+      invoicesInserted: 0, // We don't insert new orders, we update existing ones
       invoicesUpdated: updated,
-      invoicesSkipped: skipped,
+      invoicesSkipped: notFound,
     };
   }
 }
