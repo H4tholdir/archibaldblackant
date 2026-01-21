@@ -28,14 +28,14 @@ class ParsedDDT:
     # Page 3/6: Delivery Name
     delivery_name: Optional[str]
 
-    # Page 4/6: TRACKING (Key page!)
+    # Page 5/6: TRACKING (Key page!)
     tracking_number: Optional[str]  # e.g., "445291888246"
     tracking_url: Optional[str]  # e.g., "https://www.fedex.com/fedextrack/?trknbr=445291888246"
     tracking_courier: Optional[str]  # e.g., "FEDEX", "UPS", "DHL"
     delivery_terms: Optional[str]  # e.g., "CFR"
-    delivery_method: Optional[str]  # Courier: "FedEx", "UPS", "DHL"
 
-    # Page 5/6: Location
+    # Page 6/6: Delivery Method & Location
+    delivery_method: Optional[str]  # Courier: "FedEx", "UPS", "DHL"
     delivery_city: Optional[str]
 
 
@@ -53,13 +53,34 @@ def parse_italian_date(date_str: str) -> Optional[str]:
 def extract_tracking_info(text: str) -> tuple:
     """
     Extract tracking number, courier name, and tracking URL from text.
-    Format: "fedex 445291890750" or "ups 1Z999AA10123456789" or just "445291890750"
+    Handles multiple formats:
+    - HTML: '<a href="...">fedex 445291890750</a>'
+    - Plain: "fedex 445291890750"
+    - Just number: "445291890750"
     Returns: (tracking_number, courier_name, tracking_url)
     """
     if not text or not text.strip():
         return (None, None, None)
 
     import re
+
+    # Extract href URL if present (before cleaning HTML)
+    extracted_url = None
+    href_match = re.search(r'href\s*=\s*["\']([^"\']+)["\']', text, re.IGNORECASE)
+    if href_match:
+        # Clean up URL: remove newlines and extra spaces
+        extracted_url = href_match.group(1).strip()
+        extracted_url = re.sub(r'\s+', '', extracted_url)  # Remove all whitespace including newlines
+
+    # Extract text inside <a>...</a> tags if present
+    text_in_tag = re.search(r'>([^<]+)</a>', text, re.IGNORECASE)
+    if text_in_tag:
+        text = text_in_tag.group(1)
+
+    # Clean up remaining HTML tags and entities
+    text = text.strip()
+    text = re.sub(r'<[^>]+>', '', text)  # Remove any remaining HTML tags
+    text = re.sub(r'&[a-z]+;', '', text)  # Remove HTML entities like &nbsp;
     text = text.strip().lower()
 
     # Detect courier and extract tracking number
@@ -91,9 +112,11 @@ def extract_tracking_info(text: str) -> tuple:
             if any(c.isdigit() for c in tracking):
                 tracking_number = tracking
 
-    # Generate tracking URL based on courier
-    tracking_url = None
-    if tracking_number and courier_name:
+    # Use extracted URL from href if available, otherwise generate based on courier
+    tracking_url = extracted_url
+
+    if not tracking_url and tracking_number and courier_name:
+        # Generate tracking URL based on courier
         if courier_name == 'FEDEX':
             tracking_url = f"https://www.fedex.com/fedextrack/?trknbr={tracking_number}&locale=it_IT"
         elif courier_name == 'UPS':
