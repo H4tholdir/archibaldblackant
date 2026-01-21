@@ -203,6 +203,19 @@ export class OrderDatabaseNew {
         created_at TEXT NOT NULL,
         FOREIGN KEY (order_id) REFERENCES orders(id)
       );
+
+      CREATE TABLE IF NOT EXISTS widget_order_exclusions (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id TEXT NOT NULL,
+        order_id TEXT NOT NULL,
+        excluded_from_yearly BOOLEAN NOT NULL DEFAULT 0,
+        excluded_from_monthly BOOLEAN NOT NULL DEFAULT 0,
+        reason TEXT,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        UNIQUE(user_id, order_id),
+        FOREIGN KEY (order_id) REFERENCES orders(id) ON DELETE CASCADE
+      );
     `);
 
     // Create core indexes that work on all database versions
@@ -216,6 +229,9 @@ export class OrderDatabaseNew {
       CREATE INDEX IF NOT EXISTS idx_articles_code ON order_articles(article_code);
       CREATE INDEX IF NOT EXISTS idx_state_history_order ON order_state_history(order_id);
       CREATE INDEX IF NOT EXISTS idx_state_history_timestamp ON order_state_history(timestamp);
+      CREATE INDEX IF NOT EXISTS idx_exclusions_user_order ON widget_order_exclusions(user_id, order_id);
+      CREATE INDEX IF NOT EXISTS idx_exclusions_yearly ON widget_order_exclusions(excluded_from_yearly);
+      CREATE INDEX IF NOT EXISTS idx_exclusions_monthly ON widget_order_exclusions(excluded_from_monthly);
     `);
   }
 
@@ -1093,6 +1109,194 @@ export class OrderDatabaseNew {
         "audit",
       );
     }
+  }
+
+  // ===== Widget Order Exclusions Methods =====
+
+  /**
+   * Set order exclusion for yearly/monthly budget calculations
+   */
+  setOrderExclusion(
+    userId: string,
+    orderId: string,
+    excludeFromYearly: boolean,
+    excludeFromMonthly: boolean,
+    reason?: string,
+  ): void {
+    const now = new Date().toISOString();
+
+    this.db
+      .prepare(
+        `
+      INSERT INTO widget_order_exclusions (user_id, order_id, excluded_from_yearly, excluded_from_monthly, reason, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT(user_id, order_id) DO UPDATE SET
+        excluded_from_yearly = excluded.excluded_from_yearly,
+        excluded_from_monthly = excluded.excluded_from_monthly,
+        reason = excluded.reason,
+        updated_at = excluded.updated_at
+    `,
+      )
+      .run(
+        userId,
+        orderId,
+        excludeFromYearly ? 1 : 0,
+        excludeFromMonthly ? 1 : 0,
+        reason || null,
+        now,
+        now,
+      );
+  }
+
+  /**
+   * Get order exclusion status for a specific order
+   */
+  getOrderExclusion(
+    userId: string,
+    orderId: string,
+  ): {
+    excludedFromYearly: boolean;
+    excludedFromMonthly: boolean;
+    reason: string | null;
+  } | null {
+    const row = this.db
+      .prepare(
+        `
+      SELECT excluded_from_yearly, excluded_from_monthly, reason
+      FROM widget_order_exclusions
+      WHERE user_id = ? AND order_id = ?
+    `,
+      )
+      .get(userId, orderId) as
+      | {
+          excluded_from_yearly: number;
+          excluded_from_monthly: number;
+          reason: string | null;
+        }
+      | undefined;
+
+    if (!row) return null;
+
+    return {
+      excludedFromYearly: row.excluded_from_yearly === 1,
+      excludedFromMonthly: row.excluded_from_monthly === 1,
+      reason: row.reason,
+    };
+  }
+
+  /**
+   * Get all excluded orders for a user
+   */
+  getExcludedOrders(userId: string): Array<{
+    orderId: string;
+    orderNumber: string;
+    excludedFromYearly: boolean;
+    excludedFromMonthly: boolean;
+    reason: string | null;
+  }> {
+    const rows = this.db
+      .prepare(
+        `
+      SELECT
+        e.order_id as orderId,
+        o.order_number as orderNumber,
+        e.excluded_from_yearly as excludedFromYearly,
+        e.excluded_from_monthly as excludedFromMonthly,
+        e.reason
+      FROM widget_order_exclusions e
+      INNER JOIN orders o ON e.order_id = o.id
+      WHERE e.user_id = ?
+    `,
+      )
+      .all(userId) as Array<{
+      orderId: string;
+      orderNumber: string;
+      excludedFromYearly: number;
+      excludedFromMonthly: number;
+      reason: string | null;
+    }>;
+
+    return rows.map((row) => ({
+      orderId: row.orderId,
+      orderNumber: row.orderNumber,
+      excludedFromYearly: row.excludedFromYearly === 1,
+      excludedFromMonthly: row.excludedFromMonthly === 1,
+      reason: row.reason,
+    }));
+  }
+
+  /**
+   * Remove order exclusion
+   */
+  removeOrderExclusion(userId: string, orderId: string): void {
+    this.db
+      .prepare(
+        `
+      DELETE FROM widget_order_exclusions
+      WHERE user_id = ? AND order_id = ?
+    `,
+      )
+      .run(userId, orderId);
+  }
+
+  /**
+   * Get orders for a specific period with exclusion status
+   */
+  getOrdersWithExclusionStatus(
+    userId: string,
+    startDate: string,
+    endDate: string,
+  ): Array<{
+    id: string;
+    orderNumber: string;
+    customerName: string;
+    totalAmount: string | null;
+    creationDate: string;
+    excludedFromYearly: boolean;
+    excludedFromMonthly: boolean;
+    exclusionReason: string | null;
+  }> {
+    const rows = this.db
+      .prepare(
+        `
+      SELECT
+        o.id,
+        o.order_number as orderNumber,
+        o.customer_name as customerName,
+        o.total_amount as totalAmount,
+        o.creation_date as creationDate,
+        COALESCE(e.excluded_from_yearly, 0) as excludedFromYearly,
+        COALESCE(e.excluded_from_monthly, 0) as excludedFromMonthly,
+        e.reason as exclusionReason
+      FROM orders o
+      LEFT JOIN widget_order_exclusions e ON o.id = e.order_id AND e.user_id = ?
+      WHERE o.user_id = ?
+        AND o.creation_date >= ?
+        AND o.creation_date <= ?
+      ORDER BY o.creation_date DESC
+    `,
+      )
+      .all(userId, userId, startDate, endDate) as Array<{
+      id: string;
+      orderNumber: string;
+      customerName: string;
+      totalAmount: string | null;
+      creationDate: string;
+      excludedFromYearly: number;
+      excludedFromMonthly: number;
+      exclusionReason: string | null;
+    }>;
+
+    return rows.map((row) => ({
+      id: row.id,
+      orderNumber: row.orderNumber,
+      customerName: row.customerName,
+      totalAmount: row.totalAmount,
+      creationDate: row.creationDate,
+      excludedFromYearly: row.excludedFromYearly === 1,
+      excludedFromMonthly: row.excludedFromMonthly === 1,
+      exclusionReason: row.exclusionReason,
+    }));
   }
 
   close(): void {

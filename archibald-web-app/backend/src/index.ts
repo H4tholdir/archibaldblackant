@@ -1007,20 +1007,24 @@ app.get(
       const endOfMonth = new Date(year, month + 1, 0, 23, 59, 59).toISOString();
       const monthLabel = now.toISOString().slice(0, 7); // "2026-01"
 
-      // Query current month budget from orders
+      // Query current month budget from orders (excluding orders marked as excluded)
       const query = `
-      SELECT SUM(CAST(totalAmount AS REAL)) as total
-      FROM orders
-      WHERE userId = ?
-        AND creationDate >= ?
-        AND creationDate <= ?
-        AND totalAmount IS NOT NULL
-        AND totalAmount != ''
+      SELECT SUM(CAST(o.total_amount AS REAL)) as total
+      FROM orders o
+      LEFT JOIN widget_order_exclusions e ON o.id = e.order_id AND e.user_id = ?
+      WHERE o.user_id = ?
+        AND o.creation_date >= ?
+        AND o.creation_date <= ?
+        AND o.total_amount IS NOT NULL
+        AND o.total_amount != ''
+        AND (e.excluded_from_monthly IS NULL OR e.excluded_from_monthly = 0)
     `;
 
       const result = orderDb["db"]
         .prepare(query)
-        .get(userId, startOfMonth, endOfMonth) as { total: number | null };
+        .get(userId, userId, startOfMonth, endOfMonth) as {
+        total: number | null;
+      };
       const currentBudget = result?.total || 0;
 
       // Calculate progress percentage
@@ -1128,6 +1132,150 @@ app.get(
     } catch (error) {
       logger.error("Error getting order metrics", { error });
       res.status(500).json({ error: "Error getting order metrics" });
+    }
+  },
+);
+
+// Get orders for period with exclusion status (for widget configuration)
+app.get(
+  "/api/widget/orders/:year/:month",
+  authenticateJWT,
+  (req: AuthRequest, res: Response) => {
+    try {
+      const userId = req.user!.userId;
+      const year = parseInt(req.params.year);
+      const month = parseInt(req.params.month);
+
+      if (isNaN(year) || isNaN(month) || month < 1 || month > 12) {
+        return res.status(400).json({ error: "Invalid year or month" });
+      }
+
+      const orderDb = OrderDatabaseNew.getInstance();
+
+      // Calculate start and end of month
+      const startDate = new Date(year, month - 1, 1, 0, 0, 0).toISOString();
+      const endDate = new Date(year, month, 0, 23, 59, 59).toISOString();
+
+      // Get orders with exclusion status
+      const orders = orderDb.getOrdersWithExclusionStatus(
+        userId,
+        startDate,
+        endDate,
+      );
+
+      // Calculate totals
+      const parseAmount = (amount: string | null): number => {
+        if (!amount) return 0;
+        // Remove currency symbol and parse: "82,91 €" -> 82.91
+        const cleaned = amount.replace(/[^\d,.-]/g, "").replace(",", ".");
+        const parsed = parseFloat(cleaned);
+        return isNaN(parsed) ? 0 : parsed;
+      };
+
+      const totalIncluded = orders
+        .filter((o) => !o.excludedFromMonthly)
+        .reduce((sum, o) => sum + parseAmount(o.totalAmount), 0);
+
+      const totalExcluded = orders
+        .filter((o) => o.excludedFromMonthly)
+        .reduce((sum, o) => sum + parseAmount(o.totalAmount), 0);
+
+      res.json({
+        orders: orders.map((o) => ({
+          id: o.id,
+          orderNumber: o.orderNumber,
+          customerName: o.customerName,
+          totalAmount: o.totalAmount,
+          creationDate: o.creationDate,
+          excludedFromYearly: o.excludedFromYearly,
+          excludedFromMonthly: o.excludedFromMonthly,
+          exclusionReason: o.exclusionReason,
+        })),
+        summary: {
+          totalOrders: orders.length,
+          includedCount: orders.filter((o) => !o.excludedFromMonthly).length,
+          excludedCount: orders.filter((o) => o.excludedFromMonthly).length,
+          totalIncluded,
+          totalExcluded,
+          grandTotal: totalIncluded + totalExcluded,
+        },
+        period: {
+          year,
+          month,
+          startDate,
+          endDate,
+        },
+      });
+    } catch (error) {
+      logger.error("Error getting widget orders", { error });
+      res.status(500).json({ error: "Error getting widget orders" });
+    }
+  },
+);
+
+// Update order exclusion status
+app.post(
+  "/api/widget/orders/exclusions",
+  authenticateJWT,
+  (req: AuthRequest, res: Response) => {
+    try {
+      const userId = req.user!.userId;
+      const {
+        orderId,
+        excludeFromYearly,
+        excludeFromMonthly,
+        reason,
+      }: {
+        orderId: string;
+        excludeFromYearly: boolean;
+        excludeFromMonthly: boolean;
+        reason?: string;
+      } = req.body;
+
+      if (!orderId) {
+        return res.status(400).json({ error: "orderId is required" });
+      }
+
+      const orderDb = OrderDatabaseNew.getInstance();
+
+      // Set exclusion
+      orderDb.setOrderExclusion(
+        userId,
+        orderId,
+        excludeFromYearly,
+        excludeFromMonthly,
+        reason,
+      );
+
+      res.json({
+        success: true,
+        message: "Order exclusion updated",
+      });
+    } catch (error) {
+      logger.error("Error updating order exclusion", { error });
+      res.status(500).json({ error: "Error updating order exclusion" });
+    }
+  },
+);
+
+// Get all excluded orders for user
+app.get(
+  "/api/widget/orders/exclusions",
+  authenticateJWT,
+  (req: AuthRequest, res: Response) => {
+    try {
+      const userId = req.user!.userId;
+      const orderDb = OrderDatabaseNew.getInstance();
+
+      const excluded = orderDb.getExcludedOrders(userId);
+
+      res.json({
+        excluded,
+        count: excluded.length,
+      });
+    } catch (error) {
+      logger.error("Error getting excluded orders", { error });
+      res.status(500).json({ error: "Error getting excluded orders" });
     }
   },
 );
