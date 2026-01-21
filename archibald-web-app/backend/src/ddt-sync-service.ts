@@ -181,18 +181,11 @@ export class DDTSyncService extends EventEmitter {
 
     // Debug: Log first 5 DDTs to understand format
     logger.info(`[DDTSyncService] Sample of first 5 parsed DDTs:`, {
-      sample: parsedDDTs.slice(0, 5).map(d => ({
+      sample: parsedDDTs.slice(0, 5).map((d: ParsedDDT) => ({
         order_number: d.order_number,
         ddt_number: d.ddt_number,
         tracking: d.tracking_number
       }))
-    });
-
-    // Debug: Log sample of orders in DB
-    const allOrders = this.orderDb.getOrders(userId);
-    logger.info(`[DDTSyncService] Sample of orders in DB (first 5):`, {
-      totalOrders: allOrders.length,
-      sample: allOrders.slice(0, 5).map(o => o.order_number)
     });
 
     for (const parsedDDT of parsedDDTs) {
@@ -201,9 +194,12 @@ export class DDTSyncService extends EventEmitter {
 
       if (!order) {
         notFound++;
-        logger.debug(
-          `[DDTSyncService] Order ${parsedDDT.order_number} not found for DDT ${parsedDDT.ddt_number}`,
-        );
+        // Log first few not-found for debugging
+        if (notFound <= 5) {
+          logger.warn(
+            `[DDTSyncService] Order not found - order_number: "${parsedDDT.order_number}" (length: ${parsedDDT.order_number?.length || 0}, DDT: ${parsedDDT.ddt_number})`,
+          );
+        }
         continue;
       }
 
