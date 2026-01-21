@@ -101,6 +101,17 @@ export interface Order {
   invoiceNumber?: string | null;
   invoiceDate?: string | null;
   invoiceAmount?: string | null;
+  invoiceCustomerAccount?: string | null;
+  invoiceBillingName?: string | null;
+  invoiceQuantity?: number | null;
+  invoiceRemainingAmount?: string | null;
+  invoiceTaxAmount?: string | null;
+  invoiceLineDiscount?: string | null;
+  invoiceTotalDiscount?: string | null;
+  invoiceDueDate?: string | null;
+  invoicePaymentTermsId?: string | null;
+  invoicePurchaseOrder?: string | null;
+  invoiceClosed?: boolean | null;
 
   // Current state tracking
   currentState?: string | null;
@@ -990,6 +1001,17 @@ export class OrderHistoryService {
       invoiceNumber: stored.invoiceNumber,
       invoiceDate: stored.invoiceDate,
       invoiceAmount: stored.invoiceAmount,
+      invoiceCustomerAccount: stored.invoiceCustomerAccount,
+      invoiceBillingName: stored.invoiceBillingName,
+      invoiceQuantity: stored.invoiceQuantity,
+      invoiceRemainingAmount: stored.invoiceRemainingAmount,
+      invoiceTaxAmount: stored.invoiceTaxAmount,
+      invoiceLineDiscount: stored.invoiceLineDiscount,
+      invoiceTotalDiscount: stored.invoiceTotalDiscount,
+      invoiceDueDate: stored.invoiceDueDate,
+      invoicePaymentTermsId: stored.invoicePaymentTermsId,
+      invoicePurchaseOrder: stored.invoicePurchaseOrder,
+      invoiceClosed: stored.invoiceClosed,
 
       // Current state tracking
       currentState: stored.currentState,
