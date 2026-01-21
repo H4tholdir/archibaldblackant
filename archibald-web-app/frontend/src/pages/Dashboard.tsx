@@ -3,6 +3,7 @@ import { useAuth } from "../hooks/useAuth";
 import { BudgetWidget } from "../components/BudgetWidget";
 import { OrdersSummaryWidget } from "../components/OrdersSummaryWidget";
 import { CommissionsWidget } from "../components/CommissionsWidget";
+import { WidgetOrderConfigModal } from "../components/WidgetOrderConfigModal";
 
 export function Dashboard() {
   const auth = useAuth();
@@ -28,6 +29,7 @@ export function Dashboard() {
     monthCount: number;
   } | null>(null);
   const [loading, setLoading] = useState(true);
+  const [showConfigModal, setShowConfigModal] = useState(false);
 
   useEffect(() => {
     const fetchDashboardData = async () => {
@@ -96,6 +98,42 @@ export function Dashboard() {
     fetchDashboardData();
   }, []);
 
+  const handleConfigUpdate = async () => {
+    // Reload dashboard data after config changes
+    const token = localStorage.getItem("archibald_jwt");
+    if (!token) return;
+
+    try {
+      const [budgetRes, ordersRes] = await Promise.all([
+        fetch("/api/metrics/budget", {
+          headers: { Authorization: `Bearer ${token}` },
+        }),
+        fetch("/api/metrics/orders", {
+          headers: { Authorization: `Bearer ${token}` },
+        }),
+      ]);
+
+      if (budgetRes.ok) {
+        const data = await budgetRes.json();
+        setBudgetData({
+          currentBudget: data.currentBudget,
+          progress: data.progress,
+        });
+      }
+
+      if (ordersRes.ok) {
+        const data = await ordersRes.json();
+        setOrderMetrics({
+          todayCount: data.todayCount,
+          weekCount: data.weekCount,
+          monthCount: data.monthCount,
+        });
+      }
+    } catch (error) {
+      console.error("[Dashboard] Failed to reload metrics:", error);
+    }
+  };
+
   if (loading) {
     return (
       <div
@@ -159,6 +197,41 @@ export function Dashboard() {
             Benvenuto, {auth.user?.fullName}
           </p>
         </div>
+
+        {/* Widget Configuration Button */}
+        <button
+          onClick={() => setShowConfigModal(true)}
+          style={{
+            padding: "12px 20px",
+            backgroundColor: "#3498db",
+            color: "white",
+            border: "none",
+            borderRadius: "8px",
+            fontSize: "14px",
+            fontWeight: "500",
+            cursor: "pointer",
+            display: "flex",
+            alignItems: "center",
+            gap: "8px",
+            boxShadow: "0 2px 8px rgba(52, 152, 219, 0.3)",
+            transition: "all 0.2s",
+          }}
+          onMouseOver={(e) => {
+            e.currentTarget.style.backgroundColor = "#2980b9";
+            e.currentTarget.style.transform = "translateY(-2px)";
+            e.currentTarget.style.boxShadow =
+              "0 4px 12px rgba(52, 152, 219, 0.4)";
+          }}
+          onMouseOut={(e) => {
+            e.currentTarget.style.backgroundColor = "#3498db";
+            e.currentTarget.style.transform = "translateY(0)";
+            e.currentTarget.style.boxShadow =
+              "0 2px 8px rgba(52, 152, 219, 0.3)";
+          }}
+        >
+          <span style={{ fontSize: "16px" }}>⚙️</span>
+          Configura Ordini Widget
+        </button>
       </div>
 
       {/* Hero Widget - Full Width Budget */}
@@ -213,6 +286,15 @@ export function Dashboard() {
           }
         }
       `}</style>
+
+      {/* Widget Order Configuration Modal */}
+      <WidgetOrderConfigModal
+        isOpen={showConfigModal}
+        onClose={() => setShowConfigModal(false)}
+        year={new Date().getFullYear()}
+        month={new Date().getMonth() + 1}
+        onUpdate={handleConfigUpdate}
+      />
     </div>
   );
 }
