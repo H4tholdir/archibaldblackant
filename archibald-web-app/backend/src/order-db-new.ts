@@ -228,8 +228,11 @@ export class OrderDatabaseNew {
       .all() as Array<{ name: string }>;
     const existingColumns = new Set(columns.map((c) => c.name));
 
-    // List of new columns to add (from data leak fix)
+    // List of all columns that may be missing (comprehensive migration)
     const newColumns = [
+      // Core DDT fields (may be missing in old VPS database)
+      { name: "ddt_number", type: "TEXT" },
+      { name: "ddt_delivery_date", type: "TEXT" },
       { name: "ddt_id", type: "TEXT" },
       { name: "ddt_customer_account", type: "TEXT" },
       { name: "ddt_sales_name", type: "TEXT" },
@@ -238,6 +241,15 @@ export class OrderDatabaseNew {
       { name: "delivery_method", type: "TEXT" },
       { name: "delivery_city", type: "TEXT" },
       { name: "attention_to", type: "TEXT" },
+      // Tracking fields (may be missing)
+      { name: "tracking_number", type: "TEXT" },
+      { name: "tracking_url", type: "TEXT" },
+      { name: "tracking_courier", type: "TEXT" },
+      // Core Invoice fields (may be missing)
+      { name: "invoice_number", type: "TEXT" },
+      { name: "invoice_date", type: "TEXT" },
+      { name: "invoice_amount", type: "TEXT" },
+      // Additional Invoice fields (from data leak fix)
       { name: "invoice_customer_account", type: "TEXT" },
       { name: "invoice_billing_name", type: "TEXT" },
       { name: "invoice_quantity", type: "INTEGER" },
@@ -249,6 +261,10 @@ export class OrderDatabaseNew {
       { name: "invoice_payment_terms_id", type: "TEXT" },
       { name: "invoice_purchase_order", type: "TEXT" },
       { name: "invoice_closed", type: "INTEGER" },
+      // State tracking fields (may be missing)
+      { name: "current_state", type: "TEXT" },
+      { name: "sent_to_milano_at", type: "TEXT" },
+      { name: "archibald_order_id", type: "TEXT" },
     ];
 
     // Add missing columns
