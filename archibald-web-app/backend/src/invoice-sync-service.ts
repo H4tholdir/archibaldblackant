@@ -218,20 +218,20 @@ export class InvoiceSyncService extends EventEmitter {
         this.orderDb.updateInvoiceData(userId, parsedInvoice.order_number, {
           invoiceNumber: parsedInvoice.invoice_number,
           invoiceDate: parsedInvoice.invoice_date || null,
-          invoiceAmount: parsedInvoice.total_amount || null,
+          invoiceAmount: parsedInvoice.invoice_amount || null,
           invoiceCustomerAccount: parsedInvoice.customer_account || null,
           invoiceBillingName: parsedInvoice.billing_name || null,
           invoiceQuantity: parsedInvoice.quantity
             ? parseInt(parsedInvoice.quantity)
             : null,
-          invoiceRemainingAmount: parsedInvoice.sales_balance || null,
-          invoiceTaxAmount: parsedInvoice.vat_amount || null,
-          invoiceLineDiscount: null, // Not in PDF parser
-          invoiceTotalDiscount: null, // Not in PDF parser
-          invoiceDueDate: null, // Not in PDF parser
-          invoicePaymentTermsId: parsedInvoice.payment_terms || null,
-          invoicePurchaseOrder: null, // Not in PDF parser
-          invoiceClosed: null, // Not in PDF parser
+          invoiceRemainingAmount: parsedInvoice.remaining_amount || null,
+          invoiceTaxAmount: parsedInvoice.tax_sum || null,
+          invoiceLineDiscount: parsedInvoice.discount_amount || null,
+          invoiceTotalDiscount: parsedInvoice.discount_amount || null, // Same as line discount
+          invoiceDueDate: parsedInvoice.due_date || null,
+          invoicePaymentTermsId: parsedInvoice.payment_term_id || null,
+          invoicePurchaseOrder: parsedInvoice.purchase_order || null,
+          invoiceClosed: parsedInvoice.closed ? parsedInvoice.closed === "Sì" || parsedInvoice.closed === "1" : null,
         });
         updated++;
       } catch (error) {

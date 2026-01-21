@@ -3,17 +3,40 @@ import { logger } from "./logger";
 import path from "node:path";
 
 export interface ParsedInvoice {
+  // Page 1/7: Invoice identification
   id: string;
   invoice_number: string;
   invoice_date: string | null;
   customer_account: string;
+
+  // Page 2/7: Billing info
   billing_name: string | null;
   quantity: string | null;
   sales_balance: string | null;
+
+  // Page 3/7: Amounts
+  line_sum: string | null;
+  discount_amount: string | null;
+  tax_sum: string | null;
+  invoice_amount: string | null;
+
+  // Page 4/7: Purchase order and due date
+  purchase_order: string | null;
+  customer_reference: string | null;
+  due_date: string | null;
+
+  // Page 5/7: Payment terms
+  payment_term_id: string | null;
+  days_past_due: string | null;
+
+  // Page 6/7: Settlement
+  settled: string | null;
   amount: string | null;
-  vat_amount: string | null;
-  total_amount: string | null;
-  payment_terms: string | null;
+  last_payment_id: string | null;
+
+  // Page 7/7: Order matching
+  closed: string | null;
+  remaining_amount: string | null;
   order_number: string | null; // ID VENDITE (e.g., "ORD/26000887") - MATCH KEY
 }
 
