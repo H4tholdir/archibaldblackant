@@ -30,6 +30,8 @@ class ParsedDDT:
 
     # Page 4/6: TRACKING (Key page!)
     tracking_number: Optional[str]  # e.g., "445291888246"
+    tracking_url: Optional[str]  # e.g., "https://www.fedex.com/fedextrack/?trknbr=445291888246"
+    tracking_courier: Optional[str]  # e.g., "FEDEX", "UPS", "DHL"
     delivery_terms: Optional[str]  # e.g., "CFR"
     delivery_method: Optional[str]  # Courier: "FedEx", "UPS", "DHL"
 
@@ -48,27 +50,64 @@ def parse_italian_date(date_str: str) -> Optional[str]:
         return None
 
 
-def extract_tracking_number(text: str) -> Optional[str]:
+def extract_tracking_info(text: str) -> tuple:
     """
-    Extract tracking number from text.
+    Extract tracking number, courier name, and tracking URL from text.
     Format: "fedex 445291890750" or "ups 1Z999AA10123456789" or just "445291890750"
-    Returns the numeric tracking number.
+    Returns: (tracking_number, courier_name, tracking_url)
     """
     if not text or not text.strip():
-        return None
+        return (None, None, None)
 
-    text = text.strip()
+    import re
+    text = text.strip().lower()
 
-    # Split by whitespace and take the last part (usually the tracking number)
-    parts = text.split()
-    if len(parts) > 0:
-        # Take the last part which should be the tracking number
-        tracking = parts[-1]
-        # Only return if it contains digits
-        if any(c.isdigit() for c in tracking):
-            return tracking
+    # Detect courier and extract tracking number
+    courier_patterns = {
+        'fedex': r'^fedex\s+([0-9]+)',
+        'ups': r'^ups\s+([A-Z0-9]+)',
+        'dhl': r'^dhl\s+([A-Z0-9]+)',
+        'tnt': r'^tnt\s+([A-Z0-9]+)',
+        'gls': r'^gls\s+([A-Z0-9]+)',
+        'bartolini': r'^bartolini\s+([A-Z0-9]+)',
+        'sda': r'^sda\s+([A-Z0-9]+)',
+    }
 
-    return None
+    courier_name = None
+    tracking_number = None
+
+    for courier, pattern in courier_patterns.items():
+        match = re.search(pattern, text, re.IGNORECASE)
+        if match:
+            tracking_number = match.group(1)
+            courier_name = courier.upper()
+            break
+
+    # If no courier prefix found, try to extract just the number
+    if not tracking_number:
+        parts = text.split()
+        if len(parts) > 0:
+            tracking = parts[-1]
+            if any(c.isdigit() for c in tracking):
+                tracking_number = tracking
+
+    # Generate tracking URL based on courier
+    tracking_url = None
+    if tracking_number and courier_name:
+        if courier_name == 'FEDEX':
+            tracking_url = f"https://www.fedex.com/fedextrack/?trknbr={tracking_number}&locale=it_IT"
+        elif courier_name == 'UPS':
+            tracking_url = f"https://www.ups.com/track?loc=it_IT&tracknum={tracking_number}"
+        elif courier_name == 'DHL':
+            tracking_url = f"https://www.dhl.com/it-it/home/tracking/tracking-express.html?submit=1&tracking-id={tracking_number}"
+        elif courier_name == 'GLS':
+            tracking_url = f"https://gls-group.eu/IT/it/ricerca-pacchi?match={tracking_number}"
+        elif courier_name == 'BARTOLINI' or courier_name == 'BRT':
+            tracking_url = f"https://vas.brt.it/vas/sped_det_show.hsm?brt_brtCode={tracking_number}"
+        elif courier_name == 'SDA':
+            tracking_url = f"https://www.sda.it/wps/portal/Servizi_online/dettaglio-spedizione?locale=it&tracing.letteraVettura={tracking_number}"
+
+    return (tracking_number, courier_name, tracking_url)
 
 
 def parse_ddt_pdf(pdf_path: str):
@@ -139,7 +178,7 @@ def parse_ddt_pdf(pdf_path: str):
                     # Columns: [TRACKING_NUMBER, DELIVERY_TERMS, DELIVERY_METHOD]
                     row4 = tables[3][row_idx] if row_idx < len(tables[3]) else [None] * 3
                     tracking_raw = row4[0] if len(row4) > 0 and row4[0] else None
-                    tracking_number = extract_tracking_number(tracking_raw) if tracking_raw else None
+                    tracking_number, tracking_courier, tracking_url = extract_tracking_info(tracking_raw) if tracking_raw else (None, None, None)
                     delivery_terms = row4[1] if len(row4) > 1 else None
                     delivery_method = row4[2] if len(row4) > 2 else None
 
@@ -157,6 +196,8 @@ def parse_ddt_pdf(pdf_path: str):
                         sales_name=sales_name,
                         delivery_name=delivery_name,
                         tracking_number=tracking_number,
+                        tracking_url=tracking_url,
+                        tracking_courier=tracking_courier,
                         delivery_terms=delivery_terms,
                         delivery_method=delivery_method,
                         delivery_city=delivery_city

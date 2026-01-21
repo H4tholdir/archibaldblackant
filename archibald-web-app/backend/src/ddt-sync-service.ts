@@ -217,8 +217,8 @@ export class DDTSyncService extends EventEmitter {
           deliveryCity: parsedDDT.delivery_city || null,
           attentionTo: null, // Not in PDF parser
           trackingNumber: parsedDDT.tracking_number || null,
-          trackingUrl: null, // Computed from tracking number if needed
-          trackingCourier: null, // Computed from tracking number if needed
+          trackingUrl: parsedDDT.tracking_url || null,
+          trackingCourier: parsedDDT.tracking_courier || null,
         });
         updated++;
       } catch (error) {
