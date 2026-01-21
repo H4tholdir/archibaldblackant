@@ -106,6 +106,7 @@ export class OrderDatabaseNew {
     this.db = new Database(finalPath);
     this.db.pragma("journal_mode = WAL");
     this.initSchema();
+    this.runMigrations();
     logger.info("[OrderDatabaseNew] Initialized", { path: finalPath });
   }
 
@@ -217,6 +218,66 @@ export class OrderDatabaseNew {
       CREATE INDEX IF NOT EXISTS idx_state_history_order ON order_state_history(order_id);
       CREATE INDEX IF NOT EXISTS idx_state_history_timestamp ON order_state_history(timestamp);
     `);
+  }
+
+  private runMigrations(): void {
+    logger.info("[OrderDatabaseNew] Running migrations...");
+
+    // Get existing columns
+    const columns = this.db
+      .prepare("PRAGMA table_info(orders)")
+      .all() as Array<{ name: string }>;
+    const existingColumns = new Set(columns.map((c) => c.name));
+
+    // List of new columns to add (from data leak fix)
+    const newColumns = [
+      { name: "ddt_id", type: "TEXT" },
+      { name: "ddt_customer_account", type: "TEXT" },
+      { name: "ddt_sales_name", type: "TEXT" },
+      { name: "ddt_delivery_name", type: "TEXT" },
+      { name: "delivery_terms", type: "TEXT" },
+      { name: "delivery_method", type: "TEXT" },
+      { name: "delivery_city", type: "TEXT" },
+      { name: "attention_to", type: "TEXT" },
+      { name: "invoice_customer_account", type: "TEXT" },
+      { name: "invoice_billing_name", type: "TEXT" },
+      { name: "invoice_quantity", type: "INTEGER" },
+      { name: "invoice_remaining_amount", type: "TEXT" },
+      { name: "invoice_tax_amount", type: "TEXT" },
+      { name: "invoice_line_discount", type: "TEXT" },
+      { name: "invoice_total_discount", type: "TEXT" },
+      { name: "invoice_due_date", type: "TEXT" },
+      { name: "invoice_payment_terms_id", type: "TEXT" },
+      { name: "invoice_purchase_order", type: "TEXT" },
+      { name: "invoice_closed", type: "INTEGER" },
+    ];
+
+    // Add missing columns
+    let addedCount = 0;
+    for (const col of newColumns) {
+      if (!existingColumns.has(col.name)) {
+        try {
+          this.db.exec(`ALTER TABLE orders ADD COLUMN ${col.name} ${col.type}`);
+          logger.info(
+            `[OrderDatabaseNew] Added missing column: ${col.name} (${col.type})`,
+          );
+          addedCount++;
+        } catch (error) {
+          logger.error(
+            `[OrderDatabaseNew] Failed to add column ${col.name}`,
+            error,
+          );
+        }
+      }
+    }
+
+    if (addedCount > 0) {
+      logger.info(
+        `[OrderDatabaseNew] Migration completed: added ${addedCount} columns`,
+      );
+    } else {
+      logger.info("[OrderDatabaseNew] No migrations needed - schema up to date");
+    }
   }
 
   private computeHash(order: Omit<OrderRecord, "lastSync" | "userId">): string {
