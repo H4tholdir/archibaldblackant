@@ -2,9 +2,6 @@ import { Page } from "puppeteer";
 import { logger } from "./logger";
 import { config } from "./config";
 import { OrderDatabaseNew, type OrderRecord } from "./order-db-new";
-import { DDTDatabase, type DDTRecord } from "./ddt-db";
-import { InvoicesDatabase } from "./invoices-db";
-import type { DDTData } from "./ddt-scraper-service";
 import { EventEmitter } from "events";
 
 /**
@@ -303,65 +300,14 @@ export class OrderHistoryService {
         `[OrderHistoryService] Returning ${dbOrders.length} orders from DB (total: ${total}, hasMore: ${hasMore})`,
       );
 
-      // Enrich orders with DDT and invoice data from separate databases
-      const ddtDb = DDTDatabase.getInstance();
-      const invoicesDb = InvoicesDatabase.getInstance();
-      logger.info(
-        `[OrderHistoryService] Enriching ${dbOrders.length} orders with DDT and invoice data`,
+      // NOTE: DDT and invoice data is now stored directly in orders table
+      // No need to load from separate databases - data is already in OrderRecord
+      logger.debug(
+        `[OrderHistoryService] DDT and invoice data already present in orders table`,
       );
 
-      const enrichedOrders = dbOrders.map((order) => {
-        // Load DDT for this order
-        const ddts = ddtDb.getDDTsByOrderNumber(order.orderNumber);
-        const ddt = ddts.length > 0 ? ddts[0] : null; // Take first DDT if multiple exist
-
-        // Load invoices for this order
-        const invoices = invoicesDb.getInvoicesByOrderNumber(order.orderNumber);
-        const invoice = invoices.length > 0 ? invoices[0] : null; // Take first invoice if multiple exist
-
-        let enrichedOrder: OrderRecord = { ...order };
-
-        if (ddt) {
-          logger.debug(
-            `[OrderHistoryService] Found DDT ${ddt.ddtNumber} for order ${order.orderNumber}`,
-          );
-          // Enrich order with DDT fields
-          enrichedOrder = {
-            ...enrichedOrder,
-            ddtId: ddt.id,
-            ddtNumber: ddt.ddtNumber,
-            ddtDeliveryDate: ddt.deliveryDate,
-            ddtOrderNumber: ddt.orderNumber,
-            ddtCustomerAccount: ddt.customerAccount,
-            ddtSalesName: ddt.salesName,
-            ddtDeliveryName: ddt.deliveryName,
-            trackingNumber: ddt.trackingNumber,
-            deliveryTerms: ddt.deliveryTerms,
-            deliveryMethod: ddt.deliveryMethod,
-            deliveryCity: ddt.deliveryCity,
-            trackingUrl: ddt.trackingUrl,
-            trackingCourier: ddt.trackingCourier,
-          } as OrderRecord;
-        }
-
-        if (invoice) {
-          logger.debug(
-            `[OrderHistoryService] Found invoice ${invoice.invoiceNumber} for order ${order.orderNumber}`,
-          );
-          // Enrich order with invoice fields
-          enrichedOrder = {
-            ...enrichedOrder,
-            invoiceNumber: invoice.invoiceNumber,
-            invoiceDate: invoice.invoiceDate,
-            invoiceAmount: invoice.totalAmount || invoice.amount,
-          } as OrderRecord;
-        }
-
-        return enrichedOrder;
-      });
-
       // Convert OrderRecord to Order (transform flat DDT to nested structure)
-      const orders: Order[] = enrichedOrders.map(this.storedOrderToOrder);
+      const orders: Order[] = dbOrders.map(this.storedOrderToOrder);
 
       return {
         orders,
@@ -386,53 +332,13 @@ export class OrderHistoryService {
         });
         const total = this.orderDb.countOrders(userId);
 
-        // Enrich with DDT and invoice data
-        const ddtDb = DDTDatabase.getInstance();
-        const invoicesDb = InvoicesDatabase.getInstance();
-        const enrichedOrders = dbOrders.map((order) => {
-          const ddts = ddtDb.getDDTsByOrderNumber(order.orderNumber);
-          const ddt = ddts.length > 0 ? ddts[0] : null;
-
-          const invoices = invoicesDb.getInvoicesByOrderNumber(
-            order.orderNumber,
-          );
-          const invoice = invoices.length > 0 ? invoices[0] : null;
-
-          let enrichedOrder: OrderRecord = { ...order };
-
-          if (ddt) {
-            enrichedOrder = {
-              ...enrichedOrder,
-              ddtId: ddt.id,
-              ddtNumber: ddt.ddtNumber,
-              ddtDeliveryDate: ddt.deliveryDate,
-              ddtOrderNumber: ddt.orderNumber,
-              ddtCustomerAccount: ddt.customerAccount,
-              ddtSalesName: ddt.salesName,
-              ddtDeliveryName: ddt.deliveryName,
-              trackingNumber: ddt.trackingNumber,
-              deliveryTerms: ddt.deliveryTerms,
-              deliveryMethod: ddt.deliveryMethod,
-              deliveryCity: ddt.deliveryCity,
-              trackingUrl: ddt.trackingUrl,
-              trackingCourier: ddt.trackingCourier,
-            } as OrderRecord;
-          }
-
-          if (invoice) {
-            enrichedOrder = {
-              ...enrichedOrder,
-              invoiceNumber: invoice.invoiceNumber,
-              invoiceDate: invoice.invoiceDate,
-              invoiceAmount: invoice.totalAmount || invoice.amount,
-            } as OrderRecord;
-          }
-
-          return enrichedOrder;
-        });
+        // NOTE: DDT and invoice data is already in orders table
+        logger.debug(
+          `[OrderHistoryService] Fallback: returning ${dbOrders.length} orders from DB`,
+        );
 
         return {
-          orders: enrichedOrders.map(this.storedOrderToOrder),
+          orders: dbOrders.map(this.storedOrderToOrder),
           total,
           hasMore: offset + limit < total,
         };
