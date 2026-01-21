@@ -1096,7 +1096,7 @@ app.get(
       const todayQuery = `
       SELECT COUNT(*) as count
       FROM orders
-      WHERE userId = ? AND creationDate >= ?
+      WHERE user_id = ? AND creation_date >= ?
     `;
       const todayResult = orderDb["db"]
         .prepare(todayQuery)
@@ -1106,7 +1106,7 @@ app.get(
       const weekQuery = `
       SELECT COUNT(*) as count
       FROM orders
-      WHERE userId = ? AND creationDate >= ?
+      WHERE user_id = ? AND creation_date >= ?
     `;
       const weekResult = orderDb["db"]
         .prepare(weekQuery)
@@ -1116,7 +1116,7 @@ app.get(
       const monthQuery = `
       SELECT COUNT(*) as count
       FROM orders
-      WHERE userId = ? AND creationDate >= ?
+      WHERE user_id = ? AND creation_date >= ?
     `;
       const monthResult = orderDb["db"]
         .prepare(monthQuery)
