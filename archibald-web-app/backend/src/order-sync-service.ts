@@ -338,11 +338,15 @@ export class OrderSyncService extends EventEmitter {
       const parsedOrder = parsedOrders[i];
 
       try {
+        // For orders without order_number (pending Milano processing),
+        // use placeholder format "PENDING-{id}" to satisfy NOT NULL constraint
+        const orderNumber = parsedOrder.order_number || `PENDING-${parsedOrder.id}`;
+
         const orderData = {
           id: parsedOrder.id,
-          orderNumber: parsedOrder.order_number,
+          orderNumber: orderNumber,
           customerProfileId: parsedOrder.customer_profile_id || null,
-          customerName: parsedOrder.customer_name,
+          customerName: parsedOrder.customer_name || "In attesa elaborazione",
           deliveryName: parsedOrder.delivery_name,
           deliveryAddress: parsedOrder.delivery_address,
           creationDate: parsedOrder.creation_date,

@@ -6,9 +6,9 @@ import path from "node:path";
 export interface OrderRecord {
   id: string;
   userId: string;
-  orderNumber: string;
+  orderNumber: string; // Format: "ORD/xxxxxxxx" or "PENDING-{id}" for orders awaiting Milano processing
   customerProfileId: string | null;
-  customerName: string;
+  customerName: string; // May be "In attesa elaborazione" for pending orders
   deliveryName: string | null;
   deliveryAddress: string | null;
   creationDate: string; // ISO 8601

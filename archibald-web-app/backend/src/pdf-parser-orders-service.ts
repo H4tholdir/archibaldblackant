@@ -4,9 +4,9 @@ import path from "node:path";
 
 export interface ParsedOrder {
   id: string;
-  order_number: string;
-  customer_profile_id: string;
-  customer_name: string;
+  order_number: string | null; // Can be null for pending orders awaiting Milano processing
+  customer_profile_id: string | null; // Can be null for pending orders
+  customer_name: string | null; // Can be null for pending orders
   delivery_name: string | null;
   delivery_address: string | null;
   creation_date: string; // ISO 8601

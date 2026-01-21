@@ -19,9 +19,9 @@ class ParsedOrder:
 
     # Page 1/7: Order Identification
     id: str  # Internal ID (e.g., "70.962")
-    order_number: str  # e.g., "ORD/26000887"
-    customer_profile_id: str  # e.g., "1002241"
-    customer_name: str  # e.g., "Carrazza Giovanni"
+    order_number: Optional[str]  # e.g., "ORD/26000887" - None for pending orders
+    customer_profile_id: Optional[str]  # e.g., "1002241" - None for pending orders
+    customer_name: Optional[str]  # e.g., "Carrazza Giovanni" - None for pending orders
 
     # Page 2/7: Delivery
     delivery_name: Optional[str]
@@ -162,13 +162,16 @@ def parse_orders_pdf(pdf_path: str):
                     )
                     customer_name = get_column_value(tables[0], row_idx, "NOME VENDITE")
 
-                    # Skip if no order ID
-                    if not order_id or not order_number:
+                    # Skip if no internal ID (always required)
+                    if not order_id:
                         continue
 
                     # Skip garbage rows (ID = "0" pattern from other PDFs)
-                    if order_id == "0" or order_number == "0":
+                    if order_id == "0":
                         continue
+
+                    # Allow orders without order_number (ID DI VENDITA) - these are pending orders
+                    # waiting for Milano processing or intervention
 
                     # Page 2/7: NOME DI CONSEGNA, INDIRIZZO DI CONSEGNA (2 columns)
                     delivery_name = get_column_value(
