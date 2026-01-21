@@ -2,6 +2,7 @@ import { Page } from "puppeteer";
 import { logger } from "./logger";
 import { config } from "./config";
 import { OrderDatabaseNew, type OrderRecord } from "./order-db-new";
+import type { DDTData } from "./ddt-scraper-service";
 import { EventEmitter } from "events";
 
 /**
