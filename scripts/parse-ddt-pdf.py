@@ -48,6 +48,29 @@ def parse_italian_date(date_str: str) -> Optional[str]:
         return None
 
 
+def extract_tracking_number(text: str) -> Optional[str]:
+    """
+    Extract tracking number from text.
+    Format: "fedex 445291890750" or "ups 1Z999AA10123456789" or just "445291890750"
+    Returns the numeric tracking number.
+    """
+    if not text or not text.strip():
+        return None
+
+    text = text.strip()
+
+    # Split by whitespace and take the last part (usually the tracking number)
+    parts = text.split()
+    if len(parts) > 0:
+        # Take the last part which should be the tracking number
+        tracking = parts[-1]
+        # Only return if it contains digits
+        if any(c.isdigit() for c in tracking):
+            return tracking
+
+    return None
+
+
 def parse_ddt_pdf(pdf_path: str):
     """
     Parse Documenti di trasporto.pdf with 6-page cycle structure.
@@ -115,7 +138,8 @@ def parse_ddt_pdf(pdf_path: str):
                     # Page 4/6: TRACKING (3 columns) ⭐ KEY PAGE
                     # Columns: [TRACKING_NUMBER, DELIVERY_TERMS, DELIVERY_METHOD]
                     row4 = tables[3][row_idx] if row_idx < len(tables[3]) else [None] * 3
-                    tracking_number = row4[0] if len(row4) > 0 and row4[0] and row4[0].strip() else None
+                    tracking_raw = row4[0] if len(row4) > 0 and row4[0] else None
+                    tracking_number = extract_tracking_number(tracking_raw) if tracking_raw else None
                     delivery_terms = row4[1] if len(row4) > 1 else None
                     delivery_method = row4[2] if len(row4) > 2 else None
 
