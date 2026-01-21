@@ -2,7 +2,7 @@ import type { BrowserContext, Page } from "puppeteer";
 import { logger } from "./logger";
 import { config } from "./config";
 import { BrowserPool } from "./browser-pool";
-import { OrderDatabase, type StoredOrder } from "./order-db";
+import { OrderDatabaseNew, type OrderRecord } from "./order-db-new";
 
 export interface DDTData {
   // All 11 columns from CUSTPACKINGSLIPJOUR_ListView table
@@ -52,7 +52,7 @@ export interface SyncResult {
  */
 export class DDTScraperService {
   private readonly ddtPageUrl = `${config.archibald.url}/CUSTPACKINGSLIPJOUR_ListView/`;
-  private readonly orderDb = OrderDatabase.getInstance();
+  private readonly orderDb = OrderDatabaseNew.getInstance();
 
   /**
    * Scrape all DDT data from Archibald
@@ -357,9 +357,17 @@ export class DDTScraperService {
           continue;
         }
 
-        // Update order with DDT data
+        // Update order with DDT data - pass ALL extracted fields
         this.orderDb.updateOrderDDT(userId, ddt.orderId, {
           ddtNumber: ddt.ddtNumber,
+          ddtDeliveryDate: ddt.ddtDeliveryDate,
+          ddtId: ddt.ddtId,
+          ddtCustomerAccount: ddt.customerAccountId,
+          ddtSalesName: ddt.salesName,
+          ddtDeliveryName: ddt.deliveryName,
+          deliveryTerms: ddt.deliveryTerms,
+          deliveryMethod: ddt.deliveryMethod,
+          deliveryCity: ddt.deliveryCity,
           trackingNumber: ddt.trackingNumber,
           trackingUrl: ddt.trackingUrl,
           trackingCourier: ddt.trackingCourier,
@@ -408,7 +416,7 @@ export class DDTScraperService {
    * 5. Wait for PDF link generation
    * 6. Download PDF via Puppeteer CDP
    */
-  async downloadDDTPDF(userId: string, order: StoredOrder): Promise<Buffer> {
+  async downloadDDTPDF(userId: string, order: OrderRecord): Promise<Buffer> {
     logger.info(`[DDTScraper] Downloading DDT PDF for order ${order.id}`, {
       orderId: order.id,
       orderNumber: order.orderNumber,

@@ -608,6 +608,12 @@ function TabLogistica({ order, token }: { order: Order; token?: string }) {
               value={formatDate(ddt.ddtDeliveryDate)}
             />
             <InfoField label="ID Ordine Vendita" value={ddt.orderId} />
+            <InfoField label="Conto Cliente" value={ddt.ddtCustomerAccount} />
+            <InfoField label="Nome Venditore" value={ddt.ddtSalesName} />
+            <InfoField label="Nome Consegna" value={ddt.ddtDeliveryName} />
+            <InfoField label="Termini Consegna" value={order.deliveryTerms} />
+            <InfoField label="Città Consegna" value={order.deliveryCity} />
+            <InfoField label="All'attenzione di" value={order.attentionTo} />
           </div>
 
           {/* DDT PDF Download Button */}
@@ -982,6 +988,33 @@ function TabFinanziario({ order, token }: { order: Order; token?: string }) {
         >
           Fattura
         </h3>
+
+        {/* Dettagli Fattura */}
+        {order.invoiceNumber && (
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(2, 1fr)",
+              gap: "12px",
+              marginBottom: "16px",
+            }}
+          >
+            <InfoField label="Numero Fattura" value={order.invoiceNumber} bold />
+            <InfoField label="Data Fattura" value={formatDate(order.invoiceDate)} />
+            <InfoField label="Importo Fattura" value={order.invoiceAmount ? `€${order.invoiceAmount}` : undefined} />
+            <InfoField label="Conto Cliente" value={order.invoiceCustomerAccount} />
+            <InfoField label="Nome Fatturazione" value={order.invoiceBillingName} />
+            <InfoField label="Quantità" value={order.invoiceQuantity?.toString()} />
+            <InfoField label="Importo Residuo" value={order.invoiceRemainingAmount ? `€${order.invoiceRemainingAmount}` : undefined} />
+            <InfoField label="Importo Fiscale" value={order.invoiceTaxAmount ? `€${order.invoiceTaxAmount}` : undefined} />
+            <InfoField label="Sconto Linea" value={order.invoiceLineDiscount ? `€${order.invoiceLineDiscount}` : undefined} />
+            <InfoField label="Sconto Totale" value={order.invoiceTotalDiscount ? `€${order.invoiceTotalDiscount}` : undefined} />
+            <InfoField label="Scadenza" value={formatDate(order.invoiceDueDate)} />
+            <InfoField label="Ordine Acquisto" value={order.invoicePurchaseOrder} />
+            <InfoField label="Stato" value={order.invoiceClosed ? "Chiusa" : "Aperta"} />
+          </div>
+        )}
+
         <button
           onClick={handleDownloadInvoice}
           disabled={isDownloadingInvoice || !order.invoiceNumber}

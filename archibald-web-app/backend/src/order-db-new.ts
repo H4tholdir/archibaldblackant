@@ -26,6 +26,65 @@ export interface OrderRecord {
   grossAmount: string | null;
   totalAmount: string | null;
   lastSync: number;
+
+  // Core DDT fields (stored directly in orders table)
+  ddtNumber?: string | null;
+  ddtDeliveryDate?: string | null;
+  ddtId?: string | null;
+  ddtCustomerAccount?: string | null;
+  ddtSalesName?: string | null;
+  ddtDeliveryName?: string | null;
+  deliveryTerms?: string | null;
+  deliveryMethod?: string | null;
+  deliveryCity?: string | null;
+  attentionTo?: string | null;
+
+  // Tracking fields (stored directly in orders table)
+  trackingNumber?: string | null;
+  trackingUrl?: string | null;
+  trackingCourier?: string | null;
+
+  // Invoice fields (stored directly in orders table)
+  invoiceNumber?: string | null;
+  invoiceDate?: string | null;
+  invoiceAmount?: string | null;
+  invoiceCustomerAccount?: string | null;
+  invoiceBillingName?: string | null;
+  invoiceQuantity?: number | null;
+  invoiceRemainingAmount?: string | null;
+  invoiceTaxAmount?: string | null;
+  invoiceLineDiscount?: string | null;
+  invoiceTotalDiscount?: string | null;
+  invoiceDueDate?: string | null;
+  invoicePaymentTermsId?: string | null;
+  invoicePurchaseOrder?: string | null;
+  invoiceClosed?: boolean | null;
+
+  // State tracking fields
+  currentState?: string | null;
+  sentToMilanoAt?: string | null;
+  archibaldOrderId?: string | null;
+
+  // Legacy/compatibility fields
+  status?: string; // Legacy field (same as salesStatus for compatibility)
+  lastScraped?: string; // ISO timestamp
+  lastUpdated?: string; // ISO timestamp
+  ddtOrderNumber?: string | null; // Legacy alias for orderNumber in DDT context
+  isOpen?: boolean; // Whether order is still open
+  detailJson?: string | null; // JSON string with full order details
+}
+
+export interface OrderStateHistoryRecord {
+  id?: number;
+  orderId: string;
+  oldState: string | null;
+  newState: string;
+  actor: string;
+  notes: string | null;
+  confidence?: string | null;
+  source?: string | null;
+  timestamp: string;
+  createdAt?: string;
 }
 
 export interface OrderArticleRecord {
@@ -83,7 +142,37 @@ export class OrderDatabaseNew {
         total_amount TEXT,
         hash TEXT NOT NULL,
         last_sync INTEGER NOT NULL,
-        created_at TEXT NOT NULL
+        created_at TEXT NOT NULL,
+        ddt_number TEXT,
+        ddt_delivery_date TEXT,
+        ddt_id TEXT,
+        ddt_customer_account TEXT,
+        ddt_sales_name TEXT,
+        ddt_delivery_name TEXT,
+        delivery_terms TEXT,
+        delivery_method TEXT,
+        delivery_city TEXT,
+        attention_to TEXT,
+        tracking_number TEXT,
+        tracking_url TEXT,
+        tracking_courier TEXT,
+        invoice_number TEXT,
+        invoice_date TEXT,
+        invoice_amount TEXT,
+        invoice_customer_account TEXT,
+        invoice_billing_name TEXT,
+        invoice_quantity INTEGER,
+        invoice_remaining_amount TEXT,
+        invoice_tax_amount TEXT,
+        invoice_line_discount TEXT,
+        invoice_total_discount TEXT,
+        invoice_due_date TEXT,
+        invoice_payment_terms_id TEXT,
+        invoice_purchase_order TEXT,
+        invoice_closed INTEGER,
+        current_state TEXT,
+        sent_to_milano_at TEXT,
+        archibald_order_id TEXT
       );
 
       CREATE INDEX IF NOT EXISTS idx_orders_user_id ON orders(user_id);
@@ -91,6 +180,9 @@ export class OrderDatabaseNew {
       CREATE INDEX IF NOT EXISTS idx_orders_customer ON orders(customer_profile_id);
       CREATE INDEX IF NOT EXISTS idx_orders_sync ON orders(last_sync);
       CREATE INDEX IF NOT EXISTS idx_orders_status ON orders(sales_status);
+      CREATE INDEX IF NOT EXISTS idx_orders_current_state ON orders(current_state);
+      CREATE INDEX IF NOT EXISTS idx_orders_ddt ON orders(ddt_number);
+      CREATE INDEX IF NOT EXISTS idx_orders_invoice ON orders(invoice_number);
 
       CREATE TABLE IF NOT EXISTS order_articles (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -107,6 +199,23 @@ export class OrderDatabaseNew {
 
       CREATE INDEX IF NOT EXISTS idx_articles_order_id ON order_articles(order_id);
       CREATE INDEX IF NOT EXISTS idx_articles_code ON order_articles(article_code);
+
+      CREATE TABLE IF NOT EXISTS order_state_history (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        order_id TEXT NOT NULL,
+        old_state TEXT,
+        new_state TEXT NOT NULL,
+        actor TEXT NOT NULL,
+        notes TEXT,
+        confidence TEXT,
+        source TEXT,
+        timestamp TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        FOREIGN KEY (order_id) REFERENCES orders(id)
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_state_history_order ON order_state_history(order_id);
+      CREATE INDEX IF NOT EXISTS idx_state_history_timestamp ON order_state_history(timestamp);
     `);
   }
 
@@ -254,14 +363,48 @@ export class OrderDatabaseNew {
     return result.lastSync ? new Date(result.lastSync * 1000) : null;
   }
 
-  getOrdersByUser(userId: string): OrderRecord[] {
-    const rows = this.db
-      .prepare(
-        `
-      SELECT * FROM orders WHERE user_id = ? ORDER BY creation_date DESC
-    `,
-      )
-      .all(userId) as any[];
+  getOrdersByUser(
+    userId: string,
+    options?: {
+      limit?: number;
+      offset?: number;
+      status?: string;
+      customer?: string;
+      dateFrom?: string;
+      dateTo?: string;
+    },
+  ): OrderRecord[] {
+    const limit = options?.limit || 1000; // Default high limit for backward compatibility
+    const offset = options?.offset || 0;
+
+    let query = `SELECT * FROM orders WHERE user_id = ?`;
+    const params: any[] = [userId];
+
+    // Add filters
+    if (options?.customer) {
+      query += ` AND customer_name LIKE ?`;
+      params.push(`%${options.customer}%`);
+    }
+
+    if (options?.status) {
+      query += ` AND sales_status = ?`;
+      params.push(options.status);
+    }
+
+    if (options?.dateFrom) {
+      query += ` AND creation_date >= ?`;
+      params.push(options.dateFrom);
+    }
+
+    if (options?.dateTo) {
+      query += ` AND creation_date <= ?`;
+      params.push(options.dateTo);
+    }
+
+    query += ` ORDER BY creation_date DESC LIMIT ? OFFSET ?`;
+    params.push(limit, offset);
+
+    const rows = this.db.prepare(query).all(...params) as any[];
 
     // Map snake_case to camelCase
     return rows.map((row) => ({
@@ -287,6 +430,40 @@ export class OrderDatabaseNew {
       grossAmount: row.gross_amount,
       totalAmount: row.total_amount,
       lastSync: row.last_sync,
+      // DDT fields
+      ddtNumber: row.ddt_number,
+      ddtDeliveryDate: row.ddt_delivery_date,
+      ddtId: row.ddt_id,
+      ddtCustomerAccount: row.ddt_customer_account,
+      ddtSalesName: row.ddt_sales_name,
+      ddtDeliveryName: row.ddt_delivery_name,
+      deliveryTerms: row.delivery_terms,
+      deliveryMethod: row.delivery_method,
+      deliveryCity: row.delivery_city,
+      attentionTo: row.attention_to,
+      // Tracking fields
+      trackingNumber: row.tracking_number,
+      trackingUrl: row.tracking_url,
+      trackingCourier: row.tracking_courier,
+      // Invoice fields
+      invoiceNumber: row.invoice_number,
+      invoiceDate: row.invoice_date,
+      invoiceAmount: row.invoice_amount,
+      invoiceCustomerAccount: row.invoice_customer_account,
+      invoiceBillingName: row.invoice_billing_name,
+      invoiceQuantity: row.invoice_quantity,
+      invoiceRemainingAmount: row.invoice_remaining_amount,
+      invoiceTaxAmount: row.invoice_tax_amount,
+      invoiceLineDiscount: row.invoice_line_discount,
+      invoiceTotalDiscount: row.invoice_total_discount,
+      invoiceDueDate: row.invoice_due_date,
+      invoicePaymentTermsId: row.invoice_payment_terms_id,
+      invoicePurchaseOrder: row.invoice_purchase_order,
+      invoiceClosed: row.invoice_closed ? true : false,
+      // State fields
+      currentState: row.current_state,
+      sentToMilanoAt: row.sent_to_milano_at,
+      archibaldOrderId: row.archibald_order_id,
     }));
   }
 
@@ -356,6 +533,448 @@ export class OrderDatabaseNew {
       discountPercent: row.discount_percent || undefined,
       lineAmount: row.line_amount || undefined,
     }));
+  }
+
+  countOrders(
+    userId: string,
+    options?: {
+      status?: string;
+      customer?: string;
+      dateFrom?: string;
+      dateTo?: string;
+    },
+  ): number {
+    let query = `SELECT COUNT(*) as count FROM orders WHERE user_id = ?`;
+    const params: any[] = [userId];
+
+    // Add filters
+    if (options?.customer) {
+      query += ` AND customer_name LIKE ?`;
+      params.push(`%${options.customer}%`);
+    }
+
+    if (options?.status) {
+      query += ` AND sales_status = ?`;
+      params.push(options.status);
+    }
+
+    if (options?.dateFrom) {
+      query += ` AND creation_date >= ?`;
+      params.push(options.dateFrom);
+    }
+
+    if (options?.dateTo) {
+      query += ` AND creation_date <= ?`;
+      params.push(options.dateTo);
+    }
+
+    const result = this.db.prepare(query).get(...params) as { count: number };
+    return result.count;
+  }
+
+  getLastScrapedTimestamp(userId: string): Date | null {
+    const result = this.db
+      .prepare(
+        `SELECT MAX(last_sync) as lastSync FROM orders WHERE user_id = ?`,
+      )
+      .get(userId) as { lastSync: number | null };
+
+    return result.lastSync ? new Date(result.lastSync * 1000) : null;
+  }
+
+  upsertOrders(
+    userId: string,
+    orders: Omit<OrderRecord, "userId" | "lastSync">[],
+  ): void {
+    for (const order of orders) {
+      this.upsertOrder(userId, order);
+    }
+  }
+
+  getOrderById(userId: string, orderId: string): OrderRecord | null {
+    const row = this.db
+      .prepare(`SELECT * FROM orders WHERE user_id = ? AND id = ? LIMIT 1`)
+      .get(userId, orderId) as any;
+
+    if (!row) {
+      return null;
+    }
+
+    // Map snake_case to camelCase
+    return {
+      id: row.id,
+      userId: row.user_id,
+      orderNumber: row.order_number,
+      customerProfileId: row.customer_profile_id,
+      customerName: row.customer_name,
+      deliveryName: row.delivery_name,
+      deliveryAddress: row.delivery_address,
+      creationDate: row.creation_date,
+      deliveryDate: row.delivery_date,
+      remainingSalesFinancial: row.remaining_sales_financial,
+      customerReference: row.customer_reference,
+      salesStatus: row.sales_status,
+      orderType: row.order_type,
+      documentStatus: row.document_status,
+      salesOrigin: row.sales_origin,
+      transferStatus: row.transfer_status,
+      transferDate: row.transfer_date,
+      completionDate: row.completion_date,
+      discountPercent: row.discount_percent,
+      grossAmount: row.gross_amount,
+      totalAmount: row.total_amount,
+      lastSync: row.last_sync,
+      // DDT fields
+      ddtNumber: row.ddt_number,
+      ddtDeliveryDate: row.ddt_delivery_date,
+      ddtId: row.ddt_id,
+      ddtCustomerAccount: row.ddt_customer_account,
+      ddtSalesName: row.ddt_sales_name,
+      ddtDeliveryName: row.ddt_delivery_name,
+      deliveryTerms: row.delivery_terms,
+      deliveryMethod: row.delivery_method,
+      deliveryCity: row.delivery_city,
+      attentionTo: row.attention_to,
+      // Tracking fields
+      trackingNumber: row.tracking_number,
+      trackingUrl: row.tracking_url,
+      trackingCourier: row.tracking_courier,
+      // Invoice fields
+      invoiceNumber: row.invoice_number,
+      invoiceDate: row.invoice_date,
+      invoiceAmount: row.invoice_amount,
+      invoiceCustomerAccount: row.invoice_customer_account,
+      invoiceBillingName: row.invoice_billing_name,
+      invoiceQuantity: row.invoice_quantity,
+      invoiceRemainingAmount: row.invoice_remaining_amount,
+      invoiceTaxAmount: row.invoice_tax_amount,
+      invoiceLineDiscount: row.invoice_line_discount,
+      invoiceTotalDiscount: row.invoice_total_discount,
+      invoiceDueDate: row.invoice_due_date,
+      invoicePaymentTermsId: row.invoice_payment_terms_id,
+      invoicePurchaseOrder: row.invoice_purchase_order,
+      invoiceClosed: row.invoice_closed ? true : false,
+      // State fields
+      currentState: row.current_state,
+      sentToMilanoAt: row.sent_to_milano_at,
+      archibaldOrderId: row.archibald_order_id,
+    };
+  }
+
+  clearUserOrders(userId: string): void {
+    const result = this.db
+      .prepare(`DELETE FROM orders WHERE user_id = ?`)
+      .run(userId);
+    logger.info(
+      `[OrderDatabaseNew] Cleared ${result.changes} orders for user ${userId}`,
+    );
+  }
+
+  updateOrderDDT(
+    userId: string,
+    orderId: string,
+    ddtData: {
+      ddtNumber: string;
+      ddtDeliveryDate?: string | null;
+      ddtId?: string | null;
+      ddtCustomerAccount?: string | null;
+      ddtSalesName?: string | null;
+      ddtDeliveryName?: string | null;
+      deliveryTerms?: string | null;
+      deliveryMethod?: string | null;
+      deliveryCity?: string | null;
+      attentionTo?: string | null;
+      trackingNumber?: string | null;
+      trackingUrl?: string | null;
+      trackingCourier?: string | null;
+    },
+  ): void {
+    const now = Math.floor(Date.now() / 1000);
+
+    const result = this.db
+      .prepare(
+        `
+      UPDATE orders SET
+        ddt_number = ?,
+        ddt_delivery_date = ?,
+        ddt_id = ?,
+        ddt_customer_account = ?,
+        ddt_sales_name = ?,
+        ddt_delivery_name = ?,
+        delivery_terms = ?,
+        delivery_method = ?,
+        delivery_city = ?,
+        attention_to = ?,
+        tracking_number = ?,
+        tracking_url = ?,
+        tracking_courier = ?,
+        last_sync = ?
+      WHERE user_id = ? AND id = ?
+    `,
+      )
+      .run(
+        ddtData.ddtNumber,
+        ddtData.ddtDeliveryDate || null,
+        ddtData.ddtId || null,
+        ddtData.ddtCustomerAccount || null,
+        ddtData.ddtSalesName || null,
+        ddtData.ddtDeliveryName || null,
+        ddtData.deliveryTerms || null,
+        ddtData.deliveryMethod || null,
+        ddtData.deliveryCity || null,
+        ddtData.attentionTo || null,
+        ddtData.trackingNumber || null,
+        ddtData.trackingUrl || null,
+        ddtData.trackingCourier || null,
+        now,
+        userId,
+        orderId,
+      );
+
+    if (result.changes === 0) {
+      logger.warn(
+        `[OrderDatabaseNew] updateOrderDDT: No order found for userId=${userId}, orderId=${orderId}`,
+      );
+    } else {
+      logger.info(
+        `[OrderDatabaseNew] Updated DDT for order ${orderId}: ${ddtData.ddtNumber}`,
+      );
+    }
+  }
+
+  updateInvoiceData(
+    userId: string,
+    orderId: string,
+    invoiceData: {
+      invoiceNumber: string;
+      invoiceDate?: string | null;
+      invoiceAmount?: string | null;
+      invoiceCustomerAccount?: string | null;
+      invoiceBillingName?: string | null;
+      invoiceQuantity?: number | null;
+      invoiceRemainingAmount?: string | null;
+      invoiceTaxAmount?: string | null;
+      invoiceLineDiscount?: string | null;
+      invoiceTotalDiscount?: string | null;
+      invoiceDueDate?: string | null;
+      invoicePaymentTermsId?: string | null;
+      invoicePurchaseOrder?: string | null;
+      invoiceClosed?: boolean | null;
+    },
+  ): void {
+    const now = Math.floor(Date.now() / 1000);
+
+    const result = this.db
+      .prepare(
+        `
+      UPDATE orders SET
+        invoice_number = ?,
+        invoice_date = ?,
+        invoice_amount = ?,
+        invoice_customer_account = ?,
+        invoice_billing_name = ?,
+        invoice_quantity = ?,
+        invoice_remaining_amount = ?,
+        invoice_tax_amount = ?,
+        invoice_line_discount = ?,
+        invoice_total_discount = ?,
+        invoice_due_date = ?,
+        invoice_payment_terms_id = ?,
+        invoice_purchase_order = ?,
+        invoice_closed = ?,
+        last_sync = ?
+      WHERE user_id = ? AND id = ?
+    `,
+      )
+      .run(
+        invoiceData.invoiceNumber,
+        invoiceData.invoiceDate || null,
+        invoiceData.invoiceAmount || null,
+        invoiceData.invoiceCustomerAccount || null,
+        invoiceData.invoiceBillingName || null,
+        invoiceData.invoiceQuantity || null,
+        invoiceData.invoiceRemainingAmount || null,
+        invoiceData.invoiceTaxAmount || null,
+        invoiceData.invoiceLineDiscount || null,
+        invoiceData.invoiceTotalDiscount || null,
+        invoiceData.invoiceDueDate || null,
+        invoiceData.invoicePaymentTermsId || null,
+        invoiceData.invoicePurchaseOrder || null,
+        invoiceData.invoiceClosed ? 1 : 0,
+        now,
+        userId,
+        orderId,
+      );
+
+    if (result.changes === 0) {
+      logger.warn(
+        `[OrderDatabaseNew] updateInvoiceData: No order found for userId=${userId}, orderId=${orderId}`,
+      );
+    } else {
+      logger.info(
+        `[OrderDatabaseNew] Updated invoice for order ${orderId}: ${invoiceData.invoiceNumber}`,
+      );
+    }
+  }
+
+  updateOrderState(
+    userId: string,
+    orderId: string,
+    newState: string,
+    actor: string,
+    notes: string | null,
+    confidence?: string | null,
+    source?: string | null,
+  ): void {
+    const now = Math.floor(Date.now() / 1000);
+    const timestamp = new Date().toISOString();
+
+    // Get current state before updating
+    const currentOrder = this.db
+      .prepare(`SELECT current_state FROM orders WHERE user_id = ? AND id = ?`)
+      .get(userId, orderId) as { current_state: string | null } | undefined;
+
+    if (!currentOrder) {
+      logger.warn(
+        `[OrderDatabaseNew] updateOrderState: No order found for userId=${userId}, orderId=${orderId}`,
+      );
+      return;
+    }
+
+    const oldState = currentOrder.current_state;
+
+    // Update order state
+    const result = this.db
+      .prepare(
+        `
+      UPDATE orders SET
+        current_state = ?,
+        last_sync = ?
+      WHERE user_id = ? AND id = ?
+    `,
+      )
+      .run(newState, now, userId, orderId);
+
+    if (result.changes === 0) {
+      logger.warn(
+        `[OrderDatabaseNew] updateOrderState: Failed to update order ${orderId}`,
+      );
+      return;
+    }
+
+    // Insert state history record
+    this.db
+      .prepare(
+        `
+      INSERT INTO order_state_history (
+        order_id, old_state, new_state, actor, notes, confidence, source, timestamp, created_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `,
+      )
+      .run(
+        orderId,
+        oldState,
+        newState,
+        actor,
+        notes,
+        confidence || null,
+        source || null,
+        timestamp,
+        timestamp,
+      );
+
+    logger.info(
+      `[OrderDatabaseNew] Updated state for order ${orderId}: ${oldState} → ${newState} (actor: ${actor}, confidence: ${confidence}, source: ${source})`,
+    );
+  }
+
+  getStateHistory(userId: string, orderId: string): OrderStateHistoryRecord[] {
+    // Verify order belongs to user
+    const order = this.db
+      .prepare(`SELECT id FROM orders WHERE user_id = ? AND id = ?`)
+      .get(userId, orderId);
+
+    if (!order) {
+      logger.warn(
+        `[OrderDatabaseNew] getStateHistory: No order found for userId=${userId}, orderId=${orderId}`,
+      );
+      return [];
+    }
+
+    const rows = this.db
+      .prepare(
+        `
+      SELECT
+        id, order_id, old_state, new_state, actor, notes, confidence, source, timestamp, created_at
+      FROM order_state_history
+      WHERE order_id = ?
+      ORDER BY timestamp DESC
+    `,
+      )
+      .all(orderId) as Array<{
+      id: number;
+      order_id: string;
+      old_state: string | null;
+      new_state: string;
+      actor: string;
+      notes: string | null;
+      confidence: string | null;
+      source: string | null;
+      timestamp: string;
+      created_at: string;
+    }>;
+
+    return rows.map((row) => ({
+      id: row.id,
+      orderId: row.order_id,
+      oldState: row.old_state,
+      newState: row.new_state,
+      actor: row.actor,
+      notes: row.notes,
+      confidence: row.confidence,
+      source: row.source,
+      timestamp: row.timestamp,
+      createdAt: row.created_at,
+    }));
+  }
+
+  updateOrderMilanoState(
+    userId: string,
+    orderId: string,
+    state: string,
+    timestamp: string,
+  ): void {
+    // Delegate to updateOrderState with Milano actor
+    this.updateOrderState(
+      userId,
+      orderId,
+      state,
+      "milano",
+      null,
+      "high",
+      "milano",
+    );
+  }
+
+  insertAuditLog(
+    userId: string,
+    action: string,
+    orderId: string,
+    details: string,
+  ): void {
+    // Use state history for audit logging
+    const order = this.getOrderById(userId, orderId);
+    if (order) {
+      this.updateOrderState(
+        userId,
+        orderId,
+        order.currentState || "unknown",
+        "system",
+        `${action}: ${details}`,
+        null,
+        "audit",
+      );
+    }
   }
 
   close(): void {

@@ -41,12 +41,13 @@ export interface DDTInfo {
   ddtNumber?: string;
   ddtDeliveryDate?: string;
   orderId?: string;
-  customerAccountId?: string;
-  salesName?: string;
-  deliveryName?: string;
+  ddtCustomerAccount?: string;
+  ddtSalesName?: string;
+  ddtDeliveryName?: string;
   deliveryTerms?: string;
   deliveryMethod?: string;
   deliveryCity?: string;
+  attentionTo?: string;
   // Tracking fields (also nested in DDT)
   trackingNumber?: string;
   trackingUrl?: string;
@@ -99,6 +100,22 @@ export interface Order {
   statusTimeline?: StatusUpdate[]; // Alias for stateTimeline
   documents?: DocumentInfo[]; // JSON field
 
-  // Invoice (from order_invoice_mapping)
+  // Invoice (from invoices table) - all fields
   invoiceNumber?: string;
+  invoiceDate?: string;
+  invoiceAmount?: string;
+  invoiceCustomerAccount?: string;
+  invoiceBillingName?: string;
+  invoiceQuantity?: number;
+  invoiceRemainingAmount?: string;
+  invoiceTaxAmount?: string;
+  invoiceLineDiscount?: string;
+  invoiceTotalDiscount?: string;
+  invoiceDueDate?: string;
+  invoicePaymentTermsId?: string;
+  invoicePurchaseOrder?: string;
+  invoiceClosed?: boolean;
+
+  // Current state tracking
+  currentState?: string;
 }

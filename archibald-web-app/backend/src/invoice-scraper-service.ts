@@ -2,7 +2,7 @@ import type { BrowserContext, Page } from "puppeteer";
 import { logger } from "./logger";
 import { config } from "./config";
 import { BrowserPool } from "./browser-pool";
-import { OrderDatabase, type StoredOrder } from "./order-db";
+import { OrderDatabaseNew, type OrderRecord } from "./order-db-new";
 
 export interface InvoiceData {
   invoiceNumber: string; // Invoice number (e.g., "FT/2026/00123")
@@ -10,6 +10,15 @@ export interface InvoiceData {
   invoiceAmount?: number; // Invoice total amount
   customerAccountId?: string; // Customer account ID for matching
   customerName?: string; // Customer name for matching
+  quantity?: number; // Invoice quantity
+  remainingAmount?: number; // Remaining amount to be paid
+  taxAmount?: number; // Tax amount (Somma fiscale MST)
+  lineDiscount?: number; // Line discount (Somma linea sconto MST)
+  totalDiscount?: number; // Total discount
+  dueDate?: string; // Invoice due date (Scadenza)
+  paymentTermsId?: string; // Payment terms ID
+  purchaseOrderNumber?: string; // Purchase order number
+  closed?: boolean; // Whether invoice is closed
   rowId?: string; // Row ID for checkbox selection (PDF download)
 }
 
@@ -44,7 +53,7 @@ export interface SyncResult {
  */
 export class InvoiceScraperService {
   private readonly invoicePageUrl = `${config.archibald.url}/CUSTINVOICEJOUR_ListView/`;
-  private readonly orderDb = OrderDatabase.getInstance();
+  private readonly orderDb = OrderDatabaseNew.getInstance();
 
   /**
    * Scrape all invoice data from Archibald
@@ -143,8 +152,11 @@ export class InvoiceScraperService {
       headers.forEach((header, index) => {
         const text = header.textContent?.trim().toUpperCase() || "";
 
-        // Map invoice columns based on 11-01-RESEARCH.md
-        if (text.includes("NUMERO FATTURA") || text.includes("FATTURA")) {
+        // Map invoice columns based on PDF analysis
+        if (
+          text.includes("NUMERO FATTURA") ||
+          (text.includes("FATTURA") && text.includes("ID"))
+        ) {
           columnMap.invoiceNumber = index;
         } else if (
           text.includes("DATA EMISSIONE") ||
@@ -152,18 +164,44 @@ export class InvoiceScraperService {
         ) {
           columnMap.invoiceDate = index;
         } else if (
-          text.includes("IMPORTO") &&
-          !text.includes("RESIDUO") &&
-          !text.includes("SALDO")
+          text.includes("IMPORTO FATTURA") ||
+          (text.includes("IMPORTO") &&
+            !text.includes("RESIDUO") &&
+            !text.includes("SALDO") &&
+            !text.includes("LIQUIDA"))
         ) {
           columnMap.invoiceAmount = index;
         } else if (
-          text.includes("CONTO FATTURATO") ||
+          text.includes("CONTO FATTUR") ||
           text.includes("CONTO CLIENTE")
         ) {
           columnMap.customerAccountId = index;
-        } else if (text.includes("NOME VENDITE") || text.includes("CLIENTE")) {
+        } else if (
+          text.includes("NOME DI FATTURAZIONE") ||
+          (text.includes("NOME") && text.includes("VENDITE"))
+        ) {
           columnMap.customerName = index;
+        } else if (text.includes("QUANTITÀ") || text.includes("QUANTITA")) {
+          columnMap.quantity = index;
+        } else if (
+          text.includes("IMPORTO RIMANENTE") ||
+          text.includes("RESIDUO")
+        ) {
+          columnMap.remainingAmount = index;
+        } else if (text.includes("SOMMA FISCALE")) {
+          columnMap.taxAmount = index;
+        } else if (text.includes("SOMMA LINEA SCONTO")) {
+          columnMap.lineDiscount = index;
+        } else if (text.includes("SCONTO TOTALE")) {
+          columnMap.totalDiscount = index;
+        } else if (text.includes("SCADENZA") && !text.includes("OLTRE")) {
+          columnMap.dueDate = index;
+        } else if (text.includes("ID TERMINE DI PAGAMENTO")) {
+          columnMap.paymentTermsId = index;
+        } else if (text.includes("ORDINE DI ACQUISTO")) {
+          columnMap.purchaseOrder = index;
+        } else if (text.includes("CHIUSO")) {
+          columnMap.closed = index;
         }
       });
 
@@ -228,7 +266,28 @@ export class InvoiceScraperService {
           }
         }
 
-        // Build invoice entry
+        // Helper function to parse currency amounts
+        const parseAmount = (text: string | undefined): number | undefined => {
+          if (!text) return undefined;
+          const cleanAmount = text
+            .replace(/[€\s]/g, "")
+            .replace(/\./g, "")
+            .replace(/,/, ".");
+          const parsed = parseFloat(cleanAmount);
+          return isNaN(parsed) ? undefined : parsed;
+        };
+
+        // Helper function to parse date
+        const parseDate = (text: string | undefined): string | undefined => {
+          if (!text) return undefined;
+          const dateParts = text.split("/");
+          if (dateParts.length === 3) {
+            return `${dateParts[2]}-${dateParts[1].padStart(2, "0")}-${dateParts[0].padStart(2, "0")}`;
+          }
+          return undefined;
+        };
+
+        // Build invoice entry with ALL fields
         invoiceData.push({
           invoiceNumber,
           invoiceDate,
@@ -240,6 +299,47 @@ export class InvoiceScraperService {
           customerName:
             columnMap.customerName !== undefined
               ? cells[columnMap.customerName]?.textContent?.trim()
+              : undefined,
+          quantity:
+            columnMap.quantity !== undefined
+              ? parseInt(cells[columnMap.quantity]?.textContent?.trim() || "0")
+              : undefined,
+          remainingAmount:
+            columnMap.remainingAmount !== undefined
+              ? parseAmount(
+                  cells[columnMap.remainingAmount]?.textContent?.trim(),
+                )
+              : undefined,
+          taxAmount:
+            columnMap.taxAmount !== undefined
+              ? parseAmount(cells[columnMap.taxAmount]?.textContent?.trim())
+              : undefined,
+          lineDiscount:
+            columnMap.lineDiscount !== undefined
+              ? parseAmount(cells[columnMap.lineDiscount]?.textContent?.trim())
+              : undefined,
+          totalDiscount:
+            columnMap.totalDiscount !== undefined
+              ? parseAmount(cells[columnMap.totalDiscount]?.textContent?.trim())
+              : undefined,
+          dueDate:
+            columnMap.dueDate !== undefined
+              ? parseDate(cells[columnMap.dueDate]?.textContent?.trim())
+              : undefined,
+          paymentTermsId:
+            columnMap.paymentTermsId !== undefined
+              ? cells[columnMap.paymentTermsId]?.textContent?.trim()
+              : undefined,
+          purchaseOrderNumber:
+            columnMap.purchaseOrder !== undefined
+              ? cells[columnMap.purchaseOrder]?.textContent?.trim()
+              : undefined,
+          closed:
+            columnMap.closed !== undefined
+              ? cells[columnMap.closed]?.textContent?.trim().toLowerCase() ===
+                  "sì" ||
+                cells[columnMap.closed]?.textContent?.trim().toLowerCase() ===
+                  "yes"
               : undefined,
           rowId: row.id || undefined, // Store row ID for PDF download
         });
@@ -271,11 +371,32 @@ export class InvoiceScraperService {
       const matchedOrder = this.matchInvoiceToOrder(invoice, orders);
 
       if (matchedOrder) {
-        // Update order with invoice data
+        // Update order with invoice data - pass ALL extracted fields
         this.orderDb.updateInvoiceData(userId, matchedOrder.id, {
           invoiceNumber: invoice.invoiceNumber,
           invoiceDate: invoice.invoiceDate || null,
-          invoiceAmount: invoice.invoiceAmount || null,
+          invoiceAmount: invoice.invoiceAmount
+            ? String(invoice.invoiceAmount)
+            : null,
+          invoiceCustomerAccount: invoice.customerAccountId || null,
+          invoiceBillingName: invoice.customerName || null,
+          invoiceQuantity: invoice.quantity || null,
+          invoiceRemainingAmount: invoice.remainingAmount
+            ? String(invoice.remainingAmount)
+            : null,
+          invoiceTaxAmount: invoice.taxAmount
+            ? String(invoice.taxAmount)
+            : null,
+          invoiceLineDiscount: invoice.lineDiscount
+            ? String(invoice.lineDiscount)
+            : null,
+          invoiceTotalDiscount: invoice.totalDiscount
+            ? String(invoice.totalDiscount)
+            : null,
+          invoiceDueDate: invoice.dueDate || null,
+          invoicePaymentTermsId: invoice.paymentTermsId || null,
+          invoicePurchaseOrder: invoice.purchaseOrderNumber || null,
+          invoiceClosed: invoice.closed || null,
         });
         matched++;
         logger.debug(
@@ -311,8 +432,8 @@ export class InvoiceScraperService {
    */
   private matchInvoiceToOrder(
     invoice: InvoiceData,
-    orders: StoredOrder[],
-  ): StoredOrder | null {
+    orders: OrderRecord[],
+  ): OrderRecord | null {
     if (!invoice.customerAccountId) {
       logger.warn(
         `[InvoiceScraper] Invoice ${invoice.invoiceNumber} has no customer ID`,
@@ -366,7 +487,7 @@ export class InvoiceScraperService {
    */
   async downloadInvoicePDF(
     userId: string,
-    order: StoredOrder,
+    order: OrderRecord,
   ): Promise<Buffer> {
     logger.info(
       `[InvoiceScraper] Downloading invoice PDF for order ${order.id}`,
