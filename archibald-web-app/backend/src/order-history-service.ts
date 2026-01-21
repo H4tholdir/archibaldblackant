@@ -1,7 +1,9 @@
 import { Page } from "puppeteer";
 import { logger } from "./logger";
 import { config } from "./config";
-import { OrderDatabase, type StoredOrder } from "./order-db";
+import { OrderDatabaseNew, type OrderRecord } from "./order-db-new";
+import { DDTDatabase, type DDTRecord } from "./ddt-db";
+import { InvoicesDatabase } from "./invoices-db";
 import type { DDTData } from "./ddt-scraper-service";
 import { EventEmitter } from "events";
 
@@ -34,7 +36,39 @@ export interface OrderListResult {
 }
 
 /**
+ * DDT (Documento di Trasporto) information
+ */
+export interface DDTInfo {
+  ddtId?: string | null;
+  ddtNumber?: string | null;
+  ddtDeliveryDate?: string | null;
+  orderId?: string | null;
+  customerAccountId?: string | null;
+  salesName?: string | null;
+  deliveryName?: string | null;
+  deliveryTerms?: string | null;
+  deliveryMethod?: string | null;
+  deliveryCity?: string | null;
+  // Tracking fields (nested in DDT)
+  trackingNumber?: string | null;
+  trackingUrl?: string | null;
+  trackingCourier?: string | null;
+}
+
+/**
+ * Document info (invoice, DDT PDF, etc.)
+ */
+export interface DocumentInfo {
+  type: string;
+  name: string;
+  url: string;
+  filename?: string;
+  uploadedAt?: string;
+}
+
+/**
  * Single order in list view
+ * UPDATED: Uses nested DDT structure to match frontend (fixes Problem #1)
  */
 export interface Order {
   // All 20 columns from SALESTABLE_ListView_Agent table
@@ -42,43 +76,48 @@ export interface Order {
   orderNumber: string; // Col 1: ID di vendita (e.g., "ORD/26000405")
   customerProfileId: string; // Col 2: Profilo cliente (e.g., "1002209")
   customerName: string; // Col 3: Nome vendite
-  deliveryName: string; // Col 4: Nome di consegna
-  deliveryAddress: string; // Col 5: Indirizzo di consegna
+  deliveryName?: string; // Col 4: Nome di consegna
+  deliveryAddress?: string; // Col 5: Indirizzo di consegna
   creationDate: string; // Col 6: Data di creazione (ISO 8601)
   deliveryDate: string; // Col 7: Data di consegna (ISO 8601)
-  remainingSalesFinancial: string | null; // Col 8: Rimani vendite finanziarie
-  customerReference: string | null; // Col 9: Riferimento cliente
-  salesStatus: string | null; // Col 10: Stato delle vendite
-  orderType: string | null; // Col 11: Tipo di ordine
-  documentStatus: string | null; // Col 12: Stato del documento
-  salesOrigin: string | null; // Col 13: Origine vendite
-  transferStatus: string | null; // Col 14: Stato del trasferimento
-  transferDate: string | null; // Col 15: Data di trasferimento
-  completionDate: string | null; // Col 16: Data di completamento
-  discountPercent: string | null; // Col 17: Applica sconto %
-  grossAmount: string | null; // Col 18: Importo lordo
-  totalAmount: string | null; // Col 19: Importo totale
+  remainingSalesFinancial?: string | null; // Col 8: Rimani vendite finanziarie
+  customerReference?: string | null; // Col 9: Riferimento cliente
+  salesStatus?: string | null; // Col 10: Stato delle vendite
+  orderType?: string | null; // Col 11: Tipo di ordine
+  documentStatus?: string | null; // Col 12: Stato del documento
+  salesOrigin?: string | null; // Col 13: Origine vendite
+  transferStatus?: string | null; // Col 14: Stato del trasferimento
+  transferDate?: string | null; // Col 15: Data di trasferimento
+  completionDate?: string | null; // Col 16: Data di completamento
+  discountPercent?: string | null; // Col 17: Applica sconto %
+  grossAmount?: string | null; // Col 18: Importo lordo
+  totalAmount?: string | null; // Col 19: Importo totale
 
   // Legacy field (for backward compatibility)
-  status: string; // Deprecated: use salesStatus instead
+  status: string; // Required field, can't be undefined
 
-  // Extended fields (filled by DB layer or DDT scraping)
-  userId?: string;
-  lastScraped?: string;
-  lastUpdated?: string;
-  ddtId?: string | null;
-  ddtNumber?: string | null;
-  ddtDeliveryDate?: string | null;
-  ddtOrderNumber?: string | null;
-  ddtCustomerAccount?: string | null;
-  ddtSalesName?: string | null;
-  ddtDeliveryName?: string | null;
-  trackingNumber?: string | null;
-  deliveryTerms?: string | null;
-  deliveryMethod?: string | null;
-  deliveryCity?: string | null;
-  trackingUrl?: string | null;
-  trackingCourier?: string | null;
+  // Nested DDT object (replaces flat fields - Problem #1 fix)
+  ddt?: DDTInfo;
+
+  // Invoice information
+  invoiceNumber?: string | null;
+  invoiceDate?: string | null;
+  invoiceAmount?: string | null;
+
+  // Current state tracking
+  currentState?: string | null;
+
+  // Tracking is NO LONGER separate (user decision: removed duplicate)
+  // Use ddt.trackingXxx fields instead
+
+  // Items, timeline, documents (populated on-demand or at creation)
+  items?: OrderItem[];
+  stateTimeline?: StatusUpdate[];
+  documents?: DocumentInfo[];
+
+  // Metadata
+  botUserId?: string;
+  lastUpdatedAt?: string;
 }
 
 /**
@@ -173,12 +212,12 @@ export interface SyncProgressEvent {
 }
 
 export class OrderHistoryService {
-  public orderDb: OrderDatabase; // Public for force-sync endpoint access
+  public orderDb: OrderDatabaseNew; // Public for force-sync endpoint access
   private readonly SYNC_INTERVAL_MS = 10 * 60 * 1000; // 10 minutes
   private progressEmitter: EventEmitter;
 
   constructor() {
-    this.orderDb = OrderDatabase.getInstance();
+    this.orderDb = OrderDatabaseNew.getInstance();
     this.progressEmitter = new EventEmitter();
   }
 
@@ -264,8 +303,65 @@ export class OrderHistoryService {
         `[OrderHistoryService] Returning ${dbOrders.length} orders from DB (total: ${total}, hasMore: ${hasMore})`,
       );
 
-      // Convert StoredOrder to Order (remove DB metadata)
-      const orders: Order[] = dbOrders.map(this.storedOrderToOrder);
+      // Enrich orders with DDT and invoice data from separate databases
+      const ddtDb = DDTDatabase.getInstance();
+      const invoicesDb = InvoicesDatabase.getInstance();
+      logger.info(
+        `[OrderHistoryService] Enriching ${dbOrders.length} orders with DDT and invoice data`,
+      );
+
+      const enrichedOrders = dbOrders.map((order) => {
+        // Load DDT for this order
+        const ddts = ddtDb.getDDTsByOrderNumber(order.orderNumber);
+        const ddt = ddts.length > 0 ? ddts[0] : null; // Take first DDT if multiple exist
+
+        // Load invoices for this order
+        const invoices = invoicesDb.getInvoicesByOrderNumber(order.orderNumber);
+        const invoice = invoices.length > 0 ? invoices[0] : null; // Take first invoice if multiple exist
+
+        let enrichedOrder: OrderRecord = { ...order };
+
+        if (ddt) {
+          logger.debug(
+            `[OrderHistoryService] Found DDT ${ddt.ddtNumber} for order ${order.orderNumber}`,
+          );
+          // Enrich order with DDT fields
+          enrichedOrder = {
+            ...enrichedOrder,
+            ddtId: ddt.id,
+            ddtNumber: ddt.ddtNumber,
+            ddtDeliveryDate: ddt.deliveryDate,
+            ddtOrderNumber: ddt.orderNumber,
+            ddtCustomerAccount: ddt.customerAccount,
+            ddtSalesName: ddt.salesName,
+            ddtDeliveryName: ddt.deliveryName,
+            trackingNumber: ddt.trackingNumber,
+            deliveryTerms: ddt.deliveryTerms,
+            deliveryMethod: ddt.deliveryMethod,
+            deliveryCity: ddt.deliveryCity,
+            trackingUrl: ddt.trackingUrl,
+            trackingCourier: ddt.trackingCourier,
+          } as OrderRecord;
+        }
+
+        if (invoice) {
+          logger.debug(
+            `[OrderHistoryService] Found invoice ${invoice.invoiceNumber} for order ${order.orderNumber}`,
+          );
+          // Enrich order with invoice fields
+          enrichedOrder = {
+            ...enrichedOrder,
+            invoiceNumber: invoice.invoiceNumber,
+            invoiceDate: invoice.invoiceDate,
+            invoiceAmount: invoice.totalAmount || invoice.amount,
+          } as OrderRecord;
+        }
+
+        return enrichedOrder;
+      });
+
+      // Convert OrderRecord to Order (transform flat DDT to nested structure)
+      const orders: Order[] = enrichedOrders.map(this.storedOrderToOrder);
 
       return {
         orders,
@@ -289,8 +385,54 @@ export class OrderHistoryService {
           offset,
         });
         const total = this.orderDb.countOrders(userId);
+
+        // Enrich with DDT and invoice data
+        const ddtDb = DDTDatabase.getInstance();
+        const invoicesDb = InvoicesDatabase.getInstance();
+        const enrichedOrders = dbOrders.map((order) => {
+          const ddts = ddtDb.getDDTsByOrderNumber(order.orderNumber);
+          const ddt = ddts.length > 0 ? ddts[0] : null;
+
+          const invoices = invoicesDb.getInvoicesByOrderNumber(
+            order.orderNumber,
+          );
+          const invoice = invoices.length > 0 ? invoices[0] : null;
+
+          let enrichedOrder: OrderRecord = { ...order };
+
+          if (ddt) {
+            enrichedOrder = {
+              ...enrichedOrder,
+              ddtId: ddt.id,
+              ddtNumber: ddt.ddtNumber,
+              ddtDeliveryDate: ddt.deliveryDate,
+              ddtOrderNumber: ddt.orderNumber,
+              ddtCustomerAccount: ddt.customerAccount,
+              ddtSalesName: ddt.salesName,
+              ddtDeliveryName: ddt.deliveryName,
+              trackingNumber: ddt.trackingNumber,
+              deliveryTerms: ddt.deliveryTerms,
+              deliveryMethod: ddt.deliveryMethod,
+              deliveryCity: ddt.deliveryCity,
+              trackingUrl: ddt.trackingUrl,
+              trackingCourier: ddt.trackingCourier,
+            } as OrderRecord;
+          }
+
+          if (invoice) {
+            enrichedOrder = {
+              ...enrichedOrder,
+              invoiceNumber: invoice.invoiceNumber,
+              invoiceDate: invoice.invoiceDate,
+              invoiceAmount: invoice.totalAmount || invoice.amount,
+            } as OrderRecord;
+          }
+
+          return enrichedOrder;
+        });
+
         return {
-          orders: dbOrders.map(this.storedOrderToOrder),
+          orders: enrichedOrders.map(this.storedOrderToOrder),
           total,
           hasMore: offset + limit < total,
         };
@@ -609,9 +751,9 @@ export class OrderHistoryService {
     orders: Order[],
     ddtData: DDTData[],
     userId: string,
-  ): Promise<StoredOrder[]> {
+  ): Promise<OrderRecord[]> {
     const BATCH_SIZE = 5; // Process 5 orders at a time
-    const results: StoredOrder[] = [];
+    const results: OrderRecord[] = [];
 
     logger.info(
       `[OrderHistoryService] Enriching ${orders.length} orders in batches of ${BATCH_SIZE}`,
@@ -642,22 +784,46 @@ export class OrderHistoryService {
           // SKIP detail scraping - we have all data from Order List + DDT
           // const detail = await this.scrapeOrderDetailFromPage(page, order.id);
 
-          // Build enriched order with all DDT fields
-          const enrichedOrder: StoredOrder = {
-            ...order,
+          // Build enriched order with all DDT fields (explicitly set all OrderRecord fields)
+          const enrichedOrder: OrderRecord = {
+            // Order List fields (20 columns) - convert undefined to null for OrderRecord compatibility
+            id: order.id,
+            orderNumber: order.orderNumber,
+            customerProfileId: order.customerProfileId,
+            customerName: order.customerName,
+            deliveryName: order.deliveryName || "",
+            deliveryAddress: order.deliveryAddress || "",
+            creationDate: order.creationDate,
+            deliveryDate: order.deliveryDate,
+            remainingSalesFinancial: order.remainingSalesFinancial ?? null,
+            customerReference: order.customerReference ?? null,
+            salesStatus: order.salesStatus ?? null,
+            orderType: order.orderType ?? null,
+            documentStatus: order.documentStatus ?? null,
+            salesOrigin: order.salesOrigin ?? null,
+            transferStatus: order.transferStatus ?? null,
+            transferDate: order.transferDate ?? null,
+            completionDate: order.completionDate ?? null,
+            discountPercent: order.discountPercent ?? null,
+            grossAmount: order.grossAmount ?? null,
+            totalAmount: order.totalAmount ?? null,
+            status: order.status,
+
+            // Metadata
             userId,
             lastScraped: new Date().toISOString(),
             lastUpdated: new Date().toISOString(),
+            lastSync: Date.now(),
             isOpen: order.status.toLowerCase().includes("aperto"),
-            detailJson: null, // No detail scraping needed
+            detailJson: null,
             sentToMilanoAt: null,
-            currentState: "unknown", // Will be set when order lifecycle is managed
+            currentState: "unknown",
 
             // DDT fields (all 11 columns)
             ddtId: ddt?.ddtId || null,
             ddtNumber: ddt?.ddtNumber || null,
             ddtDeliveryDate: ddt?.ddtDeliveryDate || null,
-            ddtOrderNumber: ddt?.orderId || null, // Match key
+            ddtOrderNumber: ddt?.orderId || null,
             ddtCustomerAccount: ddt?.customerAccountId || null,
             ddtSalesName: ddt?.salesName || null,
             ddtDeliveryName: ddt?.deliveryName || null,
@@ -665,15 +831,11 @@ export class OrderHistoryService {
             deliveryTerms: ddt?.deliveryTerms || null,
             deliveryMethod: ddt?.deliveryMethod || null,
             deliveryCity: ddt?.deliveryCity || null,
-
-            // Computed tracking fields
             trackingUrl: ddt?.trackingUrl || null,
             trackingCourier: ddt?.trackingCourier || null,
 
-            // Invoice fields (not yet scraped)
+            // Invoice fields
             invoiceNumber: null,
-            invoiceDate: null,
-            invoiceAmount: null,
           };
 
           results.push(enrichedOrder);
@@ -684,11 +846,35 @@ export class OrderHistoryService {
           );
 
           // Add order without detail on error (graceful degradation)
-          const fallbackOrder: StoredOrder = {
-            ...order,
+          const fallbackOrder: OrderRecord = {
+            // Order List fields (20 columns) - convert undefined to null for OrderRecord compatibility
+            id: order.id,
+            orderNumber: order.orderNumber,
+            customerProfileId: order.customerProfileId,
+            customerName: order.customerName,
+            deliveryName: order.deliveryName || "",
+            deliveryAddress: order.deliveryAddress || "",
+            creationDate: order.creationDate,
+            deliveryDate: order.deliveryDate,
+            remainingSalesFinancial: order.remainingSalesFinancial ?? null,
+            customerReference: order.customerReference ?? null,
+            salesStatus: order.salesStatus ?? null,
+            orderType: order.orderType ?? null,
+            documentStatus: order.documentStatus ?? null,
+            salesOrigin: order.salesOrigin ?? null,
+            transferStatus: order.transferStatus ?? null,
+            transferDate: order.transferDate ?? null,
+            completionDate: order.completionDate ?? null,
+            discountPercent: order.discountPercent ?? null,
+            grossAmount: order.grossAmount ?? null,
+            totalAmount: order.totalAmount ?? null,
+            status: order.status,
+
+            // Metadata
             userId,
             lastScraped: new Date().toISOString(),
             lastUpdated: new Date().toISOString(),
+            lastSync: Date.now(),
             isOpen: order.status.toLowerCase().includes("aperto"),
             detailJson: null,
             sentToMilanoAt: null,
@@ -709,10 +895,8 @@ export class OrderHistoryService {
             trackingUrl: null,
             trackingCourier: null,
 
-            // Invoice fields (not yet scraped)
+            // Invoice fields
             invoiceNumber: null,
-            invoiceDate: null,
-            invoiceAmount: null,
           };
 
           results.push(fallbackOrder);
@@ -837,57 +1021,82 @@ export class OrderHistoryService {
   }
 
   /**
-   * Convert StoredOrder (DB) to Order (API response)
-   * Removes DB metadata fields and DDT data
+   * Convert OrderRecord (DB) to Order (API response)
+   * Transforms flat DDT/tracking fields into nested structure
+   *
+   * FIXES Problem #1: DDT/Tracking Structure Mismatch
+   * - Backend stores flat fields (ddtNumber, trackingNumber, etc.)
+   * - Frontend expects nested ddt object with all fields including tracking
+   * - Removed separate tracking object (user decision: Option A)
    */
-  private storedOrderToOrder(stored: StoredOrder): Order {
+  private storedOrderToOrder(stored: OrderRecord): Order {
+    // Build nested DDT object when DDT data exists
+    const ddt = stored.ddtNumber
+      ? {
+          ddtId: stored.ddtId,
+          ddtNumber: stored.ddtNumber,
+          ddtDeliveryDate: stored.ddtDeliveryDate,
+          orderId: stored.ddtOrderNumber,
+          customerAccountId: stored.ddtCustomerAccount,
+          salesName: stored.ddtSalesName,
+          deliveryName: stored.ddtDeliveryName,
+          deliveryTerms: stored.deliveryTerms,
+          deliveryMethod: stored.deliveryMethod,
+          deliveryCity: stored.deliveryCity,
+          // Include tracking fields in DDT object (user decision: remove duplicate tracking)
+          trackingNumber: stored.trackingNumber,
+          trackingUrl: stored.trackingUrl,
+          trackingCourier: stored.trackingCourier,
+        }
+      : undefined;
+
     return {
       // All 20 Order List columns
       id: stored.id,
-      orderNumber: stored.orderNumber,
-      customerProfileId: stored.customerProfileId,
+      orderNumber: stored.orderNumber || "",
+      customerProfileId: stored.customerProfileId || "",
       customerName: stored.customerName,
-      deliveryName: stored.deliveryName,
-      deliveryAddress: stored.deliveryAddress,
+      deliveryName: stored.deliveryName || undefined,
+      deliveryAddress: stored.deliveryAddress || undefined,
       creationDate: stored.creationDate,
-      deliveryDate: stored.deliveryDate,
-      remainingSalesFinancial: stored.remainingSalesFinancial,
-      customerReference: stored.customerReference,
-      salesStatus: stored.salesStatus,
-      orderType: stored.orderType,
-      documentStatus: stored.documentStatus,
-      salesOrigin: stored.salesOrigin,
-      transferStatus: stored.transferStatus,
-      transferDate: stored.transferDate,
-      completionDate: stored.completionDate,
-      discountPercent: stored.discountPercent,
-      grossAmount: stored.grossAmount,
-      totalAmount: stored.totalAmount,
+      deliveryDate: stored.deliveryDate || stored.creationDate, // Fallback to creationDate if null
+      remainingSalesFinancial: stored.remainingSalesFinancial || undefined,
+      customerReference: stored.customerReference || undefined,
+      salesStatus: stored.salesStatus || undefined,
+      orderType: stored.orderType || undefined,
+      documentStatus: stored.documentStatus || undefined,
+      salesOrigin: stored.salesOrigin || undefined,
+      transferStatus: stored.transferStatus || undefined,
+      transferDate: stored.transferDate || undefined,
+      completionDate: stored.completionDate || undefined,
+      discountPercent: stored.discountPercent || undefined,
+      grossAmount: stored.grossAmount || undefined,
+      totalAmount: stored.totalAmount || undefined,
 
-      // Legacy status field
-      status: stored.status,
+      // Legacy status field (required, can't be null)
+      status: stored.status || stored.salesStatus || "Unknown",
 
-      // DDT fields (11 columns)
-      ddtId: stored.ddtId,
-      ddtNumber: stored.ddtNumber,
-      ddtDeliveryDate: stored.ddtDeliveryDate,
-      ddtOrderNumber: stored.ddtOrderNumber,
-      ddtCustomerAccount: stored.ddtCustomerAccount,
-      ddtSalesName: stored.ddtSalesName,
-      ddtDeliveryName: stored.ddtDeliveryName,
-      trackingNumber: stored.trackingNumber,
-      deliveryTerms: stored.deliveryTerms,
-      deliveryMethod: stored.deliveryMethod,
-      deliveryCity: stored.deliveryCity,
+      // Nested DDT object (Problem #1 fix)
+      ddt,
 
-      // Computed tracking fields
-      trackingUrl: stored.trackingUrl,
-      trackingCourier: stored.trackingCourier,
+      // Invoice information
+      invoiceNumber: stored.invoiceNumber,
+      invoiceDate: stored.invoiceDate,
+      invoiceAmount: stored.invoiceAmount,
 
-      // Metadata (only include fields in Order interface)
-      userId: stored.userId,
-      lastScraped: stored.lastScraped,
-      lastUpdated: stored.lastUpdated,
+      // Current state tracking
+      currentState: stored.currentState,
+
+      // NO tracking field (removed per user decision - tracking is now inside ddt)
+
+      // Items, timeline, documents (empty for now - populated on-demand)
+      items: [],
+      stateTimeline: [],
+      documents: [],
+
+      // Metadata
+      botUserId: stored.userId,
+      lastUpdatedAt: stored.lastUpdated,
     };
   }
 

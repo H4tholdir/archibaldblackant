@@ -56,7 +56,7 @@ import syncControlRoutes, { syncProgressEmitter } from "./routes/sync-control";
 import deltaSyncRoutes from "./routes/delta-sync";
 import { SendToMilanoService } from "./send-to-milano-service";
 import { DDTScraperService } from "./ddt-scraper-service";
-import { OrderDatabase } from "./order-db";
+import { OrderDatabaseNew } from "./order-db-new";
 import { PriorityManager } from "./priority-manager";
 import { OrderStateSyncService } from "./order-state-sync-service";
 import { pdfParserService } from "./pdf-parser-service";
@@ -86,7 +86,7 @@ const userDb = UserDatabase.getInstance();
 const sessionCleanup = new SessionCleanupJob();
 const orderHistoryService = new OrderHistoryService();
 const sendToMilanoService = new SendToMilanoService();
-const orderDb = OrderDatabase.getInstance();
+const orderDb = OrderDatabaseNew.getInstance();
 const priorityManager = PriorityManager.getInstance();
 const orderSyncService = OrderSyncService.getInstance();
 const ddtSyncService = DDTSyncService.getInstance();
@@ -991,7 +991,7 @@ app.get(
     try {
       const userId = req.user!.userId;
       const userDb = UserDatabase.getInstance();
-      const orderDb = OrderDatabase.getInstance();
+      const orderDb = OrderDatabaseNew.getInstance();
 
       // Get user's target
       const target = userDb.getUserTarget(userId);
@@ -1051,7 +1051,7 @@ app.get(
   (req: AuthRequest, res: Response) => {
     try {
       const userId = req.user!.userId;
-      const orderDb = OrderDatabase.getInstance();
+      const orderDb = OrderDatabaseNew.getInstance();
 
       // Calculate temporal boundaries
       const now = new Date();
@@ -2924,8 +2924,8 @@ app.get(
             // Filter orders that have tracking number (DDT shipped)
             filteredOrders = filteredOrders.filter(
               (order) =>
-                order.trackingNumber != null &&
-                order.trackingNumber.trim() !== "",
+                order.ddt?.trackingNumber != null &&
+                order.ddt.trackingNumber.trim() !== "",
             );
           } else if (statusLower === "consegnati") {
             // Filter orders that are completed or have status "Consegnato"
@@ -2964,36 +2964,8 @@ app.get(
         const paginatedOrders = filteredOrders.slice(offset, offset + limit);
         const hasMore = filteredOrders.length > offset + limit;
 
-        // Map orders to frontend format with nested DDT and tracking
+        // Map orders to frontend format - Order interface already has nested DDT from storedOrderToOrder()
         const ordersWithFrontendFields = paginatedOrders.map((order) => {
-          // Build nested DDT object if DDT data exists
-          const ddt = order.ddtNumber
-            ? {
-                ddtId: order.ddtId || undefined,
-                ddtNumber: order.ddtNumber || undefined,
-                ddtDeliveryDate: order.ddtDeliveryDate || undefined,
-                orderId: order.ddtOrderNumber || undefined,
-                customerAccountId: order.ddtCustomerAccount || undefined,
-                salesName: order.ddtSalesName || undefined,
-                deliveryName: order.ddtDeliveryName || undefined,
-                deliveryTerms: order.deliveryTerms || undefined,
-                deliveryMethod: order.deliveryMethod || undefined,
-                deliveryCity: order.deliveryCity || undefined,
-                trackingNumber: order.trackingNumber || undefined,
-                trackingUrl: order.trackingUrl || undefined,
-                trackingCourier: order.trackingCourier || undefined,
-              }
-            : undefined;
-
-          // Build nested tracking object (for backward compatibility)
-          const tracking = order.trackingNumber
-            ? {
-                trackingNumber: order.trackingNumber || undefined,
-                trackingUrl: order.trackingUrl || undefined,
-                trackingCourier: order.trackingCourier || undefined,
-              }
-            : undefined;
-
           return {
             // Order List fields (20 columns)
             id: order.id,
@@ -3004,7 +2976,7 @@ app.get(
             orderDate: order.creationDate,
             date: order.creationDate, // Alias for backward compatibility
             orderType: order.orderType || undefined,
-            deliveryTerms: undefined, // Order List doesn't have this (DDT has it)
+            deliveryTerms: order.ddt?.deliveryTerms, // Get from DDT if exists
             deliveryDate: order.deliveryDate,
             total: order.totalAmount || "N/A",
             salesOrigin: order.salesOrigin || undefined,
@@ -3012,7 +2984,7 @@ app.get(
             endDiscount: undefined, // Not in current scraping
             shippingAddress: order.deliveryAddress,
             salesResponsible: undefined, // Not in current scraping
-            status: order.status || order.salesStatus || "N/A",
+            status: order.status,
             state: order.salesStatus || undefined,
             documentState: order.documentStatus || undefined,
             transferredToAccountingOffice:
@@ -3020,23 +2992,22 @@ app.get(
               order.transferStatus === "Trasferito",
             deliveryAddress: order.deliveryAddress,
 
-            // DDT nested object (11 columns)
-            ddt,
+            // DDT nested object (already nested from storedOrderToOrder)
+            ddt: order.ddt,
 
-            // Tracking nested object (3 columns - for backward compatibility)
-            tracking,
+            // NO tracking field (removed per user decision - use ddt.trackingXxx)
 
             // Metadata (10 columns)
-            botUserId: order.userId,
+            botUserId: order.botUserId,
             jobId: undefined, // Not in current implementation
-            createdAt: order.lastScraped,
-            lastUpdatedAt: order.lastUpdated,
+            createdAt: order.lastUpdatedAt, // lastScraped not in Order anymore
+            lastUpdatedAt: order.lastUpdatedAt,
             notes: undefined, // Will be in detailJson
             customerNotes: undefined, // Will be in detailJson
-            items: undefined, // Will be in detailJson
-            stateTimeline: undefined, // Will be fetched separately
-            statusTimeline: undefined, // Will be fetched separately
-            documents: undefined, // Will be in detailJson
+            items: order.items, // Already populated from storedOrderToOrder (empty for now)
+            stateTimeline: order.stateTimeline, // Already populated from storedOrderToOrder (empty for now)
+            statusTimeline: order.stateTimeline, // Alias for stateTimeline
+            documents: order.documents, // Already populated from storedOrderToOrder (empty for now)
           };
         });
 
@@ -3499,13 +3470,23 @@ app.post(
 
         // Update database on success
         const sentToMilanoAt = result.sentAt || new Date().toISOString();
-        orderDb.updateOrderMilanoState(userId, orderId, sentToMilanoAt);
+        orderDb.updateOrderMilanoState(
+          userId,
+          orderId,
+          "inviato_milano",
+          sentToMilanoAt,
+        );
 
         // Insert audit log entry
-        orderDb.insertAuditLog(orderId, "send_to_milano", userId, {
-          sentToMilanoAt,
-          message: result.message,
-        });
+        orderDb.insertAuditLog(
+          userId,
+          "send_to_milano",
+          orderId,
+          JSON.stringify({
+            sentToMilanoAt,
+            message: result.message,
+          }),
+        );
 
         logger.info(
           `[SendToMilano] Order ${orderId} sent to Milano successfully`,
@@ -3821,7 +3802,7 @@ app.post(
     if (!userId) {
       return res.status(401).json({ success: false, error: "Unauthorized" });
     }
-    const orderDb = OrderDatabase.getInstance();
+    const orderDb = OrderDatabaseNew.getInstance();
     const ddtScraperService = new DDTScraperService();
     const priorityManager = PriorityManager.getInstance();
 
@@ -3879,7 +3860,7 @@ app.post(
     if (!userId) {
       return res.status(401).json({ success: false, error: "Unauthorized" });
     }
-    const orderDb = OrderDatabase.getInstance();
+    const orderDb = OrderDatabaseNew.getInstance();
     const invoiceScraperService = new (
       await import("./invoice-scraper-service")
     ).InvoiceScraperService();
@@ -3936,8 +3917,11 @@ app.post(
   "/api/orders/sync",
   authenticateJWT,
   async (req: AuthRequest, res: Response) => {
+    logger.info("[Order Sync] Endpoint reached");
     const userId = req.user?.userId;
+    logger.info(`[Order Sync] User ID: ${userId}`);
     if (!userId) {
+      logger.warn("[Order Sync] No userId - returning 401");
       return res.status(401).json({ success: false, error: "Unauthorized" });
     }
 
@@ -4099,7 +4083,7 @@ app.get(
       return res.status(401).json({ success: false, error: "Unauthorized" });
     }
     const { orderId } = req.params;
-    const orderDb = OrderDatabase.getInstance();
+    const orderDb = OrderDatabaseNew.getInstance();
     const invoiceScraperService = new (
       await import("./invoice-scraper-service")
     ).InvoiceScraperService();
@@ -4174,7 +4158,7 @@ app.get("/api/debug/me", authenticateJWT, (req: AuthRequest, res: Response) => {
   if (!userId) {
     return res.status(401).json({ error: "Unauthorized" });
   }
-  const orderDb = OrderDatabase.getInstance();
+  const orderDb = OrderDatabaseNew.getInstance();
   const userOrders = orderDb.getOrdersByUser(userId);
 
   return res.json({
@@ -4197,7 +4181,7 @@ app.get(
     }
     // Decode the orderId parameter (handles ORD%2F26000567 -> ORD/26000567)
     const orderId = decodeURIComponent(req.params.orderId);
-    const orderDb = OrderDatabase.getInstance();
+    const orderDb = OrderDatabaseNew.getInstance();
     const ddtScraperService = new DDTScraperService();
     const priorityManager = PriorityManager.getInstance();
 
@@ -4357,7 +4341,7 @@ app.get(
       return res.status(401).json({ success: false, error: "Unauthorized" });
     }
     const orderId = req.params.orderId;
-    const orderDb = OrderDatabase.getInstance();
+    const orderDb = OrderDatabaseNew.getInstance();
 
     try {
       // Verify order belongs to user
@@ -4371,7 +4355,7 @@ app.get(
       }
 
       // Get state history
-      const history = orderDb.getStateHistory(orderId);
+      const history = orderDb.getStateHistory(userId, orderId);
 
       return res.json({
         success: true,

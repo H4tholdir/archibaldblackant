@@ -6756,6 +6756,7 @@ export class ArchibaldBot {
             const files = fs.readdirSync("/tmp");
             const pdfFiles = files.filter(
               (f: string) =>
+                f === "Ordini.pdf" ||
                 f === "Ordini cliente.pdf" ||
                 f === "Customer orders.pdf" ||
                 (f.startsWith("ordini-") && f.endsWith(".pdf")),
@@ -6989,6 +6990,7 @@ export class ArchibaldBot {
           const files = fs.readdirSync("/tmp");
           const pdfFiles = files.filter(
             (f: string) =>
+              f === "Documenti di trasporto.pdf" ||
               f === "Giornale di registrazione bolla di consegna.pdf" ||
               f === "Packing slip journal.pdf" ||
               (f.startsWith("ddt-") && f.endsWith(".pdf")),
@@ -6996,6 +6998,7 @@ export class ArchibaldBot {
 
           if (pdfFiles.length > 0) {
             const recentPdf =
+              pdfFiles.find((f: string) => f === "Documenti di trasporto.pdf") ||
               pdfFiles.find(
                 (f: string) =>
                   f === "Giornale di registrazione bolla di consegna.pdf",
@@ -7176,6 +7179,7 @@ export class ArchibaldBot {
           const files = fs.readdirSync("/tmp");
           const pdfFiles = files.filter(
             (f: string) =>
+              f === "Fatture.pdf" ||
               f === "Giornale di registrazione fatture cliente.pdf" ||
               f === "Customer invoice journal.pdf" ||
               (f.startsWith("fatture-") && f.endsWith(".pdf")),
@@ -7183,6 +7187,7 @@ export class ArchibaldBot {
 
           if (pdfFiles.length > 0) {
             const recentPdf =
+              pdfFiles.find((f: string) => f === "Fatture.pdf") ||
               pdfFiles.find(
                 (f: string) =>
                   f === "Giornale di registrazione fatture cliente.pdf",

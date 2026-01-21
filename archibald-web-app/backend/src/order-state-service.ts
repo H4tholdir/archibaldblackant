@@ -1,4 +1,4 @@
-import type { StoredOrder } from "./order-db";
+import type { OrderRecord } from "./order-db-new";
 import { logger } from "./logger";
 
 /**
@@ -52,40 +52,26 @@ export class OrderStateService {
   /**
    * Detect order state from available data sources
    */
-  async detectOrderState(order: StoredOrder): Promise<StateDetectionResult> {
+  async detectOrderState(order: OrderRecord): Promise<StateDetectionResult> {
     logger.debug(`[OrderStateService] Detecting state for order ${order.id}`);
 
-    // Check if order has archibaldOrderId
-    const archibaldOrderId = (order as any).archibaldOrderId;
-
-    // 1. Creato - No Archibald order ID yet
-    if (!archibaldOrderId) {
+    // Priority 1: Check if order has invoice (final state)
+    if (order.invoiceNumber) {
       return {
-        state: "creato",
+        state: "fatturato",
         confidence: "high",
         source: "database",
-        notes: "Order exists in app but not yet sent to Archibald",
+        notes: `Invoice ${order.invoiceNumber} found`,
       };
     }
 
-    // 2. Piazzato - Has Archibald ID but not sent to Milano
-    if (!order.sentToMilanoAt) {
-      return {
-        state: "piazzato",
-        confidence: "high",
-        source: "database",
-        notes: "Order sent to Archibald but not yet sent to Milano",
-      };
-    }
-
-    // 3. Inviato a Milano - Sent to Milano (base state)
-    // Now we need to determine progression after Milano
-
-    // Check if order has DDT (shipped)
+    // Priority 2: Check if order has DDT (shipped/delivered)
     if (order.ddtNumber) {
       // Check delivery date to determine if delivered
-      if (order.deliveryDate) {
-        const deliveryDate = new Date(order.deliveryDate);
+      if (order.ddtDeliveryDate || order.deliveryDate) {
+        const deliveryDate = new Date(
+          order.ddtDeliveryDate || order.deliveryDate!,
+        );
         const now = new Date();
 
         if (deliveryDate <= now) {
@@ -94,7 +80,7 @@ export class OrderStateService {
             state: "consegnato",
             confidence: "high",
             source: "database",
-            notes: `Delivery date ${order.deliveryDate} has passed`,
+            notes: `DDT ${order.ddtNumber}, delivery date ${order.ddtDeliveryDate || order.deliveryDate} has passed`,
           };
         } else {
           // Delivery date in future - shipped but not delivered
@@ -102,7 +88,7 @@ export class OrderStateService {
             state: "spedito",
             confidence: "high",
             source: "database",
-            notes: `DDT ${order.ddtNumber}, delivery expected ${order.deliveryDate}`,
+            notes: `DDT ${order.ddtNumber}, delivery expected ${order.ddtDeliveryDate || order.deliveryDate}`,
           };
         }
       } else {
@@ -116,71 +102,105 @@ export class OrderStateService {
       }
     }
 
-    // Check Archibald status field for state hints
-    const statusLower = order.status.toLowerCase();
+    // Priority 3: Check database state tracking fields
+    // Check if order has archibaldOrderId or transferStatus
+    const archibaldOrderId = order.archibaldOrderId;
+    const hasTransferStatus =
+      order.transferStatus !== null && order.transferStatus !== undefined;
 
-    // Check for specific status indicators
-    if (statusLower.includes("ordine aperto") || statusLower.includes("open")) {
+    // 1. Creato - No Archibald order ID and no transfer status
+    if (!archibaldOrderId && !hasTransferStatus) {
       return {
-        state: "ordine_aperto",
+        state: "creato",
         confidence: "high",
-        source: "archibald",
-        notes: `Archibald status: ${order.status}`,
+        source: "database",
+        notes: "Order exists in app but not yet sent to Archibald",
       };
     }
 
-    if (
-      statusLower.includes("consegnato") ||
-      statusLower.includes("delivered")
-    ) {
+    // 2. Piazzato - Has Archibald ID or transfer status, but not sent to Milano
+    if (!order.sentToMilanoAt) {
       return {
-        state: "consegnato",
+        state: "piazzato",
         confidence: "high",
-        source: "archibald",
-        notes: `Archibald status: ${order.status}`,
+        source: "database",
+        notes: "Order sent to Archibald but not yet sent to Milano",
       };
     }
 
-    if (statusLower.includes("fatturato") || statusLower.includes("invoiced")) {
-      return {
-        state: "fatturato",
-        confidence: "high",
-        source: "archibald",
-        notes: `Archibald status: ${order.status}`,
-      };
-    }
+    // 3. After Milano - Check Archibald status field (salesStatus) for state hints
+    if (order.salesStatus) {
+      const statusLower = order.salesStatus.toLowerCase();
 
-    if (
-      statusLower.includes("trasferito") ||
-      statusLower.includes("transferred")
-    ) {
-      return {
-        state: "trasferito",
-        confidence: "high",
-        source: "archibald",
-        notes: `Archibald status: ${order.status}`,
-      };
-    }
+      // Check for specific status indicators
+      if (
+        statusLower.includes("ordine aperto") ||
+        statusLower.includes("open")
+      ) {
+        return {
+          state: "ordine_aperto",
+          confidence: "high",
+          source: "archibald",
+          notes: `Archibald status: ${order.salesStatus}`,
+        };
+      }
 
-    if (
-      statusLower.includes("modifica") ||
-      statusLower.includes("modification")
-    ) {
-      return {
-        state: "modifica",
-        confidence: "medium",
-        source: "archibald",
-        notes: `Archibald status: ${order.status}`,
-      };
-    }
+      if (
+        statusLower.includes("consegnato") ||
+        statusLower.includes("delivered")
+      ) {
+        return {
+          state: "consegnato",
+          confidence: "high",
+          source: "archibald",
+          notes: `Archibald status: ${order.salesStatus}`,
+        };
+      }
 
-    if (statusLower.includes("error") || statusLower.includes("errore")) {
-      return {
-        state: "transfer_error",
-        confidence: "medium",
-        source: "archibald",
-        notes: `Archibald status: ${order.status}`,
-      };
+      if (
+        statusLower.includes("fatturato") ||
+        statusLower.includes("invoiced")
+      ) {
+        return {
+          state: "fatturato",
+          confidence: "high",
+          source: "archibald",
+          notes: `Archibald status: ${order.salesStatus}`,
+        };
+      }
+
+      if (
+        statusLower.includes("trasferito") ||
+        statusLower.includes("transferred")
+      ) {
+        return {
+          state: "trasferito",
+          confidence: "high",
+          source: "archibald",
+          notes: `Archibald status: ${order.salesStatus}`,
+        };
+      }
+
+      if (
+        statusLower.includes("modifica") ||
+        statusLower.includes("modification")
+      ) {
+        return {
+          state: "modifica",
+          confidence: "medium",
+          source: "archibald",
+          notes: `Archibald status: ${order.salesStatus}`,
+        };
+      }
+
+      if (statusLower.includes("error") || statusLower.includes("errore")) {
+        return {
+          state: "transfer_error",
+          confidence: "medium",
+          source: "archibald",
+          notes: `Archibald status: ${order.salesStatus}`,
+        };
+      }
     }
 
     // Fallback to current state from database or inviato_milano

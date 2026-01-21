@@ -1,4 +1,4 @@
-import { OrderDatabase, type StoredOrder } from "./order-db";
+import { OrderDatabaseNew, type OrderRecord } from "./order-db-new";
 import { OrderStateService, type OrderState } from "./order-state-service";
 import { logger } from "./logger";
 
@@ -43,7 +43,7 @@ interface CacheMetadata {
  * 6. Update cache timestamp
  */
 export class OrderStateSyncService {
-  private readonly orderDb = OrderDatabase.getInstance();
+  private readonly orderDb = OrderDatabaseNew.getInstance();
   private readonly stateService = new OrderStateService();
   private readonly CACHE_TTL_MS = 2 * 60 * 60 * 1000; // 2 hours
   private readonly THREE_WEEKS_AGO_MS = 21 * 24 * 60 * 60 * 1000; // 3 weeks
