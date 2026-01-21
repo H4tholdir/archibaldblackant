@@ -1422,10 +1422,14 @@ export function OrderCardNew({
   const isPiazzato =
     !isCreato && (!order.orderNumber || order.orderNumber.trim() === "");
 
-  // DEBUG: Log order data to check ddt and tracking
-  if (order.orderNumber === "ORD/26000387") {
-    console.log("[OrderCardNew] Order ORD/26000387 data:", {
+  // DEBUG: Log order data to check ddt, tracking, and invoice
+  if (order.orderNumber === "ORD/26000374") {
+    console.log("[OrderCardNew] Order ORD/26000374 data:", {
       orderNumber: order.orderNumber,
+      invoiceNumber: order.invoiceNumber,
+      invoiceDate: order.invoiceDate,
+      invoiceAmount: order.invoiceAmount,
+      invoiceBillingName: order.invoiceBillingName,
       ddt: order.ddt,
       tracking: order.tracking,
       fullOrder: order,

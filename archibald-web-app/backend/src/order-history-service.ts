@@ -968,7 +968,7 @@ export class OrderHistoryService {
         }
       : undefined;
 
-    return {
+    const mappedOrder = {
       // All 20 Order List columns
       id: stored.id,
       orderNumber: stored.orderNumber || "",
@@ -1027,6 +1027,24 @@ export class OrderHistoryService {
       botUserId: stored.userId,
       lastUpdatedAt: stored.lastUpdated,
     };
+
+    // DEBUG LOG: Log invoice data for specific order
+    if (stored.orderNumber === "ORD/26000374") {
+      logger.info(`[DEBUG] Order ORD/26000374 mapping:`, {
+        stored_invoiceNumber: stored.invoiceNumber,
+        stored_invoiceAmount: stored.invoiceAmount,
+        mapped_invoiceNumber: mappedOrder.invoiceNumber,
+        mapped_invoiceAmount: mappedOrder.invoiceAmount,
+        all_invoice_fields: {
+          invoiceNumber: mappedOrder.invoiceNumber,
+          invoiceDate: mappedOrder.invoiceDate,
+          invoiceAmount: mappedOrder.invoiceAmount,
+          invoiceBillingName: mappedOrder.invoiceBillingName,
+        },
+      });
+    }
+
+    return mappedOrder;
   }
 
   /**

@@ -478,20 +478,26 @@ export class InvoiceScraperService {
   /**
    * Download invoice PDF for a specific order
    * Workflow:
-   * 1. Navigate to invoice page
-   * 2. Find invoice by customer ID + date matching
-   * 3. Select invoice row
-   * 4. Click "Scarica PDF" button
-   * 5. Wait for PDF link generation
-   * 6. Download PDF via Puppeteer CDP
+   * 1. Navigate to CUSTINVOICEJOUR_ListView page
+   * 2. Click search button to reveal search input
+   * 3. Enter order number (ORD/xxxxxxxx) in search bar and press Enter
+   * 4. Click checkbox of first row to select invoice
+   * 5. Click "Scarica PDF" button
+   * 6. Wait for PDF link to appear
+   * 7. Click PDF link to download
+   * 8. Read downloaded PDF and return as Buffer
    */
   async downloadInvoicePDF(
     userId: string,
     order: OrderRecord,
   ): Promise<Buffer> {
     logger.info(
-      `[InvoiceScraper] Downloading invoice PDF for order ${order.id}`,
+      `[InvoiceScraper] Downloading invoice PDF for order ${order.orderNumber}`,
     );
+
+    if (!order.orderNumber) {
+      throw new Error("Order number is required to download invoice PDF");
+    }
 
     const browserPool = BrowserPool.getInstance();
     let context: BrowserContext | null = null;
@@ -510,71 +516,56 @@ export class InvoiceScraperService {
           timeout: 60000,
         });
 
-        // Wait for table to load
-        await new Promise((resolve) => setTimeout(resolve, 2000));
+        // Wait for page to load
+        await new Promise((resolve) => setTimeout(resolve, 3000));
 
-        // Scrape invoices to find the matching one
-        const invoices = await this.scrapeInvoicePage(page);
+        // Step 1: Find search input field (it's already visible, no need to click a button)
+        logger.info(`[InvoiceScraper] Searching for order ${order.orderNumber}`);
+        const searchInputSelector = 'input#Vertical_SearchAC_Menu_ITCNT0_xaf_a1_Ed_I';
+        await page.waitForSelector(searchInputSelector, { timeout: 10000 });
 
-        // Match invoice to order
-        const matchedInvoice = invoices.find((inv) => {
-          // Match by customer ID
-          if (inv.customerAccountId !== order.customerProfileId) {
-            return false;
+        // Clear the placeholder text and paste order number (instant, not typing)
+        await page.click(searchInputSelector);
+        await page.evaluate((selector, orderNumber) => {
+          const input = document.querySelector(selector) as HTMLInputElement;
+          if (input) {
+            input.value = orderNumber;
+            // Trigger input event to notify any listeners
+            input.dispatchEvent(new Event('input', { bubbles: true }));
+            input.dispatchEvent(new Event('change', { bubbles: true }));
           }
-          // Match by date (invoice after order placed)
-          if (inv.invoiceDate && order.creationDate) {
-            return inv.invoiceDate >= order.creationDate;
-          }
-          return true;
-        });
+        }, searchInputSelector, order.orderNumber);
 
-        if (!matchedInvoice) {
-          throw new Error(
-            `No invoice found for order ${order.id} (customer: ${order.customerProfileId})`,
-          );
-        }
+        // Step 2: Click the search button (B1) to execute search
+        logger.info("[InvoiceScraper] Clicking search button to execute search");
+        const searchButtonSelector = 'td#Vertical_SearchAC_Menu_ITCNT0_xaf_a1_Ed_B1';
+        await page.click(searchButtonSelector);
 
-        logger.info(
-          `[InvoiceScraper] Found invoice ${matchedInvoice.invoiceNumber} for order ${order.id}`,
-        );
+        // Wait for search results
+        logger.info("[InvoiceScraper] Waiting for search results");
+        await new Promise((resolve) => setTimeout(resolve, 3000));
 
-        // Select invoice row by clicking checkbox
-        if (!matchedInvoice.rowId) {
-          throw new Error(
-            `Invoice ${matchedInvoice.invoiceNumber} has no row ID`,
-          );
-        }
-
-        logger.info("[InvoiceScraper] Selecting invoice row");
-        await page.evaluate((rowId) => {
-          const checkbox = document.querySelector(
-            `input[type="checkbox"][id*="${rowId}"]`,
-          ) as HTMLInputElement;
-          if (checkbox) {
-            checkbox.click();
-          } else {
-            throw new Error(`Checkbox not found for row ${rowId}`);
-          }
-        }, matchedInvoice.rowId);
+        // Step 3: Click checkbox of first row
+        logger.info("[InvoiceScraper] Selecting first invoice row checkbox");
+        const checkboxSelector = 'span.dxWeb_edtCheckBoxUnchecked_XafTheme.dxICheckBox_XafTheme';
+        await page.waitForSelector(checkboxSelector, { timeout: 10000 });
+        await page.click(checkboxSelector);
 
         // Wait for selection to register
         await new Promise((resolve) => setTimeout(resolve, 1000));
 
-        // Trigger PDF generation
+        // Step 4: Click "Scarica PDF" button
         logger.info('[InvoiceScraper] Clicking "Scarica PDF" button');
-        await page.click('li[title="Scarica PDF"] a.dxm-content');
+        const downloadButtonSelector = 'li[title="Scarica PDF"] a.dxm-content';
+        await page.waitForSelector(downloadButtonSelector, { timeout: 10000 });
+        await page.click(downloadButtonSelector);
 
-        // Wait for PDF link to appear (different selector than DDT)
+        // Step 5: Wait for PDF link to appear
         logger.info("[InvoiceScraper] Waiting for PDF link generation");
-        await page.waitForSelector(
-          'div[id$="_xaf_InvoicePDF"] a.XafFileDataAnchor',
-          {
-            timeout: 15000,
-          },
-        );
+        const pdfLinkSelector = 'a.XafFileDataAnchor[id*="_xaf_InvoicePDF"]';
+        await page.waitForSelector(pdfLinkSelector, { timeout: 30000 });
 
-        // Setup Puppeteer download interception via CDP
+        // Step 6: Setup download interception and click PDF link
         const client = await (page.target() as any).createCDPSession();
         const tmpDir = "/tmp/archibald-invoices";
 
@@ -588,9 +579,7 @@ export class InvoiceScraperService {
         });
 
         logger.info("[InvoiceScraper] Clicking PDF link to download");
-
-        // Click PDF link
-        await page.click('div[id$="_xaf_InvoicePDF"] a.XafFileDataAnchor');
+        await page.click(pdfLinkSelector);
 
         // Wait for download to complete
         logger.info("[InvoiceScraper] Waiting for download to complete");
@@ -629,6 +618,7 @@ export class InvoiceScraperService {
         error instanceof Error ? error.message : String(error);
       logger.error("[InvoiceScraper] Failed to download invoice PDF", {
         error: errorMessage,
+        orderNumber: order.orderNumber,
       });
       throw error;
     } finally {

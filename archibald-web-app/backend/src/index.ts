@@ -2997,6 +2997,22 @@ app.get(
 
             // NO tracking field (removed per user decision - use ddt.trackingXxx)
 
+            // Invoice fields (14 columns)
+            invoiceNumber: order.invoiceNumber,
+            invoiceDate: order.invoiceDate,
+            invoiceAmount: order.invoiceAmount,
+            invoiceCustomerAccount: order.invoiceCustomerAccount,
+            invoiceBillingName: order.invoiceBillingName,
+            invoiceQuantity: order.invoiceQuantity,
+            invoiceRemainingAmount: order.invoiceRemainingAmount,
+            invoiceTaxAmount: order.invoiceTaxAmount,
+            invoiceLineDiscount: order.invoiceLineDiscount,
+            invoiceTotalDiscount: order.invoiceTotalDiscount,
+            invoiceDueDate: order.invoiceDueDate,
+            invoicePaymentTermsId: order.invoicePaymentTermsId,
+            invoicePurchaseOrder: order.invoicePurchaseOrder,
+            invoiceClosed: order.invoiceClosed,
+
             // Metadata (10 columns)
             botUserId: order.botUserId,
             jobId: undefined, // Not in current implementation
