@@ -179,6 +179,22 @@ export class DDTSyncService extends EventEmitter {
     let updated = 0;
     let notFound = 0;
 
+    // Debug: Log first 5 DDTs to understand format
+    logger.info(`[DDTSyncService] Sample of first 5 parsed DDTs:`, {
+      sample: parsedDDTs.slice(0, 5).map(d => ({
+        order_number: d.order_number,
+        ddt_number: d.ddt_number,
+        tracking: d.tracking_number
+      }))
+    });
+
+    // Debug: Log sample of orders in DB
+    const allOrders = this.orderDb.getOrders(userId);
+    logger.info(`[DDTSyncService] Sample of orders in DB (first 5):`, {
+      totalOrders: allOrders.length,
+      sample: allOrders.slice(0, 5).map(o => o.order_number)
+    });
+
     for (const parsedDDT of parsedDDTs) {
       // Match DDT to order by order number
       const order = this.orderDb.getOrderById(userId, parsedDDT.order_number);
