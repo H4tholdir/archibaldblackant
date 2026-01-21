@@ -37,6 +37,25 @@ jobs:
             ghcr.io/h4tholdir/archibald-backend:${{ github.sha }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+        env:
+          BUILDKIT_STEP_LOG_MAX_SIZE: 10485760
+        continue-on-error: true
+        id: backend_build_attempt1
+
+      - name: Retry build and push backend image (if first attempt failed)
+        if: steps.backend_build_attempt1.outcome == 'failure'
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./archibald-web-app/backend/Dockerfile
+          push: true
+          tags: |
+            ghcr.io/h4tholdir/archibald-backend:latest
+            ghcr.io/h4tholdir/archibald-backend:${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+        env:
+          BUILDKIT_STEP_LOG_MAX_SIZE: 10485760
 
       - name: Build and push frontend image
         uses: docker/build-push-action@v5
@@ -49,6 +68,25 @@ jobs:
             ghcr.io/h4tholdir/archibald-frontend:${{ github.sha }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+        env:
+          BUILDKIT_STEP_LOG_MAX_SIZE: 10485760
+        continue-on-error: true
+        id: frontend_build_attempt1
+
+      - name: Retry build and push frontend image (if first attempt failed)
+        if: steps.frontend_build_attempt1.outcome == 'failure'
+        uses: docker/build-push-action@v5
+        with:
+          context: ./archibald-web-app/frontend
+          file: ./archibald-web-app/frontend/Dockerfile
+          push: true
+          tags: |
+            ghcr.io/h4tholdir/archibald-frontend:latest
+            ghcr.io/h4tholdir/archibald-frontend:${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+        env:
+          BUILDKIT_STEP_LOG_MAX_SIZE: 10485760
 
       - name: Deploy to VPS
         uses: appleboy/ssh-action@v1.0.3
