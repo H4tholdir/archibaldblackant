@@ -827,7 +827,7 @@ export class OrderDatabaseNew {
         tracking_url = ?,
         tracking_courier = ?,
         last_sync = ?
-      WHERE user_id = ? AND id = ?
+      WHERE user_id = ? AND order_number = ?
     `,
       )
       .run(
@@ -901,7 +901,7 @@ export class OrderDatabaseNew {
         invoice_purchase_order = ?,
         invoice_closed = ?,
         last_sync = ?
-      WHERE user_id = ? AND id = ?
+      WHERE user_id = ? AND order_number = ?
     `,
       )
       .run(
@@ -949,7 +949,7 @@ export class OrderDatabaseNew {
 
     // Get current state before updating
     const currentOrder = this.db
-      .prepare(`SELECT current_state FROM orders WHERE user_id = ? AND id = ?`)
+      .prepare(`SELECT current_state FROM orders WHERE user_id = ? AND order_number = ?`)
       .get(userId, orderId) as { current_state: string | null } | undefined;
 
     if (!currentOrder) {
@@ -968,7 +968,7 @@ export class OrderDatabaseNew {
       UPDATE orders SET
         current_state = ?,
         last_sync = ?
-      WHERE user_id = ? AND id = ?
+      WHERE user_id = ? AND order_number = ?
     `,
       )
       .run(newState, now, userId, orderId);
@@ -1009,7 +1009,7 @@ export class OrderDatabaseNew {
   getStateHistory(userId: string, orderId: string): OrderStateHistoryRecord[] {
     // Verify order belongs to user
     const order = this.db
-      .prepare(`SELECT id FROM orders WHERE user_id = ? AND id = ?`)
+      .prepare(`SELECT id FROM orders WHERE user_id = ? AND order_number = ?`)
       .get(userId, orderId);
 
     if (!order) {
