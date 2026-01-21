@@ -118,6 +118,7 @@ export class OrderDatabaseNew {
   }
 
   private initSchema(): void {
+    // Create tables first (with all columns for new databases)
     this.db.exec(`
       CREATE TABLE IF NOT EXISTS orders (
         id TEXT PRIMARY KEY,
@@ -176,15 +177,6 @@ export class OrderDatabaseNew {
         archibald_order_id TEXT
       );
 
-      CREATE INDEX IF NOT EXISTS idx_orders_user_id ON orders(user_id);
-      CREATE INDEX IF NOT EXISTS idx_orders_number ON orders(order_number);
-      CREATE INDEX IF NOT EXISTS idx_orders_customer ON orders(customer_profile_id);
-      CREATE INDEX IF NOT EXISTS idx_orders_sync ON orders(last_sync);
-      CREATE INDEX IF NOT EXISTS idx_orders_status ON orders(sales_status);
-      CREATE INDEX IF NOT EXISTS idx_orders_current_state ON orders(current_state);
-      CREATE INDEX IF NOT EXISTS idx_orders_ddt ON orders(ddt_number);
-      CREATE INDEX IF NOT EXISTS idx_orders_invoice ON orders(invoice_number);
-
       CREATE TABLE IF NOT EXISTS order_articles (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         order_id TEXT NOT NULL,
@@ -197,9 +189,6 @@ export class OrderDatabaseNew {
         created_at TEXT NOT NULL,
         FOREIGN KEY (order_id) REFERENCES orders(id)
       );
-
-      CREATE INDEX IF NOT EXISTS idx_articles_order_id ON order_articles(order_id);
-      CREATE INDEX IF NOT EXISTS idx_articles_code ON order_articles(article_code);
 
       CREATE TABLE IF NOT EXISTS order_state_history (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -214,7 +203,17 @@ export class OrderDatabaseNew {
         created_at TEXT NOT NULL,
         FOREIGN KEY (order_id) REFERENCES orders(id)
       );
+    `);
 
+    // Create core indexes that work on all database versions
+    this.db.exec(`
+      CREATE INDEX IF NOT EXISTS idx_orders_user_id ON orders(user_id);
+      CREATE INDEX IF NOT EXISTS idx_orders_number ON orders(order_number);
+      CREATE INDEX IF NOT EXISTS idx_orders_customer ON orders(customer_profile_id);
+      CREATE INDEX IF NOT EXISTS idx_orders_sync ON orders(last_sync);
+      CREATE INDEX IF NOT EXISTS idx_orders_status ON orders(sales_status);
+      CREATE INDEX IF NOT EXISTS idx_articles_order_id ON order_articles(order_id);
+      CREATE INDEX IF NOT EXISTS idx_articles_code ON order_articles(article_code);
       CREATE INDEX IF NOT EXISTS idx_state_history_order ON order_state_history(order_id);
       CREATE INDEX IF NOT EXISTS idx_state_history_timestamp ON order_state_history(timestamp);
     `);
@@ -277,6 +276,48 @@ export class OrderDatabaseNew {
       );
     } else {
       logger.info("[OrderDatabaseNew] No migrations needed - schema up to date");
+    }
+
+    // Create indexes for new columns (after migration ensures columns exist)
+    // Re-check columns after migration to ensure new columns are present
+    const updatedColumns = this.db
+      .prepare("PRAGMA table_info(orders)")
+      .all() as Array<{ name: string }>;
+    const finalColumns = new Set(updatedColumns.map((c) => c.name));
+
+    // Create indexes only if columns exist
+    const indexesToCreate = [
+      {
+        name: "idx_orders_current_state",
+        column: "current_state",
+        sql: "CREATE INDEX IF NOT EXISTS idx_orders_current_state ON orders(current_state)",
+      },
+      {
+        name: "idx_orders_ddt",
+        column: "ddt_number",
+        sql: "CREATE INDEX IF NOT EXISTS idx_orders_ddt ON orders(ddt_number)",
+      },
+      {
+        name: "idx_orders_invoice",
+        column: "invoice_number",
+        sql: "CREATE INDEX IF NOT EXISTS idx_orders_invoice ON orders(invoice_number)",
+      },
+    ];
+
+    for (const idx of indexesToCreate) {
+      if (finalColumns.has(idx.column)) {
+        try {
+          this.db.exec(idx.sql);
+          logger.debug(
+            `[OrderDatabaseNew] Created index ${idx.name} on ${idx.column}`,
+          );
+        } catch (error) {
+          logger.warn(
+            `[OrderDatabaseNew] Failed to create index ${idx.name}`,
+            error,
+          );
+        }
+      }
     }
   }
 
