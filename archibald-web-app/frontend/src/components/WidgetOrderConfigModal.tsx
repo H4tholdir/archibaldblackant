@@ -102,7 +102,13 @@ export function WidgetOrderConfigModal({
 
   const parseAmount = (amount: string | null): number => {
     if (!amount) return 0;
-    const cleaned = amount.replace(/[^\d,.-]/g, "").replace(",", ".");
+    // Italian format: "1.791,01 €" -> 1791.01
+    // Remove currency symbols and spaces
+    let cleaned = amount.replace(/[€\s]/g, "");
+    // Remove thousand separators (dots in Italian format)
+    cleaned = cleaned.replace(/\./g, "");
+    // Replace decimal comma with dot
+    cleaned = cleaned.replace(",", ".");
     const parsed = parseFloat(cleaned);
     return isNaN(parsed) ? 0 : parsed;
   };
