@@ -1582,6 +1582,89 @@ app.get(
 );
 
 /**
+ * Get current sync schedule
+ * GET /api/sync/schedule
+ * Returns: configured intervals and start delays for all sync types
+ */
+app.get(
+  "/api/sync/schedule",
+  authenticateJWT,
+  (req: AuthRequest, res: Response) => {
+    res.json({
+      success: true,
+      data: {
+        orders: { interval: 10, startDelay: 0, unit: "minutes" },
+        customers: { interval: 30, startDelay: 5, unit: "minutes" },
+        prices: { interval: 30, startDelay: 10, unit: "minutes" },
+        invoices: { interval: 30, startDelay: 15, unit: "minutes" },
+        ddt: { interval: 45, startDelay: 20, unit: "minutes" },
+        products: { interval: 90, startDelay: 30, unit: "minutes" },
+      },
+    });
+  },
+);
+
+/**
+ * Configure sync schedule (admin only)
+ * POST /api/sync/schedule
+ * Allows adjusting intervals and stagger delays (future feature)
+ */
+app.post(
+  "/api/sync/schedule",
+  authenticateJWT,
+  (req: AuthRequest, res: Response) => {
+    // TODO: Add admin role check
+    // if (req.user!.role !== 'admin') return res.status(403).json({ error: 'Admin only' });
+
+    const { syncType, intervalMinutes, startDelayMinutes } = req.body;
+
+    // Validation
+    if (
+      ![
+        "orders",
+        "customers",
+        "products",
+        "prices",
+        "ddt",
+        "invoices",
+      ].includes(syncType)
+    ) {
+      return res.status(400).json({
+        success: false,
+        error:
+          "Invalid sync type. Must be: orders, customers, products, prices, ddt, or invoices",
+      });
+    }
+
+    if (
+      intervalMinutes !== undefined &&
+      (intervalMinutes < 5 || intervalMinutes > 180)
+    ) {
+      return res.status(400).json({
+        success: false,
+        error: "Interval must be between 5 and 180 minutes",
+      });
+    }
+
+    // TODO: Implement dynamic schedule reconfiguration
+    // For now, return current configuration
+    res.json({
+      success: true,
+      message:
+        "Schedule configuration (current implementation uses fixed intervals)",
+      currentConfig: {
+        orders: { interval: 10, startDelay: 0 },
+        customers: { interval: 30, startDelay: 5 },
+        prices: { interval: 30, startDelay: 10 },
+        invoices: { interval: 30, startDelay: 15 },
+        ddt: { interval: 45, startDelay: 20 },
+        products: { interval: 90, startDelay: 30 },
+      },
+    });
+  },
+);
+
+/**
  * Get products sync metrics (monitoring)
  * GET /api/products/sync/metrics
  * Returns: sync statistics and history for monitoring
