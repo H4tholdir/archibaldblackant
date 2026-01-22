@@ -263,10 +263,11 @@ Plans:
 **Depends on**: Phase 26
 **Research**: Unlikely (extending existing profiling system from Phase 3.1, same patterns)
 **Plans**: 4 plans created ✅
-**Status**: In progress (1/4 complete)
+**Status**: In progress (2/4 complete)
 
 Plans:
-- [x] 27-01: UI Optimization + Slowdown Infrastructure (direct paste article field, SlowdownConfig interface) — 45min ✅ COMPLETE
+- [x] 27-01: UI Optimization + Slowdown Infrastructure (direct paste article field, SlowdownConfig interface) — 24min ✅ COMPLETE
+- [x] 27-02: Binary Search Slowdown Optimizer (SlowdownOptimizer class with crash detection and bot restart) — 35min ✅ COMPLETE
 
 #### Phase 28: Bot Performance Optimization v2
 **Goal**: Raggiungere target < 60s per ordine (attualmente ~82s, riduzione -22s)
