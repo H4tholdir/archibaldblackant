@@ -79,17 +79,27 @@ export class CachePopulationService {
         message: `Salvataggio ${customers.length} clienti...`,
       });
 
-      // Ensure no undefined fields that could cause IndexedDB errors
-      const cleanedCustomers = customers.map((c: any) => {
-        const cleaned: any = {};
-        for (const key in c) {
-          if (c[key] !== undefined) {
-            cleaned[key] = c[key];
-          }
-        }
-        return cleaned;
-      });
-      await db.customers.bulkPut(cleanedCustomers as Customer[]);
+      // Map backend customer fields to frontend schema
+      // Backend uses: customerProfile (PRIMARY KEY), vatNumber, fiscalCode, street, postalCode, etc.
+      // Frontend expects: id (PRIMARY KEY), code, taxCode, address, cap, etc.
+      const mappedCustomers = customers.map((c: any) => ({
+        id: c.customerProfile || c.internalId || '', // Map customerProfile → id
+        name: c.name || '',
+        code: c.customerProfile || '', // Customer account number as code
+        taxCode: c.fiscalCode || c.vatNumber || '', // Map fiscalCode/vatNumber → taxCode
+        address: c.street || c.logisticsAddress || '', // Map street → address
+        city: c.city || '',
+        province: '', // Not provided by backend
+        cap: c.postalCode || '', // Map postalCode → cap
+        phone: c.phone || c.mobile || '', // Use phone or mobile
+        email: c.pec || '', // Use PEC email
+        fax: '', // Not provided by backend
+        lastModified: c.lastSync ? new Date(c.lastSync * 1000).toISOString() : new Date().toISOString(),
+        hash: c.hash || '',
+      }));
+
+      console.log('[CachePopulation] Mapped customers sample:', mappedCustomers.slice(0, 2));
+      await db.customers.bulkPut(mappedCustomers as Customer[]);
 
       onProgress?.({
         stage: "customers",
