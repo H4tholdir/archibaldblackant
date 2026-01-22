@@ -3,6 +3,7 @@ import { AuthRequest, authenticateJWT } from "../middleware/auth";
 import { syncScheduler, SyncProgress } from "../sync-scheduler";
 import { logger } from "../logger";
 import { EventEmitter } from "events";
+import { SyncOrchestrator } from "../sync-orchestrator";
 
 const router = Router();
 
@@ -129,18 +130,20 @@ router.post(
 
 /**
  * GET /api/sync/status
- * Get current sync status for all types
+ * Get current sync orchestrator status
+ * Returns: currentSync, queue, statuses for all types, smartSync info
  */
 router.get(
   "/api/sync/status",
   authenticateJWT,
   async (req: AuthRequest, res: Response) => {
     try {
-      const status = await syncScheduler.getSyncStatus();
+      const orchestrator = SyncOrchestrator.getInstance();
+      const status = orchestrator.getStatus();
 
       res.json({
         success: true,
-        data: status,
+        status,
       });
     } catch (error: any) {
       logger.error("Failed to get sync status", { error });

@@ -1563,6 +1563,7 @@ app.get(
   authenticateJWT,
   (req: AuthRequest, res: Response) => {
     try {
+      logger.info("[API] GET /api/sync/status - syncOrchestrator endpoint called");
       const status = syncOrchestrator.getStatus();
 
       res.json({

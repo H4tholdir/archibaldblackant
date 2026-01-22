@@ -35,6 +35,7 @@ export interface OrchestratorStatus {
   statuses: Record<SyncType, SyncStatus>;
   smartCustomerSyncActive: boolean;
   sessionCount: number;
+  safetyTimeoutActive: boolean;
 }
 
 /**
@@ -415,6 +416,7 @@ export class SyncOrchestrator extends EventEmitter {
       statuses,
       smartCustomerSyncActive: this.smartCustomerSyncActive,
       sessionCount: this.sessionCount,
+      safetyTimeoutActive: this.safetyTimeout !== null,
     };
   }
 
