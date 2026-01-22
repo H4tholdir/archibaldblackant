@@ -65,11 +65,30 @@ export class CacheService {
     query: string,
     limit = 50,
   ): Promise<ProductWithDetails[]> {
-    if (!query || query.length < 2) {
-      return [];
-    }
-
     const lowerQuery = query.toLowerCase();
+
+    // If query is empty or too short, return all products (limited)
+    if (!query || query.length < 2) {
+      const allProducts = await db.products.limit(limit).toArray();
+
+      // Enrich with variants and prices (parallel)
+      const enriched = await Promise.all(
+        allProducts.map(async (product) => {
+          const [variants, priceRecord] = await Promise.all([
+            db.productVariants.where("productId").equals(product.id).toArray(),
+            db.prices.where("articleId").equals(product.id).first(),
+          ]);
+
+          return {
+            ...product,
+            variants,
+            price: priceRecord?.price,
+          };
+        }),
+      );
+
+      return enriched;
+    }
 
     // Search products
     const products = await db.products
