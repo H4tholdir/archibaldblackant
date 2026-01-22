@@ -626,8 +626,8 @@ export default function OrderForm({
     if (!customerSearch) return true; // Show all if empty
     const searchLower = customerSearch.toLowerCase();
     return (
-      customer.name.toLowerCase().includes(searchLower) ||
-      customer.id.toLowerCase().includes(searchLower)
+      (customer.name && customer.name.toLowerCase().includes(searchLower)) ||
+      (customer.id && customer.id.toLowerCase().includes(searchLower))
     );
   });
 
@@ -636,8 +636,8 @@ export default function OrderForm({
     if (!productSearch) return true; // Show all if empty
     const searchLower = productSearch.toLowerCase();
     return (
-      product.name.toLowerCase().includes(searchLower) ||
-      product.id.toLowerCase().includes(searchLower) ||
+      (product.name && product.name.toLowerCase().includes(searchLower)) ||
+      (product.id && product.id.toLowerCase().includes(searchLower)) ||
       (product.description &&
         product.description.toLowerCase().includes(searchLower))
     );

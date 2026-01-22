@@ -1,5 +1,5 @@
-import { db } from '../db/schema';
-import type { Customer, Product, ProductVariant } from '../db/schema';
+import { db } from "../db/schema";
+import type { Customer, Product, ProductVariant } from "../db/schema";
 
 export interface ProductWithDetails extends Product {
   variants: ProductVariant[];
@@ -31,11 +31,11 @@ export class CacheService {
 
     // Use Dexie compound index for fast search
     const results = await db.customers
-      .where('name')
+      .where("name")
       .startsWithIgnoreCase(query)
-      .or('code')
+      .or("code")
       .startsWithIgnoreCase(query)
-      .or('city')
+      .or("city")
       .startsWithIgnoreCase(query)
       .limit(limit)
       .toArray();
@@ -44,10 +44,11 @@ export class CacheService {
     if (results.length === 0) {
       const allCustomers = await db.customers.toArray();
       return allCustomers
-        .filter(c =>
-          c.name.toLowerCase().includes(lowerQuery) ||
-          c.code.toLowerCase().includes(lowerQuery) ||
-          c.city.toLowerCase().includes(lowerQuery)
+        .filter(
+          (c) =>
+            (c.name && c.name.toLowerCase().includes(lowerQuery)) ||
+            (c.code && c.code.toLowerCase().includes(lowerQuery)) ||
+            (c.city && c.city.toLowerCase().includes(lowerQuery)),
         )
         .slice(0, limit);
     }
@@ -60,7 +61,10 @@ export class CacheService {
    * Includes variants and price
    * Performance target: < 100ms
    */
-  async searchProducts(query: string, limit = 50): Promise<ProductWithDetails[]> {
+  async searchProducts(
+    query: string,
+    limit = 50,
+  ): Promise<ProductWithDetails[]> {
     if (!query || query.length < 2) {
       return [];
     }
@@ -69,9 +73,9 @@ export class CacheService {
 
     // Search products
     const products = await db.products
-      .where('name')
+      .where("name")
       .startsWithIgnoreCase(query)
-      .or('article')
+      .or("article")
       .startsWithIgnoreCase(query)
       .limit(limit)
       .toArray();
@@ -81,9 +85,10 @@ export class CacheService {
     if (products.length === 0) {
       const allProducts = await db.products.toArray();
       finalProducts = allProducts
-        .filter(p =>
-          p.name.toLowerCase().includes(lowerQuery) ||
-          p.article.toLowerCase().includes(lowerQuery)
+        .filter(
+          (p) =>
+            (p.name && p.name.toLowerCase().includes(lowerQuery)) ||
+            (p.article && p.article.toLowerCase().includes(lowerQuery)),
         )
         .slice(0, limit);
     }
@@ -92,16 +97,16 @@ export class CacheService {
     const enriched = await Promise.all(
       finalProducts.map(async (product) => {
         const [variants, priceRecord] = await Promise.all([
-          db.productVariants.where('productId').equals(product.id).toArray(),
-          db.prices.where('articleId').equals(product.id).first()
+          db.productVariants.where("productId").equals(product.id).toArray(),
+          db.prices.where("articleId").equals(product.id).first(),
         ]);
 
         return {
           ...product,
           variants,
-          price: priceRecord?.price
+          price: priceRecord?.price,
         };
-      })
+      }),
     );
 
     return enriched;
@@ -111,7 +116,7 @@ export class CacheService {
    * Get cache age in hours
    */
   async getCacheAge(): Promise<number | null> {
-    const metadata = await db.cacheMetadata.get('customers');
+    const metadata = await db.cacheMetadata.get("customers");
 
     if (!metadata) {
       return null;
@@ -154,14 +159,14 @@ export class CacheService {
     }
 
     const [variants, priceRecord] = await Promise.all([
-      db.productVariants.where('productId').equals(id).toArray(),
-      db.prices.where('articleId').equals(id).first()
+      db.productVariants.where("productId").equals(id).toArray(),
+      db.prices.where("articleId").equals(id).first(),
     ]);
 
     return {
       ...product,
       variants,
-      price: priceRecord?.price
+      price: priceRecord?.price,
     };
   }
 }
