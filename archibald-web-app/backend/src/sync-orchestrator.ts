@@ -1,0 +1,415 @@
+import { EventEmitter } from "events";
+import { CustomerSyncService } from "./customer-sync-service";
+import { ProductSyncService } from "./product-sync-service";
+import { PriceSyncService } from "./price-sync-service";
+import { OrderSyncService } from "./order-sync-service";
+import { DdtSyncService } from "./ddt-sync-service";
+import { InvoiceSyncService } from "./invoice-sync-service";
+import { logger } from "./logger";
+
+export type SyncType =
+  | "customers"
+  | "products"
+  | "prices"
+  | "orders"
+  | "ddt"
+  | "invoices";
+
+export interface SyncRequest {
+  type: SyncType;
+  priority: number;
+  requestedAt: Date;
+}
+
+export interface SyncStatus {
+  type: SyncType;
+  isRunning: boolean;
+  lastRunTime: Date | null;
+  queuePosition: number | null;
+}
+
+export interface OrchestratorStatus {
+  currentSync: SyncType | null;
+  queue: SyncRequest[];
+  statuses: Record<SyncType, SyncStatus>;
+  smartCustomerSyncActive: boolean;
+  sessionCount: number;
+}
+
+/**
+ * Centralized coordinator for all sync operations.
+ * Ensures mutual exclusion - only one sync runs at a time.
+ * Handles priority queueing and Smart Customer Sync.
+ */
+export class SyncOrchestrator extends EventEmitter {
+  private static instance: SyncOrchestrator;
+
+  // Sync services
+  private customerSync: CustomerSyncService;
+  private productSync: ProductSyncService;
+  private priceSync: PriceSyncService;
+  private orderSync: OrderSyncService;
+  private ddtSync: DdtSyncService;
+  private invoiceSync: InvoiceSyncService;
+
+  // Mutex and queue
+  private currentSync: SyncType | null = null;
+  private queue: SyncRequest[] = [];
+  private lastRunTimes: Record<SyncType, Date | null> = {
+    customers: null,
+    products: null,
+    prices: null,
+    orders: null,
+    ddt: null,
+    invoices: null,
+  };
+
+  // Smart Customer Sync tracking
+  private smartCustomerSyncActive = false;
+  private sessionCount = 0;
+  private safetyTimeout: NodeJS.Timeout | null = null;
+  private readonly SAFETY_TIMEOUT_MS = 10 * 60 * 1000; // 10 minutes
+
+  private constructor() {
+    super();
+    this.customerSync = CustomerSyncService.getInstance();
+    this.productSync = ProductSyncService.getInstance();
+    this.priceSync = PriceSyncService.getInstance();
+    this.orderSync = OrderSyncService.getInstance();
+    this.ddtSync = DdtSyncService.getInstance();
+    this.invoiceSync = InvoiceSyncService.getInstance();
+  }
+
+  static getInstance(): SyncOrchestrator {
+    if (!SyncOrchestrator.instance) {
+      SyncOrchestrator.instance = new SyncOrchestrator();
+    }
+    return SyncOrchestrator.instance;
+  }
+
+  /**
+   * Get default priority for a sync type.
+   * Higher number = higher priority.
+   */
+  private getDefaultPriority(type: SyncType): number {
+    const priorities: Record<SyncType, number> = {
+      orders: 6, // Highest priority (real-time data, most critical)
+      customers: 5, // High priority (needed for orders)
+      ddt: 4, // Medium-high priority (transport documents)
+      invoices: 3, // Medium priority (financial data)
+      prices: 2, // Lower priority (pricing data)
+      products: 1, // Lowest priority (catalog changes rare)
+    };
+    return priorities[type];
+  }
+
+  /**
+   * Request a sync operation.
+   * Adds to queue if another sync is running, otherwise starts immediately.
+   */
+  async requestSync(type: SyncType, priority?: number): Promise<void> {
+    const finalPriority = priority ?? this.getDefaultPriority(type);
+
+    // If Smart Customer Sync is active, queue non-customer syncs
+    if (this.smartCustomerSyncActive && type !== "customers") {
+      logger.info(
+        `[SyncOrchestrator] Smart Customer Sync active, queueing ${type}`,
+      );
+      this.addToQueue(type, finalPriority);
+      return;
+    }
+
+    // If a sync is already running, queue this request
+    if (this.currentSync !== null) {
+      logger.info(
+        `[SyncOrchestrator] ${this.currentSync} sync in progress, queueing ${type}`,
+      );
+      this.addToQueue(type, finalPriority);
+      return;
+    }
+
+    // No sync running, start immediately
+    await this.executeSync(type);
+  }
+
+  /**
+   * Add sync request to priority queue.
+   */
+  private addToQueue(type: SyncType, priority: number): void {
+    // Check if already queued
+    const existingIndex = this.queue.findIndex((req) => req.type === type);
+    if (existingIndex !== -1) {
+      // Update priority if higher
+      if (priority > this.queue[existingIndex].priority) {
+        this.queue[existingIndex].priority = priority;
+        this.sortQueue();
+      }
+      return;
+    }
+
+    // Add new request
+    this.queue.push({
+      type,
+      priority,
+      requestedAt: new Date(),
+    });
+
+    this.sortQueue();
+    this.emit("queue-updated", this.getStatus());
+  }
+
+  /**
+   * Sort queue by priority (highest first).
+   */
+  private sortQueue(): void {
+    this.queue.sort((a, b) => b.priority - a.priority);
+  }
+
+  /**
+   * Execute a sync operation.
+   */
+  private async executeSync(type: SyncType): Promise<void> {
+    this.currentSync = type;
+    this.emit("sync-started", { type });
+
+    logger.info(`[SyncOrchestrator] Starting ${type} sync`);
+
+    try {
+      switch (type) {
+        case "customers":
+          await this.customerSync.syncCustomers();
+          break;
+        case "products":
+          await this.productSync.syncProducts();
+          break;
+        case "prices":
+          await this.priceSync.syncPrices();
+          break;
+        case "orders":
+          await this.orderSync.syncOrders();
+          break;
+        case "ddt":
+          await this.ddtSync.syncDdts();
+          break;
+        case "invoices":
+          await this.invoiceSync.syncInvoices();
+          break;
+      }
+
+      this.lastRunTimes[type] = new Date();
+      logger.info(`[SyncOrchestrator] Completed ${type} sync`);
+      this.emit("sync-completed", { type });
+    } catch (error) {
+      logger.error(`[SyncOrchestrator] Error in ${type} sync:`, error);
+      this.emit("sync-error", { type, error });
+    } finally {
+      this.currentSync = null;
+      await this.processQueue();
+    }
+  }
+
+  /**
+   * Process next item in queue.
+   */
+  private async processQueue(): Promise<void> {
+    if (this.queue.length === 0) {
+      return;
+    }
+
+    // If Smart Customer Sync is active, don't process queue
+    if (this.smartCustomerSyncActive) {
+      logger.info(
+        "[SyncOrchestrator] Smart Customer Sync active, not processing queue",
+      );
+      return;
+    }
+
+    const nextRequest = this.queue.shift();
+    if (nextRequest) {
+      await this.executeSync(nextRequest.type);
+    }
+  }
+
+  /**
+   * Smart Customer Sync: fast, on-demand sync triggered when entering order form.
+   * Pauses other syncs to ensure quick completion (3-5 seconds).
+   */
+  async smartCustomerSync(): Promise<void> {
+    if (this.smartCustomerSyncActive) {
+      logger.info(
+        "[SyncOrchestrator] Smart Customer Sync already active, incrementing session count",
+      );
+      this.sessionCount++;
+      this.resetSafetyTimeout();
+      return;
+    }
+
+    logger.info("[SyncOrchestrator] Starting Smart Customer Sync");
+    this.smartCustomerSyncActive = true;
+    this.sessionCount = 1;
+    this.resetSafetyTimeout();
+
+    this.emit("smart-sync-started");
+
+    try {
+      // Wait for current sync to finish if one is running
+      if (this.currentSync !== null && this.currentSync !== "customers") {
+        logger.info(
+          `[SyncOrchestrator] Waiting for ${this.currentSync} to complete`,
+        );
+        await this.waitForCurrentSync();
+      }
+
+      // Execute fast customer sync with high priority
+      await this.requestSync("customers", 100);
+    } catch (error) {
+      logger.error("[SyncOrchestrator] Smart Customer Sync error:", error);
+      this.smartCustomerSyncActive = false;
+      this.sessionCount = 0;
+      this.clearSafetyTimeout();
+      throw error;
+    }
+  }
+
+  /**
+   * Resume other syncs when user exits order form.
+   * Uses reference counting to handle multiple browser tabs.
+   */
+  resumeOtherSyncs(): void {
+    if (!this.smartCustomerSyncActive) {
+      logger.warn(
+        "[SyncOrchestrator] Resume called but Smart Customer Sync not active",
+      );
+      return;
+    }
+
+    this.sessionCount--;
+    logger.info(
+      `[SyncOrchestrator] Session count decremented to ${this.sessionCount}`,
+    );
+
+    if (this.sessionCount <= 0) {
+      this.sessionCount = 0;
+      this.smartCustomerSyncActive = false;
+      this.clearSafetyTimeout();
+
+      logger.info(
+        "[SyncOrchestrator] Smart Customer Sync ended, resuming queue",
+      );
+      this.emit("smart-sync-ended");
+
+      // Process queued syncs
+      this.processQueue();
+    } else {
+      this.resetSafetyTimeout();
+    }
+  }
+
+  /**
+   * Wait for current sync to complete.
+   */
+  private waitForCurrentSync(): Promise<void> {
+    return new Promise((resolve) => {
+      if (this.currentSync === null) {
+        resolve();
+        return;
+      }
+
+      const onComplete = () => {
+        this.off("sync-completed", onComplete);
+        this.off("sync-error", onComplete);
+        resolve();
+      };
+
+      this.on("sync-completed", onComplete);
+      this.on("sync-error", onComplete);
+    });
+  }
+
+  /**
+   * Reset safety timeout: auto-resume syncs after 10 minutes of inactivity.
+   */
+  private resetSafetyTimeout(): void {
+    this.clearSafetyTimeout();
+
+    this.safetyTimeout = setTimeout(() => {
+      logger.warn(
+        "[SyncOrchestrator] Safety timeout reached, force-resuming syncs",
+      );
+      this.smartCustomerSyncActive = false;
+      this.sessionCount = 0;
+      this.emit("smart-sync-timeout");
+      this.processQueue();
+    }, this.SAFETY_TIMEOUT_MS);
+  }
+
+  /**
+   * Clear safety timeout.
+   */
+  private clearSafetyTimeout(): void {
+    if (this.safetyTimeout) {
+      clearTimeout(this.safetyTimeout);
+      this.safetyTimeout = null;
+    }
+  }
+
+  /**
+   * Get current orchestrator status.
+   */
+  getStatus(): OrchestratorStatus {
+    const statuses: Record<SyncType, SyncStatus> = {
+      customers: {
+        type: "customers",
+        isRunning: this.currentSync === "customers",
+        lastRunTime: this.lastRunTimes.customers,
+        queuePosition: this.getQueuePosition("customers"),
+      },
+      products: {
+        type: "products",
+        isRunning: this.currentSync === "products",
+        lastRunTime: this.lastRunTimes.products,
+        queuePosition: this.getQueuePosition("products"),
+      },
+      prices: {
+        type: "prices",
+        isRunning: this.currentSync === "prices",
+        lastRunTime: this.lastRunTimes.prices,
+        queuePosition: this.getQueuePosition("prices"),
+      },
+      orders: {
+        type: "orders",
+        isRunning: this.currentSync === "orders",
+        lastRunTime: this.lastRunTimes.orders,
+        queuePosition: this.getQueuePosition("orders"),
+      },
+      ddt: {
+        type: "ddt",
+        isRunning: this.currentSync === "ddt",
+        lastRunTime: this.lastRunTimes.ddt,
+        queuePosition: this.getQueuePosition("ddt"),
+      },
+      invoices: {
+        type: "invoices",
+        isRunning: this.currentSync === "invoices",
+        lastRunTime: this.lastRunTimes.invoices,
+        queuePosition: this.getQueuePosition("invoices"),
+      },
+    };
+
+    return {
+      currentSync: this.currentSync,
+      queue: [...this.queue],
+      statuses,
+      smartCustomerSyncActive: this.smartCustomerSyncActive,
+      sessionCount: this.sessionCount,
+    };
+  }
+
+  /**
+   * Get queue position for a sync type (null if not queued).
+   */
+  private getQueuePosition(type: SyncType): number | null {
+    const index = this.queue.findIndex((req) => req.type === type);
+    return index === -1 ? null : index + 1;
+  }
+}
