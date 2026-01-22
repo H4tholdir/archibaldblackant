@@ -2113,7 +2113,7 @@ export default function OrderForm({
                         {product.name}
                         {product.price && product.price > 0 && (
                           <span className="product-price-badge">
-                            €{product.price.toFixed(2)}
+                            €{product.price.toFixed(2)} + IVA → €{(product.price * 1.22).toFixed(2)}
                           </span>
                         )}
                       </div>
