@@ -294,7 +294,8 @@ export class BrowserPool {
       userId === "product-sync-service" ||
       userId === "customer-sync-service" ||
       userId === "price-sync-service" ||
-      userId === "order-sync-service";
+      userId === "order-sync-service" ||
+      userId === "sync-orchestrator";
 
     let username: string;
     let password: string;
