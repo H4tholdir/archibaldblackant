@@ -9,19 +9,19 @@ See: .planning/PROJECT.md (updated 2026-01-11)
 
 ## Current Position
 
-Phase: 22 of 28 (Sync Orchestration Layer)
-Plan: 3 of 3 in current phase
+Phase: 23 of 28 (Sync UI Controls)
+Plan: 1 of 1 in current phase
 Status: Complete ✅
-Last activity: 2026-01-22 — Completed 22-03-PLAN.md (Comprehensive Testing & Verification)
+Last activity: 2026-01-22 — Completed 23-01-PLAN.md (Unified Sync Management UI)
 
-Progress: █████░░░░░ 44% (v2.0: 11/15 phases in progress, 39/68 plans)
+Progress: █████░░░░░ 46% (v2.0: 12/15 phases in progress, 40/68 plans)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 107
+- Total plans completed: 108
 - Average duration: 48 min
-- Total execution time: 92.7 hours
+- Total execution time: 93.7 hours
 
 **By Phase:**
 
@@ -49,9 +49,10 @@ Progress: █████░░░░░ 44% (v2.0: 11/15 phases in progress, 39
 | 20 | 6 | 330 min | 55 min |
 | 21 | 5 | 353 min | 71 min |
 | 22 | 3 | 60 min | 20 min |
+| 23 | 1 | 60 min | 60 min |
 
 **Recent Trend:**
-- Last 10 plans: 20-05 (60m), 20-06 (60m), 21-01 (90m), 21-02 (8m), 21-03 (45m), 21-04 (90m), 21-05 (120m), 22-01 (15m), 22-02 (15m), 22-03 (30m)
+- Last 10 plans: 20-06 (60m), 21-01 (90m), 21-02 (8m), 21-03 (45m), 21-04 (90m), 21-05 (120m), 22-01 (15m), 22-02 (15m), 22-03 (30m), 23-01 (60m)
 - Phase 9 extremely fast (avg 11m) - leveraging existing Phase 8-07 infrastructure
 - Phase 10 high avg (105m) - includes 521m for Plan 10-07 (heavy login debugging)
 - Phase 14 complete (5 plans avg 9m) - 4 discovery plans + 1 execution plan, all IndexedDB errors fixed ✅ COMPLETE
@@ -68,6 +69,10 @@ Recent decisions affecting current work:
 
 | Phase | Decision | Rationale |
 |-------|----------|-----------|
+| 23-01 | 6 sync types in control panel (not 4) | Complete coverage of all Archibald data types (customers, products, prices, orders, ddt, invoices) for unified management |
+| 23-01 | Delete DB button per sync section | Enables clean re-sync from scratch when data corruption or schema changes occur, with confirmation dialog for safety |
+| 23-01 | Responsive menu fallback for orders PDF | Handles Archibald UI behavior change on narrow screens (mobile agents), tries DXI9→DXI7 first, then fallback to DXI3 |
+| 23-01 | Products priority > prices priority | Ensures price matching has products available (foreign key dependency), products=2, prices=1 |
 | 21-05 | Three separate sync buttons (no combined) | Each sync type independent lifecycle, user control granularity, simpler UX than combined button with checkboxes |
 | 21-05 | Toggle "essenziali" shows status + tracking only | Reduces visual clutter for mobile agents, most critical info at a glance, localStorage persistence per user |
 | 21-05 | Remove clickable icons from order/DDT numbers | User feedback: icons confusing, numbers already copyable via text selection, cleaner UI |
@@ -608,8 +613,8 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-01-22 (afternoon)
-Stopped at: Completed Phase 22, Plan 03 (Comprehensive Testing & Verification) ✅
-Next: Phase 23 (Sync UI Controls) planning
+Stopped at: Completed Phase 23, Plan 01 (Unified Sync Management UI) ✅
+Next: Phase 24 (Background Sync Service) planning
 Resume file: None
 
 ### Session 95 (2026-01-20)
