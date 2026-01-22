@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { useVoiceInput } from "../hooks/useVoiceInput";
 import {
@@ -687,19 +687,28 @@ export default function OrderForm({
     );
   });
 
-  // Filter products based on search
-  const filteredProducts = products.filter((product) => {
-    if (!productSearch) return true; // Show all if empty
+  // Filter products based on search (memoized for performance)
+  const filteredProducts = useMemo(() => {
+    console.log('[Filter] Computing filteredProducts', {
+      productsLength: products.length,
+      productSearch,
+      timestamp: Date.now()
+    });
+
+    if (!productSearch) return products; // Show all if empty
+
     const searchLower = productSearch.toLowerCase();
-    return (
-      (product.name && product.name.toLowerCase().includes(searchLower)) ||
-      (product.article &&
-        product.article.toLowerCase().includes(searchLower)) ||
-      (product.id && product.id.toLowerCase().includes(searchLower)) ||
-      (product.description &&
-        product.description.toLowerCase().includes(searchLower))
-    );
-  });
+    return products.filter((product) => {
+      return (
+        (product.name && product.name.toLowerCase().includes(searchLower)) ||
+        (product.article &&
+          product.article.toLowerCase().includes(searchLower)) ||
+        (product.id && product.id.toLowerCase().includes(searchLower)) ||
+        (product.description &&
+          product.description.toLowerCase().includes(searchLower))
+      );
+    });
+  }, [products, productSearch]);
 
   // Customer selection handler
   const handleCustomerSelect = (customer: Customer) => {
@@ -2136,7 +2145,6 @@ export default function OrderForm({
             />
 
             {showProductDropdown &&
-              products.length > 0 &&
               filteredProducts.length > 0 && (
                 <div className="autocomplete-dropdown" ref={productDropdownRef}>
                   {filteredProducts.slice(0, 10).map((product) => (

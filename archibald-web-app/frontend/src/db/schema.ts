@@ -177,6 +177,29 @@ export class ArchibaldDatabase extends Dexie {
       // Force re-sync by clearing cache metadata
       await trans.table('cacheMetadata').clear();
     });
+
+    // Version 5: Fix customer schema mismatch (customerProfile → id mapping)
+    this.version(5).stores({
+      // Same schema as v4
+      customers: 'id, name, code, city, *hash',
+      products: 'id, name, article, *hash',
+      productVariants: '++id, productId, variantId',
+      prices: '++id, articleId, articleName',
+      draftOrders: '++id, customerId, createdAt, updatedAt',
+      pendingOrders: '++id, status, createdAt',
+      cacheMetadata: 'key, lastSynced'
+    }).upgrade(async (trans) => {
+      // Clear customers to force re-sync with correct field mapping
+      console.log('[IndexedDB:Schema]', {
+        operation: 'migration',
+        version: 'v4→v5',
+        action: 'Clearing customers (customerProfile → id mapping fix)',
+        timestamp: new Date().toISOString(),
+      });
+      await trans.table('customers').clear();
+      // Force re-sync by clearing cache metadata
+      await trans.table('cacheMetadata').clear();
+    });
   }
 }
 
