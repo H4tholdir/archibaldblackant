@@ -37,7 +37,7 @@ async function runProfilingOrchestrator() {
   ];
 
   const browserPool = BrowserPool.getInstance();
-  const bot = new ArchibaldBot("profiling-service");
+  const bot = new ArchibaldBot("order-sync-service");
   const optimizer = new SlowdownOptimizer(bot, "fresis", "TD1272.314");
 
   const results: Record<string, number> = {};
@@ -55,9 +55,8 @@ async function runProfilingOrchestrator() {
     article: metadata.test_article,
   });
 
-  // Initialize bot before profiling
+  // Initialize bot before profiling (includes login via BrowserPool)
   await bot.initialize();
-  await bot.login();
 
   for (let i = 0; i < steps.length; i++) {
     const stepName = steps[i];
