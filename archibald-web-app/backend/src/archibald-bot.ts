@@ -13,6 +13,15 @@ import { BrowserPool } from "./browser-pool";
 import { PasswordCache } from "./password-cache";
 import type { OrderData } from "./types";
 
+/**
+ * Configuration for per-step slowdown values (in milliseconds).
+ * Maps step names to their slowdown duration.
+ * If a step is not in the config, the default 200ms is used.
+ */
+interface SlowdownConfig {
+  [stepName: string]: number;
+}
+
 export class ArchibaldBot {
   private browser: Browser | null = null;
   private context: BrowserContext | null = null;
@@ -21,6 +30,7 @@ export class ArchibaldBot {
   private productDb: ProductDatabase;
   private legacySessionCache: SessionCacheManager | null = null;
   private multiUserSessionCache: MultiUserSessionCacheManager | null = null;
+  private slowdownConfig: SlowdownConfig = {}; // Per-step slowdown configuration
   private opSeq = 0;
   private lastOpEndNs: bigint | null = null;
   private hasError = false;
@@ -71,7 +81,14 @@ export class ArchibaldBot {
       typeof meta.retryAttempt === "number" ? meta.retryAttempt : 0;
     const memoryBefore = process.memoryUsage().heapUsed;
 
-    logger.debug(`[OP ${opId} START] ${name}`, { gapMs, ...meta });
+    // Add slowdown config to metadata if non-empty
+    const enrichedMeta = {
+      ...meta,
+      slowdownConfigActive:
+        Object.keys(this.slowdownConfig).length > 0 ? true : false,
+    };
+
+    logger.debug(`[OP ${opId} START] ${name}`, { gapMs, ...enrichedMeta });
 
     try {
       const result = await fn();
@@ -91,7 +108,7 @@ export class ArchibaldBot {
         retryAttempt,
         memoryBefore,
         memoryAfter,
-        meta,
+        meta: enrichedMeta,
       });
       logger.debug(`[OP ${opId} END] ${name}`, { durationMs });
       return result;
@@ -114,7 +131,7 @@ export class ArchibaldBot {
         retryAttempt,
         memoryBefore,
         memoryAfter,
-        meta,
+        meta: enrichedMeta,
         errorMessage,
       });
       logger.error(`[OP ${opId} ERROR] ${name}`, {
@@ -670,6 +687,15 @@ export class ArchibaldBot {
    */
   private async wait(ms: number): Promise<void> {
     return new Promise((resolve) => setTimeout(resolve, ms));
+  }
+
+  /**
+   * Get slowdown value for a specific step from config, with 200ms default fallback
+   * @param stepName - Name of the step (e.g., "click_ordini", "paste_customer")
+   * @returns Slowdown value in milliseconds
+   */
+  private getSlowdown(stepName: string): number {
+    return this.slowdownConfig[stepName] ?? 200;
   }
 
   /**
@@ -1844,10 +1870,17 @@ export class ArchibaldBot {
   /**
    * Create a new order in Archibald
    * @param orderData - Order data with customer and items
+   * @param slowdownConfig - Optional per-step slowdown configuration (milliseconds). Defaults to 200ms for all steps.
    * @returns Order ID
    */
-  async createOrder(orderData: OrderData): Promise<string> {
+  async createOrder(
+    orderData: OrderData,
+    slowdownConfig?: SlowdownConfig,
+  ): Promise<string> {
     if (!this.page) throw new Error("Browser non inizializzato");
+
+    // Store slowdown config for use in wait calls
+    this.slowdownConfig = slowdownConfig || {};
 
     logger.info("🤖 BOT: INIZIO creazione ordine", {
       customerName: orderData.customerName,
@@ -1856,6 +1889,9 @@ export class ArchibaldBot {
         name: item.articleCode,
         qty: item.quantity,
       })),
+      slowdownConfig: Object.keys(this.slowdownConfig).length > 0
+        ? this.slowdownConfig
+        : "default (200ms)",
     });
 
     let orderId = "";
@@ -1888,6 +1924,9 @@ export class ArchibaldBot {
             },
             { timeout: 5000 },
           );
+
+          // Slowdown after navigation
+          await this.wait(this.getSlowdown("click_ordini"));
 
           logger.info("✅ Navigated to orders list");
         },
@@ -1934,6 +1973,10 @@ export class ArchibaldBot {
           }
 
           await this.waitForDevExpressReady({ timeout: 5000 });
+
+          // Slowdown after form load
+          await this.wait(this.getSlowdown("click_nuovo"));
+
           logger.info("✅ Order form loaded");
         },
         "navigation.form",
@@ -2326,6 +2369,9 @@ export class ArchibaldBot {
 
           logger.info(`✅ Customer selected: ${orderData.customerName}`);
           await this.waitForDevExpressReady({ timeout: 3000 });
+
+          // Slowdown after customer selection
+          await this.wait(this.getSlowdown("select_customer"));
         },
         "form.customer",
       );
@@ -2499,6 +2545,9 @@ export class ArchibaldBot {
           }
 
           logger.info("✅ New line item row created and verified");
+
+          // Slowdown after new line item creation
+          await this.wait(this.getSlowdown("click_new_article"));
         },
         "form.multi_article",
       );
@@ -2541,221 +2590,26 @@ export class ArchibaldBot {
           "form.package",
         );
 
-        // 5.2: Open "Nome articolo" dropdown (GRID CELL APPROACH)
+        // 5.2: Direct paste in article name field (OPTIMIZED - eliminates dropdown click + search click)
         await this.runOp(
-          `order.item.${i}.open_article_dropdown`,
+          `order.item.${i}.paste_article_direct`,
           async () => {
-            logger.debug("Looking for article dropdown in grid cell...");
+            const selectedVariant = (item as any)._selectedVariant;
+            const searchTerm = item.articleCode; // Use article code like "TD1272.314"
+            logger.debug(
+              `Direct paste optimization: pasting "${searchTerm}" into article field (will select variant: ${selectedVariant.id})`,
+            );
 
             // Wait for grid to be ready
             await this.wait(1000);
 
-            // In DevExpress grids, dropdowns in edit mode work differently
-            // Strategy 1: Find the table cell for "NOME ARTICOLO" column and click it
-            // Strategy 2: Look for the dropdown with "N/A" value (default for empty article)
-
-            const articleDropdownInfo = await this.page!.evaluate(() => {
-              // Look for all visible dropdown inputs in the grid
-              const inputs = Array.from(
-                document.querySelectorAll('input[type="text"]'),
-              );
-
-              // Strategy 1: Find by column pattern - look for ITEMID specifically
-              const itemIdInput = inputs.find((input) => {
-                const id = (input as HTMLInputElement).id.toLowerCase();
-                const value = (input as HTMLInputElement).value;
-                // ITEMID is the article code column, typically shows N/A when empty
-                return (
-                  id.includes("itemid") &&
-                  id.includes("salesline") &&
-                  (input as HTMLElement).offsetParent !== null
-                );
-              });
-
-              if (itemIdInput) {
-                return {
-                  found: true,
-                  strategy: "itemid",
-                  id: (itemIdInput as HTMLInputElement).id,
-                  value: (itemIdInput as HTMLInputElement).value,
-                };
-              }
-
-              // Strategy 2: Find by value "N/A" in the grid (common default for empty article)
-              const naInput = inputs.find((input) => {
-                const value = (input as HTMLInputElement).value;
-                const id = (input as HTMLInputElement).id.toLowerCase();
-                return (
-                  value === "N/A" &&
-                  id.includes("salesline") &&
-                  !id.includes("linenum") && // Exclude line number field
-                  (input as HTMLElement).offsetParent !== null
-                );
-              });
-
-              if (naInput) {
-                return {
-                  found: true,
-                  strategy: "na-value",
-                  id: (naInput as HTMLInputElement).id,
-                  value: (naInput as HTMLInputElement).value,
-                };
-              }
-
-              // Strategy 3: Look for first editable field in SALESLINES that is NOT LINENUM
-              const firstEditableInGrid = inputs.find((input) => {
-                const id = (input as HTMLInputElement).id.toLowerCase();
-                const value = (input as HTMLInputElement).value;
-                return (
-                  id.includes("salesline") &&
-                  id.includes("editnew") &&
-                  !id.includes("linenum") && // Skip line number
-                  !id.includes("qty") && // Skip quantity (we'll handle that later)
-                  !id.includes("price") && // Skip price
-                  !id.includes("discount") && // Skip discount
-                  (input as HTMLElement).offsetParent !== null &&
-                  !(input as HTMLInputElement).readOnly
-                );
-              });
-
-              if (firstEditableInGrid) {
-                return {
-                  found: true,
-                  strategy: "first-editable",
-                  id: (firstEditableInGrid as HTMLInputElement).id,
-                  value: (firstEditableInGrid as HTMLInputElement).value,
-                };
-              }
-
-              return { found: false };
-            });
-
-            if (!articleDropdownInfo.found) {
-              await this.page!.screenshot({
-                path: `logs/article-dropdown-not-found-${Date.now()}.png`,
-                fullPage: true,
-              });
-              throw new Error("Article dropdown not found in grid");
-            }
-
-            logger.debug(
-              `Found article dropdown using strategy: ${articleDropdownInfo.strategy}`,
-              {
-                id: articleDropdownInfo.id,
-                value: articleDropdownInfo.value,
-              },
-            );
-
-            // Store for later use
-            if (!articleDropdownInfo.id) {
-              throw new Error("Article dropdown ID not found");
-            }
-            const articleInputId = articleDropdownInfo.id;
-            const articleBaseId = articleInputId.endsWith("_I")
-              ? articleInputId.slice(0, -2)
-              : articleInputId;
-
-            // Click the dropdown button
-            const dropdownSelectors = [
-              `#${articleBaseId}_B-1`, // Standard DevExpress dropdown button
-              `#${articleBaseId}_B-1Img`,
-              `#${articleBaseId}_B`,
-              `#${articleBaseId}_DDD_B-1`, // Alternative pattern
-            ];
-
-            let dropdownOpened = false;
-            for (const selector of dropdownSelectors) {
-              const handle = await this.page!.$(selector);
-              if (!handle) continue;
-              const box = await handle.boundingBox();
-              if (!box) continue;
-
-              // Scroll into view
-              await handle.evaluate((el) => {
-                (el as HTMLElement).scrollIntoView({ block: "center" });
-              });
-              await this.wait(200);
-
-              await handle.click();
-              dropdownOpened = true;
-              logger.debug(`✓ Article dropdown clicked: ${selector}`);
-              break;
-            }
-
-            if (!dropdownOpened) {
-              // Try clicking the input field directly (might open dropdown)
-              const inputHandle = await this.page!.$(`#${articleInputId}`);
-              if (inputHandle) {
-                logger.debug("Trying to click input field directly...");
-                await inputHandle.click();
-                await this.wait(500);
-
-                // Check if dropdown appeared
-                const dropdownAppeared = await this.page!.evaluate(() => {
-                  const dropdowns = Array.from(
-                    document.querySelectorAll('[class*="dxeListBox"]'),
-                  );
-                  return dropdowns.some(
-                    (d) => (d as HTMLElement).offsetParent !== null,
-                  );
-                });
-
-                if (dropdownAppeared) {
-                  dropdownOpened = true;
-                  logger.debug("✓ Dropdown opened by clicking input");
-                }
-              }
-            }
-
-            if (!dropdownOpened) {
-              await this.page!.screenshot({
-                path: `logs/article-dropdown-button-not-found-${Date.now()}.png`,
-                fullPage: true,
-              });
-              throw new Error(
-                `Article dropdown button not found for field ${articleBaseId}`,
-              );
-            }
-
-            await this.wait(800);
-            logger.info("✅ Article dropdown opened");
-          },
-          "form.article",
-        );
-
-        // 5.3: Search by ARTICLE NAME (not variant ID)
-        await this.runOp(
-          `order.item.${i}.search_article`,
-          async () => {
-            const selectedVariant = (item as any)._selectedVariant;
-            // IMPORTANT: Search by article name/code, not variant ID
-            // The variant ID is used to SELECT from results, not to search
-            const searchTerm = item.articleCode; // Use article code like "10839.314.016"
-            logger.debug(
-              `Searching for article: ${searchTerm} (will select variant: ${selectedVariant.id})`,
-            );
-
-            // Find article field using same strategy as dropdown opening
+            // Find the article name field in the grid (ITEMID or INVENTTABLE column)
             const articleInputId = await this.page!.evaluate(() => {
               const inputs = Array.from(
                 document.querySelectorAll('input[type="text"]'),
               );
 
-              // Strategy 1: INVENTTABLE (article inventory table field)
-              const inventTableInput = inputs.find((input) => {
-                const id = (input as HTMLInputElement).id.toLowerCase();
-                return (
-                  id.includes("inventtable") &&
-                  id.includes("salesline") &&
-                  (input as HTMLElement).offsetParent !== null
-                );
-              });
-
-              if (inventTableInput) {
-                return (inventTableInput as HTMLInputElement).id;
-              }
-
-              // Strategy 2: ITEMID
+              // Strategy 1: ITEMID field (article code column)
               const itemIdInput = inputs.find((input) => {
                 const id = (input as HTMLInputElement).id.toLowerCase();
                 return (
@@ -2769,7 +2623,21 @@ export class ArchibaldBot {
                 return (itemIdInput as HTMLInputElement).id;
               }
 
-              // Strategy 3: N/A value (fallback)
+              // Strategy 2: INVENTTABLE field (article inventory table)
+              const inventTableInput = inputs.find((input) => {
+                const id = (input as HTMLInputElement).id.toLowerCase();
+                return (
+                  id.includes("inventtable") &&
+                  id.includes("salesline") &&
+                  (input as HTMLElement).offsetParent !== null
+                );
+              });
+
+              if (inventTableInput) {
+                return (inventTableInput as HTMLInputElement).id;
+              }
+
+              // Strategy 3: N/A value (empty article field)
               const naInput = inputs.find((input) => {
                 const value = (input as HTMLInputElement).value;
                 const id = (input as HTMLInputElement).id.toLowerCase();
@@ -2786,133 +2654,76 @@ export class ArchibaldBot {
 
             if (!articleInputId) {
               await this.page!.screenshot({
-                path: `logs/article-input-not-found-search-${Date.now()}.png`,
+                path: `logs/article-field-not-found-${Date.now()}.png`,
                 fullPage: true,
               });
-              throw new Error("Article input not found for search");
+              throw new Error("Article field not found for direct paste");
             }
 
-            logger.debug(`Found article input for search: ${articleInputId}`);
+            logger.debug(`Found article field: ${articleInputId}`);
 
-            const articleBaseId = articleInputId.endsWith("_I")
-              ? articleInputId.slice(0, -2)
-              : articleInputId;
-
-            // Find search input using DevExpress pattern
-            const searchInputSelectors = [
-              `#${articleBaseId}_DDD_gv_DXSE_I`,
-              'input[placeholder*="enter text to search" i]',
-            ];
-
-            let searchInput = null;
-            let foundSelector: string | null = null;
-
-            // Try to find search input
-            try {
-              const result = await this.page!.waitForFunction(
-                (selectors: string[]) => {
-                  for (const sel of selectors) {
-                    const input = document.querySelector(
-                      sel,
-                    ) as HTMLInputElement | null;
-                    if (
-                      input &&
-                      input.offsetParent !== null &&
-                      !input.disabled &&
-                      !input.readOnly
-                    ) {
-                      return sel;
-                    }
-                  }
-                  return null;
-                },
-                { timeout: 800, polling: 50 },
-                searchInputSelectors,
-              );
-
-              foundSelector = (await result.jsonValue()) as string | null;
-              if (foundSelector) {
-                searchInput = await this.page!.$(foundSelector);
-                logger.debug(`✓ Article search input found: ${foundSelector}`);
-              }
-            } catch (error) {
-              // Fallback
-              for (const selector of searchInputSelectors) {
-                const input = await this.page!.$(selector);
-                if (input) {
-                  const isVisible = await input.evaluate(
-                    (el) => (el as HTMLElement).offsetParent !== null,
-                  );
-                  if (isVisible) {
-                    searchInput = input;
-                    foundSelector = selector;
-                    logger.debug(
-                      `✓ Article search input found (fallback): ${selector}`,
-                    );
-                    break;
-                  }
-                }
-              }
-            }
-
-            if (!searchInput) {
-              await this.page!.screenshot({
-                path: `logs/article-search-input-not-found-${Date.now()}.png`,
-                fullPage: true,
-              });
+            // Get element handle for the article input field
+            const articleInput = await this.page!.$(`#${articleInputId}`);
+            if (!articleInput) {
               throw new Error(
-                `Article search input not found. Tried: ${searchInputSelectors.join(", ")}`,
+                `Article input element not found: ${articleInputId}`,
               );
             }
 
-            // Use paste method (much faster than typing character by character)
-            logger.debug(`Pasting article code: ${searchTerm}`);
-            await this.pasteText(searchInput, searchTerm);
+            // Click field to focus it
+            await articleInput.evaluate((el) => {
+              (el as HTMLElement).scrollIntoView({ block: "center" });
+            });
+            await this.wait(200);
+            await articleInput.click();
+            await this.wait(300);
+
+            // Direct paste into the field (this auto-triggers the filtered dropdown)
+            logger.debug(`Pasting article code directly: ${searchTerm}`);
+            await this.pasteText(articleInput, searchTerm);
             logger.debug("Finished pasting article code");
 
-            // OPT-06: Event-driven verification of paste (no fixed wait)
+            // Verify paste was successful
             const actualValue = (await this.page!.waitForFunction(
-              (selector: string, expectedValue: string) => {
+              (inputId: string, expectedValue: string) => {
                 const input = document.querySelector(
-                  selector,
+                  `#${inputId}`,
                 ) as HTMLInputElement;
                 return input && input.value === expectedValue
                   ? input.value
                   : null;
               },
               { timeout: 1000, polling: 50 },
-              foundSelector || "",
+              articleInputId,
               searchTerm,
             ).then((result) => result.jsonValue())) as string;
 
-            logger.debug(`✓ Article code verified in input: "${actualValue}"`);
+            logger.debug(`✓ Article code verified in field: "${actualValue}"`);
 
-            // Press Enter
-            await this.page!.keyboard.press("Enter");
-            logger.debug("Pressed Enter, waiting for article results...");
-            await this.wait(2000);
+            // Wait for dropdown to auto-appear with filtered results
+            // The UI automatically shows filtered dropdown when text is pasted
+            await this.wait(800);
 
-            // OPT-10: Remove debug screenshot (save I/O time)
-            // Check if results appeared by looking for table rows with article data
-            // The dropdown shows results as table rows with cells containing article parts
+            // Verify dropdown appeared with results
             const resultsAppeared = await this.page!.evaluate(() => {
-              // Look for tables with visible rows containing article data
-              const tables = Array.from(document.querySelectorAll("table"));
-              for (const table of tables) {
-                if ((table as HTMLElement).offsetParent === null) continue;
+              // Look for DevExpress dropdown/listbox containers
+              const dropdowns = Array.from(
+                document.querySelectorAll('[class*="dxeListBox"], [class*="DDD"]'),
+              );
+              for (const dropdown of dropdowns) {
+                if ((dropdown as HTMLElement).offsetParent === null) continue;
 
-                const rows = Array.from(table.querySelectorAll("tr"));
-                // Check if any row has multiple cells with text content
+                // Look for table rows with article data
+                const rows = Array.from(dropdown.querySelectorAll("tr"));
                 for (const row of rows) {
                   const cells = Array.from(row.querySelectorAll("td"));
                   if (cells.length >= 3) {
-                    // Check if cells have content (not just "No data to display")
                     const hasContent = cells.some((cell) => {
                       const text = cell.textContent?.trim() || "";
                       return text.length > 0 && text !== "No data to display";
                     });
                     if (hasContent) {
-                      return true; // Found results table
+                      return true; // Found dropdown with results
                     }
                   }
                 }
@@ -2922,19 +2733,25 @@ export class ArchibaldBot {
 
             if (!resultsAppeared) {
               await this.page!.screenshot({
-                path: `logs/article-results-not-found-${Date.now()}.png`,
+                path: `logs/article-dropdown-no-results-${Date.now()}.png`,
                 fullPage: true,
               });
-              throw new Error("Article results did not appear after search");
+              throw new Error(
+                "Article dropdown did not appear with results after direct paste",
+              );
             }
 
-            await this.wait(800);
-            logger.info("✅ Article results loaded and displayed");
+            // Slowdown after direct paste
+            await this.wait(this.getSlowdown("paste_article_direct"));
+
+            logger.info(
+              "✅ Article field populated via direct paste, dropdown auto-filtered",
+            );
           },
           "form.article",
         );
 
-        // 5.4: Select article variant row (with pagination support)
+        // 5.3: Select article variant row (with pagination support)
         await this.runOp(
           `order.item.${i}.select_article`,
           async () => {
@@ -3228,6 +3045,9 @@ export class ArchibaldBot {
               "Waiting for DevExpress to complete article data loading...",
             );
             await this.wait(2400); // Optimized wait for complete article loading
+
+            // Slowdown after article selection
+            await this.wait(this.getSlowdown("select_article"));
           },
           "form.article",
         );
@@ -3253,7 +3073,9 @@ export class ArchibaldBot {
             );
             await this.editTableCell("Qtà ordinata", item.quantity);
             logger.info(`✅ Quantity set: ${item.quantity}`);
-            await this.wait(300);
+
+            // Slowdown after quantity edit
+            await this.wait(this.getSlowdown("paste_qty"));
           },
           "field-editing",
         );
@@ -3413,6 +3235,9 @@ export class ArchibaldBot {
 
             logger.info(`✅ Line item ${i + 1} saved`);
             await this.waitForDevExpressReady({ timeout: 3000 });
+
+            // Slowdown after update button
+            await this.wait(this.getSlowdown("click_update"));
           },
           "form.submit",
         );
@@ -3903,7 +3728,8 @@ export class ArchibaldBot {
             throw new Error('Button "Salvare" not found');
           }
 
-          await this.wait(500);
+          // Slowdown after salvare dropdown
+          await this.wait(this.getSlowdown("click_salvare_dropdown"));
 
           // Click "Salva e chiudi"
           const saveClicked = await this.clickElementByText("Salva e chiudi", {
@@ -3916,7 +3742,9 @@ export class ArchibaldBot {
           }
 
           logger.info('✅ Clicked "Salva e chiudi"');
-          await this.wait(3000);
+
+          // Slowdown after salva e chiudi
+          await this.wait(this.getSlowdown("click_salva_chiudi"));
         },
         "form.submit",
       );
