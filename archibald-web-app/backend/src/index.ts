@@ -2762,6 +2762,70 @@ app.get("/api/sync/stats", async (req: Request, res: Response<ApiResponse>) => {
 });
 
 // ============================================================================
+// AUTO-SYNC CONTROL ENDPOINTS (Phase 24)
+// ============================================================================
+
+// GET /api/sync/auto-sync/status - Get auto-sync state
+app.get(
+  "/api/sync/auto-sync/status",
+  authenticateJWT,
+  requireAdmin,
+  (req: AuthRequest, res: Response) => {
+    try {
+      const isRunning = syncOrchestrator.isAutoSyncRunning();
+      res.json({ success: true, isRunning });
+    } catch (error) {
+      logger.error("[API] Error getting auto-sync status:", error);
+      res
+        .status(500)
+        .json({ success: false, error: "Failed to get auto-sync status" });
+    }
+  },
+);
+
+// POST /api/sync/auto-sync/start - Start auto-sync
+app.post(
+  "/api/sync/auto-sync/start",
+  authenticateJWT,
+  requireAdmin,
+  (req: AuthRequest, res: Response) => {
+    try {
+      syncOrchestrator.startStaggeredAutoSync();
+      logger.info("[API] Auto-sync started by admin", {
+        userId: req.user?.userId,
+      });
+      res.json({ success: true, message: "Auto-sync started" });
+    } catch (error) {
+      logger.error("[API] Error starting auto-sync:", error);
+      res
+        .status(500)
+        .json({ success: false, error: "Failed to start auto-sync" });
+    }
+  },
+);
+
+// POST /api/sync/auto-sync/stop - Stop auto-sync
+app.post(
+  "/api/sync/auto-sync/stop",
+  authenticateJWT,
+  requireAdmin,
+  (req: AuthRequest, res: Response) => {
+    try {
+      syncOrchestrator.stopAutoSync();
+      logger.info("[API] Auto-sync stopped by admin", {
+        userId: req.user?.userId,
+      });
+      res.json({ success: true, message: "Auto-sync stopped" });
+    } catch (error) {
+      logger.error("[API] Error stopping auto-sync:", error);
+      res
+        .status(500)
+        .json({ success: false, error: "Failed to stop auto-sync" });
+    }
+  },
+);
+
+// ============================================================================
 // PRICE MANAGEMENT ENDPOINTS
 // ============================================================================
 
