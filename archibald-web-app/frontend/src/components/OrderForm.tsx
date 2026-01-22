@@ -629,6 +629,7 @@ export default function OrderForm({
       setLoadingProducts(true);
       try {
         const cachedProducts = await cacheService.searchProducts("", 10000);
+        console.log("[Products] Loaded from cache:", cachedProducts.length);
         if (!isMounted) return;
         if (cachedProducts.length > 0) {
           const mappedProducts = cachedProducts.map((p) => ({
@@ -642,14 +643,21 @@ export default function OrderForm({
           }));
           setProducts(mappedProducts);
           setProductsLoaded(true);
+          console.log("[Products] Set products state:", mappedProducts.length);
         } else {
           // Fallback to API if cache is empty
+          console.log("[Products] Cache empty, fetching from API");
           const response = await fetch("/api/products");
           const data = await response.json();
           if (!isMounted) return;
           if (data.success && data.data) {
-            setProducts(data.data.products || data.data);
+            const apiProducts = data.data.products || data.data;
+            setProducts(apiProducts);
             setProductsLoaded(true);
+            console.log(
+              "[Products] Set products from API:",
+              apiProducts.length,
+            );
           }
         }
       } catch (error) {
@@ -685,7 +693,8 @@ export default function OrderForm({
     const searchLower = productSearch.toLowerCase();
     return (
       (product.name && product.name.toLowerCase().includes(searchLower)) ||
-      (product.article && product.article.toLowerCase().includes(searchLower)) ||
+      (product.article &&
+        product.article.toLowerCase().includes(searchLower)) ||
       (product.id && product.id.toLowerCase().includes(searchLower)) ||
       (product.description &&
         product.description.toLowerCase().includes(searchLower))
@@ -694,10 +703,12 @@ export default function OrderForm({
 
   // Customer selection handler
   const handleCustomerSelect = (customer: Customer) => {
+    console.log("[Customer] Selected:", customer.id, customer.name);
     setCustomerId(customer.id);
     setCustomerName(customer.name);
     setCustomerSearch(customer.name);
     setShowCustomerDropdown(false);
+    console.log("[Customer] State updated - customerId:", customer.id);
   };
 
   // Customer search handler - simplified
@@ -756,6 +767,18 @@ export default function OrderForm({
       quantity: false,
     }));
   };
+
+  // Debug: log when products or filteredProducts change
+  useEffect(() => {
+    console.log(
+      "[Products] State changed - products:",
+      products.length,
+      "filtered:",
+      filteredProducts.length,
+      "search:",
+      productSearch,
+    );
+  }, [products, filteredProducts, productSearch]);
 
   // Handle click outside to close dropdowns
   useEffect(() => {
@@ -2086,13 +2109,23 @@ export default function OrderForm({
               value={productSearch}
               onChange={handleProductSearchChange}
               onFocus={() => {
+                console.log(
+                  "[Products] onFocus - products.length:",
+                  products.length,
+                );
                 if (products.length > 0) {
                   setShowProductDropdown(true);
+                  console.log("[Products] Dropdown opened");
                 }
               }}
               onClick={() => {
+                console.log(
+                  "[Products] onClick - products.length:",
+                  products.length,
+                );
                 if (products.length > 0) {
                   setShowProductDropdown(true);
+                  console.log("[Products] Dropdown opened");
                 }
               }}
               placeholder={
@@ -2116,7 +2149,8 @@ export default function OrderForm({
                         {product.name}
                         {product.price && product.price > 0 && (
                           <span className="product-price-badge">
-                            €{product.price.toFixed(2)} + IVA → €{(product.price * 1.22).toFixed(2)}
+                            €{product.price.toFixed(2)} + IVA → €
+                            {(product.price * 1.22).toFixed(2)}
                           </span>
                         )}
                       </div>

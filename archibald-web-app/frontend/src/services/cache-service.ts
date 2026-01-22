@@ -23,8 +23,10 @@ export class CacheService {
    * Performance target: < 100ms
    */
   async searchCustomers(query: string, limit = 50): Promise<Customer[]> {
+    // If query is empty or too short, return all customers (limited)
     if (!query || query.length < 2) {
-      return [];
+      const allCustomers = await db.customers.limit(limit).toArray();
+      return allCustomers;
     }
 
     const lowerQuery = query.toLowerCase();
