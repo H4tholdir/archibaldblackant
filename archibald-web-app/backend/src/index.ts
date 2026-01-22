@@ -69,6 +69,7 @@ import { OrderSyncService } from "./order-sync-service";
 import { DDTSyncService } from "./ddt-sync-service";
 import { InvoiceSyncService } from "./invoice-sync-service";
 import { InvoicesDatabase } from "./invoices-db";
+import { SyncOrchestrator } from "./sync-orchestrator";
 
 const app = express();
 const server = createServer(app);
@@ -91,6 +92,7 @@ const priorityManager = PriorityManager.getInstance();
 const orderSyncService = OrderSyncService.getInstance();
 const ddtSyncService = DDTSyncService.getInstance();
 const invoiceSyncService = InvoiceSyncService.getInstance();
+const syncOrchestrator = SyncOrchestrator.getInstance();
 
 // Global lock per prevenire sync paralleli e conflitti con ordini
 type ActiveOperation = "customers" | "products" | "prices" | "order" | null;
@@ -1488,6 +1490,98 @@ app.get("/api/customers/sync/metrics", (req: Request, res: Response) => {
 });
 
 /**
+ * Smart Customer Sync endpoint - fast on-demand sync for order form.
+ * POST /api/customers/smart-sync
+ * Pauses other syncs to ensure quick completion (3-5 seconds).
+ */
+app.post(
+  "/api/customers/smart-sync",
+  authenticateJWT,
+  async (req: AuthRequest, res: Response<ApiResponse>) => {
+    try {
+      logger.info("[API] Smart Customer Sync triggered", {
+        userId: req.user!.userId,
+      });
+
+      await syncOrchestrator.smartCustomerSync();
+
+      res.json({
+        success: true,
+        message: "Smart Customer Sync completato",
+      });
+    } catch (error: any) {
+      logger.error("[API] Smart Customer Sync failed:", error);
+
+      res.status(500).json({
+        success: false,
+        error: error.message,
+        message: "Errore durante Smart Customer Sync",
+      });
+    }
+  },
+);
+
+/**
+ * Resume other syncs after exiting order form.
+ * POST /api/customers/resume-syncs
+ * Uses reference counting to handle multiple browser tabs.
+ */
+app.post(
+  "/api/customers/resume-syncs",
+  authenticateJWT,
+  async (req: AuthRequest, res: Response<ApiResponse>) => {
+    try {
+      logger.info("[API] Resume syncs requested", {
+        userId: req.user!.userId,
+      });
+
+      syncOrchestrator.resumeOtherSyncs();
+
+      res.json({
+        success: true,
+        message: "Syncs resumed",
+      });
+    } catch (error: any) {
+      logger.error("[API] Resume syncs failed:", error);
+
+      res.status(500).json({
+        success: false,
+        error: error.message,
+        message: "Errore durante resume syncs",
+      });
+    }
+  },
+);
+
+/**
+ * Get sync orchestrator status.
+ * GET /api/sync/status
+ * Returns: current sync status, queue, and sync statuses for all types.
+ */
+app.get(
+  "/api/sync/status",
+  authenticateJWT,
+  (req: AuthRequest, res: Response) => {
+    try {
+      const status = syncOrchestrator.getStatus();
+
+      res.json({
+        success: true,
+        status,
+      });
+    } catch (error: any) {
+      logger.error("[API] Get sync status failed:", error);
+
+      res.status(500).json({
+        success: false,
+        error: error.message,
+        message: "Errore durante recupero stato sync",
+      });
+    }
+  },
+);
+
+/**
  * Get products sync metrics (monitoring)
  * GET /api/products/sync/metrics
  * Returns: sync statistics and history for monitoring
@@ -1624,7 +1718,7 @@ app.put(
       await bot.close();
 
       // Trigger sync to update local DB
-      syncService.syncCustomers().catch((error) => {
+      syncOrchestrator.requestSync("customers").catch((error) => {
         logger.error("Errore sync dopo update cliente", { error });
       });
 
@@ -2147,45 +2241,22 @@ app.post(
         });
       }
 
-      // Run syncs SEQUENTIALLY in background to avoid browser pool conflicts
+      // Run syncs via orchestrator (handles queueing automatically)
       (async () => {
         try {
-          logger.info("🔄 Avvio sync sequenziale: clienti → prodotti → prezzi");
+          logger.info("🔄 Requesting full sync via orchestrator");
 
-          // 1. Sync customers first
-          if (!acquireSyncLock("customers")) return;
-          try {
-            logger.info("1️⃣ Sync clienti...");
-            await syncService.syncCustomers();
-            logger.info("✅ Sync clienti completato");
-          } finally {
-            releaseSyncLock();
-          }
+          // Request all syncs - orchestrator will queue and execute sequentially
+          await syncOrchestrator.requestSync("customers");
+          await syncOrchestrator.requestSync("products");
+          await syncOrchestrator.requestSync("prices");
+          await syncOrchestrator.requestSync("orders");
+          await syncOrchestrator.requestSync("ddt");
+          await syncOrchestrator.requestSync("invoices");
 
-          // 2. Then sync products
-          if (!acquireSyncLock("products")) return;
-          try {
-            logger.info("2️⃣ Sync prodotti...");
-            await productSyncService.syncProducts();
-            logger.info("✅ Sync prodotti completato");
-          } finally {
-            releaseSyncLock();
-          }
-
-          // 3. Finally sync prices (full sync for scheduled sync)
-          if (!acquireSyncLock("prices")) return;
-          try {
-            logger.info("3️⃣ Sync prezzi (full sync)...");
-            await priceSyncService.syncPrices(); // PDF-based sync
-            logger.info("✅ Sync prezzi completato");
-          } finally {
-            releaseSyncLock();
-          }
-
-          logger.info("🎉 Sync completo terminato con successo!");
+          logger.info("🎉 Full sync requests queued successfully!");
         } catch (error) {
-          logger.error("❌ Errore durante sync sequenziale", { error });
-          releaseSyncLock();
+          logger.error("❌ Errore durante richiesta sync completo", { error });
         }
       })();
 
@@ -2223,13 +2294,13 @@ app.post(
         });
       }
 
-      // Avvia sync in background
+      // Request sync via orchestrator
       (async () => {
         try {
-          await syncService.syncCustomers();
-          logger.info("✅ Sync clienti completato");
+          await syncOrchestrator.requestSync("customers");
+          logger.info("✅ Sync clienti richiesto");
         } catch (error) {
-          logger.error("❌ Errore sync clienti", { error });
+          logger.error("❌ Errore richiesta sync clienti", { error });
         } finally {
           releaseSyncLock();
         }
@@ -2267,13 +2338,13 @@ app.post(
         });
       }
 
-      // Avvia sync in background
+      // Request sync via orchestrator
       (async () => {
         try {
-          await productSyncService.syncProducts();
-          logger.info("✅ Sync prodotti completato");
+          await syncOrchestrator.requestSync("products");
+          logger.info("✅ Sync prodotti richiesto");
         } catch (error) {
-          logger.error("❌ Errore sync prodotti", { error });
+          logger.error("❌ Errore richiesta sync prodotti", { error });
         } finally {
           releaseSyncLock();
         }
@@ -2318,13 +2389,13 @@ app.post(
         });
       }
 
-      // Avvia sync in background
+      // Request sync via orchestrator
       (async () => {
         try {
-          await priceSyncService.syncPrices(); // PDF-based sync (no force parameter)
-          logger.info("✅ Sync prezzi completato");
+          await syncOrchestrator.requestSync("prices");
+          logger.info("✅ Sync prezzi richiesto");
         } catch (error) {
-          logger.error("❌ Errore sync prezzi", { error });
+          logger.error("❌ Errore richiesta sync prezzi", { error });
         } finally {
           releaseSyncLock();
         }
@@ -4720,24 +4791,17 @@ server.listen(config.server.port, async () => {
     setTimeout(async () => {
       try {
         logger.info("🔄 Avvio sync giornaliero automatico alle 12:00");
-        logger.info("🔄 Sync sequenziale: clienti → prodotti → prezzi");
+        logger.info("🔄 Requesting all syncs via orchestrator");
 
-        // 1. Sync customers first
-        logger.info("1️⃣ Sync clienti...");
-        await syncService.syncCustomers();
-        logger.info("✅ Sync clienti completato");
+        // Request all syncs via orchestrator
+        await syncOrchestrator.requestSync("customers");
+        await syncOrchestrator.requestSync("products");
+        await syncOrchestrator.requestSync("prices");
+        await syncOrchestrator.requestSync("orders");
+        await syncOrchestrator.requestSync("ddt");
+        await syncOrchestrator.requestSync("invoices");
 
-        // 2. Then sync products
-        logger.info("2️⃣ Sync prodotti...");
-        await productSyncService.syncProducts();
-        logger.info("✅ Sync prodotti completato");
-
-        // 3. Finally sync prices (full sync for daily automatic sync)
-        logger.info("3️⃣ Sync prezzi (full sync)...");
-        await priceSyncService.syncPrices(true); // Force full sync
-        logger.info("✅ Sync prezzi completato");
-
-        logger.info("🎉 Sync giornaliero completato con successo!");
+        logger.info("🎉 Sync giornaliero richiesto con successo!");
       } catch (error) {
         logger.error("❌ Errore durante sync giornaliero", { error });
       } finally {

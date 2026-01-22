@@ -3,7 +3,7 @@ import { CustomerSyncService } from "./customer-sync-service";
 import { ProductSyncService } from "./product-sync-service";
 import { PriceSyncService } from "./price-sync-service";
 import { OrderSyncService } from "./order-sync-service";
-import { DdtSyncService } from "./ddt-sync-service";
+import { DDTSyncService } from "./ddt-sync-service";
 import { InvoiceSyncService } from "./invoice-sync-service";
 import { logger } from "./logger";
 
@@ -19,6 +19,7 @@ export interface SyncRequest {
   type: SyncType;
   priority: number;
   requestedAt: Date;
+  userId?: string;
 }
 
 export interface SyncStatus {
@@ -49,7 +50,7 @@ export class SyncOrchestrator extends EventEmitter {
   private productSync: ProductSyncService;
   private priceSync: PriceSyncService;
   private orderSync: OrderSyncService;
-  private ddtSync: DdtSyncService;
+  private ddtSync: DDTSyncService;
   private invoiceSync: InvoiceSyncService;
 
   // Mutex and queue
@@ -76,7 +77,7 @@ export class SyncOrchestrator extends EventEmitter {
     this.productSync = ProductSyncService.getInstance();
     this.priceSync = PriceSyncService.getInstance();
     this.orderSync = OrderSyncService.getInstance();
-    this.ddtSync = DdtSyncService.getInstance();
+    this.ddtSync = DDTSyncService.getInstance();
     this.invoiceSync = InvoiceSyncService.getInstance();
   }
 
@@ -107,7 +108,11 @@ export class SyncOrchestrator extends EventEmitter {
    * Request a sync operation.
    * Adds to queue if another sync is running, otherwise starts immediately.
    */
-  async requestSync(type: SyncType, priority?: number): Promise<void> {
+  async requestSync(
+    type: SyncType,
+    priority?: number,
+    userId?: string,
+  ): Promise<void> {
     const finalPriority = priority ?? this.getDefaultPriority(type);
 
     // If Smart Customer Sync is active, queue non-customer syncs
@@ -115,7 +120,7 @@ export class SyncOrchestrator extends EventEmitter {
       logger.info(
         `[SyncOrchestrator] Smart Customer Sync active, queueing ${type}`,
       );
-      this.addToQueue(type, finalPriority);
+      this.addToQueue(type, finalPriority, userId);
       return;
     }
 
@@ -124,18 +129,18 @@ export class SyncOrchestrator extends EventEmitter {
       logger.info(
         `[SyncOrchestrator] ${this.currentSync} sync in progress, queueing ${type}`,
       );
-      this.addToQueue(type, finalPriority);
+      this.addToQueue(type, finalPriority, userId);
       return;
     }
 
     // No sync running, start immediately
-    await this.executeSync(type);
+    await this.executeSync(type, userId);
   }
 
   /**
    * Add sync request to priority queue.
    */
-  private addToQueue(type: SyncType, priority: number): void {
+  private addToQueue(type: SyncType, priority: number, userId?: string): void {
     // Check if already queued
     const existingIndex = this.queue.findIndex((req) => req.type === type);
     if (existingIndex !== -1) {
@@ -152,6 +157,7 @@ export class SyncOrchestrator extends EventEmitter {
       type,
       priority,
       requestedAt: new Date(),
+      userId,
     });
 
     this.sortQueue();
@@ -168,16 +174,19 @@ export class SyncOrchestrator extends EventEmitter {
   /**
    * Execute a sync operation.
    */
-  private async executeSync(type: SyncType): Promise<void> {
+  private async executeSync(type: SyncType, userId?: string): Promise<void> {
     this.currentSync = type;
     this.emit("sync-started", { type });
 
-    logger.info(`[SyncOrchestrator] Starting ${type} sync`);
+    logger.info(`[SyncOrchestrator] Starting ${type} sync`, { userId });
+
+    // Default userId for sync operations
+    const defaultUserId = userId ?? "sync-orchestrator";
 
     try {
       switch (type) {
         case "customers":
-          await this.customerSync.syncCustomers();
+          await this.customerSync.syncCustomers(undefined, defaultUserId);
           break;
         case "products":
           await this.productSync.syncProducts();
@@ -186,13 +195,13 @@ export class SyncOrchestrator extends EventEmitter {
           await this.priceSync.syncPrices();
           break;
         case "orders":
-          await this.orderSync.syncOrders();
+          await this.orderSync.syncOrders(defaultUserId);
           break;
         case "ddt":
-          await this.ddtSync.syncDdts();
+          await this.ddtSync.syncDDT(defaultUserId);
           break;
         case "invoices":
-          await this.invoiceSync.syncInvoices();
+          await this.invoiceSync.syncInvoices(defaultUserId);
           break;
       }
 
@@ -226,7 +235,7 @@ export class SyncOrchestrator extends EventEmitter {
 
     const nextRequest = this.queue.shift();
     if (nextRequest) {
-      await this.executeSync(nextRequest.type);
+      await this.executeSync(nextRequest.type, nextRequest.userId);
     }
   }
 
