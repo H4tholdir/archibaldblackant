@@ -104,13 +104,17 @@ export class CachePopulationService {
         message: `Salvataggio ${products.length} prodotti...`,
       });
 
-      // Ensure no undefined fields
+      // Ensure no undefined fields and map name to article
       const cleanedProducts = products.map((p: any) => {
         const cleaned: any = {};
         for (const key in p) {
           if (p[key] !== undefined) {
             cleaned[key] = p[key];
           }
+        }
+        // Backend stores article code in 'name' field, frontend expects 'article' field
+        if (!cleaned.article && cleaned.name) {
+          cleaned.article = cleaned.name;
         }
         return cleaned;
       });
