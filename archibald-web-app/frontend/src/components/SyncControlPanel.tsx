@@ -1,0 +1,465 @@
+import { useState, useEffect } from "react";
+
+type SyncType = "customers" | "products" | "prices" | "orders" | "ddt" | "invoices";
+
+interface SyncStatus {
+  type: SyncType;
+  isRunning: boolean;
+  lastRunTime: string | null;
+  queuePosition: number | null;
+}
+
+interface OrchestratorStatus {
+  currentSync: SyncType | null;
+  queue: Array<{ type: SyncType; priority: number; requestedAt: string }>;
+  statuses: Record<SyncType, SyncStatus>;
+  smartCustomerSyncActive: boolean;
+  sessionCount: number;
+  safetyTimeoutActive: boolean;
+}
+
+type SyncMode = "auto" | "full" | "incremental";
+
+interface SyncSection {
+  type: SyncType;
+  label: string;
+  icon: string;
+  priority: number;
+}
+
+const syncSections: SyncSection[] = [
+  { type: "orders", label: "Ordini", icon: "📦", priority: 6 },
+  { type: "customers", label: "Clienti", icon: "👥", priority: 5 },
+  { type: "ddt", label: "DDT", icon: "🚚", priority: 4 },
+  { type: "invoices", label: "Fatture", icon: "📄", priority: 3 },
+  { type: "prices", label: "Prezzi", icon: "💰", priority: 2 },
+  { type: "products", label: "Prodotti", icon: "🏷️", priority: 1 },
+];
+
+export default function SyncControlPanel() {
+  const [status, setStatus] = useState<OrchestratorStatus | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [syncing, setSyncing] = useState<Record<SyncType, boolean>>({
+    customers: false,
+    products: false,
+    prices: false,
+    orders: false,
+    ddt: false,
+    invoices: false,
+  });
+  const [syncModes, setSyncModes] = useState<Record<SyncType, SyncMode>>({
+    customers: "full",
+    products: "full",
+    prices: "full",
+    orders: "full",
+    ddt: "full",
+    invoices: "full",
+  });
+  const [syncingAll, setSyncingAll] = useState(false);
+
+  useEffect(() => {
+    // Initial fetch
+    fetchStatus();
+
+    // Poll every 5s during active syncs
+    const interval = setInterval(() => {
+      fetchStatus();
+    }, 5000);
+
+    return () => clearInterval(interval);
+  }, []);
+
+  const fetchStatus = async () => {
+    try {
+      const jwt = localStorage.getItem("archibald_jwt");
+      if (!jwt) return;
+
+      const response = await fetch("/api/sync/status", {
+        headers: { Authorization: `Bearer ${jwt}` },
+      });
+
+      const data = await response.json();
+      if (data.success) {
+        setStatus(data.status);
+
+        // Update syncing states based on orchestrator status
+        const newSyncing: Record<SyncType, boolean> = {
+          customers: false,
+          products: false,
+          prices: false,
+          orders: false,
+          ddt: false,
+          invoices: false,
+        };
+
+        if (data.status.currentSync) {
+          newSyncing[data.status.currentSync as SyncType] = true;
+        }
+
+        setSyncing(newSyncing);
+      }
+    } catch (error) {
+      console.error("Error fetching sync status:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSyncIndividual = async (type: SyncType) => {
+    try {
+      const jwt = localStorage.getItem("archibald_jwt");
+      if (!jwt) {
+        alert("Devi effettuare il login");
+        return;
+      }
+
+      setSyncing((prev) => ({ ...prev, [type]: true }));
+
+      const response = await fetch(`/api/sync/${type}`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${jwt}` },
+      });
+
+      const data = await response.json();
+
+      if (!data.success) {
+        alert(`Errore sync ${type}: ${data.error}`);
+      } else {
+        // Refresh status immediately
+        fetchStatus();
+      }
+    } catch (error) {
+      console.error(`Error syncing ${type}:`, error);
+      alert(`Errore durante sync ${type}`);
+    }
+  };
+
+  const handleSyncAll = async () => {
+    try {
+      const jwt = localStorage.getItem("archibald_jwt");
+      if (!jwt) {
+        alert("Devi effettuare il login");
+        return;
+      }
+
+      setSyncingAll(true);
+
+      const response = await fetch("/api/sync/all", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${jwt}` },
+      });
+
+      const data = await response.json();
+
+      if (!data.success) {
+        alert(`Errore sync all: ${data.error}`);
+      } else {
+        // Refresh status immediately
+        fetchStatus();
+      }
+    } catch (error) {
+      console.error("Error syncing all:", error);
+      alert("Errore durante sync generale");
+    } finally {
+      setSyncingAll(false);
+    }
+  };
+
+  const getStatusBadge = (syncType: SyncType) => {
+    if (!status) return { bg: "#9e9e9e", color: "#fff", text: "N/A" };
+
+    const syncStatus = status.statuses[syncType];
+
+    if (syncStatus.isRunning) {
+      return { bg: "#ff9800", color: "#fff", text: "Running" };
+    }
+
+    if (syncStatus.queuePosition !== null) {
+      return { bg: "#2196f3", color: "#fff", text: `Queue #${syncStatus.queuePosition}` };
+    }
+
+    if (syncStatus.lastRunTime) {
+      return { bg: "#4caf50", color: "#fff", text: "Idle" };
+    }
+
+    return { bg: "#9e9e9e", color: "#fff", text: "Never run" };
+  };
+
+  const getHealthIndicator = (syncType: SyncType) => {
+    if (!status) return "🟢";
+
+    const syncStatus = status.statuses[syncType];
+
+    if (syncStatus.isRunning) {
+      return "🟡"; // Running
+    }
+
+    if (syncStatus.lastRunTime) {
+      const lastRun = new Date(syncStatus.lastRunTime);
+      const now = new Date();
+      const hoursSinceLastRun = (now.getTime() - lastRun.getTime()) / (1000 * 60 * 60);
+
+      // Health thresholds based on sync type priority
+      const thresholds: Record<SyncType, number> = {
+        orders: 1, // 1 hour
+        customers: 2, // 2 hours
+        ddt: 3, // 3 hours
+        invoices: 3, // 3 hours
+        prices: 4, // 4 hours
+        products: 8, // 8 hours
+      };
+
+      if (hoursSinceLastRun > thresholds[syncType]) {
+        return "🔴"; // Degraded (too long since last sync)
+      }
+
+      return "🟢"; // Healthy
+    }
+
+    return "⚪"; // Never run
+  };
+
+  const formatLastSync = (lastRunTime: string | null) => {
+    if (!lastRunTime) return "Mai sincronizzato";
+
+    const date = new Date(lastRunTime);
+    const now = new Date();
+    const diffMs = now.getTime() - date.getTime();
+    const diffMins = Math.floor(diffMs / (1000 * 60));
+    const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+
+    if (diffMins < 1) return "Appena ora";
+    if (diffMins < 60) return `${diffMins} min fa`;
+    if (diffHours < 24) return `${diffHours}h fa`;
+
+    return date.toLocaleString("it-IT", {
+      day: "2-digit",
+      month: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  };
+
+  if (loading) {
+    return (
+      <div style={{ padding: "20px", textAlign: "center" }}>
+        <p>Caricamento stato sync...</p>
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ padding: "20px", maxWidth: "1200px", margin: "0 auto" }}>
+      <div style={{ marginBottom: "24px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <div>
+          <h2 style={{ margin: "0 0 8px 0", fontSize: "24px", fontWeight: 600 }}>
+            🔄 Sync Control Panel
+          </h2>
+          <p style={{ margin: 0, color: "#666", fontSize: "14px" }}>
+            Gestione centralizzata sincronizzazioni Archibald ERP
+          </p>
+        </div>
+        <button
+          onClick={handleSyncAll}
+          disabled={syncingAll || status?.currentSync !== null}
+          style={{
+            padding: "12px 24px",
+            fontSize: "16px",
+            fontWeight: 600,
+            backgroundColor: syncingAll || status?.currentSync !== null ? "#9e9e9e" : "#2196f3",
+            color: "#fff",
+            border: "none",
+            borderRadius: "8px",
+            cursor: syncingAll || status?.currentSync !== null ? "not-allowed" : "pointer",
+            transition: "all 0.2s",
+          }}
+        >
+          {syncingAll ? "⏳ Sync in corso..." : "🔄 Sync All"}
+        </button>
+      </div>
+
+      {status?.smartCustomerSyncActive && (
+        <div
+          style={{
+            marginBottom: "20px",
+            padding: "12px 16px",
+            backgroundColor: "#e3f2fd",
+            border: "1px solid #2196f3",
+            borderRadius: "8px",
+            display: "flex",
+            alignItems: "center",
+            gap: "12px",
+          }}
+        >
+          <span style={{ fontSize: "20px" }}>⚡</span>
+          <div>
+            <strong>Smart Customer Sync attivo</strong>
+            <p style={{ margin: "4px 0 0 0", fontSize: "13px", color: "#666" }}>
+              Altri sync in pausa. Sessioni attive: {status.sessionCount}
+              {status.safetyTimeoutActive && " | Timeout sicurezza: 10 min"}
+            </p>
+          </div>
+        </div>
+      )}
+
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(auto-fit, minmax(350px, 1fr))",
+          gap: "20px",
+        }}
+      >
+        {syncSections.map((section) => {
+          const syncStatus = status?.statuses[section.type];
+          const statusBadge = getStatusBadge(section.type);
+          const healthIndicator = getHealthIndicator(section.type);
+
+          return (
+            <div
+              key={section.type}
+              style={{
+                border: "1px solid #ddd",
+                borderRadius: "12px",
+                padding: "20px",
+                backgroundColor: "#fff",
+                boxShadow: "0 2px 4px rgba(0,0,0,0.05)",
+              }}
+            >
+              <div style={{ display: "flex", alignItems: "center", gap: "12px", marginBottom: "16px" }}>
+                <span style={{ fontSize: "28px" }}>{section.icon}</span>
+                <div style={{ flex: 1 }}>
+                  <h3 style={{ margin: "0 0 4px 0", fontSize: "18px", fontWeight: 600 }}>
+                    {section.label}
+                  </h3>
+                  <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                    <span
+                      style={{
+                        backgroundColor: statusBadge.bg,
+                        color: statusBadge.color,
+                        padding: "2px 8px",
+                        borderRadius: "12px",
+                        fontSize: "11px",
+                        fontWeight: 600,
+                      }}
+                    >
+                      {statusBadge.text}
+                    </span>
+                    <span title="Health indicator">{healthIndicator}</span>
+                  </div>
+                </div>
+              </div>
+
+              <div style={{ marginBottom: "16px" }}>
+                <label
+                  style={{
+                    display: "block",
+                    fontSize: "12px",
+                    fontWeight: 600,
+                    color: "#666",
+                    marginBottom: "6px",
+                  }}
+                >
+                  Modalità Sync
+                </label>
+                <select
+                  value={syncModes[section.type]}
+                  onChange={(e) =>
+                    setSyncModes((prev) => ({
+                      ...prev,
+                      [section.type]: e.target.value as SyncMode,
+                    }))
+                  }
+                  style={{
+                    width: "100%",
+                    padding: "8px 12px",
+                    borderRadius: "6px",
+                    border: "1px solid #ddd",
+                    fontSize: "14px",
+                    backgroundColor: "#fff",
+                  }}
+                >
+                  <option value="auto">Auto (Scheduled)</option>
+                  <option value="full">Full Sync</option>
+                  <option value="incremental">Incremental</option>
+                </select>
+              </div>
+
+              <button
+                onClick={() => handleSyncIndividual(section.type)}
+                disabled={syncing[section.type] || status?.currentSync !== null}
+                style={{
+                  width: "100%",
+                  padding: "10px",
+                  fontSize: "14px",
+                  fontWeight: 600,
+                  backgroundColor:
+                    syncing[section.type] || status?.currentSync !== null
+                      ? "#9e9e9e"
+                      : "#4caf50",
+                  color: "#fff",
+                  border: "none",
+                  borderRadius: "6px",
+                  cursor:
+                    syncing[section.type] || status?.currentSync !== null
+                      ? "not-allowed"
+                      : "pointer",
+                  marginBottom: "12px",
+                }}
+              >
+                {syncing[section.type] ? "⏳ Syncing..." : "▶️ Avvia Sync"}
+              </button>
+
+              <div style={{ fontSize: "12px", color: "#666" }}>
+                <div style={{ marginBottom: "4px" }}>
+                  <strong>Ultima sync:</strong> {formatLastSync(syncStatus?.lastRunTime || null)}
+                </div>
+                <div>
+                  <strong>Priorità:</strong> {section.priority}/6
+                </div>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {status && status.queue.length > 0 && (
+        <div
+          style={{
+            marginTop: "24px",
+            padding: "16px",
+            backgroundColor: "#fff3e0",
+            border: "1px solid #ff9800",
+            borderRadius: "8px",
+          }}
+        >
+          <h3 style={{ margin: "0 0 12px 0", fontSize: "16px", fontWeight: 600 }}>
+            📋 Coda Sync ({status.queue.length})
+          </h3>
+          <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+            {status.queue.map((item, index) => (
+              <div
+                key={index}
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  padding: "8px 12px",
+                  backgroundColor: "#fff",
+                  borderRadius: "6px",
+                  fontSize: "13px",
+                }}
+              >
+                <span>
+                  <strong>#{index + 1}</strong> {item.type}
+                </span>
+                <span style={{ color: "#666" }}>
+                  Priorità: {item.priority} | Richiesto:{" "}
+                  {new Date(item.requestedAt).toLocaleTimeString("it-IT")}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
