@@ -76,6 +76,26 @@ export class SyncOrchestrator extends EventEmitter {
   private autoSyncTimers: NodeJS.Timeout[] = [];
   private autoSyncIntervals: NodeJS.Timeout[] = [];
 
+  // Sync history tracking (max 100 entries per type)
+  private syncHistory: Record<
+    SyncType,
+    Array<{
+      timestamp: Date;
+      duration: number; // milliseconds
+      success: boolean;
+      error: string | null;
+      syncType: SyncType;
+    }>
+  > = {
+    customers: [],
+    products: [],
+    prices: [],
+    orders: [],
+    ddt: [],
+    invoices: [],
+  };
+  private readonly MAX_HISTORY_PER_TYPE = 100;
+
   private constructor() {
     super();
     this.customerSync = CustomerSyncService.getInstance();
@@ -526,5 +546,69 @@ export class SyncOrchestrator extends EventEmitter {
    */
   isAutoSyncRunning(): boolean {
     return this.autoSyncTimers.length > 0 || this.autoSyncIntervals.length > 0;
+  }
+
+  /**
+   * Get sync history for a specific type or all types.
+   */
+  getHistory(
+    type?: SyncType,
+    limit?: number,
+  ): Array<{
+    timestamp: Date;
+    duration: number;
+    success: boolean;
+    error: string | null;
+    syncType: SyncType;
+  }> {
+    if (type) {
+      const history = this.syncHistory[type];
+      return limit ? history.slice(0, limit) : history;
+    }
+
+    // Return all history sorted by timestamp (newest first)
+    const allHistory: Array<{
+      timestamp: Date;
+      duration: number;
+      success: boolean;
+      error: string | null;
+      syncType: SyncType;
+    }> = [];
+
+    for (const syncType of Object.keys(this.syncHistory) as SyncType[]) {
+      allHistory.push(...this.syncHistory[syncType]);
+    }
+
+    allHistory.sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
+    return limit ? allHistory.slice(0, limit) : allHistory;
+  }
+
+  /**
+   * Add entry to sync history.
+   * Maintains max 100 entries per type (FIFO).
+   */
+  private addHistoryEntry(
+    type: SyncType,
+    duration: number,
+    success: boolean,
+    error: string | null,
+  ): void {
+    const entry = {
+      timestamp: new Date(),
+      duration,
+      success,
+      error,
+      syncType: type,
+    };
+
+    this.syncHistory[type].unshift(entry); // Add to front (newest first)
+
+    // Trim to max size
+    if (this.syncHistory[type].length > this.MAX_HISTORY_PER_TYPE) {
+      this.syncHistory[type] = this.syncHistory[type].slice(
+        0,
+        this.MAX_HISTORY_PER_TYPE,
+      );
+    }
   }
 }
