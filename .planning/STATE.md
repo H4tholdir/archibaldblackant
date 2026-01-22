@@ -9,12 +9,12 @@ See: .planning/PROJECT.md (updated 2026-01-11)
 
 ## Current Position
 
-Phase: 27 of 28 (Bot Performance Profiling v2)
-Plan: 2 of 4 in current phase (executing)
-Status: In progress
-Last activity: 2026-01-22 — Completed Plan 27-02 (Binary Search Slowdown Optimizer)
+Phase: 28 of 28 (Bot Performance Optimization v2)
+Plan: Ready to plan
+Status: Phase 27 complete (manual optimization), Phase 28 evaluation pending
+Last activity: 2026-01-22 — Completed Phase 27 via manual timeout optimization
 
-Progress: █████░░░░░ 51% (v2.0: 14/15 phases in progress, 47/68 plans)
+Progress: ██████░░░░ 72% (v2.0: 14/15 phases complete, 51/70 plans)
 
 ## Performance Metrics
 
@@ -53,10 +53,10 @@ Progress: █████░░░░░ 51% (v2.0: 14/15 phases in progress, 47
 | 24 | 1 | 15 min | 15 min |
 | 25 | 3 | 24 min | 8 min |
 | 26 | 1 | 25 min | 25 min |
-| 27 | 2 | 59 min | 30 min |
+| 27 | 4 | 239 min | 60 min |
 
 **Recent Trend:**
-- Last 10 plans: 21-02 (8m), 21-03 (45m), 21-04 (90m), 21-05 (120m), 22-01 (15m), 22-02 (15m), 22-03 (30m), 23-01 (60m), 24-01 (15m), 25-01 (3m)
+- Last 10 plans: 21-04 (90m), 21-05 (120m), 22-01 (15m), 22-02 (15m), 22-03 (30m), 23-01 (60m), 24-01 (15m), 25-01 (3m), 26-01 (25m), 27-01 (24m)
 - Phase 9 extremely fast (avg 11m) - leveraging existing Phase 8-07 infrastructure
 - Phase 10 high avg (105m) - includes 521m for Plan 10-07 (heavy login debugging)
 - Phase 14 complete (5 plans avg 9m) - 4 discovery plans + 1 execution plan, all IndexedDB errors fixed ✅ COMPLETE
@@ -65,6 +65,8 @@ Progress: █████░░░░░ 51% (v2.0: 14/15 phases in progress, 47
 - Phase 17 complete (1/1 plan, 3m) - Budget and order metrics API endpoints, dashboard integration ✅ COMPLETE
 - Phase 24 complete (1/1 plan, 15m) - Auto-sync enabled on startup, admin API endpoints (status/start/stop), UI toggle controls ✅ COMPLETE
 - Phase 25 complete (3/3 plans, 8m avg) - Sync monitoring dashboard complete: history tracking + backend APIs + frontend component ✅ COMPLETE
+- Phase 26 complete (1/1 plan, 25m) - Universal fast login with BrowserPool context caching (50% faster) ✅ COMPLETE
+- Phase 27 complete (4/4 plans, 60m avg) - Bot performance profiling via manual optimization: ~35s improvement on 3-article orders, 8/8 test orders successful ✅ COMPLETE
 
 ## Accumulated Context
 
@@ -75,6 +77,16 @@ Recent decisions affecting current work:
 
 | Phase | Decision | Rationale |
 |-------|----------|-----------|
+| 27-03 | Manual optimization vs automated profiling | Manual approach provides more control, immediate feedback, faster iteration, achieved ~35s improvement on 3-article orders |
+| 27-03 | 30-35% reduction strategy for timeouts | Aggressive but conservative enough to maintain 100% stability (8/8 test orders successful) |
+| 27-03 | D3 URL change timeout stays at 2200ms | Critical timeout identified through failure testing, cannot be reduced without breaking navigation |
+| 27-03 | Preserve work in manual-timeout-optimization branch | Keep manual optimization separate from main timeline for future reference or merging (commit b2cbc7a) |
+| 27-02 | Combined Tasks 1 & 2 in single commit | Binary search requires crash recovery to function, they form single atomic unit of functionality |
+| 27-02 | bot.close() for restart instead of private access | Cleaner API usage, proper encapsulation respected, bot.context is private property |
+| 27-02 | 120-second timeout for crash detection | Normal order takes 30-60s, 120s catches hangs while allowing slow operations |
+| 27-02 | Safety limits: 10 crashes/step, 50 iterations | Binary search converges in ~8 iterations, limits prevent infinite loops if assumptions break |
+| 27-01 | Direct paste article field vs 3-step flow | Single paste auto-triggers dropdown, eliminates 2 steps per article (dropdown click + search input click) |
+| 27-01 | Optional slowdownConfig parameter | Backward compatible, existing callers unaffected, enables future automated profiling without code changes |
 | 26-01 | Pool size: 2 contexts maximum | Balance memory vs concurrency, most operations sequential, handles typical concurrent sync jobs |
 | 26-01 | Context expiry: 1 hour inactivity | Matches typical ERP session timeout, long enough for sync operations, short enough to avoid stale sessions |
 | 26-01 | Session validation via protected page navigation | Navigate to Default.aspx, check for Login.aspx redirect, fast (<5s) and reliable session validity indicator |
