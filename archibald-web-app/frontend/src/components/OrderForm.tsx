@@ -535,9 +535,28 @@ export default function OrderForm({
     return () => clearTimeout(timeoutId);
   }, [customerId, customerName, draftItems]);
 
-  // Fetch customers from cache on mount
+  // Fetch customers from cache on mount and trigger Smart Customer Sync
   useEffect(() => {
     let isMounted = true;
+
+    // Smart Customer Sync: fast, on-demand sync when entering order form
+    const triggerSmartCustomerSync = async () => {
+      try {
+        const token = localStorage.getItem("authToken");
+        if (!token) return;
+
+        await fetch("/api/customers/smart-sync", {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+        });
+      } catch (error) {
+        console.error("Smart Customer Sync failed:", error);
+        // Non-blocking error - continue with cached data
+      }
+    };
 
     const loadCustomersFromCache = async () => {
       if (customersLoaded) return; // Already loaded
@@ -576,10 +595,26 @@ export default function OrderForm({
       }
     };
 
+    // Trigger smart sync and load customers in parallel
+    triggerSmartCustomerSync();
     loadCustomersFromCache();
 
+    // Cleanup: resume other syncs when exiting order form
     return () => {
       isMounted = false;
+
+      const token = localStorage.getItem("authToken");
+      if (token) {
+        fetch("/api/customers/resume-syncs", {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+        }).catch((error) => {
+          console.error("Resume syncs failed:", error);
+        });
+      }
     };
   }, [customersLoaded]);
 
@@ -989,14 +1024,13 @@ export default function OrderForm({
       setTargetTotalWithVAT("");
       setEditingDraftId(null);
 
-      // Show success message
+      // Show success message (stay on order form for multi-order workflow)
       const message = editingDraftId
-        ? "✅ Bozza aggiornata!\n\nLe modifiche sono state salvate."
-        : '✅ Bozza salvata!\n\nPuoi visualizzarla nella sezione "Bozze" e inviarla ad Archibald quando sei pronto.';
+        ? "✅ Bozza aggiornata!\n\nLe modifiche sono state salvate. Puoi continuare con un nuovo ordine o cliccare 'Fine' per uscire."
+        : '✅ Bozza salvata!\n\nPuoi continuare con un nuovo ordine o cliccare "Fine" per tornare alle bozze.';
       alert(message);
 
-      // Navigate to drafts page
-      navigate("/drafts");
+      // Stay on order form (removed navigate("/drafts"))
     } catch (error) {
       console.error("[OrderForm] Error saving draft:", error);
       alert(`Errore durante il salvataggio della bozza: ${error}`);
@@ -2272,14 +2306,22 @@ export default function OrderForm({
               </div>
             ))}
           </div>
-          <button
-            type="button"
-            className="btn btn-primary"
-            onClick={() => setShowConfirmModal(true)}
-            style={{ marginTop: "1rem" }}
-          >
-            🚀 Create Order ({draftItems.length} items)
-          </button>
+          <div style={{ display: "flex", gap: "1rem", marginTop: "1rem" }}>
+            <button
+              type="button"
+              className="btn btn-primary"
+              onClick={() => setShowConfirmModal(true)}
+            >
+              🚀 Create Order ({draftItems.length} items)
+            </button>
+            <button
+              type="button"
+              className="btn btn-secondary"
+              onClick={() => navigate("/drafts")}
+            >
+              ✓ Fine
+            </button>
+          </div>
         </div>
       )}
 
