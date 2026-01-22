@@ -2890,6 +2890,74 @@ app.get(
   }
 );
 
+/**
+ * GET /api/sync/intervals
+ * Returns current sync intervals for all 6 types (in minutes)
+ */
+app.get(
+  "/api/sync/intervals",
+  authenticateJWT,
+  requireAdmin,
+  (req: AuthRequest, res: Response) => {
+    try {
+      const intervals = syncOrchestrator.getIntervals();
+      res.json({ success: true, intervals });
+    } catch (error: any) {
+      logger.error("[API] Error getting intervals:", error);
+      res.status(500).json({ success: false, error: "Failed to get intervals" });
+    }
+  }
+);
+
+/**
+ * POST /api/sync/intervals/:type
+ * Update sync interval for a specific type
+ * Body: { intervalMinutes: number } (5-1440)
+ */
+app.post(
+  "/api/sync/intervals/:type",
+  authenticateJWT,
+  requireAdmin,
+  (req: AuthRequest, res: Response) => {
+    try {
+      const { type } = req.params;
+      const { intervalMinutes } = req.body;
+
+      // Validate type
+      const validTypes: SyncType[] = ["orders", "customers", "products", "prices", "ddt", "invoices"];
+      if (!validTypes.includes(type as SyncType)) {
+        return res.status(400).json({ success: false, error: "Invalid sync type" });
+      }
+
+      // Validate interval
+      if (typeof intervalMinutes !== "number" || intervalMinutes < 5 || intervalMinutes > 1440) {
+        return res.status(400).json({
+          success: false,
+          error: "Interval must be a number between 5 and 1440 minutes",
+        });
+      }
+
+      // Update interval
+      syncOrchestrator.updateInterval(type as SyncType, intervalMinutes);
+
+      logger.info(`[API] Interval updated for ${type}`, {
+        userId: req.user?.userId,
+        intervalMinutes,
+      });
+
+      res.json({
+        success: true,
+        message: `Interval updated to ${intervalMinutes} minutes`,
+        type,
+        intervalMinutes,
+      });
+    } catch (error: any) {
+      logger.error("[API] Error updating interval:", error);
+      res.status(500).json({ success: false, error: error.message || "Failed to update interval" });
+    }
+  }
+);
+
 // ============================================================================
 // PRICE MANAGEMENT ENDPOINTS
 // ============================================================================

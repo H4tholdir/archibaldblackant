@@ -96,6 +96,9 @@ export class SyncOrchestrator extends EventEmitter {
   };
   private readonly MAX_HISTORY_PER_TYPE = 100;
 
+  // Custom interval overrides (in minutes)
+  private customIntervals: Partial<Record<SyncType, number>> = {};
+
   private constructor() {
     super();
     this.customerSync = CustomerSyncService.getInstance();
@@ -479,32 +482,35 @@ export class SyncOrchestrator extends EventEmitter {
   startStaggeredAutoSync(): void {
     logger.info("[SyncOrchestrator] Starting staggered auto-sync...");
 
+    // Get intervals (use custom if set, otherwise defaults)
+    const intervals = this.getIntervals();
+
     // Define sync configurations
     const syncConfigs = [
-      { type: "orders" as SyncType, interval: 10 * 60 * 1000, startDelay: 0 },
+      { type: "orders" as SyncType, interval: intervals.orders * 60 * 1000, startDelay: 0 },
       {
         type: "customers" as SyncType,
-        interval: 30 * 60 * 1000,
+        interval: intervals.customers * 60 * 1000,
         startDelay: 5 * 60 * 1000,
       },
       {
         type: "prices" as SyncType,
-        interval: 30 * 60 * 1000,
+        interval: intervals.prices * 60 * 1000,
         startDelay: 10 * 60 * 1000,
       },
       {
         type: "invoices" as SyncType,
-        interval: 30 * 60 * 1000,
+        interval: intervals.invoices * 60 * 1000,
         startDelay: 15 * 60 * 1000,
       },
       {
         type: "ddt" as SyncType,
-        interval: 45 * 60 * 1000,
+        interval: intervals.ddt * 60 * 1000,
         startDelay: 20 * 60 * 1000,
       },
       {
         type: "products" as SyncType,
-        interval: 90 * 60 * 1000,
+        interval: intervals.products * 60 * 1000,
         startDelay: 30 * 60 * 1000,
       },
     ];
@@ -625,5 +631,46 @@ export class SyncOrchestrator extends EventEmitter {
         this.MAX_HISTORY_PER_TYPE,
       );
     }
+  }
+
+  /**
+   * Get current intervals for all sync types.
+   */
+  getIntervals(): Record<SyncType, number> {
+    // Default intervals (in minutes)
+    const defaults: Record<SyncType, number> = {
+      orders: 10,
+      customers: 30,
+      prices: 30,
+      invoices: 30,
+      ddt: 45,
+      products: 90,
+    };
+
+    // Merge with custom intervals if any
+    return { ...defaults, ...this.customIntervals };
+  }
+
+  /**
+   * Update sync interval for a specific type.
+   * Dynamically restarts auto-sync with new intervals.
+   */
+  updateInterval(type: SyncType, intervalMinutes: number): void {
+    if (intervalMinutes < 5 || intervalMinutes > 1440) {
+      throw new Error("Interval must be between 5 and 1440 minutes");
+    }
+
+    logger.info(`[SyncOrchestrator] Updating ${type} interval to ${intervalMinutes} minutes`);
+
+    // Stop current auto-sync
+    this.stopAutoSync();
+
+    // Update interval in custom intervals
+    this.customIntervals[type] = intervalMinutes;
+
+    // Restart auto-sync with new intervals
+    this.startStaggeredAutoSync();
+
+    logger.info(`[SyncOrchestrator] Auto-sync restarted with new ${type} interval`);
   }
 }
