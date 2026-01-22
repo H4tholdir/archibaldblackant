@@ -212,7 +212,9 @@ Plans:
 **Plans**: TBD
 
 Plans:
-- [ ] 22-01: TBD
+- [x] 22-01: Core Sync Orchestration (COMPLETE 2026-01-22)
+- [ ] 22-02: Staggered Scheduling
+- [ ] 22-03: Comprehensive Testing & Verification
 
 #### Phase 23: Sync UI Controls
 **Goal**: Bottoni UI granulari per ogni singolo sync + bottone sync generale
