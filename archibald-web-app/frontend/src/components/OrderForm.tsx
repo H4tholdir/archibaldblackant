@@ -41,6 +41,7 @@ interface Customer {
 interface Product {
   id: string;
   name: string;
+  article?: string; // Article code field for search
   description?: string;
   groupCode?: string;
   price?: number;
@@ -633,6 +634,7 @@ export default function OrderForm({
           const mappedProducts = cachedProducts.map((p) => ({
             id: p.id,
             name: p.name,
+            article: p.article, // Add article field for searching
             description: p.description,
             groupCode: undefined,
             price: p.price,
@@ -683,6 +685,7 @@ export default function OrderForm({
     const searchLower = productSearch.toLowerCase();
     return (
       (product.name && product.name.toLowerCase().includes(searchLower)) ||
+      (product.article && product.article.toLowerCase().includes(searchLower)) ||
       (product.id && product.id.toLowerCase().includes(searchLower)) ||
       (product.description &&
         product.description.toLowerCase().includes(searchLower))
