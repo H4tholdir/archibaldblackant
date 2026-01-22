@@ -71,6 +71,10 @@ export class SyncOrchestrator extends EventEmitter {
   private safetyTimeout: NodeJS.Timeout | null = null;
   private readonly SAFETY_TIMEOUT_MS = 10 * 60 * 1000; // 10 minutes
 
+  // Auto-sync scheduling
+  private autoSyncTimers: NodeJS.Timeout[] = [];
+  private autoSyncIntervals: NodeJS.Timeout[] = [];
+
   private constructor() {
     super();
     this.customerSync = CustomerSyncService.getInstance();
@@ -420,5 +424,98 @@ export class SyncOrchestrator extends EventEmitter {
   private getQueuePosition(type: SyncType): number | null {
     const index = this.queue.findIndex((req) => req.type === type);
     return index === -1 ? null : index + 1;
+  }
+
+  /**
+   * Start staggered auto-sync with approved frequencies
+   *
+   * Frequencies (based on research and user approval):
+   * - Orders: 10min (T+0 start) - High priority, real-time data
+   * - Customers: 30min (T+5 start) - Medium priority, needed for orders
+   * - Prices: 30min (T+10 start) - CRITICAL, pricing errors = 1.8% margin loss
+   * - Invoices: 30min (T+15 start) - Financial data, important
+   * - DDT: 45min (T+20 start) - Transport documents, less frequent
+   * - Products: 90min (T+30 start) - Catalog changes rare
+   *
+   * Staggered starts prevent resource spikes
+   */
+  startStaggeredAutoSync(): void {
+    logger.info("[SyncOrchestrator] Starting staggered auto-sync...");
+
+    // Define sync configurations
+    const syncConfigs = [
+      { type: "orders" as SyncType, interval: 10 * 60 * 1000, startDelay: 0 },
+      {
+        type: "customers" as SyncType,
+        interval: 30 * 60 * 1000,
+        startDelay: 5 * 60 * 1000,
+      },
+      {
+        type: "prices" as SyncType,
+        interval: 30 * 60 * 1000,
+        startDelay: 10 * 60 * 1000,
+      },
+      {
+        type: "invoices" as SyncType,
+        interval: 30 * 60 * 1000,
+        startDelay: 15 * 60 * 1000,
+      },
+      {
+        type: "ddt" as SyncType,
+        interval: 45 * 60 * 1000,
+        startDelay: 20 * 60 * 1000,
+      },
+      {
+        type: "products" as SyncType,
+        interval: 90 * 60 * 1000,
+        startDelay: 30 * 60 * 1000,
+      },
+    ];
+
+    // Start each sync with its configured interval and delay
+    syncConfigs.forEach((config) => {
+      const timer = setTimeout(() => {
+        logger.info(
+          `[SyncOrchestrator] Starting ${config.type} auto-sync (interval: ${config.interval / 60000}min)`,
+        );
+
+        // Initial sync
+        this.requestSync(config.type);
+
+        // Repeat at interval
+        const intervalTimer = setInterval(() => {
+          this.requestSync(config.type);
+        }, config.interval);
+
+        this.autoSyncIntervals.push(intervalTimer);
+      }, config.startDelay);
+
+      this.autoSyncTimers.push(timer);
+    });
+
+    logger.info("[SyncOrchestrator] Staggered auto-sync configured");
+    logger.info("  Orders: 10min (T+0)");
+    logger.info("  Customers: 30min (T+5)");
+    logger.info("  Prices: 30min (T+10)");
+    logger.info("  Invoices: 30min (T+15)");
+    logger.info("  DDT: 45min (T+20)");
+    logger.info("  Products: 90min (T+30)");
+  }
+
+  /**
+   * Stop all auto-sync timers
+   */
+  stopAutoSync(): void {
+    logger.info("[SyncOrchestrator] Stopping auto-sync...");
+
+    // Clear all setTimeout timers
+    this.autoSyncTimers.forEach((timer) => clearTimeout(timer));
+    this.autoSyncTimers = [];
+
+    // Clear all setInterval timers
+    this.autoSyncIntervals.forEach((interval) => clearInterval(interval));
+    this.autoSyncIntervals = [];
+
+    logger.info("[SyncOrchestrator] Auto-sync stopped");
   }
 }
