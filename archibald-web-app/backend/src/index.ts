@@ -72,7 +72,7 @@ import { OrderSyncService } from "./order-sync-service";
 import { DDTSyncService } from "./ddt-sync-service";
 import { InvoiceSyncService } from "./invoice-sync-service";
 import { InvoicesDatabase } from "./invoices-db";
-import { SyncOrchestrator } from "./sync-orchestrator";
+import { SyncOrchestrator, type SyncType } from "./sync-orchestrator";
 
 const app = express();
 const server = createServer(app);
@@ -2823,6 +2823,71 @@ app.post(
         .json({ success: false, error: "Failed to stop auto-sync" });
     }
   },
+);
+
+// ========== SYNC MONITORING ENDPOINTS (Phase 25) ==========
+
+/**
+ * GET /api/sync/monitoring/status
+ * Returns comprehensive monitoring data for all 6 sync types:
+ * - Current status (from orchestrator.getStatus())
+ * - Sync history (last N executions per type)
+ * - Next scheduled execution times
+ * - Current intervals
+ */
+app.get(
+  "/api/sync/monitoring/status",
+  authenticateJWT,
+  requireAdmin,
+  (req: AuthRequest, res: Response) => {
+    try {
+      const limit = parseInt(req.query.limit as string) || 20;
+
+      // Get orchestrator status
+      const orchestratorStatus = syncOrchestrator.getStatus();
+
+      // Build response with history for each type
+      const types: Record<string, any> = {};
+      const syncTypes: SyncType[] = ["orders", "customers", "products", "prices", "ddt", "invoices"];
+
+      for (const type of syncTypes) {
+        const history = syncOrchestrator.getHistory(type, limit);
+        const status = orchestratorStatus.statuses[type];
+
+        types[type] = {
+          // Current status
+          isRunning: status.isRunning,
+          lastRunTime: status.lastRunTime,
+          queuePosition: status.queuePosition,
+
+          // History
+          history: history.map(entry => ({
+            timestamp: entry.timestamp.toISOString(),
+            duration: entry.duration,
+            success: entry.success,
+            error: entry.error,
+          })),
+
+          // Health indicator (based on last run)
+          health: history.length > 0 && history[0].success ? "healthy" :
+                  history.length > 0 && !history[0].success ? "unhealthy" :
+                  "idle",
+        };
+      }
+
+      res.json({
+        success: true,
+        currentSync: orchestratorStatus.currentSync,
+        types,
+      });
+    } catch (error: any) {
+      logger.error("[API] Error getting monitoring status:", error);
+      res.status(500).json({
+        success: false,
+        error: "Failed to get monitoring status",
+      });
+    }
+  }
 );
 
 // ============================================================================
