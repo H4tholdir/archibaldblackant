@@ -201,6 +201,10 @@ export class SyncOrchestrator extends EventEmitter {
    */
   private async executeSync(type: SyncType, userId?: string): Promise<void> {
     this.currentSync = type;
+    const startTime = Date.now();
+    let success = false;
+    let errorMessage: string | null = null;
+
     this.emit("sync-started", { type });
 
     logger.info(`[SyncOrchestrator] Starting ${type} sync`, { userId });
@@ -230,13 +234,24 @@ export class SyncOrchestrator extends EventEmitter {
           break;
       }
 
+      success = true;
       this.lastRunTimes[type] = new Date();
       logger.info(`[SyncOrchestrator] Completed ${type} sync`);
       this.emit("sync-completed", { type });
-    } catch (error) {
-      logger.error(`[SyncOrchestrator] Error in ${type} sync:`, error);
+    } catch (error: any) {
+      success = false;
+      errorMessage = error?.message || String(error);
+      logger.error(`[SyncOrchestrator] Error in ${type} sync:`, {
+        error: errorMessage,
+        stack: error?.stack,
+      });
       this.emit("sync-error", { type, error });
     } finally {
+      const duration = Date.now() - startTime;
+
+      // Record history entry
+      this.addHistoryEntry(type, duration, success, errorMessage);
+
       this.currentSync = null;
       await this.processQueue();
     }
