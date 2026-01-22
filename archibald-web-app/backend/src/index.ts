@@ -3,6 +3,7 @@ import cors from "cors";
 import helmet from "helmet";
 import { createServer } from "http";
 import { WebSocketServer } from "ws";
+import { EventEmitter } from "events";
 import { config } from "./config";
 import { logger } from "./logger";
 import { ArchibaldBot } from "./archibald-bot";
@@ -13,7 +14,7 @@ import {
   updateWhitelistSchema,
   loginSchema,
 } from "./schemas";
-import { generateJWT } from "./auth-utils";
+import { generateJWT, verifyJWT } from "./auth-utils";
 import {
   authenticateJWT,
   requireAdmin,
@@ -52,7 +53,7 @@ import { SyncCheckpointManager } from "./sync-checkpoint";
 import { SessionCleanupJob } from "./session-cleanup-job";
 import { OrderHistoryService } from "./order-history-service";
 import { syncScheduler } from "./sync-scheduler";
-import syncControlRoutes, { syncProgressEmitter } from "./routes/sync-control";
+// syncControlRoutes removed - endpoints migrated to index.ts (sync-orchestrator based)
 import deltaSyncRoutes from "./routes/delta-sync";
 import { SendToMilanoService } from "./send-to-milano-service";
 import { DDTScraperService } from "./ddt-scraper-service";
@@ -74,6 +75,9 @@ import { SyncOrchestrator } from "./sync-orchestrator";
 const app = express();
 const server = createServer(app);
 const wss = new WebSocketServer({ server, path: "/ws/sync" });
+
+// Legacy progress emitter for backward compatibility (can be removed when all progress tracking migrated to orchestrator)
+const syncProgressEmitter = new EventEmitter();
 
 const queueManager = QueueManager.getInstance();
 const browserPool = BrowserPool.getInstance();
@@ -199,8 +203,7 @@ app.use((req, res, next) => {
   next();
 });
 
-// Sync control routes (manual/forced sync, status, history)
-app.use(syncControlRoutes);
+// Sync control moved to direct endpoints (see GET /api/sync/status, POST /api/sync/all, GET /api/sync/progress)
 
 // Delta sync routes (incremental sync API)
 app.use(deltaSyncRoutes);
@@ -1563,7 +1566,6 @@ app.get(
   authenticateJWT,
   (req: AuthRequest, res: Response) => {
     try {
-      logger.info("[API] GET /api/sync/status - syncOrchestrator endpoint called");
       const status = syncOrchestrator.getStatus();
 
       res.json({
@@ -1664,6 +1666,168 @@ app.post(
     });
   },
 );
+
+/**
+ * Trigger manual sync for ALL types (sequentially via orchestrator)
+ * POST /api/sync/all
+ * Priority order handled by orchestrator: orders > customers > ddt > invoices > prices > products
+ */
+app.post(
+  "/api/sync/all",
+  authenticateJWT,
+  async (req: AuthRequest, res: Response) => {
+    try {
+      const userId = req.user?.userId ?? "api-user";
+
+      logger.info("[API] Manual sync ALL requested via orchestrator", {
+        userId,
+      });
+
+      // Queue all syncs via orchestrator (respects priority and mutex)
+      const types = [
+        "orders",
+        "customers",
+        "ddt",
+        "invoices",
+        "prices",
+        "products",
+      ] as const;
+
+      for (const type of types) {
+        syncOrchestrator.requestSync(type, undefined, userId);
+      }
+
+      res.json({
+        success: true,
+        message: "All syncs queued via orchestrator (priority-based execution)",
+        types,
+      });
+    } catch (error: any) {
+      logger.error("[API] Sync ALL request failed", { error });
+      res.status(500).json({
+        success: false,
+        error: error.message,
+      });
+    }
+  },
+);
+
+/**
+ * Real-time sync progress stream (SSE)
+ * GET /api/sync/progress
+ * Listens to orchestrator events and streams progress updates
+ */
+app.get("/api/sync/progress", async (req, res: Response) => {
+  try {
+    // EventSource doesn't support custom headers, JWT via query param
+    const token = req.query.token as string;
+
+    if (!token) {
+      res.status(401).json({
+        success: false,
+        error: "Authentication token required",
+      });
+      return;
+    }
+
+    // Verify JWT
+    try {
+      const payload = await verifyJWT(token);
+      if (!payload) {
+        res.status(401).json({
+          success: false,
+          error: "Invalid or expired token",
+        });
+        return;
+      }
+    } catch (error) {
+      res.status(401).json({
+        success: false,
+        error: "Invalid or expired token",
+      });
+      return;
+    }
+
+    // Set SSE headers
+    res.setHeader("Content-Type", "text/event-stream");
+    res.setHeader("Cache-Control", "no-cache");
+    res.setHeader("Connection", "keep-alive");
+
+    // Send initial connection success
+    res.write("data: " + JSON.stringify({ connected: true }) + "\n\n");
+
+    // Listen to orchestrator events
+    const syncStartedListener = (data: any) => {
+      res.write(
+        "data: " +
+          JSON.stringify({
+            event: "sync-started",
+            type: data.type,
+            timestamp: Date.now(),
+          }) +
+          "\n\n",
+      );
+    };
+
+    const syncCompletedListener = (data: any) => {
+      res.write(
+        "data: " +
+          JSON.stringify({
+            event: "sync-completed",
+            type: data.type,
+            timestamp: Date.now(),
+          }) +
+          "\n\n",
+      );
+    };
+
+    const syncErrorListener = (data: any) => {
+      res.write(
+        "data: " +
+          JSON.stringify({
+            event: "sync-error",
+            type: data.type,
+            error: data.error,
+            timestamp: Date.now(),
+          }) +
+          "\n\n",
+      );
+    };
+
+    const queueUpdatedListener = (status: any) => {
+      res.write(
+        "data: " +
+          JSON.stringify({
+            event: "queue-updated",
+            queueLength: status.queue.length,
+            currentSync: status.currentSync,
+            timestamp: Date.now(),
+          }) +
+          "\n\n",
+      );
+    };
+
+    syncOrchestrator.on("sync-started", syncStartedListener);
+    syncOrchestrator.on("sync-completed", syncCompletedListener);
+    syncOrchestrator.on("sync-error", syncErrorListener);
+    syncOrchestrator.on("queue-updated", queueUpdatedListener);
+
+    // Cleanup on disconnect
+    req.on("close", () => {
+      syncOrchestrator.off("sync-started", syncStartedListener);
+      syncOrchestrator.off("sync-completed", syncCompletedListener);
+      syncOrchestrator.off("sync-error", syncErrorListener);
+      syncOrchestrator.off("queue-updated", queueUpdatedListener);
+      res.end();
+    });
+  } catch (error: any) {
+    logger.error("[API] SSE connection failed", { error });
+    res.status(500).json({
+      success: false,
+      error: error.message,
+    });
+  }
+});
 
 /**
  * Get products sync metrics (monitoring)
