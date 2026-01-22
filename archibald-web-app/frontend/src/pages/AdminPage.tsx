@@ -1,6 +1,7 @@
 import { useNavigate } from "react-router-dom";
 import { useState, useEffect } from "react";
 import "../styles/AdminPage.css";
+import SyncControlPanel from "../components/SyncControlPanel";
 
 interface AdminPageProps {
   onLogout: () => void;
@@ -218,6 +219,10 @@ export function AdminPage({ onLogout, userName }: AdminPageProps) {
       </header>
 
       <main className="admin-main">
+        <section className="admin-section">
+          <SyncControlPanel />
+        </section>
+
         <section className="admin-section">
           <h2>📊 Carica Listino Excel (Solo IVA)</h2>
           <p className="admin-description">
