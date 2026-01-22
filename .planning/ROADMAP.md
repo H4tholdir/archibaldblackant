@@ -262,10 +262,11 @@ Plans:
 **Goal**: Profile dettagliato post Phase 3.1 optimizations per identificare nuovi colli di bottiglia
 **Depends on**: Phase 26
 **Research**: Unlikely (extending existing profiling system from Phase 3.1, same patterns)
-**Plans**: TBD
+**Plans**: 4 plans created ✅
+**Status**: In progress (1/4 complete)
 
 Plans:
-- [ ] 27-01: TBD
+- [x] 27-01: UI Optimization + Slowdown Infrastructure (direct paste article field, SlowdownConfig interface) — 45min ✅ COMPLETE
 
 #### Phase 28: Bot Performance Optimization v2
 **Goal**: Raggiungere target < 60s per ordine (attualmente ~82s, riduzione -22s)
@@ -298,6 +299,6 @@ Plans:
 | 23. Sync UI Controls | v2.0 | 1/1 | Complete | 2026-01-22 |
 | 24. Background Sync Service | v2.0 | 1/1 | Complete | 2026-01-22 |
 | 25. Sync Monitoring Dashboard | v2.0 | 3/3 | Complete | 2026-01-22 |
-| 26. Universal Fast Login | v2.0 | 0/? | Not started | - |
-| 27. Bot Performance Profiling v2 | v2.0 | 0/? | Not started | - |
+| 26. Universal Fast Login | v2.0 | 1/1 | Complete | 2026-01-22 |
+| 27. Bot Performance Profiling v2 | v2.0 | 1/4 | In progress | - |
 | 28. Bot Performance Optimization v2 | v2.0 | 0/? | Not started | - |
