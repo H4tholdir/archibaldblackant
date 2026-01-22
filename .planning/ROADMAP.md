@@ -46,9 +46,8 @@ None (full-stack web app con pattern standard)
 
 ## Milestones
 
+- ✅ **[v2.0 Agent Dashboard & Sync Reliability](milestones/v2.0-ROADMAP.md)** - Phases 14-28 (shipped 2026-01-22)
 - ✅ **v1.0 MVP & Production Deployment** - Phases 1-13 (shipped 2026-01-17)
-- ✅ **v2.0 Agent Dashboard & Sync Reliability** - Phases 14-28 (completed 2026-01-22)
-- 🚧 **v2.0 Agent Dashboard & Sync Reliability** - Phases 14-28 (in progress)
 
 ## Phase Details
 
@@ -59,9 +58,24 @@ See phases 1-13 below for complete details of v1.0 milestone.
 
 </details>
 
-### 🚧 v2.0 Agent Dashboard & Sync Reliability (In Progress)
+<details>
+<summary>✅ v2.0 Agent Dashboard & Sync Reliability (Phases 14-28) - SHIPPED 2026-01-22</summary>
 
 **Milestone Goal**: Potenziare l'app con dashboard motivazionale per agenti, sistema di sync bulletproof con orchestrazione intelligente, e performance critiche ottimizzate per produttività massima.
+
+**Full details:** See [milestones/v2.0-ROADMAP.md](milestones/v2.0-ROADMAP.md)
+
+**Key accomplishments:**
+- Agent dashboard with budget widgets, target wizard, and real-time metrics
+- PDF-based sync migration for all data types (customers, products, prices, orders, DDT, invoices)
+- Sync orchestration layer with mutex locking and staggered scheduling
+- Background auto-sync with admin controls and monitoring dashboard
+- Universal fast login with BrowserPool context caching (50% faster)
+- Bot performance optimization (~35s improvement, 100% reliability)
+
+**Stats:** 17 phases, 52 plans, 5 days (2026-01-18 to 2026-01-22)
+
+</details>
 
 #### Phase 14: Fix IndexedDB Critical Error ✅ COMPLETE
 **Goal**: Risolvere completamente l'errore `IDBObjectStore 'put'` che appare su tutte le pagine della PWA
