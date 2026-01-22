@@ -240,10 +240,12 @@ Plans:
 **Goal**: UI admin per monitorare sync status, tempi esecuzione, errori
 **Depends on**: Phase 24
 **Research**: Unlikely (admin UI with metrics display, existing monitoring patterns from v1.0 Phase 12)
-**Plans**: TBD
+**Plans**: 3 (1 complete, 2 remaining)
 
 Plans:
-- [ ] 25-01: TBD
+- [x] 25-01: Sync History Tracking in SyncOrchestrator (COMPLETE 2026-01-22) — 3min
+- [ ] 25-02: Backend API Endpoints for Monitoring
+- [ ] 25-03: Frontend Monitoring Dashboard Component
 
 #### Phase 26: Universal Fast Login
 **Goal**: Login veloce (come login iniziale) per tutte le operazioni (sync, bot, queries, reconnect)
