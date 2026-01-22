@@ -88,6 +88,7 @@ export default function OrderForm({
   const [productSearch, setProductSearch] = useState("");
   const [showProductDropdown, setShowProductDropdown] = useState(false);
   const [loadingProducts, setLoadingProducts] = useState(false);
+  const [productsLoaded, setProductsLoaded] = useState(false);
   const productInputRef = useRef<HTMLInputElement>(null);
   const productDropdownRef = useRef<HTMLDivElement>(null);
 
@@ -618,8 +619,53 @@ export default function OrderForm({
     };
   }, [customersLoaded]);
 
-  // Don't fetch products on mount - wait for user to type
-  // This prevents loading 4000+ products at startup
+  // Load products from IndexedDB cache on mount (similar to customers)
+  useEffect(() => {
+    let isMounted = true;
+
+    const loadProductsFromCache = async () => {
+      if (productsLoaded) return;
+      setLoadingProducts(true);
+      try {
+        const cachedProducts = await cacheService.searchProducts("", 10000);
+        if (!isMounted) return;
+        if (cachedProducts.length > 0) {
+          const mappedProducts = cachedProducts.map((p) => ({
+            id: p.id,
+            name: p.name,
+            description: p.description,
+            groupCode: undefined,
+            price: p.price,
+            packageContent: p.variants[0]?.packageContent,
+          }));
+          setProducts(mappedProducts);
+          setProductsLoaded(true);
+        } else {
+          // Fallback to API if cache is empty
+          const response = await fetch("/api/products");
+          const data = await response.json();
+          if (!isMounted) return;
+          if (data.success && data.data) {
+            setProducts(data.data.products || data.data);
+            setProductsLoaded(true);
+          }
+        }
+      } catch (error) {
+        if (!isMounted) return;
+        console.error("Errore caricamento prodotti:", error);
+      } finally {
+        if (isMounted) {
+          setLoadingProducts(false);
+        }
+      }
+    };
+
+    loadProductsFromCache();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [productsLoaded]);
 
   // Filter customers based on search - memoize to avoid recalculation
   const filteredCustomers = customers.filter((customer) => {
@@ -693,8 +739,8 @@ export default function OrderForm({
     setShowProductDropdown(false);
   };
 
-  // Product search handler with cache service
-  const handleProductSearchChange = async (
+  // Product search handler - simplified (uses client-side filtering)
+  const handleProductSearchChange = (
     e: React.ChangeEvent<HTMLInputElement>,
   ) => {
     const searchValue = e.target.value;
@@ -706,50 +752,6 @@ export default function OrderForm({
       article: false,
       quantity: false,
     }));
-
-    // If user types at least 2 characters, search from cache
-    if (searchValue.length >= 2) {
-      setLoadingProducts(true);
-      setShowProductDropdown(false); // Hide while loading
-      try {
-        // Search from cache (< 100ms performance)
-        const cachedProducts = await cacheService.searchProducts(
-          searchValue,
-          50,
-        );
-
-        // Map ProductWithDetails to Product interface for display
-        const mappedProducts = cachedProducts.map((p) => ({
-          id: p.id,
-          name: p.name,
-          description: p.description,
-          groupCode: undefined,
-          price: p.price,
-          packageContent: p.variants[0]?.packageContent,
-        }));
-
-        setProducts(mappedProducts);
-        setShowProductDropdown(true);
-      } catch (error) {
-        console.error("Errore ricerca prodotti:", error);
-      } finally {
-        setLoadingProducts(false);
-        // Mantieni focus sull'input dopo il caricamento - CRITICAL FIX
-        // Use requestAnimationFrame to ensure DOM is updated before refocusing
-        requestAnimationFrame(() => {
-          if (
-            productInputRef.current &&
-            document.activeElement !== productInputRef.current
-          ) {
-            productInputRef.current.focus();
-          }
-        });
-      }
-    } else {
-      // Clear products when less than 2 characters
-      setProducts([]);
-      setShowProductDropdown(false);
-    }
   };
 
   // Handle click outside to close dropdowns
@@ -2080,45 +2082,55 @@ export default function OrderForm({
               className="form-input"
               value={productSearch}
               onChange={handleProductSearchChange}
+              onFocus={() => {
+                if (products.length > 0) {
+                  setShowProductDropdown(true);
+                }
+              }}
+              onClick={() => {
+                if (products.length > 0) {
+                  setShowProductDropdown(true);
+                }
+              }}
               placeholder={
-                loadingProducts
-                  ? "Caricamento..."
-                  : "Digita per cercare prodotto (min 2 caratteri)"
+                loadingProducts ? "Caricamento..." : "Cerca per nome o codice"
               }
               disabled={loadingProducts}
               autoComplete="off"
             />
 
-            {showProductDropdown && filteredProducts.length > 0 && (
-              <div className="autocomplete-dropdown" ref={productDropdownRef}>
-                {filteredProducts.slice(0, 10).map((product) => (
-                  <div
-                    key={product.id}
-                    className="autocomplete-item"
-                    onClick={() => handleProductSelect(product)}
-                  >
-                    <div className="autocomplete-item-name">
-                      {product.name}
-                      {product.price && product.price > 0 && (
-                        <span className="product-price-badge">
-                          €{product.price.toFixed(2)}
-                        </span>
-                      )}
+            {showProductDropdown &&
+              products.length > 0 &&
+              filteredProducts.length > 0 && (
+                <div className="autocomplete-dropdown" ref={productDropdownRef}>
+                  {filteredProducts.slice(0, 10).map((product) => (
+                    <div
+                      key={product.id}
+                      className="autocomplete-item"
+                      onClick={() => handleProductSelect(product)}
+                    >
+                      <div className="autocomplete-item-name">
+                        {product.name}
+                        {product.price && product.price > 0 && (
+                          <span className="product-price-badge">
+                            €{product.price.toFixed(2)}
+                          </span>
+                        )}
+                      </div>
+                      <div className="autocomplete-item-id">
+                        ID: {product.id}
+                        {product.packageContent && (
+                          <span className="package-badge">
+                            📦 {product.packageContent} colli
+                          </span>
+                        )}
+                        {product.description &&
+                          ` - ${product.description.substring(0, 50)}`}
+                      </div>
                     </div>
-                    <div className="autocomplete-item-id">
-                      ID: {product.id}
-                      {product.packageContent && (
-                        <span className="package-badge">
-                          📦 {product.packageContent} colli
-                        </span>
-                      )}
-                      {product.description &&
-                        ` - ${product.description.substring(0, 50)}`}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
+                  ))}
+                </div>
+              )}
           </div>
         </div>
 
