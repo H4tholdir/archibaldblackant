@@ -24,8 +24,6 @@ interface OrchestratorStatus {
   safetyTimeoutActive: boolean;
 }
 
-type SyncMode = "auto" | "full" | "incremental";
-
 interface SyncSection {
   type: SyncType;
   label: string;
@@ -52,14 +50,6 @@ export default function SyncControlPanel() {
     orders: false,
     ddt: false,
     invoices: false,
-  });
-  const [syncModes, setSyncModes] = useState<Record<SyncType, SyncMode>>({
-    customers: "full",
-    products: "full",
-    prices: "full",
-    orders: "full",
-    ddt: "full",
-    invoices: "full",
   });
   const [syncingAll, setSyncingAll] = useState(false);
   const [deletingDb, setDeletingDb] = useState<Record<SyncType, boolean>>({
@@ -536,43 +526,8 @@ export default function SyncControlPanel() {
                 </div>
               </div>
 
-              <div style={{ marginBottom: "16px" }}>
-                <label
-                  style={{
-                    display: "block",
-                    fontSize: "12px",
-                    fontWeight: 600,
-                    color: "#666",
-                    marginBottom: "6px",
-                  }}
-                >
-                  Modalità Sync
-                </label>
-                <select
-                  value={syncModes[section.type]}
-                  onChange={(e) =>
-                    setSyncModes((prev) => ({
-                      ...prev,
-                      [section.type]: e.target.value as SyncMode,
-                    }))
-                  }
-                  style={{
-                    width: "100%",
-                    padding: "8px 12px",
-                    borderRadius: "6px",
-                    border: "1px solid #ddd",
-                    fontSize: "14px",
-                    backgroundColor: "#fff",
-                  }}
-                >
-                  <option value="auto">Auto (Scheduled)</option>
-                  <option value="full">Full Sync</option>
-                  <option value="incremental">Incremental</option>
-                </select>
-              </div>
-
               <div
-                style={{ display: "flex", gap: "8px", marginBottom: "12px" }}
+                style={{ display: "flex", gap: "8px", marginBottom: "16px" }}
               >
                 <button
                   onClick={() => handleSyncIndividual(section.type)}
@@ -597,7 +552,7 @@ export default function SyncControlPanel() {
                         : "pointer",
                   }}
                 >
-                  {syncing[section.type] ? "⏳ Syncing..." : "▶️ Avvia Sync"}
+                  {syncing[section.type] ? "⏳ Syncing..." : "▶️ Avvia Full Sync"}
                 </button>
                 <button
                   onClick={() => handleDeleteDb(section.type)}
