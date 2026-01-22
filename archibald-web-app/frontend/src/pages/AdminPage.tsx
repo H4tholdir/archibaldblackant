@@ -2,6 +2,7 @@ import { useNavigate } from "react-router-dom";
 import { useState, useEffect } from "react";
 import "../styles/AdminPage.css";
 import SyncControlPanel from "../components/SyncControlPanel";
+import SyncMonitoringDashboard from "../components/SyncMonitoringDashboard";
 
 interface AdminPageProps {
   onLogout: () => void;
@@ -221,6 +222,13 @@ export function AdminPage({ onLogout, userName }: AdminPageProps) {
       <main className="admin-main">
         <section className="admin-section">
           <SyncControlPanel />
+        </section>
+
+        <section className="admin-section">
+          <h2 style={{ marginBottom: "16px", fontSize: "24px", fontWeight: 600 }}>
+            📊 Sync Monitoring Dashboard
+          </h2>
+          <SyncMonitoringDashboard />
         </section>
 
         <section className="admin-section">
