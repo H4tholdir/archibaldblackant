@@ -1,6 +1,12 @@
 import { useState, useEffect } from "react";
 
-type SyncType = "customers" | "products" | "prices" | "orders" | "ddt" | "invoices";
+type SyncType =
+  | "customers"
+  | "products"
+  | "prices"
+  | "orders"
+  | "ddt"
+  | "invoices";
 
 interface SyncStatus {
   type: SyncType;
@@ -64,14 +70,17 @@ export default function SyncControlPanel() {
     ddt: false,
     invoices: false,
   });
+  const [autoSyncEnabled, setAutoSyncEnabled] = useState<boolean | null>(null);
 
   useEffect(() => {
     // Initial fetch
     fetchStatus();
+    fetchAutoSyncStatus();
 
     // Poll every 5s during active syncs
     const interval = setInterval(() => {
       fetchStatus();
+      fetchAutoSyncStatus();
     }, 5000);
 
     return () => clearInterval(interval);
@@ -110,6 +119,50 @@ export default function SyncControlPanel() {
       console.error("Error fetching sync status:", error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchAutoSyncStatus = async () => {
+    try {
+      const jwt = localStorage.getItem("archibald_jwt");
+      if (!jwt) return;
+
+      const response = await fetch("/api/sync/auto-sync/status", {
+        headers: { Authorization: `Bearer ${jwt}` },
+      });
+
+      const data = await response.json();
+      if (data.success) {
+        setAutoSyncEnabled(data.isRunning);
+      }
+    } catch (error) {
+      console.error("Failed to fetch auto-sync status:", error);
+    }
+  };
+
+  const toggleAutoSync = async () => {
+    const jwt = localStorage.getItem("archibald_jwt");
+    if (!jwt) {
+      alert("Devi effettuare il login");
+      return;
+    }
+
+    const endpoint = autoSyncEnabled ? "stop" : "start";
+    try {
+      const response = await fetch(`/api/sync/auto-sync/${endpoint}`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${jwt}` },
+      });
+
+      const data = await response.json();
+      if (data.success) {
+        setAutoSyncEnabled(!autoSyncEnabled);
+      } else {
+        alert(`Errore: ${data.error}`);
+      }
+    } catch (error) {
+      console.error("Failed to toggle auto-sync:", error);
+      alert("Errore durante il cambio dello stato auto-sync");
     }
   };
 
@@ -176,8 +229,8 @@ export default function SyncControlPanel() {
   const handleDeleteDb = async (type: SyncType) => {
     const confirmDelete = window.confirm(
       `⚠️ ATTENZIONE: Stai per cancellare il database ${type}.\n\n` +
-      `Tutti i dati verranno eliminati e dovrai rifare una sync completa.\n\n` +
-      `Sei sicuro di voler procedere?`
+        `Tutti i dati verranno eliminati e dovrai rifare una sync completa.\n\n` +
+        `Sei sicuro di voler procedere?`,
     );
 
     if (!confirmDelete) return;
@@ -201,7 +254,9 @@ export default function SyncControlPanel() {
       if (!data.success) {
         alert(`Errore cancellazione DB ${type}: ${data.error}`);
       } else {
-        alert(`✅ Database ${type} cancellato con successo!\n\nEsegui ora una sync completa.`);
+        alert(
+          `✅ Database ${type} cancellato con successo!\n\nEsegui ora una sync completa.`,
+        );
         fetchStatus();
       }
     } catch (error) {
@@ -222,7 +277,11 @@ export default function SyncControlPanel() {
     }
 
     if (syncStatus.queuePosition !== null) {
-      return { bg: "#2196f3", color: "#fff", text: `Queue #${syncStatus.queuePosition}` };
+      return {
+        bg: "#2196f3",
+        color: "#fff",
+        text: `Queue #${syncStatus.queuePosition}`,
+      };
     }
 
     if (syncStatus.lastRunTime) {
@@ -244,7 +303,8 @@ export default function SyncControlPanel() {
     if (syncStatus.lastRunTime) {
       const lastRun = new Date(syncStatus.lastRunTime);
       const now = new Date();
-      const hoursSinceLastRun = (now.getTime() - lastRun.getTime()) / (1000 * 60 * 60);
+      const hoursSinceLastRun =
+        (now.getTime() - lastRun.getTime()) / (1000 * 60 * 60);
 
       // Health thresholds based on sync type priority
       const thresholds: Record<SyncType, number> = {
@@ -297,9 +357,18 @@ export default function SyncControlPanel() {
 
   return (
     <div style={{ padding: "20px", maxWidth: "1200px", margin: "0 auto" }}>
-      <div style={{ marginBottom: "24px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+      <div
+        style={{
+          marginBottom: "24px",
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+        }}
+      >
         <div>
-          <h2 style={{ margin: "0 0 8px 0", fontSize: "24px", fontWeight: 600 }}>
+          <h2
+            style={{ margin: "0 0 8px 0", fontSize: "24px", fontWeight: 600 }}
+          >
             🔄 Sync Control Panel
           </h2>
           <p style={{ margin: 0, color: "#666", fontSize: "14px" }}>
@@ -313,16 +382,68 @@ export default function SyncControlPanel() {
             padding: "12px 24px",
             fontSize: "16px",
             fontWeight: 600,
-            backgroundColor: syncingAll || status?.currentSync !== null ? "#9e9e9e" : "#2196f3",
+            backgroundColor:
+              syncingAll || status?.currentSync !== null
+                ? "#9e9e9e"
+                : "#2196f3",
             color: "#fff",
             border: "none",
             borderRadius: "8px",
-            cursor: syncingAll || status?.currentSync !== null ? "not-allowed" : "pointer",
+            cursor:
+              syncingAll || status?.currentSync !== null
+                ? "not-allowed"
+                : "pointer",
             transition: "all 0.2s",
           }}
         >
           {syncingAll ? "⏳ Sync in corso..." : "🔄 Sync All"}
         </button>
+      </div>
+
+      <div
+        style={{
+          padding: "16px",
+          backgroundColor: autoSyncEnabled ? "#e8f5e9" : "#fff3e0",
+          borderRadius: "8px",
+          marginBottom: "20px",
+          border: `2px solid ${autoSyncEnabled ? "#4caf50" : "#ff9800"}`,
+        }}
+      >
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+          }}
+        >
+          <div>
+            <h3 style={{ margin: 0, fontSize: "16px", fontWeight: 600 }}>
+              🤖 Sync Automatico{" "}
+              {autoSyncEnabled ? "(Attivo)" : "(Disattivato)"}
+            </h3>
+            <p style={{ margin: "8px 0 0 0", fontSize: "13px", color: "#666" }}>
+              {autoSyncEnabled
+                ? "I sync vengono eseguiti automaticamente in background con intervalli configurati"
+                : "Attiva il sync automatico per eseguire sync in background senza intervento manuale"}
+            </p>
+          </div>
+          <button
+            onClick={toggleAutoSync}
+            disabled={autoSyncEnabled === null}
+            style={{
+              padding: "10px 20px",
+              backgroundColor: autoSyncEnabled ? "#f44336" : "#4caf50",
+              color: "white",
+              border: "none",
+              borderRadius: "4px",
+              cursor: autoSyncEnabled === null ? "not-allowed" : "pointer",
+              fontWeight: 600,
+              opacity: autoSyncEnabled === null ? 0.6 : 1,
+            }}
+          >
+            {autoSyncEnabled ? "⏸️ Disattiva" : "▶️ Attiva"}
+          </button>
+        </div>
       </div>
 
       {status?.smartCustomerSyncActive && (
@@ -372,13 +493,32 @@ export default function SyncControlPanel() {
                 boxShadow: "0 2px 4px rgba(0,0,0,0.05)",
               }}
             >
-              <div style={{ display: "flex", alignItems: "center", gap: "12px", marginBottom: "16px" }}>
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "12px",
+                  marginBottom: "16px",
+                }}
+              >
                 <span style={{ fontSize: "28px" }}>{section.icon}</span>
                 <div style={{ flex: 1 }}>
-                  <h3 style={{ margin: "0 0 4px 0", fontSize: "18px", fontWeight: 600 }}>
+                  <h3
+                    style={{
+                      margin: "0 0 4px 0",
+                      fontSize: "18px",
+                      fontWeight: 600,
+                    }}
+                  >
                     {section.label}
                   </h3>
-                  <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "8px",
+                    }}
+                  >
                     <span
                       style={{
                         backgroundColor: statusBadge.bg,
@@ -431,10 +571,14 @@ export default function SyncControlPanel() {
                 </select>
               </div>
 
-              <div style={{ display: "flex", gap: "8px", marginBottom: "12px" }}>
+              <div
+                style={{ display: "flex", gap: "8px", marginBottom: "12px" }}
+              >
                 <button
                   onClick={() => handleSyncIndividual(section.type)}
-                  disabled={syncing[section.type] || status?.currentSync !== null}
+                  disabled={
+                    syncing[section.type] || status?.currentSync !== null
+                  }
                   style={{
                     flex: 1,
                     padding: "10px",
@@ -457,21 +601,29 @@ export default function SyncControlPanel() {
                 </button>
                 <button
                   onClick={() => handleDeleteDb(section.type)}
-                  disabled={deletingDb[section.type] || syncing[section.type] || status?.currentSync !== null}
+                  disabled={
+                    deletingDb[section.type] ||
+                    syncing[section.type] ||
+                    status?.currentSync !== null
+                  }
                   title="Cancella database e ricrea da zero"
                   style={{
                     padding: "10px 16px",
                     fontSize: "14px",
                     fontWeight: 600,
                     backgroundColor:
-                      deletingDb[section.type] || syncing[section.type] || status?.currentSync !== null
+                      deletingDb[section.type] ||
+                      syncing[section.type] ||
+                      status?.currentSync !== null
                         ? "#9e9e9e"
                         : "#f44336",
                     color: "#fff",
                     border: "none",
                     borderRadius: "6px",
                     cursor:
-                      deletingDb[section.type] || syncing[section.type] || status?.currentSync !== null
+                      deletingDb[section.type] ||
+                      syncing[section.type] ||
+                      status?.currentSync !== null
                         ? "not-allowed"
                         : "pointer",
                   }}
@@ -482,7 +634,8 @@ export default function SyncControlPanel() {
 
               <div style={{ fontSize: "12px", color: "#666" }}>
                 <div style={{ marginBottom: "4px" }}>
-                  <strong>Ultima sync:</strong> {formatLastSync(syncStatus?.lastRunTime || null)}
+                  <strong>Ultima sync:</strong>{" "}
+                  {formatLastSync(syncStatus?.lastRunTime || null)}
                 </div>
                 <div>
                   <strong>Priorità:</strong> {section.priority}/6
@@ -503,7 +656,9 @@ export default function SyncControlPanel() {
             borderRadius: "8px",
           }}
         >
-          <h3 style={{ margin: "0 0 12px 0", fontSize: "16px", fontWeight: 600 }}>
+          <h3
+            style={{ margin: "0 0 12px 0", fontSize: "16px", fontWeight: 600 }}
+          >
             📋 Coda Sync ({status.queue.length})
           </h3>
           <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
