@@ -9,12 +9,12 @@ See: .planning/PROJECT.md (updated 2026-01-11)
 
 ## Current Position
 
-Phase: 23 of 28 (Sync UI Controls)
+Phase: 24 of 28 (Background Sync Service)
 Plan: 1 of 1 in current phase
 Status: Complete ✅
-Last activity: 2026-01-22 — Completed 23-01-PLAN.md (Unified Sync Management UI)
+Last activity: 2026-01-22 — Completed 24-01-PLAN.md (Auto-Sync Enabled with Admin Controls)
 
-Progress: █████░░░░░ 46% (v2.0: 12/15 phases in progress, 40/68 plans)
+Progress: █████░░░░░ 48% (v2.0: 13/15 phases in progress, 41/68 plans)
 
 ## Performance Metrics
 
@@ -50,15 +50,17 @@ Progress: █████░░░░░ 46% (v2.0: 12/15 phases in progress, 40
 | 21 | 5 | 353 min | 71 min |
 | 22 | 3 | 60 min | 20 min |
 | 23 | 1 | 60 min | 60 min |
+| 24 | 1 | 15 min | 15 min |
 
 **Recent Trend:**
-- Last 10 plans: 20-06 (60m), 21-01 (90m), 21-02 (8m), 21-03 (45m), 21-04 (90m), 21-05 (120m), 22-01 (15m), 22-02 (15m), 22-03 (30m), 23-01 (60m)
+- Last 10 plans: 21-01 (90m), 21-02 (8m), 21-03 (45m), 21-04 (90m), 21-05 (120m), 22-01 (15m), 22-02 (15m), 22-03 (30m), 23-01 (60m), 24-01 (15m)
 - Phase 9 extremely fast (avg 11m) - leveraging existing Phase 8-07 infrastructure
 - Phase 10 high avg (105m) - includes 521m for Plan 10-07 (heavy login debugging)
 - Phase 14 complete (5 plans avg 9m) - 4 discovery plans + 1 execution plan, all IndexedDB errors fixed ✅ COMPLETE
 - Phase 15 complete (4 plans avg 26m) - Dashboard homepage with 3 widgets, responsive layout ✅ COMPLETE
 - Phase 16 complete (4/4 plans, 19m avg) - Target wizard, profile editor, dashboard integration functional ✅ COMPLETE
 - Phase 17 complete (1/1 plan, 3m) - Budget and order metrics API endpoints, dashboard integration ✅ COMPLETE
+- Phase 24 complete (1/1 plan, 15m) - Auto-sync enabled on startup, admin API endpoints (status/start/stop), UI toggle controls ✅ COMPLETE
 
 ## Accumulated Context
 
@@ -69,6 +71,9 @@ Recent decisions affecting current work:
 
 | Phase | Decision | Rationale |
 |-------|----------|-----------|
+| 24-01 | Auto-sync enabled by default on startup | Production-ready behavior with staggered scheduling (10-90min intervals), manual control via admin UI |
+| 24-01 | Admin-only API endpoints for auto-sync | Prevents unauthorized users from disrupting sync schedules, JWT + requireAdmin middleware |
+| 24-01 | Green=active, Orange=inactive UI colors | Semantic colors for auto-sync banner, green indicates running/healthy, orange needs attention |
 | 23-01 | 6 sync types in control panel (not 4) | Complete coverage of all Archibald data types (customers, products, prices, orders, ddt, invoices) for unified management |
 | 23-01 | Delete DB button per sync section | Enables clean re-sync from scratch when data corruption or schema changes occur, with confirmation dialog for safety |
 | 23-01 | Responsive menu fallback for orders PDF | Handles Archibald UI behavior change on narrow screens (mobile agents), tries DXI9→DXI7 first, then fallback to DXI3 |
