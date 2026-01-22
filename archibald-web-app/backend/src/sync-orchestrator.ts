@@ -103,8 +103,8 @@ export class SyncOrchestrator extends EventEmitter {
       customers: 5, // High priority (needed for orders)
       ddt: 4, // Medium-high priority (transport documents)
       invoices: 3, // Medium priority (financial data)
-      prices: 2, // Lower priority (pricing data)
-      products: 1, // Lowest priority (catalog changes rare)
+      products: 2, // Products before prices (needed for price matching)
+      prices: 1, // Lowest priority (requires products to exist first)
     };
     return priorities[type];
   }

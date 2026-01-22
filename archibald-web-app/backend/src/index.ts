@@ -4,6 +4,8 @@ import helmet from "helmet";
 import { createServer } from "http";
 import { WebSocketServer } from "ws";
 import { EventEmitter } from "events";
+import fs from "fs";
+import path from "path";
 import { config } from "./config";
 import { logger } from "./logger";
 import { ArchibaldBot } from "./archibald-bot";
@@ -1707,6 +1709,71 @@ app.post(
       res.status(500).json({
         success: false,
         error: error.message,
+      });
+    }
+  },
+);
+
+/**
+ * Clear/delete database for a specific sync type
+ * DELETE /api/sync/:type/clear-db
+ * Admin-only endpoint to reset databases and force full re-sync
+ */
+app.delete(
+  "/api/sync/:type/clear-db",
+  authenticateJWT,
+  requireAdmin,
+  async (req: AuthRequest, res: Response) => {
+    try {
+      const syncType = req.params.type as string;
+
+      // Validate sync type
+      const validTypes = ["customers", "products", "prices", "orders", "ddt", "invoices"];
+      if (!validTypes.includes(syncType)) {
+        return res.status(400).json({
+          success: false,
+          error: `Invalid sync type. Must be one of: ${validTypes.join(", ")}`,
+        });
+      }
+
+      logger.info(`[API] Clear DB requested for ${syncType}`, {
+        userId: req.user?.userId,
+      });
+
+      // Map sync type to database file
+      const dbFiles: Record<string, string> = {
+        customers: path.join(__dirname, "../data/customers.db"),
+        products: path.join(__dirname, "../data/products.db"),
+        prices: path.join(__dirname, "../data/prices.db"),
+        orders: path.join(__dirname, "../data/orders-new.db"),
+        ddt: path.join(__dirname, "../data/ddt.db"),
+        invoices: path.join(__dirname, "../data/invoices.db"),
+      };
+
+      const dbPath = dbFiles[syncType];
+
+      // Check if DB exists
+      if (!fs.existsSync(dbPath)) {
+        logger.warn(`[API] DB file not found: ${dbPath}`);
+        return res.json({
+          success: true,
+          message: `Database ${syncType} non trovato (già cancellato o mai creato)`,
+        });
+      }
+
+      // Delete database file
+      fs.unlinkSync(dbPath);
+      logger.info(`[API] Database ${syncType} deleted successfully`, { dbPath });
+
+      res.json({
+        success: true,
+        message: `Database ${syncType} cancellato con successo. Esegui una sync per ricrearlo.`,
+      });
+    } catch (error: any) {
+      logger.error(`[API] Clear DB failed for ${req.params.type}`, { error });
+      res.status(500).json({
+        success: false,
+        error: error.message || "Errore durante cancellazione database",
       });
     }
   },

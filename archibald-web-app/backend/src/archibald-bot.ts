@@ -6492,7 +6492,7 @@ export class ArchibaldBot {
       logger.info("[ArchibaldBot] Searching for PDF export button...");
 
       // Wait for the menu container to be present
-      await page.waitForSelector("#Vertical_mainMenu_Menu_DXI7_", {
+      await page.waitForSelector("#Vertical_mainMenu_Menu_DXI3_", {
         timeout: 10000,
       });
 
@@ -6501,8 +6501,8 @@ export class ArchibaldBot {
 
       // Check if button is already visible or needs hover
       const isVisible = await page.evaluate(() => {
-        const li = document.querySelector("#Vertical_mainMenu_Menu_DXI7_");
-        const a = document.querySelector("#Vertical_mainMenu_Menu_DXI7_T");
+        const li = document.querySelector("#Vertical_mainMenu_Menu_DXI3_");
+        const a = document.querySelector("#Vertical_mainMenu_Menu_DXI3_T");
 
         if (!li || !a) return false;
 
@@ -6592,7 +6592,7 @@ export class ArchibaldBot {
       // Trigger the click on the specific menu item
       const clickResult = await page.evaluate(() => {
         const button = document.querySelector(
-          "#Vertical_mainMenu_Menu_DXI7_T",
+          "#Vertical_mainMenu_Menu_DXI3_T",
         ) as HTMLElement;
 
         if (!button) {
@@ -6685,7 +6685,7 @@ export class ArchibaldBot {
       logger.info("[ArchibaldBot] Searching for PDF export button...");
 
       // Wait for the menu container to be present
-      await page.waitForSelector("#Vertical_mainMenu_Menu_DXI7_", {
+      await page.waitForSelector("#Vertical_mainMenu_Menu_DXI3_", {
         timeout: 10000,
       });
 
@@ -6694,8 +6694,8 @@ export class ArchibaldBot {
 
       // Check if button is already visible or needs hover
       const isVisible = await page.evaluate(() => {
-        const li = document.querySelector("#Vertical_mainMenu_Menu_DXI7_");
-        const a = document.querySelector("#Vertical_mainMenu_Menu_DXI7_T");
+        const li = document.querySelector("#Vertical_mainMenu_Menu_DXI3_");
+        const a = document.querySelector("#Vertical_mainMenu_Menu_DXI3_T");
 
         if (!li || !a) return false;
 
@@ -6812,35 +6812,87 @@ export class ArchibaldBot {
         }, 500);
       });
 
-      // Click PDF export button
-      logger.info("[ArchibaldBot] Clicking PDF export button...");
+      // Click PDF export button with fallback strategy
+      logger.info("[ArchibaldBot] Attempting to click PDF export button...");
 
       await new Promise((resolve) => setTimeout(resolve, 200));
 
-      const clickResult = await page.evaluate(() => {
-        const button = document.querySelector(
-          "#Vertical_mainMenu_Menu_DXI7_T",
+      // Attempt 1: Try responsive menu first (DXI9 → DXI7)
+      logger.info("[ArchibaldBot] Trying responsive menu method first...");
+
+      const showHiddenResult = await page.evaluate(() => {
+        const hiddenMenuButton = document.querySelector(
+          "#Vertical_mainMenu_Menu_DXI9_T",
         ) as HTMLElement;
 
-        if (!button) {
-          return { success: false, error: "Button not found in DOM" };
+        if (!hiddenMenuButton) {
+          return { success: false, error: "Show hidden items button not found" };
         }
 
-        button.click();
+        hiddenMenuButton.click();
         return { success: true };
       });
 
-      if (!clickResult.success) {
-        logger.error("[ArchibaldBot] Failed to click PDF export button", {
-          error: clickResult.error,
+      let clickResult: any;
+
+      if (showHiddenResult.success) {
+        logger.info("[ArchibaldBot] Responsive menu opened, waiting for submenu...");
+        await new Promise((resolve) => setTimeout(resolve, 500));
+
+        // Try to click DXI7 button from responsive menu
+        clickResult = await page.evaluate(() => {
+          const button = document.querySelector(
+            "#Vertical_mainMenu_Menu_DXI7_T",
+          ) as HTMLElement;
+
+          if (!button) {
+            return { success: false, error: "DXI7 button not found in responsive menu" };
+          }
+
+          button.click();
+          return { success: true, method: "responsive-DXI7" };
         });
-        throw new Error(
-          `Failed to click PDF export button: ${clickResult.error}`,
+
+        if (clickResult.success) {
+          logger.info("[ArchibaldBot] PDF export clicked via responsive menu (DXI7)");
+        }
+      } else {
+        clickResult = { success: false };
+      }
+
+      // Attempt 2: If responsive menu failed, try direct button (DXI3)
+      if (!clickResult.success) {
+        logger.info(
+          "[ArchibaldBot] Responsive menu not available, trying direct button fallback...",
         );
+
+        clickResult = await page.evaluate(() => {
+          const button = document.querySelector(
+            "#Vertical_mainMenu_Menu_DXI3_T",
+          ) as HTMLElement;
+
+          if (!button) {
+            return { success: false, error: "DXI3 button not found" };
+          }
+
+          button.click();
+          return { success: true, method: "direct-DXI3" };
+        });
+
+        if (!clickResult.success) {
+          logger.error("[ArchibaldBot] Both methods failed to click PDF export button", {
+            error: clickResult.error,
+          });
+          throw new Error(
+            `Failed to click PDF export button: ${clickResult.error}`,
+          );
+        }
+
+        logger.info("[ArchibaldBot] PDF export clicked via direct button (DXI3)");
       }
 
       logger.info(
-        "[ArchibaldBot] PDF export button clicked successfully, waiting for download...",
+        `[ArchibaldBot] PDF export button clicked successfully (method: ${clickResult.method}), waiting for download...`,
       );
 
       // Wait for download to complete

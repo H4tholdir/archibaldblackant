@@ -32,8 +32,8 @@ const syncSections: SyncSection[] = [
   { type: "customers", label: "Clienti", icon: "👥", priority: 5 },
   { type: "ddt", label: "DDT", icon: "🚚", priority: 4 },
   { type: "invoices", label: "Fatture", icon: "📄", priority: 3 },
-  { type: "prices", label: "Prezzi", icon: "💰", priority: 2 },
-  { type: "products", label: "Prodotti", icon: "🏷️", priority: 1 },
+  { type: "products", label: "Prodotti", icon: "🏷️", priority: 2 },
+  { type: "prices", label: "Prezzi", icon: "💰", priority: 1 },
 ];
 
 export default function SyncControlPanel() {
@@ -56,6 +56,14 @@ export default function SyncControlPanel() {
     invoices: "full",
   });
   const [syncingAll, setSyncingAll] = useState(false);
+  const [deletingDb, setDeletingDb] = useState<Record<SyncType, boolean>>({
+    customers: false,
+    products: false,
+    prices: false,
+    orders: false,
+    ddt: false,
+    invoices: false,
+  });
 
   useEffect(() => {
     // Initial fetch
@@ -162,6 +170,45 @@ export default function SyncControlPanel() {
       alert("Errore durante sync generale");
     } finally {
       setSyncingAll(false);
+    }
+  };
+
+  const handleDeleteDb = async (type: SyncType) => {
+    const confirmDelete = window.confirm(
+      `⚠️ ATTENZIONE: Stai per cancellare il database ${type}.\n\n` +
+      `Tutti i dati verranno eliminati e dovrai rifare una sync completa.\n\n` +
+      `Sei sicuro di voler procedere?`
+    );
+
+    if (!confirmDelete) return;
+
+    try {
+      const jwt = localStorage.getItem("archibald_jwt");
+      if (!jwt) {
+        alert("Devi effettuare il login");
+        return;
+      }
+
+      setDeletingDb((prev) => ({ ...prev, [type]: true }));
+
+      const response = await fetch(`/api/sync/${type}/clear-db`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${jwt}` },
+      });
+
+      const data = await response.json();
+
+      if (!data.success) {
+        alert(`Errore cancellazione DB ${type}: ${data.error}`);
+      } else {
+        alert(`✅ Database ${type} cancellato con successo!\n\nEsegui ora una sync completa.`);
+        fetchStatus();
+      }
+    } catch (error) {
+      console.error(`Error deleting ${type} database:`, error);
+      alert(`Errore durante cancellazione DB ${type}`);
+    } finally {
+      setDeletingDb((prev) => ({ ...prev, [type]: false }));
     }
   };
 
@@ -384,30 +431,54 @@ export default function SyncControlPanel() {
                 </select>
               </div>
 
-              <button
-                onClick={() => handleSyncIndividual(section.type)}
-                disabled={syncing[section.type] || status?.currentSync !== null}
-                style={{
-                  width: "100%",
-                  padding: "10px",
-                  fontSize: "14px",
-                  fontWeight: 600,
-                  backgroundColor:
-                    syncing[section.type] || status?.currentSync !== null
-                      ? "#9e9e9e"
-                      : "#4caf50",
-                  color: "#fff",
-                  border: "none",
-                  borderRadius: "6px",
-                  cursor:
-                    syncing[section.type] || status?.currentSync !== null
-                      ? "not-allowed"
-                      : "pointer",
-                  marginBottom: "12px",
-                }}
-              >
-                {syncing[section.type] ? "⏳ Syncing..." : "▶️ Avvia Sync"}
-              </button>
+              <div style={{ display: "flex", gap: "8px", marginBottom: "12px" }}>
+                <button
+                  onClick={() => handleSyncIndividual(section.type)}
+                  disabled={syncing[section.type] || status?.currentSync !== null}
+                  style={{
+                    flex: 1,
+                    padding: "10px",
+                    fontSize: "14px",
+                    fontWeight: 600,
+                    backgroundColor:
+                      syncing[section.type] || status?.currentSync !== null
+                        ? "#9e9e9e"
+                        : "#4caf50",
+                    color: "#fff",
+                    border: "none",
+                    borderRadius: "6px",
+                    cursor:
+                      syncing[section.type] || status?.currentSync !== null
+                        ? "not-allowed"
+                        : "pointer",
+                  }}
+                >
+                  {syncing[section.type] ? "⏳ Syncing..." : "▶️ Avvia Sync"}
+                </button>
+                <button
+                  onClick={() => handleDeleteDb(section.type)}
+                  disabled={deletingDb[section.type] || syncing[section.type] || status?.currentSync !== null}
+                  title="Cancella database e ricrea da zero"
+                  style={{
+                    padding: "10px 16px",
+                    fontSize: "14px",
+                    fontWeight: 600,
+                    backgroundColor:
+                      deletingDb[section.type] || syncing[section.type] || status?.currentSync !== null
+                        ? "#9e9e9e"
+                        : "#f44336",
+                    color: "#fff",
+                    border: "none",
+                    borderRadius: "6px",
+                    cursor:
+                      deletingDb[section.type] || syncing[section.type] || status?.currentSync !== null
+                        ? "not-allowed"
+                        : "pointer",
+                  }}
+                >
+                  {deletingDb[section.type] ? "⏳" : "🗑️"}
+                </button>
+              </div>
 
               <div style={{ fontSize: "12px", color: "#666" }}>
                 <div style={{ marginBottom: "4px" }}>
