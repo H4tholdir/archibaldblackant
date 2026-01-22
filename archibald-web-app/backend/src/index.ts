@@ -1670,6 +1670,61 @@ app.post(
 );
 
 /**
+ * Trigger manual sync for individual type via orchestrator
+ * POST /api/sync/:type
+ * Queues sync in orchestrator with priority-based execution
+ */
+app.post(
+  "/api/sync/:type",
+  authenticateJWT,
+  async (req: AuthRequest, res: Response) => {
+    try {
+      const userId = req.user?.userId ?? "api-user";
+      const syncType = req.params.type;
+
+      // Validate sync type
+      const validTypes = [
+        "orders",
+        "customers",
+        "products",
+        "prices",
+        "ddt",
+        "invoices",
+      ];
+      if (!validTypes.includes(syncType)) {
+        return res.status(400).json({
+          success: false,
+          error: `Invalid sync type. Must be one of: ${validTypes.join(", ")}`,
+        });
+      }
+
+      logger.info(`[API] Manual sync ${syncType} requested via orchestrator`, {
+        userId,
+      });
+
+      // Queue sync via orchestrator (respects priority and mutex)
+      syncOrchestrator.requestSync(
+        syncType as SyncType,
+        undefined,
+        userId,
+      );
+
+      res.json({
+        success: true,
+        message: `${syncType} sync queued via orchestrator`,
+        type: syncType,
+      });
+    } catch (error: any) {
+      logger.error(`[API] Sync ${req.params.type} request failed`, { error });
+      res.status(500).json({
+        success: false,
+        error: error.message,
+      });
+    }
+  },
+);
+
+/**
  * Trigger manual sync for ALL types (sequentially via orchestrator)
  * POST /api/sync/all
  * Priority order handled by orchestrator: orders > customers > ddt > invoices > prices > products
