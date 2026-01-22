@@ -520,4 +520,11 @@ export class SyncOrchestrator extends EventEmitter {
 
     logger.info("[SyncOrchestrator] Auto-sync stopped");
   }
+
+  /**
+   * Check if auto-sync is currently running
+   */
+  isAutoSyncRunning(): boolean {
+    return this.autoSyncTimers.length > 0 || this.autoSyncIntervals.length > 0;
+  }
 }
