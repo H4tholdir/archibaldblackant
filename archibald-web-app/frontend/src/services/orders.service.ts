@@ -121,6 +121,33 @@ export class OrderService {
       // Swallow error - update of non-existent order is not critical
     }
   }
+
+  /**
+   * Get pending order by ID
+   * @param id - Pending order ID
+   * @returns Pending order or undefined if not found
+   */
+  async getPendingOrderById(id: number): Promise<PendingOrder | undefined> {
+    try {
+      return await this.db.table<PendingOrder, number>("pendingOrders").get(id);
+    } catch (error) {
+      console.error("[OrderService] Failed to get pending order by ID:", error);
+      return undefined;
+    }
+  }
+
+  /**
+   * Delete pending order by ID
+   * @param id - Pending order ID
+   */
+  async deletePendingOrder(id: number): Promise<void> {
+    try {
+      await this.db.table<PendingOrder, number>("pendingOrders").delete(id);
+    } catch (error) {
+      console.error("[OrderService] Failed to delete pending order:", error);
+      throw error;
+    }
+  }
 }
 
 // Singleton instance

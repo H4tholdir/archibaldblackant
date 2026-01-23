@@ -1,8 +1,10 @@
 import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { orderService } from "../services/orders.service";
 import type { PendingOrder } from "../db/schema";
 
 export function PendingOrdersPage() {
+  const navigate = useNavigate();
   const [orders, setOrders] = useState<PendingOrder[]>([]);
   const [selectedOrderIds, setSelectedOrderIds] = useState<Set<number>>(
     new Set(),
@@ -52,9 +54,7 @@ export function PendingOrdersPage() {
     setSubmitting(true);
 
     try {
-      const selectedOrders = orders.filter((o) =>
-        selectedOrderIds.has(o.id!)
-      );
+      const selectedOrders = orders.filter((o) => selectedOrderIds.has(o.id!));
 
       const ordersToSubmit = selectedOrders.map((order) => ({
         customerId: order.customerId,
@@ -97,6 +97,32 @@ export function PendingOrdersPage() {
     } finally {
       setSubmitting(false);
     }
+  };
+
+  const handleDeleteOrder = async (orderId: number) => {
+    if (!confirm("Sei sicuro di voler eliminare questo ordine?")) {
+      return;
+    }
+
+    try {
+      await orderService.deletePendingOrder(orderId);
+      alert("Ordine eliminato con successo");
+      await loadOrders();
+      // Remove from selection if it was selected
+      setSelectedOrderIds((prev) => {
+        const updated = new Set(prev);
+        updated.delete(orderId);
+        return updated;
+      });
+    } catch (error) {
+      console.error("[PendingOrdersPage] Failed to delete order:", error);
+      alert("Errore durante l'eliminazione dell'ordine. Riprova.");
+    }
+  };
+
+  const handleEditOrder = (orderId: number) => {
+    // Navigate to order form with order ID as query parameter
+    navigate(`/order-form?editOrderId=${orderId}`);
   };
 
   if (loading) {
@@ -231,30 +257,66 @@ export function PendingOrdersPage() {
               </div>
 
               <div
-                style={{
-                  padding: "0.25rem 0.75rem",
-                  borderRadius: "9999px",
-                  fontSize: "0.875rem",
-                  fontWeight: "600",
-                  backgroundColor:
-                    order.status === "pending"
-                      ? "#fef3c7"
-                      : order.status === "error"
-                        ? "#fee2e2"
-                        : "#dbeafe",
-                  color:
-                    order.status === "pending"
-                      ? "#92400e"
-                      : order.status === "error"
-                        ? "#991b1b"
-                        : "#1e40af",
-                }}
+                style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}
               >
-                {order.status === "pending"
-                  ? "In Attesa"
-                  : order.status === "error"
-                    ? "Errore"
-                    : "In Elaborazione"}
+                <div
+                  style={{
+                    padding: "0.25rem 0.75rem",
+                    borderRadius: "9999px",
+                    fontSize: "0.875rem",
+                    fontWeight: "600",
+                    backgroundColor:
+                      order.status === "pending"
+                        ? "#fef3c7"
+                        : order.status === "error"
+                          ? "#fee2e2"
+                          : "#dbeafe",
+                    color:
+                      order.status === "pending"
+                        ? "#92400e"
+                        : order.status === "error"
+                          ? "#991b1b"
+                          : "#1e40af",
+                  }}
+                >
+                  {order.status === "pending"
+                    ? "In Attesa"
+                    : order.status === "error"
+                      ? "Errore"
+                      : "In Elaborazione"}
+                </div>
+                <button
+                  onClick={() => handleEditOrder(order.id!)}
+                  style={{
+                    padding: "0.5rem 0.75rem",
+                    background: "#3b82f6",
+                    color: "white",
+                    border: "none",
+                    borderRadius: "4px",
+                    cursor: "pointer",
+                    fontSize: "0.875rem",
+                    fontWeight: "500",
+                  }}
+                  title="Modifica ordine"
+                >
+                  ✏️ Modifica
+                </button>
+                <button
+                  onClick={() => handleDeleteOrder(order.id!)}
+                  style={{
+                    padding: "0.5rem 0.75rem",
+                    background: "#dc2626",
+                    color: "white",
+                    border: "none",
+                    borderRadius: "4px",
+                    cursor: "pointer",
+                    fontSize: "0.875rem",
+                    fontWeight: "500",
+                  }}
+                  title="Elimina ordine"
+                >
+                  🗑️ Elimina
+                </button>
               </div>
             </div>
 

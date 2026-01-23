@@ -1,12 +1,15 @@
-import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { customerService } from '../services/customers.service';
-import { productService, type PackagingResult } from '../services/products.service';
-import { priceService } from '../services/prices.service';
-import { orderService } from '../services/orders.service';
-import { cachePopulationService } from '../services/cache-population';
-import { db } from '../db/schema';
-import type { Customer, Product } from '../db/schema';
+import { useState, useEffect } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
+import { customerService } from "../services/customers.service";
+import {
+  productService,
+  type PackagingResult,
+} from "../services/products.service";
+import { priceService } from "../services/prices.service";
+import { orderService } from "../services/orders.service";
+import { cachePopulationService } from "../services/cache-population";
+import { db } from "../db/schema";
+import type { Customer, Product } from "../db/schema";
 
 interface OrderItem {
   id: string;
@@ -23,34 +26,101 @@ interface OrderItem {
 
 export default function OrderFormSimple() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
 
   // Step 1: Customer selection
-  const [customerSearch, setCustomerSearch] = useState('');
+  const [customerSearch, setCustomerSearch] = useState("");
   const [customerResults, setCustomerResults] = useState<Customer[]>([]);
-  const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
+  const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(
+    null,
+  );
   const [searchingCustomer, setSearchingCustomer] = useState(false);
 
   // Step 2: Product entry with intelligent variant selection
-  const [productSearch, setProductSearch] = useState('');
+  const [productSearch, setProductSearch] = useState("");
   const [productResults, setProductResults] = useState<Product[]>([]);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [searchingProduct, setSearchingProduct] = useState(false);
-  const [quantity, setQuantity] = useState('');
-  const [itemDiscount, setItemDiscount] = useState('0');
+  const [quantity, setQuantity] = useState("");
+  const [itemDiscount, setItemDiscount] = useState("0");
 
   // Packaging preview state
-  const [packagingPreview, setPackagingPreview] = useState<PackagingResult | null>(null);
+  const [packagingPreview, setPackagingPreview] =
+    useState<PackagingResult | null>(null);
   const [calculatingPackaging, setCalculatingPackaging] = useState(false);
 
   // Step 3: Order items
   const [items, setItems] = useState<OrderItem[]>([]);
-  const [globalDiscount, setGlobalDiscount] = useState('0');
-  const [targetTotal, setTargetTotal] = useState('');
+  const [globalDiscountPercent, setGlobalDiscountPercent] = useState("0");
+  const [targetTotal, setTargetTotal] = useState("");
 
   // UI state
   const [submitting, setSubmitting] = useState(false);
   const [editingItemId, setEditingItemId] = useState<string | null>(null);
   const [cacheSyncing, setCacheSyncing] = useState(false);
+  const [editingOrderId, setEditingOrderId] = useState<number | null>(null);
+  const [loadingOrder, setLoadingOrder] = useState(false);
+
+  // === LOAD ORDER FOR EDITING ===
+  // Check if we're editing an existing order
+  useEffect(() => {
+    const loadOrderForEditing = async () => {
+      const orderIdParam = searchParams.get("editOrderId");
+      if (!orderIdParam) return;
+
+      const orderId = parseInt(orderIdParam, 10);
+      if (isNaN(orderId)) return;
+
+      setLoadingOrder(true);
+      setEditingOrderId(orderId);
+
+      try {
+        const order = await orderService.getPendingOrderById(orderId);
+        if (!order) {
+          alert("Ordine non trovato");
+          navigate("/pending-orders");
+          return;
+        }
+
+        // Load customer
+        const customer = await customerService.getCustomerById(
+          order.customerId,
+        );
+        if (customer) {
+          setSelectedCustomer(customer);
+          setCustomerSearch(customer.name);
+        }
+
+        // Convert order items to OrderItem format
+        const loadedItems: OrderItem[] = order.items.map((item) => ({
+          id: crypto.randomUUID(),
+          article: item.articleCode,
+          productName: item.productName || item.articleCode,
+          description: item.description,
+          quantity: item.quantity,
+          unitPrice: item.price,
+          discount: item.discount || 0,
+          subtotal: item.price * item.quantity - (item.discount || 0),
+          vat: (item.price * item.quantity - (item.discount || 0)) * 0.22,
+          total: (item.price * item.quantity - (item.discount || 0)) * 1.22,
+        }));
+
+        setItems(loadedItems);
+
+        // Calculate and set global discount if needed
+        // For now, we don't have global discount stored in the order
+        // so we leave it at 0
+      } catch (error) {
+        console.error("[OrderForm] Failed to load order:", error);
+        alert("Errore durante il caricamento dell'ordine");
+        navigate("/pending-orders");
+      } finally {
+        setLoadingOrder(false);
+      }
+    };
+
+    loadOrderForEditing();
+  }, [searchParams, navigate]);
 
   // === AUTO-SYNC VARIANTS ON MOUNT ===
   // Check if variants are populated, if not trigger cache refresh
@@ -59,16 +129,18 @@ export default function OrderFormSimple() {
       try {
         // Check if productVariants table has data
         const variantCount = await db.productVariants.count();
-        console.log('[OrderForm] Variant count in cache:', variantCount);
+        console.log("[OrderForm] Variant count in cache:", variantCount);
 
         if (variantCount === 0) {
-          console.log('[OrderForm] No variants in cache, triggering automatic sync...');
+          console.log(
+            "[OrderForm] No variants in cache, triggering automatic sync...",
+          );
           setCacheSyncing(true);
 
           // Get auth token from localStorage
-          const token = localStorage.getItem('archibald_jwt');
+          const token = localStorage.getItem("archibald_jwt");
           if (!token) {
-            console.error('[OrderForm] No auth token found');
+            console.error("[OrderForm] No auth token found");
             return;
           }
 
@@ -76,13 +148,16 @@ export default function OrderFormSimple() {
           const result = await cachePopulationService.populateCache(token);
 
           if (result.success) {
-            console.log('[OrderForm] Cache sync completed:', result.recordCounts);
+            console.log(
+              "[OrderForm] Cache sync completed:",
+              result.recordCounts,
+            );
           } else {
-            console.error('[OrderForm] Cache sync failed:', result.error);
+            console.error("[OrderForm] Cache sync failed:", result.error);
           }
         }
       } catch (error) {
-        console.error('[OrderForm] Error checking variants:', error);
+        console.error("[OrderForm] Error checking variants:", error);
       } finally {
         setCacheSyncing(false);
       }
@@ -104,7 +179,7 @@ export default function OrderFormSimple() {
       const results = await customerService.searchCustomers(query);
       setCustomerResults(results.slice(0, 10));
     } catch (error) {
-      console.error('Customer search failed:', error);
+      console.error("Customer search failed:", error);
     } finally {
       setSearchingCustomer(false);
     }
@@ -139,7 +214,7 @@ export default function OrderFormSimple() {
       const uniqueProducts = Array.from(groupedByName.values()).slice(0, 10);
       setProductResults(uniqueProducts);
     } catch (error) {
-      console.error('Product search failed:', error);
+      console.error("Product search failed:", error);
     } finally {
       setSearchingProduct(false);
     }
@@ -150,7 +225,7 @@ export default function OrderFormSimple() {
     setProductSearch(product.name);
     setProductResults([]);
     // Reset quantity and preview when product changes
-    setQuantity('');
+    setQuantity("");
     setPackagingPreview(null);
   };
 
@@ -175,15 +250,15 @@ export default function OrderFormSimple() {
         // The productService will find all variants for this product name
         const result = await productService.calculateOptimalPackaging(
           selectedProduct.name, // Use name to find all variants
-          qty
+          qty,
         );
 
         setPackagingPreview(result);
       } catch (error) {
-        console.error('Packaging calculation failed:', error);
+        console.error("Packaging calculation failed:", error);
         setPackagingPreview({
           success: false,
-          error: 'Errore nel calcolo del confezionamento',
+          error: "Errore nel calcolo del confezionamento",
         });
       } finally {
         setCalculatingPackaging(false);
@@ -196,25 +271,28 @@ export default function OrderFormSimple() {
   // === ADD ITEM (WITH MULTIPLE LINES FOR VARIANTS) ===
   const handleAddItem = async () => {
     if (!selectedProduct) {
-      alert('Seleziona un prodotto');
+      alert("Seleziona un prodotto");
       return;
     }
 
     const qty = parseInt(quantity, 10);
     if (isNaN(qty) || qty <= 0) {
-      alert('Inserisci una quantità valida');
+      alert("Inserisci una quantità valida");
       return;
     }
 
     if (!packagingPreview || !packagingPreview.success) {
-      alert(packagingPreview?.error || 'Impossibile calcolare il confezionamento per questa quantità');
+      alert(
+        packagingPreview?.error ||
+          "Impossibile calcolare il confezionamento per questa quantità",
+      );
       return;
     }
 
     // Get breakdown of variants from packaging calculation
     const breakdown = packagingPreview.breakdown;
     if (!breakdown || breakdown.length === 0) {
-      alert('Nessuna combinazione di varianti disponibile');
+      alert("Nessuna combinazione di varianti disponibile");
       return;
     }
 
@@ -244,7 +322,7 @@ export default function OrderFormSimple() {
         id: crypto.randomUUID(),
         article: variantArticleCode,
         productName: selectedProduct.name,
-        description: `${pkg.packageSize} ${pkg.packageSize === 1 ? 'pezzo' : 'pezzi'} x ${pkg.packageCount}`,
+        description: `${pkg.packageSize} ${pkg.packageSize === 1 ? "pezzo" : "pezzi"} x ${pkg.packageCount}`,
         quantity: pkg.packageCount,
         unitPrice: price,
         discount: discountPerLine,
@@ -259,9 +337,9 @@ export default function OrderFormSimple() {
 
     // Reset form
     setSelectedProduct(null);
-    setProductSearch('');
-    setQuantity('');
-    setItemDiscount('0');
+    setProductSearch("");
+    setQuantity("");
+    setItemDiscount("0");
     setPackagingPreview(null);
   };
 
@@ -295,8 +373,10 @@ export default function OrderFormSimple() {
     const itemsVAT = items.reduce((sum, item) => sum + item.vat, 0);
     const itemsTotal = items.reduce((sum, item) => sum + item.total, 0);
 
-    const globalDisc = parseFloat(globalDiscount) || 0;
-    const finalSubtotal = itemsSubtotal - globalDisc;
+    // Calculate discount as percentage of subtotal
+    const discountPercent = parseFloat(globalDiscountPercent) || 0;
+    const globalDiscAmount = (itemsSubtotal * discountPercent) / 100;
+    const finalSubtotal = itemsSubtotal - globalDiscAmount;
     const finalVAT = finalSubtotal * 0.22;
     const finalTotal = finalSubtotal + finalVAT;
 
@@ -304,7 +384,8 @@ export default function OrderFormSimple() {
       itemsSubtotal,
       itemsVAT,
       itemsTotal,
-      globalDisc,
+      globalDiscPercent: discountPercent,
+      globalDiscAmount,
       finalSubtotal,
       finalVAT,
       finalTotal,
@@ -319,31 +400,43 @@ export default function OrderFormSimple() {
 
     const itemsSubtotal = items.reduce((sum, item) => sum + item.subtotal, 0);
 
-    // Target = (Subtotal - GlobalDiscount) * 1.22
-    // Solve for GlobalDiscount:
-    // GlobalDiscount = Subtotal - (Target / 1.22)
+    // Target = (Subtotal - DiscountAmount) * 1.22
+    // DiscountAmount = Subtotal * (DiscountPercent / 100)
+    // Solve for DiscountPercent:
+    // Target = (Subtotal - Subtotal * (DiscountPercent / 100)) * 1.22
+    // Target / 1.22 = Subtotal * (1 - DiscountPercent / 100)
+    // (Target / 1.22) / Subtotal = 1 - DiscountPercent / 100
+    // DiscountPercent / 100 = 1 - (Target / 1.22) / Subtotal
+    // DiscountPercent = (1 - (Target / 1.22) / Subtotal) * 100
 
     const requiredSubtotal = target / 1.22;
-    const requiredGlobalDiscount = itemsSubtotal - requiredSubtotal;
 
-    if (requiredGlobalDiscount < 0) {
-      alert('Il totale target è troppo alto rispetto al subtotale attuale');
+    if (requiredSubtotal > itemsSubtotal) {
+      alert("Il totale target è troppo alto rispetto al subtotale attuale");
       return;
     }
 
-    setGlobalDiscount(requiredGlobalDiscount.toFixed(2));
-    setTargetTotal('');
+    const requiredDiscountPercent =
+      (1 - requiredSubtotal / itemsSubtotal) * 100;
+
+    if (requiredDiscountPercent < 0) {
+      alert("Il totale target è troppo alto rispetto al subtotale attuale");
+      return;
+    }
+
+    setGlobalDiscountPercent(requiredDiscountPercent.toFixed(2));
+    setTargetTotal("");
   };
 
   // === SUBMIT ===
   const handleSubmit = async () => {
     if (!selectedCustomer) {
-      alert('Seleziona un cliente');
+      alert("Seleziona un cliente");
       return;
     }
 
     if (items.length === 0) {
-      alert('Aggiungi almeno un articolo');
+      alert("Aggiungi almeno un articolo");
       return;
     }
 
@@ -352,6 +445,12 @@ export default function OrderFormSimple() {
     try {
       const totals = calculateTotals();
 
+      // If editing, delete old order first
+      if (editingOrderId) {
+        await orderService.deletePendingOrder(editingOrderId);
+      }
+
+      // Save new/updated order
       await orderService.savePendingOrder({
         customerId: selectedCustomer.id,
         customerName: selectedCustomer.name,
@@ -366,15 +465,17 @@ export default function OrderFormSimple() {
         discountPercent: undefined,
         targetTotalWithVAT: totals.finalTotal,
         createdAt: new Date().toISOString(),
-        status: 'pending' as const,
+        status: "pending" as const,
         retryCount: 0,
       });
 
-      alert('Ordine salvato nella coda!');
-      navigate('/pending-orders');
+      alert(
+        editingOrderId ? "Ordine aggiornato!" : "Ordine salvato nella coda!",
+      );
+      navigate("/pending-orders");
     } catch (error) {
-      console.error('Failed to save order:', error);
-      alert('Errore durante il salvataggio');
+      console.error("Failed to save order:", error);
+      alert("Errore durante il salvataggio");
     } finally {
       setSubmitting(false);
     }
@@ -383,25 +484,61 @@ export default function OrderFormSimple() {
   const totals = calculateTotals();
 
   return (
-    <div style={{ maxWidth: '1000px', margin: '0 auto', padding: '2rem', fontFamily: 'system-ui' }}>
-      <h1 style={{ marginBottom: '2rem', fontSize: '1.75rem' }}>Nuovo Ordine</h1>
+    <div
+      style={{
+        maxWidth: "1000px",
+        margin: "0 auto",
+        padding: "2rem",
+        fontFamily: "system-ui",
+      }}
+    >
+      <h1 style={{ marginBottom: "2rem", fontSize: "1.75rem" }}>
+        {editingOrderId ? "Modifica Ordine" : "Nuovo Ordine"}
+      </h1>
+
+      {/* LOADING ORDER BANNER */}
+      {loadingOrder && (
+        <div
+          style={{
+            padding: "1rem",
+            background: "#dbeafe",
+            borderRadius: "4px",
+            marginBottom: "1rem",
+            border: "2px solid #3b82f6",
+            display: "flex",
+            alignItems: "center",
+            gap: "0.5rem",
+          }}
+        >
+          <span style={{ fontSize: "1.5rem" }}>⏳</span>
+          <div>
+            <strong style={{ color: "#1e40af", display: "block" }}>
+              Caricamento ordine in corso...
+            </strong>
+          </div>
+        </div>
+      )}
 
       {/* AUTO-SYNC BANNER */}
       {cacheSyncing && (
-        <div style={{
-          padding: '1rem',
-          background: '#fef3c7',
-          borderRadius: '4px',
-          marginBottom: '1rem',
-          border: '2px solid #f59e0b',
-          display: 'flex',
-          alignItems: 'center',
-          gap: '0.5rem'
-        }}>
-          <span style={{ fontSize: '1.5rem' }}>⏳</span>
+        <div
+          style={{
+            padding: "1rem",
+            background: "#fef3c7",
+            borderRadius: "4px",
+            marginBottom: "1rem",
+            border: "2px solid #f59e0b",
+            display: "flex",
+            alignItems: "center",
+            gap: "0.5rem",
+          }}
+        >
+          <span style={{ fontSize: "1.5rem" }}>⏳</span>
           <div>
-            <strong style={{ color: '#92400e', display: 'block' }}>Sincronizzazione cache in corso...</strong>
-            <span style={{ color: '#92400e', fontSize: '0.875rem' }}>
+            <strong style={{ color: "#92400e", display: "block" }}>
+              Sincronizzazione cache in corso...
+            </strong>
+            <span style={{ color: "#92400e", fontSize: "0.875rem" }}>
               Popolamento delle varianti di prodotto e dei prezzi dal server
             </span>
           </div>
@@ -409,8 +546,17 @@ export default function OrderFormSimple() {
       )}
 
       {/* STEP 1: SELECT CUSTOMER */}
-      <div style={{ marginBottom: '2rem', padding: '1.5rem', background: '#f9fafb', borderRadius: '8px' }}>
-        <h2 style={{ fontSize: '1.25rem', marginBottom: '1rem' }}>1. Seleziona Cliente</h2>
+      <div
+        style={{
+          marginBottom: "2rem",
+          padding: "1.5rem",
+          background: "#f9fafb",
+          borderRadius: "8px",
+        }}
+      >
+        <h2 style={{ fontSize: "1.25rem", marginBottom: "1rem" }}>
+          1. Seleziona Cliente
+        </h2>
 
         {!selectedCustomer ? (
           <>
@@ -420,56 +566,87 @@ export default function OrderFormSimple() {
               onChange={(e) => handleCustomerSearch(e.target.value)}
               placeholder="Cerca cliente per nome..."
               style={{
-                width: '100%',
-                padding: '0.75rem',
-                fontSize: '1rem',
-                border: '1px solid #d1d5db',
-                borderRadius: '4px',
-                marginBottom: '0.5rem',
+                width: "100%",
+                padding: "0.75rem",
+                fontSize: "1rem",
+                border: "1px solid #d1d5db",
+                borderRadius: "4px",
+                marginBottom: "0.5rem",
               }}
             />
 
-            {searchingCustomer && <p style={{ color: '#6b7280' }}>Ricerca...</p>}
+            {searchingCustomer && (
+              <p style={{ color: "#6b7280" }}>Ricerca...</p>
+            )}
 
             {customerResults.length > 0 && (
-              <div style={{ border: '1px solid #d1d5db', borderRadius: '4px', maxHeight: '200px', overflowY: 'auto', background: 'white' }}>
+              <div
+                style={{
+                  border: "1px solid #d1d5db",
+                  borderRadius: "4px",
+                  maxHeight: "200px",
+                  overflowY: "auto",
+                  background: "white",
+                }}
+              >
                 {customerResults.map((customer) => (
                   <div
                     key={customer.id}
                     onClick={() => handleSelectCustomer(customer)}
                     style={{
-                      padding: '0.75rem',
-                      cursor: 'pointer',
-                      borderBottom: '1px solid #f3f4f6',
+                      padding: "0.75rem",
+                      cursor: "pointer",
+                      borderBottom: "1px solid #f3f4f6",
                     }}
-                    onMouseEnter={(e) => (e.currentTarget.style.background = '#f9fafb')}
-                    onMouseLeave={(e) => (e.currentTarget.style.background = 'white')}
+                    onMouseEnter={(e) =>
+                      (e.currentTarget.style.background = "#f9fafb")
+                    }
+                    onMouseLeave={(e) =>
+                      (e.currentTarget.style.background = "white")
+                    }
                   >
                     <strong>{customer.name}</strong>
-                    {customer.code && <span style={{ marginLeft: '0.5rem', color: '#6b7280' }}>({customer.code})</span>}
+                    {customer.code && (
+                      <span style={{ marginLeft: "0.5rem", color: "#6b7280" }}>
+                        ({customer.code})
+                      </span>
+                    )}
                   </div>
                 ))}
               </div>
             )}
           </>
         ) : (
-          <div style={{ background: '#d1fae5', padding: '1rem', borderRadius: '4px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div
+            style={{
+              background: "#d1fae5",
+              padding: "1rem",
+              borderRadius: "4px",
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+            }}
+          >
             <div>
-              <strong style={{ color: '#065f46' }}>✓ Cliente selezionato:</strong>
-              <p style={{ margin: '0.25rem 0 0 0', fontSize: '1.125rem' }}>{selectedCustomer.name}</p>
+              <strong style={{ color: "#065f46" }}>
+                ✓ Cliente selezionato:
+              </strong>
+              <p style={{ margin: "0.25rem 0 0 0", fontSize: "1.125rem" }}>
+                {selectedCustomer.name}
+              </p>
             </div>
             <button
               onClick={() => {
                 setSelectedCustomer(null);
-                setCustomerSearch('');
+                setCustomerSearch("");
               }}
               style={{
-                padding: '0.5rem 1rem',
-                background: 'white',
-                border: '1px solid #065f46',
-                borderRadius: '4px',
-                cursor: 'pointer',
-                color: '#065f46',
+                padding: "0.5rem 1rem",
+                background: "white",
+                border: "1px solid #065f46",
+                borderRadius: "4px",
+                cursor: "pointer",
+                color: "#065f46",
               }}
             >
               Cambia
@@ -480,44 +657,88 @@ export default function OrderFormSimple() {
 
       {/* STEP 2: ADD PRODUCTS WITH INTELLIGENT VARIANT SELECTION */}
       {selectedCustomer && (
-        <div style={{ marginBottom: '2rem', padding: '1.5rem', background: '#f9fafb', borderRadius: '8px' }}>
-          <h2 style={{ fontSize: '1.25rem', marginBottom: '1rem' }}>2. Aggiungi Articoli</h2>
+        <div
+          style={{
+            marginBottom: "2rem",
+            padding: "1.5rem",
+            background: "#f9fafb",
+            borderRadius: "8px",
+          }}
+        >
+          <h2 style={{ fontSize: "1.25rem", marginBottom: "1rem" }}>
+            2. Aggiungi Articoli
+          </h2>
 
           {/* Product search */}
-          <div style={{ marginBottom: '1rem' }}>
-            <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '500' }}>Nome Articolo</label>
+          <div style={{ marginBottom: "1rem" }}>
+            <label
+              style={{
+                display: "block",
+                marginBottom: "0.5rem",
+                fontWeight: "500",
+              }}
+            >
+              Nome Articolo
+            </label>
             <input
               type="text"
               value={productSearch}
               onChange={(e) => handleProductSearch(e.target.value)}
               placeholder="Cerca articolo..."
               style={{
-                width: '100%',
-                padding: '0.75rem',
-                fontSize: '1rem',
-                border: '1px solid #d1d5db',
-                borderRadius: '4px',
+                width: "100%",
+                padding: "0.75rem",
+                fontSize: "1rem",
+                border: "1px solid #d1d5db",
+                borderRadius: "4px",
               }}
             />
 
-            {searchingProduct && <p style={{ color: '#6b7280', marginTop: '0.5rem' }}>Ricerca...</p>}
+            {searchingProduct && (
+              <p style={{ color: "#6b7280", marginTop: "0.5rem" }}>
+                Ricerca...
+              </p>
+            )}
 
             {productResults.length > 0 && (
-              <div style={{ border: '1px solid #d1d5db', borderRadius: '4px', maxHeight: '200px', overflowY: 'auto', background: 'white', marginTop: '0.5rem' }}>
+              <div
+                style={{
+                  border: "1px solid #d1d5db",
+                  borderRadius: "4px",
+                  maxHeight: "200px",
+                  overflowY: "auto",
+                  background: "white",
+                  marginTop: "0.5rem",
+                }}
+              >
                 {productResults.map((product) => (
                   <div
                     key={product.id}
                     onClick={() => handleSelectProduct(product)}
                     style={{
-                      padding: '0.75rem',
-                      cursor: 'pointer',
-                      borderBottom: '1px solid #f3f4f6',
+                      padding: "0.75rem",
+                      cursor: "pointer",
+                      borderBottom: "1px solid #f3f4f6",
                     }}
-                    onMouseEnter={(e) => (e.currentTarget.style.background = '#f9fafb')}
-                    onMouseLeave={(e) => (e.currentTarget.style.background = 'white')}
+                    onMouseEnter={(e) =>
+                      (e.currentTarget.style.background = "#f9fafb")
+                    }
+                    onMouseLeave={(e) =>
+                      (e.currentTarget.style.background = "white")
+                    }
                   >
                     <strong>{product.name}</strong>
-                    {product.description && <p style={{ margin: '0.25rem 0 0 0', fontSize: '0.875rem', color: '#6b7280' }}>{product.description}</p>}
+                    {product.description && (
+                      <p
+                        style={{
+                          margin: "0.25rem 0 0 0",
+                          fontSize: "0.875rem",
+                          color: "#6b7280",
+                        }}
+                      >
+                        {product.description}
+                      </p>
+                    )}
                   </div>
                 ))}
               </div>
@@ -526,13 +747,35 @@ export default function OrderFormSimple() {
 
           {selectedProduct && (
             <>
-              <div style={{ padding: '1rem', background: '#dbeafe', borderRadius: '4px', marginBottom: '1rem' }}>
+              <div
+                style={{
+                  padding: "1rem",
+                  background: "#dbeafe",
+                  borderRadius: "4px",
+                  marginBottom: "1rem",
+                }}
+              >
                 <strong>Prodotto selezionato:</strong> {selectedProduct.name}
               </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1rem' }}>
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "1fr 1fr",
+                  gap: "1rem",
+                  marginBottom: "1rem",
+                }}
+              >
                 <div>
-                  <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '500' }}>Quantità (pezzi)</label>
+                  <label
+                    style={{
+                      display: "block",
+                      marginBottom: "0.5rem",
+                      fontWeight: "500",
+                    }}
+                  >
+                    Quantità (pezzi)
+                  </label>
                   <input
                     type="number"
                     value={quantity}
@@ -540,17 +783,25 @@ export default function OrderFormSimple() {
                     placeholder="Es: 7"
                     min="1"
                     style={{
-                      width: '100%',
-                      padding: '0.75rem',
-                      fontSize: '1rem',
-                      border: '1px solid #d1d5db',
-                      borderRadius: '4px',
+                      width: "100%",
+                      padding: "0.75rem",
+                      fontSize: "1rem",
+                      border: "1px solid #d1d5db",
+                      borderRadius: "4px",
                     }}
                   />
                 </div>
 
                 <div>
-                  <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '500' }}>Sconto Totale (€)</label>
+                  <label
+                    style={{
+                      display: "block",
+                      marginBottom: "0.5rem",
+                      fontWeight: "500",
+                    }}
+                  >
+                    Sconto Totale (€)
+                  </label>
                   <input
                     type="number"
                     value={itemDiscount}
@@ -559,11 +810,11 @@ export default function OrderFormSimple() {
                     min="0"
                     step="0.01"
                     style={{
-                      width: '100%',
-                      padding: '0.75rem',
-                      fontSize: '1rem',
-                      border: '1px solid #d1d5db',
-                      borderRadius: '4px',
+                      width: "100%",
+                      padding: "0.75rem",
+                      fontSize: "1rem",
+                      border: "1px solid #d1d5db",
+                      borderRadius: "4px",
                     }}
                   />
                 </div>
@@ -571,56 +822,102 @@ export default function OrderFormSimple() {
 
               {/* INTELLIGENT PACKAGING PREVIEW */}
               {calculatingPackaging && (
-                <div style={{ padding: '1rem', background: '#fef3c7', borderRadius: '4px', marginBottom: '1rem' }}>
-                  <p style={{ margin: 0, color: '#92400e' }}>⏳ Calcolo confezionamento ottimale...</p>
+                <div
+                  style={{
+                    padding: "1rem",
+                    background: "#fef3c7",
+                    borderRadius: "4px",
+                    marginBottom: "1rem",
+                  }}
+                >
+                  <p style={{ margin: 0, color: "#92400e" }}>
+                    ⏳ Calcolo confezionamento ottimale...
+                  </p>
                 </div>
               )}
 
               {packagingPreview && !calculatingPackaging && (
-                <div style={{
-                  padding: '1rem',
-                  background: packagingPreview.success ? '#d1fae5' : '#fee2e2',
-                  borderRadius: '4px',
-                  marginBottom: '1rem',
-                  border: `2px solid ${packagingPreview.success ? '#065f46' : '#dc2626'}`
-                }}>
+                <div
+                  style={{
+                    padding: "1rem",
+                    background: packagingPreview.success
+                      ? "#d1fae5"
+                      : "#fee2e2",
+                    borderRadius: "4px",
+                    marginBottom: "1rem",
+                    border: `2px solid ${packagingPreview.success ? "#065f46" : "#dc2626"}`,
+                  }}
+                >
                   {packagingPreview.success ? (
                     <>
-                      <strong style={{ color: '#065f46', display: 'block', marginBottom: '0.5rem' }}>
-                        ✓ Confezionamento calcolato per {packagingPreview.quantity} pezzi:
+                      <strong
+                        style={{
+                          color: "#065f46",
+                          display: "block",
+                          marginBottom: "0.5rem",
+                        }}
+                      >
+                        ✓ Confezionamento calcolato per{" "}
+                        {packagingPreview.quantity} pezzi:
                       </strong>
-                      <ul style={{ margin: '0.5rem 0', paddingLeft: '1.5rem', color: '#065f46' }}>
+                      <ul
+                        style={{
+                          margin: "0.5rem 0",
+                          paddingLeft: "1.5rem",
+                          color: "#065f46",
+                        }}
+                      >
                         {packagingPreview.breakdown?.map((item, idx) => (
                           <li key={idx}>
-                            <strong>{item.packageCount}</strong> conf. da <strong>{item.packageSize}</strong> {item.packageSize === 1 ? 'pezzo' : 'pezzi'}
-                            {' '}= {item.totalPieces} pz
+                            <strong>{item.packageCount}</strong> conf. da{" "}
+                            <strong>{item.packageSize}</strong>{" "}
+                            {item.packageSize === 1 ? "pezzo" : "pezzi"} ={" "}
+                            {item.totalPieces} pz
                           </li>
                         ))}
                       </ul>
-                      <p style={{ margin: '0.5rem 0 0 0', fontSize: '0.875rem', color: '#047857' }}>
-                        Totale: {packagingPreview.totalPackages} confezioni = {packagingPreview.quantity} pezzi
+                      <p
+                        style={{
+                          margin: "0.5rem 0 0 0",
+                          fontSize: "0.875rem",
+                          color: "#047857",
+                        }}
+                      >
+                        Totale: {packagingPreview.totalPackages} confezioni ={" "}
+                        {packagingPreview.quantity} pezzi
                       </p>
                     </>
                   ) : (
                     <>
-                      <strong style={{ color: '#dc2626', display: 'block', marginBottom: '0.5rem' }}>
+                      <strong
+                        style={{
+                          color: "#dc2626",
+                          display: "block",
+                          marginBottom: "0.5rem",
+                        }}
+                      >
                         ⚠ {packagingPreview.error}
                       </strong>
                       {packagingPreview.suggestedQuantity && (
                         <button
-                          onClick={() => setQuantity(packagingPreview.suggestedQuantity!.toString())}
+                          onClick={() =>
+                            setQuantity(
+                              packagingPreview.suggestedQuantity!.toString(),
+                            )
+                          }
                           style={{
-                            padding: '0.5rem 1rem',
-                            background: '#dc2626',
-                            color: 'white',
-                            border: 'none',
-                            borderRadius: '4px',
-                            cursor: 'pointer',
-                            fontSize: '0.875rem',
-                            marginTop: '0.5rem',
+                            padding: "0.5rem 1rem",
+                            background: "#dc2626",
+                            color: "white",
+                            border: "none",
+                            borderRadius: "4px",
+                            cursor: "pointer",
+                            fontSize: "0.875rem",
+                            marginTop: "0.5rem",
                           }}
                         >
-                          Usa quantità suggerita ({packagingPreview.suggestedQuantity} pz)
+                          Usa quantità suggerita (
+                          {packagingPreview.suggestedQuantity} pz)
                         </button>
                       )}
                     </>
@@ -632,18 +929,18 @@ export default function OrderFormSimple() {
                 onClick={handleAddItem}
                 disabled={!packagingPreview?.success}
                 style={{
-                  padding: '0.75rem 1.5rem',
-                  background: packagingPreview?.success ? '#22c55e' : '#d1d5db',
-                  color: 'white',
-                  border: 'none',
-                  borderRadius: '4px',
-                  fontSize: '1rem',
-                  fontWeight: '600',
-                  cursor: packagingPreview?.success ? 'pointer' : 'not-allowed',
-                  width: '100%',
+                  padding: "0.75rem 1.5rem",
+                  background: packagingPreview?.success ? "#22c55e" : "#d1d5db",
+                  color: "white",
+                  border: "none",
+                  borderRadius: "4px",
+                  fontSize: "1rem",
+                  fontWeight: "600",
+                  cursor: packagingPreview?.success ? "pointer" : "not-allowed",
+                  width: "100%",
                 }}
               >
-                {editingItemId ? 'Aggiorna Articolo' : 'Aggiungi all\'Ordine'}
+                {editingItemId ? "Aggiorna Articolo" : "Aggiungi all'Ordine"}
               </button>
             </>
           )}
@@ -652,49 +949,175 @@ export default function OrderFormSimple() {
 
       {/* STEP 3: ORDER ITEMS LIST */}
       {items.length > 0 && (
-        <div style={{ marginBottom: '2rem', padding: '1.5rem', background: '#f9fafb', borderRadius: '8px' }}>
-          <h2 style={{ fontSize: '1.25rem', marginBottom: '1rem' }}>3. Riepilogo Articoli ({items.length})</h2>
+        <div
+          style={{
+            marginBottom: "2rem",
+            padding: "1.5rem",
+            background: "#f9fafb",
+            borderRadius: "8px",
+          }}
+        >
+          <h2 style={{ fontSize: "1.25rem", marginBottom: "1rem" }}>
+            3. Riepilogo Articoli ({items.length})
+          </h2>
 
-          <table style={{ width: '100%', borderCollapse: 'collapse', background: 'white', borderRadius: '4px', overflow: 'hidden' }}>
+          <table
+            style={{
+              width: "100%",
+              borderCollapse: "collapse",
+              background: "white",
+              borderRadius: "4px",
+              overflow: "hidden",
+            }}
+          >
             <thead>
-              <tr style={{ background: '#f3f4f6', borderBottom: '2px solid #e5e7eb' }}>
-                <th style={{ padding: '0.75rem', textAlign: 'left', fontWeight: '600' }}>Articolo</th>
-                <th style={{ padding: '0.75rem', textAlign: 'center', fontWeight: '600' }}>Qtà</th>
-                <th style={{ padding: '0.75rem', textAlign: 'right', fontWeight: '600' }}>Prezzo</th>
-                <th style={{ padding: '0.75rem', textAlign: 'right', fontWeight: '600' }}>Sconto</th>
-                <th style={{ padding: '0.75rem', textAlign: 'right', fontWeight: '600' }}>Subtotale</th>
-                <th style={{ padding: '0.75rem', textAlign: 'right', fontWeight: '600' }}>IVA 22%</th>
-                <th style={{ padding: '0.75rem', textAlign: 'right', fontWeight: '600' }}>Totale</th>
-                <th style={{ padding: '0.75rem', textAlign: 'center', fontWeight: '600' }}>Azioni</th>
+              <tr
+                style={{
+                  background: "#f3f4f6",
+                  borderBottom: "2px solid #e5e7eb",
+                }}
+              >
+                <th
+                  style={{
+                    padding: "0.75rem",
+                    textAlign: "left",
+                    fontWeight: "600",
+                  }}
+                >
+                  Articolo
+                </th>
+                <th
+                  style={{
+                    padding: "0.75rem",
+                    textAlign: "center",
+                    fontWeight: "600",
+                  }}
+                >
+                  Qtà
+                </th>
+                <th
+                  style={{
+                    padding: "0.75rem",
+                    textAlign: "right",
+                    fontWeight: "600",
+                  }}
+                >
+                  Prezzo
+                </th>
+                <th
+                  style={{
+                    padding: "0.75rem",
+                    textAlign: "right",
+                    fontWeight: "600",
+                  }}
+                >
+                  Sconto
+                </th>
+                <th
+                  style={{
+                    padding: "0.75rem",
+                    textAlign: "right",
+                    fontWeight: "600",
+                  }}
+                >
+                  Subtotale
+                </th>
+                <th
+                  style={{
+                    padding: "0.75rem",
+                    textAlign: "right",
+                    fontWeight: "600",
+                  }}
+                >
+                  IVA 22%
+                </th>
+                <th
+                  style={{
+                    padding: "0.75rem",
+                    textAlign: "right",
+                    fontWeight: "600",
+                  }}
+                >
+                  Totale
+                </th>
+                <th
+                  style={{
+                    padding: "0.75rem",
+                    textAlign: "center",
+                    fontWeight: "600",
+                  }}
+                >
+                  Azioni
+                </th>
               </tr>
             </thead>
             <tbody>
               {items.map((item) => (
-                <tr key={item.id} style={{ borderBottom: '1px solid #f3f4f6' }}>
-                  <td style={{ padding: '0.75rem' }}>
+                <tr key={item.id} style={{ borderBottom: "1px solid #f3f4f6" }}>
+                  <td style={{ padding: "0.75rem" }}>
                     <strong>{item.productName}</strong>
-                    {item.description && <p style={{ margin: '0.25rem 0 0 0', fontSize: '0.875rem', color: '#6b7280' }}>{item.description}</p>}
-                    <span style={{ fontSize: '0.75rem', color: '#9ca3af' }}>{item.article}</span>
+                    {item.description && (
+                      <p
+                        style={{
+                          margin: "0.25rem 0 0 0",
+                          fontSize: "0.875rem",
+                          color: "#6b7280",
+                        }}
+                      >
+                        {item.description}
+                      </p>
+                    )}
+                    <span style={{ fontSize: "0.75rem", color: "#9ca3af" }}>
+                      {item.article}
+                    </span>
                   </td>
-                  <td style={{ padding: '0.75rem', textAlign: 'center' }}>{item.quantity}</td>
-                  <td style={{ padding: '0.75rem', textAlign: 'right' }}>€{item.unitPrice.toFixed(2)}</td>
-                  <td style={{ padding: '0.75rem', textAlign: 'right', color: item.discount > 0 ? '#dc2626' : '#9ca3af' }}>
-                    {item.discount > 0 ? `-€${item.discount.toFixed(2)}` : '—'}
+                  <td style={{ padding: "0.75rem", textAlign: "center" }}>
+                    {item.quantity}
                   </td>
-                  <td style={{ padding: '0.75rem', textAlign: 'right' }}>€{item.subtotal.toFixed(2)}</td>
-                  <td style={{ padding: '0.75rem', textAlign: 'right', color: '#6b7280' }}>€{item.vat.toFixed(2)}</td>
-                  <td style={{ padding: '0.75rem', textAlign: 'right', fontWeight: '600' }}>€{item.total.toFixed(2)}</td>
-                  <td style={{ padding: '0.75rem', textAlign: 'center' }}>
+                  <td style={{ padding: "0.75rem", textAlign: "right" }}>
+                    €{item.unitPrice.toFixed(2)}
+                  </td>
+                  <td
+                    style={{
+                      padding: "0.75rem",
+                      textAlign: "right",
+                      color: item.discount > 0 ? "#dc2626" : "#9ca3af",
+                    }}
+                  >
+                    {item.discount > 0 ? `-€${item.discount.toFixed(2)}` : "—"}
+                  </td>
+                  <td style={{ padding: "0.75rem", textAlign: "right" }}>
+                    €{item.subtotal.toFixed(2)}
+                  </td>
+                  <td
+                    style={{
+                      padding: "0.75rem",
+                      textAlign: "right",
+                      color: "#6b7280",
+                    }}
+                  >
+                    €{item.vat.toFixed(2)}
+                  </td>
+                  <td
+                    style={{
+                      padding: "0.75rem",
+                      textAlign: "right",
+                      fontWeight: "600",
+                    }}
+                  >
+                    €{item.total.toFixed(2)}
+                  </td>
+                  <td style={{ padding: "0.75rem", textAlign: "center" }}>
                     <button
                       onClick={() => handleEditItem(item.id)}
                       style={{
-                        padding: '0.25rem 0.5rem',
-                        background: '#3b82f6',
-                        color: 'white',
-                        border: 'none',
-                        borderRadius: '4px',
-                        cursor: 'pointer',
-                        marginRight: '0.25rem',
+                        padding: "0.25rem 0.5rem",
+                        background: "#3b82f6",
+                        color: "white",
+                        border: "none",
+                        borderRadius: "4px",
+                        cursor: "pointer",
+                        marginRight: "0.25rem",
                       }}
                     >
                       ✏️
@@ -702,12 +1125,12 @@ export default function OrderFormSimple() {
                     <button
                       onClick={() => handleDeleteItem(item.id)}
                       style={{
-                        padding: '0.25rem 0.5rem',
-                        background: '#dc2626',
-                        color: 'white',
-                        border: 'none',
-                        borderRadius: '4px',
-                        cursor: 'pointer',
+                        padding: "0.25rem 0.5rem",
+                        background: "#dc2626",
+                        color: "white",
+                        border: "none",
+                        borderRadius: "4px",
+                        cursor: "pointer",
                       }}
                     >
                       🗑️
@@ -719,31 +1142,53 @@ export default function OrderFormSimple() {
           </table>
 
           {/* Global Discount & Target Total */}
-          <div style={{ marginTop: '1.5rem', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+          <div
+            style={{
+              marginTop: "1.5rem",
+              display: "grid",
+              gridTemplateColumns: "1fr 1fr",
+              gap: "1rem",
+            }}
+          >
             <div>
-              <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '500' }}>Sconto Globale (€)</label>
+              <label
+                style={{
+                  display: "block",
+                  marginBottom: "0.5rem",
+                  fontWeight: "500",
+                }}
+              >
+                Sconto Globale (%)
+              </label>
               <input
                 type="number"
-                value={globalDiscount}
-                onChange={(e) => setGlobalDiscount(e.target.value)}
+                value={globalDiscountPercent}
+                onChange={(e) => setGlobalDiscountPercent(e.target.value)}
                 placeholder="0.00"
                 min="0"
+                max="100"
                 step="0.01"
                 style={{
-                  width: '100%',
-                  padding: '0.75rem',
-                  fontSize: '1rem',
-                  border: '1px solid #d1d5db',
-                  borderRadius: '4px',
+                  width: "100%",
+                  padding: "0.75rem",
+                  fontSize: "1rem",
+                  border: "1px solid #d1d5db",
+                  borderRadius: "4px",
                 }}
               />
             </div>
 
             <div>
-              <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '500' }}>
+              <label
+                style={{
+                  display: "block",
+                  marginBottom: "0.5rem",
+                  fontWeight: "500",
+                }}
+              >
                 O inserisci totale desiderato (con IVA)
               </label>
-              <div style={{ display: 'flex', gap: '0.5rem' }}>
+              <div style={{ display: "flex", gap: "0.5rem" }}>
                 <input
                   type="number"
                   value={targetTotal}
@@ -753,23 +1198,23 @@ export default function OrderFormSimple() {
                   step="0.01"
                   style={{
                     flex: 1,
-                    padding: '0.75rem',
-                    fontSize: '1rem',
-                    border: '1px solid #d1d5db',
-                    borderRadius: '4px',
+                    padding: "0.75rem",
+                    fontSize: "1rem",
+                    border: "1px solid #d1d5db",
+                    borderRadius: "4px",
                   }}
                 />
                 <button
                   onClick={calculateGlobalDiscountForTarget}
                   disabled={!targetTotal}
                   style={{
-                    padding: '0.75rem 1rem',
-                    background: targetTotal ? '#8b5cf6' : '#d1d5db',
-                    color: 'white',
-                    border: 'none',
-                    borderRadius: '4px',
-                    cursor: targetTotal ? 'pointer' : 'not-allowed',
-                    fontWeight: '600',
+                    padding: "0.75rem 1rem",
+                    background: targetTotal ? "#8b5cf6" : "#d1d5db",
+                    color: "white",
+                    border: "none",
+                    borderRadius: "4px",
+                    cursor: targetTotal ? "pointer" : "not-allowed",
+                    fontWeight: "600",
                   }}
                 >
                   Calcola
@@ -779,28 +1224,74 @@ export default function OrderFormSimple() {
           </div>
 
           {/* Totals Summary */}
-          <div style={{ marginTop: '1.5rem', padding: '1.5rem', background: 'white', borderRadius: '8px', border: '2px solid #3b82f6' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
+          <div
+            style={{
+              marginTop: "1.5rem",
+              padding: "1.5rem",
+              background: "white",
+              borderRadius: "8px",
+              border: "2px solid #3b82f6",
+            }}
+          >
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                marginBottom: "0.5rem",
+              }}
+            >
               <span>Subtotale articoli:</span>
               <strong>€{totals.itemsSubtotal.toFixed(2)}</strong>
             </div>
-            {totals.globalDisc > 0 && (
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem', color: '#dc2626' }}>
-                <span>Sconto globale:</span>
-                <strong>-€{totals.globalDisc.toFixed(2)}</strong>
+            {totals.globalDiscAmount > 0 && (
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  marginBottom: "0.5rem",
+                  color: "#dc2626",
+                }}
+              >
+                <span>Sconto globale ({totals.globalDiscPercent}%):</span>
+                <strong>-€{totals.globalDiscAmount.toFixed(2)}</strong>
               </div>
             )}
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem', paddingTop: '0.5rem', borderTop: '1px solid #e5e7eb' }}>
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                marginBottom: "0.5rem",
+                paddingTop: "0.5rem",
+                borderTop: "1px solid #e5e7eb",
+              }}
+            >
               <span>Subtotale (senza IVA):</span>
               <strong>€{totals.finalSubtotal.toFixed(2)}</strong>
             </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem', color: '#6b7280' }}>
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                marginBottom: "0.5rem",
+                color: "#6b7280",
+              }}
+            >
               <span>IVA 22%:</span>
               <strong>€{totals.finalVAT.toFixed(2)}</strong>
             </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', paddingTop: '0.5rem', borderTop: '2px solid #3b82f6', fontSize: '1.25rem' }}>
-              <span style={{ fontWeight: '600' }}>TOTALE (con IVA):</span>
-              <strong style={{ color: '#3b82f6' }}>€{totals.finalTotal.toFixed(2)}</strong>
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                paddingTop: "0.5rem",
+                borderTop: "2px solid #3b82f6",
+                fontSize: "1.25rem",
+              }}
+            >
+              <span style={{ fontWeight: "600" }}>TOTALE (con IVA):</span>
+              <strong style={{ color: "#3b82f6" }}>
+                €{totals.finalTotal.toFixed(2)}
+              </strong>
             </div>
           </div>
         </div>
@@ -808,22 +1299,22 @@ export default function OrderFormSimple() {
 
       {/* SUBMIT BUTTON */}
       {items.length > 0 && (
-        <div style={{ textAlign: 'right' }}>
+        <div style={{ textAlign: "right" }}>
           <button
             onClick={handleSubmit}
             disabled={submitting}
             style={{
-              padding: '1rem 2rem',
-              background: submitting ? '#d1d5db' : '#22c55e',
-              color: 'white',
-              border: 'none',
-              borderRadius: '8px',
-              fontSize: '1.125rem',
-              fontWeight: '600',
-              cursor: submitting ? 'not-allowed' : 'pointer',
+              padding: "1rem 2rem",
+              background: submitting ? "#d1d5db" : "#22c55e",
+              color: "white",
+              border: "none",
+              borderRadius: "8px",
+              fontSize: "1.125rem",
+              fontWeight: "600",
+              cursor: submitting ? "not-allowed" : "pointer",
             }}
           >
-            {submitting ? 'Salvataggio...' : 'Salva in Coda Ordini'}
+            {submitting ? "Salvataggio..." : "Salva in Coda Ordini"}
           </button>
         </div>
       )}
