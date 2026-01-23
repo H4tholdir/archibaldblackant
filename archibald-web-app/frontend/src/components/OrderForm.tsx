@@ -645,7 +645,9 @@ export default function OrderForm({
           const mappedProducts = cachedProducts.map((p) => ({
             id: p.id,
             name: p.name,
-            article: p.article, // Add article field for searching
+            // FIX 28.1-02: Fallback to name if article is missing
+            // Backend stores article code in 'name' field, frontend expects 'article' field
+            article: p.article || p.name, // Fallback to name (contains article code)
             description: p.description,
             groupCode: undefined,
             price: p.price,
