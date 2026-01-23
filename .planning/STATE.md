@@ -9,12 +9,12 @@ See: .planning/PROJECT.md (updated 2026-01-11)
 
 ## Current Position
 
-Phase: All phases complete in Milestone v2.0
-Plan: Ready for milestone completion
-Status: All 15 phases complete (Phase 28 objectives achieved via Phase 27)
-Last activity: 2026-01-22 — Phase 28 complete (objectives achieved via Phase 27 manual optimization)
+Phase: 28.2 (Rewrite OrderForm with Proper Architecture) - INSERTED
+Plan: 28.2-01 COMPLETE ✅ (Codebase Analysis & Architecture Design)
+Status: 🟢 Planning Complete - Ready for implementation (Plan 28.2-02: Data Layer & Services)
+Last activity: 2026-01-23 — Plan 28.2-01 complete (analysis, architecture design, migration strategy, roadmap)
 
-Progress: ██████████ 100% (v2.0: 15/15 phases complete, 52/70 plans)
+Progress: Phase 28.2 Progress (1/6 plans complete)
 
 ## Performance Metrics
 
@@ -346,6 +346,42 @@ None yet.
 
 ### Roadmap Evolution
 
+- **2026-01-23 (late afternoon)**: Phase 28.2 inserted after Phase 28 (Rewrite OrderForm with Proper Architecture) - URGENT
+  - **Reason**: 🔴 URGENT - Tempo e soldi persi su bugs ricorrenti, architettura OrderForm instabile
+  - **Impact**: Complete OrderForm rewrite needed:
+    - Current architecture difficult to debug and maintain
+    - IndexedDB empty issue discovered (root cause of product filtering)
+    - Customer selection race conditions
+    - User frustrated with time/money waste on problematic form
+  - **Priority**: URGENT - Rewrite from scratch with best practices
+  - **Requirements**: Detailed requirements gathered from user:
+    1. Customer/Product selection by NOME (not ID)
+    2. Multi-article support (1-N articles)
+    3. Quantity + variant management with multiples
+    4. Dual discount system (inline + global with reverse calculation)
+    5. Real-time summary with totals (pre/post IVA)
+    6. Edit/delete items capability
+    7. Pending orders queue with batch bot submission
+    8. Offline support (create offline, sync when online)
+  - **Data Sources**: Products/Customers pages (official), IndexedDB (sync'd automatically)
+  - **Performance**: ~1500 customers, ~5000 products, optimal UX
+  - **Next**: Analyze codebase comprehensively, plan rewrite architecture
+
+- **2026-01-23 (afternoon)**: Phase 28.1 inserted after Phase 28 (Fix Order Form Critical Bugs) - CRITICAL
+  - **Reason**: 🔴 CRITICAL production blocker - Order form completely non-functional
+  - **Impact**: Three major bugs blocking order creation:
+    1. Customer selection broken: Dropdown shows/filters but click doesn't select customer
+    2. Product filtering broken: Article code search (e.g., "h129fsq.104.023") returns no results
+    3. White screen crash: Selecting article + customer and clicking "Aggiungi articolo" causes app crash
+  - **Priority**: BLOCKING - Orders cannot be created, core functionality unusable
+  - **Research**: Unlikely (React component debugging, standard error handling)
+  - **Root Causes Identified**:
+    - Customer selection: State update race condition with dropdown close (FIXED in 28.1-01)
+    - Product filtering: IndexedDB completely EMPTY - no products synced (discovered in 28.1-02)
+    - White screen: Unhandled exceptions in handleAddItem/submitOrder/IndexedDB calls
+  - **Status**: Plan 28.1-02 at checkpoint, paused for Phase 28.2 planning (urgent rewrite decision)
+  - **Next**: Phase 28.2 takes priority - complete rewrite more efficient than patching broken architecture
+
 - **2026-01-19 (evening)**: Phase 18.1 inserted after Phase 17 (PDF Export Discovery & Validation) - URGENT
   - **Reason**: Game-changing discovery - Archibald has PDF export functionality that could replace complex scraping
   - **Impact**: If PDF parsing is feasible, eliminates HTML scraping complexity in Phases 18-21 (Customers, Products, Prices, Orders sync)
@@ -642,11 +678,61 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-01-22 (afternoon)
-Stopped at: Plan 27-01 complete ✅ (UI optimization + slowdown infrastructure)
-Context file: .planning/phases/27-bot-performance-profiling-v2/27-CONTEXT.md
-Next: Execute 27-02-PLAN.md (Binary Search Slowdown Optimizer) or continue to 27-03/27-04
-Resume command: /gsd:execute-plan .planning/phases/27-bot-performance-profiling-v2/27-02-PLAN.md
+Last session: 2026-01-23 (afternoon)
+Stopped at: Plan 28.2-01 complete ✅ (Codebase Analysis & Architecture Design)
+Context file: .planning/phases/28.2-rewrite-orderform-with-proper-architecture/28.2-01-SUMMARY.md
+Next: Execute 28.2-02-PLAN.md (Data Layer & Services - create SyncService to fix empty IndexedDB)
+Resume command: /gsd:execute-plan .planning/phases/28.2-rewrite-orderform-with-proper-architecture/28.2-02-PLAN.md
+
+### Session 100 (2026-01-23)
+**Command:** /gsd:execute-plan 28.2-01-PLAN.md
+**Outcome:** Plan 28.2-01 complete ✅ — Codebase Analysis & Architecture Design
+**Duration:** Planning session (research type)
+
+**What Was Analyzed:**
+1. OrderForm.tsx comprehensive analysis (2,705 lines, 40 states, 22 useEffect hooks)
+2. Complete data flow mapping (Backend → Sync Orchestrator → SQLite → API → Frontend → IndexedDB)
+3. Dependencies analysis (10 services, coupling scores, dual draft systems)
+
+**Root Cause Identified:**
+- **Empty IndexedDB**: No code populates IndexedDB from API responses
+- Sync orchestrator works (saves to SQLite), but frontend never reads or populates IndexedDB
+- OrderForm always hits API fallback (slow, defeats caching)
+
+**Architecture Designed:**
+- **3-Layer Architecture**: Presentation (11 components) → Business Logic (4 hooks + Context) → Data (4 services)
+- **NEW: SyncService** - Fixes empty IndexedDB by populating on app startup
+- Context API for state management (vs 40 useState hooks)
+- Estimated ~1,930 lines total (-30% vs current 2,705)
+
+**Critical User Decision:**
+- Voice input EXCLUDED from Phase 28.2 (deferred to Phase 28.3)
+- User wants solid core form first, then reintegrate voice with better tools (LLM-based, zero errors)
+- Architecture designed with plugin pattern for future voice integration
+
+**Documents Created:**
+1. 28.2-01-ANALYSIS-OrderForm.md (component analysis)
+2. 28.2-01-ANALYSIS-DataFlow.md (data flow + root cause)
+3. 28.2-01-ANALYSIS-Dependencies.md (services + coupling)
+4. 28.2-01-ARCHITECTURE-Design.md (new architecture)
+5. 28.2-01-MIGRATION-Strategy.md (feature flag + rollout)
+6. 28.2-01-ROADMAP-Implementation.md (Plans 02-06 breakdown)
+7. 28.2-01-SUMMARY.md (comprehensive summary)
+
+**Migration Strategy:**
+- Feature flag: `VITE_FEATURE_NEW_ORDER_FORM`
+- Phased rollout: Internal → Beta (10%) → Gradual (25→50→75→100%)
+- 6-week timeline with instant rollback capability
+
+**Implementation Roadmap:**
+- Plan 02: Data Layer & Services (Week 1) - Create SyncService, fix IndexedDB
+- Plan 03: Customer & Product Selection (Week 2)
+- Plan 04: Multi-Article & Discounts (Week 2-3)
+- Plan 05: Pending Queue & Offline (Week 3-4)
+- Plan 06: Integration & Testing (Week 4-5)
+- Total: 4-5 weeks implementation + 4 weeks rollout = 9 weeks
+
+**Next:** Execute Plan 28.2-02 (Data Layer & Services - Task 2.1: Create SyncService)
 
 ### Session 95 (2026-01-20)
 **Command:** /gsd:plan-phase 19.1

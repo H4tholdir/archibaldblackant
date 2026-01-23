@@ -43,6 +43,8 @@ None (full-stack web app con pattern standard)
 - [x] **Phase 26: Universal Fast Login** - Login veloce per tutte le operazioni ✅ COMPLETE
 - [x] **Phase 27: Bot Performance Profiling v2** - Profile dettagliato post optimizations ✅ COMPLETE
 - [x] **Phase 28: Bot Performance Optimization v2** - Target < 60s per ordine ✅ COMPLETE
+- [ ] **Phase 28.1: Fix Order Form Critical Bugs (INSERTED)** - 🔴 CRITICAL: Fix customer selection, product filtering, white screen crash (PAUSED - superseded by 28.2)
+- [ ] **Phase 28.2: Rewrite OrderForm with Proper Architecture (INSERTED)** - 🔴 URGENT: Complete rewrite with 3-layer architecture (1/6 plans complete)
 
 ## Milestones
 
@@ -297,6 +299,72 @@ Plans:
 
 Plans:
 - [x] 28-01: Bot Performance Optimization v2 (objectives achieved via Phase 27 manual optimization, ~35s improvement exceeds <60s target) — 0min ✅ COMPLETE
+
+#### Phase 28.1: Fix Order Form Critical Bugs (INSERTED)
+**Goal**: Risolvere bug critici nella scheda ordini: selezione clienti non funziona, filtro articoli fallisce, schermata bianca on submit
+**Depends on**: Phase 28
+**Research**: Unlikely (debugging existing React components, standard error handling patterns)
+**Plans**: 4 plans (in execution)
+**Priority**: 🔴 CRITICAL - Blocca completamente la creazione ordini
+**Status**: In execution (Plan 28.1-02 at checkpoint)
+
+Plans:
+- [x] 28.1-01: Fix customer selection race condition — COMPLETE
+- [ ] 28.1-02: Fix product filtering bug — IN PROGRESS (at checkpoint, IndexedDB empty discovered)
+- [ ] 28.1-03: Fix white screen crash
+- [ ] 28.1-04: Comprehensive testing & regression
+
+#### Phase 28.2: Rewrite OrderForm with Proper Architecture (INSERTED)
+**Goal**: Riscrivere OrderForm da zero con architettura pulita, gestione dati affidabile, e offline support robusto
+**Depends on**: Phase 28 (not 28.1 - parallel urgent work)
+**Research**: Complete (comprehensive codebase analysis)
+**Plans**: 1/6 complete (Plan 01: Analysis & Design ✅)
+**Priority**: 🔴 URGENT - Tempo e soldi persi su bugs inaccettabili
+**Status**: In Progress - Ready for Plan 02 (Data Layer & Services)
+
+**Business Impact:**
+- Tempo e soldi persi su problematiche ricorrenti
+- Form instabile con bug critici (customer selection, product filtering, IndexedDB vuoto)
+- Architettura attuale difficile da debuggare e mantenere
+
+**Requirements (from user):**
+1. **Customer Selection**: Match per NOME cliente, sistema veloce e preciso
+2. **Product Selection**: Match per NOME ARTICOLO, stesse indicazioni di customer
+3. **Multi-Article Support**: Da 1 a N articoli per ordine
+4. **Quantity + Variants**: Sistema must gestire varianti e multipli correttamente
+5. **Discount Support**: Sconto in linea (per articolo) + sconto globale (calcolo reverse per target totale)
+6. **Real-time Summary**: Lista articoli inseriti con nome, descrizione, prezzo, IVA, totali (senza IVA e con IVA)
+7. **Edit/Delete Items**: Modifica e cancellazione articoli inseriti
+8. **Pending Orders Queue**: Schermata ordini da inviare con selezione multipla e bot batch
+9. **Offline Support**: Creazione ordini offline, queue locale, sync quando online
+
+**Data Sources:**
+- Official data: Database pages (products, customers) sempre aggiornati da sync orchestrator
+- IndexedDB: Deve essere sempre popolato dal sync automatico
+- Sync mechanism: Automatico tramite orchestrator + sync control panel
+
+**Performance Target:**
+- ~1500 clienti, ~5000 prodotti (con varianti)
+- Esperienza ottimale, veloce, responsive
+
+Plans:
+- [x] 28.2-01: Codebase Analysis & Architecture Design (research) — 120min
+- [ ] 28.2-02: Data Layer & Services (Week 1)
+- [ ] 28.2-03: Customer & Product Selection (Week 2)
+- [ ] 28.2-04: Multi-Article & Discounts (Week 2-3)
+- [ ] 28.2-05: Pending Queue & Offline (Week 3-4)
+- [ ] 28.2-06: Integration & Testing (Week 4-5)
+
+**Critical Discovery (Plan 28.2-01):**
+- **Root Cause Identified**: IndexedDB completely empty (0 products) - no code populates from API responses
+- **Architecture Designed**: 3-layer architecture (11 components vs 1 monolith, 4 hooks, 4 services)
+- **NEW: SyncService**: Fixes empty IndexedDB by populating on app startup
+- **User Decision**: Voice input EXCLUDED from Phase 28.2, deferred to Phase 28.3 with better tools (LLM-based, zero errors)
+- **Migration Strategy**: Feature flag with 6-week phased rollout (Internal → 10% → 100%)
+- **Timeline**: 4-5 weeks implementation + 4 weeks rollout = 9 weeks total
+
+**Details:**
+See `.planning/phases/28.2-rewrite-orderform-with-proper-architecture/28.2-01-SUMMARY.md`
 
 ---
 
