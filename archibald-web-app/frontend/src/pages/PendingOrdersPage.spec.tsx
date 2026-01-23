@@ -184,7 +184,7 @@ describe("PendingOrdersPage", () => {
     vi.mocked(orderService.getPendingOrders).mockResolvedValue(mockOrders);
     vi.mocked(global.fetch).mockResolvedValue({
       ok: true,
-      json: async () => ({ jobId: "job-123" }),
+      json: async () => ({ jobIds: ["job-123", "job-456"] }),
     } as Response);
 
     render(<PendingOrdersPage />);
@@ -201,11 +201,19 @@ describe("PendingOrdersPage", () => {
     fireEvent.click(submitButton);
 
     await waitFor(() => {
-      expect(global.fetch).toHaveBeenCalledWith("/api/bot/submit-orders", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ orderIds: [1, 2] }),
-      });
+      expect(global.fetch).toHaveBeenCalledWith(
+        "/api/bot/submit-orders",
+        expect.objectContaining({
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+        }),
+      );
+
+      const callArgs = vi.mocked(global.fetch).mock.calls[0];
+      const body = JSON.parse(callArgs[1]?.body as string);
+      expect(body.orders).toHaveLength(2);
+      expect(body.orders[0].customerId).toBe("c1");
+      expect(body.orders[1].customerId).toBe("c2");
     });
 
     await waitFor(() => {

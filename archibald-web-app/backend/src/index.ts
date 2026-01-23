@@ -57,6 +57,7 @@ import { OrderHistoryService } from "./order-history-service";
 import { syncScheduler } from "./sync-scheduler";
 // syncControlRoutes removed - endpoints migrated to index.ts (sync-orchestrator based)
 import deltaSyncRoutes from "./routes/delta-sync";
+import botRoutes from "./routes/bot";
 import { SendToMilanoService } from "./send-to-milano-service";
 import { DDTScraperService } from "./ddt-scraper-service";
 import { OrderDatabaseNew } from "./order-db-new";
@@ -209,6 +210,9 @@ app.use((req, res, next) => {
 
 // Delta sync routes (incremental sync API)
 app.use(deltaSyncRoutes);
+
+// Bot routes (batch order submission)
+app.use(botRoutes);
 
 // WebSocket per notifiche sync in real-time
 wss.on("connection", (ws) => {

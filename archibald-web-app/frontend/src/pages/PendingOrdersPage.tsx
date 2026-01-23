@@ -52,23 +52,42 @@ export function PendingOrdersPage() {
     setSubmitting(true);
 
     try {
+      const selectedOrders = orders.filter((o) =>
+        selectedOrderIds.has(o.id!)
+      );
+
+      const ordersToSubmit = selectedOrders.map((order) => ({
+        customerId: order.customerId,
+        customerName: order.customerName,
+        items: order.items.map((item) => ({
+          articleCode: item.articleCode,
+          productName: item.productName,
+          description: item.description,
+          quantity: item.quantity,
+          price: item.price,
+          discount: item.discount,
+        })),
+        discountPercent: order.discountPercent,
+        targetTotalWithVAT: order.targetTotalWithVAT,
+      }));
+
       const response = await fetch("/api/bot/submit-orders", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          orderIds: Array.from(selectedOrderIds),
+          orders: ordersToSubmit,
         }),
       });
 
       if (!response.ok) throw new Error("Bot submission failed");
 
-      const { jobId } = await response.json();
+      const { jobIds } = await response.json();
 
       for (const orderId of selectedOrderIds) {
         await orderService.updatePendingOrderStatus(orderId, "syncing");
       }
 
-      alert(`Ordini inviati al bot. Job ID: ${jobId}`);
+      alert(`Ordini inviati al bot. Job IDs: ${jobIds.join(", ")}`);
 
       await loadOrders();
       setSelectedOrderIds(new Set());
