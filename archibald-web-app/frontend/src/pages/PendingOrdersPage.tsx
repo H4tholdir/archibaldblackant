@@ -126,7 +126,7 @@ export function PendingOrdersPage() {
 
   const handleEditOrder = (orderId: number) => {
     // Navigate to order form with order ID as query parameter
-    navigate(`/order-form?editOrderId=${orderId}`);
+    navigate(`/order?editOrderId=${orderId}`);
   };
 
   const handleDownloadPDF = (order: PendingOrder) => {

@@ -200,7 +200,7 @@ export function OrderHistory() {
 
   const handleEdit = (orderId: string) => {
     // Navigate to OrderForm with orderId to restore draft
-    window.location.href = `/order-form?orderId=${orderId}`;
+    window.location.href = `/order?orderId=${orderId}`;
   };
 
   const handleResetDB = async () => {
