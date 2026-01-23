@@ -14,7 +14,8 @@ import type { Customer, Product, DraftOrder } from "../db/schema";
 
 interface OrderItem {
   id: string;
-  article: string;
+  productId: string; // ID del prodotto base (per recuperare prezzo e VAT)
+  article: string; // Codice variante
   productName: string;
   description?: string;
   quantity: number;
@@ -103,24 +104,40 @@ export default function OrderFormSimple() {
         }
 
         // Convert order items to OrderItem format
-        const loadedItems: OrderItem[] = order.items.map((item) => {
-          const vatRate = item.vat || 22; // Default to 22% if not stored
-          const subtotal = item.price * item.quantity - (item.discount || 0);
-          const vatAmount = subtotal * (vatRate / 100);
-          return {
-            id: crypto.randomUUID(),
-            article: item.articleCode,
-            productName: item.productName || item.articleCode,
-            description: item.description,
-            quantity: item.quantity,
-            unitPrice: item.price,
-            vatRate,
-            discount: item.discount || 0,
-            subtotal,
-            vat: vatAmount,
-            total: subtotal + vatAmount,
-          };
-        });
+        const loadedItems: OrderItem[] = await Promise.all(
+          order.items.map(async (item) => {
+            const vatRate = item.vat || 22; // Default to 22% if not stored
+            const subtotal = item.price * item.quantity - (item.discount || 0);
+            const vatAmount = subtotal * (vatRate / 100);
+
+            // Try to find product by name to get base product ID
+            let productId = item.articleCode; // Fallback to article code
+            if (item.productName) {
+              const products = await db.products
+                .where("name")
+                .equals(item.productName)
+                .first();
+              if (products) {
+                productId = products.id;
+              }
+            }
+
+            return {
+              id: crypto.randomUUID(),
+              productId,
+              article: item.articleCode,
+              productName: item.productName || item.articleCode,
+              description: item.description,
+              quantity: item.quantity,
+              unitPrice: item.price,
+              vatRate,
+              discount: item.discount || 0,
+              subtotal,
+              vat: vatAmount,
+              total: subtotal + vatAmount,
+            };
+          }),
+        );
 
         setItems(loadedItems);
 
@@ -362,7 +379,7 @@ export default function OrderFormSimple() {
 
         // Convert OrderItems to DraftOrderItems (simpler format)
         const draftItems = items.map((item) => ({
-          productId: item.id,
+          productId: item.productId, // Use base product ID
           productName: item.productName,
           article: item.article,
           variantId: item.article, // Use article code as variant ID
@@ -428,7 +445,10 @@ export default function OrderFormSimple() {
       for (const draftItem of draft.items) {
         // Get product to retrieve price and VAT
         const product = await db.products.get(draftItem.productId);
-        const price = await priceService.getPriceByArticleId(draftItem.article);
+        // Use productId (base product) to get price, not article (variant)
+        const price = await priceService.getPriceByArticleId(
+          draftItem.productId,
+        );
 
         if (product && price) {
           const vatRate = product.vat || 22;
@@ -437,6 +457,7 @@ export default function OrderFormSimple() {
 
           recoveredItems.push({
             id: crypto.randomUUID(),
+            productId: draftItem.productId,
             article: draftItem.article,
             productName: draftItem.productName,
             description: draftItem.packageContent,
@@ -535,6 +556,7 @@ export default function OrderFormSimple() {
 
       newItems.push({
         id: crypto.randomUUID(),
+        productId: selectedProduct.id,
         article: variantArticleCode,
         productName: selectedProduct.name,
         description: `${pkg.packageSize} ${pkg.packageSize === 1 ? "pezzo" : "pezzi"} x ${pkg.packageCount}`,
