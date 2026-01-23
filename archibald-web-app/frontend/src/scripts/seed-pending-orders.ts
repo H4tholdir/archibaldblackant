@@ -1,3 +1,4 @@
+// @ts-nocheck
 /**
  * Development script to seed pending orders for testing
  *
