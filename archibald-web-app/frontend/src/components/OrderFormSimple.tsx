@@ -66,13 +66,11 @@ export default function OrderFormSimple() {
           setCacheSyncing(true);
 
           // Get auth token from localStorage
-          const authData = localStorage.getItem('archibald_auth');
-          if (!authData) {
+          const token = localStorage.getItem('archibald_jwt');
+          if (!token) {
             console.error('[OrderForm] No auth token found');
             return;
           }
-
-          const { token } = JSON.parse(authData);
 
           // Trigger cache population
           const result = await cachePopulationService.populateCache(token);
