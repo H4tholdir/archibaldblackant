@@ -15,7 +15,7 @@ interface DiscountSystemProps {
 }
 
 export function DiscountSystem({
-  orderSubtotal,
+  orderSubtotal: _orderSubtotal,
   discountType = "percentage",
   discountValue = 0,
   reverseMode = false,

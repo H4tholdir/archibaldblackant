@@ -149,7 +149,7 @@ describe('order-calculations', () => {
     });
 
     test('returns zero discount when target equals current', () => {
-      const currentTotal = 244; // €200 + €44 VAT (no discount)
+      // Target: €244 (€200 + €44 VAT, no discount needed)
       const result = reverseCalculateGlobalDiscount(244, 200);
 
       expect(result.globalDiscountPercent).toBeCloseTo(0, 2);
