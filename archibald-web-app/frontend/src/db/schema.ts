@@ -25,6 +25,7 @@ export interface Product {
   description: string;
   packageContent?: string;
   vat?: number;
+  price?: number; // Price from backend (already included in products)
   lastModified: string;
   hash: string;
 }

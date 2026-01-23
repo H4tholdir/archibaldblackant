@@ -16,13 +16,14 @@ export class PriceService {
    */
   async getPriceByArticleId(articleId: string): Promise<number | null> {
     try {
-      const price = await this.db
-        .table<Price, number>("prices")
-        .where("articleId")
+      // Price is stored directly in the product (not in a separate prices table)
+      const product = await this.db
+        .table("products")
+        .where("id")
         .equals(articleId)
         .first();
 
-      return price ? price.price : null;
+      return product?.price || null;
     } catch (error) {
       console.error("[PriceService] Failed to get price:", error);
       return null;
@@ -31,56 +32,13 @@ export class PriceService {
 
   /**
    * Sync prices from API to IndexedDB
-   * Fetches all prices and populates cache
+   * NOTE: Prices are now stored directly in products, so this method is deprecated.
+   * It's kept for backward compatibility but does nothing.
    */
   async syncPrices(): Promise<void> {
-    try {
-      console.log("[PriceService] Starting price sync...");
-
-      // Fetch all prices from API
-      const response = await fetch("/api/prices");
-      if (!response.ok) {
-        throw new Error(`API request failed: ${response.status}`);
-      }
-
-      const data = await response.json();
-      const prices: Price[] = data.data?.prices || [];
-
-      console.log(`[PriceService] Fetched ${prices.length} prices from API`);
-
-      // If no prices, log warning and skip sync
-      if (prices.length === 0) {
-        console.warn("[PriceService] No prices returned from API, skipping sync");
-        return;
-      }
-
-      // Filter prices with valid articleId field
-      const validPrices = prices.filter(p => p.articleId && typeof p.articleId === 'string');
-      if (validPrices.length < prices.length) {
-        console.warn(
-          `[PriceService] Filtered out ${prices.length - validPrices.length} prices without valid articleId field`
-        );
-      }
-
-      if (validPrices.length === 0) {
-        console.error("[PriceService] No valid prices to sync");
-        return;
-      }
-
-      // Clear and populate IndexedDB
-      const pricesTable = this.db.table<Price, number>("prices");
-      await pricesTable.clear();
-      await pricesTable.bulkAdd(validPrices);
-
-      console.log(
-        `[PriceService] Populated IndexedDB with ${validPrices.length} prices`,
-      );
-
-      console.log("[PriceService] Price sync completed");
-    } catch (error) {
-      console.error("[PriceService] Sync failed:", error);
-      throw error;
-    }
+    console.log("[PriceService] Price sync skipped - prices are now stored in products");
+    // Prices are synced automatically when products are synced
+    // No separate sync needed
   }
 }
 
