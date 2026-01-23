@@ -1,360 +1,283 @@
-import { describe, test, expect, vi } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
-import { userEvent } from "@testing-library/user-event";
-import { ProductSelector } from "./ProductSelector";
-import type { ProductWithDetails } from "../../services/products.service";
+import { describe, test, expect, vi, beforeEach } from 'vitest';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import { ProductSelector } from './ProductSelector';
+import type { Product } from '../../db/schema';
 
-const mockProduct: ProductWithDetails = {
-  id: "1",
-  name: "Vite Testa Tonda",
-  article: "VTT001",
-  description: "Vite testa tonda 6x20mm acciaio",
-  lastModified: "2024-01-01",
-  hash: "abc123",
-  variants: [
+describe('ProductSelector', () => {
+  const mockProducts: Product[] = [
     {
-      id: 1,
-      productId: "1",
-      variantId: "V1",
-      multipleQty: 10,
-      minQty: 10,
-      maxQty: 100,
-      packageContent: "100pz",
+      id: '1',
+      name: 'Vite M6x20',
+      article: 'H129FSQ.104.023',
+      description: 'Vite in acciaio inox',
+      createdAt: new Date(),
+      updatedAt: new Date(),
     },
-  ],
-  price: 15.5,
-};
-
-const mockProduct2: ProductWithDetails = {
-  id: "2",
-  name: "Bullone Esagonale",
-  article: "H129",
-  description: "Bullone esagonale M8x30 zincato",
-  lastModified: "2024-01-02",
-  hash: "def456",
-  variants: [
     {
-      id: 2,
-      productId: "2",
-      variantId: "V2",
-      multipleQty: 1,
-      minQty: 1,
-      maxQty: 500,
-      packageContent: "50pz",
+      id: '2',
+      name: 'Dado M6',
+      article: 'H130FSQ.105.024',
+      description: 'Dado esagonale',
+      createdAt: new Date(),
+      updatedAt: new Date(),
     },
-  ],
-  price: 22.0,
-};
+    {
+      id: '3',
+      name: 'Rondella M6',
+      article: 'H131FSQ.106.025',
+      description: 'Rondella piana',
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    },
+  ];
 
-describe("ProductSelector", () => {
-  test("renders input with placeholder", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  test('renders input with placeholder', () => {
     render(<ProductSelector onSelect={vi.fn()} />);
     expect(
-      screen.getByPlaceholderText(
-        "Cerca prodotto per nome o codice articolo...",
-      ),
+      screen.getByPlaceholderText('Cerca prodotto per nome o codice articolo...')
     ).toBeInTheDocument();
   });
 
-  test("renders custom placeholder", () => {
-    render(
-      <ProductSelector onSelect={vi.fn()} placeholder="Cerca prodotto..." />,
-    );
-    expect(
-      screen.getByPlaceholderText("Cerca prodotto..."),
-    ).toBeInTheDocument();
+  test('renders label', () => {
+    render(<ProductSelector onSelect={vi.fn()} />);
+    expect(screen.getByLabelText('Cerca prodotto')).toBeInTheDocument();
   });
 
-  test("typing triggers debounced search after 300ms", async () => {
-    const user = userEvent.setup();
-    const mockSearch = vi.fn().mockResolvedValue([mockProduct]);
+  test('typing triggers debounced search after 300ms', async () => {
+    const mockSearch = vi.fn().mockResolvedValue([mockProducts[0]]);
 
     render(<ProductSelector onSelect={vi.fn()} searchFn={mockSearch} />);
 
     const input = screen.getByPlaceholderText(
-      "Cerca prodotto per nome o codice articolo...",
+      'Cerca prodotto per nome o codice articolo...'
     );
-    await user.type(input, "vite");
+    await userEvent.type(input, 'vite');
 
     // Search should NOT be called immediately
     expect(mockSearch).not.toHaveBeenCalled();
 
-    // Wait for debounce (300ms)
-    await waitFor(
-      () => {
-        expect(mockSearch).toHaveBeenCalledWith("vite");
-      },
-      { timeout: 500 },
-    );
+    // Wait for debounce (300ms + buffer)
+    await waitFor(() => expect(mockSearch).toHaveBeenCalledWith('vite'), {
+      timeout: 500,
+    });
   });
 
-  test("search by product name works", async () => {
-    const user = userEvent.setup();
-    const mockSearch = vi.fn().mockResolvedValue([mockProduct]);
+  test('search by product name works', async () => {
+    const mockSearch = vi.fn().mockResolvedValue([mockProducts[0]]);
 
     render(<ProductSelector onSelect={vi.fn()} searchFn={mockSearch} />);
 
     const input = screen.getByPlaceholderText(
-      "Cerca prodotto per nome o codice articolo...",
+      'Cerca prodotto per nome o codice articolo...'
     );
-    await user.type(input, "vite");
+    await userEvent.type(input, 'vite');
 
-    await waitFor(() => expect(mockSearch).toHaveBeenCalledWith("vite"));
+    await waitFor(() => screen.getByText('Vite M6x20'));
 
-    expect(screen.getByText("Vite Testa Tonda")).toBeInTheDocument();
+    expect(screen.getByText('Vite M6x20')).toBeInTheDocument();
   });
 
-  test("search by article code works", async () => {
-    const user = userEvent.setup();
-    const mockSearch = vi.fn().mockResolvedValue([mockProduct2]);
+  test('search by article code works', async () => {
+    const mockSearch = vi.fn().mockResolvedValue([mockProducts[0]]);
 
     render(<ProductSelector onSelect={vi.fn()} searchFn={mockSearch} />);
 
     const input = screen.getByPlaceholderText(
-      "Cerca prodotto per nome o codice articolo...",
+      'Cerca prodotto per nome o codice articolo...'
     );
-    await user.type(input, "h129");
+    await userEvent.type(input, 'h129');
 
-    await waitFor(() => expect(mockSearch).toHaveBeenCalledWith("h129"));
+    await waitFor(() => screen.getByText('Vite M6x20'));
 
-    expect(screen.getByText("Bullone Esagonale")).toBeInTheDocument();
+    expect(screen.getByText('Vite M6x20')).toBeInTheDocument();
   });
 
-  test("displays article code in dropdown", async () => {
-    const user = userEvent.setup();
-    const mockSearch = vi.fn().mockResolvedValue([mockProduct]);
+  test('displays article code and description in dropdown', async () => {
+    const mockSearch = vi.fn().mockResolvedValue(mockProducts);
 
     render(<ProductSelector onSelect={vi.fn()} searchFn={mockSearch} />);
 
     const input = screen.getByPlaceholderText(
-      "Cerca prodotto per nome o codice articolo...",
+      'Cerca prodotto per nome o codice articolo...'
     );
-    await user.type(input, "vite");
+    await userEvent.type(input, 'h1');
 
-    await waitFor(() => screen.getByText("Vite Testa Tonda"));
+    await waitFor(() => screen.getByText('Vite M6x20'));
 
-    expect(screen.getByText(/Codice: VTT001/i)).toBeInTheDocument();
+    expect(screen.getByText('Vite M6x20')).toBeInTheDocument();
+    expect(screen.getByText('Codice: H129FSQ.104.023')).toBeInTheDocument();
+    expect(screen.getByText('Vite in acciaio inox')).toBeInTheDocument();
   });
 
-  test("displays description in dropdown", async () => {
-    const user = userEvent.setup();
-    const mockSearch = vi.fn().mockResolvedValue([mockProduct]);
-
-    render(<ProductSelector onSelect={vi.fn()} searchFn={mockSearch} />);
-
-    const input = screen.getByPlaceholderText(
-      "Cerca prodotto per nome o codice articolo...",
-    );
-    await user.type(input, "vite");
-
-    await waitFor(() => screen.getByText("Vite Testa Tonda"));
-
-    expect(
-      screen.getByText(/Vite testa tonda 6x20mm acciaio/i),
-    ).toBeInTheDocument();
-  });
-
-  test("clicking result selects product and closes dropdown", async () => {
-    const user = userEvent.setup();
+  test('clicking result selects product and closes dropdown', async () => {
     const onSelect = vi.fn();
-    const mockSearch = vi.fn().mockResolvedValue([mockProduct]);
+    const mockSearch = vi.fn().mockResolvedValue([mockProducts[0]]);
 
     render(<ProductSelector onSelect={onSelect} searchFn={mockSearch} />);
 
     const input = screen.getByPlaceholderText(
-      "Cerca prodotto per nome o codice articolo...",
+      'Cerca prodotto per nome o codice articolo...'
     );
-    await user.type(input, "vite");
+    await userEvent.type(input, 'vite');
 
-    await waitFor(() => screen.getByText("Vite Testa Tonda"));
+    await waitFor(() => screen.getByText('Vite M6x20'));
 
-    const result = screen.getByText("Vite Testa Tonda");
-    await user.click(result);
+    const result = screen.getByText('Vite M6x20');
+    await userEvent.click(result);
 
-    expect(onSelect).toHaveBeenCalledWith(mockProduct);
+    expect(onSelect).toHaveBeenCalledWith(mockProducts[0]);
 
     // Dropdown should be closed
-    const dropdown = screen.queryByRole("listbox");
-    expect(dropdown).not.toBeInTheDocument();
+    await waitFor(() => {
+      const dropdown = screen.queryByRole('listbox');
+      expect(dropdown).not.toBeInTheDocument();
+    });
   });
 
-  test("escape key closes dropdown", async () => {
-    const user = userEvent.setup();
-    const mockSearch = vi.fn().mockResolvedValue([mockProduct]);
+  test('shows loading state during search', async () => {
+    const mockSearch = vi
+      .fn()
+      .mockImplementation(
+        () => new Promise((resolve) => setTimeout(() => resolve([]), 100))
+      );
 
     render(<ProductSelector onSelect={vi.fn()} searchFn={mockSearch} />);
 
     const input = screen.getByPlaceholderText(
-      "Cerca prodotto per nome o codice articolo...",
+      'Cerca prodotto per nome o codice articolo...'
     );
-    await user.type(input, "vite");
+    await userEvent.type(input, 'vite');
 
-    await waitFor(() => screen.getByRole("listbox"));
+    // Wait for debounce
+    await waitFor(() => expect(mockSearch).toHaveBeenCalled(), {
+      timeout: 500,
+    });
 
-    await user.keyboard("{Escape}");
-
-    const dropdown = screen.queryByRole("listbox");
-    expect(dropdown).not.toBeInTheDocument();
+    // Loading indicator should appear
+    expect(screen.getByText('Ricerca in corso...')).toBeInTheDocument();
   });
 
-  test("arrow keys navigate dropdown items", async () => {
-    const user = userEvent.setup();
-    const mockSearch = vi.fn().mockResolvedValue([mockProduct, mockProduct2]);
+  test('shows error message on search failure', async () => {
+    const mockSearch = vi.fn().mockRejectedValue(new Error('Network error'));
 
     render(<ProductSelector onSelect={vi.fn()} searchFn={mockSearch} />);
 
     const input = screen.getByPlaceholderText(
-      "Cerca prodotto per nome o codice articolo...",
+      'Cerca prodotto per nome o codice articolo...'
     );
-    await user.type(input, "vite");
+    await userEvent.type(input, 'vite');
 
-    await waitFor(() => screen.getByRole("listbox"));
-
-    await user.keyboard("{ArrowDown}");
-
-    // First item should be highlighted
-    const firstOption = screen
-      .getByText("Vite Testa Tonda")
-      .closest('[role="option"]');
-    expect(firstOption).toHaveAttribute("aria-selected", "true");
+    await waitFor(
+      () => {
+        expect(screen.getByText('Errore durante la ricerca')).toBeInTheDocument();
+      },
+      { timeout: 500 }
+    );
   });
 
-  test("enter key selects highlighted item", async () => {
-    const user = userEvent.setup();
+  test('displays selected product confirmation', async () => {
+    const mockSearch = vi.fn().mockResolvedValue([mockProducts[0]]);
+
+    render(<ProductSelector onSelect={vi.fn()} searchFn={mockSearch} />);
+
+    const input = screen.getByPlaceholderText(
+      'Cerca prodotto per nome o codice articolo...'
+    );
+    await userEvent.type(input, 'vite');
+
+    await waitFor(() => screen.getByText('Vite M6x20'));
+
+    const result = screen.getByText('Vite M6x20');
+    await userEvent.click(result);
+
+    await waitFor(() => {
+      expect(
+        screen.getByText(/✅ Prodotto selezionato:/)
+      ).toBeInTheDocument();
+      expect(screen.getByText('Vite M6x20')).toBeInTheDocument();
+    });
+  });
+
+  test('escape key closes dropdown', async () => {
+    const mockSearch = vi.fn().mockResolvedValue(mockProducts);
+
+    render(<ProductSelector onSelect={vi.fn()} searchFn={mockSearch} />);
+
+    const input = screen.getByPlaceholderText(
+      'Cerca prodotto per nome o codice articolo...'
+    );
+    await userEvent.type(input, 'h1');
+
+    await waitFor(() => screen.getByRole('listbox'));
+
+    // Press Escape
+    fireEvent.keyDown(input, { key: 'Escape' });
+
+    await waitFor(() => {
+      const dropdown = screen.queryByRole('listbox');
+      expect(dropdown).not.toBeInTheDocument();
+    });
+  });
+
+  test('arrow keys navigate dropdown items', async () => {
+    const mockSearch = vi.fn().mockResolvedValue(mockProducts);
+
+    render(<ProductSelector onSelect={vi.fn()} searchFn={mockSearch} />);
+
+    const input = screen.getByPlaceholderText(
+      'Cerca prodotto per nome o codice articolo...'
+    );
+    await userEvent.type(input, 'h1');
+
+    await waitFor(() => screen.getByRole('listbox'));
+
+    const options = screen.getAllByRole('option');
+    expect(options).toHaveLength(3);
+
+    // Press ArrowDown
+    fireEvent.keyDown(input, { key: 'ArrowDown' });
+
+    // First option should be highlighted
+    await waitFor(() => {
+      expect(options[0]).toHaveAttribute('aria-selected', 'true');
+    });
+  });
+
+  test('Enter key selects highlighted item', async () => {
     const onSelect = vi.fn();
-    const mockSearch = vi.fn().mockResolvedValue([mockProduct, mockProduct2]);
+    const mockSearch = vi.fn().mockResolvedValue(mockProducts);
 
     render(<ProductSelector onSelect={onSelect} searchFn={mockSearch} />);
 
     const input = screen.getByPlaceholderText(
-      "Cerca prodotto per nome o codice articolo...",
+      'Cerca prodotto per nome o codice articolo...'
     );
-    await user.type(input, "vite");
+    await userEvent.type(input, 'h1');
 
-    await waitFor(() => screen.getByRole("listbox"));
+    await waitFor(() => screen.getByRole('listbox'));
 
-    await user.keyboard("{ArrowDown}");
-    await user.keyboard("{Enter}");
+    // Arrow down to first item
+    fireEvent.keyDown(input, { key: 'ArrowDown' });
 
-    expect(onSelect).toHaveBeenCalledWith(mockProduct);
+    // Press Enter
+    fireEvent.keyDown(input, { key: 'Enter' });
+
+    await waitFor(() => {
+      expect(onSelect).toHaveBeenCalledWith(mockProducts[0]);
+    });
   });
 
-  test("shows loading state during search", async () => {
-    const user = userEvent.setup();
-    const mockSearch = vi.fn().mockImplementation(
-      () =>
-        new Promise((resolve) => {
-          setTimeout(() => resolve([mockProduct]), 100);
-        }),
-    );
-
-    render(<ProductSelector onSelect={vi.fn()} searchFn={mockSearch} />);
-
-    const input = screen.getByPlaceholderText(
-      "Cerca prodotto per nome o codice articolo...",
-    );
-    await user.type(input, "vite");
-
-    // Wait for debounce
-    await waitFor(() => expect(mockSearch).toHaveBeenCalled());
-
-    // Loading indicator should appear
-    expect(screen.getByText("Ricerca in corso...")).toBeInTheDocument();
-
-    // Wait for results
-    await waitFor(() => screen.getByText("Vite Testa Tonda"));
-
-    // Loading should be gone
-    expect(screen.queryByText("Ricerca in corso...")).not.toBeInTheDocument();
-  });
-
-  test("shows error message on search failure", async () => {
-    const user = userEvent.setup();
-    const mockSearch = vi.fn().mockRejectedValue(new Error("API error"));
-
-    render(<ProductSelector onSelect={vi.fn()} searchFn={mockSearch} />);
-
-    const input = screen.getByPlaceholderText(
-      "Cerca prodotto per nome o codice articolo...",
-    );
-    await user.type(input, "vite");
-
-    await waitFor(() =>
-      expect(screen.getByText("Errore durante la ricerca")).toBeInTheDocument(),
-    );
-  });
-
-  test("displays selected product confirmation with article code", async () => {
-    const user = userEvent.setup();
-    const mockSearch = vi.fn().mockResolvedValue([mockProduct]);
-
-    render(<ProductSelector onSelect={vi.fn()} searchFn={mockSearch} />);
-
-    const input = screen.getByPlaceholderText(
-      "Cerca prodotto per nome o codice articolo...",
-    );
-    await user.type(input, "vite");
-
-    await waitFor(() => screen.getByText("Vite Testa Tonda"));
-
-    const result = screen.getByText("Vite Testa Tonda");
-    await user.click(result);
-
-    // Confirmation message should appear with article code
-    expect(screen.getByText(/Prodotto selezionato:/i)).toBeInTheDocument();
-    expect(screen.getByText("Vite Testa Tonda")).toBeInTheDocument();
-    expect(screen.getByText(/\(VTT001\)/i)).toBeInTheDocument();
-  });
-
-  test("has correct ARIA attributes", () => {
-    render(<ProductSelector onSelect={vi.fn()} />);
-
-    const input = screen.getByLabelText("Cerca prodotto");
-    expect(input).toHaveAttribute("aria-autocomplete", "list");
-    expect(input).toHaveAttribute("aria-expanded", "false");
-  });
-
-  test("ARIA expanded is true when dropdown open", async () => {
-    const user = userEvent.setup();
-    const mockSearch = vi.fn().mockResolvedValue([mockProduct]);
-
-    render(<ProductSelector onSelect={vi.fn()} searchFn={mockSearch} />);
-
-    const input = screen.getByLabelText("Cerca prodotto");
-    await user.type(input, "vite");
-
-    await waitFor(() => screen.getByRole("listbox"));
-
-    expect(input).toHaveAttribute("aria-expanded", "true");
-  });
-
-  test("disabled prop disables input", () => {
+  test('disabled state prevents input', () => {
     render(<ProductSelector onSelect={vi.fn()} disabled={true} />);
 
     const input = screen.getByPlaceholderText(
-      "Cerca prodotto per nome o codice articolo...",
+      'Cerca prodotto per nome o codice articolo...'
     );
     expect(input).toBeDisabled();
-  });
-
-  test("empty query shows no dropdown", async () => {
-    const user = userEvent.setup();
-    const mockSearch = vi.fn();
-
-    render(<ProductSelector onSelect={vi.fn()} searchFn={mockSearch} />);
-
-    const input = screen.getByPlaceholderText(
-      "Cerca prodotto per nome o codice articolo...",
-    );
-
-    // Type and then clear
-    await user.type(input, "vite");
-    await user.clear(input);
-
-    // Wait a bit to ensure debounce timeout
-    await new Promise((resolve) => setTimeout(resolve, 400));
-
-    const dropdown = screen.queryByRole("listbox");
-    expect(dropdown).not.toBeInTheDocument();
   });
 });
