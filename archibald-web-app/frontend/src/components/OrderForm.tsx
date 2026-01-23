@@ -296,9 +296,13 @@ export default function OrderForm() {
                 orderSubtotal={orderTotals.itemsSubtotal}
                 discountType={globalDiscountType}
                 discountValue={globalDiscountValue}
-                onDiscountChange={(type, value) => {
-                  setGlobalDiscountType(type);
-                  setGlobalDiscountValue(value);
+                onChange={(discount) => {
+                  setGlobalDiscountType(discount.discountType);
+                  setGlobalDiscountValue(discount.discountValue);
+                }}
+                onReverseCalculate={(targetTotal) => {
+                  // TODO: Implement reverse calculation
+                  console.log('Reverse calculate to target:', targetTotal);
                 }}
               />
             </div>
