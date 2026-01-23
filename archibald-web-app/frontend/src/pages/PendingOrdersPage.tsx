@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { orderService } from "../services/orders.service";
+import { toastService } from "../services/toast.service";
 import type { PendingOrder } from "../db/schema";
 
 export function PendingOrdersPage() {
@@ -87,13 +88,15 @@ export function PendingOrdersPage() {
         await orderService.updatePendingOrderStatus(orderId, "syncing");
       }
 
-      alert(`Ordini inviati al bot. Job IDs: ${jobIds.join(", ")}`);
+      toastService.success(
+        `Ordini inviati al bot. Job IDs: ${jobIds.join(", ")}`,
+      );
 
       await loadOrders();
       setSelectedOrderIds(new Set());
     } catch (error) {
       console.error("[PendingOrdersPage] Submission failed:", error);
-      alert("Errore durante l'invio degli ordini. Riprova.");
+      toastService.error("Errore durante l'invio degli ordini. Riprova.");
     } finally {
       setSubmitting(false);
     }
@@ -106,7 +109,7 @@ export function PendingOrdersPage() {
 
     try {
       await orderService.deletePendingOrder(orderId);
-      alert("Ordine eliminato con successo");
+      toastService.success("Ordine eliminato con successo");
       await loadOrders();
       // Remove from selection if it was selected
       setSelectedOrderIds((prev) => {
@@ -116,7 +119,7 @@ export function PendingOrdersPage() {
       });
     } catch (error) {
       console.error("[PendingOrdersPage] Failed to delete order:", error);
-      alert("Errore durante l'eliminazione dell'ordine. Riprova.");
+      toastService.error("Errore durante l'eliminazione dell'ordine. Riprova.");
     }
   };
 

@@ -8,6 +8,7 @@ import {
 import { priceService } from "../services/prices.service";
 import { orderService } from "../services/orders.service";
 import { cachePopulationService } from "../services/cache-population";
+import { toastService } from "../services/toast.service";
 import { db } from "../db/schema";
 import type { Customer, Product, DraftOrder } from "../db/schema";
 
@@ -87,7 +88,7 @@ export default function OrderFormSimple() {
       try {
         const order = await orderService.getPendingOrderById(orderId);
         if (!order) {
-          alert("Ordine non trovato");
+          toastService.error("Ordine non trovato");
           navigate("/pending-orders");
           return;
         }
@@ -128,7 +129,7 @@ export default function OrderFormSimple() {
         // so we leave it at 0
       } catch (error) {
         console.error("[OrderForm] Failed to load order:", error);
-        alert("Errore durante il caricamento dell'ordine");
+        toastService.error("Errore durante il caricamento dell'ordine");
         navigate("/pending-orders");
       } finally {
         setLoadingOrder(false);
@@ -409,7 +410,7 @@ export default function OrderFormSimple() {
     try {
       const draft = await db.draftOrders.get(draftId);
       if (!draft) {
-        alert("Bozza non trovata");
+        toastService.error("Bozza non trovata");
         setHasDraft(false);
         setDraftId(null);
         return;
@@ -453,10 +454,10 @@ export default function OrderFormSimple() {
       setItems(recoveredItems);
       setHasDraft(false);
 
-      alert("Bozza recuperata con successo!");
+      toastService.success("Bozza recuperata con successo!");
     } catch (error) {
       console.error("[OrderForm] Failed to recover draft:", error);
-      alert("Errore durante il recupero della bozza");
+      toastService.error("Errore durante il recupero della bozza");
     }
   };
 
@@ -468,28 +469,28 @@ export default function OrderFormSimple() {
       await orderService.deleteDraftOrder(draftId);
       setHasDraft(false);
       setDraftId(null);
-      alert("Bozza eliminata");
+      toastService.success("Bozza eliminata");
     } catch (error) {
       console.error("[OrderForm] Failed to discard draft:", error);
-      alert("Errore durante l'eliminazione della bozza");
+      toastService.error("Errore durante l'eliminazione della bozza");
     }
   };
 
   // === ADD ITEM (WITH MULTIPLE LINES FOR VARIANTS) ===
   const handleAddItem = async () => {
     if (!selectedProduct) {
-      alert("Seleziona un prodotto");
+      toastService.warning("Seleziona un prodotto");
       return;
     }
 
     const qty = parseInt(quantity, 10);
     if (isNaN(qty) || qty <= 0) {
-      alert("Inserisci una quantità valida");
+      toastService.warning("Inserisci una quantità valida");
       return;
     }
 
     if (!packagingPreview || !packagingPreview.success) {
-      alert(
+      toastService.error(
         packagingPreview?.error ||
           "Impossibile calcolare il confezionamento per questa quantità",
       );
@@ -499,7 +500,7 @@ export default function OrderFormSimple() {
     // Get breakdown of variants from packaging calculation
     const breakdown = packagingPreview.breakdown;
     if (!breakdown || breakdown.length === 0) {
-      alert("Nessuna combinazione di varianti disponibile");
+      toastService.error("Nessuna combinazione di varianti disponibile");
       return;
     }
 
@@ -517,7 +518,9 @@ export default function OrderFormSimple() {
       const price = await priceService.getPriceByArticleId(variantArticleCode);
 
       if (!price) {
-        alert(`Prezzo non disponibile per la variante ${variantArticleCode}`);
+        toastService.error(
+          `Prezzo non disponibile per la variante ${variantArticleCode}`,
+        );
         return;
       }
 
@@ -653,7 +656,9 @@ export default function OrderFormSimple() {
     }
 
     if (bestDiscount < 0 || bestDiscount > 100) {
-      alert("Impossibile raggiungere il totale target con uno sconto valido");
+      toastService.error(
+        "Impossibile raggiungere il totale target con uno sconto valido",
+      );
       return;
     }
 
@@ -664,12 +669,12 @@ export default function OrderFormSimple() {
   // === SUBMIT ===
   const handleSubmit = async () => {
     if (!selectedCustomer) {
-      alert("Seleziona un cliente");
+      toastService.warning("Seleziona un cliente");
       return;
     }
 
     if (items.length === 0) {
-      alert("Aggiungi almeno un articolo");
+      toastService.warning("Aggiungi almeno un articolo");
       return;
     }
 
@@ -709,13 +714,13 @@ export default function OrderFormSimple() {
         setDraftId(null);
       }
 
-      alert(
+      toastService.success(
         editingOrderId ? "Ordine aggiornato!" : "Ordine salvato nella coda!",
       );
       navigate("/pending-orders");
     } catch (error) {
       console.error("Failed to save order:", error);
-      alert("Errore durante il salvataggio");
+      toastService.error("Errore durante il salvataggio");
     } finally {
       setSubmitting(false);
     }

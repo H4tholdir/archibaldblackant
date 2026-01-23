@@ -7,6 +7,7 @@ import {
   validatePEC,
   validateCAP,
 } from "../utils/italianFiscalValidators";
+import { toastService } from "../services/toast.service";
 
 interface CustomerEditFormData {
   name: string;
@@ -42,7 +43,8 @@ export function CustomerEdit() {
     paymentTerms: "206",
     lineDiscount: "N/A",
   });
-  const [originalFormData, setOriginalFormData] = useState<CustomerEditFormData | null>(null);
+  const [originalFormData, setOriginalFormData] =
+    useState<CustomerEditFormData | null>(null);
 
   // Fetch customer data
   useEffect(() => {
@@ -61,18 +63,25 @@ export function CustomerEdit() {
           return;
         }
 
-        const response = await fetch(`/api/customers?search=${customerProfile}`, {
-          headers: {
-            Authorization: `Bearer ${token}`,
+        const response = await fetch(
+          `/api/customers?search=${customerProfile}`,
+          {
+            headers: {
+              Authorization: `Bearer ${token}`,
+            },
           },
-        });
+        );
 
         if (!response.ok) {
           throw new Error(`Errore ${response.status}`);
         }
 
         const data = await response.json();
-        if (!data.success || !data.data.customers || data.data.customers.length === 0) {
+        if (
+          !data.success ||
+          !data.data.customers ||
+          data.data.customers.length === 0
+        ) {
           throw new Error("Cliente non trovato");
         }
 
@@ -155,7 +164,9 @@ export function CustomerEdit() {
       }
 
       // Build object with only changed fields
-      const changedFields: Partial<CustomerEditFormData> = { name: formData.name }; // name is always required
+      const changedFields: Partial<CustomerEditFormData> = {
+        name: formData.name,
+      }; // name is always required
 
       if (originalFormData) {
         // Compare each field and include only if changed
@@ -214,11 +225,13 @@ export function CustomerEdit() {
         throw new Error(data.error || "Errore durante l'aggiornamento");
       }
 
-      alert("Cliente aggiornato con successo!");
+      toastService.success("Cliente aggiornato con successo!");
       navigate("/customers");
     } catch (err) {
       console.error("Error updating customer:", err);
-      setError(err instanceof Error ? err.message : "Errore durante l'aggiornamento");
+      setError(
+        err instanceof Error ? err.message : "Errore durante l'aggiornamento",
+      );
     } finally {
       setSaving(false);
     }
@@ -285,7 +298,14 @@ export function CustomerEdit() {
         >
           ← Torna alla lista
         </button>
-        <h1 style={{ fontSize: "28px", fontWeight: 700, color: "#333", marginBottom: "8px" }}>
+        <h1
+          style={{
+            fontSize: "28px",
+            fontWeight: 700,
+            color: "#333",
+            marginBottom: "8px",
+          }}
+        >
           ✏️ Modifica Cliente
         </h1>
         <p style={{ fontSize: "16px", color: "#666" }}>
@@ -305,7 +325,14 @@ export function CustomerEdit() {
         >
           {/* Basic Info Section */}
           <div style={{ marginBottom: "24px" }}>
-            <h3 style={{ fontSize: "18px", fontWeight: 700, color: "#333", marginBottom: "16px" }}>
+            <h3
+              style={{
+                fontSize: "18px",
+                fontWeight: 700,
+                color: "#333",
+                marginBottom: "16px",
+              }}
+            >
               📋 Informazioni Base
             </h3>
             <div style={{ display: "grid", gap: "16px" }}>
@@ -326,7 +353,9 @@ export function CustomerEdit() {
                   id="name"
                   type="text"
                   value={formData.name}
-                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                  onChange={(e) =>
+                    setFormData({ ...formData, name: e.target.value })
+                  }
                   required
                   style={{
                     width: "100%",
@@ -343,10 +372,23 @@ export function CustomerEdit() {
 
           {/* Fiscal Data Section */}
           <div style={{ marginBottom: "24px" }}>
-            <h3 style={{ fontSize: "18px", fontWeight: 700, color: "#333", marginBottom: "16px" }}>
+            <h3
+              style={{
+                fontSize: "18px",
+                fontWeight: 700,
+                color: "#333",
+                marginBottom: "16px",
+              }}
+            >
               📄 Dati Fiscali
             </h3>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px" }}>
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "1fr 1fr",
+                gap: "16px",
+              }}
+            >
               <div>
                 <label
                   htmlFor="vatNumber"
@@ -364,7 +406,9 @@ export function CustomerEdit() {
                   id="vatNumber"
                   type="text"
                   value={formData.vatNumber}
-                  onChange={(e) => setFormData({ ...formData, vatNumber: e.target.value })}
+                  onChange={(e) =>
+                    setFormData({ ...formData, vatNumber: e.target.value })
+                  }
                   maxLength={11}
                   style={{
                     width: "100%",
@@ -393,7 +437,12 @@ export function CustomerEdit() {
                   id="sdi"
                   type="text"
                   value={formData.sdi}
-                  onChange={(e) => setFormData({ ...formData, sdi: e.target.value.toUpperCase() })}
+                  onChange={(e) =>
+                    setFormData({
+                      ...formData,
+                      sdi: e.target.value.toUpperCase(),
+                    })
+                  }
                   maxLength={7}
                   style={{
                     width: "100%",
@@ -422,7 +471,9 @@ export function CustomerEdit() {
                   id="pec"
                   type="email"
                   value={formData.pec}
-                  onChange={(e) => setFormData({ ...formData, pec: e.target.value })}
+                  onChange={(e) =>
+                    setFormData({ ...formData, pec: e.target.value })
+                  }
                   style={{
                     width: "100%",
                     padding: "10px 12px",
@@ -438,10 +489,23 @@ export function CustomerEdit() {
 
           {/* Contact Info Section */}
           <div style={{ marginBottom: "24px" }}>
-            <h3 style={{ fontSize: "18px", fontWeight: 700, color: "#333", marginBottom: "16px" }}>
+            <h3
+              style={{
+                fontSize: "18px",
+                fontWeight: 700,
+                color: "#333",
+                marginBottom: "16px",
+              }}
+            >
               📞 Contatti
             </h3>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px" }}>
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "1fr 1fr",
+                gap: "16px",
+              }}
+            >
               <div>
                 <label
                   htmlFor="phone"
@@ -459,7 +523,9 @@ export function CustomerEdit() {
                   id="phone"
                   type="tel"
                   value={formData.phone}
-                  onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                  onChange={(e) =>
+                    setFormData({ ...formData, phone: e.target.value })
+                  }
                   style={{
                     width: "100%",
                     padding: "10px 12px",
@@ -487,7 +553,9 @@ export function CustomerEdit() {
                   id="email"
                   type="email"
                   value={formData.email}
-                  onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                  onChange={(e) =>
+                    setFormData({ ...formData, email: e.target.value })
+                  }
                   style={{
                     width: "100%",
                     padding: "10px 12px",
@@ -503,7 +571,14 @@ export function CustomerEdit() {
 
           {/* Address Section */}
           <div style={{ marginBottom: "24px" }}>
-            <h3 style={{ fontSize: "18px", fontWeight: 700, color: "#333", marginBottom: "16px" }}>
+            <h3
+              style={{
+                fontSize: "18px",
+                fontWeight: 700,
+                color: "#333",
+                marginBottom: "16px",
+              }}
+            >
               📍 Indirizzo
             </h3>
             <div style={{ display: "grid", gap: "16px" }}>
@@ -524,7 +599,9 @@ export function CustomerEdit() {
                   id="street"
                   type="text"
                   value={formData.street}
-                  onChange={(e) => setFormData({ ...formData, street: e.target.value })}
+                  onChange={(e) =>
+                    setFormData({ ...formData, street: e.target.value })
+                  }
                   style={{
                     width: "100%",
                     padding: "10px 12px",
@@ -552,7 +629,9 @@ export function CustomerEdit() {
                   id="postalCode"
                   type="text"
                   value={formData.postalCode}
-                  onChange={(e) => setFormData({ ...formData, postalCode: e.target.value })}
+                  onChange={(e) =>
+                    setFormData({ ...formData, postalCode: e.target.value })
+                  }
                   maxLength={5}
                   style={{
                     width: "100%",
@@ -569,10 +648,23 @@ export function CustomerEdit() {
 
           {/* Commercial Info Section */}
           <div style={{ marginBottom: "24px" }}>
-            <h3 style={{ fontSize: "18px", fontWeight: 700, color: "#333", marginBottom: "16px" }}>
+            <h3
+              style={{
+                fontSize: "18px",
+                fontWeight: 700,
+                color: "#333",
+                marginBottom: "16px",
+              }}
+            >
               💼 Informazioni Commerciali
             </h3>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "16px" }}>
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "1fr 1fr 1fr",
+                gap: "16px",
+              }}
+            >
               <div>
                 <label
                   htmlFor="deliveryMode"
@@ -589,7 +681,9 @@ export function CustomerEdit() {
                 <select
                   id="deliveryMode"
                   value={formData.deliveryMode}
-                  onChange={(e) => setFormData({ ...formData, deliveryMode: e.target.value })}
+                  onChange={(e) =>
+                    setFormData({ ...formData, deliveryMode: e.target.value })
+                  }
                   style={{
                     width: "100%",
                     padding: "10px 12px",
@@ -621,7 +715,9 @@ export function CustomerEdit() {
                   id="paymentTerms"
                   type="text"
                   value={formData.paymentTerms}
-                  onChange={(e) => setFormData({ ...formData, paymentTerms: e.target.value })}
+                  onChange={(e) =>
+                    setFormData({ ...formData, paymentTerms: e.target.value })
+                  }
                   style={{
                     width: "100%",
                     padding: "10px 12px",
@@ -648,7 +744,9 @@ export function CustomerEdit() {
                 <select
                   id="lineDiscount"
                   value={formData.lineDiscount}
-                  onChange={(e) => setFormData({ ...formData, lineDiscount: e.target.value })}
+                  onChange={(e) =>
+                    setFormData({ ...formData, lineDiscount: e.target.value })
+                  }
                   style={{
                     width: "100%",
                     padding: "10px 12px",
@@ -684,7 +782,9 @@ export function CustomerEdit() {
           )}
 
           {/* Action Buttons */}
-          <div style={{ display: "flex", gap: "12px", justifyContent: "flex-end" }}>
+          <div
+            style={{ display: "flex", gap: "12px", justifyContent: "flex-end" }}
+          >
             <button
               type="button"
               onClick={() => navigate("/customers")}

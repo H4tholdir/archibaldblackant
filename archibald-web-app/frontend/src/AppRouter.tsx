@@ -4,6 +4,7 @@ import "./App.css";
 import { useAuth } from "./hooks/useAuth";
 import { useNetworkStatus } from "./hooks/useNetworkStatus";
 import { useAutomaticSync } from "./hooks/useAutomaticSync";
+import { useToast } from "./hooks/useToast";
 import { LoginModal } from "./components/LoginModal";
 import { PinSetupWizard } from "./components/PinSetupWizard";
 import { TargetWizard } from "./components/TargetWizard";
@@ -14,6 +15,7 @@ import SyncBanner from "./components/SyncBanner";
 import { OfflineBanner } from "./components/OfflineBanner";
 import { OfflineSyncBanner } from "./components/OfflineSyncBanner";
 import { CacheRefreshButton } from "./components/CacheRefreshButton";
+import { ToastContainer } from "./components/Toast";
 import { AdminPage } from "./pages/AdminPage";
 import { OrderHistory } from "./pages/OrderHistory";
 import { PendingOrdersView } from "./pages/PendingOrdersView";
@@ -25,11 +27,13 @@ import { Dashboard } from "./pages/Dashboard";
 import { ProfilePage } from "./pages/ProfilePage";
 import { PriceVariationsPage } from "./pages/PriceVariationsPage";
 import { DashboardNav } from "./components/DashboardNav";
+import { toastService } from "./services/toast.service";
 // import { UnifiedSyncProgress } from "./components/UnifiedSyncProgress"; // Temporarily disabled
 
 function AppRouter() {
   const auth = useAuth();
   const { isOffline } = useNetworkStatus();
+  const toasts = useToast();
 
   // Automatic sync when network returns
   useAutomaticSync(auth.token);
@@ -100,11 +104,11 @@ function AppRouter() {
           "[AppRouter] Failed to set target:",
           await response.text(),
         );
-        alert("Errore nel salvare la configurazione. Riprova.");
+        toastService.error("Errore nel salvare la configurazione. Riprova.");
       }
     } catch (error) {
       console.error("[AppRouter] Target set error:", error);
-      alert("Errore di connessione. Riprova.");
+      toastService.error("Errore di connessione. Riprova.");
     }
   };
 
@@ -243,6 +247,10 @@ function AppRouter() {
 
   return (
     <BrowserRouter>
+      <ToastContainer
+        toasts={toasts}
+        onClose={(id) => toastService.remove(id)}
+      />
       <OfflineBanner />
       <OfflineSyncBanner />
       {/* Unified sync progress - temporarily disabled due to SSE errors */}
@@ -283,7 +291,6 @@ function AppRouter() {
             }
           />
         )}
-
 
         {/* Pending Orders route */}
         <Route
@@ -444,7 +451,6 @@ function AppRouter() {
             </div>
           }
         />
-
 
         {/* New Order Form route (Phase 28.2 rewrite) */}
         <Route

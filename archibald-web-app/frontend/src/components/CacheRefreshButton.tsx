@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { toastService } from "../services/toast.service";
 
 export function CacheRefreshButton() {
   const [refreshing, setRefreshing] = useState(false);
@@ -6,7 +7,7 @@ export function CacheRefreshButton() {
   async function handleRefresh() {
     const jwt = localStorage.getItem("archibald_jwt");
     if (!jwt) {
-      alert("Devi effettuare il login per aggiornare i dati");
+      toastService.warning("Devi effettuare il login per aggiornare i dati");
       return;
     }
 
@@ -34,7 +35,7 @@ export function CacheRefreshButton() {
       }, 2000);
     } catch (error: any) {
       console.error("Manual sync failed:", error);
-      alert(`Errore: ${error.message}`);
+      toastService.error(`Errore: ${error.message}`);
       setRefreshing(false);
     }
   }

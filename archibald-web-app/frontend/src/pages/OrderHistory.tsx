@@ -6,6 +6,7 @@ import { groupOrdersByPeriod } from "../utils/orderGrouping";
 import type { Order } from "../types/order";
 import { useAuth } from "../hooks/useAuth";
 import { useSyncProgress } from "../hooks/useSyncProgress";
+import { toastService } from "../services/toast.service";
 
 interface OrderFilters {
   customer: string;
@@ -185,8 +186,8 @@ export function OrderHistory() {
       // Reload orders to reflect new state
       await fetchOrders();
 
-      // Show success message (you could add a toast here)
-      alert("Ordine inviato a Milano con successo!");
+      // Show success message
+      toastService.success("Ordine inviato a Milano con successo!");
     } catch (err) {
       console.error("Error sending to Milano:", err);
       setError(
