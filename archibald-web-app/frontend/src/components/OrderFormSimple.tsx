@@ -18,9 +18,10 @@ interface OrderItem {
   description?: string;
   quantity: number;
   unitPrice: number;
+  vatRate: number; // Aliquota IVA (4, 10, 22, etc.)
   discount: number; // Sconto in euro
   subtotal: number; // Prezzo * quantità - sconto
-  vat: number; // IVA 22%
+  vat: number; // Importo IVA calcolato
   total: number; // Subtotal + IVA
 }
 
@@ -92,18 +93,24 @@ export default function OrderFormSimple() {
         }
 
         // Convert order items to OrderItem format
-        const loadedItems: OrderItem[] = order.items.map((item) => ({
-          id: crypto.randomUUID(),
-          article: item.articleCode,
-          productName: item.productName || item.articleCode,
-          description: item.description,
-          quantity: item.quantity,
-          unitPrice: item.price,
-          discount: item.discount || 0,
-          subtotal: item.price * item.quantity - (item.discount || 0),
-          vat: (item.price * item.quantity - (item.discount || 0)) * 0.22,
-          total: (item.price * item.quantity - (item.discount || 0)) * 1.22,
-        }));
+        const loadedItems: OrderItem[] = order.items.map((item) => {
+          const vatRate = item.vat || 22; // Default to 22% if not stored
+          const subtotal = item.price * item.quantity - (item.discount || 0);
+          const vatAmount = subtotal * (vatRate / 100);
+          return {
+            id: crypto.randomUUID(),
+            article: item.articleCode,
+            productName: item.productName || item.articleCode,
+            description: item.description,
+            quantity: item.quantity,
+            unitPrice: item.price,
+            vatRate,
+            discount: item.discount || 0,
+            subtotal,
+            vat: vatAmount,
+            total: subtotal + vatAmount,
+          };
+        });
 
         setItems(loadedItems);
 
@@ -314,8 +321,12 @@ export default function OrderFormSimple() {
         return;
       }
 
+      // Get VAT rate from product (default to 22% if not available)
+      const productWithVat = await db.products.get(selectedProduct.id);
+      const vatRate = productWithVat?.vat || 22;
+
       const lineSubtotal = price * pkg.packageCount - discountPerLine;
-      const lineVat = lineSubtotal * 0.22;
+      const lineVat = lineSubtotal * (vatRate / 100);
       const lineTotal = lineSubtotal + lineVat;
 
       newItems.push({
@@ -325,6 +336,7 @@ export default function OrderFormSimple() {
         description: `${pkg.packageSize} ${pkg.packageSize === 1 ? "pezzo" : "pezzi"} x ${pkg.packageCount}`,
         quantity: pkg.packageCount,
         unitPrice: price,
+        vatRate,
         discount: discountPerLine,
         subtotal: lineSubtotal,
         vat: lineVat,
@@ -377,7 +389,14 @@ export default function OrderFormSimple() {
     const discountPercent = parseFloat(globalDiscountPercent) || 0;
     const globalDiscAmount = (itemsSubtotal * discountPercent) / 100;
     const finalSubtotal = itemsSubtotal - globalDiscAmount;
-    const finalVAT = finalSubtotal * 0.22;
+
+    // Calculate VAT proportionally based on each item's VAT rate
+    const finalVAT = items.reduce((sum, item) => {
+      const itemSubtotalAfterDiscount =
+        item.subtotal * (1 - discountPercent / 100);
+      return sum + itemSubtotalAfterDiscount * (item.vatRate / 100);
+    }, 0);
+
     const finalTotal = finalSubtotal + finalVAT;
 
     return {
@@ -400,31 +419,45 @@ export default function OrderFormSimple() {
 
     const itemsSubtotal = items.reduce((sum, item) => sum + item.subtotal, 0);
 
-    // Target = (Subtotal - DiscountAmount) * 1.22
-    // DiscountAmount = Subtotal * (DiscountPercent / 100)
-    // Solve for DiscountPercent:
-    // Target = (Subtotal - Subtotal * (DiscountPercent / 100)) * 1.22
-    // Target / 1.22 = Subtotal * (1 - DiscountPercent / 100)
-    // (Target / 1.22) / Subtotal = 1 - DiscountPercent / 100
-    // DiscountPercent / 100 = 1 - (Target / 1.22) / Subtotal
-    // DiscountPercent = (1 - (Target / 1.22) / Subtotal) * 100
+    // With mixed VAT rates, we need to solve iteratively
+    // Target = FinalSubtotal + FinalVAT
+    // FinalSubtotal = ItemsSubtotal * (1 - DiscountPercent / 100)
+    // FinalVAT = sum of (ItemSubtotal * (1 - DiscountPercent / 100) * (ItemVatRate / 100))
+    //
+    // Use binary search to find the discount percentage
+    let low = 0;
+    let high = 100;
+    let bestDiscount = 0;
 
-    const requiredSubtotal = target / 1.22;
+    for (let iteration = 0; iteration < 50; iteration++) {
+      const mid = (low + high) / 2;
+      const testSubtotal = itemsSubtotal * (1 - mid / 100);
+      const testVAT = items.reduce((sum, item) => {
+        const itemSubtotalAfterDiscount = item.subtotal * (1 - mid / 100);
+        return sum + itemSubtotalAfterDiscount * (item.vatRate / 100);
+      }, 0);
+      const testTotal = testSubtotal + testVAT;
 
-    if (requiredSubtotal > itemsSubtotal) {
-      alert("Il totale target è troppo alto rispetto al subtotale attuale");
+      if (Math.abs(testTotal - target) < 0.01) {
+        bestDiscount = mid;
+        break;
+      }
+
+      if (testTotal > target) {
+        low = mid; // Need more discount
+      } else {
+        high = mid; // Need less discount
+      }
+
+      bestDiscount = mid;
+    }
+
+    if (bestDiscount < 0 || bestDiscount > 100) {
+      alert("Impossibile raggiungere il totale target con uno sconto valido");
       return;
     }
 
-    const requiredDiscountPercent =
-      (1 - requiredSubtotal / itemsSubtotal) * 100;
-
-    if (requiredDiscountPercent < 0) {
-      alert("Il totale target è troppo alto rispetto al subtotale attuale");
-      return;
-    }
-
-    setGlobalDiscountPercent(requiredDiscountPercent.toFixed(2));
+    setGlobalDiscountPercent(bestDiscount.toFixed(2));
     setTargetTotal("");
   };
 
@@ -460,6 +493,7 @@ export default function OrderFormSimple() {
           description: item.description,
           quantity: item.quantity,
           price: item.unitPrice,
+          vat: item.vatRate,
           discount: item.discount,
         })),
         discountPercent: undefined,
@@ -1029,7 +1063,7 @@ export default function OrderFormSimple() {
                     fontWeight: "600",
                   }}
                 >
-                  IVA 22%
+                  IVA
                 </th>
                 <th
                   style={{
@@ -1096,7 +1130,12 @@ export default function OrderFormSimple() {
                       color: "#6b7280",
                     }}
                   >
-                    €{item.vat.toFixed(2)}
+                    <div>
+                      <span style={{ fontSize: "0.75rem", color: "#9ca3af" }}>
+                        ({item.vatRate}%)
+                      </span>
+                      <br />€{item.vat.toFixed(2)}
+                    </div>
                   </td>
                   <td
                     style={{
@@ -1276,7 +1315,7 @@ export default function OrderFormSimple() {
                 color: "#6b7280",
               }}
             >
-              <span>IVA 22%:</span>
+              <span>IVA:</span>
               <strong>€{totals.finalVAT.toFixed(2)}</strong>
             </div>
             <div

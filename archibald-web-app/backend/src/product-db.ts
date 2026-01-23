@@ -629,7 +629,7 @@ export class ProductDatabase {
 
     const stmt = this.db.prepare(query);
     const results = stmt.all(...params) as { name: string }[];
-    return results.map(r => r.name);
+    return results.map((r) => r.name);
   }
 
   /**
@@ -876,7 +876,7 @@ export class ProductDatabase {
    */
   getAllProducts(): Product[] {
     const stmt = this.db.prepare(`
-      SELECT id, name, description, groupCode, searchName, priceUnit, productGroupId, productGroupDescription, packageContent, minQty, multipleQty, maxQty, price, hash, lastSync
+      SELECT id, name, description, groupCode, searchName, priceUnit, productGroupId, productGroupDescription, packageContent, minQty, multipleQty, maxQty, price, vat, hash, lastSync
       FROM products
       ORDER BY name ASC
     `);
@@ -919,6 +919,7 @@ export class ProductDatabase {
     articleId: string;
     articleName: string;
     price: number;
+    vat: number;
     lastSynced: string;
   }> {
     const stmt = this.db.prepare(`
@@ -926,6 +927,7 @@ export class ProductDatabase {
         id as articleId,
         name as articleName,
         price,
+        vat,
         datetime(lastSync / 1000, 'unixepoch') as lastSynced
       FROM products
       WHERE price IS NOT NULL
@@ -938,7 +940,9 @@ export class ProductDatabase {
   /**
    * Create a new sync session
    */
-  createSyncSession(syncMode: "full" | "incremental" | "forced" | "auto"): string {
+  createSyncSession(
+    syncMode: "full" | "incremental" | "forced" | "auto",
+  ): string {
     const sessionId = `sync-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
 
     const stmt = this.db.prepare(`
@@ -1075,7 +1079,9 @@ export class ProductDatabase {
     lastSyncAt: number | null;
     lastSyncStatus: string | null;
   } {
-    const stats = this.db.prepare(`
+    const stats = this.db
+      .prepare(
+        `
       SELECT
         COUNT(*) as totalSyncs,
         SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END) as successfulSyncs,
@@ -1084,20 +1090,29 @@ export class ProductDatabase {
         MAX(startedAt) as lastSyncAt
       FROM sync_sessions
       WHERE syncType = 'products'
-    `).get() as any;
+    `,
+      )
+      .get() as any;
 
-    const lastSync = this.db.prepare(`
+    const lastSync = this.db
+      .prepare(
+        `
       SELECT status FROM sync_sessions
       WHERE syncType = 'products'
       ORDER BY startedAt DESC
       LIMIT 1
-    `).get() as any;
+    `,
+      )
+      .get() as any;
 
     return {
       totalSyncs: stats.totalSyncs || 0,
       successfulSyncs: stats.successfulSyncs || 0,
       failedSyncs: stats.failedSyncs || 0,
-      successRate: stats.totalSyncs > 0 ? (stats.successfulSyncs / stats.totalSyncs) * 100 : 0,
+      successRate:
+        stats.totalSyncs > 0
+          ? (stats.successfulSyncs / stats.totalSyncs) * 100
+          : 0,
       avgDurationMs: stats.avgDurationMs || 0,
       lastSyncAt: stats.lastSyncAt || null,
       lastSyncStatus: lastSync?.status || null,
@@ -1250,7 +1265,7 @@ export class ProductDatabase {
     price: string | number,
     vat: number | null,
     priceSource: "archibald" | "excel" | "prices-db",
-    vatSource: "archibald" | "excel" | null
+    vatSource: "archibald" | "excel" | null,
   ): boolean {
     const now = Math.floor(Date.now() / 1000);
 
@@ -1265,7 +1280,7 @@ export class ProductDatabase {
         priceUpdatedAt = ?,
         vatUpdatedAt = ?
       WHERE id = ?
-    `
+    `,
       )
       .run(price, vat, priceSource, vatSource, now, now, productId);
 

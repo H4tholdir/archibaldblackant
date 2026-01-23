@@ -47,6 +47,7 @@ describe("OrderService", () => {
         productName: "Vite M6",
         quantity: 100,
         price: 12.5,
+        vat: 22,
       },
     ],
     createdAt: "2025-01-23T10:00:00Z",

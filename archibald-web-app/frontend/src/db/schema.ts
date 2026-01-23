@@ -1,4 +1,4 @@
-import Dexie, { type Table } from 'dexie';
+import Dexie, { type Table } from "dexie";
 
 // Match backend SQLite schema for customers
 export interface Customer {
@@ -23,6 +23,7 @@ export interface Product {
   name: string;
   article: string;
   description: string;
+  vat?: number;
   lastModified: string;
   hash: string;
 }
@@ -44,6 +45,7 @@ export interface Price {
   articleId: string;
   articleName: string;
   price: number;
+  vat?: number;
   lastSynced: string;
 }
 
@@ -77,12 +79,13 @@ export interface PendingOrder {
     description?: string;
     quantity: number;
     price: number;
+    vat: number;
     discount?: number;
   }>;
   discountPercent?: number;
   targetTotalWithVAT?: number;
   createdAt: string;
-  status: 'pending' | 'syncing' | 'error';
+  status: "pending" | "syncing" | "error";
   errorMessage?: string;
   retryCount: number;
 }
@@ -105,101 +108,136 @@ export class ArchibaldDatabase extends Dexie {
   cacheMetadata!: Table<CacheMetadata, string>;
 
   constructor() {
-    super('ArchibaldOfflineDB');
+    super("ArchibaldOfflineDB");
 
     // Version 1 schema (original)
     this.version(1).stores({
-      customers: 'id, name, code, city, *hash',
-      products: 'id, name, article, *hash',
-      productVariants: '++id, productId, variantId',
-      prices: '++id, articleId, articleName',
-      draftOrders: '++id, customerId, createdAt, updatedAt',
-      pendingOrders: '++id, status, createdAt',
-      cacheMetadata: 'key, lastSynced'
+      customers: "id, name, code, city, *hash",
+      products: "id, name, article, *hash",
+      productVariants: "++id, productId, variantId",
+      prices: "++id, articleId, articleName",
+      draftOrders: "++id, customerId, createdAt, updatedAt",
+      pendingOrders: "++id, status, createdAt",
+      cacheMetadata: "key, lastSynced",
     });
 
     // Version 2: Updated PendingOrder schema to include full order data
-    this.version(2).stores({
-      // Same indexes, but PendingOrder now includes customerName and full item details
-      pendingOrders: '++id, status, createdAt'
-    }).upgrade(async (trans) => {
-      // Clear old pending orders with incompatible schema
-      console.log('[IndexedDB:Schema]', {
-        operation: 'migration',
-        version: 'v1→v2',
-        action: 'Clearing old pending orders',
-        timestamp: new Date().toISOString(),
+    this.version(2)
+      .stores({
+        // Same indexes, but PendingOrder now includes customerName and full item details
+        pendingOrders: "++id, status, createdAt",
+      })
+      .upgrade(async (trans) => {
+        // Clear old pending orders with incompatible schema
+        console.log("[IndexedDB:Schema]", {
+          operation: "migration",
+          version: "v1→v2",
+          action: "Clearing old pending orders",
+          timestamp: new Date().toISOString(),
+        });
+        await trans.table("pendingOrders").clear();
       });
-      await trans.table('pendingOrders').clear();
-    });
 
     // Version 3: Clean up corrupted draft orders with undefined id
-    this.version(3).stores({
-      // Same schema as v2
-      customers: 'id, name, code, city, *hash',
-      products: 'id, name, article, *hash',
-      productVariants: '++id, productId, variantId',
-      prices: '++id, articleId, articleName',
-      draftOrders: '++id, customerId, createdAt, updatedAt',
-      pendingOrders: '++id, status, createdAt',
-      cacheMetadata: 'key, lastSynced'
-    }).upgrade(async (trans) => {
-      // Clear all draft orders to fix corrupted entries with undefined id
-      console.log('[IndexedDB:Schema]', {
-        operation: 'migration',
-        version: 'v2→v3',
-        action: 'Clearing corrupted draft orders',
-        timestamp: new Date().toISOString(),
+    this.version(3)
+      .stores({
+        // Same schema as v2
+        customers: "id, name, code, city, *hash",
+        products: "id, name, article, *hash",
+        productVariants: "++id, productId, variantId",
+        prices: "++id, articleId, articleName",
+        draftOrders: "++id, customerId, createdAt, updatedAt",
+        pendingOrders: "++id, status, createdAt",
+        cacheMetadata: "key, lastSynced",
+      })
+      .upgrade(async (trans) => {
+        // Clear all draft orders to fix corrupted entries with undefined id
+        console.log("[IndexedDB:Schema]", {
+          operation: "migration",
+          version: "v2→v3",
+          action: "Clearing corrupted draft orders",
+          timestamp: new Date().toISOString(),
+        });
+        await trans.table("draftOrders").clear();
       });
-      await trans.table('draftOrders').clear();
-    });
 
     // Version 4: Fix corrupted productVariants and prices from bulkPut issue
-    this.version(4).stores({
-      // Same schema as v3
-      customers: 'id, name, code, city, *hash',
-      products: 'id, name, article, *hash',
-      productVariants: '++id, productId, variantId',
-      prices: '++id, articleId, articleName',
-      draftOrders: '++id, customerId, createdAt, updatedAt',
-      pendingOrders: '++id, status, createdAt',
-      cacheMetadata: 'key, lastSynced'
-    }).upgrade(async (trans) => {
-      // Clear productVariants and prices to fix bulkPut→bulkAdd migration
-      console.log('[IndexedDB:Schema]', {
-        operation: 'migration',
-        version: 'v3→v4',
-        action: 'Clearing corrupted variants and prices (bulkPut fix)',
-        timestamp: new Date().toISOString(),
+    this.version(4)
+      .stores({
+        // Same schema as v3
+        customers: "id, name, code, city, *hash",
+        products: "id, name, article, *hash",
+        productVariants: "++id, productId, variantId",
+        prices: "++id, articleId, articleName",
+        draftOrders: "++id, customerId, createdAt, updatedAt",
+        pendingOrders: "++id, status, createdAt",
+        cacheMetadata: "key, lastSynced",
+      })
+      .upgrade(async (trans) => {
+        // Clear productVariants and prices to fix bulkPut→bulkAdd migration
+        console.log("[IndexedDB:Schema]", {
+          operation: "migration",
+          version: "v3→v4",
+          action: "Clearing corrupted variants and prices (bulkPut fix)",
+          timestamp: new Date().toISOString(),
+        });
+        await trans.table("productVariants").clear();
+        await trans.table("prices").clear();
+        // Force re-sync by clearing cache metadata
+        await trans.table("cacheMetadata").clear();
       });
-      await trans.table('productVariants').clear();
-      await trans.table('prices').clear();
-      // Force re-sync by clearing cache metadata
-      await trans.table('cacheMetadata').clear();
-    });
 
     // Version 5: Fix customer schema mismatch (customerProfile → id mapping)
-    this.version(5).stores({
-      // Same schema as v4
-      customers: 'id, name, code, city, *hash',
-      products: 'id, name, article, *hash',
-      productVariants: '++id, productId, variantId',
-      prices: '++id, articleId, articleName',
-      draftOrders: '++id, customerId, createdAt, updatedAt',
-      pendingOrders: '++id, status, createdAt',
-      cacheMetadata: 'key, lastSynced'
-    }).upgrade(async (trans) => {
-      // Clear customers to force re-sync with correct field mapping
-      console.log('[IndexedDB:Schema]', {
-        operation: 'migration',
-        version: 'v4→v5',
-        action: 'Clearing customers (customerProfile → id mapping fix)',
-        timestamp: new Date().toISOString(),
+    this.version(5)
+      .stores({
+        // Same schema as v4
+        customers: "id, name, code, city, *hash",
+        products: "id, name, article, *hash",
+        productVariants: "++id, productId, variantId",
+        prices: "++id, articleId, articleName",
+        draftOrders: "++id, customerId, createdAt, updatedAt",
+        pendingOrders: "++id, status, createdAt",
+        cacheMetadata: "key, lastSynced",
+      })
+      .upgrade(async (trans) => {
+        // Clear customers to force re-sync with correct field mapping
+        console.log("[IndexedDB:Schema]", {
+          operation: "migration",
+          version: "v4→v5",
+          action: "Clearing customers (customerProfile → id mapping fix)",
+          timestamp: new Date().toISOString(),
+        });
+        await trans.table("customers").clear();
+        // Force re-sync by clearing cache metadata
+        await trans.table("cacheMetadata").clear();
       });
-      await trans.table('customers').clear();
-      // Force re-sync by clearing cache metadata
-      await trans.table('cacheMetadata').clear();
-    });
+
+    // Version 6: Add VAT field to products, prices, and pending order items
+    this.version(6)
+      .stores({
+        // Same schema as v5
+        customers: "id, name, code, city, *hash",
+        products: "id, name, article, *hash",
+        productVariants: "++id, productId, variantId",
+        prices: "++id, articleId, articleName",
+        draftOrders: "++id, customerId, createdAt, updatedAt",
+        pendingOrders: "++id, status, createdAt",
+        cacheMetadata: "key, lastSynced",
+      })
+      .upgrade(async (trans) => {
+        // Clear products, prices, and pending orders to add VAT field
+        console.log("[IndexedDB:Schema]", {
+          operation: "migration",
+          version: "v5→v6",
+          action: "Adding VAT field to products, prices, and pending orders",
+          timestamp: new Date().toISOString(),
+        });
+        await trans.table("products").clear();
+        await trans.table("prices").clear();
+        await trans.table("pendingOrders").clear();
+        // Force re-sync by clearing cache metadata
+        await trans.table("cacheMetadata").clear();
+      });
   }
 }
 
