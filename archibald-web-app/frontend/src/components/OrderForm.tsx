@@ -731,6 +731,7 @@ export default function OrderForm({
     console.log("[DIAGNOSTIC 28.1-01] Customer object:", customer);
     console.log("[DIAGNOSTIC 28.1-01] Before state update - customerId:", customerId, "customerName:", customerName);
 
+    // Update customer data immediately
     setCustomerId(customer.id);
     console.log("[DIAGNOSTIC 28.1-01] setCustomerId called with:", customer.id);
 
@@ -740,8 +741,13 @@ export default function OrderForm({
     setCustomerSearch(customer.name);
     console.log("[DIAGNOSTIC 28.1-01] setCustomerSearch called with:", customer.name);
 
-    setShowCustomerDropdown(false);
-    console.log("[DIAGNOSTIC 28.1-01] setShowCustomerDropdown(false) called");
+    // FIX 28.1-01: Delay dropdown close to avoid race condition
+    // The immediate setShowCustomerDropdown(false) was causing a re-render
+    // before the state updates above could complete, resulting in lost selection
+    setTimeout(() => {
+      setShowCustomerDropdown(false);
+      console.log("[DIAGNOSTIC 28.1-01] setShowCustomerDropdown(false) called (delayed 100ms)");
+    }, 100);
 
     console.log("[DIAGNOSTIC 28.1-01] handleCustomerSelect COMPLETED");
   };
@@ -2100,8 +2106,11 @@ export default function OrderForm({
                     <div
                       key={customer.id}
                       className="autocomplete-item"
-                      onClick={() => {
+                      onClick={(e) => {
                         console.log("[DIAGNOSTIC 28.1-01] Dropdown item CLICKED:", customer.id, customer.name);
+                        // FIX 28.1-01: Stop event propagation to prevent outside click handlers
+                        e.stopPropagation();
+                        e.preventDefault();
                         handleCustomerSelect(customer);
                       }}
                     >
