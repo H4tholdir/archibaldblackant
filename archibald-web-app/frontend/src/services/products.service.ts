@@ -158,8 +158,8 @@ export class ProductService {
     try {
       console.log("[ProductService] Starting product sync...");
 
-      // Fetch all products from API
-      const response = await fetch("/api/products");
+      // Fetch all products from API (limit=0 disables pagination)
+      const response = await fetch("/api/products?limit=0");
       if (!response.ok) {
         throw new Error(`API request failed: ${response.status}`);
       }
