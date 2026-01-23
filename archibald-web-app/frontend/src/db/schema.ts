@@ -23,6 +23,7 @@ export interface Product {
   name: string;
   article: string;
   description: string;
+  packageContent?: string;
   vat?: number;
   lastModified: string;
   hash: string;

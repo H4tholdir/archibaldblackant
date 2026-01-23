@@ -53,8 +53,16 @@ export default function OrderFormSimple() {
   const [calculatingPackaging, setCalculatingPackaging] = useState(false);
 
   // Product details preview state
-  const [productPrice, setProductPrice] = useState<number | null>(null);
-  const [productVariantsInfo, setProductVariantsInfo] = useState<string>("");
+  interface ProductVariantInfo {
+    variantId: string;
+    productId: string;
+    packageContent: string;
+    price: number | null;
+    vat: number;
+  }
+  const [productVariants, setProductVariants] = useState<ProductVariantInfo[]>(
+    [],
+  );
 
   // Step 3: Order items
   const [items, setItems] = useState<OrderItem[]>([]);
@@ -261,85 +269,72 @@ export default function OrderFormSimple() {
     // Reset quantity and preview when product changes
     setQuantity("");
     setPackagingPreview(null);
-    // Reset product details
-    setProductPrice(null);
-    setProductVariantsInfo("");
+    // Reset product variants
+    setProductVariants([]);
   };
 
   // === LOAD PRODUCT DETAILS ===
-  // Load price, VAT, and variants when product is selected
+  // Load all variants with their prices and VAT when product is selected
   useEffect(() => {
     const loadProductDetails = async () => {
       if (!selectedProduct) {
+        setProductVariants([]);
         return;
       }
 
       try {
-        // Find all products with the same name (variants)
+        // Find all products (variants) with the same name
         const allVariants = await db.products
           .where("name")
           .equals(selectedProduct.name)
           .toArray();
 
         console.log(
-          `[OrderForm] Found ${allVariants.length} products with name: ${selectedProduct.name}`,
+          `[OrderForm] Found ${allVariants.length} variants for: ${selectedProduct.name}`,
         );
 
-        // Try to find a product with a price
-        let price: number | null = null;
-        let productWithPrice: typeof selectedProduct | null = null;
+        // Load price and VAT for each variant
+        const variantsWithDetails: ProductVariantInfo[] = [];
 
         for (const variant of allVariants) {
-          const variantPrice = await priceService.getPriceByArticleId(
-            variant.id,
-          );
+          const price = await priceService.getPriceByArticleId(variant.id);
+          const vat = variant.vat || 22;
+
+          variantsWithDetails.push({
+            variantId: variant.id,
+            productId: selectedProduct.name, // Product name is the grouping key
+            packageContent: variant.packageContent || "N/A",
+            price: price,
+            vat: vat,
+          });
+
           console.log(
-            `[OrderForm] Checking variant ${variant.id}: price = ${variantPrice}`,
-          );
-          if (variantPrice !== null) {
-            price = variantPrice;
-            productWithPrice = variant;
-            break; // Found a price, stop searching
-          }
-        }
-
-        if (!price) {
-          console.warn(
-            `[OrderForm] No price found for any variant of ${selectedProduct.name}`,
+            `[OrderForm] Variant ${variant.id}: package=${variant.packageContent}, price=${price}, vat=${vat}%`,
           );
         }
 
-        setProductPrice(price);
+        setProductVariants(variantsWithDetails);
 
-        // Update selectedProduct with the one that has a price
-        if (productWithPrice && productWithPrice.id !== selectedProduct.id) {
+        // Update selectedProduct to first variant with a price (for backward compatibility)
+        const firstWithPrice = allVariants.find(
+          (v) =>
+            variantsWithDetails.find((d) => d.variantId === v.id)?.price !==
+            null,
+        );
+        if (firstWithPrice && firstWithPrice.id !== selectedProduct.id) {
           console.log(
-            `[OrderForm] Switching from ${selectedProduct.id} to ${productWithPrice.id} (has price)`,
+            `[OrderForm] Switching to variant ${firstWithPrice.id} (has price)`,
           );
-          setSelectedProduct(productWithPrice);
-        }
-
-        // Load variants
-        const variants = await db.productVariants
-          .where("productId")
-          .equals(productWithPrice?.id || selectedProduct.id)
-          .toArray();
-
-        if (variants.length > 0) {
-          const variantsText = variants
-            .map((v) => `${v.packageContent}`)
-            .join(", ");
-          setProductVariantsInfo(variantsText);
-        } else {
-          setProductVariantsInfo("Nessun confezionamento disponibile");
+          setSelectedProduct(firstWithPrice);
         }
       } catch (error) {
-        console.error("Failed to load product details:", error);
+        console.error("[OrderForm] Failed to load product details:", error);
+        setProductVariants([]);
       }
     };
 
     loadProductDetails();
-  }, [selectedProduct]);
+  }, [selectedProduct?.name]); // Only depend on name, not the whole object
 
   // === INTELLIGENT PACKAGING CALCULATION ===
   // Calculate optimal packaging whenever quantity changes
@@ -1172,76 +1167,147 @@ export default function OrderFormSimple() {
                   </div>
                 </div>
 
-                <div
-                  style={{
-                    display: "grid",
-                    gridTemplateColumns: "repeat(3, 1fr)",
-                    gap: "1rem",
-                    padding: "1rem",
-                    background: "#eff6ff",
-                    borderRadius: "6px",
-                  }}
-                >
-                  <div>
-                    <div
-                      style={{
-                        fontSize: "0.75rem",
-                        color: "#6b7280",
-                        marginBottom: "0.25rem",
-                      }}
-                    >
-                      Prezzo unitario
-                    </div>
-                    <div style={{ fontSize: "1.125rem", fontWeight: "600" }}>
-                      {productPrice !== null
-                        ? `€${productPrice.toFixed(2)}`
-                        : "Caricamento..."}
-                    </div>
-                  </div>
-
-                  <div>
-                    <div
-                      style={{
-                        fontSize: "0.75rem",
-                        color: "#6b7280",
-                        marginBottom: "0.25rem",
-                      }}
-                    >
-                      Aliquota IVA
-                    </div>
-                    <div
-                      style={{
-                        fontSize: "1.125rem",
-                        fontWeight: "600",
-                        color: "#059669",
-                      }}
-                    >
-                      {selectedProduct.vat || 22}%
-                    </div>
-                  </div>
-
-                  <div>
-                    <div
-                      style={{
-                        fontSize: "0.75rem",
-                        color: "#6b7280",
-                        marginBottom: "0.25rem",
-                      }}
-                    >
-                      Confezionamenti
-                    </div>
+                {/* Variants Information Table */}
+                {productVariants.length > 0 ? (
+                  <div
+                    style={{
+                      padding: "1rem",
+                      background: "#eff6ff",
+                      borderRadius: "6px",
+                      overflowX: "auto",
+                    }}
+                  >
                     <div
                       style={{
                         fontSize: "0.875rem",
-                        fontWeight: "500",
-                        maxHeight: "3rem",
-                        overflowY: "auto",
+                        fontWeight: "600",
+                        color: "#1e40af",
+                        marginBottom: "0.75rem",
                       }}
                     >
-                      {productVariantsInfo || "Caricamento..."}
+                      Varianti disponibili:
                     </div>
+                    <table
+                      style={{
+                        width: "100%",
+                        borderCollapse: "collapse",
+                        fontSize: "0.875rem",
+                      }}
+                    >
+                      <thead>
+                        <tr
+                          style={{
+                            borderBottom: "2px solid #3b82f6",
+                          }}
+                        >
+                          <th
+                            style={{
+                              textAlign: "left",
+                              padding: "0.5rem",
+                              color: "#1e40af",
+                              fontWeight: "600",
+                            }}
+                          >
+                            Codice Variante
+                          </th>
+                          <th
+                            style={{
+                              textAlign: "center",
+                              padding: "0.5rem",
+                              color: "#1e40af",
+                              fontWeight: "600",
+                            }}
+                          >
+                            Confezionamento
+                          </th>
+                          <th
+                            style={{
+                              textAlign: "right",
+                              padding: "0.5rem",
+                              color: "#1e40af",
+                              fontWeight: "600",
+                            }}
+                          >
+                            Prezzo
+                          </th>
+                          <th
+                            style={{
+                              textAlign: "right",
+                              padding: "0.5rem",
+                              color: "#1e40af",
+                              fontWeight: "600",
+                            }}
+                          >
+                            IVA
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {productVariants.map((variant, index) => (
+                          <tr
+                            key={variant.variantId}
+                            style={{
+                              borderBottom:
+                                index < productVariants.length - 1
+                                  ? "1px solid #bfdbfe"
+                                  : "none",
+                            }}
+                          >
+                            <td
+                              style={{
+                                padding: "0.5rem",
+                                fontFamily: "monospace",
+                              }}
+                            >
+                              {variant.variantId}
+                            </td>
+                            <td
+                              style={{
+                                padding: "0.5rem",
+                                textAlign: "center",
+                              }}
+                            >
+                              {variant.packageContent}
+                            </td>
+                            <td
+                              style={{
+                                padding: "0.5rem",
+                                textAlign: "right",
+                                fontWeight: "600",
+                              }}
+                            >
+                              {variant.price !== null
+                                ? `€${variant.price.toFixed(2)}`
+                                : "N/D"}
+                            </td>
+                            <td
+                              style={{
+                                padding: "0.5rem",
+                                textAlign: "right",
+                                color: "#059669",
+                                fontWeight: "600",
+                              }}
+                            >
+                              {variant.vat}%
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
                   </div>
-                </div>
+                ) : (
+                  <div
+                    style={{
+                      padding: "1rem",
+                      background: "#eff6ff",
+                      borderRadius: "6px",
+                      textAlign: "center",
+                      color: "#6b7280",
+                    }}
+                  >
+                    Caricamento varianti...
+                  </div>
+                )}
               </div>
 
               <div
