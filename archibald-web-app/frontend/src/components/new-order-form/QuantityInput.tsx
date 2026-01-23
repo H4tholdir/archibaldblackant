@@ -1,5 +1,5 @@
-import { useState, useEffect } from "react";
-import type { ProductVariant } from "../../db/schema";
+import { useState, useEffect } from 'react';
+import type { ProductVariant } from '../../db/schema';
 
 interface QuantityInputProps {
   productId: string;
@@ -50,7 +50,7 @@ export function QuantityInput({
     const numValue = parseInt(rawValue, 10);
 
     if (isNaN(numValue) || numValue <= 0) {
-      setValidationError("Quantità non valida");
+      setValidationError('Quantità non valida');
       onChange(0, false);
       return;
     }
@@ -61,15 +61,15 @@ export function QuantityInput({
   };
 
   return (
-    <div style={{ width: "100%" }}>
-      <div style={{ marginBottom: "0.5rem" }}>
+    <div style={{ width: '100%' }}>
+      <div style={{ marginBottom: '0.5rem' }}>
         <label
           htmlFor={`quantity-${productId}`}
           style={{
-            display: "block",
-            marginBottom: "0.25rem",
-            fontWeight: "500",
-            fontSize: "0.875rem",
+            display: 'block',
+            marginBottom: '0.25rem',
+            fontWeight: '500',
+            fontSize: '0.875rem',
           }}
         >
           Quantità
@@ -89,12 +89,12 @@ export function QuantityInput({
             validationError ? `quantity-error-${productId}` : undefined
           }
           style={{
-            width: "100%",
-            padding: "0.5rem",
-            fontSize: "1rem",
-            border: validationError ? "1px solid #dc2626" : "1px solid #ccc",
-            borderRadius: "4px",
-            outline: "none",
+            width: '100%',
+            padding: '0.5rem',
+            fontSize: '1rem',
+            border: validationError ? '1px solid #dc2626' : '1px solid #ccc',
+            borderRadius: '4px',
+            outline: 'none',
           }}
         />
       </div>
@@ -103,12 +103,12 @@ export function QuantityInput({
       {variant && (
         <div
           style={{
-            padding: "0.5rem",
-            backgroundColor: "#f3f4f6",
-            borderRadius: "4px",
-            fontSize: "0.875rem",
-            color: "#4b5563",
-            marginBottom: "0.5rem",
+            padding: '0.5rem',
+            backgroundColor: '#f3f4f6',
+            borderRadius: '4px',
+            fontSize: '0.875rem',
+            color: '#4b5563',
+            marginBottom: '0.5rem',
           }}
         >
           <div>
@@ -131,12 +131,12 @@ export function QuantityInput({
           id={`quantity-error-${productId}`}
           role="alert"
           style={{
-            padding: "0.5rem",
-            backgroundColor: "#fee2e2",
-            border: "1px solid #dc2626",
-            borderRadius: "4px",
-            fontSize: "0.875rem",
-            color: "#991b1b",
+            padding: '0.5rem',
+            backgroundColor: '#fee2e2',
+            border: '1px solid #dc2626',
+            borderRadius: '4px',
+            fontSize: '0.875rem',
+            color: '#991b1b',
           }}
         >
           {validationError}

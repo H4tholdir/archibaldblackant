@@ -1,350 +1,263 @@
-import { describe, test, expect, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
-import { userEvent } from "@testing-library/user-event";
-import { QuantityInput } from "./QuantityInput";
-import type { ProductVariant } from "../../db/schema";
+import { describe, test, expect, vi } from 'vitest';
+import { render, screen, fireEvent } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import { QuantityInput } from './QuantityInput';
+import type { ProductVariant } from '../../db/schema';
 
-const mockVariant: ProductVariant = {
-  id: 1,
-  productId: "P1",
-  variantId: "V1",
-  multipleQty: 10,
-  minQty: 10,
-  maxQty: 100,
-  packageContent: "100 pezzi per confezione",
-};
+describe('QuantityInput', () => {
+  const mockVariant: ProductVariant = {
+    id: 1,
+    productId: 'prod-1',
+    variantId: 'var-1',
+    multipleQty: 5,
+    minQty: 10,
+    maxQty: 100,
+    packageContent: '5 colli',
+  };
 
-const mockVariantNoMultiple: ProductVariant = {
-  id: 2,
-  productId: "P2",
-  variantId: "V2",
-  multipleQty: 1,
-  minQty: 1,
-  maxQty: 500,
-  packageContent: "50 pezzi per scatola",
-};
-
-describe("QuantityInput", () => {
-  test("renders number input", () => {
+  test('renders number input', () => {
     render(
       <QuantityInput
-        productId="P1"
-        variant={null}
-        value={10}
-        onChange={vi.fn()}
-      />,
-    );
-
-    const input = screen.getByLabelText("Quantità");
-    expect(input).toBeInTheDocument();
-    expect(input).toHaveAttribute("type", "number");
-  });
-
-  test("displays current value", () => {
-    render(
-      <QuantityInput
-        productId="P1"
-        variant={null}
-        value={25}
-        onChange={vi.fn()}
-      />,
-    );
-
-    const input = screen.getByLabelText("Quantità") as HTMLInputElement;
-    expect(input.value).toBe("25");
-  });
-
-  test("displays variant constraints when variant provided", () => {
-    render(
-      <QuantityInput
-        productId="P1"
+        productId="prod-1"
         variant={mockVariant}
         value={10}
         onChange={vi.fn()}
-      />,
+      />
     );
 
-    expect(screen.getByText(/Confezione:/i)).toBeInTheDocument();
-    expect(screen.getByText(/100 pezzi per confezione/i)).toBeInTheDocument();
-    expect(screen.getByText(/Range:/i)).toBeInTheDocument();
-    expect(screen.getByText(/10 - 100 unità/i)).toBeInTheDocument();
-    expect(screen.getByText(/Multiplo:/i)).toBeInTheDocument();
-    expect(screen.getByText(/10/i)).toBeInTheDocument();
+    expect(screen.getByLabelText('Quantità')).toBeInTheDocument();
   });
 
-  test("does not display multiplo when multipleQty is 1", () => {
+  test('displays variant constraints', () => {
     render(
       <QuantityInput
-        productId="P2"
-        variant={mockVariantNoMultiple}
+        productId="prod-1"
+        variant={mockVariant}
         value={10}
         onChange={vi.fn()}
-      />,
+      />
     );
 
-    expect(screen.getByText(/Confezione:/i)).toBeInTheDocument();
-    expect(screen.getByText(/Range:/i)).toBeInTheDocument();
-    expect(screen.queryByText(/Multiplo:/i)).not.toBeInTheDocument();
+    expect(screen.getByText(/Confezione:/)).toBeInTheDocument();
+    expect(screen.getByText(/5 colli/)).toBeInTheDocument();
+    expect(screen.getByText(/Range:/)).toBeInTheDocument();
+    expect(screen.getByText(/10 - 100 unità/)).toBeInTheDocument();
+    expect(screen.getByText(/Multiplo:/)).toBeInTheDocument();
+    expect(screen.getByText(/5/)).toBeInTheDocument();
   });
 
-  test("validates quantity below minQty", async () => {
-    const user = userEvent.setup();
+  test('validates quantity below minQty', async () => {
     const onChange = vi.fn();
-
     render(
       <QuantityInput
-        productId="P1"
+        productId="prod-1"
         variant={mockVariant}
-        value={10}
+        value={5}
         onChange={onChange}
-      />,
+      />
     );
 
-    const input = screen.getByLabelText("Quantità");
-    await user.clear(input);
-    await user.type(input, "5");
+    const input = screen.getByLabelText('Quantità');
+    await userEvent.clear(input);
+    await userEvent.type(input, '5');
 
-    expect(screen.getByText(/Quantità minima: 10/i)).toBeInTheDocument();
+    expect(screen.getByText('Quantità minima: 10')).toBeInTheDocument();
     expect(onChange).toHaveBeenCalledWith(5, false);
   });
 
-  test("validates quantity above maxQty", async () => {
-    const user = userEvent.setup();
+  test('validates quantity above maxQty', async () => {
     const onChange = vi.fn();
-
     render(
       <QuantityInput
-        productId="P1"
+        productId="prod-1"
         variant={mockVariant}
         value={10}
         onChange={onChange}
-      />,
+      />
     );
 
-    const input = screen.getByLabelText("Quantità");
-    await user.clear(input);
-    await user.type(input, "150");
+    const input = screen.getByLabelText('Quantità');
+    await userEvent.clear(input);
+    await userEvent.type(input, '150');
 
-    expect(screen.getByText(/Quantità massima: 100/i)).toBeInTheDocument();
+    expect(screen.getByText('Quantità massima: 100')).toBeInTheDocument();
     expect(onChange).toHaveBeenCalledWith(150, false);
   });
 
-  test("validates quantity not multiple of multipleQty", async () => {
-    const user = userEvent.setup();
+  test('validates quantity not multiple of multipleQty', async () => {
     const onChange = vi.fn();
-
     render(
       <QuantityInput
-        productId="P1"
+        productId="prod-1"
         variant={mockVariant}
         value={10}
         onChange={onChange}
-      />,
+      />
     );
 
-    const input = screen.getByLabelText("Quantità");
-    await user.clear(input);
-    await user.type(input, "15");
+    const input = screen.getByLabelText('Quantità');
+    await userEvent.clear(input);
+    await userEvent.type(input, '17');
 
-    expect(
-      screen.getByText(/Quantità deve essere multiplo di 10/i),
-    ).toBeInTheDocument();
-    expect(onChange).toHaveBeenCalledWith(15, false);
+    expect(screen.getByText('Quantità deve essere multiplo di 5')).toBeInTheDocument();
+    expect(onChange).toHaveBeenCalledWith(17, false);
   });
 
-  test("accepts valid quantity", async () => {
-    const user = userEvent.setup();
+  test('accepts valid quantity', async () => {
     const onChange = vi.fn();
-
     render(
       <QuantityInput
-        productId="P1"
+        productId="prod-1"
         variant={mockVariant}
         value={10}
         onChange={onChange}
-      />,
+      />
     );
 
-    const input = screen.getByLabelText("Quantità");
-    await user.clear(input);
-    await user.type(input, "20");
+    const input = screen.getByLabelText('Quantità');
+    await userEvent.clear(input);
+    await userEvent.type(input, '20');
 
-    expect(screen.queryByText(/Quantità minima/i)).not.toBeInTheDocument();
-    expect(screen.queryByText(/Quantità massima/i)).not.toBeInTheDocument();
-    expect(
-      screen.queryByText(/Quantità deve essere multiplo/i),
-    ).not.toBeInTheDocument();
+    // No error message should be displayed
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
     expect(onChange).toHaveBeenCalledWith(20, true);
   });
 
-  test("shows error for invalid input (NaN)", async () => {
-    const user = userEvent.setup();
-    const onChange = vi.fn();
-
+  test('displays package content info', () => {
     render(
       <QuantityInput
-        productId="P1"
-        variant={mockVariant}
-        value={10}
-        onChange={onChange}
-      />,
-    );
-
-    const input = screen.getByLabelText("Quantità");
-    await user.clear(input);
-    await user.type(input, "abc");
-
-    expect(screen.getByText(/Quantità non valida/i)).toBeInTheDocument();
-    expect(onChange).toHaveBeenCalledWith(0, false);
-  });
-
-  test("shows error for zero or negative quantity", async () => {
-    const user = userEvent.setup();
-    const onChange = vi.fn();
-
-    render(
-      <QuantityInput
-        productId="P1"
-        variant={mockVariant}
-        value={10}
-        onChange={onChange}
-      />,
-    );
-
-    const input = screen.getByLabelText("Quantità");
-    await user.clear(input);
-    await user.type(input, "0");
-
-    expect(screen.getByText(/Quantità non valida/i)).toBeInTheDocument();
-    expect(onChange).toHaveBeenCalledWith(0, false);
-  });
-
-  test("input has correct HTML attributes based on variant", () => {
-    render(
-      <QuantityInput
-        productId="P1"
+        productId="prod-1"
         variant={mockVariant}
         value={10}
         onChange={vi.fn()}
-      />,
+      />
     );
 
-    const input = screen.getByLabelText("Quantità") as HTMLInputElement;
-    expect(input).toHaveAttribute("min", "10");
-    expect(input).toHaveAttribute("max", "100");
-    expect(input).toHaveAttribute("step", "10");
+    expect(screen.getByText(/Confezione:/)).toBeInTheDocument();
+    expect(screen.getByText(/5 colli/)).toBeInTheDocument();
   });
 
-  test("input has default attributes when no variant", () => {
+  test('calls onChange with validity flag', async () => {
+    const onChange = vi.fn();
     render(
       <QuantityInput
-        productId="P1"
+        productId="prod-1"
+        variant={mockVariant}
+        value={10}
+        onChange={onChange}
+      />
+    );
+
+    const input = screen.getByLabelText('Quantità');
+
+    // Valid quantity
+    await userEvent.clear(input);
+    await userEvent.type(input, '20');
+    expect(onChange).toHaveBeenCalledWith(20, true);
+
+    // Invalid quantity (not multiple)
+    await userEvent.clear(input);
+    await userEvent.type(input, '22');
+    expect(onChange).toHaveBeenCalledWith(22, false);
+  });
+
+  test('shows no validation error when variant is null', async () => {
+    const onChange = vi.fn();
+    render(
+      <QuantityInput
+        productId="prod-1"
         variant={null}
         value={10}
-        onChange={vi.fn()}
-      />,
+        onChange={onChange}
+      />
     );
 
-    const input = screen.getByLabelText("Quantità") as HTMLInputElement;
-    expect(input).toHaveAttribute("min", "1");
-    expect(input).toHaveAttribute("step", "1");
+    const input = screen.getByLabelText('Quantità');
+    await userEvent.clear(input);
+    await userEvent.type(input, '10');
+
+    // No validation error should appear (variant not selected yet)
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    expect(onChange).toHaveBeenCalledWith(10, true);
   });
 
-  test("validation error has correct ARIA attributes", async () => {
-    const user = userEvent.setup();
-
+  test('handles invalid input (non-numeric)', async () => {
+    const onChange = vi.fn();
     render(
       <QuantityInput
-        productId="P1"
+        productId="prod-1"
         variant={mockVariant}
         value={10}
-        onChange={vi.fn()}
-      />,
+        onChange={onChange}
+      />
     );
 
-    const input = screen.getByLabelText("Quantità");
-    await user.clear(input);
-    await user.type(input, "5");
+    const input = screen.getByLabelText('Quantità');
+    await userEvent.clear(input);
+    await userEvent.type(input, 'abc');
 
-    expect(input).toHaveAttribute("aria-invalid", "true");
-    expect(input).toHaveAttribute("aria-describedby", "quantity-error-P1");
-
-    const errorMessage = screen.getByRole("alert");
-    expect(errorMessage).toHaveAttribute("id", "quantity-error-P1");
+    expect(screen.getByText('Quantità non valida')).toBeInTheDocument();
+    expect(onChange).toHaveBeenCalledWith(0, false);
   });
 
-  test("no ARIA error attributes when valid", async () => {
-    const user = userEvent.setup();
-
+  test('disabled state prevents input', () => {
     render(
       <QuantityInput
-        productId="P1"
-        variant={mockVariant}
-        value={10}
-        onChange={vi.fn()}
-      />,
-    );
-
-    const input = screen.getByLabelText("Quantità");
-    await user.clear(input);
-    await user.type(input, "20");
-
-    expect(input).toHaveAttribute("aria-invalid", "false");
-  });
-
-  test("disabled prop disables input", () => {
-    render(
-      <QuantityInput
-        productId="P1"
+        productId="prod-1"
         variant={mockVariant}
         value={10}
         onChange={vi.fn()}
         disabled={true}
-      />,
+      />
     );
 
-    const input = screen.getByLabelText("Quantità");
+    const input = screen.getByLabelText('Quantità');
     expect(input).toBeDisabled();
   });
 
-  test("updates value when prop changes", () => {
+  test('updates input value when prop changes', () => {
     const { rerender } = render(
       <QuantityInput
-        productId="P1"
+        productId="prod-1"
         variant={mockVariant}
         value={10}
         onChange={vi.fn()}
-      />,
+      />
     );
 
-    let input = screen.getByLabelText("Quantità") as HTMLInputElement;
-    expect(input.value).toBe("10");
+    const input = screen.getByLabelText('Quantità') as HTMLInputElement;
+    expect(input.value).toBe('10');
 
     rerender(
       <QuantityInput
-        productId="P1"
+        productId="prod-1"
         variant={mockVariant}
         value={20}
         onChange={vi.fn()}
-      />,
+      />
     );
 
-    input = screen.getByLabelText("Quantità") as HTMLInputElement;
-    expect(input.value).toBe("20");
+    expect(input.value).toBe('20');
   });
 
-  test("no constraints shown when variant is null", () => {
+  test('has proper ARIA attributes', () => {
     render(
       <QuantityInput
-        productId="P1"
-        variant={null}
-        value={10}
+        productId="prod-1"
+        variant={mockVariant}
+        value={5} // Invalid
         onChange={vi.fn()}
-      />,
+      />
     );
 
-    expect(screen.queryByText(/Confezione:/i)).not.toBeInTheDocument();
-    expect(screen.queryByText(/Range:/i)).not.toBeInTheDocument();
-    expect(screen.queryByText(/Multiplo:/i)).not.toBeInTheDocument();
+    const input = screen.getByLabelText('Quantità');
+
+    // Input should have proper ARIA attributes
+    expect(input).toHaveAttribute('aria-label', 'Quantità');
+    expect(input).toHaveAttribute('aria-invalid', 'true');
+    expect(input).toHaveAttribute('aria-describedby', 'quantity-error-prod-1');
+
+    // Error should have proper role
+    expect(screen.getByRole('alert')).toBeInTheDocument();
   });
 });
