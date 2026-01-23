@@ -1,12 +1,20 @@
 export interface OrderItem {
-  articleCode: string; // USER INPUT: Article name (e.g., "H129FSQ.104.023")
-  articleId?: string; // Selected variant ID (e.g., "016869K2") - populated by bot
-  productName?: string; // Nome prodotto da autocomplete
-  description: string;
+  id: string; // Unique ID (UUID)
+  productId: string;
+  productName: string;
+  article: string;
+  description?: string;
+  variantId: string;
   quantity: number;
-  price: number;
-  discount?: number; // Sconto percentuale (es. 10 per 10%)
-  packageContent?: number; // Selected package content (e.g., 5) - populated by bot
+  packageContent: string;
+  unitPrice: number;
+  discountType?: 'percentage' | 'amount';
+  discountValue?: number; // Percentage (0-100) or amount (€)
+  subtotal: number; // price × quantity
+  discount: number; // Calculated discount amount
+  subtotalAfterDiscount: number; // subtotal - discount
+  vat: number; // subtotalAfterDiscount × VAT_RATE
+  total: number; // subtotalAfterDiscount + vat
 }
 
 export interface OrderData {
