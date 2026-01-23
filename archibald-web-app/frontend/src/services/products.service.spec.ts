@@ -339,4 +339,205 @@ describe("ProductService", () => {
       expect(result).toBeNull();
     });
   });
+
+  describe("calculateOptimalPackaging", () => {
+    test("calculates optimal packaging for exact quantity (only large packages)", async () => {
+      // Arrange: Product with 2 variants (5pz and 1pz)
+      const product: Product = {
+        id: "H129FSQ.104.023",
+        name: "FRESA CT - PALLINA",
+        article: "H129FSQ.104.023",
+        description: "Fresa pallina",
+        lastModified: "2025-01-01",
+        hash: "hash",
+      };
+
+      const variantK2: ProductVariant = {
+        id: 1,
+        productId: "H129FSQ.104.023",
+        variantId: "K2",
+        multipleQty: 5, // 5 pieces per package
+        minQty: 5,
+        maxQty: 9999,
+        packageContent: "5 colli",
+      };
+
+      const variantK3: ProductVariant = {
+        id: 2,
+        productId: "H129FSQ.104.023",
+        variantId: "K3",
+        multipleQty: 1, // 1 piece per package
+        minQty: 1,
+        maxQty: 9999,
+        packageContent: "1 collo",
+      };
+
+      await testDb.products.add(product);
+      await testDb.productVariants.bulkAdd([variantK2, variantK3]);
+
+      // Act: Request 35 pieces (exactly 7 packages of 5pz)
+      const result = await service.calculateOptimalPackaging(
+        "H129FSQ.104.023",
+        35,
+      );
+
+      // Assert
+      expect(result.success).toBe(true);
+      expect(result.quantity).toBe(35);
+      expect(result.totalPackages).toBe(7);
+      expect(result.breakdown).toHaveLength(1);
+      expect(result.breakdown![0].variant.variantId).toBe("K2");
+      expect(result.breakdown![0].packageCount).toBe(7); // 7 conf
+      expect(result.breakdown![0].packageSize).toBe(5); // 5pz each
+      expect(result.breakdown![0].totalPieces).toBe(35);
+    });
+
+    test("calculates optimal mix for quantity requiring multiple variants", async () => {
+      // Arrange: Same setup as above
+      const product: Product = {
+        id: "H129FSQ.104.023",
+        name: "FRESA CT - PALLINA",
+        article: "H129FSQ.104.023",
+        description: "Fresa pallina",
+        lastModified: "2025-01-01",
+        hash: "hash",
+      };
+
+      const variantK2: ProductVariant = {
+        id: 1,
+        productId: "H129FSQ.104.023",
+        variantId: "K2",
+        multipleQty: 5,
+        minQty: 5,
+        maxQty: 9999,
+        packageContent: "5 colli",
+      };
+
+      const variantK3: ProductVariant = {
+        id: 2,
+        productId: "H129FSQ.104.023",
+        variantId: "K3",
+        multipleQty: 1,
+        minQty: 1,
+        maxQty: 9999,
+        packageContent: "1 collo",
+      };
+
+      await testDb.products.add(product);
+      await testDb.productVariants.bulkAdd([variantK2, variantK3]);
+
+      // Act: Request 7 pieces (1×5pz + 2×1pz)
+      const result = await service.calculateOptimalPackaging(
+        "H129FSQ.104.023",
+        7,
+      );
+
+      // Assert
+      expect(result.success).toBe(true);
+      expect(result.quantity).toBe(7);
+      expect(result.totalPackages).toBe(3); // 1 conf K2 + 2 conf K3
+      expect(result.breakdown).toHaveLength(2);
+
+      // First item: K2 (largest package)
+      expect(result.breakdown![0].variant.variantId).toBe("K2");
+      expect(result.breakdown![0].packageCount).toBe(1); // 1 conf
+      expect(result.breakdown![0].packageSize).toBe(5); // 5pz
+      expect(result.breakdown![0].totalPieces).toBe(5);
+
+      // Second item: K3 (smaller package)
+      expect(result.breakdown![1].variant.variantId).toBe("K3");
+      expect(result.breakdown![1].packageCount).toBe(2); // 2 conf
+      expect(result.breakdown![1].packageSize).toBe(1); // 1pz
+      expect(result.breakdown![1].totalPieces).toBe(2);
+    });
+
+    test("returns error and suggests minimum when quantity too low", async () => {
+      // Arrange: Product with only 5pz packages (min=5)
+      const product: Product = {
+        id: "H1.104.005",
+        name: "Article with min 5",
+        article: "H1.104.005",
+        description: "Only 5pz packages",
+        lastModified: "2025-01-01",
+        hash: "hash",
+      };
+
+      const variantK2: ProductVariant = {
+        id: 1,
+        productId: "H1.104.005",
+        variantId: "K2",
+        multipleQty: 5,
+        minQty: 5,
+        maxQty: 9999,
+        packageContent: "5 colli",
+      };
+
+      await testDb.products.add(product);
+      await testDb.productVariants.add(variantK2);
+
+      // Act: Request 2 pieces (below minimum)
+      const result = await service.calculateOptimalPackaging("H1.104.005", 2);
+
+      // Assert
+      expect(result.success).toBe(false);
+      expect(result.error).toContain("Quantità minima ordinabile: 5 pezzi");
+      expect(result.suggestedQuantity).toBe(5);
+    });
+
+    test("returns error when no variants exist", async () => {
+      // Arrange: Product without variants
+      const product: Product = {
+        id: "NO_VARIANTS",
+        name: "Product without variants",
+        article: "NO_VARIANTS",
+        description: "Test",
+        lastModified: "2025-01-01",
+        hash: "hash",
+      };
+
+      await testDb.products.add(product);
+
+      // Act
+      const result = await service.calculateOptimalPackaging("NO_VARIANTS", 10);
+
+      // Assert
+      expect(result.success).toBe(false);
+      expect(result.error).toBe("Nessuna variante disponibile per questo prodotto");
+    });
+
+    test("handles large quantities correctly", async () => {
+      // Arrange
+      const product: Product = {
+        id: "LARGE_QTY",
+        name: "Large quantity test",
+        article: "LARGE",
+        description: "Test",
+        lastModified: "2025-01-01",
+        hash: "hash",
+      };
+
+      const variant: ProductVariant = {
+        id: 1,
+        productId: "LARGE_QTY",
+        variantId: "K2",
+        multipleQty: 10,
+        minQty: 10,
+        maxQty: 99999,
+        packageContent: "10 colli",
+      };
+
+      await testDb.products.add(product);
+      await testDb.productVariants.add(variant);
+
+      // Act: Request 1000 pieces
+      const result = await service.calculateOptimalPackaging("LARGE_QTY", 1000);
+
+      // Assert
+      expect(result.success).toBe(true);
+      expect(result.quantity).toBe(1000);
+      expect(result.totalPackages).toBe(100); // 100 packages of 10pz
+      expect(result.breakdown![0].packageCount).toBe(100);
+      expect(result.breakdown![0].totalPieces).toBe(1000);
+    });
+  });
 });

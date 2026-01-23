@@ -1,63 +1,83 @@
 import { useState, useEffect } from 'react';
-import type { ProductVariant } from '../../db/schema';
+import { productService } from '../../services/products.service';
+import type { PackagingResult } from '../../services/products.service';
 
 interface QuantityInputProps {
   productId: string;
-  variant: ProductVariant | null;
   value: number;
-  onChange: (quantity: number, isValid: boolean) => void;
+  onChange: (quantity: number, isValid: boolean, packaging?: PackagingResult) => void;
   disabled?: boolean;
 }
 
 export function QuantityInput({
   productId,
-  variant,
   value,
   onChange,
   disabled = false,
 }: QuantityInputProps) {
   const [inputValue, setInputValue] = useState(value.toString());
-  const [validationError, setValidationError] = useState<string | null>(null);
+  const [packaging, setPackaging] = useState<PackagingResult | null>(null);
+  const [isCalculating, setIsCalculating] = useState(false);
 
   useEffect(() => {
     setInputValue(value.toString());
   }, [value]);
 
-  const validateQuantity = (qty: number): string | null => {
-    if (!variant) {
-      return null; // No variant selected yet
-    }
-
-    if (qty < variant.minQty) {
-      return `Quantità minima: ${variant.minQty}`;
-    }
-
-    if (qty > variant.maxQty) {
-      return `Quantità massima: ${variant.maxQty}`;
-    }
-
-    if (variant.multipleQty > 1 && qty % variant.multipleQty !== 0) {
-      return `Quantità deve essere multiplo di ${variant.multipleQty}`;
-    }
-
-    return null; // Valid
-  };
-
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const rawValue = e.target.value;
     setInputValue(rawValue);
 
     const numValue = parseInt(rawValue, 10);
 
     if (isNaN(numValue) || numValue <= 0) {
-      setValidationError('Quantità non valida');
+      setPackaging({
+        success: false,
+        error: 'Quantità non valida',
+        suggestedQuantity: 1,
+      });
       onChange(0, false);
       return;
     }
 
-    const error = validateQuantity(numValue);
-    setValidationError(error);
-    onChange(numValue, error === null);
+    // Calculate optimal packaging
+    setIsCalculating(true);
+    try {
+      const result = await productService.calculateOptimalPackaging(
+        productId,
+        numValue
+      );
+      setPackaging(result);
+
+      if (!result.success && result.suggestedQuantity) {
+        // Auto-set to suggested minimum quantity
+        setInputValue(result.suggestedQuantity.toString());
+        onChange(result.suggestedQuantity, false, result);
+      } else {
+        onChange(numValue, result.success, result);
+      }
+    } catch (error) {
+      console.error('[QuantityInput] Packaging calculation failed:', error);
+      setPackaging({
+        success: false,
+        error: 'Errore durante il calcolo del confezionamento',
+        suggestedQuantity: numValue,
+      });
+      onChange(numValue, false);
+    } finally {
+      setIsCalculating(false);
+    }
+  };
+
+  const formatPackagingBreakdown = (result: PackagingResult): string => {
+    if (!result.success || !result.breakdown) return '';
+
+    const parts = result.breakdown.map((item) => {
+      const confText = item.packageCount === 1 ? 'confezione' : 'confezioni';
+      const pzText = item.packageSize === 1 ? 'pezzo' : 'pezzi';
+      return `${item.packageCount} ${confText} da ${item.packageSize} ${pzText}`;
+    });
+
+    return parts.join(' + ');
   };
 
   return (
@@ -79,54 +99,56 @@ export function QuantityInput({
           type="number"
           value={inputValue}
           onChange={handleChange}
-          disabled={disabled}
-          min={variant?.minQty || 1}
-          max={variant?.maxQty || undefined}
-          step={variant?.multipleQty || 1}
+          disabled={disabled || isCalculating}
+          min={1}
           aria-label="Quantità"
-          aria-invalid={validationError !== null}
+          aria-invalid={packaging?.success === false}
           aria-describedby={
-            validationError ? `quantity-error-${productId}` : undefined
+            packaging?.error ? `quantity-error-${productId}` : undefined
           }
           style={{
             width: '100%',
             padding: '0.5rem',
             fontSize: '1rem',
-            border: validationError ? '1px solid #dc2626' : '1px solid #ccc',
+            border: packaging?.success === false ? '1px solid #dc2626' : '1px solid #ccc',
             borderRadius: '4px',
             outline: 'none',
           }}
         />
       </div>
 
-      {/* Variant Constraints Info */}
-      {variant && (
-        <div
-          style={{
-            padding: '0.5rem',
-            backgroundColor: '#f3f4f6',
-            borderRadius: '4px',
-            fontSize: '0.875rem',
-            color: '#4b5563',
-            marginBottom: '0.5rem',
-          }}
-        >
-          <div>
-            <strong>Confezione:</strong> {variant.packageContent}
-          </div>
-          <div>
-            <strong>Range:</strong> {variant.minQty} - {variant.maxQty} unità
-          </div>
-          {variant.multipleQty > 1 && (
-            <div>
-              <strong>Multiplo:</strong> {variant.multipleQty}
-            </div>
-          )}
+      {/* Calculating Indicator */}
+      {isCalculating && (
+        <div style={{ fontSize: '0.875rem', color: '#6b7280', marginBottom: '0.5rem' }}>
+          Calcolo confezionamento...
         </div>
       )}
 
-      {/* Validation Error */}
-      {validationError && (
+      {/* Packaging Success - Show Breakdown */}
+      {packaging?.success && packaging.breakdown && (
+        <div
+          style={{
+            padding: '0.5rem',
+            backgroundColor: '#f0fdf4',
+            border: '1px solid #22c55e',
+            borderRadius: '4px',
+            fontSize: '0.875rem',
+            color: '#15803d',
+            marginBottom: '0.5rem',
+          }}
+        >
+          <div style={{ fontWeight: '500', marginBottom: '0.25rem' }}>
+            ✅ {packaging.quantity} pezzi in {packaging.totalPackages}{' '}
+            {packaging.totalPackages === 1 ? 'confezione' : 'confezioni'}
+          </div>
+          <div style={{ fontSize: '0.75rem', color: '#16a34a' }}>
+            {formatPackagingBreakdown(packaging)}
+          </div>
+        </div>
+      )}
+
+      {/* Packaging Error */}
+      {packaging?.error && (
         <div
           id={`quantity-error-${productId}`}
           role="alert"
@@ -139,7 +161,7 @@ export function QuantityInput({
             color: '#991b1b',
           }}
         >
-          {validationError}
+          {packaging.error}
         </div>
       )}
     </div>
