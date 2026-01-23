@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { orderService } from "../services/orders.service";
 import { toastService } from "../services/toast.service";
+import { pdfExportService } from "../services/pdf-export.service";
 import type { PendingOrder } from "../db/schema";
 
 export function PendingOrdersPage() {
@@ -128,6 +129,45 @@ export function PendingOrdersPage() {
     navigate(`/order-form?editOrderId=${orderId}`);
   };
 
+  const handleDownloadPDF = (order: PendingOrder) => {
+    try {
+      pdfExportService.downloadOrderPDF(order);
+      toastService.success("PDF scaricato con successo");
+    } catch (error) {
+      console.error("[PendingOrdersPage] Failed to generate PDF:", error);
+      toastService.error("Errore durante la generazione del PDF");
+    }
+  };
+
+  const handlePrintOrder = (order: PendingOrder) => {
+    try {
+      pdfExportService.printOrderPDF(order);
+      toastService.info("Apertura finestra di stampa...");
+    } catch (error) {
+      console.error("[PendingOrdersPage] Failed to print order:", error);
+      toastService.error("Errore durante la stampa");
+    }
+  };
+
+  const handleDownloadSelectedPDF = () => {
+    if (selectedOrderIds.size === 0) {
+      toastService.warning("Seleziona almeno un ordine");
+      return;
+    }
+
+    try {
+      const selectedOrders = orders.filter((o) => selectedOrderIds.has(o.id!));
+      pdfExportService.downloadMultipleOrdersPDF(selectedOrders);
+      toastService.success(`${selectedOrderIds.size} ordini esportati in PDF`);
+    } catch (error) {
+      console.error(
+        "[PendingOrdersPage] Failed to export multiple PDFs:",
+        error,
+      );
+      toastService.error("Errore durante l'esportazione multipla");
+    }
+  };
+
   if (loading) {
     return (
       <div style={{ padding: "2rem", textAlign: "center" }}>
@@ -171,25 +211,45 @@ export function PendingOrdersPage() {
           Ordini in Attesa ({orders.length})
         </h1>
 
-        <button
-          onClick={handleSubmitOrders}
-          disabled={selectedOrderIds.size === 0 || submitting}
-          style={{
-            padding: "0.75rem 1.5rem",
-            backgroundColor:
-              selectedOrderIds.size === 0 ? "#d1d5db" : "#22c55e",
-            color: "white",
-            border: "none",
-            borderRadius: "8px",
-            fontSize: "1rem",
-            fontWeight: "600",
-            cursor: selectedOrderIds.size === 0 ? "not-allowed" : "pointer",
-          }}
-        >
-          {submitting
-            ? "Invio in corso..."
-            : `Invia Ordini Selezionati (${selectedOrderIds.size})`}
-        </button>
+        <div style={{ display: "flex", gap: "0.75rem" }}>
+          <button
+            onClick={handleDownloadSelectedPDF}
+            disabled={selectedOrderIds.size === 0}
+            style={{
+              padding: "0.75rem 1.25rem",
+              backgroundColor:
+                selectedOrderIds.size === 0 ? "#e5e7eb" : "#3b82f6",
+              color: selectedOrderIds.size === 0 ? "#9ca3af" : "white",
+              border: "none",
+              borderRadius: "8px",
+              fontSize: "0.95rem",
+              fontWeight: "600",
+              cursor: selectedOrderIds.size === 0 ? "not-allowed" : "pointer",
+            }}
+            title="Esporta ordini selezionati in PDF"
+          >
+            📄 Esporta PDF ({selectedOrderIds.size})
+          </button>
+          <button
+            onClick={handleSubmitOrders}
+            disabled={selectedOrderIds.size === 0 || submitting}
+            style={{
+              padding: "0.75rem 1.5rem",
+              backgroundColor:
+                selectedOrderIds.size === 0 ? "#d1d5db" : "#22c55e",
+              color: "white",
+              border: "none",
+              borderRadius: "8px",
+              fontSize: "1rem",
+              fontWeight: "600",
+              cursor: selectedOrderIds.size === 0 ? "not-allowed" : "pointer",
+            }}
+          >
+            {submitting
+              ? "Invio in corso..."
+              : `Invia Ordini Selezionati (${selectedOrderIds.size})`}
+          </button>
+        </div>
       </div>
 
       <div
@@ -288,6 +348,38 @@ export function PendingOrdersPage() {
                       ? "Errore"
                       : "In Elaborazione"}
                 </div>
+                <button
+                  onClick={() => handleDownloadPDF(order)}
+                  style={{
+                    padding: "0.5rem 0.75rem",
+                    background: "#10b981",
+                    color: "white",
+                    border: "none",
+                    borderRadius: "4px",
+                    cursor: "pointer",
+                    fontSize: "0.875rem",
+                    fontWeight: "500",
+                  }}
+                  title="Scarica PDF"
+                >
+                  📄 PDF
+                </button>
+                <button
+                  onClick={() => handlePrintOrder(order)}
+                  style={{
+                    padding: "0.5rem 0.75rem",
+                    background: "#8b5cf6",
+                    color: "white",
+                    border: "none",
+                    borderRadius: "4px",
+                    cursor: "pointer",
+                    fontSize: "0.875rem",
+                    fontWeight: "500",
+                  }}
+                  title="Stampa ordine"
+                >
+                  🖨️ Stampa
+                </button>
                 <button
                   onClick={() => handleEditOrder(order.id!)}
                   style={{
