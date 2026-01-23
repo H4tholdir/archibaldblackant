@@ -178,6 +178,11 @@ export class ProductService {
     quantity: number,
   ): Promise<PackagingResult> {
     try {
+      console.log('[ProductService] calculateOptimalPackaging called:', {
+        productNameOrId,
+        quantity,
+      });
+
       // 1. Get all variants for product (search by name to find all variants)
       // First, find all products with this name
       const products = await this.db
@@ -186,15 +191,21 @@ export class ProductService {
         .equals(productNameOrId)
         .toArray();
 
+      console.log('[ProductService] Found products by name:', products.length);
+
       if (products.length === 0) {
         // Fallback: try searching by productId directly
+        console.log('[ProductService] No products found by name, trying productId...');
         const variants = await this.db
           .table<ProductVariant, number>("productVariants")
           .where("productId")
           .equals(productNameOrId)
           .toArray();
 
+        console.log('[ProductService] Found variants by productId:', variants.length);
+
         if (variants.length === 0) {
+          console.error('[ProductService] No variants found for:', productNameOrId);
           return {
             success: false,
             error: "Nessuna variante disponibile per questo prodotto",
@@ -205,21 +216,24 @@ export class ProductService {
         return this.calculatePackagingFromVariants(variants, quantity);
       }
 
-      // Get all product IDs with this name
-      const productIds = products.map((p) => p.id);
+      // IMPORTANT: Backend exports variants with productId = name (not id)
+      // So we search variants using the product NAME, not the GUID id
+      const productName = productNameOrId; // This is already the name we searched with
+      console.log('[ProductService] Searching variants with productId (name):', productName);
 
-      // Get all variants for these products
-      const allVariants: ProductVariant[] = [];
-      for (const productId of productIds) {
-        const variants = await this.db
-          .table<ProductVariant, number>("productVariants")
-          .where("productId")
-          .equals(productId)
-          .toArray();
-        allVariants.push(...variants);
-      }
+      // Get all variants for this product name
+      const allVariants = await this.db
+        .table<ProductVariant, number>("productVariants")
+        .where("productId")
+        .equals(productName)
+        .toArray();
+
+      console.log(`[ProductService] Variants found for "${productName}":`, allVariants.length);
+
+      console.log('[ProductService] Total variants found:', allVariants.length);
 
       if (allVariants.length === 0) {
+        console.error('[ProductService] No variants found after checking all product IDs');
         return {
           success: false,
           error: "Nessuna variante disponibile per questo prodotto",
