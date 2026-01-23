@@ -632,6 +632,16 @@ export default function OrderForm({
         console.log("[Products] Loaded from cache:", cachedProducts.length);
         if (!isMounted) return;
         if (cachedProducts.length > 0) {
+          // DIAGNOSTIC 28.1-02: Check article field in cached products
+          if (cachedProducts.length > 0) {
+            console.log('[DIAGNOSTIC 28.1-02] First cached product:', {
+              id: cachedProducts[0].id,
+              name: cachedProducts[0].name,
+              article: cachedProducts[0].article,
+              hasArticle: 'article' in cachedProducts[0] && cachedProducts[0].article !== undefined && cachedProducts[0].article !== null
+            });
+          }
+
           const mappedProducts = cachedProducts.map((p) => ({
             id: p.id,
             name: p.name,
@@ -694,6 +704,16 @@ export default function OrderForm({
       productSearch,
       timestamp: Date.now()
     });
+
+    // DIAGNOSTIC 28.1-02: Check article field in first product
+    if (products.length > 0) {
+      console.log('[DIAGNOSTIC 28.1-02] filteredProducts - first product:', {
+        id: products[0].id,
+        name: products[0].name,
+        article: products[0].article,
+        hasArticle: 'article' in products[0] && products[0].article !== undefined && products[0].article !== null
+      });
+    }
 
     if (!productSearch) return products; // Show all if empty
 

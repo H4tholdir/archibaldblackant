@@ -101,6 +101,18 @@ export class CacheService {
       .limit(limit)
       .toArray();
 
+    // DIAGNOSTIC 28.1-02: Check article field population
+    console.log('[DIAGNOSTIC 28.1-02] searchProducts query:', query);
+    console.log('[DIAGNOSTIC 28.1-02] Found products:', products.length);
+    if (products.length > 0) {
+      console.log('[DIAGNOSTIC 28.1-02] Sample product:', {
+        id: products[0].id,
+        name: products[0].name,
+        article: products[0].article,
+        hasArticle: 'article' in products[0] && products[0].article !== undefined && products[0].article !== null
+      });
+    }
+
     // Fallback: broader search if no results
     let finalProducts = products;
     if (products.length === 0) {
