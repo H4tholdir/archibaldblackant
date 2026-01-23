@@ -31,6 +31,11 @@ export function CustomerSelector({
 
   // Debounced search
   useEffect(() => {
+    // Don't search if customer is already selected
+    if (selectedCustomer) {
+      return;
+    }
+
     if (searchQuery.length === 0) {
       setResults([]);
       setShowDropdown(false);
@@ -64,7 +69,7 @@ export function CustomerSelector({
         clearTimeout(debounceTimerRef.current);
       }
     };
-  }, [searchQuery, searchFn]);
+  }, [searchQuery, searchFn, selectedCustomer]);
 
   // Close dropdown on outside click
   useEffect(() => {
@@ -120,7 +125,18 @@ export function CustomerSelector({
     setSearchQuery(customer.name);
     setShowDropdown(false);
     setHighlightedIndex(-1);
+    setResults([]);
     onSelect(customer);
+  };
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const newValue = e.target.value;
+    setSearchQuery(newValue);
+
+    // If user modifies after selection, clear selection
+    if (selectedCustomer && newValue !== selectedCustomer.name) {
+      setSelectedCustomer(null);
+    }
   };
 
   return (
@@ -143,7 +159,7 @@ export function CustomerSelector({
           id="customer-search"
           type="text"
           value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
+          onChange={handleInputChange}
           onKeyDown={handleKeyDown}
           placeholder={placeholder}
           disabled={disabled}

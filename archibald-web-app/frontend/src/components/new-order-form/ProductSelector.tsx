@@ -29,6 +29,11 @@ export function ProductSelector({
 
   // Debounced search
   useEffect(() => {
+    // Don't search if product is already selected
+    if (selectedProduct) {
+      return;
+    }
+
     if (searchQuery.length === 0) {
       setResults([]);
       setShowDropdown(false);
@@ -62,7 +67,7 @@ export function ProductSelector({
         clearTimeout(debounceTimerRef.current);
       }
     };
-  }, [searchQuery, searchFn]);
+  }, [searchQuery, searchFn, selectedProduct]);
 
   // Close dropdown on outside click
   useEffect(() => {
@@ -118,7 +123,18 @@ export function ProductSelector({
     setSearchQuery(product.name);
     setShowDropdown(false);
     setHighlightedIndex(-1);
+    setResults([]);
     onSelect(product);
+  };
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const newValue = e.target.value;
+    setSearchQuery(newValue);
+
+    // If user modifies after selection, clear selection
+    if (selectedProduct && newValue !== selectedProduct.name) {
+      setSelectedProduct(null);
+    }
   };
 
   return (
@@ -141,7 +157,7 @@ export function ProductSelector({
           id="product-search"
           type="text"
           value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
+          onChange={handleInputChange}
           onKeyDown={handleKeyDown}
           placeholder={placeholder}
           disabled={disabled}
