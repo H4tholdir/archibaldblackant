@@ -653,6 +653,16 @@ export default function OrderForm({
             price: p.price,
             packageContent: p.variants[0]?.packageContent,
           }));
+
+          // DIAGNOSTIC 28.1-02: Verify fallback worked
+          console.log('[DIAGNOSTIC 28.1-02] After mapping - first product:', {
+            id: mappedProducts[0].id,
+            name: mappedProducts[0].name,
+            article: mappedProducts[0].article,
+            originalArticle: cachedProducts[0].article,
+            originalName: cachedProducts[0].name
+          });
+
           setProducts(mappedProducts);
           setProductsLoaded(true);
           console.log("[Products] Set products state:", mappedProducts.length);
