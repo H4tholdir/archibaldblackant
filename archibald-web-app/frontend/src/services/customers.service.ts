@@ -95,20 +95,39 @@ export class CustomerService {
         `[CustomerService] Fetched ${customers.length} customers from API`,
       );
 
+      // If no customers, log warning and skip sync
+      if (customers.length === 0) {
+        console.warn("[CustomerService] No customers returned from API, skipping sync");
+        return;
+      }
+
+      // Filter customers with valid id field (required for IndexedDB key path)
+      const validCustomers = customers.filter(c => c.id && typeof c.id === 'string');
+      if (validCustomers.length < customers.length) {
+        console.warn(
+          `[CustomerService] Filtered out ${customers.length - validCustomers.length} customers without valid id field`
+        );
+      }
+
+      if (validCustomers.length === 0) {
+        console.error("[CustomerService] No valid customers to sync");
+        return;
+      }
+
       // Clear and populate IndexedDB
       const customersTable = this.db.table<Customer, string>("customers");
       await customersTable.clear();
-      await customersTable.bulkAdd(customers);
+      await customersTable.bulkAdd(validCustomers);
 
       console.log(
-        `[CustomerService] Populated IndexedDB with ${customers.length} customers`,
+        `[CustomerService] Populated IndexedDB with ${validCustomers.length} customers`,
       );
 
       // Update cache metadata
       const metadata: CacheMetadata = {
         key: "customers",
         lastSynced: new Date().toISOString(),
-        recordCount: customers.length,
+        recordCount: validCustomers.length,
         version: 1,
       };
 

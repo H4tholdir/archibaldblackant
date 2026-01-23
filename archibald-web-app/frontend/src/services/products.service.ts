@@ -171,20 +171,39 @@ export class ProductService {
         `[ProductService] Fetched ${products.length} products from API`,
       );
 
+      // If no products, log warning and skip sync
+      if (products.length === 0) {
+        console.warn("[ProductService] No products returned from API, skipping sync");
+        return;
+      }
+
+      // Filter products with valid id field (required for IndexedDB key path)
+      const validProducts = products.filter(p => p.id && typeof p.id === 'string');
+      if (validProducts.length < products.length) {
+        console.warn(
+          `[ProductService] Filtered out ${products.length - validProducts.length} products without valid id field`
+        );
+      }
+
+      if (validProducts.length === 0) {
+        console.error("[ProductService] No valid products to sync");
+        return;
+      }
+
       // Clear and populate IndexedDB
       const productsTable = this.db.table<Product, string>("products");
       await productsTable.clear();
-      await productsTable.bulkAdd(products);
+      await productsTable.bulkAdd(validProducts);
 
       console.log(
-        `[ProductService] Populated IndexedDB with ${products.length} products`,
+        `[ProductService] Populated IndexedDB with ${validProducts.length} products`,
       );
 
       // Update cache metadata
       const metadata: CacheMetadata = {
         key: "products",
         lastSynced: new Date().toISOString(),
-        recordCount: products.length,
+        recordCount: validProducts.length,
         version: 1,
       };
 
