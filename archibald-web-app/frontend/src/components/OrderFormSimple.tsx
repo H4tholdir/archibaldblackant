@@ -514,12 +514,13 @@ export default function OrderFormSimple() {
     for (const pkg of breakdown) {
       const variantArticleCode = pkg.variant.variantId;
 
-      // Get price for this specific variant
-      const price = await priceService.getPriceByArticleId(variantArticleCode);
+      // Get price for the base product (not the variant)
+      // All variants of a product share the same unit price
+      const price = await priceService.getPriceByArticleId(selectedProduct.id);
 
       if (!price) {
         toastService.error(
-          `Prezzo non disponibile per la variante ${variantArticleCode}`,
+          `Prezzo non disponibile per il prodotto ${selectedProduct.name}`,
         );
         return;
       }
