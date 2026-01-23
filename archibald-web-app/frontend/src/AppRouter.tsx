@@ -13,9 +13,6 @@ import OrderFormNew from "./components/OrderForm";
 import OrderFormOld from "./components/OrderForm_OLD_BACKUP";
 import OrderStatus from "./components/OrderStatus";
 import OrdersList from "./components/OrdersList";
-
-// Feature flag for new OrderForm
-const USE_NEW_ORDER_FORM = import.meta.env.VITE_ENABLE_NEW_ORDER_FORM === 'true';
 import SyncBanner from "./components/SyncBanner";
 import { OfflineBanner } from "./components/OfflineBanner";
 import { OfflineSyncBanner } from "./components/OfflineSyncBanner";

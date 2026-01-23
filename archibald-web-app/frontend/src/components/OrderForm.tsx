@@ -249,11 +249,10 @@ export default function OrderForm() {
           >
             <ProductSelector onSelect={handleProductSelect} />
 
-            {selectedProduct && selectedVariant && (
+            {selectedProduct && (
               <>
                 <QuantityInput
                   productId={selectedProduct.id}
-                  variant={selectedVariant}
                   value={quantity}
                   onChange={handleQuantityChange}
                 />
@@ -311,7 +310,13 @@ export default function OrderForm() {
           {/* Order Summary (only if items exist) */}
           {items.length > 0 && (
             <div style={{ marginBottom: '2rem' }}>
-              <OrderSummary orderTotals={orderTotals} />
+              <OrderSummary
+                itemsSubtotal={orderTotals.itemsSubtotal}
+                globalDiscount={orderTotals.globalDiscount}
+                subtotalAfterGlobalDiscount={orderTotals.subtotalAfterGlobalDiscount}
+                vat={orderTotals.vat}
+                total={orderTotals.total}
+              />
             </div>
           )}
 
