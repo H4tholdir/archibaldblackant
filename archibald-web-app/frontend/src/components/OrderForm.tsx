@@ -428,6 +428,21 @@ export default function OrderForm({
     }
   }, [transcript, showVoiceModal]);
 
+  // DIAGNOSTIC 28.1-01: Monitor dropdown state changes
+  useEffect(() => {
+    console.log("[DIAGNOSTIC 28.1-01] showCustomerDropdown changed to:", showCustomerDropdown);
+  }, [showCustomerDropdown]);
+
+  // DIAGNOSTIC 28.1-01: Monitor customerId changes
+  useEffect(() => {
+    console.log("[DIAGNOSTIC 28.1-01] customerId changed to:", customerId);
+  }, [customerId]);
+
+  // DIAGNOSTIC 28.1-01: Monitor customerName changes
+  useEffect(() => {
+    console.log("[DIAGNOSTIC 28.1-01] customerName changed to:", customerName);
+  }, [customerName]);
+
   // Check cache freshness on mount
   useEffect(() => {
     async function checkCache() {
@@ -712,12 +727,23 @@ export default function OrderForm({
 
   // Customer selection handler
   const handleCustomerSelect = (customer: Customer) => {
-    console.log("[Customer] Selected:", customer.id, customer.name);
+    console.log("[DIAGNOSTIC 28.1-01] handleCustomerSelect CALLED");
+    console.log("[DIAGNOSTIC 28.1-01] Customer object:", customer);
+    console.log("[DIAGNOSTIC 28.1-01] Before state update - customerId:", customerId, "customerName:", customerName);
+
     setCustomerId(customer.id);
+    console.log("[DIAGNOSTIC 28.1-01] setCustomerId called with:", customer.id);
+
     setCustomerName(customer.name);
+    console.log("[DIAGNOSTIC 28.1-01] setCustomerName called with:", customer.name);
+
     setCustomerSearch(customer.name);
+    console.log("[DIAGNOSTIC 28.1-01] setCustomerSearch called with:", customer.name);
+
     setShowCustomerDropdown(false);
-    console.log("[Customer] State updated - customerId:", customer.id);
+    console.log("[DIAGNOSTIC 28.1-01] setShowCustomerDropdown(false) called");
+
+    console.log("[DIAGNOSTIC 28.1-01] handleCustomerSelect COMPLETED");
   };
 
   // Customer search handler - simplified
@@ -2074,7 +2100,10 @@ export default function OrderForm({
                     <div
                       key={customer.id}
                       className="autocomplete-item"
-                      onClick={() => handleCustomerSelect(customer)}
+                      onClick={() => {
+                        console.log("[DIAGNOSTIC 28.1-01] Dropdown item CLICKED:", customer.id, customer.name);
+                        handleCustomerSelect(customer);
+                      }}
                     >
                       <div className="autocomplete-item-name">
                         {customer.name}
