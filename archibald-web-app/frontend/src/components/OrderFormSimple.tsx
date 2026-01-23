@@ -4,6 +4,8 @@ import { customerService } from '../services/customers.service';
 import { productService, type PackagingResult } from '../services/products.service';
 import { priceService } from '../services/prices.service';
 import { orderService } from '../services/orders.service';
+import { cachePopulationService } from '../services/cache-population';
+import { db } from '../db/schema';
 import type { Customer, Product } from '../db/schema';
 
 interface OrderItem {
@@ -48,6 +50,48 @@ export default function OrderFormSimple() {
   // UI state
   const [submitting, setSubmitting] = useState(false);
   const [editingItemId, setEditingItemId] = useState<string | null>(null);
+  const [cacheSyncing, setCacheSyncing] = useState(false);
+
+  // === AUTO-SYNC VARIANTS ON MOUNT ===
+  // Check if variants are populated, if not trigger cache refresh
+  useEffect(() => {
+    const checkAndSyncVariants = async () => {
+      try {
+        // Check if productVariants table has data
+        const variantCount = await db.productVariants.count();
+        console.log('[OrderForm] Variant count in cache:', variantCount);
+
+        if (variantCount === 0) {
+          console.log('[OrderForm] No variants in cache, triggering automatic sync...');
+          setCacheSyncing(true);
+
+          // Get auth token from localStorage
+          const authData = localStorage.getItem('archibald_auth');
+          if (!authData) {
+            console.error('[OrderForm] No auth token found');
+            return;
+          }
+
+          const { token } = JSON.parse(authData);
+
+          // Trigger cache population
+          const result = await cachePopulationService.populateCache(token);
+
+          if (result.success) {
+            console.log('[OrderForm] Cache sync completed:', result.recordCounts);
+          } else {
+            console.error('[OrderForm] Cache sync failed:', result.error);
+          }
+        }
+      } catch (error) {
+        console.error('[OrderForm] Error checking variants:', error);
+      } finally {
+        setCacheSyncing(false);
+      }
+    };
+
+    checkAndSyncVariants();
+  }, []); // Run once on mount
 
   // === CUSTOMER SEARCH ===
   const handleCustomerSearch = async (query: string) => {
@@ -343,6 +387,28 @@ export default function OrderFormSimple() {
   return (
     <div style={{ maxWidth: '1000px', margin: '0 auto', padding: '2rem', fontFamily: 'system-ui' }}>
       <h1 style={{ marginBottom: '2rem', fontSize: '1.75rem' }}>Nuovo Ordine</h1>
+
+      {/* AUTO-SYNC BANNER */}
+      {cacheSyncing && (
+        <div style={{
+          padding: '1rem',
+          background: '#fef3c7',
+          borderRadius: '4px',
+          marginBottom: '1rem',
+          border: '2px solid #f59e0b',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '0.5rem'
+        }}>
+          <span style={{ fontSize: '1.5rem' }}>⏳</span>
+          <div>
+            <strong style={{ color: '#92400e', display: 'block' }}>Sincronizzazione cache in corso...</strong>
+            <span style={{ color: '#92400e', fontSize: '0.875rem' }}>
+              Popolamento delle varianti di prodotto e dei prezzi dal server
+            </span>
+          </div>
+        </div>
+      )}
 
       {/* STEP 1: SELECT CUSTOMER */}
       <div style={{ marginBottom: '2rem', padding: '1.5rem', background: '#f9fafb', borderRadius: '8px' }}>
