@@ -10,11 +10,11 @@ See: .planning/PROJECT.md (updated 2026-01-11)
 ## Current Position
 
 Phase: 28.2 (Rewrite OrderForm with Proper Architecture) - INSERTED
-Plan: 28.2-02 COMPLETE ✅ (Data Layer & Services - IndexedDB Fix)
-Status: ⚠️ CHECKPOINT - Awaiting verification on formicanera.com (IndexedDB population, sync logs)
-Last activity: 2026-01-23 — Plan 28.2-02 complete (5 services, 50 tests, IndexedDB sync fixed) - PUSHED
+Plan: 28.2-03 COMPLETE ✅ (Customer & Product Selection Components)
+Status: Ready for Plan 28.2-04 (Multi-Article & Discounts)
+Last activity: 2026-01-23 — Plan 28.2-03 complete (3 components + optimal packaging, checkpoint skipped)
 
-Progress: Phase 28.2 Progress (2/6 plans complete)
+Progress: Phase 28.2 Progress (3/6 plans complete)
 
 ## Performance Metrics
 
@@ -678,11 +678,54 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-01-23 (afternoon)
-Stopped at: Plan 28.2-02 complete ✅ (Data Layer & Services - IndexedDB Fix) - CHECKPOINT
-Context file: .planning/phases/28.2-rewrite-orderform-with-proper-architecture/28.2-02-SUMMARY.md
-Next: Verify IndexedDB population on formicanera.com, then execute 28.2-03-PLAN.md (Customer & Product Selection)
-Resume command: /gsd:execute-plan .planning/phases/28.2-rewrite-orderform-with-proper-architecture/28.2-03-PLAN.md
+Last session: 2026-01-23 (late afternoon)
+Stopped at: Plan 28.2-03 complete ✅ (Customer & Product Selection Components) - Checkpoint skipped
+Context file: .planning/phases/28.2-rewrite-orderform-with-proper-architecture/28.2-03-SUMMARY.md
+Next: Execute Plan 28.2-04 (Multi-Article & Discounts)
+Resume command: /gsd:execute-plan .planning/phases/28.2-rewrite-orderform-with-proper-architecture/28.2-04-PLAN.md
+
+### Session 101 (2026-01-23)
+**Command:** /gsd:execute-plan 28.2-03-PLAN.md
+**Outcome:** Plan 28.2-03 complete ✅ (Customer & Product Selection Components)
+**Duration:** ~120 minutes actual
+
+**What Was Built:**
+1. CustomerSelector component with 300ms debounced autocomplete (15 tests)
+2. ProductSelector component with name + article code search (15 tests)
+3. QuantityInput component with optimal packaging calculation (15 tests)
+4. calculateOptimalPackaging() method in ProductService (greedy bin packing)
+5. Updated QuantityInput tests to match new packaging logic
+
+**Key Feature - Optimal Packaging:**
+- Greedy algorithm automatically calculates best package mix
+- Example: 7 pieces → 1×K2 (5pz) + 2×K3 (1pz) automatically
+- Auto-suggests minimum quantity when too low
+- Real-time breakdown display in Italian
+
+**Mid-Execution Requirement Change:**
+- User clarified: system should calculate optimal MIX of variants (not just select ONE)
+- Required complete QuantityInput rewrite + new service method
+- Successfully implemented greedy bin packing algorithm
+
+**Test Coverage:**
+- CustomerSelector: 15/15 tests passing
+- ProductSelector: 15/15 tests passing
+- QuantityInput: 15/15 tests passing
+- ProductService: 23/23 tests passing (including 5 new packaging tests)
+
+**Commits:** 5 atomic commits
+- 0a28966: feat(28.2-03): add CustomerSelector component
+- d6731d5: feat(28.2-03): add ProductSelector component
+- 3182674: feat(28.2-03): add QuantityInput component
+- 4386e18: feat(28.2-03): add optimal packaging calculation
+- 4cfff4b: test(28.2-03): update QuantityInput tests
+
+**Checkpoint Decision:**
+- Checkpoint skipped - components standalone, not yet integrated
+- User agreed to defer manual testing until full OrderForm integration
+- Rationale: Components need IndexedDB data + full integration for proper testing
+
+**Next:** Plan 28.2-04 (Multi-Article & Discounts)
 
 ### Session 100 (2026-01-23)
 **Command:** /gsd:execute-plan 28.2-01-PLAN.md → 28.2-02-PLAN.md
