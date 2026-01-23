@@ -1,5 +1,4 @@
 import { db } from "../db/schema";
-import type { Price } from "../db/schema";
 import type Dexie from "dexie";
 
 export class PriceService {
