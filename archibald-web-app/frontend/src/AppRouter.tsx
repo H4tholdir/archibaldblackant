@@ -10,9 +10,6 @@ import { TargetWizard } from "./components/TargetWizard";
 import { UnlockScreen } from "./components/UnlockScreen";
 import { LiquidLoader } from "./components/LiquidLoader";
 import OrderFormNew from "./components/OrderForm";
-import OrderFormOld from "./components/OrderForm_OLD_BACKUP";
-import OrderStatus from "./components/OrderStatus";
-import OrdersList from "./components/OrdersList";
 import SyncBanner from "./components/SyncBanner";
 import { OfflineBanner } from "./components/OfflineBanner";
 import { OfflineSyncBanner } from "./components/OfflineSyncBanner";
@@ -21,7 +18,6 @@ import { AdminPage } from "./pages/AdminPage";
 import { OrderHistory } from "./pages/OrderHistory";
 import { PendingOrdersView } from "./pages/PendingOrdersView";
 import { PendingOrdersPage } from "./pages/PendingOrdersPage";
-import { DraftOrders } from "./pages/DraftOrders";
 import { CustomerList } from "./pages/CustomerList";
 import { CustomerEdit } from "./pages/CustomerEdit";
 import { ArticoliList } from "./pages/ArticoliList";
@@ -37,8 +33,6 @@ function AppRouter() {
 
   // Automatic sync when network returns
   useAutomaticSync(auth.token);
-  const [jobId, setJobId] = useState<string | null>(null);
-  const [view, setView] = useState<"form" | "status" | "orders-list">("form");
   const [tempCredentials, setTempCredentials] = useState<{
     username: string;
     password: string;
@@ -46,21 +40,6 @@ function AppRouter() {
   const [showLoginForm, setShowLoginForm] = useState(false);
   const [showTargetWizard, setShowTargetWizard] = useState(false);
   const [hasTarget, setHasTarget] = useState(true); // assume true, check on mount
-
-  const handleOrderCreated = (newJobId: string) => {
-    setJobId(newJobId);
-    setView("status");
-  };
-
-  const handleNewOrder = () => {
-    setJobId(null);
-    setView("form");
-  };
-
-  const handleViewOrder = (selectedJobId: string) => {
-    setJobId(selectedJobId);
-    setView("status");
-  };
 
   // Check if user has set target after authentication
   useEffect(() => {
@@ -305,9 +284,10 @@ function AppRouter() {
           />
         )}
 
-        {/* Draft Orders route */}
+
+        {/* Pending Orders route */}
         <Route
-          path="/drafts"
+          path="/pending"
           element={
             <div
               className="app"
@@ -316,7 +296,7 @@ function AppRouter() {
               <SyncBanner />
               <AppHeader />
               <main className="app-main" style={{ padding: "0" }}>
-                <DraftOrders />
+                <PendingOrdersView />
               </main>
               <footer className="app-footer">
                 <p>v1.0.0 • Fresis Team</p>
@@ -337,26 +317,6 @@ function AppRouter() {
               <AppHeader />
               <main className="app-main" style={{ padding: "0" }}>
                 <OrderHistory />
-              </main>
-              <footer className="app-footer">
-                <p>v1.0.0 • Fresis Team</p>
-              </footer>
-            </div>
-          }
-        />
-
-        {/* Pending Orders route */}
-        <Route
-          path="/pending"
-          element={
-            <div
-              className="app"
-              style={{ marginTop: isOffline ? "64px" : "0" }}
-            >
-              <SyncBanner />
-              <AppHeader />
-              <main className="app-main" style={{ padding: "0" }}>
-                <PendingOrdersView />
               </main>
               <footer className="app-footer">
                 <p>v1.0.0 • Fresis Team</p>
@@ -485,42 +445,6 @@ function AppRouter() {
           }
         />
 
-        {/* Order Form route (OLD - voice-based form) */}
-        <Route
-          path="/order-form"
-          element={
-            <div
-              className="app"
-              style={{ marginTop: isOffline ? "64px" : "0" }}
-            >
-              <SyncBanner />
-              <AppHeader />
-              <main className="app-main">
-                {view === "form" ? (
-                  <OrderFormOld
-                    token={auth.token!}
-                    onOrderCreated={handleOrderCreated}
-                    isAdmin={isAdmin}
-                  />
-                ) : view === "status" ? (
-                  <OrderStatus jobId={jobId!} onNewOrder={handleNewOrder} />
-                ) : (
-                  <OrdersList
-                    token={auth.token!}
-                    onViewOrder={handleViewOrder}
-                    onNewOrder={handleNewOrder}
-                  />
-                )}
-              </main>
-
-              <footer className="app-footer">
-                <p>v1.0.0 • Fresis Team</p>
-              </footer>
-
-              {/* Cache sync progress bar */}
-            </div>
-          }
-        />
 
         {/* New Order Form route (Phase 28.2 rewrite) */}
         <Route

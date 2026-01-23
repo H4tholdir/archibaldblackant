@@ -8,7 +8,6 @@ export function DashboardNav() {
     { path: "/profile", label: "👤 Profilo" },
     { path: "/order", label: "📝 Nuovo Ordine" },
     { path: "/orders", label: "📦 Ordini" },
-    { path: "/drafts", label: "📝 Bozze" },
     { path: "/pending-orders", label: "⏳ In Attesa" },
     { path: "/customers", label: "👥 Clienti" },
     { path: "/products", label: "📦 Articoli" },
