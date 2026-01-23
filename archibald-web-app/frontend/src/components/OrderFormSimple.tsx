@@ -9,7 +9,7 @@ import { priceService } from "../services/prices.service";
 import { orderService } from "../services/orders.service";
 import { cachePopulationService } from "../services/cache-population";
 import { db } from "../db/schema";
-import type { Customer, Product } from "../db/schema";
+import type { Customer, Product, DraftOrder } from "../db/schema";
 
 interface OrderItem {
   id: string;
@@ -65,6 +65,11 @@ export default function OrderFormSimple() {
   const [cacheSyncing, setCacheSyncing] = useState(false);
   const [editingOrderId, setEditingOrderId] = useState<number | null>(null);
   const [loadingOrder, setLoadingOrder] = useState(false);
+
+  // Auto-save draft state
+  const [hasDraft, setHasDraft] = useState(false);
+  const [draftId, setDraftId] = useState<number | null>(null);
+  const [lastAutoSave, setLastAutoSave] = useState<Date | null>(null);
 
   // === LOAD ORDER FOR EDITING ===
   // Check if we're editing an existing order
@@ -319,6 +324,157 @@ export default function OrderFormSimple() {
     calculatePackaging();
   }, [selectedProduct, quantity]);
 
+  // === CHECK FOR EXISTING DRAFT ON MOUNT ===
+  useEffect(() => {
+    const checkForDraft = async () => {
+      // Don't check for draft if we're editing an existing order
+      if (editingOrderId) return;
+
+      try {
+        const drafts = await orderService.getDraftOrders();
+        if (drafts.length > 0) {
+          const latestDraft = drafts[0]; // getDraftOrders returns sorted by updatedAt DESC
+          setHasDraft(true);
+          setDraftId(latestDraft.id!);
+        }
+      } catch (error) {
+        console.error("[OrderForm] Failed to check for drafts:", error);
+      }
+    };
+
+    checkForDraft();
+  }, [editingOrderId]);
+
+  // === AUTO-SAVE DRAFT EVERY 30 SECONDS ===
+  useEffect(() => {
+    // Don't auto-save if:
+    // - Editing an existing order (not a new draft)
+    // - No customer selected
+    // - No items added
+    if (editingOrderId || !selectedCustomer || items.length === 0) {
+      return;
+    }
+
+    const autoSaveInterval = setInterval(async () => {
+      try {
+        const now = new Date().toISOString();
+
+        // Convert OrderItems to DraftOrderItems (simpler format)
+        const draftItems = items.map((item) => ({
+          productId: item.id,
+          productName: item.productName,
+          article: item.article,
+          variantId: item.article, // Use article code as variant ID
+          quantity: item.quantity,
+          packageContent: item.description || "",
+        }));
+
+        const draft: Omit<DraftOrder, "id"> = {
+          customerId: selectedCustomer.id,
+          customerName: selectedCustomer.name,
+          items: draftItems,
+          createdAt: draftId ? (undefined as any) : now, // Keep original createdAt if updating
+          updatedAt: now,
+        };
+
+        if (draftId) {
+          // Update existing draft
+          await db.draftOrders.update(draftId, {
+            ...draft,
+            updatedAt: now,
+          });
+        } else {
+          // Create new draft
+          const id = await orderService.saveDraftOrder(draft);
+          setDraftId(id);
+        }
+
+        setLastAutoSave(new Date());
+        console.log(
+          "[OrderForm] Draft auto-saved at",
+          new Date().toLocaleTimeString(),
+        );
+      } catch (error) {
+        console.error("[OrderForm] Auto-save failed:", error);
+      }
+    }, 30000); // 30 seconds
+
+    return () => clearInterval(autoSaveInterval);
+  }, [selectedCustomer, items, draftId, editingOrderId]);
+
+  // === RECOVER DRAFT ===
+  const handleRecoverDraft = async () => {
+    if (!draftId) return;
+
+    try {
+      const draft = await db.draftOrders.get(draftId);
+      if (!draft) {
+        alert("Bozza non trovata");
+        setHasDraft(false);
+        setDraftId(null);
+        return;
+      }
+
+      // Load customer
+      const customer = await customerService.getCustomerById(draft.customerId);
+      if (customer) {
+        setSelectedCustomer(customer);
+        setCustomerSearch(customer.name);
+      }
+
+      // Convert DraftOrderItems back to OrderItems
+      const recoveredItems: OrderItem[] = [];
+      for (const draftItem of draft.items) {
+        // Get product to retrieve price and VAT
+        const product = await db.products.get(draftItem.productId);
+        const price = await priceService.getPriceByArticleId(draftItem.article);
+
+        if (product && price) {
+          const vatRate = product.vat || 22;
+          const subtotal = price * draftItem.quantity;
+          const vat = subtotal * (vatRate / 100);
+
+          recoveredItems.push({
+            id: crypto.randomUUID(),
+            article: draftItem.article,
+            productName: draftItem.productName,
+            description: draftItem.packageContent,
+            quantity: draftItem.quantity,
+            unitPrice: price,
+            vatRate,
+            discount: 0,
+            subtotal,
+            vat,
+            total: subtotal + vat,
+          });
+        }
+      }
+
+      setItems(recoveredItems);
+      setHasDraft(false);
+
+      alert("Bozza recuperata con successo!");
+    } catch (error) {
+      console.error("[OrderForm] Failed to recover draft:", error);
+      alert("Errore durante il recupero della bozza");
+    }
+  };
+
+  // === DISCARD DRAFT ===
+  const handleDiscardDraft = async () => {
+    if (!draftId) return;
+
+    try {
+      await orderService.deleteDraftOrder(draftId);
+      setHasDraft(false);
+      setDraftId(null);
+      alert("Bozza eliminata");
+    } catch (error) {
+      console.error("[OrderForm] Failed to discard draft:", error);
+      alert("Errore durante l'eliminazione della bozza");
+    }
+  };
+
   // === ADD ITEM (WITH MULTIPLE LINES FOR VARIANTS) ===
   const handleAddItem = async () => {
     if (!selectedProduct) {
@@ -547,6 +703,12 @@ export default function OrderFormSimple() {
         retryCount: 0,
       });
 
+      // Delete draft if it exists (order is now finalized)
+      if (draftId) {
+        await orderService.deleteDraftOrder(draftId);
+        setDraftId(null);
+      }
+
       alert(
         editingOrderId ? "Ordine aggiornato!" : "Ordine salvato nella coda!",
       );
@@ -570,9 +732,35 @@ export default function OrderFormSimple() {
         fontFamily: "system-ui",
       }}
     >
-      <h1 style={{ marginBottom: "2rem", fontSize: "1.75rem" }}>
-        {editingOrderId ? "Modifica Ordine" : "Nuovo Ordine"}
-      </h1>
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          marginBottom: "2rem",
+        }}
+      >
+        <h1 style={{ fontSize: "1.75rem", margin: 0 }}>
+          {editingOrderId ? "Modifica Ordine" : "Nuovo Ordine"}
+        </h1>
+        {lastAutoSave && !editingOrderId && (
+          <div
+            style={{
+              fontSize: "0.75rem",
+              color: "#6b7280",
+              display: "flex",
+              alignItems: "center",
+              gap: "0.5rem",
+            }}
+          >
+            <span>💾</span>
+            <span>
+              Salvato automaticamente alle{" "}
+              {lastAutoSave.toLocaleTimeString("it-IT")}
+            </span>
+          </div>
+        )}
+      </div>
 
       {/* LOADING ORDER BANNER */}
       {loadingOrder && (
@@ -619,6 +807,73 @@ export default function OrderFormSimple() {
             <span style={{ color: "#92400e", fontSize: "0.875rem" }}>
               Popolamento delle varianti di prodotto e dei prezzi dal server
             </span>
+          </div>
+        </div>
+      )}
+
+      {/* DRAFT RECOVERY BANNER */}
+      {hasDraft && !loadingOrder && (
+        <div
+          style={{
+            padding: "1.25rem",
+            background: "#d1fae5",
+            borderRadius: "8px",
+            marginBottom: "1rem",
+            border: "2px solid #10b981",
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+          }}
+        >
+          <div style={{ display: "flex", alignItems: "center", gap: "1rem" }}>
+            <span style={{ fontSize: "2rem" }}>💾</span>
+            <div>
+              <strong
+                style={{
+                  color: "#065f46",
+                  display: "block",
+                  fontSize: "1.125rem",
+                }}
+              >
+                Bozza ordine disponibile
+              </strong>
+              <span style={{ color: "#047857", fontSize: "0.875rem" }}>
+                È stata trovata una bozza salvata. Vuoi continuare da dove avevi
+                interrotto?
+              </span>
+            </div>
+          </div>
+          <div style={{ display: "flex", gap: "0.5rem" }}>
+            <button
+              onClick={handleRecoverDraft}
+              style={{
+                padding: "0.75rem 1.25rem",
+                background: "#10b981",
+                color: "white",
+                border: "none",
+                borderRadius: "6px",
+                cursor: "pointer",
+                fontWeight: "600",
+                fontSize: "0.875rem",
+              }}
+            >
+              Continua
+            </button>
+            <button
+              onClick={handleDiscardDraft}
+              style={{
+                padding: "0.75rem 1.25rem",
+                background: "white",
+                color: "#065f46",
+                border: "2px solid #10b981",
+                borderRadius: "6px",
+                cursor: "pointer",
+                fontWeight: "600",
+                fontSize: "0.875rem",
+              }}
+            >
+              Annulla
+            </button>
           </div>
         </div>
       )}
