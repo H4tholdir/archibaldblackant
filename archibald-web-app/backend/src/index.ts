@@ -2330,6 +2330,8 @@ app.get("/api/prices", (req: Request, res: Response<ApiResponse>) => {
     const prices = priceDb.getAllPrices();
 
     // Convert to frontend format: articleId, articleName, price (as number)
+    // IMPORTANT: Backend stores productId="015640" + itemSelection="K2" separately
+    // Frontend expects articleId="015640K2" (combined)
     const formattedPrices = prices.map((p) => {
       // Convert Italian price format "1.234,56 €" to number
       let priceNumber = 0;
@@ -2344,8 +2346,14 @@ app.get("/api/prices", (req: Request, res: Response<ApiResponse>) => {
         priceNumber = parseFloat(cleaned) || 0;
       }
 
+      // Combine productId + itemSelection to match frontend's article field
+      // Example: "015640" + "K2" = "015640K2"
+      const articleId = p.itemSelection
+        ? `${p.productId}${p.itemSelection}`
+        : p.productId;
+
       return {
-        articleId: p.productId,
+        articleId: articleId,
         articleName: p.productName,
         price: priceNumber,
         lastSynced: new Date(p.lastSync).toISOString(),
