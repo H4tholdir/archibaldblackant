@@ -44,7 +44,7 @@ None (full-stack web app con pattern standard)
 - [x] **Phase 27: Bot Performance Profiling v2** - Profile dettagliato post optimizations ✅ COMPLETE
 - [x] **Phase 28: Bot Performance Optimization v2** - Target < 60s per ordine ✅ COMPLETE
 - [ ] **Phase 28.1: Fix Order Form Critical Bugs (INSERTED)** - 🔴 CRITICAL: Fix customer selection, product filtering, white screen crash (PAUSED - superseded by 28.2)
-- [ ] **Phase 28.2: Rewrite OrderForm with Proper Architecture (INSERTED)** - 🔴 URGENT: Complete rewrite with 3-layer architecture (1/6 plans complete)
+- [ ] **Phase 28.2: Rewrite OrderForm with Proper Architecture (INSERTED)** - 🔴 URGENT: Complete rewrite with 3-layer architecture (4/6 plans complete)
 
 ## Milestones
 
@@ -349,9 +349,9 @@ Plans:
 
 Plans:
 - [x] 28.2-01: Codebase Analysis & Architecture Design (research) — 120min
-- [ ] 28.2-02: Data Layer & Services (Week 1)
-- [ ] 28.2-03: Customer & Product Selection (Week 2)
-- [ ] 28.2-04: Multi-Article & Discounts (Week 2-3)
+- [x] 28.2-02: Data Layer & Services (Week 1)
+- [x] 28.2-03: Customer & Product Selection (Week 2)
+- [x] 28.2-04: Multi-Article & Discounts (Week 2-3)
 - [ ] 28.2-05: Pending Queue & Offline (Week 3-4)
 - [ ] 28.2-06: Integration & Testing (Week 4-5)
 

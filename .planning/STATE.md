@@ -10,11 +10,11 @@ See: .planning/PROJECT.md (updated 2026-01-11)
 ## Current Position
 
 Phase: 28.2 (Rewrite OrderForm with Proper Architecture) - INSERTED
-Plan: 28.2-03 COMPLETE ✅ (Customer & Product Selection Components)
-Status: Ready for Plan 28.2-04 (Multi-Article & Discounts)
-Last activity: 2026-01-23 — Plan 28.2-03 complete (3 components + optimal packaging, checkpoint skipped)
+Plan: 28.2-04 COMPLETE ✅ (Multi-Article & Discounts)
+Status: Ready for Plan 28.2-05 (OrderForm Integration & State Management)
+Last activity: 2026-01-23 — Plan 28.2-04 complete (4 components + calculation utilities, checkpoint skipped)
 
-Progress: Phase 28.2 Progress (3/6 plans complete)
+Progress: Phase 28.2 Progress (4/6 plans complete)
 
 ## Performance Metrics
 
