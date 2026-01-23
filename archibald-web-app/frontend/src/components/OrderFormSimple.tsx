@@ -108,13 +108,16 @@ export default function OrderFormSimple() {
       return;
     }
 
-    // Get price
-    const price = await priceService.getPriceByArticleId(
-      selectedProduct.article || selectedProduct.id
-    );
+    // Get price - use article field
+    const articleCode = selectedProduct.article || selectedProduct.id;
+    console.log('[OrderFormSimple] Looking up price for article:', articleCode);
+
+    const price = await priceService.getPriceByArticleId(articleCode);
+
+    console.log('[OrderFormSimple] Price lookup result:', price);
 
     if (!price) {
-      alert('Prezzo non disponibile per questo prodotto');
+      alert(`Prezzo non disponibile per questo prodotto (${articleCode}). Verifica che i prezzi siano stati sincronizzati.`);
       return;
     }
 

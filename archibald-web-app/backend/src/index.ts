@@ -2321,6 +2321,61 @@ app.get(
   },
 );
 
+// Get all prices endpoint (for frontend IndexedDB sync)
+app.get("/api/prices", (req: Request, res: Response<ApiResponse>) => {
+  try {
+    logger.info("Richiesta lista prezzi per sync IndexedDB");
+
+    const priceDb = PriceDatabase.getInstance();
+    const prices = priceDb.getAllPrices();
+
+    // Convert to frontend format: articleId, articleName, price (as number)
+    const formattedPrices = prices.map((p) => {
+      // Convert Italian price format "1.234,56 €" to number
+      let priceNumber = 0;
+      if (p.unitPrice) {
+        // Remove € symbol, convert comma to dot, remove dots used as thousand separator
+        const cleaned = p.unitPrice
+          .replace(/€/g, "")
+          .trim()
+          .replace(/\./g, "") // Remove thousand separators
+          .replace(/,/g, "."); // Convert decimal comma to dot
+
+        priceNumber = parseFloat(cleaned) || 0;
+      }
+
+      return {
+        articleId: p.productId,
+        articleName: p.productName,
+        price: priceNumber,
+        lastSynced: new Date(p.lastSync).toISOString(),
+      };
+    });
+
+    logger.info(
+      `Restituiti ${formattedPrices.length} prezzi per sync IndexedDB`,
+    );
+
+    res.json({
+      success: true,
+      data: {
+        prices: formattedPrices,
+        totalCount: formattedPrices.length,
+      },
+    });
+  } catch (error) {
+    logger.error("Errore API /api/prices", { error });
+
+    res.status(500).json({
+      success: false,
+      error:
+        error instanceof Error
+          ? error.message
+          : "Errore durante il recupero dei prezzi",
+    });
+  }
+});
+
 // Get products sync status endpoint
 app.get(
   "/api/products/sync-status",
