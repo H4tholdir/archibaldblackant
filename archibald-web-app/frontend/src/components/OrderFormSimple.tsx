@@ -1,7 +1,7 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { customerService } from '../services/customers.service';
-import { productService } from '../services/products.service';
+import { productService, type PackagingResult } from '../services/products.service';
 import { priceService } from '../services/prices.service';
 import { orderService } from '../services/orders.service';
 import type { Customer, Product } from '../db/schema';
@@ -28,13 +28,17 @@ export default function OrderFormSimple() {
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
   const [searchingCustomer, setSearchingCustomer] = useState(false);
 
-  // Step 2: Product entry
+  // Step 2: Product entry with intelligent variant selection
   const [productSearch, setProductSearch] = useState('');
   const [productResults, setProductResults] = useState<Product[]>([]);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [searchingProduct, setSearchingProduct] = useState(false);
   const [quantity, setQuantity] = useState('');
   const [itemDiscount, setItemDiscount] = useState('0');
+
+  // Packaging preview state
+  const [packagingPreview, setPackagingPreview] = useState<PackagingResult | null>(null);
+  const [calculatingPackaging, setCalculatingPackaging] = useState(false);
 
   // Step 3: Order items
   const [items, setItems] = useState<OrderItem[]>([]);
@@ -70,7 +74,7 @@ export default function OrderFormSimple() {
     setCustomerResults([]);
   };
 
-  // === PRODUCT SEARCH ===
+  // === PRODUCT SEARCH (GROUPED BY NAME) ===
   const handleProductSearch = async (query: string) => {
     setProductSearch(query);
     if (query.length < 2) {
@@ -81,7 +85,17 @@ export default function OrderFormSimple() {
     setSearchingProduct(true);
     try {
       const results = await productService.searchProducts(query);
-      setProductResults(results.slice(0, 10));
+
+      // Group products by name (show only one per unique name)
+      const groupedByName = new Map<string, Product>();
+      results.forEach((product) => {
+        if (!groupedByName.has(product.name)) {
+          groupedByName.set(product.name, product);
+        }
+      });
+
+      const uniqueProducts = Array.from(groupedByName.values()).slice(0, 10);
+      setProductResults(uniqueProducts);
     } catch (error) {
       console.error('Product search failed:', error);
     } finally {
@@ -93,9 +107,51 @@ export default function OrderFormSimple() {
     setSelectedProduct(product);
     setProductSearch(product.name);
     setProductResults([]);
+    // Reset quantity and preview when product changes
+    setQuantity('');
+    setPackagingPreview(null);
   };
 
-  // === ADD ITEM ===
+  // === INTELLIGENT PACKAGING CALCULATION ===
+  // Calculate optimal packaging whenever quantity changes
+  useEffect(() => {
+    const calculatePackaging = async () => {
+      if (!selectedProduct || !quantity) {
+        setPackagingPreview(null);
+        return;
+      }
+
+      const qty = parseInt(quantity, 10);
+      if (isNaN(qty) || qty <= 0) {
+        setPackagingPreview(null);
+        return;
+      }
+
+      setCalculatingPackaging(true);
+      try {
+        // Use the base product ID (without variant suffix) for packaging calculation
+        // The productService will find all variants for this product name
+        const result = await productService.calculateOptimalPackaging(
+          selectedProduct.name, // Use name to find all variants
+          qty
+        );
+
+        setPackagingPreview(result);
+      } catch (error) {
+        console.error('Packaging calculation failed:', error);
+        setPackagingPreview({
+          success: false,
+          error: 'Errore nel calcolo del confezionamento',
+        });
+      } finally {
+        setCalculatingPackaging(false);
+      }
+    };
+
+    calculatePackaging();
+  }, [selectedProduct, quantity]);
+
+  // === ADD ITEM (WITH MULTIPLE LINES FOR VARIANTS) ===
   const handleAddItem = async () => {
     if (!selectedProduct) {
       alert('Seleziona un prodotto');
@@ -108,44 +164,63 @@ export default function OrderFormSimple() {
       return;
     }
 
-    // Get price - use article field
-    const articleCode = selectedProduct.article || selectedProduct.id;
-    console.log('[OrderFormSimple] Looking up price for article:', articleCode);
-
-    const price = await priceService.getPriceByArticleId(articleCode);
-
-    console.log('[OrderFormSimple] Price lookup result:', price);
-
-    if (!price) {
-      alert(`Prezzo non disponibile per questo prodotto (${articleCode}). Verifica che i prezzi siano stati sincronizzati.`);
+    if (!packagingPreview || !packagingPreview.success) {
+      alert(packagingPreview?.error || 'Impossibile calcolare il confezionamento per questa quantità');
       return;
     }
 
+    // Get breakdown of variants from packaging calculation
+    const breakdown = packagingPreview.breakdown;
+    if (!breakdown || breakdown.length === 0) {
+      alert('Nessuna combinazione di varianti disponibile');
+      return;
+    }
+
+    // Get discount (will be applied to total, not per line)
     const disc = parseFloat(itemDiscount) || 0;
-    const subtotal = price * qty - disc;
-    const vat = subtotal * 0.22;
-    const total = subtotal + vat;
+    const discountPerLine = disc / breakdown.length; // Split discount across lines
 
-    const newItem: OrderItem = {
-      id: crypto.randomUUID(),
-      article: selectedProduct.article || selectedProduct.id,
-      productName: selectedProduct.name,
-      description: selectedProduct.description,
-      quantity: qty,
-      unitPrice: price,
-      discount: disc,
-      subtotal,
-      vat,
-      total,
-    };
+    // Create one order item per packaging variant
+    const newItems: OrderItem[] = [];
 
-    setItems([...items, newItem]);
+    for (const pkg of breakdown) {
+      const variantArticleCode = pkg.variant.variantId;
 
-    // Reset
+      // Get price for this specific variant
+      const price = await priceService.getPriceByArticleId(variantArticleCode);
+
+      if (!price) {
+        alert(`Prezzo non disponibile per la variante ${variantArticleCode}`);
+        return;
+      }
+
+      const lineSubtotal = price * pkg.packageCount - discountPerLine;
+      const lineVat = lineSubtotal * 0.22;
+      const lineTotal = lineSubtotal + lineVat;
+
+      newItems.push({
+        id: crypto.randomUUID(),
+        article: variantArticleCode,
+        productName: selectedProduct.name,
+        description: `${pkg.packageSize} ${pkg.packageSize === 1 ? 'pezzo' : 'pezzi'} x ${pkg.packageCount}`,
+        quantity: pkg.packageCount,
+        unitPrice: price,
+        discount: discountPerLine,
+        subtotal: lineSubtotal,
+        vat: lineVat,
+        total: lineTotal,
+      });
+    }
+
+    // Add all lines to items list
+    setItems([...items, ...newItems]);
+
+    // Reset form
     setSelectedProduct(null);
     setProductSearch('');
     setQuantity('');
     setItemDiscount('0');
+    setPackagingPreview(null);
   };
 
   // === EDIT / DELETE ITEM ===
@@ -339,7 +414,7 @@ export default function OrderFormSimple() {
         )}
       </div>
 
-      {/* STEP 2: ADD PRODUCTS */}
+      {/* STEP 2: ADD PRODUCTS WITH INTELLIGENT VARIANT SELECTION */}
       {selectedCustomer && (
         <div style={{ marginBottom: '2rem', padding: '1.5rem', background: '#f9fafb', borderRadius: '8px' }}>
           <h2 style={{ fontSize: '1.25rem', marginBottom: '1rem' }}>2. Aggiungi Articoli</h2>
@@ -378,7 +453,6 @@ export default function OrderFormSimple() {
                     onMouseLeave={(e) => (e.currentTarget.style.background = 'white')}
                   >
                     <strong>{product.name}</strong>
-                    {product.article && <span style={{ marginLeft: '0.5rem', color: '#6b7280' }}>({product.article})</span>}
                     {product.description && <p style={{ margin: '0.25rem 0 0 0', fontSize: '0.875rem', color: '#6b7280' }}>{product.description}</p>}
                   </div>
                 ))}
@@ -390,17 +464,16 @@ export default function OrderFormSimple() {
             <>
               <div style={{ padding: '1rem', background: '#dbeafe', borderRadius: '4px', marginBottom: '1rem' }}>
                 <strong>Prodotto selezionato:</strong> {selectedProduct.name}
-                {selectedProduct.article && <span style={{ marginLeft: '0.5rem', color: '#1e40af' }}>({selectedProduct.article})</span>}
               </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr auto', gap: '1rem', alignItems: 'end' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1rem' }}>
                 <div>
-                  <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '500' }}>Quantità</label>
+                  <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '500' }}>Quantità (pezzi)</label>
                   <input
                     type="number"
                     value={quantity}
                     onChange={(e) => setQuantity(e.target.value)}
-                    placeholder="Es: 10"
+                    placeholder="Es: 7"
                     min="1"
                     style={{
                       width: '100%',
@@ -413,7 +486,7 @@ export default function OrderFormSimple() {
                 </div>
 
                 <div>
-                  <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '500' }}>Sconto (€)</label>
+                  <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '500' }}>Sconto Totale (€)</label>
                   <input
                     type="number"
                     value={itemDiscount}
@@ -430,23 +503,84 @@ export default function OrderFormSimple() {
                     }}
                   />
                 </div>
-
-                <button
-                  onClick={handleAddItem}
-                  style={{
-                    padding: '0.75rem 1.5rem',
-                    background: '#22c55e',
-                    color: 'white',
-                    border: 'none',
-                    borderRadius: '4px',
-                    fontSize: '1rem',
-                    fontWeight: '600',
-                    cursor: 'pointer',
-                  }}
-                >
-                  {editingItemId ? 'Aggiorna' : 'Aggiungi'}
-                </button>
               </div>
+
+              {/* INTELLIGENT PACKAGING PREVIEW */}
+              {calculatingPackaging && (
+                <div style={{ padding: '1rem', background: '#fef3c7', borderRadius: '4px', marginBottom: '1rem' }}>
+                  <p style={{ margin: 0, color: '#92400e' }}>⏳ Calcolo confezionamento ottimale...</p>
+                </div>
+              )}
+
+              {packagingPreview && !calculatingPackaging && (
+                <div style={{
+                  padding: '1rem',
+                  background: packagingPreview.success ? '#d1fae5' : '#fee2e2',
+                  borderRadius: '4px',
+                  marginBottom: '1rem',
+                  border: `2px solid ${packagingPreview.success ? '#065f46' : '#dc2626'}`
+                }}>
+                  {packagingPreview.success ? (
+                    <>
+                      <strong style={{ color: '#065f46', display: 'block', marginBottom: '0.5rem' }}>
+                        ✓ Confezionamento calcolato per {packagingPreview.quantity} pezzi:
+                      </strong>
+                      <ul style={{ margin: '0.5rem 0', paddingLeft: '1.5rem', color: '#065f46' }}>
+                        {packagingPreview.breakdown?.map((item, idx) => (
+                          <li key={idx}>
+                            <strong>{item.packageCount}</strong> conf. da <strong>{item.packageSize}</strong> {item.packageSize === 1 ? 'pezzo' : 'pezzi'}
+                            {' '}= {item.totalPieces} pz
+                          </li>
+                        ))}
+                      </ul>
+                      <p style={{ margin: '0.5rem 0 0 0', fontSize: '0.875rem', color: '#047857' }}>
+                        Totale: {packagingPreview.totalPackages} confezioni = {packagingPreview.quantity} pezzi
+                      </p>
+                    </>
+                  ) : (
+                    <>
+                      <strong style={{ color: '#dc2626', display: 'block', marginBottom: '0.5rem' }}>
+                        ⚠ {packagingPreview.error}
+                      </strong>
+                      {packagingPreview.suggestedQuantity && (
+                        <button
+                          onClick={() => setQuantity(packagingPreview.suggestedQuantity!.toString())}
+                          style={{
+                            padding: '0.5rem 1rem',
+                            background: '#dc2626',
+                            color: 'white',
+                            border: 'none',
+                            borderRadius: '4px',
+                            cursor: 'pointer',
+                            fontSize: '0.875rem',
+                            marginTop: '0.5rem',
+                          }}
+                        >
+                          Usa quantità suggerita ({packagingPreview.suggestedQuantity} pz)
+                        </button>
+                      )}
+                    </>
+                  )}
+                </div>
+              )}
+
+              <button
+                onClick={handleAddItem}
+                disabled={!packagingPreview?.success}
+                style={{
+                  padding: '0.75rem 1.5rem',
+                  background: packagingPreview?.success ? '#22c55e' : '#d1d5db',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '4px',
+                  fontSize: '1rem',
+                  fontWeight: '600',
+                  cursor: packagingPreview?.success ? 'pointer' : 'not-allowed',
+                  width: '100%',
+                }}
+              >
+                {editingItemId ? 'Aggiorna Articolo' : 'Aggiungi all\'Ordine'}
+              </button>
             </>
           )}
         </div>

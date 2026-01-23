@@ -167,25 +167,59 @@ export class ProductService {
   }
 
   /**
-   * Calculate optimal packaging mix for a given quantity
+   * Calculate optimal packaging mix for a given quantity by product name
    * Uses greedy algorithm: prioritize largest packages first
-   * @param productId - Product ID
+   * @param productNameOrId - Product name (for grouped search) or product ID
    * @param quantity - Desired quantity
    * @returns Packaging result with variant breakdown or error
    */
   async calculateOptimalPackaging(
-    productId: string,
+    productNameOrId: string,
     quantity: number,
   ): Promise<PackagingResult> {
     try {
-      // 1. Get all variants for product
-      const variants = await this.db
-        .table<ProductVariant, number>("productVariants")
-        .where("productId")
-        .equals(productId)
+      // 1. Get all variants for product (search by name to find all variants)
+      // First, find all products with this name
+      const products = await this.db
+        .table<Product, string>("products")
+        .where("name")
+        .equals(productNameOrId)
         .toArray();
 
-      if (variants.length === 0) {
+      if (products.length === 0) {
+        // Fallback: try searching by productId directly
+        const variants = await this.db
+          .table<ProductVariant, number>("productVariants")
+          .where("productId")
+          .equals(productNameOrId)
+          .toArray();
+
+        if (variants.length === 0) {
+          return {
+            success: false,
+            error: "Nessuna variante disponibile per questo prodotto",
+            suggestedQuantity: quantity,
+          };
+        }
+
+        return this.calculatePackagingFromVariants(variants, quantity);
+      }
+
+      // Get all product IDs with this name
+      const productIds = products.map((p) => p.id);
+
+      // Get all variants for these products
+      const allVariants: ProductVariant[] = [];
+      for (const productId of productIds) {
+        const variants = await this.db
+          .table<ProductVariant, number>("productVariants")
+          .where("productId")
+          .equals(productId)
+          .toArray();
+        allVariants.push(...variants);
+      }
+
+      if (allVariants.length === 0) {
         return {
           success: false,
           error: "Nessuna variante disponibile per questo prodotto",
@@ -193,68 +227,7 @@ export class ProductService {
         };
       }
 
-      // 2. Extract package sizes and sort DESC (largest first)
-      const variantsWithSize = variants.map((v) => ({
-        variant: v,
-        packageSize: v.multipleQty, // Package size = multipleQty (5pz, 1pz, etc.)
-      }));
-
-      // Sort by package size DESC (5 before 1)
-      variantsWithSize.sort((a, b) => b.packageSize - a.packageSize);
-
-      // 3. Greedy algorithm: fill with largest packages first
-      let remainingQty = quantity;
-      const packagingBreakdown: PackagingItem[] = [];
-
-      for (const { variant, packageSize } of variantsWithSize) {
-        if (remainingQty === 0) break;
-
-        // Calculate how many packages of this size we can use
-        const packagesNeeded = Math.floor(remainingQty / packageSize);
-
-        if (packagesNeeded > 0) {
-          // Check if this fits within variant constraints
-          const totalPieces = packagesNeeded * packageSize;
-
-          // Add to breakdown
-          packagingBreakdown.push({
-            variant,
-            packageCount: packagesNeeded,
-            packageSize,
-            totalPieces,
-          });
-
-          remainingQty -= totalPieces;
-        }
-      }
-
-      // 4. Check if we successfully covered the requested quantity
-      if (remainingQty > 0) {
-        // Could not satisfy quantity with available packages
-        // Find minimum orderable quantity
-        const minVariant = variantsWithSize.reduce((min, curr) =>
-          curr.variant.minQty < min.variant.minQty ? curr : min,
-        );
-
-        return {
-          success: false,
-          error: `Quantità minima ordinabile: ${minVariant.variant.minQty} pezzi (${Math.ceil(minVariant.variant.minQty / minVariant.packageSize)} confezione da ${minVariant.packageSize} ${minVariant.packageSize === 1 ? "pezzo" : "pezzi"})`,
-          suggestedQuantity: minVariant.variant.minQty,
-        };
-      }
-
-      // 5. Success - return packaging breakdown
-      const totalPackages = packagingBreakdown.reduce(
-        (sum, item) => sum + item.packageCount,
-        0,
-      );
-
-      return {
-        success: true,
-        quantity,
-        totalPackages,
-        breakdown: packagingBreakdown,
-      };
+      return this.calculatePackagingFromVariants(allVariants, quantity);
     } catch (error) {
       console.error(
         "[ProductService] Failed to calculate optimal packaging:",
@@ -266,6 +239,88 @@ export class ProductService {
         suggestedQuantity: quantity,
       };
     }
+  }
+
+  /**
+   * Helper method: Calculate packaging from a list of variants
+   * @param variants - Array of product variants
+   * @param quantity - Desired quantity
+   * @returns Packaging result
+   */
+  private calculatePackagingFromVariants(
+    variants: ProductVariant[],
+    quantity: number,
+  ): PackagingResult {
+    if (variants.length === 0) {
+      return {
+        success: false,
+        error: "Nessuna variante disponibile per questo prodotto",
+        suggestedQuantity: quantity,
+      };
+    }
+
+    // 2. Extract package sizes and sort DESC (largest first)
+    const variantsWithSize = variants.map((v) => ({
+      variant: v,
+      packageSize: v.multipleQty, // Package size = multipleQty (5pz, 1pz, etc.)
+    }));
+
+    // Sort by package size DESC (5 before 1)
+    variantsWithSize.sort((a, b) => b.packageSize - a.packageSize);
+
+    // 3. Greedy algorithm: fill with largest packages first
+    let remainingQty = quantity;
+    const packagingBreakdown: PackagingItem[] = [];
+
+    for (const { variant, packageSize} of variantsWithSize) {
+      if (remainingQty === 0) break;
+
+      // Calculate how many packages of this size we can use
+      const packagesNeeded = Math.floor(remainingQty / packageSize);
+
+      if (packagesNeeded > 0) {
+        // Check if this fits within variant constraints
+        const totalPieces = packagesNeeded * packageSize;
+
+        // Add to breakdown
+        packagingBreakdown.push({
+          variant,
+          packageCount: packagesNeeded,
+          packageSize,
+          totalPieces,
+        });
+
+        remainingQty -= totalPieces;
+      }
+    }
+
+    // 4. Check if we successfully covered the requested quantity
+    if (remainingQty > 0) {
+      // Could not satisfy quantity with available packages
+      // Find minimum orderable quantity
+      const minVariant = variantsWithSize.reduce((min, curr) =>
+        curr.variant.minQty < min.variant.minQty ? curr : min,
+      );
+
+      return {
+        success: false,
+        error: `Quantità minima ordinabile: ${minVariant.variant.minQty} pezzi (${Math.ceil(minVariant.variant.minQty / minVariant.packageSize)} confezione da ${minVariant.packageSize} ${minVariant.packageSize === 1 ? "pezzo" : "pezzi"})`,
+        suggestedQuantity: minVariant.variant.minQty,
+      };
+    }
+
+    // 5. Success - return packaging breakdown
+    const totalPackages = packagingBreakdown.reduce(
+      (sum, item) => sum + item.packageCount,
+      0,
+    );
+
+    return {
+      success: true,
+      quantity,
+      totalPackages,
+      breakdown: packagingBreakdown,
+    };
   }
 
   /**
