@@ -4,6 +4,7 @@ import AppRouter from "./AppRouter";
 import "./index.css";
 import { initializeDatabase } from "./db/database";
 import { registerSW } from "virtual:pwa-register";
+import { syncService } from "./services/sync.service";
 
 // Register service worker
 registerSW({
@@ -16,11 +17,14 @@ registerSW({
   },
 });
 
-// Initialize IndexedDB before rendering app
-initializeDatabase().then((result) => {
+// Initialize IndexedDB and sync data before rendering app
+initializeDatabase().then(async (result) => {
   if (!result.success) {
     console.error("[App] Database initialization failed:", result.error);
     // App will still render but offline features won't work
+  } else {
+    // Trigger initial sync if cache is empty
+    await syncService.initializeSync();
   }
 
   // Render app

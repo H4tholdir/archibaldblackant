@@ -1,0 +1,81 @@
+import { customerService } from "./customers.service";
+import { productService } from "./products.service";
+import { priceService } from "./prices.service";
+
+export class SyncService {
+  private syncInProgress = false;
+
+  /**
+   * Sync all data from backend to IndexedDB
+   * Called on: app startup, manual refresh, periodic background
+   */
+  async syncAll(): Promise<void> {
+    if (this.syncInProgress) {
+      console.log("[SyncService] Sync already in progress, skipping");
+      return;
+    }
+
+    this.syncInProgress = true;
+
+    try {
+      console.log("[SyncService] Starting full sync...");
+
+      // Sync in parallel for performance
+      await Promise.all([
+        customerService.syncCustomers(),
+        productService.syncProducts(),
+        priceService.syncPrices(),
+      ]);
+
+      console.log("[SyncService] Full sync completed");
+    } catch (error) {
+      console.error("[SyncService] Sync failed:", error);
+      throw error;
+    } finally {
+      this.syncInProgress = false;
+    }
+  }
+
+  /**
+   * Trigger sync on app initialization
+   * Checks if cache is empty or stale before syncing
+   */
+  async initializeSync(): Promise<void> {
+    try {
+      // Check if cache is empty or stale
+      const [customersMetadata, productsMetadata] = await Promise.all([
+        customerService.getCacheMetadata(),
+        productService.getCacheMetadata(),
+      ]);
+
+      const needsSync =
+        !customersMetadata ||
+        !productsMetadata ||
+        customersMetadata.recordCount === 0 ||
+        productsMetadata.recordCount === 0;
+
+      if (needsSync) {
+        console.log("[SyncService] Cache empty or stale, triggering sync...");
+        await this.syncAll();
+      } else {
+        console.log("[SyncService] Cache is fresh, skipping sync", {
+          customers: customersMetadata.recordCount,
+          products: productsMetadata.recordCount,
+        });
+      }
+    } catch (error) {
+      console.error("[SyncService] Initialize sync failed:", error);
+      // Don't throw - allow app to start even if sync fails
+    }
+  }
+
+  /**
+   * Check if sync is currently in progress
+   */
+  isSyncing(): boolean {
+    return this.syncInProgress;
+  }
+}
+
+// Singleton instance
+export const syncService = new SyncService();
