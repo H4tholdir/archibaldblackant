@@ -275,16 +275,54 @@ export default function OrderFormSimple() {
       }
 
       try {
-        // Load price
-        const price = await priceService.getPriceByArticleId(
-          selectedProduct.id,
+        // Find all products with the same name (variants)
+        const allVariants = await db.products
+          .where("name")
+          .equals(selectedProduct.name)
+          .toArray();
+
+        console.log(
+          `[OrderForm] Found ${allVariants.length} products with name: ${selectedProduct.name}`,
         );
+
+        // Try to find a product with a price
+        let price: number | null = null;
+        let productWithPrice: typeof selectedProduct | null = null;
+
+        for (const variant of allVariants) {
+          const variantPrice = await priceService.getPriceByArticleId(
+            variant.id,
+          );
+          console.log(
+            `[OrderForm] Checking variant ${variant.id}: price = ${variantPrice}`,
+          );
+          if (variantPrice !== null) {
+            price = variantPrice;
+            productWithPrice = variant;
+            break; // Found a price, stop searching
+          }
+        }
+
+        if (!price) {
+          console.warn(
+            `[OrderForm] No price found for any variant of ${selectedProduct.name}`,
+          );
+        }
+
         setProductPrice(price);
+
+        // Update selectedProduct with the one that has a price
+        if (productWithPrice && productWithPrice.id !== selectedProduct.id) {
+          console.log(
+            `[OrderForm] Switching from ${selectedProduct.id} to ${productWithPrice.id} (has price)`,
+          );
+          setSelectedProduct(productWithPrice);
+        }
 
         // Load variants
         const variants = await db.productVariants
           .where("productId")
-          .equals(selectedProduct.id)
+          .equals(productWithPrice?.id || selectedProduct.id)
           .toArray();
 
         if (variants.length > 0) {
@@ -529,26 +567,25 @@ export default function OrderFormSimple() {
     const disc = parseFloat(itemDiscount) || 0;
     const discountPerLine = disc / breakdown.length; // Split discount across lines
 
+    // Get price and VAT once (not in loop) since all variants share the same price
+    const price = await priceService.getPriceByArticleId(selectedProduct.id);
+
+    if (!price) {
+      toastService.error(
+        `Prezzo non disponibile per il prodotto ${selectedProduct.name}`,
+      );
+      return;
+    }
+
+    // Get VAT rate from product (default to 22% if not available)
+    const productWithVat = await db.products.get(selectedProduct.id);
+    const vatRate = productWithVat?.vat || 22;
+
     // Create one order item per packaging variant
     const newItems: OrderItem[] = [];
 
     for (const pkg of breakdown) {
       const variantArticleCode = pkg.variant.variantId;
-
-      // Get price for the base product (not the variant)
-      // All variants of a product share the same unit price
-      const price = await priceService.getPriceByArticleId(selectedProduct.id);
-
-      if (!price) {
-        toastService.error(
-          `Prezzo non disponibile per il prodotto ${selectedProduct.name}`,
-        );
-        return;
-      }
-
-      // Get VAT rate from product (default to 22% if not available)
-      const productWithVat = await db.products.get(selectedProduct.id);
-      const vatRate = productWithVat?.vat || 22;
 
       const lineSubtotal = price * pkg.packageCount - discountPerLine;
       const lineVat = lineSubtotal * (vatRate / 100);
