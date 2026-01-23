@@ -476,12 +476,11 @@ export default function OrderFormSimple() {
       // Convert DraftOrderItems back to OrderItems
       const recoveredItems: OrderItem[] = [];
       for (const draftItem of draft.items) {
-        // Get product to retrieve price and VAT
-        const product = await db.products.get(draftItem.productId);
-        // Use productId (base product) to get price, not article (variant)
-        const price = await priceService.getPriceByArticleId(
-          draftItem.productId,
-        );
+        // Get variant-specific product and price
+        // draftItem.article contains the variant ID
+        const variantId = draftItem.article;
+        const product = await db.products.get(variantId);
+        const price = await priceService.getPriceByArticleId(variantId);
 
         if (product && price) {
           const vatRate = product.vat || 22;
@@ -490,7 +489,7 @@ export default function OrderFormSimple() {
 
           recoveredItems.push({
             id: crypto.randomUUID(),
-            productId: draftItem.productId,
+            productId: variantId, // Use variant ID
             article: draftItem.article,
             productName: draftItem.productName,
             description: draftItem.packageContent,
@@ -562,25 +561,26 @@ export default function OrderFormSimple() {
     const disc = parseFloat(itemDiscount) || 0;
     const discountPerLine = disc / breakdown.length; // Split discount across lines
 
-    // Get price and VAT once (not in loop) since all variants share the same price
-    const price = await priceService.getPriceByArticleId(selectedProduct.id);
-
-    if (!price) {
-      toastService.error(
-        `Prezzo non disponibile per il prodotto ${selectedProduct.name}`,
-      );
-      return;
-    }
-
-    // Get VAT rate from product (default to 22% if not available)
-    const productWithVat = await db.products.get(selectedProduct.id);
-    const vatRate = productWithVat?.vat || 22;
-
     // Create one order item per packaging variant
+    // IMPORTANT: Each variant can have different price and VAT
     const newItems: OrderItem[] = [];
 
     for (const pkg of breakdown) {
       const variantArticleCode = pkg.variant.variantId;
+
+      // Get price and VAT for THIS SPECIFIC variant
+      const price = await priceService.getPriceByArticleId(variantArticleCode);
+
+      if (!price) {
+        toastService.error(
+          `Prezzo non disponibile per la variante ${variantArticleCode}`,
+        );
+        return;
+      }
+
+      // Get VAT rate for THIS SPECIFIC variant
+      const variantProduct = await db.products.get(variantArticleCode);
+      const vatRate = variantProduct?.vat || 22;
 
       const lineSubtotal = price * pkg.packageCount - discountPerLine;
       const lineVat = lineSubtotal * (vatRate / 100);
@@ -588,7 +588,7 @@ export default function OrderFormSimple() {
 
       newItems.push({
         id: crypto.randomUUID(),
-        productId: selectedProduct.id,
+        productId: variantArticleCode, // Use variant ID as productId
         article: variantArticleCode,
         productName: selectedProduct.name,
         description: `${pkg.packageSize} ${pkg.packageSize === 1 ? "pezzo" : "pezzi"} x ${pkg.packageCount}`,
