@@ -320,41 +320,233 @@ export function PendingOrdersPage() {
               </div>
             </div>
 
+            {/* DETAILED ORDER ITEMS - PREVENTIVO STYLE */}
             <div
               style={{
-                backgroundColor: "#f9fafb",
-                padding: "1rem",
-                borderRadius: "4px",
+                backgroundColor: "white",
+                border: "1px solid #e5e7eb",
+                borderRadius: "6px",
                 marginBottom: "1rem",
+                overflow: "hidden",
               }}
             >
-              <div style={{ fontWeight: "600", marginBottom: "0.5rem" }}>
-                Articoli ({order.items.length})
+              {/* Header */}
+              <div
+                style={{
+                  backgroundColor: "#f9fafb",
+                  padding: "0.75rem 1rem",
+                  borderBottom: "2px solid #e5e7eb",
+                  fontWeight: "600",
+                  fontSize: "0.875rem",
+                  color: "#374151",
+                }}
+              >
+                Dettaglio Articoli ({order.items.length})
               </div>
-              {order.items.map((item, index) => (
-                <div
-                  key={index}
-                  style={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    padding: "0.5rem 0",
-                    borderBottom:
-                      index < order.items.length - 1
-                        ? "1px solid #e5e7eb"
-                        : "none",
-                  }}
-                >
-                  <div>
-                    <div>{item.productName || item.articleCode}</div>
-                    <div style={{ fontSize: "0.875rem", color: "#6b7280" }}>
-                      Quantità: {item.quantity}
+
+              {/* Table Header */}
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "3fr 1fr 1fr 1fr 1fr 1fr 1fr",
+                  gap: "0.5rem",
+                  padding: "0.75rem 1rem",
+                  backgroundColor: "#f9fafb",
+                  borderBottom: "1px solid #e5e7eb",
+                  fontSize: "0.75rem",
+                  fontWeight: "600",
+                  color: "#6b7280",
+                  textTransform: "uppercase",
+                }}
+              >
+                <div>Articolo</div>
+                <div style={{ textAlign: "right" }}>Qnt.</div>
+                <div style={{ textAlign: "right" }}>Prezzo Unit.</div>
+                <div style={{ textAlign: "right" }}>Sconto</div>
+                <div style={{ textAlign: "right" }}>Subtotale</div>
+                <div style={{ textAlign: "right" }}>IVA</div>
+                <div style={{ textAlign: "right" }}>Totale</div>
+              </div>
+
+              {/* Items */}
+              {order.items.map((item, index) => {
+                const subtotal =
+                  item.price * item.quantity - (item.discount || 0);
+                const vatAmount = subtotal * (item.vat / 100);
+                const total = subtotal + vatAmount;
+
+                return (
+                  <div
+                    key={index}
+                    style={{
+                      display: "grid",
+                      gridTemplateColumns: "3fr 1fr 1fr 1fr 1fr 1fr 1fr",
+                      gap: "0.5rem",
+                      padding: "1rem",
+                      borderBottom:
+                        index < order.items.length - 1
+                          ? "1px solid #f3f4f6"
+                          : "none",
+                      fontSize: "0.875rem",
+                    }}
+                  >
+                    {/* Product Name & Code */}
+                    <div>
+                      <div
+                        style={{ fontWeight: "600", marginBottom: "0.25rem" }}
+                      >
+                        {item.productName || item.articleCode}
+                      </div>
+                      <div
+                        style={{
+                          fontSize: "0.75rem",
+                          color: "#9ca3af",
+                          marginBottom: "0.25rem",
+                        }}
+                      >
+                        Cod: {item.articleCode}
+                      </div>
+                      {item.description && (
+                        <div style={{ fontSize: "0.75rem", color: "#6b7280" }}>
+                          {item.description}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Quantity */}
+                    <div style={{ textAlign: "right", alignSelf: "center" }}>
+                      {item.quantity}
+                    </div>
+
+                    {/* Unit Price */}
+                    <div style={{ textAlign: "right", alignSelf: "center" }}>
+                      €{item.price.toFixed(2)}
+                    </div>
+
+                    {/* Discount */}
+                    <div
+                      style={{
+                        textAlign: "right",
+                        alignSelf: "center",
+                        color:
+                          item.discount && item.discount > 0
+                            ? "#dc2626"
+                            : "#9ca3af",
+                      }}
+                    >
+                      {item.discount && item.discount > 0
+                        ? `-€${item.discount.toFixed(2)}`
+                        : "—"}
+                    </div>
+
+                    {/* Subtotal */}
+                    <div
+                      style={{
+                        textAlign: "right",
+                        alignSelf: "center",
+                        fontWeight: "500",
+                      }}
+                    >
+                      €{subtotal.toFixed(2)}
+                    </div>
+
+                    {/* VAT */}
+                    <div style={{ textAlign: "right", alignSelf: "center" }}>
+                      <div style={{ fontSize: "0.7rem", color: "#6b7280" }}>
+                        ({item.vat}%)
+                      </div>
+                      <div>€{vatAmount.toFixed(2)}</div>
+                    </div>
+
+                    {/* Total */}
+                    <div
+                      style={{
+                        textAlign: "right",
+                        alignSelf: "center",
+                        fontWeight: "600",
+                        color: "#1e40af",
+                      }}
+                    >
+                      €{total.toFixed(2)}
                     </div>
                   </div>
-                  <div style={{ fontWeight: "500" }}>
-                    €{(item.price * item.quantity).toFixed(2)}
-                  </div>
-                </div>
-              ))}
+                );
+              })}
+
+              {/* Order Totals */}
+              <div
+                style={{
+                  backgroundColor: "#f9fafb",
+                  padding: "1rem",
+                  borderTop: "2px solid #e5e7eb",
+                }}
+              >
+                {/* Calculate totals */}
+                {(() => {
+                  const orderSubtotal = order.items.reduce(
+                    (sum, item) =>
+                      sum + item.price * item.quantity - (item.discount || 0),
+                    0,
+                  );
+                  const orderVAT = order.items.reduce(
+                    (sum, item) =>
+                      sum +
+                      (item.price * item.quantity - (item.discount || 0)) *
+                        (item.vat / 100),
+                    0,
+                  );
+                  const orderTotal = orderSubtotal + orderVAT;
+
+                  return (
+                    <>
+                      <div
+                        style={{
+                          display: "flex",
+                          justifyContent: "space-between",
+                          marginBottom: "0.5rem",
+                          fontSize: "0.875rem",
+                        }}
+                      >
+                        <span style={{ color: "#6b7280" }}>
+                          Subtotale (senza IVA):
+                        </span>
+                        <span style={{ fontWeight: "500" }}>
+                          €{orderSubtotal.toFixed(2)}
+                        </span>
+                      </div>
+                      <div
+                        style={{
+                          display: "flex",
+                          justifyContent: "space-between",
+                          marginBottom: "0.5rem",
+                          fontSize: "0.875rem",
+                        }}
+                      >
+                        <span style={{ color: "#6b7280" }}>IVA Totale:</span>
+                        <span style={{ fontWeight: "500" }}>
+                          €{orderVAT.toFixed(2)}
+                        </span>
+                      </div>
+                      <div
+                        style={{
+                          display: "flex",
+                          justifyContent: "space-between",
+                          paddingTop: "0.75rem",
+                          borderTop: "2px solid #3b82f6",
+                          fontSize: "1.125rem",
+                        }}
+                      >
+                        <span style={{ fontWeight: "700", color: "#1e40af" }}>
+                          TOTALE (con IVA):
+                        </span>
+                        <span style={{ fontWeight: "700", color: "#1e40af" }}>
+                          €{orderTotal.toFixed(2)}
+                        </span>
+                      </div>
+                    </>
+                  );
+                })()}
+              </div>
             </div>
 
             {order.status === "error" && order.errorMessage && (
