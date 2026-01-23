@@ -6,10 +6,10 @@ export function DashboardNav() {
   const links = [
     { path: "/", label: "🏠 Dashboard" },
     { path: "/profile", label: "👤 Profilo" },
-    { path: "/order-form", label: "📝 Nuovo Ordine" },
+    { path: "/order", label: "📝 Nuovo Ordine" },
     { path: "/orders", label: "📦 Ordini" },
     { path: "/drafts", label: "📝 Bozze" },
-    { path: "/pending", label: "📋 Pending" },
+    { path: "/pending-orders", label: "⏳ In Attesa" },
     { path: "/customers", label: "👥 Clienti" },
     { path: "/products", label: "📦 Articoli" },
     { path: "/prezzi-variazioni", label: "📊 Prezzi" },

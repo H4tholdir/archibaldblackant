@@ -9,9 +9,13 @@ import { PinSetupWizard } from "./components/PinSetupWizard";
 import { TargetWizard } from "./components/TargetWizard";
 import { UnlockScreen } from "./components/UnlockScreen";
 import { LiquidLoader } from "./components/LiquidLoader";
-import OrderForm from "./components/OrderForm";
+import OrderFormNew from "./components/OrderForm";
+import OrderFormOld from "./components/OrderForm_OLD_BACKUP";
 import OrderStatus from "./components/OrderStatus";
 import OrdersList from "./components/OrdersList";
+
+// Feature flag for new OrderForm
+const USE_NEW_ORDER_FORM = import.meta.env.VITE_ENABLE_NEW_ORDER_FORM === 'true';
 import SyncBanner from "./components/SyncBanner";
 import { OfflineBanner } from "./components/OfflineBanner";
 import { OfflineSyncBanner } from "./components/OfflineSyncBanner";
@@ -484,7 +488,7 @@ function AppRouter() {
           }
         />
 
-        {/* Order Form route */}
+        {/* Order Form route (OLD - voice-based form) */}
         <Route
           path="/order-form"
           element={
@@ -496,7 +500,7 @@ function AppRouter() {
               <AppHeader />
               <main className="app-main">
                 {view === "form" ? (
-                  <OrderForm
+                  <OrderFormOld
                     token={auth.token!}
                     onOrderCreated={handleOrderCreated}
                     isAdmin={isAdmin}
@@ -517,6 +521,26 @@ function AppRouter() {
               </footer>
 
               {/* Cache sync progress bar */}
+            </div>
+          }
+        />
+
+        {/* New Order Form route (Phase 28.2 rewrite) */}
+        <Route
+          path="/order"
+          element={
+            <div
+              className="app"
+              style={{ marginTop: isOffline ? "64px" : "0" }}
+            >
+              <SyncBanner />
+              <AppHeader />
+              <main className="app-main" style={{ padding: "0" }}>
+                <OrderFormNew />
+              </main>
+              <footer className="app-footer">
+                <p>v1.0.0 • Fresis Team</p>
+              </footer>
             </div>
           }
         />
