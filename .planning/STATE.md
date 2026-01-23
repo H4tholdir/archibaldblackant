@@ -10,11 +10,11 @@ See: .planning/PROJECT.md (updated 2026-01-11)
 ## Current Position
 
 Phase: 28.2 (Rewrite OrderForm with Proper Architecture) - INSERTED
-Plan: 28.2-01 COMPLETE ✅ (Codebase Analysis & Architecture Design)
-Status: 🟢 Planning Complete - Ready for implementation (Plan 28.2-02: Data Layer & Services)
-Last activity: 2026-01-23 — Plan 28.2-01 complete (analysis, architecture design, migration strategy, roadmap)
+Plan: 28.2-02 COMPLETE ✅ (Data Layer & Services - IndexedDB Fix)
+Status: ⚠️ CHECKPOINT - Awaiting verification on formicanera.com (IndexedDB population, sync logs)
+Last activity: 2026-01-23 — Plan 28.2-02 complete (5 services, 50 tests, IndexedDB sync fixed) - PUSHED
 
-Progress: Phase 28.2 Progress (1/6 plans complete)
+Progress: Phase 28.2 Progress (2/6 plans complete)
 
 ## Performance Metrics
 
@@ -679,15 +679,15 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-01-23 (afternoon)
-Stopped at: Plan 28.2-01 complete ✅ (Codebase Analysis & Architecture Design)
-Context file: .planning/phases/28.2-rewrite-orderform-with-proper-architecture/28.2-01-SUMMARY.md
-Next: Execute 28.2-02-PLAN.md (Data Layer & Services - create SyncService to fix empty IndexedDB)
-Resume command: /gsd:execute-plan .planning/phases/28.2-rewrite-orderform-with-proper-architecture/28.2-02-PLAN.md
+Stopped at: Plan 28.2-02 complete ✅ (Data Layer & Services - IndexedDB Fix) - CHECKPOINT
+Context file: .planning/phases/28.2-rewrite-orderform-with-proper-architecture/28.2-02-SUMMARY.md
+Next: Verify IndexedDB population on formicanera.com, then execute 28.2-03-PLAN.md (Customer & Product Selection)
+Resume command: /gsd:execute-plan .planning/phases/28.2-rewrite-orderform-with-proper-architecture/28.2-03-PLAN.md
 
 ### Session 100 (2026-01-23)
-**Command:** /gsd:execute-plan 28.2-01-PLAN.md
-**Outcome:** Plan 28.2-01 complete ✅ — Codebase Analysis & Architecture Design
-**Duration:** Planning session (research type)
+**Command:** /gsd:execute-plan 28.2-01-PLAN.md → 28.2-02-PLAN.md
+**Outcome:** Plans 28.2-01 & 28.2-02 complete ✅
+**Duration:** Planning (28.2-01) + Implementation (28.2-02, ~120 min)
 
 **What Was Analyzed:**
 1. OrderForm.tsx comprehensive analysis (2,705 lines, 40 states, 22 useEffect hooks)
@@ -732,7 +732,31 @@ Resume command: /gsd:execute-plan .planning/phases/28.2-rewrite-orderform-with-p
 - Plan 06: Integration & Testing (Week 4-5)
 - Total: 4-5 weeks implementation + 4 weeks rollout = 9 weeks
 
-**Next:** Execute Plan 28.2-02 (Data Layer & Services - Task 2.1: Create SyncService)
+**Plan 28.2-02 Executed:**
+- CustomerService with cache-first pattern (12 tests) - commit 074471d
+- ProductService with variant selection (18 tests) - commit d1735fb
+- PriceService + OrderService (20 tests) - commit d000fb6
+- **SyncService - CRITICAL FIX** for empty IndexedDB - commit 9e6496e
+- Summary documentation - commit 80f37d6
+
+**Root Cause FIXED:**
+- Problem: IndexedDB completely empty (0 products, 0 customers)
+- Cause: Backend sync saves to SQLite only, frontend had NO code to populate IndexedDB from API
+- Fix: SyncService now calls all service sync methods on app startup if cache empty/stale (>72h)
+
+**Test Coverage:** 50/50 unit tests passing ✅
+- CustomerService: 12/12 ✓
+- ProductService: 18/18 ✓
+- PriceService: 6/6 ✓
+- OrderService: 14/14 ✓
+
+**Commits Pushed:** 7 commits (e0e1a29 through 80f37d6)
+
+**Next:** Verify IndexedDB population on formicanera.com:
+1. Check console logs for sync messages
+2. DevTools → IndexedDB → ArchibaldOfflineDB
+3. Verify customers (~1,500) and products (~5,000) tables populated
+4. Then execute Plan 28.2-03 (Customer & Product Selection Components)
 
 ### Session 95 (2026-01-20)
 **Command:** /gsd:plan-phase 19.1
