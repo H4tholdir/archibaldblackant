@@ -9,7 +9,7 @@ import { PinSetupWizard } from "./components/PinSetupWizard";
 import { TargetWizard } from "./components/TargetWizard";
 import { UnlockScreen } from "./components/UnlockScreen";
 import { LiquidLoader } from "./components/LiquidLoader";
-import OrderFormNew from "./components/OrderForm";
+import OrderFormNew from "./components/OrderFormSimple";
 import SyncBanner from "./components/SyncBanner";
 import { OfflineBanner } from "./components/OfflineBanner";
 import { OfflineSyncBanner } from "./components/OfflineSyncBanner";

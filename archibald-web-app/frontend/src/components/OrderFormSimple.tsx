@@ -1,0 +1,631 @@
+import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { customerService } from '../services/customers.service';
+import { productService } from '../services/products.service';
+import { priceService } from '../services/prices.service';
+import { orderService } from '../services/orders.service';
+import type { Customer, Product } from '../db/schema';
+
+interface OrderItem {
+  id: string;
+  article: string;
+  productName: string;
+  description?: string;
+  quantity: number;
+  unitPrice: number;
+  discount: number; // Sconto in euro
+  subtotal: number; // Prezzo * quantità - sconto
+  vat: number; // IVA 22%
+  total: number; // Subtotal + IVA
+}
+
+export default function OrderFormSimple() {
+  const navigate = useNavigate();
+
+  // Step 1: Customer selection
+  const [customerSearch, setCustomerSearch] = useState('');
+  const [customerResults, setCustomerResults] = useState<Customer[]>([]);
+  const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
+  const [searchingCustomer, setSearchingCustomer] = useState(false);
+
+  // Step 2: Product entry
+  const [productSearch, setProductSearch] = useState('');
+  const [productResults, setProductResults] = useState<Product[]>([]);
+  const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
+  const [searchingProduct, setSearchingProduct] = useState(false);
+  const [quantity, setQuantity] = useState('');
+  const [itemDiscount, setItemDiscount] = useState('0');
+
+  // Step 3: Order items
+  const [items, setItems] = useState<OrderItem[]>([]);
+  const [globalDiscount, setGlobalDiscount] = useState('0');
+  const [targetTotal, setTargetTotal] = useState('');
+
+  // UI state
+  const [submitting, setSubmitting] = useState(false);
+  const [editingItemId, setEditingItemId] = useState<string | null>(null);
+
+  // === CUSTOMER SEARCH ===
+  const handleCustomerSearch = async (query: string) => {
+    setCustomerSearch(query);
+    if (query.length < 2) {
+      setCustomerResults([]);
+      return;
+    }
+
+    setSearchingCustomer(true);
+    try {
+      const results = await customerService.searchCustomers(query);
+      setCustomerResults(results.slice(0, 10));
+    } catch (error) {
+      console.error('Customer search failed:', error);
+    } finally {
+      setSearchingCustomer(false);
+    }
+  };
+
+  const handleSelectCustomer = (customer: Customer) => {
+    setSelectedCustomer(customer);
+    setCustomerSearch(customer.name);
+    setCustomerResults([]);
+  };
+
+  // === PRODUCT SEARCH ===
+  const handleProductSearch = async (query: string) => {
+    setProductSearch(query);
+    if (query.length < 2) {
+      setProductResults([]);
+      return;
+    }
+
+    setSearchingProduct(true);
+    try {
+      const results = await productService.searchProducts(query);
+      setProductResults(results.slice(0, 10));
+    } catch (error) {
+      console.error('Product search failed:', error);
+    } finally {
+      setSearchingProduct(false);
+    }
+  };
+
+  const handleSelectProduct = (product: Product) => {
+    setSelectedProduct(product);
+    setProductSearch(product.name);
+    setProductResults([]);
+  };
+
+  // === ADD ITEM ===
+  const handleAddItem = async () => {
+    if (!selectedProduct) {
+      alert('Seleziona un prodotto');
+      return;
+    }
+
+    const qty = parseInt(quantity, 10);
+    if (isNaN(qty) || qty <= 0) {
+      alert('Inserisci una quantità valida');
+      return;
+    }
+
+    // Get price
+    const price = await priceService.getPriceByArticleId(
+      selectedProduct.article || selectedProduct.id
+    );
+
+    if (!price) {
+      alert('Prezzo non disponibile per questo prodotto');
+      return;
+    }
+
+    const disc = parseFloat(itemDiscount) || 0;
+    const subtotal = price * qty - disc;
+    const vat = subtotal * 0.22;
+    const total = subtotal + vat;
+
+    const newItem: OrderItem = {
+      id: crypto.randomUUID(),
+      article: selectedProduct.article || selectedProduct.id,
+      productName: selectedProduct.name,
+      description: selectedProduct.description,
+      quantity: qty,
+      unitPrice: price,
+      discount: disc,
+      subtotal,
+      vat,
+      total,
+    };
+
+    setItems([...items, newItem]);
+
+    // Reset
+    setSelectedProduct(null);
+    setProductSearch('');
+    setQuantity('');
+    setItemDiscount('0');
+  };
+
+  // === EDIT / DELETE ITEM ===
+  const handleDeleteItem = (id: string) => {
+    setItems(items.filter((item) => item.id !== id));
+  };
+
+  const handleEditItem = (id: string) => {
+    const item = items.find((i) => i.id === id);
+    if (!item) return;
+
+    setEditingItemId(id);
+    setSelectedProduct({
+      id: item.article,
+      name: item.productName,
+      description: item.description,
+      article: item.article,
+    } as Product);
+    setProductSearch(item.productName);
+    setQuantity(item.quantity.toString());
+    setItemDiscount(item.discount.toString());
+
+    // Remove from list
+    setItems(items.filter((i) => i.id !== id));
+  };
+
+  // === CALCULATIONS ===
+  const calculateTotals = () => {
+    const itemsSubtotal = items.reduce((sum, item) => sum + item.subtotal, 0);
+    const itemsVAT = items.reduce((sum, item) => sum + item.vat, 0);
+    const itemsTotal = items.reduce((sum, item) => sum + item.total, 0);
+
+    const globalDisc = parseFloat(globalDiscount) || 0;
+    const finalSubtotal = itemsSubtotal - globalDisc;
+    const finalVAT = finalSubtotal * 0.22;
+    const finalTotal = finalSubtotal + finalVAT;
+
+    return {
+      itemsSubtotal,
+      itemsVAT,
+      itemsTotal,
+      globalDisc,
+      finalSubtotal,
+      finalVAT,
+      finalTotal,
+    };
+  };
+
+  const calculateGlobalDiscountForTarget = () => {
+    if (!targetTotal) return;
+
+    const target = parseFloat(targetTotal);
+    if (isNaN(target) || target <= 0) return;
+
+    const itemsSubtotal = items.reduce((sum, item) => sum + item.subtotal, 0);
+
+    // Target = (Subtotal - GlobalDiscount) * 1.22
+    // Solve for GlobalDiscount:
+    // GlobalDiscount = Subtotal - (Target / 1.22)
+
+    const requiredSubtotal = target / 1.22;
+    const requiredGlobalDiscount = itemsSubtotal - requiredSubtotal;
+
+    if (requiredGlobalDiscount < 0) {
+      alert('Il totale target è troppo alto rispetto al subtotale attuale');
+      return;
+    }
+
+    setGlobalDiscount(requiredGlobalDiscount.toFixed(2));
+    setTargetTotal('');
+  };
+
+  // === SUBMIT ===
+  const handleSubmit = async () => {
+    if (!selectedCustomer) {
+      alert('Seleziona un cliente');
+      return;
+    }
+
+    if (items.length === 0) {
+      alert('Aggiungi almeno un articolo');
+      return;
+    }
+
+    setSubmitting(true);
+
+    try {
+      const totals = calculateTotals();
+
+      await orderService.savePendingOrder({
+        customerId: selectedCustomer.id,
+        customerName: selectedCustomer.name,
+        items: items.map((item) => ({
+          articleCode: item.article,
+          productName: item.productName,
+          description: item.description,
+          quantity: item.quantity,
+          price: item.unitPrice,
+          discount: item.discount,
+        })),
+        discountPercent: undefined,
+        targetTotalWithVAT: totals.finalTotal,
+        createdAt: new Date().toISOString(),
+        status: 'pending' as const,
+        retryCount: 0,
+      });
+
+      alert('Ordine salvato nella coda!');
+      navigate('/pending-orders');
+    } catch (error) {
+      console.error('Failed to save order:', error);
+      alert('Errore durante il salvataggio');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const totals = calculateTotals();
+
+  return (
+    <div style={{ maxWidth: '1000px', margin: '0 auto', padding: '2rem', fontFamily: 'system-ui' }}>
+      <h1 style={{ marginBottom: '2rem', fontSize: '1.75rem' }}>Nuovo Ordine</h1>
+
+      {/* STEP 1: SELECT CUSTOMER */}
+      <div style={{ marginBottom: '2rem', padding: '1.5rem', background: '#f9fafb', borderRadius: '8px' }}>
+        <h2 style={{ fontSize: '1.25rem', marginBottom: '1rem' }}>1. Seleziona Cliente</h2>
+
+        {!selectedCustomer ? (
+          <>
+            <input
+              type="text"
+              value={customerSearch}
+              onChange={(e) => handleCustomerSearch(e.target.value)}
+              placeholder="Cerca cliente per nome..."
+              style={{
+                width: '100%',
+                padding: '0.75rem',
+                fontSize: '1rem',
+                border: '1px solid #d1d5db',
+                borderRadius: '4px',
+                marginBottom: '0.5rem',
+              }}
+            />
+
+            {searchingCustomer && <p style={{ color: '#6b7280' }}>Ricerca...</p>}
+
+            {customerResults.length > 0 && (
+              <div style={{ border: '1px solid #d1d5db', borderRadius: '4px', maxHeight: '200px', overflowY: 'auto', background: 'white' }}>
+                {customerResults.map((customer) => (
+                  <div
+                    key={customer.id}
+                    onClick={() => handleSelectCustomer(customer)}
+                    style={{
+                      padding: '0.75rem',
+                      cursor: 'pointer',
+                      borderBottom: '1px solid #f3f4f6',
+                    }}
+                    onMouseEnter={(e) => (e.currentTarget.style.background = '#f9fafb')}
+                    onMouseLeave={(e) => (e.currentTarget.style.background = 'white')}
+                  >
+                    <strong>{customer.name}</strong>
+                    {customer.code && <span style={{ marginLeft: '0.5rem', color: '#6b7280' }}>({customer.code})</span>}
+                  </div>
+                ))}
+              </div>
+            )}
+          </>
+        ) : (
+          <div style={{ background: '#d1fae5', padding: '1rem', borderRadius: '4px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div>
+              <strong style={{ color: '#065f46' }}>✓ Cliente selezionato:</strong>
+              <p style={{ margin: '0.25rem 0 0 0', fontSize: '1.125rem' }}>{selectedCustomer.name}</p>
+            </div>
+            <button
+              onClick={() => {
+                setSelectedCustomer(null);
+                setCustomerSearch('');
+              }}
+              style={{
+                padding: '0.5rem 1rem',
+                background: 'white',
+                border: '1px solid #065f46',
+                borderRadius: '4px',
+                cursor: 'pointer',
+                color: '#065f46',
+              }}
+            >
+              Cambia
+            </button>
+          </div>
+        )}
+      </div>
+
+      {/* STEP 2: ADD PRODUCTS */}
+      {selectedCustomer && (
+        <div style={{ marginBottom: '2rem', padding: '1.5rem', background: '#f9fafb', borderRadius: '8px' }}>
+          <h2 style={{ fontSize: '1.25rem', marginBottom: '1rem' }}>2. Aggiungi Articoli</h2>
+
+          {/* Product search */}
+          <div style={{ marginBottom: '1rem' }}>
+            <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '500' }}>Nome Articolo</label>
+            <input
+              type="text"
+              value={productSearch}
+              onChange={(e) => handleProductSearch(e.target.value)}
+              placeholder="Cerca articolo..."
+              style={{
+                width: '100%',
+                padding: '0.75rem',
+                fontSize: '1rem',
+                border: '1px solid #d1d5db',
+                borderRadius: '4px',
+              }}
+            />
+
+            {searchingProduct && <p style={{ color: '#6b7280', marginTop: '0.5rem' }}>Ricerca...</p>}
+
+            {productResults.length > 0 && (
+              <div style={{ border: '1px solid #d1d5db', borderRadius: '4px', maxHeight: '200px', overflowY: 'auto', background: 'white', marginTop: '0.5rem' }}>
+                {productResults.map((product) => (
+                  <div
+                    key={product.id}
+                    onClick={() => handleSelectProduct(product)}
+                    style={{
+                      padding: '0.75rem',
+                      cursor: 'pointer',
+                      borderBottom: '1px solid #f3f4f6',
+                    }}
+                    onMouseEnter={(e) => (e.currentTarget.style.background = '#f9fafb')}
+                    onMouseLeave={(e) => (e.currentTarget.style.background = 'white')}
+                  >
+                    <strong>{product.name}</strong>
+                    {product.article && <span style={{ marginLeft: '0.5rem', color: '#6b7280' }}>({product.article})</span>}
+                    {product.description && <p style={{ margin: '0.25rem 0 0 0', fontSize: '0.875rem', color: '#6b7280' }}>{product.description}</p>}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {selectedProduct && (
+            <>
+              <div style={{ padding: '1rem', background: '#dbeafe', borderRadius: '4px', marginBottom: '1rem' }}>
+                <strong>Prodotto selezionato:</strong> {selectedProduct.name}
+                {selectedProduct.article && <span style={{ marginLeft: '0.5rem', color: '#1e40af' }}>({selectedProduct.article})</span>}
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr auto', gap: '1rem', alignItems: 'end' }}>
+                <div>
+                  <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '500' }}>Quantità</label>
+                  <input
+                    type="number"
+                    value={quantity}
+                    onChange={(e) => setQuantity(e.target.value)}
+                    placeholder="Es: 10"
+                    min="1"
+                    style={{
+                      width: '100%',
+                      padding: '0.75rem',
+                      fontSize: '1rem',
+                      border: '1px solid #d1d5db',
+                      borderRadius: '4px',
+                    }}
+                  />
+                </div>
+
+                <div>
+                  <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '500' }}>Sconto (€)</label>
+                  <input
+                    type="number"
+                    value={itemDiscount}
+                    onChange={(e) => setItemDiscount(e.target.value)}
+                    placeholder="0.00"
+                    min="0"
+                    step="0.01"
+                    style={{
+                      width: '100%',
+                      padding: '0.75rem',
+                      fontSize: '1rem',
+                      border: '1px solid #d1d5db',
+                      borderRadius: '4px',
+                    }}
+                  />
+                </div>
+
+                <button
+                  onClick={handleAddItem}
+                  style={{
+                    padding: '0.75rem 1.5rem',
+                    background: '#22c55e',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '4px',
+                    fontSize: '1rem',
+                    fontWeight: '600',
+                    cursor: 'pointer',
+                  }}
+                >
+                  {editingItemId ? 'Aggiorna' : 'Aggiungi'}
+                </button>
+              </div>
+            </>
+          )}
+        </div>
+      )}
+
+      {/* STEP 3: ORDER ITEMS LIST */}
+      {items.length > 0 && (
+        <div style={{ marginBottom: '2rem', padding: '1.5rem', background: '#f9fafb', borderRadius: '8px' }}>
+          <h2 style={{ fontSize: '1.25rem', marginBottom: '1rem' }}>3. Riepilogo Articoli ({items.length})</h2>
+
+          <table style={{ width: '100%', borderCollapse: 'collapse', background: 'white', borderRadius: '4px', overflow: 'hidden' }}>
+            <thead>
+              <tr style={{ background: '#f3f4f6', borderBottom: '2px solid #e5e7eb' }}>
+                <th style={{ padding: '0.75rem', textAlign: 'left', fontWeight: '600' }}>Articolo</th>
+                <th style={{ padding: '0.75rem', textAlign: 'center', fontWeight: '600' }}>Qtà</th>
+                <th style={{ padding: '0.75rem', textAlign: 'right', fontWeight: '600' }}>Prezzo</th>
+                <th style={{ padding: '0.75rem', textAlign: 'right', fontWeight: '600' }}>Sconto</th>
+                <th style={{ padding: '0.75rem', textAlign: 'right', fontWeight: '600' }}>Subtotale</th>
+                <th style={{ padding: '0.75rem', textAlign: 'right', fontWeight: '600' }}>IVA 22%</th>
+                <th style={{ padding: '0.75rem', textAlign: 'right', fontWeight: '600' }}>Totale</th>
+                <th style={{ padding: '0.75rem', textAlign: 'center', fontWeight: '600' }}>Azioni</th>
+              </tr>
+            </thead>
+            <tbody>
+              {items.map((item) => (
+                <tr key={item.id} style={{ borderBottom: '1px solid #f3f4f6' }}>
+                  <td style={{ padding: '0.75rem' }}>
+                    <strong>{item.productName}</strong>
+                    {item.description && <p style={{ margin: '0.25rem 0 0 0', fontSize: '0.875rem', color: '#6b7280' }}>{item.description}</p>}
+                    <span style={{ fontSize: '0.75rem', color: '#9ca3af' }}>{item.article}</span>
+                  </td>
+                  <td style={{ padding: '0.75rem', textAlign: 'center' }}>{item.quantity}</td>
+                  <td style={{ padding: '0.75rem', textAlign: 'right' }}>€{item.unitPrice.toFixed(2)}</td>
+                  <td style={{ padding: '0.75rem', textAlign: 'right', color: item.discount > 0 ? '#dc2626' : '#9ca3af' }}>
+                    {item.discount > 0 ? `-€${item.discount.toFixed(2)}` : '—'}
+                  </td>
+                  <td style={{ padding: '0.75rem', textAlign: 'right' }}>€{item.subtotal.toFixed(2)}</td>
+                  <td style={{ padding: '0.75rem', textAlign: 'right', color: '#6b7280' }}>€{item.vat.toFixed(2)}</td>
+                  <td style={{ padding: '0.75rem', textAlign: 'right', fontWeight: '600' }}>€{item.total.toFixed(2)}</td>
+                  <td style={{ padding: '0.75rem', textAlign: 'center' }}>
+                    <button
+                      onClick={() => handleEditItem(item.id)}
+                      style={{
+                        padding: '0.25rem 0.5rem',
+                        background: '#3b82f6',
+                        color: 'white',
+                        border: 'none',
+                        borderRadius: '4px',
+                        cursor: 'pointer',
+                        marginRight: '0.25rem',
+                      }}
+                    >
+                      ✏️
+                    </button>
+                    <button
+                      onClick={() => handleDeleteItem(item.id)}
+                      style={{
+                        padding: '0.25rem 0.5rem',
+                        background: '#dc2626',
+                        color: 'white',
+                        border: 'none',
+                        borderRadius: '4px',
+                        cursor: 'pointer',
+                      }}
+                    >
+                      🗑️
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+
+          {/* Global Discount & Target Total */}
+          <div style={{ marginTop: '1.5rem', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+            <div>
+              <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '500' }}>Sconto Globale (€)</label>
+              <input
+                type="number"
+                value={globalDiscount}
+                onChange={(e) => setGlobalDiscount(e.target.value)}
+                placeholder="0.00"
+                min="0"
+                step="0.01"
+                style={{
+                  width: '100%',
+                  padding: '0.75rem',
+                  fontSize: '1rem',
+                  border: '1px solid #d1d5db',
+                  borderRadius: '4px',
+                }}
+              />
+            </div>
+
+            <div>
+              <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '500' }}>
+                O inserisci totale desiderato (con IVA)
+              </label>
+              <div style={{ display: 'flex', gap: '0.5rem' }}>
+                <input
+                  type="number"
+                  value={targetTotal}
+                  onChange={(e) => setTargetTotal(e.target.value)}
+                  placeholder="Es: 1000.00"
+                  min="0"
+                  step="0.01"
+                  style={{
+                    flex: 1,
+                    padding: '0.75rem',
+                    fontSize: '1rem',
+                    border: '1px solid #d1d5db',
+                    borderRadius: '4px',
+                  }}
+                />
+                <button
+                  onClick={calculateGlobalDiscountForTarget}
+                  disabled={!targetTotal}
+                  style={{
+                    padding: '0.75rem 1rem',
+                    background: targetTotal ? '#8b5cf6' : '#d1d5db',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '4px',
+                    cursor: targetTotal ? 'pointer' : 'not-allowed',
+                    fontWeight: '600',
+                  }}
+                >
+                  Calcola
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* Totals Summary */}
+          <div style={{ marginTop: '1.5rem', padding: '1.5rem', background: 'white', borderRadius: '8px', border: '2px solid #3b82f6' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
+              <span>Subtotale articoli:</span>
+              <strong>€{totals.itemsSubtotal.toFixed(2)}</strong>
+            </div>
+            {totals.globalDisc > 0 && (
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem', color: '#dc2626' }}>
+                <span>Sconto globale:</span>
+                <strong>-€{totals.globalDisc.toFixed(2)}</strong>
+              </div>
+            )}
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem', paddingTop: '0.5rem', borderTop: '1px solid #e5e7eb' }}>
+              <span>Subtotale (senza IVA):</span>
+              <strong>€{totals.finalSubtotal.toFixed(2)}</strong>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem', color: '#6b7280' }}>
+              <span>IVA 22%:</span>
+              <strong>€{totals.finalVAT.toFixed(2)}</strong>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', paddingTop: '0.5rem', borderTop: '2px solid #3b82f6', fontSize: '1.25rem' }}>
+              <span style={{ fontWeight: '600' }}>TOTALE (con IVA):</span>
+              <strong style={{ color: '#3b82f6' }}>€{totals.finalTotal.toFixed(2)}</strong>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* SUBMIT BUTTON */}
+      {items.length > 0 && (
+        <div style={{ textAlign: 'right' }}>
+          <button
+            onClick={handleSubmit}
+            disabled={submitting}
+            style={{
+              padding: '1rem 2rem',
+              background: submitting ? '#d1d5db' : '#22c55e',
+              color: 'white',
+              border: 'none',
+              borderRadius: '8px',
+              fontSize: '1.125rem',
+              fontWeight: '600',
+              cursor: submitting ? 'not-allowed' : 'pointer',
+            }}
+          >
+            {submitting ? 'Salvataggio...' : 'Salva in Coda Ordini'}
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
