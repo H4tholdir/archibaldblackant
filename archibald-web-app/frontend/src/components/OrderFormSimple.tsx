@@ -310,7 +310,15 @@ export default function OrderFormSimple() {
           });
 
           console.log(
-            `[OrderForm] Variant ${variant.id}: package=${variant.packageContent}, price=${price}, vat=${vat}%`,
+            `[OrderForm] Variant ${variant.id}: package=${variant.packageContent}, price=${price === null ? 'NOT FOUND' : `€${price}`}, vat=${vat}%`,
+          );
+        }
+
+        // Log warning if no prices found
+        const noPricesCount = variantsWithDetails.filter(v => v.price === null).length;
+        if (noPricesCount > 0) {
+          console.warn(
+            `[OrderForm] ${noPricesCount}/${variantsWithDetails.length} variants have no price. Cache may need sync.`
           );
         }
 
@@ -1353,7 +1361,7 @@ export default function OrderFormSimple() {
                       fontWeight: "500",
                     }}
                   >
-                    Sconto Totale (€)
+                    Sconto su Riga (€)
                   </label>
                   <input
                     type="number"
