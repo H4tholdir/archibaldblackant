@@ -14,10 +14,12 @@ import OrderStatus from "./components/OrderStatus";
 import OrdersList from "./components/OrdersList";
 import SyncBanner from "./components/SyncBanner";
 import { OfflineBanner } from "./components/OfflineBanner";
+import { OfflineSyncBanner } from "./components/OfflineSyncBanner";
 import { CacheRefreshButton } from "./components/CacheRefreshButton";
 import { AdminPage } from "./pages/AdminPage";
 import { OrderHistory } from "./pages/OrderHistory";
 import { PendingOrdersView } from "./pages/PendingOrdersView";
+import { PendingOrdersPage } from "./pages/PendingOrdersPage";
 import { DraftOrders } from "./pages/DraftOrders";
 import { CustomerList } from "./pages/CustomerList";
 import { CustomerEdit } from "./pages/CustomerEdit";
@@ -262,6 +264,7 @@ function AppRouter() {
   return (
     <BrowserRouter>
       <OfflineBanner />
+      <OfflineSyncBanner />
       {/* Unified sync progress - temporarily disabled due to SSE errors */}
       {/* <UnifiedSyncProgress mode="banner" /> */}
       {/* <UnifiedSyncProgress mode="badge" /> */}
@@ -353,6 +356,26 @@ function AppRouter() {
               <AppHeader />
               <main className="app-main" style={{ padding: "0" }}>
                 <PendingOrdersView />
+              </main>
+              <footer className="app-footer">
+                <p>v1.0.0 • Fresis Team</p>
+              </footer>
+            </div>
+          }
+        />
+
+        {/* Pending Orders Queue (New) */}
+        <Route
+          path="/pending-orders"
+          element={
+            <div
+              className="app"
+              style={{ marginTop: isOffline ? "64px" : "0" }}
+            >
+              <SyncBanner />
+              <AppHeader />
+              <main className="app-main" style={{ padding: "0" }}>
+                <PendingOrdersPage />
               </main>
               <footer className="app-footer">
                 <p>v1.0.0 • Fresis Team</p>
