@@ -1302,10 +1302,16 @@ app.get("/api/customers", (req: Request, res: Response<ApiResponse>) => {
     const totalCount = customerDb.getCustomerCount();
     const lastSync = customerDb.getLastSyncTime();
 
+    // Map customerProfile → id for frontend compatibility
+    const mappedCustomers = customers.map(c => ({
+      ...c,
+      id: c.customerProfile, // IndexedDB expects 'id' field
+    }));
+
     res.json({
       success: true,
       data: {
-        customers: customers,
+        customers: mappedCustomers,
         total: totalCount,
       },
       message: searchQuery
