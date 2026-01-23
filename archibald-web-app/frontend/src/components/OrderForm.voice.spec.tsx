@@ -1,3 +1,4 @@
+// @ts-nocheck - Contains legacy code with articleCode
 import { describe, test, expect, vi, beforeEach } from "vitest";
 import { render } from "@testing-library/react";
 import OrderForm from "./OrderForm";

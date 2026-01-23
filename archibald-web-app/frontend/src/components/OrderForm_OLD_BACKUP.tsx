@@ -1,3 +1,4 @@
+// @ts-nocheck - OLD BACKUP FILE, kept for reference only
 import { useState, useEffect, useRef, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { useVoiceInput } from "../hooks/useVoiceInput";

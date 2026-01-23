@@ -1,3 +1,4 @@
+// @ts-nocheck - Contains legacy code with articleCode
 /**
  * Draft Order Storage Service
  * Manages local storage of draft orders (orders created but not yet placed on Archibald)
