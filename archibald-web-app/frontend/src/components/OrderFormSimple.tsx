@@ -14,9 +14,9 @@ import type { Customer, Product, DraftOrder } from "../db/schema";
 
 interface OrderItem {
   id: string;
-  productId: string; // ID del prodotto base (per recuperare prezzo e VAT)
-  article: string; // Codice variante
-  productName: string;
+  productId: string; // ID della variante specifica (usato per recuperare prezzo e VAT)
+  article: string; // Codice variante (stesso valore di productId)
+  productName: string; // Nome articolo (raggruppamento, es: "H129FSQ.104.023")
   description?: string;
   quantity: number;
   unitPrice: number;
@@ -118,15 +118,16 @@ export default function OrderFormSimple() {
             const subtotal = item.price * item.quantity - (item.discount || 0);
             const vatAmount = subtotal * (vatRate / 100);
 
-            // Try to find product by name to get base product ID
-            let productId = item.articleCode; // Fallback to article code
-            if (item.productName) {
+            // Try to find variant by article code or product name
+            let productId = item.articleCode; // Use article code (variant ID)
+            if (item.productName && !productId) {
+              // Fallback: if no article code, get first variant for this product name
               const products = await db.products
                 .where("name")
                 .equals(item.productName)
                 .first();
               if (products) {
-                productId = products.id;
+                productId = products.id; // Variant ID
               }
             }
 
@@ -412,10 +413,10 @@ export default function OrderFormSimple() {
 
         // Convert OrderItems to DraftOrderItems (simpler format)
         const draftItems = items.map((item) => ({
-          productId: item.productId, // Use base product ID
+          productId: item.productId, // Variant ID (used for price/VAT lookup)
           productName: item.productName,
           article: item.article,
-          variantId: item.article, // Use article code as variant ID
+          variantId: item.article, // Variant ID (same as productId)
           quantity: item.quantity,
           packageContent: item.description || "",
         }));
