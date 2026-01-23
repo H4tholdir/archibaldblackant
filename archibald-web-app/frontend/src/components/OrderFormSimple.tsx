@@ -50,6 +50,10 @@ export default function OrderFormSimple() {
     useState<PackagingResult | null>(null);
   const [calculatingPackaging, setCalculatingPackaging] = useState(false);
 
+  // Product details preview state
+  const [productPrice, setProductPrice] = useState<number | null>(null);
+  const [productVariantsInfo, setProductVariantsInfo] = useState<string>("");
+
   // Step 3: Order items
   const [items, setItems] = useState<OrderItem[]>([]);
   const [globalDiscountPercent, setGlobalDiscountPercent] = useState("0");
@@ -234,7 +238,47 @@ export default function OrderFormSimple() {
     // Reset quantity and preview when product changes
     setQuantity("");
     setPackagingPreview(null);
+    // Reset product details
+    setProductPrice(null);
+    setProductVariantsInfo("");
   };
+
+  // === LOAD PRODUCT DETAILS ===
+  // Load price, VAT, and variants when product is selected
+  useEffect(() => {
+    const loadProductDetails = async () => {
+      if (!selectedProduct) {
+        return;
+      }
+
+      try {
+        // Load price
+        const price = await priceService.getPriceByArticleId(
+          selectedProduct.id,
+        );
+        setProductPrice(price);
+
+        // Load variants
+        const variants = await db.productVariants
+          .where("productId")
+          .equals(selectedProduct.id)
+          .toArray();
+
+        if (variants.length > 0) {
+          const variantsText = variants
+            .map((v) => `${v.packageContent}`)
+            .join(", ");
+          setProductVariantsInfo(variantsText);
+        } else {
+          setProductVariantsInfo("Nessun confezionamento disponibile");
+        }
+      } catch (error) {
+        console.error("Failed to load product details:", error);
+      }
+    };
+
+    loadProductDetails();
+  }, [selectedProduct]);
 
   // === INTELLIGENT PACKAGING CALCULATION ===
   // Calculate optimal packaging whenever quantity changes
@@ -783,13 +827,101 @@ export default function OrderFormSimple() {
             <>
               <div
                 style={{
-                  padding: "1rem",
+                  padding: "1.25rem",
                   background: "#dbeafe",
-                  borderRadius: "4px",
+                  border: "2px solid #3b82f6",
+                  borderRadius: "8px",
                   marginBottom: "1rem",
                 }}
               >
-                <strong>Prodotto selezionato:</strong> {selectedProduct.name}
+                <div
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "flex-start",
+                    marginBottom: "1rem",
+                  }}
+                >
+                  <div>
+                    <strong style={{ fontSize: "1.125rem", color: "#1e40af" }}>
+                      Prodotto selezionato:
+                    </strong>
+                    <p style={{ margin: "0.25rem 0 0 0", fontSize: "1rem" }}>
+                      {selectedProduct.name}
+                    </p>
+                  </div>
+                </div>
+
+                <div
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: "repeat(3, 1fr)",
+                    gap: "1rem",
+                    padding: "1rem",
+                    background: "#eff6ff",
+                    borderRadius: "6px",
+                  }}
+                >
+                  <div>
+                    <div
+                      style={{
+                        fontSize: "0.75rem",
+                        color: "#6b7280",
+                        marginBottom: "0.25rem",
+                      }}
+                    >
+                      Prezzo unitario
+                    </div>
+                    <div style={{ fontSize: "1.125rem", fontWeight: "600" }}>
+                      {productPrice !== null
+                        ? `€${productPrice.toFixed(2)}`
+                        : "Caricamento..."}
+                    </div>
+                  </div>
+
+                  <div>
+                    <div
+                      style={{
+                        fontSize: "0.75rem",
+                        color: "#6b7280",
+                        marginBottom: "0.25rem",
+                      }}
+                    >
+                      Aliquota IVA
+                    </div>
+                    <div
+                      style={{
+                        fontSize: "1.125rem",
+                        fontWeight: "600",
+                        color: "#059669",
+                      }}
+                    >
+                      {selectedProduct.vat || 22}%
+                    </div>
+                  </div>
+
+                  <div>
+                    <div
+                      style={{
+                        fontSize: "0.75rem",
+                        color: "#6b7280",
+                        marginBottom: "0.25rem",
+                      }}
+                    >
+                      Confezionamenti
+                    </div>
+                    <div
+                      style={{
+                        fontSize: "0.875rem",
+                        fontWeight: "500",
+                        maxHeight: "3rem",
+                        overflowY: "auto",
+                      }}
+                    >
+                      {productVariantsInfo || "Caricamento..."}
+                    </div>
+                  </div>
+                </div>
               </div>
 
               <div
