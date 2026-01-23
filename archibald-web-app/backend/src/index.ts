@@ -2346,11 +2346,10 @@ app.get("/api/prices", (req: Request, res: Response<ApiResponse>) => {
         priceNumber = parseFloat(cleaned) || 0;
       }
 
-      // Combine productId + itemSelection to match frontend's article field
-      // Example: "015640" + "K2" = "015640K2"
-      const articleId = p.itemSelection
-        ? `${p.productId}${p.itemSelection}`
-        : p.productId;
+      // Use itemSelection as articleId (the actual product variant ID)
+      // Note: p.productId is the PDF row number (e.g., "7.547"), not the product ID
+      // p.itemSelection contains the real product ID (e.g., "001569K0")
+      const articleId = p.itemSelection || p.productId;
 
       return {
         articleId: articleId,
