@@ -188,13 +188,13 @@ def parse_orders_pdf(pdf_path: str):
                     )
                     creation_date = parse_italian_datetime(creation_date_raw)
 
-                    # Skip orders without creation_date (required field)
+                    # Validate creation_date - this is a required field
+                    # If parsing fails, log details and raise error for investigation
                     if not creation_date:
-                        print(
-                            f"Warning: Skipping order {order_id} - missing creation_date (raw: '{creation_date_raw}')",
-                            file=sys.stderr,
-                        )
-                        continue
+                        error_msg = f"Missing required field: creation_date for order {order_id} (raw: '{creation_date_raw}')"
+                        print(f"ERROR: {error_msg}", file=sys.stderr)
+                        print(f"DEBUG: Table 2 headers: {tables[2][0] if tables[2] else 'N/A'}", file=sys.stderr)
+                        raise ValueError(error_msg)
 
                     delivery_date_raw = get_column_value(
                         tables[2], row_idx, "DATA DI CONSEGNA"
