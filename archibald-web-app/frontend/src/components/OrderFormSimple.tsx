@@ -20,11 +20,46 @@ interface OrderItem {
   description?: string;
   quantity: number;
   unitPrice: number;
-  vatRate: number; // Aliquota IVA (4, 10, 22, etc.)
+  vatRate: number; // Aliquota IVA (0, 4, 5, 10, 22, etc.)
   discount: number; // Sconto in euro
   subtotal: number; // Prezzo * quantità - sconto
   vat: number; // Importo IVA calcolato
   total: number; // Subtotal + IVA
+}
+
+/**
+ * Normalize VAT rate to valid Italian VAT values
+ * Valid rates: 0, 4, 5, 10, 22 (most common)
+ * Falls back to 22% (ordinary rate) if invalid or undefined
+ */
+function normalizeVatRate(vat: number | null | undefined): number {
+  // If null or undefined, use ordinary rate
+  if (vat === null || vat === undefined) {
+    return 22;
+  }
+
+  // Valid Italian VAT rates (expanded list)
+  const validRates = [0, 4, 5, 10, 22];
+
+  // If exact match, use it
+  if (validRates.includes(vat)) {
+    return vat;
+  }
+
+  // If close to a valid rate (within 0.5%), round to nearest valid rate
+  // This handles floating point precision issues
+  for (const validRate of validRates) {
+    if (Math.abs(vat - validRate) < 0.5) {
+      console.warn(
+        `[OrderForm] VAT rate ${vat} rounded to ${validRate} (close match)`,
+      );
+      return validRate;
+    }
+  }
+
+  // Unknown VAT rate - log warning and use ordinary rate
+  console.warn(`[OrderForm] Unknown VAT rate ${vat}, using ordinary rate 22%`);
+  return 22;
 }
 
 export default function OrderFormSimple() {
@@ -114,7 +149,7 @@ export default function OrderFormSimple() {
         // Convert order items to OrderItem format
         const loadedItems: OrderItem[] = await Promise.all(
           order.items.map(async (item) => {
-            const vatRate = item.vat ?? 22; // Default to 22% if not stored
+            const vatRate = normalizeVatRate(item.vat);
             const subtotal = item.price * item.quantity - (item.discount || 0);
             const vatAmount = subtotal * (vatRate / 100);
 
@@ -300,7 +335,7 @@ export default function OrderFormSimple() {
         for (const variant of allVariants) {
           const priceAndVat = await priceService.getPriceAndVat(variant.id);
           const price = priceAndVat?.price || null;
-          const vat = priceAndVat?.vat ?? 22;
+          const vat = normalizeVatRate(priceAndVat?.vat);
 
           variantsWithDetails.push({
             variantId: variant.id,
@@ -499,7 +534,7 @@ export default function OrderFormSimple() {
 
         if (product && unitPrice !== null) {
           // Get VAT from product (most accurate source)
-          const vatRate = product.vat ?? 22;
+          const vatRate = normalizeVatRate(product.vat);
           const subtotal = unitPrice * draftItem.quantity;
           const vat = subtotal * (vatRate / 100);
 
@@ -601,7 +636,7 @@ export default function OrderFormSimple() {
 
       // Get VAT rate for THIS SPECIFIC variant
       const variantProduct = await db.products.get(variantArticleCode);
-      const vatRate = variantProduct?.vat ?? 22;
+      const vatRate = normalizeVatRate(variantProduct?.vat);
 
       const lineSubtotal = price * pkg.packageCount - discountPerLine;
       const lineVat = lineSubtotal * (vatRate / 100);
