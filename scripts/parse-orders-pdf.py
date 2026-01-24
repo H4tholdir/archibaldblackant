@@ -162,6 +162,11 @@ def parse_orders_pdf(pdf_path: str):
                     )
                     customer_name = get_column_value(tables[0], row_idx, "NOME VENDITE")
 
+                    # Debug logging for problematic rows
+                    if order_id and ("Count=" in str(order_id) or not order_id.replace(".", "").replace("-", "").isdigit()):
+                        print(f"DEBUG: Suspicious order_id '{order_id}' at row {row_idx}, cycle {cycle_start}", file=sys.stderr)
+                        print(f"DEBUG: Table 0 row data: {tables[0][row_idx] if row_idx < len(tables[0]) else 'OUT OF BOUNDS'}", file=sys.stderr)
+
                     # Skip if no internal ID (always required)
                     if not order_id:
                         continue
