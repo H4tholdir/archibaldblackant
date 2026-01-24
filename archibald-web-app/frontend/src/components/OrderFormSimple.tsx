@@ -491,12 +491,16 @@ export default function OrderFormSimple() {
         // Get variant-specific product and price
         // draftItem.article contains the variant ID
         const variantId = draftItem.article;
-        const product = await db.products.get(variantId);
-        const price = await priceService.getPriceByArticleId(variantId);
 
-        if (product && price) {
-          const vatRate = product.vat || 22;
-          const subtotal = price * draftItem.quantity;
+        // Get product to retrieve VAT
+        const product = await db.products.get(variantId);
+        // Get price by articleId (variantId)
+        const unitPrice = await priceService.getPriceByArticleId(variantId);
+
+        if (product && unitPrice !== null) {
+          // Get VAT from product (most accurate source)
+          const vatRate = product.vat ?? 22;
+          const subtotal = unitPrice * draftItem.quantity;
           const vat = subtotal * (vatRate / 100);
 
           recoveredItems.push({
@@ -506,13 +510,18 @@ export default function OrderFormSimple() {
             productName: draftItem.productName,
             description: draftItem.packageContent,
             quantity: draftItem.quantity,
-            unitPrice: price,
+            unitPrice,
             vatRate,
             discount: 0,
             subtotal,
             vat,
             total: subtotal + vat,
           });
+        } else {
+          console.warn(
+            `[OrderForm] Product or price not found for variant ${variantId} during draft recovery`,
+            { product, unitPrice },
+          );
         }
       }
 
