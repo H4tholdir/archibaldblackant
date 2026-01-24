@@ -151,6 +151,20 @@ def parse_orders_pdf(pdf_path: str):
             # Combine rows (row N = same order across all 7 pages)
             num_rows = len(tables[0])
 
+            # DEBUG: Print first 3 data rows from each table for structure analysis
+            if cycle_start == 0:  # Only for first cycle
+                print("\n=== DEBUG: PDF Structure Analysis (First Cycle) ===", file=sys.stderr)
+                for table_idx, table in enumerate(tables):
+                    print(f"\n--- Table {table_idx} (Page {table_idx + 1}/7) ---", file=sys.stderr)
+                    if table and len(table) > 0:
+                        print(f"Headers: {table[0]}", file=sys.stderr)
+                        print(f"Num rows (including header): {len(table)}", file=sys.stderr)
+                        for row_idx in range(1, min(4, len(table))):  # First 3 data rows
+                            print(f"Row {row_idx}: {table[row_idx]}", file=sys.stderr)
+                    else:
+                        print("(Empty table)", file=sys.stderr)
+                print("\n=== End Structure Analysis ===\n", file=sys.stderr)
+
             for row_idx in range(1, num_rows):  # Skip header (row 0)
                 # Extract fields from each page using header matching
                 try:
