@@ -244,7 +244,7 @@ export class SyncOrchestrator extends EventEmitter {
         const userDb = UserDatabase.getInstance();
         usersToSync = userDb.getAllUsers().map(u => u.id);
         logger.info(`[SyncOrchestrator] Per-user sync: will sync ${type} for ${usersToSync.length} users`);
-      } else {
+      } else if (defaultUserId) {
         usersToSync = [defaultUserId];
       }
 
