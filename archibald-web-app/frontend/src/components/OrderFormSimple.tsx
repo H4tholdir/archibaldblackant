@@ -114,7 +114,7 @@ export default function OrderFormSimple() {
         // Convert order items to OrderItem format
         const loadedItems: OrderItem[] = await Promise.all(
           order.items.map(async (item) => {
-            const vatRate = item.vat || 22; // Default to 22% if not stored
+            const vatRate = item.vat ?? 22; // Default to 22% if not stored
             const subtotal = item.price * item.quantity - (item.discount || 0);
             const vatAmount = subtotal * (vatRate / 100);
 
@@ -300,7 +300,7 @@ export default function OrderFormSimple() {
         for (const variant of allVariants) {
           const priceAndVat = await priceService.getPriceAndVat(variant.id);
           const price = priceAndVat?.price || null;
-          const vat = priceAndVat?.vat || 22;
+          const vat = priceAndVat?.vat ?? 22;
 
           variantsWithDetails.push({
             variantId: variant.id,
@@ -601,7 +601,7 @@ export default function OrderFormSimple() {
 
       // Get VAT rate for THIS SPECIFIC variant
       const variantProduct = await db.products.get(variantArticleCode);
-      const vatRate = variantProduct?.vat || 22;
+      const vatRate = variantProduct?.vat ?? 22;
 
       const lineSubtotal = price * pkg.packageCount - discountPerLine;
       const lineVat = lineSubtotal * (vatRate / 100);
