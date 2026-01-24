@@ -6,6 +6,7 @@ import { OrderSyncService } from "./order-sync-service";
 import { DDTSyncService } from "./ddt-sync-service";
 import { InvoiceSyncService } from "./invoice-sync-service";
 import { logger } from "./logger";
+import { UserDatabase } from "./user-db";
 
 export type SyncType =
   | "customers"
@@ -212,8 +213,19 @@ export class SyncOrchestrator extends EventEmitter {
 
     logger.info(`[SyncOrchestrator] Starting ${type} sync`, { userId });
 
-    // Default userId for sync operations
-    const defaultUserId = userId ?? "sync-orchestrator";
+    // Default userId for sync operations: use first admin user if not provided
+    let defaultUserId = userId;
+    if (!defaultUserId) {
+      const userDb = UserDatabase.getInstance();
+      const adminUser = userDb.getAllUsers().find(u => u.role === 'admin');
+      if (adminUser) {
+        defaultUserId = adminUser.id;
+        logger.info(`[SyncOrchestrator] Using admin user ${adminUser.username} (${adminUser.id}) for auto-sync`);
+      } else {
+        defaultUserId = "sync-orchestrator";
+        logger.warn(`[SyncOrchestrator] No admin user found, falling back to 'sync-orchestrator'`);
+      }
+    }
 
     try {
       switch (type) {
