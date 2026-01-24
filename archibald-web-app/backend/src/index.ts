@@ -72,7 +72,6 @@ import { PDFParserInvoicesService } from "./pdf-parser-invoices-service";
 import { OrderSyncService } from "./order-sync-service";
 import { DDTSyncService } from "./ddt-sync-service";
 import { InvoiceSyncService } from "./invoice-sync-service";
-import { InvoicesDatabase } from "./invoices-db";
 import { SyncOrchestrator, type SyncType } from "./sync-orchestrator";
 
 const app = express();
@@ -3810,21 +3809,11 @@ app.get(
                 order.status.toLowerCase().includes("consegnato"),
             );
           } else if (statusLower === "fatturati") {
-            // Filter orders that have invoice mapping
-            // We need to check order_invoice_mapping table
-            const invoicesDb = InvoicesDatabase.getInstance();
-            const invoicedOrderNumbers = new Set<string>();
-
-            // Get all order-invoice mappings
-            const mappings = invoicesDb.getAllMappings();
-            mappings.forEach((mapping) => {
-              invoicedOrderNumbers.add(mapping.orderNumber);
-            });
-
+            // Filter orders that have invoice data in invoice_number column
             filteredOrders = filteredOrders.filter((order) => {
-              // Check if order has orderNumber and it exists in mappings
               return (
-                order.orderNumber && invoicedOrderNumbers.has(order.orderNumber)
+                order.invoiceNumber != null &&
+                order.invoiceNumber.trim() !== ""
               );
             });
           } else {
