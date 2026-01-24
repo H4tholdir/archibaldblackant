@@ -1680,6 +1680,54 @@ app.post(
 );
 
 /**
+ * Trigger manual sync for ALL types (sequentially via orchestrator)
+ * POST /api/sync/all
+ * Priority order handled by orchestrator: orders > customers > ddt > invoices > prices > products
+ *
+ * IMPORTANT: This must be defined BEFORE /api/sync/:type to avoid route conflicts
+ * (otherwise "all" would be interpreted as a :type parameter)
+ */
+app.post(
+  "/api/sync/all",
+  authenticateJWT,
+  async (req: AuthRequest, res: Response) => {
+    try {
+      const userId = req.user?.userId ?? "api-user";
+
+      logger.info("[API] Manual sync ALL requested via orchestrator", {
+        userId,
+      });
+
+      // Queue all syncs via orchestrator (respects priority and mutex)
+      const types = [
+        "orders",
+        "customers",
+        "ddt",
+        "invoices",
+        "prices",
+        "products",
+      ] as const;
+
+      for (const type of types) {
+        syncOrchestrator.requestSync(type, undefined, userId);
+      }
+
+      res.json({
+        success: true,
+        message: "All syncs queued via orchestrator (priority-based execution)",
+        types,
+      });
+    } catch (error: any) {
+      logger.error("[API] Sync ALL request failed", { error });
+      res.status(500).json({
+        success: false,
+        error: error.message,
+      });
+    }
+  },
+);
+
+/**
  * Trigger manual sync for individual type via orchestrator
  * POST /api/sync/:type
  * Queues sync in orchestrator with priority-based execution
@@ -1726,51 +1774,6 @@ app.post(
       });
     } catch (error: any) {
       logger.error(`[API] Sync ${req.params.type} request failed`, { error });
-      res.status(500).json({
-        success: false,
-        error: error.message,
-      });
-    }
-  },
-);
-
-/**
- * Trigger manual sync for ALL types (sequentially via orchestrator)
- * POST /api/sync/all
- * Priority order handled by orchestrator: orders > customers > ddt > invoices > prices > products
- */
-app.post(
-  "/api/sync/all",
-  authenticateJWT,
-  async (req: AuthRequest, res: Response) => {
-    try {
-      const userId = req.user?.userId ?? "api-user";
-
-      logger.info("[API] Manual sync ALL requested via orchestrator", {
-        userId,
-      });
-
-      // Queue all syncs via orchestrator (respects priority and mutex)
-      const types = [
-        "orders",
-        "customers",
-        "ddt",
-        "invoices",
-        "prices",
-        "products",
-      ] as const;
-
-      for (const type of types) {
-        syncOrchestrator.requestSync(type, undefined, userId);
-      }
-
-      res.json({
-        success: true,
-        message: "All syncs queued via orchestrator (priority-based execution)",
-        types,
-      });
-    } catch (error: any) {
-      logger.error("[API] Sync ALL request failed", { error });
       res.status(500).json({
         success: false,
         error: error.message,
