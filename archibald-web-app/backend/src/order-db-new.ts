@@ -307,7 +307,9 @@ export class OrderDatabaseNew {
         `[OrderDatabaseNew] Migration completed: added ${addedCount} columns`,
       );
     } else {
-      logger.info("[OrderDatabaseNew] No migrations needed - schema up to date");
+      logger.info(
+        "[OrderDatabaseNew] No migrations needed - schema up to date",
+      );
     }
 
     // Create indexes for new columns (after migration ensures columns exist)
@@ -373,14 +375,17 @@ export class OrderDatabaseNew {
     const now = Math.floor(Date.now() / 1000);
     const hash = this.computeHash(order);
 
-    // Check if exists
+    // Check if exists by id (PRIMARY KEY) instead of order_number
+    // This handles the case where order_number changes from PENDING-X to ORD/Y
     const existing = this.db
       .prepare(
         `
-      SELECT hash FROM orders WHERE user_id = ? AND order_number = ?
+      SELECT hash, order_number FROM orders WHERE user_id = ? AND id = ?
     `,
       )
-      .get(userId, order.orderNumber) as { hash: string } | undefined;
+      .get(userId, order.id) as
+      | { hash: string; order_number: string }
+      | undefined;
 
     if (!existing) {
       // Insert new order
@@ -428,30 +433,31 @@ export class OrderDatabaseNew {
 
     // Check if changed
     if (existing.hash === hash) {
-      // Unchanged - update only last_sync timestamp
+      // Unchanged - update only last_sync timestamp and order_number (in case it changed from PENDING to ORD)
       this.db
         .prepare(
-          `UPDATE orders SET last_sync = ? WHERE user_id = ? AND order_number = ?`,
+          `UPDATE orders SET last_sync = ?, order_number = ? WHERE user_id = ? AND id = ?`,
         )
-        .run(now, userId, order.orderNumber);
+        .run(now, order.orderNumber, userId, order.id);
       return "skipped";
     }
 
-    // Update changed order
+    // Update changed order (including order_number in case it changed from PENDING to ORD)
     this.db
       .prepare(
         `
       UPDATE orders SET
-        customer_profile_id = ?, customer_name = ?, delivery_name = ?,
+        order_number = ?, customer_profile_id = ?, customer_name = ?, delivery_name = ?,
         delivery_address = ?, creation_date = ?, delivery_date = ?,
         remaining_sales_financial = ?, customer_reference = ?, sales_status = ?,
         order_type = ?, document_status = ?, sales_origin = ?, transfer_status = ?,
         transfer_date = ?, completion_date = ?, discount_percent = ?,
         gross_amount = ?, total_amount = ?, hash = ?, last_sync = ?
-      WHERE user_id = ? AND order_number = ?
+      WHERE user_id = ? AND id = ?
     `,
       )
       .run(
+        order.orderNumber,
         order.customerProfileId,
         order.customerName,
         order.deliveryName,
@@ -473,7 +479,7 @@ export class OrderDatabaseNew {
         hash,
         now,
         userId,
-        order.orderNumber,
+        order.id,
       );
     return "updated";
   }
@@ -727,7 +733,9 @@ export class OrderDatabaseNew {
 
   getOrderById(userId: string, orderId: string): OrderRecord | null {
     const row = this.db
-      .prepare(`SELECT * FROM orders WHERE user_id = ? AND order_number = ? LIMIT 1`)
+      .prepare(
+        `SELECT * FROM orders WHERE user_id = ? AND order_number = ? LIMIT 1`,
+      )
       .get(userId, orderId) as any;
 
     if (!row) {
@@ -965,7 +973,9 @@ export class OrderDatabaseNew {
 
     // Get current state before updating
     const currentOrder = this.db
-      .prepare(`SELECT current_state FROM orders WHERE user_id = ? AND order_number = ?`)
+      .prepare(
+        `SELECT current_state FROM orders WHERE user_id = ? AND order_number = ?`,
+      )
       .get(userId, orderId) as { current_state: string | null } | undefined;
 
     if (!currentOrder) {
