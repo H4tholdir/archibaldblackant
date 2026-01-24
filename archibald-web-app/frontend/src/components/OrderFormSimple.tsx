@@ -298,8 +298,9 @@ export default function OrderFormSimple() {
         const variantsWithDetails: ProductVariantInfo[] = [];
 
         for (const variant of allVariants) {
-          const price = await priceService.getPriceByArticleId(variant.id);
-          const vat = variant.vat || 22;
+          const priceAndVat = await priceService.getPriceAndVat(variant.id);
+          const price = priceAndVat?.price || null;
+          const vat = priceAndVat?.vat || 22;
 
           variantsWithDetails.push({
             variantId: variant.id,
