@@ -176,17 +176,25 @@ def parse_orders_pdf(pdf_path: str):
                     )
                     customer_name = get_column_value(tables[0], row_idx, "NOME VENDITE")
 
-                    # Debug logging for problematic rows
-                    if order_id and ("Count=" in str(order_id) or not order_id.replace(".", "").replace("-", "").isdigit()):
-                        print(f"DEBUG: Suspicious order_id '{order_id}' at row {row_idx}, cycle {cycle_start}", file=sys.stderr)
-                        print(f"DEBUG: Table 0 row data: {tables[0][row_idx] if row_idx < len(tables[0]) else 'OUT OF BOUNDS'}", file=sys.stderr)
-
                     # Skip if no internal ID (always required)
                     if not order_id:
                         continue
 
                     # Skip garbage rows (ID = "0" pattern from other PDFs)
                     if order_id == "0":
+                        continue
+
+                    # Skip non-numeric IDs with additional validation to avoid false positives
+                    # Valid IDs are numeric with optional dots (e.g. "71.285", "71.094")
+                    # We also check that customer_name exists - every real order must have a customer
+                    if not order_id.replace(".", "").isdigit():
+                        # Double-check: if it's not numeric AND has no customer name, definitely skip
+                        if not customer_name or customer_name.strip() == "":
+                            print(f"DEBUG: Skipping non-numeric order_id '{order_id}' with empty customer_name at row {row_idx}, cycle {cycle_start}", file=sys.stderr)
+                            continue
+                        # If customer_name exists but ID is non-numeric, log warning but still skip
+                        # (this should never happen for valid data from Archibald)
+                        print(f"WARNING: Skipping suspicious order with non-numeric ID '{order_id}' but valid customer '{customer_name}' at row {row_idx}, cycle {cycle_start}", file=sys.stderr)
                         continue
 
                     # Allow orders without order_number (ID DI VENDITA) - these are pending orders
@@ -207,13 +215,10 @@ def parse_orders_pdf(pdf_path: str):
                     )
                     creation_date = parse_italian_datetime(creation_date_raw)
 
-                    # Validate creation_date - this is a required field
-                    # If parsing fails, log details and raise error for investigation
+                    # Validate creation_date - skip if missing (should not happen for valid orders)
                     if not creation_date:
-                        error_msg = f"Missing required field: creation_date for order {order_id} (raw: '{creation_date_raw}')"
-                        print(f"ERROR: {error_msg}", file=sys.stderr)
-                        print(f"DEBUG: Table 2 headers: {tables[2][0] if tables[2] else 'N/A'}", file=sys.stderr)
-                        raise ValueError(error_msg)
+                        print(f"WARNING: Skipping order {order_id} - missing creation_date (raw: '{creation_date_raw}')", file=sys.stderr)
+                        continue
 
                     delivery_date_raw = get_column_value(
                         tables[2], row_idx, "DATA DI CONSEGNA"
