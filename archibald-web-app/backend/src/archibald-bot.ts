@@ -1889,9 +1889,10 @@ export class ArchibaldBot {
         name: item.articleCode,
         qty: item.quantity,
       })),
-      slowdownConfig: Object.keys(this.slowdownConfig).length > 0
-        ? this.slowdownConfig
-        : "default (200ms)",
+      slowdownConfig:
+        Object.keys(this.slowdownConfig).length > 0
+          ? this.slowdownConfig
+          : "default (200ms)",
     });
 
     let orderId = "";
@@ -2708,7 +2709,9 @@ export class ArchibaldBot {
             const resultsAppeared = await this.page!.evaluate(() => {
               // Look for DevExpress dropdown/listbox containers
               const dropdowns = Array.from(
-                document.querySelectorAll('[class*="dxeListBox"], [class*="DDD"]'),
+                document.querySelectorAll(
+                  '[class*="dxeListBox"], [class*="DDD"]',
+                ),
               );
               for (const dropdown of dropdowns) {
                 if ((dropdown as HTMLElement).offsetParent === null) continue;
@@ -6467,6 +6470,163 @@ export class ArchibaldBot {
   }
 
   /**
+   * Ensures the orders filter is set to "Tutti gli ordini" (All orders)
+   * @param page Page object to use
+   */
+  private async ensureOrdersFilterSetToAll(page: Page): Promise<void> {
+    logger.info("[ArchibaldBot] Checking orders filter setting...");
+
+    try {
+      // Check if filter is visible or hidden in responsive menu
+      const filterVisibility = await page.evaluate(() => {
+        const input = document.querySelector(
+          'input[name="Vertical$mainMenu$Menu$ITCNT8$xaf_a1$Cb"]',
+        ) as HTMLInputElement;
+        const showHiddenButton = document.querySelector(
+          "#Vertical_mainMenu_Menu_DXI9_T",
+        ) as HTMLElement;
+
+        if (!input) {
+          return {
+            found: false,
+            isVisible: false,
+            hasShowHiddenButton: !!showHiddenButton,
+          };
+        }
+
+        // Check if input is visible by checking offsetParent
+        const isVisible = input.offsetParent !== null;
+
+        return {
+          found: true,
+          isVisible,
+          hasShowHiddenButton: !!showHiddenButton,
+          currentValue: input.value,
+        };
+      });
+
+      logger.info("[ArchibaldBot] Filter visibility check:", filterVisibility);
+
+      // If filter is hidden, click "Show hidden items" button first
+      if (
+        filterVisibility.found &&
+        !filterVisibility.isVisible &&
+        filterVisibility.hasShowHiddenButton
+      ) {
+        logger.info(
+          "[ArchibaldBot] Filter is hidden, clicking 'Show hidden items' button...",
+        );
+
+        await page.evaluate(() => {
+          const showHiddenButton = document.querySelector(
+            "#Vertical_mainMenu_Menu_DXI9_T",
+          ) as HTMLElement;
+          if (showHiddenButton) {
+            showHiddenButton.click();
+          }
+        });
+
+        logger.info(
+          "[ArchibaldBot] 'Show hidden items' clicked, waiting for menu...",
+        );
+        await new Promise((resolve) => setTimeout(resolve, 500));
+      }
+
+      // Wait for the filter dropdown to be present (now it should be visible)
+      await page.waitForSelector(
+        'input[name="Vertical$mainMenu$Menu$ITCNT8$xaf_a1$Cb"]',
+        { timeout: 5000 },
+      );
+
+      // Check current filter value
+      const currentFilterValue = await page.evaluate(() => {
+        const input = document.querySelector(
+          'input[name="Vertical$mainMenu$Menu$ITCNT8$xaf_a1$Cb"]',
+        ) as HTMLInputElement;
+        return input ? input.value : null;
+      });
+
+      logger.info("[ArchibaldBot] Current filter value:", {
+        currentFilterValue,
+      });
+
+      // If already set to "Tutti gli ordini", no action needed
+      if (currentFilterValue === "Tutti gli ordini") {
+        logger.info(
+          "[ArchibaldBot] Filter already set to 'Tutti gli ordini', no action needed",
+        );
+        return;
+      }
+
+      logger.info(
+        "[ArchibaldBot] Filter not set to 'Tutti gli ordini', changing filter...",
+      );
+
+      // Click the dropdown button to open the list
+      await page.evaluate(() => {
+        const dropdownButton = document.querySelector(
+          "#Vertical_mainMenu_Menu_ITCNT8_xaf_a1_Cb_B-1",
+        ) as HTMLElement;
+        if (dropdownButton) {
+          dropdownButton.click();
+        }
+      });
+
+      logger.info("[ArchibaldBot] Dropdown opened, waiting for list...");
+      await new Promise((resolve) => setTimeout(resolve, 500));
+
+      // Wait for the "Tutti gli ordini" option to appear
+      await page.waitForSelector(
+        "#Vertical_mainMenu_Menu_ITCNT8_xaf_a1_Cb_DDD_L_LBI0T0",
+        { timeout: 5000 },
+      );
+
+      // Click on "Tutti gli ordini" option
+      await page.evaluate(() => {
+        const allOrdersOption = document.querySelector(
+          "#Vertical_mainMenu_Menu_ITCNT8_xaf_a1_Cb_DDD_L_LBI0T0",
+        ) as HTMLElement;
+        if (allOrdersOption) {
+          allOrdersOption.click();
+        }
+      });
+
+      logger.info(
+        "[ArchibaldBot] 'Tutti gli ordini' option clicked, waiting for page update...",
+      );
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+
+      // Verify the filter was changed
+      const newFilterValue = await page.evaluate(() => {
+        const input = document.querySelector(
+          'input[name="Vertical$mainMenu$Menu$ITCNT8$xaf_a1$Cb"]',
+        ) as HTMLInputElement;
+        return input ? input.value : null;
+      });
+
+      logger.info("[ArchibaldBot] Filter change verification:", {
+        newFilterValue,
+        success: newFilterValue === "Tutti gli ordini",
+      });
+
+      if (newFilterValue !== "Tutti gli ordini") {
+        logger.warn(
+          "[ArchibaldBot] Filter change verification failed, but continuing anyway",
+        );
+      }
+    } catch (error) {
+      logger.error("[ArchibaldBot] Error while ensuring filter is set:", {
+        error: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : undefined,
+      });
+      // Don't throw - we'll try to continue with the current filter
+      logger.warn(
+        "[ArchibaldBot] Continuing with current filter despite error",
+      );
+    }
+  }
+
+  /**
    * Download orders PDF export from Archibald
    * @param context Browser context to use
    * @returns Path to downloaded PDF file in /tmp
@@ -6495,6 +6655,9 @@ export class ArchibaldBot {
       // Wait for dynamic content to load
       await new Promise((resolve) => setTimeout(resolve, 2000));
       await new Promise((resolve) => setTimeout(resolve, 200));
+
+      // 1.5. Ensure filter is set to "Tutti gli ordini"
+      await this.ensureOrdersFilterSetToAll(page);
 
       // 2. Setup download handling
       const timestamp = Date.now();
@@ -6654,7 +6817,10 @@ export class ArchibaldBot {
         ) as HTMLElement;
 
         if (!hiddenMenuButton) {
-          return { success: false, error: "Show hidden items button not found" };
+          return {
+            success: false,
+            error: "Show hidden items button not found",
+          };
         }
 
         hiddenMenuButton.click();
@@ -6664,7 +6830,9 @@ export class ArchibaldBot {
       let clickResult: any;
 
       if (showHiddenResult.success) {
-        logger.info("[ArchibaldBot] Responsive menu opened, waiting for submenu...");
+        logger.info(
+          "[ArchibaldBot] Responsive menu opened, waiting for submenu...",
+        );
         await new Promise((resolve) => setTimeout(resolve, 500));
 
         // Try to click DXI7 button from responsive menu
@@ -6674,7 +6842,10 @@ export class ArchibaldBot {
           ) as HTMLElement;
 
           if (!button) {
-            return { success: false, error: "DXI7 button not found in responsive menu" };
+            return {
+              success: false,
+              error: "DXI7 button not found in responsive menu",
+            };
           }
 
           button.click();
@@ -6682,7 +6853,9 @@ export class ArchibaldBot {
         });
 
         if (clickResult.success) {
-          logger.info("[ArchibaldBot] PDF export clicked via responsive menu (DXI7)");
+          logger.info(
+            "[ArchibaldBot] PDF export clicked via responsive menu (DXI7)",
+          );
         }
       } else {
         clickResult = { success: false };
@@ -6708,15 +6881,20 @@ export class ArchibaldBot {
         });
 
         if (!clickResult.success) {
-          logger.error("[ArchibaldBot] Both methods failed to click PDF export button", {
-            error: clickResult.error,
-          });
+          logger.error(
+            "[ArchibaldBot] Both methods failed to click PDF export button",
+            {
+              error: clickResult.error,
+            },
+          );
           throw new Error(
             `Failed to click PDF export button: ${clickResult.error}`,
           );
         }
 
-        logger.info("[ArchibaldBot] PDF export clicked via direct button (DXI3)");
+        logger.info(
+          "[ArchibaldBot] PDF export clicked via direct button (DXI3)",
+        );
       }
 
       logger.info(
@@ -6878,7 +7056,9 @@ export class ArchibaldBot {
 
           if (pdfFiles.length > 0) {
             const recentPdf =
-              pdfFiles.find((f: string) => f === "Documenti di trasporto.pdf") ||
+              pdfFiles.find(
+                (f: string) => f === "Documenti di trasporto.pdf",
+              ) ||
               pdfFiles.find(
                 (f: string) =>
                   f === "Giornale di registrazione bolla di consegna.pdf",
