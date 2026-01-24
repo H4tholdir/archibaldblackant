@@ -188,6 +188,14 @@ def parse_orders_pdf(pdf_path: str):
                     )
                     creation_date = parse_italian_datetime(creation_date_raw)
 
+                    # Skip orders without creation_date (required field)
+                    if not creation_date:
+                        print(
+                            f"Warning: Skipping order {order_id} - missing creation_date (raw: '{creation_date_raw}')",
+                            file=sys.stderr,
+                        )
+                        continue
+
                     delivery_date_raw = get_column_value(
                         tables[2], row_idx, "DATA DI CONSEGNA"
                     )
