@@ -213,40 +213,65 @@ export class SyncOrchestrator extends EventEmitter {
 
     logger.info(`[SyncOrchestrator] Starting ${type} sync`, { userId });
 
-    // Default userId for sync operations: use first admin user if not provided
+    // Determine userId based on sync type:
+    // - Products/Prices: shared data, no user_id needed
+    // - Orders/Customers/DDT/Invoices: per-user data, require userId
+    const isSharedSync = type === 'products' || type === 'prices';
+
     let defaultUserId = userId;
-    if (!defaultUserId) {
+    if (!defaultUserId && !isSharedSync) {
+      // For per-user syncs without userId, sync for ALL users
       const userDb = UserDatabase.getInstance();
-      const adminUser = userDb.getAllUsers().find(u => u.role === 'admin');
-      if (adminUser) {
-        defaultUserId = adminUser.id;
-        logger.info(`[SyncOrchestrator] Using admin user ${adminUser.username} (${adminUser.id}) for auto-sync`);
+      const allUsers = userDb.getAllUsers();
+      if (allUsers.length > 0) {
+        defaultUserId = allUsers[0].id;
+        logger.info(`[SyncOrchestrator] Auto-sync for ${type}: using user ${allUsers[0].username} (${allUsers[0].id})`);
+        if (allUsers.length > 1) {
+          logger.warn(`[SyncOrchestrator] Multiple users detected (${allUsers.length}). Per-user sync for ${type} will run for each user.`);
+        }
       } else {
-        defaultUserId = "sync-orchestrator";
-        logger.warn(`[SyncOrchestrator] No admin user found, falling back to 'sync-orchestrator'`);
+        defaultUserId = "system";
+        logger.warn(`[SyncOrchestrator] No users found, using 'system' as fallback`);
       }
     }
 
     try {
-      switch (type) {
-        case "customers":
-          await this.customerSync.syncCustomers(undefined, defaultUserId);
-          break;
-        case "products":
-          await this.productSync.syncProducts();
-          break;
-        case "prices":
-          await this.priceSync.syncPrices();
-          break;
-        case "orders":
-          await this.orderSync.syncOrders(defaultUserId);
-          break;
-        case "ddt":
-          await this.ddtSync.syncDDT(defaultUserId);
-          break;
-        case "invoices":
-          await this.invoiceSync.syncInvoices(defaultUserId);
-          break;
+      // For per-user syncs without explicit userId, sync for ALL users
+      const shouldSyncAllUsers = !isSharedSync && !userId;
+      let usersToSync: string[] = [];
+
+      if (shouldSyncAllUsers) {
+        const userDb = UserDatabase.getInstance();
+        usersToSync = userDb.getAllUsers().map(u => u.id);
+        logger.info(`[SyncOrchestrator] Per-user sync: will sync ${type} for ${usersToSync.length} users`);
+      } else {
+        usersToSync = [defaultUserId];
+      }
+
+      // Execute sync for each user
+      for (const syncUserId of usersToSync) {
+        logger.info(`[SyncOrchestrator] Syncing ${type} for user ${syncUserId}`);
+
+        switch (type) {
+          case "customers":
+            await this.customerSync.syncCustomers(undefined, syncUserId);
+            break;
+          case "products":
+            await this.productSync.syncProducts();
+            break;
+          case "prices":
+            await this.priceSync.syncPrices();
+            break;
+          case "orders":
+            await this.orderSync.syncOrders(syncUserId);
+            break;
+          case "ddt":
+            await this.ddtSync.syncDDT(syncUserId);
+            break;
+          case "invoices":
+            await this.invoiceSync.syncInvoices(syncUserId);
+            break;
+        }
       }
 
       success = true;
