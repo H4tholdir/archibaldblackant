@@ -532,7 +532,7 @@ export class ProductDatabase {
       const query = `%${normalizedQuery}%`;
 
       stmt = this.db.prepare(`
-        SELECT id, name, description, groupCode, searchName, priceUnit, productGroupId, productGroupDescription, packageContent, minQty, multipleQty, maxQty, price, hash, lastSync
+        SELECT id, name, description, groupCode, searchName, priceUnit, productGroupId, productGroupDescription, packageContent, minQty, multipleQty, maxQty, price, priceSource, priceUpdatedAt, vat, vatSource, vatUpdatedAt, hash, lastSync
         FROM products
         WHERE REPLACE(REPLACE(REPLACE(LOWER(name), '.', ''), ' ', ''), '-', '') LIKE ?
            OR REPLACE(REPLACE(REPLACE(LOWER(id), '.', ''), ' ', ''), '-', '') LIKE ?
@@ -545,7 +545,7 @@ export class ProductDatabase {
     }
 
     stmt = this.db.prepare(`
-      SELECT id, name, description, groupCode, searchName, priceUnit, productGroupId, productGroupDescription, packageContent, minQty, multipleQty, maxQty, price, hash, lastSync
+      SELECT id, name, description, groupCode, searchName, priceUnit, productGroupId, productGroupDescription, packageContent, minQty, multipleQty, maxQty, price, priceSource, priceUpdatedAt, vat, vatSource, vatUpdatedAt, hash, lastSync
       FROM products
       ORDER BY name ASC
     `);
@@ -774,7 +774,7 @@ export class ProductDatabase {
     const allProducts = this.db
       .prepare(
         `
-      SELECT id, name, description, groupCode, searchName, priceUnit, productGroupId, productGroupDescription, packageContent, minQty, multipleQty, maxQty, price, hash, lastSync
+      SELECT id, name, description, groupCode, searchName, priceUnit, productGroupId, productGroupDescription, packageContent, minQty, multipleQty, maxQty, price, priceSource, priceUpdatedAt, vat, vatSource, vatUpdatedAt, hash, lastSync
       FROM products
       ORDER BY name ASC
     `,
