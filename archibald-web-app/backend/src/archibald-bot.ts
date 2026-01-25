@@ -2728,9 +2728,8 @@ export class ArchibaldBot {
             await this.wait(150);
 
             // Prefer direct typing in the article field (DevExpress auto-opens dropdown)
-            await inventtableInput.click({ clickCount: 3 });
-            await this.page!.keyboard.press("Backspace");
-            await this.page!.keyboard.type(searchQuery, { delay: 20 });
+            await this.pasteText(inventtableInput, searchQuery);
+            await this.wait(300);
 
             let dropdownHasRows = false;
             try {
