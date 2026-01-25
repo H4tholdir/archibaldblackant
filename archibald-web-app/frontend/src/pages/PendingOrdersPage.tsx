@@ -56,6 +56,11 @@ export function PendingOrdersPage() {
     setSubmitting(true);
 
     try {
+      const token = localStorage.getItem("archibald_jwt");
+      if (!token) {
+        throw new Error("Token non trovato, rifare login");
+      }
+
       const selectedOrders = orders.filter((o) => selectedOrderIds.has(o.id!));
 
       const ordersToSubmit = selectedOrders.map((order) => ({
@@ -75,7 +80,10 @@ export function PendingOrdersPage() {
 
       const response = await fetch("/api/bot/submit-orders", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
         body: JSON.stringify({
           orders: ordersToSubmit,
         }),
