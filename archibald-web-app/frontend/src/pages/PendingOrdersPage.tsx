@@ -473,8 +473,12 @@ export function PendingOrdersPage() {
               {order.items.map((item, index) => {
                 const subtotal =
                   item.price * item.quantity - (item.discount || 0);
-                const vatAmount = subtotal * (item.vat / 100);
-                const total = subtotal + vatAmount;
+                // Apply global discount if present
+                const subtotalAfterGlobal = order.discountPercent
+                  ? subtotal * (1 - order.discountPercent / 100)
+                  : subtotal;
+                const vatAmount = subtotalAfterGlobal * (item.vat / 100);
+                const total = subtotalAfterGlobal + vatAmount;
 
                 return (
                   <div
@@ -589,14 +593,23 @@ export function PendingOrdersPage() {
                       sum + item.price * item.quantity - (item.discount || 0),
                     0,
                   );
-                  const orderVAT = order.items.reduce(
-                    (sum, item) =>
-                      sum +
-                      (item.price * item.quantity - (item.discount || 0)) *
-                        (item.vat / 100),
-                    0,
-                  );
-                  const orderTotal = orderSubtotal + orderVAT;
+
+                  // Apply global discount if present
+                  const globalDiscountAmount = order.discountPercent
+                    ? (orderSubtotal * order.discountPercent) / 100
+                    : 0;
+                  const subtotalAfterGlobalDiscount =
+                    orderSubtotal - globalDiscountAmount;
+
+                  const orderVAT = order.items.reduce((sum, item) => {
+                    const itemSubtotal =
+                      item.price * item.quantity - (item.discount || 0);
+                    const itemAfterGlobalDiscount = order.discountPercent
+                      ? itemSubtotal * (1 - order.discountPercent / 100)
+                      : itemSubtotal;
+                    return sum + itemAfterGlobalDiscount * (item.vat / 100);
+                  }, 0);
+                  const orderTotal = subtotalAfterGlobalDiscount + orderVAT;
 
                   return (
                     <>
@@ -615,6 +628,46 @@ export function PendingOrdersPage() {
                           €{orderSubtotal.toFixed(2)}
                         </span>
                       </div>
+
+                      {/* Show global discount if present */}
+                      {order.discountPercent && order.discountPercent > 0 && (
+                        <>
+                          <div
+                            style={{
+                              display: "flex",
+                              justifyContent: "space-between",
+                              marginBottom: "0.5rem",
+                              fontSize: "0.875rem",
+                            }}
+                          >
+                            <span style={{ color: "#dc2626" }}>
+                              Sconto globale ({order.discountPercent.toFixed(2)}
+                              %):
+                            </span>
+                            <span
+                              style={{ fontWeight: "500", color: "#dc2626" }}
+                            >
+                              -€{globalDiscountAmount.toFixed(2)}
+                            </span>
+                          </div>
+                          <div
+                            style={{
+                              display: "flex",
+                              justifyContent: "space-between",
+                              marginBottom: "0.5rem",
+                              fontSize: "0.875rem",
+                            }}
+                          >
+                            <span style={{ color: "#6b7280" }}>
+                              Subtotale scontato:
+                            </span>
+                            <span style={{ fontWeight: "500" }}>
+                              €{subtotalAfterGlobalDiscount.toFixed(2)}
+                            </span>
+                          </div>
+                        </>
+                      )}
+
                       <div
                         style={{
                           display: "flex",
