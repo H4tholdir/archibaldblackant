@@ -2965,6 +2965,31 @@ export class ArchibaldBot {
                     ) || null;
 
                   const rowsRoot = activeContainer || document;
+                  const headerRow =
+                    rowsRoot.querySelector("tr.dxgvHeaderRow") ||
+                    rowsRoot.querySelector('tr[class*="dxgvHeaderRow"]');
+                  const headerCells = headerRow
+                    ? Array.from(headerRow.querySelectorAll("td, th"))
+                    : [];
+
+                  let contentIndex = -1;
+                  let packIndex = -1;
+                  for (let idx = 0; idx < headerCells.length; idx++) {
+                    const text =
+                      headerCells[idx].textContent?.trim().toLowerCase() || "";
+                    if (
+                      contentIndex === -1 &&
+                      (text.includes("conten") || text.includes("contenuto"))
+                    ) {
+                      contentIndex = idx;
+                    }
+                    if (
+                      packIndex === -1 &&
+                      (text.includes("pacco") || text.includes("pacc"))
+                    ) {
+                      packIndex = idx;
+                    }
+                  }
                   const rows = Array.from(
                     rowsRoot.querySelectorAll('tr[class*="dxgvDataRow"]'),
                   ).filter(
@@ -2990,25 +3015,56 @@ export class ArchibaldBot {
                         ? rowText.includes(variantIdText)
                         : false;
 
-                      const suffixMatch = cellTexts.some((text) => {
-                        const normalized = text.toLowerCase();
-                        return (
-                          normalized === suffix ||
-                          normalized.endsWith(suffix)
-                        );
-                      });
+                      let suffixMatch = false;
+                      let packageMatch = false;
 
-                      const packageMatch = cellTexts.some((text) => {
+                      if (packIndex >= 0 && packIndex < cellTexts.length) {
+                        const normalized = cellTexts[packIndex]
+                          .toLowerCase()
+                          .trim();
+                        suffixMatch =
+                          normalized === suffix || normalized.endsWith(suffix);
+                      } else {
+                        suffixMatch = cellTexts.some((text) => {
+                          const normalized = text.toLowerCase();
+                          return (
+                            normalized === suffix ||
+                            normalized.endsWith(suffix)
+                          );
+                        });
+                      }
+
+                      if (
+                        contentIndex >= 0 &&
+                        contentIndex < cellTexts.length
+                      ) {
+                        const text = cellTexts[contentIndex];
                         const cleaned = text
                           .replace(/\s/g, "")
                           .replace(",", ".")
                           .match(/-?\d+(?:\.\d+)?/);
-                        if (!cleaned) return false;
-                        const num = Number.parseFloat(cleaned[0]);
-                        if (!Number.isFinite(num)) return false;
-                        if (!Number.isFinite(packageNum)) return false;
-                        return Math.abs(num - packageNum) < 0.01;
-                      });
+                        if (cleaned) {
+                          const num = Number.parseFloat(cleaned[0]);
+                          if (
+                            Number.isFinite(num) &&
+                            Number.isFinite(packageNum)
+                          ) {
+                            packageMatch = Math.abs(num - packageNum) < 0.01;
+                          }
+                        }
+                      } else {
+                        packageMatch = cellTexts.some((text) => {
+                          const cleaned = text
+                            .replace(/\s/g, "")
+                            .replace(",", ".")
+                            .match(/-?\d+(?:\.\d+)?/);
+                          if (!cleaned) return false;
+                          const num = Number.parseFloat(cleaned[0]);
+                          if (!Number.isFinite(num)) return false;
+                          if (!Number.isFinite(packageNum)) return false;
+                          return Math.abs(num - packageNum) < 0.01;
+                        });
+                      }
 
                       return {
                         index,
@@ -3017,6 +3073,16 @@ export class ArchibaldBot {
                         fullIdMatch,
                         suffixMatch,
                         packageMatch,
+                        contentIndex,
+                        packIndex,
+                        contentValue:
+                          contentIndex >= 0 && contentIndex < cellTexts.length
+                            ? cellTexts[contentIndex]
+                            : "",
+                        packValue:
+                          packIndex >= 0 && packIndex < cellTexts.length
+                            ? cellTexts[packIndex]
+                            : "",
                       };
                     })
                     .filter((entry) => entry.cells.length >= 4);
@@ -3061,6 +3127,10 @@ export class ArchibaldBot {
                               : "single-row",
                       rowIndex: chosen.index,
                       rowsCount: rows.length,
+                      contentIndex: chosen.contentIndex,
+                      packIndex: chosen.packIndex,
+                      contentValue: chosen.contentValue,
+                      packValue: chosen.packValue,
                     };
                   }
 
@@ -3078,6 +3148,10 @@ export class ArchibaldBot {
                   reason: selection.reason,
                   rowIndex: selection.rowIndex,
                   rowsCount: selection.rowsCount,
+                  contentIndex: selection.contentIndex,
+                  packIndex: selection.packIndex,
+                  contentValue: selection.contentValue,
+                  packValue: selection.packValue,
                   variantSuffix,
                   packageContent: selectedVariant.packageContent,
                 });
@@ -3309,6 +3383,16 @@ export class ArchibaldBot {
           `order.item.${i}.set_quantity`,
           async () => {
             const selectedVariant = (item as any)._selectedVariant;
+
+            // SMART OPTIMIZATION: If quantity == multipleQty, DevExpress auto-fills correctly
+            // Skip manual editing for exact package matches (1 for pack=1, 5 for pack=5, etc.)
+            if (item.quantity === selectedVariant.multipleQty) {
+              logger.info(
+                `⚡ Quantity ${item.quantity} matches multipleQty - skipping edit (auto-filled by DevExpress)`,
+              );
+              await this.wait(500); // Let DevExpress stabilize
+              return;
+            }
 
             logger.debug(
               `Setting quantity: ${item.quantity} (multipleQty: ${selectedVariant.multipleQty})`,
