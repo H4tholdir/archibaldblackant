@@ -219,9 +219,17 @@ export class QueueManager {
 
         // Per gli ordini, usa il bot con BrowserPool (fast login)
         // IMPORTANTE: Passa userId per usare password cache e sessione condivisa
-        logger.info("⚡ Creazione bot con BrowserPool per ordine...");
+        const useExBot =
+          process.env.ARCHIBALD_USE_EX_BOT === "true" ||
+          process.env.ARCHIBALD_USE_EX_BOT === "1";
+        const botModulePath = useExBot
+          ? "./ex_archibald-bot"
+          : "./archibald-bot";
+        logger.info("⚡ Creazione bot con BrowserPool per ordine...", {
+          bot: useExBot ? "ex_archibald-bot" : "archibald-bot",
+        });
 
-        const { ArchibaldBot } = await import("./archibald-bot");
+        const { ArchibaldBot } = await import(botModulePath);
 
         // Create bot with userId to use password cache and per-user sessions
         bot = new ArchibaldBot(userId);

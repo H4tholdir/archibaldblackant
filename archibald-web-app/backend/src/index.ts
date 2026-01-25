@@ -4507,7 +4507,13 @@ app.post(
           },
         );
 
-        const { ArchibaldBot } = await import("./archibald-bot");
+        const useExBot =
+          process.env.ARCHIBALD_USE_EX_BOT === "true" ||
+          process.env.ARCHIBALD_USE_EX_BOT === "1";
+        const botModulePath = useExBot
+          ? "./ex_archibald-bot"
+          : "./archibald-bot";
+        const { ArchibaldBot } = await import(botModulePath);
 
         // Create bot with userId to use password cache and per-user sessions
         bot = new ArchibaldBot(userId);
@@ -4520,6 +4526,7 @@ app.post(
           {
             userId,
             customerName,
+            bot: useExBot ? "ex_archibald-bot" : "archibald-bot",
           },
         );
 
