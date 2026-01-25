@@ -4498,9 +4498,9 @@ app.post(
       let bot: any = null;
 
       try {
-        // Create order using bot with dedicated browser (same logic as queue-manager)
+        // Create order using bot with BrowserPool (same logic as queue-manager)
         logger.info(
-          `[DraftPlace] Creating bot with dedicated browser for order`,
+          `[DraftPlace] Creating bot with BrowserPool for order`,
           {
             userId,
             customerName,
@@ -4512,11 +4512,11 @@ app.post(
         // Create bot with userId to use password cache and per-user sessions
         bot = new ArchibaldBot(userId);
 
-        // Initialize dedicated browser and login
-        await bot.initializeDedicatedBrowser();
+        // Initialize via BrowserPool (fast login + cached context)
+        await bot.initialize();
 
         logger.info(
-          `[DraftPlace] Bot initialized, creating order on Archibald`,
+          `[DraftPlace] Bot initialized via BrowserPool, creating order on Archibald`,
           {
             userId,
             customerName,

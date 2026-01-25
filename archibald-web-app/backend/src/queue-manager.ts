@@ -217,25 +217,23 @@ export class QueueManager {
         // Pulizia browser zombie prima di crearne uno nuovo
         await this.cleanupZombieBrowsers();
 
-        // Per gli ordini, usa il bot con browser dedicato (non BrowserPool)
-        // IMPORTANTE: Passa userId per usare password cache, ma il bot creerà browser dedicato
-        logger.info("🔧 Creazione bot con browser dedicato per ordine...");
+        // Per gli ordini, usa il bot con BrowserPool (fast login)
+        // IMPORTANTE: Passa userId per usare password cache e sessione condivisa
+        logger.info("⚡ Creazione bot con BrowserPool per ordine...");
 
         const { ArchibaldBot } = await import("./archibald-bot");
 
         // Create bot with userId to use password cache and per-user sessions
-        // The bot will use BrowserPool by default, but we'll force dedicated browser
         bot = new ArchibaldBot(userId);
 
-        // WORKAROUND: Force bot to use dedicated browser instead of BrowserPool
-        // by initializing browser directly before calling initialize()
-        await bot.initializeDedicatedBrowser();
+        // Initialize via BrowserPool (fast login + cached context)
+        await bot.initialize();
 
         logger.info(
-          `🔐 Using dedicated browser for user ${username} (${userId})`,
+          `🔐 Using BrowserPool context for user ${username} (${userId})`,
         );
 
-        // Bot already logged in during initializeDedicatedBrowser()
+        // Bot already logged in during initialize()
         // No need to call login() again
 
         // Aggiorna progress
