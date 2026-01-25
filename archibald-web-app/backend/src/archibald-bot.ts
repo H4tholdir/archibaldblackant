@@ -3310,16 +3310,6 @@ export class ArchibaldBot {
           async () => {
             const selectedVariant = (item as any)._selectedVariant;
 
-            // SMART OPTIMIZATION: If quantity == multipleQty, DevExpress auto-fills correctly
-            // Skip manual editing for exact package matches (1 for pack=1, 5 for pack=5, etc.)
-            if (item.quantity === selectedVariant.multipleQty) {
-              logger.info(
-                `⚡ Quantity ${item.quantity} matches multipleQty - skipping edit (auto-filled by DevExpress)`,
-              );
-              await this.wait(500); // Let DevExpress stabilize
-              return;
-            }
-
             logger.debug(
               `Setting quantity: ${item.quantity} (multipleQty: ${selectedVariant.multipleQty})`,
             );
@@ -3351,6 +3341,23 @@ export class ArchibaldBot {
           `order.item.${i}.click_update`,
           async () => {
             logger.debug('Clicking "Update" button (floppy icon)...');
+
+            const rowCountInfo = await this.page!.evaluate(() => {
+              const dataRows = Array.from(
+                document.querySelectorAll('tr[class*="dxgvDataRow"]'),
+              ).filter(
+                (row) => (row as HTMLElement).offsetParent !== null,
+              );
+              const editRows = Array.from(
+                document.querySelectorAll('tr[id*="editnew"]'),
+              ).filter(
+                (row) => (row as HTMLElement).offsetParent !== null,
+              );
+              return {
+                dataRowCount: dataRows.length,
+                hasEditRow: editRows.length > 0,
+              };
+            });
 
             // DevExpress Update button pattern:
             // <a data-args="[['UpdateEdit'],1]" with <img title="Update" src="Action_Save">
@@ -3486,6 +3493,29 @@ export class ArchibaldBot {
             }
 
             logger.info(`✅ Line item ${i + 1} saved`);
+
+            if (rowCountInfo.hasEditRow) {
+              try {
+                await this.page!.waitForFunction(
+                  (previousCount) => {
+                    const dataRows = Array.from(
+                      document.querySelectorAll('tr[class*="dxgvDataRow"]'),
+                    ).filter(
+                      (row) => (row as HTMLElement).offsetParent !== null,
+                    );
+                    return dataRows.length >= previousCount + 1;
+                  },
+                  { timeout: 4000, polling: 100 },
+                  rowCountInfo.dataRowCount,
+                );
+                logger.debug("✅ Line item row count increased after update");
+              } catch {
+                throw new Error(
+                  "Line item update did not produce a new data row",
+                );
+              }
+            }
+
             await this.waitForDevExpressReady({ timeout: 3000 });
 
             // Slowdown after update button
@@ -3858,6 +3888,41 @@ export class ArchibaldBot {
                     i.id.toLowerCase().includes("sconto"),
                 );
 
+              const labelCandidates = Array.from(
+                document.querySelectorAll("label, td, span, div"),
+              );
+              const labelMatch = labelCandidates.find((el) => {
+                const text = el.textContent?.trim().toLowerCase() || "";
+                if (!text) return false;
+                if (!text.includes("sconto")) return false;
+                return text.includes("globale") || text.includes("totale");
+              });
+
+              if (labelMatch) {
+                const container =
+                  labelMatch.closest("tr") ||
+                  labelMatch.parentElement ||
+                  labelMatch;
+                if (container) {
+                  const input = container.querySelector(
+                    'input[type="text"]',
+                  ) as HTMLInputElement | null;
+                  if (
+                    input &&
+                    input.offsetParent !== null &&
+                    !input.readOnly &&
+                    !input.id.toLowerCase().includes("salesline")
+                  ) {
+                    return {
+                      found: true,
+                      id: input.id,
+                      currentValue: input.value,
+                      debug: allInputIds,
+                    };
+                  }
+                }
+              }
+
               // Search for MANUALDISCOUNT field
               const manualDiscountInput = inputs.find((input) => {
                 const id = input.id.toLowerCase();
@@ -3932,6 +3997,62 @@ export class ArchibaldBot {
             await this.page!.keyboard.press("Tab");
 
             await this.wait(1000); // Wait for Archibald to recalculate order totals
+
+            const readDiscountValue = async (): Promise<string> => {
+              return this.page!.evaluate((fieldId) => {
+                const input = document.getElementById(
+                  fieldId,
+                ) as HTMLInputElement | null;
+                return input?.value ?? "";
+              }, discountFieldInfo.id);
+            };
+
+            const expectedValue = orderData.discountPercent!;
+            let currentValue = await readDiscountValue();
+            let parsedValue = Number.parseFloat(
+              currentValue.replace(",", "."),
+            );
+
+            const valueMatches =
+              Number.isFinite(parsedValue) &&
+              Math.abs(parsedValue - expectedValue) < 0.01;
+
+            if (!valueMatches) {
+              logger.warn("Global discount value mismatch after typing", {
+                expected: expectedValue,
+                actual: currentValue,
+              });
+
+              const discountFallback = discountFormatted;
+              await this.page!.evaluate((fieldId, value) => {
+                const input = document.getElementById(
+                  fieldId,
+                ) as HTMLInputElement | null;
+                if (!input) return;
+                input.focus();
+                input.value = value;
+                input.dispatchEvent(new Event("input", { bubbles: true }));
+                input.dispatchEvent(new Event("change", { bubbles: true }));
+              }, discountFieldInfo.id, discountFallback);
+
+              await this.page!.keyboard.press("Tab");
+              await this.wait(500);
+
+              currentValue = await readDiscountValue();
+              parsedValue = Number.parseFloat(
+                currentValue.replace(",", "."),
+              );
+
+              const fallbackMatches =
+                Number.isFinite(parsedValue) &&
+                Math.abs(parsedValue - expectedValue) < 0.01;
+
+              if (!fallbackMatches) {
+                throw new Error(
+                  `Global discount not applied (expected ${expectedValue}, got "${currentValue}")`,
+                );
+              }
+            }
 
             logger.info(
               `✅ Global discount applied: ${orderData.discountPercent}%`,
