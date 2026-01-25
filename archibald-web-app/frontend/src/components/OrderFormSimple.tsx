@@ -529,12 +529,13 @@ export default function OrderFormSimple() {
 
         // Get product to retrieve VAT
         const product = await db.products.get(variantId);
-        // Get price by articleId (variantId)
+        // Get price by articleId (variantId) - this is price per piece
         const unitPrice = await priceService.getPriceByArticleId(variantId);
 
         if (product && unitPrice !== null) {
           // Get VAT from product (most accurate source)
           const vatRate = normalizeVatRate(product.vat);
+
           const subtotal = unitPrice * draftItem.quantity;
           const vat = subtotal * (vatRate / 100);
 
@@ -638,7 +639,7 @@ export default function OrderFormSimple() {
       const variantProduct = await db.products.get(variantArticleCode);
       const vatRate = normalizeVatRate(variantProduct?.vat);
 
-      const lineSubtotal = price * pkg.packageCount - discountPerLine;
+      const lineSubtotal = price * pkg.totalPieces - discountPerLine;
       const lineVat = lineSubtotal * (vatRate / 100);
       const lineTotal = lineSubtotal + lineVat;
 
@@ -648,7 +649,7 @@ export default function OrderFormSimple() {
         article: variantArticleCode,
         productName: selectedProduct.name,
         description: selectedProduct.description || "",
-        quantity: pkg.packageCount,
+        quantity: pkg.totalPieces,
         unitPrice: price,
         vatRate,
         discount: discountPerLine,
