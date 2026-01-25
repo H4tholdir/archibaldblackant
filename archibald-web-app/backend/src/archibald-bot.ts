@@ -4035,7 +4035,7 @@ export class ArchibaldBot {
               };
             });
 
-            if (!discountFieldInfo.found) {
+            if (!discountFieldInfo.found || !discountFieldInfo.id) {
               logger.warn("Global discount field (MANUALDISCOUNT) not found", {
                 debugInputs: discountFieldInfo.debug,
               });
@@ -4049,9 +4049,11 @@ export class ArchibaldBot {
               },
             );
 
+            const discountFieldId = discountFieldInfo.id;
+
             // Double-click strategy (same as quantity fields)
             const discountInput = await this.page!.$(
-              `#${discountFieldInfo.id}`,
+              `#${discountFieldId}`,
             );
             if (!discountInput) {
               throw new Error("Discount input element not found");
@@ -4087,7 +4089,7 @@ export class ArchibaldBot {
                   fieldId,
                 ) as HTMLInputElement | null;
                 return input?.value ?? "";
-              }, discountFieldInfo.id);
+              }, discountFieldId);
             };
 
             const expectedValue = orderData.discountPercent!;
@@ -4116,7 +4118,7 @@ export class ArchibaldBot {
                 input.value = value;
                 input.dispatchEvent(new Event("input", { bubbles: true }));
                 input.dispatchEvent(new Event("change", { bubbles: true }));
-              }, discountFieldInfo.id, discountFallback);
+              }, discountFieldId, discountFallback);
 
               await this.page!.keyboard.press("Tab");
               await this.wait(500);
