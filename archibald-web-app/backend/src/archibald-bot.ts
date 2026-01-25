@@ -1898,33 +1898,82 @@ export class ArchibaldBot {
     let orderId = "";
 
     try {
-      // STEP 1: Click "Ordini" in left menu
+      // STEP 1: Go to Orders list (direct URL first, then menu fallback)
       await this.runOp(
         "order.menu.ordini",
         async () => {
+          const ordersUrl = `${config.archibald.url}/SALESTABLE_ListView_Agent/`;
+          const waitForOrdersList = async (timeoutMs = 10000) => {
+            await this.page!.waitForFunction(
+              () => {
+                const elements = Array.from(
+                  document.querySelectorAll("span, button, a"),
+                );
+                return elements.some(
+                  (el) => el.textContent?.trim().toLowerCase() === "nuovo",
+                );
+              },
+              { timeout: timeoutMs },
+            );
+          };
+
+          if (!this.page!.url().includes("SALESTABLE_ListView_Agent")) {
+            try {
+              logger.debug("Navigating to orders list via direct URL...");
+              await this.page!.goto(ordersUrl, {
+                waitUntil: "domcontentloaded",
+                timeout: 30000,
+              });
+              await waitForOrdersList();
+              await this.wait(this.getSlowdown("click_ordini"));
+              logger.info("✅ Navigated to orders list via direct URL");
+              return;
+            } catch (error) {
+              logger.warn(
+                "Direct navigation to orders list failed, falling back to menu",
+                {
+                  error:
+                    error instanceof Error ? error.message : String(error),
+                },
+              );
+            }
+          }
+
           logger.debug('Clicking "Ordini" menu item...');
 
-          const clicked = await this.clickElementByText("Ordini", {
-            exact: true,
-            selectors: ["a", "span", "div", "td"],
-          });
+          let clicked = false;
+
+          try {
+            await this.page!.waitForSelector(
+              'a[href*="/Archibald/SALESTABLE_ListView_Agent/"]',
+              { timeout: 6000 },
+            );
+            clicked = await this.page!.evaluate(() => {
+              const link = document.querySelector(
+                'a[href*="/Archibald/SALESTABLE_ListView_Agent/"]',
+              ) as HTMLElement | null;
+              if (!link) return false;
+              link.click();
+              return true;
+            });
+          } catch (error) {
+            logger.debug("Orders link by href not found, using text fallback", {
+              error: error instanceof Error ? error.message : String(error),
+            });
+          }
+
+          if (!clicked) {
+            clicked = await this.clickElementByText("Ordini", {
+              exact: true,
+              selectors: ["a", "span", "div", "td"],
+            });
+          }
 
           if (!clicked) {
             throw new Error('Menu "Ordini" not found');
           }
 
-          // Wait for orders list page
-          await this.page!.waitForFunction(
-            () => {
-              const elements = Array.from(
-                document.querySelectorAll("span, button, a"),
-              );
-              return elements.some(
-                (el) => el.textContent?.trim().toLowerCase() === "nuovo",
-              );
-            },
-            { timeout: 5000 },
-          );
+          await waitForOrdersList();
 
           // Slowdown after navigation
           await this.wait(this.getSlowdown("click_ordini"));
