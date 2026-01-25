@@ -2654,13 +2654,10 @@ export class ArchibaldBot {
         await this.runOp(
           `order.item.${i}.search_article_dropdown`,
           async () => {
-            const searchQuery =
-              item.productName?.trim() || item.articleCode;
-
-            if (!item.productName) {
-              logger.warn(
-                "Missing productName for dropdown search, using articleCode fallback",
-                { articleCode: item.articleCode },
+            const searchQuery = item.productName?.trim();
+            if (!searchQuery) {
+              throw new Error(
+                `Product name is required for article search (articleCode: ${item.articleCode})`,
               );
             }
 
@@ -2760,66 +2757,57 @@ export class ArchibaldBot {
               throw new Error("Dropdown articolo non trovato");
             }
 
-            const searchSelectors = [
-              `#${inventtableBaseId}_DDD_gv_DXSE_I`,
-              `[id*="${inventtableBaseId}_DDD_gv_DXSE_I"]`,
-              'input[placeholder*="Enter text to search"]',
-              'input[placeholder*="enter text to search"]',
-              'input[id$="_DXSE_I"]',
-              'input[id*="_DXSE_I"]',
-            ];
+            const popupContainer =
+              (await this.page!.$(`#${inventtableBaseId}_DDD`)) ||
+              (await this.page!.$(`[id*="${inventtableBaseId}_DDD"]`)) ||
+              (await this.page!.$('[id*="INVENTTABLE_Edit_DDD"]')) ||
+              null;
 
-            let searchInput: ElementHandle<Element> | null = null;
-            for (const selector of searchSelectors) {
-              try {
-                await this.page!.waitForSelector(selector, {
-                  visible: true,
-                  timeout: 800,
-                });
-                const input = await this.page!.$(selector);
-                if (!input) continue;
-                const box = await input.boundingBox();
-                if (!box) continue;
-                searchInput = input;
-                break;
-              } catch {
-                // try next selector
-              }
+            if (popupContainer) {
+              await popupContainer.evaluate((el) => {
+                el.scrollIntoView({ block: "center", inline: "center" });
+              });
             }
 
+            const searchHandle = await this.page!.waitForFunction(
+              () => {
+                const candidates = Array.from(
+                  document.querySelectorAll(
+                    'input[id*="INVENTTABLE_Edit_DDD_gv_DXSE_I"], input[id*="_DDD_gv_DXSE_I"], input[id*="_DXSE_I"], input[placeholder*="Enter text to search"], input[placeholder*="enter text to search"]',
+                  ),
+                );
+
+                return (
+                  candidates.find((el) => {
+                    const input = el as HTMLInputElement;
+                    if (input.disabled) return false;
+                    if ((input as HTMLElement).offsetParent === null)
+                      return false;
+
+                    const placeholder = (input.placeholder || "").toLowerCase();
+                    const value = (input.value || "").toLowerCase();
+                    const id = (input.id || "").toLowerCase();
+
+                    return (
+                      id.includes("dxse") ||
+                      placeholder.includes("enter text") ||
+                      value.includes("enter text")
+                    );
+                  }) || null
+                );
+              },
+              { timeout: 3000, polling: 100 },
+            );
+
+            const searchInput = searchHandle.asElement();
             if (!searchInput) {
               throw new Error("Barra ricerca articolo non trovata");
             }
 
-            const inputSelector = await searchInput.evaluate((el: Element) => {
-              const input = el as HTMLInputElement;
-              if (input.id) return `#${input.id}`;
-              if (input.placeholder)
-                return `input[placeholder="${input.placeholder}"]`;
-              return null;
-            });
+            await searchInput.click({ clickCount: 3 });
+            await this.page!.keyboard.press("Backspace");
 
-            if (inputSelector) {
-              await this.page!.evaluate(
-                (selector: string, value: string) => {
-                  const input = document.querySelector(
-                    selector,
-                  ) as HTMLInputElement | null;
-                  if (input) {
-                    input.value = value;
-                    input.focus();
-                    input.dispatchEvent(new Event("input", { bubbles: true }));
-                    input.dispatchEvent(new Event("change", { bubbles: true }));
-                  }
-                },
-                inputSelector,
-                searchQuery,
-              );
-            } else {
-              await searchInput.click();
-              await this.pasteText(searchInput, searchQuery);
-            }
-
+            await this.pasteText(searchInput, searchQuery);
             await this.page!.keyboard.press("Enter");
 
             try {
