@@ -4507,12 +4507,7 @@ app.post(
           },
         );
 
-        const useExBot =
-          process.env.ARCHIBALD_USE_EX_BOT === "true" ||
-          process.env.ARCHIBALD_USE_EX_BOT === "1";
-        const botModulePath = useExBot
-          ? "./ex_archibald-bot"
-          : "./archibald-bot";
+        const botModulePath = "./archibald-bot";
         const { ArchibaldBot } = await import(botModulePath);
 
         // Create bot with userId to use password cache and per-user sessions
@@ -4526,7 +4521,7 @@ app.post(
           {
             userId,
             customerName,
-            bot: useExBot ? "ex_archibald-bot" : "archibald-bot",
+            bot: "archibald-bot",
           },
         );
 
@@ -4539,18 +4534,10 @@ app.post(
           targetTotalWithVAT,
         };
 
-        const useLegacyOrderFlow =
-          process.env.ARCHIBALD_USE_LEGACY_ORDER_FLOW === "true" ||
-          process.env.ARCHIBALD_USE_LEGACY_ORDER_FLOW === "1";
-
-        logger.info(
-          `[DraftPlace] Order flow: ${useLegacyOrderFlow ? "legacy" : "current"}`,
-        );
+        logger.info(`[DraftPlace] Order flow: current`);
 
         const orderId = await priorityManager.withPriority(async () => {
-          return useLegacyOrderFlow
-            ? await bot.createOrderOLD_BACKUP(orderData)
-            : await bot.createOrder(orderData);
+          return await bot.createOrder(orderData);
         });
 
         logger.info(`[DraftPlace] Order created successfully on Archibald`, {

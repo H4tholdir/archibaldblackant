@@ -2285,67 +2285,10 @@ export class ArchibaldBot {
           await this.page!.keyboard.press("Enter");
           logger.debug("Pressed Enter, checking for filtered results...");
 
-          // OPT-12: Immediate check for filtered results
-          let stableRowCount = 0;
+          let selectionMode: string | null = null;
           try {
-            // First: Immediate synchronous check (results might already be visible)
-            stableRowCount = await this.page!.evaluate(() => {
-              const rows = Array.from(
-                document.querySelectorAll('tr[class*="dxgvDataRow"]'),
-              );
-              const visibleRows = rows.filter((row) => {
-                const el = row as HTMLElement;
-                return (
-                  el.offsetParent !== null &&
-                  el.getBoundingClientRect().height > 0
-                );
-              });
-              return visibleRows.length;
-            });
-
-            // OPT-15: If no rows found immediately, wait and click in one operation
-            if (stableRowCount === 0) {
-              logger.debug(
-                "Results not ready, waiting and will click immediately...",
-              );
-              const clicked = (await this.page!.waitForFunction(
-                () => {
-                  const rows = Array.from(
-                    document.querySelectorAll('tr[class*="dxgvDataRow"]'),
-                  );
-                  const visibleRows = rows.filter((row) => {
-                    const el = row as HTMLElement;
-                    return (
-                      el.offsetParent !== null &&
-                      el.getBoundingClientRect().height > 0
-                    );
-                  });
-
-                  if (visibleRows.length > 0) {
-                    // Click immediately when first row appears
-                    const firstRow = visibleRows[0] as HTMLElement;
-                    const firstCell = firstRow.querySelector(
-                      "td",
-                    ) as HTMLElement;
-                    const clickTarget = firstCell || firstRow;
-                    clickTarget.click();
-                    return true;
-                  }
-                  return false;
-                },
-                { timeout: 2000, polling: "mutation" },
-              ).then((result) => result.jsonValue())) as boolean;
-
-              if (!clicked) {
-                throw new Error("Failed to click customer row");
-              }
-              logger.debug(`✓ Results appeared and clicked immediately`);
-            } else {
-              // Results already visible, click directly
-              logger.debug(
-                `✓ Results found immediately: ${stableRowCount} row(s), clicking now...`,
-              );
-              const clickResult = await this.page!.evaluate(() => {
+            selectionMode = (await this.page!.waitForFunction(
+              (customerName) => {
                 const rows = Array.from(
                   document.querySelectorAll('tr[class*="dxgvDataRow"]'),
                 );
@@ -2358,39 +2301,78 @@ export class ArchibaldBot {
                 });
 
                 if (visibleRows.length === 0) {
-                  return false;
+                  return null;
                 }
 
-                const firstRow = visibleRows[0] as HTMLElement;
-                const firstCell = firstRow.querySelector("td") as HTMLElement;
-                const clickTarget = firstCell || firstRow;
-                clickTarget.click();
-                return true;
-              });
+                const normalized = customerName.trim().toLowerCase();
+                const exactRow = visibleRows.find((row) => {
+                  const cells = Array.from(row.querySelectorAll("td"));
+                  return cells.some((cell) => {
+                    const text = cell.textContent?.trim().toLowerCase() || "";
+                    return text === normalized;
+                  });
+                });
 
-              if (!clickResult) {
-                throw new Error(
-                  `No customer results found for: ${orderData.customerName}`,
-                );
-              }
-            }
+                const targetRow =
+                  exactRow || (visibleRows.length === 1 ? visibleRows[0] : null);
 
-            logger.debug("✓ Customer selected");
-          } catch (err) {
-            logger.warn("Row click failed, attempting fallback...");
-            // Fallback: try Puppeteer handle click
-            const rows = await this.page!.$$('tr[class*="dxgvDataRow"]');
-            if (rows.length > 0) {
-              const firstCell = await rows[0].$("td");
-              const clickTarget = firstCell || rows[0];
-              await clickTarget.click();
-              logger.debug("✓ Customer selected via fallback");
-            } else {
-              throw new Error(
-                `No customer results found for: ${orderData.customerName}`,
-              );
-            }
+                if (!targetRow) {
+                  return null;
+                }
+
+                const firstCell = targetRow.querySelector("td");
+                const clickTarget = firstCell || targetRow;
+                (clickTarget as HTMLElement).click();
+                return exactRow ? "exact" : "single";
+              },
+              { timeout: 2000, polling: "mutation" },
+              orderData.customerName,
+            ).then((result) => result.jsonValue())) as string | null;
+          } catch {
+            selectionMode = null;
           }
+
+          if (!selectionMode) {
+            const debugInfo = await this.page!.evaluate((customerName) => {
+              const rows = Array.from(
+                document.querySelectorAll('tr[class*="dxgvDataRow"]'),
+              );
+              const visibleRows = rows.filter((row) => {
+                const el = row as HTMLElement;
+                return (
+                  el.offsetParent !== null &&
+                  el.getBoundingClientRect().height > 0
+                );
+              });
+              const normalized = customerName.trim().toLowerCase();
+              const candidates = visibleRows.slice(0, 5).map((row) => {
+                const cells = Array.from(row.querySelectorAll("td"));
+                const texts = cells
+                  .map((cell) => cell.textContent?.trim() || "")
+                  .filter(Boolean);
+                return {
+                  text: texts[0] || row.textContent?.trim() || "",
+                  exactMatch: texts.some(
+                    (text) => text.toLowerCase() === normalized,
+                  ),
+                };
+              });
+              return {
+                rowCount: visibleRows.length,
+                candidates,
+              };
+            }, orderData.customerName);
+
+            logger.error("Customer selection failed", {
+              customerName: orderData.customerName,
+              debugInfo,
+            });
+            throw new Error(
+              `No matching customer row for: ${orderData.customerName}`,
+            );
+          }
+
+          logger.debug(`✓ Customer selected (${selectionMode})`);
 
           // OPT-05: Event-driven wait for dropdown to close and customer data to load
           // Instead of fixed wait, check for dropdown disappearance and line items grid readiness
@@ -2419,6 +2401,36 @@ export class ArchibaldBot {
 
           logger.info(`✅ Customer selected: ${orderData.customerName}`);
           await this.waitForDevExpressReady({ timeout: 3000 });
+
+          try {
+            await this.page!.waitForFunction(
+              () => {
+                const addNewLinks = Array.from(
+                  document.querySelectorAll('a[data-args*="AddNew"]'),
+                ).filter(
+                  (el) => (el as HTMLElement).offsetParent !== null,
+                );
+                if (addNewLinks.length > 0) {
+                  return true;
+                }
+
+                const newImages = Array.from(
+                  document.querySelectorAll(
+                    'img[title="New"][src*="Action_Inline_New"]',
+                  ),
+                ).filter(
+                  (el) => (el as HTMLElement).offsetParent !== null,
+                );
+                return newImages.length > 0;
+              },
+              { timeout: 4000, polling: 100 },
+            );
+            logger.debug('✅ Line items grid ready ("New" visible)');
+          } catch {
+            logger.warn(
+              'Line items "New" button not visible after customer selection, proceeding anyway',
+            );
+          }
 
           // Slowdown after customer selection
           await this.wait(this.getSlowdown("select_customer"));
@@ -2650,15 +2662,14 @@ export class ArchibaldBot {
           "form.package",
         );
 
-        // 5.2: Open article dropdown and search by product name
+        // 5.2: Open article dropdown and search by article code
         await this.runOp(
           `order.item.${i}.search_article_dropdown`,
           async () => {
-            const searchQuery = item.productName?.trim() ?? "";
+            const searchQuery =
+              item.articleCode?.trim() || item.productName?.trim() || "";
             if (!searchQuery) {
-              throw new Error(
-                `Product name is required for article search (articleCode: ${item.articleCode})`,
-              );
+              throw new Error("Article code is required for article search");
             }
 
             // Find INVENTTABLE input in the current edit row
@@ -2725,13 +2736,10 @@ export class ArchibaldBot {
             }
 
             await inventtableInput.click();
-            await this.wait(150);
+            await this.wait(50);
 
-            // Prefer direct typing in the article field (DevExpress auto-opens dropdown)
-            await inventtableInput.click({ clickCount: 3 });
-            await this.page!.keyboard.press("Backspace");
-            await this.page!.keyboard.type(searchQuery, { delay: 2 });
-            await this.wait(300);
+            // Prefer direct paste in the article field (DevExpress auto-opens dropdown)
+            await this.pasteText(inventtableInput, searchQuery);
 
             let dropdownHasRows = false;
             try {
@@ -2915,7 +2923,7 @@ export class ArchibaldBot {
             await this.wait(this.getSlowdown("paste_article_direct"));
 
             logger.info(
-              "✅ Article dropdown opened and filtered by product name",
+              "✅ Article dropdown opened and filtered by article code",
             );
           },
           "form.article",
@@ -3443,39 +3451,39 @@ export class ArchibaldBot {
           async () => {
             const selectedVariant = (item as any)._selectedVariant;
 
-            // SMART OPTIMIZATION: If quantity == multipleQty, DevExpress auto-fills correctly
-            // Skip manual editing for exact package matches (1 for pack=1, 5 for pack=5, etc.)
-            if (item.quantity === selectedVariant.multipleQty) {
-              const currentQtyInfo = await this.page!.evaluate(() => {
-                const inputs = Array.from(
-                  document.querySelectorAll('input[type="text"]'),
-                );
-                const qtyInput = inputs.find((input) => {
-                  const id = (input as HTMLInputElement).id.toLowerCase();
-                  return (
-                    id.includes("qtyordered") &&
-                    id.includes("salesline") &&
-                    (input as HTMLElement).offsetParent !== null
-                  );
-                }) as HTMLInputElement | undefined;
-
-                return qtyInput ? qtyInput.value : "";
-              });
-
-              const currentQty = Number.parseFloat(
-                String(currentQtyInfo).replace(",", "."),
+            const currentQtyInfo = await this.page!.evaluate(() => {
+              const inputs = Array.from(
+                document.querySelectorAll('input[type="text"]'),
               );
-              if (
-                Number.isFinite(currentQty) &&
-                Math.abs(currentQty - item.quantity) < 0.01
-              ) {
-                logger.info(
-                  `⚡ Quantity ${item.quantity} matches multipleQty and is already set - skipping edit`,
+              const qtyInput = inputs.find((input) => {
+                const id = (input as HTMLInputElement).id.toLowerCase();
+                return (
+                  id.includes("qtyordered") &&
+                  id.includes("salesline") &&
+                  (id.includes("edit0") || id.includes("editnew")) &&
+                  (input as HTMLElement).offsetParent !== null
                 );
-                await this.wait(500); // Let DevExpress stabilize
-                return;
-              }
+              }) as HTMLInputElement | undefined;
 
+              return qtyInput ? qtyInput.value : "";
+            });
+
+            const currentQty = Number.parseFloat(
+              String(currentQtyInfo).replace(",", "."),
+            );
+
+            if (
+              Number.isFinite(currentQty) &&
+              Math.abs(currentQty - item.quantity) < 0.01
+            ) {
+              logger.info(
+                `⚡ Quantity ${item.quantity} already set - skipping edit`,
+              );
+              await this.wait(500);
+              return;
+            }
+
+            if (String(currentQtyInfo).trim()) {
               logger.warn(
                 `Quantity auto-fill mismatch (expected ${item.quantity}, got ${currentQtyInfo}). Forcing edit.`,
               );
@@ -3917,6 +3925,63 @@ export class ArchibaldBot {
         }
       }
 
+      const openPrezziEScontiTab = async (): Promise<boolean> => {
+        logger.debug('Looking for "Prezzi e sconti" tab...');
+
+        const tabClicked = await this.page!.evaluate(() => {
+          // Find tab with text "Prezzi e sconti"
+          const allLinks = Array.from(
+            document.querySelectorAll("a.dxtc-link, span.dx-vam"),
+          );
+
+          for (const element of allLinks) {
+            const text = element.textContent?.trim() || "";
+            if (text.includes("Prezzi") && text.includes("sconti")) {
+              const clickTarget =
+                element.tagName === "A" ? element : element.parentElement;
+              if (
+                clickTarget &&
+                (clickTarget as HTMLElement).offsetParent !== null
+              ) {
+                (clickTarget as HTMLElement).click();
+                return true;
+              }
+            }
+          }
+
+          // Alternative: Find by tab ID pattern (pg_AT2 = Prezzi e sconti)
+          const tabs = Array.from(
+            document.querySelectorAll('li[id*="_pg_AT"]'),
+          );
+          for (const tab of tabs) {
+            const link = tab.querySelector("a.dxtc-link");
+            const span = tab.querySelector("span.dx-vam");
+            const text = span?.textContent?.trim() || "";
+
+            if (text.includes("Prezzi") && text.includes("sconti")) {
+              if (link && (link as HTMLElement).offsetParent !== null) {
+                (link as HTMLElement).click();
+                return true;
+              }
+            }
+          }
+
+          return false;
+        });
+
+        if (!tabClicked) {
+          logger.warn(
+            '"Prezzi e sconti" tab not found, trying to continue anyway...',
+          );
+          return false;
+        }
+
+        logger.info('✅ Clicked "Prezzi e sconti" tab');
+        return true;
+      };
+
+      let prezziTabOpened = false;
+
       // STEP 9: Extract order ID before saving (while still on form)
       await this.runOp(
         "order.extract_id",
@@ -3976,6 +4041,73 @@ export class ArchibaldBot {
         "form.submit",
       );
 
+      // STEP 9.2: Set line discount to N/A (mandatory)
+      await this.runOp(
+        "order.apply_line_discount",
+        async () => {
+          const tabClicked = await openPrezziEScontiTab();
+          prezziTabOpened = prezziTabOpened || tabClicked;
+
+          if (tabClicked) {
+            await this.wait(1500);
+          }
+
+          const dropdownClicked = await this.page!.evaluate(() => {
+            const dropdowns = Array.from(
+              document.querySelectorAll(
+                'td[id*="dviLINEDISC_Edit_dropdown_DD_B-1"], td[id*="LINEDISC_Edit_dropdown_DD_B-1"]',
+              ),
+            );
+            const visibleDropdown = dropdowns.find(
+              (el) => (el as HTMLElement).offsetParent !== null,
+            ) as HTMLElement | undefined;
+
+            if (!visibleDropdown) {
+              return false;
+            }
+
+            visibleDropdown.click();
+            return true;
+          });
+
+          if (!dropdownClicked) {
+            throw new Error('Line discount dropdown not found');
+          }
+
+          const lineDiscountApplied = (await this.page!.waitForFunction(
+            () => {
+              const candidates = Array.from(
+                document.querySelectorAll(
+                  'td[id*="LINEDISC"][class*="dxeListBoxItem"], td[class*="dxeListBoxItem"]',
+                ),
+              );
+
+              const target = candidates.find((item) => {
+                const el = item as HTMLElement;
+                if (el.offsetParent === null) return false;
+                const text = el.textContent?.trim() || "";
+                return text === "N/A";
+              }) as HTMLElement | undefined;
+
+              if (!target) {
+                return false;
+              }
+
+              target.click();
+              return true;
+            },
+            { timeout: 2000, polling: 100 },
+          ).then((result) => result.jsonValue())) as boolean;
+
+          if (!lineDiscountApplied) {
+            throw new Error('Line discount value "N/A" not found');
+          }
+
+          logger.info('✅ Line discount set to N/A');
+        },
+        "form.discount",
+      );
+
       // STEP 9.5: Apply global discount (if specified)
       if (orderData.discountPercent && orderData.discountPercent > 0) {
         await this.runOp(
@@ -3985,58 +4117,12 @@ export class ArchibaldBot {
               `Applying global discount: ${orderData.discountPercent}%`,
             );
 
-            // STEP 9.5.1: Click "Prezzi e sconti" tab to make discount field visible
-            logger.debug('Looking for "Prezzi e sconti" tab...');
-
-            const tabClicked = await this.page!.evaluate(() => {
-              // Find tab with text "Prezzi e sconti"
-              const allLinks = Array.from(
-                document.querySelectorAll("a.dxtc-link, span.dx-vam"),
-              );
-
-              for (const element of allLinks) {
-                const text = element.textContent?.trim() || "";
-                if (text.includes("Prezzi") && text.includes("sconti")) {
-                  // Click the link or its parent
-                  const clickTarget =
-                    element.tagName === "A" ? element : element.parentElement;
-                  if (
-                    clickTarget &&
-                    (clickTarget as HTMLElement).offsetParent !== null
-                  ) {
-                    (clickTarget as HTMLElement).click();
-                    return true;
-                  }
-                }
+            if (!prezziTabOpened) {
+              const tabClicked = await openPrezziEScontiTab();
+              prezziTabOpened = prezziTabOpened || tabClicked;
+              if (tabClicked) {
+                await this.wait(2000);
               }
-
-              // Alternative: Find by tab ID pattern (pg_AT2 = Prezzi e sconti)
-              const tabs = Array.from(
-                document.querySelectorAll('li[id*="_pg_AT"]'),
-              );
-              for (const tab of tabs) {
-                const link = tab.querySelector("a.dxtc-link");
-                const span = tab.querySelector("span.dx-vam");
-                const text = span?.textContent?.trim() || "";
-
-                if (text.includes("Prezzi") && text.includes("sconti")) {
-                  if (link && (link as HTMLElement).offsetParent !== null) {
-                    (link as HTMLElement).click();
-                    return true;
-                  }
-                }
-              }
-
-              return false;
-            });
-
-            if (!tabClicked) {
-              logger.warn(
-                '"Prezzi e sconti" tab not found, trying to find discount field anyway...',
-              );
-            } else {
-              logger.info('✅ Clicked "Prezzi e sconti" tab');
-              await this.wait(2000); // Wait longer for tab content to load and render
             }
 
             // Find the MANUALDISCOUNT field (APPLICA SCONTO %) with debug info
@@ -4244,6 +4330,22 @@ export class ArchibaldBot {
       await this.runOp(
         "order.save_and_close",
         async () => {
+          logger.debug('Attempting direct "Salva e chiudi"...');
+
+          const directSaveClicked = await this.clickElementByText(
+            "Salva e chiudi",
+            {
+              exact: true,
+              selectors: ["a", "span", "div", "li"],
+            },
+          );
+
+          if (directSaveClicked) {
+            logger.info('✅ Clicked "Salva e chiudi" directly');
+            await this.wait(this.getSlowdown("click_salva_chiudi"));
+            return;
+          }
+
           logger.debug('Opening "Salvare" dropdown...');
 
           // Find "Salvare" button
@@ -4258,10 +4360,19 @@ export class ArchibaldBot {
 
             if (!salvareBtn) return false;
 
-            // Click dropdown arrow
-            const parent = salvareBtn.parentElement;
+            // Click dropdown popout if available
+            const parent = salvareBtn.closest("li") || salvareBtn.parentElement;
             if (!parent) return false;
 
+            const popOut =
+              parent.querySelector("div.dxm-popOut") ||
+              parent.querySelector('[id*="_P"]');
+            if (popOut && (popOut as HTMLElement).offsetParent !== null) {
+              (popOut as HTMLElement).click();
+              return true;
+            }
+
+            // Click dropdown arrow
             const arrow = parent.querySelector(
               'img[id*="_B-1"], img[alt*="down"]',
             );

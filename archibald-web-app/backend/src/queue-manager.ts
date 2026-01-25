@@ -219,14 +219,9 @@ export class QueueManager {
 
         // Per gli ordini, usa il bot con BrowserPool (fast login)
         // IMPORTANTE: Passa userId per usare password cache e sessione condivisa
-        const useExBot =
-          process.env.ARCHIBALD_USE_EX_BOT === "true" ||
-          process.env.ARCHIBALD_USE_EX_BOT === "1";
-        const botModulePath = useExBot
-          ? "./ex_archibald-bot"
-          : "./archibald-bot";
+        const botModulePath = "./archibald-bot";
         logger.info("⚡ Creazione bot con BrowserPool per ordine...", {
-          bot: useExBot ? "ex_archibald-bot" : "archibald-bot",
+          bot: "archibald-bot",
         });
 
         const { ArchibaldBot } = await import(botModulePath);
@@ -251,19 +246,11 @@ export class QueueManager {
         logger.debug(
           "[QueueManager] Acquiring priority lock for order creation...",
         );
-        const useLegacyOrderFlow =
-          process.env.ARCHIBALD_USE_LEGACY_ORDER_FLOW === "true" ||
-          process.env.ARCHIBALD_USE_LEGACY_ORDER_FLOW === "1";
-
-        logger.info(
-          `[QueueManager] Order flow: ${useLegacyOrderFlow ? "legacy" : "current"}`,
-        );
+        logger.info(`[QueueManager] Order flow: current`);
 
         const orderId = await PriorityManager.getInstance().withPriority(
           async () => {
-            return useLegacyOrderFlow
-              ? await bot.createOrderOLD_BACKUP(orderData)
-              : await bot.createOrder(orderData);
+            return await bot.createOrder(orderData);
           },
         );
         logger.debug("[QueueManager] Priority lock released");
