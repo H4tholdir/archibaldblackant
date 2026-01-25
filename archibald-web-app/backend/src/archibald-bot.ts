@@ -2925,6 +2925,7 @@ export class ArchibaldBot {
           `order.item.${i}.select_article`,
           async () => {
             const selectedVariant = (item as any)._selectedVariant;
+            await this.wait(1500); // Allow dropdown grid to fully render
 
             // For article dropdowns, the variant ID appears as partial suffix
             // Example: "005159K3" appears as "K3" in the dropdown
@@ -2946,59 +2947,113 @@ export class ArchibaldBot {
               logger.debug(`Searching for variant on page ${currentPage}...`);
 
               // Try to find and select the row on current page
-              rowSelected = await this.page!.evaluate(
+              const selection = await this.page!.evaluate(
                 (variantSuffix, packageContent) => {
-                  // Find all visible rows with dxgvDataRow class
+                  const normalizeNumber = (text: string): number | null => {
+                    const cleaned = text
+                      .replace(/\s/g, "")
+                      .replace(",", ".")
+                      .match(/-?\d+(?:\.\d+)?/);
+                    if (!cleaned) return null;
+                    const value = Number.parseFloat(cleaned[0]);
+                    return Number.isFinite(value) ? value : null;
+                  };
+
                   const rows = Array.from(
                     document.querySelectorAll('tr[class*="dxgvDataRow"]'),
-                  );
-                  const visibleRows = rows.filter(
+                  ).filter(
                     (row) => (row as HTMLElement).offsetParent !== null,
                   );
 
-                  // Primary strategy: Find row by package content alone
-                  // The dropdown shows: [part1, part2, part3, icon, packageQty, variantCode, fullCode, price]
-                  // We match on packageQty (column 4) which is most reliable
-                  for (const row of visibleRows) {
-                    const cells = Array.from(row.querySelectorAll("td"));
-                    if (cells.length < 6) continue;
+                  const suffix = String(variantSuffix).toLowerCase();
+                  const packageNum = Number.parseFloat(
+                    String(packageContent).replace(",", "."),
+                  );
 
-                    const cellTexts = cells.map(
-                      (cell) => cell.textContent?.trim() || "",
-                    );
-
-                    // Look for packageContent in the cells (typically column 4)
-                    // Package content appears as a standalone number like "1", "5", "10"
-                    const packageStr = String(packageContent);
-                    const hasPackageMatch = cellTexts.some((text, index) => {
-                      // Check columns 3-5 for package content (flexible matching)
-                      if (index >= 3 && index <= 5) {
-                        return text === packageStr;
-                      }
-                      return false;
-                    });
-
-                    if (hasPackageMatch) {
-                      // Found a row with matching package content
-                      // If there's only one match, use it. If multiple, prefer the one with variant suffix match
-                      const hasVariantMatch = cellTexts.some(
-                        (text) => text === variantSuffix,
+                  const candidates = rows
+                    .map((row, index) => {
+                      const cells = Array.from(row.querySelectorAll("td"));
+                      const cellTexts = cells.map(
+                        (cell) => cell.textContent?.trim() || "",
                       );
 
-                      // Click this row if package matches (variant check is secondary)
-                      const firstCell = cells[0];
-                      if (firstCell) {
-                        (firstCell as HTMLElement).click();
-                        return true;
-                      }
-                    }
+                      const suffixMatch = cellTexts.some((text) => {
+                        const normalized = text.toLowerCase();
+                        return (
+                          normalized === suffix ||
+                          normalized.endsWith(suffix)
+                        );
+                      });
+
+                      const packageMatch = cellTexts.some((text) => {
+                        const num = normalizeNumber(text);
+                        if (num === null || !Number.isFinite(packageNum))
+                          return false;
+                        return Math.abs(num - packageNum) < 0.01;
+                      });
+
+                      return {
+                        index,
+                        row,
+                        cells,
+                        suffixMatch,
+                        packageMatch,
+                      };
+                    })
+                    .filter((entry) => entry.cells.length >= 4);
+
+                  const preferBoth = candidates.find(
+                    (entry) => entry.packageMatch && entry.suffixMatch,
+                  );
+                  const preferPackage = candidates.find(
+                    (entry) => entry.packageMatch,
+                  );
+                  const preferSuffix = candidates.find(
+                    (entry) => entry.suffixMatch,
+                  );
+
+                  const chosen =
+                    preferBoth ||
+                    (candidates.length === 1 ? candidates[0] : null) ||
+                    preferPackage ||
+                    preferSuffix;
+
+                  if (!chosen) {
+                    return { found: false };
                   }
 
-                  return false;
+                  const firstCell = chosen.cells[0];
+                  if (firstCell) {
+                    (firstCell as HTMLElement).click();
+                    return {
+                      found: true,
+                      reason: preferBoth
+                        ? "package+suffix"
+                        : preferPackage
+                          ? "package"
+                          : preferSuffix
+                            ? "suffix"
+                            : "single-row",
+                      rowIndex: chosen.index,
+                    };
+                  }
+
+                  return { found: false };
                 },
                 variantSuffix,
                 selectedVariant.packageContent,
               );
+
+              rowSelected = Boolean(selection?.found);
+
+              if (selection?.found) {
+                logger.info("✅ Variant row selected", {
+                  reason: selection.reason,
+                  rowIndex: selection.rowIndex,
+                  variantSuffix,
+                  packageContent: selectedVariant.packageContent,
+                });
+              }
 
               if (rowSelected) {
                 logger.info(`✅ Variant found on page ${currentPage}`);
