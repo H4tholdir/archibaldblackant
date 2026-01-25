@@ -60,19 +60,30 @@ export class PDFExportService {
       (sum, item) => sum + item.price * item.quantity - (item.discount || 0),
       0,
     );
-    const orderVAT = order.items.reduce(
-      (sum, item) =>
-        sum +
-        (item.price * item.quantity - (item.discount || 0)) * (item.vat / 100),
-      0,
-    );
-    const orderTotal = orderSubtotal + orderVAT;
+
+    // Apply global discount if present
+    const globalDiscountAmount = order.discountPercent
+      ? (orderSubtotal * order.discountPercent) / 100
+      : 0;
+    const subtotalAfterGlobalDiscount = orderSubtotal - globalDiscountAmount;
+
+    const orderVAT = order.items.reduce((sum, item) => {
+      const itemSubtotal = item.price * item.quantity - (item.discount || 0);
+      const itemAfterGlobalDiscount = order.discountPercent
+        ? itemSubtotal * (1 - order.discountPercent / 100)
+        : itemSubtotal;
+      return sum + itemAfterGlobalDiscount * ((item.vat || 0) / 100);
+    }, 0);
+    const orderTotal = subtotalAfterGlobalDiscount + orderVAT;
 
     // Items table
     const tableData = order.items.map((item) => {
       const subtotal = item.price * item.quantity - (item.discount || 0);
-      const vatAmount = subtotal * (item.vat / 100);
-      const total = subtotal + vatAmount;
+      const subtotalAfterGlobal = order.discountPercent
+        ? subtotal * (1 - order.discountPercent / 100)
+        : subtotal;
+      const vatAmount = subtotalAfterGlobal * ((item.vat || 0) / 100);
+      const total = subtotalAfterGlobal + vatAmount;
 
       return [
         `${item.productName || item.articleCode}\nCod: ${item.articleCode}${item.description ? `\n${item.description}` : ""}`,
@@ -82,7 +93,7 @@ export class PDFExportService {
           ? `-€${item.discount.toFixed(2)}`
           : "-",
         `€${subtotal.toFixed(2)}`,
-        `${item.vat}%\n€${vatAmount.toFixed(2)}`,
+        `${item.vat || 0}%\n€${vatAmount.toFixed(2)}`,
         `€${total.toFixed(2)}`,
       ];
     });
@@ -140,16 +151,38 @@ export class PDFExportService {
 
     doc.setFontSize(10);
     doc.setFont("helvetica", "normal");
+    let currentY = finalY + 23;
     doc.text(
       `Subtotale (senza IVA): €${orderSubtotal.toFixed(2)}`,
       14,
-      finalY + 23,
+      currentY,
     );
-    doc.text(`IVA Totale: €${orderVAT.toFixed(2)}`, 14, finalY + 30);
 
+    // Show global discount if present
+    if (order.discountPercent && order.discountPercent > 0) {
+      currentY += 7;
+      doc.setTextColor(220, 38, 38); // Red color for discount
+      doc.text(
+        `Sconto globale (${order.discountPercent.toFixed(2)}%): -€${globalDiscountAmount.toFixed(2)}`,
+        14,
+        currentY,
+      );
+      doc.setTextColor(0, 0, 0); // Reset to black
+      currentY += 7;
+      doc.text(
+        `Subtotale scontato: €${subtotalAfterGlobalDiscount.toFixed(2)}`,
+        14,
+        currentY,
+      );
+    }
+
+    currentY += 7;
+    doc.text(`IVA Totale: €${orderVAT.toFixed(2)}`, 14, currentY);
+
+    currentY += 10;
     doc.setFont("helvetica", "bold");
     doc.setFontSize(12);
-    doc.text(`TOTALE (con IVA): €${orderTotal.toFixed(2)}`, 14, finalY + 40);
+    doc.text(`TOTALE (con IVA): €${orderTotal.toFixed(2)}`, 14, currentY);
 
     // Footer
     doc.setFontSize(8);

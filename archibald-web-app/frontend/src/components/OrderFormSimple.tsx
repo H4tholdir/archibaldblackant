@@ -642,12 +642,19 @@ export default function OrderFormSimple() {
       const lineVat = lineSubtotal * (vatRate / 100);
       const lineTotal = lineSubtotal + lineVat;
 
+      // Combine product description with packaging info
+      const packagingInfo = `${pkg.packageSize} ${pkg.packageSize === 1 ? "pezzo" : "pezzi"} x ${pkg.packageCount}`;
+      const productDesc = selectedProduct.description || "";
+      const fullDescription = productDesc
+        ? `${productDesc} - ${packagingInfo}`
+        : packagingInfo;
+
       newItems.push({
         id: crypto.randomUUID(),
         productId: variantArticleCode, // Use variant ID as productId
         article: variantArticleCode,
         productName: selectedProduct.name,
-        description: `${pkg.packageSize} ${pkg.packageSize === 1 ? "pezzo" : "pezzi"} x ${pkg.packageCount}`,
+        description: fullDescription,
         quantity: pkg.packageCount,
         unitPrice: price,
         vatRate,
@@ -812,7 +819,7 @@ export default function OrderFormSimple() {
           vat: item.vatRate,
           discount: item.discount,
         })),
-        discountPercent: undefined,
+        discountPercent: parseFloat(globalDiscountPercent) || undefined,
         targetTotalWithVAT: totals.finalTotal,
         createdAt: new Date().toISOString(),
         status: "pending" as const,
