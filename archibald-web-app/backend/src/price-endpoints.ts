@@ -12,10 +12,17 @@ import { Request, Response } from "express";
 import multer from "multer";
 import path from "path";
 import fs from "fs";
+import { WebSocket } from "ws";
 import { ExcelVatImporter } from "./excel-vat-importer";
 import { PriceAuditHelper } from "./price-audit-helper";
 import { ProductDatabase } from "./product-db";
 import { logger } from "./logger";
+
+// WebSocket server instance (imported lazily to avoid circular dependency)
+let wssInstance: any = null;
+export function setWssInstance(wss: any) {
+  wssInstance = wss;
+}
 
 // Configure multer for file uploads
 const upload = multer({
@@ -90,6 +97,33 @@ export const uploadExcelVat = [
 
       if (result.success) {
         logger.info(`✅ Excel import completed: ${result.matchedRows} matched`);
+
+        // 🔔 Broadcast cache invalidation to all connected WebSocket clients
+        if (wssInstance && wssInstance.clients) {
+          const invalidationEvent = {
+            type: "cache_invalidation",
+            target: "products",
+            reason: "excel_import",
+            importId: result.importId,
+            matchedRows: result.matchedRows,
+            vatUpdatedCount: result.vatUpdatedCount,
+            priceUpdatedCount: result.priceUpdatedCount,
+            timestamp: new Date().toISOString(),
+          };
+
+          let broadcastCount = 0;
+          wssInstance.clients.forEach((client: typeof WebSocket) => {
+            if (client.readyState === WebSocket.OPEN) {
+              client.send(JSON.stringify(invalidationEvent));
+              broadcastCount++;
+            }
+          });
+
+          logger.info(
+            `📡 Cache invalidation broadcast sent to ${broadcastCount} clients`,
+          );
+        }
+
         res.json({
           success: true,
           data: result,

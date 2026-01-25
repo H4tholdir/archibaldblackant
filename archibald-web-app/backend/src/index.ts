@@ -76,7 +76,11 @@ import { SyncOrchestrator, type SyncType } from "./sync-orchestrator";
 
 const app = express();
 const server = createServer(app);
-const wss = new WebSocketServer({ server, path: "/ws/sync" });
+export const wss = new WebSocketServer({ server, path: "/ws/sync" });
+
+// Make wss available to price-endpoints for cache invalidation broadcast
+import { setWssInstance } from "./price-endpoints";
+setWssInstance(wss);
 
 // Legacy progress emitter for backward compatibility (can be removed when all progress tracking migrated to orchestrator)
 const syncProgressEmitter = new EventEmitter();
@@ -1306,7 +1310,7 @@ app.get("/api/customers", (req: Request, res: Response<ApiResponse>) => {
     const lastSync = customerDb.getLastSyncTime();
 
     // Map customerProfile → id for frontend compatibility
-    const mappedCustomers = customers.map(c => ({
+    const mappedCustomers = customers.map((c) => ({
       ...c,
       id: c.customerProfile, // IndexedDB expects 'id' field
     }));
@@ -1760,11 +1764,7 @@ app.post(
       });
 
       // Queue sync via orchestrator (respects priority and mutex)
-      syncOrchestrator.requestSync(
-        syncType as SyncType,
-        undefined,
-        userId,
-      );
+      syncOrchestrator.requestSync(syncType as SyncType, undefined, userId);
 
       res.json({
         success: true,
@@ -2977,7 +2977,14 @@ app.get(
 
       // Build response with history for each type
       const types: Record<string, any> = {};
-      const syncTypes: SyncType[] = ["orders", "customers", "products", "prices", "ddt", "invoices"];
+      const syncTypes: SyncType[] = [
+        "orders",
+        "customers",
+        "products",
+        "prices",
+        "ddt",
+        "invoices",
+      ];
 
       for (const type of syncTypes) {
         const history = syncOrchestrator.getHistory(type, limit);
@@ -2990,7 +2997,7 @@ app.get(
           queuePosition: status.queuePosition,
 
           // History
-          history: history.map(entry => ({
+          history: history.map((entry) => ({
             timestamp: entry.timestamp.toISOString(),
             duration: entry.duration,
             success: entry.success,
@@ -2998,9 +3005,12 @@ app.get(
           })),
 
           // Health indicator (based on last run)
-          health: history.length > 0 && history[0].success ? "healthy" :
-                  history.length > 0 && !history[0].success ? "unhealthy" :
-                  "idle",
+          health:
+            history.length > 0 && history[0].success
+              ? "healthy"
+              : history.length > 0 && !history[0].success
+                ? "unhealthy"
+                : "idle",
         };
       }
 
@@ -3016,7 +3026,7 @@ app.get(
         error: "Failed to get monitoring status",
       });
     }
-  }
+  },
 );
 
 /**
@@ -3033,9 +3043,11 @@ app.get(
       res.json({ success: true, intervals });
     } catch (error: any) {
       logger.error("[API] Error getting intervals:", error);
-      res.status(500).json({ success: false, error: "Failed to get intervals" });
+      res
+        .status(500)
+        .json({ success: false, error: "Failed to get intervals" });
     }
-  }
+  },
 );
 
 /**
@@ -3053,13 +3065,26 @@ app.post(
       const { intervalMinutes } = req.body;
 
       // Validate type
-      const validTypes: SyncType[] = ["orders", "customers", "products", "prices", "ddt", "invoices"];
+      const validTypes: SyncType[] = [
+        "orders",
+        "customers",
+        "products",
+        "prices",
+        "ddt",
+        "invoices",
+      ];
       if (!validTypes.includes(type as SyncType)) {
-        return res.status(400).json({ success: false, error: "Invalid sync type" });
+        return res
+          .status(400)
+          .json({ success: false, error: "Invalid sync type" });
       }
 
       // Validate interval
-      if (typeof intervalMinutes !== "number" || intervalMinutes < 5 || intervalMinutes > 1440) {
+      if (
+        typeof intervalMinutes !== "number" ||
+        intervalMinutes < 5 ||
+        intervalMinutes > 1440
+      ) {
         return res.status(400).json({
           success: false,
           error: "Interval must be a number between 5 and 1440 minutes",
@@ -3082,9 +3107,14 @@ app.post(
       });
     } catch (error: any) {
       logger.error("[API] Error updating interval:", error);
-      res.status(500).json({ success: false, error: error.message || "Failed to update interval" });
+      res
+        .status(500)
+        .json({
+          success: false,
+          error: error.message || "Failed to update interval",
+        });
     }
-  }
+  },
 );
 
 // ============================================================================
@@ -3812,8 +3842,7 @@ app.get(
             // Filter orders that have invoice data in invoice_number column
             filteredOrders = filteredOrders.filter((order) => {
               return (
-                order.invoiceNumber != null &&
-                order.invoiceNumber.trim() !== ""
+                order.invoiceNumber != null && order.invoiceNumber.trim() !== ""
               );
             });
           } else {

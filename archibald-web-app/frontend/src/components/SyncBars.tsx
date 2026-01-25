@@ -1,5 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import "../styles/SyncBars.css";
+import { productService } from "../services/products.service";
+import { toastService } from "../services/toast.service";
 
 interface SyncProgress {
   status: "idle" | "syncing" | "completed" | "error";
@@ -45,6 +47,24 @@ export default function SyncBars() {
 
   const wsRef = useRef<WebSocket | null>(null);
 
+  // Handle cache invalidation events from WebSocket
+  const handleCacheInvalidation = async (event: any) => {
+    console.log("[SyncBars] Cache invalidation received:", event);
+
+    if (event.target === "products") {
+      try {
+        // Refresh products cache
+        await productService.syncProducts();
+        toastService.success(
+          `✅ Prezzi aggiornati: ${event.matchedRows || 0} prodotti`,
+        );
+      } catch (error) {
+        console.error("[SyncBars] Auto-sync failed:", error);
+        toastService.warning("⚠️ Aggiorna la pagina per vedere i nuovi prezzi");
+      }
+    }
+  };
+
   useEffect(() => {
     // Connetti al WebSocket per ricevere aggiornamenti sync
     const connectWebSocket = () => {
@@ -59,6 +79,12 @@ export default function SyncBars() {
         ws.onmessage = (event) => {
           try {
             const data = JSON.parse(event.data);
+
+            // Handle cache invalidation events
+            if (data.type === "cache_invalidation") {
+              handleCacheInvalidation(data);
+              return;
+            }
 
             // Determina il tipo di sync dal messaggio
             let syncType: "customers" | "products" | "prices" | null = null;

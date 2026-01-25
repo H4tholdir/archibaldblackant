@@ -743,7 +743,7 @@ export default function OrderFormSimple() {
     let high = 100;
     let bestDiscount = 0;
 
-    for (let iteration = 0; iteration < 50; iteration++) {
+    for (let iteration = 0; iteration < 100; iteration++) {
       const mid = (low + high) / 2;
       const testSubtotal = itemsSubtotal * (1 - mid / 100);
       const testVAT = items.reduce((sum, item) => {
@@ -752,7 +752,7 @@ export default function OrderFormSimple() {
       }, 0);
       const testTotal = testSubtotal + testVAT;
 
-      if (Math.abs(testTotal - target) < 0.01) {
+      if (Math.abs(testTotal - target) < 0.001) {
         bestDiscount = mid;
         break;
       }
@@ -773,7 +773,7 @@ export default function OrderFormSimple() {
       return;
     }
 
-    setGlobalDiscountPercent(bestDiscount.toFixed(2));
+    setGlobalDiscountPercent(bestDiscount.toFixed(4));
     setTargetTotal("");
   };
 

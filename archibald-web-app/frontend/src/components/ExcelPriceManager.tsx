@@ -1,5 +1,7 @@
 import { useState, useEffect } from "react";
 import "./ExcelPriceManager.css";
+import { productService } from "../services/products.service";
+import { toastService } from "../services/toast.service";
 
 interface ImportHistory {
   id: number;
@@ -116,6 +118,17 @@ export function ExcelPriceManager() {
 
         // Reload history
         loadHistory();
+
+        // 🔄 Trigger immediate cache refresh
+        try {
+          await productService.syncProducts();
+          toastService.success("✅ Cache aggiornata con nuovi prezzi e IVA");
+        } catch (syncError) {
+          console.error("[ExcelPriceManager] Cache sync failed:", syncError);
+          toastService.warning(
+            "⚠️ Import completato ma cache non aggiornata. Ricarica la pagina.",
+          );
+        }
 
         // Reset form
         setSelectedFile(null);
