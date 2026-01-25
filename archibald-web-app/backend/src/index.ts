@@ -4532,8 +4532,18 @@ app.post(
           targetTotalWithVAT,
         };
 
+        const useLegacyOrderFlow =
+          process.env.ARCHIBALD_USE_LEGACY_ORDER_FLOW === "true" ||
+          process.env.ARCHIBALD_USE_LEGACY_ORDER_FLOW === "1";
+
+        logger.info(
+          `[DraftPlace] Order flow: ${useLegacyOrderFlow ? "legacy" : "current"}`,
+        );
+
         const orderId = await priorityManager.withPriority(async () => {
-          return await bot.createOrder(orderData);
+          return useLegacyOrderFlow
+            ? await bot.createOrderOLD_BACKUP(orderData)
+            : await bot.createOrder(orderData);
         });
 
         logger.info(`[DraftPlace] Order created successfully on Archibald`, {
