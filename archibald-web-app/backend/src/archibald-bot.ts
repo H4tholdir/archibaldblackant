@@ -2948,7 +2948,7 @@ export class ArchibaldBot {
 
               // Try to find and select the row on current page
               const selection = await this.page!.evaluate(
-                (variantSuffix, packageContent) => {
+                (variantSuffix, packageContent, variantId) => {
                   function normalizeNumber(text: string): number | null {
                     const cleaned = text
                       .replace(/\s/g, "")
@@ -2959,13 +2959,30 @@ export class ArchibaldBot {
                     return Number.isFinite(value) ? value : null;
                   }
 
+                  const dropdownContainers = Array.from(
+                    document.querySelectorAll('[id*="_DDD"]'),
+                  ).filter((node) => {
+                    const el = node as HTMLElement;
+                    if (el.offsetParent === null) return false;
+                    if (el.style.display === "none") return false;
+                    if (el.style.visibility === "hidden") return false;
+                    return true;
+                  });
+
+                  const activeContainer =
+                    dropdownContainers.find((container) =>
+                      container.querySelector('tr[class*="dxgvDataRow"]'),
+                    ) || null;
+
+                  const rowsRoot = activeContainer || document;
                   const rows = Array.from(
-                    document.querySelectorAll('tr[class*="dxgvDataRow"]'),
+                    rowsRoot.querySelectorAll('tr[class*="dxgvDataRow"]'),
                   ).filter(
                     (row) => (row as HTMLElement).offsetParent !== null,
                   );
 
                   const suffix = String(variantSuffix).toLowerCase();
+                  const variantIdText = String(variantId || "").toLowerCase();
                   const packageNum = Number.parseFloat(
                     String(packageContent).replace(",", "."),
                   );
@@ -2976,6 +2993,12 @@ export class ArchibaldBot {
                       const cellTexts = cells.map(
                         (cell) => cell.textContent?.trim() || "",
                       );
+
+                      const rowText = cellTexts.join(" ").toLowerCase();
+
+                      const fullIdMatch = variantIdText
+                        ? rowText.includes(variantIdText)
+                        : false;
 
                       const suffixMatch = cellTexts.some((text) => {
                         const normalized = text.toLowerCase();
@@ -2996,12 +3019,16 @@ export class ArchibaldBot {
                         index,
                         row,
                         cells,
+                        fullIdMatch,
                         suffixMatch,
                         packageMatch,
                       };
                     })
                     .filter((entry) => entry.cells.length >= 4);
 
+                  const preferFullId = candidates.find(
+                    (entry) => entry.fullIdMatch,
+                  );
                   const preferBoth = candidates.find(
                     (entry) => entry.packageMatch && entry.suffixMatch,
                   );
@@ -3013,6 +3040,7 @@ export class ArchibaldBot {
                   );
 
                   const chosen =
+                    preferFullId ||
                     preferBoth ||
                     (candidates.length === 1 ? candidates[0] : null) ||
                     preferPackage ||
@@ -3027,21 +3055,25 @@ export class ArchibaldBot {
                     (firstCell as HTMLElement).click();
                     return {
                       found: true,
-                      reason: preferBoth
-                        ? "package+suffix"
-                        : preferPackage
-                          ? "package"
-                          : preferSuffix
-                            ? "suffix"
-                            : "single-row",
+                      reason: preferFullId
+                        ? "variant-id"
+                        : preferBoth
+                          ? "package+suffix"
+                          : preferPackage
+                            ? "package"
+                            : preferSuffix
+                              ? "suffix"
+                              : "single-row",
                       rowIndex: chosen.index,
+                      rowsCount: rows.length,
                     };
                   }
 
-                  return { found: false };
+                  return { found: false, rowsCount: rows.length };
                 },
                 variantSuffix,
                 selectedVariant.packageContent,
+                selectedVariant.id,
               );
 
               rowSelected = Boolean(selection?.found);
@@ -3050,6 +3082,7 @@ export class ArchibaldBot {
                 logger.info("✅ Variant row selected", {
                   reason: selection.reason,
                   rowIndex: selection.rowIndex,
+                  rowsCount: selection.rowsCount,
                   variantSuffix,
                   packageContent: selectedVariant.packageContent,
                 });

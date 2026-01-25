@@ -349,11 +349,7 @@ export class QueueManager {
         timestamp: Date.now(),
       },
       {
-        attempts: 3, // Riprova fino a 3 volte in caso di errore
-        backoff: {
-          type: "exponential",
-          delay: 5000, // Attendi 5s prima del primo retry
-        },
+        attempts: 1, // No automatic retries: failures are deterministic
         removeOnComplete: {
           count: 100, // Mantieni gli ultimi 100 job completati
         },
