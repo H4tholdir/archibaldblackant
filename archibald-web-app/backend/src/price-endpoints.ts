@@ -112,7 +112,7 @@ export const uploadExcelVat = [
           };
 
           let broadcastCount = 0;
-          wssInstance.clients.forEach((client: typeof WebSocket) => {
+          wssInstance.clients.forEach((client: WebSocket) => {
             if (client.readyState === WebSocket.OPEN) {
               client.send(JSON.stringify(invalidationEvent));
               broadcastCount++;
