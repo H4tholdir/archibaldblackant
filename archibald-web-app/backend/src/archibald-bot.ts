@@ -2727,6 +2727,44 @@ export class ArchibaldBot {
             await inventtableInput.click();
             await this.wait(150);
 
+            // Prefer direct typing in the article field (DevExpress auto-opens dropdown)
+            await inventtableInput.click({ clickCount: 3 });
+            await this.page!.keyboard.press("Backspace");
+            await this.page!.keyboard.type(searchQuery, { delay: 20 });
+
+            let dropdownHasRows = false;
+            try {
+              await this.page!.waitForFunction(
+                () => {
+                  const dropdowns = Array.from(
+                    document.querySelectorAll('[id*="_DDD"]'),
+                  ).filter((el) => {
+                    const node = el as HTMLElement;
+                    return (
+                      node.offsetParent !== null &&
+                      node.style.display !== "none"
+                    );
+                  });
+
+                  return dropdowns.some((dropdown) =>
+                    dropdown.querySelector('tr[class*="dxgvDataRow"]'),
+                  );
+                },
+                { timeout: 1500, polling: 100 },
+              );
+              dropdownHasRows = true;
+            } catch {
+              dropdownHasRows = false;
+            }
+
+            if (dropdownHasRows) {
+              logger.info(
+                "✅ Article field typed, dropdown auto-opened with results",
+              );
+              return;
+            }
+
+            // Fallback: open dropdown manually, then use search bar
             const dropdownSelectors = [
               `#${inventtableBaseId}_B-1Img`,
               `#${inventtableBaseId}_B-1`,
