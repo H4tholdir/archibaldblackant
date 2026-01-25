@@ -3388,11 +3388,39 @@ export class ArchibaldBot {
             // SMART OPTIMIZATION: If quantity == multipleQty, DevExpress auto-fills correctly
             // Skip manual editing for exact package matches (1 for pack=1, 5 for pack=5, etc.)
             if (item.quantity === selectedVariant.multipleQty) {
-              logger.info(
-                `⚡ Quantity ${item.quantity} matches multipleQty - skipping edit (auto-filled by DevExpress)`,
+              const currentQtyInfo = await this.page!.evaluate(() => {
+                const inputs = Array.from(
+                  document.querySelectorAll('input[type="text"]'),
+                );
+                const qtyInput = inputs.find((input) => {
+                  const id = (input as HTMLInputElement).id.toLowerCase();
+                  return (
+                    id.includes("qtyordered") &&
+                    id.includes("salesline") &&
+                    (input as HTMLElement).offsetParent !== null
+                  );
+                }) as HTMLInputElement | undefined;
+
+                return qtyInput ? qtyInput.value : "";
+              });
+
+              const currentQty = Number.parseFloat(
+                String(currentQtyInfo).replace(",", "."),
               );
-              await this.wait(500); // Let DevExpress stabilize
-              return;
+              if (
+                Number.isFinite(currentQty) &&
+                Math.abs(currentQty - item.quantity) < 0.01
+              ) {
+                logger.info(
+                  `⚡ Quantity ${item.quantity} matches multipleQty and is already set - skipping edit`,
+                );
+                await this.wait(500); // Let DevExpress stabilize
+                return;
+              }
+
+              logger.warn(
+                `Quantity auto-fill mismatch (expected ${item.quantity}, got ${currentQtyInfo}). Forcing edit.`,
+              );
             }
 
             logger.debug(
@@ -4073,9 +4101,14 @@ export class ArchibaldBot {
 
             // Type the discount percentage (will replace selected content)
             // Format: "XX,XX" (Italian format with comma, without % symbol)
-            const discountFormatted = orderData
-              .discountPercent!.toFixed(2)
-              .replace(".", ",");
+            const formatPercent = (value: number): string => {
+              const fixed = value.toFixed(4);
+              const trimmed = fixed.replace(/\.?0+$/, "");
+              return trimmed.replace(".", ",");
+            };
+            const discountFormatted = formatPercent(
+              orderData.discountPercent!,
+            );
             await this.page!.keyboard.type(discountFormatted, { delay: 50 });
 
             await this.wait(500);
