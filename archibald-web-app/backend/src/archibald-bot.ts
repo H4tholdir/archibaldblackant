@@ -2769,48 +2769,100 @@ export class ArchibaldBot {
               });
             }
 
-            const searchHandle = await this.page!.waitForFunction(
-              () => {
-                const candidates = Array.from(
-                  document.querySelectorAll(
-                    'input[id*="INVENTTABLE_Edit_DDD_gv_DXSE_I"], input[id*="_DDD_gv_DXSE_I"], input[id*="_DXSE_I"], input[placeholder*="Enter text to search"], input[placeholder*="enter text to search"]',
-                  ),
-                );
+            const directSearchSelector = `#${inventtableBaseId}_DDD_gv_DXSE_I`;
+            let searchInput: ElementHandle<Element> | null = null;
 
-                return (
-                  candidates.find((el) => {
-                    const input = el as HTMLInputElement;
-                    if (input.disabled) return false;
-                    if ((input as HTMLElement).offsetParent === null)
-                      return false;
+            try {
+              await this.page!.waitForSelector(directSearchSelector, {
+                visible: true,
+                timeout: 1200,
+              });
+              searchInput = await this.page!.$(directSearchSelector);
+            } catch {
+              // Fallback to generic search input discovery
+              const searchHandle = await this.page!.waitForFunction(
+                () => {
+                  const candidates = Array.from(
+                    document.querySelectorAll(
+                      'input[id*="INVENTTABLE_Edit_DDD_gv_DXSE_I"], input[id*="_DDD_gv_DXSE_I"], input[id*="_DXSE_I"], input[placeholder*="Enter text to search"], input[placeholder*="enter text to search"]',
+                    ),
+                  );
 
-                    const placeholder = (input.placeholder || "").toLowerCase();
-                    const value = (input.value || "").toLowerCase();
-                    const id = (input.id || "").toLowerCase();
+                  return (
+                    candidates.find((el) => {
+                      const input = el as HTMLInputElement;
+                      if (input.disabled) return false;
+                      if ((input as HTMLElement).offsetParent === null)
+                        return false;
 
-                    return (
-                      id.includes("dxse") ||
-                      placeholder.includes("enter text") ||
-                      value.includes("enter text")
-                    );
-                  }) || null
-                );
-              },
-              { timeout: 3000, polling: 100 },
-            );
+                      const placeholder = (
+                        input.placeholder || ""
+                      ).toLowerCase();
+                      const value = (input.value || "").toLowerCase();
+                      const id = (input.id || "").toLowerCase();
 
-            const searchInput = searchHandle.asElement() as
-              | ElementHandle<Element>
-              | null;
+                      return (
+                        id.includes("dxse") ||
+                        placeholder.includes("enter text") ||
+                        value.includes("enter text")
+                      );
+                    }) || null
+                  );
+                },
+                { timeout: 3000, polling: 100 },
+              );
+
+              searchInput = searchHandle.asElement() as
+                | ElementHandle<Element>
+                | null;
+            }
+
             if (!searchInput) {
+              await this.page!.screenshot({
+                path: `logs/article-search-not-found-${Date.now()}.png`,
+                fullPage: true,
+              });
               throw new Error("Barra ricerca articolo non trovata");
             }
+
+            const searchMeta = await searchInput.evaluate((el) => {
+              const input = el as HTMLInputElement;
+              return {
+                id: input.id,
+                placeholder: input.placeholder,
+                value: input.value,
+              };
+            });
+            logger.debug("Article search input found", searchMeta);
 
             await searchInput.click({ clickCount: 3 });
             await this.page!.keyboard.press("Backspace");
 
             await this.pasteText(searchInput, searchQuery);
             await this.page!.keyboard.press("Enter");
+
+            const typedValue = await searchInput.evaluate((el) => {
+              const input = el as HTMLInputElement;
+              return input.value;
+            });
+            logger.debug("Article search input value after paste", {
+              expected: searchQuery,
+              actual: typedValue,
+            });
+
+            if (!typedValue || typedValue.trim() !== searchQuery) {
+              logger.warn(
+                "Search input value mismatch, retrying with keyboard typing",
+                {
+                  expected: searchQuery,
+                  actual: typedValue,
+                },
+              );
+              await searchInput.click({ clickCount: 3 });
+              await this.page!.keyboard.press("Backspace");
+              await searchInput.type(searchQuery, { delay: 30 });
+              await this.page!.keyboard.press("Enter");
+            }
 
             try {
               await this.page!.waitForSelector('tr[class*="dxgvDataRow"]', {
