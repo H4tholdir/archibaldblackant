@@ -2949,16 +2949,6 @@ export class ArchibaldBot {
               // Try to find and select the row on current page
               const selection = await this.page!.evaluate(
                 (variantSuffix, packageContent, variantId) => {
-                  function normalizeNumber(text: string): number | null {
-                    const cleaned = text
-                      .replace(/\s/g, "")
-                      .replace(",", ".")
-                      .match(/-?\d+(?:\.\d+)?/);
-                    if (!cleaned) return null;
-                    const value = Number.parseFloat(cleaned[0]);
-                    return Number.isFinite(value) ? value : null;
-                  }
-
                   const dropdownContainers = Array.from(
                     document.querySelectorAll('[id*="_DDD"]'),
                   ).filter((node) => {
@@ -3009,9 +2999,14 @@ export class ArchibaldBot {
                       });
 
                       const packageMatch = cellTexts.some((text) => {
-                        const num = normalizeNumber(text);
-                        if (num === null || !Number.isFinite(packageNum))
-                          return false;
+                        const cleaned = text
+                          .replace(/\s/g, "")
+                          .replace(",", ".")
+                          .match(/-?\d+(?:\.\d+)?/);
+                        if (!cleaned) return false;
+                        const num = Number.parseFloat(cleaned[0]);
+                        if (!Number.isFinite(num)) return false;
+                        if (!Number.isFinite(packageNum)) return false;
                         return Math.abs(num - packageNum) < 0.01;
                       });
 
