@@ -2615,14 +2615,24 @@ export class ArchibaldBot {
         await this.runOp(
           `order.item.${i}.select_variant`,
           async () => {
-            const selectedVariant = this.productDb.selectPackageVariant(
+            const variantLookupName =
+              item.productName?.trim() || item.articleCode;
+            const directVariant = this.productDb.getProductById(
               item.articleCode,
-              item.quantity,
             );
+            const selectedVariant =
+              directVariant ||
+              this.productDb.selectPackageVariant(
+                variantLookupName,
+                item.quantity,
+              );
 
             if (!selectedVariant) {
               throw new Error(
-                `Article ${item.articleCode} not found in database. ` +
+                `Article ${item.articleCode} not found in database` +
+                  (item.productName
+                    ? ` (product name: ${item.productName}). `
+                    : ". ") +
                   `Ensure product sync has run.`,
               );
             }
@@ -2640,164 +2650,191 @@ export class ArchibaldBot {
           "form.package",
         );
 
-        // 5.2: Direct paste in article name field (OPTIMIZED - eliminates dropdown click + search click)
+        // 5.2: Open article dropdown and search by product name
         await this.runOp(
-          `order.item.${i}.paste_article_direct`,
+          `order.item.${i}.search_article_dropdown`,
           async () => {
-            const selectedVariant = (item as any)._selectedVariant;
-            const searchTerm = item.articleCode; // Use article code like "TD1272.314"
-            logger.debug(
-              `Direct paste optimization: pasting "${searchTerm}" into article field (will select variant: ${selectedVariant.id})`,
-            );
+            const searchQuery =
+              item.productName?.trim() || item.articleCode;
 
-            // Wait for grid to be ready
-            await this.wait(1000);
-
-            // Find the article name field in the grid (ITEMID or INVENTTABLE column)
-            const articleInputId = await this.page!.evaluate(() => {
-              const inputs = Array.from(
-                document.querySelectorAll('input[type="text"]'),
-              );
-
-              // Strategy 1: ITEMID field (article code column)
-              const itemIdInput = inputs.find((input) => {
-                const id = (input as HTMLInputElement).id.toLowerCase();
-                return (
-                  id.includes("itemid") &&
-                  id.includes("salesline") &&
-                  (input as HTMLElement).offsetParent !== null
-                );
-              });
-
-              if (itemIdInput) {
-                return (itemIdInput as HTMLInputElement).id;
-              }
-
-              // Strategy 2: INVENTTABLE field (article inventory table)
-              const inventTableInput = inputs.find((input) => {
-                const id = (input as HTMLInputElement).id.toLowerCase();
-                return (
-                  id.includes("inventtable") &&
-                  id.includes("salesline") &&
-                  (input as HTMLElement).offsetParent !== null
-                );
-              });
-
-              if (inventTableInput) {
-                return (inventTableInput as HTMLInputElement).id;
-              }
-
-              // Strategy 3: N/A value (empty article field)
-              const naInput = inputs.find((input) => {
-                const value = (input as HTMLInputElement).value;
-                const id = (input as HTMLInputElement).id.toLowerCase();
-                return (
-                  value === "N/A" &&
-                  id.includes("salesline") &&
-                  !id.includes("linenum") &&
-                  (input as HTMLElement).offsetParent !== null
-                );
-              });
-
-              return naInput ? (naInput as HTMLInputElement).id : null;
-            });
-
-            if (!articleInputId) {
-              await this.page!.screenshot({
-                path: `logs/article-field-not-found-${Date.now()}.png`,
-                fullPage: true,
-              });
-              throw new Error("Article field not found for direct paste");
-            }
-
-            logger.debug(`Found article field: ${articleInputId}`);
-
-            // Get element handle for the article input field
-            const articleInput = await this.page!.$(`#${articleInputId}`);
-            if (!articleInput) {
-              throw new Error(
-                `Article input element not found: ${articleInputId}`,
+            if (!item.productName) {
+              logger.warn(
+                "Missing productName for dropdown search, using articleCode fallback",
+                { articleCode: item.articleCode },
               );
             }
 
-            // Click field to focus it
-            await articleInput.evaluate((el) => {
-              (el as HTMLElement).scrollIntoView({ block: "center" });
-            });
-            await this.wait(200);
-            await articleInput.click();
-            await this.wait(300);
-
-            // Direct paste into the field (this auto-triggers the filtered dropdown)
-            logger.debug(`Pasting article code directly: ${searchTerm}`);
-            await this.pasteText(articleInput, searchTerm);
-            logger.debug("Finished pasting article code");
-
-            // Verify paste was successful
-            const actualValue = (await this.page!.waitForFunction(
-              (inputId: string, expectedValue: string) => {
-                const input = document.querySelector(
-                  `#${inputId}`,
-                ) as HTMLInputElement;
-                return input && input.value === expectedValue
-                  ? input.value
-                  : null;
-              },
-              { timeout: 1000, polling: 50 },
-              articleInputId,
-              searchTerm,
-            ).then((result) => result.jsonValue())) as string;
-
-            logger.debug(`✓ Article code verified in field: "${actualValue}"`);
-
-            // Wait for dropdown to auto-appear with filtered results
-            // The UI automatically shows filtered dropdown when text is pasted
-            await this.wait(800);
-
-            // Verify dropdown appeared with results
-            const resultsAppeared = await this.page!.evaluate(() => {
-              // Look for DevExpress dropdown/listbox containers
-              const dropdowns = Array.from(
+            // Find INVENTTABLE input in the current edit row
+            const fieldInfo = await this.page!.evaluate(() => {
+              const editRows = Array.from(
                 document.querySelectorAll(
-                  '[class*="dxeListBox"], [class*="DDD"]',
+                  '[id*="dviSALESLINEs"] tr[id*="editnew"]',
                 ),
               );
-              for (const dropdown of dropdowns) {
-                if ((dropdown as HTMLElement).offsetParent === null) continue;
 
-                // Look for table rows with article data
-                const rows = Array.from(dropdown.querySelectorAll("tr"));
-                for (const row of rows) {
-                  const cells = Array.from(row.querySelectorAll("td"));
-                  if (cells.length >= 3) {
-                    const hasContent = cells.some((cell) => {
-                      const text = cell.textContent?.trim() || "";
-                      return text.length > 0 && text !== "No data to display";
-                    });
-                    if (hasContent) {
-                      return true; // Found dropdown with results
-                    }
-                  }
+              editRows.sort((a, b) => {
+                const aNum = parseInt(
+                  (a.id.match(/editnew_(\d+)/) || [])[1] || "0",
+                );
+                const bNum = parseInt(
+                  (b.id.match(/editnew_(\d+)/) || [])[1] || "0",
+                );
+                return bNum - aNum;
+              });
+
+              for (const row of editRows) {
+                const inputs = Array.from(
+                  row.querySelectorAll('input[id*="INVENTTABLE_Edit"]'),
+                );
+                for (const input of inputs) {
+                  const el = input as HTMLInputElement;
+                  if (el.id.includes("DXSE")) continue;
+                  if ((el as HTMLElement).offsetParent === null) continue;
+                  return { id: el.id, found: true };
                 }
               }
-              return false;
+
+              const fallbackInputs = Array.from(
+                document.querySelectorAll('input[id*="INVENTTABLE_Edit"]'),
+              );
+              for (const input of fallbackInputs) {
+                const el = input as HTMLInputElement;
+                if (el.id.includes("DXSE")) continue;
+                if ((el as HTMLElement).offsetParent === null) continue;
+                if (el.id.toLowerCase().includes("salesline")) {
+                  return { id: el.id, found: true };
+                }
+              }
+
+              return { id: "", found: false };
             });
 
-            if (!resultsAppeared) {
-              await this.page!.screenshot({
-                path: `logs/article-dropdown-no-results-${Date.now()}.png`,
-                fullPage: true,
-              });
+            if (!fieldInfo.found) {
+              throw new Error("Campo INVENTTABLE (Nome articolo) non trovato");
+            }
+
+            const inventtableInputId = fieldInfo.id;
+            const inventtableBaseId = inventtableInputId.endsWith("_I")
+              ? inventtableInputId.slice(0, -2)
+              : inventtableInputId;
+
+            const inventtableInput = await this.page!.$(
+              `#${inventtableInputId}`,
+            );
+            if (!inventtableInput) {
               throw new Error(
-                "Article dropdown did not appear with results after direct paste",
+                `Campo INVENTTABLE con ID ${inventtableInputId} non trovato nel DOM`,
               );
             }
 
-            // Slowdown after direct paste
+            await inventtableInput.click();
+            await this.wait(150);
+
+            const dropdownSelectors = [
+              `#${inventtableBaseId}_B-1Img`,
+              `#${inventtableBaseId}_B-1`,
+              `#${inventtableBaseId}_B`,
+              `#${inventtableBaseId}_DDD`,
+            ];
+
+            let dropdownOpened = false;
+            for (const selector of dropdownSelectors) {
+              if (dropdownOpened) break;
+              const handle = await this.page!.$(selector);
+              if (!handle) continue;
+              const box = await handle.boundingBox();
+              if (!box) continue;
+              await handle.click();
+              try {
+                await this.page!.waitForSelector(
+                  `#${inventtableBaseId}_DDD`,
+                  { visible: true, timeout: 800 },
+                );
+                dropdownOpened = true;
+              } catch {
+                // try next selector
+              }
+            }
+
+            if (!dropdownOpened) {
+              throw new Error("Dropdown articolo non trovato");
+            }
+
+            const searchSelectors = [
+              `#${inventtableBaseId}_DDD_gv_DXSE_I`,
+              `[id*="${inventtableBaseId}_DDD_gv_DXSE_I"]`,
+              'input[placeholder*="Enter text to search"]',
+              'input[placeholder*="enter text to search"]',
+              'input[id$="_DXSE_I"]',
+              'input[id*="_DXSE_I"]',
+            ];
+
+            let searchInput: ElementHandle<Element> | null = null;
+            for (const selector of searchSelectors) {
+              try {
+                await this.page!.waitForSelector(selector, {
+                  visible: true,
+                  timeout: 800,
+                });
+                const input = await this.page!.$(selector);
+                if (!input) continue;
+                const box = await input.boundingBox();
+                if (!box) continue;
+                searchInput = input;
+                break;
+              } catch {
+                // try next selector
+              }
+            }
+
+            if (!searchInput) {
+              throw new Error("Barra ricerca articolo non trovata");
+            }
+
+            const inputSelector = await searchInput.evaluate((el: Element) => {
+              const input = el as HTMLInputElement;
+              if (input.id) return `#${input.id}`;
+              if (input.placeholder)
+                return `input[placeholder="${input.placeholder}"]`;
+              return null;
+            });
+
+            if (inputSelector) {
+              await this.page!.evaluate(
+                (selector: string, value: string) => {
+                  const input = document.querySelector(
+                    selector,
+                  ) as HTMLInputElement | null;
+                  if (input) {
+                    input.value = value;
+                    input.focus();
+                    input.dispatchEvent(new Event("input", { bubbles: true }));
+                    input.dispatchEvent(new Event("change", { bubbles: true }));
+                  }
+                },
+                inputSelector,
+                searchQuery,
+              );
+            } else {
+              await searchInput.click();
+              await this.pasteText(searchInput, searchQuery);
+            }
+
+            await this.page!.keyboard.press("Enter");
+
+            try {
+              await this.page!.waitForSelector('tr[class*="dxgvDataRow"]', {
+                visible: true,
+                timeout: 1500,
+              });
+            } catch {
+              await this.wait(300);
+            }
+
             await this.wait(this.getSlowdown("paste_article_direct"));
 
             logger.info(
-              "✅ Article field populated via direct paste, dropdown auto-filtered",
+              "✅ Article dropdown opened and filtered by product name",
             );
           },
           "form.article",
