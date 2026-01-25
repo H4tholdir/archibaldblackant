@@ -3018,8 +3018,39 @@ export class ArchibaldBot {
 
                       let suffixMatch = false;
                       let packageMatch = false;
+                      let suffixCellIndex = -1;
 
-                      if (packIndex >= 0 && packIndex < cellTexts.length) {
+                      for (let idx = 0; idx < cellTexts.length; idx++) {
+                        const normalized = cellTexts[idx].toLowerCase();
+                        if (
+                          normalized === suffix ||
+                          normalized.endsWith(suffix)
+                        ) {
+                          suffixCellIndex = idx;
+                          suffixMatch = true;
+                          break;
+                        }
+                      }
+
+                      if (suffixCellIndex >= 0) {
+                        const neighborIndex = suffixCellIndex - 1;
+                        if (neighborIndex >= 0) {
+                          const neighborText = cellTexts[neighborIndex];
+                          const cleaned = neighborText
+                            .replace(/\s/g, "")
+                            .replace(",", ".")
+                            .match(/-?\d+(?:\.\d+)?/);
+                          if (cleaned) {
+                            const num = Number.parseFloat(cleaned[0]);
+                            if (
+                              Number.isFinite(num) &&
+                              Number.isFinite(packageNum)
+                            ) {
+                              packageMatch = Math.abs(num - packageNum) < 0.01;
+                            }
+                          }
+                        }
+                      } else if (packIndex >= 0 && packIndex < cellTexts.length) {
                         const normalized = cellTexts[packIndex]
                           .toLowerCase()
                           .trim();
@@ -3035,36 +3066,38 @@ export class ArchibaldBot {
                         });
                       }
 
-                      if (
-                        contentIndex >= 0 &&
-                        contentIndex < cellTexts.length
-                      ) {
-                        const text = cellTexts[contentIndex];
-                        const cleaned = text
-                          .replace(/\s/g, "")
-                          .replace(",", ".")
-                          .match(/-?\d+(?:\.\d+)?/);
-                        if (cleaned) {
-                          const num = Number.parseFloat(cleaned[0]);
-                          if (
-                            Number.isFinite(num) &&
-                            Number.isFinite(packageNum)
-                          ) {
-                            packageMatch = Math.abs(num - packageNum) < 0.01;
-                          }
-                        }
-                      } else {
-                        packageMatch = cellTexts.some((text) => {
+                      if (!packageMatch) {
+                        if (
+                          contentIndex >= 0 &&
+                          contentIndex < cellTexts.length
+                        ) {
+                          const text = cellTexts[contentIndex];
                           const cleaned = text
                             .replace(/\s/g, "")
                             .replace(",", ".")
                             .match(/-?\d+(?:\.\d+)?/);
-                          if (!cleaned) return false;
-                          const num = Number.parseFloat(cleaned[0]);
-                          if (!Number.isFinite(num)) return false;
-                          if (!Number.isFinite(packageNum)) return false;
-                          return Math.abs(num - packageNum) < 0.01;
-                        });
+                          if (cleaned) {
+                            const num = Number.parseFloat(cleaned[0]);
+                            if (
+                              Number.isFinite(num) &&
+                              Number.isFinite(packageNum)
+                            ) {
+                              packageMatch = Math.abs(num - packageNum) < 0.01;
+                            }
+                          }
+                        } else {
+                          packageMatch = cellTexts.some((text) => {
+                            const cleaned = text
+                              .replace(/\s/g, "")
+                              .replace(",", ".")
+                              .match(/-?\d+(?:\.\d+)?/);
+                            if (!cleaned) return false;
+                            const num = Number.parseFloat(cleaned[0]);
+                            if (!Number.isFinite(num)) return false;
+                            if (!Number.isFinite(packageNum)) return false;
+                            return Math.abs(num - packageNum) < 0.01;
+                          });
+                        }
                       }
 
                       return {
@@ -3076,6 +3109,7 @@ export class ArchibaldBot {
                         packageMatch,
                         contentIndex,
                         packIndex,
+                        suffixCellIndex,
                         contentValue:
                           contentIndex >= 0 && contentIndex < cellTexts.length
                             ? cellTexts[contentIndex]
@@ -3083,6 +3117,10 @@ export class ArchibaldBot {
                         packValue:
                           packIndex >= 0 && packIndex < cellTexts.length
                             ? cellTexts[packIndex]
+                            : "",
+                        suffixNeighborValue:
+                          suffixCellIndex > 0
+                            ? cellTexts[suffixCellIndex - 1]
                             : "",
                       };
                     })
@@ -3109,7 +3147,16 @@ export class ArchibaldBot {
                     preferSuffix;
 
                   if (!chosen) {
-                    return { found: false };
+                    return {
+                      found: false,
+                      rowsCount: rows.length,
+                      contentIndex,
+                      packIndex,
+                      suffixCellIndex: -1,
+                      contentValue: "",
+                      packValue: "",
+                      suffixNeighborValue: "",
+                    };
                   }
 
                   const firstCell = chosen.cells[0];
@@ -3135,7 +3182,16 @@ export class ArchibaldBot {
                     };
                   }
 
-                  return { found: false, rowsCount: rows.length };
+                  return {
+                    found: false,
+                    rowsCount: rows.length,
+                    contentIndex,
+                    packIndex,
+                    suffixCellIndex: -1,
+                    contentValue: "",
+                    packValue: "",
+                    suffixNeighborValue: "",
+                  };
                 },
                 variantSuffix,
                 selectedVariant.packageContent,
@@ -3153,6 +3209,8 @@ export class ArchibaldBot {
                   packIndex: selection.packIndex,
                   contentValue: selection.contentValue,
                   packValue: selection.packValue,
+                  suffixCellIndex: selection.suffixCellIndex,
+                  suffixNeighborValue: selection.suffixNeighborValue,
                   variantSuffix,
                   packageContent: selectedVariant.packageContent,
                 });
