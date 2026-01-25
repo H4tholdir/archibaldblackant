@@ -2654,7 +2654,7 @@ export class ArchibaldBot {
         await this.runOp(
           `order.item.${i}.search_article_dropdown`,
           async () => {
-            const searchQuery = item.productName?.trim();
+            const searchQuery = item.productName?.trim() ?? "";
             if (!searchQuery) {
               throw new Error(
                 `Product name is required for article search (articleCode: ${item.articleCode})`,
