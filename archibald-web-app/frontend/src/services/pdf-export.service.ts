@@ -1,16 +1,6 @@
-import { jsPDF } from "jspdf";
-import "jspdf-autotable";
+import jsPDF from "jspdf";
+import autoTable from "jspdf-autotable";
 import type { PendingOrder } from "../db/schema";
-
-// Extend jsPDF with autoTable
-declare module "jspdf" {
-  interface jsPDF {
-    autoTable: (options: any) => jsPDF;
-    lastAutoTable?: {
-      finalY: number;
-    };
-  }
-}
 
 export class PDFExportService {
   private static instance: PDFExportService;
@@ -140,7 +130,7 @@ export class PDFExportService {
       }
     });
 
-    doc.autoTable({
+    autoTable(doc, {
       startY: 75,
       head: [
         [
@@ -184,7 +174,7 @@ export class PDFExportService {
     });
 
     // Get final Y position after table
-    const finalY = doc.lastAutoTable?.finalY || 150;
+    const finalY = (doc as any).lastAutoTable?.finalY || 150;
 
     // Totals section
     doc.setFontSize(11);
