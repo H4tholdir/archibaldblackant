@@ -2949,7 +2949,7 @@ export class ArchibaldBot {
               // Try to find and select the row on current page
               const selection = await this.page!.evaluate(
                 (variantSuffix, packageContent) => {
-                  const normalizeNumber = (text: string): number | null => {
+                  function normalizeNumber(text: string): number | null {
                     const cleaned = text
                       .replace(/\s/g, "")
                       .replace(",", ".")
@@ -2957,7 +2957,7 @@ export class ArchibaldBot {
                     if (!cleaned) return null;
                     const value = Number.parseFloat(cleaned[0]);
                     return Number.isFinite(value) ? value : null;
-                  };
+                  }
 
                   const rows = Array.from(
                     document.querySelectorAll('tr[class*="dxgvDataRow"]'),
