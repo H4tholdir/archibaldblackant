@@ -2799,7 +2799,9 @@ export class ArchibaldBot {
               { timeout: 3000, polling: 100 },
             );
 
-            const searchInput = searchHandle.asElement();
+            const searchInput = searchHandle.asElement() as
+              | ElementHandle<Element>
+              | null;
             if (!searchInput) {
               throw new Error("Barra ricerca articolo non trovata");
             }
