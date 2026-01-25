@@ -28,6 +28,18 @@ export class PDFExportService {
    * Generate PDF for a pending order
    */
   generateOrderPDF(order: PendingOrder): jsPDF {
+    console.log("[PDFExportService] Generating PDF for order:", {
+      customerId: order.customerId,
+      customerName: order.customerName,
+      itemsCount: order.items?.length || 0,
+      discountPercent: order.discountPercent,
+    });
+
+    // Validate order data
+    if (!order.items || order.items.length === 0) {
+      throw new Error("Order has no items");
+    }
+
     const doc = new jsPDF();
 
     // Add company header
@@ -77,25 +89,55 @@ export class PDFExportService {
     const orderTotal = subtotalAfterGlobalDiscount + orderVAT;
 
     // Items table
-    const tableData = order.items.map((item) => {
-      const subtotal = item.price * item.quantity - (item.discount || 0);
-      const subtotalAfterGlobal = order.discountPercent
-        ? subtotal * (1 - order.discountPercent / 100)
-        : subtotal;
-      const vatAmount = subtotalAfterGlobal * ((item.vat || 0) / 100);
-      const total = subtotalAfterGlobal + vatAmount;
+    const tableData = order.items.map((item, index) => {
+      try {
+        // Validate item data
+        if (typeof item.price !== "number" || isNaN(item.price)) {
+          console.error(
+            `[PDFExportService] Invalid price for item ${index}:`,
+            item,
+          );
+          throw new Error(
+            `Invalid price for item "${item.articleCode}": ${item.price}`,
+          );
+        }
 
-      return [
-        `${item.productName || item.articleCode}\nCod: ${item.articleCode}${item.description ? `\n${item.description}` : ""}`,
-        item.quantity.toString(),
-        `€${item.price.toFixed(2)}`,
-        item.discount && item.discount > 0
-          ? `-€${item.discount.toFixed(2)}`
-          : "-",
-        `€${subtotal.toFixed(2)}`,
-        `${item.vat || 0}%\n€${vatAmount.toFixed(2)}`,
-        `€${total.toFixed(2)}`,
-      ];
+        if (typeof item.quantity !== "number" || isNaN(item.quantity)) {
+          console.error(
+            `[PDFExportService] Invalid quantity for item ${index}:`,
+            item,
+          );
+          throw new Error(
+            `Invalid quantity for item "${item.articleCode}": ${item.quantity}`,
+          );
+        }
+
+        const subtotal = item.price * item.quantity - (item.discount || 0);
+        const subtotalAfterGlobal = order.discountPercent
+          ? subtotal * (1 - order.discountPercent / 100)
+          : subtotal;
+        const vatAmount = subtotalAfterGlobal * ((item.vat || 0) / 100);
+        const total = subtotalAfterGlobal + vatAmount;
+
+        return [
+          `${item.productName || item.articleCode}\nCod: ${item.articleCode}${item.description ? `\n${item.description}` : ""}`,
+          item.quantity.toString(),
+          `€${item.price.toFixed(2)}`,
+          item.discount && item.discount > 0
+            ? `-€${item.discount.toFixed(2)}`
+            : "-",
+          `€${subtotal.toFixed(2)}`,
+          `${item.vat || 0}%\n€${vatAmount.toFixed(2)}`,
+          `€${total.toFixed(2)}`,
+        ];
+      } catch (error) {
+        console.error(
+          `[PDFExportService] Error processing item ${index}:`,
+          item,
+          error,
+        );
+        throw error;
+      }
     });
 
     doc.autoTable({

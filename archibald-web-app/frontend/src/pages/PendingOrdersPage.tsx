@@ -135,7 +135,11 @@ export function PendingOrdersPage() {
       toastService.success("PDF scaricato con successo");
     } catch (error) {
       console.error("[PendingOrdersPage] Failed to generate PDF:", error);
-      toastService.error("Errore durante la generazione del PDF");
+      const errorMessage =
+        error instanceof Error ? error.message : "Errore sconosciuto";
+      toastService.error(
+        `Errore durante la generazione del PDF: ${errorMessage}`,
+      );
     }
   };
 
@@ -145,7 +149,9 @@ export function PendingOrdersPage() {
       toastService.info("Apertura finestra di stampa...");
     } catch (error) {
       console.error("[PendingOrdersPage] Failed to print order:", error);
-      toastService.error("Errore durante la stampa");
+      const errorMessage =
+        error instanceof Error ? error.message : "Errore sconosciuto";
+      toastService.error(`Errore durante la stampa: ${errorMessage}`);
     }
   };
 
