@@ -1,5 +1,13 @@
 import { db } from "../db/schema";
 import type { PendingOrder } from "../db/schema";
+import {
+  reserveWarehouseItems,
+  releaseWarehouseReservations,
+  markWarehouseItemsAsSold,
+} from "./warehouse-order-integration";
+
+// 🔧 FIX #4: Maximum retry attempts before auto-release
+const MAX_RETRY_ATTEMPTS = 3;
 
 export class PendingOrdersService {
   private static instance: PendingOrdersService;
@@ -19,6 +27,7 @@ export class PendingOrdersService {
     customerName: string;
     items: Array<{
       articleCode: string;
+      articleId?: string;
       productName?: string;
       description?: string;
       quantity: number;
@@ -50,15 +59,30 @@ export class PendingOrdersService {
       orderId: id,
       timestamp: new Date().toISOString(),
     });
+
+    // Reserve warehouse items if any
+    try {
+      await reserveWarehouseItems(id, order.items);
+    } catch (error) {
+      console.error("[Warehouse] Failed to reserve items", { error });
+      // Don't fail order creation if reservation fails
+    }
+
     return id;
   }
 
   /**
    * Get all pending orders with counts by status
+   * 🔧 FIX #5: Include completed-warehouse orders in counts
    */
   async getPendingOrdersWithCounts(): Promise<{
     orders: PendingOrder[];
-    counts: { pending: number; syncing: number; error: number };
+    counts: {
+      pending: number;
+      syncing: number;
+      error: number;
+      completedWarehouse: number;
+    };
   }> {
     const orders = await db.pendingOrders
       .orderBy("createdAt")
@@ -69,6 +93,9 @@ export class PendingOrdersService {
       pending: orders.filter((o) => o.status === "pending").length,
       syncing: orders.filter((o) => o.status === "syncing").length,
       error: orders.filter((o) => o.status === "error").length,
+      completedWarehouse: orders.filter(
+        (o) => o.status === "completed-warehouse",
+      ).length,
     };
 
     return { orders, counts };
@@ -76,6 +103,7 @@ export class PendingOrdersService {
 
   /**
    * Sync pending orders when online
+   * 🔧 FIX #5: Skip orders with status "completed-warehouse"
    */
   async syncPendingOrders(
     jwt: string,
@@ -85,6 +113,15 @@ export class PendingOrdersService {
       .where("status")
       .equals("pending")
       .toArray();
+
+    // 🔧 FIX #5: Warehouse-only orders are never synced
+    // They have status "completed-warehouse" and are already marked as sold
+    console.log(
+      "[PendingOrders] Syncing pending orders (excluding warehouse-only)",
+      {
+        pendingCount: pending.length,
+      },
+    );
 
     if (pending.length === 0) {
       return { success: 0, failed: 0 };
@@ -129,9 +166,52 @@ export class PendingOrdersService {
 
         const result = await response.json();
 
-        // Delete from queue on success
-        await db.pendingOrders.delete(order.id!);
-        success++;
+        // 🔧 FIX #4: Mark warehouse items as sold + delete with rollback protection
+        let warehouseMarkedAsSold = false;
+        try {
+          await markWarehouseItemsAsSold(
+            order.id!,
+            result.jobId || `job-${order.id}`,
+          );
+          warehouseMarkedAsSold = true;
+
+          // Delete from queue on success
+          await db.pendingOrders.delete(order.id!);
+          success++;
+        } catch (deleteError) {
+          console.error(
+            "[PendingOrders] 🔧 Delete failed after warehouse mark",
+            {
+              orderId: order.id,
+              deleteError,
+            },
+          );
+
+          // 🔧 FIX #4: Rollback - release warehouse items if delete failed
+          if (warehouseMarkedAsSold) {
+            console.warn(
+              "[PendingOrders] 🔧 Rolling back warehouse sold status",
+              { orderId: order.id },
+            );
+            try {
+              await releaseWarehouseReservations(order.id!);
+              console.log("[PendingOrders] ✅ Warehouse rollback successful", {
+                orderId: order.id,
+              });
+            } catch (rollbackError) {
+              console.error(
+                "[PendingOrders] ❌ Warehouse rollback failed - CRITICAL",
+                {
+                  orderId: order.id,
+                  rollbackError,
+                },
+              );
+            }
+          }
+
+          // Re-throw to trigger error handling
+          throw deleteError;
+        }
 
         console.log("[IndexedDB:PendingOrders]", {
           operation: "delete",
@@ -160,13 +240,50 @@ export class PendingOrdersService {
           timestamp: new Date().toISOString(),
         });
 
-        // Mark as error and increment retry count
-        await db.pendingOrders.update(order.id!, {
-          status: "error",
-          errorMessage:
-            error instanceof Error ? error.message : "Unknown error",
-          retryCount: (order.retryCount || 0) + 1,
-        });
+        const newRetryCount = (order.retryCount || 0) + 1;
+
+        // 🔧 FIX #4: Auto-release warehouse items if max retries exceeded
+        if (newRetryCount >= MAX_RETRY_ATTEMPTS) {
+          console.warn(
+            "[PendingOrders] 🔧 Max retries exceeded, releasing warehouse items",
+            {
+              orderId: order.id,
+              retryCount: newRetryCount,
+              maxRetries: MAX_RETRY_ATTEMPTS,
+            },
+          );
+
+          try {
+            await releaseWarehouseReservations(order.id!);
+            console.log(
+              "[PendingOrders] ✅ Warehouse items released after max retries",
+              { orderId: order.id },
+            );
+          } catch (releaseError) {
+            console.error(
+              "[PendingOrders] ❌ Failed to release warehouse items",
+              {
+                orderId: order.id,
+                releaseError,
+              },
+            );
+          }
+
+          // Mark as permanently failed
+          await db.pendingOrders.update(order.id!, {
+            status: "error",
+            errorMessage: `Max retries (${MAX_RETRY_ATTEMPTS}) exceeded. Warehouse items released. Manual intervention required.`,
+            retryCount: newRetryCount,
+          });
+        } else {
+          // Mark as error and increment retry count (will retry)
+          await db.pendingOrders.update(order.id!, {
+            status: "error",
+            errorMessage:
+              error instanceof Error ? error.message : "Unknown error",
+            retryCount: newRetryCount,
+          });
+        }
 
         failed++;
       }
@@ -176,7 +293,7 @@ export class PendingOrdersService {
   }
 
   /**
-   * Retry failed orders
+   * Retry failed orders (excluding permanently failed ones)
    */
   async retryFailedOrders(jwt: string): Promise<void> {
     // Reset error status to pending for retry
@@ -185,7 +302,25 @@ export class PendingOrdersService {
       .equals("error")
       .toArray();
 
-    for (const order of failed) {
+    // 🔧 FIX #4: Don't retry orders that exceeded max retries
+    const retriable = failed.filter(
+      (order) => (order.retryCount || 0) < MAX_RETRY_ATTEMPTS,
+    );
+
+    if (retriable.length === 0) {
+      console.log(
+        "[PendingOrders] No retriable orders (all exceeded max retries)",
+      );
+      return;
+    }
+
+    console.log("[PendingOrders] Retrying failed orders", {
+      total: failed.length,
+      retriable: retriable.length,
+      skipped: failed.length - retriable.length,
+    });
+
+    for (const order of retriable) {
       await db.pendingOrders.update(order.id!, {
         status: "pending",
         // Don't set errorMessage to undefined - omit it instead
@@ -194,6 +329,26 @@ export class PendingOrdersService {
 
     // Trigger sync
     await this.syncPendingOrders(jwt);
+  }
+
+  /**
+   * Delete a pending order and release warehouse reservations
+   */
+  async deletePendingOrder(orderId: number): Promise<void> {
+    console.log("[PendingOrders] Deleting order", { orderId });
+
+    // Release warehouse reservations
+    try {
+      await releaseWarehouseReservations(orderId);
+    } catch (error) {
+      console.error("[Warehouse] Failed to release reservations", { error });
+      // Continue anyway - we want to delete the order even if warehouse cleanup fails
+    }
+
+    // Delete order
+    await db.pendingOrders.delete(orderId);
+
+    console.log("[PendingOrders] ✅ Order deleted", { orderId });
   }
 
   /**
@@ -208,6 +363,135 @@ export class PendingOrdersService {
       status,
       errorMessage,
     });
+  }
+
+  /**
+   * 🔧 FIX #4: Clean up permanently failed orders
+   * Remove orders that exceeded max retry attempts
+   * Warehouse items are already released when max retries was reached
+   *
+   * @returns Number of orders cleaned up
+   */
+  async cleanupPermanentlyFailedOrders(): Promise<number> {
+    const failed = await db.pendingOrders
+      .where("status")
+      .equals("error")
+      .toArray();
+
+    const permanentlyFailed = failed.filter(
+      (order) => (order.retryCount || 0) >= MAX_RETRY_ATTEMPTS,
+    );
+
+    if (permanentlyFailed.length === 0) {
+      return 0;
+    }
+
+    console.log("[PendingOrders] 🔧 Cleaning up permanently failed orders", {
+      count: permanentlyFailed.length,
+    });
+
+    for (const order of permanentlyFailed) {
+      // Warehouse items should already be released, but double-check
+      try {
+        await releaseWarehouseReservations(order.id!);
+      } catch (error) {
+        console.error(
+          "[PendingOrders] Failed to release warehouse (already released?)",
+          { orderId: order.id, error },
+        );
+      }
+
+      // Delete the failed order
+      await db.pendingOrders.delete(order.id!);
+      console.log("[PendingOrders] ✅ Cleaned up order", { orderId: order.id });
+    }
+
+    console.log("[PendingOrders] ✅ Cleanup complete", {
+      cleaned: permanentlyFailed.length,
+    });
+
+    return permanentlyFailed.length;
+  }
+
+  /**
+   * 🔧 FIX #4: Get orders grouped by status including permanently failed
+   * 🔧 FIX #5: Include warehouse-only completed orders
+   */
+  async getOrdersByStatus(): Promise<{
+    pending: PendingOrder[];
+    syncing: PendingOrder[];
+    retriableErrors: PendingOrder[];
+    permanentlyFailed: PendingOrder[];
+    completedWarehouse: PendingOrder[];
+  }> {
+    const all = await db.pendingOrders.toArray();
+
+    return {
+      pending: all.filter((o) => o.status === "pending"),
+      syncing: all.filter((o) => o.status === "syncing"),
+      retriableErrors: all.filter(
+        (o) => o.status === "error" && (o.retryCount || 0) < MAX_RETRY_ATTEMPTS,
+      ),
+      permanentlyFailed: all.filter(
+        (o) =>
+          o.status === "error" && (o.retryCount || 0) >= MAX_RETRY_ATTEMPTS,
+      ),
+      completedWarehouse: all.filter((o) => o.status === "completed-warehouse"),
+    };
+  }
+
+  /**
+   * 🔧 FIX #5: Archive completed warehouse orders older than N days
+   * These orders are already fulfilled from warehouse and don't need sync
+   *
+   * @param daysOld - Archive orders older than this many days (default: 7)
+   * @returns Number of orders archived (deleted)
+   */
+  async archiveCompletedWarehouseOrders(daysOld: number = 7): Promise<number> {
+    const warehouseCompleted = await db.pendingOrders
+      .where("status")
+      .equals("completed-warehouse")
+      .toArray();
+
+    if (warehouseCompleted.length === 0) {
+      return 0;
+    }
+
+    const cutoffDate = new Date();
+    cutoffDate.setDate(cutoffDate.getDate() - daysOld);
+
+    const toArchive = warehouseCompleted.filter((order) => {
+      const orderDate = new Date(order.createdAt);
+      return orderDate < cutoffDate;
+    });
+
+    if (toArchive.length === 0) {
+      console.log(
+        "[PendingOrders] No warehouse orders older than",
+        daysOld,
+        "days",
+      );
+      return 0;
+    }
+
+    console.log("[PendingOrders] 🏪 Archiving completed warehouse orders", {
+      count: toArchive.length,
+      cutoffDate: cutoffDate.toISOString(),
+    });
+
+    for (const order of toArchive) {
+      // Delete the order (warehouse items are already marked as sold)
+      await db.pendingOrders.delete(order.id!);
+      console.log("[PendingOrders] ✅ Archived warehouse order", {
+        orderId: order.id,
+      });
+    }
+
+    console.log("[PendingOrders] ✅ Archive complete", {
+      archived: toArchive.length,
+    });
+
+    return toArchive.length;
   }
 }
 

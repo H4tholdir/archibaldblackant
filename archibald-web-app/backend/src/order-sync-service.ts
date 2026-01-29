@@ -1,4 +1,5 @@
 import { EventEmitter } from "events";
+import type { BrowserContext } from "puppeteer";
 import { ArchibaldBot } from "./archibald-bot";
 import { BrowserPool } from "./browser-pool";
 import { logger } from "./logger";
@@ -8,6 +9,7 @@ import {
 } from "./pdf-parser-orders-service";
 import { OrderDatabaseNew } from "./order-db-new";
 import * as fs from "fs/promises";
+import { SyncStopError, isSyncStopError } from "./sync-stop";
 
 export interface OrderSyncProgress {
   status: "idle" | "downloading" | "parsing" | "saving" | "completed" | "error";
@@ -26,6 +28,9 @@ export class OrderSyncService extends EventEmitter {
   private orderDb: OrderDatabaseNew;
   private syncInProgress = false;
   private paused = false;
+  private stopRequested = false;
+  private activeContext: BrowserContext | null = null;
+  private activeUserId: string | null = null;
   private progress: OrderSyncProgress = {
     status: "idle",
     message: "Nessuna sincronizzazione ordini in corso",
@@ -49,11 +54,57 @@ export class OrderSyncService extends EventEmitter {
     return OrderSyncService.instance;
   }
 
+  private throwIfStopRequested(stage: string): void {
+    if (this.stopRequested) {
+      throw new SyncStopError(
+        `[OrderSyncService] Stop requested during ${stage}`,
+      );
+    }
+  }
+
+  private async releaseActiveContext(
+    success: boolean,
+    reason: string,
+  ): Promise<void> {
+    if (!this.activeContext || !this.activeUserId) {
+      return;
+    }
+
+    const context = this.activeContext;
+    const userId = this.activeUserId;
+    this.activeContext = null;
+    this.activeUserId = null;
+
+    try {
+      await this.browserPool.releaseContext(userId, context, success);
+    } catch (error) {
+      logger.warn("[OrderSyncService] Failed to release context", {
+        reason,
+        userId,
+        error,
+      });
+    }
+  }
+
+  private async abortActiveContext(reason: string): Promise<void> {
+    if (!this.activeContext || !this.activeUserId) {
+      return;
+    }
+
+    const userId = this.activeUserId;
+    logger.warn("[OrderSyncService] Aborting active context", {
+      reason,
+      userId,
+    });
+    await this.releaseActiveContext(false, reason);
+  }
+
   async pause(): Promise<void> {
     logger.info("[OrderSyncService] Pause requested");
     this.paused = true;
 
     if (this.syncInProgress) {
+      this.requestStop();
       logger.info("[OrderSyncService] Waiting for current sync to complete...");
       while (this.syncInProgress) {
         await new Promise((resolve) => setTimeout(resolve, 500));
@@ -86,6 +137,7 @@ export class OrderSyncService extends EventEmitter {
     }
 
     this.syncInProgress = true;
+    this.stopRequested = false;
     const startTime = Date.now();
     logger.info("[OrderSyncService] Starting sync operation", {
       userId,
@@ -114,6 +166,7 @@ export class OrderSyncService extends EventEmitter {
           pdfPath,
           sizeBytes: (await fs.stat(pdfPath)).size,
         });
+        this.throwIfStopRequested("download");
       } catch (downloadError) {
         logger.error("[OrderSyncService] PDF download failed", {
           error:
@@ -143,6 +196,7 @@ export class OrderSyncService extends EventEmitter {
           ordersCount: parsedOrders.length,
           duration: Date.now() - startTime,
         });
+        this.throwIfStopRequested("parse");
       } catch (parseError) {
         logger.error("[OrderSyncService] PDF parsing failed", {
           pdfPath,
@@ -177,6 +231,7 @@ export class OrderSyncService extends EventEmitter {
           ...saveResults,
           duration: Date.now() - startTime,
         });
+        this.throwIfStopRequested("saving");
       } catch (saveError) {
         logger.error("[OrderSyncService] Database save failed", {
           ordersCount: parsedOrders.length,
@@ -217,13 +272,22 @@ export class OrderSyncService extends EventEmitter {
         error instanceof Error ? error.message : String(error);
       const errorStack = error instanceof Error ? error.stack : undefined;
 
-      logger.error("[OrderSyncService] Sync operation failed", {
-        error: errorMessage,
-        stack: errorStack,
-        duration,
-        durationMs: Date.now() - startTime,
-        progressStatus: this.progress.status,
-      });
+      if (isSyncStopError(error)) {
+        logger.warn("[OrderSyncService] Sync stopped", {
+          error: errorMessage,
+          duration,
+          durationMs: Date.now() - startTime,
+          progressStatus: this.progress.status,
+        });
+      } else {
+        logger.error("[OrderSyncService] Sync operation failed", {
+          error: errorMessage,
+          stack: errorStack,
+          duration,
+          durationMs: Date.now() - startTime,
+          progressStatus: this.progress.status,
+        });
+      }
 
       this.progress = {
         ...this.progress,
@@ -236,6 +300,7 @@ export class OrderSyncService extends EventEmitter {
       throw error;
     } finally {
       this.syncInProgress = false;
+      this.stopRequested = false;
       logger.info("[OrderSyncService] syncInProgress flag reset to false");
     }
   }
@@ -249,11 +314,15 @@ export class OrderSyncService extends EventEmitter {
     );
 
     let context;
+    let success = false;
     try {
       context = await this.browserPool.acquireContext(userId);
       logger.info(
         "[OrderSyncService] downloadOrdersPDF: browser context acquired",
       );
+      this.activeContext = context;
+      this.activeUserId = userId;
+      this.throwIfStopRequested("login");
     } catch (acquireError) {
       logger.error(
         "[OrderSyncService] downloadOrdersPDF: failed to acquire browser context",
@@ -280,6 +349,7 @@ export class OrderSyncService extends EventEmitter {
         "[OrderSyncService] downloadOrdersPDF: bot.downloadOrdersPDF completed",
         { pdfPath },
       );
+      success = true;
       return pdfPath;
     } catch (botError) {
       logger.error(
@@ -296,7 +366,7 @@ export class OrderSyncService extends EventEmitter {
         "[OrderSyncService] downloadOrdersPDF: releasing browser context",
       );
       try {
-        await this.browserPool.releaseContext(userId, context, true);
+        await this.releaseActiveContext(success, "download-orders-pdf");
         logger.info(
           "[OrderSyncService] downloadOrdersPDF: browser context released",
         );
@@ -335,6 +405,7 @@ export class OrderSyncService extends EventEmitter {
     let skipped = 0;
 
     for (let i = 0; i < parsedOrders.length; i++) {
+      this.throwIfStopRequested("saving");
       const parsedOrder = parsedOrders[i];
 
       try {
@@ -405,5 +476,13 @@ export class OrderSyncService extends EventEmitter {
 
     logger.info("[OrderSyncService] saveOrders: completed", results);
     return results;
+  }
+
+  requestStop(): void {
+    logger.warn("[OrderSyncService] Stop requested");
+    this.stopRequested = true;
+    if (this.syncInProgress) {
+      void this.abortActiveContext("stop-requested");
+    }
   }
 }

@@ -16,8 +16,8 @@ export function PinSetupWizard({
   onComplete,
   onCancel,
 }: PinSetupWizardProps) {
-  const [step, setStep] = useState<"choice" | "create" | "confirm" | "biometric">(
-    "choice",
+  const [step, setStep] = useState<"create" | "confirm" | "biometric">(
+    "create",
   );
   const [pin, setPin] = useState("");
   const [confirmPin, setConfirmPin] = useState("");
@@ -25,76 +25,45 @@ export function PinSetupWizard({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [biometricLabel, setBiometricLabel] = useState("");
   const [isRegisteringBiometric, setIsRegisteringBiometric] = useState(false);
-  const [biometricAvailable, setBiometricAvailable] = useState(false);
-  const [checkingBiometric, setCheckingBiometric] = useState(true);
 
   // Check biometric availability on mount
   useEffect(() => {
     const checkBiometric = async () => {
       const bioAuth = getBiometricAuth();
       const capability = await bioAuth.checkAvailability();
-      setBiometricAvailable(capability.available);
       setBiometricLabel(capability.platformLabel);
-      setCheckingBiometric(false);
-
-      // If biometric not available, skip choice screen
-      if (!capability.available) {
-        setStep("create");
-      }
     };
     checkBiometric();
+    // Always start with PIN creation (biometric is optional AFTER PIN)
+    setStep("create");
   }, []);
 
-  const handleChoosePin = () => {
-    setStep("create");
-  };
-
-  const handleChooseBiometric = async () => {
-    setError("");
-    setIsRegisteringBiometric(true);
-
-    try {
-      const bioAuth = getBiometricAuth();
-      const credentialId = await bioAuth.registerCredential(userId, username);
-
-      if (!credentialId) {
-        throw new Error("Registrazione biometrica fallita");
-      }
-
-      // Save credential ID
-      const credStore = getCredentialStore();
-      await credStore.initialize();
-      await credStore.storeBiometricCredential(userId, credentialId);
-
-      // Complete without PIN (biometric only)
-      setIsSubmitting(true);
-      await onComplete(""); // Empty PIN since we're using biometric
-    } catch (err: any) {
-      console.error("Biometric registration error:", err);
-      setError("Impossibile abilitare la biometria. Scegli PIN invece.");
-      setIsRegisteringBiometric(false);
-    }
-  };
-
   const validatePin = (pinValue: string): string | null => {
-    if (pinValue.length !== 6) {
-      return "Il PIN deve essere di 6 cifre";
+    if (pinValue.length !== 4) {
+      return "Il PIN deve essere di 4 cifre";
     }
 
     // Check for all same digit
-    if (/^(\d)\1{5}$/.test(pinValue)) {
+    if (/^(\d)\1{3}$/.test(pinValue)) {
       return "PIN troppo semplice. Scegli un PIN più sicuro.";
     }
 
     // Check for sequential patterns
     const sequences = [
-      "012345",
-      "123456",
-      "234567",
-      "345678",
-      "456789",
-      "543210",
-      "654321",
+      "0123",
+      "1234",
+      "2345",
+      "3456",
+      "4567",
+      "5678",
+      "6789",
+      "3210",
+      "4321",
+      "5432",
+      "6543",
+      "7654",
+      "8765",
+      "9876",
     ];
     if (sequences.includes(pinValue)) {
       return "PIN sequenziale non permesso. Scegli un PIN più sicuro.";
@@ -102,12 +71,19 @@ export function PinSetupWizard({
 
     // Check for common patterns
     const commonPatterns = [
-      "121212",
-      "010101",
-      "101010",
-      "000000",
-      "111111",
-      "222222",
+      "1212",
+      "0101",
+      "1010",
+      "0000",
+      "1111",
+      "2222",
+      "3333",
+      "4444",
+      "5555",
+      "6666",
+      "7777",
+      "8888",
+      "9999",
     ];
     if (commonPatterns.includes(pinValue)) {
       return "PIN troppo comune. Scegli un PIN più sicuro.";
@@ -214,46 +190,23 @@ export function PinSetupWizard({
         <div className="wizard-header">
           <h2>Configura accesso sicuro</h2>
           <p className="wizard-subtitle">
-            {step === "choice"
-              ? "Scegli come proteggere le tue credenziali"
-              : step === "create"
-                ? "Crea un PIN di 6 cifre per proteggere le tue credenziali"
-                : step === "confirm"
-                  ? "Conferma il PIN inserito"
-                  : `Abilita ${biometricLabel} per sblocco rapido`}
+            {step === "create"
+              ? "Crea un PIN di 4 cifre per proteggere le tue credenziali"
+              : step === "confirm"
+                ? "Conferma il PIN inserito"
+                : step === "biometric"
+                  ? `Abilita ${biometricLabel} per sblocco rapido (opzionale)`
+                  : ""}
           </p>
         </div>
 
         <div className="wizard-body">
-          {step === "choice" && !checkingBiometric && biometricAvailable && (
-            <div className="choice-container" style={{ display: "flex", flexDirection: "column", gap: "16px", padding: "20px 0" }}>
-              <button
-                onClick={handleChooseBiometric}
-                disabled={isRegisteringBiometric}
-                className="wizard-button-primary"
-                style={{ padding: "20px", fontSize: "16px" }}
-              >
-                {isRegisteringBiometric ? "Configurazione..." : `🔐 Usa ${biometricLabel}`}
-              </button>
-              <button
-                onClick={handleChoosePin}
-                className="wizard-button-secondary"
-                style={{ padding: "20px", fontSize: "16px" }}
-              >
-                🔢 Usa PIN (6 cifre)
-              </button>
-              <p style={{ fontSize: "14px", color: "#666", textAlign: "center", marginTop: "10px" }}>
-                Puoi scegliere solo uno dei due metodi
-              </p>
-            </div>
-          )}
-
           {step === "create" && (
             <>
-              <PinInput value={pin} onChange={setPin} autoFocus />
+              <PinInput value={pin} onChange={setPin} autoFocus length={4} />
               <button
                 onClick={handleCreateComplete}
-                disabled={pin.length !== 6}
+                disabled={pin.length !== 4}
                 className="wizard-button-primary"
               >
                 Continua
@@ -263,7 +216,12 @@ export function PinSetupWizard({
 
           {step === "confirm" && (
             <>
-              <PinInput value={confirmPin} onChange={setConfirmPin} autoFocus />
+              <PinInput
+                value={confirmPin}
+                onChange={setConfirmPin}
+                autoFocus
+                length={4}
+              />
               <div className="wizard-actions">
                 <button
                   onClick={handleBack}
@@ -273,7 +231,7 @@ export function PinSetupWizard({
                 </button>
                 <button
                   onClick={handleConfirmComplete}
-                  disabled={confirmPin.length !== 6 || isSubmitting}
+                  disabled={confirmPin.length !== 4 || isSubmitting}
                   className="wizard-button-primary"
                 >
                   {isSubmitting ? "Salvataggio..." : "Conferma"}

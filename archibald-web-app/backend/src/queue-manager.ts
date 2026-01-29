@@ -8,6 +8,9 @@ import { PriorityManager } from "./priority-manager";
 import { CustomerSyncService } from "./customer-sync-service";
 import { ProductSyncService } from "./product-sync-service";
 import { PriceSyncService } from "./price-sync-service";
+import { OrderSyncService } from "./order-sync-service";
+import { DDTSyncService } from "./ddt-sync-service";
+import { InvoiceSyncService } from "./invoice-sync-service";
 import { operationTracker } from "./operation-tracker";
 
 /**
@@ -71,6 +74,18 @@ export class QueueManager {
     priorityManager.registerService(
       "price-sync",
       PriceSyncService.getInstance(),
+    );
+    priorityManager.registerService(
+      "order-sync",
+      OrderSyncService.getInstance(),
+    );
+    priorityManager.registerService(
+      "ddt-sync",
+      DDTSyncService.getInstance(),
+    );
+    priorityManager.registerService(
+      "invoice-sync",
+      InvoiceSyncService.getInstance(),
     );
 
     logger.info("Queue Manager inizializzato");

@@ -9,6 +9,8 @@ export function DashboardNav() {
     { path: "/order", label: "📝 Nuovo Ordine" },
     { path: "/orders", label: "📦 Ordini" },
     { path: "/pending-orders", label: "⏳ In Attesa" },
+    { path: "/warehouse-management", label: "📦 Gestione Magazzino" },
+    { path: "/warehouse-returns", label: "🔄 Resi Magazzino" },
     { path: "/customers", label: "👥 Clienti" },
     { path: "/products", label: "📦 Articoli" },
     { path: "/prezzi-variazioni", label: "📊 Prezzi" },

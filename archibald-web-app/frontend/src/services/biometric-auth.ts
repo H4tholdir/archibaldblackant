@@ -15,7 +15,7 @@ export class BiometricAuth {
   async checkAvailability(): Promise<BiometricCapability> {
     // Check if WebAuthn is supported
     if (!window.PublicKeyCredential) {
-      return { available: false, platformLabel: '' };
+      return { available: false, platformLabel: "" };
     }
 
     try {
@@ -24,25 +24,31 @@ export class BiometricAuth {
         await PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable();
 
       if (!available) {
-        return { available: false, platformLabel: '' };
+        return { available: false, platformLabel: "" };
       }
 
       // Determine platform-specific label
       const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
       const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
       const isAndroid = /Android/i.test(navigator.userAgent);
+      const isMac = /Macintosh|MacIntel|MacPPC|Mac68K/i.test(
+        navigator.userAgent,
+      );
 
-      let platformLabel = 'Biometrica';
+      let platformLabel = "Biometrica";
       if (isIOS) {
-        platformLabel = 'Face ID / Touch ID';
+        platformLabel = "Face ID / Touch ID";
       } else if (isAndroid) {
-        platformLabel = 'Impronta digitale';
+        platformLabel = "Impronta digitale";
+      } else if (isMac) {
+        platformLabel = "Touch ID";
       }
 
-      return { available: isMobile, platformLabel };
+      // Available on mobile OR macOS (Touch ID support)
+      return { available: isMobile || isMac, platformLabel };
     } catch (error) {
-      console.error('Biometric availability check failed', error);
-      return { available: false, platformLabel: '' };
+      console.error("Biometric availability check failed", error);
+      return { available: false, platformLabel: "" };
     }
   }
 
@@ -51,7 +57,7 @@ export class BiometricAuth {
    */
   async registerCredential(
     userId: string,
-    username: string
+    username: string,
   ): Promise<string | null> {
     try {
       const challenge = this.generateChallenge();
@@ -60,7 +66,7 @@ export class BiometricAuth {
         publicKey: {
           challenge: new TextEncoder().encode(challenge),
           rp: {
-            name: 'Archibald',
+            name: "Archibald",
             id: window.location.hostname,
           },
           user: {
@@ -68,13 +74,13 @@ export class BiometricAuth {
             name: username,
             displayName: username,
           },
-          pubKeyCredParams: [{ alg: -7, type: 'public-key' }], // ES256
+          pubKeyCredParams: [{ alg: -7, type: "public-key" }], // ES256
           authenticatorSelection: {
-            authenticatorAttachment: 'platform', // Use platform authenticator (Touch ID, Face ID, etc.)
-            userVerification: 'required',
+            authenticatorAttachment: "platform", // Use platform authenticator (Touch ID, Face ID, etc.)
+            userVerification: "required",
           },
           timeout: 60000,
-          attestation: 'none',
+          attestation: "none",
         },
       })) as PublicKeyCredential | null;
 
@@ -86,7 +92,7 @@ export class BiometricAuth {
       const credentialId = this.arrayBufferToBase64(credential.rawId);
       return credentialId;
     } catch (error) {
-      console.error('Biometric registration failed', error);
+      console.error("Biometric registration failed", error);
       return null;
     }
   }
@@ -96,7 +102,7 @@ export class BiometricAuth {
    */
   async authenticate(
     _userId: string,
-    credentialId: string
+    credentialId: string,
   ): Promise<Uint8Array | null> {
     try {
       const challenge = this.generateChallenge();
@@ -108,10 +114,10 @@ export class BiometricAuth {
           allowCredentials: [
             {
               id: this.base64ToArrayBuffer(credentialId),
-              type: 'public-key',
+              type: "public-key",
             },
           ],
-          userVerification: 'required',
+          userVerification: "required",
           timeout: 60000,
         },
       })) as PublicKeyCredential | null;
@@ -125,7 +131,7 @@ export class BiometricAuth {
       const keyMaterial = new Uint8Array(response.authenticatorData);
       return keyMaterial;
     } catch (error) {
-      console.error('Biometric authentication failed', error);
+      console.error("Biometric authentication failed", error);
       return null;
     }
   }
@@ -134,15 +140,15 @@ export class BiometricAuth {
   private generateChallenge(): string {
     const array = new Uint8Array(32);
     crypto.getRandomValues(array);
-    return Array.from(array, (byte) => byte.toString(16).padStart(2, '0')).join(
-      ''
+    return Array.from(array, (byte) => byte.toString(16).padStart(2, "0")).join(
+      "",
     );
   }
 
   // Helper: ArrayBuffer to Base64
   private arrayBufferToBase64(buffer: ArrayBuffer): string {
     const bytes = new Uint8Array(buffer);
-    let binary = '';
+    let binary = "";
     for (let i = 0; i < bytes.byteLength; i++) {
       binary += String.fromCharCode(bytes[i]);
     }

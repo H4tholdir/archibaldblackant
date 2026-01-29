@@ -1576,6 +1576,44 @@
   opacity: 0.6;
 }
 
+/* Password Input Wrapper with Toggle Button */
+.password-input-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.password-input-wrapper input {
+  padding-right: 3rem; /* Make space for the toggle button */
+}
+
+.password-input-wrapper .toggle-password {
+  position: absolute;
+  right: 0.75rem;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0.5rem;
+  font-size: 1.25rem;
+  line-height: 1;
+  color: #718096;
+  transition: all 0.2s ease;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.password-input-wrapper .toggle-password:hover:not(:disabled) {
+  color: #667eea;
+  background: rgba(102, 126, 234, 0.1);
+}
+
+.password-input-wrapper .toggle-password:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 /* Remember Credentials Checkbox - Modern Style */
 .remember-credentials {
   margin: 1.25rem 0;

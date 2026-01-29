@@ -9,6 +9,17 @@ export const orderItemSchema = z.object({
   discount: z.number().min(0).max(100).optional(),
   articleId: z.string().optional(),
   packageContent: z.number().optional(),
+  // Warehouse integration (Phase 4)
+  warehouseQuantity: z.number().int().nonnegative().optional(), // How many from warehouse
+  warehouseSources: z
+    .array(
+      z.object({
+        warehouseItemId: z.number().int(),
+        boxName: z.string(),
+        quantity: z.number().int().positive(),
+      }),
+    )
+    .optional(), // Which boxes provide the item
 });
 
 export const createOrderSchema = z.object({

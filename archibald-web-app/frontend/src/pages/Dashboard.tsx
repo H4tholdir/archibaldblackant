@@ -3,6 +3,7 @@ import { useAuth } from "../hooks/useAuth";
 import { BudgetWidget } from "../components/BudgetWidget";
 import { OrdersSummaryWidget } from "../components/OrdersSummaryWidget";
 import { CommissionsWidget } from "../components/CommissionsWidget";
+import { WarehouseStatsWidget } from "../components/WarehouseStatsWidget";
 import { WidgetOrderConfigModal } from "../components/WidgetOrderConfigModal";
 
 export function Dashboard() {
@@ -276,6 +277,9 @@ export function Dashboard() {
           currency={targetData?.currency ?? "EUR"}
           hideCommissions={targetData?.hideCommissions ?? false}
         />
+
+        {/* Warehouse Stats Widget (Phase 5) */}
+        <WarehouseStatsWidget />
       </div>
 
       {/* Responsive Grid Media Query via inline style tag */}

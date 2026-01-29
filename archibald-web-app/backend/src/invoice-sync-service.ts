@@ -1,4 +1,5 @@
 import { EventEmitter } from "events";
+import type { BrowserContext } from "puppeteer";
 import { ArchibaldBot } from "./archibald-bot";
 import { BrowserPool } from "./browser-pool";
 import { logger } from "./logger";
@@ -8,6 +9,7 @@ import {
 } from "./pdf-parser-invoices-service";
 import { OrderDatabaseNew } from "./order-db-new";
 import * as fs from "fs/promises";
+import { SyncStopError, isSyncStopError } from "./sync-stop";
 
 export interface InvoiceSyncProgress {
   status: "idle" | "downloading" | "parsing" | "saving" | "completed" | "error";
@@ -26,6 +28,9 @@ export class InvoiceSyncService extends EventEmitter {
   private orderDb: OrderDatabaseNew;
   private syncInProgress = false;
   private paused = false;
+  private stopRequested = false;
+  private activeContext: BrowserContext | null = null;
+  private activeUserId: string | null = null;
   private progress: InvoiceSyncProgress = {
     status: "idle",
     message: "Nessuna sincronizzazione fatture in corso",
@@ -49,11 +54,57 @@ export class InvoiceSyncService extends EventEmitter {
     return InvoiceSyncService.instance;
   }
 
+  private throwIfStopRequested(stage: string): void {
+    if (this.stopRequested) {
+      throw new SyncStopError(
+        `[InvoiceSyncService] Stop requested during ${stage}`,
+      );
+    }
+  }
+
+  private async releaseActiveContext(
+    success: boolean,
+    reason: string,
+  ): Promise<void> {
+    if (!this.activeContext || !this.activeUserId) {
+      return;
+    }
+
+    const context = this.activeContext;
+    const userId = this.activeUserId;
+    this.activeContext = null;
+    this.activeUserId = null;
+
+    try {
+      await this.browserPool.releaseContext(userId, context, success);
+    } catch (error) {
+      logger.warn("[InvoiceSyncService] Failed to release context", {
+        reason,
+        userId,
+        error,
+      });
+    }
+  }
+
+  private async abortActiveContext(reason: string): Promise<void> {
+    if (!this.activeContext || !this.activeUserId) {
+      return;
+    }
+
+    const userId = this.activeUserId;
+    logger.warn("[InvoiceSyncService] Aborting active context", {
+      reason,
+      userId,
+    });
+    await this.releaseActiveContext(false, reason);
+  }
+
   async pause(): Promise<void> {
     logger.info("[InvoiceSyncService] Pause requested");
     this.paused = true;
 
     if (this.syncInProgress) {
+      this.requestStop();
       logger.info(
         "[InvoiceSyncService] Waiting for current sync to complete...",
       );
@@ -84,6 +135,7 @@ export class InvoiceSyncService extends EventEmitter {
     }
 
     this.syncInProgress = true;
+    this.stopRequested = false;
     const startTime = Date.now();
 
     try {
@@ -101,6 +153,7 @@ export class InvoiceSyncService extends EventEmitter {
       // Step 1: Download PDF via bot
       const pdfPath = await this.downloadInvoicesPDF(userId);
       logger.info(`[InvoiceSyncService] PDF downloaded to ${pdfPath}`);
+      this.throwIfStopRequested("download");
 
       // Step 2: Parse PDF
       this.progress = {
@@ -114,6 +167,7 @@ export class InvoiceSyncService extends EventEmitter {
       logger.info(
         `[InvoiceSyncService] Parsed ${parsedInvoices.length} invoices from PDF`,
       );
+      this.throwIfStopRequested("parse");
 
       // Step 3: Save with delta detection
       this.progress = {
@@ -124,6 +178,7 @@ export class InvoiceSyncService extends EventEmitter {
       this.emit("progress", this.progress);
 
       const saveResults = await this.saveInvoices(userId, parsedInvoices);
+      this.throwIfStopRequested("saving");
 
       // Step 4: Cleanup PDF
       await fs.unlink(pdfPath).catch((err) => {
@@ -149,7 +204,14 @@ export class InvoiceSyncService extends EventEmitter {
       });
     } catch (error) {
       const duration = Math.floor((Date.now() - startTime) / 1000);
-      logger.error("[InvoiceSyncService] Sync failed", { error, duration });
+      if (isSyncStopError(error)) {
+        logger.warn("[InvoiceSyncService] Sync stopped", {
+          error: error.message,
+          duration,
+        });
+      } else {
+        logger.error("[InvoiceSyncService] Sync failed", { error, duration });
+      }
 
       this.progress = {
         ...this.progress,
@@ -162,18 +224,24 @@ export class InvoiceSyncService extends EventEmitter {
       throw error;
     } finally {
       this.syncInProgress = false;
+      this.stopRequested = false;
     }
   }
 
   private async downloadInvoicesPDF(userId: string): Promise<string> {
     const context = await this.browserPool.acquireContext(userId);
+    this.activeContext = context;
+    this.activeUserId = userId;
+    this.throwIfStopRequested("login");
     const bot = new ArchibaldBot(userId);
+    let success = false;
 
     try {
       const pdfPath = await bot.downloadInvoicesPDF(context);
+      success = true;
       return pdfPath;
     } finally {
-      await this.browserPool.releaseContext(userId, context, true);
+      await this.releaseActiveContext(success, "download-invoices-pdf");
     }
   }
 
@@ -190,6 +258,7 @@ export class InvoiceSyncService extends EventEmitter {
     let notFound = 0;
 
     for (const parsedInvoice of parsedInvoices) {
+      this.throwIfStopRequested("saving");
       // Skip invoices without order number
       if (!parsedInvoice.order_number) {
         notFound++;
@@ -252,5 +321,13 @@ export class InvoiceSyncService extends EventEmitter {
       invoicesUpdated: updated,
       invoicesSkipped: notFound,
     };
+  }
+
+  requestStop(): void {
+    logger.warn("[InvoiceSyncService] Stop requested");
+    this.stopRequested = true;
+    if (this.syncInProgress) {
+      void this.abortActiveContext("stop-requested");
+    }
   }
 }

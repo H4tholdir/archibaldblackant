@@ -12,6 +12,14 @@ import { SessionCacheManager as MultiUserSessionCacheManager } from "./session-c
 import { BrowserPool } from "./browser-pool";
 import { PasswordCache } from "./password-cache";
 import type { OrderData } from "./types";
+import {
+  buildVariantCandidates,
+  buildTextMatchCandidates,
+  chooseBestTextMatchCandidate,
+  chooseBestVariantCandidate,
+  computeVariantHeaderIndices,
+  normalizeLookupText,
+} from "./variant-selection";
 
 /**
  * Configuration for per-step slowdown values (in milliseconds).
@@ -1208,6 +1216,622 @@ export class ArchibaldBot {
     }
   }
 
+  /**
+   * Wait until DevExpress appears idle (no visible loading panels and no active callbacks).
+   * This is callback-aware and more reliable than fixed sleeps on WebForms/XAF pages.
+   */
+  private async waitForDevExpressIdle(options?: {
+    timeout?: number;
+    stablePolls?: number;
+    label?: string;
+  }): Promise<void> {
+    const { timeout = 6000, stablePolls = 3, label } = options || {};
+
+    if (!this.page) return;
+
+    // First, wait for obvious loading panels to disappear.
+    await this.waitForDevExpressReady({ timeout: Math.min(timeout, 5000) });
+
+    try {
+      await this.page.waitForFunction(
+        (requiredStablePolls: number) => {
+          const w = window as unknown as {
+            ASPxClientControl?: {
+              GetControlCollection?: () => {
+                GetControls?: () => any[];
+                GetControlsByType?: (type: any) => any[];
+                GetControlsByPredicate?: (pred: (c: any) => boolean) => any[];
+              };
+            };
+            ASPxClientGridView?: any;
+            __codexDxIdleStableCount?: number;
+          };
+
+          const isElementVisible = (
+            el: Element | null | undefined,
+          ): boolean => {
+            if (!el) return false;
+            const node = el as HTMLElement;
+            const style = window.getComputedStyle(node);
+            if (style.display === "none") return false;
+            if (style.visibility === "hidden") return false;
+            const rect = node.getBoundingClientRect();
+            return rect.width > 0 && rect.height > 0;
+          };
+
+          const hasVisibleLoadingPanels = (): boolean => {
+            const panels = Array.from(
+              document.querySelectorAll(
+                '[id*="LPV"], .dxlp, .dxlpLoadingPanel, [id*="Loading"]',
+              ),
+            );
+            return panels.some((panel) => isElementVisible(panel));
+          };
+
+          const getAllControls = (): any[] => {
+            const collection =
+              w.ASPxClientControl?.GetControlCollection?.() ?? null;
+            if (!collection) return [];
+
+            if (typeof collection.GetControls === "function") {
+              try {
+                return collection.GetControls() || [];
+              } catch {
+                // ignore
+              }
+            }
+
+            if (
+              typeof collection.GetControlsByType === "function" &&
+              w.ASPxClientGridView
+            ) {
+              try {
+                return collection.GetControlsByType(w.ASPxClientGridView) || [];
+              } catch {
+                // ignore
+              }
+            }
+
+            if (typeof collection.GetControlsByPredicate === "function") {
+              try {
+                return (
+                  collection.GetControlsByPredicate((c: any) => Boolean(c)) ||
+                  []
+                );
+              } catch {
+                // ignore
+              }
+            }
+
+            return [];
+          };
+
+          const hasActiveCallbacks = (): boolean => {
+            const controls = getAllControls();
+            if (controls.length === 0) return false;
+
+            const controlInCallback = (control: any): boolean => {
+              try {
+                if (typeof control.InCallback === "function") {
+                  return Boolean(control.InCallback());
+                }
+              } catch {
+                // ignore
+              }
+              return false;
+            };
+
+            for (const control of controls) {
+              if (!control) continue;
+              if (controlInCallback(control)) return true;
+
+              // GridLookup and similar controls expose an embedded grid view.
+              try {
+                if (typeof control.GetGridView === "function") {
+                  const grid = control.GetGridView();
+                  if (grid && controlInCallback(grid)) return true;
+                }
+              } catch {
+                // ignore
+              }
+            }
+
+            return false;
+          };
+
+          const idleNow = !hasVisibleLoadingPanels() && !hasActiveCallbacks();
+
+          if (idleNow) {
+            w.__codexDxIdleStableCount = (w.__codexDxIdleStableCount || 0) + 1;
+          } else {
+            w.__codexDxIdleStableCount = 0;
+          }
+
+          return (w.__codexDxIdleStableCount || 0) >= requiredStablePolls;
+        },
+        { timeout, polling: 100 },
+        stablePolls,
+      );
+    } catch {
+      // Fallback: small stabilization wait when idle detection fails.
+      await this.wait(600);
+    }
+
+    if (label) {
+      logger.debug(`[DevExpressIdle] Completed idle wait: ${label}`, {
+        timeout,
+        stablePolls,
+      });
+    }
+  }
+
+  /**
+   * Identify the active (visible) DevExpress lookup/dropdown and capture a small snapshot.
+   * This avoids reading rows from hidden or stale dropdowns after callbacks.
+   */
+  private async getActiveDevExpressLookupSnapshot(options?: {
+    baseIdHint?: string | null;
+    rowSampleLimit?: number;
+  }): Promise<{
+    containerId: string | null;
+    rootId: string | null;
+    rowCount: number;
+    headerTexts: string[];
+    rowSamples: string[][];
+  }> {
+    const { baseIdHint = null, rowSampleLimit = 5 } = options || {};
+
+    if (!this.page) {
+      return {
+        containerId: null,
+        rootId: null,
+        rowCount: 0,
+        headerTexts: [],
+        rowSamples: [],
+      };
+    }
+
+    return await this.page.evaluate(
+      (hintBaseId: string | null, sampleLimit: number) => {
+        const visibleDropdowns = Array.from(
+          document.querySelectorAll('[id*="_DDD"]'),
+        ).filter((node) => {
+          const el = node as HTMLElement | null;
+          if (!el) return false;
+          const style = window.getComputedStyle(el);
+          if (style.display === "none") return false;
+          if (style.visibility === "hidden") return false;
+          const rect = el.getBoundingClientRect();
+          return rect.width > 0 && rect.height > 0;
+        });
+
+        const hintedDropdown =
+          hintBaseId && hintBaseId.length > 0
+            ? visibleDropdowns.find((node) =>
+                (node as HTMLElement).id.includes(hintBaseId),
+              ) || null
+            : null;
+
+        let activeContainer =
+          hintedDropdown &&
+          hintedDropdown.querySelector('tr[class*="dxgvDataRow"]')
+            ? hintedDropdown
+            : visibleDropdowns.find((node) =>
+                node.querySelector('tr[class*="dxgvDataRow"]'),
+              ) || null;
+
+        if (!activeContainer) {
+          const popupContainers = Array.from(
+            document.querySelectorAll(".dxpcLite, .dxpc-content, .dxpcMainDiv"),
+          ).filter((node) => {
+            const el = node as HTMLElement | null;
+            if (!el) return false;
+            const style = window.getComputedStyle(el);
+            if (style.display === "none") return false;
+            if (style.visibility === "hidden") return false;
+            const rect = el.getBoundingClientRect();
+            return rect.width > 0 && rect.height > 0;
+          });
+
+          const hintedPopup =
+            hintBaseId && hintBaseId.length > 0
+              ? popupContainers.find((node) =>
+                  (node as HTMLElement).id.includes(hintBaseId),
+                ) || null
+              : null;
+
+          activeContainer =
+            hintedPopup && hintedPopup.querySelector('tr[class*="dxgvDataRow"]')
+              ? hintedPopup
+              : popupContainers.find((node) =>
+                  node.querySelector('tr[class*="dxgvDataRow"]'),
+                ) || null;
+        }
+
+        const root = activeContainer || document;
+
+        const headerTexts: string[] = [];
+        const headerTable = root.querySelector('table[id*="DXHeaderTable"]');
+        let headerRow: Element | null = null;
+
+        if (headerTable) {
+          headerRow =
+            headerTable.querySelector('tr[id*="DXHeadersRow"]') ||
+            headerTable.querySelector("tr.dxgvHeaderRow") ||
+            headerTable.querySelector('tr[class*="dxgvHeaderRow"]');
+        }
+
+        if (!headerRow) {
+          headerRow =
+            root.querySelector("tr.dxgvHeaderRow") ||
+            root.querySelector('tr[class*="dxgvHeaderRow"]') ||
+            root.querySelector('tr[id*="DXHeadersRow"]');
+        }
+
+        if (headerRow) {
+          const headerCells = Array.from(headerRow.querySelectorAll("td, th"));
+          for (const cell of headerCells) {
+            const wrap = cell.querySelector(".dx-wrap");
+            const text = (wrap?.textContent || cell.textContent || "").trim();
+            headerTexts.push(text);
+          }
+        }
+
+        const rows = Array.from(
+          root.querySelectorAll('tr[class*="dxgvDataRow"]'),
+        ).filter((row) => {
+          const el = row as HTMLElement | null;
+          if (!el) return false;
+          const style = window.getComputedStyle(el);
+          if (style.display === "none") return false;
+          if (style.visibility === "hidden") return false;
+          const rect = el.getBoundingClientRect();
+          return rect.width > 0 && rect.height > 0;
+        });
+
+        const rowSamples = rows.slice(0, sampleLimit).map((row) => {
+          const cells = Array.from(row.querySelectorAll("td"));
+          return cells.map((cell) => cell.textContent?.trim() || "");
+        });
+
+        return {
+          containerId: activeContainer
+            ? (activeContainer as HTMLElement).id || null
+            : null,
+          rootId:
+            root instanceof HTMLElement
+              ? root.id || null
+              : activeContainer
+                ? (activeContainer as HTMLElement).id || null
+                : null,
+          rowCount: rows.length,
+          headerTexts,
+          rowSamples,
+        };
+      },
+      baseIdHint,
+      rowSampleLimit,
+    );
+  }
+
+  /**
+   * Confirm that a lookup selection actually "stuck" by checking both input value
+   * and (when possible) DevExpress client-side selection state.
+   */
+  private async confirmLookupSelection(options: {
+    baseId?: string | null;
+    expectedVariantId?: string | null;
+    expectedVariantSuffix?: string | null;
+    gridIdHint?: string | null;
+  }): Promise<{
+    confirmed: boolean;
+    inputId: string | null;
+    inputValue: string | null;
+    selectedKeys: string[];
+    focusedKey: string | null;
+    stateKeys: string[];
+    matchReason: string | null;
+  }> {
+    const {
+      baseId = null,
+      expectedVariantId = null,
+      expectedVariantSuffix = null,
+      gridIdHint = null,
+    } = options;
+
+    if (!this.page) {
+      return {
+        confirmed: false,
+        inputId: null,
+        inputValue: null,
+        selectedKeys: [],
+        focusedKey: null,
+        stateKeys: [],
+        matchReason: null,
+      };
+    }
+
+    return await this.page.evaluate(
+      (baseIdText, expectedId, expectedSuffix, gridIdText) => {
+        const result = {
+          confirmed: false,
+          inputId: null as string | null,
+          inputValue: null as string | null,
+          selectedKeys: [] as string[],
+          focusedKey: null as string | null,
+          stateKeys: [] as string[],
+          matchReason: null as string | null,
+        };
+
+        const expectedIdNorm = String(expectedId || "")
+          .toLowerCase()
+          .replace(/\s+/g, " ")
+          .trim();
+        const expectedSuffixNorm = String(expectedSuffix || "")
+          .toLowerCase()
+          .replace(/\s+/g, " ")
+          .trim();
+
+        const inputCandidates = Array.from(
+          document.querySelectorAll("input[type='text']"),
+        ) as HTMLInputElement[];
+
+        const baseIdLower = String(baseIdText || "")
+          .toLowerCase()
+          .replace(/\s+/g, " ")
+          .trim();
+        const input =
+          inputCandidates.find((candidate) => {
+            const idLower = String(candidate.id || "")
+              .toLowerCase()
+              .replace(/\s+/g, " ")
+              .trim();
+            if (!idLower) return false;
+            if (baseIdLower && idLower.includes(baseIdLower)) return true;
+            if (baseIdLower && idLower === `${baseIdLower}_i`) return true;
+            return false;
+          }) || null;
+
+        if (input) {
+          result.inputId = input.id || null;
+          result.inputValue = input.value || "";
+        }
+
+        const stateInputId = gridIdText ? `${gridIdText}_State` : null;
+        const stateInput = stateInputId
+          ? (document.getElementById(stateInputId) as HTMLInputElement | null)
+          : null;
+        if (stateInput && stateInput.value) {
+          try {
+            const parsed = JSON.parse(stateInput.value);
+            if (Array.isArray(parsed?.keys)) {
+              result.stateKeys = parsed.keys.map((k: any) => String(k));
+            }
+            if (
+              parsed?.focusedKey !== undefined &&
+              parsed?.focusedKey !== null
+            ) {
+              result.focusedKey = String(parsed.focusedKey);
+            }
+          } catch {
+            // ignore state parse issues
+          }
+        }
+
+        const ASPx = (window as any).ASPxClientControl;
+        if (ASPx?.GetControlCollection) {
+          try {
+            const collection = ASPx.GetControlCollection();
+            const controls = collection?.GetControls?.() || [];
+            for (const control of controls) {
+              if (!control || typeof control.GetGridView !== "function")
+                continue;
+              const inputEl =
+                typeof control.GetInputElement === "function"
+                  ? control.GetInputElement()
+                  : null;
+              if (!inputEl) continue;
+              const inputIdNorm = String(inputEl.id || "")
+                .toLowerCase()
+                .replace(/\s+/g, " ")
+                .trim();
+              if (baseIdLower && !inputIdNorm.includes(baseIdLower)) continue;
+
+              const grid = control.GetGridView();
+              if (!grid) continue;
+
+              try {
+                if (typeof grid.GetSelectedKeysOnPage === "function") {
+                  const keys = grid.GetSelectedKeysOnPage() || [];
+                  result.selectedKeys = keys.map((k: any) => String(k));
+                }
+              } catch {
+                // ignore
+              }
+
+              try {
+                if (
+                  !result.focusedKey &&
+                  typeof grid.GetFocusedRowKey === "function"
+                ) {
+                  const focused = grid.GetFocusedRowKey();
+                  if (focused !== undefined && focused !== null) {
+                    result.focusedKey = String(focused);
+                  }
+                }
+              } catch {
+                // ignore
+              }
+            }
+          } catch {
+            // ignore client API issues
+          }
+        }
+
+        const valueNorm = String(result.inputValue || "")
+          .toLowerCase()
+          .replace(/\s+/g, " ")
+          .trim();
+        let inputMatchReason: string | null = null;
+        if (valueNorm) {
+          if (expectedIdNorm && valueNorm.includes(expectedIdNorm)) {
+            inputMatchReason = "input-variant-id";
+          } else if (
+            expectedSuffixNorm &&
+            valueNorm.includes(expectedSuffixNorm)
+          ) {
+            inputMatchReason = "input-variant-suffix";
+          }
+        }
+
+        let selectedKeysMatch = false;
+        if (expectedIdNorm) {
+          for (const key of result.selectedKeys) {
+            const keyNorm = String(key || "")
+              .toLowerCase()
+              .replace(/\s+/g, " ")
+              .trim();
+            if (keyNorm === expectedIdNorm) {
+              selectedKeysMatch = true;
+              break;
+            }
+          }
+        }
+
+        let stateKeysMatch = false;
+        if (expectedIdNorm) {
+          for (const key of result.stateKeys) {
+            const keyNorm = String(key || "")
+              .toLowerCase()
+              .replace(/\s+/g, " ")
+              .trim();
+            if (keyNorm === expectedIdNorm) {
+              stateKeysMatch = true;
+              break;
+            }
+          }
+        }
+
+        let focusedMatch = false;
+        if (expectedIdNorm && result.focusedKey) {
+          const focusedNorm = String(result.focusedKey || "")
+            .toLowerCase()
+            .replace(/\s+/g, " ")
+            .trim();
+          focusedMatch = focusedNorm === expectedIdNorm;
+        }
+
+        if (inputMatchReason) {
+          result.confirmed = true;
+          result.matchReason = inputMatchReason;
+        } else if (selectedKeysMatch) {
+          result.confirmed = true;
+          result.matchReason = "client-selected-keys";
+        } else if (stateKeysMatch) {
+          result.confirmed = true;
+          result.matchReason = "state-keys";
+        } else if (focusedMatch) {
+          result.confirmed = true;
+          result.matchReason = "focused-key";
+        }
+
+        return result;
+      },
+      baseId,
+      expectedVariantId,
+      expectedVariantSuffix,
+      gridIdHint,
+    );
+  }
+
+  /**
+   * Click a DevExpress grid command button using stable `data-args` selectors first.
+   * Falls back to ID hints only when needed.
+   */
+  private async clickDevExpressGridCommand(options: {
+    command: "AddNew" | "UpdateEdit" | "NewEdit";
+    baseIdHint?: string | null;
+    timeout?: number;
+    label?: string;
+  }): Promise<{
+    clicked: boolean;
+    strategy: string;
+    id: string | null;
+    reason: string | null;
+  }> {
+    const { command, baseIdHint = null, timeout = 4000, label } = options;
+
+    if (!this.page) {
+      return { clicked: false, strategy: "no-page", id: null, reason: null };
+    }
+
+    const result = await this.page.evaluate(
+      (cmd: string, baseHint: string | null) => {
+        const candidates = Array.from(
+          document.querySelectorAll(`a[data-args*="${cmd}"]`),
+        ).filter((node) => {
+          const el = node as HTMLElement | null;
+          if (!el) return false;
+          const style = window.getComputedStyle(el);
+          if (style.display === "none") return false;
+          if (style.visibility === "hidden") return false;
+          const rect = el.getBoundingClientRect();
+          return rect.width > 0 && rect.height > 0;
+        }) as HTMLElement[];
+
+        if (candidates.length === 0) {
+          return {
+            clicked: false,
+            strategy: "data-args-none",
+            id: null,
+            reason: null,
+          };
+        }
+
+        const hinted =
+          baseHint && baseHint.length > 0
+            ? candidates.find((node) => (node.id || "").includes(baseHint)) ||
+              null
+            : null;
+
+        const target = hinted || candidates[0];
+
+        target.scrollIntoView({ block: "center", inline: "center" });
+        const start = Date.now();
+        while (Date.now() - start < 120) {
+          // brief sync wait for scroll stabilization
+        }
+        target.click();
+
+        return {
+          clicked: true,
+          strategy: hinted ? "data-args-hinted" : "data-args-first",
+          id: target.id || null,
+          reason: hinted ? "hint-match" : "first-visible",
+        };
+      },
+      command,
+      baseIdHint,
+    );
+
+    if (result.clicked) {
+      await this.waitForDevExpressIdle({
+        timeout,
+        label: label || `grid-command-${command}`,
+      });
+    }
+
+    if (label) {
+      logger.debug(`[GridCommand] ${label}`, {
+        command,
+        baseIdHint,
+        ...result,
+      });
+    }
+
+    return result;
+  }
+
   async writeOperationReport(filePath?: string): Promise<string> {
     const report = this.buildEnhancedReport();
     const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
@@ -1932,8 +2556,7 @@ export class ArchibaldBot {
               logger.warn(
                 "Direct navigation to orders list failed, falling back to menu",
                 {
-                  error:
-                    error instanceof Error ? error.message : String(error),
+                  error: error instanceof Error ? error.message : String(error),
                 },
               );
             }
@@ -2285,83 +2908,330 @@ export class ArchibaldBot {
           await this.page!.keyboard.press("Enter");
           logger.debug("Pressed Enter, checking for filtered results...");
 
-          let selectionMode: string | null = null;
+          await this.waitForDevExpressIdle({
+            timeout: 5000,
+            label: "customer-lookup-filtered",
+          });
+
           try {
-            selectionMode = (await this.page!.waitForFunction(
-              (customerName) => {
-                const rows = Array.from(
-                  document.querySelectorAll('tr[class*="dxgvDataRow"]'),
-                );
-                const visibleRows = rows.filter((row) => {
-                  const el = row as HTMLElement;
-                  return (
-                    el.offsetParent !== null &&
-                    el.getBoundingClientRect().height > 0
-                  );
+            await this.page!.waitForFunction(
+              (baseId) => {
+                const dropdowns = Array.from(
+                  document.querySelectorAll('[id*="_DDD"]'),
+                ).filter((node) => {
+                  const el = node as HTMLElement | null;
+                  if (!el) return false;
+                  const style = window.getComputedStyle(el);
+                  if (style.display === "none") return false;
+                  if (style.visibility === "hidden") return false;
+                  const rect = el.getBoundingClientRect();
+                  return rect.width > 0 && rect.height > 0;
                 });
 
-                if (visibleRows.length === 0) {
-                  return null;
-                }
+                const hintedDropdown = baseId
+                  ? dropdowns.find((node) =>
+                      (node as HTMLElement).id.includes(baseId),
+                    ) || null
+                  : null;
 
-                const normalized = customerName.trim().toLowerCase();
-                const exactRow = visibleRows.find((row) => {
-                  const cells = Array.from(row.querySelectorAll("td"));
-                  return cells.some((cell) => {
-                    const text = cell.textContent?.trim().toLowerCase() || "";
-                    return text === normalized;
+                let activeContainer =
+                  hintedDropdown &&
+                  hintedDropdown.querySelector('tr[class*="dxgvDataRow"]')
+                    ? hintedDropdown
+                    : dropdowns.find((container) =>
+                        container.querySelector('tr[class*="dxgvDataRow"]'),
+                      ) || null;
+
+                if (!activeContainer) {
+                  const popups = Array.from(
+                    document.querySelectorAll(
+                      ".dxpcLite, .dxpc-content, .dxpcMainDiv",
+                    ),
+                  ).filter((node) => {
+                    const el = node as HTMLElement | null;
+                    if (!el) return false;
+                    const style = window.getComputedStyle(el);
+                    if (style.display === "none") return false;
+                    if (style.visibility === "hidden") return false;
+                    const rect = el.getBoundingClientRect();
+                    return rect.width > 0 && rect.height > 0;
                   });
-                });
 
-                const targetRow =
-                  exactRow || (visibleRows.length === 1 ? visibleRows[0] : null);
+                  const hintedPopup = baseId
+                    ? popups.find((node) =>
+                        (node as HTMLElement).id.includes(baseId),
+                      ) || null
+                    : null;
 
-                if (!targetRow) {
-                  return null;
+                  activeContainer =
+                    hintedPopup &&
+                    hintedPopup.querySelector('tr[class*="dxgvDataRow"]')
+                      ? hintedPopup
+                      : popups.find((container) =>
+                          container.querySelector('tr[class*="dxgvDataRow"]'),
+                        ) || null;
                 }
 
-                const firstCell = targetRow.querySelector("td");
-                const clickTarget = firstCell || targetRow;
-                (clickTarget as HTMLElement).click();
-                return exactRow ? "exact" : "single";
+                const rowsRoot = activeContainer || document;
+                const rows = Array.from(
+                  rowsRoot.querySelectorAll('tr[class*="dxgvDataRow"]'),
+                ).filter((row) => {
+                  const el = row as HTMLElement | null;
+                  if (!el) return false;
+                  const style = window.getComputedStyle(el);
+                  if (style.display === "none") return false;
+                  if (style.visibility === "hidden") return false;
+                  const rect = el.getBoundingClientRect();
+                  return rect.width > 0 && rect.height > 0;
+                });
+                return rows.length > 0;
               },
-              { timeout: 2000, polling: "mutation" },
-              orderData.customerName,
-            ).then((result) => result.jsonValue())) as string | null;
+              { timeout: 4000, polling: 100 },
+              customerBaseId,
+            );
           } catch {
-            selectionMode = null;
+            logger.debug("No visible customer rows detected after search");
+          }
+
+          const snapshot = await this.page!.evaluate((baseId) => {
+            const dropdowns = Array.from(
+              document.querySelectorAll('[id*="_DDD"]'),
+            ).filter((node) => {
+              const el = node as HTMLElement | null;
+              if (!el) return false;
+              const style = window.getComputedStyle(el);
+              if (style.display === "none") return false;
+              if (style.visibility === "hidden") return false;
+              const rect = el.getBoundingClientRect();
+              return rect.width > 0 && rect.height > 0;
+            });
+
+            const hintedDropdown = baseId
+              ? dropdowns.find((node) =>
+                  (node as HTMLElement).id.includes(baseId),
+                ) || null
+              : null;
+
+            let activeContainer =
+              hintedDropdown &&
+              hintedDropdown.querySelector('tr[class*="dxgvDataRow"]')
+                ? hintedDropdown
+                : dropdowns.find((container) =>
+                    container.querySelector('tr[class*="dxgvDataRow"]'),
+                  ) || null;
+
+            if (!activeContainer) {
+              const popups = Array.from(
+                document.querySelectorAll(
+                  ".dxpcLite, .dxpc-content, .dxpcMainDiv",
+                ),
+              ).filter((node) => {
+                const el = node as HTMLElement | null;
+                if (!el) return false;
+                const style = window.getComputedStyle(el);
+                if (style.display === "none") return false;
+                if (style.visibility === "hidden") return false;
+                const rect = el.getBoundingClientRect();
+                return rect.width > 0 && rect.height > 0;
+              });
+
+              const hintedPopup = baseId
+                ? popups.find((node) =>
+                    (node as HTMLElement).id.includes(baseId),
+                  ) || null
+                : null;
+
+              activeContainer =
+                hintedPopup &&
+                hintedPopup.querySelector('tr[class*="dxgvDataRow"]')
+                  ? hintedPopup
+                  : popups.find((container) =>
+                      container.querySelector('tr[class*="dxgvDataRow"]'),
+                    ) || null;
+            }
+
+            const rowsRoot = activeContainer || document;
+            const headerRow =
+              rowsRoot.querySelector("tr.dxgvHeaderRow") ||
+              rowsRoot.querySelector('tr[class*="dxgvHeaderRow"]');
+            const headerTexts = headerRow
+              ? Array.from(headerRow.querySelectorAll("td, th")).map(
+                  (cell) => cell.textContent?.trim() || "",
+                )
+              : [];
+
+            const rows = Array.from(
+              rowsRoot.querySelectorAll('tr[class*="dxgvDataRow"]'),
+            ).filter((row) => {
+              const el = row as HTMLElement | null;
+              if (!el) return false;
+              const style = window.getComputedStyle(el);
+              if (style.display === "none") return false;
+              if (style.visibility === "hidden") return false;
+              const rect = el.getBoundingClientRect();
+              return rect.width > 0 && rect.height > 0;
+            });
+
+            const rowSnapshots = rows.map((row, index) => {
+              const cells = Array.from(row.querySelectorAll("td"));
+              const cellTexts = cells.map((cell) => {
+                const text = cell.textContent?.trim();
+                if (text) return text;
+                return cell.getAttribute("title")?.trim() || "";
+              });
+
+              return {
+                index,
+                cellTexts,
+                rowId: row.getAttribute("id") || null,
+              };
+            });
+
+            return {
+              containerId: activeContainer
+                ? (activeContainer as HTMLElement).id || null
+                : null,
+              headerTexts,
+              rows: rowSnapshots,
+              rowsCount: rows.length,
+            };
+          }, customerBaseId);
+
+          const candidates = buildTextMatchCandidates(
+            snapshot.rows,
+            orderData.customerName,
+          );
+          const { chosen, reason } = chooseBestTextMatchCandidate(candidates);
+
+          let selectionMode: string | null = null;
+
+          if (chosen && reason) {
+            const clickResult = await this.page!.evaluate(
+              (containerId, rowIndex) => {
+                let activeContainer: Element | null = null;
+
+                if (containerId) {
+                  const byId = document.getElementById(containerId);
+                  if (byId) {
+                    const el = byId as HTMLElement;
+                    const style = window.getComputedStyle(el);
+                    const rect = el.getBoundingClientRect();
+                    const visible =
+                      style.display !== "none" &&
+                      style.visibility !== "hidden" &&
+                      rect.width > 0 &&
+                      rect.height > 0;
+                    if (visible) {
+                      activeContainer = byId;
+                    }
+                  }
+                }
+
+                if (!activeContainer) {
+                  const dropdowns = Array.from(
+                    document.querySelectorAll('[id*="_DDD"]'),
+                  ).filter((node) => {
+                    const el = node as HTMLElement | null;
+                    if (!el) return false;
+                    const style = window.getComputedStyle(el);
+                    if (style.display === "none") return false;
+                    if (style.visibility === "hidden") return false;
+                    const rect = el.getBoundingClientRect();
+                    return rect.width > 0 && rect.height > 0;
+                  });
+
+                  activeContainer =
+                    dropdowns.find((container) =>
+                      container.querySelector('tr[class*="dxgvDataRow"]'),
+                    ) || null;
+                }
+
+                if (!activeContainer) {
+                  const popups = Array.from(
+                    document.querySelectorAll(
+                      ".dxpcLite, .dxpc-content, .dxpcMainDiv",
+                    ),
+                  ).filter((node) => {
+                    const el = node as HTMLElement | null;
+                    if (!el) return false;
+                    const style = window.getComputedStyle(el);
+                    if (style.display === "none") return false;
+                    if (style.visibility === "hidden") return false;
+                    const rect = el.getBoundingClientRect();
+                    return rect.width > 0 && rect.height > 0;
+                  });
+
+                  activeContainer =
+                    popups.find((container) =>
+                      container.querySelector('tr[class*="dxgvDataRow"]'),
+                    ) || null;
+                }
+
+                const rowsRoot = activeContainer || document;
+                const rows = Array.from(
+                  rowsRoot.querySelectorAll('tr[class*="dxgvDataRow"]'),
+                ).filter((row) => {
+                  const el = row as HTMLElement | null;
+                  if (!el) return false;
+                  const style = window.getComputedStyle(el);
+                  if (style.display === "none") return false;
+                  if (style.visibility === "hidden") return false;
+                  const rect = el.getBoundingClientRect();
+                  return rect.width > 0 && rect.height > 0;
+                });
+
+                const row = rows[rowIndex] || null;
+                if (!row) {
+                  return {
+                    clicked: false,
+                    rowsCount: rows.length,
+                    containerId: activeContainer
+                      ? (activeContainer as HTMLElement).id || ""
+                      : "",
+                  };
+                }
+
+                const firstCell = row.querySelector("td");
+                const clickTarget = firstCell || row;
+                (clickTarget as HTMLElement).scrollIntoView({
+                  block: "center",
+                  inline: "center",
+                });
+                (clickTarget as HTMLElement).click();
+
+                return {
+                  clicked: true,
+                  rowsCount: rows.length,
+                  rowId: row.getAttribute("id") || "",
+                  containerId: activeContainer
+                    ? (activeContainer as HTMLElement).id || ""
+                    : "",
+                };
+              },
+              snapshot.containerId,
+              chosen.index,
+            );
+
+            selectionMode = clickResult.clicked ? reason : null;
           }
 
           if (!selectionMode) {
-            const debugInfo = await this.page!.evaluate((customerName) => {
-              const rows = Array.from(
-                document.querySelectorAll('tr[class*="dxgvDataRow"]'),
-              );
-              const visibleRows = rows.filter((row) => {
-                const el = row as HTMLElement;
-                return (
-                  el.offsetParent !== null &&
-                  el.getBoundingClientRect().height > 0
-                );
-              });
-              const normalized = customerName.trim().toLowerCase();
-              const candidates = visibleRows.slice(0, 5).map((row) => {
-                const cells = Array.from(row.querySelectorAll("td"));
-                const texts = cells
-                  .map((cell) => cell.textContent?.trim() || "")
-                  .filter(Boolean);
-                return {
-                  text: texts[0] || row.textContent?.trim() || "",
-                  exactMatch: texts.some(
-                    (text) => text.toLowerCase() === normalized,
-                  ),
-                };
-              });
-              return {
-                rowCount: visibleRows.length,
-                candidates,
-              };
-            }, orderData.customerName);
+            const normalizedQuery = normalizeLookupText(orderData.customerName);
+            const containsCount = candidates.filter(
+              (c) => c.containsMatch,
+            ).length;
+            const debugInfo = {
+              rowCount: snapshot.rowsCount,
+              headerTexts: snapshot.headerTexts,
+              normalizedQuery,
+              containsCount,
+              candidates: candidates.slice(0, 5).map((candidate) => ({
+                text: candidate.cellTexts[0] || candidate.rowText,
+                exactMatch: candidate.exactMatch,
+                containsMatch: candidate.containsMatch,
+                normalizedCombined: candidate.normalizedCombined,
+              })),
+            };
 
             logger.error("Customer selection failed", {
               customerName: orderData.customerName,
@@ -2407,9 +3277,7 @@ export class ArchibaldBot {
               () => {
                 const addNewLinks = Array.from(
                   document.querySelectorAll('a[data-args*="AddNew"]'),
-                ).filter(
-                  (el) => (el as HTMLElement).offsetParent !== null,
-                );
+                ).filter((el) => (el as HTMLElement).offsetParent !== null);
                 if (addNewLinks.length > 0) {
                   return true;
                 }
@@ -2418,9 +3286,7 @@ export class ArchibaldBot {
                   document.querySelectorAll(
                     'img[title="New"][src*="Action_Inline_New"]',
                   ),
-                ).filter(
-                  (el) => (el as HTMLElement).offsetParent !== null,
-                );
+                ).filter((el) => (el as HTMLElement).offsetParent !== null);
                 return newImages.length > 0;
               },
               { timeout: 4000, polling: 100 },
@@ -2447,115 +3313,162 @@ export class ArchibaldBot {
           // Wait for line items grid to be fully loaded
           await this.wait(1000);
 
+          // Strategy 0: stable DevExpress command click via data-args (preferred)
+          const gridCommandResult = await this.clickDevExpressGridCommand({
+            command: "AddNew",
+            baseIdHint: "SALESLINEs",
+            timeout: 6000,
+            label: "lineitems-addnew-command",
+          });
+
+          let addNewClicked = gridCommandResult.clicked;
+          if (addNewClicked) {
+            logger.debug("AddNew clicked via grid command helper", {
+              strategy: gridCommandResult.strategy,
+              id: gridCommandResult.id,
+              reason: gridCommandResult.reason,
+            });
+          }
+
           // Look for DevExpress "New" button in sales lines grid
           // Pattern: <a class="dxbButton_XafTheme" with <img title="New">
-          const buttonInfo = await this.page!.evaluate(() => {
-            // Strategy 1: Find by data-args containing 'AddNew'
-            const buttons = Array.from(
-              document.querySelectorAll('a[data-args*="AddNew"]'),
-            );
-            if (buttons.length > 0) {
-              const button = buttons[0] as HTMLElement;
-              return {
-                found: true,
-                strategy: 1,
-                id: button.id || "no-id",
-                selector: 'a[data-args*="AddNew"]',
-              };
-            }
+          if (!addNewClicked) {
+            const buttonInfo = await this.page!.evaluate(() => {
+              // Strategy 1: Find by data-args containing 'AddNew'
+              const buttons = Array.from(
+                document.querySelectorAll('a[data-args*="AddNew"]'),
+              );
+              if (buttons.length > 0) {
+                const button = buttons[0] as HTMLElement;
+                return {
+                  found: true,
+                  strategy: 1,
+                  id: button.id || "no-id",
+                  selector: 'a[data-args*="AddNew"]',
+                };
+              }
 
-            // Strategy 2: Find img with title="New" and src containing "Action_Inline_New"
-            const images = Array.from(
-              document.querySelectorAll('img[title="New"]'),
-            );
-            for (const img of images) {
-              const src = (img as HTMLImageElement).src || "";
-              if (src.includes("Action_Inline_New")) {
-                const parent = img.parentElement;
-                if (parent && parent.tagName === "A") {
+              // Strategy 2: Find img with title="New" and src containing "Action_Inline_New"
+              const images = Array.from(
+                document.querySelectorAll('img[title="New"]'),
+              );
+              for (const img of images) {
+                const src = (img as HTMLImageElement).src || "";
+                if (src.includes("Action_Inline_New")) {
+                  const parent = img.parentElement;
+                  if (parent && parent.tagName === "A") {
+                    return {
+                      found: true,
+                      strategy: 2,
+                      id: parent.id || "no-id",
+                      selector: 'img[title="New"] parent',
+                    };
+                  }
+                }
+              }
+
+              // Strategy 3: Find by ID pattern containing "SALESLINEs" and "DXCBtn"
+              const allLinks = Array.from(
+                document.querySelectorAll("a.dxbButton_XafTheme"),
+              );
+              for (const link of allLinks) {
+                const id = link.id || "";
+                if (id.includes("SALESLINEs") && id.includes("DXCBtn")) {
                   return {
                     found: true,
-                    strategy: 2,
-                    id: parent.id || "no-id",
-                    selector: 'img[title="New"] parent',
+                    strategy: 3,
+                    id: id,
+                    selector: "a.dxbButton_XafTheme with SALESLINEs",
                   };
                 }
               }
-            }
 
-            // Strategy 3: Find by ID pattern containing "SALESLINEs" and "DXCBtn"
-            const allLinks = Array.from(
-              document.querySelectorAll("a.dxbButton_XafTheme"),
-            );
-            for (const link of allLinks) {
-              const id = link.id || "";
-              if (id.includes("SALESLINEs") && id.includes("DXCBtn")) {
-                return {
-                  found: true,
-                  strategy: 3,
-                  id: id,
-                  selector: "a.dxbButton_XafTheme with SALESLINEs",
-                };
-              }
-            }
-
-            return { found: false };
-          });
-
-          if (!buttonInfo.found) {
-            await this.page!.screenshot({
-              path: `logs/new-button-not-found-${Date.now()}.png`,
-              fullPage: true,
+              return { found: false };
             });
-            throw new Error('Button "New" in line items not found');
-          }
 
-          logger.debug(
-            `Found "New" button using strategy ${buttonInfo.strategy}`,
-            {
-              id: buttonInfo.id,
-              selector: buttonInfo.selector,
-            },
-          );
-
-          // Use Puppeteer click instead of JavaScript click for more reliable interaction
-          let buttonHandle: ElementHandle<Element> | null = null;
-
-          if (buttonInfo.strategy === 1) {
-            buttonHandle = await this.page!.$('a[data-args*="AddNew"]');
-          } else if (buttonInfo.strategy === 2) {
-            const imgHandle = await this.page!.$(
-              'img[title="New"][src*="Action_Inline_New"]',
-            );
-            if (imgHandle) {
-              const parentHandle = await imgHandle.evaluateHandle(
-                (img) => img.parentElement,
-              );
-              if (parentHandle && "asElement" in parentHandle) {
-                buttonHandle =
-                  parentHandle.asElement() as ElementHandle<Element> | null;
-              }
+            if (!buttonInfo.found) {
+              await this.page!.screenshot({
+                path: `logs/new-button-not-found-${Date.now()}.png`,
+                fullPage: true,
+              });
+              throw new Error('Button "New" in line items not found');
             }
-          } else if (buttonInfo.strategy === 3) {
-            buttonHandle = await this.page!.$(`#${buttonInfo.id}`);
-          }
 
-          if (!buttonHandle) {
-            throw new Error(
-              "Found button in evaluate but could not get handle",
+            logger.debug(
+              `Found "New" button using strategy ${buttonInfo.strategy}`,
+              {
+                id: buttonInfo.id,
+                selector: buttonInfo.selector,
+              },
             );
+
+            const clicked = await this.page!.evaluate(
+              (strategy, id) => {
+                const clickSequence = (el: HTMLElement) => {
+                  el.scrollIntoView({ block: "center" });
+                  const events: Array<keyof DocumentEventMap> = [
+                    "pointerdown",
+                    "mousedown",
+                    "pointerup",
+                    "mouseup",
+                    "click",
+                  ];
+                  for (const type of events) {
+                    el.dispatchEvent(
+                      new MouseEvent(type, {
+                        bubbles: true,
+                        cancelable: true,
+                        view: window,
+                      }),
+                    );
+                  }
+                };
+
+                let target: HTMLElement | null = null;
+                if (strategy === 1) {
+                  target = document.querySelector(
+                    'a[data-args*="AddNew"]',
+                  ) as HTMLElement | null;
+                } else if (strategy === 2) {
+                  const img = document.querySelector(
+                    'img[title="New"][src*="Action_Inline_New"]',
+                  ) as HTMLElement | null;
+                  target = (img?.parentElement as HTMLElement | null) || null;
+                } else if (strategy === 3 && id) {
+                  target = document.getElementById(id) as HTMLElement | null;
+                }
+
+                if (!target) return false;
+                const style = window.getComputedStyle(target);
+                const rect = target.getBoundingClientRect();
+                const visible =
+                  style.display !== "none" &&
+                  style.visibility !== "hidden" &&
+                  rect.width > 0 &&
+                  rect.height > 0;
+                if (!visible) return false;
+
+                clickSequence(target);
+                return true;
+              },
+              buttonInfo.strategy,
+              buttonInfo.id || null,
+            );
+
+            if (!clicked) {
+              throw new Error(
+                "Found button in evaluate but could not click it",
+              );
+            }
+
+            await this.wait(300);
+            addNewClicked = true;
+            logger.debug("New button clicked (fallback), waiting for row...");
+            await this.waitForDevExpressIdle({
+              timeout: 6000,
+              label: "lineitems-addnew-clicked-fallback",
+            });
           }
-
-          // Ensure button is visible and scroll into view
-          await buttonHandle.evaluate((el: Element) => {
-            (el as HTMLElement).scrollIntoView({ block: "center" });
-          });
-          await this.wait(300);
-
-          // OPT-10: Remove debug screenshots (save I/O time)
-          // Click the button
-          await buttonHandle.click();
-          logger.debug("New button clicked, waiting for row...");
 
           // OPT-04: Event-driven waiting for grid row insertion
           // Wait for DevExpress to insert new row with article input field (event-based with fallback)
@@ -2615,10 +3528,61 @@ export class ArchibaldBot {
       );
 
       // STEP 5-8: For each item, add article with package selection
-      for (let i = 0; i < orderData.items.length; i++) {
-        const item = orderData.items[i];
+      // Filter out items completely from warehouse, adjust quantities for partial warehouse items
+      const itemsToOrder = orderData.items
+        .map((item) => {
+          const warehouseQty = item.warehouseQuantity || 0;
+          const totalQty = item.quantity;
 
-        logger.info(`Processing item ${i + 1}/${orderData.items.length}`, {
+          // Skip items completely from warehouse
+          if (warehouseQty >= totalQty) {
+            logger.info("⚡ Skipping item (fully from warehouse)", {
+              articleCode: item.articleCode,
+              warehouseQty,
+              totalQty,
+              boxes: item.warehouseSources?.map((s) => s.boxName).join(", "),
+            });
+            return null;
+          }
+
+          // Adjust quantity for partial warehouse items
+          const qtyToOrder = totalQty - warehouseQty;
+          if (warehouseQty > 0) {
+            logger.info("📦 Partial warehouse item", {
+              articleCode: item.articleCode,
+              totalQty,
+              warehouseQty,
+              toOrder: qtyToOrder,
+              boxes: item.warehouseSources?.map((s) => s.boxName).join(", "),
+            });
+            return { ...item, quantity: qtyToOrder };
+          }
+
+          // No warehouse, order full quantity
+          return item;
+        })
+        .filter((item): item is NonNullable<typeof item> => item !== null);
+
+      logger.info("📊 Order items summary", {
+        originalItems: orderData.items.length,
+        itemsToOrder: itemsToOrder.length,
+        skippedFromWarehouse: orderData.items.length - itemsToOrder.length,
+      });
+
+      if (itemsToOrder.length === 0) {
+        const warehouseJobId = `warehouse-${Date.now()}`;
+        logger.info(
+          "✅ Order completely fulfilled from warehouse - no Archibald submission needed",
+          { jobId: warehouseJobId },
+        );
+        // TODO: still need to create order record for tracking
+        return warehouseJobId;
+      }
+
+      for (let i = 0; i < itemsToOrder.length; i++) {
+        const item = itemsToOrder[i];
+
+        logger.info(`Processing item ${i + 1}/${itemsToOrder.length}`, {
           articleCode: item.articleCode,
           quantity: item.quantity,
         });
@@ -2662,550 +3626,762 @@ export class ArchibaldBot {
           "form.package",
         );
 
-        // 5.2: Open article dropdown and search by article code
+        // 5.2: Search article dropdown (ULTRA-OPTIMIZED)
         await this.runOp(
           `order.item.${i}.search_article_dropdown`,
           async () => {
-            const searchQuery =
-              item.articleCode?.trim() || item.productName?.trim() || "";
+            const searchQuery = item.articleCode || "";
             if (!searchQuery) {
-              throw new Error("Article code is required for article search");
+              throw new Error("Article code is required");
             }
 
-            // Find INVENTTABLE input in the current edit row
-            const fieldInfo = await this.page!.evaluate(() => {
-              const editRows = Array.from(
-                document.querySelectorAll(
-                  '[id*="dviSALESLINEs"] tr[id*="editnew"]',
-                ),
+            // La riga edit è già stata verificata dallo step che ha cliccato "New" (prima del loop o nello STEP 5.8)
+            logger.debug("Starting article search");
+
+            // 2. Focus sul campo Nome Articolo
+            // Per il primo articolo: Tab × 3 dal pulsante New
+            // Per articoli successivi: Click diretto sulla cella (evita Tab crescenti: 8, 12, 16...)
+            if (i === 0) {
+              logger.debug("First article: using Tab × 3 navigation");
+              await this.page!.keyboard.press("Tab");
+              await this.page!.keyboard.press("Tab");
+              await this.page!.keyboard.press("Tab");
+              await this.wait(100);
+            } else {
+              logger.debug(
+                `Article ${i + 1}: clicking directly on INVENTTABLE field in editnew row`,
               );
 
-              editRows.sort((a, b) => {
-                const aNum = parseInt(
-                  (a.id.match(/editnew_(\d+)/) || [])[1] || "0",
+              // Aspetta che il campo INVENTTABLE nella riga editnew sia presente e renderizzato
+              const selector = 'tr[id*="editnew"] input[id*="INVENTTABLE"]';
+              try {
+                await this.page!.waitForSelector(selector, {
+                  timeout: 3000,
+                });
+              } catch (error) {
+                await this.page!.screenshot({
+                  path: `logs/inventtable-field-not-found-${Date.now()}.png`,
+                  fullPage: true,
+                });
+                throw new Error(
+                  `Cannot find INVENTTABLE input in editnew row for article ${i + 1}. ` +
+                    `Selector: ${selector}`,
                 );
-                const bNum = parseInt(
-                  (b.id.match(/editnew_(\d+)/) || [])[1] || "0",
-                );
-                return bNum - aNum;
-              });
-
-              for (const row of editRows) {
-                const inputs = Array.from(
-                  row.querySelectorAll('input[id*="INVENTTABLE_Edit"]'),
-                );
-                for (const input of inputs) {
-                  const el = input as HTMLInputElement;
-                  if (el.id.includes("DXSE")) continue;
-                  if ((el as HTMLElement).offsetParent === null) continue;
-                  return { id: el.id, found: true };
-                }
               }
 
-              const fallbackInputs = Array.from(
-                document.querySelectorAll('input[id*="INVENTTABLE_Edit"]'),
-              );
-              for (const input of fallbackInputs) {
-                const el = input as HTMLInputElement;
-                if (el.id.includes("DXSE")) continue;
-                if ((el as HTMLElement).offsetParent === null) continue;
-                if (el.id.toLowerCase().includes("salesline")) {
-                  return { id: el.id, found: true };
+              // Strategy 1: Click sul TD container che ha onmousedown="ASPx.DDMC_MD(...)"
+              // DevExpress richiede che l'evento arrivi sul TD, non sull'input diretto
+              await this.page!.evaluate((sel: string) => {
+                const input = document.querySelector(sel) as HTMLInputElement;
+                if (input) {
+                  // Trova il TD parent con classe "dxic" (DevExpress Input Cell)
+                  const td = input.closest("td.dxic") as HTMLElement;
+                  if (td) {
+                    // Triggera mousedown sul TD (come da onmousedown="ASPx.DDMC_MD(...)")
+                    td.dispatchEvent(
+                      new MouseEvent("mousedown", {
+                        bubbles: true,
+                        cancelable: true,
+                        view: window,
+                      }),
+                    );
+                  }
+                  // Poi focus diretto sull'input
+                  input.focus();
+                  input.click();
                 }
-              }
+              }, selector);
 
-              return { id: "", found: false };
+              // Aspetta attivamente che il campo sia focused (polling)
+              try {
+                await this.page!.waitForFunction(
+                  (sel: string) => {
+                    const input = document.querySelector(
+                      sel,
+                    ) as HTMLInputElement;
+                    return (
+                      document.activeElement === input &&
+                      input?.id?.includes("INVENTTABLE")
+                    );
+                  },
+                  { timeout: 2000 },
+                  selector,
+                );
+                logger.debug("✅ INVENTTABLE field focused via click on TD");
+              } catch (clickError) {
+                // Strategy 2 FALLBACK: Tab incrementale (testato e affidabile)
+                logger.warn(
+                  "Click on TD failed, falling back to incremental Tab navigation",
+                );
+
+                // Formula Tab count: articolo 1 = 3, articolo 2 = 8, articolo 3 = 12, ecc.
+                // Pattern: i === 0 ? 3 : 4 * (i + 1)
+                const tabCount = i === 0 ? 3 : 4 * (i + 1);
+                logger.debug(`Using Tab × ${tabCount} for article ${i + 1}`);
+
+                for (let t = 0; t < tabCount; t++) {
+                  await this.page!.keyboard.press("Tab");
+                }
+                await this.wait(100);
+
+                // Verifica focus dopo Tab
+                const focusedAfterTab = await this.page!.evaluate(() => {
+                  const focused = document.activeElement as HTMLInputElement;
+                  return focused?.id?.includes("INVENTTABLE") || false;
+                });
+
+                if (!focusedAfterTab) {
+                  await this.page!.screenshot({
+                    path: `logs/inventtable-focus-failed-${Date.now()}.png`,
+                    fullPage: true,
+                  });
+                  throw new Error(
+                    `INVENTTABLE field not focused after Tab × ${tabCount}. Article ${i + 1}`,
+                  );
+                }
+
+                logger.debug(
+                  `✅ INVENTTABLE field focused via Tab × ${tabCount}`,
+                );
+              }
+            }
+
+            // 3. Leggi ID del campo focused (ora garantito)
+            const inputId = await this.page!.evaluate(() => {
+              const focused = document.activeElement as HTMLInputElement;
+              return focused?.id || null;
             });
 
-            if (!fieldInfo.found) {
-              throw new Error("Campo INVENTTABLE (Nome articolo) non trovato");
-            }
-
-            const inventtableInputId = fieldInfo.id;
-            const inventtableBaseId = inventtableInputId.endsWith("_I")
-              ? inventtableInputId.slice(0, -2)
-              : inventtableInputId;
-
-            const inventtableInput = await this.page!.$(
-              `#${inventtableInputId}`,
-            );
-            if (!inventtableInput) {
-              throw new Error(
-                `Campo INVENTTABLE con ID ${inventtableInputId} non trovato nel DOM`,
-              );
-            }
-
-            await inventtableInput.click();
-            await this.wait(50);
-
-            // Prefer direct paste in the article field (DevExpress auto-opens dropdown)
-            await this.pasteText(inventtableInput, searchQuery);
-
-            let dropdownHasRows = false;
-            try {
-              await this.page!.waitForFunction(
-                () => {
-                  const dropdowns = Array.from(
-                    document.querySelectorAll('[id*="_DDD"]'),
-                  ).filter((el) => {
-                    const node = el as HTMLElement;
-                    return (
-                      node.offsetParent !== null &&
-                      node.style.display !== "none"
-                    );
-                  });
-
-                  return dropdowns.some((dropdown) =>
-                    dropdown.querySelector('tr[class*="dxgvDataRow"]'),
-                  );
-                },
-                { timeout: 1500, polling: 100 },
-              );
-              dropdownHasRows = true;
-            } catch {
-              dropdownHasRows = false;
-            }
-
-            if (dropdownHasRows) {
-              logger.info(
-                "✅ Article field typed, dropdown auto-opened with results",
-              );
-              return;
-            }
-
-            // Fallback: open dropdown manually, then use search bar
-            const dropdownSelectors = [
-              `#${inventtableBaseId}_B-1Img`,
-              `#${inventtableBaseId}_B-1`,
-              `#${inventtableBaseId}_B`,
-              `#${inventtableBaseId}_DDD`,
-            ];
-
-            let dropdownOpened = false;
-            for (const selector of dropdownSelectors) {
-              if (dropdownOpened) break;
-              const handle = await this.page!.$(selector);
-              if (!handle) continue;
-              const box = await handle.boundingBox();
-              if (!box) continue;
-              await handle.click();
-              try {
-                await this.page!.waitForSelector(
-                  `#${inventtableBaseId}_DDD`,
-                  { visible: true, timeout: 800 },
-                );
-                dropdownOpened = true;
-              } catch {
-                // try next selector
-              }
-            }
-
-            if (!dropdownOpened) {
-              throw new Error("Dropdown articolo non trovato");
-            }
-
-            const popupContainer =
-              (await this.page!.$(`#${inventtableBaseId}_DDD`)) ||
-              (await this.page!.$(`[id*="${inventtableBaseId}_DDD"]`)) ||
-              (await this.page!.$('[id*="INVENTTABLE_Edit_DDD"]')) ||
-              null;
-
-            if (popupContainer) {
-              await popupContainer.evaluate((el) => {
-                el.scrollIntoView({ block: "center", inline: "center" });
-              });
-            }
-
-            const directSearchSelector = `#${inventtableBaseId}_DDD_gv_DXSE_I`;
-            let searchInput: ElementHandle<Element> | null = null;
-
-            try {
-              await this.page!.waitForSelector(directSearchSelector, {
-                visible: true,
-                timeout: 1200,
-              });
-              searchInput = await this.page!.$(directSearchSelector);
-            } catch {
-              // Fallback to generic search input discovery
-              const searchHandle = await this.page!.waitForFunction(
-                () => {
-                  const candidates = Array.from(
-                    document.querySelectorAll(
-                      'input[id*="INVENTTABLE_Edit_DDD_gv_DXSE_I"], input[id*="_DDD_gv_DXSE_I"], input[id*="_DXSE_I"], input[placeholder*="Enter text to search"], input[placeholder*="enter text to search"]',
-                    ),
-                  );
-
-                  return (
-                    candidates.find((el) => {
-                      const input = el as HTMLInputElement;
-                      if (input.disabled) return false;
-                      if ((input as HTMLElement).offsetParent === null)
-                        return false;
-
-                      const placeholder = (
-                        input.placeholder || ""
-                      ).toLowerCase();
-                      const value = (input.value || "").toLowerCase();
-                      const id = (input.id || "").toLowerCase();
-
-                      return (
-                        id.includes("dxse") ||
-                        placeholder.includes("enter text") ||
-                        value.includes("enter text")
-                      );
-                    }) || null
-                  );
-                },
-                { timeout: 3000, polling: 100 },
-              );
-
-              searchInput = searchHandle.asElement() as
-                | ElementHandle<Element>
-                | null;
-            }
-
-            if (!searchInput) {
+            if (!inputId || !inputId.includes("INVENTTABLE")) {
               await this.page!.screenshot({
-                path: `logs/article-search-not-found-${Date.now()}.png`,
+                path: `logs/wrong-field-focused-${Date.now()}.png`,
                 fullPage: true,
               });
-              throw new Error("Barra ricerca articolo non trovata");
-            }
-
-            const searchMeta = await searchInput.evaluate((el) => {
-              const input = el as HTMLInputElement;
-              return {
-                id: input.id,
-                placeholder: input.placeholder,
-                value: input.value,
-              };
-            });
-            logger.debug("Article search input found", searchMeta);
-
-            await searchInput.click({ clickCount: 3 });
-            await this.page!.keyboard.press("Backspace");
-
-            await this.pasteText(searchInput, searchQuery);
-            await this.page!.keyboard.press("Enter");
-
-            const typedValue = await searchInput.evaluate((el) => {
-              const input = el as HTMLInputElement;
-              return input.value;
-            });
-            logger.debug("Article search input value after paste", {
-              expected: searchQuery,
-              actual: typedValue,
-            });
-
-            if (!typedValue || typedValue.trim() !== searchQuery) {
-              logger.warn(
-                "Search input value mismatch, retrying with keyboard typing",
-                {
-                  expected: searchQuery,
-                  actual: typedValue,
-                },
+              throw new Error(
+                `Wrong field focused. Expected INVENTTABLE, got: ${inputId}`,
               );
-              await searchInput.click({ clickCount: 3 });
-              await this.page!.keyboard.press("Backspace");
-              await searchInput.type(searchQuery, { delay: 30 });
-              await this.page!.keyboard.press("Enter");
             }
 
-            try {
-              await this.page!.waitForSelector('tr[class*="dxgvDataRow"]', {
-                visible: true,
-                timeout: 1500,
+            const inventtableInputId = inputId;
+            const inventtableBaseId = inputId.endsWith("_I")
+              ? inputId.slice(0, -2)
+              : inputId;
+
+            // Salva per STEP 5.3
+            (item as any)._inventtableInputId = inventtableInputId;
+            (item as any)._inventtableBaseId = inventtableBaseId;
+
+            logger.debug("Focused on article field", {
+              inputId,
+              articleIndex: i,
+            });
+
+            // 4. Digita codice articolo (OTTIMIZZATO: paste tutti tranne ultimo + type ultimo)
+            // DevExpress IncrementalFiltering si attiva SOLO quando digiti, non quando incolli
+            // Quindi: incolla tutto tranne ultimo carattere, poi digita solo l'ultimo
+            logger.debug("Typing article code (optimized)...", {
+              code: searchQuery,
+            });
+
+            if (searchQuery.length > 1) {
+              // Paste tutto tranne l'ultimo carattere
+              const pastePart = searchQuery.slice(0, -1);
+              const typePart = searchQuery.slice(-1);
+
+              await this.page!.evaluate((text: string) => {
+                const input = document.activeElement as HTMLInputElement;
+                if (input && input.tagName === "INPUT") {
+                  input.value = text;
+                  // Trigger input event per DevExpress
+                  input.dispatchEvent(
+                    new Event("input", { bubbles: true, cancelable: true }),
+                  );
+                }
+              }, pastePart);
+
+              logger.debug("Pasted prefix, typing last char", {
+                pasted: pastePart,
+                toType: typePart,
               });
-            } catch {
-              await this.wait(300);
+
+              // Type ultimo carattere per triggerare IncrementalFiltering
+              await this.page!.keyboard.type(typePart, { delay: 30 });
+            } else {
+              // Codice articolo troppo corto, digita tutto
+              await this.page!.keyboard.type(searchQuery, { delay: 30 });
             }
 
-            await this.wait(this.getSlowdown("paste_article_direct"));
-
-            logger.info(
-              "✅ Article dropdown opened and filtered by article code",
+            logger.debug(
+              "Article code typed, waiting for IncrementalFiltering dropdown...",
             );
+
+            // 5. Aspetta che DevExpress IncrementalFiltering apra il dropdown AUTOMATICAMENTE
+            // DevExpress rileva la digitazione e apre/filtra il dropdown DA SOLO
+            try {
+              // Aspetta che appaiano righe del dropdown (senza visible:true perché popup può essere fuori viewport)
+              await this.page!.waitForSelector('tr[id*="DXDataRow"]', {
+                timeout: 5000,
+              });
+
+              // Verifica manualmente la visibilità e conta risultati
+              const rowCount = await this.page!.evaluate(() => {
+                const rows = document.querySelectorAll('tr[id*="DXDataRow"]');
+                // Filtra solo righe effettivamente visibili nel dropdown popup
+                return Array.from(rows).filter((row) => {
+                  const rect = row.getBoundingClientRect();
+                  // Considera visibili anche righe fuori viewport (popup può essere scrollabile)
+                  return rect.width > 0 && rect.height > 0;
+                }).length;
+              });
+
+              logger.info(
+                `✅ Dropdown auto-opened by IncrementalFiltering with ${rowCount} result(s)`,
+                { articleCode: searchQuery },
+              );
+            } catch (error) {
+              // Timeout - analizziamo cosa c'è sulla pagina per debugging
+              const debugInfo = await this.page!.evaluate(() => {
+                // Cerca tutti i tipi di elementi che potrebbero essere il dropdown
+                const allTables = Array.from(
+                  document.querySelectorAll("table[id]"),
+                ).map((t) => ({
+                  id: t.id,
+                  visible: t.getBoundingClientRect().height > 0,
+                }));
+
+                const allTRsWithId = Array.from(
+                  document.querySelectorAll("tr[id]"),
+                ).map((tr) => ({
+                  id: tr.id,
+                  visible: tr.getBoundingClientRect().height > 0,
+                  text: tr.textContent?.substring(0, 100) || "",
+                }));
+
+                const allDivs = Array.from(
+                  document.querySelectorAll("div[id*='DX'], div[id*='Popup']"),
+                ).map((d) => ({
+                  id: d.id,
+                  visible: d.getBoundingClientRect().height > 0,
+                }));
+
+                return {
+                  tables: allTables.filter((t) => t.visible).slice(0, 10),
+                  trs: allTRsWithId.filter((tr) => tr.visible).slice(0, 10),
+                  divs: allDivs.filter((d) => d.visible).slice(0, 10),
+                };
+              });
+
+              logger.error("Dropdown selector debug info", {
+                searchQuery,
+                debugInfo,
+              });
+
+              await this.page!.screenshot({
+                path: `logs/article-dropdown-not-opened-${Date.now()}.png`,
+                fullPage: true,
+              });
+
+              throw new Error(
+                `Dropdown did not auto-open after typing "${searchQuery}". ` +
+                  `IncrementalFiltering should open dropdown automatically when typing. ` +
+                  `Check if: 1) article code exists in system, 2) IncrementalFilteringMode is enabled in DevExpress, 3) field was correctly focused. ` +
+                  `Debug: ${JSON.stringify(debugInfo, null, 2)}`,
+              );
+            }
           },
           "form.article",
         );
 
-        // 5.3: Select article variant row (with pagination support)
+        // Callback-aware stabilization: dropdown filtering often happens via DevExpress callbacks.
+        await this.waitForDevExpressIdle({
+          timeout: 7000,
+          label: `item-${i}-article-lookup-filtered`,
+        });
+
+        // 5.3: Select article variant row (OPTIMIZED)
         await this.runOp(
           `order.item.${i}.select_article`,
           async () => {
             const selectedVariant = (item as any)._selectedVariant;
-            await this.wait(1500); // Allow dropdown grid to fully render
+            const inventtableInputId = (item as any)._inventtableInputId as
+              | string
+              | undefined;
+            const inventtableBaseId = (item as any)._inventtableBaseId as
+              | string
+              | undefined;
 
-            // For article dropdowns, the variant ID appears as partial suffix
-            // Example: "005159K3" appears as "K3" in the dropdown
-            // Row structure: [10839, 314, 016, icon, 1, K3, 10839.314.016, 1,00]
-            // We need to extract the suffix (K3, K2, etc.) from the variant ID
+            await this.waitForDevExpressIdle({
+              timeout: 3000, // Ridotto da 6000ms
+              label: `item-${i}-variant-lookup-open`,
+            });
+
+            // Estrai suffix variante (ultimi 2 caratteri)
             const variantSuffix = selectedVariant.id.substring(
               selectedVariant.id.length - 2,
             );
+
             logger.debug(
               `Selecting variant by suffix: ${variantSuffix} (from ${selectedVariant.id})`,
             );
 
-            // Pagination support: loop through pages until variant found
+            // Pagination support: loop attraverso pagine finché variante trovata
             let rowSelected = false;
             let currentPage = 1;
-            const maxPages = 10; // Safety limit to prevent infinite loops
+            const maxPages = 10;
+            type VariantDomSelection = {
+              found?: boolean;
+              reason?: string;
+              rowIndex?: number;
+              rowsCount?: number;
+              contentIndex?: number;
+              packIndex?: number;
+              multipleIndex?: number;
+              contentValue?: string;
+              packValue?: string;
+              multipleValue?: string;
+              suffixCellIndex?: number;
+              suffixNeighborValue?: string;
+              rowText?: string;
+              containerId?: string;
+              rowId?: string;
+              headerTexts?: string[];
+              rowSamples?: string[];
+            };
+            let lastSelection: VariantDomSelection | null = null;
+            const weakReasons = new Set([
+              "package",
+              "multiple",
+              "suffix",
+              "single-row",
+            ]);
 
             while (!rowSelected && currentPage <= maxPages) {
               logger.debug(`Searching for variant on page ${currentPage}...`);
 
-              // Try to find and select the row on current page
-              const selection = await this.page!.evaluate(
-                (variantSuffix, packageContent, variantId) => {
-                  const dropdownContainers = Array.from(
-                    document.querySelectorAll('[id*="_DDD"]'),
+              const snapshot = await this.page!.evaluate(() => {
+                const dropdownContainers = Array.from(
+                  document.querySelectorAll('[id*="_DDD"]'),
+                ).filter((node) => {
+                  const el = node as HTMLElement | null;
+                  if (!el) return false;
+                  const style = window.getComputedStyle(el);
+                  if (style.display === "none") return false;
+                  if (style.visibility === "hidden") return false;
+                  const rect = el.getBoundingClientRect();
+                  return rect.width > 0 && rect.height > 0;
+                });
+
+                let activeContainer =
+                  dropdownContainers.find((container) =>
+                    container.querySelector('tr[class*="dxgvDataRow"]'),
+                  ) || null;
+
+                if (!activeContainer) {
+                  const popupContainers = Array.from(
+                    document.querySelectorAll(
+                      ".dxpcLite, .dxpc-content, .dxpcMainDiv",
+                    ),
                   ).filter((node) => {
-                    const el = node as HTMLElement;
-                    if (el.offsetParent === null) return false;
-                    if (el.style.display === "none") return false;
-                    if (el.style.visibility === "hidden") return false;
-                    return true;
+                    const el = node as HTMLElement | null;
+                    if (!el) return false;
+                    const style = window.getComputedStyle(el);
+                    if (style.display === "none") return false;
+                    if (style.visibility === "hidden") return false;
+                    const rect = el.getBoundingClientRect();
+                    return rect.width > 0 && rect.height > 0;
                   });
 
-                  const activeContainer =
-                    dropdownContainers.find((container) =>
+                  activeContainer =
+                    popupContainers.find((container) =>
                       container.querySelector('tr[class*="dxgvDataRow"]'),
                     ) || null;
+                }
 
-                  const rowsRoot = activeContainer || document;
-                  const headerRow =
+                const rowsRoot = activeContainer || document;
+                const headerTexts: string[] = [];
+                const headerTable = rowsRoot.querySelector(
+                  'table[id*="DXHeaderTable"]',
+                );
+                let headerRow: Element | null = null;
+
+                if (headerTable) {
+                  headerRow =
+                    headerTable.querySelector('tr[id*="DXHeadersRow"]') ||
+                    headerTable.querySelector("tr.dxgvHeaderRow") ||
+                    headerTable.querySelector('tr[class*="dxgvHeaderRow"]');
+                }
+
+                if (!headerRow) {
+                  headerRow =
                     rowsRoot.querySelector("tr.dxgvHeaderRow") ||
-                    rowsRoot.querySelector('tr[class*="dxgvHeaderRow"]');
-                  const headerCells = headerRow
-                    ? Array.from(headerRow.querySelectorAll("td, th"))
-                    : [];
+                    rowsRoot.querySelector('tr[class*="dxgvHeaderRow"]') ||
+                    rowsRoot.querySelector('tr[id*="DXHeadersRow"]');
+                }
 
-                  let contentIndex = -1;
-                  let packIndex = -1;
-                  for (let idx = 0; idx < headerCells.length; idx++) {
-                    const text =
-                      headerCells[idx].textContent?.trim().toLowerCase() || "";
-                    if (
-                      contentIndex === -1 &&
-                      (text.includes("conten") || text.includes("contenuto"))
-                    ) {
-                      contentIndex = idx;
-                    }
-                    if (
-                      packIndex === -1 &&
-                      (text.includes("pacco") || text.includes("pacc"))
-                    ) {
-                      packIndex = idx;
-                    }
+                if (headerRow) {
+                  const headerCells = Array.from(
+                    headerRow.querySelectorAll("td, th"),
+                  );
+                  for (const cell of headerCells) {
+                    const wrap = cell.querySelector(".dx-wrap");
+                    const text = (
+                      wrap?.textContent ||
+                      cell.textContent ||
+                      ""
+                    ).trim();
+                    headerTexts.push(text);
                   }
-                  const rows = Array.from(
-                    rowsRoot.querySelectorAll('tr[class*="dxgvDataRow"]'),
-                  ).filter(
-                    (row) => (row as HTMLElement).offsetParent !== null,
-                  );
+                }
 
-                  const suffix = String(variantSuffix).toLowerCase();
-                  const variantIdText = String(variantId || "").toLowerCase();
-                  const packageNum = Number.parseFloat(
-                    String(packageContent).replace(",", "."),
-                  );
+                const rows = Array.from(
+                  rowsRoot.querySelectorAll('tr[class*="dxgvDataRow"]'),
+                ).filter((row) => {
+                  const el = row as HTMLElement | null;
+                  if (!el) return false;
+                  const style = window.getComputedStyle(el);
+                  if (style.display === "none") return false;
+                  if (style.visibility === "hidden") return false;
+                  const rect = el.getBoundingClientRect();
+                  return rect.width > 0 && rect.height > 0;
+                });
 
-                  const candidates = rows
-                    .map((row, index) => {
-                      const cells = Array.from(row.querySelectorAll("td"));
-                      const cellTexts = cells.map(
-                        (cell) => cell.textContent?.trim() || "",
-                      );
-
-                      const rowText = cellTexts.join(" ").toLowerCase();
-
-                      const fullIdMatch = variantIdText
-                        ? rowText.includes(variantIdText)
-                        : false;
-
-                      let suffixMatch = false;
-                      let packageMatch = false;
-                      let suffixCellIndex = -1;
-
-                      for (let idx = 0; idx < cellTexts.length; idx++) {
-                        const normalized = cellTexts[idx].toLowerCase();
-                        if (
-                          normalized === suffix ||
-                          normalized.endsWith(suffix)
-                        ) {
-                          suffixCellIndex = idx;
-                          suffixMatch = true;
-                          break;
-                        }
-                      }
-
-                      if (suffixCellIndex >= 0) {
-                        const neighborIndex = suffixCellIndex - 1;
-                        if (neighborIndex >= 0) {
-                          const neighborText = cellTexts[neighborIndex];
-                          const cleaned = neighborText
-                            .replace(/\s/g, "")
-                            .replace(",", ".")
-                            .match(/-?\d+(?:\.\d+)?/);
-                          if (cleaned) {
-                            const num = Number.parseFloat(cleaned[0]);
-                            if (
-                              Number.isFinite(num) &&
-                              Number.isFinite(packageNum)
-                            ) {
-                              packageMatch = Math.abs(num - packageNum) < 0.01;
-                            }
-                          }
-                        }
-                      } else if (packIndex >= 0 && packIndex < cellTexts.length) {
-                        const normalized = cellTexts[packIndex]
-                          .toLowerCase()
-                          .trim();
-                        suffixMatch =
-                          normalized === suffix || normalized.endsWith(suffix);
-                      } else {
-                        suffixMatch = cellTexts.some((text) => {
-                          const normalized = text.toLowerCase();
-                          return (
-                            normalized === suffix ||
-                            normalized.endsWith(suffix)
-                          );
-                        });
-                      }
-
-                      if (!packageMatch) {
-                        if (
-                          contentIndex >= 0 &&
-                          contentIndex < cellTexts.length
-                        ) {
-                          const text = cellTexts[contentIndex];
-                          const cleaned = text
-                            .replace(/\s/g, "")
-                            .replace(",", ".")
-                            .match(/-?\d+(?:\.\d+)?/);
-                          if (cleaned) {
-                            const num = Number.parseFloat(cleaned[0]);
-                            if (
-                              Number.isFinite(num) &&
-                              Number.isFinite(packageNum)
-                            ) {
-                              packageMatch = Math.abs(num - packageNum) < 0.01;
-                            }
-                          }
-                        } else {
-                          packageMatch = cellTexts.some((text) => {
-                            const cleaned = text
-                              .replace(/\s/g, "")
-                              .replace(",", ".")
-                              .match(/-?\d+(?:\.\d+)?/);
-                            if (!cleaned) return false;
-                            const num = Number.parseFloat(cleaned[0]);
-                            if (!Number.isFinite(num)) return false;
-                            if (!Number.isFinite(packageNum)) return false;
-                            return Math.abs(num - packageNum) < 0.01;
-                          });
-                        }
-                      }
-
-                      return {
-                        index,
-                        row,
-                        cells,
-                        fullIdMatch,
-                        suffixMatch,
-                        packageMatch,
-                        contentIndex,
-                        packIndex,
-                        suffixCellIndex,
-                        contentValue:
-                          contentIndex >= 0 && contentIndex < cellTexts.length
-                            ? cellTexts[contentIndex]
-                            : "",
-                        packValue:
-                          packIndex >= 0 && packIndex < cellTexts.length
-                            ? cellTexts[packIndex]
-                            : "",
-                        suffixNeighborValue:
-                          suffixCellIndex > 0
-                            ? cellTexts[suffixCellIndex - 1]
-                            : "",
-                      };
-                    })
-                    .filter((entry) => entry.cells.length >= 4);
-
-                  const preferFullId = candidates.find(
-                    (entry) => entry.fullIdMatch,
-                  );
-                  const preferBoth = candidates.find(
-                    (entry) => entry.packageMatch && entry.suffixMatch,
-                  );
-                  const preferPackage = candidates.find(
-                    (entry) => entry.packageMatch,
-                  );
-                  const preferSuffix = candidates.find(
-                    (entry) => entry.suffixMatch,
-                  );
-
-                  const chosen =
-                    preferFullId ||
-                    preferBoth ||
-                    (candidates.length === 1 ? candidates[0] : null) ||
-                    preferPackage ||
-                    preferSuffix;
-
-                  if (!chosen) {
-                    return {
-                      found: false,
-                      rowsCount: rows.length,
-                      contentIndex,
-                      packIndex,
-                      suffixCellIndex: -1,
-                      contentValue: "",
-                      packValue: "",
-                      suffixNeighborValue: "",
-                    };
-                  }
-
-                  const firstCell = chosen.cells[0];
-                  if (firstCell) {
-                    (firstCell as HTMLElement).click();
-                    return {
-                      found: true,
-                      reason: preferFullId
-                        ? "variant-id"
-                        : preferBoth
-                          ? "package+suffix"
-                          : preferPackage
-                            ? "package"
-                            : preferSuffix
-                              ? "suffix"
-                              : "single-row",
-                      rowIndex: chosen.index,
-                      rowsCount: rows.length,
-                      contentIndex: chosen.contentIndex,
-                      packIndex: chosen.packIndex,
-                      contentValue: chosen.contentValue,
-                      packValue: chosen.packValue,
-                    };
-                  }
+                const rowSnapshots = rows.map((row, index) => {
+                  const cells = Array.from(row.querySelectorAll("td"));
+                  const cellTexts = cells.map((cell) => {
+                    return cell.textContent?.trim() || ""; // Rimosso fallback title
+                  });
 
                   return {
-                    found: false,
-                    rowsCount: rows.length,
-                    contentIndex,
-                    packIndex,
-                    suffixCellIndex: -1,
-                    contentValue: "",
-                    packValue: "",
-                    suffixNeighborValue: "",
+                    index,
+                    cellTexts,
+                    rowId: row.getAttribute("id") || null,
                   };
-                },
-                variantSuffix,
-                selectedVariant.packageContent,
-                selectedVariant.id,
-              );
+                });
 
+                return {
+                  containerId: activeContainer
+                    ? (activeContainer as HTMLElement).id || null
+                    : null,
+                  headerTexts,
+                  rows: rowSnapshots,
+                  rowsCount: rows.length,
+                };
+              });
+
+              const headerIndices = computeVariantHeaderIndices(
+                snapshot.headerTexts,
+              );
+              const candidates = buildVariantCandidates(
+                snapshot.rows,
+                headerIndices,
+                {
+                  variantId: selectedVariant.id,
+                  variantSuffix,
+                  packageContent: selectedVariant.packageContent,
+                  multipleQty: selectedVariant.multipleQty,
+                },
+              );
+              const { chosen, reason } = chooseBestVariantCandidate(candidates);
+
+              let selection: VariantDomSelection | null = null;
+
+              if (!chosen || !reason) {
+                selection = {
+                  found: false,
+                  rowsCount: snapshot.rowsCount,
+                  contentIndex: headerIndices.contentIndex,
+                  packIndex: headerIndices.packIndex,
+                  multipleIndex: headerIndices.multipleIndex,
+                  suffixCellIndex: -1,
+                  contentValue: "",
+                  packValue: "",
+                  multipleValue: "",
+                  suffixNeighborValue: "",
+                  headerTexts: snapshot.headerTexts,
+                  rowSamples: candidates
+                    .slice(0, 3)
+                    .map((entry) => entry.rowText),
+                  containerId: snapshot.containerId || "",
+                };
+              } else {
+                const keyboardState = await this.page!.evaluate(
+                  (containerId, inputId) => {
+                    let activeContainer: Element | null = null;
+
+                    if (containerId) {
+                      const byId = document.getElementById(containerId);
+                      if (byId) {
+                        const el = byId as HTMLElement;
+                        const style = window.getComputedStyle(el);
+                        const rect = el.getBoundingClientRect();
+                        const visible =
+                          style.display !== "none" &&
+                          style.visibility !== "hidden" &&
+                          rect.width > 0 &&
+                          rect.height > 0;
+                        if (visible) {
+                          activeContainer = byId;
+                        }
+                      }
+                    }
+
+                    if (!activeContainer) {
+                      const dropdownContainers = Array.from(
+                        document.querySelectorAll('[id*="_DDD"]'),
+                      ).filter((node) => {
+                        const el = node as HTMLElement | null;
+                        if (!el) return false;
+                        const style = window.getComputedStyle(el);
+                        if (style.display === "none") return false;
+                        if (style.visibility === "hidden") return false;
+                        const rect = el.getBoundingClientRect();
+                        return rect.width > 0 && rect.height > 0;
+                      });
+
+                      activeContainer =
+                        dropdownContainers.find((container) =>
+                          container.querySelector('tr[class*="dxgvDataRow"]'),
+                        ) || null;
+                    }
+
+                    const rowsRoot = activeContainer || document;
+                    const rows = Array.from(
+                      rowsRoot.querySelectorAll('tr[class*="dxgvDataRow"]'),
+                    ).filter((row) => {
+                      const el = row as HTMLElement | null;
+                      if (!el) return false;
+                      const style = window.getComputedStyle(el);
+                      if (style.display === "none") return false;
+                      if (style.visibility === "hidden") return false;
+                      const rect = el.getBoundingClientRect();
+                      return rect.width > 0 && rect.height > 0;
+                    });
+
+                    const focusedIndex = rows.findIndex((row) => {
+                      const cls = (row as HTMLElement).className || "";
+                      return (
+                        cls.includes("dxgvFocusedRow") ||
+                        cls.includes("dxgvSelectedRow")
+                      );
+                    });
+
+                    if (inputId) {
+                      const input = document.getElementById(
+                        inputId,
+                      ) as HTMLInputElement | null;
+                      if (input) {
+                        const el = input as HTMLElement;
+                        const style = window.getComputedStyle(el);
+                        const rect = el.getBoundingClientRect();
+                        const visible =
+                          style.display !== "none" &&
+                          style.visibility !== "hidden" &&
+                          rect.width > 0 &&
+                          rect.height > 0;
+                        if (visible) {
+                          input.focus();
+                        }
+                      }
+                    }
+
+                    return {
+                      rowsCount: rows.length,
+                      focusedIndex,
+                      containerId: activeContainer
+                        ? (activeContainer as HTMLElement).id || ""
+                        : "",
+                    };
+                  },
+                  snapshot.containerId,
+                  inventtableInputId || null,
+                );
+
+                const rowsCount = keyboardState.rowsCount ?? snapshot.rowsCount;
+                const focusedIndex = keyboardState.focusedIndex ?? -1;
+                const targetIndex = chosen.index;
+
+                if (!rowsCount || targetIndex < 0 || targetIndex >= rowsCount) {
+                  selection = {
+                    found: false,
+                    rowsCount,
+                    contentIndex: headerIndices.contentIndex,
+                    packIndex: headerIndices.packIndex,
+                    multipleIndex: headerIndices.multipleIndex,
+                    suffixCellIndex: chosen.suffixCellIndex,
+                    contentValue: chosen.contentValue,
+                    packValue: chosen.packValue,
+                    multipleValue: chosen.multipleValue,
+                    suffixNeighborValue: chosen.suffixNeighborValue,
+                    headerTexts: snapshot.headerTexts,
+                    rowSamples: candidates
+                      .slice(0, 3)
+                      .map((entry) => entry.rowText),
+                    containerId:
+                      keyboardState.containerId || snapshot.containerId || "",
+                  };
+                } else {
+                  let delta =
+                    focusedIndex >= 0
+                      ? targetIndex - focusedIndex
+                      : targetIndex + 1;
+                  const direction: "ArrowDown" | "ArrowUp" =
+                    delta >= 0 ? "ArrowDown" : "ArrowUp";
+                  delta = Math.abs(delta);
+
+                  const maxSteps = Math.min(delta, rowsCount + 2);
+                  for (let step = 0; step < maxSteps; step++) {
+                    await this.page!.keyboard.press(direction);
+                    await this.wait(30); // Ridotto da 60ms
+                  }
+
+                  // Tab invece di Enter - autoseleziona campo quantità (testo già selezionato in blu)!
+                  await this.page!.keyboard.press("Tab");
+
+                  // Verifica quantità autofilled
+                  const currentQty = await this.page!.evaluate(() => {
+                    const focused = document.activeElement as HTMLInputElement;
+                    return focused?.value || "";
+                  });
+
+                  const qtyNum = Number.parseFloat(
+                    currentQty.replace(",", "."),
+                  );
+                  const targetQty = item.quantity;
+
+                  // Edit quantità se necessario (testo già selezionato, no Ctrl+A)
+                  if (
+                    !Number.isFinite(qtyNum) ||
+                    Math.abs(qtyNum - targetQty) >= 0.01
+                  ) {
+                    logger.info(
+                      `Correcting quantity: ${qtyNum} → ${targetQty}`,
+                    );
+
+                    // Type diretto sostituisce testo selezionato
+                    const qtyFormatted = targetQty.toString().replace(".", ",");
+                    await this.page!.keyboard.type(qtyFormatted, { delay: 30 });
+
+                    // Aspetta stabilizzazione DevExpress (prezzo si ricalcola)
+                    await this.waitForDevExpressIdle({
+                      timeout: 5000,
+                      label: `item-${i}-qty-updated`,
+                    });
+
+                    logger.info(`✅ Quantity set: ${targetQty}`);
+                  } else {
+                    logger.info(
+                      `⚡ Quantity already correct: ${qtyNum} (skip edit)`,
+                    );
+                  }
+
+                  // Edit discount se presente (5.6 integrato)
+                  const hasDiscount =
+                    item.discount !== undefined && item.discount > 0;
+                  if (hasDiscount) {
+                    logger.debug(`Setting discount: ${item.discount}%`);
+
+                    // Tab → campo discount (già selezionato automaticamente)
+                    await this.page!.keyboard.press("Tab");
+                    await this.wait(100);
+
+                    // Type discount (formato italiano, testo già selezionato)
+                    const discountFormatted = item
+                      .discount!.toString()
+                      .replace(".", ",");
+                    await this.page!.keyboard.type(discountFormatted, {
+                      delay: 30,
+                    });
+
+                    logger.info(`✅ Discount set: ${item.discount}%`);
+                    await this.wait(200);
+                  }
+
+                  // Click Update button per salvare riga (5.7 integrato)
+                  logger.debug('Clicking "Update" button (floppy icon)...');
+
+                  const updateResult = await this.clickDevExpressGridCommand({
+                    command: "UpdateEdit",
+                    baseIdHint: "SALESLINEs",
+                    timeout: 7000,
+                    label: `item-${i}-update-integrated`,
+                  });
+
+                  if (!updateResult.clicked) {
+                    // Fallback: cerca e clicca manualmente
+                    const clickSuccess = await this.page!.evaluate(() => {
+                      // Strategy 1: data-args UpdateEdit
+                      let button = document.querySelector(
+                        'a[data-args*="UpdateEdit"]',
+                      ) as HTMLElement;
+                      if (button && button.offsetParent !== null) {
+                        button.scrollIntoView({ block: "center" });
+                        const start = Date.now();
+                        while (Date.now() - start < 200) {}
+                        button.click();
+                        return true;
+                      }
+
+                      // Strategy 2: img Update
+                      const img = document.querySelector(
+                        'img[title="Update"][src*="Action_Save"]',
+                      ) as HTMLElement;
+                      if (img?.parentElement && img.offsetParent !== null) {
+                        img.parentElement.scrollIntoView({ block: "center" });
+                        const start = Date.now();
+                        while (Date.now() - start < 200) {}
+                        img.parentElement.click();
+                        return true;
+                      }
+
+                      return false;
+                    });
+
+                    if (!clickSuccess) {
+                      await this.page!.screenshot({
+                        path: `logs/update-button-not-found-${Date.now()}.png`,
+                        fullPage: true,
+                      });
+                      throw new Error(
+                        'Button "Update" not found after variant selection',
+                      );
+                    }
+                  }
+
+                  logger.info('✅ Clicked "Update" button');
+
+                  // Aspetta stabilizzazione dopo Update (ridotto timeout)
+                  await this.waitForDevExpressIdle({
+                    timeout: 4000, // Ridotto da 7000ms a 4000ms
+                    label: `item-${i}-row-saved`,
+                  });
+                  await this.wait(200); // Ridotto da 300ms a 200ms
+
+                  selection = {
+                    found: true,
+                    reason,
+                    rowIndex: chosen.index,
+                    rowsCount,
+                    contentIndex: chosen.contentIndex,
+                    packIndex: chosen.packIndex,
+                    multipleIndex: chosen.multipleIndex,
+                    contentValue: chosen.contentValue,
+                    packValue: chosen.packValue,
+                    multipleValue: chosen.multipleValue,
+                    suffixCellIndex: chosen.suffixCellIndex,
+                    suffixNeighborValue: chosen.suffixNeighborValue,
+                    rowText: chosen.rowText,
+                    containerId:
+                      keyboardState.containerId || snapshot.containerId || "",
+                    rowId: chosen.rowId || "",
+                    headerTexts: snapshot.headerTexts,
+                    rowSamples: candidates
+                      .slice(0, 3)
+                      .map((entry) => entry.rowText),
+                  };
+                }
+              }
+
+              lastSelection = selection || null;
               rowSelected = Boolean(selection?.found);
 
               if (selection?.found) {
@@ -3213,14 +4389,32 @@ export class ArchibaldBot {
                   reason: selection.reason,
                   rowIndex: selection.rowIndex,
                   rowsCount: selection.rowsCount,
-                  contentIndex: selection.contentIndex,
-                  packIndex: selection.packIndex,
                   contentValue: selection.contentValue,
                   packValue: selection.packValue,
-                  suffixCellIndex: selection.suffixCellIndex,
+                  multipleValue: selection.multipleValue,
                   suffixNeighborValue: selection.suffixNeighborValue,
                   variantSuffix,
                   packageContent: selectedVariant.packageContent,
+                  multipleQty: selectedVariant.multipleQty,
+                });
+
+                if (selection.reason && weakReasons.has(selection.reason)) {
+                  logger.warn("⚠️ Variant match reason is weak", {
+                    reason: selection.reason,
+                    variantId: selectedVariant.id,
+                    variantSuffix,
+                    packageContent: selectedVariant.packageContent,
+                    multipleQty: selectedVariant.multipleQty,
+                  });
+                }
+              } else if (selection) {
+                logger.warn("Variant row not found on current page", {
+                  rowsCount: selection.rowsCount,
+                  headerTexts: selection.headerTexts,
+                  rowSamples: selection.rowSamples,
+                  variantSuffix,
+                  packageContent: selectedVariant.packageContent,
+                  multipleQty: selectedVariant.multipleQty,
                 });
               }
 
@@ -3229,95 +4423,13 @@ export class ArchibaldBot {
                 break;
               }
 
-              // Row not found on current page, check if there's a next page
+              // Cerca next page (strategie unificate)
               logger.debug(
                 `Variant not found on page ${currentPage}, checking for next page...`,
               );
 
-              const nextPageInfo = await this.page!.evaluate(() => {
-                // Look for DevExpress pagination controls
-                // Pattern from user: <a class="dxp-button dxp-bi" onclick="ASPx.GVPagerOnClick(...)">
-                //                      <img class="dxWeb_pNext_XafTheme" alt="Next">
-
-                // Strategy 1: Find img with alt="Next" or class containing "pNext"
-                const images = Array.from(document.querySelectorAll("img"));
-                for (const img of images) {
-                  const alt = img.getAttribute("alt") || "";
-                  const className = img.className || "";
-
-                  // Check for Next image (DevExpress pattern)
-                  if (alt === "Next" || className.includes("pNext")) {
-                    const parent = img.parentElement;
-                    if (parent && parent.offsetParent !== null) {
-                      // Check if parent button is disabled
-                      const parentClass = parent.className || "";
-                      const isDisabled =
-                        parentClass.includes("dxp-disabled") ||
-                        parentClass.includes("disabled");
-
-                      if (!isDisabled) {
-                        return {
-                          hasNextPage: true,
-                          buttonElement: true,
-                          isImage: true,
-                          id: parent.id,
-                        };
-                      }
-                    }
-                  }
-                }
-
-                // Strategy 2: Find link/button with dxp-button class and PBN onclick
-                const allButtons = Array.from(
-                  document.querySelectorAll("a.dxp-button, button.dxp-button"),
-                );
-                for (const btn of allButtons) {
-                  const onclick =
-                    (btn as HTMLElement).getAttribute("onclick") || "";
-                  const className = (btn as HTMLElement).className || "";
-
-                  // Check for "PBN" (Page Button Next) in onclick
-                  const isNextButton =
-                    onclick.includes("'PBN'") || onclick.includes('"PBN"');
-
-                  // Make sure it's not disabled
-                  const isDisabled =
-                    className.includes("dxp-disabled") ||
-                    className.includes("disabled");
-
-                  if (
-                    isNextButton &&
-                    !isDisabled &&
-                    (btn as HTMLElement).offsetParent !== null
-                  ) {
-                    return {
-                      hasNextPage: true,
-                      buttonElement: true,
-                      className: className,
-                      id: (btn as HTMLElement).id,
-                    };
-                  }
-                }
-
-                return {
-                  hasNextPage: false,
-                };
-              });
-
-              if (!nextPageInfo.hasNextPage) {
-                logger.debug(
-                  "No next page button found, article not in results",
-                );
-                break;
-              }
-
-              // Click next page button
-              logger.debug(
-                "Found next page button, navigating to next page...",
-              );
-
               const nextPageClicked = await this.page!.evaluate(() => {
-                // Strategy 1: Find img with alt="Next" and click parent
+                // Strategy 1: img alt="Next"
                 const images = Array.from(document.querySelectorAll("img"));
                 for (const img of images) {
                   const alt = img.getAttribute("alt") || "";
@@ -3326,11 +4438,8 @@ export class ArchibaldBot {
                   if (alt === "Next" || className.includes("pNext")) {
                     const parent = img.parentElement;
                     if (parent && parent.offsetParent !== null) {
-                      const parentClass = parent.className || "";
                       const isDisabled =
-                        parentClass.includes("dxp-disabled") ||
-                        parentClass.includes("disabled");
-
+                        parent.className.includes("dxp-disabled");
                       if (!isDisabled) {
                         (parent as HTMLElement).click();
                         return true;
@@ -3339,20 +4448,17 @@ export class ArchibaldBot {
                   }
                 }
 
-                // Strategy 2: Find button with PBN onclick
-                const allButtons = Array.from(
+                // Strategy 2: button onclick PBN
+                const buttons = Array.from(
                   document.querySelectorAll("a.dxp-button, button.dxp-button"),
                 );
-                for (const btn of allButtons) {
+                for (const btn of buttons) {
                   const onclick =
                     (btn as HTMLElement).getAttribute("onclick") || "";
                   const className = (btn as HTMLElement).className || "";
-
                   const isNextButton =
                     onclick.includes("'PBN'") || onclick.includes('"PBN"');
-                  const isDisabled =
-                    className.includes("dxp-disabled") ||
-                    className.includes("disabled");
+                  const isDisabled = className.includes("dxp-disabled");
 
                   if (
                     isNextButton &&
@@ -3368,12 +4474,15 @@ export class ArchibaldBot {
               });
 
               if (!nextPageClicked) {
-                logger.warn("Failed to click next page button");
+                logger.debug("No next page available");
                 break;
               }
 
-              // Wait for page to load new results
-              await this.wait(1500);
+              // Aspetta caricamento nuova pagina
+              await this.waitForDevExpressIdle({
+                timeout: 3000, // Ridotto da 6000ms
+                label: `item-${i}-variant-pagination-${currentPage + 1}`,
+              });
               currentPage++;
             }
 
@@ -3388,6 +4497,12 @@ export class ArchibaldBot {
               );
             }
 
+            // Popola metadata articolo
+            item.articleId = selectedVariant.id;
+            item.packageContent = selectedVariant.packageContent
+              ? parseInt(selectedVariant.packageContent)
+              : undefined;
+
             logger.info(
               `✅ Article variant selected`,
               {
@@ -3397,310 +4512,8 @@ export class ArchibaldBot {
               },
               "form.article",
             );
-
-            // Populate metadata
-            item.articleId = selectedVariant.id;
-            item.packageContent = selectedVariant.packageContent
-              ? parseInt(selectedVariant.packageContent)
-              : undefined;
-
-            // Validate quantity against package rules
-            const validation = this.productDb.validateQuantity(
-              selectedVariant,
-              item.quantity,
-            );
-
-            if (!validation.valid) {
-              const errorMsg = `Quantity ${item.quantity} is invalid for article ${item.articleCode} (variant ${selectedVariant.id}): ${validation.errors.join(", ")}`;
-              const suggestMsg = validation.suggestions
-                ? ` Suggested quantities: ${validation.suggestions.join(", ")}`
-                : "";
-
-              logger.error(`❌ ${errorMsg}${suggestMsg}`);
-              throw new Error(`${errorMsg}${suggestMsg}`);
-            }
-
-            logger.info(`✅ Quantity ${item.quantity} validated successfully`, {
-              articleCode: item.articleCode,
-              variantId: selectedVariant.id,
-              minQty: selectedVariant.minQty,
-              multipleQty: selectedVariant.multipleQty,
-              maxQty: selectedVariant.maxQty,
-            });
-
-            await this.wait(1000);
-            await this.waitForDevExpressReady({ timeout: 3000 });
-
-            // CRITICAL: Wait for DevExpress to fully load article data into grid
-            // DevExpress needs time to populate all fields (price, quantity, etc.)
-            // If we edit quantity too soon, the loading process will reset it to default
-            logger.debug(
-              "Waiting for DevExpress to complete article data loading...",
-            );
-            await this.wait(2400); // Optimized wait for complete article loading
-
-            // Slowdown after article selection
-            await this.wait(this.getSlowdown("select_article"));
           },
           "form.article",
-        );
-
-        // 5.5: Set quantity (OPT-03: optimized field editing with smart skip)
-        await this.runOp(
-          `order.item.${i}.set_quantity`,
-          async () => {
-            const selectedVariant = (item as any)._selectedVariant;
-
-            const currentQtyInfo = await this.page!.evaluate(() => {
-              const inputs = Array.from(
-                document.querySelectorAll('input[type="text"]'),
-              );
-              const qtyInput = inputs.find((input) => {
-                const id = (input as HTMLInputElement).id.toLowerCase();
-                return (
-                  id.includes("qtyordered") &&
-                  id.includes("salesline") &&
-                  (id.includes("edit0") || id.includes("editnew")) &&
-                  (input as HTMLElement).offsetParent !== null
-                );
-              }) as HTMLInputElement | undefined;
-
-              return qtyInput ? qtyInput.value : "";
-            });
-
-            const currentQty = Number.parseFloat(
-              String(currentQtyInfo).replace(",", "."),
-            );
-
-            if (
-              Number.isFinite(currentQty) &&
-              Math.abs(currentQty - item.quantity) < 0.01
-            ) {
-              logger.info(
-                `⚡ Quantity ${item.quantity} already set - skipping edit`,
-              );
-              await this.wait(500);
-              return;
-            }
-
-            if (String(currentQtyInfo).trim()) {
-              logger.warn(
-                `Quantity auto-fill mismatch (expected ${item.quantity}, got ${currentQtyInfo}). Forcing edit.`,
-              );
-            }
-
-            logger.debug(
-              `Setting quantity: ${item.quantity} (multipleQty: ${selectedVariant.multipleQty})`,
-            );
-            await this.editTableCell("Qtà ordinata", item.quantity);
-            logger.info(`✅ Quantity set: ${item.quantity}`);
-
-            // Slowdown after quantity edit
-            await this.wait(this.getSlowdown("paste_qty"));
-          },
-          "field-editing",
-        );
-
-        // 5.6: Set discount (optional) (OPT-03: optimized field editing)
-        if (item.discount !== undefined && item.discount > 0) {
-          await this.runOp(
-            `order.item.${i}.set_discount`,
-            async () => {
-              logger.debug(`Setting discount: ${item.discount}%`);
-              await this.editTableCell("Applica sconto", item.discount!);
-              logger.info(`✅ Discount set: ${item.discount}%`);
-              await this.wait(300);
-            },
-            "field-editing",
-          );
-        }
-
-        // 5.7: Click "Update" button (floppy icon)
-        await this.runOp(
-          `order.item.${i}.click_update`,
-          async () => {
-            logger.debug('Clicking "Update" button (floppy icon)...');
-
-            const rowCountInfo = await this.page!.evaluate(() => {
-              const dataRows = Array.from(
-                document.querySelectorAll('tr[class*="dxgvDataRow"]'),
-              ).filter(
-                (row) => (row as HTMLElement).offsetParent !== null,
-              );
-              const editRows = Array.from(
-                document.querySelectorAll('tr[id*="editnew"]'),
-              ).filter(
-                (row) => (row as HTMLElement).offsetParent !== null,
-              );
-              return {
-                dataRowCount: dataRows.length,
-                hasEditRow: editRows.length > 0,
-              };
-            });
-
-            // DevExpress Update button pattern:
-            // <a data-args="[['UpdateEdit'],1]" with <img title="Update" src="Action_Save">
-            const buttonInfo = await this.page!.evaluate(() => {
-              // Strategy 1: Find by data-args containing 'UpdateEdit'
-              const buttons = Array.from(
-                document.querySelectorAll('a[data-args*="UpdateEdit"]'),
-              );
-              if (buttons.length > 0) {
-                return {
-                  found: true,
-                  strategy: 1,
-                  id: (buttons[0] as HTMLElement).id || "no-id",
-                };
-              }
-
-              // Strategy 2: Find img with title="Update" and src containing "Action_Save"
-              const images = Array.from(
-                document.querySelectorAll('img[title="Update"]'),
-              );
-              for (const img of images) {
-                const src = (img as HTMLImageElement).src || "";
-                if (src.includes("Action_Save")) {
-                  const parent = img.parentElement;
-                  if (parent && parent.tagName === "A") {
-                    return {
-                      found: true,
-                      strategy: 2,
-                      id: parent.id || "no-id",
-                    };
-                  }
-                }
-              }
-
-              // Strategy 3: Find by ID pattern containing "SALESLINEs" and "DXCBtn0"
-              const allLinks = Array.from(
-                document.querySelectorAll("a.dxbButton_XafTheme"),
-              );
-              for (const link of allLinks) {
-                const id = link.id || "";
-                if (id.includes("SALESLINEs") && id.includes("DXCBtn0")) {
-                  return {
-                    found: true,
-                    strategy: 3,
-                    id: id,
-                  };
-                }
-              }
-
-              return { found: false };
-            });
-
-            if (!buttonInfo.found) {
-              await this.page!.screenshot({
-                path: `logs/update-button-not-found-${Date.now()}.png`,
-                fullPage: true,
-              });
-              throw new Error('Button "Update" not found');
-            }
-
-            logger.debug(
-              `Found Update button using strategy ${buttonInfo.strategy}`,
-              {
-                id: buttonInfo.id,
-              },
-            );
-
-            // Click the button
-            let clicked = false;
-
-            if (buttonInfo.strategy === 1) {
-              // OPT-03: Use atomic click to avoid detachment after scroll
-              const clickSuccess = await this.page!.evaluate(() => {
-                const button = document.querySelector(
-                  'a[data-args*="UpdateEdit"]',
-                ) as HTMLElement;
-                if (!button) return false;
-
-                button.scrollIntoView({ block: "center" });
-                // Small sync wait for scroll stabilization
-                const start = Date.now();
-                while (Date.now() - start < 200) {}
-
-                button.click();
-                return true;
-              });
-
-              if (clickSuccess) {
-                clicked = true;
-              }
-            } else if (buttonInfo.strategy === 2) {
-              // OPT-03: Atomic click for strategy 2
-              const clickSuccess = await this.page!.evaluate(() => {
-                const img = document.querySelector(
-                  'img[title="Update"][src*="Action_Save"]',
-                ) as HTMLElement;
-                if (!img || !img.parentElement) return false;
-
-                img.parentElement.scrollIntoView({ block: "center" });
-                const start = Date.now();
-                while (Date.now() - start < 200) {}
-
-                img.parentElement.click();
-                return true;
-              });
-
-              if (clickSuccess) {
-                clicked = true;
-              }
-            } else if (buttonInfo.strategy === 3) {
-              // OPT-03: Atomic click for strategy 3
-              const clickSuccess = await this.page!.evaluate((buttonId) => {
-                const button = document.querySelector(
-                  `#${buttonId}`,
-                ) as HTMLElement;
-                if (!button) return false;
-
-                button.scrollIntoView({ block: "center" });
-                const start = Date.now();
-                while (Date.now() - start < 200) {}
-
-                button.click();
-                return true;
-              }, buttonInfo.id);
-
-              if (clickSuccess) {
-                clicked = true;
-              }
-            }
-
-            if (!clicked) {
-              throw new Error("Failed to click Update button");
-            }
-
-            logger.info(`✅ Line item ${i + 1} saved`);
-
-            if (rowCountInfo.hasEditRow) {
-              try {
-                await this.page!.waitForFunction(
-                  (previousCount) => {
-                    const dataRows = Array.from(
-                      document.querySelectorAll('tr[class*="dxgvDataRow"]'),
-                    ).filter(
-                      (row) => (row as HTMLElement).offsetParent !== null,
-                    );
-                    return dataRows.length >= previousCount + 1;
-                  },
-                  { timeout: 4000, polling: 100 },
-                  rowCountInfo.dataRowCount,
-                );
-                logger.debug("✅ Line item row count increased after update");
-              } catch {
-                throw new Error(
-                  "Line item update did not produce a new data row",
-                );
-              }
-            }
-
-            await this.waitForDevExpressReady({ timeout: 3000 });
-
-            // Slowdown after update button
-            await this.wait(this.getSlowdown("click_update"));
-          },
-          "form.submit",
         );
 
         // 5.8: Click "New" for next article (if not last)
@@ -3709,6 +4522,103 @@ export class ArchibaldBot {
             `order.item.${i}.click_new_for_next`,
             async () => {
               logger.debug('Clicking "New" button for next article...');
+
+              // Ensure edit row is closed before creating a new one (timeout ridotto)
+              try {
+                await this.page!.waitForFunction(
+                  () => {
+                    const editRows = Array.from(
+                      document.querySelectorAll('tr[id*="editnew"]'),
+                    ).filter(
+                      (row) => (row as HTMLElement).offsetParent !== null,
+                    );
+                    return editRows.length === 0;
+                  },
+                  { timeout: 3000 }, // Ridotto da 6000ms a 3000ms
+                );
+                logger.debug("✅ Edit row closed before AddNew");
+              } catch {
+                logger.warn("Edit row still visible before AddNew; proceeding");
+              }
+
+              // Prefer DevExpress command click (most stable).
+              const newCommandResult = await this.clickDevExpressGridCommand({
+                command: "AddNew",
+                baseIdHint: "SALESLINEs",
+                timeout: 7000,
+                label: `item-${i}-new-command`,
+              });
+
+              if (newCommandResult.clicked) {
+                logger.debug('✅ "AddNew" command executed via DevExpress', {
+                  id: newCommandResult.id,
+                });
+                await this.wait(200);
+                return;
+              }
+
+              // Directly click the known AddNew anchor (DXCBtn1) if present.
+              const directAddNewClicked = await this.page!.evaluate(() => {
+                const candidates = Array.from(
+                  document.querySelectorAll(
+                    'a[data-args*="AddNew"], a[id*="DXCBtn1"]',
+                  ),
+                ) as HTMLElement[];
+
+                const visible = candidates.find((el) => {
+                  const style = window.getComputedStyle(el);
+                  const rect = el.getBoundingClientRect();
+                  return (
+                    style.display !== "none" &&
+                    style.visibility !== "hidden" &&
+                    rect.width > 0 &&
+                    rect.height > 0
+                  );
+                });
+
+                if (!visible) {
+                  return false;
+                }
+
+                const events: Array<keyof DocumentEventMap> = [
+                  "pointerdown",
+                  "mousedown",
+                  "pointerup",
+                  "mouseup",
+                  "click",
+                ];
+                for (const type of events) {
+                  visible.dispatchEvent(
+                    new MouseEvent(type, {
+                      bubbles: true,
+                      cancelable: true,
+                      view: window,
+                    }),
+                  );
+                }
+                return true;
+              });
+
+              if (directAddNewClicked) {
+                logger.debug('✅ "AddNew" clicked via direct selector');
+                await this.wait(200);
+                return;
+              }
+
+              const newEditFallback = await this.clickDevExpressGridCommand({
+                command: "NewEdit",
+                baseIdHint: "SALESLINEs",
+                timeout: 5000,
+                label: `item-${i}-newedit-command`,
+              });
+
+              if (newEditFallback.clicked) {
+                logger.debug('✅ "NewEdit" command executed via DevExpress', {
+                  id: newEditFallback.id,
+                });
+                await this.wait(200);
+                return;
+              }
 
               // OPT-04: Optimized wait for "New" button reappearance after Update
               // Strategy: Wait for disappearance, then wait for reappearance (based on Puppeteer best practices)
@@ -3977,6 +4887,16 @@ export class ArchibaldBot {
         }
 
         logger.info('✅ Clicked "Prezzi e sconti" tab');
+        try {
+          await this.waitForDevExpressIdle({
+            timeout: 7000,
+            label: "prezzi-sconti-tab-open",
+          });
+        } catch (error) {
+          logger.debug("Idle wait after tab click failed, continuing", {
+            error: String(error),
+          });
+        }
         return true;
       };
 
@@ -4052,58 +4972,40 @@ export class ArchibaldBot {
             await this.wait(1500);
           }
 
-          const dropdownClicked = await this.page!.evaluate(() => {
-            const dropdowns = Array.from(
-              document.querySelectorAll(
-                'td[id*="dviLINEDISC_Edit_dropdown_DD_B-1"], td[id*="LINEDISC_Edit_dropdown_DD_B-1"]',
-              ),
-            );
-            const visibleDropdown = dropdowns.find(
-              (el) => (el as HTMLElement).offsetParent !== null,
-            ) as HTMLElement | undefined;
+          logger.debug("Setting line discount to N/A...");
 
-            if (!visibleDropdown) {
-              return false;
-            }
+          // Trova e clicca il dropdown button per SCONTO LINEA
+          const dropdownButton = await this.page!.$(
+            'td[id*="LINEDISC_Edit_dropdown_DD_B-1"]',
+          );
 
-            visibleDropdown.click();
-            return true;
+          if (!dropdownButton) {
+            throw new Error("Line discount dropdown button not found");
+          }
+
+          await dropdownButton.click();
+          logger.debug("Dropdown button clicked");
+
+          // Aspetta che il dropdown si apra
+          await this.waitForDevExpressIdle({
+            timeout: 5000,
+            label: "linedisc-dropdown-open",
           });
 
-          if (!dropdownClicked) {
-            throw new Error('Line discount dropdown not found');
-          }
+          // Premi ArrowUp per selezionare N/A (primo elemento)
+          await this.page!.keyboard.press("ArrowUp");
+          await this.wait(200);
 
-          const lineDiscountApplied = (await this.page!.waitForFunction(
-            () => {
-              const candidates = Array.from(
-                document.querySelectorAll(
-                  'td[id*="LINEDISC"][class*="dxeListBoxItem"], td[class*="dxeListBoxItem"]',
-                ),
-              );
+          // Premi Tab per confermare (invece di Enter che triggera beforeunload)
+          await this.page!.keyboard.press("Tab");
 
-              const target = candidates.find((item) => {
-                const el = item as HTMLElement;
-                if (el.offsetParent === null) return false;
-                const text = el.textContent?.trim() || "";
-                return text === "N/A";
-              }) as HTMLElement | undefined;
+          // Aspetta che DevExpress elabori la selezione
+          await this.waitForDevExpressIdle({
+            timeout: 5000,
+            label: "linedisc-selection-confirmed",
+          });
 
-              if (!target) {
-                return false;
-              }
-
-              target.click();
-              return true;
-            },
-            { timeout: 2000, polling: 100 },
-          ).then((result) => result.jsonValue())) as boolean;
-
-          if (!lineDiscountApplied) {
-            throw new Error('Line discount value "N/A" not found');
-          }
-
-          logger.info('✅ Line discount set to N/A');
+          logger.info("✅ Line discount set to N/A");
         },
         "form.discount",
       );
@@ -4117,206 +5019,37 @@ export class ArchibaldBot {
               `Applying global discount: ${orderData.discountPercent}%`,
             );
 
+            // Apri tab Prezzi e Sconti se non già aperto
             if (!prezziTabOpened) {
               const tabClicked = await openPrezziEScontiTab();
               prezziTabOpened = prezziTabOpened || tabClicked;
               if (tabClicked) {
-                await this.wait(2000);
+                await this.wait(1500);
               }
             }
 
-            // Find the MANUALDISCOUNT field (APPLICA SCONTO %) with debug info
-            const discountFieldInfo = await this.page!.evaluate(() => {
-              const inputs = Array.from(
-                document.querySelectorAll('input[type="text"]'),
-              ) as HTMLInputElement[];
+            // Il campo APPLICA SCONTO % è già selezionato dal Tab precedente
+            logger.debug("Global discount field already focused after Tab");
 
-              // DEBUG: Log all input IDs to help troubleshoot
-              const allInputIds = inputs
-                .map((i) => ({
-                  id: i.id,
-                  visible: i.offsetParent !== null,
-                  readOnly: i.readOnly,
-                  value: i.value,
-                }))
-                .filter(
-                  (i) =>
-                    i.id.toLowerCase().includes("discount") ||
-                    i.id.toLowerCase().includes("sconto"),
-                );
+            // Formatta il valore in formato italiano (mantieni tutte le cifre decimali)
+            const discountFormatted = orderData
+              .discountPercent!.toString()
+              .replace(".", ",");
 
-              const labelCandidates = Array.from(
-                document.querySelectorAll("label, td, span, div"),
-              );
-              const labelMatch = labelCandidates.find((el) => {
-                const text = el.textContent?.trim().toLowerCase() || "";
-                if (!text) return false;
-                if (!text.includes("sconto")) return false;
-                return text.includes("globale") || text.includes("totale");
-              });
+            // Inserisci il valore direttamente (il campo è già selezionato)
+            await this.page!.keyboard.type(discountFormatted, { delay: 50 });
+            logger.debug(`Typed discount value: ${discountFormatted}`);
 
-              if (labelMatch) {
-                const container =
-                  labelMatch.closest("tr") ||
-                  labelMatch.parentElement ||
-                  labelMatch;
-                if (container) {
-                  const input = container.querySelector(
-                    'input[type="text"]',
-                  ) as HTMLInputElement | null;
-                  if (
-                    input &&
-                    input.offsetParent !== null &&
-                    !input.readOnly &&
-                    !input.id.toLowerCase().includes("salesline")
-                  ) {
-                    return {
-                      found: true,
-                      id: input.id,
-                      currentValue: input.value,
-                      debug: allInputIds,
-                    };
-                  }
-                }
-              }
-
-              // Search for MANUALDISCOUNT field
-              const manualDiscountInput = inputs.find((input) => {
-                const id = input.id.toLowerCase();
-                return (
-                  (id.includes("manualdiscount") ||
-                    id.includes("dvimanualdiscount") ||
-                    id.includes("applica") ||
-                    id.includes("sconto")) &&
-                  !id.includes("salesline") && // Not a line-level discount
-                  input.offsetParent !== null && // Visible
-                  !input.readOnly // Editable
-                );
-              });
-
-              if (manualDiscountInput) {
-                return {
-                  found: true,
-                  id: manualDiscountInput.id,
-                  currentValue: manualDiscountInput.value,
-                  debug: allInputIds,
-                };
-              }
-
-              return {
-                found: false,
-                debug: allInputIds,
-              };
-            });
-
-            if (!discountFieldInfo.found || !discountFieldInfo.id) {
-              logger.warn("Global discount field (MANUALDISCOUNT) not found", {
-                debugInputs: discountFieldInfo.debug,
-              });
-              return;
-            }
-
-            logger.debug(
-              `Found global discount field: ${discountFieldInfo.id}`,
-              {
-                currentValue: discountFieldInfo.currentValue,
-              },
-            );
-
-            const discountFieldId = discountFieldInfo.id;
-
-            // Double-click strategy (same as quantity fields)
-            const discountInput = await this.page!.$(
-              `#${discountFieldId}`,
-            );
-            if (!discountInput) {
-              throw new Error("Discount input element not found");
-            }
-
-            // Double-click to activate cell editing mode
-            await discountInput.click({ clickCount: 2 });
             await this.wait(300);
 
-            // Select all existing content with Ctrl+A
-            await this.page!.keyboard.down("Control");
-            await this.page!.keyboard.press("KeyA");
-            await this.page!.keyboard.up("Control");
-            await this.wait(100);
-
-            // Type the discount percentage (will replace selected content)
-            // Format: "XX,XX" (Italian format with comma, without % symbol)
-            const formatPercent = (value: number): string => {
-              const fixed = value.toFixed(4);
-              const trimmed = fixed.replace(/\.?0+$/, "");
-              return trimmed.replace(".", ",");
-            };
-            const discountFormatted = formatPercent(
-              orderData.discountPercent!,
-            );
-            await this.page!.keyboard.type(discountFormatted, { delay: 50 });
-
-            await this.wait(500);
-
-            // Press Tab to confirm and move to next field (triggers DevExpress validation)
+            // Premi Tab per confermare
             await this.page!.keyboard.press("Tab");
 
-            await this.wait(1000); // Wait for Archibald to recalculate order totals
-
-            const readDiscountValue = async (): Promise<string> => {
-              return this.page!.evaluate((fieldId) => {
-                const input = document.getElementById(
-                  fieldId,
-                ) as HTMLInputElement | null;
-                return input?.value ?? "";
-              }, discountFieldId);
-            };
-
-            const expectedValue = orderData.discountPercent!;
-            let currentValue = await readDiscountValue();
-            let parsedValue = Number.parseFloat(
-              currentValue.replace(",", "."),
-            );
-
-            const valueMatches =
-              Number.isFinite(parsedValue) &&
-              Math.abs(parsedValue - expectedValue) < 0.01;
-
-            if (!valueMatches) {
-              logger.warn("Global discount value mismatch after typing", {
-                expected: expectedValue,
-                actual: currentValue,
-              });
-
-              const discountFallback = discountFormatted;
-              await this.page!.evaluate((fieldId, value) => {
-                const input = document.getElementById(
-                  fieldId,
-                ) as HTMLInputElement | null;
-                if (!input) return;
-                input.focus();
-                input.value = value;
-                input.dispatchEvent(new Event("input", { bubbles: true }));
-                input.dispatchEvent(new Event("change", { bubbles: true }));
-              }, discountFieldId, discountFallback);
-
-              await this.page!.keyboard.press("Tab");
-              await this.wait(500);
-
-              currentValue = await readDiscountValue();
-              parsedValue = Number.parseFloat(
-                currentValue.replace(",", "."),
-              );
-
-              const fallbackMatches =
-                Number.isFinite(parsedValue) &&
-                Math.abs(parsedValue - expectedValue) < 0.01;
-
-              if (!fallbackMatches) {
-                throw new Error(
-                  `Global discount not applied (expected ${expectedValue}, got "${currentValue}")`,
-                );
-              }
-            }
+            // Aspetta che DevExpress elabori e ricalcoli
+            await this.waitForDevExpressIdle({
+              timeout: 5000,
+              label: "global-discount-applied",
+            });
 
             logger.info(
               `✅ Global discount applied: ${orderData.discountPercent}%`,

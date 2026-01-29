@@ -58,6 +58,7 @@ import { syncScheduler } from "./sync-scheduler";
 // syncControlRoutes removed - endpoints migrated to index.ts (sync-orchestrator based)
 import deltaSyncRoutes from "./routes/delta-sync";
 import botRoutes from "./routes/bot";
+import warehouseRoutes from "./routes/warehouse-routes";
 import { SendToMilanoService } from "./send-to-milano-service";
 import { DDTScraperService } from "./ddt-scraper-service";
 import { OrderDatabaseNew } from "./order-db-new";
@@ -142,8 +143,35 @@ function acquireOrderLock(): boolean {
     } else if (activeOperation === "products") {
       productSyncService.requestStop();
     } else if (activeOperation === "prices") {
-      // Price sync no longer has requestStop - it's simpler one-shot sync
-      logger.warn("Price sync in progress, cannot request stop");
+      priceSyncService.requestStop();
+    }
+    return false;
+  }
+
+  const orchestratorStatus = syncOrchestrator.getStatus();
+  if (orchestratorStatus.currentSync) {
+    logger.warn(
+      `⚠️ Sync ${orchestratorStatus.currentSync} in corso (orchestrator), richiedo interruzione...`,
+    );
+    switch (orchestratorStatus.currentSync) {
+      case "customers":
+        syncService.requestStop();
+        break;
+      case "products":
+        productSyncService.requestStop();
+        break;
+      case "prices":
+        priceSyncService.requestStop();
+        break;
+      case "orders":
+        orderSyncService.requestStop();
+        break;
+      case "ddt":
+        ddtSyncService.requestStop();
+        break;
+      case "invoices":
+        invoiceSyncService.requestStop();
+        break;
     }
     return false;
   }
@@ -153,6 +181,9 @@ function acquireOrderLock(): boolean {
   const customerProgress = syncService.getProgress();
   const productProgress = productSyncService.getProgress();
   const priceProgress = priceSyncService.getProgress();
+  const orderProgress = orderSyncService.getProgress();
+  const ddtProgress = ddtSyncService.getProgress();
+  const invoiceProgress = invoiceSyncService.getProgress();
 
   if (customerProgress.status === "syncing") {
     logger.warn(
@@ -178,7 +209,43 @@ function acquireOrderLock(): boolean {
     logger.warn(
       `⚠️ Sync prezzi in corso (status: ${priceProgress.status}), cannot interrupt`,
     );
-    // Price sync no longer has requestStop - it's simpler one-shot sync
+    priceSyncService.requestStop();
+    return false;
+  }
+
+  if (
+    orderProgress.status === "downloading" ||
+    orderProgress.status === "parsing" ||
+    orderProgress.status === "saving"
+  ) {
+    logger.warn(
+      `⚠️ Sync ordini in corso (status: ${orderProgress.status}), richiedo interruzione...`,
+    );
+    orderSyncService.requestStop();
+    return false;
+  }
+
+  if (
+    ddtProgress.status === "downloading" ||
+    ddtProgress.status === "parsing" ||
+    ddtProgress.status === "saving"
+  ) {
+    logger.warn(
+      `⚠️ Sync DDT in corso (status: ${ddtProgress.status}), richiedo interruzione...`,
+    );
+    ddtSyncService.requestStop();
+    return false;
+  }
+
+  if (
+    invoiceProgress.status === "downloading" ||
+    invoiceProgress.status === "parsing" ||
+    invoiceProgress.status === "saving"
+  ) {
+    logger.warn(
+      `⚠️ Sync fatture in corso (status: ${invoiceProgress.status}), richiedo interruzione...`,
+    );
+    invoiceSyncService.requestStop();
     return false;
   }
 
@@ -216,6 +283,9 @@ app.use(deltaSyncRoutes);
 
 // Bot routes (batch order submission)
 app.use(botRoutes);
+
+// Warehouse routes (magazzino management)
+app.use("/api", warehouseRoutes);
 
 // WebSocket per notifiche sync in real-time
 wss.on("connection", (ws) => {
@@ -853,6 +923,72 @@ app.delete(
       res.status(500).json({
         success: false,
         error: error instanceof Error ? error.message : "Error deleting user",
+      });
+    }
+  },
+);
+
+// Get lock status (admin only - diagnose stuck locks)
+app.get(
+  "/api/admin/lock/status",
+  (req: Request, res: Response<ApiResponse>) => {
+    try {
+      res.json({
+        success: true,
+        data: {
+          activeOperation,
+          isLocked: activeOperation !== null,
+          lockedSince: activeOperation ? new Date().toISOString() : null,
+        },
+        message: activeOperation
+          ? `Lock attivo: ${activeOperation}`
+          : "Nessun lock attivo",
+      });
+    } catch (error) {
+      logger.error("Error checking lock status", { error });
+      res.status(500).json({
+        success: false,
+        error: error instanceof Error ? error.message : "Error checking lock",
+      });
+    }
+  },
+);
+
+// Force release lock (admin only - emergency cleanup)
+app.post(
+  "/api/admin/lock/release",
+  (req: Request, res: Response<ApiResponse>) => {
+    try {
+      const previousOperation = activeOperation;
+
+      if (!activeOperation) {
+        return res.json({
+          success: true,
+          message: "Nessun lock da rilasciare",
+        });
+      }
+
+      // Forza rilascio lock
+      activeOperation = null;
+
+      logger.warn("🔓 ADMIN: Lock rilasciato forzatamente", {
+        previousOperation,
+        timestamp: new Date().toISOString(),
+      });
+
+      res.json({
+        success: true,
+        data: {
+          releasedOperation: previousOperation,
+          timestamp: new Date().toISOString(),
+        },
+        message: `Lock "${previousOperation}" rilasciato con successo`,
+      });
+    } catch (error) {
+      logger.error("Error releasing lock", { error });
+      res.status(500).json({
+        success: false,
+        error: error instanceof Error ? error.message : "Error releasing lock",
       });
     }
   },
@@ -3107,12 +3243,10 @@ app.post(
       });
     } catch (error: any) {
       logger.error("[API] Error updating interval:", error);
-      res
-        .status(500)
-        .json({
-          success: false,
-          error: error.message || "Failed to update interval",
-        });
+      res.status(500).json({
+        success: false,
+        error: error.message || "Failed to update interval",
+      });
     }
   },
 );
@@ -4499,13 +4633,10 @@ app.post(
 
       try {
         // Create order using bot with BrowserPool (same logic as queue-manager)
-        logger.info(
-          `[DraftPlace] Creating bot with BrowserPool for order`,
-          {
-            userId,
-            customerName,
-          },
-        );
+        logger.info(`[DraftPlace] Creating bot with BrowserPool for order`, {
+          userId,
+          customerName,
+        });
 
         const botModulePath = "./archibald-bot";
         const { ArchibaldBot } = await import(botModulePath);

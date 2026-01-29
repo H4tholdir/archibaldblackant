@@ -1,4 +1,5 @@
 import { EventEmitter } from "events";
+import type { BrowserContext } from "puppeteer";
 import { ArchibaldBot } from "./archibald-bot";
 import { BrowserPool } from "./browser-pool";
 import { logger } from "./logger";
@@ -10,6 +11,7 @@ import {
 import { PriceDatabase } from "./price-db";
 import * as fs from "fs/promises";
 import * as path from "path";
+import { SyncStopError, isSyncStopError } from "./sync-stop";
 
 export interface PriceSyncProgress {
   status:
@@ -42,6 +44,9 @@ export class PriceSyncService extends EventEmitter {
   private checkpointManager: SyncCheckpointManager;
   private syncInProgress = false;
   private paused = false;
+  private stopRequested = false;
+  private activeContext: BrowserContext | null = null;
+  private activeUserId: string | null = null;
   private progress: PriceSyncProgress = {
     status: "idle",
     message: "Nessuna sincronizzazione prezzi in corso",
@@ -66,6 +71,51 @@ export class PriceSyncService extends EventEmitter {
     return PriceSyncService.instance;
   }
 
+  private throwIfStopRequested(stage: string): void {
+    if (this.stopRequested) {
+      throw new SyncStopError(
+        `[PriceSyncService] Stop requested during ${stage}`,
+      );
+    }
+  }
+
+  private async releaseActiveContext(
+    success: boolean,
+    reason: string,
+  ): Promise<void> {
+    if (!this.activeContext || !this.activeUserId) {
+      return;
+    }
+
+    const context = this.activeContext;
+    const userId = this.activeUserId;
+    this.activeContext = null;
+    this.activeUserId = null;
+
+    try {
+      await this.browserPool.releaseContext(userId, context, success);
+    } catch (error) {
+      logger.warn("[PriceSyncService] Failed to release context", {
+        reason,
+        userId,
+        error,
+      });
+    }
+  }
+
+  private async abortActiveContext(reason: string): Promise<void> {
+    if (!this.activeContext || !this.activeUserId) {
+      return;
+    }
+
+    const userId = this.activeUserId;
+    logger.warn("[PriceSyncService] Aborting active context", {
+      reason,
+      userId,
+    });
+    await this.releaseActiveContext(false, reason);
+  }
+
   /**
    * Pause sync service (for PriorityManager)
    */
@@ -74,6 +124,7 @@ export class PriceSyncService extends EventEmitter {
     this.paused = true;
 
     if (this.syncInProgress) {
+      this.requestStop();
       logger.info("[PriceSyncService] Waiting for current sync to complete...");
       while (this.syncInProgress) {
         await new Promise((resolve) => setTimeout(resolve, 500));
@@ -112,6 +163,7 @@ export class PriceSyncService extends EventEmitter {
     }
 
     this.syncInProgress = true;
+    this.stopRequested = false;
     const startTime = Date.now();
 
     try {
@@ -129,6 +181,7 @@ export class PriceSyncService extends EventEmitter {
       // Step 1: Download PDF via bot
       const pdfPath = await this.downloadPricesPDF();
       logger.info(`[PriceSyncService] PDF downloaded to ${pdfPath}`);
+      this.throwIfStopRequested("download");
 
       // Step 2: Parse PDF
       this.progress = {
@@ -142,6 +195,7 @@ export class PriceSyncService extends EventEmitter {
       logger.info(
         `[PriceSyncService] Parsed ${parsedPrices.length} prices from PDF`,
       );
+      this.throwIfStopRequested("parse");
 
       // Step 3: Save with delta detection
       this.progress = {
@@ -152,6 +206,7 @@ export class PriceSyncService extends EventEmitter {
       this.emit("progress", this.progress);
 
       const saveResults = await this.savePrices(parsedPrices);
+      this.throwIfStopRequested("saving");
 
       // Step 4: Auto-match prices to products
       this.progress = {
@@ -164,6 +219,7 @@ export class PriceSyncService extends EventEmitter {
       const { PriceMatchingService } = await import("./price-matching-service");
       const matchingService = PriceMatchingService.getInstance();
       const matchingResults = await matchingService.matchPricesToProducts();
+      this.throwIfStopRequested("matching");
 
       logger.info("[PriceSyncService] Price matching completed", {
         matchedProducts: matchingResults.result.matchedProducts,
@@ -194,7 +250,14 @@ export class PriceSyncService extends EventEmitter {
       });
     } catch (error) {
       const duration = Math.floor((Date.now() - startTime) / 1000);
-      logger.error("[PriceSyncService] Sync failed", { error, duration });
+      if (isSyncStopError(error)) {
+        logger.warn("[PriceSyncService] Sync stopped", {
+          error: error.message,
+          duration,
+        });
+      } else {
+        logger.error("[PriceSyncService] Sync failed", { error, duration });
+      }
 
       this.progress = {
         ...this.progress,
@@ -207,6 +270,7 @@ export class PriceSyncService extends EventEmitter {
       throw error;
     } finally {
       this.syncInProgress = false;
+      this.stopRequested = false;
     }
   }
 
@@ -218,15 +282,20 @@ export class PriceSyncService extends EventEmitter {
     // Use browser pool context (same pattern as customer/product sync)
     const syncUserId = "price-sync-service";
     const context = await this.browserPool.acquireContext(syncUserId);
+    this.activeContext = context;
+    this.activeUserId = syncUserId;
+    this.throwIfStopRequested("login");
     const bot = new ArchibaldBot(syncUserId);
+    let success = false;
 
     try {
       // Download PDF using bot with context
       const pdfPath = await this.downloadPricesPDFFromContext(context, bot);
+      success = true;
 
       return pdfPath;
     } finally {
-      await this.browserPool.releaseContext(syncUserId, context, true);
+      await this.releaseActiveContext(success, "download-prices-pdf");
     }
   }
 
@@ -400,6 +469,7 @@ export class PriceSyncService extends EventEmitter {
     let skipped = 0;
 
     for (const parsedPrice of parsedPrices) {
+      this.throwIfStopRequested("saving");
       // Map ParsedPrice to Price schema
       // Python parser uses Italian field names from PDF columns
       const priceData = {
@@ -439,5 +509,13 @@ export class PriceSyncService extends EventEmitter {
       pricesUpdated: updated,
       pricesSkipped: skipped,
     };
+  }
+
+  requestStop(): void {
+    logger.warn("[PriceSyncService] Stop requested");
+    this.stopRequested = true;
+    if (this.syncInProgress) {
+      void this.abortActiveContext("stop-requested");
+    }
   }
 }

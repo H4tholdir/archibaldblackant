@@ -1,4 +1,5 @@
 import { EventEmitter } from "events";
+import type { BrowserContext } from "puppeteer";
 import { ProductDatabase, Product, SyncSession } from "./product-db";
 import { BrowserPool } from "./browser-pool";
 import { ArchibaldBot } from "./archibald-bot";
@@ -9,6 +10,7 @@ import {
 import { logger } from "./logger";
 import { createHash } from "crypto";
 import { promises as fs } from "fs";
+import { SyncStopError, isSyncStopError } from "./sync-stop";
 
 export interface SyncProgress {
   stage: "login" | "download" | "parse" | "update" | "cleanup";
@@ -30,6 +32,9 @@ export class ProductSyncService extends EventEmitter {
   private pdfParser: PDFParserProductsService;
   private syncInProgress = false;
   private paused = false;
+  private stopRequested = false;
+  private activeContext: BrowserContext | null = null;
+  private activeUserId: string | null = null;
   private syncInterval: NodeJS.Timeout | null = null;
   private currentProgress: SyncProgress = {
     stage: "login",
@@ -49,6 +54,51 @@ export class ProductSyncService extends EventEmitter {
     return ProductSyncService.instance;
   }
 
+  private throwIfStopRequested(stage: string): void {
+    if (this.stopRequested) {
+      throw new SyncStopError(
+        `[ProductSyncService] Stop requested during ${stage}`,
+      );
+    }
+  }
+
+  private async releaseActiveContext(
+    success: boolean,
+    reason: string,
+  ): Promise<void> {
+    if (!this.activeContext || !this.activeUserId) {
+      return;
+    }
+
+    const context = this.activeContext;
+    const userId = this.activeUserId;
+    this.activeContext = null;
+    this.activeUserId = null;
+
+    try {
+      await BrowserPool.getInstance().releaseContext(userId, context, success);
+    } catch (error) {
+      logger.warn("[ProductSyncService] Failed to release context", {
+        reason,
+        userId,
+        error,
+      });
+    }
+  }
+
+  private async abortActiveContext(reason: string): Promise<void> {
+    if (!this.activeContext || !this.activeUserId) {
+      return;
+    }
+
+    const userId = this.activeUserId;
+    logger.warn("[ProductSyncService] Aborting active context", {
+      reason,
+      userId,
+    });
+    await this.releaseActiveContext(false, reason);
+  }
+
   /**
    * Pause sync service (for PriorityManager)
    */
@@ -57,6 +107,7 @@ export class ProductSyncService extends EventEmitter {
     this.paused = true;
 
     if (this.syncInProgress) {
+      this.requestStop();
       logger.info(
         "[ProductSyncService] Waiting for current sync to complete...",
       );
@@ -90,9 +141,15 @@ export class ProductSyncService extends EventEmitter {
       throw new Error("Sync already in progress");
     }
 
+    if (this.paused) {
+      throw new Error("Sync service is paused");
+    }
+
     this.syncInProgress = true;
+    this.stopRequested = false;
     let tempPdfPath: string | null = null;
     let context: any = null;
+    let success = false;
 
     // Create sync session record
     const sessionId = this.db.createSyncSession("full");
@@ -109,6 +166,9 @@ export class ProductSyncService extends EventEmitter {
       progressCallback?.(this.currentProgress);
 
       context = await BrowserPool.getInstance().acquireContext(syncUserId);
+      this.activeContext = context;
+      this.activeUserId = syncUserId;
+      this.throwIfStopRequested("login");
 
       const bot = new ArchibaldBot(syncUserId);
 
@@ -120,6 +180,7 @@ export class ProductSyncService extends EventEmitter {
       progressCallback?.(this.currentProgress);
 
       tempPdfPath = await bot.downloadProductsPDF(context);
+      this.throwIfStopRequested("download");
 
       // Stage 3: Parse PDF
       this.currentProgress = {
@@ -144,6 +205,7 @@ export class ProductSyncService extends EventEmitter {
 
       const { newProducts, updatedProducts } =
         await this.applyDelta(parsedProducts);
+      this.throwIfStopRequested("update");
 
       // Stage 5: Cleanup
       this.currentProgress = {
@@ -156,12 +218,6 @@ export class ProductSyncService extends EventEmitter {
         await fs.unlink(tempPdfPath);
         logger.info("[ProductSyncService] Temp PDF cleaned up", { tempPdfPath });
       }
-
-      await BrowserPool.getInstance().releaseContext(
-        syncUserId,
-        context,
-        true, // success
-      );
 
       const duration = Date.now() - startTime;
 
@@ -180,6 +236,7 @@ export class ProductSyncService extends EventEmitter {
         durationMs: duration,
       });
 
+      success = true;
       return {
         productsProcessed: parsedProducts.length,
         newProducts,
@@ -187,7 +244,13 @@ export class ProductSyncService extends EventEmitter {
         duration,
       };
     } catch (error: any) {
-      logger.error("[ProductSyncService] Sync failed", { error });
+      if (isSyncStopError(error)) {
+        logger.warn("[ProductSyncService] Sync stopped", {
+          error: error.message,
+        });
+      } else {
+        logger.error("[ProductSyncService] Sync failed", { error });
+      }
 
       // Update session as failed
       this.db.completeSyncSession(
@@ -205,17 +268,11 @@ export class ProductSyncService extends EventEmitter {
         }
       }
 
-      if (context) {
-        await BrowserPool.getInstance().releaseContext(
-          syncUserId,
-          context,
-          false, // error
-        );
-      }
-
       throw error;
     } finally {
       this.syncInProgress = false;
+      this.stopRequested = false;
+      await this.releaseActiveContext(success, "sync-finalize");
     }
   }
 
@@ -381,6 +438,11 @@ export class ProductSyncService extends EventEmitter {
     const maxAttempts = 3;
     const backoffDelays = [5000, 10000, 20000]; // 5s, 10s, 20s
 
+    if (this.paused || this.stopRequested) {
+      logger.info("[ProductSyncService] Sync skipped (paused/stopping)");
+      return;
+    }
+
     try {
       await this.syncProducts();
       logger.info("[ProductSyncService] Auto-sync successful", { attempt });
@@ -432,9 +494,11 @@ export class ProductSyncService extends EventEmitter {
    * Request sync stop (for compatibility - not implemented in PDF-based sync)
    */
   requestStop(): void {
-    logger.warn(
-      "[ProductSyncService] requestStop called but not implemented in PDF-based sync",
-    );
+    logger.warn("[ProductSyncService] Stop requested");
+    this.stopRequested = true;
+    if (this.syncInProgress) {
+      void this.abortActiveContext("stop-requested");
+    }
   }
 
   /**

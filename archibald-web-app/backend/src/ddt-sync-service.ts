@@ -1,10 +1,12 @@
 import { EventEmitter } from "events";
+import type { BrowserContext } from "puppeteer";
 import { ArchibaldBot } from "./archibald-bot";
 import { BrowserPool } from "./browser-pool";
 import { logger } from "./logger";
 import { PDFParserDDTService, ParsedDDT } from "./pdf-parser-ddt-service";
 import { OrderDatabaseNew } from "./order-db-new";
 import * as fs from "fs/promises";
+import { SyncStopError, isSyncStopError } from "./sync-stop";
 
 export interface DDTSyncProgress {
   status: "idle" | "downloading" | "parsing" | "saving" | "completed" | "error";
@@ -23,6 +25,9 @@ export class DDTSyncService extends EventEmitter {
   private orderDb: OrderDatabaseNew;
   private syncInProgress = false;
   private paused = false;
+  private stopRequested = false;
+  private activeContext: BrowserContext | null = null;
+  private activeUserId: string | null = null;
   private progress: DDTSyncProgress = {
     status: "idle",
     message: "Nessuna sincronizzazione DDT in corso",
@@ -46,11 +51,57 @@ export class DDTSyncService extends EventEmitter {
     return DDTSyncService.instance;
   }
 
+  private throwIfStopRequested(stage: string): void {
+    if (this.stopRequested) {
+      throw new SyncStopError(
+        `[DDTSyncService] Stop requested during ${stage}`,
+      );
+    }
+  }
+
+  private async releaseActiveContext(
+    success: boolean,
+    reason: string,
+  ): Promise<void> {
+    if (!this.activeContext || !this.activeUserId) {
+      return;
+    }
+
+    const context = this.activeContext;
+    const userId = this.activeUserId;
+    this.activeContext = null;
+    this.activeUserId = null;
+
+    try {
+      await this.browserPool.releaseContext(userId, context, success);
+    } catch (error) {
+      logger.warn("[DDTSyncService] Failed to release context", {
+        reason,
+        userId,
+        error,
+      });
+    }
+  }
+
+  private async abortActiveContext(reason: string): Promise<void> {
+    if (!this.activeContext || !this.activeUserId) {
+      return;
+    }
+
+    const userId = this.activeUserId;
+    logger.warn("[DDTSyncService] Aborting active context", {
+      reason,
+      userId,
+    });
+    await this.releaseActiveContext(false, reason);
+  }
+
   async pause(): Promise<void> {
     logger.info("[DDTSyncService] Pause requested");
     this.paused = true;
 
     if (this.syncInProgress) {
+      this.requestStop();
       logger.info("[DDTSyncService] Waiting for current sync to complete...");
       while (this.syncInProgress) {
         await new Promise((resolve) => setTimeout(resolve, 500));
@@ -79,6 +130,7 @@ export class DDTSyncService extends EventEmitter {
     }
 
     this.syncInProgress = true;
+    this.stopRequested = false;
     const startTime = Date.now();
 
     try {
@@ -96,6 +148,7 @@ export class DDTSyncService extends EventEmitter {
       // Step 1: Download PDF via bot
       const pdfPath = await this.downloadDDTPDF(userId);
       logger.info(`[DDTSyncService] PDF downloaded to ${pdfPath}`);
+      this.throwIfStopRequested("download");
 
       // Step 2: Parse PDF
       this.progress = {
@@ -107,6 +160,7 @@ export class DDTSyncService extends EventEmitter {
 
       const parsedDDTs = await this.pdfParser.parseDDTPDF(pdfPath);
       logger.info(`[DDTSyncService] Parsed ${parsedDDTs.length} DDTs from PDF`);
+      this.throwIfStopRequested("parse");
 
       // Step 3: Save with delta detection
       this.progress = {
@@ -117,6 +171,7 @@ export class DDTSyncService extends EventEmitter {
       this.emit("progress", this.progress);
 
       const saveResults = await this.saveDDTs(userId, parsedDDTs);
+      this.throwIfStopRequested("saving");
 
       // Step 4: Cleanup PDF
       await fs.unlink(pdfPath).catch((err) => {
@@ -139,7 +194,14 @@ export class DDTSyncService extends EventEmitter {
       });
     } catch (error) {
       const duration = Math.floor((Date.now() - startTime) / 1000);
-      logger.error("[DDTSyncService] Sync failed", { error, duration });
+      if (isSyncStopError(error)) {
+        logger.warn("[DDTSyncService] Sync stopped", {
+          error: error.message,
+          duration,
+        });
+      } else {
+        logger.error("[DDTSyncService] Sync failed", { error, duration });
+      }
 
       this.progress = {
         ...this.progress,
@@ -152,18 +214,24 @@ export class DDTSyncService extends EventEmitter {
       throw error;
     } finally {
       this.syncInProgress = false;
+      this.stopRequested = false;
     }
   }
 
   private async downloadDDTPDF(userId: string): Promise<string> {
     const context = await this.browserPool.acquireContext(userId);
+    this.activeContext = context;
+    this.activeUserId = userId;
+    this.throwIfStopRequested("login");
     const bot = new ArchibaldBot(userId);
+    let success = false;
 
     try {
       const pdfPath = await bot.downloadDDTPDF(context);
+      success = true;
       return pdfPath;
     } finally {
-      await this.browserPool.releaseContext(userId, context, true);
+      await this.releaseActiveContext(success, "download-ddt-pdf");
     }
   }
 
@@ -189,6 +257,7 @@ export class DDTSyncService extends EventEmitter {
     });
 
     for (const parsedDDT of parsedDDTs) {
+      this.throwIfStopRequested("saving");
       // Match DDT to order by order number
       const order = this.orderDb.getOrderById(userId, parsedDDT.order_number);
 
@@ -237,5 +306,13 @@ export class DDTSyncService extends EventEmitter {
       ddtUpdated: updated,
       ddtSkipped: notFound,
     };
+  }
+
+  requestStop(): void {
+    logger.warn("[DDTSyncService] Stop requested");
+    this.stopRequested = true;
+    if (this.syncInProgress) {
+      void this.abortActiveContext("stop-requested");
+    }
   }
 }

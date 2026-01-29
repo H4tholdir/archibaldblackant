@@ -1,4 +1,5 @@
 import { EventEmitter } from "events";
+import type { BrowserContext } from "puppeteer";
 import { ArchibaldBot } from "./archibald-bot";
 import { CustomerDatabase, Customer } from "./customer-db";
 import { pdfParserService, ParsedCustomer } from "./pdf-parser-service";
@@ -6,6 +7,7 @@ import { BrowserPool } from "./browser-pool";
 import { logger } from "./logger";
 import * as fs from "fs";
 import * as crypto from "crypto";
+import { SyncStopError, isSyncStopError } from "./sync-stop";
 
 export interface SyncProgress {
   stage: string;
@@ -44,6 +46,10 @@ export class CustomerSyncService extends EventEmitter {
   private db: CustomerDatabase;
   private browserPool: BrowserPool;
   private syncInProgress = false;
+  private paused = false;
+  private stopRequested = false;
+  private activeContext: BrowserContext | null = null;
+  private activeUserId: string | null = null;
   private lastSyncTime: Date | null = null;
   private syncInterval: NodeJS.Timeout | null = null;
   private currentProgress: SyncProgress = {
@@ -84,6 +90,48 @@ export class CustomerSyncService extends EventEmitter {
     this.emit("progress", progress);
   }
 
+  private throwIfStopRequested(stage: string): void {
+    if (this.stopRequested) {
+      throw new SyncStopError(
+        `[CustomerSync] Stop requested during ${stage}`,
+      );
+    }
+  }
+
+  private async releaseActiveContext(
+    success: boolean,
+    reason: string,
+  ): Promise<void> {
+    if (!this.activeContext || !this.activeUserId) {
+      return;
+    }
+
+    const context = this.activeContext;
+    const userId = this.activeUserId;
+    this.activeContext = null;
+    this.activeUserId = null;
+
+    try {
+      await this.browserPool.releaseContext(userId, context, success);
+    } catch (error) {
+      logger.warn("[CustomerSync] Failed to release context", {
+        reason,
+        userId,
+        error,
+      });
+    }
+  }
+
+  private async abortActiveContext(reason: string): Promise<void> {
+    if (!this.activeContext || !this.activeUserId) {
+      return;
+    }
+
+    const userId = this.activeUserId;
+    logger.warn("[CustomerSync] Aborting active context", { reason, userId });
+    await this.releaseActiveContext(false, reason);
+  }
+
   /**
    * Sync customers from Archibald PDF export
    * @param progressCallback Optional callback for progress updates
@@ -94,6 +142,10 @@ export class CustomerSyncService extends EventEmitter {
     progressCallback?: ProgressCallback,
     userId?: string,
   ): Promise<SyncResult> {
+    if (this.paused) {
+      throw new Error("Sync service is paused");
+    }
+
     // Prevent concurrent syncs
     if (this.syncInProgress) {
       logger.warn("[CustomerSync] Sync already in progress, skipping");
@@ -101,8 +153,10 @@ export class CustomerSyncService extends EventEmitter {
     }
 
     this.syncInProgress = true;
+    this.stopRequested = false;
     const startTime = Date.now();
     let pdfPath: string | null = null;
+    let success = false;
 
     try {
       logger.info("[CustomerSync] Starting PDF-based customer sync");
@@ -121,6 +175,9 @@ export class CustomerSyncService extends EventEmitter {
       // Use provided userId or default to "customer-sync-service"
       const syncUserId = userId || "customer-sync-service";
       const context = await this.browserPool.acquireContext(syncUserId);
+      this.activeContext = context;
+      this.activeUserId = syncUserId;
+      this.throwIfStopRequested("login");
       const bot = new ArchibaldBot(syncUserId);
 
       // Stage 2: Download PDF
@@ -135,6 +192,7 @@ export class CustomerSyncService extends EventEmitter {
 
       pdfPath = await bot.downloadCustomersPDF(context);
       logger.info(`[CustomerSync] PDF downloaded: ${pdfPath}`);
+      this.throwIfStopRequested("download");
 
       // Stage 3: Parse PDF
       const progress3 = {
@@ -150,6 +208,7 @@ export class CustomerSyncService extends EventEmitter {
       logger.info(
         `[CustomerSync] Parsed ${parseResult.total_customers} customers from PDF`,
       );
+      this.throwIfStopRequested("parse");
 
       // Stage 4: Delta detection & DB update
       const progress4 = {
@@ -162,6 +221,7 @@ export class CustomerSyncService extends EventEmitter {
       progressCallback?.(progress4);
 
       const deltaResult = await this.applyDelta(parseResult.customers);
+      this.throwIfStopRequested("update");
 
       // Stage 5: Cleanup
       const progress5 = {
@@ -179,8 +239,6 @@ export class CustomerSyncService extends EventEmitter {
       }
 
       // Release browser context
-      await this.browserPool.releaseContext(syncUserId, context, true);
-
       this.lastSyncTime = new Date();
 
       const duration = Date.now() - startTime;
@@ -205,10 +263,15 @@ export class CustomerSyncService extends EventEmitter {
       this.updateProgress(progress6);
       progressCallback?.(progress6);
 
+      success = true;
       return result;
     } catch (error: any) {
       const duration = Date.now() - startTime;
-      logger.error(`[CustomerSync] Failed after ${duration}ms:`, error);
+      if (isSyncStopError(error)) {
+        logger.warn("[CustomerSync] Sync stopped", { error: error.message });
+      } else {
+        logger.error(`[CustomerSync] Failed after ${duration}ms:`, error);
+      }
 
       // Cleanup temp file on error
       if (pdfPath && fs.existsSync(pdfPath)) {
@@ -226,6 +289,8 @@ export class CustomerSyncService extends EventEmitter {
       };
     } finally {
       this.syncInProgress = false;
+      this.stopRequested = false;
+      await this.releaseActiveContext(success, "sync-finalize");
     }
   }
 
@@ -372,9 +437,11 @@ export class CustomerSyncService extends EventEmitter {
    * Request sync stop (for compatibility - not implemented in MVP)
    */
   requestStop(): void {
-    logger.warn(
-      "[CustomerSync] requestStop called but not implemented in PDF-based sync",
-    );
+    logger.warn("[CustomerSync] Stop requested");
+    this.stopRequested = true;
+    if (this.syncInProgress) {
+      void this.abortActiveContext("stop-requested");
+    }
   }
 
   /**
@@ -425,6 +492,11 @@ export class CustomerSyncService extends EventEmitter {
     let attempt = 0;
 
     while (attempt < maxRetries) {
+      if (this.paused || this.stopRequested) {
+        logger.info("[CustomerSync] Background sync skipped (paused/stopping)");
+        return;
+      }
+
       try {
         logger.info(
           `[CustomerSync] Background sync attempt ${attempt + 1}/${maxRetries}`,
@@ -531,6 +603,10 @@ export class CustomerSyncService extends EventEmitter {
    */
   async pause(): Promise<void> {
     logger.info("[CustomerSync] Pause requested");
+    this.paused = true;
+    if (this.syncInProgress) {
+      this.requestStop();
+    }
     // Wait for current sync to complete if running
     while (this.syncInProgress) {
       await new Promise((resolve) => setTimeout(resolve, 500));
@@ -542,6 +618,7 @@ export class CustomerSyncService extends EventEmitter {
    */
   resume(): void {
     logger.info("[CustomerSync] Resume requested");
+    this.paused = false;
   }
 }
 

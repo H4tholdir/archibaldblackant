@@ -70,34 +70,68 @@ export interface DraftOrderItem {
   packageContent: string;
 }
 
+// Pending order item (can be from warehouse or to be ordered)
+export interface PendingOrderItem {
+  articleCode: string;
+  articleId?: string; // ID variante (opzionale, per recupero prezzi/IVA)
+  productName?: string;
+  description?: string;
+  quantity: number; // Total quantity (warehouse + to order)
+  price: number;
+  vat: number;
+  discount?: number;
+  // Warehouse info (if item is partially or fully from warehouse)
+  warehouseQuantity?: number; // How many from warehouse (if 0 or undefined, order all)
+  warehouseSources?: Array<{
+    // Multiple boxes can provide same article
+    warehouseItemId: number;
+    boxName: string;
+    quantity: number; // How many from this specific box
+  }>;
+}
+
 // Pending orders queue (offline submission)
 export interface PendingOrder {
   id?: number; // Auto-increment
   customerId: string;
   customerName: string;
-  items: Array<{
-    articleCode: string;
-    productName?: string;
-    description?: string;
-    quantity: number;
-    price: number;
-    vat: number;
-    discount?: number;
-  }>;
+  items: PendingOrderItem[];
   discountPercent?: number;
   targetTotalWithVAT?: number;
   createdAt: string;
-  status: "pending" | "syncing" | "error";
+  status: "pending" | "syncing" | "error" | "completed-warehouse"; // 🔧 FIX #5: New status for warehouse-only orders
   errorMessage?: string;
   retryCount: number;
 }
 
 // Cache metadata (track freshness)
 export interface CacheMetadata {
-  key: string; // 'customers' | 'products' | 'prices'
+  key: string; // 'customers' | 'products' | 'prices' | 'warehouse'
   lastSynced: string;
   recordCount: number;
   version: number;
+}
+
+// Warehouse item (magazzino)
+export interface WarehouseItem {
+  id?: number; // Auto-increment
+  articleCode: string; // Codice articolo (da "Codice Corretto")
+  description: string; // Descrizione articolo
+  quantity: number; // Quantità disponibile
+  boxName: string; // Nome scatolo (es: "SCATOLO 1")
+  reservedForOrder?: string; // ID ordine se riservato (pending order)
+  soldInOrder?: string; // ID ordine Archibald se venduto
+  uploadedAt: string; // Timestamp caricamento
+}
+
+// Warehouse metadata (info sul file caricato)
+export interface WarehouseMetadata {
+  id?: number;
+  fileName: string;
+  uploadedAt: string;
+  totalItems: number;
+  totalQuantity: number;
+  boxesCount: number;
 }
 
 export class ArchibaldDatabase extends Dexie {
@@ -108,6 +142,8 @@ export class ArchibaldDatabase extends Dexie {
   draftOrders!: Table<DraftOrder, number>;
   pendingOrders!: Table<PendingOrder, number>;
   cacheMetadata!: Table<CacheMetadata, string>;
+  warehouseItems!: Table<WarehouseItem, number>;
+  warehouseMetadata!: Table<WarehouseMetadata, number>;
 
   constructor() {
     super("ArchibaldOfflineDB");
@@ -240,6 +276,37 @@ export class ArchibaldDatabase extends Dexie {
         // Force re-sync by clearing cache metadata
         await trans.table("cacheMetadata").clear();
       });
+
+    // Version 7: Add warehouse management tables
+    this.version(7).stores({
+      // Same schema as v6 + warehouse tables
+      customers: "id, name, code, city, *hash",
+      products: "id, name, article, *hash",
+      productVariants: "++id, productId, variantId",
+      prices: "++id, articleId, articleName",
+      draftOrders: "++id, customerId, createdAt, updatedAt",
+      pendingOrders: "++id, status, createdAt",
+      cacheMetadata: "key, lastSynced",
+      warehouseItems:
+        "++id, articleCode, boxName, reservedForOrder, soldInOrder",
+      warehouseMetadata: "++id, uploadedAt",
+    });
+
+    // Version 8: Extend PendingOrderItem with warehouse fields
+    // No data migration needed - new fields are optional (warehouseQuantity?, warehouseSources?)
+    this.version(8).stores({
+      // Same indexes as v7 (no schema changes, just TypeScript interface extension)
+      customers: "id, name, code, city, *hash",
+      products: "id, name, article, *hash",
+      productVariants: "++id, productId, variantId",
+      prices: "++id, articleId, articleName",
+      draftOrders: "++id, customerId, createdAt, updatedAt",
+      pendingOrders: "++id, status, createdAt",
+      cacheMetadata: "key, lastSynced",
+      warehouseItems:
+        "++id, articleCode, boxName, reservedForOrder, soldInOrder",
+      warehouseMetadata: "++id, uploadedAt",
+    });
   }
 }
 

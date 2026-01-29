@@ -1,15 +1,20 @@
-import { useState } from 'react';
+import { useState } from "react";
 
 interface LoginModalProps {
-  onLogin: (username: string, password: string, rememberCredentials: boolean) => Promise<boolean>;
+  onLogin: (
+    username: string,
+    password: string,
+    rememberCredentials: boolean,
+  ) => Promise<boolean>;
   error: string | null;
   isLoading: boolean;
 }
 
 export function LoginModal({ onLogin, error, isLoading }: LoginModalProps) {
-  const [username, setUsername] = useState('');
-  const [password, setPassword] = useState('');
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
   const [rememberCredentials, setRememberCredentials] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -21,7 +26,9 @@ export function LoginModal({ onLogin, error, isLoading }: LoginModalProps) {
       <div className="login-modal">
         <img src="/logo.png" alt="Formicanera" className="login-modal-logo" />
         <h1>🐜 Formicanera</h1>
-        <p className="subtitle">Archibald Rework - Accedi con le tue credenziali</p>
+        <p className="subtitle">
+          Archibald Rework - Accedi con le tue credenziali
+        </p>
 
         <form onSubmit={handleSubmit}>
           <div className="form-group">
@@ -39,14 +46,27 @@ export function LoginModal({ onLogin, error, isLoading }: LoginModalProps) {
 
           <div className="form-group">
             <label htmlFor="password">Password</label>
-            <input
-              id="password"
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-              disabled={isLoading}
-            />
+            <div className="password-input-wrapper">
+              <input
+                id="password"
+                type={showPassword ? "text" : "password"}
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+                disabled={isLoading}
+              />
+              <button
+                type="button"
+                className="toggle-password"
+                onClick={() => setShowPassword(!showPassword)}
+                disabled={isLoading}
+                aria-label={
+                  showPassword ? "Nascondi password" : "Mostra password"
+                }
+              >
+                {showPassword ? "👁️" : "👁️‍🗨️"}
+              </button>
+            </div>
           </div>
 
           <div className="remember-credentials">
@@ -61,18 +81,14 @@ export function LoginModal({ onLogin, error, isLoading }: LoginModalProps) {
             </label>
           </div>
 
-          {error && (
-            <div className="error-message">
-              {error}
-            </div>
-          )}
+          {error && <div className="error-message">{error}</div>}
 
           <button
             type="submit"
             className="btn btn-primary"
             disabled={isLoading || !username || !password}
           >
-            {isLoading ? 'Autenticazione...' : 'Accedi'}
+            {isLoading ? "Autenticazione..." : "Accedi"}
           </button>
         </form>
 

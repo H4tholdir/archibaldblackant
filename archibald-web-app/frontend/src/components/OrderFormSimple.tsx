@@ -11,6 +11,10 @@ import { cachePopulationService } from "../services/cache-population";
 import { toastService } from "../services/toast.service";
 import { db } from "../db/schema";
 import type { Customer, Product, DraftOrder } from "../db/schema";
+import {
+  WarehouseMatchAccordion,
+  type SelectedWarehouseMatch,
+} from "./WarehouseMatchAccordion";
 
 interface OrderItem {
   id: string;
@@ -25,6 +29,15 @@ interface OrderItem {
   subtotal: number; // Prezzo * quantità - sconto
   vat: number; // Importo IVA calcolato
   total: number; // Subtotal + IVA
+  // Warehouse integration (Phase 4)
+  warehouseQuantity?: number; // How many from warehouse
+  warehouseSources?: Array<{
+    warehouseItemId: number;
+    boxName: string;
+    quantity: number;
+  }>;
+  // 🔧 FIX #3: Group key to track variants of same product (for warehouse data preservation)
+  productGroupKey?: string; // Used to group variants, preserve warehouse data when deleting rows
 }
 
 /**
@@ -86,6 +99,11 @@ export default function OrderFormSimple() {
   const [packagingPreview, setPackagingPreview] =
     useState<PackagingResult | null>(null);
   const [calculatingPackaging, setCalculatingPackaging] = useState(false);
+
+  // Warehouse selection state (Phase 4)
+  const [warehouseSelection, setWarehouseSelection] = useState<
+    SelectedWarehouseMatch[]
+  >([]);
 
   // Product details preview state
   interface ProductVariantInfo {
@@ -153,23 +171,24 @@ export default function OrderFormSimple() {
             const subtotal = item.price * item.quantity - (item.discount || 0);
             const vatAmount = subtotal * (vatRate / 100);
 
-            // Try to find variant by article code or product name
-            let productId = item.articleCode; // Use article code (variant ID)
-            if (item.productName && !productId) {
-              // Fallback: if no article code, get first variant for this product name
-              const products = await db.products
+            // Prefer explicit variant ID, fallback to legacy articleCode
+            let productId = item.articleId || item.articleCode;
+
+            // If articleCode is actually a product name, resolve a variant ID
+            if (item.productName && productId === item.productName) {
+              const product = await db.products
                 .where("name")
                 .equals(item.productName)
                 .first();
-              if (products) {
-                productId = products.id; // Variant ID
+              if (product) {
+                productId = product.id;
               }
             }
 
             return {
               id: crypto.randomUUID(),
               productId,
-              article: item.articleCode,
+              article: productId,
               productName: item.productName || item.articleCode,
               description: item.description,
               quantity: item.quantity,
@@ -179,9 +198,34 @@ export default function OrderFormSimple() {
               subtotal,
               vat: vatAmount,
               total: subtotal + vatAmount,
+              // Phase 4: Preserve warehouse data when loading order for editing
+              warehouseQuantity: item.warehouseQuantity,
+              warehouseSources: item.warehouseSources,
+              // productGroupKey will be assigned below if multiple variants exist
             };
           }),
         );
+
+        // 🔧 FIX #3: Assign productGroupKey to items with same productName
+        // This enables warehouse data preservation when editing loaded orders
+        const productGroups = new Map<string, OrderItem[]>();
+        for (const item of loadedItems) {
+          const key = item.productName;
+          if (!productGroups.has(key)) {
+            productGroups.set(key, []);
+          }
+          productGroups.get(key)!.push(item);
+        }
+
+        // Assign group keys only to groups with multiple items
+        for (const [productName, groupItems] of productGroups.entries()) {
+          if (groupItems.length > 1) {
+            const groupKey = `${productName}-loaded-${Date.now()}`;
+            for (const item of groupItems) {
+              item.productGroupKey = groupKey;
+            }
+          }
+        }
 
         setItems(loadedItems);
 
@@ -307,6 +351,8 @@ export default function OrderFormSimple() {
     setPackagingPreview(null);
     // Reset product variants
     setProductVariants([]);
+    // Reset warehouse selection
+    setWarehouseSelection([]);
   };
 
   // === LOAD PRODUCT DETAILS ===
@@ -618,11 +664,33 @@ export default function OrderFormSimple() {
     const disc = parseFloat(itemDiscount) || 0;
     const discountPerLine = disc / breakdown.length; // Split discount across lines
 
+    // Calculate warehouse quantity (Phase 4)
+    const warehouseQty = warehouseSelection.reduce(
+      (sum, sel) => sum + sel.quantity,
+      0,
+    );
+    const warehouseSources =
+      warehouseQty > 0
+        ? warehouseSelection.map((sel) => ({
+            warehouseItemId: sel.warehouseItemId,
+            boxName: sel.boxName,
+            quantity: sel.quantity,
+          }))
+        : undefined;
+
+    // 🔧 FIX #3: Generate group key to track variants of same product
+    // Used to preserve warehouse data when deleting rows
+    const productGroupKey =
+      breakdown.length > 1
+        ? `${selectedProduct.name}-${Date.now()}`
+        : undefined;
+
     // Create one order item per packaging variant
     // IMPORTANT: Each variant can have different price and VAT
     const newItems: OrderItem[] = [];
 
-    for (const pkg of breakdown) {
+    for (let i = 0; i < breakdown.length; i++) {
+      const pkg = breakdown[i];
       const variantArticleCode = pkg.variant.variantId;
 
       // Get price and VAT for THIS SPECIFIC variant
@@ -656,6 +724,11 @@ export default function OrderFormSimple() {
         subtotal: lineSubtotal,
         vat: lineVat,
         total: lineTotal,
+        // 🔧 FIX #3: Add warehouse data only to first line (warehouse items apply to total quantity, not per variant)
+        warehouseQuantity: i === 0 ? warehouseQty : undefined,
+        warehouseSources: i === 0 ? warehouseSources : undefined,
+        // 🔧 FIX #3: Add group key to all variants of same product
+        productGroupKey,
       });
     }
 
@@ -668,10 +741,54 @@ export default function OrderFormSimple() {
     setQuantity("");
     setItemDiscount("0");
     setPackagingPreview(null);
+    setWarehouseSelection([]);
   };
 
   // === EDIT / DELETE ITEM ===
   const handleDeleteItem = (id: string) => {
+    // 🔧 FIX #3: Preserve warehouse data when deleting a row
+    const itemToDelete = items.find((item) => item.id === id);
+
+    if (
+      itemToDelete?.productGroupKey &&
+      itemToDelete.warehouseSources &&
+      itemToDelete.warehouseSources.length > 0
+    ) {
+      // This row has warehouse data and belongs to a group
+      // Find other rows in the same group
+      const groupSiblings = items.filter(
+        (item) =>
+          item.productGroupKey === itemToDelete.productGroupKey &&
+          item.id !== id,
+      );
+
+      if (groupSiblings.length > 0) {
+        // Transfer warehouse data to first remaining sibling
+        const firstSibling = groupSiblings[0];
+        const updatedItems = items
+          .filter((item) => item.id !== id)
+          .map((item) => {
+            if (item.id === firstSibling.id) {
+              return {
+                ...item,
+                warehouseQuantity: itemToDelete.warehouseQuantity,
+                warehouseSources: itemToDelete.warehouseSources,
+              };
+            }
+            return item;
+          });
+
+        setItems(updatedItems);
+        console.log("[OrderForm] 🔧 Warehouse data preserved on sibling row", {
+          deletedId: id,
+          transferredTo: firstSibling.id,
+          warehouseSources: itemToDelete.warehouseSources,
+        });
+        return;
+      }
+    }
+
+    // No warehouse data or no siblings to transfer to - just delete
     setItems(items.filter((item) => item.id !== id));
   };
 
@@ -690,7 +807,44 @@ export default function OrderFormSimple() {
     setQuantity(item.quantity.toString());
     setItemDiscount(item.discount.toString());
 
-    // Remove from list
+    // 🔧 FIX #3: Preserve warehouse data when editing a row (same logic as delete)
+    if (
+      item.productGroupKey &&
+      item.warehouseSources &&
+      item.warehouseSources.length > 0
+    ) {
+      const groupSiblings = items.filter(
+        (i) => i.productGroupKey === item.productGroupKey && i.id !== id,
+      );
+
+      if (groupSiblings.length > 0) {
+        const firstSibling = groupSiblings[0];
+        const updatedItems = items
+          .filter((i) => i.id !== id)
+          .map((i) => {
+            if (i.id === firstSibling.id) {
+              return {
+                ...i,
+                warehouseQuantity: item.warehouseQuantity,
+                warehouseSources: item.warehouseSources,
+              };
+            }
+            return i;
+          });
+
+        setItems(updatedItems);
+        console.log(
+          "[OrderForm] 🔧 Warehouse data preserved on sibling (edit)",
+          {
+            editedId: id,
+            transferredTo: firstSibling.id,
+          },
+        );
+        return;
+      }
+    }
+
+    // Remove from list (no warehouse data to preserve or no siblings)
     setItems(items.filter((i) => i.id !== id));
   };
 
@@ -800,23 +954,36 @@ export default function OrderFormSimple() {
         await orderService.deletePendingOrder(editingOrderId);
       }
 
-      // Save new/updated order
+      // 🔧 FIX #5: Check if order is completely fulfilled from warehouse
+      const orderItems = items.map((item) => ({
+        articleCode: item.productName || item.article,
+        articleId: item.productId,
+        productName: item.productName,
+        description: item.description,
+        quantity: item.quantity,
+        price: item.unitPrice,
+        vat: item.vatRate,
+        discount: item.discount,
+        // Phase 4: Warehouse integration
+        warehouseQuantity: item.warehouseQuantity,
+        warehouseSources: item.warehouseSources,
+      }));
+
+      const isWarehouseOnly = orderItems.every((item) => {
+        const totalQty = item.quantity;
+        const warehouseQty = item.warehouseQuantity || 0;
+        return warehouseQty > 0 && warehouseQty === totalQty;
+      });
+
+      // Save new/updated order (status will be determined by service)
       await orderService.savePendingOrder({
         customerId: selectedCustomer.id,
         customerName: selectedCustomer.name,
-        items: items.map((item) => ({
-          articleCode: item.article,
-          productName: item.productName,
-          description: item.description,
-          quantity: item.quantity,
-          price: item.unitPrice,
-          vat: item.vatRate,
-          discount: item.discount,
-        })),
+        items: orderItems,
         discountPercent: parseFloat(globalDiscountPercent) || undefined,
         targetTotalWithVAT: totals.finalTotal,
         createdAt: new Date().toISOString(),
-        status: "pending" as const,
+        status: "pending" as const, // Will be overridden by service if warehouse-only
         retryCount: 0,
       });
 
@@ -826,13 +993,36 @@ export default function OrderFormSimple() {
         setDraftId(null);
       }
 
-      toastService.success(
-        editingOrderId ? "Ordine aggiornato!" : "Ordine salvato nella coda!",
-      );
+      // 🔧 FIX #5: Show specific message for warehouse-only orders
+      if (isWarehouseOnly) {
+        toastService.success(
+          "🏪 Ordine completato dal magazzino! Nessun invio ad Archibald necessario.",
+        );
+      } else {
+        toastService.success(
+          editingOrderId ? "Ordine aggiornato!" : "Ordine salvato nella coda!",
+        );
+      }
+
       navigate("/pending-orders");
     } catch (error) {
       console.error("Failed to save order:", error);
-      toastService.error("Errore durante il salvataggio");
+
+      // 🔧 FIX #2: Show specific error message for warehouse conflicts
+      const errorMessage =
+        error instanceof Error ? error.message : "Errore sconosciuto";
+
+      if (
+        errorMessage.includes("riservato") ||
+        errorMessage.includes("venduto") ||
+        errorMessage.includes("insufficiente")
+      ) {
+        // Warehouse-specific error
+        toastService.error(`Magazzino: ${errorMessage}`);
+      } else {
+        // Generic error
+        toastService.error("Errore durante il salvataggio dell'ordine");
+      }
     } finally {
       setSubmitting(false);
     }
@@ -1534,6 +1724,18 @@ export default function OrderFormSimple() {
                 </div>
               )}
 
+              {/* WAREHOUSE MATCHING (PHASE 4) */}
+              {selectedProduct && quantity && parseInt(quantity, 10) > 0 && (
+                <div style={{ marginBottom: "1rem" }}>
+                  <WarehouseMatchAccordion
+                    articleCode={selectedProduct.article}
+                    description={selectedProduct.description}
+                    requestedQuantity={parseInt(quantity, 10)}
+                    onSelect={setWarehouseSelection}
+                  />
+                </div>
+              )}
+
               <button
                 onClick={handleAddItem}
                 disabled={!packagingPreview?.success}
@@ -1679,6 +1881,25 @@ export default function OrderFormSimple() {
                     <span style={{ fontSize: "0.75rem", color: "#9ca3af" }}>
                       {item.article}
                     </span>
+                    {/* Phase 4: Show warehouse badge if item has warehouse sources */}
+                    {item.warehouseQuantity && item.warehouseQuantity > 0 && (
+                      <div
+                        style={{
+                          marginTop: "0.5rem",
+                          display: "inline-block",
+                          padding: "0.25rem 0.5rem",
+                          background: "#d1fae5",
+                          border: "1px solid #10b981",
+                          borderRadius: "4px",
+                          fontSize: "0.75rem",
+                          color: "#065f46",
+                        }}
+                      >
+                        🏪 {item.warehouseQuantity} pz da magazzino
+                        {item.warehouseSources &&
+                          ` (${item.warehouseSources.map((s) => s.boxName).join(", ")})`}
+                      </div>
+                    )}
                   </td>
                   <td style={{ padding: "0.75rem", textAlign: "center" }}>
                     {item.quantity}
