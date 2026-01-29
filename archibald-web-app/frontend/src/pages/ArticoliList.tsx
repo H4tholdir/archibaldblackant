@@ -4,6 +4,7 @@ import { ProductDetailModal } from "../components/ProductDetailModal";
 import { getProducts, syncProducts, type Product } from "../api/products";
 import { ManualSyncBanner } from "../components/ManualSyncBanner";
 import { PriceSyncNotification } from "../components/PriceSyncNotification";
+import { PriceVariationsModal } from "../components/PriceVariationsModal";
 
 interface ProductFilters {
   search: string;
@@ -35,6 +36,8 @@ export function ArticoliList() {
   const [syncingPrices, setSyncingPrices] = useState(false);
   const [syncResult, setSyncResult] = useState<any>(null);
   const [showNotification, setShowNotification] = useState(false);
+  const [showPriceVariationsModal, setShowPriceVariationsModal] =
+    useState(false);
 
   // Debounce search input (300ms)
   useEffect(() => {
@@ -489,6 +492,32 @@ export function ArticoliList() {
               ? "⏳ Sincronizzazione Prezzi..."
               : "💰 Sincronizza Prezzi"}
           </button>
+
+          {/* Price Variations button */}
+          <button
+            onClick={() => setShowPriceVariationsModal(true)}
+            style={{
+              padding: "8px 16px",
+              fontSize: "14px",
+              fontWeight: 600,
+              border: "1px solid #ff9800",
+              borderRadius: "8px",
+              backgroundColor: "#fff",
+              color: "#ff9800",
+              cursor: "pointer",
+              transition: "all 0.2s",
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.backgroundColor = "#ff9800";
+              e.currentTarget.style.color = "#fff";
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.backgroundColor = "#fff";
+              e.currentTarget.style.color = "#ff9800";
+            }}
+          >
+            📊 Variazione Prezzi
+          </button>
         </div>
       </div>
 
@@ -726,6 +755,12 @@ export function ArticoliList() {
           onClose={handleCloseModal}
         />
       )}
+
+      {/* Price Variations Modal */}
+      <PriceVariationsModal
+        isOpen={showPriceVariationsModal}
+        onClose={() => setShowPriceVariationsModal(false)}
+      />
     </div>
   );
 }
