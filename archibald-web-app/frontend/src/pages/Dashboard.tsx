@@ -1,5 +1,4 @@
 import { useState, useEffect } from "react";
-import { useAuth } from "../hooks/useAuth";
 import { BudgetWidget } from "../components/BudgetWidget";
 import { OrdersSummaryWidget } from "../components/OrdersSummaryWidget";
 import { CommissionsWidget } from "../components/CommissionsWidget";
@@ -7,7 +6,6 @@ import { WarehouseStatsWidget } from "../components/WarehouseStatsWidget";
 import { WidgetOrderConfigModal } from "../components/WidgetOrderConfigModal";
 
 export function Dashboard() {
-  const auth = useAuth();
   const [targetData, setTargetData] = useState<{
     monthlyTarget: number;
     yearlyTarget: number;
