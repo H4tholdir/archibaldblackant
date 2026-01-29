@@ -14,7 +14,6 @@ import OrderFormNew from "./components/OrderFormSimple";
 import SyncBanner from "./components/SyncBanner";
 import { OfflineBanner } from "./components/OfflineBanner";
 import { OfflineSyncBanner } from "./components/OfflineSyncBanner";
-import { CacheRefreshButton } from "./components/CacheRefreshButton";
 import { ToastContainer } from "./components/Toast";
 import { AdminPage } from "./pages/AdminPage";
 import { OrderHistory } from "./pages/OrderHistory";
@@ -221,31 +220,7 @@ function AppRouter() {
   // Main app - authenticated users
   const isAdmin = auth.user?.role === "admin";
 
-  // Shared Header component (simplified - navigation moved to DashboardNav)
-  function AppHeader() {
-    return (
-      <header className="app-header">
-        <div>
-          <h1>📦 Archibald Mobile</h1>
-          <p>Inserimento ordini</p>
-        </div>
-        <div style={{ display: "flex", gap: "1rem", alignItems: "center" }}>
-          <CacheRefreshButton />
-          <div className="user-info">
-            <span>{auth.user?.fullName}</span>
-            {isAdmin && (
-              <a href="/admin" className="btn btn-secondary btn-sm">
-                🔧 Admin
-              </a>
-            )}
-            <button onClick={auth.logout} className="btn btn-secondary btn-sm">
-              Logout
-            </button>
-          </div>
-        </div>
-      </header>
-    );
-  }
+  // AppHeader removed - navigation now handled by DashboardNav
 
   return (
     <BrowserRouter>
@@ -270,12 +245,14 @@ function AppRouter() {
               style={{ marginTop: isOffline ? "64px" : "0" }}
             >
               <SyncBanner />
-              <AppHeader />
               <main className="app-main" style={{ padding: "0" }}>
                 <Dashboard />
               </main>
               <footer className="app-footer">
-                <p>v1.0.0 • Fresis Team</p>
+                <p>
+                  v1.0.0 • Formicanera by Francesco Formicola
+                  {/* TODO: Add live sync progress bar here */}
+                </p>
               </footer>
             </div>
           }
@@ -303,12 +280,14 @@ function AppRouter() {
               style={{ marginTop: isOffline ? "64px" : "0" }}
             >
               <SyncBanner />
-              <AppHeader />
               <main className="app-main" style={{ padding: "0" }}>
                 <PendingOrdersView />
               </main>
               <footer className="app-footer">
-                <p>v1.0.0 • Fresis Team</p>
+                <p>
+                  v1.0.0 • Formicanera by Francesco Formicola
+                  {/* TODO: Add live sync progress bar here */}
+                </p>
               </footer>
             </div>
           }
@@ -323,12 +302,14 @@ function AppRouter() {
               style={{ marginTop: isOffline ? "64px" : "0" }}
             >
               <SyncBanner />
-              <AppHeader />
               <main className="app-main" style={{ padding: "0" }}>
                 <OrderHistory />
               </main>
               <footer className="app-footer">
-                <p>v1.0.0 • Fresis Team</p>
+                <p>
+                  v1.0.0 • Formicanera by Francesco Formicola
+                  {/* TODO: Add live sync progress bar here */}
+                </p>
               </footer>
             </div>
           }
@@ -343,12 +324,14 @@ function AppRouter() {
               style={{ marginTop: isOffline ? "64px" : "0" }}
             >
               <SyncBanner />
-              <AppHeader />
               <main className="app-main" style={{ padding: "0" }}>
                 <PendingOrdersPage />
               </main>
               <footer className="app-footer">
-                <p>v1.0.0 • Fresis Team</p>
+                <p>
+                  v1.0.0 • Formicanera by Francesco Formicola
+                  {/* TODO: Add live sync progress bar here */}
+                </p>
               </footer>
             </div>
           }
@@ -363,12 +346,14 @@ function AppRouter() {
               style={{ marginTop: isOffline ? "64px" : "0" }}
             >
               <SyncBanner />
-              <AppHeader />
               <main className="app-main" style={{ padding: "0" }}>
                 <CustomerList />
               </main>
               <footer className="app-footer">
-                <p>v1.0.0 • Fresis Team</p>
+                <p>
+                  v1.0.0 • Formicanera by Francesco Formicola
+                  {/* TODO: Add live sync progress bar here */}
+                </p>
               </footer>
             </div>
           }
@@ -383,12 +368,14 @@ function AppRouter() {
               style={{ marginTop: isOffline ? "64px" : "0" }}
             >
               <SyncBanner />
-              <AppHeader />
               <main className="app-main" style={{ padding: "0" }}>
                 <CustomerEdit />
               </main>
               <footer className="app-footer">
-                <p>v1.0.0 • Fresis Team</p>
+                <p>
+                  v1.0.0 • Formicanera by Francesco Formicola
+                  {/* TODO: Add live sync progress bar here */}
+                </p>
               </footer>
             </div>
           }
@@ -403,12 +390,14 @@ function AppRouter() {
               style={{ marginTop: isOffline ? "64px" : "0" }}
             >
               <SyncBanner />
-              <AppHeader />
               <main className="app-main" style={{ padding: "0" }}>
                 <ArticoliList />
               </main>
               <footer className="app-footer">
-                <p>v1.0.0 • Fresis Team</p>
+                <p>
+                  v1.0.0 • Formicanera by Francesco Formicola
+                  {/* TODO: Add live sync progress bar here */}
+                </p>
               </footer>
             </div>
           }
@@ -423,12 +412,14 @@ function AppRouter() {
               style={{ marginTop: isOffline ? "64px" : "0" }}
             >
               <SyncBanner />
-              <AppHeader />
               <main className="app-main" style={{ padding: "0" }}>
                 <ProfilePage />
               </main>
               <footer className="app-footer">
-                <p>v1.0.0 • Fresis Team</p>
+                <p>
+                  v1.0.0 • Formicanera by Francesco Formicola
+                  {/* TODO: Add live sync progress bar here */}
+                </p>
               </footer>
             </div>
           }
@@ -443,12 +434,14 @@ function AppRouter() {
               style={{ marginTop: isOffline ? "64px" : "0" }}
             >
               <SyncBanner />
-              <AppHeader />
               <main className="app-main" style={{ padding: "0" }}>
                 <PriceVariationsPage />
               </main>
               <footer className="app-footer">
-                <p>v1.0.0 • Fresis Team</p>
+                <p>
+                  v1.0.0 • Formicanera by Francesco Formicola
+                  {/* TODO: Add live sync progress bar here */}
+                </p>
               </footer>
             </div>
           }
@@ -463,12 +456,14 @@ function AppRouter() {
               style={{ marginTop: isOffline ? "64px" : "0" }}
             >
               <SyncBanner />
-              <AppHeader />
               <main className="app-main" style={{ padding: "0" }}>
                 <OrderFormNew />
               </main>
               <footer className="app-footer">
-                <p>v1.0.0 • Fresis Team</p>
+                <p>
+                  v1.0.0 • Formicanera by Francesco Formicola
+                  {/* TODO: Add live sync progress bar here */}
+                </p>
               </footer>
             </div>
           }
@@ -483,12 +478,14 @@ function AppRouter() {
               style={{ marginTop: isOffline ? "64px" : "0" }}
             >
               <SyncBanner />
-              <AppHeader />
               <main className="app-main" style={{ padding: "0" }}>
                 <WarehouseManagementView />
               </main>
               <footer className="app-footer">
-                <p>v1.0.0 • Fresis Team</p>
+                <p>
+                  v1.0.0 • Formicanera by Francesco Formicola
+                  {/* TODO: Add live sync progress bar here */}
+                </p>
               </footer>
             </div>
           }
@@ -503,12 +500,14 @@ function AppRouter() {
               style={{ marginTop: isOffline ? "64px" : "0" }}
             >
               <SyncBanner />
-              <AppHeader />
               <main className="app-main" style={{ padding: "0" }}>
                 <WarehouseReturnsView />
               </main>
               <footer className="app-footer">
-                <p>v1.0.0 • Fresis Team</p>
+                <p>
+                  v1.0.0 • Formicanera by Francesco Formicola
+                  {/* TODO: Add live sync progress bar here */}
+                </p>
               </footer>
             </div>
           }
