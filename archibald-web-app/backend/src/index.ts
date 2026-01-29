@@ -63,6 +63,7 @@ import { SendToMilanoService } from "./send-to-milano-service";
 import { DDTScraperService } from "./ddt-scraper-service";
 import { OrderDatabaseNew } from "./order-db-new";
 import { PriorityManager } from "./priority-manager";
+import * as WidgetCalc from "./widget-calculations";
 import { OrderStateSyncService } from "./order-state-sync-service";
 import { pdfParserService } from "./pdf-parser-service";
 import { PDFParserProductsService } from "./pdf-parser-products-service";
@@ -1129,6 +1130,256 @@ app.put(
     } catch (error) {
       logger.error("Error updating user target", { error });
       res.status(500).json({ error: "Error updating user target" });
+    }
+  },
+);
+
+// Get current user's privacy settings
+app.get(
+  "/api/users/me/privacy",
+  authenticateJWT,
+  (req: AuthRequest, res: Response) => {
+    try {
+      const userId = req.user!.userId;
+      const userDb = UserDatabase.getInstance();
+      const privacySettings = userDb.getPrivacySettings(userId);
+
+      if (!privacySettings) {
+        return res.status(404).json({ error: "User not found" });
+      }
+
+      res.json({ enabled: privacySettings.enabled });
+    } catch (error) {
+      logger.error("Error getting privacy settings", { error });
+      res.status(500).json({ error: "Error getting privacy settings" });
+    }
+  },
+);
+
+// Update current user's privacy settings
+app.post(
+  "/api/users/me/privacy",
+  authenticateJWT,
+  (req: AuthRequest, res: Response) => {
+    try {
+      const userId = req.user!.userId;
+      const { enabled } = req.body;
+
+      // Validation
+      if (typeof enabled !== "boolean") {
+        return res.status(400).json({ error: "enabled must be a boolean" });
+      }
+
+      const userDb = UserDatabase.getInstance();
+      const success = userDb.setPrivacySettings(userId, enabled);
+
+      if (!success) {
+        return res
+          .status(500)
+          .json({ error: "Failed to update privacy settings" });
+      }
+
+      logger.info("[API] Privacy settings updated", { userId, enabled });
+      res.json({ success: true, enabled });
+    } catch (error) {
+      logger.error("Error updating privacy settings", { error });
+      res.status(500).json({ error: "Error updating privacy settings" });
+    }
+  },
+);
+
+// Get consolidated dashboard data for all widgets
+app.get(
+  "/api/widget/dashboard-data",
+  authenticateJWT,
+  async (req: AuthRequest, res: Response) => {
+    try {
+      const userId = req.user!.userId;
+      const userDb = UserDatabase.getInstance();
+      const orderDb = OrderDatabaseNew.getInstance();
+
+      // Get user config
+      const userConfig = userDb.getUserTarget(userId);
+      if (!userConfig) {
+        return res.status(404).json({ error: "User not found" });
+      }
+
+      const now = new Date();
+      const currentYear = now.getFullYear();
+      const currentMonth = now.getMonth();
+
+      // Calculate date ranges
+      const startOfMonth = new Date(
+        currentYear,
+        currentMonth,
+        1,
+        0,
+        0,
+        0,
+      ).toISOString();
+      const endOfMonth = new Date(
+        currentYear,
+        currentMonth + 1,
+        0,
+        23,
+        59,
+        59,
+      ).toISOString();
+      const startOfYear = new Date(currentYear, 0, 1, 0, 0, 0).toISOString();
+      const endOfYear = new Date(currentYear, 11, 31, 23, 59, 59).toISOString();
+
+      // Last 3 months for average order value
+      const threeMonthsAgo = new Date(
+        currentYear,
+        currentMonth - 3,
+        1,
+        0,
+        0,
+        0,
+      ).toISOString();
+
+      // Query current month revenue
+      const monthQuery = `
+        SELECT SUM(CAST(o.total_amount AS REAL)) as total
+        FROM orders o
+        LEFT JOIN widget_order_exclusions e ON o.id = e.order_id AND e.user_id = ?
+        WHERE o.user_id = ?
+          AND o.creation_date >= ?
+          AND o.creation_date <= ?
+          AND o.total_amount IS NOT NULL
+          AND o.total_amount != ''
+          AND (e.excluded_from_monthly IS NULL OR e.excluded_from_monthly = 0)
+      `;
+
+      const monthResult = orderDb["db"]
+        .prepare(monthQuery)
+        .get(userId, userId, startOfMonth, endOfMonth) as {
+        total: number | null;
+      };
+      const currentMonthRevenue = monthResult?.total || 0;
+
+      // Query current year revenue
+      const yearQuery = `
+        SELECT SUM(CAST(o.total_amount AS REAL)) as total
+        FROM orders o
+        LEFT JOIN widget_order_exclusions e ON o.id = e.order_id AND e.user_id = ?
+        WHERE o.user_id = ?
+          AND o.creation_date >= ?
+          AND o.creation_date <= ?
+          AND o.total_amount IS NOT NULL
+          AND o.total_amount != ''
+          AND (e.excluded_from_yearly IS NULL OR e.excluded_from_yearly = 0)
+      `;
+
+      const yearResult = orderDb["db"]
+        .prepare(yearQuery)
+        .get(userId, userId, startOfYear, endOfYear) as {
+        total: number | null;
+      };
+      const currentYearRevenue = yearResult?.total || 0;
+
+      // Query average order value (last 3 months)
+      const avgOrderQuery = `
+        SELECT
+          COUNT(*) as count,
+          SUM(CAST(o.total_amount AS REAL)) as total
+        FROM orders o
+        LEFT JOIN widget_order_exclusions e ON o.id = e.order_id AND e.user_id = ?
+        WHERE o.user_id = ?
+          AND o.creation_date >= ?
+          AND o.creation_date <= ?
+          AND o.total_amount IS NOT NULL
+          AND o.total_amount != ''
+          AND (e.excluded_from_monthly IS NULL OR e.excluded_from_monthly = 0)
+      `;
+
+      const avgResult = orderDb["db"]
+        .prepare(avgOrderQuery)
+        .get(userId, userId, threeMonthsAgo, endOfMonth) as {
+        count: number;
+        total: number | null;
+      };
+      const averageOrderValue =
+        avgResult.count > 0 ? (avgResult.total || 0) / avgResult.count : 4500; // Default fallback
+
+      // Calculate working days remaining
+      const workingDaysRemaining = WidgetCalc.calculateWorkingDaysRemaining();
+
+      // Calculate average daily revenue (current month)
+      const dayOfMonth = now.getDate();
+      const averageDailyRevenue =
+        dayOfMonth > 0 ? currentMonthRevenue / dayOfMonth : 0;
+
+      // Calculate all widgets data
+      const heroStatus = WidgetCalc.calculateHeroStatus(
+        currentMonthRevenue,
+        userConfig.monthlyTarget,
+        currentYearRevenue,
+        userConfig.bonusInterval,
+      );
+
+      const kpiCards = WidgetCalc.calculateKpiCards(
+        currentMonthRevenue,
+        userConfig.monthlyTarget,
+        userConfig.commissionRate,
+        currentYearRevenue,
+        userConfig.bonusInterval,
+        userConfig.bonusAmount,
+      );
+
+      const bonusRoadmap = WidgetCalc.calculateBonusRoadmap(
+        currentYearRevenue,
+        userConfig.bonusInterval,
+        userConfig.bonusAmount,
+      );
+
+      const forecast = WidgetCalc.calculateForecast(
+        currentMonthRevenue,
+        currentYearRevenue,
+        averageDailyRevenue,
+        workingDaysRemaining,
+        userConfig.commissionRate,
+        userConfig.bonusInterval,
+        userConfig.bonusAmount,
+      );
+
+      const actionSuggestion = WidgetCalc.calculateActionSuggestion(
+        bonusRoadmap.missingToNextBonus,
+        averageOrderValue,
+      );
+
+      const balance = WidgetCalc.calculateBalance(
+        userConfig.commissionRate,
+        currentYearRevenue,
+        userConfig.monthlyAdvance,
+      );
+
+      const extraBudget = WidgetCalc.calculateExtraBudget(
+        currentYearRevenue,
+        userConfig.yearlyTarget,
+        userConfig.extraBudgetInterval,
+        userConfig.extraBudgetReward,
+      );
+
+      const alerts = WidgetCalc.calculateAlerts(
+        forecast.projectedMonthRevenue,
+        userConfig.monthlyTarget,
+      );
+
+      // Return consolidated data
+      res.json({
+        heroStatus,
+        kpiCards,
+        bonusRoadmap,
+        forecast,
+        actionSuggestion,
+        balance,
+        extraBudget,
+        alerts,
+      });
+    } catch (error) {
+      logger.error("Error getting dashboard data", { error });
+      res.status(500).json({ error: "Error getting dashboard data" });
     }
   },
 );

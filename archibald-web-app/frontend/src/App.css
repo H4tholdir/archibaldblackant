@@ -2017,3 +2017,748 @@
   opacity: 0.6;
   cursor: not-allowed;
 }
+
+/* ============================================================================
+   PRIVACY TOGGLE COMPONENT
+   Styled toggle switch for privacy mode activation
+   Based on https://uiverse.io/njesenberger/rude-stingray-22
+   ============================================================================ */
+
+.privacy-toggle-container {
+  display: inline-flex;
+  align-items: center;
+}
+
+.privacy-toggle-label {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.privacy-toggle-text {
+  font-size: 0.95rem;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.95);
+}
+
+.privacy-toggle-checkbox {
+  position: absolute;
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.privacy-toggle-switch {
+  position: relative;
+  width: 52px;
+  height: 28px;
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 32px;
+  transition: background-color 0.3s ease;
+  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.privacy-toggle-slider {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 22px;
+  height: 22px;
+  background: #fff;
+  border-radius: 50%;
+  transition: transform 0.3s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+.privacy-toggle-checkbox:checked + .privacy-toggle-switch {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+}
+
+.privacy-toggle-checkbox:checked + .privacy-toggle-switch .privacy-toggle-slider {
+  transform: translateX(24px);
+}
+
+.privacy-toggle-checkbox:focus + .privacy-toggle-switch {
+  box-shadow:
+    inset 0 2px 4px rgba(0, 0, 0, 0.1),
+    0 0 0 3px rgba(102, 126, 234, 0.3);
+}
+
+.privacy-toggle-checkbox:disabled + .privacy-toggle-switch {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.privacy-toggle-label:hover .privacy-toggle-switch {
+  box-shadow:
+    inset 0 2px 4px rgba(0, 0, 0, 0.1),
+    0 2px 8px rgba(0, 0, 0, 0.15);
+}
+
+/* Privacy blur effect for widgets */
+.privacy-blur {
+  filter: blur(8px);
+  transition: filter 0.3s ease;
+  user-select: none;
+  pointer-events: none;
+}
+
+/* ============================================================================
+   KPI CARDS WIDGET
+   4 fixed cards in responsive grid layout
+   ============================================================================ */
+
+.kpi-cards-widget {
+  width: 100%;
+}
+
+.kpi-cards-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
+}
+
+.kpi-card {
+  background: #fff;
+  border-radius: 12px;
+  padding: 20px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  transition: all 0.3s ease;
+  position: relative;
+}
+
+.kpi-card:hover {
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+  transform: translateY(-2px);
+}
+
+.kpi-card-content {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.kpi-card-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.875rem;
+  color: #7f8c8d;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.kpi-card-icon {
+  font-size: 1.2rem;
+}
+
+.kpi-card-value {
+  font-size: 1.75rem;
+  font-weight: 700;
+  color: #2c3e50;
+  transition: filter 0.3s ease;
+}
+
+.kpi-card-tooltip {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  cursor: help;
+  opacity: 0.6;
+  transition: opacity 0.2s ease;
+}
+
+.kpi-card-tooltip:hover {
+  opacity: 1;
+}
+
+/* Responsive: 2 columns on tablets */
+@media (max-width: 1024px) {
+  .kpi-cards-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+/* Responsive: 1 column on mobile */
+@media (max-width: 480px) {
+  .kpi-cards-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ============================================================================
+   BONUS ROADMAP WIDGET
+   Progressive bonus timeline with completion status
+   ============================================================================ */
+
+.bonus-roadmap-widget {
+  background: #fff;
+  border-radius: 12px;
+  padding: 24px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.widget-title {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: #2c3e50;
+  margin: 0 0 20px 0;
+}
+
+.bonus-roadmap-timeline {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+  position: relative;
+  padding: 10px 0;
+}
+
+/* Connection line between steps */
+.bonus-roadmap-timeline::before {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 5%;
+  right: 5%;
+  height: 2px;
+  background: linear-gradient(
+    to right,
+    #27ae60 0%,
+    #27ae60 30%,
+    #e0e0e0 30%,
+    #e0e0e0 100%
+  );
+  z-index: 0;
+  transform: translateY(-50%);
+}
+
+.bonus-step {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  position: relative;
+  z-index: 1;
+  flex: 1;
+}
+
+.bonus-step-icon {
+  font-size: 1.5rem;
+  width: 48px;
+  height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #fff;
+  border-radius: 50%;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  transition: all 0.3s ease;
+}
+
+.bonus-step-completed .bonus-step-icon {
+  background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+}
+
+.bonus-step-active .bonus-step-icon {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  animation: pulse 2s infinite;
+}
+
+.bonus-step-locked .bonus-step-icon {
+  background: #f8f9fa;
+  opacity: 0.7;
+}
+
+@keyframes pulse {
+  0%,
+  100% {
+    transform: scale(1);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  }
+  50% {
+    transform: scale(1.05);
+    box-shadow: 0 4px 16px rgba(102, 126, 234, 0.4);
+  }
+}
+
+.bonus-step-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
+.bonus-step-threshold {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: #2c3e50;
+}
+
+.bonus-step-bonus {
+  font-size: 0.75rem;
+  color: #27ae60;
+  font-weight: 600;
+}
+
+.bonus-roadmap-message {
+  text-align: center;
+  font-size: 0.95rem;
+  color: #7f8c8d;
+  padding: 16px;
+  background: #f8f9fa;
+  border-radius: 8px;
+}
+
+.bonus-roadmap-message strong {
+  color: #2c3e50;
+  font-weight: 700;
+}
+
+/* Responsive: stack vertically on mobile */
+@media (max-width: 768px) {
+  .bonus-roadmap-timeline {
+    flex-direction: column;
+    gap: 20px;
+  }
+
+  .bonus-roadmap-timeline::before {
+    top: 0;
+    left: 50%;
+    right: auto;
+    bottom: 0;
+    width: 2px;
+    height: calc(100% - 60px);
+    background: linear-gradient(
+      to bottom,
+      #27ae60 0%,
+      #27ae60 30%,
+      #e0e0e0 30%,
+      #e0e0e0 100%
+    );
+    transform: translateX(-50%);
+  }
+
+  .bonus-step {
+    flex-direction: row;
+    width: 100%;
+    justify-content: flex-start;
+    gap: 16px;
+  }
+
+  .bonus-step-content {
+    align-items: flex-start;
+  }
+}
+
+/* ============================================================================
+   FORECAST WIDGET
+   Monthly projections based on current performance
+   ============================================================================ */
+
+.forecast-widget {
+  background: #fff;
+  border-radius: 12px;
+  padding: 24px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.forecast-intro {
+  font-size: 1rem;
+  color: #7f8c8d;
+  margin: 0 0 16px 0;
+  text-align: center;
+}
+
+.forecast-values {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  margin-bottom: 20px;
+}
+
+.forecast-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 16px;
+  background: #f8f9fa;
+  border-radius: 8px;
+  transition: all 0.2s ease;
+}
+
+.forecast-item:hover {
+  background: #e9ecef;
+  transform: translateX(4px);
+}
+
+.forecast-label {
+  font-size: 0.95rem;
+  color: #7f8c8d;
+  font-weight: 500;
+}
+
+.forecast-value {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: #2c3e50;
+}
+
+.forecast-value-highlight {
+  color: #667eea;
+}
+
+.forecast-value-success {
+  color: #27ae60;
+}
+
+.forecast-footer {
+  text-align: center;
+  padding-top: 16px;
+  border-top: 1px solid #e0e0e0;
+}
+
+.forecast-footer small {
+  font-size: 0.8rem;
+  color: #95a5a6;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .forecast-item {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+  }
+
+  .forecast-value {
+    font-size: 1.5rem;
+  }
+}
+
+/* ============================================================================
+   ACTION SUGGESTION WIDGET
+   Actionable suggestions to reach next goal
+   ============================================================================ */
+
+.action-suggestion-widget {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  border-radius: 12px;
+  padding: 24px;
+  box-shadow: 0 4px 16px rgba(102, 126, 234, 0.3);
+  color: #fff;
+}
+
+.action-suggestion-widget .widget-title {
+  color: #fff;
+  margin-bottom: 16px;
+}
+
+.action-suggestion-content {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 20px;
+  background: rgba(255, 255, 255, 0.15);
+  border-radius: 8px;
+  backdrop-filter: blur(10px);
+}
+
+.action-suggestion-icon {
+  font-size: 2.5rem;
+  flex-shrink: 0;
+  animation: float 3s ease-in-out infinite;
+}
+
+@keyframes float {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-8px);
+  }
+}
+
+.action-suggestion-message {
+  font-size: 1.1rem;
+  line-height: 1.6;
+  font-weight: 500;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .action-suggestion-content {
+    flex-direction: column;
+    text-align: center;
+  }
+
+  .action-suggestion-icon {
+    font-size: 2rem;
+  }
+
+  .action-suggestion-message {
+    font-size: 1rem;
+  }
+}
+
+/* ============================================================================
+   BALANCE WIDGET - Anticipi vs Maturato
+   Shows commission balance with color-coded status
+   ============================================================================ */
+
+.balance-widget {
+  background: #fff;
+  border-radius: 12px;
+  padding: 24px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.balance-values {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.balance-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 16px;
+  border-radius: 8px;
+  transition: all 0.2s ease;
+}
+
+.balance-item-positive {
+  background: rgba(39, 174, 96, 0.1);
+}
+
+.balance-item-negative {
+  background: rgba(231, 76, 60, 0.1);
+}
+
+.balance-item-total {
+  background: #f8f9fa;
+  border: 2px solid #e0e0e0;
+  margin-top: 8px;
+}
+
+.balance-label {
+  font-size: 0.95rem;
+  color: #7f8c8d;
+  font-weight: 500;
+}
+
+.balance-value {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: #2c3e50;
+}
+
+.balance-value-total {
+  font-size: 1.5rem;
+}
+
+.balance-divider {
+  height: 1px;
+  background: linear-gradient(to right, transparent, #e0e0e0, transparent);
+  margin: 8px 0;
+}
+
+.balance-footer {
+  text-align: center;
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid #e0e0e0;
+}
+
+.balance-footer small {
+  font-size: 0.8rem;
+  color: #95a5a6;
+  font-style: italic;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .balance-item {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+  }
+
+  .balance-value {
+    font-size: 1.25rem;
+  }
+
+  .balance-value-total {
+    font-size: 1.75rem;
+  }
+}
+
+/* ============================================================================
+   EXTRA-BUDGET WIDGET (Conditional)
+   Rewards for exceeding annual target - visible only when target is exceeded
+   ============================================================================ */
+
+.extra-budget-widget {
+  background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+  border-radius: 12px;
+  padding: 24px;
+  box-shadow: 0 4px 16px rgba(240, 147, 251, 0.3);
+  color: #fff;
+}
+
+.extra-budget-widget .widget-title {
+  color: #fff;
+  margin-bottom: 16px;
+}
+
+.extra-budget-content {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.extra-budget-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 16px;
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 8px;
+  backdrop-filter: blur(10px);
+  transition: all 0.2s ease;
+}
+
+.extra-budget-item:hover {
+  background: rgba(255, 255, 255, 0.3);
+  transform: translateX(4px);
+}
+
+.extra-budget-label {
+  font-size: 0.95rem;
+  font-weight: 500;
+}
+
+.extra-budget-value {
+  font-size: 1.25rem;
+  font-weight: 700;
+}
+
+.extra-budget-value-highlight {
+  font-size: 1.5rem;
+  animation: glow 2s ease-in-out infinite;
+}
+
+@keyframes glow {
+  0%,
+  100% {
+    text-shadow: 0 0 10px rgba(255, 255, 255, 0.5);
+  }
+  50% {
+    text-shadow: 0 0 20px rgba(255, 255, 255, 0.8);
+  }
+}
+
+.extra-budget-footer {
+  text-align: center;
+  padding-top: 12px;
+  border-top: 1px solid rgba(255, 255, 255, 0.3);
+}
+
+.extra-budget-footer small {
+  font-size: 0.85rem;
+  opacity: 0.9;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .extra-budget-item {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+  }
+
+  .extra-budget-value {
+    font-size: 1.5rem;
+  }
+
+  .extra-budget-value-highlight {
+    font-size: 1.75rem;
+  }
+}
+
+/* ============================================================================
+   ALERTS WIDGET (Conditional)
+   Warning/Critical alerts when performance is below threshold
+   ============================================================================ */
+
+.alerts-widget {
+  border-radius: 12px;
+  padding: 20px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
+  color: #fff;
+  animation: slideIn 0.5s ease-out;
+}
+
+@keyframes slideIn {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.alerts-content {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.alerts-icon {
+  font-size: 2rem;
+  flex-shrink: 0;
+  animation: shake 0.5s ease-in-out;
+}
+
+@keyframes shake {
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+  25% {
+    transform: translateX(-5px);
+  }
+  75% {
+    transform: translateX(5px);
+  }
+}
+
+.alerts-message {
+  font-size: 1rem;
+  line-height: 1.5;
+  font-weight: 600;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .alerts-content {
+    flex-direction: column;
+    text-align: center;
+  }
+
+  .alerts-icon {
+    font-size: 1.75rem;
+  }
+
+  .alerts-message {
+    font-size: 0.95rem;
+  }
+}

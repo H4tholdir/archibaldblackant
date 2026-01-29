@@ -71,7 +71,9 @@ export class UserDatabase {
     `);
 
     // Schema versioning and migration
-    const currentVersion = this.db.pragma("user_version", { simple: true }) as number;
+    const currentVersion = this.db.pragma("user_version", {
+      simple: true,
+    }) as number;
     if (currentVersion < 2) {
       // Migrate to version 2: add target fields
       this.db.exec(`
@@ -97,6 +99,24 @@ export class UserDatabase {
         PRAGMA user_version = 3;
       `);
       logger.info("[UserDatabase] Migrated to schema v3 (commission fields)");
+    }
+
+    if (currentVersion < 4) {
+      // Migrate to version 4: add privacy settings table
+      this.db.exec(`
+        CREATE TABLE IF NOT EXISTS user_privacy_settings (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          user_id TEXT NOT NULL UNIQUE,
+          privacy_mode_enabled INTEGER NOT NULL DEFAULT 0,
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL,
+          FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_privacy_user_id ON user_privacy_settings(user_id);
+        PRAGMA user_version = 4;
+      `);
+      logger.info("[UserDatabase] Migrated to schema v4 (privacy settings)");
     }
 
     logger.info("User database schema initialized");
@@ -472,7 +492,7 @@ export class UserDatabase {
     extraBudgetInterval: number,
     extraBudgetReward: number,
     monthlyAdvance: number,
-    hideCommissions: boolean
+    hideCommissions: boolean,
   ): boolean {
     const monthlyTarget = Math.round(yearlyTarget / 12);
     const stmt = this.db.prepare(`
@@ -504,9 +524,77 @@ export class UserDatabase {
       extraBudgetReward,
       monthlyAdvance,
       hideCommissions ? 1 : 0,
-      userId
+      userId,
     );
     return result.changes > 0;
+  }
+
+  /**
+   * Get user's privacy settings
+   */
+  getPrivacySettings(userId: string): { enabled: boolean } | null {
+    try {
+      const stmt = this.db.prepare(`
+        SELECT privacy_mode_enabled FROM user_privacy_settings WHERE user_id = ?
+      `);
+
+      const row = stmt.get(userId) as any;
+
+      if (!row) {
+        // Return default if no settings found
+        return { enabled: false };
+      }
+
+      return {
+        enabled: row.privacy_mode_enabled === 1,
+      };
+    } catch (error) {
+      logger.error("Error getting privacy settings", { userId, error });
+      throw error;
+    }
+  }
+
+  /**
+   * Set user's privacy settings (upsert)
+   */
+  setPrivacySettings(userId: string, enabled: boolean): boolean {
+    try {
+      const now = new Date().toISOString();
+
+      // Check if settings exist
+      const existingStmt = this.db.prepare(`
+        SELECT id FROM user_privacy_settings WHERE user_id = ?
+      `);
+      const existing = existingStmt.get(userId);
+
+      if (existing) {
+        // Update existing settings
+        const updateStmt = this.db.prepare(`
+          UPDATE user_privacy_settings
+          SET privacy_mode_enabled = ?, updated_at = ?
+          WHERE user_id = ?
+        `);
+        const result = updateStmt.run(enabled ? 1 : 0, now, userId);
+        logger.info("Privacy settings updated", { userId, enabled });
+        return result.changes > 0;
+      } else {
+        // Insert new settings
+        const insertStmt = this.db.prepare(`
+          INSERT INTO user_privacy_settings (user_id, privacy_mode_enabled, created_at, updated_at)
+          VALUES (?, ?, ?, ?)
+        `);
+        const result = insertStmt.run(userId, enabled ? 1 : 0, now, now);
+        logger.info("Privacy settings created", { userId, enabled });
+        return result.changes > 0;
+      }
+    } catch (error) {
+      logger.error("Error setting privacy settings", {
+        userId,
+        enabled,
+        error,
+      });
+      throw error;
+    }
   }
 
   /**

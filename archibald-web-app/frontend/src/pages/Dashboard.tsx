@@ -1,27 +1,21 @@
 import { useState, useEffect } from "react";
-import { BudgetWidget } from "../components/BudgetWidget";
 import { OrdersSummaryWidget } from "../components/OrdersSummaryWidget";
-import { CommissionsWidget } from "../components/CommissionsWidget";
-import { WarehouseStatsWidget } from "../components/WarehouseStatsWidget";
 import { WidgetOrderConfigModal } from "../components/WidgetOrderConfigModal";
+import { PrivacyToggle } from "../components/PrivacyToggle";
+import { HeroStatusWidget } from "../components/widgets/HeroStatusWidget";
+import { KpiCardsWidget } from "../components/widgets/KpiCardsWidget";
+import { BonusRoadmapWidget } from "../components/widgets/BonusRoadmapWidget";
+import { ForecastWidget } from "../components/widgets/ForecastWidget";
+import { ActionSuggestionWidget } from "../components/widgets/ActionSuggestionWidget";
+import { BalanceWidget } from "../components/widgets/BalanceWidget";
+import { ExtraBudgetWidget } from "../components/widgets/ExtraBudgetWidget";
+import { AlertsWidget } from "../components/widgets/AlertsWidget";
+import type { DashboardData } from "../types/dashboard";
 
 export function Dashboard() {
-  const [targetData, setTargetData] = useState<{
-    monthlyTarget: number;
-    yearlyTarget: number;
-    currency: string;
-    commissionRate: number;
-    bonusAmount: number;
-    bonusInterval: number;
-    extraBudgetInterval: number;
-    extraBudgetReward: number;
-    monthlyAdvance: number;
-    hideCommissions: boolean;
-  } | null>(null);
-  const [budgetData, setBudgetData] = useState<{
-    currentBudget: number;
-    progress: number;
-  } | null>(null);
+  const [dashboardData, setDashboardData] = useState<DashboardData | null>(
+    null,
+  );
   const [orderMetrics, setOrderMetrics] = useState<{
     todayCount: number;
     weekCount: number;
@@ -39,11 +33,8 @@ export function Dashboard() {
       }
 
       try {
-        const [targetRes, budgetRes, ordersRes] = await Promise.all([
-          fetch("/api/users/me/target", {
-            headers: { Authorization: `Bearer ${token}` },
-          }),
-          fetch("/api/metrics/budget", {
+        const [dashboardRes, ordersRes] = await Promise.all([
+          fetch("/api/widget/dashboard-data", {
             headers: { Authorization: `Bearer ${token}` },
           }),
           fetch("/api/metrics/orders", {
@@ -51,26 +42,13 @@ export function Dashboard() {
           }),
         ]);
 
-        if (targetRes.ok) {
-          const data = await targetRes.json();
-          setTargetData(data);
+        if (dashboardRes.ok) {
+          const data = await dashboardRes.json();
+          setDashboardData(data);
         } else {
           console.error(
-            "[Dashboard] Failed to load target:",
-            await targetRes.text(),
-          );
-        }
-
-        if (budgetRes.ok) {
-          const data = await budgetRes.json();
-          setBudgetData({
-            currentBudget: data.currentBudget,
-            progress: data.progress,
-          });
-        } else {
-          console.error(
-            "[Dashboard] Failed to load budget metrics:",
-            await budgetRes.text(),
+            "[Dashboard] Failed to load dashboard data:",
+            await dashboardRes.text(),
           );
         }
 
@@ -88,7 +66,7 @@ export function Dashboard() {
           );
         }
       } catch (error) {
-        console.error("[Dashboard] Failed to load metrics:", error);
+        console.error("[Dashboard] Failed to load dashboard data:", error);
       } finally {
         setLoading(false);
       }
@@ -103,8 +81,8 @@ export function Dashboard() {
     if (!token) return;
 
     try {
-      const [budgetRes, ordersRes] = await Promise.all([
-        fetch("/api/metrics/budget", {
+      const [dashboardRes, ordersRes] = await Promise.all([
+        fetch("/api/widget/dashboard-data", {
           headers: { Authorization: `Bearer ${token}` },
         }),
         fetch("/api/metrics/orders", {
@@ -112,12 +90,9 @@ export function Dashboard() {
         }),
       ]);
 
-      if (budgetRes.ok) {
-        const data = await budgetRes.json();
-        setBudgetData({
-          currentBudget: data.currentBudget,
-          progress: data.progress,
-        });
+      if (dashboardRes.ok) {
+        const data = await dashboardRes.json();
+        setDashboardData(data);
       }
 
       if (ordersRes.ok) {
@@ -129,7 +104,7 @@ export function Dashboard() {
         });
       }
     } catch (error) {
-      console.error("[Dashboard] Failed to reload metrics:", error);
+      console.error("[Dashboard] Failed to reload dashboard data:", error);
     }
   };
 
@@ -150,7 +125,7 @@ export function Dashboard() {
     );
   }
 
-  if (!targetData) {
+  if (!dashboardData) {
     return (
       <div
         style={{
@@ -161,7 +136,7 @@ export function Dashboard() {
         }}
       >
         <p style={{ fontSize: "18px", color: "#e74c3c" }}>
-          Errore nel caricare il target.
+          Errore nel caricare i dati della dashboard.
         </p>
       </div>
     );
@@ -196,14 +171,17 @@ export function Dashboard() {
         />
       </div>
 
-      {/* Widget Configuration Button */}
+      {/* Header with Privacy Toggle and Config Button */}
       <div
         style={{
           display: "flex",
           justifyContent: "flex-end",
+          alignItems: "center",
+          gap: "15px",
           marginBottom: "20px",
         }}
       >
+        <PrivacyToggle />
         <button
           onClick={() => setShowConfigModal(true)}
           style={{
@@ -239,61 +217,45 @@ export function Dashboard() {
         </button>
       </div>
 
-      {/* Hero Widget - Full Width Budget */}
-      <div style={{ marginBottom: "20px" }}>
-        <BudgetWidget
-          currentBudget={budgetData?.currentBudget ?? 0}
-          targetBudget={targetData?.monthlyTarget ?? 0}
-          currency={targetData?.currency ?? "EUR"}
-          yearlyTarget={targetData?.yearlyTarget ?? 0}
-          bonusInterval={targetData?.bonusInterval ?? 75000}
-          bonusAmount={targetData?.bonusAmount ?? 5000}
-          commissionRate={targetData?.commissionRate ?? 0.18}
-        />
-      </div>
-
-      {/* Secondary Widgets Grid */}
+      {/* Widgets Container */}
       <div
         style={{
-          display: "grid",
-          gridTemplateColumns: "1fr",
+          display: "flex",
+          flexDirection: "column",
           gap: "20px",
         }}
-        className="dashboard-grid"
       >
-        {/* Orders Summary Widget */}
+        {/* 1. Hero Status Widget - Full Width */}
+        <HeroStatusWidget data={dashboardData.heroStatus} />
+
+        {/* 2. KPI Cards Widget - 4 Fixed Cards */}
+        <KpiCardsWidget cards={dashboardData.kpiCards} />
+
+        {/* 3. Bonus Roadmap Widget */}
+        <BonusRoadmapWidget data={dashboardData.bonusRoadmap} />
+
+        {/* 4. Forecast Widget */}
+        <ForecastWidget data={dashboardData.forecast} />
+
+        {/* 5. Action Suggestion Widget */}
+        <ActionSuggestionWidget data={dashboardData.actionSuggestion} />
+
+        {/* 6. Balance Widget (Anticipi vs Maturato) */}
+        <BalanceWidget data={dashboardData.balance} />
+
+        {/* 7. Orders Summary Widget (Existing) */}
         <OrdersSummaryWidget
           todayCount={orderMetrics?.todayCount ?? 0}
           weekCount={orderMetrics?.weekCount ?? 0}
           monthCount={orderMetrics?.monthCount ?? 0}
         />
 
-        {/* Commissions Widget */}
-        <CommissionsWidget
-          currentBudget={budgetData?.currentBudget ?? 0}
-          yearlyTarget={targetData?.yearlyTarget ?? 0}
-          commissionRate={targetData?.commissionRate ?? 0.18}
-          bonusAmount={targetData?.bonusAmount ?? 5000}
-          bonusInterval={targetData?.bonusInterval ?? 75000}
-          extraBudgetInterval={targetData?.extraBudgetInterval ?? 50000}
-          extraBudgetReward={targetData?.extraBudgetReward ?? 6000}
-          monthlyAdvance={targetData?.monthlyAdvance ?? 3500}
-          currency={targetData?.currency ?? "EUR"}
-          hideCommissions={targetData?.hideCommissions ?? false}
-        />
+        {/* 8. Extra Budget Widget (Conditional - Visible only if exceeded target) */}
+        <ExtraBudgetWidget data={dashboardData.extraBudget} />
 
-        {/* Warehouse Stats Widget (Phase 5) */}
-        <WarehouseStatsWidget />
+        {/* 9. Alerts Widget (Conditional - Visible if at risk) */}
+        <AlertsWidget data={dashboardData.alerts} />
       </div>
-
-      {/* Responsive Grid Media Query via inline style tag */}
-      <style>{`
-        @media (min-width: 768px) {
-          .dashboard-grid {
-            grid-template-columns: 1fr 1fr !important;
-          }
-        }
-      `}</style>
 
       {/* Widget Order Configuration Modal */}
       <WidgetOrderConfigModal
