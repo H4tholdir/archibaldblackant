@@ -25,7 +25,6 @@ import { ArticoliList } from "./pages/ArticoliList";
 import { Dashboard } from "./pages/Dashboard";
 import { ProfilePage } from "./pages/ProfilePage";
 import { PriceVariationsPage } from "./pages/PriceVariationsPage";
-import WarehouseReturnsView from "./pages/WarehouseReturnsView";
 import WarehouseManagementView from "./pages/WarehouseManagementView";
 import { DashboardNav } from "./components/DashboardNav";
 import { toastService } from "./services/toast.service";
@@ -480,28 +479,6 @@ function AppRouter() {
               <SyncBanner />
               <main className="app-main" style={{ padding: "0" }}>
                 <WarehouseManagementView />
-              </main>
-              <footer className="app-footer">
-                <p>
-                  v1.0.0 • Formicanera by Francesco Formicola
-                  {/* TODO: Add live sync progress bar here */}
-                </p>
-              </footer>
-            </div>
-          }
-        />
-
-        {/* Warehouse Returns route (Phase 5) */}
-        <Route
-          path="/warehouse-returns"
-          element={
-            <div
-              className="app"
-              style={{ marginTop: isOffline ? "64px" : "0" }}
-            >
-              <SyncBanner />
-              <main className="app-main" style={{ padding: "0" }}>
-                <WarehouseReturnsView />
               </main>
               <footer className="app-footer">
                 <p>

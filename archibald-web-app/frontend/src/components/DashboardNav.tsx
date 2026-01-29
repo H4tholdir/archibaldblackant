@@ -55,9 +55,8 @@ export function DashboardNav() {
     }, // Evidenziato
     { path: "/pending-orders", label: "⏳ Ordini in Attesa" },
     { path: "/orders", label: "📚 Storico" },
-    // TODO_FUTURE_FEATURE: These links should be conditional based on 'warehouse' module subscription
+    // TODO_FUTURE_FEATURE: This link should be conditional based on 'warehouse' module subscription
     { path: "/warehouse-management", label: "📦 Gestione Magazzino" },
-    { path: "/warehouse-returns", label: "🔄 Resi Magazzino" },
     { path: "/customers", label: "👥 Clienti" },
     { path: "/products", label: "📦 Articoli" },
     { path: "/profile", label: "👤 Profilo" },
