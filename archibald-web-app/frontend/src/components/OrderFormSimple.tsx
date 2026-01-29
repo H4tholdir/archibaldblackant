@@ -79,6 +79,17 @@ export default function OrderFormSimple() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
 
+  // Responsive design: detect mobile
+  const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
+
+  useEffect(() => {
+    const handleResize = () => {
+      setIsMobile(window.innerWidth < 768);
+    };
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
+
   // Step 1: Customer selection
   const [customerSearch, setCustomerSearch] = useState("");
   const [customerResults, setCustomerResults] = useState<Customer[]>([]);
@@ -1033,9 +1044,9 @@ export default function OrderFormSimple() {
   return (
     <div
       style={{
-        maxWidth: "1000px",
+        maxWidth: isMobile ? "100%" : "1000px",
         margin: "0 auto",
-        padding: "2rem",
+        padding: isMobile ? "1rem" : "2rem",
         fontFamily: "system-ui",
       }}
     >
@@ -1073,19 +1084,25 @@ export default function OrderFormSimple() {
       {loadingOrder && (
         <div
           style={{
-            padding: "1rem",
+            padding: isMobile ? "0.75rem" : "1rem",
             background: "#dbeafe",
-            borderRadius: "4px",
-            marginBottom: "1rem",
+            borderRadius: isMobile ? "6px" : "4px",
+            marginBottom: isMobile ? "0.75rem" : "1rem",
             border: "2px solid #3b82f6",
             display: "flex",
             alignItems: "center",
             gap: "0.5rem",
           }}
         >
-          <span style={{ fontSize: "1.5rem" }}>⏳</span>
+          <span style={{ fontSize: isMobile ? "1.25rem" : "1.5rem" }}>⏳</span>
           <div>
-            <strong style={{ color: "#1e40af", display: "block" }}>
+            <strong
+              style={{
+                color: "#1e40af",
+                display: "block",
+                fontSize: isMobile ? "0.875rem" : "1rem",
+              }}
+            >
               Caricamento ordine in corso...
             </strong>
           </div>
@@ -1096,22 +1113,33 @@ export default function OrderFormSimple() {
       {cacheSyncing && (
         <div
           style={{
-            padding: "1rem",
+            padding: isMobile ? "0.75rem" : "1rem",
             background: "#fef3c7",
-            borderRadius: "4px",
-            marginBottom: "1rem",
+            borderRadius: isMobile ? "6px" : "4px",
+            marginBottom: isMobile ? "0.75rem" : "1rem",
             border: "2px solid #f59e0b",
             display: "flex",
             alignItems: "center",
             gap: "0.5rem",
           }}
         >
-          <span style={{ fontSize: "1.5rem" }}>⏳</span>
+          <span style={{ fontSize: isMobile ? "1.25rem" : "1.5rem" }}>⏳</span>
           <div>
-            <strong style={{ color: "#92400e", display: "block" }}>
+            <strong
+              style={{
+                color: "#92400e",
+                display: "block",
+                fontSize: isMobile ? "0.875rem" : "1rem",
+              }}
+            >
               Sincronizzazione cache in corso...
             </strong>
-            <span style={{ color: "#92400e", fontSize: "0.875rem" }}>
+            <span
+              style={{
+                color: "#92400e",
+                fontSize: isMobile ? "0.75rem" : "0.875rem",
+              }}
+            >
               Popolamento delle varianti di prodotto e dei prezzi dal server
             </span>
           </div>
@@ -1122,46 +1150,66 @@ export default function OrderFormSimple() {
       {hasDraft && !loadingOrder && (
         <div
           style={{
-            padding: "1.25rem",
+            padding: isMobile ? "1rem" : "1.25rem",
             background: "#d1fae5",
             borderRadius: "8px",
-            marginBottom: "1rem",
+            marginBottom: isMobile ? "0.75rem" : "1rem",
             border: "2px solid #10b981",
             display: "flex",
+            flexDirection: isMobile ? "column" : "row",
             justifyContent: "space-between",
-            alignItems: "center",
+            alignItems: isMobile ? "stretch" : "center",
+            gap: isMobile ? "1rem" : "0",
           }}
         >
-          <div style={{ display: "flex", alignItems: "center", gap: "1rem" }}>
-            <span style={{ fontSize: "2rem" }}>💾</span>
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: isMobile ? "0.75rem" : "1rem",
+            }}
+          >
+            <span style={{ fontSize: isMobile ? "1.5rem" : "2rem" }}>💾</span>
             <div>
               <strong
                 style={{
                   color: "#065f46",
                   display: "block",
-                  fontSize: "1.125rem",
+                  fontSize: isMobile ? "1rem" : "1.125rem",
                 }}
               >
                 Bozza ordine disponibile
               </strong>
-              <span style={{ color: "#047857", fontSize: "0.875rem" }}>
+              <span
+                style={{
+                  color: "#047857",
+                  fontSize: isMobile ? "0.75rem" : "0.875rem",
+                }}
+              >
                 È stata trovata una bozza salvata. Vuoi continuare da dove avevi
                 interrotto?
               </span>
             </div>
           </div>
-          <div style={{ display: "flex", gap: "0.5rem" }}>
+          <div
+            style={{
+              display: "flex",
+              gap: "0.5rem",
+              flexDirection: isMobile ? "column" : "row",
+            }}
+          >
             <button
               onClick={handleRecoverDraft}
               style={{
-                padding: "0.75rem 1.25rem",
+                padding: isMobile ? "0.875rem 1.25rem" : "0.75rem 1.25rem",
                 background: "#10b981",
                 color: "white",
                 border: "none",
                 borderRadius: "6px",
                 cursor: "pointer",
                 fontWeight: "600",
-                fontSize: "0.875rem",
+                fontSize: isMobile ? "1rem" : "0.875rem",
+                minHeight: isMobile ? "48px" : "auto",
               }}
             >
               Continua
@@ -1169,14 +1217,15 @@ export default function OrderFormSimple() {
             <button
               onClick={handleDiscardDraft}
               style={{
-                padding: "0.75rem 1.25rem",
+                padding: isMobile ? "0.875rem 1.25rem" : "0.75rem 1.25rem",
                 background: "white",
                 color: "#065f46",
                 border: "2px solid #10b981",
                 borderRadius: "6px",
                 cursor: "pointer",
                 fontWeight: "600",
-                fontSize: "0.875rem",
+                fontSize: isMobile ? "1rem" : "0.875rem",
+                minHeight: isMobile ? "48px" : "auto",
               }}
             >
               Annulla
@@ -1188,13 +1237,13 @@ export default function OrderFormSimple() {
       {/* STEP 1: SELECT CUSTOMER */}
       <div
         style={{
-          marginBottom: "2rem",
-          padding: "1.5rem",
+          marginBottom: isMobile ? "1rem" : "2rem",
+          padding: isMobile ? "1rem" : "1.5rem",
           background: "#f9fafb",
           borderRadius: "8px",
         }}
       >
-        <h2 style={{ fontSize: "1.25rem", marginBottom: "1rem" }}>
+        <h2 style={{ fontSize: isMobile ? "1.125rem" : "1.25rem", marginBottom: "1rem" }}>
           1. Seleziona Cliente
         </h2>
 
@@ -1207,8 +1256,8 @@ export default function OrderFormSimple() {
               placeholder="Cerca cliente per nome..."
               style={{
                 width: "100%",
-                padding: "0.75rem",
-                fontSize: "1rem",
+                padding: isMobile ? "0.875rem" : "0.75rem",
+                fontSize: isMobile ? "16px" : "1rem",
                 border: "1px solid #d1d5db",
                 borderRadius: "4px",
                 marginBottom: "0.5rem",
@@ -1224,7 +1273,7 @@ export default function OrderFormSimple() {
                 style={{
                   border: "1px solid #d1d5db",
                   borderRadius: "4px",
-                  maxHeight: "200px",
+                  maxHeight: isMobile ? "300px" : "200px",
                   overflowY: "auto",
                   background: "white",
                 }}
@@ -1234,9 +1283,12 @@ export default function OrderFormSimple() {
                     key={customer.id}
                     onClick={() => handleSelectCustomer(customer)}
                     style={{
-                      padding: "0.75rem",
+                      padding: isMobile ? "1rem" : "0.75rem",
                       cursor: "pointer",
                       borderBottom: "1px solid #f3f4f6",
+                      minHeight: isMobile ? "48px" : "auto",
+                      display: "flex",
+                      alignItems: "center",
                     }}
                     onMouseEnter={(e) =>
                       (e.currentTarget.style.background = "#f9fafb")
@@ -1245,12 +1297,22 @@ export default function OrderFormSimple() {
                       (e.currentTarget.style.background = "white")
                     }
                   >
-                    <strong>{customer.name}</strong>
-                    {customer.code && (
-                      <span style={{ marginLeft: "0.5rem", color: "#6b7280" }}>
-                        ({customer.code})
-                      </span>
-                    )}
+                    <div>
+                      <strong style={{ fontSize: isMobile ? "1rem" : "0.875rem" }}>
+                        {customer.name}
+                      </strong>
+                      {customer.code && (
+                        <span
+                          style={{
+                            marginLeft: "0.5rem",
+                            color: "#6b7280",
+                            fontSize: isMobile ? "0.875rem" : "0.75rem",
+                          }}
+                        >
+                          ({customer.code})
+                        </span>
+                      )}
+                    </div>
                   </div>
                 ))}
               </div>
@@ -1281,12 +1343,14 @@ export default function OrderFormSimple() {
                 setCustomerSearch("");
               }}
               style={{
-                padding: "0.5rem 1rem",
+                padding: isMobile ? "0.75rem 1rem" : "0.5rem 1rem",
                 background: "white",
                 border: "1px solid #065f46",
-                borderRadius: "4px",
+                borderRadius: "6px",
                 cursor: "pointer",
                 color: "#065f46",
+                fontWeight: "500",
+                minHeight: isMobile ? "44px" : "auto",
               }}
             >
               Cambia
@@ -1299,13 +1363,13 @@ export default function OrderFormSimple() {
       {selectedCustomer && (
         <div
           style={{
-            marginBottom: "2rem",
-            padding: "1.5rem",
+            marginBottom: isMobile ? "1rem" : "2rem",
+            padding: isMobile ? "1rem" : "1.5rem",
             background: "#f9fafb",
             borderRadius: "8px",
           }}
         >
-          <h2 style={{ fontSize: "1.25rem", marginBottom: "1rem" }}>
+          <h2 style={{ fontSize: isMobile ? "1.125rem" : "1.25rem", marginBottom: "1rem" }}>
             2. Aggiungi Articoli
           </h2>
 
@@ -1316,6 +1380,7 @@ export default function OrderFormSimple() {
                 display: "block",
                 marginBottom: "0.5rem",
                 fontWeight: "500",
+                fontSize: isMobile ? "0.875rem" : "1rem",
               }}
             >
               Nome Articolo
@@ -1327,8 +1392,8 @@ export default function OrderFormSimple() {
               placeholder="Cerca articolo..."
               style={{
                 width: "100%",
-                padding: "0.75rem",
-                fontSize: "1rem",
+                padding: isMobile ? "0.875rem" : "0.75rem",
+                fontSize: isMobile ? "16px" : "1rem",
                 border: "1px solid #d1d5db",
                 borderRadius: "4px",
               }}
@@ -1345,7 +1410,7 @@ export default function OrderFormSimple() {
                 style={{
                   border: "1px solid #d1d5db",
                   borderRadius: "4px",
-                  maxHeight: "200px",
+                  maxHeight: isMobile ? "300px" : "200px",
                   overflowY: "auto",
                   background: "white",
                   marginTop: "0.5rem",
@@ -1356,9 +1421,10 @@ export default function OrderFormSimple() {
                     key={product.id}
                     onClick={() => handleSelectProduct(product)}
                     style={{
-                      padding: "0.75rem",
+                      padding: isMobile ? "1rem" : "0.75rem",
                       cursor: "pointer",
                       borderBottom: "1px solid #f3f4f6",
+                      minHeight: isMobile ? "48px" : "auto",
                     }}
                     onMouseEnter={(e) =>
                       (e.currentTarget.style.background = "#f9fafb")
@@ -1367,12 +1433,14 @@ export default function OrderFormSimple() {
                       (e.currentTarget.style.background = "white")
                     }
                   >
-                    <strong>{product.name}</strong>
+                    <strong style={{ fontSize: isMobile ? "1rem" : "0.875rem" }}>
+                      {product.name}
+                    </strong>
                     {product.description && (
                       <p
                         style={{
                           margin: "0.25rem 0 0 0",
-                          fontSize: "0.875rem",
+                          fontSize: isMobile ? "0.875rem" : "0.75rem",
                           color: "#6b7280",
                         }}
                       >
@@ -1418,138 +1486,155 @@ export default function OrderFormSimple() {
                 {productVariants.length > 0 ? (
                   <div
                     style={{
-                      padding: "1rem",
+                      padding: isMobile ? "0.75rem" : "1rem",
                       background: "#eff6ff",
                       borderRadius: "6px",
                       overflowX: "auto",
+                      position: "relative",
                     }}
                   >
                     <div
                       style={{
-                        fontSize: "0.875rem",
+                        fontSize: isMobile ? "0.75rem" : "0.875rem",
                         fontWeight: "600",
                         color: "#1e40af",
                         marginBottom: "0.75rem",
                       }}
                     >
-                      Varianti disponibili:
+                      Varianti disponibili:{" "}
+                      {isMobile && (
+                        <span style={{ fontWeight: "normal", fontSize: "0.7rem" }}>
+                          (scorri →)
+                        </span>
+                      )}
                     </div>
-                    <table
-                      style={{
-                        width: "100%",
-                        borderCollapse: "collapse",
-                        fontSize: "0.875rem",
-                      }}
-                    >
-                      <thead>
-                        <tr
-                          style={{
-                            borderBottom: "2px solid #3b82f6",
-                          }}
-                        >
-                          <th
-                            style={{
-                              textAlign: "left",
-                              padding: "0.5rem",
-                              color: "#1e40af",
-                              fontWeight: "600",
-                            }}
-                          >
-                            Codice Variante
-                          </th>
-                          <th
-                            style={{
-                              textAlign: "center",
-                              padding: "0.5rem",
-                              color: "#1e40af",
-                              fontWeight: "600",
-                            }}
-                          >
-                            Confezionamento
-                          </th>
-                          <th
-                            style={{
-                              textAlign: "right",
-                              padding: "0.5rem",
-                              color: "#1e40af",
-                              fontWeight: "600",
-                            }}
-                          >
-                            Prezzo
-                          </th>
-                          <th
-                            style={{
-                              textAlign: "right",
-                              padding: "0.5rem",
-                              color: "#1e40af",
-                              fontWeight: "600",
-                            }}
-                          >
-                            IVA
-                          </th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {productVariants.map((variant, index) => (
+                    <div style={{ overflowX: "auto", WebkitOverflowScrolling: "touch" }}>
+                      <table
+                        style={{
+                          width: "100%",
+                          minWidth: isMobile ? "500px" : "auto",
+                          borderCollapse: "collapse",
+                          fontSize: isMobile ? "0.75rem" : "0.875rem",
+                        }}
+                      >
+                        <thead>
                           <tr
-                            key={variant.variantId}
                             style={{
-                              borderBottom:
-                                index < productVariants.length - 1
-                                  ? "1px solid #bfdbfe"
-                                  : "none",
+                              borderBottom: "2px solid #3b82f6",
                             }}
                           >
-                            <td
+                            <th
                               style={{
-                                padding: "0.5rem",
-                                fontFamily: "monospace",
+                                textAlign: "left",
+                                padding: isMobile ? "0.375rem" : "0.5rem",
+                                color: "#1e40af",
+                                fontWeight: "600",
+                                whiteSpace: "nowrap",
                               }}
                             >
-                              {variant.variantId}
-                            </td>
-                            <td
+                              Codice Variante
+                            </th>
+                            <th
                               style={{
-                                padding: "0.5rem",
                                 textAlign: "center",
-                              }}
-                            >
-                              {variant.packageContent}
-                            </td>
-                            <td
-                              style={{
-                                padding: "0.5rem",
-                                textAlign: "right",
+                                padding: isMobile ? "0.375rem" : "0.5rem",
+                                color: "#1e40af",
                                 fontWeight: "600",
+                                whiteSpace: "nowrap",
                               }}
                             >
-                              {variant.price !== null
-                                ? `€${variant.price.toFixed(2)}`
-                                : "N/D"}
-                            </td>
-                            <td
+                              Confezionamento
+                            </th>
+                            <th
                               style={{
-                                padding: "0.5rem",
                                 textAlign: "right",
-                                color: "#059669",
+                                padding: isMobile ? "0.375rem" : "0.5rem",
+                                color: "#1e40af",
                                 fontWeight: "600",
+                                whiteSpace: "nowrap",
                               }}
                             >
-                              {variant.vat}%
-                            </td>
+                              Prezzo
+                            </th>
+                            <th
+                              style={{
+                                textAlign: "right",
+                                padding: isMobile ? "0.375rem" : "0.5rem",
+                                color: "#1e40af",
+                                fontWeight: "600",
+                                whiteSpace: "nowrap",
+                              }}
+                            >
+                              IVA
+                            </th>
                           </tr>
-                        ))}
-                      </tbody>
-                    </table>
+                        </thead>
+                        <tbody>
+                          {productVariants.map((variant, index) => (
+                            <tr
+                              key={variant.variantId}
+                              style={{
+                                borderBottom:
+                                  index < productVariants.length - 1
+                                    ? "1px solid #bfdbfe"
+                                    : "none",
+                              }}
+                            >
+                              <td
+                                style={{
+                                  padding: isMobile ? "0.375rem" : "0.5rem",
+                                  fontFamily: "monospace",
+                                  fontSize: isMobile ? "0.7rem" : "0.875rem",
+                                }}
+                              >
+                                {variant.variantId}
+                              </td>
+                              <td
+                                style={{
+                                  padding: isMobile ? "0.375rem" : "0.5rem",
+                                  textAlign: "center",
+                                }}
+                              >
+                                {variant.packageContent}
+                              </td>
+                              <td
+                                style={{
+                                  padding: isMobile ? "0.375rem" : "0.5rem",
+                                  textAlign: "right",
+                                  fontWeight: "600",
+                                  whiteSpace: "nowrap",
+                                }}
+                              >
+                                {variant.price !== null
+                                  ? `€${variant.price.toFixed(2)}`
+                                  : "N/D"}
+                              </td>
+                              <td
+                                style={{
+                                  padding: isMobile ? "0.375rem" : "0.5rem",
+                                  textAlign: "right",
+                                  color: "#059669",
+                                  fontWeight: "600",
+                                  whiteSpace: "nowrap",
+                                }}
+                              >
+                                {variant.vat}%
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
                   </div>
                 ) : (
                   <div
                     style={{
-                      padding: "1rem",
+                      padding: isMobile ? "0.75rem" : "1rem",
                       background: "#eff6ff",
                       borderRadius: "6px",
                       textAlign: "center",
                       color: "#6b7280",
+                      fontSize: isMobile ? "0.875rem" : "1rem",
                     }}
                   >
                     Caricamento varianti...
@@ -1560,7 +1645,7 @@ export default function OrderFormSimple() {
               <div
                 style={{
                   display: "grid",
-                  gridTemplateColumns: "1fr 1fr",
+                  gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr",
                   gap: "1rem",
                   marginBottom: "1rem",
                 }}
@@ -1571,6 +1656,7 @@ export default function OrderFormSimple() {
                       display: "block",
                       marginBottom: "0.5rem",
                       fontWeight: "500",
+                      fontSize: isMobile ? "0.875rem" : "1rem",
                     }}
                   >
                     Quantità (pezzi)
@@ -1583,8 +1669,8 @@ export default function OrderFormSimple() {
                     min="1"
                     style={{
                       width: "100%",
-                      padding: "0.75rem",
-                      fontSize: "1rem",
+                      padding: isMobile ? "0.875rem" : "0.75rem",
+                      fontSize: isMobile ? "16px" : "1rem",
                       border: "1px solid #d1d5db",
                       borderRadius: "4px",
                     }}
@@ -1597,6 +1683,7 @@ export default function OrderFormSimple() {
                       display: "block",
                       marginBottom: "0.5rem",
                       fontWeight: "500",
+                      fontSize: isMobile ? "0.875rem" : "1rem",
                     }}
                   >
                     Sconto su Riga (€)
@@ -1610,8 +1697,8 @@ export default function OrderFormSimple() {
                     step="0.01"
                     style={{
                       width: "100%",
-                      padding: "0.75rem",
-                      fontSize: "1rem",
+                      padding: isMobile ? "0.875rem" : "0.75rem",
+                      fontSize: isMobile ? "16px" : "1rem",
                       border: "1px solid #d1d5db",
                       borderRadius: "4px",
                     }}
@@ -1638,12 +1725,12 @@ export default function OrderFormSimple() {
               {packagingPreview && !calculatingPackaging && (
                 <div
                   style={{
-                    padding: "1rem",
+                    padding: isMobile ? "0.75rem" : "1rem",
                     background: packagingPreview.success
                       ? "#d1fae5"
                       : "#fee2e2",
-                    borderRadius: "4px",
-                    marginBottom: "1rem",
+                    borderRadius: isMobile ? "6px" : "4px",
+                    marginBottom: isMobile ? "0.75rem" : "1rem",
                     border: `2px solid ${packagingPreview.success ? "#065f46" : "#dc2626"}`,
                   }}
                 >
@@ -1705,14 +1792,15 @@ export default function OrderFormSimple() {
                             )
                           }
                           style={{
-                            padding: "0.5rem 1rem",
+                            padding: isMobile ? "0.75rem 1rem" : "0.5rem 1rem",
                             background: "#dc2626",
                             color: "white",
                             border: "none",
-                            borderRadius: "4px",
+                            borderRadius: "6px",
                             cursor: "pointer",
-                            fontSize: "0.875rem",
+                            fontSize: isMobile ? "0.875rem" : "0.875rem",
                             marginTop: "0.5rem",
+                            minHeight: isMobile ? "44px" : "auto",
                           }}
                         >
                           Usa quantità suggerita (
@@ -1740,15 +1828,16 @@ export default function OrderFormSimple() {
                 onClick={handleAddItem}
                 disabled={!packagingPreview?.success}
                 style={{
-                  padding: "0.75rem 1.5rem",
+                  padding: isMobile ? "1rem 1.5rem" : "0.75rem 1.5rem",
                   background: packagingPreview?.success ? "#22c55e" : "#d1d5db",
                   color: "white",
                   border: "none",
-                  borderRadius: "4px",
-                  fontSize: "1rem",
+                  borderRadius: "6px",
+                  fontSize: isMobile ? "1rem" : "1rem",
                   fontWeight: "600",
                   cursor: packagingPreview?.success ? "pointer" : "not-allowed",
                   width: "100%",
+                  minHeight: isMobile ? "48px" : "auto",
                 }}
               >
                 {editingItemId ? "Aggiorna Articolo" : "Aggiungi all'Ordine"}
@@ -1762,115 +1851,244 @@ export default function OrderFormSimple() {
       {items.length > 0 && (
         <div
           style={{
-            marginBottom: "2rem",
-            padding: "1.5rem",
+            marginBottom: isMobile ? "1rem" : "2rem",
+            padding: isMobile ? "1rem" : "1.5rem",
             background: "#f9fafb",
             borderRadius: "8px",
           }}
         >
-          <h2 style={{ fontSize: "1.25rem", marginBottom: "1rem" }}>
+          <h2 style={{ fontSize: isMobile ? "1.125rem" : "1.25rem", marginBottom: "1rem" }}>
             3. Riepilogo Articoli ({items.length})
           </h2>
 
-          <table
-            style={{
-              width: "100%",
-              borderCollapse: "collapse",
-              background: "white",
-              borderRadius: "4px",
-              overflow: "hidden",
-            }}
-          >
-            <thead>
-              <tr
-                style={{
-                  background: "#f3f4f6",
-                  borderBottom: "2px solid #e5e7eb",
-                }}
-              >
-                <th
+          {/* Desktop: Table view */}
+          {!isMobile && (
+            <table
+              style={{
+                width: "100%",
+                borderCollapse: "collapse",
+                background: "white",
+                borderRadius: "4px",
+                overflow: "hidden",
+              }}
+            >
+              <thead>
+                <tr
                   style={{
-                    padding: "0.75rem",
-                    textAlign: "left",
-                    fontWeight: "600",
+                    background: "#f3f4f6",
+                    borderBottom: "2px solid #e5e7eb",
                   }}
                 >
-                  Articolo
-                </th>
-                <th
-                  style={{
-                    padding: "0.75rem",
-                    textAlign: "center",
-                    fontWeight: "600",
-                  }}
-                >
-                  Qtà
-                </th>
-                <th
-                  style={{
-                    padding: "0.75rem",
-                    textAlign: "right",
-                    fontWeight: "600",
-                  }}
-                >
-                  Prezzo
-                </th>
-                <th
-                  style={{
-                    padding: "0.75rem",
-                    textAlign: "right",
-                    fontWeight: "600",
-                  }}
-                >
-                  Sconto
-                </th>
-                <th
-                  style={{
-                    padding: "0.75rem",
-                    textAlign: "right",
-                    fontWeight: "600",
-                  }}
-                >
-                  Subtotale
-                </th>
-                <th
-                  style={{
-                    padding: "0.75rem",
-                    textAlign: "right",
-                    fontWeight: "600",
-                  }}
-                >
-                  IVA
-                </th>
-                <th
-                  style={{
-                    padding: "0.75rem",
-                    textAlign: "right",
-                    fontWeight: "600",
-                  }}
-                >
-                  Totale
-                </th>
-                <th
-                  style={{
-                    padding: "0.75rem",
-                    textAlign: "center",
-                    fontWeight: "600",
-                  }}
-                >
-                  Azioni
-                </th>
-              </tr>
-            </thead>
-            <tbody>
+                  <th
+                    style={{
+                      padding: "0.75rem",
+                      textAlign: "left",
+                      fontWeight: "600",
+                    }}
+                  >
+                    Articolo
+                  </th>
+                  <th
+                    style={{
+                      padding: "0.75rem",
+                      textAlign: "center",
+                      fontWeight: "600",
+                    }}
+                  >
+                    Qtà
+                  </th>
+                  <th
+                    style={{
+                      padding: "0.75rem",
+                      textAlign: "right",
+                      fontWeight: "600",
+                    }}
+                  >
+                    Prezzo
+                  </th>
+                  <th
+                    style={{
+                      padding: "0.75rem",
+                      textAlign: "right",
+                      fontWeight: "600",
+                    }}
+                  >
+                    Sconto
+                  </th>
+                  <th
+                    style={{
+                      padding: "0.75rem",
+                      textAlign: "right",
+                      fontWeight: "600",
+                    }}
+                  >
+                    Subtotale
+                  </th>
+                  <th
+                    style={{
+                      padding: "0.75rem",
+                      textAlign: "right",
+                      fontWeight: "600",
+                    }}
+                  >
+                    IVA
+                  </th>
+                  <th
+                    style={{
+                      padding: "0.75rem",
+                      textAlign: "right",
+                      fontWeight: "600",
+                    }}
+                  >
+                    Totale
+                  </th>
+                  <th
+                    style={{
+                      padding: "0.75rem",
+                      textAlign: "center",
+                      fontWeight: "600",
+                    }}
+                  >
+                    Azioni
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {items.map((item) => (
+                  <tr key={item.id} style={{ borderBottom: "1px solid #f3f4f6" }}>
+                    <td style={{ padding: "0.75rem" }}>
+                      <strong>{item.productName}</strong>
+                      {item.description && (
+                        <p
+                          style={{
+                            margin: "0.25rem 0 0 0",
+                            fontSize: "0.875rem",
+                            color: "#6b7280",
+                          }}
+                        >
+                          {item.description}
+                        </p>
+                      )}
+                      <span style={{ fontSize: "0.75rem", color: "#9ca3af" }}>
+                        {item.article}
+                      </span>
+                      {item.warehouseQuantity && item.warehouseQuantity > 0 && (
+                        <div
+                          style={{
+                            marginTop: "0.5rem",
+                            display: "inline-block",
+                            padding: "0.25rem 0.5rem",
+                            background: "#d1fae5",
+                            border: "1px solid #10b981",
+                            borderRadius: "4px",
+                            fontSize: "0.75rem",
+                            color: "#065f46",
+                          }}
+                        >
+                          🏪 {item.warehouseQuantity} pz da magazzino
+                          {item.warehouseSources &&
+                            ` (${item.warehouseSources.map((s) => s.boxName).join(", ")})`}
+                        </div>
+                      )}
+                    </td>
+                    <td style={{ padding: "0.75rem", textAlign: "center" }}>
+                      {item.quantity}
+                    </td>
+                    <td style={{ padding: "0.75rem", textAlign: "right" }}>
+                      €{item.unitPrice.toFixed(2)}
+                    </td>
+                    <td
+                      style={{
+                        padding: "0.75rem",
+                        textAlign: "right",
+                        color: item.discount > 0 ? "#dc2626" : "#9ca3af",
+                      }}
+                    >
+                      {item.discount > 0 ? `-€${item.discount.toFixed(2)}` : "—"}
+                    </td>
+                    <td style={{ padding: "0.75rem", textAlign: "right" }}>
+                      €{item.subtotal.toFixed(2)}
+                    </td>
+                    <td
+                      style={{
+                        padding: "0.75rem",
+                        textAlign: "right",
+                        color: "#6b7280",
+                      }}
+                    >
+                      <div>
+                        <span style={{ fontSize: "0.75rem", color: "#9ca3af" }}>
+                          ({item.vatRate}%)
+                        </span>
+                        <br />€{item.vat.toFixed(2)}
+                      </div>
+                    </td>
+                    <td
+                      style={{
+                        padding: "0.75rem",
+                        textAlign: "right",
+                        fontWeight: "600",
+                      }}
+                    >
+                      €{item.total.toFixed(2)}
+                    </td>
+                    <td style={{ padding: "0.75rem", textAlign: "center" }}>
+                      <button
+                        onClick={() => handleEditItem(item.id)}
+                        style={{
+                          padding: "0.25rem 0.5rem",
+                          background: "#3b82f6",
+                          color: "white",
+                          border: "none",
+                          borderRadius: "4px",
+                          cursor: "pointer",
+                          marginRight: "0.25rem",
+                        }}
+                      >
+                        ✏️
+                      </button>
+                      <button
+                        onClick={() => handleDeleteItem(item.id)}
+                        style={{
+                          padding: "0.25rem 0.5rem",
+                          background: "#dc2626",
+                          color: "white",
+                          border: "none",
+                          borderRadius: "4px",
+                          cursor: "pointer",
+                        }}
+                      >
+                        🗑️
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+
+          {/* Mobile: Card view */}
+          {isMobile && (
+            <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
               {items.map((item) => (
-                <tr key={item.id} style={{ borderBottom: "1px solid #f3f4f6" }}>
-                  <td style={{ padding: "0.75rem" }}>
-                    <strong>{item.productName}</strong>
+                <div
+                  key={item.id}
+                  style={{
+                    background: "white",
+                    borderRadius: "8px",
+                    padding: "1rem",
+                    boxShadow: "0 2px 4px rgba(0, 0, 0, 0.1)",
+                  }}
+                >
+                  {/* Product Name */}
+                  <div style={{ marginBottom: "0.75rem" }}>
+                    <strong style={{ fontSize: "1.125rem", display: "block" }}>
+                      {item.productName}
+                    </strong>
                     {item.description && (
                       <p
                         style={{
-                          margin: "0.25rem 0 0 0",
+                          margin: "0.25rem 0",
                           fontSize: "0.875rem",
                           color: "#6b7280",
                         }}
@@ -1881,107 +2099,133 @@ export default function OrderFormSimple() {
                     <span style={{ fontSize: "0.75rem", color: "#9ca3af" }}>
                       {item.article}
                     </span>
-                    {/* Phase 4: Show warehouse badge if item has warehouse sources */}
-                    {item.warehouseQuantity && item.warehouseQuantity > 0 && (
-                      <div
-                        style={{
-                          marginTop: "0.5rem",
-                          display: "inline-block",
-                          padding: "0.25rem 0.5rem",
-                          background: "#d1fae5",
-                          border: "1px solid #10b981",
-                          borderRadius: "4px",
-                          fontSize: "0.75rem",
-                          color: "#065f46",
-                        }}
-                      >
-                        🏪 {item.warehouseQuantity} pz da magazzino
-                        {item.warehouseSources &&
-                          ` (${item.warehouseSources.map((s) => s.boxName).join(", ")})`}
-                      </div>
-                    )}
-                  </td>
-                  <td style={{ padding: "0.75rem", textAlign: "center" }}>
-                    {item.quantity}
-                  </td>
-                  <td style={{ padding: "0.75rem", textAlign: "right" }}>
-                    €{item.unitPrice.toFixed(2)}
-                  </td>
-                  <td
+                  </div>
+
+                  {/* Warehouse badge */}
+                  {item.warehouseQuantity && item.warehouseQuantity > 0 && (
+                    <div
+                      style={{
+                        marginBottom: "0.75rem",
+                        display: "inline-block",
+                        padding: "0.5rem",
+                        background: "#d1fae5",
+                        border: "1px solid #10b981",
+                        borderRadius: "4px",
+                        fontSize: "0.75rem",
+                        color: "#065f46",
+                      }}
+                    >
+                      🏪 {item.warehouseQuantity} pz da magazzino
+                      {item.warehouseSources &&
+                        ` (${item.warehouseSources.map((s) => s.boxName).join(", ")})`}
+                    </div>
+                  )}
+
+                  {/* Details grid */}
+                  <div
                     style={{
-                      padding: "0.75rem",
-                      textAlign: "right",
-                      color: item.discount > 0 ? "#dc2626" : "#9ca3af",
-                    }}
-                  >
-                    {item.discount > 0 ? `-€${item.discount.toFixed(2)}` : "—"}
-                  </td>
-                  <td style={{ padding: "0.75rem", textAlign: "right" }}>
-                    €{item.subtotal.toFixed(2)}
-                  </td>
-                  <td
-                    style={{
-                      padding: "0.75rem",
-                      textAlign: "right",
-                      color: "#6b7280",
+                      display: "grid",
+                      gridTemplateColumns: "1fr 1fr",
+                      gap: "0.5rem",
+                      marginBottom: "0.75rem",
+                      fontSize: "0.875rem",
                     }}
                   >
                     <div>
-                      <span style={{ fontSize: "0.75rem", color: "#9ca3af" }}>
-                        ({item.vatRate}%)
-                      </span>
-                      <br />€{item.vat.toFixed(2)}
+                      <span style={{ color: "#6b7280" }}>Quantità:</span>
+                      <strong style={{ marginLeft: "0.25rem" }}>{item.quantity}</strong>
                     </div>
-                  </td>
-                  <td
-                    style={{
-                      padding: "0.75rem",
-                      textAlign: "right",
-                      fontWeight: "600",
-                    }}
-                  >
-                    €{item.total.toFixed(2)}
-                  </td>
-                  <td style={{ padding: "0.75rem", textAlign: "center" }}>
+                    <div style={{ textAlign: "right" }}>
+                      <span style={{ color: "#6b7280" }}>Prezzo:</span>
+                      <strong style={{ marginLeft: "0.25rem" }}>
+                        €{item.unitPrice.toFixed(2)}
+                      </strong>
+                    </div>
+                    <div>
+                      <span style={{ color: "#6b7280" }}>Sconto:</span>
+                      <strong
+                        style={{
+                          marginLeft: "0.25rem",
+                          color: item.discount > 0 ? "#dc2626" : "#9ca3af",
+                        }}
+                      >
+                        {item.discount > 0 ? `-€${item.discount.toFixed(2)}` : "—"}
+                      </strong>
+                    </div>
+                    <div style={{ textAlign: "right" }}>
+                      <span style={{ color: "#6b7280" }}>Subtotale:</span>
+                      <strong style={{ marginLeft: "0.25rem" }}>
+                        €{item.subtotal.toFixed(2)}
+                      </strong>
+                    </div>
+                    <div>
+                      <span style={{ color: "#6b7280" }}>IVA ({item.vatRate}%):</span>
+                      <strong style={{ marginLeft: "0.25rem" }}>
+                        €{item.vat.toFixed(2)}
+                      </strong>
+                    </div>
+                    <div style={{ textAlign: "right" }}>
+                      <span style={{ color: "#6b7280", fontWeight: "600" }}>Totale:</span>
+                      <strong
+                        style={{
+                          marginLeft: "0.25rem",
+                          fontSize: "1.125rem",
+                          color: "#3b82f6",
+                        }}
+                      >
+                        €{item.total.toFixed(2)}
+                      </strong>
+                    </div>
+                  </div>
+
+                  {/* Action buttons */}
+                  <div style={{ display: "flex", gap: "0.5rem" }}>
                     <button
                       onClick={() => handleEditItem(item.id)}
                       style={{
-                        padding: "0.25rem 0.5rem",
+                        flex: 1,
+                        padding: "0.75rem",
                         background: "#3b82f6",
                         color: "white",
                         border: "none",
-                        borderRadius: "4px",
+                        borderRadius: "6px",
                         cursor: "pointer",
-                        marginRight: "0.25rem",
+                        fontWeight: "600",
+                        fontSize: "0.875rem",
+                        minHeight: "44px",
                       }}
                     >
-                      ✏️
+                      ✏️ Modifica
                     </button>
                     <button
                       onClick={() => handleDeleteItem(item.id)}
                       style={{
-                        padding: "0.25rem 0.5rem",
+                        flex: 1,
+                        padding: "0.75rem",
                         background: "#dc2626",
                         color: "white",
                         border: "none",
-                        borderRadius: "4px",
+                        borderRadius: "6px",
                         cursor: "pointer",
+                        fontWeight: "600",
+                        fontSize: "0.875rem",
+                        minHeight: "44px",
                       }}
                     >
-                      🗑️
+                      🗑️ Elimina
                     </button>
-                  </td>
-                </tr>
+                  </div>
+                </div>
               ))}
-            </tbody>
-          </table>
+            </div>
+          )}
 
           {/* Global Discount & Target Total */}
           <div
             style={{
               marginTop: "1.5rem",
               display: "grid",
-              gridTemplateColumns: "1fr 1fr",
+              gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr",
               gap: "1rem",
             }}
           >
@@ -1991,6 +2235,7 @@ export default function OrderFormSimple() {
                   display: "block",
                   marginBottom: "0.5rem",
                   fontWeight: "500",
+                  fontSize: isMobile ? "0.875rem" : "1rem",
                 }}
               >
                 Sconto Globale (%)
@@ -2005,8 +2250,8 @@ export default function OrderFormSimple() {
                 step="0.01"
                 style={{
                   width: "100%",
-                  padding: "0.75rem",
-                  fontSize: "1rem",
+                  padding: isMobile ? "0.875rem" : "0.75rem",
+                  fontSize: isMobile ? "16px" : "1rem",
                   border: "1px solid #d1d5db",
                   borderRadius: "4px",
                 }}
@@ -2019,11 +2264,18 @@ export default function OrderFormSimple() {
                   display: "block",
                   marginBottom: "0.5rem",
                   fontWeight: "500",
+                  fontSize: isMobile ? "0.875rem" : "1rem",
                 }}
               >
                 O inserisci totale desiderato (con IVA)
               </label>
-              <div style={{ display: "flex", gap: "0.5rem" }}>
+              <div
+                style={{
+                  display: "flex",
+                  gap: "0.5rem",
+                  flexDirection: isMobile ? "column" : "row",
+                }}
+              >
                 <input
                   type="number"
                   value={targetTotal}
@@ -2033,8 +2285,8 @@ export default function OrderFormSimple() {
                   step="0.01"
                   style={{
                     flex: 1,
-                    padding: "0.75rem",
-                    fontSize: "1rem",
+                    padding: isMobile ? "0.875rem" : "0.75rem",
+                    fontSize: isMobile ? "16px" : "1rem",
                     border: "1px solid #d1d5db",
                     borderRadius: "4px",
                   }}
@@ -2043,13 +2295,15 @@ export default function OrderFormSimple() {
                   onClick={calculateGlobalDiscountForTarget}
                   disabled={!targetTotal}
                   style={{
-                    padding: "0.75rem 1rem",
+                    padding: isMobile ? "0.875rem 1rem" : "0.75rem 1rem",
                     background: targetTotal ? "#8b5cf6" : "#d1d5db",
                     color: "white",
                     border: "none",
                     borderRadius: "4px",
                     cursor: targetTotal ? "pointer" : "not-allowed",
                     fontWeight: "600",
+                    fontSize: isMobile ? "16px" : "1rem",
+                    minHeight: isMobile ? "48px" : "auto",
                   }}
                 >
                   Calcola
@@ -2062,7 +2316,7 @@ export default function OrderFormSimple() {
           <div
             style={{
               marginTop: "1.5rem",
-              padding: "1.5rem",
+              padding: isMobile ? "1rem" : "1.5rem",
               background: "white",
               borderRadius: "8px",
               border: "2px solid #3b82f6",
@@ -2073,6 +2327,7 @@ export default function OrderFormSimple() {
                 display: "flex",
                 justifyContent: "space-between",
                 marginBottom: "0.5rem",
+                fontSize: isMobile ? "0.875rem" : "1rem",
               }}
             >
               <span>Subtotale articoli:</span>
@@ -2085,6 +2340,7 @@ export default function OrderFormSimple() {
                   justifyContent: "space-between",
                   marginBottom: "0.5rem",
                   color: "#dc2626",
+                  fontSize: isMobile ? "0.875rem" : "1rem",
                 }}
               >
                 <span>Sconto globale ({totals.globalDiscPercent}%):</span>
@@ -2098,6 +2354,7 @@ export default function OrderFormSimple() {
                 marginBottom: "0.5rem",
                 paddingTop: "0.5rem",
                 borderTop: "1px solid #e5e7eb",
+                fontSize: isMobile ? "0.875rem" : "1rem",
               }}
             >
               <span>Subtotale (senza IVA):</span>
@@ -2109,6 +2366,7 @@ export default function OrderFormSimple() {
                 justifyContent: "space-between",
                 marginBottom: "0.5rem",
                 color: "#6b7280",
+                fontSize: isMobile ? "0.875rem" : "1rem",
               }}
             >
               <span>IVA:</span>
@@ -2120,7 +2378,7 @@ export default function OrderFormSimple() {
                 justifyContent: "space-between",
                 paddingTop: "0.5rem",
                 borderTop: "2px solid #3b82f6",
-                fontSize: "1.25rem",
+                fontSize: isMobile ? "1.125rem" : "1.25rem",
               }}
             >
               <span style={{ fontWeight: "600" }}>TOTALE (con IVA):</span>
@@ -2134,19 +2392,21 @@ export default function OrderFormSimple() {
 
       {/* SUBMIT BUTTON */}
       {items.length > 0 && (
-        <div style={{ textAlign: "right" }}>
+        <div style={{ textAlign: isMobile ? "center" : "right" }}>
           <button
             onClick={handleSubmit}
             disabled={submitting}
             style={{
-              padding: "1rem 2rem",
+              padding: isMobile ? "1rem 2rem" : "1rem 2rem",
               background: submitting ? "#d1d5db" : "#22c55e",
               color: "white",
               border: "none",
               borderRadius: "8px",
-              fontSize: "1.125rem",
+              fontSize: isMobile ? "1.125rem" : "1.125rem",
               fontWeight: "600",
               cursor: submitting ? "not-allowed" : "pointer",
+              width: isMobile ? "100%" : "auto",
+              minHeight: isMobile ? "52px" : "auto",
             }}
           >
             {submitting ? "Salvataggio..." : "Salva in Coda Ordini"}

@@ -160,26 +160,17 @@ export function DashboardNav() {
           style={{
             display: "flex",
             alignItems: "center",
-            gap: "10px",
           }}
         >
           <img
-            src="/formicaneralogo.png"
-            alt="Formicanera"
+            src="/immagini/archibaldrework.png"
+            alt="Archibald Rework"
             style={{
-              height: "32px",
+              height: "40px",
               width: "auto",
+              maxWidth: "200px",
             }}
           />
-          <span
-            style={{
-              color: "#fff",
-              fontSize: "18px",
-              fontWeight: "600",
-            }}
-          >
-            Formicanera
-          </span>
         </div>
 
         {/* Hamburger button */}
