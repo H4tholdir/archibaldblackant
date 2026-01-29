@@ -65,6 +65,9 @@ export function useAuth() {
     }
   }, []);
 
+  // TODO_FUTURE_FEATURE: Add whitelist check here
+  // Before login, verify if username is in approved whitelist
+  // If not approved, show pending message and redirect to whitelist request page
   const login = async (
     username: string,
     password: string,

@@ -620,6 +620,141 @@ export function AdminPage({ onLogout, userName }: AdminPageProps) {
             </div>
           </div>
         </section>
+
+        {/* TODO_FUTURE_FEATURE: Sistema Whitelist e Moduli a Pagamento */}
+        <section
+          className="admin-section"
+          style={{
+            border: "2px dashed #ff9800",
+            backgroundColor: "#fff3e0",
+            opacity: 0.7,
+          }}
+        >
+          <h2>🚧 Funzionalità Future (In Sviluppo)</h2>
+          <div className="info-grid">
+            <div className="info-card" style={{ backgroundColor: "#fffde7" }}>
+              <h3>👥 Sistema Whitelist Utenti</h3>
+              <p>
+                <strong>Pianificato:</strong> Sistema di approvazione utenti con
+                whitelist.
+              </p>
+              <ul
+                style={{
+                  textAlign: "left",
+                  fontSize: "14px",
+                  marginTop: "10px",
+                }}
+              >
+                <li>Gestione richieste accesso da nuovi utenti</li>
+                <li>
+                  Assegnazione nome utente reale a username Archibald di login
+                </li>
+                <li>Whitelist con approvazione/rifiuto manuale admin</li>
+                <li>Dashboard richieste pendenti</li>
+              </ul>
+              <div
+                style={{
+                  marginTop: "15px",
+                  padding: "10px",
+                  backgroundColor: "#fff9c4",
+                  borderRadius: "4px",
+                  fontSize: "13px",
+                }}
+              >
+                <strong>💡 Note implementazione:</strong>
+                <br />- Creare tabella users_whitelist nel database
+                <br />- Endpoint API: /api/admin/whitelist
+                <br />- UI: tabella con approve/reject buttons
+                <br />- Email notifiche utenti approvati
+              </div>
+            </div>
+
+            <div className="info-card" style={{ backgroundColor: "#e1f5fe" }}>
+              <h3>💎 Moduli a Pagamento</h3>
+              <p>
+                <strong>Pianificato:</strong> Sistema di moduli premium con
+                attivazione selettiva per utente.
+              </p>
+              <ul
+                style={{
+                  textAlign: "left",
+                  fontSize: "14px",
+                  marginTop: "10px",
+                }}
+              >
+                <li>Frazionamento funzionalità in moduli separati</li>
+                <li>Gestione abbonamenti e pagamenti</li>
+                <li>Attivazione/disattivazione moduli per utente</li>
+                <li>Dashboard monetizzazione e analytics</li>
+              </ul>
+              <div
+                style={{
+                  marginTop: "15px",
+                  padding: "10px",
+                  backgroundColor: "#b3e5fc",
+                  borderRadius: "4px",
+                  fontSize: "13px",
+                }}
+              >
+                <strong>💡 Note implementazione:</strong>
+                <br />- Definire moduli: Base, Gestione Magazzino, Analytics,
+                Bot Telegram, ecc.
+                <br />- Integrazione Stripe/PayPal per pagamenti
+                <br />- Tabella user_subscriptions con expiry dates
+                <br />- Middleware per verifica abilitazione moduli
+                <br />- UI: checkbox toggle per assegnazione moduli admin
+              </div>
+            </div>
+
+            <div className="info-card" style={{ backgroundColor: "#f3e5f5" }}>
+              <h3>📊 Dashboard Amministrazione Avanzata</h3>
+              <p>
+                <strong>Pianificato:</strong> Vista unificata per gestione
+                utenti e moduli.
+              </p>
+              <ul
+                style={{
+                  textAlign: "left",
+                  fontSize: "14px",
+                  marginTop: "10px",
+                }}
+              >
+                <li>Tabella utenti con stato whitelist e moduli attivi</li>
+                <li>Filtri avanzati (stato, moduli, date)</li>
+                <li>Azioni bulk (attiva/disattiva moduli multipli)</li>
+                <li>Export dati CSV per fatturazione</li>
+              </ul>
+            </div>
+          </div>
+
+          <div
+            style={{
+              marginTop: "20px",
+              padding: "15px",
+              backgroundColor: "#fff",
+              borderRadius: "8px",
+              border: "1px solid #ff9800",
+            }}
+          >
+            <h3 style={{ marginTop: 0, color: "#e65100" }}>
+              🔧 Istruzioni per Sviluppatori
+            </h3>
+            <p style={{ fontSize: "14px", lineHeight: "1.6" }}>
+              <strong>Tag da cercare nel codice:</strong>{" "}
+              <code style={{ backgroundColor: "#ffe0b2", padding: "2px 6px" }}>
+                TODO_FUTURE_FEATURE
+              </code>
+            </p>
+            <p style={{ fontSize: "14px", lineHeight: "1.6" }}>
+              Quando si implementano queste funzionalità, cercare tutti i
+              commenti con il tag{" "}
+              <code style={{ backgroundColor: "#ffe0b2", padding: "2px 6px" }}>
+                TODO_FUTURE_FEATURE
+              </code>{" "}
+              nel codebase e sostituire i placeholder con il codice effettivo.
+            </p>
+          </div>
+        </section>
       </main>
 
       <footer className="admin-footer">
