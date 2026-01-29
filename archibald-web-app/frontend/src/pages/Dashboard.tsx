@@ -177,29 +177,35 @@ export function Dashboard() {
         padding: "20px",
       }}
     >
-      {/* Header Section */}
+      {/* Logo Section */}
       <div
         style={{
           display: "flex",
-          justifyContent: "space-between",
+          justifyContent: "center",
           alignItems: "center",
           marginBottom: "30px",
-          flexWrap: "wrap",
-          gap: "15px",
+          padding: "20px 0",
         }}
       >
-        <div>
-          <h1
-            style={{ margin: "0 0 5px 0", fontSize: "28px", fontWeight: "600" }}
-          >
-            Dashboard
-          </h1>
-          <p style={{ margin: 0, color: "#666", fontSize: "14px" }}>
-            Benvenuto, {auth.user?.fullName}
-          </p>
-        </div>
+        <img
+          src="/formicaneralogo.png"
+          alt="Formicanera"
+          style={{
+            maxWidth: "300px",
+            width: "100%",
+            height: "auto",
+          }}
+        />
+      </div>
 
-        {/* Widget Configuration Button */}
+      {/* Widget Configuration Button */}
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "flex-end",
+          marginBottom: "20px",
+        }}
+      >
         <button
           onClick={() => setShowConfigModal(true)}
           style={{
