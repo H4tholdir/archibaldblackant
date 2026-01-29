@@ -18,6 +18,7 @@ export interface OrderSyncProgress {
   ordersInserted: number;
   ordersUpdated: number;
   ordersSkipped: number;
+  ordersDeleted: number;
   error?: string;
 }
 
@@ -38,6 +39,7 @@ export class OrderSyncService extends EventEmitter {
     ordersInserted: 0,
     ordersUpdated: 0,
     ordersSkipped: 0,
+    ordersDeleted: 0,
   };
 
   private constructor() {
@@ -153,6 +155,7 @@ export class OrderSyncService extends EventEmitter {
         ordersInserted: 0,
         ordersUpdated: 0,
         ordersSkipped: 0,
+        ordersDeleted: 0,
       };
       this.emit("progress", this.progress);
       logger.info("[OrderSyncService] Progress updated: downloading");
@@ -394,6 +397,7 @@ export class OrderSyncService extends EventEmitter {
     ordersInserted: number;
     ordersUpdated: number;
     ordersSkipped: number;
+    ordersDeleted: number;
   }> {
     logger.info("[OrderSyncService] saveOrders: starting", {
       userId,
@@ -404,6 +408,7 @@ export class OrderSyncService extends EventEmitter {
     let updated = 0;
     let skipped = 0;
 
+    // Step 1: Upsert all orders from PDF
     for (let i = 0; i < parsedOrders.length; i++) {
       this.throwIfStopRequested("saving");
       const parsedOrder = parsedOrders[i];
@@ -467,11 +472,33 @@ export class OrderSyncService extends EventEmitter {
       }
     }
 
+    // Step 2: Reconciliation - Delete orders not in PDF (deleted on Archibald)
+    logger.info("[OrderSyncService] saveOrders: starting reconciliation");
+    let deleted = 0;
+    try {
+      const pdfOrderIds = parsedOrders.map((o) => o.id);
+      deleted = this.orderDb.deleteOrdersNotInList(userId, pdfOrderIds);
+      logger.info("[OrderSyncService] saveOrders: reconciliation completed", {
+        ordersInPDF: pdfOrderIds.length,
+        ordersDeleted: deleted,
+      });
+    } catch (deleteError) {
+      logger.error("[OrderSyncService] saveOrders: reconciliation failed", {
+        error:
+          deleteError instanceof Error
+            ? deleteError.message
+            : String(deleteError),
+        stack: deleteError instanceof Error ? deleteError.stack : undefined,
+      });
+      // Continue even if reconciliation fails - better to have some data than none
+    }
+
     const results = {
       ordersProcessed: parsedOrders.length,
       ordersInserted: inserted,
       ordersUpdated: updated,
       ordersSkipped: skipped,
+      ordersDeleted: deleted,
     };
 
     logger.info("[OrderSyncService] saveOrders: completed", results);

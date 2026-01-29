@@ -731,6 +731,43 @@ export class OrderDatabaseNew {
     }
   }
 
+  /**
+   * Delete orders that are not in the provided list of IDs
+   * Used for reconciliation: removes orders from local DB that no longer exist in Archibald
+   * @returns number of orders deleted
+   */
+  deleteOrdersNotInList(userId: string, validOrderIds: string[]): number {
+    if (validOrderIds.length === 0) {
+      logger.warn(
+        "[OrderDatabaseNew] deleteOrdersNotInList: empty validOrderIds list - skipping deletion",
+        { userId },
+      );
+      return 0;
+    }
+
+    // Build placeholders for IN clause
+    const placeholders = validOrderIds.map(() => "?").join(",");
+
+    // Delete orders not in the list
+    const result = this.db
+      .prepare(
+        `
+      DELETE FROM orders
+      WHERE user_id = ?
+      AND id NOT IN (${placeholders})
+    `,
+      )
+      .run(userId, ...validOrderIds);
+
+    logger.info("[OrderDatabaseNew] deleteOrdersNotInList: completed", {
+      userId,
+      validOrderIdsCount: validOrderIds.length,
+      deletedCount: result.changes,
+    });
+
+    return result.changes;
+  }
+
   getOrderById(userId: string, orderId: string): OrderRecord | null {
     const row = this.db
       .prepare(
