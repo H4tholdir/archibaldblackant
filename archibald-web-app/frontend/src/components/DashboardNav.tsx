@@ -163,7 +163,7 @@ export function DashboardNav() {
           }}
         >
           <img
-            src="/immagini/archibaldrework.png"
+            src="/archibaldrework.png"
             alt="Archibald Rework"
             style={{
               height: "40px",
