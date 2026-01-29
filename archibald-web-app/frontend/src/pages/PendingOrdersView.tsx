@@ -11,6 +11,17 @@ interface GroupedOrders {
 }
 
 export function PendingOrdersView() {
+  // Responsive design: detect mobile
+  const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
+
+  useEffect(() => {
+    const handleResize = () => {
+      setIsMobile(window.innerWidth < 768);
+    };
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
+
   const [orders, setOrders] = useState<PendingOrder[]>([]);
   const [counts, setCounts] = useState({ pending: 0, syncing: 0, error: 0 });
   const [loading, setLoading] = useState(true);
@@ -363,40 +374,58 @@ export function PendingOrdersView() {
         key={order.id}
         style={{
           backgroundColor: "#fff",
-          borderRadius: "12px",
-          padding: "16px",
-          marginBottom: "12px",
+          borderRadius: isMobile ? "8px" : "12px",
+          padding: isMobile ? "12px" : "16px",
+          marginBottom: isMobile ? "8px" : "12px",
           boxShadow: "0 2px 4px rgba(0,0,0,0.1)",
         }}
       >
         <div
           style={{
             display: "flex",
+            flexDirection: isMobile ? "column" : "row",
             justifyContent: "space-between",
-            alignItems: "flex-start",
-            marginBottom: "12px",
+            alignItems: isMobile ? "flex-start" : "flex-start",
+            marginBottom: isMobile ? "8px" : "12px",
+            gap: isMobile ? "8px" : "0",
           }}
         >
-          <div>
+          <div style={{ flex: 1 }}>
             <div
-              style={{ fontSize: "16px", fontWeight: 600, marginBottom: "4px" }}
+              style={{
+                fontSize: isMobile ? "15px" : "16px",
+                fontWeight: 600,
+                marginBottom: "4px",
+              }}
             >
               {order.customerName}
             </div>
-            <div style={{ fontSize: "14px", color: "#666" }}>
+            <div
+              style={{
+                fontSize: isMobile ? "13px" : "14px",
+                color: "#666",
+              }}
+            >
               {order.items.length}{" "}
               {order.items.length === 1 ? "articolo" : "articoli"} • €
               {calculateTotal(order).toFixed(2)}
             </div>
           </div>
-          <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+          <div
+            style={{
+              display: "flex",
+              gap: isMobile ? "6px" : "8px",
+              alignItems: "center",
+              flexWrap: "wrap",
+            }}
+          >
             {hasStaleData && (
               <span
                 style={{
                   display: "inline-block",
-                  padding: "4px 12px",
+                  padding: isMobile ? "6px 10px" : "4px 12px",
                   borderRadius: "12px",
-                  fontSize: "12px",
+                  fontSize: isMobile ? "11px" : "12px",
                   fontWeight: 600,
                   backgroundColor: "#ff9800",
                   color: "#fff",
@@ -415,11 +444,22 @@ export function PendingOrdersView() {
             </span>
           </div>
         </div>
-        <div style={{ fontSize: "12px", color: "#999" }}>
+        <div
+          style={{
+            fontSize: isMobile ? "11px" : "12px",
+            color: "#999",
+          }}
+        >
           {formatDate(order.createdAt)}
         </div>
         {order.errorMessage && (
-          <div style={{ marginTop: "8px", fontSize: "12px", color: "#f44336" }}>
+          <div
+            style={{
+              marginTop: "8px",
+              fontSize: isMobile ? "11px" : "12px",
+              color: "#f44336",
+            }}
+          >
             {order.errorMessage}
           </div>
         )}
@@ -496,27 +536,33 @@ export function PendingOrdersView() {
       style={{
         minHeight: "100vh",
         backgroundColor: "#f5f5f5",
-        padding: "24px",
+        padding: isMobile ? "12px" : "24px",
       }}
     >
       {/* Summary Stats */}
       <div
         style={{
           backgroundColor: "#fff",
-          borderRadius: "12px",
-          padding: "20px",
-          marginBottom: "24px",
+          borderRadius: isMobile ? "8px" : "12px",
+          padding: isMobile ? "16px" : "20px",
+          marginBottom: isMobile ? "16px" : "24px",
           boxShadow: "0 2px 4px rgba(0,0,0,0.1)",
         }}
       >
-        <h2 style={{ fontSize: "20px", fontWeight: 600, marginBottom: "16px" }}>
+        <h2
+          style={{
+            fontSize: isMobile ? "18px" : "20px",
+            fontWeight: 600,
+            marginBottom: isMobile ? "12px" : "16px",
+          }}
+        >
           📋 Coda Ordini Offline
         </h2>
         <div
           style={{
             display: "flex",
-            gap: "16px",
-            marginBottom: "16px",
+            gap: isMobile ? "8px" : "16px",
+            marginBottom: isMobile ? "12px" : "16px",
             flexWrap: "wrap",
           }}
         >
@@ -570,12 +616,13 @@ export function PendingOrdersView() {
               color: "#fff",
               border: "none",
               borderRadius: "8px",
-              padding: "12px 24px",
-              fontSize: "16px",
+              padding: isMobile ? "14px 24px" : "12px 24px",
+              fontSize: isMobile ? "15px" : "16px",
               fontWeight: 600,
               cursor:
                 syncing || isCheckingConflicts ? "not-allowed" : "pointer",
               width: "100%",
+              minHeight: isMobile ? "48px" : "auto",
             }}
           >
             {isCheckingConflicts
@@ -616,8 +663,8 @@ export function PendingOrdersView() {
               left: "50%",
               transform: "translate(-50%, -50%)",
               backgroundColor: "#fff",
-              borderRadius: "12px",
-              padding: "24px",
+              borderRadius: isMobile ? "8px" : "12px",
+              padding: isMobile ? "20px" : "24px",
               maxWidth: "400px",
               width: "90%",
               boxShadow: "0 8px 16px rgba(0,0,0,0.3)",
@@ -626,26 +673,32 @@ export function PendingOrdersView() {
           >
             <div
               style={{
-                fontSize: "20px",
+                fontSize: isMobile ? "18px" : "20px",
                 fontWeight: 600,
-                marginBottom: "16px",
+                marginBottom: isMobile ? "12px" : "16px",
               }}
             >
               ⚠️ Dati Non Aggiornati
             </div>
             <p
               style={{
-                fontSize: "14px",
+                fontSize: isMobile ? "13px" : "14px",
                 color: "#666",
                 lineHeight: "1.5",
-                marginBottom: "24px",
+                marginBottom: isMobile ? "20px" : "24px",
               }}
             >
               I dati di <strong>{conflictInfo.entities.join(", ")}</strong> non
               sono aggiornati da <strong>{conflictInfo.daysOld} giorni</strong>.
               Gli ordini potrebbero contenere prezzi o prodotti obsoleti.
             </p>
-            <div style={{ display: "flex", gap: "12px" }}>
+            <div
+              style={{
+                display: "flex",
+                flexDirection: isMobile ? "column" : "row",
+                gap: isMobile ? "10px" : "12px",
+              }}
+            >
               <button
                 type="button"
                 onClick={handleUpdateCacheFirst}
@@ -655,10 +708,11 @@ export function PendingOrdersView() {
                   color: "#fff",
                   border: "none",
                   borderRadius: "8px",
-                  padding: "12px",
-                  fontSize: "14px",
+                  padding: isMobile ? "14px 12px" : "12px",
+                  fontSize: isMobile ? "15px" : "14px",
                   fontWeight: 600,
                   cursor: "pointer",
+                  minHeight: isMobile ? "48px" : "auto",
                 }}
               >
                 Aggiorna Dati Prima
@@ -672,10 +726,11 @@ export function PendingOrdersView() {
                   color: "#666",
                   border: "2px solid #ddd",
                   borderRadius: "8px",
-                  padding: "12px",
-                  fontSize: "14px",
+                  padding: isMobile ? "14px 12px" : "12px",
+                  fontSize: isMobile ? "15px" : "14px",
                   fontWeight: 600,
                   cursor: "pointer",
+                  minHeight: isMobile ? "48px" : "auto",
                 }}
               >
                 Continua Comunque
@@ -699,17 +754,18 @@ export function PendingOrdersView() {
         <div
           style={{
             position: "fixed",
-            top: "20px",
+            top: isMobile ? "12px" : "20px",
             left: "50%",
             transform: "translateX(-50%)",
             backgroundColor: "#2196f3",
             color: "#fff",
-            padding: "12px 24px",
-            borderRadius: "8px",
+            padding: isMobile ? "10px 16px" : "12px 24px",
+            borderRadius: isMobile ? "6px" : "8px",
             boxShadow: "0 4px 6px rgba(0,0,0,0.2)",
             zIndex: 999,
-            fontSize: "14px",
+            fontSize: isMobile ? "13px" : "14px",
             fontWeight: 600,
+            maxWidth: isMobile ? "90%" : "auto",
           }}
         >
           Revisione ordini... ({reviewProgress.current}/{reviewProgress.total})
@@ -721,15 +777,17 @@ export function PendingOrdersView() {
         <div
           style={{
             position: "fixed",
-            bottom: "24px",
+            bottom: isMobile ? "16px" : "24px",
             left: "50%",
             transform: "translateX(-50%)",
             backgroundColor: toast.type === "success" ? "#4caf50" : "#f44336",
             color: "#fff",
-            padding: "16px 24px",
-            borderRadius: "8px",
+            padding: isMobile ? "12px 20px" : "16px 24px",
+            borderRadius: isMobile ? "6px" : "8px",
             boxShadow: "0 4px 6px rgba(0,0,0,0.2)",
             zIndex: 1000,
+            maxWidth: isMobile ? "90%" : "auto",
+            fontSize: isMobile ? "14px" : "16px",
           }}
         >
           {toast.message}
