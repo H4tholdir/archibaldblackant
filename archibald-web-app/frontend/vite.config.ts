@@ -11,8 +11,8 @@ export default defineConfig({
       manifest: {
         name: 'Formicanera - Archibald Rework',
         short_name: 'Formicanera',
-        description: 'Gestione ordini Archibald per agenti Komet - by Francesco Formicola',
-        theme_color: '#1976d2',
+        description: 'PWA mobile per inserimento ordini Archibald - by Francesco Formicola',
+        theme_color: '#2c3e50',
         background_color: '#ffffff',
         display: 'standalone',
         orientation: 'portrait',
