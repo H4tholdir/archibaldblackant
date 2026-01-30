@@ -168,7 +168,33 @@ export class PendingOrdersService {
         // Update status to syncing
         await db.pendingOrders.update(order.id!, { status: "syncing" });
 
-        // Call backend API with full order data
+        // Prepare items for backend (exclude warehouse-specific fields)
+        // Only send items that need to be ordered (quantity - warehouseQuantity > 0)
+        const itemsToOrder = order.items
+          .map((item) => {
+            const warehouseQty = item.warehouseQuantity || 0;
+            const qtyToOrder = item.quantity - warehouseQty;
+
+            // Skip items fully covered by warehouse
+            if (qtyToOrder <= 0) {
+              return null;
+            }
+
+            // Return clean item without warehouse fields
+            return {
+              articleCode: item.articleCode,
+              articleId: item.articleId,
+              productName: item.productName,
+              description: item.description,
+              quantity: qtyToOrder, // Only the quantity to order
+              price: item.price,
+              vat: item.vat,
+              discount: item.discount,
+            };
+          })
+          .filter((item): item is NonNullable<typeof item> => item !== null);
+
+        // Call backend API with filtered order data
         const response = await fetch("/api/orders/create", {
           method: "POST",
           headers: {
@@ -178,7 +204,7 @@ export class PendingOrdersService {
           body: JSON.stringify({
             customerId: order.customerId,
             customerName: order.customerName,
-            items: order.items,
+            items: itemsToOrder,
             discountPercent: order.discountPercent,
             targetTotalWithVAT: order.targetTotalWithVAT,
           }),
