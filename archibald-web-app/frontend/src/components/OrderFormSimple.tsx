@@ -150,6 +150,12 @@ export default function OrderFormSimple() {
     [items],
   );
 
+  // Calculate total quantity selected from warehouse
+  const warehouseSelectedQty = useMemo(
+    () => warehouseSelection.reduce((sum, sel) => sum + sel.quantity, 0),
+    [warehouseSelection],
+  );
+
   // 🔧 FIX #1: Track if quantity change comes from warehouse selection
   const isWarehouseUpdateRef = useRef(false);
 
