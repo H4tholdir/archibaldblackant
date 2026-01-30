@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { customerService } from "../services/customers.service";
 import {
@@ -149,6 +149,9 @@ export default function OrderFormSimple() {
         ),
     [items],
   );
+
+  // 🔧 FIX #1: Track if quantity change comes from warehouse selection
+  const isWarehouseUpdateRef = useRef(false);
 
   // UI state
   const [submitting, setSubmitting] = useState(false);
@@ -1940,6 +1943,23 @@ export default function OrderFormSimple() {
                     requestedQuantity={parseInt(quantity, 10)}
                     onSelect={setWarehouseSelection}
                     excludeWarehouseItemIds={excludedWarehouseItemIds}
+                    onTotalQuantityChange={(totalQty) => {
+                      // 🔧 FIX #1: Auto-update quantity when warehouse has less than requested
+                      const requestedQty = parseInt(quantity, 10);
+                      if (
+                        totalQty > 0 &&
+                        totalQty < requestedQty &&
+                        !isWarehouseUpdateRef.current
+                      ) {
+                        // Set flag to prevent loop
+                        isWarehouseUpdateRef.current = true;
+                        setQuantity(totalQty.toString());
+                        // Reset flag after update
+                        setTimeout(() => {
+                          isWarehouseUpdateRef.current = false;
+                        }, 100);
+                      }
+                    }}
                   />
                 </div>
               )}
