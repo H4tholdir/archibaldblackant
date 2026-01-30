@@ -798,14 +798,16 @@ export default function OrderFormSimple() {
     if (isFullyFromWarehouse) {
       // Find the smallest variant to use for pricing
       // (since we're not ordering, we just need a valid variant for price/VAT)
+      // Use product name (e.g. "9486.900.260") as productId to query variants
+      const productName = selectedProduct.name || selectedProduct.article;
       const variants = await db.productVariants
         .where("productId")
-        .equals(selectedProduct.id)
+        .equals(productName)
         .toArray();
 
       if (!variants || variants.length === 0) {
         toastService.error(
-          `Nessuna variante disponibile per ${selectedProduct.name}`,
+          `Nessuna variante disponibile per ${productName}`,
         );
         return;
       }
