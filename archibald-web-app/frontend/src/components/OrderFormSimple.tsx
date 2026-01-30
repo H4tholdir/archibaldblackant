@@ -10,7 +10,12 @@ import { orderService } from "../services/orders.service";
 import { cachePopulationService } from "../services/cache-population";
 import { toastService } from "../services/toast.service";
 import { db } from "../db/schema";
-import type { Customer, Product, DraftOrder } from "../db/schema";
+import type {
+  Customer,
+  Product,
+  DraftOrder,
+  PendingOrderItem,
+} from "../db/schema";
 import {
   WarehouseMatchAccordion,
   type SelectedWarehouseMatch,
@@ -148,22 +153,7 @@ export default function OrderFormSimple() {
 
   // Track original order items for warehouse restoration if user exits without saving
   const [originalOrderItems, setOriginalOrderItems] = useState<
-    Array<{
-      articleCode: string;
-      articleId: string;
-      productName: string;
-      description?: string;
-      quantity: number;
-      price: number;
-      discount?: number;
-      vat?: number;
-      warehouseQuantity?: number;
-      warehouseSources?: Array<{
-        warehouseItemId: number;
-        boxName: string;
-        quantity: number;
-      }>;
-    }>
+    PendingOrderItem[]
   >([]);
   const [orderSavedSuccessfully, setOrderSavedSuccessfully] = useState(false);
 
