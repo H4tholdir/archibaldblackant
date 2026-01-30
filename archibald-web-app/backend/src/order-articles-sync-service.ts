@@ -349,7 +349,9 @@ export class OrderArticlesSyncService extends EventEmitter {
 
     const fs = require("fs");
     const path = require("path");
-    const referencePdf = path.join(__dirname, "../../../Salesline-Ref (1).pdf");
+    // In container: /app/dist/order-articles-sync-service.js -> /app/Salesline-Ref (1).pdf
+    // In dev: src/order-articles-sync-service.ts -> ../../../Salesline-Ref (1).pdf
+    const referencePdf = path.join(__dirname, "../../Salesline-Ref (1).pdf");
 
     if (!fs.existsSync(referencePdf)) {
       throw new Error(
