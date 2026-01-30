@@ -7,7 +7,7 @@ import Database from "better-sqlite3";
 import path from "node:path";
 import fs from "node:fs";
 
-const dbPath = path.join(process.cwd(), "data", "orders.db");
+const dbPath = path.join(process.cwd(), "data", "orders-new.db");
 
 if (!fs.existsSync(dbPath)) {
   console.log("No database found at", dbPath);

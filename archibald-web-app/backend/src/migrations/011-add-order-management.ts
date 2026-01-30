@@ -10,7 +10,7 @@ import path from "node:path";
  * - order_audit_log: audit trail for all order actions
  */
 
-const dbPath = path.join(process.cwd(), "data", "orders.db");
+const dbPath = path.join(process.cwd(), "data", "orders-new.db");
 const db = new Database(dbPath);
 
 console.log("[Migration 011] Starting order management migration");
