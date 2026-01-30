@@ -139,6 +139,17 @@ export default function OrderFormSimple() {
   const [globalDiscountPercent, setGlobalDiscountPercent] = useState("0");
   const [targetTotal, setTargetTotal] = useState("");
 
+  // 🔧 FIX #2: Memoize excluded warehouse item IDs to prevent re-renders
+  const excludedWarehouseItemIds = useMemo(
+    () =>
+      items
+        .filter((item) => item.warehouseSources)
+        .flatMap((item) =>
+          item.warehouseSources!.map((s) => s.warehouseItemId),
+        ),
+    [items],
+  );
+
   // UI state
   const [submitting, setSubmitting] = useState(false);
   const [editingItemId, setEditingItemId] = useState<string | null>(null);
@@ -1928,18 +1939,7 @@ export default function OrderFormSimple() {
                     description={selectedProduct.description}
                     requestedQuantity={parseInt(quantity, 10)}
                     onSelect={setWarehouseSelection}
-                    excludeWarehouseItemIds={useMemo(
-                      () =>
-                        // 🔧 FIX #2: Exclude warehouse items already used in other order rows
-                        items
-                          .filter((item) => item.warehouseSources)
-                          .flatMap((item) =>
-                            item.warehouseSources!.map(
-                              (s) => s.warehouseItemId,
-                            ),
-                          ),
-                      [items],
-                    )}
+                    excludeWarehouseItemIds={excludedWarehouseItemIds}
                   />
                 </div>
               )}
