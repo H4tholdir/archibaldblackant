@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   uploadWarehouseFile,
   getWarehouseMetadata,
@@ -17,9 +17,9 @@ export function WarehouseUpload() {
   const [showFormatGuide, setShowFormatGuide] = useState(false);
 
   // Load metadata on mount
-  useState(() => {
+  useEffect(() => {
     getWarehouseMetadata().then(setMetadata);
-  });
+  }, []);
 
   const handleFileSelect = async (
     event: React.ChangeEvent<HTMLInputElement>,
