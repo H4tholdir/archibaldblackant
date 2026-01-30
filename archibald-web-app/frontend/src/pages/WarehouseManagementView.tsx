@@ -1,11 +1,15 @@
 import { useState } from "react";
 import { WarehouseUpload } from "../components/WarehouseUpload";
 import { WarehouseStatsWidget } from "../components/WarehouseStatsWidget";
+import { WarehouseInventoryView } from "../components/WarehouseInventoryView";
 import { handleOrderReturn } from "../services/warehouse-order-integration";
 import { toastService } from "../services/toast.service";
 import { db } from "../db/schema";
 
 export default function WarehouseManagementView() {
+  // Inventory visibility toggle
+  const [showInventory, setShowInventory] = useState(false);
+
   // Warehouse Returns state
   const [orderId, setOrderId] = useState("");
   const [processing, setProcessing] = useState(false);
@@ -120,6 +124,42 @@ export default function WarehouseManagementView() {
       <div style={{ marginTop: "20px" }}>
         <WarehouseStatsWidget />
       </div>
+
+      {/* Show Inventory Button */}
+      <div style={{ marginTop: "20px" }}>
+        <button
+          onClick={() => setShowInventory(!showInventory)}
+          style={{
+            padding: "0.75rem 1.5rem",
+            background: showInventory ? "#dc2626" : "#10b981",
+            color: "white",
+            border: "none",
+            borderRadius: "6px",
+            fontSize: "1rem",
+            fontWeight: "600",
+            cursor: "pointer",
+            display: "flex",
+            alignItems: "center",
+            gap: "0.5rem",
+            transition: "all 0.2s",
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.transform = "scale(1.02)";
+            e.currentTarget.style.boxShadow = "0 4px 6px rgba(0, 0, 0, 0.1)";
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.transform = "scale(1)";
+            e.currentTarget.style.boxShadow = "none";
+          }}
+        >
+          {showInventory
+            ? "🚫 Nascondi Inventario"
+            : "📋 Mostra Inventario Completo"}
+        </button>
+      </div>
+
+      {/* Inventory View */}
+      {showInventory && <WarehouseInventoryView />}
 
       {/* Divider */}
       <div
@@ -269,7 +309,10 @@ export default function WarehouseManagementView() {
             >
               <thead>
                 <tr
-                  style={{ background: "#fef3c7", borderBottom: "2px solid #f59e0b" }}
+                  style={{
+                    background: "#fef3c7",
+                    borderBottom: "2px solid #f59e0b",
+                  }}
                 >
                   <th
                     style={{
