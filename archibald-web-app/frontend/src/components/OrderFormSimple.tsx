@@ -780,6 +780,14 @@ export default function OrderFormSimple() {
       const pkg = breakdown[i];
       const variantArticleCode = pkg.variant.variantId;
 
+      // DEBUG: Log variant details to understand the "0" issue
+      console.log("[OrderForm] Adding variant:", {
+        variantId: pkg.variant.variantId,
+        productId: pkg.variant.productId,
+        packageContent: pkg.variant.packageContent,
+        fullVariant: pkg.variant
+      });
+
       // Get price and VAT for THIS SPECIFIC variant
       const price = await priceService.getPriceByArticleId(variantArticleCode);
 
