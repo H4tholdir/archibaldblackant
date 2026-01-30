@@ -14,6 +14,11 @@ export function PendingOrdersPage() {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
 
+  // Expand/collapse state for each order
+  const [expandedOrderIds, setExpandedOrderIds] = useState<Set<number>>(
+    new Set(),
+  );
+
   // Mobile responsiveness
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
 
@@ -59,6 +64,18 @@ export function PendingOrdersPage() {
     } else {
       setSelectedOrderIds(new Set(orders.map((o) => o.id!)));
     }
+  };
+
+  const handleToggleExpand = (orderId: number) => {
+    setExpandedOrderIds((prev) => {
+      const updated = new Set(prev);
+      if (updated.has(orderId)) {
+        updated.delete(orderId);
+      } else {
+        updated.add(orderId);
+      }
+      return updated;
+    });
   };
 
   const handleSubmitOrders = async () => {
@@ -667,272 +684,172 @@ export function PendingOrdersPage() {
                 overflow: "hidden",
               }}
             >
-              {/* Header */}
+              {/* Header with expand/collapse button */}
               <div
                 style={{
                   backgroundColor: "#f9fafb",
                   padding: isMobile ? "0.75rem" : "0.75rem 1rem",
                   borderBottom: "2px solid #e5e7eb",
-                  fontWeight: "600",
-                  fontSize: isMobile ? "0.9375rem" : "0.875rem",
-                  color: "#374151",
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  cursor: "pointer",
                 }}
+                onClick={() => handleToggleExpand(order.id!)}
               >
-                Dettaglio Articoli ({order.items.length})
-              </div>
-
-              {/* Table Header - desktop only */}
-              {!isMobile && (
-                <div
+                <span
                   style={{
-                    display: "grid",
-                    gridTemplateColumns: "3fr 1fr 1fr 1fr 1fr 1fr 1fr",
-                    gap: "0.5rem",
-                    padding: "0.75rem 1rem",
-                    backgroundColor: "#f9fafb",
-                    borderBottom: "1px solid #e5e7eb",
-                    fontSize: "0.75rem",
                     fontWeight: "600",
-                    color: "#6b7280",
-                    textTransform: "uppercase",
+                    fontSize: isMobile ? "0.9375rem" : "0.875rem",
+                    color: "#374151",
                   }}
                 >
-                  <div>Articolo</div>
-                  <div style={{ textAlign: "right" }}>Qnt.</div>
-                  <div style={{ textAlign: "right" }}>Prezzo Unit.</div>
-                  <div style={{ textAlign: "right" }}>Sconto</div>
-                  <div style={{ textAlign: "right" }}>Subtotale</div>
-                  <div style={{ textAlign: "right" }}>IVA</div>
-                  <div style={{ textAlign: "right" }}>Totale</div>
-                </div>
-              )}
+                  Dettaglio Articoli ({order.items.length})
+                </span>
+                <span
+                  style={{
+                    fontSize: isMobile ? "1.125rem" : "1rem",
+                    color: "#6b7280",
+                  }}
+                >
+                  {expandedOrderIds.has(order.id!) ? "▼" : "▶"}
+                </span>
+              </div>
 
-              {/* Items */}
-              {order.items.map((item, index) => {
-                const subtotal =
-                  item.price * item.quantity - (item.discount || 0);
-                // Apply global discount if present
-                const subtotalAfterGlobal = order.discountPercent
-                  ? subtotal * (1 - order.discountPercent / 100)
-                  : subtotal;
-                const vatAmount = subtotalAfterGlobal * (item.vat / 100);
-                const total = subtotalAfterGlobal + vatAmount;
+              {/* Content - only shown when expanded */}
+              {expandedOrderIds.has(order.id!) && (
+                <>
+                  {/* Table Header - desktop only */}
+                  {!isMobile && (
+                    <div
+                      style={{
+                        display: "grid",
+                        gridTemplateColumns: "3fr 1fr 1fr 1fr 1fr 1fr 1fr",
+                        gap: "0.5rem",
+                        padding: "0.75rem 1rem",
+                        backgroundColor: "#f9fafb",
+                        borderBottom: "1px solid #e5e7eb",
+                        fontSize: "0.75rem",
+                        fontWeight: "600",
+                        color: "#6b7280",
+                        textTransform: "uppercase",
+                      }}
+                    >
+                      <div>Articolo</div>
+                      <div style={{ textAlign: "right" }}>Qnt.</div>
+                      <div style={{ textAlign: "right" }}>Prezzo Unit.</div>
+                      <div style={{ textAlign: "right" }}>Sconto</div>
+                      <div style={{ textAlign: "right" }}>Subtotale</div>
+                      <div style={{ textAlign: "right" }}>IVA</div>
+                      <div style={{ textAlign: "right" }}>Totale</div>
+                    </div>
+                  )}
 
-                return (
-                  <div
-                    key={index}
-                    style={{
-                      display: isMobile ? "block" : "grid",
-                      gridTemplateColumns: isMobile
-                        ? undefined
-                        : "3fr 1fr 1fr 1fr 1fr 1fr 1fr",
-                      gap: isMobile ? undefined : "0.5rem",
-                      padding: isMobile ? "0.75rem" : "1rem",
-                      borderBottom:
-                        index < order.items.length - 1
-                          ? "1px solid #f3f4f6"
-                          : "none",
-                      fontSize: isMobile ? "0.875rem" : "0.875rem",
-                    }}
-                  >
-                    {/* Desktop Layout - Grid */}
-                    {!isMobile && (
-                      <>
-                        {/* Product Name & Code */}
-                        <div>
-                          <div
-                            style={{
-                              fontWeight: "600",
-                              marginBottom: "0.25rem",
-                            }}
-                          >
-                            {item.productName || item.articleCode}
-                          </div>
-                          <div
-                            style={{
-                              fontSize: "0.75rem",
-                              color: "#9ca3af",
-                              marginBottom: "0.25rem",
-                            }}
-                          >
-                            Cod: {item.articleCode}
-                          </div>
-                          {item.description && (
-                            <div
-                              style={{ fontSize: "0.75rem", color: "#6b7280" }}
-                            >
-                              {item.description}
-                            </div>
-                          )}
-                        </div>
+                  {/* Items */}
+                  {order.items.map((item, index) => {
+                    const subtotal =
+                      item.price * item.quantity - (item.discount || 0);
+                    // Apply global discount if present
+                    const subtotalAfterGlobal = order.discountPercent
+                      ? subtotal * (1 - order.discountPercent / 100)
+                      : subtotal;
+                    const vatAmount = subtotalAfterGlobal * (item.vat / 100);
+                    const total = subtotalAfterGlobal + vatAmount;
 
-                        {/* Quantity */}
-                        <div
-                          style={{ textAlign: "right", alignSelf: "center" }}
-                        >
-                          {item.quantity}
-                        </div>
-
-                        {/* Unit Price */}
-                        <div
-                          style={{ textAlign: "right", alignSelf: "center" }}
-                        >
-                          €{item.price.toFixed(2)}
-                        </div>
-
-                        {/* Discount */}
-                        <div
-                          style={{
-                            textAlign: "right",
-                            alignSelf: "center",
-                            color:
-                              item.discount && item.discount > 0
-                                ? "#dc2626"
-                                : "#9ca3af",
-                          }}
-                        >
-                          {item.discount && item.discount > 0
-                            ? `-€${item.discount.toFixed(2)}`
-                            : "—"}
-                        </div>
-
-                        {/* Subtotal */}
-                        <div
-                          style={{
-                            textAlign: "right",
-                            alignSelf: "center",
-                            fontWeight: "500",
-                          }}
-                        >
-                          €{subtotal.toFixed(2)}
-                        </div>
-
-                        {/* VAT */}
-                        <div
-                          style={{ textAlign: "right", alignSelf: "center" }}
-                        >
-                          <div style={{ fontSize: "0.7rem", color: "#6b7280" }}>
-                            ({item.vat}%)
-                          </div>
-                          <div>€{vatAmount.toFixed(2)}</div>
-                        </div>
-
-                        {/* Total */}
-                        <div
-                          style={{
-                            textAlign: "right",
-                            alignSelf: "center",
-                            fontWeight: "600",
-                            color: "#1e40af",
-                          }}
-                        >
-                          €{total.toFixed(2)}
-                        </div>
-                      </>
-                    )}
-
-                    {/* Mobile Layout - Vertical Card */}
-                    {isMobile && (
+                    return (
                       <div
+                        key={index}
                         style={{
-                          display: "flex",
-                          flexDirection: "column",
-                          gap: "0.625rem",
+                          display: isMobile ? "block" : "grid",
+                          gridTemplateColumns: isMobile
+                            ? undefined
+                            : "3fr 1fr 1fr 1fr 1fr 1fr 1fr",
+                          gap: isMobile ? undefined : "0.5rem",
+                          padding: isMobile ? "0.75rem" : "1rem",
+                          borderBottom:
+                            index < order.items.length - 1
+                              ? "1px solid #f3f4f6"
+                              : "none",
+                          fontSize: isMobile ? "0.875rem" : "0.875rem",
                         }}
                       >
-                        {/* Product Name & Code */}
-                        <div>
-                          <div
-                            style={{
-                              fontWeight: "600",
-                              marginBottom: "0.25rem",
-                              fontSize: "0.9375rem",
-                            }}
-                          >
-                            {item.productName || item.articleCode}
-                          </div>
-                          <div
-                            style={{
-                              fontSize: "0.8125rem",
-                              color: "#9ca3af",
-                              marginBottom: "0.25rem",
-                            }}
-                          >
-                            Cod: {item.articleCode}
-                          </div>
-                          {item.description && (
-                            <div
-                              style={{
-                                fontSize: "0.8125rem",
-                                color: "#6b7280",
-                              }}
-                            >
-                              {item.description}
+                        {/* Desktop Layout - Grid */}
+                        {!isMobile && (
+                          <>
+                            {/* Product Name & Code */}
+                            <div>
+                              <div
+                                style={{
+                                  fontWeight: "600",
+                                  marginBottom: "0.25rem",
+                                }}
+                              >
+                                {item.productName || item.articleCode}
+                              </div>
+                              {/* Only show "Cod:" if it's different from productName */}
+                              {item.productName &&
+                                item.productName !== item.articleCode && (
+                                  <div
+                                    style={{
+                                      fontSize: "0.75rem",
+                                      color: "#9ca3af",
+                                      marginBottom: "0.25rem",
+                                    }}
+                                  >
+                                    Cod: {item.articleCode}
+                                  </div>
+                                )}
+                              {item.description && (
+                                <div
+                                  style={{
+                                    fontSize: "0.75rem",
+                                    color: "#6b7280",
+                                  }}
+                                >
+                                  {item.description}
+                                </div>
+                              )}
+                              {/* Warehouse badge */}
+                              {item.warehouseQuantity &&
+                                item.warehouseQuantity > 0 && (
+                                  <div
+                                    style={{
+                                      fontSize: "0.75rem",
+                                      color: "#059669",
+                                      fontWeight: "600",
+                                      marginTop: "0.25rem",
+                                    }}
+                                  >
+                                    🏪 {item.warehouseQuantity} pz da magazzino
+                                  </div>
+                                )}
                             </div>
-                          )}
-                        </div>
 
-                        {/* Details Grid - 2 columns */}
-                        <div
-                          style={{
-                            display: "grid",
-                            gridTemplateColumns: "1fr 1fr",
-                            gap: "0.5rem",
-                            fontSize: "0.875rem",
-                          }}
-                        >
-                          {/* Quantity */}
-                          <div>
+                            {/* Quantity */}
                             <div
                               style={{
-                                fontSize: "0.6875rem",
-                                color: "#6b7280",
-                                fontWeight: "600",
-                                textTransform: "uppercase",
-                                marginBottom: "0.125rem",
+                                textAlign: "right",
+                                alignSelf: "center",
                               }}
                             >
-                              Quantità
-                            </div>
-                            <div style={{ fontWeight: "500" }}>
                               {item.quantity}
                             </div>
-                          </div>
 
-                          {/* Unit Price */}
-                          <div>
+                            {/* Unit Price */}
                             <div
                               style={{
-                                fontSize: "0.6875rem",
-                                color: "#6b7280",
-                                fontWeight: "600",
-                                textTransform: "uppercase",
-                                marginBottom: "0.125rem",
+                                textAlign: "right",
+                                alignSelf: "center",
                               }}
                             >
-                              Prezzo Unit.
-                            </div>
-                            <div style={{ fontWeight: "500" }}>
                               €{item.price.toFixed(2)}
                             </div>
-                          </div>
 
-                          {/* Discount */}
-                          <div>
+                            {/* Discount */}
                             <div
                               style={{
-                                fontSize: "0.6875rem",
-                                color: "#6b7280",
-                                fontWeight: "600",
-                                textTransform: "uppercase",
-                                marginBottom: "0.125rem",
-                              }}
-                            >
-                              Sconto
-                            </div>
-                            <div
-                              style={{
-                                fontWeight: "500",
+                                textAlign: "right",
+                                alignSelf: "center",
                                 color:
                                   item.discount && item.discount > 0
                                     ? "#dc2626"
@@ -943,127 +860,281 @@ export function PendingOrdersPage() {
                                 ? `-€${item.discount.toFixed(2)}`
                                 : "—"}
                             </div>
-                          </div>
 
-                          {/* Subtotal */}
-                          <div>
+                            {/* Subtotal */}
                             <div
                               style={{
-                                fontSize: "0.6875rem",
-                                color: "#6b7280",
-                                fontWeight: "600",
-                                textTransform: "uppercase",
-                                marginBottom: "0.125rem",
+                                textAlign: "right",
+                                alignSelf: "center",
+                                fontWeight: "500",
                               }}
                             >
-                              Subtotale
-                            </div>
-                            <div style={{ fontWeight: "600" }}>
                               €{subtotal.toFixed(2)}
                             </div>
-                          </div>
 
-                          {/* VAT */}
-                          <div>
+                            {/* VAT */}
                             <div
                               style={{
-                                fontSize: "0.6875rem",
-                                color: "#6b7280",
-                                fontWeight: "600",
-                                textTransform: "uppercase",
-                                marginBottom: "0.125rem",
+                                textAlign: "right",
+                                alignSelf: "center",
                               }}
                             >
-                              IVA ({item.vat}%)
+                              <div
+                                style={{ fontSize: "0.7rem", color: "#6b7280" }}
+                              >
+                                ({item.vat}%)
+                              </div>
+                              <div>€{vatAmount.toFixed(2)}</div>
                             </div>
-                            <div style={{ fontWeight: "500" }}>
-                              €{vatAmount.toFixed(2)}
-                            </div>
-                          </div>
 
-                          {/* Total */}
-                          <div>
+                            {/* Total */}
                             <div
                               style={{
-                                fontSize: "0.6875rem",
-                                color: "#6b7280",
+                                textAlign: "right",
+                                alignSelf: "center",
                                 fontWeight: "600",
-                                textTransform: "uppercase",
-                                marginBottom: "0.125rem",
-                              }}
-                            >
-                              Totale
-                            </div>
-                            <div
-                              style={{
-                                fontWeight: "700",
                                 color: "#1e40af",
-                                fontSize: "1rem",
                               }}
                             >
                               €{total.toFixed(2)}
                             </div>
+                          </>
+                        )}
+
+                        {/* Mobile Layout - Vertical Card */}
+                        {isMobile && (
+                          <div
+                            style={{
+                              display: "flex",
+                              flexDirection: "column",
+                              gap: "0.625rem",
+                            }}
+                          >
+                            {/* Product Name & Code */}
+                            <div>
+                              <div
+                                style={{
+                                  fontWeight: "600",
+                                  marginBottom: "0.25rem",
+                                  fontSize: "0.9375rem",
+                                }}
+                              >
+                                {item.productName || item.articleCode}
+                              </div>
+                              {/* Only show "Cod:" if it's different from productName */}
+                              {item.productName &&
+                                item.productName !== item.articleCode && (
+                                  <div
+                                    style={{
+                                      fontSize: "0.8125rem",
+                                      color: "#9ca3af",
+                                      marginBottom: "0.25rem",
+                                    }}
+                                  >
+                                    Cod: {item.articleCode}
+                                  </div>
+                                )}
+                              {item.description && (
+                                <div
+                                  style={{
+                                    fontSize: "0.8125rem",
+                                    color: "#6b7280",
+                                  }}
+                                >
+                                  {item.description}
+                                </div>
+                              )}
+                              {/* Warehouse badge */}
+                              {item.warehouseQuantity &&
+                                item.warehouseQuantity > 0 && (
+                                  <div
+                                    style={{
+                                      fontSize: "0.8125rem",
+                                      color: "#059669",
+                                      fontWeight: "600",
+                                      marginTop: "0.25rem",
+                                    }}
+                                  >
+                                    🏪 {item.warehouseQuantity} pz da magazzino
+                                  </div>
+                                )}
+                            </div>
+
+                            {/* Details Grid - 2 columns */}
+                            <div
+                              style={{
+                                display: "grid",
+                                gridTemplateColumns: "1fr 1fr",
+                                gap: "0.5rem",
+                                fontSize: "0.875rem",
+                              }}
+                            >
+                              {/* Quantity */}
+                              <div>
+                                <div
+                                  style={{
+                                    fontSize: "0.6875rem",
+                                    color: "#6b7280",
+                                    fontWeight: "600",
+                                    textTransform: "uppercase",
+                                    marginBottom: "0.125rem",
+                                  }}
+                                >
+                                  Quantità
+                                </div>
+                                <div style={{ fontWeight: "500" }}>
+                                  {item.quantity}
+                                </div>
+                              </div>
+
+                              {/* Unit Price */}
+                              <div>
+                                <div
+                                  style={{
+                                    fontSize: "0.6875rem",
+                                    color: "#6b7280",
+                                    fontWeight: "600",
+                                    textTransform: "uppercase",
+                                    marginBottom: "0.125rem",
+                                  }}
+                                >
+                                  Prezzo Unit.
+                                </div>
+                                <div style={{ fontWeight: "500" }}>
+                                  €{item.price.toFixed(2)}
+                                </div>
+                              </div>
+
+                              {/* Discount */}
+                              <div>
+                                <div
+                                  style={{
+                                    fontSize: "0.6875rem",
+                                    color: "#6b7280",
+                                    fontWeight: "600",
+                                    textTransform: "uppercase",
+                                    marginBottom: "0.125rem",
+                                  }}
+                                >
+                                  Sconto
+                                </div>
+                                <div
+                                  style={{
+                                    fontWeight: "500",
+                                    color:
+                                      item.discount && item.discount > 0
+                                        ? "#dc2626"
+                                        : "#9ca3af",
+                                  }}
+                                >
+                                  {item.discount && item.discount > 0
+                                    ? `-€${item.discount.toFixed(2)}`
+                                    : "—"}
+                                </div>
+                              </div>
+
+                              {/* Subtotal */}
+                              <div>
+                                <div
+                                  style={{
+                                    fontSize: "0.6875rem",
+                                    color: "#6b7280",
+                                    fontWeight: "600",
+                                    textTransform: "uppercase",
+                                    marginBottom: "0.125rem",
+                                  }}
+                                >
+                                  Subtotale
+                                </div>
+                                <div style={{ fontWeight: "600" }}>
+                                  €{subtotal.toFixed(2)}
+                                </div>
+                              </div>
+
+                              {/* VAT */}
+                              <div>
+                                <div
+                                  style={{
+                                    fontSize: "0.6875rem",
+                                    color: "#6b7280",
+                                    fontWeight: "600",
+                                    textTransform: "uppercase",
+                                    marginBottom: "0.125rem",
+                                  }}
+                                >
+                                  IVA ({item.vat}%)
+                                </div>
+                                <div style={{ fontWeight: "500" }}>
+                                  €{vatAmount.toFixed(2)}
+                                </div>
+                              </div>
+
+                              {/* Total */}
+                              <div>
+                                <div
+                                  style={{
+                                    fontSize: "0.6875rem",
+                                    color: "#6b7280",
+                                    fontWeight: "600",
+                                    textTransform: "uppercase",
+                                    marginBottom: "0.125rem",
+                                  }}
+                                >
+                                  Totale
+                                </div>
+                                <div
+                                  style={{
+                                    fontWeight: "700",
+                                    color: "#1e40af",
+                                    fontSize: "1rem",
+                                  }}
+                                >
+                                  €{total.toFixed(2)}
+                                </div>
+                              </div>
+                            </div>
                           </div>
-                        </div>
+                        )}
                       </div>
-                    )}
-                  </div>
-                );
-              })}
+                    );
+                  })}
 
-              {/* Order Totals */}
-              <div
-                style={{
-                  backgroundColor: "#f9fafb",
-                  padding: isMobile ? "0.75rem" : "1rem",
-                  borderTop: "2px solid #e5e7eb",
-                }}
-              >
-                {/* Calculate totals */}
-                {(() => {
-                  const orderSubtotal = order.items.reduce(
-                    (sum, item) =>
-                      sum + item.price * item.quantity - (item.discount || 0),
-                    0,
-                  );
+                  {/* Order Totals */}
+                  <div
+                    style={{
+                      backgroundColor: "#f9fafb",
+                      padding: isMobile ? "0.75rem" : "1rem",
+                      borderTop: "2px solid #e5e7eb",
+                    }}
+                  >
+                    {/* Calculate totals */}
+                    {(() => {
+                      const orderSubtotal = order.items.reduce(
+                        (sum, item) =>
+                          sum +
+                          item.price * item.quantity -
+                          (item.discount || 0),
+                        0,
+                      );
 
-                  // Apply global discount if present
-                  const globalDiscountAmount = order.discountPercent
-                    ? (orderSubtotal * order.discountPercent) / 100
-                    : 0;
-                  const subtotalAfterGlobalDiscount =
-                    orderSubtotal - globalDiscountAmount;
+                      // Apply global discount if present
+                      const globalDiscountAmount = order.discountPercent
+                        ? (orderSubtotal * order.discountPercent) / 100
+                        : 0;
+                      const subtotalAfterGlobalDiscount =
+                        orderSubtotal - globalDiscountAmount;
 
-                  const orderVAT = order.items.reduce((sum, item) => {
-                    const itemSubtotal =
-                      item.price * item.quantity - (item.discount || 0);
-                    const itemAfterGlobalDiscount = order.discountPercent
-                      ? itemSubtotal * (1 - order.discountPercent / 100)
-                      : itemSubtotal;
-                    return sum + itemAfterGlobalDiscount * (item.vat / 100);
-                  }, 0);
-                  const orderTotal = subtotalAfterGlobalDiscount + orderVAT;
+                      const orderVAT = order.items.reduce((sum, item) => {
+                        const itemSubtotal =
+                          item.price * item.quantity - (item.discount || 0);
+                        const itemAfterGlobalDiscount = order.discountPercent
+                          ? itemSubtotal * (1 - order.discountPercent / 100)
+                          : itemSubtotal;
+                        return sum + itemAfterGlobalDiscount * (item.vat / 100);
+                      }, 0);
+                      const orderTotal = subtotalAfterGlobalDiscount + orderVAT;
 
-                  return (
-                    <>
-                      <div
-                        style={{
-                          display: "flex",
-                          justifyContent: "space-between",
-                          marginBottom: "0.5rem",
-                          fontSize: isMobile ? "0.8125rem" : "0.875rem",
-                        }}
-                      >
-                        <span style={{ color: "#6b7280" }}>
-                          Subtotale (senza IVA):
-                        </span>
-                        <span style={{ fontWeight: "500" }}>
-                          €{orderSubtotal.toFixed(2)}
-                        </span>
-                      </div>
-
-                      {/* Show global discount if present */}
-                      {order.discountPercent && order.discountPercent > 0 && (
+                      return (
                         <>
                           <div
                             style={{
@@ -1073,16 +1144,62 @@ export function PendingOrdersPage() {
                               fontSize: isMobile ? "0.8125rem" : "0.875rem",
                             }}
                           >
-                            <span style={{ color: "#dc2626" }}>
-                              Sconto globale ({order.discountPercent.toFixed(2)}
-                              %):
+                            <span style={{ color: "#6b7280" }}>
+                              Subtotale (senza IVA):
                             </span>
-                            <span
-                              style={{ fontWeight: "500", color: "#dc2626" }}
-                            >
-                              -€{globalDiscountAmount.toFixed(2)}
+                            <span style={{ fontWeight: "500" }}>
+                              €{orderSubtotal.toFixed(2)}
                             </span>
                           </div>
+
+                          {/* Show global discount if present */}
+                          {order.discountPercent &&
+                            order.discountPercent > 0 && (
+                              <>
+                                <div
+                                  style={{
+                                    display: "flex",
+                                    justifyContent: "space-between",
+                                    marginBottom: "0.5rem",
+                                    fontSize: isMobile
+                                      ? "0.8125rem"
+                                      : "0.875rem",
+                                  }}
+                                >
+                                  <span style={{ color: "#dc2626" }}>
+                                    Sconto globale (
+                                    {order.discountPercent.toFixed(2)}
+                                    %):
+                                  </span>
+                                  <span
+                                    style={{
+                                      fontWeight: "500",
+                                      color: "#dc2626",
+                                    }}
+                                  >
+                                    -€{globalDiscountAmount.toFixed(2)}
+                                  </span>
+                                </div>
+                                <div
+                                  style={{
+                                    display: "flex",
+                                    justifyContent: "space-between",
+                                    marginBottom: "0.5rem",
+                                    fontSize: isMobile
+                                      ? "0.8125rem"
+                                      : "0.875rem",
+                                  }}
+                                >
+                                  <span style={{ color: "#6b7280" }}>
+                                    Subtotale scontato:
+                                  </span>
+                                  <span style={{ fontWeight: "500" }}>
+                                    €{subtotalAfterGlobalDiscount.toFixed(2)}
+                                  </span>
+                                </div>
+                              </>
+                            )}
+
                           <div
                             style={{
                               display: "flex",
@@ -1092,48 +1209,38 @@ export function PendingOrdersPage() {
                             }}
                           >
                             <span style={{ color: "#6b7280" }}>
-                              Subtotale scontato:
+                              IVA Totale:
                             </span>
                             <span style={{ fontWeight: "500" }}>
-                              €{subtotalAfterGlobalDiscount.toFixed(2)}
+                              €{orderVAT.toFixed(2)}
+                            </span>
+                          </div>
+                          <div
+                            style={{
+                              display: "flex",
+                              justifyContent: "space-between",
+                              paddingTop: isMobile ? "0.625rem" : "0.75rem",
+                              borderTop: "2px solid #3b82f6",
+                              fontSize: isMobile ? "1rem" : "1.125rem",
+                            }}
+                          >
+                            <span
+                              style={{ fontWeight: "700", color: "#1e40af" }}
+                            >
+                              TOTALE (con IVA):
+                            </span>
+                            <span
+                              style={{ fontWeight: "700", color: "#1e40af" }}
+                            >
+                              €{orderTotal.toFixed(2)}
                             </span>
                           </div>
                         </>
-                      )}
-
-                      <div
-                        style={{
-                          display: "flex",
-                          justifyContent: "space-between",
-                          marginBottom: "0.5rem",
-                          fontSize: isMobile ? "0.8125rem" : "0.875rem",
-                        }}
-                      >
-                        <span style={{ color: "#6b7280" }}>IVA Totale:</span>
-                        <span style={{ fontWeight: "500" }}>
-                          €{orderVAT.toFixed(2)}
-                        </span>
-                      </div>
-                      <div
-                        style={{
-                          display: "flex",
-                          justifyContent: "space-between",
-                          paddingTop: isMobile ? "0.625rem" : "0.75rem",
-                          borderTop: "2px solid #3b82f6",
-                          fontSize: isMobile ? "1rem" : "1.125rem",
-                        }}
-                      >
-                        <span style={{ fontWeight: "700", color: "#1e40af" }}>
-                          TOTALE (con IVA):
-                        </span>
-                        <span style={{ fontWeight: "700", color: "#1e40af" }}>
-                          €{orderTotal.toFixed(2)}
-                        </span>
-                      </div>
-                    </>
-                  );
-                })()}
-              </div>
+                      );
+                    })()}
+                  </div>
+                </>
+              )}
             </div>
 
             {order.status === "error" && order.errorMessage && (
