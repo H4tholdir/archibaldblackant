@@ -68,7 +68,11 @@ export async function reserveWarehouseItems(
   }
 
   // 🔧 FIX #2: All validations passed, now make the changes
-  for (const { warehouseItemId, warehouseItem, requestedQty } of itemsToReserve) {
+  for (const {
+    warehouseItemId,
+    warehouseItem,
+    requestedQty,
+  } of itemsToReserve) {
     await db.warehouseItems.update(warehouseItemId, {
       reservedForOrder: `pending-${orderId}`,
     });
@@ -182,6 +186,40 @@ export async function returnWarehouseItemsFromSold(
   });
 
   return soldItems.length;
+}
+
+/**
+ * Return specific warehouse items by their IDs
+ * Useful when user wants to return only some items from an order
+ *
+ * @param itemIds - Array of warehouse item IDs to return
+ * @returns Number of items returned to available state
+ */
+export async function returnSpecificWarehouseItems(
+  itemIds: number[],
+): Promise<number> {
+  console.log("[Warehouse] Returning specific items", {
+    itemIds,
+  });
+
+  let returnedCount = 0;
+
+  for (const itemId of itemIds) {
+    const item = await db.warehouseItems.get(itemId);
+    if (item && item.soldInOrder) {
+      await db.warehouseItems.update(itemId, {
+        soldInOrder: undefined,
+      });
+      returnedCount++;
+    }
+  }
+
+  console.log("[Warehouse] ✅ Specific items returned to available", {
+    itemIds,
+    returnedCount,
+  });
+
+  return returnedCount;
 }
 
 /**

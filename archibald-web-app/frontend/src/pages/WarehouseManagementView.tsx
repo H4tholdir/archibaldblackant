@@ -2,7 +2,7 @@ import { useState } from "react";
 import { WarehouseUpload } from "../components/WarehouseUpload";
 import { WarehouseStatsWidget } from "../components/WarehouseStatsWidget";
 import { WarehouseInventoryView } from "../components/WarehouseInventoryView";
-import { handleOrderReturn } from "../services/warehouse-order-integration";
+import { returnSpecificWarehouseItems } from "../services/warehouse-order-integration";
 import { toastService } from "../services/toast.service";
 import { db } from "../db/schema";
 
@@ -22,6 +22,9 @@ export default function WarehouseManagementView() {
       boxName: string;
     }>
   >([]);
+  const [selectedItemIds, setSelectedItemIds] = useState<Set<number>>(
+    new Set(),
+  );
   const [returnReason, setReturnReason] = useState<
     "modification" | "customer_return" | "manual_correction"
   >("customer_return");
@@ -46,15 +49,18 @@ export default function WarehouseManagementView() {
         return;
       }
 
-      setPreviewItems(
-        items.map((item) => ({
-          id: item.id!,
-          articleCode: item.articleCode,
-          description: item.description,
-          quantity: item.quantity,
-          boxName: item.boxName,
-        })),
-      );
+      const mappedItems = items.map((item) => ({
+        id: item.id!,
+        articleCode: item.articleCode,
+        description: item.description,
+        quantity: item.quantity,
+        boxName: item.boxName,
+      }));
+
+      setPreviewItems(mappedItems);
+
+      // Automatically select all items
+      setSelectedItemIds(new Set(mappedItems.map((item) => item.id)));
 
       toastService.success(`Trovati ${items.length} articoli da magazzino`);
     } catch (error) {
@@ -71,17 +77,17 @@ export default function WarehouseManagementView() {
       return;
     }
 
-    if (previewItems.length === 0) {
-      toastService.warning("Nessun articolo da restituire");
+    if (selectedItemIds.size === 0) {
+      toastService.warning("Seleziona almeno un articolo da restituire");
       return;
     }
 
     setProcessing(true);
 
     try {
-      const itemsReturned = await handleOrderReturn(
-        orderId.trim(),
-        returnReason,
+      // Return only selected items
+      const itemsReturned = await returnSpecificWarehouseItems(
+        Array.from(selectedItemIds),
       );
 
       toastService.success(
@@ -91,12 +97,34 @@ export default function WarehouseManagementView() {
       // Reset form
       setOrderId("");
       setPreviewItems([]);
+      setSelectedItemIds(new Set());
     } catch (error) {
       console.error("[WarehouseReturns] Return failed:", error);
       toastService.error("Errore durante il reso degli articoli");
     } finally {
       setProcessing(false);
     }
+  };
+
+  // Toggle selection of a single item
+  const handleToggleItem = (itemId: number) => {
+    const newSelected = new Set(selectedItemIds);
+    if (newSelected.has(itemId)) {
+      newSelected.delete(itemId);
+    } else {
+      newSelected.add(itemId);
+    }
+    setSelectedItemIds(newSelected);
+  };
+
+  // Select all items
+  const handleSelectAll = () => {
+    setSelectedItemIds(new Set(previewItems.map((item) => item.id)));
+  };
+
+  // Deselect all items
+  const handleDeselectAll = () => {
+    setSelectedItemIds(new Set());
   };
 
   return (
@@ -288,15 +316,59 @@ export default function WarehouseManagementView() {
               marginBottom: "1.5rem",
             }}
           >
-            <h3
+            <div
               style={{
-                fontSize: "1.125rem",
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
                 marginBottom: "1rem",
-                color: "#92400e",
               }}
             >
-              2. Articoli da Restituire ({previewItems.length})
-            </h3>
+              <h3
+                style={{
+                  fontSize: "1.125rem",
+                  margin: 0,
+                  color: "#92400e",
+                }}
+              >
+                2. Articoli da Restituire ({selectedItemIds.size}/
+                {previewItems.length} selezionati)
+              </h3>
+              <div style={{ display: "flex", gap: "0.5rem" }}>
+                <button
+                  type="button"
+                  onClick={handleSelectAll}
+                  style={{
+                    padding: "0.5rem 1rem",
+                    background: "#10b981",
+                    color: "white",
+                    border: "none",
+                    borderRadius: "4px",
+                    fontSize: "0.875rem",
+                    fontWeight: "600",
+                    cursor: "pointer",
+                  }}
+                >
+                  Seleziona tutti
+                </button>
+                <button
+                  type="button"
+                  onClick={handleDeselectAll}
+                  style={{
+                    padding: "0.5rem 1rem",
+                    background: "#6b7280",
+                    color: "white",
+                    border: "none",
+                    borderRadius: "4px",
+                    fontSize: "0.875rem",
+                    fontWeight: "600",
+                    cursor: "pointer",
+                  }}
+                >
+                  Deseleziona tutti
+                </button>
+              </div>
+            </div>
 
             <table
               style={{
@@ -314,6 +386,16 @@ export default function WarehouseManagementView() {
                     borderBottom: "2px solid #f59e0b",
                   }}
                 >
+                  <th
+                    style={{
+                      padding: "0.75rem",
+                      textAlign: "center",
+                      fontWeight: "600",
+                      width: "50px",
+                    }}
+                  >
+                    ✓
+                  </th>
                   <th
                     style={{
                       padding: "0.75rem",
@@ -358,6 +440,23 @@ export default function WarehouseManagementView() {
                     key={item.id}
                     style={{ borderBottom: "1px solid #f3f4f6" }}
                   >
+                    <td
+                      style={{
+                        padding: "0.75rem",
+                        textAlign: "center",
+                      }}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={selectedItemIds.has(item.id)}
+                        onChange={() => handleToggleItem(item.id)}
+                        style={{
+                          width: "18px",
+                          height: "18px",
+                          cursor: "pointer",
+                        }}
+                      />
+                    </td>
                     <td
                       style={{
                         padding: "0.75rem",
@@ -411,29 +510,40 @@ export default function WarehouseManagementView() {
                   fontSize: "0.875rem",
                 }}
               >
-                ⚠️ ATTENZIONE: Questa operazione rilascerà {previewItems.length}{" "}
-                articoli dal magazzino, rendendoli nuovamente disponibili per
-                altri ordini.
+                ⚠️ ATTENZIONE: Questa operazione rilascerà{" "}
+                {selectedItemIds.size}{" "}
+                {selectedItemIds.size === 1 ? "articolo" : "articoli"} dal
+                magazzino, rendendoli nuovamente disponibili per altri ordini.
               </p>
             </div>
 
             <button
               onClick={handleReturn}
-              disabled={processing}
+              disabled={processing || selectedItemIds.size === 0}
               style={{
                 marginTop: "1rem",
                 padding: "0.75rem 1.5rem",
-                background: processing ? "#d1d5db" : "#dc2626",
+                background:
+                  processing || selectedItemIds.size === 0
+                    ? "#d1d5db"
+                    : "#dc2626",
                 color: "white",
                 border: "none",
                 borderRadius: "4px",
                 fontSize: "1rem",
                 fontWeight: "600",
-                cursor: processing ? "not-allowed" : "pointer",
+                cursor:
+                  processing || selectedItemIds.size === 0
+                    ? "not-allowed"
+                    : "pointer",
                 width: "100%",
               }}
             >
-              {processing ? "Elaborazione..." : "Conferma Reso"}
+              {processing
+                ? "Elaborazione..."
+                : selectedItemIds.size === 0
+                  ? "Seleziona articoli"
+                  : "Conferma Reso"}
             </button>
           </div>
         )}
