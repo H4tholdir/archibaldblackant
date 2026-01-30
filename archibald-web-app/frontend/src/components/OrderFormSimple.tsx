@@ -796,18 +796,36 @@ export default function OrderFormSimple() {
 
     // If fully from warehouse, create a single order item without variants
     if (isFullyFromWarehouse) {
-      // Get price for the base product (use first available variant or product code)
-      const productCode = selectedProduct.article || selectedProduct.name;
-      const price = await priceService.getPriceByArticleId(productCode);
+      // Find the smallest variant to use for pricing
+      // (since we're not ordering, we just need a valid variant for price/VAT)
+      const variants = await db.productVariants
+        .where("productId")
+        .equals(selectedProduct.id)
+        .toArray();
+
+      if (!variants || variants.length === 0) {
+        toastService.error(
+          `Nessuna variante disponibile per ${selectedProduct.name}`,
+        );
+        return;
+      }
+
+      // Use the smallest variant (lowest minQty)
+      const smallestVariant = variants.reduce((min, curr) =>
+        curr.minQty < min.minQty ? curr : min,
+      );
+
+      const variantCode = smallestVariant.variantId;
+      const price = await priceService.getPriceByArticleId(variantCode);
 
       if (!price) {
-        toastService.error(`Prezzo non disponibile per ${productCode}`);
+        toastService.error(`Prezzo non disponibile per ${variantCode}`);
         return;
       }
 
       // Get VAT rate
-      const productData = await db.products.get(productCode);
-      const vatRate = normalizeVatRate(productData?.vat);
+      const variantProduct = await db.products.get(variantCode);
+      const vatRate = normalizeVatRate(variantProduct?.vat);
 
       const lineSubtotal = price * requestedQty - disc;
       const lineVat = lineSubtotal * (vatRate / 100);
@@ -815,8 +833,8 @@ export default function OrderFormSimple() {
 
       newItems.push({
         id: crypto.randomUUID(),
-        productId: productCode,
-        article: productCode,
+        productId: variantCode,
+        article: variantCode,
         productName: selectedProduct.name,
         description: selectedProduct.description || "",
         quantity: requestedQty,
