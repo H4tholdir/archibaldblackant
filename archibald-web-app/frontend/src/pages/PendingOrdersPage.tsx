@@ -14,6 +14,17 @@ export function PendingOrdersPage() {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
 
+  // Mobile responsiveness
+  const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
+
+  useEffect(() => {
+    const handleResize = () => {
+      setIsMobile(window.innerWidth < 768);
+    };
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
+
   useEffect(() => {
     loadOrders();
   }, []);
@@ -184,7 +195,13 @@ export function PendingOrdersPage() {
 
   if (loading) {
     return (
-      <div style={{ padding: "2rem", textAlign: "center" }}>
+      <div
+        style={{
+          padding: isMobile ? "1.5rem" : "2rem",
+          textAlign: "center",
+          fontSize: isMobile ? "0.9375rem" : "1rem",
+        }}
+      >
         Caricamento ordini in attesa...
       </div>
     );
@@ -194,94 +211,139 @@ export function PendingOrdersPage() {
     return (
       <div
         style={{
-          padding: "2rem",
+          padding: isMobile ? "1.5rem" : "2rem",
           textAlign: "center",
           color: "#6b7280",
           backgroundColor: "#f9fafb",
           borderRadius: "8px",
           border: "1px dashed #d1d5db",
-          margin: "2rem",
+          margin: isMobile ? "1rem" : "2rem",
         }}
       >
-        <h2 style={{ fontSize: "1.5rem", marginBottom: "0.5rem" }}>
+        <h2
+          style={{
+            fontSize: isMobile ? "1.25rem" : "1.5rem",
+            marginBottom: "0.5rem",
+          }}
+        >
           Nessun ordine in attesa
         </h2>
-        <p>Gli ordini creati appariranno qui prima dell'invio.</p>
+        <p style={{ fontSize: isMobile ? "0.875rem" : "1rem" }}>
+          Gli ordini creati appariranno qui prima dell'invio.
+        </p>
       </div>
     );
   }
 
   return (
-    <div style={{ padding: "2rem" }}>
+    <div style={{ padding: isMobile ? "1rem" : "2rem" }}>
       <div
         style={{
           display: "flex",
+          flexDirection: isMobile ? "column" : "row",
           justifyContent: "space-between",
-          alignItems: "center",
-          marginBottom: "1.5rem",
+          alignItems: isMobile ? "stretch" : "center",
+          marginBottom: isMobile ? "1rem" : "1.5rem",
+          gap: isMobile ? "1rem" : "0",
         }}
       >
-        <h1 style={{ fontSize: "1.875rem", fontWeight: "700" }}>
+        <h1
+          style={{
+            fontSize: isMobile ? "1.5rem" : "1.875rem",
+            fontWeight: "700",
+          }}
+        >
           Ordini in Attesa ({orders.length})
         </h1>
 
-        <div style={{ display: "flex", gap: "0.75rem" }}>
+        <div
+          style={{
+            display: "flex",
+            flexDirection: isMobile ? "column" : "row",
+            gap: isMobile ? "0.5rem" : "0.75rem",
+          }}
+        >
           <button
             onClick={handleDownloadSelectedPDF}
             disabled={selectedOrderIds.size === 0}
             style={{
-              padding: "0.75rem 1.25rem",
+              padding: isMobile ? "0.875rem 1rem" : "0.75rem 1.25rem",
               backgroundColor:
                 selectedOrderIds.size === 0 ? "#e5e7eb" : "#3b82f6",
               color: selectedOrderIds.size === 0 ? "#9ca3af" : "white",
               border: "none",
               borderRadius: "8px",
-              fontSize: "0.95rem",
+              fontSize: isMobile ? "1rem" : "0.95rem",
               fontWeight: "600",
               cursor: selectedOrderIds.size === 0 ? "not-allowed" : "pointer",
+              minHeight: "44px", // Touch target
             }}
             title="Esporta ordini selezionati in PDF"
           >
-            📄 Esporta PDF ({selectedOrderIds.size})
+            📄 {isMobile ? "Esporta PDF" : "Esporta PDF"} (
+            {selectedOrderIds.size})
           </button>
           <button
             onClick={handleSubmitOrders}
             disabled={selectedOrderIds.size === 0 || submitting}
             style={{
-              padding: "0.75rem 1.5rem",
+              padding: isMobile ? "0.875rem 1rem" : "0.75rem 1.5rem",
               backgroundColor:
                 selectedOrderIds.size === 0 ? "#d1d5db" : "#22c55e",
               color: "white",
               border: "none",
               borderRadius: "8px",
-              fontSize: "1rem",
+              fontSize: isMobile ? "1rem" : "1rem",
               fontWeight: "600",
               cursor: selectedOrderIds.size === 0 ? "not-allowed" : "pointer",
+              minHeight: "44px", // Touch target
             }}
           >
             {submitting
-              ? "Invio in corso..."
-              : `Invia Ordini Selezionati (${selectedOrderIds.size})`}
+              ? "Invio..."
+              : isMobile
+                ? `Invia (${selectedOrderIds.size})`
+                : `Invia Ordini Selezionati (${selectedOrderIds.size})`}
           </button>
         </div>
       </div>
 
       <div
         style={{
-          padding: "1rem",
+          padding: isMobile ? "0.875rem" : "1rem",
           backgroundColor: "#f9fafb",
           borderRadius: "8px",
-          marginBottom: "1rem",
+          marginBottom: isMobile ? "0.75rem" : "1rem",
         }}
       >
-        <label style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+        <label
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: "0.5rem",
+            cursor: "pointer",
+          }}
+        >
           <input
             type="checkbox"
             checked={selectedOrderIds.size === orders.length}
             onChange={handleSelectAll}
-            style={{ width: "1.25rem", height: "1.25rem", cursor: "pointer" }}
+            style={{
+              width: isMobile ? "1.375rem" : "1.25rem",
+              height: isMobile ? "1.375rem" : "1.25rem",
+              cursor: "pointer",
+              minWidth: "22px", // Touch target
+              minHeight: "22px",
+            }}
           />
-          <span style={{ fontWeight: "500" }}>Seleziona Tutti</span>
+          <span
+            style={{
+              fontWeight: "500",
+              fontSize: isMobile ? "1rem" : "0.95rem",
+            }}
+          >
+            Seleziona Tutti
+          </span>
         </label>
       </div>
 
@@ -298,135 +360,301 @@ export function PendingOrdersPage() {
             style={{
               border: "1px solid #e5e7eb",
               borderRadius: "8px",
-              padding: "1.5rem",
+              padding: isMobile ? "1rem" : "1.5rem",
               backgroundColor: "white",
             }}
           >
             <div
               style={{
                 display: "flex",
+                flexDirection: isMobile ? "column" : "row",
                 justifyContent: "space-between",
-                alignItems: "flex-start",
-                marginBottom: "1rem",
+                alignItems: isMobile ? "stretch" : "flex-start",
+                marginBottom: isMobile ? "0.75rem" : "1rem",
+                gap: isMobile ? "0.75rem" : "0",
               }}
             >
+              {/* Checkbox and customer info */}
               <div
-                style={{ display: "flex", alignItems: "center", gap: "1rem" }}
+                style={{
+                  display: "flex",
+                  alignItems: "flex-start",
+                  gap: isMobile ? "0.75rem" : "1rem",
+                }}
               >
                 <input
                   type="checkbox"
                   checked={selectedOrderIds.has(order.id!)}
                   onChange={() => handleSelectOrder(order.id!)}
                   style={{
-                    width: "1.25rem",
-                    height: "1.25rem",
+                    width: isMobile ? "1.375rem" : "1.25rem",
+                    height: isMobile ? "1.375rem" : "1.25rem",
                     cursor: "pointer",
+                    marginTop: "0.125rem",
+                    minWidth: "22px",
+                    minHeight: "22px",
                   }}
                 />
-                <div>
-                  <div style={{ fontWeight: "600", fontSize: "1.125rem" }}>
+                <div style={{ flex: 1 }}>
+                  <div
+                    style={{
+                      fontWeight: "600",
+                      fontSize: isMobile ? "1.0625rem" : "1.125rem",
+                      marginBottom: "0.25rem",
+                    }}
+                  >
                     {order.customerName}
                   </div>
-                  <div style={{ fontSize: "0.875rem", color: "#6b7280" }}>
+                  <div
+                    style={{
+                      fontSize: isMobile ? "0.8125rem" : "0.875rem",
+                      color: "#6b7280",
+                    }}
+                  >
                     Creato: {new Date(order.createdAt).toLocaleString("it-IT")}
                   </div>
+                  {/* Status badge visible on mobile under customer name */}
+                  {isMobile && (
+                    <div
+                      style={{
+                        marginTop: "0.5rem",
+                        display: "inline-block",
+                      }}
+                    >
+                      <div
+                        style={{
+                          padding: "0.375rem 0.875rem",
+                          borderRadius: "9999px",
+                          fontSize: "0.8125rem",
+                          fontWeight: "600",
+                          backgroundColor:
+                            order.status === "pending"
+                              ? "#fef3c7"
+                              : order.status === "error"
+                                ? "#fee2e2"
+                                : "#dbeafe",
+                          color:
+                            order.status === "pending"
+                              ? "#92400e"
+                              : order.status === "error"
+                                ? "#991b1b"
+                                : "#1e40af",
+                          display: "inline-block",
+                        }}
+                      >
+                        {order.status === "pending"
+                          ? "In Attesa"
+                          : order.status === "error"
+                            ? "Errore"
+                            : "In Elaborazione"}
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
 
-              <div
-                style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}
-              >
+              {/* Action buttons - desktop layout */}
+              {!isMobile && (
                 <div
                   style={{
-                    padding: "0.25rem 0.75rem",
-                    borderRadius: "9999px",
-                    fontSize: "0.875rem",
-                    fontWeight: "600",
-                    backgroundColor:
-                      order.status === "pending"
-                        ? "#fef3c7"
-                        : order.status === "error"
-                          ? "#fee2e2"
-                          : "#dbeafe",
-                    color:
-                      order.status === "pending"
-                        ? "#92400e"
-                        : order.status === "error"
-                          ? "#991b1b"
-                          : "#1e40af",
+                    display: "flex",
+                    gap: "0.5rem",
+                    alignItems: "center",
                   }}
                 >
-                  {order.status === "pending"
-                    ? "In Attesa"
-                    : order.status === "error"
-                      ? "Errore"
-                      : "In Elaborazione"}
+                  <div
+                    style={{
+                      padding: "0.25rem 0.75rem",
+                      borderRadius: "9999px",
+                      fontSize: "0.875rem",
+                      fontWeight: "600",
+                      backgroundColor:
+                        order.status === "pending"
+                          ? "#fef3c7"
+                          : order.status === "error"
+                            ? "#fee2e2"
+                            : "#dbeafe",
+                      color:
+                        order.status === "pending"
+                          ? "#92400e"
+                          : order.status === "error"
+                            ? "#991b1b"
+                            : "#1e40af",
+                    }}
+                  >
+                    {order.status === "pending"
+                      ? "In Attesa"
+                      : order.status === "error"
+                        ? "Errore"
+                        : "In Elaborazione"}
+                  </div>
+                  <button
+                    onClick={() => handleDownloadPDF(order)}
+                    style={{
+                      padding: "0.5rem 0.75rem",
+                      background: "#10b981",
+                      color: "white",
+                      border: "none",
+                      borderRadius: "4px",
+                      cursor: "pointer",
+                      fontSize: "0.875rem",
+                      fontWeight: "500",
+                    }}
+                    title="Scarica PDF"
+                  >
+                    📄 PDF
+                  </button>
+                  <button
+                    onClick={() => handlePrintOrder(order)}
+                    style={{
+                      padding: "0.5rem 0.75rem",
+                      background: "#8b5cf6",
+                      color: "white",
+                      border: "none",
+                      borderRadius: "4px",
+                      cursor: "pointer",
+                      fontSize: "0.875rem",
+                      fontWeight: "500",
+                    }}
+                    title="Stampa ordine"
+                  >
+                    🖨️ Stampa
+                  </button>
+                  <button
+                    onClick={() => handleEditOrder(order.id!)}
+                    style={{
+                      padding: "0.5rem 0.75rem",
+                      background: "#3b82f6",
+                      color: "white",
+                      border: "none",
+                      borderRadius: "4px",
+                      cursor: "pointer",
+                      fontSize: "0.875rem",
+                      fontWeight: "500",
+                    }}
+                    title="Modifica ordine"
+                  >
+                    ✏️ Modifica
+                  </button>
+                  <button
+                    onClick={() => handleDeleteOrder(order.id!)}
+                    style={{
+                      padding: "0.5rem 0.75rem",
+                      background: "#dc2626",
+                      color: "white",
+                      border: "none",
+                      borderRadius: "4px",
+                      cursor: "pointer",
+                      fontSize: "0.875rem",
+                      fontWeight: "500",
+                    }}
+                    title="Elimina ordine"
+                  >
+                    🗑️ Elimina
+                  </button>
                 </div>
-                <button
-                  onClick={() => handleDownloadPDF(order)}
+              )}
+
+              {/* Action buttons - mobile layout (grid) */}
+              {isMobile && (
+                <div
                   style={{
-                    padding: "0.5rem 0.75rem",
-                    background: "#10b981",
-                    color: "white",
-                    border: "none",
-                    borderRadius: "4px",
-                    cursor: "pointer",
-                    fontSize: "0.875rem",
-                    fontWeight: "500",
+                    display: "grid",
+                    gridTemplateColumns: "repeat(2, 1fr)",
+                    gap: "0.5rem",
+                    marginTop: "0.5rem",
                   }}
-                  title="Scarica PDF"
                 >
-                  📄 PDF
-                </button>
-                <button
-                  onClick={() => handlePrintOrder(order)}
-                  style={{
-                    padding: "0.5rem 0.75rem",
-                    background: "#8b5cf6",
-                    color: "white",
-                    border: "none",
-                    borderRadius: "4px",
-                    cursor: "pointer",
-                    fontSize: "0.875rem",
-                    fontWeight: "500",
-                  }}
-                  title="Stampa ordine"
-                >
-                  🖨️ Stampa
-                </button>
-                <button
-                  onClick={() => handleEditOrder(order.id!)}
-                  style={{
-                    padding: "0.5rem 0.75rem",
-                    background: "#3b82f6",
-                    color: "white",
-                    border: "none",
-                    borderRadius: "4px",
-                    cursor: "pointer",
-                    fontSize: "0.875rem",
-                    fontWeight: "500",
-                  }}
-                  title="Modifica ordine"
-                >
-                  ✏️ Modifica
-                </button>
-                <button
-                  onClick={() => handleDeleteOrder(order.id!)}
-                  style={{
-                    padding: "0.5rem 0.75rem",
-                    background: "#dc2626",
-                    color: "white",
-                    border: "none",
-                    borderRadius: "4px",
-                    cursor: "pointer",
-                    fontSize: "0.875rem",
-                    fontWeight: "500",
-                  }}
-                  title="Elimina ordine"
-                >
-                  🗑️ Elimina
-                </button>
-              </div>
+                  <button
+                    onClick={() => handleDownloadPDF(order)}
+                    style={{
+                      padding: "0.75rem",
+                      background: "#10b981",
+                      color: "white",
+                      border: "none",
+                      borderRadius: "6px",
+                      cursor: "pointer",
+                      fontSize: "0.9375rem",
+                      fontWeight: "600",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      gap: "0.375rem",
+                      minHeight: "44px",
+                    }}
+                    title="Scarica PDF"
+                  >
+                    <span>📄</span>
+                    <span>PDF</span>
+                  </button>
+                  <button
+                    onClick={() => handlePrintOrder(order)}
+                    style={{
+                      padding: "0.75rem",
+                      background: "#8b5cf6",
+                      color: "white",
+                      border: "none",
+                      borderRadius: "6px",
+                      cursor: "pointer",
+                      fontSize: "0.9375rem",
+                      fontWeight: "600",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      gap: "0.375rem",
+                      minHeight: "44px",
+                    }}
+                    title="Stampa ordine"
+                  >
+                    <span>🖨️</span>
+                    <span>Stampa</span>
+                  </button>
+                  <button
+                    onClick={() => handleEditOrder(order.id!)}
+                    style={{
+                      padding: "0.75rem",
+                      background: "#3b82f6",
+                      color: "white",
+                      border: "none",
+                      borderRadius: "6px",
+                      cursor: "pointer",
+                      fontSize: "0.9375rem",
+                      fontWeight: "600",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      gap: "0.375rem",
+                      minHeight: "44px",
+                    }}
+                    title="Modifica ordine"
+                  >
+                    <span>✏️</span>
+                    <span>Modifica</span>
+                  </button>
+                  <button
+                    onClick={() => handleDeleteOrder(order.id!)}
+                    style={{
+                      padding: "0.75rem",
+                      background: "#dc2626",
+                      color: "white",
+                      border: "none",
+                      borderRadius: "6px",
+                      cursor: "pointer",
+                      fontSize: "0.9375rem",
+                      fontWeight: "600",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      gap: "0.375rem",
+                      minHeight: "44px",
+                    }}
+                    title="Elimina ordine"
+                  >
+                    <span>🗑️</span>
+                    <span>Elimina</span>
+                  </button>
+                </div>
+              )}
             </div>
 
             {/* DETAILED ORDER ITEMS - PREVENTIVO STYLE */}
@@ -435,7 +663,7 @@ export function PendingOrdersPage() {
                 backgroundColor: "white",
                 border: "1px solid #e5e7eb",
                 borderRadius: "6px",
-                marginBottom: "1rem",
+                marginBottom: isMobile ? "0.75rem" : "1rem",
                 overflow: "hidden",
               }}
             >
@@ -443,39 +671,41 @@ export function PendingOrdersPage() {
               <div
                 style={{
                   backgroundColor: "#f9fafb",
-                  padding: "0.75rem 1rem",
+                  padding: isMobile ? "0.75rem" : "0.75rem 1rem",
                   borderBottom: "2px solid #e5e7eb",
                   fontWeight: "600",
-                  fontSize: "0.875rem",
+                  fontSize: isMobile ? "0.9375rem" : "0.875rem",
                   color: "#374151",
                 }}
               >
                 Dettaglio Articoli ({order.items.length})
               </div>
 
-              {/* Table Header */}
-              <div
-                style={{
-                  display: "grid",
-                  gridTemplateColumns: "3fr 1fr 1fr 1fr 1fr 1fr 1fr",
-                  gap: "0.5rem",
-                  padding: "0.75rem 1rem",
-                  backgroundColor: "#f9fafb",
-                  borderBottom: "1px solid #e5e7eb",
-                  fontSize: "0.75rem",
-                  fontWeight: "600",
-                  color: "#6b7280",
-                  textTransform: "uppercase",
-                }}
-              >
-                <div>Articolo</div>
-                <div style={{ textAlign: "right" }}>Qnt.</div>
-                <div style={{ textAlign: "right" }}>Prezzo Unit.</div>
-                <div style={{ textAlign: "right" }}>Sconto</div>
-                <div style={{ textAlign: "right" }}>Subtotale</div>
-                <div style={{ textAlign: "right" }}>IVA</div>
-                <div style={{ textAlign: "right" }}>Totale</div>
-              </div>
+              {/* Table Header - desktop only */}
+              {!isMobile && (
+                <div
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: "3fr 1fr 1fr 1fr 1fr 1fr 1fr",
+                    gap: "0.5rem",
+                    padding: "0.75rem 1rem",
+                    backgroundColor: "#f9fafb",
+                    borderBottom: "1px solid #e5e7eb",
+                    fontSize: "0.75rem",
+                    fontWeight: "600",
+                    color: "#6b7280",
+                    textTransform: "uppercase",
+                  }}
+                >
+                  <div>Articolo</div>
+                  <div style={{ textAlign: "right" }}>Qnt.</div>
+                  <div style={{ textAlign: "right" }}>Prezzo Unit.</div>
+                  <div style={{ textAlign: "right" }}>Sconto</div>
+                  <div style={{ textAlign: "right" }}>Subtotale</div>
+                  <div style={{ textAlign: "right" }}>IVA</div>
+                  <div style={{ textAlign: "right" }}>Totale</div>
+                </div>
+              )}
 
               {/* Items */}
               {order.items.map((item, index) => {
@@ -492,96 +722,291 @@ export function PendingOrdersPage() {
                   <div
                     key={index}
                     style={{
-                      display: "grid",
-                      gridTemplateColumns: "3fr 1fr 1fr 1fr 1fr 1fr 1fr",
-                      gap: "0.5rem",
-                      padding: "1rem",
+                      display: isMobile ? "block" : "grid",
+                      gridTemplateColumns: isMobile
+                        ? undefined
+                        : "3fr 1fr 1fr 1fr 1fr 1fr 1fr",
+                      gap: isMobile ? undefined : "0.5rem",
+                      padding: isMobile ? "0.75rem" : "1rem",
                       borderBottom:
                         index < order.items.length - 1
                           ? "1px solid #f3f4f6"
                           : "none",
-                      fontSize: "0.875rem",
+                      fontSize: isMobile ? "0.875rem" : "0.875rem",
                     }}
                   >
-                    {/* Product Name & Code */}
-                    <div>
-                      <div
-                        style={{ fontWeight: "600", marginBottom: "0.25rem" }}
-                      >
-                        {item.productName || item.articleCode}
-                      </div>
+                    {/* Desktop Layout - Grid */}
+                    {!isMobile && (
+                      <>
+                        {/* Product Name & Code */}
+                        <div>
+                          <div
+                            style={{
+                              fontWeight: "600",
+                              marginBottom: "0.25rem",
+                            }}
+                          >
+                            {item.productName || item.articleCode}
+                          </div>
+                          <div
+                            style={{
+                              fontSize: "0.75rem",
+                              color: "#9ca3af",
+                              marginBottom: "0.25rem",
+                            }}
+                          >
+                            Cod: {item.articleCode}
+                          </div>
+                          {item.description && (
+                            <div
+                              style={{ fontSize: "0.75rem", color: "#6b7280" }}
+                            >
+                              {item.description}
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Quantity */}
+                        <div
+                          style={{ textAlign: "right", alignSelf: "center" }}
+                        >
+                          {item.quantity}
+                        </div>
+
+                        {/* Unit Price */}
+                        <div
+                          style={{ textAlign: "right", alignSelf: "center" }}
+                        >
+                          €{item.price.toFixed(2)}
+                        </div>
+
+                        {/* Discount */}
+                        <div
+                          style={{
+                            textAlign: "right",
+                            alignSelf: "center",
+                            color:
+                              item.discount && item.discount > 0
+                                ? "#dc2626"
+                                : "#9ca3af",
+                          }}
+                        >
+                          {item.discount && item.discount > 0
+                            ? `-€${item.discount.toFixed(2)}`
+                            : "—"}
+                        </div>
+
+                        {/* Subtotal */}
+                        <div
+                          style={{
+                            textAlign: "right",
+                            alignSelf: "center",
+                            fontWeight: "500",
+                          }}
+                        >
+                          €{subtotal.toFixed(2)}
+                        </div>
+
+                        {/* VAT */}
+                        <div
+                          style={{ textAlign: "right", alignSelf: "center" }}
+                        >
+                          <div style={{ fontSize: "0.7rem", color: "#6b7280" }}>
+                            ({item.vat}%)
+                          </div>
+                          <div>€{vatAmount.toFixed(2)}</div>
+                        </div>
+
+                        {/* Total */}
+                        <div
+                          style={{
+                            textAlign: "right",
+                            alignSelf: "center",
+                            fontWeight: "600",
+                            color: "#1e40af",
+                          }}
+                        >
+                          €{total.toFixed(2)}
+                        </div>
+                      </>
+                    )}
+
+                    {/* Mobile Layout - Vertical Card */}
+                    {isMobile && (
                       <div
                         style={{
-                          fontSize: "0.75rem",
-                          color: "#9ca3af",
-                          marginBottom: "0.25rem",
+                          display: "flex",
+                          flexDirection: "column",
+                          gap: "0.625rem",
                         }}
                       >
-                        Cod: {item.articleCode}
-                      </div>
-                      {item.description && (
-                        <div style={{ fontSize: "0.75rem", color: "#6b7280" }}>
-                          {item.description}
+                        {/* Product Name & Code */}
+                        <div>
+                          <div
+                            style={{
+                              fontWeight: "600",
+                              marginBottom: "0.25rem",
+                              fontSize: "0.9375rem",
+                            }}
+                          >
+                            {item.productName || item.articleCode}
+                          </div>
+                          <div
+                            style={{
+                              fontSize: "0.8125rem",
+                              color: "#9ca3af",
+                              marginBottom: "0.25rem",
+                            }}
+                          >
+                            Cod: {item.articleCode}
+                          </div>
+                          {item.description && (
+                            <div
+                              style={{
+                                fontSize: "0.8125rem",
+                                color: "#6b7280",
+                              }}
+                            >
+                              {item.description}
+                            </div>
+                          )}
                         </div>
-                      )}
-                    </div>
 
-                    {/* Quantity */}
-                    <div style={{ textAlign: "right", alignSelf: "center" }}>
-                      {item.quantity}
-                    </div>
+                        {/* Details Grid - 2 columns */}
+                        <div
+                          style={{
+                            display: "grid",
+                            gridTemplateColumns: "1fr 1fr",
+                            gap: "0.5rem",
+                            fontSize: "0.875rem",
+                          }}
+                        >
+                          {/* Quantity */}
+                          <div>
+                            <div
+                              style={{
+                                fontSize: "0.6875rem",
+                                color: "#6b7280",
+                                fontWeight: "600",
+                                textTransform: "uppercase",
+                                marginBottom: "0.125rem",
+                              }}
+                            >
+                              Quantità
+                            </div>
+                            <div style={{ fontWeight: "500" }}>
+                              {item.quantity}
+                            </div>
+                          </div>
 
-                    {/* Unit Price */}
-                    <div style={{ textAlign: "right", alignSelf: "center" }}>
-                      €{item.price.toFixed(2)}
-                    </div>
+                          {/* Unit Price */}
+                          <div>
+                            <div
+                              style={{
+                                fontSize: "0.6875rem",
+                                color: "#6b7280",
+                                fontWeight: "600",
+                                textTransform: "uppercase",
+                                marginBottom: "0.125rem",
+                              }}
+                            >
+                              Prezzo Unit.
+                            </div>
+                            <div style={{ fontWeight: "500" }}>
+                              €{item.price.toFixed(2)}
+                            </div>
+                          </div>
 
-                    {/* Discount */}
-                    <div
-                      style={{
-                        textAlign: "right",
-                        alignSelf: "center",
-                        color:
-                          item.discount && item.discount > 0
-                            ? "#dc2626"
-                            : "#9ca3af",
-                      }}
-                    >
-                      {item.discount && item.discount > 0
-                        ? `-€${item.discount.toFixed(2)}`
-                        : "—"}
-                    </div>
+                          {/* Discount */}
+                          <div>
+                            <div
+                              style={{
+                                fontSize: "0.6875rem",
+                                color: "#6b7280",
+                                fontWeight: "600",
+                                textTransform: "uppercase",
+                                marginBottom: "0.125rem",
+                              }}
+                            >
+                              Sconto
+                            </div>
+                            <div
+                              style={{
+                                fontWeight: "500",
+                                color:
+                                  item.discount && item.discount > 0
+                                    ? "#dc2626"
+                                    : "#9ca3af",
+                              }}
+                            >
+                              {item.discount && item.discount > 0
+                                ? `-€${item.discount.toFixed(2)}`
+                                : "—"}
+                            </div>
+                          </div>
 
-                    {/* Subtotal */}
-                    <div
-                      style={{
-                        textAlign: "right",
-                        alignSelf: "center",
-                        fontWeight: "500",
-                      }}
-                    >
-                      €{subtotal.toFixed(2)}
-                    </div>
+                          {/* Subtotal */}
+                          <div>
+                            <div
+                              style={{
+                                fontSize: "0.6875rem",
+                                color: "#6b7280",
+                                fontWeight: "600",
+                                textTransform: "uppercase",
+                                marginBottom: "0.125rem",
+                              }}
+                            >
+                              Subtotale
+                            </div>
+                            <div style={{ fontWeight: "600" }}>
+                              €{subtotal.toFixed(2)}
+                            </div>
+                          </div>
 
-                    {/* VAT */}
-                    <div style={{ textAlign: "right", alignSelf: "center" }}>
-                      <div style={{ fontSize: "0.7rem", color: "#6b7280" }}>
-                        ({item.vat}%)
+                          {/* VAT */}
+                          <div>
+                            <div
+                              style={{
+                                fontSize: "0.6875rem",
+                                color: "#6b7280",
+                                fontWeight: "600",
+                                textTransform: "uppercase",
+                                marginBottom: "0.125rem",
+                              }}
+                            >
+                              IVA ({item.vat}%)
+                            </div>
+                            <div style={{ fontWeight: "500" }}>
+                              €{vatAmount.toFixed(2)}
+                            </div>
+                          </div>
+
+                          {/* Total */}
+                          <div>
+                            <div
+                              style={{
+                                fontSize: "0.6875rem",
+                                color: "#6b7280",
+                                fontWeight: "600",
+                                textTransform: "uppercase",
+                                marginBottom: "0.125rem",
+                              }}
+                            >
+                              Totale
+                            </div>
+                            <div
+                              style={{
+                                fontWeight: "700",
+                                color: "#1e40af",
+                                fontSize: "1rem",
+                              }}
+                            >
+                              €{total.toFixed(2)}
+                            </div>
+                          </div>
+                        </div>
                       </div>
-                      <div>€{vatAmount.toFixed(2)}</div>
-                    </div>
-
-                    {/* Total */}
-                    <div
-                      style={{
-                        textAlign: "right",
-                        alignSelf: "center",
-                        fontWeight: "600",
-                        color: "#1e40af",
-                      }}
-                    >
-                      €{total.toFixed(2)}
-                    </div>
+                    )}
                   </div>
                 );
               })}
@@ -590,7 +1015,7 @@ export function PendingOrdersPage() {
               <div
                 style={{
                   backgroundColor: "#f9fafb",
-                  padding: "1rem",
+                  padding: isMobile ? "0.75rem" : "1rem",
                   borderTop: "2px solid #e5e7eb",
                 }}
               >
@@ -626,7 +1051,7 @@ export function PendingOrdersPage() {
                           display: "flex",
                           justifyContent: "space-between",
                           marginBottom: "0.5rem",
-                          fontSize: "0.875rem",
+                          fontSize: isMobile ? "0.8125rem" : "0.875rem",
                         }}
                       >
                         <span style={{ color: "#6b7280" }}>
@@ -645,7 +1070,7 @@ export function PendingOrdersPage() {
                               display: "flex",
                               justifyContent: "space-between",
                               marginBottom: "0.5rem",
-                              fontSize: "0.875rem",
+                              fontSize: isMobile ? "0.8125rem" : "0.875rem",
                             }}
                           >
                             <span style={{ color: "#dc2626" }}>
@@ -663,7 +1088,7 @@ export function PendingOrdersPage() {
                               display: "flex",
                               justifyContent: "space-between",
                               marginBottom: "0.5rem",
-                              fontSize: "0.875rem",
+                              fontSize: isMobile ? "0.8125rem" : "0.875rem",
                             }}
                           >
                             <span style={{ color: "#6b7280" }}>
@@ -681,7 +1106,7 @@ export function PendingOrdersPage() {
                           display: "flex",
                           justifyContent: "space-between",
                           marginBottom: "0.5rem",
-                          fontSize: "0.875rem",
+                          fontSize: isMobile ? "0.8125rem" : "0.875rem",
                         }}
                       >
                         <span style={{ color: "#6b7280" }}>IVA Totale:</span>
@@ -693,9 +1118,9 @@ export function PendingOrdersPage() {
                         style={{
                           display: "flex",
                           justifyContent: "space-between",
-                          paddingTop: "0.75rem",
+                          paddingTop: isMobile ? "0.625rem" : "0.75rem",
                           borderTop: "2px solid #3b82f6",
-                          fontSize: "1.125rem",
+                          fontSize: isMobile ? "1rem" : "1.125rem",
                         }}
                       >
                         <span style={{ fontWeight: "700", color: "#1e40af" }}>
@@ -714,12 +1139,13 @@ export function PendingOrdersPage() {
             {order.status === "error" && order.errorMessage && (
               <div
                 style={{
-                  padding: "0.75rem",
+                  padding: isMobile ? "0.625rem" : "0.75rem",
                   backgroundColor: "#fee2e2",
                   border: "1px solid #dc2626",
                   borderRadius: "4px",
                   color: "#991b1b",
-                  fontSize: "0.875rem",
+                  fontSize: isMobile ? "0.8125rem" : "0.875rem",
+                  marginTop: isMobile ? "0.5rem" : "0",
                 }}
               >
                 <strong>Errore:</strong> {order.errorMessage}
