@@ -2030,16 +2030,27 @@ export default function OrderFormSimple() {
 
               <button
                 onClick={handleAddItem}
-                disabled={!packagingPreview?.success}
+                disabled={
+                  !packagingPreview?.success &&
+                  warehouseSelectedQty < parseInt(quantity, 10)
+                }
                 style={{
                   padding: isMobile ? "1rem 1.5rem" : "0.75rem 1.5rem",
-                  background: packagingPreview?.success ? "#22c55e" : "#d1d5db",
+                  background:
+                    packagingPreview?.success ||
+                    warehouseSelectedQty >= parseInt(quantity, 10)
+                      ? "#22c55e"
+                      : "#d1d5db",
                   color: "white",
                   border: "none",
                   borderRadius: "6px",
                   fontSize: isMobile ? "1rem" : "1rem",
                   fontWeight: "600",
-                  cursor: packagingPreview?.success ? "pointer" : "not-allowed",
+                  cursor:
+                    packagingPreview?.success ||
+                    warehouseSelectedQty >= parseInt(quantity, 10)
+                      ? "pointer"
+                      : "not-allowed",
                   width: "100%",
                   minHeight: isMobile ? "48px" : "auto",
                 }}
