@@ -154,9 +154,6 @@ jobs:
             echo "📥 Pulling latest code..."
             git pull origin master || { echo "❌ Git pull failed"; exit 1; }
 
-            echo "🗑️  Removing legacy orders.db file..."
-            rm -f /home/deploy/archibald-app/archibald-web-app/backend/data/orders.db || true
-
             echo "🔐 Logging in to GitHub Container Registry..."
             echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin || { echo "❌ Docker login failed"; exit 1; }
 
