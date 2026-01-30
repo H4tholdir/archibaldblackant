@@ -502,7 +502,9 @@ function TabArticoli({
 
       if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(errorData.error || "Errore durante la sincronizzazione");
+        throw new Error(
+          errorData.error || "Errore durante la sincronizzazione",
+        );
       }
 
       const result = await response.json();
@@ -553,7 +555,8 @@ function TabArticoli({
                 color: "white",
                 border: "none",
                 borderRadius: "4px",
-                cursor: loading || !archibaldOrderId ? "not-allowed" : "pointer",
+                cursor:
+                  loading || !archibaldOrderId ? "not-allowed" : "pointer",
                 fontSize: "14px",
                 fontWeight: 600,
               }}
@@ -1159,19 +1162,77 @@ function TabFinanziario({ order, token }: { order: Order; token?: string }) {
               marginBottom: "16px",
             }}
           >
-            <InfoField label="Numero Fattura" value={order.invoiceNumber} bold />
-            <InfoField label="Data Fattura" value={formatDate(order.invoiceDate)} />
-            <InfoField label="Importo Fattura" value={order.invoiceAmount ? `€${order.invoiceAmount}` : undefined} />
-            <InfoField label="Conto Cliente" value={order.invoiceCustomerAccount} />
-            <InfoField label="Nome Fatturazione" value={order.invoiceBillingName} />
-            <InfoField label="Quantità" value={order.invoiceQuantity?.toString()} />
-            <InfoField label="Importo Residuo" value={order.invoiceRemainingAmount ? `€${order.invoiceRemainingAmount}` : undefined} />
-            <InfoField label="Importo Fiscale" value={order.invoiceTaxAmount ? `€${order.invoiceTaxAmount}` : undefined} />
-            <InfoField label="Sconto Linea" value={order.invoiceLineDiscount ? `€${order.invoiceLineDiscount}` : undefined} />
-            <InfoField label="Sconto Totale" value={order.invoiceTotalDiscount ? `€${order.invoiceTotalDiscount}` : undefined} />
-            <InfoField label="Scadenza" value={formatDate(order.invoiceDueDate)} />
-            <InfoField label="Ordine Acquisto" value={order.invoicePurchaseOrder} />
-            <InfoField label="Stato" value={order.invoiceClosed ? "Chiusa" : "Aperta"} />
+            <InfoField
+              label="Numero Fattura"
+              value={order.invoiceNumber}
+              bold
+            />
+            <InfoField
+              label="Data Fattura"
+              value={formatDate(order.invoiceDate)}
+            />
+            <InfoField
+              label="Importo Fattura"
+              value={
+                order.invoiceAmount ? `€${order.invoiceAmount}` : undefined
+              }
+            />
+            <InfoField
+              label="Conto Cliente"
+              value={order.invoiceCustomerAccount}
+            />
+            <InfoField
+              label="Nome Fatturazione"
+              value={order.invoiceBillingName}
+            />
+            <InfoField
+              label="Quantità"
+              value={order.invoiceQuantity?.toString()}
+            />
+            <InfoField
+              label="Importo Residuo"
+              value={
+                order.invoiceRemainingAmount
+                  ? `€${order.invoiceRemainingAmount}`
+                  : undefined
+              }
+            />
+            <InfoField
+              label="Importo Fiscale"
+              value={
+                order.invoiceTaxAmount
+                  ? `€${order.invoiceTaxAmount}`
+                  : undefined
+              }
+            />
+            <InfoField
+              label="Sconto Linea"
+              value={
+                order.invoiceLineDiscount
+                  ? `€${order.invoiceLineDiscount}`
+                  : undefined
+              }
+            />
+            <InfoField
+              label="Sconto Totale"
+              value={
+                order.invoiceTotalDiscount
+                  ? `€${order.invoiceTotalDiscount}`
+                  : undefined
+              }
+            />
+            <InfoField
+              label="Scadenza"
+              value={formatDate(order.invoiceDueDate)}
+            />
+            <InfoField
+              label="Ordine Acquisto"
+              value={order.invoicePurchaseOrder}
+            />
+            <InfoField
+              label="Stato"
+              value={order.invoiceClosed ? "Chiusa" : "Aperta"}
+            />
           </div>
         )}
 
@@ -1873,7 +1934,7 @@ export function OrderCardNew({
               <TabArticoli
                 items={order.items}
                 orderId={order.id}
-                archibaldOrderId={order.archibaldOrderId}
+                archibaldOrderId={order.orderNumber}
                 token={token}
               />
             )}
