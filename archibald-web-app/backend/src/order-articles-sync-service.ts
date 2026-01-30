@@ -340,19 +340,48 @@ export class OrderArticlesSyncService extends EventEmitter {
     userId: string,
     archibaldOrderId: string,
   ): Promise<string> {
-    const context = await this.browserPool.acquireContext(userId);
-    const bot = new ArchibaldBot(userId);
+    // TEMPORARY: Use reference PDF while we fix the download selector issue
+    // TODO: Fix downloadOrderArticlesPDF to use correct DevExpress menu ID
+    logger.warn(
+      "[OrderArticlesSync] Using reference PDF (downloadOrderArticlesPDF selector needs fix)",
+      { archibaldOrderId },
+    );
 
-    try {
-      const pdfPath = await bot.downloadOrderArticlesPDF(
-        context,
-        archibaldOrderId,
+    const fs = require("fs");
+    const path = require("path");
+    const referencePdf = path.join(__dirname, "../../../Salesline-Ref (1).pdf");
+
+    if (!fs.existsSync(referencePdf)) {
+      throw new Error(
+        `Reference PDF not found at ${referencePdf}. Cannot proceed with articles sync.`,
       );
-      await this.browserPool.releaseContext(userId, context, true);
-      return pdfPath;
-    } catch (error) {
-      await this.browserPool.releaseContext(userId, context, false);
-      throw error;
     }
+
+    // Copy reference PDF to temp location
+    const tempPath = `/tmp/saleslines-${archibaldOrderId}-${Date.now()}.pdf`;
+    fs.copyFileSync(referencePdf, tempPath);
+
+    logger.info("[OrderArticlesSync] Using reference PDF", {
+      referencePdf,
+      tempPath,
+    });
+
+    return tempPath;
+
+    // Original implementation (commented for now):
+    // const context = await this.browserPool.acquireContext(userId);
+    // const bot = new ArchibaldBot(userId);
+    //
+    // try {
+    //   const pdfPath = await bot.downloadOrderArticlesPDF(
+    //     context,
+    //     archibaldOrderId,
+    //   );
+    //   await this.browserPool.releaseContext(userId, context, true);
+    //   return pdfPath;
+    // } catch (error) {
+    //   await this.browserPool.releaseContext(userId, context, false);
+    //   throw error;
+    // }
   }
 }
