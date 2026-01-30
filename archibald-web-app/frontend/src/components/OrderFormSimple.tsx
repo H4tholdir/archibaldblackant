@@ -15,6 +15,7 @@ import {
   WarehouseMatchAccordion,
   type SelectedWarehouseMatch,
 } from "./WarehouseMatchAccordion";
+import { releaseWarehouseReservations } from "../services/warehouse-order-integration";
 
 interface OrderItem {
   id: string;
@@ -145,6 +146,27 @@ export default function OrderFormSimple() {
   const [draftId, setDraftId] = useState<number | null>(null);
   const [lastAutoSave, setLastAutoSave] = useState<Date | null>(null);
 
+  // Track original order items for warehouse restoration if user exits without saving
+  const [originalOrderItems, setOriginalOrderItems] = useState<
+    Array<{
+      articleCode: string;
+      articleId: string;
+      productName: string;
+      description?: string;
+      quantity: number;
+      price: number;
+      discount?: number;
+      vat?: number;
+      warehouseQuantity?: number;
+      warehouseSources?: Array<{
+        warehouseItemId: number;
+        boxName: string;
+        quantity: number;
+      }>;
+    }>
+  >([]);
+  const [orderSavedSuccessfully, setOrderSavedSuccessfully] = useState(false);
+
   // === LOAD ORDER FOR EDITING ===
   // Check if we're editing an existing order
   useEffect(() => {
@@ -164,6 +186,30 @@ export default function OrderFormSimple() {
           toastService.error("Ordine non trovato");
           navigate("/pending-orders");
           return;
+        }
+
+        // Save original order items for potential restoration
+        setOriginalOrderItems(order.items);
+
+        // Release warehouse reservations when starting edit
+        // This ensures a clean slate - items will be re-reserved when order is saved
+        console.log(
+          "[OrderForm] Releasing warehouse reservations for editing",
+          {
+            orderId,
+          },
+        );
+        try {
+          await releaseWarehouseReservations(orderId);
+          console.log(
+            "[OrderForm] ✅ Warehouse reservations released for editing",
+          );
+        } catch (warehouseError) {
+          console.error(
+            "[OrderForm] Failed to release warehouse reservations",
+            warehouseError,
+          );
+          // Continue anyway - this is not critical for loading the order
         }
 
         // Load customer
@@ -254,6 +300,46 @@ export default function OrderFormSimple() {
 
     loadOrderForEditing();
   }, [searchParams, navigate]);
+
+  // === CLEANUP: RESTORE WAREHOUSE RESERVATIONS IF USER EXITS WITHOUT SAVING ===
+  useEffect(() => {
+    // Cleanup function that runs when component unmounts
+    return () => {
+      // Only restore if:
+      // 1. We were editing an order (not creating new)
+      // 2. Order was NOT saved successfully
+      // 3. We have original items to restore
+      if (
+        editingOrderId &&
+        !orderSavedSuccessfully &&
+        originalOrderItems.length > 0
+      ) {
+        console.log(
+          "[OrderForm] User exited without saving - restoring warehouse reservations",
+          { orderId: editingOrderId },
+        );
+
+        // Restore reservations asynchronously (fire and forget)
+        // We can't await here because cleanup is synchronous
+        (async () => {
+          try {
+            const { reserveWarehouseItems } =
+              await import("../services/warehouse-order-integration");
+            await reserveWarehouseItems(editingOrderId, originalOrderItems);
+            console.log(
+              "[OrderForm] ✅ Warehouse reservations restored after exit without save",
+            );
+          } catch (error) {
+            console.error(
+              "[OrderForm] Failed to restore warehouse reservations",
+              error,
+            );
+            // Can't show toast here as component is unmounted
+          }
+        })();
+      }
+    };
+  }, [editingOrderId, orderSavedSuccessfully, originalOrderItems]);
 
   // === AUTO-SYNC VARIANTS ON MOUNT ===
   // Check if variants are populated, if not trigger cache refresh
@@ -1015,6 +1101,9 @@ export default function OrderFormSimple() {
         );
       }
 
+      // Mark order as saved successfully (prevents warehouse restoration on cleanup)
+      setOrderSavedSuccessfully(true);
+
       navigate("/pending-orders");
     } catch (error) {
       console.error("Failed to save order:", error);
@@ -1243,7 +1332,12 @@ export default function OrderFormSimple() {
           borderRadius: "8px",
         }}
       >
-        <h2 style={{ fontSize: isMobile ? "1.125rem" : "1.25rem", marginBottom: "1rem" }}>
+        <h2
+          style={{
+            fontSize: isMobile ? "1.125rem" : "1.25rem",
+            marginBottom: "1rem",
+          }}
+        >
           1. Seleziona Cliente
         </h2>
 
@@ -1298,7 +1392,9 @@ export default function OrderFormSimple() {
                     }
                   >
                     <div>
-                      <strong style={{ fontSize: isMobile ? "1rem" : "0.875rem" }}>
+                      <strong
+                        style={{ fontSize: isMobile ? "1rem" : "0.875rem" }}
+                      >
                         {customer.name}
                       </strong>
                       {customer.code && (
@@ -1369,7 +1465,12 @@ export default function OrderFormSimple() {
             borderRadius: "8px",
           }}
         >
-          <h2 style={{ fontSize: isMobile ? "1.125rem" : "1.25rem", marginBottom: "1rem" }}>
+          <h2
+            style={{
+              fontSize: isMobile ? "1.125rem" : "1.25rem",
+              marginBottom: "1rem",
+            }}
+          >
             2. Aggiungi Articoli
           </h2>
 
@@ -1433,7 +1534,9 @@ export default function OrderFormSimple() {
                       (e.currentTarget.style.background = "white")
                     }
                   >
-                    <strong style={{ fontSize: isMobile ? "1rem" : "0.875rem" }}>
+                    <strong
+                      style={{ fontSize: isMobile ? "1rem" : "0.875rem" }}
+                    >
                       {product.name}
                     </strong>
                     {product.description && (
@@ -1503,12 +1606,19 @@ export default function OrderFormSimple() {
                     >
                       Varianti disponibili:{" "}
                       {isMobile && (
-                        <span style={{ fontWeight: "normal", fontSize: "0.7rem" }}>
+                        <span
+                          style={{ fontWeight: "normal", fontSize: "0.7rem" }}
+                        >
                           (scorri →)
                         </span>
                       )}
                     </div>
-                    <div style={{ overflowX: "auto", WebkitOverflowScrolling: "touch" }}>
+                    <div
+                      style={{
+                        overflowX: "auto",
+                        WebkitOverflowScrolling: "touch",
+                      }}
+                    >
                       <table
                         style={{
                           width: "100%",
@@ -1857,7 +1967,12 @@ export default function OrderFormSimple() {
             borderRadius: "8px",
           }}
         >
-          <h2 style={{ fontSize: isMobile ? "1.125rem" : "1.25rem", marginBottom: "1rem" }}>
+          <h2
+            style={{
+              fontSize: isMobile ? "1.125rem" : "1.25rem",
+              marginBottom: "1rem",
+            }}
+          >
             3. Riepilogo Articoli ({items.length})
           </h2>
 
@@ -1955,7 +2070,10 @@ export default function OrderFormSimple() {
               </thead>
               <tbody>
                 {items.map((item) => (
-                  <tr key={item.id} style={{ borderBottom: "1px solid #f3f4f6" }}>
+                  <tr
+                    key={item.id}
+                    style={{ borderBottom: "1px solid #f3f4f6" }}
+                  >
                     <td style={{ padding: "0.75rem" }}>
                       <strong>{item.productName}</strong>
                       {item.description && (
@@ -2004,7 +2122,9 @@ export default function OrderFormSimple() {
                         color: item.discount > 0 ? "#dc2626" : "#9ca3af",
                       }}
                     >
-                      {item.discount > 0 ? `-€${item.discount.toFixed(2)}` : "—"}
+                      {item.discount > 0
+                        ? `-€${item.discount.toFixed(2)}`
+                        : "—"}
                     </td>
                     <td style={{ padding: "0.75rem", textAlign: "right" }}>
                       €{item.subtotal.toFixed(2)}
@@ -2069,7 +2189,9 @@ export default function OrderFormSimple() {
 
           {/* Mobile: Card view */}
           {isMobile && (
-            <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
+            <div
+              style={{ display: "flex", flexDirection: "column", gap: "1rem" }}
+            >
               {items.map((item) => (
                 <div
                   key={item.id}
@@ -2133,7 +2255,9 @@ export default function OrderFormSimple() {
                   >
                     <div>
                       <span style={{ color: "#6b7280" }}>Quantità:</span>
-                      <strong style={{ marginLeft: "0.25rem" }}>{item.quantity}</strong>
+                      <strong style={{ marginLeft: "0.25rem" }}>
+                        {item.quantity}
+                      </strong>
                     </div>
                     <div style={{ textAlign: "right" }}>
                       <span style={{ color: "#6b7280" }}>Prezzo:</span>
@@ -2149,7 +2273,9 @@ export default function OrderFormSimple() {
                           color: item.discount > 0 ? "#dc2626" : "#9ca3af",
                         }}
                       >
-                        {item.discount > 0 ? `-€${item.discount.toFixed(2)}` : "—"}
+                        {item.discount > 0
+                          ? `-€${item.discount.toFixed(2)}`
+                          : "—"}
                       </strong>
                     </div>
                     <div style={{ textAlign: "right" }}>
@@ -2159,13 +2285,17 @@ export default function OrderFormSimple() {
                       </strong>
                     </div>
                     <div>
-                      <span style={{ color: "#6b7280" }}>IVA ({item.vatRate}%):</span>
+                      <span style={{ color: "#6b7280" }}>
+                        IVA ({item.vatRate}%):
+                      </span>
                       <strong style={{ marginLeft: "0.25rem" }}>
                         €{item.vat.toFixed(2)}
                       </strong>
                     </div>
                     <div style={{ textAlign: "right" }}>
-                      <span style={{ color: "#6b7280", fontWeight: "600" }}>Totale:</span>
+                      <span style={{ color: "#6b7280", fontWeight: "600" }}>
+                        Totale:
+                      </span>
                       <strong
                         style={{
                           marginLeft: "0.25rem",
