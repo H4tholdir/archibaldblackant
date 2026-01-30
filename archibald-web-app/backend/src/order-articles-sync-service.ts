@@ -134,17 +134,15 @@ export class OrderArticlesSyncService extends EventEmitter {
         articlesProcessed: 0,
       } as ArticlesSyncProgress);
 
-      // Step 1: Get order and validate archibald_order_id
+      // Step 1: Get order and validate archibald order id
       const order = this.orderDb.getOrderById(userId, orderId);
       if (!order) {
         throw new Error(ERROR_MESSAGES.ORDER_NOT_FOUND);
       }
 
-      if (!order.archibaldOrderId) {
-        throw new Error(ERROR_MESSAGES.ORDER_ARCHIBALD_ID_MISSING);
-      }
-
-      const archibaldOrderId = order.archibaldOrderId; // Type narrowing
+      // The order.id contains the Archibald internal ID (e.g., 71723, 71471)
+      // which is used in the Archibald URL: https://4.231.124.90/Archibald/SALESTABLE_DetailViewAgent/{id}
+      const archibaldOrderId = order.id;
 
       // Step 2: Download PDF (with 90s timeout + 2 retry attempts)
       logger.info("[OrderArticlesSync] Downloading PDF...", {

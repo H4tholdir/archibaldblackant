@@ -1934,7 +1934,7 @@ export function OrderCardNew({
               <TabArticoli
                 items={order.items}
                 orderId={order.id}
-                archibaldOrderId={order.orderNumber}
+                archibaldOrderId={order.id}
                 token={token}
               />
             )}
