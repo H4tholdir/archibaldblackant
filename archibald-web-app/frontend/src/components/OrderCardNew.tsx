@@ -470,11 +470,16 @@ function TabArticoli({
   orderId,
   archibaldOrderId,
   token,
+  onTotalsUpdate,
 }: {
   items?: OrderItem[];
   orderId: string;
   archibaldOrderId?: string;
   token?: string;
+  onTotalsUpdate?: (totals: {
+    totalVatAmount?: number;
+    totalWithVat?: number;
+  }) => void;
 }) {
   const [articles, setArticles] = useState(items || []);
   const [loading, setLoading] = useState(false);
@@ -496,6 +501,18 @@ function TabArticoli({
         const data = await response.json();
         if (data.success && data.data.articles.length > 0) {
           setArticles(data.data.articles);
+
+          // Update totals in parent component
+          if (
+            onTotalsUpdate &&
+            data.data.totalVatAmount &&
+            data.data.totalWithVat
+          ) {
+            onTotalsUpdate({
+              totalVatAmount: data.data.totalVatAmount,
+              totalWithVat: data.data.totalWithVat,
+            });
+          }
         }
       } catch (err) {
         // Silently fail - user can manually sync if needed
@@ -504,7 +521,7 @@ function TabArticoli({
     };
 
     loadArticles();
-  }, [orderId, token]);
+  }, [orderId, token, onTotalsUpdate]);
 
   const handleSyncArticles = async () => {
     if (!token) {
@@ -538,6 +555,18 @@ function TabArticoli({
       setSuccess(
         `✅ Sincronizzati ${result.data.articles.length} articoli. Totale IVA: €${totalVat.toFixed(2)}`,
       );
+
+      // Update totals in parent component
+      if (
+        onTotalsUpdate &&
+        result.data.totalVatAmount &&
+        result.data.totalWithVat
+      ) {
+        onTotalsUpdate({
+          totalVatAmount: result.data.totalVatAmount,
+          totalWithVat: result.data.totalWithVat,
+        });
+      }
 
       // Hide success message after 5 seconds
       setTimeout(() => setSuccess(null), 5000);
@@ -683,12 +712,17 @@ function TabArticoli({
             {articles.map((item, index) => {
               // Backend returns: unitPrice, discountPercent, lineAmount, articleDescription, vatPercent, vatAmount, lineTotalWithVat
               const unitPrice = (item as any).unitPrice ?? item.price ?? 0;
-              const discount = (item as any).discountPercent ?? item.discount ?? 0;
-              const description = (item as any).articleDescription ?? item.description ?? "";
-              const lineAmount = (item as any).lineAmount ?? (unitPrice * item.quantity * (100 - discount)) / 100;
+              const discount =
+                (item as any).discountPercent ?? item.discount ?? 0;
+              const description =
+                (item as any).articleDescription ?? item.description ?? "";
+              const lineAmount =
+                (item as any).lineAmount ??
+                (unitPrice * item.quantity * (100 - discount)) / 100;
               const vatPercent = (item as any).vatPercent ?? 0;
               const vatAmount = (item as any).vatAmount ?? 0;
-              const lineTotalWithVat = (item as any).lineTotalWithVat ?? lineAmount;
+              const lineTotalWithVat =
+                (item as any).lineTotalWithVat ?? lineAmount;
 
               return (
                 <tr key={index} style={{ borderBottom: "1px solid #e0e0e0" }}>
@@ -721,39 +755,77 @@ function TabArticoli({
 
       {/* Totals Section */}
       {articles.length > 0 && (
-        <div style={{
-          marginTop: "24px",
-          paddingTop: "16px",
-          borderTop: "2px solid #e0e0e0"
-        }}>
-          <div style={{
-            display: "flex",
-            flexDirection: "column",
-            alignItems: "flex-end",
-            gap: "8px"
-          }}>
-            <div style={{ display: "flex", justifyContent: "space-between", width: "300px" }}>
+        <div
+          style={{
+            marginTop: "24px",
+            paddingTop: "16px",
+            borderTop: "2px solid #e0e0e0",
+          }}
+        >
+          <div
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "flex-end",
+              gap: "8px",
+            }}
+          >
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                width: "300px",
+              }}
+            >
               <span style={{ fontWeight: 500 }}>Totale Imponibile:</span>
               <span style={{ fontWeight: 600 }}>
-                € {articles.reduce((sum, item) => sum + ((item as any).lineAmount ?? 0), 0).toFixed(2)}
+                €{" "}
+                {articles
+                  .reduce(
+                    (sum, item) => sum + ((item as any).lineAmount ?? 0),
+                    0,
+                  )
+                  .toFixed(2)}
               </span>
             </div>
-            <div style={{ display: "flex", justifyContent: "space-between", width: "300px" }}>
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                width: "300px",
+              }}
+            >
               <span style={{ fontWeight: 500 }}>Totale IVA:</span>
               <span style={{ fontWeight: 600 }}>
-                € {articles.reduce((sum, item) => sum + ((item as any).vatAmount ?? 0), 0).toFixed(2)}
+                €{" "}
+                {articles
+                  .reduce(
+                    (sum, item) => sum + ((item as any).vatAmount ?? 0),
+                    0,
+                  )
+                  .toFixed(2)}
               </span>
             </div>
-            <div style={{
-              display: "flex",
-              justifyContent: "space-between",
-              width: "300px",
-              paddingTop: "8px",
-              borderTop: "1px solid #e0e0e0"
-            }}>
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                width: "300px",
+                paddingTop: "8px",
+                borderTop: "1px solid #e0e0e0",
+              }}
+            >
               <span style={{ fontWeight: 700, fontSize: "18px" }}>TOTALE:</span>
-              <span style={{ fontWeight: 700, fontSize: "18px", color: "#2e7d32" }}>
-                € {articles.reduce((sum, item) => sum + ((item as any).lineTotalWithVat ?? 0), 0).toFixed(2)}
+              <span
+                style={{ fontWeight: 700, fontSize: "18px", color: "#2e7d32" }}
+              >
+                €{" "}
+                {articles
+                  .reduce(
+                    (sum, item) => sum + ((item as any).lineTotalWithVat ?? 0),
+                    0,
+                  )
+                  .toFixed(2)}
               </span>
             </div>
           </div>
@@ -1174,13 +1246,30 @@ function TabFinanziario({ order, token }: { order: Order; token?: string }) {
             <div style={{ fontSize: "24px", fontWeight: 700, color: "#333" }}>
               {order.total}
             </div>
-            {(order as any).totalWithVat && parseFloat((order as any).totalWithVat) > 0 && (
-              <div style={{ fontSize: "16px", color: "#2e7d32", fontWeight: 600, marginTop: "4px" }}>
-                € {parseFloat((order as any).totalWithVat).toFixed(2)} (con IVA)
-              </div>
-            )}
-            {(!(order as any).totalWithVat || parseFloat((order as any).totalWithVat) === 0) && (
-              <div style={{ fontSize: "12px", color: "#999", marginTop: "4px", fontStyle: "italic" }}>
+            {(order as any).totalWithVat &&
+              parseFloat((order as any).totalWithVat) > 0 && (
+                <div
+                  style={{
+                    fontSize: "16px",
+                    color: "#2e7d32",
+                    fontWeight: 600,
+                    marginTop: "4px",
+                  }}
+                >
+                  € {parseFloat((order as any).totalWithVat).toFixed(2)} (con
+                  IVA)
+                </div>
+              )}
+            {(!(order as any).totalWithVat ||
+              parseFloat((order as any).totalWithVat) === 0) && (
+              <div
+                style={{
+                  fontSize: "12px",
+                  color: "#999",
+                  marginTop: "4px",
+                  fontStyle: "italic",
+                }}
+              >
                 Sincronizza articoli per vedere totale con IVA
               </div>
             )}
@@ -1711,6 +1800,21 @@ export function OrderCardNew({
     "panoramica" | "articoli" | "logistica" | "finanziario" | "storico"
   >("panoramica");
 
+  // Articles totals state (updated when articles are loaded/synced)
+  // Initialize from order prop if available
+  const [articlesTotals, setArticlesTotals] = useState<{
+    totalVatAmount?: number;
+    totalWithVat?: number;
+  }>(() => {
+    const totalVatAmount = (order as any).totalVatAmount
+      ? parseFloat((order as any).totalVatAmount)
+      : undefined;
+    const totalWithVat = (order as any).totalWithVat
+      ? parseFloat((order as any).totalWithVat)
+      : undefined;
+    return { totalVatAmount, totalWithVat };
+  });
+
   // Essenziali toggle state (persisted in localStorage)
   const [showEssentialsOnly, setShowEssentialsOnly] = useState(() => {
     const saved = localStorage.getItem("orderCard_showEssentialsOnly");
@@ -1935,13 +2039,14 @@ export function OrderCardNew({
               {order.total}
             </div>
             {(() => {
-              const totalWithVat = (order as any).totalWithVat;
-              // DEBUG: Remove after testing
-              if (order.customerName?.includes('Galizia')) {
-                console.log('[OrderCardNew Header] Galizia totalWithVat:', totalWithVat, typeof totalWithVat);
-              }
+              // Use state from articles sync first, fallback to order prop
+              const totalWithVat =
+                articlesTotals.totalWithVat ??
+                ((order as any).totalWithVat
+                  ? parseFloat((order as any).totalWithVat)
+                  : undefined);
 
-              if (totalWithVat && parseFloat(totalWithVat) > 0) {
+              if (totalWithVat && totalWithVat > 0) {
                 return (
                   <div
                     style={{
@@ -1950,7 +2055,7 @@ export function OrderCardNew({
                       fontWeight: 600,
                     }}
                   >
-                    (€ {parseFloat(totalWithVat).toFixed(2)} con IVA)
+                    (€ {totalWithVat.toFixed(2)} con IVA)
                   </div>
                 );
               }
@@ -2033,6 +2138,7 @@ export function OrderCardNew({
                 orderId={order.id}
                 archibaldOrderId={order.id}
                 token={token}
+                onTotalsUpdate={setArticlesTotals}
               />
             )}
             {activeTab === "logistica" && (
