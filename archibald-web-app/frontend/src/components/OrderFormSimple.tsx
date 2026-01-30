@@ -746,30 +746,35 @@ export default function OrderFormSimple() {
       return;
     }
 
-    if (!packagingPreview || !packagingPreview.success) {
-      toastService.error(
-        packagingPreview?.error ||
-          "Impossibile calcolare il confezionamento per questa quantità",
-      );
-      return;
-    }
-
-    // Get breakdown of variants from packaging calculation
-    const breakdown = packagingPreview.breakdown;
-    if (!breakdown || breakdown.length === 0) {
-      toastService.error("Nessuna combinazione di varianti disponibile");
-      return;
-    }
-
-    // Get discount (will be applied to total, not per line)
-    const disc = parseFloat(itemDiscount) || 0;
-    const discountPerLine = disc / breakdown.length; // Split discount across lines
-
-    // Calculate warehouse quantity (Phase 4)
+    // Check if quantity is fully covered by warehouse
+    const requestedQty = parseInt(quantity, 10);
     const warehouseQty = warehouseSelection.reduce(
       (sum, sel) => sum + sel.quantity,
       0,
     );
+    const isFullyFromWarehouse = warehouseQty >= requestedQty;
+
+    // If not fully from warehouse, validate packaging
+    if (!isFullyFromWarehouse) {
+      if (!packagingPreview || !packagingPreview.success) {
+        toastService.error(
+          packagingPreview?.error ||
+            "Impossibile calcolare il confezionamento per questa quantità",
+        );
+        return;
+      }
+
+      // Get breakdown of variants from packaging calculation
+      const breakdown = packagingPreview.breakdown;
+      if (!breakdown || breakdown.length === 0) {
+        toastService.error("Nessuna combinazione di varianti disponibile");
+        return;
+      }
+    }
+
+    // Get discount (will be applied to total, not per line)
+    const disc = parseFloat(itemDiscount) || 0;
+
     const warehouseSources =
       warehouseQty > 0
         ? warehouseSelection.map((sel) => ({
@@ -779,66 +784,108 @@ export default function OrderFormSimple() {
           }))
         : undefined;
 
-    // 🔧 FIX #3: Generate group key to track variants of same product
-    // Used to preserve warehouse data when deleting rows
-    const productGroupKey =
-      breakdown.length > 1
-        ? `${selectedProduct.name}-${Date.now()}`
-        : undefined;
-
     // Create one order item per packaging variant
     // IMPORTANT: Each variant can have different price and VAT
     const newItems: OrderItem[] = [];
 
-    for (let i = 0; i < breakdown.length; i++) {
-      const pkg = breakdown[i];
-      const variantArticleCode = pkg.variant.variantId;
-
-      // DEBUG: Log variant details to understand the "0" issue
-      console.log("[OrderForm] Adding variant:", {
-        variantId: pkg.variant.variantId,
-        productId: pkg.variant.productId,
-        packageContent: pkg.variant.packageContent,
-        fullVariant: pkg.variant,
-      });
-
-      // Get price and VAT for THIS SPECIFIC variant
-      const price = await priceService.getPriceByArticleId(variantArticleCode);
+    // If fully from warehouse, create a single order item without variants
+    if (isFullyFromWarehouse) {
+      // Get price for the base product (use first available variant or product code)
+      const productCode = selectedProduct.article || selectedProduct.name;
+      const price = await priceService.getPriceByArticleId(productCode);
 
       if (!price) {
-        toastService.error(
-          `Prezzo non disponibile per la variante ${variantArticleCode}`,
-        );
+        toastService.error(`Prezzo non disponibile per ${productCode}`);
         return;
       }
 
-      // Get VAT rate for THIS SPECIFIC variant
-      const variantProduct = await db.products.get(variantArticleCode);
-      const vatRate = normalizeVatRate(variantProduct?.vat);
+      // Get VAT rate
+      const productData = await db.products.get(productCode);
+      const vatRate = normalizeVatRate(productData?.vat);
 
-      const lineSubtotal = price * pkg.totalPieces - discountPerLine;
+      const lineSubtotal = price * requestedQty - disc;
       const lineVat = lineSubtotal * (vatRate / 100);
       const lineTotal = lineSubtotal + lineVat;
 
       newItems.push({
         id: crypto.randomUUID(),
-        productId: variantArticleCode, // Use variant ID as productId
-        article: variantArticleCode,
+        productId: productCode,
+        article: productCode,
         productName: selectedProduct.name,
         description: selectedProduct.description || "",
-        quantity: pkg.totalPieces,
+        quantity: requestedQty,
         unitPrice: price,
         vatRate,
-        discount: discountPerLine,
+        discount: disc,
         subtotal: lineSubtotal,
         vat: lineVat,
         total: lineTotal,
-        // 🔧 FIX #3: Add warehouse data only to first line (warehouse items apply to total quantity, not per variant)
-        warehouseQuantity: i === 0 ? warehouseQty : undefined,
-        warehouseSources: i === 0 ? warehouseSources : undefined,
-        // 🔧 FIX #3: Add group key to all variants of same product
-        productGroupKey,
+        warehouseQuantity: warehouseQty,
+        warehouseSources,
+        productGroupKey: undefined,
       });
+    } else {
+      // Normal order with packaging breakdown
+      const breakdown = packagingPreview!.breakdown!;
+      const discountPerLine = disc / breakdown.length; // Split discount across lines
+
+      // 🔧 FIX #3: Generate group key to track variants of same product
+      // Used to preserve warehouse data when deleting rows
+      const productGroupKey =
+        breakdown.length > 1
+          ? `${selectedProduct.name}-${Date.now()}`
+          : undefined;
+
+      for (let i = 0; i < breakdown.length; i++) {
+        const pkg = breakdown[i];
+        const variantArticleCode = pkg.variant.variantId;
+
+        // DEBUG: Log variant details to understand the "0" issue
+        console.log("[OrderForm] Adding variant:", {
+          variantId: pkg.variant.variantId,
+          productId: pkg.variant.productId,
+          packageContent: pkg.variant.packageContent,
+          fullVariant: pkg.variant,
+        });
+
+        // Get price and VAT for THIS SPECIFIC variant
+        const price = await priceService.getPriceByArticleId(variantArticleCode);
+
+        if (!price) {
+          toastService.error(
+            `Prezzo non disponibile per la variante ${variantArticleCode}`,
+          );
+          return;
+        }
+
+        // Get VAT rate for THIS SPECIFIC variant
+        const variantProduct = await db.products.get(variantArticleCode);
+        const vatRate = normalizeVatRate(variantProduct?.vat);
+
+        const lineSubtotal = price * pkg.totalPieces - discountPerLine;
+        const lineVat = lineSubtotal * (vatRate / 100);
+        const lineTotal = lineSubtotal + lineVat;
+
+        newItems.push({
+          id: crypto.randomUUID(),
+          productId: variantArticleCode, // Use variant ID as productId
+          article: variantArticleCode,
+          productName: selectedProduct.name,
+          description: selectedProduct.description || "",
+          quantity: pkg.totalPieces,
+          unitPrice: price,
+          vatRate,
+          discount: discountPerLine,
+          subtotal: lineSubtotal,
+          vat: lineVat,
+          total: lineTotal,
+          // 🔧 FIX #3: Add warehouse data only to first line (warehouse items apply to total quantity, not per variant)
+          warehouseQuantity: i === 0 ? warehouseQty : undefined,
+          warehouseSources: i === 0 ? warehouseSources : undefined,
+          // 🔧 FIX #3: Add group key to all variants of same product
+          productGroupKey,
+        });
+      }
     }
 
     // Add all lines to items list
@@ -1895,6 +1942,17 @@ export default function OrderFormSimple() {
                         {packagingPreview.quantity} pezzi
                       </p>
                     </>
+                  ) : warehouseSelectedQty >= parseInt(quantity, 10) ? (
+                    // Quantity fully covered by warehouse - no order needed
+                    <div
+                      style={{
+                        color: "#047857",
+                        fontSize: "0.875rem",
+                      }}
+                    >
+                      ✓ Quantità completamente coperta dal magazzino. Non è
+                      necessario ordinare.
+                    </div>
                   ) : (
                     <>
                       <strong
