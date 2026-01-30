@@ -53,9 +53,6 @@ COPY archibald-web-app/backend/package*.json ./
 # Copy Python scripts for PDF parsing
 COPY --chown=node:node scripts /scripts
 
-# Copy reference PDF for articles sync (temporary workaround)
-COPY --chown=node:node "Salesline-Ref (1).pdf" /app/
-
 # Create directories for application runtime
 RUN mkdir -p /app/data /app/.cache /app/logs && \
     chown -R node:node /app/data /app/.cache /app/logs

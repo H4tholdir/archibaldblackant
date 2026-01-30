@@ -203,8 +203,17 @@ export class OrderArticlesSyncService extends EventEmitter {
       logger.info("[OrderArticlesSync] Enriching with VAT...");
       const enrichedArticles = parsedArticles.map((article) => {
         const products = this.productDb.getProducts(article.articleCode);
-        const vat =
-          products.length > 0 && products[0].vat ? products[0].vat : 22; // Default 22%
+
+        // Get VAT from product database - NO DEFAULT VALUE
+        let vat = 0;
+        if (products.length > 0 && products[0].vat) {
+          vat = products[0].vat;
+        } else {
+          logger.warn("[OrderArticlesSync] Product VAT not found in database", {
+            articleCode: article.articleCode,
+            description: article.description,
+          });
+        }
 
         // Use Decimal.js for precise calculations
         const lineAmountDec = new Decimal(article.lineAmount);
@@ -340,50 +349,19 @@ export class OrderArticlesSyncService extends EventEmitter {
     userId: string,
     archibaldOrderId: string,
   ): Promise<string> {
-    // TEMPORARY: Use reference PDF while we fix the download selector issue
-    // TODO: Fix downloadOrderArticlesPDF to use correct DevExpress menu ID
-    logger.warn(
-      "[OrderArticlesSync] Using reference PDF (downloadOrderArticlesPDF selector needs fix)",
-      { archibaldOrderId },
-    );
+    const context = await this.browserPool.acquireContext(userId);
+    const bot = new ArchibaldBot(userId);
 
-    const fs = require("fs");
-    const path = require("path");
-    // In container: /app/dist/order-articles-sync-service.js -> /app/Salesline-Ref (1).pdf
-    // In dev: src/order-articles-sync-service.ts -> ../../../Salesline-Ref (1).pdf
-    const referencePdf = path.join(__dirname, "../../Salesline-Ref (1).pdf");
-
-    if (!fs.existsSync(referencePdf)) {
-      throw new Error(
-        `Reference PDF not found at ${referencePdf}. Cannot proceed with articles sync.`,
+    try {
+      const pdfPath = await bot.downloadOrderArticlesPDF(
+        context,
+        archibaldOrderId,
       );
+      await this.browserPool.releaseContext(userId, context, true);
+      return pdfPath;
+    } catch (error) {
+      await this.browserPool.releaseContext(userId, context, false);
+      throw error;
     }
-
-    // Copy reference PDF to temp location
-    const tempPath = `/tmp/saleslines-${archibaldOrderId}-${Date.now()}.pdf`;
-    fs.copyFileSync(referencePdf, tempPath);
-
-    logger.info("[OrderArticlesSync] Using reference PDF", {
-      referencePdf,
-      tempPath,
-    });
-
-    return tempPath;
-
-    // Original implementation (commented for now):
-    // const context = await this.browserPool.acquireContext(userId);
-    // const bot = new ArchibaldBot(userId);
-    //
-    // try {
-    //   const pdfPath = await bot.downloadOrderArticlesPDF(
-    //     context,
-    //     archibaldOrderId,
-    //   );
-    //   await this.browserPool.releaseContext(userId, context, true);
-    //   return pdfPath;
-    // } catch (error) {
-    //   await this.browserPool.releaseContext(userId, context, false);
-    //   throw error;
-    // }
   }
 }

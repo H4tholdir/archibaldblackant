@@ -8745,8 +8745,8 @@ export class ArchibaldBot {
         orderUrl,
       });
 
-      // Wait for dynamic content to load
-      await new Promise((resolve) => setTimeout(resolve, 2000));
+      // Wait for articles table to load
+      await new Promise((resolve) => setTimeout(resolve, 3000));
 
       // Setup download handling
       const timestamp = Date.now();
@@ -8759,24 +8759,30 @@ export class ArchibaldBot {
         downloadPath: "/tmp",
       });
 
-      await new Promise((resolve) => setTimeout(resolve, 500));
+      await new Promise((resolve) => setTimeout(resolve, 1000));
 
       // Find and click export button
-      logger.info("[ArchibaldBot] Searching for Esporta button...");
+      logger.info("[ArchibaldBot] Searching for PDF export button...");
 
-      // Wait for export button to be present (dynamic ID selector)
-      await page.waitForSelector('a[title*="Esportare in PDF"]', {
-        timeout: 10000,
-      });
+      // Wait for toolbar and export button (in SalesLines detail view)
+      // Button ID pattern: Vertical_v5_*_xaf_dviSALESLINEs_ToolBar_Menu_DXI1_T
+      await page.waitForSelector(
+        'a[id*="xaf_dviSALESLINEs_ToolBar_Menu_DXI1_T"]',
+        {
+          timeout: 15000,
+        },
+      );
 
-      logger.info("[ArchibaldBot] Export button found");
+      logger.info("[ArchibaldBot] PDF export button found");
 
       // Click export button
-      logger.info("[ArchibaldBot] Clicking Esporta button...");
+      logger.info("[ArchibaldBot] Clicking PDF export button...");
 
-      await page.click('a[title*="Esportare in PDF"]');
+      await page.click('a[id*="xaf_dviSALESLINEs_ToolBar_Menu_DXI1_T"]');
 
-      logger.info("[ArchibaldBot] Export button clicked, waiting for download...");
+      logger.info(
+        "[ArchibaldBot] Export button clicked, waiting for download...",
+      );
 
       // Wait for download to complete
       await new Promise((resolve) => setTimeout(resolve, 5000));
@@ -8785,7 +8791,9 @@ export class ArchibaldBot {
       const fs = require("fs");
       const pdfFiles = fs
         .readdirSync("/tmp")
-        .filter((f: string) => f.includes(archibaldOrderId) && f.endsWith(".pdf"))
+        .filter(
+          (f: string) => f.includes(archibaldOrderId) && f.endsWith(".pdf"),
+        )
         .sort()
         .reverse();
 
