@@ -2,6 +2,7 @@
 import { useState, useEffect } from "react";
 import type { Order, OrderItem } from "../types/order";
 import { OrderActions } from "./OrderActions";
+import { getOrderStatus } from "../utils/orderStatus";
 
 interface OrderCardProps {
   order: Order;
@@ -1815,18 +1816,6 @@ export function OrderCardNew({
     return { totalVatAmount, totalWithVat };
   });
 
-  // Essenziali toggle state (persisted in localStorage)
-  const [showEssentialsOnly, setShowEssentialsOnly] = useState(() => {
-    const saved = localStorage.getItem("orderCard_showEssentialsOnly");
-    return saved === "true";
-  });
-
-  const handleToggleEssentials = () => {
-    const newValue = !showEssentialsOnly;
-    setShowEssentialsOnly(newValue);
-    localStorage.setItem("orderCard_showEssentialsOnly", String(newValue));
-  };
-
   // Detect draft orders (created locally but not yet placed on Archibald)
   const isCreato =
     order.state?.toLowerCase() === "creato" ||
@@ -1844,35 +1833,14 @@ export function OrderCardNew({
     { id: "storico" as const, label: "Cronologia", icon: "📜" },
   ];
 
-  // Determine card styling based on order state
-  const getCardStyle = () => {
-    if (isCreato) {
-      // Draft orders: blue/light blue
-      return {
-        backgroundColor: "#e3f2fd", // Light blue
-        border: "2px solid #2196f3", // Blue border
-      };
-    }
-    if (isPiazzato) {
-      // Piazzato orders: yellow/orange
-      return {
-        backgroundColor: "#fff8e1", // Light yellow
-        border: "2px solid #ffb300", // Orange border
-      };
-    }
-    // Normal orders: white
-    return {
-      backgroundColor: "#fff",
-      border: "none",
-    };
-  };
-
-  const cardStyle = getCardStyle();
+  // Get order status styling (border + background colors)
+  const orderStatusStyle = getOrderStatus(order);
 
   return (
     <div
       style={{
-        ...cardStyle,
+        backgroundColor: orderStatusStyle.backgroundColor,
+        borderLeft: `4px solid ${orderStatusStyle.borderColor}`,
         borderRadius: "12px",
         boxShadow: "0 2px 8px rgba(0, 0, 0, 0.1)",
         marginBottom: "12px",
@@ -1887,12 +1855,14 @@ export function OrderCardNew({
           padding: "16px",
           cursor: "pointer",
           transition: "background-color 0.2s",
+          backgroundColor: orderStatusStyle.backgroundColor,
         }}
         onMouseEnter={(e) => {
-          e.currentTarget.style.backgroundColor = "#fafafa";
+          // Darken background slightly on hover
+          e.currentTarget.style.opacity = "0.85";
         }}
         onMouseLeave={(e) => {
-          e.currentTarget.style.backgroundColor = "#fff";
+          e.currentTarget.style.opacity = "1";
         }}
       >
         <div
@@ -1902,50 +1872,97 @@ export function OrderCardNew({
             alignItems: "flex-start",
           }}
         >
-          {/* Left: Customer Name + Date */}
+          {/* Left: Customer Name + Order Info + Status Badge */}
           <div style={{ flex: 1 }}>
+            {/* Customer Name (Bold) + Status Badge */}
             <div
               style={{
-                fontSize: "18px",
-                fontWeight: 700,
-                color: "#333",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
                 marginBottom: "4px",
+                flexWrap: "wrap",
+                gap: "8px",
               }}
             >
-              {order.customerName}
-            </div>
-            <div
-              style={{ fontSize: "14px", color: "#666", marginBottom: "8px" }}
-            >
-              {formatDate(order.orderDate || order.date)}
-            </div>
-
-            {/* Essenziali Toggle */}
-            <div style={{ marginBottom: "8px" }}>
-              <label
+              <div
+                style={{
+                  fontSize: "18px",
+                  fontWeight: 700,
+                  color: "#333",
+                }}
+              >
+                {order.customerName}
+              </div>
+              <span
                 style={{
                   display: "inline-flex",
                   alignItems: "center",
-                  gap: "8px",
-                  cursor: "pointer",
-                  fontSize: "12px",
-                  color: "#666",
+                  padding: "4px 10px",
+                  borderRadius: "12px",
+                  backgroundColor: orderStatusStyle.borderColor,
+                  color: "#fff",
+                  fontSize: "11px",
+                  fontWeight: 600,
                 }}
               >
-                <input
-                  type="checkbox"
-                  checked={showEssentialsOnly}
-                  onChange={handleToggleEssentials}
-                  onClick={(e) => e.stopPropagation()}
-                  style={{
-                    cursor: "pointer",
-                  }}
-                />
-                Mostra solo essenziali
-              </label>
+                {orderStatusStyle.label}
+              </span>
             </div>
 
-            {/* Badges */}
+            {/* Order Number + Date */}
+            <div
+              style={{
+                fontSize: "14px",
+                color: "#666",
+                marginBottom: "8px",
+              }}
+            >
+              {order.orderNumber ? (
+                <>
+                  <span style={{ fontWeight: 600 }}>{order.orderNumber}</span>
+                  {" • "}
+                </>
+              ) : null}
+              {formatDate(order.orderDate || order.date)}
+            </div>
+
+            {/* Total Amount */}
+            <div style={{ marginBottom: "8px" }}>
+              <span
+                style={{
+                  fontSize: "16px",
+                  fontWeight: 600,
+                  color: "#333",
+                }}
+              >
+                {order.total}
+              </span>
+              {(() => {
+                const totalWithVat =
+                  articlesTotals.totalWithVat ??
+                  ((order as any).totalWithVat
+                    ? parseFloat((order as any).totalWithVat)
+                    : undefined);
+
+                if (totalWithVat && totalWithVat > 0) {
+                  return (
+                    <span
+                      style={{
+                        fontSize: "13px",
+                        color: "#666",
+                        marginLeft: "8px",
+                      }}
+                    >
+                      (Imp: € {totalWithVat.toFixed(2)})
+                    </span>
+                  );
+                }
+                return null;
+              })()}
+            </div>
+
+            {/* Action Buttons */}
             <div
               style={{
                 display: "flex",
@@ -1953,114 +1970,152 @@ export function OrderCardNew({
                 alignItems: "center",
                 flexWrap: "wrap",
               }}
+              onClick={(e) => e.stopPropagation()}
             >
-              {/* Special badge for "Creato" orders (drafts) */}
-              {isCreato && (
-                <span
+              {/* Tracking Button */}
+              {(order.tracking?.trackingUrl || order.ddt?.trackingUrl) && (
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    const url =
+                      order.tracking?.trackingUrl || order.ddt?.trackingUrl;
+                    if (url) window.open(url, "_blank");
+                  }}
                   style={{
                     display: "inline-flex",
                     alignItems: "center",
+                    gap: "4px",
                     padding: "6px 12px",
-                    borderRadius: "16px",
-                    backgroundColor: "#2196f3", // Blue
-                    color: "#fff",
                     fontSize: "12px",
                     fontWeight: 600,
-                    gap: "4px",
+                    backgroundColor: "#fff",
+                    color: "#1976d2",
+                    border: "1px solid #1976d2",
+                    borderRadius: "6px",
+                    cursor: "pointer",
+                    transition: "all 0.2s",
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.backgroundColor = "#1976d2";
+                    e.currentTarget.style.color = "#fff";
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.backgroundColor = "#fff";
+                    e.currentTarget.style.color = "#1976d2";
                   }}
                 >
-                  📝 Bozza
-                </span>
+                  🚚 Tracking
+                </button>
               )}
-              {/* Special badge for "Piazzato" orders (without ORD/) */}
-              {isPiazzato && (
-                <span
+
+              {/* DDT Download Button */}
+              {order.ddt?.ddtNumber && (
+                <button
+                  onClick={async (e) => {
+                    e.stopPropagation();
+                    try {
+                      const response = await fetch(
+                        `/api/orders/${order.id}/ddt/download`,
+                        {
+                          headers: {
+                            Authorization: `Bearer ${token}`,
+                          },
+                        },
+                      );
+                      if (response.ok) {
+                        const blob = await response.blob();
+                        const url = window.URL.createObjectURL(blob);
+                        const a = document.createElement("a");
+                        a.href = url;
+                        a.download = `DDT_${order.orderNumber || order.id}.pdf`;
+                        a.click();
+                        window.URL.revokeObjectURL(url);
+                      }
+                    } catch (error) {
+                      console.error("Error downloading DDT:", error);
+                    }
+                  }}
                   style={{
                     display: "inline-flex",
                     alignItems: "center",
+                    gap: "4px",
                     padding: "6px 12px",
-                    borderRadius: "16px",
-                    backgroundColor: "#ff9800", // Orange
-                    color: "#fff",
                     fontSize: "12px",
                     fontWeight: 600,
-                    gap: "4px",
+                    backgroundColor: "#fff",
+                    color: "#388e3c",
+                    border: "1px solid #388e3c",
+                    borderRadius: "6px",
+                    cursor: "pointer",
+                    transition: "all 0.2s",
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.backgroundColor = "#388e3c";
+                    e.currentTarget.style.color = "#fff";
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.backgroundColor = "#fff";
+                    e.currentTarget.style.color = "#388e3c";
                   }}
                 >
-                  📍 Piazzato
-                </span>
+                  📄 DDT
+                </button>
               )}
-              <StatusBadge
-                status={order.status}
-                state={order.state}
-                lastUpdatedAt={order.lastUpdatedAt}
-              />
-              <TrackingBadge
-                trackingNumber={
-                  order.tracking?.trackingNumber || order.ddt?.trackingNumber
-                }
-                trackingUrl={
-                  order.tracking?.trackingUrl || order.ddt?.trackingUrl
-                }
-                trackingCourier={
-                  order.tracking?.trackingCourier || order.ddt?.trackingCourier
-                }
-              />
-              {!showEssentialsOnly && (
-                <>
-                  <OrderTypeBadge orderType={order.orderType} />
-                  <DocumentStateBadge documentState={order.documentState} />
-                  <TransferBadge
-                    transferred={order.transferredToAccountingOffice}
-                  />
-                  <OriginBadge salesOrigin={order.salesOrigin} />
-                  <DeliveryMethodBadge
-                    deliveryMethod={order.ddt?.deliveryMethod}
-                  />
-                  <LocationBadge
-                    deliveryCity={order.ddt?.deliveryCity}
-                    shippingAddress={order.shippingAddress}
-                  />
-                </>
+
+              {/* Invoice Download Button */}
+              {order.invoiceNumber && (
+                <button
+                  onClick={async (e) => {
+                    e.stopPropagation();
+                    try {
+                      const response = await fetch(
+                        `/api/orders/${order.id}/invoice/download`,
+                        {
+                          headers: {
+                            Authorization: `Bearer ${token}`,
+                          },
+                        },
+                      );
+                      if (response.ok) {
+                        const blob = await response.blob();
+                        const url = window.URL.createObjectURL(blob);
+                        const a = document.createElement("a");
+                        a.href = url;
+                        a.download = `Fattura_${order.invoiceNumber}.pdf`;
+                        a.click();
+                        window.URL.revokeObjectURL(url);
+                      }
+                    } catch (error) {
+                      console.error("Error downloading invoice:", error);
+                    }
+                  }}
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: "4px",
+                    padding: "6px 12px",
+                    fontSize: "12px",
+                    fontWeight: 600,
+                    backgroundColor: "#fff",
+                    color: "#7b1fa2",
+                    border: "1px solid #7b1fa2",
+                    borderRadius: "6px",
+                    cursor: "pointer",
+                    transition: "all 0.2s",
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.backgroundColor = "#7b1fa2";
+                    e.currentTarget.style.color = "#fff";
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.backgroundColor = "#fff";
+                    e.currentTarget.style.color = "#7b1fa2";
+                  }}
+                >
+                  📑 Fattura
+                </button>
               )}
             </div>
-          </div>
-
-          {/* Right: Total */}
-          <div style={{ textAlign: "right", marginLeft: "16px" }}>
-            <div
-              style={{
-                fontSize: "20px",
-                fontWeight: 700,
-                color: "#333",
-                marginBottom: "4px",
-              }}
-            >
-              {order.total}
-            </div>
-            {(() => {
-              // Use state from articles sync first, fallback to order prop
-              const totalWithVat =
-                articlesTotals.totalWithVat ??
-                ((order as any).totalWithVat
-                  ? parseFloat((order as any).totalWithVat)
-                  : undefined);
-
-              if (totalWithVat && totalWithVat > 0) {
-                return (
-                  <div
-                    style={{
-                      fontSize: "14px",
-                      color: "#2e7d32",
-                      fontWeight: 600,
-                    }}
-                  >
-                    (€ {totalWithVat.toFixed(2)} con IVA)
-                  </div>
-                );
-              }
-              return null;
-            })()}
           </div>
         </div>
 

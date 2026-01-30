@@ -8,7 +8,7 @@ export interface OrderItem {
   quantity: number;
   packageContent: string;
   unitPrice: number;
-  discountType?: 'percentage' | 'amount';
+  discountType?: "percentage" | "amount";
   discountValue?: number; // Percentage (0-100) or amount (€)
   subtotal: number; // price × quantity
   discount: number; // Calculated discount amount
@@ -100,6 +100,7 @@ export interface Order {
   deliveryMethod?: string;
   deliveryCity?: string;
   attentionTo?: string;
+  deliveryCompletedDate?: string; // ISO timestamp when delivery was completed
 
   // Metadata (12 columns)
   botUserId?: string;

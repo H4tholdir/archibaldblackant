@@ -2,9 +2,9 @@ import { useState, useEffect, useCallback } from "react";
 import { OrderCardNew } from "../components/OrderCardNew";
 import { SendToMilanoModal } from "../components/SendToMilanoModal";
 import { SyncProgressModal } from "../components/SyncProgressModal";
+import { OrderStatusLegend } from "../components/OrderStatusLegend";
 import { groupOrdersByPeriod } from "../utils/orderGrouping";
 import type { Order } from "../types/order";
-import { useAuth } from "../hooks/useAuth";
 import { useSyncProgress } from "../hooks/useSyncProgress";
 import { toastService } from "../services/toast.service";
 
@@ -13,7 +13,15 @@ interface OrderFilters {
   dateFrom: string;
   dateTo: string;
   status: string;
+  quickFilters: Set<QuickFilterType>;
+  search: string; // Global search term
 }
+
+type QuickFilterType =
+  | "requiresAttention"
+  | "editable"
+  | "inTransit"
+  | "invoiced";
 
 interface OrderHistoryResponse {
   success: boolean;
@@ -25,8 +33,7 @@ interface OrderHistoryResponse {
 }
 
 export function OrderHistory() {
-  const auth = useAuth();
-  const { progress, startSync, reset: resetProgress } = useSyncProgress();
+  const { progress, reset: resetProgress } = useSyncProgress();
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -36,20 +43,18 @@ export function OrderHistory() {
     dateFrom: "",
     dateTo: "",
     status: "",
+    quickFilters: new Set(),
+    search: "",
   });
   const [debouncedCustomer, setDebouncedCustomer] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
   const [syncModalOpen, setSyncModalOpen] = useState(false);
-  const [syncType, setSyncType] = useState<"sync" | "reset">("sync");
+  const [syncType] = useState<"sync" | "reset">("sync");
   const [modalOpen, setModalOpen] = useState(false);
   const [modalOrderId, setModalOrderId] = useState<string | null>(null);
   const [modalCustomerName, setModalCustomerName] = useState<string>("");
   const [sendingToMilano, setSendingToMilano] = useState(false);
-  const [syncingOrders, setSyncingOrders] = useState(false);
-  const [syncingDDT, setSyncingDDT] = useState(false);
-  const [syncingInvoices, setSyncingInvoices] = useState(false);
-  const [ordersSyncResult, setOrdersSyncResult] = useState<any>(null);
-  const [ddtSyncResult, setDDTSyncResult] = useState<any>(null);
-  const [invoicesSyncResult, setInvoicesSyncResult] = useState<any>(null);
+  const [legendOpen, setLegendOpen] = useState(false);
 
   // Debounce customer search input (300ms)
   useEffect(() => {
@@ -59,6 +64,15 @@ export function OrderHistory() {
 
     return () => clearTimeout(timer);
   }, [filters.customer]);
+
+  // Debounce global search input (300ms)
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(filters.search);
+    }, 300);
+
+    return () => clearTimeout(timer);
+  }, [filters.search]);
 
   // Fetch orders on mount and when filters change
   const fetchOrders = useCallback(async () => {
@@ -76,6 +90,7 @@ export function OrderHistory() {
       // Build query params
       const params = new URLSearchParams();
       if (debouncedCustomer) params.append("customer", debouncedCustomer);
+      if (debouncedSearch) params.append("search", debouncedSearch);
       if (filters.dateFrom) params.append("dateFrom", filters.dateFrom);
       if (filters.dateTo) params.append("dateTo", filters.dateTo);
       if (filters.status) params.append("status", filters.status);
@@ -108,7 +123,13 @@ export function OrderHistory() {
     } finally {
       setLoading(false);
     }
-  }, [debouncedCustomer, filters.dateFrom, filters.dateTo, filters.status]);
+  }, [
+    debouncedCustomer,
+    debouncedSearch,
+    filters.dateFrom,
+    filters.dateTo,
+    filters.status,
+  ]);
 
   useEffect(() => {
     fetchOrders();
@@ -131,6 +152,8 @@ export function OrderHistory() {
       dateFrom: "",
       dateTo: "",
       status: "",
+      quickFilters: new Set(),
+      search: "",
     });
   };
 
@@ -203,159 +226,62 @@ export function OrderHistory() {
     window.location.href = `/order?orderId=${orderId}`;
   };
 
-  const handleResetDB = async () => {
-    // Confirmation dialog
-    const confirmed = window.confirm(
-      "⚠️ ATTENZIONE: Questa operazione cancellerà TUTTI gli ordini dal database e avvierà una sincronizzazione completa. Sei sicuro di voler continuare?",
-    );
+  // Apply quick filters client-side
+  const applyQuickFilters = (orders: Order[]): Order[] => {
+    if (filters.quickFilters.size === 0) return orders;
 
-    if (!confirmed) {
-      return;
-    }
+    return orders.filter((order) => {
+      for (const filterType of filters.quickFilters) {
+        let matches = false;
 
-    const token = localStorage.getItem("archibald_jwt");
-    if (!token) {
-      setError("Non autenticato. Effettua il login.");
-      return;
-    }
+        switch (filterType) {
+          case "requiresAttention":
+            // IN ATTESA DI APPROVAZIONE or TRANSFER ERROR
+            matches =
+              order.state === "IN ATTESA DI APPROVAZIONE" ||
+              order.state === "TRANSFER ERROR";
+            break;
 
-    // Open modal and start reset
-    setSyncType("reset");
-    setSyncModalOpen(true);
-    setError(null);
+          case "editable":
+            // GIORNALE + MODIFICA
+            matches =
+              order.orderType === "GIORNALE" && order.state === "MODIFICA";
+            break;
 
-    try {
-      await startSync("reset", token, async () => {
-        // Auto-refresh orders list when sync completes
-        console.log("Reset and sync completed, refreshing orders list...");
-        await fetchOrders();
-      });
-    } catch (err) {
-      const errorMessage =
-        err instanceof Error ? err.message : "Errore nel reset del database";
-      setError(errorMessage);
-    }
+          case "inTransit":
+            // ORDINE DI VENDITA + CONSEGNATO + TRASFERITO without deliveryCompletedDate
+            matches =
+              (order.orderType === "ORDINE DI VENDITA" ||
+                order.status === "CONSEGNATO") &&
+              !!(order.tracking?.trackingNumber || order.ddt?.trackingNumber) &&
+              !order.deliveryCompletedDate;
+            break;
+
+          case "invoiced":
+            // With invoice number
+            matches = !!order.invoiceNumber;
+            break;
+        }
+
+        if (!matches) return false; // AND logic: all filters must match
+      }
+
+      return true;
+    });
   };
 
-  const handleSyncOrders = async () => {
-    if (syncingOrders || syncingDDT || syncingInvoices) return;
-
-    setSyncingOrders(true);
-    setOrdersSyncResult(null);
-    setError(null);
-
-    try {
-      const token = localStorage.getItem("archibald_jwt");
-      if (!token) {
-        setError("Non autenticato. Effettua il login.");
-        return;
-      }
-
-      const response = await fetch("/api/orders/sync", {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
-        },
-      });
-
-      const data = await response.json();
-
-      if (!data.success) {
-        throw new Error(data.error || "Sync failed");
-      }
-
-      setOrdersSyncResult(data);
-      await fetchOrders();
-    } catch (error) {
-      console.error("Orders sync error:", error);
-      setError(`Errore sincronizzazione ordini: ${error}`);
-    } finally {
-      setSyncingOrders(false);
-    }
-  };
-
-  const handleSyncDDT = async () => {
-    if (syncingOrders || syncingDDT || syncingInvoices) return;
-
-    setSyncingDDT(true);
-    setDDTSyncResult(null);
-    setError(null);
-
-    try {
-      const token = localStorage.getItem("archibald_jwt");
-      if (!token) {
-        setError("Non autenticato. Effettua il login.");
-        return;
-      }
-
-      const response = await fetch("/api/ddt/sync", {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
-        },
-      });
-
-      const data = await response.json();
-
-      if (!data.success) {
-        throw new Error(data.error || "Sync failed");
-      }
-
-      setDDTSyncResult(data);
-      await fetchOrders();
-    } catch (error) {
-      console.error("DDT sync error:", error);
-      setError(`Errore sincronizzazione DDT: ${error}`);
-    } finally {
-      setSyncingDDT(false);
-    }
-  };
-
-  const handleSyncInvoices = async () => {
-    if (syncingOrders || syncingDDT || syncingInvoices) return;
-
-    setSyncingInvoices(true);
-    setInvoicesSyncResult(null);
-    setError(null);
-
-    try {
-      const token = localStorage.getItem("archibald_jwt");
-      if (!token) {
-        setError("Non autenticato. Effettua il login.");
-        return;
-      }
-
-      const response = await fetch("/api/invoices/sync", {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
-        },
-      });
-
-      const data = await response.json();
-
-      if (!data.success) {
-        throw new Error(data.error || "Sync failed");
-      }
-
-      setInvoicesSyncResult(data);
-      await fetchOrders();
-    } catch (error) {
-      console.error("Invoices sync error:", error);
-      setError(`Errore sincronizzazione fatture: ${error}`);
-    } finally {
-      setSyncingInvoices(false);
-    }
-  };
+  const filteredOrders = applyQuickFilters(orders);
 
   const hasActiveFilters =
-    filters.customer || filters.dateFrom || filters.dateTo || filters.status;
+    filters.customer ||
+    filters.dateFrom ||
+    filters.dateTo ||
+    filters.status ||
+    filters.quickFilters.size > 0 ||
+    filters.search;
 
   // Group orders by period
-  const orderGroups = groupOrdersByPeriod(orders);
+  const orderGroups = groupOrdersByPeriod(filteredOrders);
 
   // Get merged order data (base order as-is since we removed orderDetails state)
   const getMergedOrder = (order: Order): Order => {
@@ -373,20 +299,58 @@ export function OrderHistory() {
       }}
     >
       {/* Header */}
-      <div style={{ marginBottom: "24px" }}>
-        <h1
+      <div
+        style={{
+          marginBottom: "24px",
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          flexWrap: "wrap",
+          gap: "16px",
+        }}
+      >
+        <div>
+          <h1
+            style={{
+              fontSize: "28px",
+              fontWeight: 700,
+              color: "#333",
+              marginBottom: "8px",
+            }}
+          >
+            📦 Ordini
+          </h1>
+          <p style={{ fontSize: "16px", color: "#666" }}>
+            Consulta lo storico dei tuoi ordini e il loro stato
+          </p>
+        </div>
+        <button
+          onClick={() => setLegendOpen(true)}
           style={{
-            fontSize: "28px",
-            fontWeight: 700,
-            color: "#333",
-            marginBottom: "8px",
+            display: "inline-flex",
+            alignItems: "center",
+            gap: "8px",
+            padding: "10px 16px",
+            fontSize: "14px",
+            fontWeight: 600,
+            backgroundColor: "#fff",
+            color: "#1976d2",
+            border: "2px solid #1976d2",
+            borderRadius: "8px",
+            cursor: "pointer",
+            transition: "all 0.2s",
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.backgroundColor = "#1976d2";
+            e.currentTarget.style.color = "#fff";
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.backgroundColor = "#fff";
+            e.currentTarget.style.color = "#1976d2";
           }}
         >
-          📦 Ordini
-        </h1>
-        <p style={{ fontSize: "16px", color: "#666" }}>
-          Consulta lo storico dei tuoi ordini e il loro stato
-        </p>
+          ℹ️ Leggi gli stati
+        </button>
       </div>
 
       {/* Filters */}
@@ -407,10 +371,10 @@ export function OrderHistory() {
             marginBottom: "16px",
           }}
         >
-          {/* Customer search */}
+          {/* Global search */}
           <div>
             <label
-              htmlFor="customer-search"
+              htmlFor="global-search"
               style={{
                 display: "block",
                 fontSize: "14px",
@@ -419,15 +383,15 @@ export function OrderHistory() {
                 marginBottom: "8px",
               }}
             >
-              Cliente
+              🔍 Ricerca globale
             </label>
             <input
-              id="customer-search"
+              id="global-search"
               type="text"
-              placeholder="Cerca cliente..."
-              value={filters.customer}
+              placeholder="Cerca ordini, clienti, articoli, tracking..."
+              value={filters.search}
               onChange={(e) =>
-                setFilters((prev) => ({ ...prev, customer: e.target.value }))
+                setFilters((prev) => ({ ...prev, search: e.target.value }))
               }
               style={{
                 width: "100%",
@@ -445,6 +409,15 @@ export function OrderHistory() {
                 e.currentTarget.style.borderColor = "#ddd";
               }}
             />
+            <div
+              style={{
+                fontSize: "11px",
+                color: "#999",
+                marginTop: "4px",
+              }}
+            >
+              Cerca in: ORD/numero, cliente, importi, tracking, DDT, fattura
+            </div>
           </div>
 
           {/* Date from */}
@@ -526,7 +499,7 @@ export function OrderHistory() {
           </div>
         </div>
 
-        {/* Status filter chips */}
+        {/* Quick filter chips */}
         <div style={{ marginBottom: "16px" }}>
           <label
             style={{
@@ -537,51 +510,94 @@ export function OrderHistory() {
               marginBottom: "8px",
             }}
           >
-            Filtro
+            Filtri veloci
           </label>
           <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
-            {["Tutti", "Spediti", "Consegnati", "Fatturati"].map(
-              (filterType) => {
-                const isActive =
-                  filterType === "Tutti"
-                    ? !filters.status
-                    : filters.status === filterType;
-                return (
-                  <button
-                    key={filterType}
-                    onClick={() =>
-                      setFilters((prev) => ({
-                        ...prev,
-                        status: filterType === "Tutti" ? "" : filterType,
-                      }))
-                    }
-                    style={{
-                      padding: "8px 16px",
-                      fontSize: "14px",
-                      fontWeight: 600,
-                      border: isActive ? "2px solid #1976d2" : "1px solid #ddd",
-                      borderRadius: "20px",
-                      backgroundColor: isActive ? "#e3f2fd" : "#fff",
-                      color: isActive ? "#1976d2" : "#666",
-                      cursor: "pointer",
-                      transition: "all 0.2s",
-                    }}
-                    onMouseEnter={(e) => {
-                      if (!isActive) {
-                        e.currentTarget.style.backgroundColor = "#f5f5f5";
-                      }
-                    }}
-                    onMouseLeave={(e) => {
-                      if (!isActive) {
-                        e.currentTarget.style.backgroundColor = "#fff";
-                      }
-                    }}
-                  >
-                    {filterType}
-                  </button>
-                );
+            {[
+              {
+                id: "requiresAttention" as QuickFilterType,
+                label: "⚠️ Richiede attenzione",
+                color: "#F44336",
+                bgColor: "#FFEBEE",
+                count: orders.filter(
+                  (o) =>
+                    o.state === "IN ATTESA DI APPROVAZIONE" ||
+                    o.state === "TRANSFER ERROR",
+                ).length,
               },
-            )}
+              {
+                id: "editable" as QuickFilterType,
+                label: "✏️ Modificabili",
+                color: "#757575",
+                bgColor: "#F5F5F5",
+                count: orders.filter(
+                  (o) => o.orderType === "GIORNALE" && o.state === "MODIFICA",
+                ).length,
+              },
+              {
+                id: "inTransit" as QuickFilterType,
+                label: "🚚 In transito",
+                color: "#2196F3",
+                bgColor: "#E3F2FD",
+                count: orders.filter(
+                  (o) =>
+                    (o.orderType === "ORDINE DI VENDITA" ||
+                      o.status === "CONSEGNATO") &&
+                    (o.tracking?.trackingNumber || o.ddt?.trackingNumber) &&
+                    !o.deliveryCompletedDate,
+                ).length,
+              },
+              {
+                id: "invoiced" as QuickFilterType,
+                label: "📑 Fatturati",
+                color: "#9C27B0",
+                bgColor: "#F3E5F5",
+                count: orders.filter((o) => !!o.invoiceNumber).length,
+              },
+            ].map((quickFilter) => {
+              const isActive = filters.quickFilters.has(quickFilter.id);
+              return (
+                <button
+                  key={quickFilter.id}
+                  onClick={() => {
+                    setFilters((prev) => {
+                      const newQuickFilters = new Set(prev.quickFilters);
+                      if (isActive) {
+                        newQuickFilters.delete(quickFilter.id);
+                      } else {
+                        newQuickFilters.add(quickFilter.id);
+                      }
+                      return { ...prev, quickFilters: newQuickFilters };
+                    });
+                  }}
+                  style={{
+                    padding: "8px 16px",
+                    fontSize: "14px",
+                    fontWeight: 600,
+                    border: isActive
+                      ? `2px solid ${quickFilter.color}`
+                      : "1px solid #ddd",
+                    borderRadius: "20px",
+                    backgroundColor: isActive ? quickFilter.bgColor : "#fff",
+                    color: isActive ? quickFilter.color : "#666",
+                    cursor: "pointer",
+                    transition: "all 0.2s",
+                  }}
+                  onMouseEnter={(e) => {
+                    if (!isActive) {
+                      e.currentTarget.style.backgroundColor = "#f5f5f5";
+                    }
+                  }}
+                  onMouseLeave={(e) => {
+                    if (!isActive) {
+                      e.currentTarget.style.backgroundColor = "#fff";
+                    }
+                  }}
+                >
+                  {quickFilter.label} ({quickFilter.count})
+                </button>
+              );
+            })}
           </div>
         </div>
 
@@ -614,366 +630,8 @@ export function OrderHistory() {
               ✕ Cancella filtri
             </button>
           )}
-
-          {/* Sync Orders button */}
-          <button
-            onClick={handleSyncOrders}
-            disabled={syncingOrders || syncingDDT || syncingInvoices || loading}
-            style={{
-              padding: "8px 16px",
-              fontSize: "14px",
-              fontWeight: 600,
-              border: "1px solid #1976d2",
-              borderRadius: "8px",
-              backgroundColor: syncingOrders ? "#e3f2fd" : "#fff",
-              color: syncingOrders ? "#999" : "#1976d2",
-              cursor:
-                syncingOrders || syncingDDT || syncingInvoices || loading
-                  ? "not-allowed"
-                  : "pointer",
-              transition: "all 0.2s",
-              opacity:
-                syncingOrders || syncingDDT || syncingInvoices || loading
-                  ? 0.6
-                  : 1,
-            }}
-            onMouseEnter={(e) => {
-              if (
-                !syncingOrders &&
-                !syncingDDT &&
-                !syncingInvoices &&
-                !loading
-              ) {
-                e.currentTarget.style.backgroundColor = "#1976d2";
-                e.currentTarget.style.color = "#fff";
-              }
-            }}
-            onMouseLeave={(e) => {
-              if (
-                !syncingOrders &&
-                !syncingDDT &&
-                !syncingInvoices &&
-                !loading
-              ) {
-                e.currentTarget.style.backgroundColor = "#fff";
-                e.currentTarget.style.color = "#1976d2";
-              }
-            }}
-          >
-            {syncingOrders ? "⏳ Sync Ordini..." : "🔄 Sync Ordini"}
-          </button>
-
-          {/* Sync DDT button */}
-          <button
-            onClick={handleSyncDDT}
-            disabled={syncingOrders || syncingDDT || syncingInvoices || loading}
-            style={{
-              padding: "8px 16px",
-              fontSize: "14px",
-              fontWeight: 600,
-              border: "1px solid #4caf50",
-              borderRadius: "8px",
-              backgroundColor: syncingDDT ? "#e8f5e9" : "#fff",
-              color: syncingDDT ? "#999" : "#4caf50",
-              cursor:
-                syncingOrders || syncingDDT || syncingInvoices || loading
-                  ? "not-allowed"
-                  : "pointer",
-              transition: "all 0.2s",
-              opacity:
-                syncingOrders || syncingDDT || syncingInvoices || loading
-                  ? 0.6
-                  : 1,
-            }}
-            onMouseEnter={(e) => {
-              if (
-                !syncingOrders &&
-                !syncingDDT &&
-                !syncingInvoices &&
-                !loading
-              ) {
-                e.currentTarget.style.backgroundColor = "#4caf50";
-                e.currentTarget.style.color = "#fff";
-              }
-            }}
-            onMouseLeave={(e) => {
-              if (
-                !syncingOrders &&
-                !syncingDDT &&
-                !syncingInvoices &&
-                !loading
-              ) {
-                e.currentTarget.style.backgroundColor = "#fff";
-                e.currentTarget.style.color = "#4caf50";
-              }
-            }}
-          >
-            {syncingDDT ? "⏳ Sync DDT..." : "🚚 Sync DDT"}
-          </button>
-
-          {/* Sync Invoices button */}
-          <button
-            onClick={handleSyncInvoices}
-            disabled={syncingOrders || syncingDDT || syncingInvoices || loading}
-            style={{
-              padding: "8px 16px",
-              fontSize: "14px",
-              fontWeight: 600,
-              border: "1px solid #ff9800",
-              borderRadius: "8px",
-              backgroundColor: syncingInvoices ? "#fff3e0" : "#fff",
-              color: syncingInvoices ? "#999" : "#ff9800",
-              cursor:
-                syncingOrders || syncingDDT || syncingInvoices || loading
-                  ? "not-allowed"
-                  : "pointer",
-              transition: "all 0.2s",
-              opacity:
-                syncingOrders || syncingDDT || syncingInvoices || loading
-                  ? 0.6
-                  : 1,
-            }}
-            onMouseEnter={(e) => {
-              if (
-                !syncingOrders &&
-                !syncingDDT &&
-                !syncingInvoices &&
-                !loading
-              ) {
-                e.currentTarget.style.backgroundColor = "#ff9800";
-                e.currentTarget.style.color = "#fff";
-              }
-            }}
-            onMouseLeave={(e) => {
-              if (
-                !syncingOrders &&
-                !syncingDDT &&
-                !syncingInvoices &&
-                !loading
-              ) {
-                e.currentTarget.style.backgroundColor = "#fff";
-                e.currentTarget.style.color = "#ff9800";
-              }
-            }}
-          >
-            {syncingInvoices ? "⏳ Sync Fatture..." : "💰 Sync Fatture"}
-          </button>
-
-          {/* Admin-only Reset DB button */}
-          {auth.user?.role === "admin" && (
-            <button
-              onClick={handleResetDB}
-              disabled={progress.isRunning || loading}
-              style={{
-                padding: "8px 16px",
-                fontSize: "14px",
-                fontWeight: 600,
-                border: "1px solid #f44336",
-                borderRadius: "8px",
-                backgroundColor: progress.isRunning ? "#ffebee" : "#fff",
-                color: progress.isRunning ? "#999" : "#f44336",
-                cursor:
-                  progress.isRunning || loading ? "not-allowed" : "pointer",
-                transition: "all 0.2s",
-                opacity: progress.isRunning || loading ? 0.6 : 1,
-              }}
-              onMouseEnter={(e) => {
-                if (!progress.isRunning && !loading) {
-                  e.currentTarget.style.backgroundColor = "#f44336";
-                  e.currentTarget.style.color = "#fff";
-                }
-              }}
-              onMouseLeave={(e) => {
-                if (!progress.isRunning && !loading) {
-                  e.currentTarget.style.backgroundColor = "#fff";
-                  e.currentTarget.style.color = "#f44336";
-                }
-              }}
-            >
-              {progress.isRunning && syncType === "reset"
-                ? "⏳ Reset in corso..."
-                : "🗑️ Reset DB e Forza Sync"}
-            </button>
-          )}
         </div>
       </div>
-
-      {/* Sync Progress Banners */}
-      {syncingOrders && (
-        <div
-          style={{
-            padding: "15px",
-            backgroundColor: "#e3f2fd",
-            borderRadius: "8px",
-            marginBottom: "20px",
-            boxShadow: "0 2px 8px rgba(0, 0, 0, 0.1)",
-          }}
-        >
-          <div
-            style={{
-              fontSize: "16px",
-              fontWeight: "bold",
-              marginBottom: "5px",
-            }}
-          >
-            ⏳ Sincronizzazione ordini in corso...
-          </div>
-          <div style={{ fontSize: "14px", color: "#666" }}>
-            Download PDF → Parsing → Salvataggio database
-          </div>
-        </div>
-      )}
-
-      {syncingDDT && (
-        <div
-          style={{
-            padding: "15px",
-            backgroundColor: "#e8f5e9",
-            borderRadius: "8px",
-            marginBottom: "20px",
-            boxShadow: "0 2px 8px rgba(0, 0, 0, 0.1)",
-          }}
-        >
-          <div
-            style={{
-              fontSize: "16px",
-              fontWeight: "bold",
-              marginBottom: "5px",
-            }}
-          >
-            ⏳ Sincronizzazione DDT in corso...
-          </div>
-          <div style={{ fontSize: "14px", color: "#666" }}>
-            Download PDF → Parsing → Salvataggio database
-          </div>
-        </div>
-      )}
-
-      {syncingInvoices && (
-        <div
-          style={{
-            padding: "15px",
-            backgroundColor: "#fff3e0",
-            borderRadius: "8px",
-            marginBottom: "20px",
-            boxShadow: "0 2px 8px rgba(0, 0, 0, 0.1)",
-          }}
-        >
-          <div
-            style={{
-              fontSize: "16px",
-              fontWeight: "bold",
-              marginBottom: "5px",
-            }}
-          >
-            ⏳ Sincronizzazione fatture in corso...
-          </div>
-          <div style={{ fontSize: "14px", color: "#666" }}>
-            Download PDF → Parsing → Salvataggio database
-          </div>
-        </div>
-      )}
-
-      {/* Sync Result Summary - Orders */}
-      {ordersSyncResult && !syncingOrders && (
-        <div
-          style={{
-            padding: "15px",
-            backgroundColor: "#e8f5e9",
-            borderRadius: "8px",
-            marginBottom: "20px",
-            boxShadow: "0 2px 8px rgba(0, 0, 0, 0.1)",
-          }}
-        >
-          <div
-            style={{
-              fontSize: "16px",
-              fontWeight: "bold",
-              color: "#2e7d32",
-              marginBottom: "10px",
-            }}
-          >
-            ✓ Sincronizzazione ordini completata
-          </div>
-          <div style={{ fontSize: "14px", color: "#666" }}>
-            <div>
-              Ordini processati: {ordersSyncResult.data?.ordersProcessed || 0}
-            </div>
-            <div>
-              Nuovi ordini: {ordersSyncResult.data?.ordersInserted || 0}
-            </div>
-            <div>
-              Ordini aggiornati: {ordersSyncResult.data?.ordersUpdated || 0}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Sync Result Summary - DDT */}
-      {ddtSyncResult && !syncingDDT && (
-        <div
-          style={{
-            padding: "15px",
-            backgroundColor: "#e8f5e9",
-            borderRadius: "8px",
-            marginBottom: "20px",
-            boxShadow: "0 2px 8px rgba(0, 0, 0, 0.1)",
-          }}
-        >
-          <div
-            style={{
-              fontSize: "16px",
-              fontWeight: "bold",
-              color: "#2e7d32",
-              marginBottom: "10px",
-            }}
-          >
-            ✓ Sincronizzazione DDT completata
-          </div>
-          <div style={{ fontSize: "14px", color: "#666" }}>
-            <div>DDT processati: {ddtSyncResult.data?.ddtProcessed || 0}</div>
-            <div>Nuovi DDT: {ddtSyncResult.data?.ddtInserted || 0}</div>
-            <div>DDT aggiornati: {ddtSyncResult.data?.ddtUpdated || 0}</div>
-          </div>
-        </div>
-      )}
-
-      {/* Sync Result Summary - Invoices */}
-      {invoicesSyncResult && !syncingInvoices && (
-        <div
-          style={{
-            padding: "15px",
-            backgroundColor: "#e8f5e9",
-            borderRadius: "8px",
-            marginBottom: "20px",
-            boxShadow: "0 2px 8px rgba(0, 0, 0, 0.1)",
-          }}
-        >
-          <div
-            style={{
-              fontSize: "16px",
-              fontWeight: "bold",
-              color: "#2e7d32",
-              marginBottom: "10px",
-            }}
-          >
-            ✓ Sincronizzazione fatture completata
-          </div>
-          <div style={{ fontSize: "14px", color: "#666" }}>
-            <div>
-              Fatture processate:{" "}
-              {invoicesSyncResult.data?.invoicesProcessed || 0}
-            </div>
-            <div>
-              Nuove fatture: {invoicesSyncResult.data?.invoicesInserted || 0}
-            </div>
-            <div>
-              Fatture aggiornate:{" "}
-              {invoicesSyncResult.data?.invoicesUpdated || 0}
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Loading state */}
       {loading && (
@@ -1161,6 +819,12 @@ export function OrderHistory() {
           setSyncModalOpen(false);
           resetProgress();
         }}
+      />
+
+      {/* Order Status Legend Modal */}
+      <OrderStatusLegend
+        isOpen={legendOpen}
+        onClose={() => setLegendOpen(false)}
       />
     </div>
   );

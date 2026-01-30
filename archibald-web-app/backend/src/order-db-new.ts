@@ -43,6 +43,7 @@ export interface OrderRecord {
   trackingNumber?: string | null;
   trackingUrl?: string | null;
   trackingCourier?: string | null;
+  deliveryCompletedDate?: string | null; // ISO timestamp when delivery was completed
 
   // Invoice fields (stored directly in orders table)
   invoiceNumber?: string | null;
@@ -269,6 +270,7 @@ export class OrderDatabaseNew {
       { name: "tracking_number", type: "TEXT" },
       { name: "tracking_url", type: "TEXT" },
       { name: "tracking_courier", type: "TEXT" },
+      { name: "delivery_completed_date", type: "TEXT" }, // ISO timestamp when delivery was completed
       // Core Invoice fields (may be missing)
       { name: "invoice_number", type: "TEXT" },
       { name: "invoice_date", type: "TEXT" },
@@ -566,6 +568,7 @@ export class OrderDatabaseNew {
       customer?: string;
       dateFrom?: string;
       dateTo?: string;
+      search?: string; // Global search parameter
     },
   ): OrderRecord[] {
     const limit = options?.limit || 1000; // Default high limit for backward compatibility
@@ -573,6 +576,26 @@ export class OrderDatabaseNew {
 
     let query = `SELECT * FROM orders WHERE user_id = ?`;
     const params: any[] = [userId];
+
+    // Global search (searches across multiple fields)
+    if (options?.search) {
+      const searchTerm = `%${options.search}%`;
+      query += ` AND (
+        order_number LIKE ? OR
+        customer_name LIKE ? OR
+        total_amount LIKE ? OR
+        gross_amount LIKE ? OR
+        tracking_number LIKE ? OR
+        ddt_number LIKE ? OR
+        invoice_number LIKE ? OR
+        delivery_address LIKE ? OR
+        customer_reference LIKE ?
+      )`;
+      // Add search term for each field
+      for (let i = 0; i < 9; i++) {
+        params.push(searchTerm);
+      }
+    }
 
     // Add filters
     if (options?.customer) {
@@ -839,10 +862,31 @@ export class OrderDatabaseNew {
       customer?: string;
       dateFrom?: string;
       dateTo?: string;
+      search?: string; // Global search parameter
     },
   ): number {
     let query = `SELECT COUNT(*) as count FROM orders WHERE user_id = ?`;
     const params: any[] = [userId];
+
+    // Global search (searches across multiple fields)
+    if (options?.search) {
+      const searchTerm = `%${options.search}%`;
+      query += ` AND (
+        order_number LIKE ? OR
+        customer_name LIKE ? OR
+        total_amount LIKE ? OR
+        gross_amount LIKE ? OR
+        tracking_number LIKE ? OR
+        ddt_number LIKE ? OR
+        invoice_number LIKE ? OR
+        delivery_address LIKE ? OR
+        customer_reference LIKE ?
+      )`;
+      // Add search term for each field
+      for (let i = 0; i < 9; i++) {
+        params.push(searchTerm);
+      }
+    }
 
     // Add filters
     if (options?.customer) {

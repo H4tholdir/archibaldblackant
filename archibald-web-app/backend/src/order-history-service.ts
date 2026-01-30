@@ -15,13 +15,14 @@ export interface OrderListOptions {
 }
 
 /**
- * Filters for order list (to be implemented in Plan 10-05)
+ * Filters for order list
  */
 export interface OrderFilters {
   customer?: string; // Customer name search (partial match)
   dateFrom?: string; // ISO date (e.g., "2024-01-01")
   dateTo?: string; // ISO date
   status?: string; // e.g., "In lavorazione", "Evaso", "Spedito"
+  search?: string; // Global search across multiple fields
 }
 
 /**
@@ -87,6 +88,7 @@ export interface Order {
   transferStatus?: string | null; // Col 14: Stato del trasferimento
   transferDate?: string | null; // Col 15: Data di trasferimento
   completionDate?: string | null; // Col 16: Data di completamento
+  deliveryCompletedDate?: string | null; // ISO timestamp when delivery was completed
   discountPercent?: string | null; // Col 17: Applica sconto %
   grossAmount?: string | null; // Col 18: Importo lordo
   totalAmount?: string | null; // Col 19: Importo totale
@@ -302,6 +304,7 @@ export class OrderHistoryService {
         customer: filters?.customer,
         dateFrom: filters?.dateFrom,
         dateTo: filters?.dateTo,
+        search: filters?.search,
       });
 
       const total = this.orderDb.countOrders(userId, {
@@ -309,6 +312,7 @@ export class OrderHistoryService {
         customer: filters?.customer,
         dateFrom: filters?.dateFrom,
         dateTo: filters?.dateTo,
+        search: filters?.search,
       });
 
       const hasMore = offset + limit < total;
@@ -992,6 +996,7 @@ export class OrderHistoryService {
       transferStatus: stored.transferStatus || undefined,
       transferDate: stored.transferDate || undefined,
       completionDate: stored.completionDate || undefined,
+      deliveryCompletedDate: stored.deliveryCompletedDate || undefined,
       discountPercent: stored.discountPercent || undefined,
       grossAmount: stored.grossAmount || undefined,
       totalAmount: stored.totalAmount || undefined,
