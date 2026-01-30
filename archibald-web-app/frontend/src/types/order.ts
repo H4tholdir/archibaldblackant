@@ -101,9 +101,11 @@ export interface Order {
   deliveryCity?: string;
   attentionTo?: string;
 
-  // Metadata (10 columns)
+  // Metadata (12 columns)
   botUserId?: string;
   jobId?: string;
+  archibaldOrderId?: string; // Order ID in Archibald system
+  articlesSyncedAt?: string; // ISO timestamp of last articles sync
   createdAt?: string;
   lastUpdatedAt?: string;
   notes?: string;

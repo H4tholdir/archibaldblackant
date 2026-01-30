@@ -75,6 +75,9 @@ import { OrderSyncService } from "./order-sync-service";
 import { DDTSyncService } from "./ddt-sync-service";
 import { InvoiceSyncService } from "./invoice-sync-service";
 import { SyncOrchestrator, type SyncType } from "./sync-orchestrator";
+import { OrderArticlesSyncService } from "./order-articles-sync-service";
+import { runStartupHealthCheck } from "./python-health-check";
+import { runFilesystemChecks } from "./filesystem-check";
 
 const app = express();
 const server = createServer(app);
@@ -5672,6 +5675,94 @@ app.get(
   },
 );
 
+// ============================================================================
+// ORDER ARTICLES ENDPOINTS
+// ============================================================================
+
+// Sync order articles from PDF - POST /api/orders/:orderId/sync-articles
+app.post(
+  "/api/orders/:orderId/sync-articles",
+  authenticateJWT,
+  async (req: AuthRequest, res: Response) => {
+    const userId = req.user?.userId;
+    if (!userId) {
+      return res.status(401).json({ success: false, error: "Unauthorized" });
+    }
+
+    const { orderId } = req.params;
+
+    try {
+      logger.info(`[API] Sync articles requested`, { userId, orderId });
+
+      const syncService = OrderArticlesSyncService.getInstance();
+      const result = await syncService.syncOrderArticles(userId, orderId);
+
+      return res.json({
+        success: true,
+        data: result,
+        message: `Sincronizzati ${result.articles.length} articoli`,
+      });
+    } catch (error) {
+      logger.error("[API] Sync articles failed", {
+        error: error instanceof Error ? error.message : String(error),
+        orderId,
+        userId,
+      });
+
+      return res.status(500).json({
+        success: false,
+        error: error instanceof Error ? error.message : "Unknown error",
+      });
+    }
+  },
+);
+
+// Get order articles - GET /api/orders/:orderId/articles
+app.get(
+  "/api/orders/:orderId/articles",
+  authenticateJWT,
+  async (req: AuthRequest, res: Response) => {
+    const userId = req.user?.userId;
+    if (!userId) {
+      return res.status(401).json({ success: false, error: "Unauthorized" });
+    }
+
+    const { orderId } = req.params;
+
+    try {
+      const orderDb = OrderDatabaseNew.getInstance();
+
+      // Verify order belongs to user
+      const order = orderDb.getOrderById(userId, orderId);
+      if (!order) {
+        return res.status(404).json({
+          success: false,
+          error: "Order not found",
+        });
+      }
+
+      // Get articles
+      const articles = orderDb.getOrderArticles(orderId);
+
+      return res.json({
+        success: true,
+        data: { articles },
+      });
+    } catch (error) {
+      logger.error("[API] Get articles failed", {
+        error: error instanceof Error ? error.message : String(error),
+        orderId,
+        userId,
+      });
+
+      return res.status(500).json({
+        success: false,
+        error: error instanceof Error ? error.message : "Unknown error",
+      });
+    }
+  },
+);
+
 // Test login endpoint (per debug)
 app.post(
   "/api/test/login",
@@ -5749,6 +5840,15 @@ server.listen(config.server.port, async () => {
     logger.info("✅ Migration 003 completed (extended price fields)");
   } catch (error) {
     logger.warn("⚠️  Migration 003 failed or already applied", { error });
+  }
+
+  // Run startup health checks
+  try {
+    await runStartupHealthCheck();
+    await runFilesystemChecks();
+    logger.info("✅ All health checks passed");
+  } catch (error) {
+    logger.warn("⚠️  Some health checks failed", { error });
   }
 
   try {

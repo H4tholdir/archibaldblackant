@@ -65,6 +65,10 @@ export interface OrderRecord {
   sentToMilanoAt?: string | null;
   archibaldOrderId?: string | null;
 
+  // VAT/Totals fields (for article sync)
+  totalVatAmount?: string | null; // Italian format: "123,45 €"
+  totalWithVat?: string | null; // Italian format: "987,65 €"
+
   // Legacy/compatibility fields
   status?: string; // Legacy field (same as salesStatus for compatibility)
   lastScraped?: string; // ISO timestamp
@@ -95,6 +99,9 @@ export interface OrderArticleRecord {
   unitPrice?: number;
   discountPercent?: number;
   lineAmount?: number;
+  vatPercent?: number;
+  vatAmount?: number;
+  lineTotalWithVat?: number;
 }
 
 export class OrderDatabaseNew {
@@ -281,6 +288,10 @@ export class OrderDatabaseNew {
       { name: "current_state", type: "TEXT" },
       { name: "sent_to_milano_at", type: "TEXT" },
       { name: "archibald_order_id", type: "TEXT" },
+      // VAT/Totals fields (for article sync)
+      { name: "total_vat_amount", type: "TEXT" },
+      { name: "total_with_vat", type: "TEXT" },
+      { name: "articles_synced_at", type: "TEXT" }, // ISO timestamp of last articles sync
     ];
 
     // Add missing columns
@@ -352,6 +363,48 @@ export class OrderDatabaseNew {
           );
         }
       }
+    }
+
+    // Migrate order_articles table for VAT fields
+    logger.info("[OrderDatabaseNew] Migrating order_articles table...");
+
+    const articlesColumns = this.db
+      .prepare("PRAGMA table_info(order_articles)")
+      .all() as Array<{ name: string }>;
+    const existingArticlesColumns = new Set(articlesColumns.map((c) => c.name));
+
+    const newArticlesColumns = [
+      { name: "vat_percent", type: "REAL" },
+      { name: "vat_amount", type: "REAL" },
+      { name: "line_total_with_vat", type: "REAL" },
+    ];
+
+    let articlesAddedCount = 0;
+    for (const col of newArticlesColumns) {
+      if (!existingArticlesColumns.has(col.name)) {
+        try {
+          this.db.exec(
+            `ALTER TABLE order_articles ADD COLUMN ${col.name} ${col.type}`,
+          );
+          logger.info(
+            `[OrderDatabaseNew] Added missing column to order_articles: ${col.name} (${col.type})`,
+          );
+          articlesAddedCount++;
+        } catch (error) {
+          logger.error(
+            `[OrderDatabaseNew] Failed to add column ${col.name} to order_articles`,
+            error,
+          );
+        }
+      }
+    }
+
+    if (articlesAddedCount > 0) {
+      logger.info(
+        `[OrderDatabaseNew] order_articles migration completed: added ${articlesAddedCount} columns`,
+      );
+    } else {
+      logger.info("[OrderDatabaseNew] order_articles schema up to date");
     }
   }
 
@@ -649,7 +702,8 @@ export class OrderDatabaseNew {
       .prepare(
         `SELECT
           order_id, article_code, article_description, quantity,
-          unit_price, discount_percent, line_amount
+          unit_price, discount_percent, line_amount,
+          vat_percent, vat_amount, line_total_with_vat
         FROM order_articles
         WHERE order_id = ?
         ORDER BY id`,
@@ -662,6 +716,9 @@ export class OrderDatabaseNew {
       unit_price: number | null;
       discount_percent: number | null;
       line_amount: number | null;
+      vat_percent: number | null;
+      vat_amount: number | null;
+      line_total_with_vat: number | null;
     }>;
 
     return rows.map((row) => ({
@@ -672,7 +729,102 @@ export class OrderDatabaseNew {
       unitPrice: row.unit_price || undefined,
       discountPercent: row.discount_percent || undefined,
       lineAmount: row.line_amount || undefined,
+      vatPercent: row.vat_percent || undefined,
+      vatAmount: row.vat_amount || undefined,
+      lineTotalWithVat: row.line_total_with_vat || undefined,
     }));
+  }
+
+  deleteOrderArticles(orderId: string): void {
+    const result = this.db
+      .prepare("DELETE FROM order_articles WHERE order_id = ?")
+      .run(orderId);
+
+    logger.info(
+      `[OrderDatabaseNew] Deleted ${result.changes} articles for order ${orderId}`,
+    );
+  }
+
+  saveOrderArticlesWithVat(
+    articles: Array<
+      OrderArticleRecord & {
+        vatPercent: number;
+        vatAmount: number;
+        lineTotalWithVat: number;
+      }
+    >,
+  ): number {
+    if (articles.length === 0) {
+      return 0;
+    }
+
+    const insert = this.db.prepare(`
+      INSERT INTO order_articles (
+        order_id, article_code, article_description, quantity,
+        unit_price, discount_percent, line_amount,
+        vat_percent, vat_amount, line_total_with_vat, created_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `);
+
+    const now = new Date().toISOString();
+    const insertMany = this.db.transaction(
+      (
+        articlesToInsert: Array<
+          OrderArticleRecord & {
+            vatPercent: number;
+            vatAmount: number;
+            lineTotalWithVat: number;
+          }
+        >,
+      ) => {
+        for (const article of articlesToInsert) {
+          insert.run(
+            article.orderId,
+            article.articleCode,
+            article.articleDescription || null,
+            article.quantity,
+            article.unitPrice || null,
+            article.discountPercent || null,
+            article.lineAmount || null,
+            article.vatPercent,
+            article.vatAmount,
+            article.lineTotalWithVat,
+            now,
+          );
+        }
+      },
+    );
+
+    insertMany(articles);
+    logger.info(
+      `[OrderDatabaseNew] Saved ${articles.length} articles with VAT for order ${articles[0]?.orderId}`,
+    );
+    return articles.length;
+  }
+
+  updateOrderTotals(
+    orderId: string,
+    totals: { totalVatAmount: number; totalWithVat: number },
+  ): void {
+    // Store as plain numbers in string format (e.g., "144.98") for backward compatibility
+    // Frontend/API can format for display
+    const totalVatAmountStr = totals.totalVatAmount.toFixed(2);
+    const totalWithVatStr = totals.totalWithVat.toFixed(2);
+    const syncedAt = new Date().toISOString();
+
+    this.db
+      .prepare(
+        `UPDATE orders
+         SET total_vat_amount = ?, total_with_vat = ?, articles_synced_at = ?
+         WHERE id = ?`,
+      )
+      .run(totalVatAmountStr, totalWithVatStr, syncedAt, orderId);
+
+    logger.info(`[OrderDatabaseNew] Updated totals for order ${orderId}`, {
+      totalVatAmount: totalVatAmountStr,
+      totalWithVat: totalWithVatStr,
+      articlesSyncedAt: syncedAt,
+    });
   }
 
   countOrders(

@@ -8712,6 +8712,115 @@ export class ArchibaldBot {
     }
   }
 
+  /**
+   * Download Order Articles (Saleslines) PDF export from Archibald
+   * @param context Browser context to use
+   * @param archibaldOrderId Order ID from Archibald (e.g., "71723")
+   * @returns Path to downloaded PDF file in /tmp
+   */
+  async downloadOrderArticlesPDF(
+    context: BrowserContext,
+    archibaldOrderId: string,
+  ): Promise<string> {
+    const page = await context.newPage();
+    const startTime = Date.now();
+
+    try {
+      logger.info("[ArchibaldBot] Starting Order Articles PDF download", {
+        archibaldOrderId,
+      });
+
+      // Force Italian language for PDF export
+      await page.setExtraHTTPHeaders({
+        "Accept-Language": "it-IT,it;q=0.9,en-US;q=0.8,en;q=0.7",
+      });
+
+      // Navigate to order detail page
+      const orderUrl = `https://4.231.124.90/Archibald/SALESTABLE_DetailViewAgent/${archibaldOrderId}/?mode=View`;
+      await page.goto(orderUrl, {
+        waitUntil: "domcontentloaded",
+        timeout: 60000,
+      });
+      logger.info("[ArchibaldBot] Navigated to order detail page", {
+        orderUrl,
+      });
+
+      // Wait for dynamic content to load
+      await new Promise((resolve) => setTimeout(resolve, 2000));
+
+      // Setup download handling
+      const timestamp = Date.now();
+      const downloadPath = `/tmp/saleslines-${archibaldOrderId}-${timestamp}.pdf`;
+
+      // Enable download interception
+      const client = await page.target().createCDPSession();
+      await client.send("Page.setDownloadBehavior", {
+        behavior: "allow",
+        downloadPath: "/tmp",
+      });
+
+      await new Promise((resolve) => setTimeout(resolve, 500));
+
+      // Find and click export button
+      logger.info("[ArchibaldBot] Searching for Esporta button...");
+
+      // Wait for export button to be present (dynamic ID selector)
+      await page.waitForSelector('a[title*="Esportare in PDF"]', {
+        timeout: 10000,
+      });
+
+      logger.info("[ArchibaldBot] Export button found");
+
+      // Click export button
+      logger.info("[ArchibaldBot] Clicking Esporta button...");
+
+      await page.click('a[title*="Esportare in PDF"]');
+
+      logger.info("[ArchibaldBot] Export button clicked, waiting for download...");
+
+      // Wait for download to complete
+      await new Promise((resolve) => setTimeout(resolve, 5000));
+
+      // Check if file was downloaded
+      const fs = require("fs");
+      const pdfFiles = fs
+        .readdirSync("/tmp")
+        .filter((f: string) => f.includes(archibaldOrderId) && f.endsWith(".pdf"))
+        .sort()
+        .reverse();
+
+      if (pdfFiles.length === 0) {
+        throw new Error("PDF file was not downloaded");
+      }
+
+      // Use most recent file
+      const actualPath = `/tmp/${pdfFiles[0]}`;
+
+      // Rename to expected path if different
+      if (actualPath !== downloadPath) {
+        fs.renameSync(actualPath, downloadPath);
+      }
+
+      const duration = Date.now() - startTime;
+      logger.info("[ArchibaldBot] Order Articles PDF downloaded successfully", {
+        archibaldOrderId,
+        downloadPath,
+        duration,
+      });
+
+      return downloadPath;
+    } catch (error) {
+      logger.error("[ArchibaldBot] Failed to download Order Articles PDF", {
+        archibaldOrderId,
+        error,
+        duration: Date.now() - startTime,
+      });
+      throw error;
+    } finally {
+      await page.close().catch(() => {});
+    }
+  }
+
   private formatDateForArchibald(isoDate: string): string {
     // Converte da YYYY-MM-DD a DD/MM/YYYY
     const [year, month, day] = isoDate.split("-");

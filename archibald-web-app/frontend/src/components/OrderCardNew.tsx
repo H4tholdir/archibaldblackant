@@ -465,17 +465,176 @@ function TabPanoramica({ order }: { order: Order }) {
   );
 }
 
-function TabArticoli({ items }: { items?: OrderItem[] }) {
-  if (!items || items.length === 0) {
+function TabArticoli({
+  items,
+  orderId,
+  archibaldOrderId,
+  token,
+}: {
+  items?: OrderItem[];
+  orderId: string;
+  archibaldOrderId?: string;
+  token?: string;
+}) {
+  const [articles, setArticles] = useState(items || []);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
+
+  const handleSyncArticles = async () => {
+    if (!token) {
+      setError("Token di autenticazione mancante");
+      return;
+    }
+
+    setLoading(true);
+    setError(null);
+    setSuccess(null);
+
+    try {
+      const response = await fetch(`/api/orders/${orderId}/sync-articles`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || "Errore durante la sincronizzazione");
+      }
+
+      const result = await response.json();
+      setArticles(result.data.articles);
+      setSuccess(
+        `✅ Sincronizzati ${result.data.articles.length} articoli. Totale IVA: €${result.data.totalVatAmount.toFixed(2)}`,
+      );
+
+      // Hide success message after 5 seconds
+      setTimeout(() => setSuccess(null), 5000);
+    } catch (err) {
+      const errorMessage =
+        err instanceof Error ? err.message : "Errore sconosciuto";
+      setError(errorMessage);
+      console.error("Sync articles error:", err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (articles.length === 0) {
     return (
-      <div style={{ padding: "16px", textAlign: "center", color: "#999" }}>
-        Nessun articolo disponibile
+      <div style={{ padding: "16px" }}>
+        <div
+          style={{
+            padding: "16px",
+            textAlign: "center",
+            color: "#999",
+            marginBottom: "16px",
+          }}
+        >
+          Nessun articolo disponibile
+        </div>
+        {token && (
+          <div style={{ textAlign: "center" }}>
+            <button
+              onClick={handleSyncArticles}
+              disabled={loading || !archibaldOrderId}
+              title={
+                !archibaldOrderId
+                  ? "Sincronizza prima l'ordine con Archibald"
+                  : "Aggiorna gli articoli da Archibald"
+              }
+              style={{
+                padding: "12px 24px",
+                backgroundColor:
+                  loading || !archibaldOrderId ? "#ccc" : "#2196f3",
+                color: "white",
+                border: "none",
+                borderRadius: "4px",
+                cursor: loading || !archibaldOrderId ? "not-allowed" : "pointer",
+                fontSize: "14px",
+                fontWeight: 600,
+              }}
+            >
+              {loading ? "⏳ Sincronizzazione..." : "🔄 Aggiorna Articoli"}
+            </button>
+            {error && (
+              <div
+                style={{
+                  marginTop: "12px",
+                  padding: "12px",
+                  backgroundColor: "#ffebee",
+                  color: "#c62828",
+                  borderRadius: "4px",
+                }}
+              >
+                {error}
+              </div>
+            )}
+          </div>
+        )}
       </div>
     );
   }
 
   return (
     <div style={{ padding: "16px" }}>
+      {/* Sync Button */}
+      {token && (
+        <div style={{ marginBottom: "16px", textAlign: "right" }}>
+          <button
+            onClick={handleSyncArticles}
+            disabled={loading}
+            style={{
+              padding: "10px 20px",
+              backgroundColor: loading ? "#ccc" : "#2196f3",
+              color: "white",
+              border: "none",
+              borderRadius: "4px",
+              cursor: loading ? "not-allowed" : "pointer",
+              fontSize: "14px",
+              fontWeight: 600,
+            }}
+          >
+            {loading ? "⏳ Sincronizzazione..." : "🔄 Aggiorna Articoli"}
+          </button>
+        </div>
+      )}
+
+      {/* Success Message */}
+      {success && (
+        <div
+          style={{
+            marginBottom: "16px",
+            padding: "12px",
+            backgroundColor: "#e8f5e9",
+            color: "#2e7d32",
+            borderRadius: "4px",
+            fontWeight: 500,
+          }}
+        >
+          {success}
+        </div>
+      )}
+
+      {/* Error Message */}
+      {error && (
+        <div
+          style={{
+            marginBottom: "16px",
+            padding: "12px",
+            backgroundColor: "#ffebee",
+            color: "#c62828",
+            borderRadius: "4px",
+          }}
+        >
+          {error}
+        </div>
+      )}
+
+      {/* Articles Table */}
       <div style={{ overflowX: "auto" }}>
         <table style={{ width: "100%", borderCollapse: "collapse" }}>
           <thead>
@@ -489,7 +648,7 @@ function TabArticoli({ items }: { items?: OrderItem[] }) {
             </tr>
           </thead>
           <tbody>
-            {items.map((item, index) => {
+            {articles.map((item, index) => {
               const lineTotal =
                 (item.price * item.quantity * (100 - (item.discount || 0))) /
                 100;
@@ -1710,7 +1869,14 @@ export function OrderCardNew({
           {/* Tab Content */}
           <div style={{ minHeight: "300px" }}>
             {activeTab === "panoramica" && <TabPanoramica order={order} />}
-            {activeTab === "articoli" && <TabArticoli items={order.items} />}
+            {activeTab === "articoli" && (
+              <TabArticoli
+                items={order.items}
+                orderId={order.id}
+                archibaldOrderId={order.archibaldOrderId}
+                token={token}
+              />
+            )}
             {activeTab === "logistica" && (
               <TabLogistica order={order} token={token} />
             )}
