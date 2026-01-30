@@ -6,11 +6,29 @@ on:
   workflow_dispatch: # Allow manual trigger
 
 jobs:
+  cleanup-ghcr:
+    name: Cleanup Old GHCR Images
+    runs-on: ubuntu-latest
+    permissions:
+      packages: write
+      contents: read
+
+    steps:
+      - name: Delete old container images
+        uses: snok/container-retention-policy@v2
+        with:
+          image-names: archibald-backend,archibald-frontend
+          cut-off: 24 hours ago UTC
+          account-type: personal
+          keep-at-least: 3
+          untagged-only: false
+          skip-tags: latest
+          token: ${{ secrets.GITHUB_TOKEN }}
+
   deploy:
     name: Deploy to VPS
     runs-on: ubuntu-latest
-    # Only run if CI passes
-    needs: []
+    needs: [cleanup-ghcr]
 
     steps:
       - name: Checkout code
@@ -88,6 +106,54 @@ jobs:
         env:
           BUILDKIT_STEP_LOG_MAX_SIZE: 10485760
 
+      - name: Pre-Deploy Disk Space Check & Cleanup
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          script: |
+            set -e
+
+            echo "🔍 Checking disk space before deployment..."
+            DISK_USAGE=$(df -h / | awk 'NR==2 {print $5}' | sed 's/%//')
+            AVAILABLE_GB=$(df -BG / | awk 'NR==2 {print $4}' | sed 's/G//')
+
+            echo "📊 Current disk usage: ${DISK_USAGE}%"
+            echo "📦 Available space: ${AVAILABLE_GB}GB"
+
+            # Fail if less than 20GB available
+            if [ "$AVAILABLE_GB" -lt 20 ]; then
+              echo "❌ CRITICAL: Less than 20GB available (${AVAILABLE_GB}GB)"
+              echo "🧹 Running emergency cleanup..."
+
+              # Emergency aggressive cleanup
+              docker image prune -a -f
+              docker volume prune -f
+              docker container prune -f
+              docker network prune -f
+              docker builder prune -a -f
+
+              # Re-check after emergency cleanup
+              AVAILABLE_GB=$(df -BG / | awk 'NR==2 {print $4}' | sed 's/G//')
+              if [ "$AVAILABLE_GB" -lt 20 ]; then
+                echo "❌ Still less than 20GB after cleanup (${AVAILABLE_GB}GB). Deploy aborted."
+                exit 1
+              fi
+              echo "✅ Cleanup successful. Now have ${AVAILABLE_GB}GB available"
+            fi
+
+            # Preventive cleanup before deploy (even if space is OK)
+            echo "🧹 Running preventive cleanup..."
+            docker image prune -a -f --filter "until=24h" || true
+            docker container prune -f || true
+            docker volume prune -f || true
+
+            # Show final disk state
+            echo "📊 Disk space after cleanup:"
+            df -h / | grep -E "^/dev"
+            docker system df
+
       - name: Deploy to VPS
         uses: appleboy/ssh-action@v1.0.3
         with:
@@ -136,11 +202,7 @@ jobs:
 
             echo "✅ Deployment successful!"
 
-            echo "🧹 Cleaning up old Docker images and cache..."
-            docker image prune -af --filter "until=168h" || echo "⚠️  Image cleanup had warnings (non-critical)"
-            docker builder prune -af --filter "until=72h" || echo "⚠️  Build cache cleanup had warnings (non-critical)"
-
-            echo "📊 Disk space after cleanup:"
+            echo "📊 Final disk space:"
             df -h / | grep -E "^/dev"
             docker system df
 

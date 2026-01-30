@@ -11,7 +11,8 @@ COPY . .
 
 # Build production bundle (skip type checking for faster build)
 ENV SKIP_TYPE_CHECK=true
-RUN npm run build -- --mode production
+RUN npm run build -- --mode production && \
+    npm cache clean --force
 
 # Stage 2: Serve with Nginx
 FROM nginx:alpine

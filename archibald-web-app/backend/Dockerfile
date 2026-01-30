@@ -2,15 +2,17 @@
 FROM node:20-alpine AS deps
 WORKDIR /app
 COPY archibald-web-app/backend/package*.json ./
-RUN npm ci --only=production
+RUN npm ci --only=production && \
+    npm cache clean --force
 
 # Stage 2: Build TypeScript
 FROM node:20-alpine AS builder
 WORKDIR /app
 COPY archibald-web-app/backend/package*.json archibald-web-app/backend/tsconfig.json ./
 COPY archibald-web-app/backend/src ./src
-RUN npm ci
-RUN npm run build
+RUN npm ci && \
+    npm run build && \
+    npm cache clean --force
 
 # Stage 3: Production runtime with Chromium
 FROM node:20-alpine
