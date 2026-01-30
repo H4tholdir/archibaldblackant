@@ -22,6 +22,27 @@ export async function initializeDatabase(): Promise<{
     const quota = await getStorageQuota();
     const pendingCount = await db.pendingOrders.count();
 
+    // Restore pendingOrders from localStorage backup if needed
+    if (pendingCount === 0) {
+      const backup = localStorage.getItem('archibald_pending_orders_backup');
+      if (backup) {
+        try {
+          const orders = JSON.parse(backup);
+          if (Array.isArray(orders) && orders.length > 0) {
+            await db.pendingOrders.bulkAdd(orders);
+            console.log('[IndexedDB:Database]', {
+              operation: 'restore',
+              action: 'Restored pendingOrders from localStorage backup',
+              count: orders.length,
+              timestamp: new Date().toISOString(),
+            });
+          }
+        } catch (error) {
+          console.error('[IndexedDB:Database] Failed to restore backup', error);
+        }
+      }
+    }
+
     console.log('[IndexedDB:Database]', {
       operation: 'initialization',
       status: 'success',

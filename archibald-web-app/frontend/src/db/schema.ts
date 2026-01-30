@@ -264,6 +264,8 @@ export class ArchibaldDatabase extends Dexie {
       })
       .upgrade(async (trans) => {
         // Clear products, prices, and pending orders to add VAT field
+        // ⚠️ DEPRECATED: This migration clears pendingOrders which causes data loss
+        // Version 10+ will not clear pendingOrders
         console.log("[IndexedDB:Schema]", {
           operation: "migration",
           version: "v5→v6",
@@ -334,6 +336,51 @@ export class ArchibaldDatabase extends Dexie {
           pendingOrdersCount: pendingCount,
           timestamp: new Date().toISOString(),
         });
+      });
+
+    // Version 10: Backup pendingOrders to localStorage before any operations
+    // This protects against data loss if IndexedDB is recreated from scratch
+    this.version(10)
+      .stores({
+        // Same schema as v9
+        customers: "id, name, code, city, *hash",
+        products: "id, name, article, *hash",
+        productVariants: "++id, productId, variantId",
+        prices: "++id, articleId, articleName",
+        draftOrders: "++id, customerId, createdAt, updatedAt",
+        pendingOrders: "++id, status, createdAt",
+        cacheMetadata: "key, lastSynced",
+        warehouseItems:
+          "++id, articleCode, boxName, reservedForOrder, soldInOrder",
+        warehouseMetadata: "++id, uploadedAt",
+      })
+      .upgrade(async (trans) => {
+        // Backup pendingOrders to localStorage as safety measure
+        const pendingOrders = await trans.table("pendingOrders").toArray();
+        if (pendingOrders.length > 0) {
+          try {
+            localStorage.setItem(
+              "archibald_pending_orders_backup",
+              JSON.stringify(pendingOrders)
+            );
+            console.log("[IndexedDB:Schema]", {
+              operation: "migration",
+              version: "v9→v10",
+              action: "Backed up pendingOrders to localStorage",
+              count: pendingOrders.length,
+              timestamp: new Date().toISOString(),
+            });
+          } catch (error) {
+            console.error("[IndexedDB:Schema] Failed to backup pendingOrders", error);
+          }
+        } else {
+          console.log("[IndexedDB:Schema]", {
+            operation: "migration",
+            version: "v9→v10",
+            action: "No pendingOrders to backup",
+            timestamp: new Date().toISOString(),
+          });
+        }
       });
   }
 }

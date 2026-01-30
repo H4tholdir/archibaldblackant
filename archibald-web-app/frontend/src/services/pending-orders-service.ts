@@ -20,6 +20,27 @@ export class PendingOrdersService {
   }
 
   /**
+   * Backup all pending orders to localStorage
+   * This protects against data loss if IndexedDB is cleared
+   */
+  private async backupToLocalStorage(): Promise<void> {
+    try {
+      const orders = await db.pendingOrders.toArray();
+      if (orders.length > 0) {
+        localStorage.setItem(
+          'archibald_pending_orders_backup',
+          JSON.stringify(orders)
+        );
+      } else {
+        // Remove backup if no orders exist
+        localStorage.removeItem('archibald_pending_orders_backup');
+      }
+    } catch (error) {
+      console.error('[PendingOrders] Backup to localStorage failed', error);
+    }
+  }
+
+  /**
    * Add order to pending queue
    */
   async addPendingOrder(orderData: {
@@ -67,6 +88,9 @@ export class PendingOrdersService {
       console.error("[Warehouse] Failed to reserve items", { error });
       // Don't fail order creation if reservation fails
     }
+
+    // Backup to localStorage
+    await this.backupToLocalStorage();
 
     return id;
   }
@@ -177,6 +201,7 @@ export class PendingOrdersService {
 
           // Delete from queue on success
           await db.pendingOrders.delete(order.id!);
+          await this.backupToLocalStorage();
           success++;
         } catch (deleteError) {
           console.error(
@@ -348,6 +373,9 @@ export class PendingOrdersService {
     // Delete order
     await db.pendingOrders.delete(orderId);
 
+    // Backup to localStorage
+    await this.backupToLocalStorage();
+
     console.log("[PendingOrders] ✅ Order deleted", { orderId });
   }
 
@@ -363,6 +391,9 @@ export class PendingOrdersService {
       status,
       errorMessage,
     });
+
+    // Backup to localStorage
+    await this.backupToLocalStorage();
   }
 
   /**

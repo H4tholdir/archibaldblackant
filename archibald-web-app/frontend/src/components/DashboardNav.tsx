@@ -29,7 +29,8 @@ export function DashboardNav() {
   const handleLogout = async () => {
     await auth.logout();
     setIsMenuOpen(false);
-    navigate("/");
+    // Force full page reload to clear all React state
+    window.location.href = "/";
   };
 
   const handleLinkClick = () => {
