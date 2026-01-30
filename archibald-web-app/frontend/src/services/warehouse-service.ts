@@ -1,7 +1,7 @@
 import { db, type WarehouseItem, type WarehouseMetadata } from "../db/schema";
 
-const API_BASE_URL =
-  import.meta.env.VITE_API_BASE_URL || "http://localhost:3000";
+// Use empty string for relative paths (works with Vite proxy in dev and production)
+const API_BASE_URL = "";
 
 export interface WarehouseUploadResult {
   items: WarehouseItem[];
