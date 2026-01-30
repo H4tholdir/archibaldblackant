@@ -9,6 +9,8 @@ interface WarehouseMatchAccordionProps {
   description?: string;
   requestedQuantity: number;
   onSelect?: (matches: SelectedWarehouseMatch[]) => void;
+  excludeWarehouseItemIds?: number[]; // Warehouse items already used in other order rows
+  onTotalQuantityChange?: (totalQty: number) => void; // Called when total selected quantity changes
 }
 
 export interface SelectedWarehouseMatch {
@@ -24,6 +26,8 @@ export function WarehouseMatchAccordion({
   description,
   requestedQuantity,
   onSelect,
+  excludeWarehouseItemIds = [],
+  onTotalQuantityChange,
 }: WarehouseMatchAccordionProps) {
   const [matches, setMatches] = useState<WarehouseMatch[]>([]);
   const [loading, setLoading] = useState(false);
@@ -42,9 +46,13 @@ export function WarehouseMatchAccordion({
     setLoading(true);
     findWarehouseMatches(articleCode, description, 50)
       .then((results) => {
-        setMatches(results);
+        // 🔧 FIX #2: Filter out warehouse items already used in other order rows
+        const filteredResults = results.filter(
+          (match) => !excludeWarehouseItemIds.includes(match.item.id!),
+        );
+        setMatches(filteredResults);
         // Auto-expand if matches found
-        if (results.length > 0) {
+        if (filteredResults.length > 0) {
           setExpanded(true);
         }
       })
@@ -55,13 +63,13 @@ export function WarehouseMatchAccordion({
       .finally(() => {
         setLoading(false);
       });
-  }, [articleCode, description]);
+  }, [articleCode, description, excludeWarehouseItemIds]);
 
   // Notify parent when selection changes
   useEffect(() => {
-    if (!onSelect) return;
-
     const selected: SelectedWarehouseMatch[] = [];
+    let totalQty = 0;
+
     for (const [itemId, qty] of selectedMatches.entries()) {
       const match = matches.find((m) => m.item.id === itemId);
       if (match && qty > 0) {
@@ -72,10 +80,18 @@ export function WarehouseMatchAccordion({
           quantity: qty,
           maxAvailable: match.availableQty,
         });
+        totalQty += qty;
       }
     }
-    onSelect(selected);
-  }, [selectedMatches, matches, onSelect]);
+
+    // 🔧 FIX #1: Notify parent of selected items and total quantity
+    if (onSelect) {
+      onSelect(selected);
+    }
+    if (onTotalQuantityChange) {
+      onTotalQuantityChange(totalQty);
+    }
+  }, [selectedMatches, matches, onSelect, onTotalQuantityChange]);
 
   const handleToggleMatch = (match: WarehouseMatch, checked: boolean) => {
     const newSelected = new Map(selectedMatches);

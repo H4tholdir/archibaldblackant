@@ -1920,6 +1920,23 @@ export default function OrderFormSimple() {
                     description={selectedProduct.description}
                     requestedQuantity={parseInt(quantity, 10)}
                     onSelect={setWarehouseSelection}
+                    excludeWarehouseItemIds={
+                      // 🔧 FIX #2: Exclude warehouse items already used in other order rows
+                      items
+                        .filter((item) => item.warehouseSources)
+                        .flatMap((item) =>
+                          item.warehouseSources!.map((s) => s.warehouseItemId),
+                        )
+                    }
+                    onTotalQuantityChange={(totalQty) => {
+                      // 🔧 FIX #1: Auto-update quantity when warehouse selection covers less than requested
+                      const requestedQty = parseInt(quantity, 10);
+                      if (totalQty > 0 && totalQty < requestedQty) {
+                        // User selected warehouse items but less than requested quantity
+                        // Update quantity field to match warehouse availability
+                        setQuantity(totalQty.toString());
+                      }
+                    }}
                   />
                 </div>
               )}

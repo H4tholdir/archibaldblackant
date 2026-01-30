@@ -139,9 +139,10 @@ export async function findWarehouseMatches(
   description?: string,
   minScore = 50,
 ): Promise<WarehouseMatch[]> {
-  // Get all warehouse items (not sold)
+  // Get all warehouse items (not sold and not reserved)
+  // 🔧 FIX #2: Filter out reserved items as well as sold items
   const allItems = await db.warehouseItems
-    .filter((item) => !item.soldInOrder)
+    .filter((item) => !item.soldInOrder && !item.reservedForOrder)
     .toArray();
 
   if (allItems.length === 0) {
