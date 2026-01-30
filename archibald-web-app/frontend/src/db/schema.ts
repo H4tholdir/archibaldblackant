@@ -307,6 +307,34 @@ export class ArchibaldDatabase extends Dexie {
         "++id, articleCode, boxName, reservedForOrder, soldInOrder",
       warehouseMetadata: "++id, uploadedAt",
     });
+
+    // Version 9: Protect pendingOrders from being cleared in future
+    // Add logging to understand if pendingOrders are being lost
+    this.version(9)
+      .stores({
+        // Same schema as v8
+        customers: "id, name, code, city, *hash",
+        products: "id, name, article, *hash",
+        productVariants: "++id, productId, variantId",
+        prices: "++id, articleId, articleName",
+        draftOrders: "++id, customerId, createdAt, updatedAt",
+        pendingOrders: "++id, status, createdAt",
+        cacheMetadata: "key, lastSynced",
+        warehouseItems:
+          "++id, articleCode, boxName, reservedForOrder, soldInOrder",
+        warehouseMetadata: "++id, uploadedAt",
+      })
+      .upgrade(async (trans) => {
+        // NO data clearing - just log current state for debugging
+        const pendingCount = await trans.table("pendingOrders").count();
+        console.log("[IndexedDB:Schema]", {
+          operation: "migration",
+          version: "v8→v9",
+          action: "Protecting pendingOrders (no clear)",
+          pendingOrdersCount: pendingCount,
+          timestamp: new Date().toISOString(),
+        });
+      });
   }
 }
 

@@ -366,8 +366,23 @@ export function PendingOrdersView() {
     return orderCreatedAt > mostRecentCacheSync;
   };
 
+  const getWarehouseItemsCount = (order: PendingOrder) => {
+    let warehouseItemsCount = 0;
+    let warehousePiecesCount = 0;
+
+    for (const item of order.items) {
+      if (item.warehouseQuantity && item.warehouseQuantity > 0) {
+        warehouseItemsCount++;
+        warehousePiecesCount += item.warehouseQuantity;
+      }
+    }
+
+    return { itemsCount: warehouseItemsCount, piecesCount: warehousePiecesCount };
+  };
+
   const renderOrderCard = (order: PendingOrder) => {
     const hasStaleData = isOrderStale(order);
+    const warehouseInfo = getWarehouseItemsCount(order);
 
     return (
       <div
@@ -410,6 +425,18 @@ export function PendingOrdersView() {
               {order.items.length === 1 ? "articolo" : "articoli"} • €
               {calculateTotal(order).toFixed(2)}
             </div>
+            {warehouseInfo.piecesCount > 0 && (
+              <div
+                style={{
+                  fontSize: isMobile ? "12px" : "13px",
+                  color: "#059669",
+                  fontWeight: 600,
+                  marginTop: "4px",
+                }}
+              >
+                🏪 {warehouseInfo.piecesCount} pz da magazzino
+              </div>
+            )}
           </div>
           <div
             style={{

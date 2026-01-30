@@ -20,10 +20,13 @@ export async function initializeDatabase(): Promise<{
     await db.open();
 
     const quota = await getStorageQuota();
+    const pendingCount = await db.pendingOrders.count();
+
     console.log('[IndexedDB:Database]', {
       operation: 'initialization',
       status: 'success',
       version: db.verno,
+      pendingOrdersCount: pendingCount,
       storage: {
         used: quota.used,
         available: quota.available,
