@@ -1,5 +1,5 @@
 // @ts-nocheck - Contains legacy code with articleCode
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import type { Order, OrderItem } from "../types/order";
 import { OrderActions } from "./OrderActions";
 
@@ -481,6 +481,31 @@ function TabArticoli({
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
 
+  // Load existing articles from database on mount
+  useEffect(() => {
+    const loadArticles = async () => {
+      if (!token || !orderId) return;
+
+      try {
+        const response = await fetch(`/api/orders/${orderId}/articles`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+
+        if (!response.ok) return;
+
+        const data = await response.json();
+        if (data.success && data.data.articles.length > 0) {
+          setArticles(data.data.articles);
+        }
+      } catch (err) {
+        // Silently fail - user can manually sync if needed
+        console.log("No existing articles found");
+      }
+    };
+
+    loadArticles();
+  }, [orderId, token]);
+
   const handleSyncArticles = async () => {
     if (!token) {
       setError("Token di autenticazione mancante");
@@ -509,8 +534,9 @@ function TabArticoli({
 
       const result = await response.json();
       setArticles(result.data.articles);
+      const totalVat = result.data.totalVatAmount ?? 0;
       setSuccess(
-        `✅ Sincronizzati ${result.data.articles.length} articoli. Totale IVA: €${result.data.totalVatAmount.toFixed(2)}`,
+        `✅ Sincronizzati ${result.data.articles.length} articoli. Totale IVA: €${totalVat.toFixed(2)}`,
       );
 
       // Hide success message after 5 seconds
@@ -647,14 +673,23 @@ function TabArticoli({
               <th style={tableHeaderStyle}>Quantità</th>
               <th style={tableHeaderStyle}>Prezzo Unitario</th>
               <th style={tableHeaderStyle}>Sconto</th>
-              <th style={tableHeaderStyle}>Totale Riga</th>
+              <th style={tableHeaderStyle}>Imponibile</th>
+              <th style={tableHeaderStyle}>IVA %</th>
+              <th style={tableHeaderStyle}>IVA €</th>
+              <th style={tableHeaderStyle}>Totale + IVA</th>
             </tr>
           </thead>
           <tbody>
             {articles.map((item, index) => {
-              const lineTotal =
-                (item.price * item.quantity * (100 - (item.discount || 0))) /
-                100;
+              // Backend returns: unitPrice, discountPercent, lineAmount, articleDescription, vatPercent, vatAmount, lineTotalWithVat
+              const unitPrice = (item as any).unitPrice ?? item.price ?? 0;
+              const discount = (item as any).discountPercent ?? item.discount ?? 0;
+              const description = (item as any).articleDescription ?? item.description ?? "";
+              const lineAmount = (item as any).lineAmount ?? (unitPrice * item.quantity * (100 - discount)) / 100;
+              const vatPercent = (item as any).vatPercent ?? 0;
+              const vatAmount = (item as any).vatAmount ?? 0;
+              const lineTotalWithVat = (item as any).lineTotalWithVat ?? lineAmount;
+
               return (
                 <tr key={index} style={{ borderBottom: "1px solid #e0e0e0" }}>
                   <td style={tableCellStyle}>
@@ -665,14 +700,17 @@ function TabArticoli({
                       </div>
                     )}
                   </td>
-                  <td style={tableCellStyle}>{item.description}</td>
+                  <td style={tableCellStyle}>{description}</td>
                   <td style={tableCellStyle}>{item.quantity}</td>
-                  <td style={tableCellStyle}>€ {item.price.toFixed(2)}</td>
+                  <td style={tableCellStyle}>€ {unitPrice.toFixed(2)}</td>
                   <td style={tableCellStyle}>
-                    {item.discount ? `${item.discount}%` : "-"}
+                    {discount > 0 ? `${discount}%` : "-"}
                   </td>
+                  <td style={tableCellStyle}>€ {lineAmount.toFixed(2)}</td>
+                  <td style={tableCellStyle}>{vatPercent}%</td>
+                  <td style={tableCellStyle}>€ {vatAmount.toFixed(2)}</td>
                   <td style={{ ...tableCellStyle, fontWeight: 600 }}>
-                    € {lineTotal.toFixed(2)}
+                    € {lineTotalWithVat.toFixed(2)}
                   </td>
                 </tr>
               );
@@ -680,6 +718,47 @@ function TabArticoli({
           </tbody>
         </table>
       </div>
+
+      {/* Totals Section */}
+      {articles.length > 0 && (
+        <div style={{
+          marginTop: "24px",
+          paddingTop: "16px",
+          borderTop: "2px solid #e0e0e0"
+        }}>
+          <div style={{
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "flex-end",
+            gap: "8px"
+          }}>
+            <div style={{ display: "flex", justifyContent: "space-between", width: "300px" }}>
+              <span style={{ fontWeight: 500 }}>Totale Imponibile:</span>
+              <span style={{ fontWeight: 600 }}>
+                € {articles.reduce((sum, item) => sum + ((item as any).lineAmount ?? 0), 0).toFixed(2)}
+              </span>
+            </div>
+            <div style={{ display: "flex", justifyContent: "space-between", width: "300px" }}>
+              <span style={{ fontWeight: 500 }}>Totale IVA:</span>
+              <span style={{ fontWeight: 600 }}>
+                € {articles.reduce((sum, item) => sum + ((item as any).vatAmount ?? 0), 0).toFixed(2)}
+              </span>
+            </div>
+            <div style={{
+              display: "flex",
+              justifyContent: "space-between",
+              width: "300px",
+              paddingTop: "8px",
+              borderTop: "1px solid #e0e0e0"
+            }}>
+              <span style={{ fontWeight: 700, fontSize: "18px" }}>TOTALE:</span>
+              <span style={{ fontWeight: 700, fontSize: "18px", color: "#2e7d32" }}>
+                € {articles.reduce((sum, item) => sum + ((item as any).lineTotalWithVat ?? 0), 0).toFixed(2)}
+              </span>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -1095,6 +1174,16 @@ function TabFinanziario({ order, token }: { order: Order; token?: string }) {
             <div style={{ fontSize: "24px", fontWeight: 700, color: "#333" }}>
               {order.total}
             </div>
+            {(order as any).totalWithVat && parseFloat((order as any).totalWithVat) > 0 && (
+              <div style={{ fontSize: "16px", color: "#2e7d32", fontWeight: 600, marginTop: "4px" }}>
+                € {parseFloat((order as any).totalWithVat).toFixed(2)} (con IVA)
+              </div>
+            )}
+            {(!(order as any).totalWithVat || parseFloat((order as any).totalWithVat) === 0) && (
+              <div style={{ fontSize: "12px", color: "#999", marginTop: "4px", fontStyle: "italic" }}>
+                Sincronizza articoli per vedere totale con IVA
+              </div>
+            )}
           </div>
           <InfoField label="Sconto Riga" value={order.lineDiscount} />
           <InfoField label="Sconto Finale" value={order.endDiscount} />
@@ -1643,20 +1732,6 @@ export function OrderCardNew({
   const isPiazzato =
     !isCreato && (!order.orderNumber || order.orderNumber.trim() === "");
 
-  // DEBUG: Log order data to check ddt, tracking, and invoice
-  if (order.orderNumber === "ORD/26000374") {
-    console.log("[OrderCardNew] Order ORD/26000374 data:", {
-      orderNumber: order.orderNumber,
-      invoiceNumber: order.invoiceNumber,
-      invoiceDate: order.invoiceDate,
-      invoiceAmount: order.invoiceAmount,
-      invoiceBillingName: order.invoiceBillingName,
-      ddt: order.ddt,
-      tracking: order.tracking,
-      fullOrder: order,
-    });
-  }
-
   const tabs = [
     { id: "panoramica" as const, label: "Panoramica", icon: "📊" },
     { id: "articoli" as const, label: "Articoli", icon: "📦" },
@@ -1854,11 +1929,33 @@ export function OrderCardNew({
                 fontSize: "20px",
                 fontWeight: 700,
                 color: "#333",
-                marginBottom: "8px",
+                marginBottom: "4px",
               }}
             >
               {order.total}
             </div>
+            {(() => {
+              const totalWithVat = (order as any).totalWithVat;
+              // DEBUG: Remove after testing
+              if (order.customerName?.includes('Galizia')) {
+                console.log('[OrderCardNew Header] Galizia totalWithVat:', totalWithVat, typeof totalWithVat);
+              }
+
+              if (totalWithVat && parseFloat(totalWithVat) > 0) {
+                return (
+                  <div
+                    style={{
+                      fontSize: "14px",
+                      color: "#2e7d32",
+                      fontWeight: 600,
+                    }}
+                  >
+                    (€ {parseFloat(totalWithVat).toFixed(2)} con IVA)
+                  </div>
+                );
+              }
+              return null;
+            })()}
           </div>
         </div>
 

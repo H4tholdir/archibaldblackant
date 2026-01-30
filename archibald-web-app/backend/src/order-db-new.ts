@@ -68,6 +68,7 @@ export interface OrderRecord {
   // VAT/Totals fields (for article sync)
   totalVatAmount?: string | null; // Italian format: "123,45 €"
   totalWithVat?: string | null; // Italian format: "987,65 €"
+  articlesSyncedAt?: string | null; // ISO timestamp
 
   // Legacy/compatibility fields
   status?: string; // Legacy field (same as salesStatus for compatibility)
@@ -657,6 +658,10 @@ export class OrderDatabaseNew {
       currentState: row.current_state,
       sentToMilanoAt: row.sent_to_milano_at,
       archibaldOrderId: row.archibald_order_id,
+      // Articles totals
+      totalVatAmount: row.total_vat_amount,
+      totalWithVat: row.total_with_vat,
+      articlesSyncedAt: row.articles_synced_at,
     }));
   }
 
@@ -987,6 +992,10 @@ export class OrderDatabaseNew {
       currentState: row.current_state,
       sentToMilanoAt: row.sent_to_milano_at,
       archibaldOrderId: row.archibald_order_id,
+      // Articles totals
+      totalVatAmount: row.total_vat_amount,
+      totalWithVat: row.total_with_vat,
+      articlesSyncedAt: row.articles_synced_at,
     };
   }
 

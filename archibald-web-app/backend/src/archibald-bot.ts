@@ -8736,12 +8736,17 @@ export class ArchibaldBot {
       });
 
       // Navigate to order detail page
-      const orderUrl = `https://4.231.124.90/Archibald/SALESTABLE_DetailViewAgent/${archibaldOrderId}/?mode=View`;
+      // Remove dots from order ID (e.g., "71.723" -> "71723")
+      // Archibald expects integer format without dots
+      const cleanOrderId = archibaldOrderId.replace(/\./g, "");
+      const orderUrl = `https://4.231.124.90/Archibald/SALESTABLE_DetailViewAgent/${cleanOrderId}/?mode=View`;
       await page.goto(orderUrl, {
         waitUntil: "domcontentloaded",
         timeout: 60000,
       });
       logger.info("[ArchibaldBot] Navigated to order detail page", {
+        archibaldOrderId,
+        cleanOrderId,
         orderUrl,
       });
 
@@ -8788,21 +8793,27 @@ export class ArchibaldBot {
       await new Promise((resolve) => setTimeout(resolve, 5000));
 
       // Check if file was downloaded
+      // Archibald downloads files with generic names like "Salesline-Ref.pdf"
+      // We need to find the most recently modified PDF in /tmp
       const fs = require("fs");
+      const path = require("path");
+
       const pdfFiles = fs
         .readdirSync("/tmp")
-        .filter(
-          (f: string) => f.includes(archibaldOrderId) && f.endsWith(".pdf"),
-        )
-        .sort()
-        .reverse();
+        .filter((f: string) => f.startsWith("Salesline") && f.endsWith(".pdf"))
+        .map((f: string) => ({
+          name: f,
+          path: path.join("/tmp", f),
+          mtime: fs.statSync(path.join("/tmp", f)).mtime,
+        }))
+        .sort((a: any, b: any) => b.mtime - a.mtime); // Most recent first
 
       if (pdfFiles.length === 0) {
         throw new Error("PDF file was not downloaded");
       }
 
       // Use most recent file
-      const actualPath = `/tmp/${pdfFiles[0]}`;
+      const actualPath = pdfFiles[0].path;
 
       // Rename to expected path if different
       if (actualPath !== downloadPath) {

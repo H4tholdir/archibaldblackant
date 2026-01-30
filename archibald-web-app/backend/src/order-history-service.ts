@@ -127,6 +127,11 @@ export interface Order {
   // Metadata
   botUserId?: string;
   lastUpdatedAt?: string;
+
+  // Articles totals (from order_articles sync)
+  totalVatAmount?: string | null;
+  totalWithVat?: string | null;
+  articlesSyncedAt?: string | null;
 }
 
 /**
@@ -1026,23 +1031,12 @@ export class OrderHistoryService {
       // Metadata
       botUserId: stored.userId,
       lastUpdatedAt: stored.lastUpdated,
-    };
 
-    // DEBUG LOG: Log invoice data for specific order
-    if (stored.orderNumber === "ORD/26000374") {
-      logger.info(`[DEBUG] Order ORD/26000374 mapping:`, {
-        stored_invoiceNumber: stored.invoiceNumber,
-        stored_invoiceAmount: stored.invoiceAmount,
-        mapped_invoiceNumber: mappedOrder.invoiceNumber,
-        mapped_invoiceAmount: mappedOrder.invoiceAmount,
-        all_invoice_fields: {
-          invoiceNumber: mappedOrder.invoiceNumber,
-          invoiceDate: mappedOrder.invoiceDate,
-          invoiceAmount: mappedOrder.invoiceAmount,
-          invoiceBillingName: mappedOrder.invoiceBillingName,
-        },
-      });
-    }
+      // Articles totals (from order_articles sync)
+      totalVatAmount: stored.totalVatAmount,
+      totalWithVat: stored.totalWithVat,
+      articlesSyncedAt: stored.articlesSyncedAt,
+    };
 
     return mappedOrder;
   }
