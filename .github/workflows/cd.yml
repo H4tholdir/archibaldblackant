@@ -6,29 +6,14 @@ on:
   workflow_dispatch: # Allow manual trigger
 
 jobs:
-  cleanup-ghcr:
-    name: Cleanup Old GHCR Images
-    runs-on: ubuntu-latest
-    permissions:
-      packages: write
-      contents: read
-
-    steps:
-      - name: Delete old container images
-        uses: snok/container-retention-policy@v2
-        with:
-          image-names: archibald-backend,archibald-frontend
-          cut-off: 24 hours ago UTC
-          account-type: personal
-          keep-at-least: 3
-          untagged-only: false
-          skip-tags: latest
-          token: ${{ secrets.GITHUB_TOKEN }}
+  # TODO: Re-enable GHCR cleanup with GitHub API or gh CLI
+  # Current issue: snok/container-retention-policy@v2 returns 400 Bad Request
+  # Cleanup is handled by VPS pre-deploy script for now
 
   deploy:
     name: Deploy to VPS
     runs-on: ubuntu-latest
-    needs: [cleanup-ghcr]
+    needs: []
 
     steps:
       - name: Checkout code
