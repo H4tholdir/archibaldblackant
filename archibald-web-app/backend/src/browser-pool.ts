@@ -97,6 +97,7 @@ export class BrowserPool {
         headless: config.puppeteer.headless,
         slowMo: config.puppeteer.slowMo, // CRITICAL: Prevents browser crashes with shared instance
         ignoreHTTPSErrors: true,
+        protocolTimeout: config.puppeteer.protocolTimeout, // Increased timeout for large orders
         args: [
           "--no-sandbox",
           "--disable-setuid-sandbox",
@@ -180,7 +181,9 @@ export class BrowserPool {
     // No valid cached context - create new one
     await this.initialize();
 
-    logger.info(`[BrowserPool] Creating new authenticated context for user ${userId}`);
+    logger.info(
+      `[BrowserPool] Creating new authenticated context for user ${userId}`,
+    );
 
     // Create a promise for this login operation and store it as a lock
     const loginPromise = (async () => {
@@ -555,12 +558,9 @@ export class BrowserPool {
         await cached.context.close();
         logger.info(`[BrowserPool] Closed cached context for user ${userId}`);
       } catch (error) {
-        logger.error(
-          `[BrowserPool] Error closing context for user ${userId}`,
-          {
-            error: error instanceof Error ? error.message : String(error),
-          },
-        );
+        logger.error(`[BrowserPool] Error closing context for user ${userId}`, {
+          error: error instanceof Error ? error.message : String(error),
+        });
       }
     }
     this.contextPool.clear();
