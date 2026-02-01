@@ -28,15 +28,15 @@ export class PendingOrdersService {
       const orders = await db.pendingOrders.toArray();
       if (orders.length > 0) {
         localStorage.setItem(
-          'archibald_pending_orders_backup',
-          JSON.stringify(orders)
+          "archibald_pending_orders_backup",
+          JSON.stringify(orders),
         );
       } else {
         // Remove backup if no orders exist
-        localStorage.removeItem('archibald_pending_orders_backup');
+        localStorage.removeItem("archibald_pending_orders_backup");
       }
     } catch (error) {
-      console.error('[PendingOrders] Backup to localStorage failed', error);
+      console.error("[PendingOrders] Backup to localStorage failed", error);
     }
   }
 
@@ -168,31 +168,22 @@ export class PendingOrdersService {
         // Update status to syncing
         await db.pendingOrders.update(order.id!, { status: "syncing" });
 
-        // Prepare items for backend (exclude warehouse-specific fields)
-        // Only send items that need to be ordered (quantity - warehouseQuantity > 0)
-        const itemsToOrder = order.items
-          .map((item) => {
-            const warehouseQty = item.warehouseQuantity || 0;
-            const qtyToOrder = item.quantity - warehouseQty;
-
-            // Skip items fully covered by warehouse
-            if (qtyToOrder <= 0) {
-              return null;
-            }
-
-            // Return clean item without warehouse fields
-            return {
-              articleCode: item.articleCode,
-              articleId: item.articleId,
-              productName: item.productName,
-              description: item.description,
-              quantity: qtyToOrder, // Only the quantity to order
-              price: item.price,
-              vat: item.vat,
-              discount: item.discount,
-            };
-          })
-          .filter((item): item is NonNullable<typeof item> => item !== null);
+        // Prepare items for backend (INCLUDE warehouse fields for backend tracking)
+        // Send ALL items with their full quantity and warehouse info
+        // Backend will handle filtering for Archibald
+        const itemsToOrder = order.items.map((item) => ({
+          articleCode: item.articleCode,
+          articleId: item.articleId,
+          productName: item.productName,
+          description: item.description,
+          quantity: item.quantity, // Full quantity requested by customer
+          price: item.price,
+          vat: item.vat,
+          discount: item.discount,
+          // Include warehouse fields for backend tracking
+          warehouseQuantity: item.warehouseQuantity || 0,
+          warehouseSources: item.warehouseSources || [],
+        }));
 
         // Call backend API with filtered order data
         const response = await fetch("/api/orders/create", {

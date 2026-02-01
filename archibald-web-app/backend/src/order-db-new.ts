@@ -104,6 +104,9 @@ export interface OrderArticleRecord {
   vatPercent?: number;
   vatAmount?: number;
   lineTotalWithVat?: number;
+  // Warehouse integration fields
+  warehouseQuantity?: number;
+  warehouseSourcesJson?: string; // JSON string of warehouseSources array
 }
 
 export class OrderDatabaseNew {
@@ -380,6 +383,9 @@ export class OrderDatabaseNew {
       { name: "vat_percent", type: "REAL" },
       { name: "vat_amount", type: "REAL" },
       { name: "line_total_with_vat", type: "REAL" },
+      // Warehouse integration fields
+      { name: "warehouse_quantity", type: "REAL" },
+      { name: "warehouse_sources_json", type: "TEXT" },
     ];
 
     let articlesAddedCount = 0;
@@ -696,8 +702,9 @@ export class OrderDatabaseNew {
     const insert = this.db.prepare(`
       INSERT INTO order_articles (
         order_id, article_code, article_description, quantity,
-        unit_price, discount_percent, line_amount, created_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        unit_price, discount_percent, line_amount,
+        warehouse_quantity, warehouse_sources_json, created_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
 
     const now = new Date().toISOString();
@@ -712,6 +719,8 @@ export class OrderDatabaseNew {
             article.unitPrice || null,
             article.discountPercent || null,
             article.lineAmount || null,
+            article.warehouseQuantity || null,
+            article.warehouseSourcesJson || null,
             now,
           );
         }
@@ -731,7 +740,8 @@ export class OrderDatabaseNew {
         `SELECT
           order_id, article_code, article_description, quantity,
           unit_price, discount_percent, line_amount,
-          vat_percent, vat_amount, line_total_with_vat
+          vat_percent, vat_amount, line_total_with_vat,
+          warehouse_quantity, warehouse_sources_json
         FROM order_articles
         WHERE order_id = ?
         ORDER BY id`,
@@ -747,6 +757,8 @@ export class OrderDatabaseNew {
       vat_percent: number | null;
       vat_amount: number | null;
       line_total_with_vat: number | null;
+      warehouse_quantity: number | null;
+      warehouse_sources_json: string | null;
     }>;
 
     return rows.map((row) => ({
@@ -760,6 +772,8 @@ export class OrderDatabaseNew {
       vatPercent: row.vat_percent || undefined,
       vatAmount: row.vat_amount || undefined,
       lineTotalWithVat: row.line_total_with_vat || undefined,
+      warehouseQuantity: row.warehouse_quantity || undefined,
+      warehouseSourcesJson: row.warehouse_sources_json || undefined,
     }));
   }
 
@@ -790,8 +804,9 @@ export class OrderDatabaseNew {
       INSERT INTO order_articles (
         order_id, article_code, article_description, quantity,
         unit_price, discount_percent, line_amount,
-        vat_percent, vat_amount, line_total_with_vat, created_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        vat_percent, vat_amount, line_total_with_vat,
+        warehouse_quantity, warehouse_sources_json, created_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
 
     const now = new Date().toISOString();
@@ -817,6 +832,8 @@ export class OrderDatabaseNew {
             article.vatPercent,
             article.vatAmount,
             article.lineTotalWithVat,
+            article.warehouseQuantity || null,
+            article.warehouseSourcesJson || null,
             now,
           );
         }

@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useRef } from "react";
+import { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { customerService } from "../services/customers.service";
 import {
@@ -158,6 +158,27 @@ export default function OrderFormSimple() {
 
   // 🔧 FIX #1: Track if quantity change comes from warehouse selection
   const isWarehouseUpdateRef = useRef(false);
+
+  // 🔧 FIX #1: Memoize callback to prevent re-render loops in WarehouseMatchAccordion
+  const handleTotalQuantityChange = useCallback(
+    (totalQty: number) => {
+      const requestedQty = parseInt(quantity, 10);
+      if (
+        totalQty > 0 &&
+        totalQty < requestedQty &&
+        !isWarehouseUpdateRef.current
+      ) {
+        // Set flag to prevent loop
+        isWarehouseUpdateRef.current = true;
+        setQuantity(totalQty.toString());
+        // Reset flag after update
+        setTimeout(() => {
+          isWarehouseUpdateRef.current = false;
+        }, 100);
+      }
+    },
+    [quantity],
+  );
 
   // UI state
   const [submitting, setSubmitting] = useState(false);
@@ -758,10 +779,46 @@ export default function OrderFormSimple() {
       (sum, sel) => sum + sel.quantity,
       0,
     );
-    const isFullyFromWarehouse = warehouseQty >= requestedQty;
+    const qtyToOrder = Math.max(0, requestedQty - warehouseQty);
+    const isFullyFromWarehouse = qtyToOrder === 0;
+    const isPartiallyFromWarehouse = warehouseQty > 0 && qtyToOrder > 0;
 
-    // If not fully from warehouse, validate packaging
-    if (!isFullyFromWarehouse) {
+    // 🔧 FIX #3: If partially from warehouse, validate packaging for RESIDUAL quantity
+    let residualPackaging: PackagingResult | null = null;
+    if (isPartiallyFromWarehouse) {
+      // Recalculate packaging for the quantity that needs to be ordered
+      try {
+        const productName = selectedProduct.name || selectedProduct.article;
+        residualPackaging = await productService.calculateOptimalPackaging(
+          productName,
+          qtyToOrder,
+        );
+
+        if (!residualPackaging.success) {
+          // Residual quantity doesn't meet packaging constraints
+          toastService.warning(
+            `⚠️ Quantità residua (${qtyToOrder}pz) non valida per l'ordine. ` +
+              `${residualPackaging.error} ` +
+              `Verranno inseriti solo i ${warehouseQty}pz dal magazzino. ` +
+              `Mancano ${qtyToOrder}pz rispetto ai ${requestedQty}pz richiesti.`,
+          );
+          // Continue with warehouse-only items (no Archibald order)
+          // Set qtyToOrder to 0 to skip Archibald ordering
+        } else {
+          // Residual quantity is valid
+          toastService.info(
+            `📦 Ordine diviso: ${warehouseQty}pz dal magazzino + ${qtyToOrder}pz ordinati`,
+          );
+        }
+      } catch (error) {
+        console.error("Failed to calculate residual packaging:", error);
+        toastService.error("Errore nel calcolo del confezionamento residuo");
+        return;
+      }
+    }
+
+    // If not fully from warehouse and not partially, validate original packaging
+    if (!isFullyFromWarehouse && !isPartiallyFromWarehouse) {
       if (!packagingPreview || !packagingPreview.success) {
         toastService.error(
           packagingPreview?.error ||
@@ -794,20 +851,41 @@ export default function OrderFormSimple() {
     // IMPORTANT: Each variant can have different price and VAT
     const newItems: OrderItem[] = [];
 
-    // If fully from warehouse, create a single order item without variants
-    if (isFullyFromWarehouse) {
+    // 🔧 FIX #3: Determine if we should create warehouse-only item (no Archibald order)
+    const createWarehouseOnly =
+      isFullyFromWarehouse ||
+      (isPartiallyFromWarehouse && !residualPackaging?.success);
+
+    // If fully from warehouse OR partially but residual is invalid, create warehouse-only item
+    if (createWarehouseOnly) {
+      // 🔧 FIX #2: If warehouse items have different article codes, use the warehouse code
+      // Check if all warehouse selections have the same article code
+      const warehouseArticleCodes = new Set(
+        warehouseSelection.map((sel) => sel.articleCode),
+      );
+      const searchedArticleCode =
+        selectedProduct.name || selectedProduct.article;
+
+      // If warehouse has different article code(s), use the first warehouse code
+      // (e.g., searched for 305.104.050 but warehouse has 305.204.050)
+      const shouldUseWarehouseCode =
+        warehouseArticleCodes.size > 0 &&
+        !warehouseArticleCodes.has(searchedArticleCode);
+
+      const finalArticleCode = shouldUseWarehouseCode
+        ? warehouseSelection[0].articleCode
+        : searchedArticleCode;
+
       // Find the smallest variant to use for pricing
       // (since we're not ordering, we just need a valid variant for price/VAT)
-      // Use product name (e.g. "9486.900.260") as productId to query variants
-      const productName = selectedProduct.name || selectedProduct.article;
       const variants = await db.productVariants
         .where("productId")
-        .equals(productName)
+        .equals(finalArticleCode)
         .toArray();
 
       if (!variants || variants.length === 0) {
         toastService.error(
-          `Nessuna variante disponibile per ${productName}`,
+          `Nessuna variante disponibile per ${finalArticleCode}`,
         );
         return;
       }
@@ -829,17 +907,23 @@ export default function OrderFormSimple() {
       const variantProduct = await db.products.get(variantCode);
       const vatRate = normalizeVatRate(variantProduct?.vat);
 
-      const lineSubtotal = price * requestedQty - disc;
+      // 🔧 FIX #3: Use warehouseQty as final quantity (not requestedQty) if residual is invalid
+      const finalQty = isFullyFromWarehouse ? requestedQty : warehouseQty;
+
+      const lineSubtotal = price * finalQty - disc;
       const lineVat = lineSubtotal * (vatRate / 100);
       const lineTotal = lineSubtotal + lineVat;
 
+      // 🔧 FIX #2: Use warehouse article code if substituting
       newItems.push({
         id: crypto.randomUUID(),
         productId: variantCode,
         article: variantCode,
-        productName: selectedProduct.name,
-        description: selectedProduct.description || "",
-        quantity: requestedQty,
+        productName: finalArticleCode, // Use warehouse code if different
+        description: shouldUseWarehouseCode
+          ? `${selectedProduct.description || ""} (sostituito con ${finalArticleCode})`
+          : selectedProduct.description || "",
+        quantity: finalQty,
         unitPrice: price,
         vatRate,
         discount: disc,
@@ -850,6 +934,58 @@ export default function OrderFormSimple() {
         warehouseSources,
         productGroupKey: undefined,
       });
+    } else if (isPartiallyFromWarehouse && residualPackaging?.success) {
+      // 🔧 FIX #3: Partially from warehouse WITH valid residual packaging
+      // Create order items for residual quantity + attach warehouse metadata
+      const breakdown = residualPackaging.breakdown!;
+      const discountPerLine = disc / breakdown.length; // Split discount across lines
+
+      // 🔧 FIX #3: Generate group key to track variants of same product
+      const productGroupKey =
+        breakdown.length > 1
+          ? `${selectedProduct.name}-${Date.now()}`
+          : undefined;
+
+      for (let i = 0; i < breakdown.length; i++) {
+        const pkg = breakdown[i];
+        const variantArticleCode = pkg.variant.variantId;
+
+        const price =
+          await priceService.getPriceByArticleId(variantArticleCode);
+        if (!price) {
+          toastService.error(
+            `Prezzo non disponibile per ${variantArticleCode}`,
+          );
+          return;
+        }
+
+        // Get VAT rate
+        const variantProduct = await db.products.get(variantArticleCode);
+        const vatRate = normalizeVatRate(variantProduct?.vat);
+
+        const lineSubtotal = price * pkg.totalPieces - discountPerLine;
+        const lineVat = lineSubtotal * (vatRate / 100);
+        const lineTotal = lineSubtotal + lineVat;
+
+        newItems.push({
+          id: crypto.randomUUID(),
+          productId: variantArticleCode,
+          article: variantArticleCode,
+          productName: selectedProduct.name,
+          description: selectedProduct.description || "",
+          quantity: pkg.totalPieces,
+          unitPrice: price,
+          vatRate,
+          discount: discountPerLine,
+          subtotal: lineSubtotal,
+          vat: lineVat,
+          total: lineTotal,
+          // 🔧 FIX #3: Add warehouse data only to first line
+          warehouseQuantity: i === 0 ? warehouseQty : undefined,
+          warehouseSources: i === 0 ? warehouseSources : undefined,
+          productGroupKey,
+        });
+      }
     } else {
       // Normal order with packaging breakdown
       const breakdown = packagingPreview!.breakdown!;
@@ -875,7 +1011,8 @@ export default function OrderFormSimple() {
         });
 
         // Get price and VAT for THIS SPECIFIC variant
-        const price = await priceService.getPriceByArticleId(variantArticleCode);
+        const price =
+          await priceService.getPriceByArticleId(variantArticleCode);
 
         if (!price) {
           toastService.error(
@@ -2027,23 +2164,7 @@ export default function OrderFormSimple() {
                     requestedQuantity={parseInt(quantity, 10)}
                     onSelect={setWarehouseSelection}
                     excludeWarehouseItemIds={excludedWarehouseItemIds}
-                    onTotalQuantityChange={(totalQty) => {
-                      // 🔧 FIX #1: Auto-update quantity when warehouse has less than requested
-                      const requestedQty = parseInt(quantity, 10);
-                      if (
-                        totalQty > 0 &&
-                        totalQty < requestedQty &&
-                        !isWarehouseUpdateRef.current
-                      ) {
-                        // Set flag to prevent loop
-                        isWarehouseUpdateRef.current = true;
-                        setQuantity(totalQty.toString());
-                        // Reset flag after update
-                        setTimeout(() => {
-                          isWarehouseUpdateRef.current = false;
-                        }, 100);
-                      }
-                    }}
+                    onTotalQuantityChange={handleTotalQuantityChange}
                   />
                 </div>
               )}

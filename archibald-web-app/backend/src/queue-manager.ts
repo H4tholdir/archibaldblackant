@@ -79,10 +79,7 @@ export class QueueManager {
       "order-sync",
       OrderSyncService.getInstance(),
     );
-    priorityManager.registerService(
-      "ddt-sync",
-      DDTSyncService.getInstance(),
-    );
+    priorityManager.registerService("ddt-sync", DDTSyncService.getInstance());
     priorityManager.registerService(
       "invoice-sync",
       InvoiceSyncService.getInstance(),
@@ -270,7 +267,72 @@ export class QueueManager {
         );
         logger.debug("[QueueManager] Priority lock released");
 
-        // Save order articles to database
+        // If order is completely from warehouse, create order record manually
+        const isWarehouseOnly = orderId.startsWith("warehouse-");
+        if (isWarehouseOnly) {
+          try {
+            const { OrderDatabaseNew } = await import("./order-db-new");
+            const orderDb = OrderDatabaseNew.getInstance();
+
+            // Calculate total amount (subtotal with item discounts)
+            const grossAmount = orderData.items.reduce((sum, item) => {
+              const lineAmount =
+                item.price * item.quantity * (1 - (item.discount || 0) / 100);
+              return sum + lineAmount;
+            }, 0);
+
+            // Apply global discount if present
+            const totalAmount = orderData.discountPercent
+              ? grossAmount * (1 - orderData.discountPercent / 100)
+              : grossAmount;
+
+            // Create order record for warehouse-only order
+            const orderRecord = {
+              id: orderId, // Use warehouse ID as primary key
+              orderNumber: orderId, // Same as ID
+              customerProfileId: orderData.customerId,
+              customerName: orderData.customerName,
+              deliveryName: null,
+              deliveryAddress: null,
+              creationDate: new Date().toISOString(),
+              deliveryDate: null,
+              remainingSalesFinancial: null,
+              customerReference: null,
+              salesStatus: "WAREHOUSE_FULFILLED",
+              orderType: "Warehouse",
+              documentStatus: null,
+              salesOrigin: "PWA",
+              transferStatus: null,
+              transferDate: null,
+              completionDate: null,
+              discountPercent: orderData.discountPercent?.toString() || null,
+              grossAmount: grossAmount.toFixed(2),
+              totalAmount: totalAmount.toFixed(2),
+            };
+
+            orderDb.upsertOrder(userId, orderRecord);
+            logger.info(
+              `[QueueManager] Created warehouse-only order record ${orderId}`,
+              {
+                customerName: orderData.customerName,
+                grossAmount: grossAmount.toFixed(2),
+                totalAmount: totalAmount.toFixed(2),
+                globalDiscount: orderData.discountPercent || 0,
+                itemsCount: orderData.items.length,
+              },
+            );
+          } catch (err) {
+            logger.error(
+              `[QueueManager] Failed to create warehouse order record ${orderId}`,
+              {
+                error: err instanceof Error ? err.message : String(err),
+              },
+            );
+            // Don't fail the order creation
+          }
+        }
+
+        // Save order articles to database (with warehouse tracking)
         try {
           const { OrderDatabaseNew } = await import("./order-db-new");
           const orderDb = OrderDatabaseNew.getInstance();
@@ -279,16 +341,26 @@ export class QueueManager {
             orderId,
             articleCode: item.articleCode,
             articleDescription: item.description,
-            quantity: item.quantity,
+            quantity: item.quantity, // Full quantity from customer
             unitPrice: item.price,
             discountPercent: item.discount,
             lineAmount:
               item.price * item.quantity * (1 - (item.discount || 0) / 100),
+            // Warehouse tracking fields
+            warehouseQuantity: item.warehouseQuantity || 0,
+            warehouseSourcesJson: item.warehouseSources
+              ? JSON.stringify(item.warehouseSources)
+              : undefined,
           }));
 
           const saved = orderDb.saveOrderArticles(articles);
           logger.info(
             `[QueueManager] Saved ${saved} articles for order ${orderId}`,
+            {
+              totalItems: articles.length,
+              warehouseItems: articles.filter((a) => a.warehouseQuantity > 0)
+                .length,
+            },
           );
         } catch (err) {
           logger.error(

@@ -3577,7 +3577,7 @@ export class ArchibaldBot {
           "✅ Order completely fulfilled from warehouse - no Archibald submission needed",
           { jobId: warehouseJobId },
         );
-        // TODO: still need to create order record for tracking
+        // Order record will be created by queue-manager for tracking
         return warehouseJobId;
       }
 
