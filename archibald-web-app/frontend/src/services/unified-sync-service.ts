@@ -103,6 +103,7 @@ export class UnifiedSyncService {
       return;
     }
 
+    console.log("[UnifiedSync] syncAll triggered");
     this.isSyncing = true;
 
     try {
@@ -200,10 +201,14 @@ export class UnifiedSyncService {
     if (!token) return;
 
     try {
+      console.log("[UnifiedSync] Pushing pending orders...");
+
       const localOrders = await db.pendingOrders
         .where("needsSync")
-        .equals(1)
+        .equals(true)
         .toArray();
+
+      console.log(`[UnifiedSync] Found ${localOrders.length} pending orders to push`);
 
       if (localOrders.length === 0) return;
 
@@ -313,10 +318,14 @@ export class UnifiedSyncService {
     if (!token) return;
 
     try {
+      console.log("[UnifiedSync] Pushing draft orders...");
+
       const localDrafts = await db.draftOrders
         .where("needsSync")
-        .equals(1)
+        .equals(true)
         .toArray();
+
+      console.log(`[UnifiedSync] Found ${localDrafts.length} draft orders to push`);
 
       if (localDrafts.length === 0) return;
 
