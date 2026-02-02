@@ -1384,9 +1384,12 @@ export default function OrderFormSimple() {
         return warehouseQty > 0 && warehouseQty === totalQty;
       });
 
+      // 🔧 FIX: Save draftId for server-side cascade deletion BEFORE clearing it
+      const originDraftId = draftId;
+
       // 🔧 FIX: Best-effort draft deletion (client-side)
       // Server will also delete the draft when it receives the pending order with originDraftId
-      if (draftId) {
+      if (originDraftId) {
         const token = localStorage.getItem("archibald_jwt");
         if (token) {
           // Try to delete draft from server (best-effort, don't block if fails)
@@ -1395,7 +1398,7 @@ export default function OrderFormSimple() {
               "[OrderForm] Attempting to delete draft from server...",
             );
             const deleteResponse = await fetchWithRetry(
-              `/api/sync/draft-orders/${draftId}`,
+              `/api/sync/draft-orders/${originDraftId}`,
               {
                 method: "DELETE",
                 headers: {
@@ -1424,7 +1427,7 @@ export default function OrderFormSimple() {
 
         // Delete local draft (best-effort)
         try {
-          await orderService.deleteDraftOrder(draftId);
+          await orderService.deleteDraftOrder(originDraftId);
           setDraftId(null);
         } catch (localDeleteError) {
           console.warn(
@@ -1442,7 +1445,7 @@ export default function OrderFormSimple() {
         items: orderItems,
         discountPercent: parseFloat(globalDiscountPercent) || undefined,
         targetTotalWithVAT: totals.finalTotal,
-        originDraftId: draftId || undefined, // Track which draft this came from
+        originDraftId: originDraftId || undefined, // Track which draft this came from
       });
 
       // 🔧 FIX #5: Show specific message for warehouse-only orders
