@@ -9,6 +9,7 @@ import { priceService } from "../services/prices.service";
 import { orderService } from "../services/orders.service";
 import { cachePopulationService } from "../services/cache-population";
 import { toastService } from "../services/toast.service";
+import { fetchWithRetry } from "../utils/fetch-with-retry";
 import { db } from "../db/schema";
 import type {
   Customer,
@@ -1386,6 +1387,45 @@ export default function OrderFormSimple() {
       // 🔧 FIX: Delete draft BEFORE creating pending order to avoid race condition
       // If we delete AFTER, syncAll() triggered by savePendingOrder() may pull the draft back
       if (draftId) {
+        const token = localStorage.getItem("archibald_jwt");
+        if (token) {
+          // CRITICAL: Delete draft from server FIRST, synchronously and blocking
+          // If this fails, we don't create the pending order
+          try {
+            console.log(
+              "[OrderForm] Deleting draft from server before creating pending...",
+            );
+            const deleteResponse = await fetchWithRetry(
+              `/api/sync/draft-orders/${draftId}`,
+              {
+                method: "DELETE",
+                headers: {
+                  Authorization: `Bearer ${token}`,
+                },
+              },
+            );
+
+            if (!deleteResponse.ok && deleteResponse.status !== 404) {
+              throw new Error(
+                `Failed to delete draft from server: ${deleteResponse.status}`,
+              );
+            }
+
+            console.log(
+              "[OrderForm] ✅ Draft deleted from server successfully",
+            );
+          } catch (deleteError) {
+            console.error(
+              "[OrderForm] Failed to delete draft from server:",
+              deleteError,
+            );
+            throw new Error(
+              "Impossibile eliminare la bozza dal server. Riprova.",
+            );
+          }
+        }
+
+        // Delete local draft only after server delete succeeds
         await orderService.deleteDraftOrder(draftId);
         setDraftId(null);
       }
