@@ -110,12 +110,15 @@ export class OrderService {
           try {
             console.log("[OrderService] Deleting draft from server...");
 
-            const response = await fetchWithRetry(`/api/sync/draft-orders/${id}`, {
-              method: "DELETE",
-              headers: {
-                Authorization: `Bearer ${token}`,
+            const response = await fetchWithRetry(
+              `/api/sync/draft-orders/${id}`,
+              {
+                method: "DELETE",
+                headers: {
+                  Authorization: `Bearer ${token}`,
+                },
               },
-            });
+            );
 
             if (!response.ok) {
               throw new Error(
@@ -125,9 +128,12 @@ export class OrderService {
 
             console.log("[OrderService] ✅ Draft deleted from server");
 
-            // Server delete successful → remove tombstone from local DB
-            await this.db.table<DraftOrder, string>("draftOrders").delete(id);
-            console.log("[OrderService] ✅ Tombstone removed");
+            // 🔧 FIX: Keep tombstone until sync confirms deletion
+            // Tombstone will be removed by pushDraftOrders() after successful DELETE
+            // This prevents race condition where sync pull restores the draft
+            console.log(
+              "[OrderService] ✅ Tombstone kept for sync verification",
+            );
           } catch (serverError) {
             console.error(
               "[OrderService] Failed to delete from server (will retry on sync):",
@@ -382,12 +388,15 @@ export class OrderService {
           try {
             console.log("[OrderService] Deleting order from server...");
 
-            const response = await fetchWithRetry(`/api/sync/pending-orders/${id}`, {
-              method: "DELETE",
-              headers: {
-                Authorization: `Bearer ${token}`,
+            const response = await fetchWithRetry(
+              `/api/sync/pending-orders/${id}`,
+              {
+                method: "DELETE",
+                headers: {
+                  Authorization: `Bearer ${token}`,
+                },
               },
-            });
+            );
 
             if (!response.ok) {
               throw new Error(
@@ -397,9 +406,12 @@ export class OrderService {
 
             console.log("[OrderService] ✅ Order deleted from server");
 
-            // Server delete successful → remove tombstone from local DB
-            await this.db.table<PendingOrder, string>("pendingOrders").delete(id);
-            console.log("[OrderService] ✅ Tombstone removed");
+            // 🔧 FIX: Keep tombstone until sync confirms deletion
+            // Tombstone will be removed by pushPendingOrders() after successful DELETE
+            // This prevents race condition where sync pull restores the order
+            console.log(
+              "[OrderService] ✅ Tombstone kept for sync verification",
+            );
           } catch (serverError) {
             console.error(
               "[OrderService] Failed to delete from server (will retry on sync):",
