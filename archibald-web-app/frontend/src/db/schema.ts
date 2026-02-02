@@ -545,6 +545,21 @@ export class ArchibaldDatabase extends Dexie {
           timestamp: new Date().toISOString(),
         });
       });
+
+    // Version 13: Remove needsSync from indices (boolean not indexable in Dexie)
+    this.version(13).stores({
+      customers: "id, name, code, city, *hash",
+      products: "id, name, article, *hash",
+      productVariants: "++id, productId, variantId",
+      prices: "++id, articleId, articleName",
+      draftOrders: "id, customerId, createdAt, updatedAt", // UUID primary key (needsSync removed - boolean not indexable)
+      pendingOrders: "id, status, createdAt, updatedAt", // UUID primary key (needsSync removed - boolean not indexable)
+      cacheMetadata: "key, lastSynced",
+      warehouseItems:
+        "++id, articleCode, boxName, reservedForOrder, soldInOrder",
+      warehouseMetadata: "++id, uploadedAt",
+    });
+    // No upgrade needed - just removing indices, data remains unchanged
   }
 }
 

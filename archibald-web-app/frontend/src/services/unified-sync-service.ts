@@ -203,9 +203,9 @@ export class UnifiedSyncService {
     try {
       console.log("[UnifiedSync] Pushing pending orders...");
 
-      const localOrders = await db.pendingOrders
-        .filter((order) => order.needsSync === true)
-        .toArray();
+      // Get all orders and filter in JavaScript (needsSync is boolean, not indexable in Dexie)
+      const allOrders = await db.pendingOrders.toArray();
+      const localOrders = allOrders.filter((order) => order.needsSync === true);
 
       console.log(`[UnifiedSync] Found ${localOrders.length} pending orders to push`);
 
@@ -319,9 +319,9 @@ export class UnifiedSyncService {
     try {
       console.log("[UnifiedSync] Pushing draft orders...");
 
-      const localDrafts = await db.draftOrders
-        .filter((draft) => draft.needsSync === true)
-        .toArray();
+      // Get all drafts and filter in JavaScript (needsSync is boolean, not indexable in Dexie)
+      const allDrafts = await db.draftOrders.toArray();
+      const localDrafts = allDrafts.filter((draft) => draft.needsSync === true);
 
       console.log(`[UnifiedSync] Found ${localDrafts.length} draft orders to push`);
 
