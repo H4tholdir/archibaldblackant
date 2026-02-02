@@ -120,20 +120,28 @@ export class OrderService {
               },
             );
 
-            if (!response.ok) {
+            // 🔧 FIX: Treat 404 as success (draft doesn't exist = goal achieved)
+            if (!response.ok && response.status !== 404) {
               throw new Error(
                 `Server delete failed: ${response.status} ${response.statusText}`,
               );
             }
 
-            console.log("[OrderService] ✅ Draft deleted from server");
-
-            // 🔧 FIX: Keep tombstone until sync confirms deletion
-            // Tombstone will be removed by pushDraftOrders() after successful DELETE
-            // This prevents race condition where sync pull restores the draft
-            console.log(
-              "[OrderService] ✅ Tombstone kept for sync verification",
-            );
+            if (response.status === 404) {
+              console.log(
+                "[OrderService] ✅ Draft already deleted (404) - removing tombstone",
+              );
+              // Draft doesn't exist on server → safe to remove tombstone
+              await this.db.table<DraftOrder, string>("draftOrders").delete(id);
+            } else {
+              console.log("[OrderService] ✅ Draft deleted from server");
+              // 🔧 FIX: Keep tombstone until sync confirms deletion
+              // Tombstone will be removed by pushDraftOrders() after successful DELETE
+              // This prevents race condition where sync pull restores the draft
+              console.log(
+                "[OrderService] ✅ Tombstone kept for sync verification",
+              );
+            }
           } catch (serverError) {
             console.error(
               "[OrderService] Failed to delete from server (will retry on sync):",
@@ -398,20 +406,30 @@ export class OrderService {
               },
             );
 
-            if (!response.ok) {
+            // 🔧 FIX: Treat 404 as success (order doesn't exist = goal achieved)
+            if (!response.ok && response.status !== 404) {
               throw new Error(
                 `Server delete failed: ${response.status} ${response.statusText}`,
               );
             }
 
-            console.log("[OrderService] ✅ Order deleted from server");
-
-            // 🔧 FIX: Keep tombstone until sync confirms deletion
-            // Tombstone will be removed by pushPendingOrders() after successful DELETE
-            // This prevents race condition where sync pull restores the order
-            console.log(
-              "[OrderService] ✅ Tombstone kept for sync verification",
-            );
+            if (response.status === 404) {
+              console.log(
+                "[OrderService] ✅ Order already deleted (404) - removing tombstone",
+              );
+              // Order doesn't exist on server → safe to remove tombstone
+              await this.db
+                .table<PendingOrder, string>("pendingOrders")
+                .delete(id);
+            } else {
+              console.log("[OrderService] ✅ Order deleted from server");
+              // 🔧 FIX: Keep tombstone until sync confirms deletion
+              // Tombstone will be removed by pushPendingOrders() after successful DELETE
+              // This prevents race condition where sync pull restores the order
+              console.log(
+                "[OrderService] ✅ Tombstone kept for sync verification",
+              );
+            }
           } catch (serverError) {
             console.error(
               "[OrderService] Failed to delete from server (will retry on sync):",

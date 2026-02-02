@@ -301,11 +301,12 @@ export class UnifiedSyncService {
               },
             );
 
-            if (response.ok) {
-              // Server delete successful → remove tombstone from local DB
+            // 🔧 FIX: Treat 404 as success (order doesn't exist = goal achieved)
+            if (response.ok || response.status === 404) {
+              // Server delete successful or order doesn't exist → remove tombstone from local DB
               await db.pendingOrders.delete(tombstone.id);
               console.log(
-                `[UnifiedSync] ✅ Pending order ${tombstone.id} deleted from server and tombstone removed`,
+                `[UnifiedSync] ✅ Pending order ${tombstone.id} deleted from server and tombstone removed ${response.status === 404 ? "(404)" : ""}`,
               );
             } else {
               console.error(
@@ -480,11 +481,12 @@ export class UnifiedSyncService {
               },
             );
 
-            if (response.ok) {
-              // Server delete successful → remove tombstone from local DB
+            // 🔧 FIX: Treat 404 as success (draft doesn't exist = goal achieved)
+            if (response.ok || response.status === 404) {
+              // Server delete successful or draft doesn't exist → remove tombstone from local DB
               await db.draftOrders.delete(tombstone.id);
               console.log(
-                `[UnifiedSync] ✅ Draft ${tombstone.id} deleted from server and tombstone removed`,
+                `[UnifiedSync] ✅ Draft ${tombstone.id} deleted from server and tombstone removed ${response.status === 404 ? "(404)" : ""}`,
               );
             } else {
               console.error(
