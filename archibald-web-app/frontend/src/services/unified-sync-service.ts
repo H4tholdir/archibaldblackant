@@ -165,6 +165,9 @@ export class UnifiedSyncService {
         throw new Error("Pull pending orders unsuccessful");
       }
 
+      // 🔧 FIX: Track server order IDs to detect deletions
+      const serverOrderIds = new Set(orders.map((o: any) => o.id));
+
       // Merge with local (LWW)
       for (const serverOrder of orders) {
         const localOrder = await db.pendingOrders.get(serverOrder.id);
@@ -208,6 +211,25 @@ export class UnifiedSyncService {
             needsSync: false,
             serverUpdatedAt: serverOrder.updatedAt,
           });
+        }
+      }
+
+      // 🔧 FIX: Remove local pending orders that no longer exist on server
+      // (deleted by another device)
+      const allLocalOrders = await db.pendingOrders.toArray();
+      for (const localOrder of allLocalOrders) {
+        // Skip if order has pending changes (being modified locally)
+        if (localOrder.needsSync) continue;
+
+        // Skip if order has local tombstone (being deleted locally)
+        if (localOrder.deleted) continue;
+
+        // If order doesn't exist on server anymore → delete locally
+        if (!serverOrderIds.has(localOrder.id)) {
+          console.log(
+            `[UnifiedSync] Removing pending order ${localOrder.id} - deleted on server`,
+          );
+          await db.pendingOrders.delete(localOrder.id);
         }
       }
     } catch (error) {
@@ -356,6 +378,9 @@ export class UnifiedSyncService {
         throw new Error("Pull draft orders unsuccessful");
       }
 
+      // 🔧 FIX: Track server draft IDs to detect deletions
+      const serverDraftIds = new Set(drafts.map((d: any) => d.id));
+
       // Merge with local (LWW)
       for (const serverDraft of drafts) {
         const localDraft = await db.draftOrders.get(serverDraft.id);
@@ -393,6 +418,25 @@ export class UnifiedSyncService {
             needsSync: false,
             serverUpdatedAt: serverDraft.updatedAt,
           });
+        }
+      }
+
+      // 🔧 FIX: Remove local draft orders that no longer exist on server
+      // (deleted by another device or converted to pending order)
+      const allLocalDrafts = await db.draftOrders.toArray();
+      for (const localDraft of allLocalDrafts) {
+        // Skip if draft has pending changes (being modified locally)
+        if (localDraft.needsSync) continue;
+
+        // Skip if draft has local tombstone (being deleted locally)
+        if (localDraft.deleted) continue;
+
+        // If draft doesn't exist on server anymore → delete locally
+        if (!serverDraftIds.has(localDraft.id)) {
+          console.log(
+            `[UnifiedSync] Removing draft ${localDraft.id} - deleted on server or converted to pending`,
+          );
+          await db.draftOrders.delete(localDraft.id);
         }
       }
     } catch (error) {

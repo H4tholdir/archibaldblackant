@@ -1383,6 +1383,13 @@ export default function OrderFormSimple() {
         return warehouseQty > 0 && warehouseQty === totalQty;
       });
 
+      // 🔧 FIX: Delete draft BEFORE creating pending order to avoid race condition
+      // If we delete AFTER, syncAll() triggered by savePendingOrder() may pull the draft back
+      if (draftId) {
+        await orderService.deleteDraftOrder(draftId);
+        setDraftId(null);
+      }
+
       // Save new/updated order (status will be determined by service)
       await orderService.savePendingOrder({
         customerId: selectedCustomer.id,
@@ -1391,12 +1398,6 @@ export default function OrderFormSimple() {
         discountPercent: parseFloat(globalDiscountPercent) || undefined,
         targetTotalWithVAT: totals.finalTotal,
       });
-
-      // Delete draft if it exists (order is now finalized)
-      if (draftId) {
-        await orderService.deleteDraftOrder(draftId);
-        setDraftId(null);
-      }
 
       // 🔧 FIX #5: Show specific message for warehouse-only orders
       if (isWarehouseOnly) {
