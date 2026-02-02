@@ -77,6 +77,7 @@ export interface Order {
   deliveryDate?: string;
   total: string;
   salesOrigin?: string;
+  discountPercent?: string; // Global order discount percentage (e.g., "14,27 %")
   lineDiscount?: string;
   endDiscount?: string;
   shippingAddress?: string;

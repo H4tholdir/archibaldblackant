@@ -494,9 +494,12 @@ function TabArticoli({
       if (!token || !orderId) return;
 
       try {
-        const response = await fetchWithRetry(`/api/orders/${orderId}/articles`, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
+        const response = await fetchWithRetry(
+          `/api/orders/${orderId}/articles`,
+          {
+            headers: { Authorization: `Bearer ${token}` },
+          },
+        );
 
         if (!response.ok) return;
 
@@ -536,13 +539,16 @@ function TabArticoli({
     setSuccess(null);
 
     try {
-      const response = await fetchWithRetry(`/api/orders/${orderId}/sync-articles`, {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
+      const response = await fetchWithRetry(
+        `/api/orders/${orderId}/sync-articles`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
         },
-      });
+      );
 
       if (!response.ok) {
         const errorData = await response.json();
@@ -756,83 +762,142 @@ function TabArticoli({
       </div>
 
       {/* Totals Section */}
-      {articles.length > 0 && (
-        <div
-          style={{
-            marginTop: "24px",
-            paddingTop: "16px",
-            borderTop: "2px solid #e0e0e0",
-          }}
-        >
-          <div
-            style={{
-              display: "flex",
-              flexDirection: "column",
-              alignItems: "flex-end",
-              gap: "8px",
-            }}
-          >
+      {articles.length > 0 &&
+        (() => {
+          const subtotalBeforeDiscount = articles.reduce((sum, item) => {
+            const unitPrice = (item as any).unitPrice ?? item.price ?? 0;
+            const quantity = item.quantity ?? 0;
+            return sum + unitPrice * quantity;
+          }, 0);
+          const totalImponibile = articles.reduce(
+            (sum, item) => sum + ((item as any).lineAmount ?? 0),
+            0,
+          );
+          const totalDiscountAmount = subtotalBeforeDiscount - totalImponibile;
+
+          // Check if all articles have the same discount (global discount)
+          const uniqueDiscounts = new Set(
+            articles.map((item) => (item as any).discountPercent ?? 0),
+          );
+          const hasUniformDiscount =
+            uniqueDiscounts.size === 1 && Array.from(uniqueDiscounts)[0] > 0;
+          const globalDiscountPercent = hasUniformDiscount
+            ? Array.from(uniqueDiscounts)[0]
+            : null;
+
+          return (
             <div
               style={{
-                display: "flex",
-                justifyContent: "space-between",
-                width: "300px",
+                marginTop: "24px",
+                paddingTop: "16px",
+                borderTop: "2px solid #e0e0e0",
               }}
             >
-              <span style={{ fontWeight: 500 }}>Totale Imponibile:</span>
-              <span style={{ fontWeight: 600 }}>
-                €{" "}
-                {articles
-                  .reduce(
-                    (sum, item) => sum + ((item as any).lineAmount ?? 0),
-                    0,
-                  )
-                  .toFixed(2)}
-              </span>
-            </div>
-            <div
-              style={{
-                display: "flex",
-                justifyContent: "space-between",
-                width: "300px",
-              }}
-            >
-              <span style={{ fontWeight: 500 }}>Totale IVA:</span>
-              <span style={{ fontWeight: 600 }}>
-                €{" "}
-                {articles
-                  .reduce(
-                    (sum, item) => sum + ((item as any).vatAmount ?? 0),
-                    0,
-                  )
-                  .toFixed(2)}
-              </span>
-            </div>
-            <div
-              style={{
-                display: "flex",
-                justifyContent: "space-between",
-                width: "300px",
-                paddingTop: "8px",
-                borderTop: "1px solid #e0e0e0",
-              }}
-            >
-              <span style={{ fontWeight: 700, fontSize: "18px" }}>TOTALE:</span>
-              <span
-                style={{ fontWeight: 700, fontSize: "18px", color: "#2e7d32" }}
+              <div
+                style={{
+                  display: "flex",
+                  flexDirection: "column",
+                  alignItems: "flex-end",
+                  gap: "8px",
+                }}
               >
-                €{" "}
-                {articles
-                  .reduce(
-                    (sum, item) => sum + ((item as any).lineTotalWithVat ?? 0),
-                    0,
-                  )
-                  .toFixed(2)}
-              </span>
+                {totalDiscountAmount > 0.01 && (
+                  <>
+                    <div
+                      style={{
+                        display: "flex",
+                        justifyContent: "space-between",
+                        width: "300px",
+                      }}
+                    >
+                      <span style={{ fontWeight: 500 }}>Subtotale:</span>
+                      <span style={{ fontWeight: 600 }}>
+                        € {subtotalBeforeDiscount.toFixed(2)}
+                      </span>
+                    </div>
+                    <div
+                      style={{
+                        display: "flex",
+                        justifyContent: "space-between",
+                        width: "300px",
+                      }}
+                    >
+                      <span style={{ fontWeight: 500, color: "#d32f2f" }}>
+                        Sconto
+                        {globalDiscountPercent
+                          ? ` (${globalDiscountPercent}%)`
+                          : ""}
+                        :
+                      </span>
+                      <span style={{ fontWeight: 600, color: "#d32f2f" }}>
+                        - € {totalDiscountAmount.toFixed(2)}
+                      </span>
+                    </div>
+                  </>
+                )}
+                <div
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    width: "300px",
+                  }}
+                >
+                  <span style={{ fontWeight: 500 }}>Totale Imponibile:</span>
+                  <span style={{ fontWeight: 600 }}>
+                    € {totalImponibile.toFixed(2)}
+                  </span>
+                </div>
+                <div
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    width: "300px",
+                  }}
+                >
+                  <span style={{ fontWeight: 500 }}>Totale IVA:</span>
+                  <span style={{ fontWeight: 600 }}>
+                    €{" "}
+                    {articles
+                      .reduce(
+                        (sum, item) => sum + ((item as any).vatAmount ?? 0),
+                        0,
+                      )
+                      .toFixed(2)}
+                  </span>
+                </div>
+                <div
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    width: "300px",
+                    paddingTop: "8px",
+                    borderTop: "1px solid #e0e0e0",
+                  }}
+                >
+                  <span style={{ fontWeight: 700, fontSize: "18px" }}>
+                    TOTALE:
+                  </span>
+                  <span
+                    style={{
+                      fontWeight: 700,
+                      fontSize: "18px",
+                      color: "#2e7d32",
+                    }}
+                  >
+                    €{" "}
+                    {articles
+                      .reduce(
+                        (sum, item) =>
+                          sum + ((item as any).lineTotalWithVat ?? 0),
+                        0,
+                      )
+                      .toFixed(2)}
+                  </span>
+                </div>
+              </div>
             </div>
-          </div>
-        </div>
-      )}
+          );
+        })()}
     </div>
   );
 }
@@ -869,9 +934,12 @@ function TabLogistica({ order, token }: { order: Order; token?: string }) {
       const orderIdentifier = order.orderNumber || order.id;
       // Encode the order identifier to handle slashes in ORD/xxxxxxxx format
       const encodedId = encodeURIComponent(orderIdentifier);
-      const response = await fetchWithRetry(`/api/orders/${encodedId}/ddt/download`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const response = await fetchWithRetry(
+        `/api/orders/${encodedId}/ddt/download`,
+        {
+          headers: { Authorization: `Bearer ${token}` },
+        },
+      );
 
       if (!response.ok) {
         const errorData = await response.json();
@@ -1276,8 +1344,23 @@ function TabFinanziario({ order, token }: { order: Order; token?: string }) {
               </div>
             )}
           </div>
-          <InfoField label="Sconto Riga" value={order.lineDiscount} />
-          <InfoField label="Sconto Finale" value={order.endDiscount} />
+          {order.discountPercent &&
+            order.discountPercent !== "0,00 %" &&
+            order.discountPercent !== "0%" && (
+              <InfoField
+                label="Sconto Globale Ordine"
+                value={order.discountPercent}
+              />
+            )}
+          {order.lineDiscount && (
+            <InfoField label="Sconto Riga Fattura" value={order.lineDiscount} />
+          )}
+          {order.endDiscount && (
+            <InfoField
+              label="Sconto Finale Fattura"
+              value={order.endDiscount}
+            />
+          )}
         </div>
       </div>
 

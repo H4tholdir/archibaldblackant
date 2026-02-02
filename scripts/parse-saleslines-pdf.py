@@ -90,8 +90,8 @@ def parse_saleslines_pdf(pdf_path: str):
                 article_code = (row1[1] or '').strip() if len(row1) > 1 else None
                 quantity = parse_italian_decimal(row1[2]) if len(row1) > 2 else None
                 unit_price = parse_italian_decimal(row1[3]) if len(row1) > 3 else None
-                # SCONTO % is in column 4, not 5
-                discount_percent = parse_italian_decimal(row1[4]) if len(row1) > 4 else None
+                # APPLICA SCONTO % is in column 5, not column 4 (SCONTO % is always 0)
+                discount_percent = parse_italian_decimal(row1[5]) if len(row1) > 5 else None
 
                 # Table 2: [IMPORTO DELLA LINEA, PREZZO NETTO (skip), NOME]
                 row2 = table2[row_idx] if row_idx < len(table2) else []
