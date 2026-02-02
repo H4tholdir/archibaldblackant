@@ -907,8 +907,9 @@ export default function OrderFormSimple() {
       const variantProduct = await db.products.get(variantCode);
       const vatRate = normalizeVatRate(variantProduct?.vat);
 
-      // 🔧 FIX #3: Use warehouseQty as final quantity (not requestedQty) if residual is invalid
-      const finalQty = isFullyFromWarehouse ? requestedQty : warehouseQty;
+      // 🔧 FIX #4: Always use warehouseQty for warehouse-only items (not requestedQty)
+      // The user may have selected more/less items from warehouse than initially requested
+      const finalQty = warehouseQty;
 
       const lineSubtotal = price * finalQty - disc;
       const lineVat = lineSubtotal * (vatRate / 100);
