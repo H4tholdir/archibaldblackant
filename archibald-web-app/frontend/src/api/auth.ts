@@ -88,3 +88,14 @@ export async function getMe(token: string): Promise<GetMeResponse> {
   }
   return data;
 }
+
+/**
+ * Login with username and password (for auto re-auth)
+ * Alias for login() with simpler signature
+ */
+export async function loginWithCredentials(
+  username: string,
+  password: string,
+): Promise<LoginResponse> {
+  return login({ username, password });
+}

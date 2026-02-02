@@ -1,4 +1,5 @@
 import { db } from "../db/schema";
+import { fetchWithRetry } from "../utils/fetch-with-retry";
 
 /**
  * UnifiedSyncService
@@ -149,7 +150,7 @@ export class UnifiedSyncService {
     if (!token) return;
 
     try {
-      const response = await fetch("/api/sync/pending-orders", {
+      const response = await fetchWithRetry("/api/sync/pending-orders", {
         headers: { Authorization: `Bearer ${token}` },
       });
 
@@ -211,7 +212,7 @@ export class UnifiedSyncService {
 
       if (localOrders.length === 0) return;
 
-      const response = await fetch("/api/sync/pending-orders", {
+      const response = await fetchWithRetry("/api/sync/pending-orders", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -271,7 +272,7 @@ export class UnifiedSyncService {
     if (!token) return;
 
     try {
-      const response = await fetch("/api/sync/draft-orders", {
+      const response = await fetchWithRetry("/api/sync/draft-orders", {
         headers: { Authorization: `Bearer ${token}` },
       });
 
@@ -327,7 +328,7 @@ export class UnifiedSyncService {
 
       if (localDrafts.length === 0) return;
 
-      const response = await fetch("/api/sync/draft-orders", {
+      const response = await fetchWithRetry("/api/sync/draft-orders", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -382,7 +383,7 @@ export class UnifiedSyncService {
     if (!token) return;
 
     try {
-      const response = await fetch("/api/sync/warehouse-items", {
+      const response = await fetchWithRetry("/api/sync/warehouse-items", {
         headers: { Authorization: `Bearer ${token}` },
       });
 
