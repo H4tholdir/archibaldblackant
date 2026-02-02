@@ -1,3 +1,5 @@
+import { fetchWithRetry } from "../utils/fetch-with-retry";
+
 const API_BASE = ""; // Vite proxy handles /api
 
 export type UserRole = "agent" | "admin";
@@ -49,7 +51,7 @@ export async function login(credentials: LoginRequest): Promise<LoginResponse> {
     deviceName: credentials.deviceName || getDeviceName(),
   };
 
-  const response = await fetch(`${API_BASE}/api/auth/login`, {
+  const response = await fetchWithRetry(`${API_BASE}/api/auth/login`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(loginPayload),
@@ -58,7 +60,7 @@ export async function login(credentials: LoginRequest): Promise<LoginResponse> {
 }
 
 export async function logout(token: string): Promise<void> {
-  await fetch(`${API_BASE}/api/auth/logout`, {
+  await fetchWithRetry(`${API_BASE}/api/auth/logout`, {
     method: "POST",
     headers: { Authorization: `Bearer ${token}` },
   });
@@ -73,7 +75,7 @@ export interface GetMeResponse {
 }
 
 export async function getMe(token: string): Promise<GetMeResponse> {
-  const response = await fetch(`${API_BASE}/api/auth/me`, {
+  const response = await fetchWithRetry(`${API_BASE}/api/auth/me`, {
     headers: { Authorization: `Bearer ${token}` },
   });
   const data = await response.json();

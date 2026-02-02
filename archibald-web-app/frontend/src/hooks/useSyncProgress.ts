@@ -1,4 +1,5 @@
 import { useState, useCallback } from "react";
+import { fetchWithRetry } from "../utils/fetch-with-retry";
 
 interface SyncProgress {
   isRunning: boolean;
@@ -40,7 +41,7 @@ export function useSyncProgress() {
             ? "/api/orders/reset-and-sync"
             : "/api/orders/force-sync";
 
-        const syncResponse = await fetch(endpoint, {
+        const syncResponse = await fetchWithRetry(endpoint, {
           method: "POST",
           headers: {
             Authorization: `Bearer ${token}`,

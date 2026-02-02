@@ -1,6 +1,7 @@
 import { db } from "../db/schema";
 import type { Customer, CacheMetadata } from "../db/schema";
 import type Dexie from "dexie";
+import { fetchWithRetry } from "../utils/fetch-with-retry";
 
 export class CustomerService {
   private db: Dexie;
@@ -45,7 +46,7 @@ export class CustomerService {
 
     // 2. Fallback to API
     try {
-      const response = await fetch(
+      const response = await fetchWithRetry(
         `/api/customers?search=${encodeURIComponent(query)}`,
       );
       if (!response.ok) throw new Error("API fetch failed");
@@ -83,7 +84,7 @@ export class CustomerService {
       console.log("[CustomerService] Starting customer sync...");
 
       // Fetch all customers from API
-      const response = await fetch("/api/customers");
+      const response = await fetchWithRetry("/api/customers");
       if (!response.ok) {
         throw new Error(`API request failed: ${response.status}`);
       }

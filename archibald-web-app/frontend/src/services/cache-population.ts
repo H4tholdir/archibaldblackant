@@ -1,5 +1,6 @@
 import { db } from "../db/schema";
 import type { Customer, Product, ProductVariant, Price } from "../db/schema";
+import { fetchWithRetry } from "../utils/fetch-with-retry";
 
 export interface CachePopulationProgress {
   stage:
@@ -54,7 +55,7 @@ export class CachePopulationService {
         message: "Scaricamento dati dal server...",
       });
 
-      const response = await fetch("/api/cache/export", {
+      const response = await fetchWithRetry("/api/cache/export", {
         headers: {
           Authorization: `Bearer ${jwt}`,
         },

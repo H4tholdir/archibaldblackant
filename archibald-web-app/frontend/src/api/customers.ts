@@ -1,3 +1,5 @@
+import { fetchWithRetry } from "../utils/fetch-with-retry";
+
 const API_BASE = ""; // Vite proxy handles /api
 
 export interface Customer {
@@ -80,7 +82,7 @@ export async function syncCustomers(
   const timeoutId = setTimeout(() => controller.abort(), 7 * 60 * 1000); // 7 minutes
 
   try {
-    const response = await fetch(`${API_BASE}/api/customers/sync`, {
+    const response = await fetchWithRetry(`${API_BASE}/api/customers/sync`, {
       method: "POST",
       headers: {
         Authorization: `Bearer ${token}`,
@@ -116,7 +118,7 @@ export async function syncCustomers(
 export async function getSyncStatus(
   token: string,
 ): Promise<SyncStatusResponse> {
-  const response = await fetch(`${API_BASE}/api/customers/sync-status`, {
+  const response = await fetchWithRetry(`${API_BASE}/api/customers/sync-status`, {
     headers: {
       Authorization: `Bearer ${token}`,
     },
@@ -135,7 +137,7 @@ export async function getSyncStatus(
 export async function getCustomers(
   token: string,
 ): Promise<GetCustomersResponse> {
-  const response = await fetch(`${API_BASE}/api/customers`, {
+  const response = await fetchWithRetry(`${API_BASE}/api/customers`, {
     headers: {
       Authorization: `Bearer ${token}`,
     },

@@ -8,6 +8,7 @@ import {
 } from "./warehouse-order-integration";
 import { getDeviceId } from "../utils/device-id";
 import { unifiedSyncService } from "./unified-sync-service";
+import { fetchWithRetry } from "../utils/fetch-with-retry";
 
 export class OrderService {
   private db: Dexie;
@@ -101,7 +102,7 @@ export class OrderService {
               draftId: id,
             });
 
-            const response = await fetch(`/api/sync/draft-orders/${id}`, {
+            const response = await fetchWithRetry(`/api/sync/draft-orders/${id}`, {
               method: "DELETE",
               headers: {
                 Authorization: `Bearer ${token}`,
@@ -363,7 +364,7 @@ export class OrderService {
               { orderId: id },
             );
 
-            const response = await fetch(`/api/sync/pending-orders/${id}`, {
+            const response = await fetchWithRetry(`/api/sync/pending-orders/${id}`, {
               method: "DELETE",
               headers: {
                 Authorization: `Bearer ${token}`,

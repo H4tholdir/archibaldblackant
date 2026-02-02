@@ -1,4 +1,5 @@
 import { useState, useCallback } from "react";
+import { fetchWithRetry } from "../utils/fetch-with-retry";
 
 interface CustomerSyncProgress {
   isRunning: boolean;
@@ -34,7 +35,7 @@ export function useCustomerSync() {
 
     try {
       // API now returns results synchronously after completion
-      const response = await fetch("/api/customers/sync", {
+      const response = await fetchWithRetry("/api/customers/sync", {
         method: "POST",
         headers: {
           Authorization: `Bearer ${token}`,

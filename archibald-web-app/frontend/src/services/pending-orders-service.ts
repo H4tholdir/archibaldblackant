@@ -7,6 +7,7 @@ import {
 } from "./warehouse-order-integration";
 import { getDeviceId } from "../utils/device-id";
 import { unifiedSyncService } from "./unified-sync-service";
+import { fetchWithRetry } from "../utils/fetch-with-retry";
 
 // 🔧 FIX #4: Maximum retry attempts before auto-release
 const MAX_RETRY_ATTEMPTS = 3;
@@ -203,7 +204,7 @@ export class PendingOrdersService {
         }));
 
         // Call backend API with filtered order data
-        const response = await fetch("/api/orders/create", {
+        const response = await fetchWithRetry("/api/orders/create", {
           method: "POST",
           headers: {
             "Content-Type": "application/json",

@@ -1,4 +1,5 @@
 // API client for products endpoints
+import { fetchWithRetry } from "../utils/fetch-with-retry";
 
 const API_BASE_URL = "";
 
@@ -116,7 +117,7 @@ export async function getProductVariants(
   productName: string
 ): Promise<ProductVariantsResponse> {
   const encodedName = encodeURIComponent(productName);
-  const response = await fetch(`/api/products/${encodedName}/variants`, {
+  const response = await fetchWithRetry(`/api/products/${encodedName}/variants`, {
     method: "GET",
     headers: {
       Authorization: `Bearer ${token}`,
@@ -152,7 +153,7 @@ export async function getProducts(
     params.append("grouped", "true");
   }
 
-  const response = await fetch(`${API_BASE_URL}/api/products?${params}`, {
+  const response = await fetchWithRetry(`${API_BASE_URL}/api/products?${params}`, {
     headers: {
       Authorization: `Bearer ${token}`,
     },
@@ -177,7 +178,7 @@ export async function searchProducts(
   params.append("q", query);
   params.append("limit", limit.toString());
 
-  const response = await fetch(
+  const response = await fetchWithRetry(
     `${API_BASE_URL}/api/products/search?${params}`,
     {
       headers: {
@@ -201,7 +202,7 @@ export async function getProductChanges(
   productId: string,
   limit: number = 10,
 ) {
-  const response = await fetch(
+  const response = await fetchWithRetry(
     `${API_BASE_URL}/api/products/${productId}/changes?limit=${limit}`,
     {
       headers: {
@@ -225,7 +226,7 @@ export async function getProductPriceHistory(
   productId: string,
   limit: number = 100,
 ) {
-  const response = await fetch(
+  const response = await fetchWithRetry(
     `${API_BASE_URL}/api/prices/${productId}/history?limit=${limit}`,
     {
       headers: {
@@ -261,7 +262,7 @@ export async function syncProducts(): Promise<SyncProductsResult> {
   const timeoutId = setTimeout(() => controller.abort(), 7 * 60 * 1000); // 7 minutes
 
   try {
-    const response = await fetch("/api/products/sync", {
+    const response = await fetchWithRetry("/api/products/sync", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",

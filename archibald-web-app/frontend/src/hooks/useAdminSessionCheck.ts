@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useAuth } from "./useAuth";
 import { unifiedSyncService } from "../services/unified-sync-service";
+import { fetchWithRetry } from "../utils/fetch-with-retry";
 
 /**
  * Hook to check if admin is currently working on agent's account
@@ -22,7 +23,7 @@ export function useAdminSessionCheck() {
       if (!token) return;
 
       try {
-        const response = await fetch("/api/admin/session/check", {
+        const response = await fetchWithRetry("/api/admin/session/check", {
           headers: { Authorization: `Bearer ${token}` },
         });
 

@@ -6,6 +6,7 @@ import type {
   CacheMetadata,
 } from "../db/schema";
 import type Dexie from "dexie";
+import { fetchWithRetry } from "../utils/fetch-with-retry";
 
 export interface ProductWithDetails extends Product {
   variants: ProductVariant[];
@@ -72,7 +73,7 @@ export class ProductService {
 
     // 2. Fallback to API
     try {
-      const response = await fetch(
+      const response = await fetchWithRetry(
         `/api/products?search=${encodeURIComponent(query)}`,
       );
       if (!response.ok) throw new Error("API fetch failed");
@@ -346,7 +347,7 @@ export class ProductService {
       console.log("[ProductService] Starting product sync...");
 
       // Fetch all products from API (limit=0 disables pagination)
-      const response = await fetch("/api/products?limit=0");
+      const response = await fetchWithRetry("/api/products?limit=0");
       if (!response.ok) {
         throw new Error(`API request failed: ${response.status}`);
       }

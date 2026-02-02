@@ -1,6 +1,7 @@
 import { db, type WarehouseItem, type WarehouseMetadata } from "../db/schema";
 import { getDeviceId } from "../utils/device-id";
 import { unifiedSyncService } from "./unified-sync-service";
+import { fetchWithRetry } from "../utils/fetch-with-retry";
 
 // Use empty string for relative paths (works with Vite proxy in dev and production)
 const API_BASE_URL = "";
@@ -30,7 +31,7 @@ export async function uploadWarehouseFile(
   const formData = new FormData();
   formData.append("file", file);
 
-  const response = await fetch(`${API_BASE_URL}/api/warehouse/upload`, {
+  const response = await fetchWithRetry(`${API_BASE_URL}/api/warehouse/upload`, {
     method: "POST",
     body: formData,
   });
@@ -89,7 +90,7 @@ export async function uploadWarehouseFile(
     try {
       console.log("[Warehouse] Pushing items to server for sync...");
 
-      const syncResponse = await fetch(
+      const syncResponse = await fetchWithRetry(
         `${API_BASE_URL}/api/sync/warehouse-items`,
         {
           method: "POST",
@@ -173,7 +174,7 @@ export async function clearWarehouseData(): Promise<void> {
  * Get format requirements (from backend)
  */
 export async function getFormatGuide(): Promise<unknown> {
-  const response = await fetch(`${API_BASE_URL}/api/warehouse/format-guide`);
+  const response = await fetchWithRetry(`${API_BASE_URL}/api/warehouse/format-guide`);
   if (!response.ok) {
     throw new Error("Failed to fetch format guide");
   }
