@@ -598,9 +598,17 @@ export default function OrderFormSimple() {
   }, [selectedProduct, quantity]);
 
   // === SAVE DRAFT FUNCTION (SHARED) ===
-  const saveDraft = async () => {
+  const saveDraft = useCallback(async () => {
+    console.log("[OrderForm] saveDraft called", {
+      editingOrderId,
+      hasCustomer: !!selectedCustomer,
+      itemsCount: items.length,
+      draftId,
+    });
+
     // Don't save if editing existing order or no customer selected
     if (editingOrderId || !selectedCustomer) {
+      console.log("[OrderForm] Draft save skipped - no customer or editing");
       return;
     }
 
@@ -619,6 +627,7 @@ export default function OrderFormSimple() {
 
       if (draftId) {
         // Update existing draft
+        console.log("[OrderForm] Updating existing draft:", draftId);
         await db.draftOrders.update(draftId, {
           customerId: selectedCustomer.id,
           customerName: selectedCustomer.name,
@@ -626,8 +635,10 @@ export default function OrderFormSimple() {
           updatedAt: now,
           needsSync: true,
         });
+        console.log("[OrderForm] ✅ Draft updated");
       } else {
         // Create new draft
+        console.log("[OrderForm] Creating new draft");
         const draft: Omit<DraftOrder, "id"> = {
           customerId: selectedCustomer.id,
           customerName: selectedCustomer.name,
@@ -639,6 +650,7 @@ export default function OrderFormSimple() {
         };
         const id = await orderService.saveDraftOrder(draft);
         setDraftId(id);
+        console.log("[OrderForm] ✅ Draft created:", id);
       }
 
       // Trigger sync
@@ -654,9 +666,9 @@ export default function OrderFormSimple() {
         new Date().toLocaleTimeString(),
       );
     } catch (error) {
-      console.error("[OrderForm] Draft save failed:", error);
+      console.error("[OrderForm] ❌ Draft save failed:", error);
     }
-  };
+  }, [editingOrderId, selectedCustomer, items, draftId]);
 
   // === CHECK FOR EXISTING DRAFT ON MOUNT ===
   useEffect(() => {
@@ -685,22 +697,30 @@ export default function OrderFormSimple() {
       return;
     }
 
+    console.log("[OrderForm] Auto-save interval started");
+
     const autoSaveInterval = setInterval(() => {
+      console.log("[OrderForm] Auto-save interval triggered");
       saveDraft();
     }, 10000); // 10 seconds (reduced from 30s)
 
-    return () => clearInterval(autoSaveInterval);
-  }, [selectedCustomer, items, draftId, editingOrderId]);
+    return () => {
+      console.log("[OrderForm] Auto-save interval cleared");
+      clearInterval(autoSaveInterval);
+    };
+  }, [selectedCustomer, editingOrderId, saveDraft]);
 
   // === SAVE DRAFT ON TAB CLOSE / PAGE UNLOAD / COMPONENT UNMOUNT ===
   useEffect(() => {
     const handleBeforeUnload = () => {
+      console.log("[OrderForm] beforeunload triggered");
       if (selectedCustomer && !editingOrderId) {
         saveDraft();
       }
     };
 
     const handleVisibilityChange = () => {
+      console.log("[OrderForm] visibilitychange, hidden:", document.hidden);
       if (document.hidden && selectedCustomer && !editingOrderId) {
         saveDraft();
       }
@@ -711,6 +731,7 @@ export default function OrderFormSimple() {
 
     // Save draft on component unmount (when user navigates away)
     return () => {
+      console.log("[OrderForm] Component unmounting");
       window.removeEventListener("beforeunload", handleBeforeUnload);
       document.removeEventListener("visibilitychange", handleVisibilityChange);
 
@@ -719,7 +740,7 @@ export default function OrderFormSimple() {
         saveDraft();
       }
     };
-  }, [selectedCustomer, items, draftId, editingOrderId]);
+  }, [selectedCustomer, editingOrderId, saveDraft]);
 
   // === RECOVER DRAFT ===
   const handleRecoverDraft = async () => {
