@@ -69,7 +69,7 @@ export class UnifiedSyncService {
   /**
    * Start periodic background sync
    */
-  startPeriodicSync(intervalMs: number = 30000): void {
+  startPeriodicSync(intervalMs: number = 15000): void {
     if (this.syncInterval) {
       clearInterval(this.syncInterval);
     }
@@ -227,7 +227,9 @@ export class UnifiedSyncService {
       const allOrders = await db.pendingOrders.toArray();
       const localOrders = allOrders.filter((order) => order.needsSync === true);
 
-      console.log(`[UnifiedSync] Found ${localOrders.length} pending orders to push`);
+      console.log(
+        `[UnifiedSync] Found ${localOrders.length} pending orders to push`,
+      );
 
       if (localOrders.length === 0) return;
 
@@ -278,7 +280,9 @@ export class UnifiedSyncService {
           }
         }
 
-        console.log(`[UnifiedSync] Pushed ${regularOrders.length} pending orders`);
+        console.log(
+          `[UnifiedSync] Pushed ${regularOrders.length} pending orders`,
+        );
       }
 
       // 🔧 FIX: Push tombstones (deletions)
@@ -407,7 +411,9 @@ export class UnifiedSyncService {
       const allDrafts = await db.draftOrders.toArray();
       const localDrafts = allDrafts.filter((draft) => draft.needsSync === true);
 
-      console.log(`[UnifiedSync] Found ${localDrafts.length} draft orders to push`);
+      console.log(
+        `[UnifiedSync] Found ${localDrafts.length} draft orders to push`,
+      );
 
       if (localDrafts.length === 0) return;
 
@@ -453,12 +459,16 @@ export class UnifiedSyncService {
           }
         }
 
-        console.log(`[UnifiedSync] Pushed ${regularDrafts.length} draft orders`);
+        console.log(
+          `[UnifiedSync] Pushed ${regularDrafts.length} draft orders`,
+        );
       }
 
       // 🔧 FIX: Push tombstones (deletions)
       if (tombstones.length > 0) {
-        console.log(`[UnifiedSync] Processing ${tombstones.length} draft deletions`);
+        console.log(
+          `[UnifiedSync] Processing ${tombstones.length} draft deletions`,
+        );
 
         for (const tombstone of tombstones) {
           try {

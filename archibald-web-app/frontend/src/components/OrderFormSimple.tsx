@@ -604,11 +604,18 @@ export default function OrderFormSimple() {
       hasCustomer: !!selectedCustomer,
       itemsCount: items.length,
       draftId,
+      orderSavedSuccessfully,
     });
 
-    // Don't save if editing existing order or no customer selected
-    if (editingOrderId || !selectedCustomer) {
-      console.log("[OrderForm] Draft save skipped - no customer or editing");
+    // Don't save if editing existing order, no customer selected, or order was just finalized
+    if (editingOrderId || !selectedCustomer || orderSavedSuccessfully) {
+      console.log("[OrderForm] Draft save skipped", {
+        reason: editingOrderId
+          ? "editing order"
+          : !selectedCustomer
+            ? "no customer"
+            : "order finalized",
+      });
       return;
     }
 
@@ -668,7 +675,13 @@ export default function OrderFormSimple() {
     } catch (error) {
       console.error("[OrderForm] ❌ Draft save failed:", error);
     }
-  }, [editingOrderId, selectedCustomer, items, draftId]);
+  }, [
+    editingOrderId,
+    selectedCustomer,
+    items,
+    draftId,
+    orderSavedSuccessfully,
+  ]);
 
   // === CHECK FOR EXISTING DRAFT ON MOUNT ===
   useEffect(() => {
@@ -694,7 +707,7 @@ export default function OrderFormSimple() {
   // === AUTO-SAVE DRAFT ON EVERY OPERATION ===
   // Save immediately when customer or items change
   useEffect(() => {
-    if (editingOrderId || !selectedCustomer) {
+    if (editingOrderId || !selectedCustomer || orderSavedSuccessfully) {
       return;
     }
 
@@ -709,7 +722,13 @@ export default function OrderFormSimple() {
     }, 500); // 500ms debounce
 
     return () => clearTimeout(timeoutId);
-  }, [selectedCustomer, items, editingOrderId, saveDraft]);
+  }, [
+    selectedCustomer,
+    items,
+    editingOrderId,
+    orderSavedSuccessfully,
+    saveDraft,
+  ]);
 
   // === SAVE DRAFT ON TAB CLOSE / PAGE UNLOAD / COMPONENT UNMOUNT ===
   useEffect(() => {

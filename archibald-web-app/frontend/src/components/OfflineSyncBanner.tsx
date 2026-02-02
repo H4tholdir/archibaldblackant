@@ -1,11 +1,14 @@
 import { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { useOnlineStatus } from "../hooks/useOnlineStatus";
 import { orderService } from "../services/orders.service";
+
+const BANNER_DISMISSED_KEY = "archibald_pending_orders_banner_dismissed";
 
 export function OfflineSyncBanner() {
   const isOnline = useOnlineStatus();
   const navigate = useNavigate();
+  const location = useLocation();
   const [pendingCount, setPendingCount] = useState(0);
   const [showBanner, setShowBanner] = useState(false);
 
@@ -13,10 +16,22 @@ export function OfflineSyncBanner() {
     if (isOnline) {
       checkPendingOrders();
     }
-  }, [isOnline]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOnline, location.pathname]);
 
   const checkPendingOrders = async () => {
     try {
+      // Don't show banner if user is already on /pending-orders page
+      if (location.pathname === "/pending-orders") {
+        return;
+      }
+
+      // Don't show banner if user already dismissed it in this session
+      const dismissed = sessionStorage.getItem(BANNER_DISMISSED_KEY);
+      if (dismissed === "true") {
+        return;
+      }
+
       const orders = await orderService.getPendingOrders();
       const pendingOrders = orders.filter((o) => o.status === "pending");
 
@@ -31,14 +46,17 @@ export function OfflineSyncBanner() {
 
   const handleNavigateToQueue = () => {
     setShowBanner(false);
+    sessionStorage.setItem(BANNER_DISMISSED_KEY, "true");
     navigate("/pending-orders");
   };
 
   const handleDismiss = () => {
     setShowBanner(false);
+    sessionStorage.setItem(BANNER_DISMISSED_KEY, "true");
   };
 
-  if (!showBanner || !isOnline) {
+  // Don't show banner if user is on /pending-orders page
+  if (!showBanner || !isOnline || location.pathname === "/pending-orders") {
     return null;
   }
 

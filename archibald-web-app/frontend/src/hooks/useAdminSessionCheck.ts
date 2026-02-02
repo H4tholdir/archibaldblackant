@@ -41,7 +41,7 @@ export function useAdminSessionCheck() {
           if (data.active) {
             unifiedSyncService.startPeriodicSync(10000); // 10s
           } else {
-            unifiedSyncService.startPeriodicSync(30000); // 30s
+            unifiedSyncService.startPeriodicSync(15000); // 15s
           }
         }
       } catch (error) {
