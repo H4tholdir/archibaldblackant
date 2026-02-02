@@ -1,6 +1,6 @@
 import { useEffect, useRef } from "react";
 import { useNetworkStatus } from "./useNetworkStatus";
-import { pendingOrdersService } from "../services/pending-orders-service";
+import { unifiedSyncService } from "../services/unified-sync-service";
 
 export function useAutomaticSync(jwt: string | null) {
   const { isOnline } = useNetworkStatus();
@@ -12,16 +12,18 @@ export function useAutomaticSync(jwt: string | null) {
     if (isOnline && jwt) {
       if (wasOffline.current) {
         // Network returned online after being offline
-        console.log("[AutoSync] Network reconnected, syncing pending orders...");
+        console.log(
+          "[AutoSync] Network reconnected, syncing all data (orders, drafts, warehouse)...",
+        );
 
-        pendingOrdersService.syncPendingOrders(jwt).then((result) => {
-          if (result.success > 0) {
-            console.log("[AutoSync] Synced", result.success, "orders");
-          }
-          if (result.failed > 0) {
-            console.warn("[AutoSync] Failed", result.failed, "orders");
-          }
-        });
+        unifiedSyncService
+          .syncAll()
+          .then(() => {
+            console.log("[AutoSync] Full sync completed");
+          })
+          .catch((error) => {
+            console.error("[AutoSync] Sync failed:", error);
+          });
 
         wasOffline.current = false;
       }

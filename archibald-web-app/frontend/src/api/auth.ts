@@ -5,6 +5,9 @@ export type UserRole = "agent" | "admin";
 export interface LoginRequest {
   username: string;
   password: string;
+  deviceId?: string;
+  platform?: string;
+  deviceName?: string;
 }
 
 export interface LoginResponse {
@@ -17,6 +20,8 @@ export interface LoginResponse {
     role: UserRole;
     whitelisted: boolean;
     lastLoginAt: number | null;
+    isImpersonating?: boolean;
+    realAdminName?: string;
   };
   error?: string;
 }
@@ -28,13 +33,26 @@ export interface User {
   role: UserRole;
   whitelisted: boolean;
   lastLoginAt: number | null;
+  isImpersonating?: boolean;
+  realAdminName?: string;
 }
 
 export async function login(credentials: LoginRequest): Promise<LoginResponse> {
+  // Include device info if not already provided
+  const { getDeviceId, getDeviceName, getPlatform } =
+    await import("../utils/device-id");
+
+  const loginPayload = {
+    ...credentials,
+    deviceId: credentials.deviceId || getDeviceId(),
+    platform: credentials.platform || getPlatform(),
+    deviceName: credentials.deviceName || getDeviceName(),
+  };
+
   const response = await fetch(`${API_BASE}/api/auth/login`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(credentials),
+    body: JSON.stringify(loginPayload),
   });
   return response.json();
 }

@@ -44,4 +44,7 @@ export const updateWhitelistSchema = z.object({
 export const loginSchema = z.object({
   username: z.string().min(1, "Username obbligatorio"),
   password: z.string().min(1, "Password obbligatoria"),
+  deviceId: z.string().optional(),
+  platform: z.string().optional(),
+  deviceName: z.string().optional(),
 });

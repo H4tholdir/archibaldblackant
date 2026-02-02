@@ -6,6 +6,8 @@ import {
   releaseWarehouseReservations,
   markWarehouseItemsAsSold,
 } from "./warehouse-order-integration";
+import { getDeviceId } from "../utils/device-id";
+import { unifiedSyncService } from "./unified-sync-service";
 
 export class OrderService {
   private db: Dexie;
@@ -19,13 +21,28 @@ export class OrderService {
    * @param order - Draft order (without ID)
    * @returns Generated draft ID
    */
-  async saveDraftOrder(order: Omit<DraftOrder, "id">): Promise<number> {
+  async saveDraftOrder(order: Omit<DraftOrder, "id">): Promise<string> {
     try {
-      const id = await this.db.table<DraftOrder, number>("draftOrders").add({
+      const id = crypto.randomUUID();
+      const deviceId = getDeviceId();
+      const now = new Date().toISOString();
+
+      await this.db.table<DraftOrder, string>("draftOrders").add({
+        id,
         ...order,
-        updatedAt: new Date().toISOString(),
+        updatedAt: now,
+        deviceId,
+        needsSync: true,
       });
-      return id as number;
+
+      // Trigger immediate sync if online
+      if (navigator.onLine) {
+        unifiedSyncService.syncAll().catch((error) => {
+          console.error("[OrderService] Draft sync failed:", error);
+        });
+      }
+
+      return id;
     } catch (error) {
       console.error("[OrderService] Failed to save draft order:", error);
       throw error;
@@ -53,9 +70,19 @@ export class OrderService {
    * Delete draft order by ID
    * @param id - Draft order ID
    */
-  async deleteDraftOrder(id: number): Promise<void> {
+  async deleteDraftOrder(id: string): Promise<void> {
     try {
-      await this.db.table<DraftOrder, number>("draftOrders").delete(id);
+      await this.db.table<DraftOrder, string>("draftOrders").delete(id);
+
+      // Trigger sync to notify server about deletion
+      if (navigator.onLine) {
+        unifiedSyncService.syncAll().catch((error) => {
+          console.error(
+            "[OrderService] Sync after draft delete failed:",
+            error,
+          );
+        });
+      }
     } catch (error) {
       console.error("[OrderService] Failed to delete draft order:", error);
       // Swallow error - deletion of non-existent draft is not critical
@@ -64,10 +91,21 @@ export class OrderService {
 
   /**
    * Save pending order (for offline submission)
-   * @param order - Pending order (without ID)
+   * @param order - Pending order (without ID and auto-generated fields)
    * @returns Generated pending order ID
    */
-  async savePendingOrder(order: Omit<PendingOrder, "id">): Promise<number> {
+  async savePendingOrder(
+    order: Omit<
+      PendingOrder,
+      | "id"
+      | "createdAt"
+      | "updatedAt"
+      | "status"
+      | "retryCount"
+      | "deviceId"
+      | "needsSync"
+    >,
+  ): Promise<string> {
     try {
       // 🔧 FIX #5: Check if order is completely fulfilled from warehouse
       const isWarehouseOnly = order.items.every((item) => {
@@ -91,14 +129,20 @@ export class OrderService {
         ? "completed-warehouse"
         : "pending";
 
-      const id = await this.db
-        .table<PendingOrder, number>("pendingOrders")
-        .add({
-          ...order,
-          createdAt: new Date().toISOString(),
-          status: initialStatus,
-          retryCount: 0,
-        });
+      const id = crypto.randomUUID();
+      const deviceId = getDeviceId();
+      const now = new Date().toISOString();
+
+      await this.db.table<PendingOrder, string>("pendingOrders").add({
+        id,
+        ...order,
+        createdAt: now,
+        updatedAt: now,
+        status: initialStatus,
+        retryCount: 0,
+        deviceId,
+        needsSync: true,
+      });
 
       if (isWarehouseOnly) {
         // 🔧 FIX #5: Warehouse-only order - mark items as sold immediately
@@ -109,7 +153,7 @@ export class OrderService {
 
         try {
           await markWarehouseItemsAsSold(
-            id as number,
+            id,
             `warehouse-${Date.now()}`, // Special warehouse-only identifier
           );
           console.log(
@@ -129,7 +173,7 @@ export class OrderService {
       } else {
         // 🔧 FIX #1: Reserve warehouse items if any (normal pending order)
         try {
-          await reserveWarehouseItems(id as number, order.items);
+          await reserveWarehouseItems(id, order.items);
           console.log("[OrderService] ✅ Warehouse items reserved for order", {
             orderId: id,
           });
@@ -143,7 +187,14 @@ export class OrderService {
         }
       }
 
-      return id as number;
+      // Trigger immediate sync if online
+      if (navigator.onLine) {
+        unifiedSyncService.syncAll().catch((error) => {
+          console.error("[OrderService] Pending order sync failed:", error);
+        });
+      }
+
+      return id;
     } catch (error) {
       console.error("[OrderService] Failed to save pending order:", error);
       throw error;
@@ -175,15 +226,27 @@ export class OrderService {
    * @param errorMessage - Optional error message (for error status)
    */
   async updatePendingOrderStatus(
-    id: number,
+    id: string,
     status: "syncing" | "error" | "pending",
     errorMessage?: string,
   ): Promise<void> {
     try {
-      await this.db.table<PendingOrder, number>("pendingOrders").update(id, {
+      await this.db.table<PendingOrder, string>("pendingOrders").update(id, {
         status,
+        updatedAt: new Date().toISOString(),
+        needsSync: true,
         ...(errorMessage && { errorMessage }),
       });
+
+      // Trigger sync if online
+      if (navigator.onLine) {
+        unifiedSyncService.syncAll().catch((error) => {
+          console.error(
+            "[OrderService] Sync after status update failed:",
+            error,
+          );
+        });
+      }
     } catch (error) {
       console.error(
         "[OrderService] Failed to update pending order status:",
@@ -198,9 +261,9 @@ export class OrderService {
    * @param id - Pending order ID
    * @returns Pending order or undefined if not found
    */
-  async getPendingOrderById(id: number): Promise<PendingOrder | undefined> {
+  async getPendingOrderById(id: string): Promise<PendingOrder | undefined> {
     try {
-      return await this.db.table<PendingOrder, number>("pendingOrders").get(id);
+      return await this.db.table<PendingOrder, string>("pendingOrders").get(id);
     } catch (error) {
       console.error("[OrderService] Failed to get pending order by ID:", error);
       return undefined;
@@ -211,7 +274,7 @@ export class OrderService {
    * Delete pending order by ID
    * @param id - Pending order ID
    */
-  async deletePendingOrder(id: number): Promise<void> {
+  async deletePendingOrder(id: string): Promise<void> {
     try {
       // 🔧 FIX #1: Release warehouse reservations first
       try {
@@ -228,7 +291,14 @@ export class OrderService {
         // Continue with deletion even if warehouse cleanup fails
       }
 
-      await this.db.table<PendingOrder, number>("pendingOrders").delete(id);
+      await this.db.table<PendingOrder, string>("pendingOrders").delete(id);
+
+      // Trigger sync to notify server about deletion
+      if (navigator.onLine) {
+        unifiedSyncService.syncAll().catch((error) => {
+          console.error("[OrderService] Sync after delete failed:", error);
+        });
+      }
     } catch (error) {
       console.error("[OrderService] Failed to delete pending order:", error);
       throw error;

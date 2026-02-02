@@ -1,4 +1,6 @@
 import { db, type WarehouseItem, type WarehouseMetadata } from "../db/schema";
+import { getDeviceId } from "../utils/device-id";
+import { unifiedSyncService } from "./unified-sync-service";
 
 // Use empty string for relative paths (works with Vite proxy in dev and production)
 const API_BASE_URL = "";
@@ -55,9 +57,11 @@ export async function uploadWarehouseFile(
 
   // 3. Store items in IndexedDB
   const uploadedAt = new Date().toISOString();
+  const deviceId = getDeviceId();
   const itemsWithTimestamp = data.items.map((item) => ({
     ...item,
     uploadedAt,
+    deviceId,
   }));
 
   await db.warehouseItems.bulkAdd(itemsWithTimestamp);
@@ -73,11 +77,64 @@ export async function uploadWarehouseFile(
 
   await db.warehouseMetadata.add(metadata);
 
-  console.log("[Warehouse] ✅ File uploaded and stored", {
+  console.log("[Warehouse] ✅ File uploaded and stored locally", {
     items: data.totalItems,
     quantity: data.totalQuantity,
     boxes: data.boxesCount,
   });
+
+  // 5. Push warehouse items to server for multi-device sync
+  const token = localStorage.getItem("archibald_jwt");
+  if (token && navigator.onLine) {
+    try {
+      console.log("[Warehouse] Pushing items to server for sync...");
+
+      const syncResponse = await fetch(
+        `${API_BASE_URL}/api/sync/warehouse-items`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            items: itemsWithTimestamp.map((item) => ({
+              articleCode: item.articleCode,
+              description: item.description,
+              quantity: item.quantity,
+              boxName: item.boxName,
+              uploadedAt: new Date(uploadedAt).getTime(),
+              deviceId,
+            })),
+            clearExisting: true, // Replace all existing warehouse items
+          }),
+        },
+      );
+
+      if (!syncResponse.ok) {
+        throw new Error(`Warehouse sync failed: ${syncResponse.status}`);
+      }
+
+      const syncResult = await syncResponse.json();
+      console.log("[Warehouse] ✅ Items pushed to server", {
+        synced: syncResult.results?.length || itemsWithTimestamp.length,
+      });
+    } catch (syncError) {
+      console.error(
+        "[Warehouse] ⚠️ Failed to push items to server:",
+        syncError,
+      );
+      // Don't fail the upload if sync fails - items are saved locally
+      // Will be synced on next periodic sync
+    }
+  }
+
+  // Trigger full sync to pull any updates from other devices
+  if (navigator.onLine) {
+    unifiedSyncService.syncAll().catch((error) => {
+      console.error("[Warehouse] Full sync after upload failed:", error);
+    });
+  }
 
   return data;
 }

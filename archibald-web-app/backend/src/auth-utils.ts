@@ -12,6 +12,10 @@ export interface JWTPayload {
   userId: string;
   username: string;
   role: UserRole;
+  deviceId?: string;
+  isImpersonating?: boolean;
+  realAdminId?: string;
+  adminSessionId?: number;
 }
 
 export async function generateJWT(payload: JWTPayload): Promise<string> {
@@ -30,6 +34,10 @@ export async function verifyJWT(token: string): Promise<JWTPayload | null> {
       userId: payload.userId as string,
       username: payload.username as string,
       role: (payload.role as UserRole) || "agent",
+      deviceId: payload.deviceId as string | undefined,
+      isImpersonating: payload.isImpersonating as boolean | undefined,
+      realAdminId: payload.realAdminId as string | undefined,
+      adminSessionId: payload.adminSessionId as number | undefined,
     };
   } catch (error) {
     logger.warn("JWT verification failed", { error });

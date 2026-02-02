@@ -9,7 +9,7 @@ import { db, type PendingOrderItem } from "../db/schema";
  * @throws Error if item is already reserved/sold or insufficient quantity
  */
 export async function reserveWarehouseItems(
-  orderId: number,
+  orderId: string,
   items: PendingOrderItem[],
 ): Promise<void> {
   console.log("[Warehouse] Reserving items for order", { orderId, items });
@@ -99,7 +99,7 @@ export async function reserveWarehouseItems(
  * - Order submission fails permanently
  */
 export async function releaseWarehouseReservations(
-  orderId: number,
+  orderId: string,
 ): Promise<void> {
   console.log("[Warehouse] Releasing reservations for order", { orderId });
 
@@ -127,7 +127,7 @@ export async function releaseWarehouseReservations(
  * Call this after successfully submitting order to Archibald
  */
 export async function markWarehouseItemsAsSold(
-  pendingOrderId: number,
+  pendingOrderId: string,
   archibaldOrderId: string,
 ): Promise<void> {
   console.log("[Warehouse] Marking items as sold", {
@@ -230,7 +230,7 @@ export async function returnSpecificWarehouseItems(
  * - User is editing a pending order (before submission)
  */
 export async function modifyPendingOrderWarehouse(
-  pendingOrderId: number,
+  pendingOrderId: string,
 ): Promise<void> {
   console.log("[Warehouse] Modifying pending order warehouse items", {
     pendingOrderId,

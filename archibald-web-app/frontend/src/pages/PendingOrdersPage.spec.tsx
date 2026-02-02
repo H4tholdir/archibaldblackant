@@ -17,7 +17,7 @@ global.fetch = vi.fn();
 
 const mockOrders: PendingOrder[] = [
   {
-    id: 1,
+    id: "order-uuid-001",
     customerId: "c1",
     customerName: "Cliente 1",
     items: [
@@ -30,11 +30,14 @@ const mockOrders: PendingOrder[] = [
       },
     ],
     createdAt: "2026-01-20T10:00:00Z",
+    updatedAt: "2026-01-20T10:00:00Z",
     status: "pending",
     retryCount: 0,
+    deviceId: "test-device-001",
+    needsSync: false,
   },
   {
-    id: 2,
+    id: "order-uuid-002",
     customerId: "c2",
     customerName: "Cliente 2",
     items: [
@@ -47,11 +50,14 @@ const mockOrders: PendingOrder[] = [
       },
     ],
     createdAt: "2026-01-21T14:00:00Z",
+    updatedAt: "2026-01-21T14:00:00Z",
     status: "pending",
     retryCount: 0,
+    deviceId: "test-device-001",
+    needsSync: false,
   },
   {
-    id: 3,
+    id: "order-uuid-003",
     customerId: "c3",
     customerName: "Cliente 3",
     items: [
@@ -64,9 +70,12 @@ const mockOrders: PendingOrder[] = [
       },
     ],
     createdAt: "2026-01-22T09:00:00Z",
+    updatedAt: "2026-01-22T09:00:00Z",
     status: "error",
     errorMessage: "Network timeout",
     retryCount: 1,
+    deviceId: "test-device-001",
+    needsSync: false,
   },
 ];
 
@@ -221,11 +230,11 @@ describe("PendingOrdersPage", () => {
 
     await waitFor(() => {
       expect(orderService.updatePendingOrderStatus).toHaveBeenCalledWith(
-        1,
+        "order-uuid-001",
         "syncing",
       );
       expect(orderService.updatePendingOrderStatus).toHaveBeenCalledWith(
-        2,
+        "order-uuid-002",
         "syncing",
       );
     });

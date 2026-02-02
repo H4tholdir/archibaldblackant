@@ -5,6 +5,8 @@ import {
   releaseWarehouseReservations,
   markWarehouseItemsAsSold,
 } from "./warehouse-order-integration";
+import { getDeviceId } from "../utils/device-id";
+import { unifiedSyncService } from "./unified-sync-service";
 
 // 🔧 FIX #4: Maximum retry attempts before auto-release
 const MAX_RETRY_ATTEMPTS = 3;
@@ -57,7 +59,7 @@ export class PendingOrdersService {
     }>;
     discountPercent?: number;
     targetTotalWithVAT?: number;
-  }): Promise<number> {
+  }): Promise<string> {
     // Sanitize undefined fields to prevent IndexedDB DataError
     const sanitizedData: any = {};
     for (const key in orderData) {
@@ -66,14 +68,22 @@ export class PendingOrdersService {
       }
     }
 
+    const id = crypto.randomUUID();
+    const deviceId = getDeviceId();
+    const now = new Date().toISOString();
+
     const order: PendingOrder = {
+      id,
       ...sanitizedData,
-      createdAt: new Date().toISOString(),
+      createdAt: now,
+      updatedAt: now,
       status: "pending",
       retryCount: 0,
+      deviceId,
+      needsSync: true,
     };
 
-    const id = await db.pendingOrders.add(order);
+    await db.pendingOrders.add(order);
     console.log("[IndexedDB:PendingOrders]", {
       operation: "add",
       table: "pendingOrders",
@@ -91,6 +101,13 @@ export class PendingOrdersService {
 
     // Backup to localStorage
     await this.backupToLocalStorage();
+
+    // Trigger immediate sync if online
+    if (navigator.onLine) {
+      unifiedSyncService.syncAll().catch((error) => {
+        console.error("[PendingOrders] Immediate sync failed:", error);
+      });
+    }
 
     return id;
   }
@@ -376,7 +393,7 @@ export class PendingOrdersService {
   /**
    * Delete a pending order and release warehouse reservations
    */
-  async deletePendingOrder(orderId: number): Promise<void> {
+  async deletePendingOrder(orderId: string): Promise<void> {
     console.log("[PendingOrders] Deleting order", { orderId });
 
     // Release warehouse reservations
@@ -393,6 +410,13 @@ export class PendingOrdersService {
     // Backup to localStorage
     await this.backupToLocalStorage();
 
+    // Trigger sync to notify server about deletion
+    if (navigator.onLine) {
+      unifiedSyncService.syncAll().catch((error) => {
+        console.error("[PendingOrders] Sync after delete failed:", error);
+      });
+    }
+
     console.log("[PendingOrders] ✅ Order deleted", { orderId });
   }
 
@@ -400,17 +424,29 @@ export class PendingOrdersService {
    * Update order status (used for conflict resolution)
    */
   async updateOrderStatus(
-    orderId: number,
+    orderId: string,
     status: "pending" | "syncing" | "error",
     errorMessage?: string,
   ): Promise<void> {
     await db.pendingOrders.update(orderId, {
       status,
       errorMessage,
+      updatedAt: new Date().toISOString(),
+      needsSync: true,
     });
 
     // Backup to localStorage
     await this.backupToLocalStorage();
+
+    // Trigger sync if online
+    if (navigator.onLine) {
+      unifiedSyncService.syncAll().catch((error) => {
+        console.error(
+          "[PendingOrders] Sync after status update failed:",
+          error,
+        );
+      });
+    }
   }
 
   /**

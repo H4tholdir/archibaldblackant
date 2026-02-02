@@ -87,18 +87,17 @@ export function WarehouseInventoryView() {
 
   const handleReleaseReservation = async (reservedForOrder: string) => {
     try {
-      // Extract pending order ID (e.g., "pending-15" -> 15)
+      // Extract pending order ID (e.g., "pending-uuid-123" -> "uuid-123")
       const orderId = reservedForOrder.replace("pending-", "");
-      const pendingOrderId = parseInt(orderId, 10);
 
-      if (isNaN(pendingOrderId)) {
+      if (!orderId) {
         toastService.error(
           "Formato ordine non valido. Impossibile rilasciare.",
         );
         return;
       }
 
-      await releaseWarehouseReservations(pendingOrderId);
+      await releaseWarehouseReservations(orderId);
       toastService.success(`✅ Articoli rilasciati da ${reservedForOrder}`);
 
       // Reload inventory

@@ -8,6 +8,10 @@ export interface AuthRequest extends Request {
     userId: string;
     username: string;
     role: UserRole;
+    deviceId?: string;
+    isImpersonating?: boolean;
+    realAdminId?: string;
+    adminSessionId?: number;
   };
 }
 

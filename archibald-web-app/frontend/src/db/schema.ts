@@ -53,12 +53,15 @@ export interface Price {
 
 // Draft orders (offline-first feature)
 export interface DraftOrder {
-  id?: number; // Auto-increment
+  id: string; // UUID (changed from number for multi-device sync)
   customerId: string;
   customerName: string;
   items: DraftOrderItem[];
   createdAt: string;
   updatedAt: string;
+  deviceId: string;
+  needsSync: boolean;
+  serverUpdatedAt?: number;
 }
 
 export interface DraftOrderItem {
@@ -92,16 +95,20 @@ export interface PendingOrderItem {
 
 // Pending orders queue (offline submission)
 export interface PendingOrder {
-  id?: number; // Auto-increment
+  id: string; // UUID (changed from number for multi-device sync)
   customerId: string;
   customerName: string;
   items: PendingOrderItem[];
   discountPercent?: number;
   targetTotalWithVAT?: number;
   createdAt: string;
+  updatedAt: string;
   status: "pending" | "syncing" | "error" | "completed-warehouse"; // 🔧 FIX #5: New status for warehouse-only orders
   errorMessage?: string;
   retryCount: number;
+  deviceId: string;
+  needsSync: boolean;
+  serverUpdatedAt?: number;
 }
 
 // Cache metadata (track freshness)
@@ -122,6 +129,7 @@ export interface WarehouseItem {
   reservedForOrder?: string; // ID ordine se riservato (pending order)
   soldInOrder?: string; // ID ordine Archibald se venduto
   uploadedAt: string; // Timestamp caricamento
+  deviceId?: string; // Device che ha caricato/modificato
 }
 
 // Warehouse metadata (info sul file caricato)
@@ -139,8 +147,8 @@ export class ArchibaldDatabase extends Dexie {
   products!: Table<Product, string>;
   productVariants!: Table<ProductVariant, number>;
   prices!: Table<Price, number>;
-  draftOrders!: Table<DraftOrder, number>;
-  pendingOrders!: Table<PendingOrder, number>;
+  draftOrders!: Table<DraftOrder, string>; // Changed to string (UUID)
+  pendingOrders!: Table<PendingOrder, string>; // Changed to string (UUID)
   cacheMetadata!: Table<CacheMetadata, string>;
   warehouseItems!: Table<WarehouseItem, number>;
   warehouseMetadata!: Table<WarehouseMetadata, number>;
@@ -361,7 +369,7 @@ export class ArchibaldDatabase extends Dexie {
           try {
             localStorage.setItem(
               "archibald_pending_orders_backup",
-              JSON.stringify(pendingOrders)
+              JSON.stringify(pendingOrders),
             );
             console.log("[IndexedDB:Schema]", {
               operation: "migration",
@@ -371,7 +379,10 @@ export class ArchibaldDatabase extends Dexie {
               timestamp: new Date().toISOString(),
             });
           } catch (error) {
-            console.error("[IndexedDB:Schema] Failed to backup pendingOrders", error);
+            console.error(
+              "[IndexedDB:Schema] Failed to backup pendingOrders",
+              error,
+            );
           }
         } else {
           console.log("[IndexedDB:Schema]", {
@@ -381,6 +392,83 @@ export class ArchibaldDatabase extends Dexie {
             timestamp: new Date().toISOString(),
           });
         }
+      });
+
+    // Version 11: Multi-device sync support
+    this.version(11)
+      .stores({
+        customers: "id, name, code, city, *hash",
+        products: "id, name, article, *hash",
+        productVariants: "++id, productId, variantId",
+        prices: "++id, articleId, articleName",
+        draftOrders: "id, customerId, createdAt, updatedAt, needsSync", // UUID primary key
+        pendingOrders: "id, status, createdAt, updatedAt, needsSync", // UUID primary key
+        cacheMetadata: "key, lastSynced",
+        warehouseItems:
+          "++id, articleCode, boxName, reservedForOrder, soldInOrder",
+        warehouseMetadata: "++id, uploadedAt",
+      })
+      .upgrade(async (trans) => {
+        console.log("[IndexedDB:Schema]", {
+          operation: "migration",
+          version: "v10→v11",
+          action: "Multi-device sync migration started",
+          timestamp: new Date().toISOString(),
+        });
+
+        // Import device ID utility
+        const { getDeviceId } = await import("../utils/device-id");
+        const deviceId = getDeviceId();
+
+        // Migrate pending orders: number ID → UUID
+        const pendingOrders = await trans.table("pendingOrders").toArray();
+        await trans.table("pendingOrders").clear();
+
+        for (const order of pendingOrders) {
+          await trans.table("pendingOrders").add({
+            ...order,
+            id: crypto.randomUUID(),
+            updatedAt: order.createdAt,
+            deviceId,
+            needsSync: false,
+            serverUpdatedAt: Date.now(),
+          });
+        }
+
+        console.log("[IndexedDB:Schema]", {
+          operation: "migration",
+          version: "v10→v11",
+          action: "Migrated pending orders",
+          count: pendingOrders.length,
+        });
+
+        // Migrate draft orders: number ID → UUID
+        const draftOrders = await trans.table("draftOrders").toArray();
+        await trans.table("draftOrders").clear();
+
+        for (const draft of draftOrders) {
+          await trans.table("draftOrders").add({
+            ...draft,
+            id: crypto.randomUUID(),
+            deviceId,
+            needsSync: false,
+            serverUpdatedAt: Date.now(),
+          });
+        }
+
+        console.log("[IndexedDB:Schema]", {
+          operation: "migration",
+          version: "v10→v11",
+          action: "Migrated draft orders",
+          count: draftOrders.length,
+        });
+
+        console.log("[IndexedDB:Schema]", {
+          operation: "migration",
+          version: "v10→v11",
+          action: "Multi-device sync migration completed",
+          timestamp: new Date().toISOString(),
+        });
       });
   }
 }

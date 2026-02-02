@@ -24,6 +24,7 @@ import {
 } from "./middleware/auth";
 import type { ApiResponse, OrderData } from "./types";
 import { UserDatabase } from "./user-db";
+import { DeviceManager } from "./device-manager";
 import { QueueManager } from "./queue-manager";
 import { BrowserPool } from "./browser-pool";
 import { CustomerDatabase } from "./customer-db";
@@ -59,6 +60,8 @@ import { syncScheduler } from "./sync-scheduler";
 import deltaSyncRoutes from "./routes/delta-sync";
 import botRoutes from "./routes/bot";
 import warehouseRoutes from "./routes/warehouse-routes";
+import adminRoutes from "./routes/admin-routes";
+import syncRoutes from "./routes/sync-routes";
 import { SendToMilanoService } from "./send-to-milano-service";
 import { DDTScraperService } from "./ddt-scraper-service";
 import { OrderDatabaseNew } from "./order-db-new";
@@ -99,6 +102,7 @@ const productSyncService = ProductSyncService.getInstance();
 const priceSyncService = PriceSyncService.getInstance();
 const checkpointManager = SyncCheckpointManager.getInstance();
 const userDb = UserDatabase.getInstance();
+const deviceManager = DeviceManager.getInstance();
 const sessionCleanup = new SessionCleanupJob();
 const orderHistoryService = new OrderHistoryService();
 const sendToMilanoService = new SendToMilanoService();
@@ -290,6 +294,12 @@ app.use(botRoutes);
 
 // Warehouse routes (magazzino management)
 app.use("/api", warehouseRoutes);
+
+// Admin routes (multi-device sync + impersonation)
+app.use("/api/admin", adminRoutes);
+
+// Sync routes (multi-device sync for orders, drafts, warehouse)
+app.use("/api/sync", syncRoutes);
 
 // WebSocket per notifiche sync in real-time
 wss.on("connection", (ws) => {
@@ -588,7 +598,7 @@ app.post(
         });
       }
 
-      const { username, password } = result.data;
+      const { username, password, deviceId, platform, deviceName } = result.data;
 
       // 2. Check user exists and is whitelisted
       const user = userDb.getUserByUsername(username);
@@ -654,6 +664,24 @@ app.post(
       // 4. Update lastLogin timestamp
       userDb.updateLastLogin(user.id);
 
+      // 4a. Register device (if provided)
+      if (deviceId) {
+        try {
+          deviceManager.registerDevice(
+            user.id,
+            deviceId,
+            platform || "unknown",
+            deviceName || "Unknown Device"
+          );
+        } catch (deviceError) {
+          logger.warn("Failed to register device", {
+            userId: user.id,
+            deviceId,
+            error: deviceError,
+          });
+        }
+      }
+
       // 4b. Check and trigger background sync for customers+orders if needed (Opzione B)
       const { userSpecificSyncService } =
         await import("./user-specific-sync-service");
@@ -671,6 +699,7 @@ app.post(
         userId: user.id,
         username: user.username,
         role: user.role,
+        deviceId: deviceId || undefined,
       });
 
       logger.info(`Login successful for user: ${username}`);
@@ -5877,6 +5906,16 @@ server.listen(config.server.port, async () => {
     logger.info("✅ Migration 006 completed (customer sync tracking)");
   } catch (error) {
     logger.warn("⚠️  Migration 006 failed or already applied", { error });
+  }
+
+  try {
+    const {
+      runMigration012,
+    } = require("./migrations/012-add-multi-device-sync");
+    runMigration012();
+    logger.info("✅ Migration 012 completed (multi-device sync infrastructure)");
+  } catch (error) {
+    logger.warn("⚠️  Migration 012 failed or already applied", { error });
   }
 
   // ========== AUTOMATIC BACKGROUND SYNC SERVICE ==========

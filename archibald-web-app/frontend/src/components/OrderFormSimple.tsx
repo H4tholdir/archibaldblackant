@@ -21,6 +21,8 @@ import {
   type SelectedWarehouseMatch,
 } from "./WarehouseMatchAccordion";
 import { releaseWarehouseReservations } from "../services/warehouse-order-integration";
+import { getDeviceId } from "../utils/device-id";
+import { unifiedSyncService } from "../services/unified-sync-service";
 
 interface OrderItem {
   id: string;
@@ -184,12 +186,12 @@ export default function OrderFormSimple() {
   const [submitting, setSubmitting] = useState(false);
   const [editingItemId, setEditingItemId] = useState<string | null>(null);
   const [cacheSyncing, setCacheSyncing] = useState(false);
-  const [editingOrderId, setEditingOrderId] = useState<number | null>(null);
+  const [editingOrderId, setEditingOrderId] = useState<string | null>(null);
   const [loadingOrder, setLoadingOrder] = useState(false);
 
   // Auto-save draft state
   const [hasDraft, setHasDraft] = useState(false);
-  const [draftId, setDraftId] = useState<number | null>(null);
+  const [draftId, setDraftId] = useState<string | null>(null);
   const [lastAutoSave, setLastAutoSave] = useState<Date | null>(null);
 
   // Track original order items for warehouse restoration if user exits without saving
@@ -205,8 +207,7 @@ export default function OrderFormSimple() {
       const orderIdParam = searchParams.get("editOrderId");
       if (!orderIdParam) return;
 
-      const orderId = parseInt(orderIdParam, 10);
-      if (isNaN(orderId)) return;
+      const orderId = orderIdParam;
 
       setLoadingOrder(true);
       setEditingOrderId(orderId);
@@ -641,22 +642,32 @@ export default function OrderFormSimple() {
           packageContent: item.description || "",
         }));
 
-        const draft: Omit<DraftOrder, "id"> = {
-          customerId: selectedCustomer.id,
-          customerName: selectedCustomer.name,
-          items: draftItems,
-          createdAt: draftId ? (undefined as any) : now, // Keep original createdAt if updating
-          updatedAt: now,
-        };
-
         if (draftId) {
           // Update existing draft
           await db.draftOrders.update(draftId, {
-            ...draft,
+            customerId: selectedCustomer.id,
+            customerName: selectedCustomer.name,
+            items: draftItems,
             updatedAt: now,
+            needsSync: true,
           });
+          // Trigger sync after update
+          if (navigator.onLine) {
+            unifiedSyncService.syncAll().catch((error) => {
+              console.error("[OrderForm] Draft sync failed:", error);
+            });
+          }
         } else {
-          // Create new draft
+          // Create new draft (service adds deviceId, needsSync, etc.)
+          const draft: Omit<DraftOrder, "id"> = {
+            customerId: selectedCustomer.id,
+            customerName: selectedCustomer.name,
+            items: draftItems,
+            createdAt: now,
+            updatedAt: now,
+            deviceId: getDeviceId(),
+            needsSync: true,
+          };
           const id = await orderService.saveDraftOrder(draft);
           setDraftId(id);
         }
@@ -1302,9 +1313,6 @@ export default function OrderFormSimple() {
         items: orderItems,
         discountPercent: parseFloat(globalDiscountPercent) || undefined,
         targetTotalWithVAT: totals.finalTotal,
-        createdAt: new Date().toISOString(),
-        status: "pending" as const, // Will be overridden by service if warehouse-only
-        retryCount: 0,
       });
 
       // Delete draft if it exists (order is now finalized)

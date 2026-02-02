@@ -8,14 +8,14 @@ import type { PendingOrder } from "../db/schema";
 export function PendingOrdersPage() {
   const navigate = useNavigate();
   const [orders, setOrders] = useState<PendingOrder[]>([]);
-  const [selectedOrderIds, setSelectedOrderIds] = useState<Set<number>>(
+  const [selectedOrderIds, setSelectedOrderIds] = useState<Set<string>>(
     new Set(),
   );
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
 
   // Expand/collapse state for each order
-  const [expandedOrderIds, setExpandedOrderIds] = useState<Set<number>>(
+  const [expandedOrderIds, setExpandedOrderIds] = useState<Set<string>>(
     new Set(),
   );
 
@@ -46,7 +46,7 @@ export function PendingOrdersPage() {
     }
   };
 
-  const handleSelectOrder = (orderId: number) => {
+  const handleSelectOrder = (orderId: string) => {
     setSelectedOrderIds((prev) => {
       const updated = new Set(prev);
       if (updated.has(orderId)) {
@@ -62,11 +62,11 @@ export function PendingOrdersPage() {
     if (selectedOrderIds.size === orders.length) {
       setSelectedOrderIds(new Set());
     } else {
-      setSelectedOrderIds(new Set(orders.map((o) => o.id!)));
+      setSelectedOrderIds(new Set(orders.map((o) => o.id)));
     }
   };
 
-  const handleToggleExpand = (orderId: number) => {
+  const handleToggleExpand = (orderId: string) => {
     setExpandedOrderIds((prev) => {
       const updated = new Set(prev);
       if (updated.has(orderId)) {
@@ -142,7 +142,7 @@ export function PendingOrdersPage() {
     }
   };
 
-  const handleDeleteOrder = async (orderId: number) => {
+  const handleDeleteOrder = async (orderId: string) => {
     if (!confirm("Sei sicuro di voler eliminare questo ordine?")) {
       return;
     }
@@ -163,7 +163,7 @@ export function PendingOrdersPage() {
     }
   };
 
-  const handleEditOrder = (orderId: number) => {
+  const handleEditOrder = (orderId: string) => {
     // Navigate to order form with order ID as query parameter
     navigate(`/order?editOrderId=${orderId}`);
   };

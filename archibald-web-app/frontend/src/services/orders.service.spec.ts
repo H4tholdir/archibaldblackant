@@ -5,14 +5,14 @@ import type { DraftOrder, PendingOrder } from "../db/schema";
 
 // Test database with same schema as production
 class TestDatabase extends Dexie {
-  draftOrders!: Dexie.Table<DraftOrder, number>;
-  pendingOrders!: Dexie.Table<PendingOrder, number>;
+  draftOrders!: Dexie.Table<DraftOrder, string>;
+  pendingOrders!: Dexie.Table<PendingOrder, string>;
 
   constructor() {
     super("TestOrderDB");
     this.version(1).stores({
-      draftOrders: "++id, customerId, createdAt, updatedAt",
-      pendingOrders: "++id, status, createdAt",
+      draftOrders: "id, customerId, createdAt, updatedAt, needsSync",
+      pendingOrders: "id, status, createdAt, updatedAt, needsSync",
     });
   }
 }
@@ -36,6 +36,8 @@ describe("OrderService", () => {
     ],
     createdAt: "2025-01-23T10:00:00Z",
     updatedAt: "2025-01-23T10:00:00Z",
+    deviceId: "test-device-001",
+    needsSync: true,
   };
 
   const mockPendingOrder: Omit<PendingOrder, "id"> = {
@@ -51,8 +53,11 @@ describe("OrderService", () => {
       },
     ],
     createdAt: "2025-01-23T10:00:00Z",
+    updatedAt: "2025-01-23T10:00:00Z",
     status: "pending",
     retryCount: 0,
+    deviceId: "test-device-001",
+    needsSync: true,
   };
 
   beforeEach(async () => {
@@ -68,13 +73,15 @@ describe("OrderService", () => {
   });
 
   describe("saveDraftOrder", () => {
-    test("saves draft order and returns ID", async () => {
+    test("saves draft order and returns UUID", async () => {
       // Act
       const id = await service.saveDraftOrder(mockDraftOrder);
 
       // Assert
-      expect(id).toBeTypeOf("number");
-      expect(id).toBeGreaterThan(0);
+      expect(id).toBeTypeOf("string");
+      expect(id).toMatch(
+        /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
+      );
 
       // Verify saved in database
       const saved = await testDb.draftOrders.get(id);
@@ -97,16 +104,19 @@ describe("OrderService", () => {
   describe("getDraftOrders", () => {
     test("returns all drafts sorted by updatedAt descending", async () => {
       // Arrange: add 3 drafts at different times
-      const draft1 = {
+      const draft1: DraftOrder = {
+        id: crypto.randomUUID(),
         ...mockDraftOrder,
         updatedAt: "2025-01-23T10:00:00Z",
       };
-      const draft2 = {
+      const draft2: DraftOrder = {
+        id: crypto.randomUUID(),
         ...mockDraftOrder,
         customerId: "C002",
         updatedAt: "2025-01-23T11:00:00Z",
       };
-      const draft3 = {
+      const draft3: DraftOrder = {
+        id: crypto.randomUUID(),
         ...mockDraftOrder,
         customerId: "C003",
         updatedAt: "2025-01-23T09:00:00Z",
@@ -136,19 +146,22 @@ describe("OrderService", () => {
   describe("deleteDraftOrder", () => {
     test("removes draft by ID", async () => {
       // Arrange
-      const id = await testDb.draftOrders.add(mockDraftOrder);
+      const draft: DraftOrder = { id: crypto.randomUUID(), ...mockDraftOrder };
+      await testDb.draftOrders.add(draft);
 
       // Act
-      await service.deleteDraftOrder(id);
+      await service.deleteDraftOrder(draft.id);
 
       // Assert: verify deleted
-      const deleted = await testDb.draftOrders.get(id);
+      const deleted = await testDb.draftOrders.get(draft.id);
       expect(deleted).toBeUndefined();
     });
 
     test("does not throw when deleting non-existent draft", async () => {
       // Act & Assert: should not throw
-      await expect(service.deleteDraftOrder(999)).resolves.not.toThrow();
+      await expect(
+        service.deleteDraftOrder("non-existent-uuid"),
+      ).resolves.not.toThrow();
     });
   });
 
@@ -158,8 +171,10 @@ describe("OrderService", () => {
       const id = await service.savePendingOrder(mockPendingOrder);
 
       // Assert
-      expect(id).toBeTypeOf("number");
-      expect(id).toBeGreaterThan(0);
+      expect(id).toBeTypeOf("string");
+      expect(id).toMatch(
+        /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
+      );
 
       // Verify saved in database
       const saved = await testDb.pendingOrders.get(id);
@@ -182,18 +197,21 @@ describe("OrderService", () => {
   describe("getPendingOrders", () => {
     test("returns pending and error status orders sorted by createdAt", async () => {
       // Arrange: add orders with different statuses
-      const pending1 = {
+      const pending1: PendingOrder = {
+        id: crypto.randomUUID(),
         ...mockPendingOrder,
         createdAt: "2025-01-23T10:00:00Z",
         status: "pending" as const,
       };
-      const error1 = {
+      const error1: PendingOrder = {
+        id: crypto.randomUUID(),
         ...mockPendingOrder,
         customerId: "C002",
         createdAt: "2025-01-23T09:00:00Z",
         status: "error" as const,
       };
-      const syncing1 = {
+      const syncing1: PendingOrder = {
+        id: crypto.randomUUID(),
         ...mockPendingOrder,
         customerId: "C003",
         createdAt: "2025-01-23T08:00:00Z",
@@ -225,48 +243,58 @@ describe("OrderService", () => {
   describe("updatePendingOrderStatus", () => {
     test("updates order status to syncing", async () => {
       // Arrange
-      const id = await testDb.pendingOrders.add({
+      const order: PendingOrder = {
+        id: crypto.randomUUID(),
         ...mockPendingOrder,
         status: "pending",
-      });
+      };
+      await testDb.pendingOrders.add(order);
 
       // Act
-      await service.updatePendingOrderStatus(id, "syncing");
+      await service.updatePendingOrderStatus(order.id, "syncing");
 
       // Assert
-      const updated = await testDb.pendingOrders.get(id);
+      const updated = await testDb.pendingOrders.get(order.id);
       expect(updated?.status).toBe("syncing");
     });
 
     test("updates order status to error with error message", async () => {
       // Arrange
-      const id = await testDb.pendingOrders.add({
+      const order: PendingOrder = {
+        id: crypto.randomUUID(),
         ...mockPendingOrder,
         status: "pending",
-      });
+      };
+      await testDb.pendingOrders.add(order);
 
       // Act
-      await service.updatePendingOrderStatus(id, "error", "Network timeout");
+      await service.updatePendingOrderStatus(
+        order.id,
+        "error",
+        "Network timeout",
+      );
 
       // Assert
-      const updated = await testDb.pendingOrders.get(id);
+      const updated = await testDb.pendingOrders.get(order.id);
       expect(updated?.status).toBe("error");
       expect(updated?.errorMessage).toBe("Network timeout");
     });
 
     test("updates order status back to pending", async () => {
       // Arrange
-      const id = await testDb.pendingOrders.add({
+      const order: PendingOrder = {
+        id: crypto.randomUUID(),
         ...mockPendingOrder,
         status: "error",
         errorMessage: "Previous error",
-      });
+      };
+      await testDb.pendingOrders.add(order);
 
       // Act
-      await service.updatePendingOrderStatus(id, "pending");
+      await service.updatePendingOrderStatus(order.id, "pending");
 
       // Assert
-      const updated = await testDb.pendingOrders.get(id);
+      const updated = await testDb.pendingOrders.get(order.id);
       expect(updated?.status).toBe("pending");
       // Note: errorMessage persists unless explicitly cleared
     });
@@ -274,7 +302,7 @@ describe("OrderService", () => {
     test("does not throw when updating non-existent order", async () => {
       // Act & Assert: should not throw
       await expect(
-        service.updatePendingOrderStatus(999, "error"),
+        service.updatePendingOrderStatus("non-existent-uuid", "error"),
       ).resolves.not.toThrow();
     });
   });

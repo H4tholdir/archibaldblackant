@@ -5,6 +5,7 @@ import "./index.css";
 import { initializeDatabase } from "./db/database";
 import { registerSW } from "virtual:pwa-register";
 import { syncService } from "./services/sync.service";
+import { unifiedSyncService } from "./services/unified-sync-service";
 
 // Register service worker
 registerSW({
@@ -23,7 +24,10 @@ initializeDatabase().then(async (result) => {
     console.error("[App] Database initialization failed:", result.error);
     // App will still render but offline features won't work
   } else {
-    // Trigger initial sync if cache is empty
+    // Initialize multi-device sync service (orders, drafts, warehouse)
+    await unifiedSyncService.initSync();
+
+    // Trigger initial sync for customers, products, prices
     await syncService.initializeSync();
   }
 
