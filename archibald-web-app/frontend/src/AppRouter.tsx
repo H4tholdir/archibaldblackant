@@ -29,6 +29,8 @@ import WarehouseManagementView from "./pages/WarehouseManagementView";
 import { DashboardNav } from "./components/DashboardNav";
 import { toastService } from "./services/toast.service";
 import { PrivacyProvider } from "./contexts/PrivacyContext";
+import { ImpersonationBanner } from "./components/ImpersonationBanner";
+import { AdminSessionBanner } from "./components/AdminSessionBanner";
 // import { UnifiedSyncProgress } from "./components/UnifiedSyncProgress"; // Temporarily disabled
 
 function AppRouter() {
@@ -231,6 +233,8 @@ function AppRouter() {
         />
         <OfflineBanner />
         <OfflineSyncBanner />
+        <ImpersonationBanner />
+        <AdminSessionBanner />
         {/* Unified sync progress - temporarily disabled due to SSE errors */}
         {/* <UnifiedSyncProgress mode="banner" /> */}
         {/* <UnifiedSyncProgress mode="badge" /> */}

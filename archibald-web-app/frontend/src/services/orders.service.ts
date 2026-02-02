@@ -35,11 +35,28 @@ export class OrderService {
         needsSync: true,
       });
 
+      console.log("[OrderService] ✅ Draft order saved to IndexedDB", {
+        draftId: id,
+        deviceId,
+      });
+
       // Trigger immediate sync if online
+      console.log("[OrderService] Checking online status for draft sync", {
+        isOnline: navigator.onLine,
+      });
+
       if (navigator.onLine) {
+        console.log(
+          "[OrderService] 🔄 Triggering immediate sync for draft order",
+          { draftId: id },
+        );
         unifiedSyncService.syncAll().catch((error) => {
           console.error("[OrderService] Draft sync failed:", error);
         });
+      } else {
+        console.log(
+          "[OrderService] ⚠️ Offline - draft sync will happen when back online",
+        );
       }
 
       return id;
@@ -144,6 +161,12 @@ export class OrderService {
         needsSync: true,
       });
 
+      console.log("[OrderService] ✅ Pending order saved to IndexedDB", {
+        orderId: id,
+        status: initialStatus,
+        deviceId,
+      });
+
       if (isWarehouseOnly) {
         // 🔧 FIX #5: Warehouse-only order - mark items as sold immediately
         console.log(
@@ -188,10 +211,22 @@ export class OrderService {
       }
 
       // Trigger immediate sync if online
+      console.log("[OrderService] Checking online status for sync", {
+        isOnline: navigator.onLine,
+      });
+
       if (navigator.onLine) {
+        console.log(
+          "[OrderService] 🔄 Triggering immediate sync for pending order",
+          { orderId: id },
+        );
         unifiedSyncService.syncAll().catch((error) => {
           console.error("[OrderService] Pending order sync failed:", error);
         });
+      } else {
+        console.log(
+          "[OrderService] ⚠️ Offline - sync will happen when back online",
+        );
       }
 
       return id;

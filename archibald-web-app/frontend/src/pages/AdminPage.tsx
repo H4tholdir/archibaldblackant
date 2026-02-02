@@ -3,6 +3,7 @@ import { useState, useEffect } from "react";
 import "../styles/AdminPage.css";
 import SyncControlPanel from "../components/SyncControlPanel";
 import SyncMonitoringDashboard from "../components/SyncMonitoringDashboard";
+import { AdminImpersonationPanel } from "../components/AdminImpersonationPanel";
 
 interface AdminPageProps {
   onLogout: () => void;
@@ -229,6 +230,13 @@ export function AdminPage({ onLogout, userName }: AdminPageProps) {
             📊 Sync Monitoring Dashboard
           </h2>
           <SyncMonitoringDashboard />
+        </section>
+
+        <section className="admin-section">
+          <h2 style={{ marginBottom: "16px", fontSize: "24px", fontWeight: 600 }}>
+            👥 Admin Impersonation
+          </h2>
+          <AdminImpersonationPanel />
         </section>
 
         <section className="admin-section">
