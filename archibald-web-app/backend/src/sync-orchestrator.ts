@@ -280,9 +280,13 @@ export class SyncOrchestrator extends EventEmitter {
       this.emit("sync-completed", { type });
     } catch (error: any) {
       success = false;
-      errorMessage = error?.message || String(error);
+      const rawError = error?.message || String(error);
+      // Convert "Password not found in cache" to user-friendly message
+      errorMessage = rawError.includes("Password not found in cache")
+        ? "Sessione scaduta a causa di un riavvio del server. Effettua nuovamente il login."
+        : rawError;
       logger.error(`[SyncOrchestrator] Error in ${type} sync:`, {
-        error: errorMessage,
+        error: rawError,
         stack: error?.stack,
       });
       this.emit("sync-error", { type, error });

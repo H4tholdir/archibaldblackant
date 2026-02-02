@@ -53,12 +53,14 @@ async function shouldRetry(response: Response): Promise<boolean> {
         if (
           data.error &&
           typeof data.error === "string" &&
-          data.error.includes("Password not found in cache")
+          data.error === "CREDENTIALS_EXPIRED"
         ) {
+          // Don't retry CREDENTIALS_EXPIRED - cache is empty after backend restart
+          // and won't repopulate automatically. User needs to login again.
           console.log(
-            "[FetchWithRetry] Detected backend cache miss (likely restart), will retry",
+            "[FetchWithRetry] Detected CREDENTIALS_EXPIRED, not retrying (user must login)",
           );
-          return true;
+          return false;
         }
       }
     } catch (parseError) {

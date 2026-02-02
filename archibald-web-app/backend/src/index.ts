@@ -4545,6 +4545,15 @@ app.post(
             userId,
           });
 
+          // Convert "Password not found in cache" to user-friendly message
+          const errorMessage =
+            error instanceof Error ? error.message : String(error);
+          const userFriendlyError = errorMessage.includes(
+            "Password not found in cache",
+          )
+            ? "Sessione scaduta a causa di un riavvio del server. Effettua nuovamente il login."
+            : errorMessage || "Unknown error during sync";
+
           // Emit progress: error
           syncProgressEmitter.emit("progress", {
             syncType: "orders",
@@ -4553,10 +4562,7 @@ app.post(
             percentage: 0,
             itemsProcessed: 0,
             itemsChanged: 0,
-            error:
-              error instanceof Error
-                ? error.message
-                : "Unknown error during sync",
+            error: userFriendlyError,
             startedAt: Date.now(),
           });
         }
@@ -4680,6 +4686,15 @@ app.post(
             },
           );
 
+          // Convert "Password not found in cache" to user-friendly message
+          const errorMessage =
+            error instanceof Error ? error.message : String(error);
+          const userFriendlyError = errorMessage.includes(
+            "Password not found in cache",
+          )
+            ? "Sessione scaduta a causa di un riavvio del server. Effettua nuovamente il login."
+            : errorMessage || "Unknown error during reset and sync";
+
           // Emit progress: error
           syncProgressEmitter.emit("progress", {
             syncType: "orders",
@@ -4688,10 +4703,7 @@ app.post(
             percentage: 0,
             itemsProcessed: 0,
             itemsChanged: 0,
-            error:
-              error instanceof Error
-                ? error.message
-                : "Unknown error during reset and sync",
+            error: userFriendlyError,
             startedAt: Date.now(),
           });
         }
