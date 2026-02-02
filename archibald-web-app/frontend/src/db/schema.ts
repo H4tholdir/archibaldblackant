@@ -394,8 +394,61 @@ export class ArchibaldDatabase extends Dexie {
         }
       });
 
-    // Version 11: Multi-device sync support
+    // Version 11: Backup data before primary key change
     this.version(11)
+      .stores({
+        customers: "id, name, code, city, *hash",
+        products: "id, name, article, *hash",
+        productVariants: "++id, productId, variantId",
+        prices: "++id, articleId, articleName",
+        draftOrders: null, // Will be recreated in v12 with UUID key
+        pendingOrders: null, // Will be recreated in v12 with UUID key
+        cacheMetadata: "key, lastSynced",
+        warehouseItems:
+          "++id, articleCode, boxName, reservedForOrder, soldInOrder",
+        warehouseMetadata: "++id, uploadedAt",
+      })
+      .upgrade(async (trans) => {
+        console.log("[IndexedDB:Schema]", {
+          operation: "migration",
+          version: "v10→v11",
+          action: "Backup before primary key change",
+          timestamp: new Date().toISOString(),
+        });
+
+        // Backup to localStorage before dropping tables
+        try {
+          const pendingOrders = await trans.table("pendingOrders").toArray();
+          const draftOrders = await trans.table("draftOrders").toArray();
+
+          if (pendingOrders.length > 0) {
+            localStorage.setItem(
+              "archibald_pending_orders_v11_migration",
+              JSON.stringify(pendingOrders),
+            );
+          }
+
+          if (draftOrders.length > 0) {
+            localStorage.setItem(
+              "archibald_draft_orders_v11_migration",
+              JSON.stringify(draftOrders),
+            );
+          }
+
+          console.log("[IndexedDB:Schema]", {
+            operation: "migration",
+            version: "v10→v11",
+            action: "Data backed up",
+            pendingCount: pendingOrders.length,
+            draftCount: draftOrders.length,
+          });
+        } catch (error) {
+          console.error("[IndexedDB:Schema] Backup failed", error);
+        }
+      });
+
+    // Version 12: Recreate tables with UUID primary keys
+    this.version(12)
       .stores({
         customers: "id, name, code, city, *hash",
         products: "id, name, article, *hash",
@@ -411,7 +464,7 @@ export class ArchibaldDatabase extends Dexie {
       .upgrade(async (trans) => {
         console.log("[IndexedDB:Schema]", {
           operation: "migration",
-          version: "v10→v11",
+          version: "v11→v12",
           action: "Multi-device sync migration started",
           timestamp: new Date().toISOString(),
         });
@@ -420,52 +473,74 @@ export class ArchibaldDatabase extends Dexie {
         const { getDeviceId } = await import("../utils/device-id");
         const deviceId = getDeviceId();
 
-        // Migrate pending orders: number ID → UUID
-        const pendingOrders = await trans.table("pendingOrders").toArray();
-        await trans.table("pendingOrders").clear();
+        // Restore pending orders from localStorage with UUID
+        const pendingBackup = localStorage.getItem(
+          "archibald_pending_orders_v11_migration",
+        );
+        if (pendingBackup) {
+          try {
+            const pendingOrders = JSON.parse(pendingBackup);
+            for (const order of pendingOrders) {
+              await trans.table("pendingOrders").add({
+                ...order,
+                id: crypto.randomUUID(),
+                updatedAt: order.createdAt,
+                deviceId,
+                needsSync: false,
+                serverUpdatedAt: Date.now(),
+              });
+            }
+            console.log("[IndexedDB:Schema]", {
+              operation: "migration",
+              version: "v11→v12",
+              action: "Restored pending orders",
+              count: pendingOrders.length,
+            });
+            // Cleanup
+            localStorage.removeItem("archibald_pending_orders_v11_migration");
+          } catch (error) {
+            console.error(
+              "[IndexedDB:Schema] Failed to restore pending orders",
+              error,
+            );
+          }
+        }
 
-        for (const order of pendingOrders) {
-          await trans.table("pendingOrders").add({
-            ...order,
-            id: crypto.randomUUID(),
-            updatedAt: order.createdAt,
-            deviceId,
-            needsSync: false,
-            serverUpdatedAt: Date.now(),
-          });
+        // Restore draft orders from localStorage with UUID
+        const draftBackup = localStorage.getItem(
+          "archibald_draft_orders_v11_migration",
+        );
+        if (draftBackup) {
+          try {
+            const draftOrders = JSON.parse(draftBackup);
+            for (const draft of draftOrders) {
+              await trans.table("draftOrders").add({
+                ...draft,
+                id: crypto.randomUUID(),
+                deviceId,
+                needsSync: false,
+                serverUpdatedAt: Date.now(),
+              });
+            }
+            console.log("[IndexedDB:Schema]", {
+              operation: "migration",
+              version: "v11→v12",
+              action: "Restored draft orders",
+              count: draftOrders.length,
+            });
+            // Cleanup
+            localStorage.removeItem("archibald_draft_orders_v11_migration");
+          } catch (error) {
+            console.error(
+              "[IndexedDB:Schema] Failed to restore draft orders",
+              error,
+            );
+          }
         }
 
         console.log("[IndexedDB:Schema]", {
           operation: "migration",
-          version: "v10→v11",
-          action: "Migrated pending orders",
-          count: pendingOrders.length,
-        });
-
-        // Migrate draft orders: number ID → UUID
-        const draftOrders = await trans.table("draftOrders").toArray();
-        await trans.table("draftOrders").clear();
-
-        for (const draft of draftOrders) {
-          await trans.table("draftOrders").add({
-            ...draft,
-            id: crypto.randomUUID(),
-            deviceId,
-            needsSync: false,
-            serverUpdatedAt: Date.now(),
-          });
-        }
-
-        console.log("[IndexedDB:Schema]", {
-          operation: "migration",
-          version: "v10→v11",
-          action: "Migrated draft orders",
-          count: draftOrders.length,
-        });
-
-        console.log("[IndexedDB:Schema]", {
-          operation: "migration",
-          version: "v10→v11",
+          version: "v11→v12",
           action: "Multi-device sync migration completed",
           timestamp: new Date().toISOString(),
         });
