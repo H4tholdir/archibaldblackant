@@ -597,6 +597,67 @@ export default function OrderFormSimple() {
     calculatePackaging();
   }, [selectedProduct, quantity]);
 
+  // === SAVE DRAFT FUNCTION (SHARED) ===
+  const saveDraft = async () => {
+    // Don't save if editing existing order or no customer selected
+    if (editingOrderId || !selectedCustomer) {
+      return;
+    }
+
+    try {
+      const now = new Date().toISOString();
+
+      // Convert OrderItems to DraftOrderItems
+      const draftItems = items.map((item) => ({
+        productId: item.productId,
+        productName: item.productName,
+        article: item.article,
+        variantId: item.article,
+        quantity: item.quantity,
+        packageContent: item.description || "",
+      }));
+
+      if (draftId) {
+        // Update existing draft
+        await db.draftOrders.update(draftId, {
+          customerId: selectedCustomer.id,
+          customerName: selectedCustomer.name,
+          items: draftItems,
+          updatedAt: now,
+          needsSync: true,
+        });
+      } else {
+        // Create new draft
+        const draft: Omit<DraftOrder, "id"> = {
+          customerId: selectedCustomer.id,
+          customerName: selectedCustomer.name,
+          items: draftItems,
+          createdAt: now,
+          updatedAt: now,
+          deviceId: getDeviceId(),
+          needsSync: true,
+        };
+        const id = await orderService.saveDraftOrder(draft);
+        setDraftId(id);
+      }
+
+      // Trigger sync
+      if (navigator.onLine) {
+        unifiedSyncService.syncAll().catch((error) => {
+          console.error("[OrderForm] Draft sync failed:", error);
+        });
+      }
+
+      setLastAutoSave(new Date());
+      console.log(
+        "[OrderForm] Draft saved at",
+        new Date().toLocaleTimeString(),
+      );
+    } catch (error) {
+      console.error("[OrderForm] Draft save failed:", error);
+    }
+  };
+
   // === CHECK FOR EXISTING DRAFT ON MOUNT ===
   useEffect(() => {
     const checkForDraft = async () => {
@@ -618,71 +679,46 @@ export default function OrderFormSimple() {
     checkForDraft();
   }, [editingOrderId]);
 
-  // === AUTO-SAVE DRAFT EVERY 30 SECONDS ===
+  // === AUTO-SAVE DRAFT EVERY 10 SECONDS ===
   useEffect(() => {
-    // Don't auto-save if:
-    // - Editing an existing order (not a new draft)
-    // - No customer selected
-    // Note: We now save even if items.length === 0 to preserve customer selection
     if (editingOrderId || !selectedCustomer) {
       return;
     }
 
-    const autoSaveInterval = setInterval(async () => {
-      try {
-        const now = new Date().toISOString();
-
-        // Convert OrderItems to DraftOrderItems (simpler format)
-        const draftItems = items.map((item) => ({
-          productId: item.productId, // Variant ID (used for price/VAT lookup)
-          productName: item.productName,
-          article: item.article,
-          variantId: item.article, // Variant ID (same as productId)
-          quantity: item.quantity,
-          packageContent: item.description || "",
-        }));
-
-        if (draftId) {
-          // Update existing draft
-          await db.draftOrders.update(draftId, {
-            customerId: selectedCustomer.id,
-            customerName: selectedCustomer.name,
-            items: draftItems,
-            updatedAt: now,
-            needsSync: true,
-          });
-          // Trigger sync after update
-          if (navigator.onLine) {
-            unifiedSyncService.syncAll().catch((error) => {
-              console.error("[OrderForm] Draft sync failed:", error);
-            });
-          }
-        } else {
-          // Create new draft (service adds deviceId, needsSync, etc.)
-          const draft: Omit<DraftOrder, "id"> = {
-            customerId: selectedCustomer.id,
-            customerName: selectedCustomer.name,
-            items: draftItems,
-            createdAt: now,
-            updatedAt: now,
-            deviceId: getDeviceId(),
-            needsSync: true,
-          };
-          const id = await orderService.saveDraftOrder(draft);
-          setDraftId(id);
-        }
-
-        setLastAutoSave(new Date());
-        console.log(
-          "[OrderForm] Draft auto-saved at",
-          new Date().toLocaleTimeString(),
-        );
-      } catch (error) {
-        console.error("[OrderForm] Auto-save failed:", error);
-      }
-    }, 30000); // 30 seconds
+    const autoSaveInterval = setInterval(() => {
+      saveDraft();
+    }, 10000); // 10 seconds (reduced from 30s)
 
     return () => clearInterval(autoSaveInterval);
+  }, [selectedCustomer, items, draftId, editingOrderId]);
+
+  // === SAVE DRAFT ON TAB CLOSE / PAGE UNLOAD / COMPONENT UNMOUNT ===
+  useEffect(() => {
+    const handleBeforeUnload = () => {
+      if (selectedCustomer && !editingOrderId) {
+        saveDraft();
+      }
+    };
+
+    const handleVisibilityChange = () => {
+      if (document.hidden && selectedCustomer && !editingOrderId) {
+        saveDraft();
+      }
+    };
+
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+
+    // Save draft on component unmount (when user navigates away)
+    return () => {
+      window.removeEventListener("beforeunload", handleBeforeUnload);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+
+      // Final save before unmount
+      if (selectedCustomer && !editingOrderId) {
+        saveDraft();
+      }
+    };
   }, [selectedCustomer, items, draftId, editingOrderId]);
 
   // === RECOVER DRAFT ===
