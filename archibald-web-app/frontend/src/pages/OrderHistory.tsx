@@ -7,6 +7,7 @@ import { groupOrdersByPeriod } from "../utils/orderGrouping";
 import type { Order } from "../types/order";
 import { useSyncProgress } from "../hooks/useSyncProgress";
 import { toastService } from "../services/toast.service";
+import { fetchWithRetry } from "../utils/fetch-with-retry";
 
 interface OrderFilters {
   customer: string;
@@ -96,7 +97,7 @@ export function OrderHistory() {
       if (filters.status) params.append("status", filters.status);
       params.append("limit", "100");
 
-      const response = await fetch(`/api/orders/history?${params.toString()}`, {
+      const response = await fetchWithRetry(`/api/orders/history?${params.toString()}`, {
         headers: {
           Authorization: `Bearer ${token}`,
         },
@@ -177,7 +178,7 @@ export function OrderHistory() {
         return;
       }
 
-      const response = await fetch(
+      const response = await fetchWithRetry(
         `/api/orders/${modalOrderId}/send-to-milano`,
         {
           method: "POST",

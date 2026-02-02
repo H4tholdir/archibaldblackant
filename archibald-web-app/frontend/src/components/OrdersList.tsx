@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { fetchWithRetry } from '../utils/fetch-with-retry';
 
 interface OrdersListProps {
   token: string;
@@ -33,7 +34,7 @@ export default function OrdersList({ token, onViewOrder, onNewOrder }: OrdersLis
 
   const fetchOrders = async () => {
     try {
-      const response = await fetch('/api/orders/my-orders', {
+      const response = await fetchWithRetry('/api/orders/my-orders', {
         headers: {
           'Authorization': `Bearer ${token}`,
         },

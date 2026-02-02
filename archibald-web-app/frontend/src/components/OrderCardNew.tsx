@@ -3,6 +3,7 @@ import { useState, useEffect } from "react";
 import type { Order, OrderItem } from "../types/order";
 import { OrderActions } from "./OrderActions";
 import { getOrderStatus } from "../utils/orderStatus";
+import { fetchWithRetry } from "../utils/fetch-with-retry";
 
 interface OrderCardProps {
   order: Order;
@@ -493,7 +494,7 @@ function TabArticoli({
       if (!token || !orderId) return;
 
       try {
-        const response = await fetch(`/api/orders/${orderId}/articles`, {
+        const response = await fetchWithRetry(`/api/orders/${orderId}/articles`, {
           headers: { Authorization: `Bearer ${token}` },
         });
 
@@ -535,7 +536,7 @@ function TabArticoli({
     setSuccess(null);
 
     try {
-      const response = await fetch(`/api/orders/${orderId}/sync-articles`, {
+      const response = await fetchWithRetry(`/api/orders/${orderId}/sync-articles`, {
         method: "POST",
         headers: {
           Authorization: `Bearer ${token}`,
@@ -868,7 +869,7 @@ function TabLogistica({ order, token }: { order: Order; token?: string }) {
       const orderIdentifier = order.orderNumber || order.id;
       // Encode the order identifier to handle slashes in ORD/xxxxxxxx format
       const encodedId = encodeURIComponent(orderIdentifier);
-      const response = await fetch(`/api/orders/${encodedId}/ddt/download`, {
+      const response = await fetchWithRetry(`/api/orders/${encodedId}/ddt/download`, {
         headers: { Authorization: `Bearer ${token}` },
       });
 
@@ -1181,7 +1182,7 @@ function TabFinanziario({ order, token }: { order: Order; token?: string }) {
     try {
       const orderIdentifier = order.orderNumber || order.id;
       const encodedId = encodeURIComponent(orderIdentifier);
-      const response = await fetch(
+      const response = await fetchWithRetry(
         `/api/orders/${encodedId}/invoice/download`,
         {
           headers: { Authorization: `Bearer ${token}` },
@@ -2014,7 +2015,7 @@ export function OrderCardNew({
                   onClick={async (e) => {
                     e.stopPropagation();
                     try {
-                      const response = await fetch(
+                      const response = await fetchWithRetry(
                         `/api/orders/${order.id}/ddt/download`,
                         {
                           headers: {
@@ -2068,7 +2069,7 @@ export function OrderCardNew({
                   onClick={async (e) => {
                     e.stopPropagation();
                     try {
-                      const response = await fetch(
+                      const response = await fetchWithRetry(
                         `/api/orders/${order.id}/invoice/download`,
                         {
                           headers: {

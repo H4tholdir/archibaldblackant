@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { fetchWithRetry } from '../utils/fetch-with-retry';
 
 interface OrderStatusProps {
   jobId: string;
@@ -23,7 +24,7 @@ export default function OrderStatus({ jobId, onNewOrder }: OrderStatusProps) {
   useEffect(() => {
     const fetchStatus = async () => {
       try {
-        const response = await fetch(`/api/orders/status/${jobId}`);
+        const response = await fetchWithRetry(`/api/orders/status/${jobId}`);
         const data = await response.json();
 
         if (data.success) {
