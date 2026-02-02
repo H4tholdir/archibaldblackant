@@ -182,6 +182,40 @@ router.post(
               userId,
             });
           }
+
+          // 🔧 FIX: Server-side cascade deletion - delete associated draft if originDraftId present
+          if (order.originDraftId) {
+            try {
+              const draftDeleted = ordersDb
+                .prepare(
+                  "DELETE FROM draft_orders WHERE id = ? AND user_id = ?",
+                )
+                .run(order.originDraftId, userId);
+
+              if (draftDeleted.changes > 0) {
+                logger.info(
+                  "Auto-deleted draft after pending creation (cascade)",
+                  {
+                    draftId: order.originDraftId,
+                    pendingId: order.id,
+                    userId,
+                  },
+                );
+              } else {
+                logger.debug("Draft not found or already deleted (cascade)", {
+                  draftId: order.originDraftId,
+                  pendingId: order.id,
+                });
+              }
+            } catch (draftDeleteError) {
+              // Log but don't fail - draft deletion is best-effort cleanup
+              logger.warn("Failed to auto-delete draft (cascade)", {
+                draftId: order.originDraftId,
+                pendingId: order.id,
+                error: draftDeleteError,
+              });
+            }
+          }
         } catch (orderError) {
           logger.error("Error syncing pending order", {
             orderId: order.id,

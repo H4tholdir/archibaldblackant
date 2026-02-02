@@ -1384,16 +1384,15 @@ export default function OrderFormSimple() {
         return warehouseQty > 0 && warehouseQty === totalQty;
       });
 
-      // 🔧 FIX: Delete draft BEFORE creating pending order to avoid race condition
-      // If we delete AFTER, syncAll() triggered by savePendingOrder() may pull the draft back
+      // 🔧 FIX: Best-effort draft deletion (client-side)
+      // Server will also delete the draft when it receives the pending order with originDraftId
       if (draftId) {
         const token = localStorage.getItem("archibald_jwt");
         if (token) {
-          // CRITICAL: Delete draft from server FIRST, synchronously and blocking
-          // If this fails, we don't create the pending order
+          // Try to delete draft from server (best-effort, don't block if fails)
           try {
             console.log(
-              "[OrderForm] Deleting draft from server before creating pending...",
+              "[OrderForm] Attempting to delete draft from server...",
             );
             const deleteResponse = await fetchWithRetry(
               `/api/sync/draft-orders/${draftId}`,
@@ -1405,38 +1404,45 @@ export default function OrderFormSimple() {
               },
             );
 
-            if (!deleteResponse.ok && deleteResponse.status !== 404) {
-              throw new Error(
-                `Failed to delete draft from server: ${deleteResponse.status}`,
+            if (deleteResponse.ok || deleteResponse.status === 404) {
+              console.log(
+                "[OrderForm] ✅ Draft deleted from server successfully",
+              );
+            } else {
+              console.warn(
+                `[OrderForm] ⚠️ Draft deletion failed (${deleteResponse.status}), server will cleanup via cascade`,
               );
             }
-
-            console.log(
-              "[OrderForm] ✅ Draft deleted from server successfully",
-            );
           } catch (deleteError) {
-            console.error(
-              "[OrderForm] Failed to delete draft from server:",
+            // Don't block pending creation - server will cleanup via originDraftId cascade
+            console.warn(
+              "[OrderForm] ⚠️ Draft deletion failed, server will cleanup via cascade:",
               deleteError,
-            );
-            throw new Error(
-              "Impossibile eliminare la bozza dal server. Riprova.",
             );
           }
         }
 
-        // Delete local draft only after server delete succeeds
-        await orderService.deleteDraftOrder(draftId);
-        setDraftId(null);
+        // Delete local draft (best-effort)
+        try {
+          await orderService.deleteDraftOrder(draftId);
+          setDraftId(null);
+        } catch (localDeleteError) {
+          console.warn(
+            "[OrderForm] ⚠️ Local draft deletion failed:",
+            localDeleteError,
+          );
+        }
       }
 
       // Save new/updated order (status will be determined by service)
+      // 🔧 FIX: Pass originDraftId for server-side cascade deletion
       await orderService.savePendingOrder({
         customerId: selectedCustomer.id,
         customerName: selectedCustomer.name,
         items: orderItems,
         discountPercent: parseFloat(globalDiscountPercent) || undefined,
         targetTotalWithVAT: totals.finalTotal,
+        originDraftId: draftId || undefined, // Track which draft this came from
       });
 
       // 🔧 FIX #5: Show specific message for warehouse-only orders

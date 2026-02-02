@@ -111,6 +111,7 @@ export interface PendingOrder {
   needsSync: boolean;
   serverUpdatedAt?: number;
   deleted?: boolean; // Tombstone: marked for deletion, pending server DELETE
+  originDraftId?: string; // 🔧 FIX: Track which draft this pending came from for server-side cascade deletion
 }
 
 // Cache metadata (track freshness)
