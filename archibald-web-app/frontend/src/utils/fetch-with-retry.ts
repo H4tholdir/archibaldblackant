@@ -26,21 +26,48 @@ function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-function shouldRetry(response: Response, responseText: string): boolean {
-  // Retry on 500/503 errors (backend issues)
+async function shouldRetry(response: Response): Promise<boolean> {
+  // Never retry success responses (2xx)
+  if (response.ok) {
+    return false;
+  }
+
+  // Always retry 500/503 errors (backend issues)
   if (response.status === 500 || response.status === 503) {
+    console.log(
+      `[FetchWithRetry] Server error ${response.status}, will retry`,
+    );
     return true;
   }
 
-  // Retry on specific "cache miss" error from backend restart
-  if (
-    response.status === 401 &&
-    responseText.includes("Password not found in cache")
-  ) {
-    console.log(
-      "[FetchWithRetry] Detected backend cache miss (likely restart), will retry",
-    );
-    return true;
+  // For 401, check if it's the specific cache miss error
+  if (response.status === 401) {
+    try {
+      // Clone to avoid consuming the original body
+      const clonedResponse = response.clone();
+      const contentType = response.headers.get("content-type");
+
+      // Only parse JSON responses
+      if (contentType && contentType.includes("application/json")) {
+        const data = await clonedResponse.json();
+        if (
+          data.error &&
+          typeof data.error === "string" &&
+          data.error.includes("Password not found in cache")
+        ) {
+          console.log(
+            "[FetchWithRetry] Detected backend cache miss (likely restart), will retry",
+          );
+          return true;
+        }
+      }
+    } catch (parseError) {
+      // If we can't parse the response, don't retry
+      console.log(
+        "[FetchWithRetry] Could not parse 401 response, not retrying",
+      );
+      return false;
+    }
   }
 
   return false;
@@ -60,29 +87,20 @@ export async function fetchWithRetry(
   let lastError: Error | null = null;
   let lastResponse: Response | null = null;
 
-  for (let attempt = 0; attempt <= opts.maxRetries; attempt++) {
+  for (let attempt = 0; attempt < opts.maxRetries; attempt++) {
     try {
       const response = await fetch(url, options);
 
-      // Clone response to read body for retry decision
-      const clonedResponse = response.clone();
-      const responseText = await clonedResponse.text();
+      // Check if we should retry this response
+      const retry = await shouldRetry(response);
 
-      // If success or non-retryable error, return immediately
-      if (!shouldRetry(response, responseText)) {
+      // If no retry needed, return immediately
+      if (!retry) {
         return response;
       }
 
-      // Store last response for logging
+      // Store last response for potential return
       lastResponse = response;
-
-      // If this was the last attempt, return the response
-      if (attempt === opts.maxRetries) {
-        console.log(
-          `[FetchWithRetry] Max retries (${opts.maxRetries}) reached for ${url}`,
-        );
-        return response;
-      }
 
       // Calculate delay with exponential backoff
       const delay = Math.min(
@@ -90,21 +108,14 @@ export async function fetchWithRetry(
         opts.maxDelay,
       );
 
+      const attemptsRemaining = opts.maxRetries - attempt - 1;
       console.log(
-        `[FetchWithRetry] Attempt ${attempt + 1}/${opts.maxRetries} failed for ${url}, retrying in ${delay}ms...`,
+        `[FetchWithRetry] Attempt ${attempt + 1}/${opts.maxRetries} failed for ${url}, retrying in ${delay}ms... (${attemptsRemaining} attempts remaining)`,
       );
 
       await sleep(delay);
     } catch (error) {
       lastError = error as Error;
-
-      // If this was the last attempt, throw the error
-      if (attempt === opts.maxRetries) {
-        console.error(
-          `[FetchWithRetry] Max retries (${opts.maxRetries}) reached for ${url}, throwing error`,
-        );
-        throw error;
-      }
 
       // Calculate delay
       const delay = Math.min(
@@ -112,18 +123,31 @@ export async function fetchWithRetry(
         opts.maxDelay,
       );
 
-      console.log(
-        `[FetchWithRetry] Attempt ${attempt + 1}/${opts.maxRetries} threw error for ${url}, retrying in ${delay}ms...`,
-        error,
-      );
+      const attemptsRemaining = opts.maxRetries - attempt - 1;
 
-      await sleep(delay);
+      if (attemptsRemaining > 0) {
+        console.log(
+          `[FetchWithRetry] Attempt ${attempt + 1}/${opts.maxRetries} threw error for ${url}, retrying in ${delay}ms... (${attemptsRemaining} attempts remaining)`,
+          error,
+        );
+        await sleep(delay);
+      } else {
+        // Last attempt failed, throw the error
+        console.error(
+          `[FetchWithRetry] All ${opts.maxRetries} attempts failed for ${url}`,
+        );
+        throw error;
+      }
     }
   }
 
-  // Should never reach here, but TypeScript needs this
+  // All retries exhausted, return last response or throw last error
   if (lastResponse) {
+    console.log(
+      `[FetchWithRetry] All ${opts.maxRetries} retries exhausted for ${url}, returning last response (${lastResponse.status})`,
+    );
     return lastResponse;
   }
+
   throw lastError || new Error("Fetch failed after retries");
 }
