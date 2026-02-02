@@ -89,16 +89,40 @@ export class OrderService {
    */
   async deleteDraftOrder(id: string): Promise<void> {
     try {
+      // Delete from IndexedDB
       await this.db.table<DraftOrder, string>("draftOrders").delete(id);
 
-      // Trigger sync to notify server about deletion
+      // Delete from server if online
       if (navigator.onLine) {
-        unifiedSyncService.syncAll().catch((error) => {
-          console.error(
-            "[OrderService] Sync after draft delete failed:",
-            error,
-          );
-        });
+        const token = localStorage.getItem("archibald_jwt");
+        if (token) {
+          try {
+            console.log("[OrderService] 🗑️ Deleting draft order from server", {
+              draftId: id,
+            });
+
+            const response = await fetch(`/api/sync/draft-orders/${id}`, {
+              method: "DELETE",
+              headers: {
+                Authorization: `Bearer ${token}`,
+              },
+            });
+
+            if (!response.ok) {
+              throw new Error(
+                `Server delete failed: ${response.status} ${response.statusText}`,
+              );
+            }
+
+            console.log("[OrderService] ✅ Draft deleted from server");
+          } catch (serverError) {
+            console.error(
+              "[OrderService] Failed to delete draft from server:",
+              serverError,
+            );
+            // Don't throw - local deletion succeeded, server will be cleaned up on next sync
+          }
+        }
       }
     } catch (error) {
       console.error("[OrderService] Failed to delete draft order:", error);
@@ -326,13 +350,41 @@ export class OrderService {
         // Continue with deletion even if warehouse cleanup fails
       }
 
+      // Delete from IndexedDB
       await this.db.table<PendingOrder, string>("pendingOrders").delete(id);
 
-      // Trigger sync to notify server about deletion
+      // Delete from server if online
       if (navigator.onLine) {
-        unifiedSyncService.syncAll().catch((error) => {
-          console.error("[OrderService] Sync after delete failed:", error);
-        });
+        const token = localStorage.getItem("archibald_jwt");
+        if (token) {
+          try {
+            console.log(
+              "[OrderService] 🗑️ Deleting pending order from server",
+              { orderId: id },
+            );
+
+            const response = await fetch(`/api/sync/pending-orders/${id}`, {
+              method: "DELETE",
+              headers: {
+                Authorization: `Bearer ${token}`,
+              },
+            });
+
+            if (!response.ok) {
+              throw new Error(
+                `Server delete failed: ${response.status} ${response.statusText}`,
+              );
+            }
+
+            console.log("[OrderService] ✅ Order deleted from server");
+          } catch (serverError) {
+            console.error(
+              "[OrderService] Failed to delete from server:",
+              serverError,
+            );
+            // Don't throw - local deletion succeeded, server will be cleaned up on next sync
+          }
+        }
       }
     } catch (error) {
       console.error("[OrderService] Failed to delete pending order:", error);
