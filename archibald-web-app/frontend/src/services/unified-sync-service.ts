@@ -141,8 +141,9 @@ export class UnifiedSyncService {
   // ========== PENDING ORDERS ==========
 
   private async syncPendingOrders(): Promise<void> {
-    await this.pullPendingOrders();
+    // 🔧 FIX: Push BEFORE pull to avoid overwriting local changes
     await this.pushPendingOrders();
+    await this.pullPendingOrders();
   }
 
   private async pullPendingOrders(): Promise<void> {
@@ -168,6 +169,24 @@ export class UnifiedSyncService {
       for (const serverOrder of orders) {
         const localOrder = await db.pendingOrders.get(serverOrder.id);
 
+        // 🔧 FIX: Protect local orders with pending changes
+        // If local has needsSync=true, don't overwrite (changes not yet pushed)
+        if (localOrder && localOrder.needsSync) {
+          console.log(
+            `[UnifiedSync] Skipping pull for pending order ${serverOrder.id} - local has pending changes`,
+          );
+          continue;
+        }
+
+        // 🔧 FIX: Skip if local has tombstone (deleted locally, pending server DELETE)
+        if (localOrder && localOrder.deleted) {
+          console.log(
+            `[UnifiedSync] Skipping pull for pending order ${serverOrder.id} - deleted locally`,
+          );
+          continue;
+        }
+
+        // Apply Last-Write-Wins for non-pending orders
         if (
           !localOrder ||
           serverOrder.updatedAt > (localOrder.updatedAt || 0)
@@ -212,48 +231,93 @@ export class UnifiedSyncService {
 
       if (localOrders.length === 0) return;
 
-      const response = await fetchWithRetry("/api/sync/pending-orders", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          orders: localOrders.map((o) => ({
-            id: o.id,
-            customerId: o.customerId,
-            customerName: o.customerName,
-            items: o.items,
-            discountPercent: o.discountPercent,
-            targetTotalWithVAT: o.targetTotalWithVAT,
-            createdAt: new Date(o.createdAt).getTime(),
-            updatedAt: new Date(o.updatedAt).getTime(),
-            status: o.status,
-            errorMessage: o.errorMessage,
-            retryCount: o.retryCount,
-            deviceId: o.deviceId,
-          })),
-        }),
-      });
+      // 🔧 FIX: Separate tombstones (deleted) from regular orders
+      const tombstones = localOrders.filter((o) => o.deleted === true);
+      const regularOrders = localOrders.filter((o) => !o.deleted);
 
-      if (!response.ok) {
-        throw new Error(`Push pending orders failed: ${response.status}`);
+      // Push regular orders (create/update)
+      if (regularOrders.length > 0) {
+        const response = await fetchWithRetry("/api/sync/pending-orders", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            orders: regularOrders.map((o) => ({
+              id: o.id,
+              customerId: o.customerId,
+              customerName: o.customerName,
+              items: o.items,
+              discountPercent: o.discountPercent,
+              targetTotalWithVAT: o.targetTotalWithVAT,
+              createdAt: new Date(o.createdAt).getTime(),
+              updatedAt: new Date(o.updatedAt).getTime(),
+              status: o.status,
+              errorMessage: o.errorMessage,
+              retryCount: o.retryCount,
+              deviceId: o.deviceId,
+            })),
+          }),
+        });
+
+        if (!response.ok) {
+          throw new Error(`Push pending orders failed: ${response.status}`);
+        }
+
+        const { success, results } = await response.json();
+
+        if (!success) {
+          throw new Error("Push pending orders unsuccessful");
+        }
+
+        // Mark as synced (except skipped ones)
+        for (const result of results) {
+          if (result.action !== "skipped") {
+            await db.pendingOrders.update(result.id, { needsSync: false });
+          }
+        }
+
+        console.log(`[UnifiedSync] Pushed ${regularOrders.length} pending orders`);
       }
 
-      const { success, results } = await response.json();
+      // 🔧 FIX: Push tombstones (deletions)
+      if (tombstones.length > 0) {
+        console.log(
+          `[UnifiedSync] Processing ${tombstones.length} pending order deletions`,
+        );
 
-      if (!success) {
-        throw new Error("Push pending orders unsuccessful");
-      }
+        for (const tombstone of tombstones) {
+          try {
+            const response = await fetchWithRetry(
+              `/api/sync/pending-orders/${tombstone.id}`,
+              {
+                method: "DELETE",
+                headers: { Authorization: `Bearer ${token}` },
+              },
+            );
 
-      // Mark as synced (except skipped ones)
-      for (const result of results) {
-        if (result.action !== "skipped") {
-          await db.pendingOrders.update(result.id, { needsSync: false });
+            if (response.ok) {
+              // Server delete successful → remove tombstone from local DB
+              await db.pendingOrders.delete(tombstone.id);
+              console.log(
+                `[UnifiedSync] ✅ Pending order ${tombstone.id} deleted from server and tombstone removed`,
+              );
+            } else {
+              console.error(
+                `[UnifiedSync] Failed to delete pending order ${tombstone.id}: ${response.status}`,
+              );
+              // Keep tombstone for retry
+            }
+          } catch (deleteError) {
+            console.error(
+              `[UnifiedSync] Error deleting pending order ${tombstone.id}:`,
+              deleteError,
+            );
+            // Keep tombstone for retry
+          }
         }
       }
-
-      console.log(`[UnifiedSync] Pushed ${localOrders.length} pending orders`);
     } catch (error) {
       console.error("[UnifiedSync] Push pending orders failed:", error);
       throw error;
@@ -263,8 +327,9 @@ export class UnifiedSyncService {
   // ========== DRAFT ORDERS ==========
 
   private async syncDraftOrders(): Promise<void> {
-    await this.pullDraftOrders();
+    // 🔧 FIX: Push BEFORE pull to avoid overwriting local changes
     await this.pushDraftOrders();
+    await this.pullDraftOrders();
   }
 
   private async pullDraftOrders(): Promise<void> {
@@ -290,6 +355,24 @@ export class UnifiedSyncService {
       for (const serverDraft of drafts) {
         const localDraft = await db.draftOrders.get(serverDraft.id);
 
+        // 🔧 FIX: Protect local drafts with pending changes
+        // If local has needsSync=true, don't overwrite (changes not yet pushed)
+        if (localDraft && localDraft.needsSync) {
+          console.log(
+            `[UnifiedSync] Skipping pull for draft ${serverDraft.id} - local has pending changes`,
+          );
+          continue;
+        }
+
+        // 🔧 FIX: Skip if local has tombstone (deleted locally, pending server DELETE)
+        if (localDraft && localDraft.deleted) {
+          console.log(
+            `[UnifiedSync] Skipping pull for draft ${serverDraft.id} - deleted locally`,
+          );
+          continue;
+        }
+
+        // Apply Last-Write-Wins for non-pending drafts
         if (
           !localDraft ||
           serverDraft.updatedAt > (localDraft.updatedAt || 0)
@@ -328,43 +411,86 @@ export class UnifiedSyncService {
 
       if (localDrafts.length === 0) return;
 
-      const response = await fetchWithRetry("/api/sync/draft-orders", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          drafts: localDrafts.map((d) => ({
-            id: d.id,
-            customerId: d.customerId,
-            customerName: d.customerName,
-            items: d.items,
-            createdAt: new Date(d.createdAt).getTime(),
-            updatedAt: new Date(d.updatedAt).getTime(),
-            deviceId: d.deviceId,
-          })),
-        }),
-      });
+      // 🔧 FIX: Separate tombstones (deleted) from regular drafts
+      const tombstones = localDrafts.filter((d) => d.deleted === true);
+      const regularDrafts = localDrafts.filter((d) => !d.deleted);
 
-      if (!response.ok) {
-        throw new Error(`Push draft orders failed: ${response.status}`);
+      // Push regular drafts (create/update)
+      if (regularDrafts.length > 0) {
+        const response = await fetchWithRetry("/api/sync/draft-orders", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            drafts: regularDrafts.map((d) => ({
+              id: d.id,
+              customerId: d.customerId,
+              customerName: d.customerName,
+              items: d.items,
+              createdAt: new Date(d.createdAt).getTime(),
+              updatedAt: new Date(d.updatedAt).getTime(),
+              deviceId: d.deviceId,
+            })),
+          }),
+        });
+
+        if (!response.ok) {
+          throw new Error(`Push draft orders failed: ${response.status}`);
+        }
+
+        const { success, results } = await response.json();
+
+        if (!success) {
+          throw new Error("Push draft orders unsuccessful");
+        }
+
+        // Mark as synced
+        for (const result of results) {
+          if (result.action !== "skipped") {
+            await db.draftOrders.update(result.id, { needsSync: false });
+          }
+        }
+
+        console.log(`[UnifiedSync] Pushed ${regularDrafts.length} draft orders`);
       }
 
-      const { success, results } = await response.json();
+      // 🔧 FIX: Push tombstones (deletions)
+      if (tombstones.length > 0) {
+        console.log(`[UnifiedSync] Processing ${tombstones.length} draft deletions`);
 
-      if (!success) {
-        throw new Error("Push draft orders unsuccessful");
-      }
+        for (const tombstone of tombstones) {
+          try {
+            const response = await fetchWithRetry(
+              `/api/sync/draft-orders/${tombstone.id}`,
+              {
+                method: "DELETE",
+                headers: { Authorization: `Bearer ${token}` },
+              },
+            );
 
-      // Mark as synced
-      for (const result of results) {
-        if (result.action !== "skipped") {
-          await db.draftOrders.update(result.id, { needsSync: false });
+            if (response.ok) {
+              // Server delete successful → remove tombstone from local DB
+              await db.draftOrders.delete(tombstone.id);
+              console.log(
+                `[UnifiedSync] ✅ Draft ${tombstone.id} deleted from server and tombstone removed`,
+              );
+            } else {
+              console.error(
+                `[UnifiedSync] Failed to delete draft ${tombstone.id}: ${response.status}`,
+              );
+              // Keep tombstone for retry
+            }
+          } catch (deleteError) {
+            console.error(
+              `[UnifiedSync] Error deleting draft ${tombstone.id}:`,
+              deleteError,
+            );
+            // Keep tombstone for retry
+          }
         }
       }
-
-      console.log(`[UnifiedSync] Pushed ${localDrafts.length} draft orders`);
     } catch (error) {
       console.error("[UnifiedSync] Push draft orders failed:", error);
       throw error;

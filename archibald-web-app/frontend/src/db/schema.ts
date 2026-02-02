@@ -62,6 +62,7 @@ export interface DraftOrder {
   deviceId: string;
   needsSync: boolean;
   serverUpdatedAt?: number;
+  deleted?: boolean; // Tombstone: marked for deletion, pending server DELETE
 }
 
 export interface DraftOrderItem {
@@ -109,6 +110,7 @@ export interface PendingOrder {
   deviceId: string;
   needsSync: boolean;
   serverUpdatedAt?: number;
+  deleted?: boolean; // Tombstone: marked for deletion, pending server DELETE
 }
 
 // Cache metadata (track freshness)

@@ -73,11 +73,14 @@ export class OrderService {
    */
   async getDraftOrders(): Promise<DraftOrder[]> {
     try {
-      return await this.db
+      const all = await this.db
         .table<DraftOrder, number>("draftOrders")
         .orderBy("updatedAt")
         .reverse() // Most recent first
         .toArray();
+
+      // 🔧 FIX: Filter out deleted tombstones
+      return all.filter((draft) => !draft.deleted);
     } catch (error) {
       console.error("[OrderService] Failed to get draft orders:", error);
       return [];
@@ -90,17 +93,22 @@ export class OrderService {
    */
   async deleteDraftOrder(id: string): Promise<void> {
     try {
-      // Delete from IndexedDB
-      await this.db.table<DraftOrder, string>("draftOrders").delete(id);
+      // 🔧 FIX: Mark as deleted with tombstone (don't delete immediately)
+      // This ensures deleted drafts don't reappear during sync pull
+      await this.db.table<DraftOrder, string>("draftOrders").update(id, {
+        deleted: true,
+        needsSync: true, // Push the deletion to server
+        updatedAt: new Date().toISOString(),
+      });
 
-      // Delete from server if online
+      console.log("[OrderService] 🗑️ Draft marked as deleted (tombstone):", id);
+
+      // Try to delete from server immediately if online
       if (navigator.onLine) {
         const token = localStorage.getItem("archibald_jwt");
         if (token) {
           try {
-            console.log("[OrderService] 🗑️ Deleting draft order from server", {
-              draftId: id,
-            });
+            console.log("[OrderService] Deleting draft from server...");
 
             const response = await fetchWithRetry(`/api/sync/draft-orders/${id}`, {
               method: "DELETE",
@@ -116,17 +124,21 @@ export class OrderService {
             }
 
             console.log("[OrderService] ✅ Draft deleted from server");
+
+            // Server delete successful → remove tombstone from local DB
+            await this.db.table<DraftOrder, string>("draftOrders").delete(id);
+            console.log("[OrderService] ✅ Tombstone removed");
           } catch (serverError) {
             console.error(
-              "[OrderService] Failed to delete draft from server:",
+              "[OrderService] Failed to delete from server (will retry on sync):",
               serverError,
             );
-            // Don't throw - local deletion succeeded, server will be cleaned up on next sync
+            // Keep tombstone - will be pushed during next sync
           }
         }
       }
     } catch (error) {
-      console.error("[OrderService] Failed to delete draft order:", error);
+      console.error("[OrderService] Failed to mark draft as deleted:", error);
       // Swallow error - deletion of non-existent draft is not critical
     }
   }
@@ -351,18 +363,21 @@ export class OrderService {
         // Continue with deletion even if warehouse cleanup fails
       }
 
-      // Delete from IndexedDB
-      await this.db.table<PendingOrder, string>("pendingOrders").delete(id);
+      // 🔧 FIX: Mark as deleted with tombstone (don't delete immediately)
+      await this.db.table<PendingOrder, string>("pendingOrders").update(id, {
+        deleted: true,
+        needsSync: true,
+        updatedAt: new Date().toISOString(),
+      });
 
-      // Delete from server if online
+      console.log("[OrderService] 🗑️ Order marked as deleted (tombstone):", id);
+
+      // Try to delete from server immediately if online
       if (navigator.onLine) {
         const token = localStorage.getItem("archibald_jwt");
         if (token) {
           try {
-            console.log(
-              "[OrderService] 🗑️ Deleting pending order from server",
-              { orderId: id },
-            );
+            console.log("[OrderService] Deleting order from server...");
 
             const response = await fetchWithRetry(`/api/sync/pending-orders/${id}`, {
               method: "DELETE",
@@ -378,17 +393,21 @@ export class OrderService {
             }
 
             console.log("[OrderService] ✅ Order deleted from server");
+
+            // Server delete successful → remove tombstone from local DB
+            await this.db.table<PendingOrder, string>("pendingOrders").delete(id);
+            console.log("[OrderService] ✅ Tombstone removed");
           } catch (serverError) {
             console.error(
-              "[OrderService] Failed to delete from server:",
+              "[OrderService] Failed to delete from server (will retry on sync):",
               serverError,
             );
-            // Don't throw - local deletion succeeded, server will be cleaned up on next sync
+            // Keep tombstone - will be pushed during next sync
           }
         }
       }
     } catch (error) {
-      console.error("[OrderService] Failed to delete pending order:", error);
+      console.error("[OrderService] Failed to mark order as deleted:", error);
       throw error;
     }
   }
