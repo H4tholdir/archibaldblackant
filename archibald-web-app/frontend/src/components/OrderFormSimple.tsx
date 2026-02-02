@@ -691,6 +691,21 @@ export default function OrderFormSimple() {
       if (editingOrderId) return;
 
       try {
+        // 🔧 FIX: Sync BEFORE reading local drafts to ensure deleted drafts are removed
+        // This prevents showing drafts that were deleted on other devices
+        console.log("[OrderForm] Syncing before checking for drafts...");
+        if (navigator.onLine) {
+          try {
+            await unifiedSyncService.syncAll();
+            console.log("[OrderForm] ✅ Sync completed before draft check");
+          } catch (syncError) {
+            console.warn(
+              "[OrderForm] ⚠️ Sync failed, proceeding with local data:",
+              syncError,
+            );
+          }
+        }
+
         const drafts = await orderService.getDraftOrders();
         if (drafts.length > 0) {
           const latestDraft = drafts[0]; // getDraftOrders returns sorted by updatedAt DESC
@@ -1447,6 +1462,26 @@ export default function OrderFormSimple() {
         targetTotalWithVAT: totals.finalTotal,
         originDraftId: originDraftId || undefined, // Track which draft this came from
       });
+
+      // 🔧 FIX: If created from draft, wait for sync to complete BEFORE showing success
+      // This ensures draft is deleted on server before other devices sync
+      if (originDraftId && navigator.onLine) {
+        console.log(
+          "[OrderForm] ⏳ Waiting for sync to complete (draft conversion)...",
+        );
+        try {
+          await unifiedSyncService.syncAll();
+          console.log(
+            "[OrderForm] ✅ Sync completed - draft deleted on server",
+          );
+        } catch (syncError) {
+          console.warn(
+            "[OrderForm] ⚠️ Sync failed after pending creation:",
+            syncError,
+          );
+          // Don't block user - server will cleanup eventually
+        }
+      }
 
       // 🔧 FIX #5: Show specific message for warehouse-only orders
       if (isWarehouseOnly) {
