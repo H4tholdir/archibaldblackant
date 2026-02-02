@@ -204,8 +204,7 @@ export class UnifiedSyncService {
       console.log("[UnifiedSync] Pushing pending orders...");
 
       const localOrders = await db.pendingOrders
-        .where("needsSync")
-        .equals(true)
+        .filter((order) => order.needsSync === true)
         .toArray();
 
       console.log(`[UnifiedSync] Found ${localOrders.length} pending orders to push`);
@@ -321,8 +320,7 @@ export class UnifiedSyncService {
       console.log("[UnifiedSync] Pushing draft orders...");
 
       const localDrafts = await db.draftOrders
-        .where("needsSync")
-        .equals(true)
+        .filter((draft) => draft.needsSync === true)
         .toArray();
 
       console.log(`[UnifiedSync] Found ${localDrafts.length} draft orders to push`);
