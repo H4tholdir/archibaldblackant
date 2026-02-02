@@ -101,6 +101,9 @@ export function PendingOrdersPage() {
           quantity: item.quantity,
           price: item.price,
           discount: item.discount,
+          // Include warehouse fields for backend filtering
+          warehouseQuantity: item.warehouseQuantity || 0,
+          warehouseSources: item.warehouseSources || [],
         })),
         discountPercent: order.discountPercent,
         targetTotalWithVAT: order.targetTotalWithVAT,
