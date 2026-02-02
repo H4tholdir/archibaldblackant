@@ -12,7 +12,7 @@ import { fetchWithRetry } from "../utils/fetch-with-retry";
  * Sync strategy:
  * - Pull on app open (eager)
  * - Push on change (immediate if online)
- * - Periodic sync (every 30s by default, 10s if admin active)
+ * - Periodic sync (every 15s by default)
  * - Event-driven sync (online/offline, visibility change)
  *
  * Conflict resolution: Last-Write-Wins (LWW) based on updatedAt timestamp
@@ -20,7 +20,7 @@ import { fetchWithRetry } from "../utils/fetch-with-retry";
 export class UnifiedSyncService {
   private static instance: UnifiedSyncService;
   private syncInterval: NodeJS.Timeout | null = null;
-  private syncIntervalMs = 30000; // 30 seconds default
+  private syncIntervalMs = 15000; // 15 seconds default
   private isSyncing = false;
 
   private constructor() {
@@ -281,6 +281,7 @@ export class UnifiedSyncService {
               errorMessage: o.errorMessage,
               retryCount: o.retryCount,
               deviceId: o.deviceId,
+              originDraftId: o.originDraftId, // 🔧 FIX: Include originDraftId for server-side cascade deletion
             })),
           }),
         });

@@ -125,7 +125,8 @@ router.post(
                 retry_count = ?,
                 error_message = ?,
                 updated_at = ?,
-                device_id = ?
+                device_id = ?,
+                origin_draft_id = ?
               WHERE id = ?
             `,
               )
@@ -140,6 +141,7 @@ router.post(
                 order.errorMessage || null,
                 order.updatedAt,
                 order.deviceId,
+                order.originDraftId || null,
                 order.id,
               );
 
@@ -156,8 +158,8 @@ router.post(
               INSERT INTO pending_orders (
                 id, user_id, customer_id, customer_name, items_json, status,
                 discount_percent, target_total_with_vat, retry_count, error_message,
-                created_at, updated_at, device_id
-              ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                created_at, updated_at, device_id, origin_draft_id
+              ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             `,
               )
               .run(
@@ -174,6 +176,7 @@ router.post(
                 order.createdAt,
                 order.updatedAt,
                 order.deviceId,
+                order.originDraftId || null,
               );
 
             results.push({ id: order.id, action: "created" });
