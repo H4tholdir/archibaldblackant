@@ -1,5 +1,7 @@
 import { useState, useEffect } from "react";
 import { db, type WarehouseItem } from "../db/schema";
+import { releaseWarehouseReservations } from "../services/warehouse-order-integration";
+import { toastService } from "../services/toast.service";
 
 type StatusFilter = "all" | "available" | "reserved" | "sold";
 
@@ -81,6 +83,30 @@ export function WarehouseInventoryView() {
     }
 
     setFilteredItems(filtered);
+  };
+
+  const handleReleaseReservation = async (reservedForOrder: string) => {
+    try {
+      // Extract pending order ID (e.g., "pending-15" -> 15)
+      const orderId = reservedForOrder.replace("pending-", "");
+      const pendingOrderId = parseInt(orderId, 10);
+
+      if (isNaN(pendingOrderId)) {
+        toastService.error(
+          "Formato ordine non valido. Impossibile rilasciare.",
+        );
+        return;
+      }
+
+      await releaseWarehouseReservations(pendingOrderId);
+      toastService.success(`✅ Articoli rilasciati da ${reservedForOrder}`);
+
+      // Reload inventory
+      await loadInventory();
+    } catch (error) {
+      console.error("[WarehouseInventory] Release failed:", error);
+      toastService.error("Errore durante il rilascio degli articoli");
+    }
   };
 
   const getStatusBadge = (item: WarehouseItem) => {
@@ -534,13 +560,23 @@ export function WarehouseInventoryView() {
                 >
                   Riferimento Ordine
                 </th>
+                <th
+                  style={{
+                    padding: "0.75rem",
+                    textAlign: "center",
+                    fontWeight: "600",
+                    color: "#374151",
+                  }}
+                >
+                  Azioni
+                </th>
               </tr>
             </thead>
             <tbody>
               {filteredItems.length === 0 ? (
                 <tr>
                   <td
-                    colSpan={6}
+                    colSpan={7}
                     style={{
                       padding: "2rem",
                       textAlign: "center",
@@ -600,6 +636,36 @@ export function WarehouseInventoryView() {
                     </td>
                     <td style={{ padding: "0.75rem" }}>
                       {getOrderReference(item)}
+                    </td>
+                    <td style={{ padding: "0.75rem", textAlign: "center" }}>
+                      {item.reservedForOrder && (
+                        <button
+                          onClick={() =>
+                            handleReleaseReservation(item.reservedForOrder!)
+                          }
+                          style={{
+                            padding: "0.4rem 0.75rem",
+                            background: "#ef4444",
+                            color: "white",
+                            border: "none",
+                            borderRadius: "4px",
+                            fontSize: "0.75rem",
+                            fontWeight: "600",
+                            cursor: "pointer",
+                            transition: "all 0.2s",
+                          }}
+                          onMouseEnter={(e) => {
+                            e.currentTarget.style.background = "#dc2626";
+                            e.currentTarget.style.transform = "scale(1.05)";
+                          }}
+                          onMouseLeave={(e) => {
+                            e.currentTarget.style.background = "#ef4444";
+                            e.currentTarget.style.transform = "scale(1)";
+                          }}
+                        >
+                          🔓 Rilascia
+                        </button>
+                      )}
                     </td>
                   </tr>
                 ))
