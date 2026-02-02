@@ -691,24 +691,25 @@ export default function OrderFormSimple() {
     checkForDraft();
   }, [editingOrderId]);
 
-  // === AUTO-SAVE DRAFT EVERY 10 SECONDS ===
+  // === AUTO-SAVE DRAFT ON EVERY OPERATION ===
+  // Save immediately when customer or items change
   useEffect(() => {
     if (editingOrderId || !selectedCustomer) {
       return;
     }
 
-    console.log("[OrderForm] Auto-save interval started");
+    console.log("[OrderForm] Operation detected - auto-saving draft", {
+      customer: selectedCustomer.name,
+      itemsCount: items.length,
+    });
 
-    const autoSaveInterval = setInterval(() => {
-      console.log("[OrderForm] Auto-save interval triggered");
+    // Small debounce to avoid saving multiple times during rapid operations
+    const timeoutId = setTimeout(() => {
       saveDraft();
-    }, 10000); // 10 seconds (reduced from 30s)
+    }, 500); // 500ms debounce
 
-    return () => {
-      console.log("[OrderForm] Auto-save interval cleared");
-      clearInterval(autoSaveInterval);
-    };
-  }, [selectedCustomer, editingOrderId, saveDraft]);
+    return () => clearTimeout(timeoutId);
+  }, [selectedCustomer, items, editingOrderId, saveDraft]);
 
   // === SAVE DRAFT ON TAB CLOSE / PAGE UNLOAD / COMPONENT UNMOUNT ===
   useEffect(() => {
