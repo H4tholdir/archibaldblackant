@@ -74,7 +74,7 @@ export class OrderService {
   async getDraftOrders(): Promise<DraftOrder[]> {
     try {
       const all = await this.db
-        .table<DraftOrder, number>("draftOrders")
+        .table<DraftOrder, string>("draftOrders")
         .orderBy("updatedAt")
         .reverse() // Most recent first
         .toArray();
@@ -280,11 +280,14 @@ export class OrderService {
    */
   async getPendingOrders(): Promise<PendingOrder[]> {
     try {
-      return await this.db
-        .table<PendingOrder, number>("pendingOrders")
+      const all = await this.db
+        .table<PendingOrder, string>("pendingOrders")
         .where("status")
         .anyOf(["pending", "error"]) // Exclude 'syncing'
         .sortBy("createdAt"); // Oldest first (FIFO)
+
+      // 🔧 FIX: Filter out deleted tombstones
+      return all.filter((order) => !order.deleted);
     } catch (error) {
       console.error("[OrderService] Failed to get pending orders:", error);
       return [];
