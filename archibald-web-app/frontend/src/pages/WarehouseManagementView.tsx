@@ -1,29 +1,13 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { WarehouseUpload } from "../components/WarehouseUpload";
 import { WarehouseInventoryView } from "../components/WarehouseInventoryView";
 import { AddItemManuallyModal } from "../components/AddItemManuallyModal";
 import { BoxManagementModal } from "../components/BoxManagementModal";
-import { getWarehouseBoxes } from "../services/warehouse-service";
 
 export default function WarehouseManagementView() {
   const [showAddItemModal, setShowAddItemModal] = useState(false);
   const [showBoxManagementModal, setShowBoxManagementModal] = useState(false);
-  const [availableBoxes, setAvailableBoxes] = useState<string[]>([]);
   const [refreshKey, setRefreshKey] = useState(0);
-
-  // Load available boxes on mount
-  useEffect(() => {
-    loadBoxes();
-  }, [refreshKey]);
-
-  const loadBoxes = async () => {
-    try {
-      const boxes = await getWarehouseBoxes();
-      setAvailableBoxes(boxes.map((b) => b.name));
-    } catch (error) {
-      console.error("Load boxes error:", error);
-    }
-  };
 
   const handleRefresh = () => {
     setRefreshKey((prev) => prev + 1);
@@ -99,7 +83,6 @@ export default function WarehouseManagementView() {
         isOpen={showAddItemModal}
         onClose={() => setShowAddItemModal(false)}
         onSuccess={handleRefresh}
-        availableBoxes={availableBoxes}
       />
 
       <BoxManagementModal

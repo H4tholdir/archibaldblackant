@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import {
   addWarehouseItemManually,
   validateWarehouseItemCode,
+  getWarehouseBoxes,
   type ManualAddItemResult,
   type Product,
 } from "../services/warehouse-service";
@@ -12,20 +13,19 @@ export interface AddItemManuallyModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSuccess: () => void;
-  availableBoxes: string[];
 }
 
 export function AddItemManuallyModal({
   isOpen,
   onClose,
   onSuccess,
-  availableBoxes,
 }: AddItemManuallyModalProps) {
   const [articleCode, setArticleCode] = useState("");
   const [quantity, setQuantity] = useState(1);
   const [selectedBox, setSelectedBox] = useState("");
   const [description, setDescription] = useState("");
   const [loading, setLoading] = useState(false);
+  const [availableBoxes, setAvailableBoxes] = useState<string[]>([]);
   const [validationState, setValidationState] = useState<{
     status: "idle" | "valid" | "warning" | "invalid";
     confidence: number;
@@ -39,12 +39,32 @@ export function AddItemManuallyModal({
     suggestions: [],
   });
 
+  // Load boxes when modal opens
+  useEffect(() => {
+    if (isOpen) {
+      loadBoxes();
+    }
+  }, [isOpen]);
+
+  const loadBoxes = async () => {
+    try {
+      const boxes = await getWarehouseBoxes();
+      const boxNames = boxes.map((b) => b.name);
+      setAvailableBoxes(boxNames);
+      if (boxNames.length > 0) {
+        setSelectedBox(boxNames[0]);
+      }
+    } catch (error) {
+      console.error("Load boxes error:", error);
+      toastService.error("Errore caricamento scatoli");
+    }
+  };
+
   // Reset form quando il modal si apre
   useEffect(() => {
     if (isOpen) {
       setArticleCode("");
       setQuantity(1);
-      setSelectedBox(availableBoxes[0] || "");
       setDescription("");
       setValidationState({
         status: "idle",
@@ -53,7 +73,7 @@ export function AddItemManuallyModal({
         suggestions: [],
       });
     }
-  }, [isOpen, availableBoxes]);
+  }, [isOpen]);
 
   // Debounce validation (500ms) - Real-time fuzzy matching
   useEffect(() => {
