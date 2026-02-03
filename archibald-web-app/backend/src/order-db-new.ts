@@ -898,10 +898,27 @@ export class OrderDatabaseNew {
     const K3_VAT_RATE = 0.22; // 22% IVA
     let fixedCount = 0;
 
+    logger.info(
+      `[OrderDatabaseNew] fixK3ArticleVAT called for order ${orderId}`,
+    );
+
+    // First, check ALL articles for this order to see what we have
+    const allArticles = this.db
+      .prepare(
+        `SELECT id, article_code, article_description, vat_percent, vat_amount, line_total_with_vat
+         FROM order_articles
+         WHERE order_id = ?`,
+      )
+      .all(orderId);
+    logger.info(
+      `[OrderDatabaseNew] Found ${allArticles.length} total articles for order ${orderId}`,
+      { articles: allArticles },
+    );
+
     // Find K3 articles without VAT calculated (vat_percent NULL or 0)
     const k3Articles = this.db
       .prepare(
-        `SELECT id, article_code, article_description, unit_price, line_amount
+        `SELECT id, article_code, article_description, unit_price, line_amount, vat_percent
          FROM order_articles
          WHERE order_id = ?
          AND (article_code = 'K3' OR article_description LIKE '%Spese di trasporto K3%')
@@ -913,7 +930,13 @@ export class OrderDatabaseNew {
       article_description: string | null;
       unit_price: number | null;
       line_amount: number | null;
+      vat_percent: number | null;
     }>;
+
+    logger.info(
+      `[OrderDatabaseNew] Found ${k3Articles.length} K3 articles with missing VAT`,
+      { k3Articles },
+    );
 
     if (k3Articles.length === 0) {
       return 0;

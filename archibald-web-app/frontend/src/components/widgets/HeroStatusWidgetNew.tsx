@@ -58,39 +58,13 @@ export function HeroStatusWidgetNew({ data }: HeroStatusWidgetNewProps) {
       style={{
         background: colors.bgGradient,
         borderRadius: "20px",
-        padding: "40px",
+        padding: "40px 40px 50px 40px",
         color: "#fff",
         boxShadow: "0 12px 40px rgba(0,0,0,0.25)",
         position: "relative",
-        overflow: "hidden",
+        overflow: "visible",
       }}
     >
-      {/* Decorative background pattern */}
-      <div
-        style={{
-          position: "absolute",
-          top: "-50px",
-          right: "-50px",
-          width: "200px",
-          height: "200px",
-          borderRadius: "50%",
-          background: "rgba(255,255,255,0.05)",
-          pointerEvents: "none",
-        }}
-      />
-      <div
-        style={{
-          position: "absolute",
-          bottom: "-30px",
-          left: "-30px",
-          width: "150px",
-          height: "150px",
-          borderRadius: "50%",
-          background: "rgba(255,255,255,0.03)",
-          pointerEvents: "none",
-        }}
-      />
-
       {/* Title */}
       <h2
         style={{
