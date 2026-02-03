@@ -855,6 +855,13 @@ export class OrderDatabaseNew {
     logger.info(
       `[OrderDatabaseNew] Saved ${articles.length} articles with VAT for order ${articles[0]?.orderId}`,
     );
+
+    // Automatically fix K3 article VAT if Archibald synced without calculating it
+    const orderId = articles[0]?.orderId;
+    if (orderId) {
+      this.fixK3ArticleVAT(orderId);
+    }
+
     return articles.length;
   }
 

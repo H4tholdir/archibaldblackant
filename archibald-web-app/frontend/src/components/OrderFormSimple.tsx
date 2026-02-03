@@ -23,6 +23,7 @@ import {
 import { releaseWarehouseReservations } from "../services/warehouse-order-integration";
 import { getDeviceId } from "../utils/device-id";
 import { unifiedSyncService } from "../services/unified-sync-service";
+import { calculateShippingCosts } from "../utils/order-calculations";
 
 interface OrderItem {
   id: string;
@@ -1327,14 +1328,21 @@ export default function OrderFormSimple() {
     const globalDiscAmount = (itemsSubtotal * discountPercent) / 100;
     const finalSubtotal = itemsSubtotal - globalDiscAmount;
 
-    // Calculate VAT proportionally based on each item's VAT rate
-    const finalVAT = items.reduce((sum, item) => {
+    // Calculate shipping costs based on imponibile AFTER discount
+    const shippingCosts = calculateShippingCosts(finalSubtotal);
+    const shippingCost = shippingCosts.cost;
+    const shippingTax = shippingCosts.tax;
+
+    // Calculate VAT proportionally based on each item's VAT rate + shipping tax
+    const itemsVATAfterDiscount = items.reduce((sum, item) => {
       const itemSubtotalAfterDiscount =
         item.subtotal * (1 - discountPercent / 100);
       return sum + itemSubtotalAfterDiscount * (item.vatRate / 100);
     }, 0);
+    const finalVAT = itemsVATAfterDiscount + shippingTax;
 
-    const finalTotal = finalSubtotal + finalVAT;
+    // Total includes items + shipping cost + total VAT
+    const finalTotal = finalSubtotal + shippingCost + finalVAT;
 
     return {
       itemsSubtotal,
@@ -1343,6 +1351,8 @@ export default function OrderFormSimple() {
       globalDiscPercent: discountPercent,
       globalDiscAmount,
       finalSubtotal,
+      shippingCost,
+      shippingTax,
       finalVAT,
       finalTotal,
     };
@@ -1356,10 +1366,11 @@ export default function OrderFormSimple() {
 
     const itemsSubtotal = items.reduce((sum, item) => sum + item.subtotal, 0);
 
-    // With mixed VAT rates, we need to solve iteratively
-    // Target = FinalSubtotal + FinalVAT
+    // With mixed VAT rates AND shipping costs, we need to solve iteratively
+    // Target = FinalSubtotal + ShippingCost + FinalVAT (includes shipping tax)
     // FinalSubtotal = ItemsSubtotal * (1 - DiscountPercent / 100)
-    // FinalVAT = sum of (ItemSubtotal * (1 - DiscountPercent / 100) * (ItemVatRate / 100))
+    // ShippingCost depends on FinalSubtotal (if < 200€)
+    // FinalVAT = ItemsVAT + ShippingTax
     //
     // Use binary search to find the discount percentage
     let low = 0;
@@ -1369,11 +1380,19 @@ export default function OrderFormSimple() {
     for (let iteration = 0; iteration < 100; iteration++) {
       const mid = (low + high) / 2;
       const testSubtotal = itemsSubtotal * (1 - mid / 100);
-      const testVAT = items.reduce((sum, item) => {
+
+      // Calculate shipping based on subtotal after discount
+      const testShipping = calculateShippingCosts(testSubtotal);
+
+      // Calculate VAT including shipping tax
+      const testItemsVAT = items.reduce((sum, item) => {
         const itemSubtotalAfterDiscount = item.subtotal * (1 - mid / 100);
         return sum + itemSubtotalAfterDiscount * (item.vatRate / 100);
       }, 0);
-      const testTotal = testSubtotal + testVAT;
+      const testTotalVAT = testItemsVAT + testShipping.tax;
+
+      // Total includes items + shipping cost + total VAT
+      const testTotal = testSubtotal + testShipping.cost + testTotalVAT;
 
       if (Math.abs(testTotal - target) < 0.001) {
         bestDiscount = mid;
@@ -2941,6 +2960,27 @@ export default function OrderFormSimple() {
               <span>Subtotale (senza IVA):</span>
               <strong>€{totals.finalSubtotal.toFixed(2)}</strong>
             </div>
+            {totals.shippingCost > 0 && (
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  marginBottom: "0.5rem",
+                  color: "#f59e0b",
+                  fontSize: isMobile ? "0.875rem" : "1rem",
+                }}
+              >
+                <span>
+                  Spese di trasporto K3
+                  <span style={{ fontSize: "0.75rem", marginLeft: "0.25rem" }}>
+                    (€{totals.shippingCost.toFixed(2)} + IVA)
+                  </span>
+                </span>
+                <strong>
+                  €{(totals.shippingCost + totals.shippingTax).toFixed(2)}
+                </strong>
+              </div>
+            )}
             <div
               style={{
                 display: "flex",
@@ -2950,7 +2990,7 @@ export default function OrderFormSimple() {
                 fontSize: isMobile ? "0.875rem" : "1rem",
               }}
             >
-              <span>IVA:</span>
+              <span>IVA Totale:</span>
               <strong>€{totals.finalVAT.toFixed(2)}</strong>
             </div>
             <div

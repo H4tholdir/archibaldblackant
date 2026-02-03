@@ -4,6 +4,7 @@ import { orderService } from "../services/orders.service";
 import { toastService } from "../services/toast.service";
 import { pdfExportService } from "../services/pdf-export.service";
 import type { PendingOrder } from "../db/schema";
+import { calculateShippingCosts } from "../utils/order-calculations";
 
 export function PendingOrdersPage() {
   const navigate = useNavigate();
@@ -45,7 +46,6 @@ export function PendingOrdersPage() {
       setLoading(false);
     }
   };
-
 
   const handleSelectOrder = (orderId: string) => {
     setSelectedOrderIds((prev) => {
@@ -1128,7 +1128,15 @@ export function PendingOrdersPage() {
                       const subtotalAfterGlobalDiscount =
                         orderSubtotal - globalDiscountAmount;
 
-                      const orderVAT = order.items.reduce((sum, item) => {
+                      // Calculate shipping costs based on subtotal after discount
+                      const shippingCosts = calculateShippingCosts(
+                        subtotalAfterGlobalDiscount,
+                      );
+                      const shippingCost = shippingCosts.cost;
+                      const shippingTax = shippingCosts.tax;
+
+                      // Calculate VAT including shipping tax
+                      const itemsVAT = order.items.reduce((sum, item) => {
                         const itemSubtotal =
                           item.price * item.quantity - (item.discount || 0);
                         const itemAfterGlobalDiscount = order.discountPercent
@@ -1136,7 +1144,11 @@ export function PendingOrdersPage() {
                           : itemSubtotal;
                         return sum + itemAfterGlobalDiscount * (item.vat / 100);
                       }, 0);
-                      const orderTotal = subtotalAfterGlobalDiscount + orderVAT;
+                      const orderVAT = itemsVAT + shippingTax;
+
+                      // Total includes items + shipping cost + total VAT
+                      const orderTotal =
+                        subtotalAfterGlobalDiscount + shippingCost + orderVAT;
 
                       return (
                         <>
@@ -1203,6 +1215,35 @@ export function PendingOrdersPage() {
                                 </div>
                               </>
                             )}
+
+                          {/* Shipping Costs */}
+                          {shippingCost > 0 && (
+                            <div
+                              style={{
+                                display: "flex",
+                                justifyContent: "space-between",
+                                marginBottom: "0.5rem",
+                                fontSize: isMobile ? "0.8125rem" : "0.875rem",
+                              }}
+                            >
+                              <span style={{ color: "#f59e0b" }}>
+                                Spese di trasporto K3
+                                <span
+                                  style={{
+                                    fontSize: "0.75rem",
+                                    marginLeft: "0.25rem",
+                                  }}
+                                >
+                                  (€{shippingCost.toFixed(2)} + IVA)
+                                </span>
+                              </span>
+                              <span
+                                style={{ fontWeight: "500", color: "#f59e0b" }}
+                              >
+                                €{(shippingCost + shippingTax).toFixed(2)}
+                              </span>
+                            </div>
+                          )}
 
                           <div
                             style={{
