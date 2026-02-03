@@ -465,17 +465,33 @@ router.get(
     try {
       const userId = req.user!.userId;
 
-      // Get all boxes from warehouse_boxes table (including empty ones)
+      // Get all boxes from warehouse_boxes table AND from warehouse_items (for backward compatibility)
+      // This ensures we show boxes even if warehouse_boxes table is empty
       const allBoxes = usersDb
         .prepare(
           `
-        SELECT name, created_at, updated_at
-        FROM warehouse_boxes
-        WHERE user_id = ?
+        SELECT DISTINCT name, created_at, updated_at
+        FROM (
+          -- From warehouse_boxes table
+          SELECT name, created_at, updated_at
+          FROM warehouse_boxes
+          WHERE user_id = ?
+
+          UNION
+
+          -- From warehouse_items (fallback for boxes not in warehouse_boxes)
+          SELECT DISTINCT
+            box_name as name,
+            MIN(uploaded_at) as created_at,
+            MAX(uploaded_at) as updated_at
+          FROM warehouse_items
+          WHERE user_id = ?
+          GROUP BY box_name
+        )
         ORDER BY name
       `,
         )
-        .all(userId) as any[];
+        .all(userId, userId) as any[];
 
       // Get statistics for boxes that have items
       const stats = usersDb
