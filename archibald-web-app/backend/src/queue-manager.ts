@@ -187,17 +187,41 @@ export class QueueManager {
       const startTime = Date.now();
       const { orderData, userId, username } = job.data;
 
-      // Acquisisci il lock per ordini (blocca sync)
+      // Acquisisci il lock per ordini con priorità assoluta (blocca sync)
       if (this.onOrderStart) {
         let acquired = false;
         let attempts = 0;
-        const maxAttempts = 60; // Max 1 minuto di attesa
+        const maxAttempts = 20; // 20 tentativi = 20 secondi (ridotto da 60)
+        let forceStopTriggered = false;
 
         while (!acquired && attempts < maxAttempts) {
           acquired = this.onOrderStart();
+
           if (!acquired) {
+            // Dopo 10 tentativi (10 secondi), trigger force-stop
+            if (attempts === 10 && !forceStopTriggered) {
+              logger.warn(
+                `⚠️ JOB ORDINE: 10 secondi di attesa, attivo FORCE-STOP su tutti i sync...`,
+              );
+              // Import and call forceStopAllSyncs from index.ts
+              try {
+                const { forceStopAllSyncs } = await import("./index");
+                if (forceStopAllSyncs) {
+                  await forceStopAllSyncs();
+                  forceStopTriggered = true;
+                  logger.info(
+                    `✅ JOB ORDINE: FORCE-STOP completato, riprovo acquisizione lock...`,
+                  );
+                }
+              } catch (error) {
+                logger.error(`❌ JOB ORDINE: Errore durante FORCE-STOP`, {
+                  error,
+                });
+              }
+            }
+
             logger.info(
-              `⏳ Attendo rilascio operazione in corso... (tentativo ${attempts + 1}/${maxAttempts})`,
+              `⏳ JOB ORDINE: Attendo rilascio lock... (tentativo ${attempts + 1}/${maxAttempts})${attempts >= 10 ? " [FORCE-STOP attivo]" : ""}`,
             );
             await new Promise((resolve) => setTimeout(resolve, 1000));
             attempts++;
@@ -206,9 +230,11 @@ export class QueueManager {
 
         if (!acquired) {
           throw new Error(
-            "Impossibile acquisire il lock per creare l'ordine dopo 60 secondi",
+            `Impossibile acquisire il lock per creare l'ordine dopo ${maxAttempts} secondi. Un'operazione di sync potrebbe essere bloccata.`,
           );
         }
+
+        logger.info(`🔒 JOB ORDINE: Lock acquisito dopo ${attempts} tentativi`);
       }
 
       logger.info(`📋 QUEUE: INIZIO processamento ordine`, {

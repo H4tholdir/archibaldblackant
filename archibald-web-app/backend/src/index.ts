@@ -140,52 +140,62 @@ function releaseSyncLock() {
   }
 }
 
-function acquireOrderLock(): boolean {
-  // Controlla se c'è un'operazione nel lock globale
-  if (activeOperation) {
-    logger.warn(
-      `⚠️ Operazione ${activeOperation} in corso (global lock), richiedo interruzione...`,
-    );
-    if (activeOperation === "customers") {
-      syncService.requestStop();
-    } else if (activeOperation === "products") {
-      productSyncService.requestStop();
-    } else if (activeOperation === "prices") {
-      priceSyncService.requestStop();
+export async function forceStopAllSyncs(): Promise<void> {
+  logger.info("🛑 FORCE-STOP: Arresto forzato di tutti i servizi di sync...");
+
+  // Request stop on all services
+  syncService.requestStop();
+  productSyncService.requestStop();
+  priceSyncService.requestStop();
+  orderSyncService.requestStop();
+  ddtSyncService.requestStop();
+  invoiceSyncService.requestStop();
+
+  // Wait up to 5 seconds for services to stop gracefully
+  const maxWaitTime = 5000;
+  const checkInterval = 500;
+  let elapsed = 0;
+
+  while (elapsed < maxWaitTime) {
+    const customerProgress = syncService.getProgress();
+    const productProgress = productSyncService.getProgress();
+    const priceProgress = priceSyncService.getProgress();
+    const orderProgress = orderSyncService.getProgress();
+    const ddtProgress = ddtSyncService.getProgress();
+    const invoiceProgress = invoiceSyncService.getProgress();
+
+    const allStopped =
+      customerProgress.status !== "syncing" &&
+      productProgress.status !== "syncing" &&
+      priceProgress.status !== "downloading" &&
+      priceProgress.status !== "parsing" &&
+      priceProgress.status !== "saving" &&
+      orderProgress.status !== "downloading" &&
+      orderProgress.status !== "parsing" &&
+      orderProgress.status !== "saving" &&
+      ddtProgress.status !== "downloading" &&
+      ddtProgress.status !== "parsing" &&
+      ddtProgress.status !== "saving" &&
+      invoiceProgress.status !== "downloading" &&
+      invoiceProgress.status !== "parsing" &&
+      invoiceProgress.status !== "saving";
+
+    if (allStopped) {
+      logger.info(
+        "✅ FORCE-STOP: Tutti i servizi si sono fermati correttamente",
+      );
+      return;
     }
-    return false;
+
+    await new Promise((resolve) => setTimeout(resolve, checkInterval));
+    elapsed += checkInterval;
   }
 
-  const orchestratorStatus = syncOrchestrator.getStatus();
-  if (orchestratorStatus.currentSync) {
-    logger.warn(
-      `⚠️ Sync ${orchestratorStatus.currentSync} in corso (orchestrator), richiedo interruzione...`,
-    );
-    switch (orchestratorStatus.currentSync) {
-      case "customers":
-        syncService.requestStop();
-        break;
-      case "products":
-        productSyncService.requestStop();
-        break;
-      case "prices":
-        priceSyncService.requestStop();
-        break;
-      case "orders":
-        orderSyncService.requestStop();
-        break;
-      case "ddt":
-        ddtSyncService.requestStop();
-        break;
-      case "invoices":
-        invoiceSyncService.requestStop();
-        break;
-    }
-    return false;
-  }
+  // After 5 seconds, force reset phantom states
+  logger.warn(
+    "⚠️ FORCE-STOP: Timeout raggiunto, reset forzato stati fantasma...",
+  );
 
-  // CRITICAL: Controlla anche lo stato interno dei sync services
-  // perché potrebbero essere in corso anche se activeOperation è null
   const customerProgress = syncService.getProgress();
   const productProgress = productSyncService.getProgress();
   const priceProgress = priceSyncService.getProgress();
@@ -193,73 +203,160 @@ function acquireOrderLock(): boolean {
   const ddtProgress = ddtSyncService.getProgress();
   const invoiceProgress = invoiceSyncService.getProgress();
 
+  // Force reset each stuck service
   if (customerProgress.status === "syncing") {
-    logger.warn(
-      `⚠️ Sync clienti in corso (status check), richiedo interruzione...`,
+    logger.error(
+      "🔨 FORCE-RESET: Stato fantasma rilevato in sync clienti, reset forzato",
     );
-    syncService.requestStop();
-    return false;
+    (syncService as any).currentProgress = {
+      status: "idle",
+      currentPage: 0,
+      totalPages: 0,
+      processedCount: 0,
+    };
   }
 
   if (productProgress.status === "syncing") {
-    logger.warn(
-      `⚠️ Sync prodotti in corso (status check), richiedo interruzione...`,
+    logger.error(
+      "🔨 FORCE-RESET: Stato fantasma rilevato in sync prodotti, reset forzato",
     );
-    productSyncService.requestStop();
-    return false;
+    (productSyncService as any).currentProgress = {
+      status: "idle",
+      currentPage: 0,
+      totalPages: 0,
+      processedCount: 0,
+    };
   }
 
-  if (
+  const priceIsActive =
     priceProgress.status === "downloading" ||
     priceProgress.status === "parsing" ||
-    priceProgress.status === "saving"
-  ) {
-    logger.warn(
-      `⚠️ Sync prezzi in corso (status: ${priceProgress.status}), cannot interrupt`,
+    priceProgress.status === "saving";
+  if (priceIsActive) {
+    logger.error(
+      `🔨 FORCE-RESET: Stato fantasma rilevato in sync prezzi (${priceProgress.status}), reset forzato`,
     );
-    priceSyncService.requestStop();
-    return false;
+    (priceSyncService as any).currentProgress = { status: "idle" };
   }
 
-  if (
+  const orderIsActive =
     orderProgress.status === "downloading" ||
     orderProgress.status === "parsing" ||
-    orderProgress.status === "saving"
-  ) {
-    logger.warn(
-      `⚠️ Sync ordini in corso (status: ${orderProgress.status}), richiedo interruzione...`,
+    orderProgress.status === "saving";
+  if (orderIsActive) {
+    logger.error(
+      `🔨 FORCE-RESET: Stato fantasma rilevato in sync ordini (${orderProgress.status}), reset forzato`,
     );
-    orderSyncService.requestStop();
-    return false;
+    (orderSyncService as any).currentProgress = { status: "idle" };
   }
 
-  if (
+  const ddtIsActive =
     ddtProgress.status === "downloading" ||
     ddtProgress.status === "parsing" ||
-    ddtProgress.status === "saving"
-  ) {
-    logger.warn(
-      `⚠️ Sync DDT in corso (status: ${ddtProgress.status}), richiedo interruzione...`,
+    ddtProgress.status === "saving";
+  if (ddtIsActive) {
+    logger.error(
+      `🔨 FORCE-RESET: Stato fantasma rilevato in sync DDT (${ddtProgress.status}), reset forzato`,
     );
-    ddtSyncService.requestStop();
-    return false;
+    (ddtSyncService as any).currentProgress = { status: "idle" };
   }
 
-  if (
+  const invoiceIsActive =
     invoiceProgress.status === "downloading" ||
     invoiceProgress.status === "parsing" ||
-    invoiceProgress.status === "saving"
-  ) {
-    logger.warn(
-      `⚠️ Sync fatture in corso (status: ${invoiceProgress.status}), richiedo interruzione...`,
+    invoiceProgress.status === "saving";
+  if (invoiceIsActive) {
+    logger.error(
+      `🔨 FORCE-RESET: Stato fantasma rilevato in sync fatture (${invoiceProgress.status}), reset forzato`,
     );
-    invoiceSyncService.requestStop();
+    (invoiceSyncService as any).currentProgress = { status: "idle" };
+  }
+
+  logger.info("✅ FORCE-RESET: Reset stati fantasma completato");
+}
+
+function acquireOrderLock(): boolean {
+  // Controlla se c'è un'operazione nel lock globale
+  if (activeOperation) {
+    logger.warn(
+      `⚠️ JOB ORDINE: Operazione ${activeOperation} blocca il lock globale`,
+    );
     return false;
   }
 
-  // Nessuna operazione in corso, acquisici il lock
+  const orchestratorStatus = syncOrchestrator.getStatus();
+  if (orchestratorStatus.currentSync) {
+    logger.warn(
+      `⚠️ JOB ORDINE: Sync ${orchestratorStatus.currentSync} attivo nell'orchestrator`,
+    );
+    return false;
+  }
+
+  // Check internal state of all sync services
+  const customerProgress = syncService.getProgress();
+  const productProgress = productSyncService.getProgress();
+  const priceProgress = priceSyncService.getProgress();
+  const orderProgress = orderSyncService.getProgress();
+  const ddtProgress = ddtSyncService.getProgress();
+  const invoiceProgress = invoiceSyncService.getProgress();
+
+  const hasActiveSync =
+    customerProgress.status === "syncing" ||
+    productProgress.status === "syncing" ||
+    priceProgress.status === "downloading" ||
+    priceProgress.status === "parsing" ||
+    priceProgress.status === "saving" ||
+    orderProgress.status === "downloading" ||
+    orderProgress.status === "parsing" ||
+    orderProgress.status === "saving" ||
+    ddtProgress.status === "downloading" ||
+    ddtProgress.status === "parsing" ||
+    ddtProgress.status === "saving" ||
+    invoiceProgress.status === "downloading" ||
+    invoiceProgress.status === "parsing" ||
+    invoiceProgress.status === "saving";
+
+  if (hasActiveSync) {
+    // Log which services are blocking
+    const blockingServices: string[] = [];
+    if (customerProgress.status === "syncing")
+      blockingServices.push(`clienti (${customerProgress.status})`);
+    if (productProgress.status === "syncing")
+      blockingServices.push(`prodotti (${productProgress.status})`);
+    if (
+      priceProgress.status === "downloading" ||
+      priceProgress.status === "parsing" ||
+      priceProgress.status === "saving"
+    )
+      blockingServices.push(`prezzi (${priceProgress.status})`);
+    if (
+      orderProgress.status === "downloading" ||
+      orderProgress.status === "parsing" ||
+      orderProgress.status === "saving"
+    )
+      blockingServices.push(`ordini (${orderProgress.status})`);
+    if (
+      ddtProgress.status === "downloading" ||
+      ddtProgress.status === "parsing" ||
+      ddtProgress.status === "saving"
+    )
+      blockingServices.push(`DDT (${ddtProgress.status})`);
+    if (
+      invoiceProgress.status === "downloading" ||
+      invoiceProgress.status === "parsing" ||
+      invoiceProgress.status === "saving"
+    )
+      blockingServices.push(`fatture (${invoiceProgress.status})`);
+
+    logger.warn(
+      `⚠️ JOB ORDINE: Servizi attivi che bloccano il lock: ${blockingServices.join(", ")}`,
+    );
+    return false;
+  }
+
+  // No operations in progress, acquire the lock
   activeOperation = "order";
-  logger.info(`🔒 Lock acquisito: order`);
+  logger.info(`🔒 JOB ORDINE: Lock acquisito con successo`);
   return true;
 }
 
@@ -598,7 +695,8 @@ app.post(
         });
       }
 
-      const { username, password, deviceId, platform, deviceName } = result.data;
+      const { username, password, deviceId, platform, deviceName } =
+        result.data;
 
       // 2. Check user exists and is whitelisted
       const user = userDb.getUserByUsername(username);
@@ -671,7 +769,7 @@ app.post(
             user.id,
             deviceId,
             platform || "unknown",
-            deviceName || "Unknown Device"
+            deviceName || "Unknown Device",
           );
         } catch (deviceError) {
           logger.warn("Failed to register device", {
@@ -5925,7 +6023,9 @@ server.listen(config.server.port, async () => {
       runMigration012,
     } = require("./migrations/012-add-multi-device-sync");
     runMigration012();
-    logger.info("✅ Migration 012 completed (multi-device sync infrastructure)");
+    logger.info(
+      "✅ Migration 012 completed (multi-device sync infrastructure)",
+    );
   } catch (error) {
     logger.warn("⚠️  Migration 012 failed or already applied", { error });
   }
