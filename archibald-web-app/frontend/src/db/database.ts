@@ -1,4 +1,4 @@
-import { db } from './schema';
+import { db } from "./schema";
 
 /**
  * Initialize database and handle errors
@@ -12,7 +12,7 @@ export async function initializeDatabase(): Promise<{
     if (!isIndexedDBSupported()) {
       return {
         success: false,
-        error: 'IndexedDB non supportato in questo browser'
+        error: "IndexedDB non supportato in questo browser",
       };
     }
 
@@ -24,28 +24,28 @@ export async function initializeDatabase(): Promise<{
 
     // Restore pendingOrders from localStorage backup if needed
     if (pendingCount === 0) {
-      const backup = localStorage.getItem('archibald_pending_orders_backup');
+      const backup = localStorage.getItem("archibald_pending_orders_backup");
       if (backup) {
         try {
           const orders = JSON.parse(backup);
           if (Array.isArray(orders) && orders.length > 0) {
             await db.pendingOrders.bulkAdd(orders);
-            console.log('[IndexedDB:Database]', {
-              operation: 'restore',
-              action: 'Restored pendingOrders from localStorage backup',
+            console.log("[IndexedDB:Database]", {
+              operation: "restore",
+              action: "Restored pendingOrders from localStorage backup",
               count: orders.length,
               timestamp: new Date().toISOString(),
             });
           }
         } catch (error) {
-          console.error('[IndexedDB:Database] Failed to restore backup', error);
+          console.error("[IndexedDB:Database] Failed to restore backup", error);
         }
       }
     }
 
-    console.log('[IndexedDB:Database]', {
-      operation: 'initialization',
-      status: 'success',
+    console.log("[IndexedDB:Database]", {
+      operation: "initialization",
+      status: "success",
       version: db.verno,
       pendingOrdersCount: pendingCount,
       storage: {
@@ -58,9 +58,9 @@ export async function initializeDatabase(): Promise<{
 
     return { success: true };
   } catch (error) {
-    console.error('[IndexedDB:Database]', {
-      operation: 'initialization',
-      status: 'failed',
+    console.error("[IndexedDB:Database]", {
+      operation: "initialization",
+      status: "failed",
       error: error instanceof Error ? error.message : String(error),
       stack: error instanceof Error ? error.stack : undefined,
       timestamp: new Date().toISOString(),
@@ -68,25 +68,58 @@ export async function initializeDatabase(): Promise<{
 
     // Handle common errors
     if (error instanceof Error) {
-      if (error.name === 'QuotaExceededError') {
+      if (error.name === "QuotaExceededError") {
+        // Storage full - store flag for UI warning
+        localStorage.setItem("db_quota_exceeded", "true");
         return {
           success: false,
           error:
-            'Spazio di archiviazione insufficiente. Libera spazio sul dispositivo.'
+            "Spazio di archiviazione insufficiente. Libera spazio sul dispositivo.",
         };
       }
 
-      if (error.name === 'VersionError') {
-        return {
-          success: false,
-          error: "Errore di versione database. Prova a ricaricare l'app."
-        };
+      if (error.name === "VersionError") {
+        // Version conflict - try automatic recovery
+        console.warn(
+          "[IndexedDB:Database] VersionError detected - attempting automatic recovery",
+        );
+
+        try {
+          // Delete database and retry initialization
+          await db.delete();
+          console.log(
+            "[IndexedDB:Database] Database deleted, retrying initialization...",
+          );
+
+          // Retry open
+          await db.open();
+          console.log(
+            "[IndexedDB:Database] ✅ Recovery successful after delete+retry",
+          );
+
+          return { success: true };
+        } catch (retryError) {
+          console.error("[IndexedDB:Database] ❌ Recovery failed:", retryError);
+          localStorage.setItem("db_recovery_failed", "true");
+          return {
+            success: false,
+            error:
+              "Errore di versione database non recuperabile. Contatta il supporto.",
+          };
+        }
       }
     }
 
+    // Unknown error - store for diagnostics
+    localStorage.setItem("db_init_failed", "true");
+    localStorage.setItem(
+      "db_init_error",
+      error instanceof Error ? error.message : String(error),
+    );
+
     return {
       success: false,
-      error: 'Errore imprevisto durante inizializzazione database'
+      error: "Errore imprevisto durante inizializzazione database",
     };
   }
 }
@@ -95,7 +128,7 @@ export async function initializeDatabase(): Promise<{
  * Check if IndexedDB is supported
  */
 export function isIndexedDBSupported(): boolean {
-  return 'indexedDB' in window;
+  return "indexedDB" in window;
 }
 
 /**
@@ -131,7 +164,7 @@ export async function getStorageQuota(): Promise<{
   return {
     used: Math.round(used / 1024 / 1024), // MB
     available: Math.round(quota / 1024 / 1024), // MB
-    percentage
+    percentage,
   };
 }
 
@@ -165,7 +198,7 @@ export async function getCacheFreshness(): Promise<Map<string, Date>> {
 /**
  * Handle database upgrade (version migration)
  */
-db.on('ready', async () => {
+db.on("ready", async () => {
   // Log current record counts
   const counts = {
     customers: await db.customers.count(),
@@ -173,11 +206,11 @@ db.on('ready', async () => {
     variants: await db.productVariants.count(),
     prices: await db.prices.count(),
     drafts: await db.draftOrders.count(),
-    pending: await db.pendingOrders.count()
+    pending: await db.pendingOrders.count(),
   };
 
-  console.log('[IndexedDB:Database]', {
-    operation: 'ready',
+  console.log("[IndexedDB:Database]", {
+    operation: "ready",
     recordCounts: counts,
     timestamp: new Date().toISOString(),
   });
@@ -186,15 +219,13 @@ db.on('ready', async () => {
 /**
  * Handle database errors
  */
-db.on('blocked', () => {
+db.on("blocked", () => {
   console.warn(
-    '[IndexedDB] Database blocked - another tab may be using an older version'
+    "[IndexedDB] Database blocked - another tab may be using an older version",
   );
 });
 
-db.on('versionchange', () => {
-  console.warn(
-    '[IndexedDB] Database version changed - reload recommended'
-  );
+db.on("versionchange", () => {
+  console.warn("[IndexedDB] Database version changed - reload recommended");
   db.close();
 });

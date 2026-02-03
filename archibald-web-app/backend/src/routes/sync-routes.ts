@@ -348,10 +348,43 @@ router.post(
         });
       }
 
+      // 🔧 FIX: Basic validation for payload size and data integrity
+      if (drafts.length > 50) {
+        return res.status(400).json({
+          success: false,
+          error: "Troppi draft in un singolo batch (max 50)",
+        });
+      }
+
       const results = [];
 
       for (const draft of drafts) {
         try {
+          // 🔧 FIX: Validate draft data integrity
+          if (
+            !draft.id ||
+            !draft.customerId ||
+            !draft.customerName ||
+            !Array.isArray(draft.items)
+          ) {
+            results.push({
+              id: draft.id || "unknown",
+              action: "rejected",
+              reason: "invalid_data",
+            });
+            continue;
+          }
+
+          // Validate items array size
+          if (draft.items.length > 100) {
+            results.push({
+              id: draft.id,
+              action: "rejected",
+              reason: "too_many_items",
+            });
+            continue;
+          }
+
           const existing = ordersDb
             .prepare("SELECT * FROM draft_orders WHERE id = ?")
             .get(draft.id) as any;

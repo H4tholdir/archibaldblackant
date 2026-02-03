@@ -745,10 +745,10 @@ export default function OrderFormSimple() {
       itemsCount: items.length,
     });
 
-    // Small debounce to avoid saving multiple times during rapid operations
+    // 🔧 FIX: Debounce auto-save to reduce battery/performance impact on mobile
     const timeoutId = setTimeout(() => {
       saveDraft();
-    }, 500); // 500ms debounce
+    }, 2000); // 2s debounce (increased from 500ms)
 
     return () => clearTimeout(timeoutId);
   }, [
@@ -1387,6 +1387,15 @@ export default function OrderFormSimple() {
 
     if (items.length === 0) {
       toastService.warning("Aggiungi almeno un articolo");
+      return;
+    }
+
+    // 🔧 FIX: Limit order size to prevent payload/storage issues
+    const MAX_ITEMS_PER_ORDER = 100;
+    if (items.length > MAX_ITEMS_PER_ORDER) {
+      toastService.error(
+        `Ordine troppo grande: massimo ${MAX_ITEMS_PER_ORDER} articoli consentiti`,
+      );
       return;
     }
 

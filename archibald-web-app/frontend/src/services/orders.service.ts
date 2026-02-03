@@ -63,6 +63,14 @@ export class OrderService {
       return id;
     } catch (error) {
       console.error("[OrderService] Failed to save draft order:", error);
+
+      // 🔧 FIX: Handle quota exceeded with helpful message
+      if (error instanceof Error && error.name === "QuotaExceededError") {
+        throw new Error(
+          "Spazio di archiviazione esaurito. Elimina vecchie bozze o ordini per liberare spazio.",
+        );
+      }
+
       throw error;
     }
   }
@@ -279,6 +287,14 @@ export class OrderService {
       return id;
     } catch (error) {
       console.error("[OrderService] Failed to save pending order:", error);
+
+      // 🔧 FIX: Handle quota exceeded with helpful message
+      if (error instanceof Error && error.name === "QuotaExceededError") {
+        throw new Error(
+          "Spazio di archiviazione esaurito. Elimina vecchi ordini per liberare spazio.",
+        );
+      }
+
       throw error;
     }
   }
