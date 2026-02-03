@@ -162,6 +162,40 @@ export class OrderService {
   }
 
   /**
+   * Delete ALL draft orders for a specific customer
+   * Used to cleanup duplicate/orphaned drafts when order is submitted
+   * @param customerId - Customer ID
+   */
+  async deleteAllDraftsForCustomer(customerId: string): Promise<void> {
+    try {
+      const drafts = await this.db
+        .table<DraftOrder, string>("draftOrders")
+        .where("customerId")
+        .equals(customerId)
+        .toArray();
+
+      console.log(
+        `[OrderService] Deleting all ${drafts.length} drafts for customer ${customerId}`,
+      );
+
+      // Delete each draft
+      for (const draft of drafts) {
+        await this.deleteDraftOrder(draft.id);
+      }
+
+      console.log(
+        `[OrderService] ✅ Deleted all drafts for customer ${customerId}`,
+      );
+    } catch (error) {
+      console.error(
+        "[OrderService] Failed to delete drafts for customer:",
+        error,
+      );
+      // Non-critical error, swallow it
+    }
+  }
+
+  /**
    * Save pending order (for offline submission)
    * @param order - Pending order (without ID and auto-generated fields)
    * @returns Generated pending order ID

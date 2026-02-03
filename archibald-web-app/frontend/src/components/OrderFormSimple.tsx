@@ -9,7 +9,6 @@ import { priceService } from "../services/prices.service";
 import { orderService } from "../services/orders.service";
 import { cachePopulationService } from "../services/cache-population";
 import { toastService } from "../services/toast.service";
-import { fetchWithRetry } from "../utils/fetch-with-retry";
 import { db } from "../db/schema";
 import type {
   Customer,
@@ -207,6 +206,9 @@ export default function OrderFormSimple() {
   // setState is async, so navigate() could unmount component before flag is set,
   // causing unmount handler to call saveDraft() and recreate the just-deleted draft
   const orderSavedSuccessfullyRef = useRef(false);
+
+  // 🔧 FIX: Prevent concurrent draft saves that create duplicates
+  const savingDraftRef = useRef(false);
 
   // === LOAD ORDER FOR EDITING ===
   // Check if we're editing an existing order
@@ -623,7 +625,14 @@ export default function OrderFormSimple() {
       itemsCount: items.length,
       draftId,
       orderSavedSuccessfully: orderSavedSuccessfullyRef.current,
+      alreadySaving: savingDraftRef.current,
     });
+
+    // 🔧 FIX: Prevent concurrent draft saves (causes duplicates)
+    if (savingDraftRef.current) {
+      console.log("[OrderForm] Draft save already in progress, skipping");
+      return;
+    }
 
     // Don't save if editing existing order, no customer selected, or order was just finalized
     if (
@@ -640,6 +649,9 @@ export default function OrderFormSimple() {
       });
       return;
     }
+
+    // Set lock
+    savingDraftRef.current = true;
 
     try {
       const now = new Date().toISOString();
@@ -696,6 +708,9 @@ export default function OrderFormSimple() {
       );
     } catch (error) {
       console.error("[OrderForm] ❌ Draft save failed:", error);
+    } finally {
+      // Release lock
+      savingDraftRef.current = false;
     }
   }, [editingOrderId, selectedCustomer, items, draftId]);
 
@@ -1442,54 +1457,23 @@ export default function OrderFormSimple() {
       // When creating from draft: use draftId
       const originDraftId = editingOriginDraftId || draftId;
 
-      // 🔧 FIX: Best-effort draft deletion (client-side)
-      // Server will also delete the draft when it receives the pending order with originDraftId
-      if (originDraftId) {
-        const token = localStorage.getItem("archibald_jwt");
-        if (token) {
-          // Try to delete draft from server (best-effort, don't block if fails)
-          try {
-            console.log(
-              "[OrderForm] Attempting to delete draft from server...",
-            );
-            const deleteResponse = await fetchWithRetry(
-              `/api/sync/draft-orders/${originDraftId}`,
-              {
-                method: "DELETE",
-                headers: {
-                  Authorization: `Bearer ${token}`,
-                },
-              },
-            );
-
-            if (deleteResponse.ok || deleteResponse.status === 404) {
-              console.log(
-                "[OrderForm] ✅ Draft deleted from server successfully",
-              );
-            } else {
-              console.warn(
-                `[OrderForm] ⚠️ Draft deletion failed (${deleteResponse.status}), server will cleanup via cascade`,
-              );
-            }
-          } catch (deleteError) {
-            // Don't block pending creation - server will cleanup via originDraftId cascade
-            console.warn(
-              "[OrderForm] ⚠️ Draft deletion failed, server will cleanup via cascade:",
-              deleteError,
-            );
-          }
-        }
-
-        // Delete local draft (best-effort)
-        try {
-          await orderService.deleteDraftOrder(originDraftId);
-          setDraftId(null);
-        } catch (localDeleteError) {
-          console.warn(
-            "[OrderForm] ⚠️ Local draft deletion failed:",
-            localDeleteError,
-          );
-        }
+      // 🔧 FIX: Delete ALL drafts for this customer to cleanup duplicates/orphans
+      // This prevents draft banner from appearing after order submission
+      try {
+        console.log(
+          "[OrderForm] Deleting ALL drafts for customer:",
+          selectedCustomer.id,
+        );
+        await orderService.deleteAllDraftsForCustomer(selectedCustomer.id);
+        setDraftId(null);
+        setHasDraft(false);
+        console.log("[OrderForm] ✅ All customer drafts deleted");
+      } catch (deleteError) {
+        console.warn(
+          "[OrderForm] ⚠️ Failed to delete all customer drafts:",
+          deleteError,
+        );
+        // Non-critical, continue with order submission
       }
 
       // Save new/updated order (status will be determined by service)
