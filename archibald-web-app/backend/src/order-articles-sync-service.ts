@@ -331,7 +331,7 @@ export class OrderArticlesSyncService extends EventEmitter {
       } as ArticlesSyncProgress);
 
       return {
-        articles: enrichedArticles,
+        articles: articlesFromDb, // Use articles AFTER fixK3ArticleVAT
         totalVatAmount: parseFloat(totalVatAmountAfterFix.toFixed(2)),
         totalWithVat: parseFloat(totalWithVatAfterFix.toFixed(2)),
       };
