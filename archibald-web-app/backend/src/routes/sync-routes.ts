@@ -122,6 +122,8 @@ router.post(
                 status = ?,
                 discount_percent = ?,
                 target_total_with_vat = ?,
+                shipping_cost = ?,
+                shipping_tax = ?,
                 retry_count = ?,
                 error_message = ?,
                 updated_at = ?,
@@ -137,6 +139,8 @@ router.post(
                 order.status,
                 order.discountPercent || null,
                 order.targetTotalWithVAT || null,
+                order.shippingCost || 0,
+                order.shippingTax || 0,
                 order.retryCount || 0,
                 order.errorMessage || null,
                 order.updatedAt,
@@ -157,9 +161,9 @@ router.post(
                 `
               INSERT INTO pending_orders (
                 id, user_id, customer_id, customer_name, items_json, status,
-                discount_percent, target_total_with_vat, retry_count, error_message,
-                created_at, updated_at, device_id, origin_draft_id
-              ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                discount_percent, target_total_with_vat, shipping_cost, shipping_tax,
+                retry_count, error_message, created_at, updated_at, device_id, origin_draft_id
+              ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             `,
               )
               .run(
@@ -171,6 +175,8 @@ router.post(
                 order.status,
                 order.discountPercent || null,
                 order.targetTotalWithVAT || null,
+                order.shippingCost || 0,
+                order.shippingTax || 0,
                 order.retryCount || 0,
                 order.errorMessage || null,
                 order.createdAt,

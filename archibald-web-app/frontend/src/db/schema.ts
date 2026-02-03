@@ -102,6 +102,8 @@ export interface PendingOrder {
   items: PendingOrderItem[];
   discountPercent?: number;
   targetTotalWithVAT?: number;
+  shippingCost?: number; // Spese di trasporto K3 (imponibile)
+  shippingTax?: number; // IVA spese (22%)
   createdAt: string;
   updatedAt: string;
   status: "pending" | "syncing" | "error" | "completed-warehouse"; // 🔧 FIX #5: New status for warehouse-only orders

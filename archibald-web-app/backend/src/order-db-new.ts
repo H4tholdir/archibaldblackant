@@ -71,6 +71,10 @@ export interface OrderRecord {
   totalWithVat?: string | null; // Italian format: "987,65 €"
   articlesSyncedAt?: string | null; // ISO timestamp
 
+  // Shipping costs fields (automatic for imponibile < 200€)
+  shippingCost?: number | null; // Spese di trasporto K3 (imponibile)
+  shippingTax?: number | null; // IVA on shipping (22%)
+
   // Legacy/compatibility fields
   status?: string; // Legacy field (same as salesStatus for compatibility)
   lastScraped?: string; // ISO timestamp
@@ -731,6 +735,13 @@ export class OrderDatabaseNew {
     logger.info(
       `[OrderDatabaseNew] Saved ${articles.length} articles for order ${articles[0]?.orderId}`,
     );
+
+    // Automatically fix K3 article VAT if Archibald synced without calculating it
+    const orderId = articles[0]?.orderId;
+    if (orderId) {
+      this.fixK3ArticleVAT(orderId);
+    }
+
     return articles.length;
   }
 
@@ -870,6 +881,83 @@ export class OrderDatabaseNew {
       totalWithVat: totalWithVatStr,
       articlesSyncedAt: syncedAt,
     });
+  }
+
+  /**
+   * Fix K3 shipping article VAT when Archibald syncs without calculating it
+   * Identifies "Spese di trasporto K3" articles and adds missing 22% VAT
+   */
+  fixK3ArticleVAT(orderId: string): number {
+    const K3_VAT_RATE = 0.22; // 22% IVA
+    let fixedCount = 0;
+
+    // Find K3 articles without VAT calculated
+    const k3Articles = this.db
+      .prepare(
+        `SELECT id, article_code, article_description, unit_price, line_amount
+         FROM order_articles
+         WHERE order_id = ?
+         AND (article_code = 'K3' OR article_description LIKE '%Spese di trasporto K3%')
+         AND (vat_percent IS NULL OR vat_amount IS NULL OR line_total_with_vat IS NULL)`,
+      )
+      .all(orderId) as Array<{
+      id: number;
+      article_code: string;
+      article_description: string | null;
+      unit_price: number | null;
+      line_amount: number | null;
+    }>;
+
+    if (k3Articles.length === 0) {
+      return 0;
+    }
+
+    const updateStmt = this.db.prepare(`
+      UPDATE order_articles
+      SET vat_percent = ?,
+          vat_amount = ?,
+          line_total_with_vat = ?
+      WHERE id = ?
+    `);
+
+    const fixMany = this.db.transaction((articles: typeof k3Articles) => {
+      for (const article of articles) {
+        // Calculate VAT based on line_amount (imponibile)
+        const imponibile = article.line_amount || article.unit_price || 0;
+        const vatAmount = imponibile * K3_VAT_RATE;
+        const totalWithVat = imponibile + vatAmount;
+
+        updateStmt.run(
+          K3_VAT_RATE * 100, // Store as percentage (22)
+          parseFloat(vatAmount.toFixed(2)),
+          parseFloat(totalWithVat.toFixed(2)),
+          article.id,
+        );
+
+        fixedCount++;
+
+        logger.info(
+          `[OrderDatabaseNew] Fixed K3 article VAT for order ${orderId}`,
+          {
+            articleId: article.id,
+            articleCode: article.article_code,
+            imponibile: imponibile.toFixed(2),
+            vatAmount: vatAmount.toFixed(2),
+            totalWithVat: totalWithVat.toFixed(2),
+          },
+        );
+      }
+    });
+
+    fixMany(k3Articles);
+
+    if (fixedCount > 0) {
+      logger.info(
+        `[OrderDatabaseNew] Fixed ${fixedCount} K3 articles for order ${orderId}`,
+      );
+    }
+
+    return fixedCount;
   }
 
   countOrders(

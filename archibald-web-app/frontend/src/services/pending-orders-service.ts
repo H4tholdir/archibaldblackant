@@ -8,6 +8,10 @@ import {
 import { getDeviceId } from "../utils/device-id";
 import { unifiedSyncService } from "./unified-sync-service";
 import { fetchWithRetry } from "../utils/fetch-with-retry";
+import {
+  calculateOrderTotals,
+  calculateItemTotals,
+} from "../utils/order-calculations";
 
 // 🔧 FIX #4: Maximum retry attempts before auto-release
 const MAX_RETRY_ATTEMPTS = 3;
@@ -69,6 +73,29 @@ export class PendingOrdersService {
       }
     }
 
+    // Calculate shipping costs based on order totals
+    const itemsWithTotals = orderData.items.map((item) => {
+      const itemTotals = calculateItemTotals({
+        unitPrice: item.price,
+        quantity: item.quantity,
+        discountType: item.discount ? "amount" : undefined,
+        discountValue: item.discount,
+      });
+      return {
+        subtotalAfterDiscount: itemTotals.subtotalAfterDiscount,
+      };
+    });
+
+    const orderTotals = calculateOrderTotals(
+      itemsWithTotals,
+      orderData.discountPercent
+        ? {
+            discountType: "percentage",
+            discountValue: orderData.discountPercent,
+          }
+        : undefined,
+    );
+
     const id = crypto.randomUUID();
     const deviceId = getDeviceId();
     const now = new Date().toISOString();
@@ -76,6 +103,8 @@ export class PendingOrdersService {
     const order: PendingOrder = {
       id,
       ...sanitizedData,
+      shippingCost: orderTotals.shippingCost,
+      shippingTax: orderTotals.shippingTax,
       createdAt: now,
       updatedAt: now,
       status: "pending",

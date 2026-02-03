@@ -2,6 +2,8 @@ interface OrderSummaryProps {
   itemsSubtotal: number;
   globalDiscount: number;
   subtotalAfterGlobalDiscount: number;
+  shippingCost?: number;
+  shippingTax?: number;
   vat: number;
   total: number;
 }
@@ -10,6 +12,8 @@ export function OrderSummary({
   itemsSubtotal,
   globalDiscount,
   subtotalAfterGlobalDiscount,
+  shippingCost = 0,
+  shippingTax = 0,
   vat,
   total,
 }: OrderSummaryProps) {
@@ -81,6 +85,29 @@ export function OrderSummary({
             <span style={{ color: "#6b7280" }}>Subtotale (dopo sconto)</span>
             <span style={{ fontWeight: "500" }}>
               {formatCurrency(subtotalAfterGlobalDiscount)}
+            </span>
+          </div>
+        )}
+
+        {/* Shipping Costs */}
+        {shippingCost > 0 && (
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              paddingTop: "0.75rem",
+              borderTop: "1px solid #e5e7eb",
+            }}
+          >
+            <span style={{ color: "#6b7280" }}>
+              Spese di trasporto K3
+              <span style={{ fontSize: "0.875rem", marginLeft: "0.25rem" }}>
+                (€{shippingCost.toFixed(2)} + IVA)
+              </span>
+            </span>
+            <span style={{ fontWeight: "500" }}>
+              {formatCurrency(shippingCost + shippingTax)}
             </span>
           </div>
         )}
