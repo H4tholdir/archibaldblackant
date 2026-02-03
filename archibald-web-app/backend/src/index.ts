@@ -6030,6 +6030,14 @@ server.listen(config.server.port, async () => {
     logger.warn("⚠️  Migration 012 failed or already applied", { error });
   }
 
+  try {
+    const { runMigration020 } = require("./migrations/020-warehouse-boxes");
+    runMigration020();
+    logger.info("✅ Migration 020 completed (warehouse_boxes table)");
+  } catch (error) {
+    logger.warn("⚠️  Migration 020 failed or already applied", { error });
+  }
+
   // ========== AUTOMATIC BACKGROUND SYNC SERVICE ==========
   // Phase 24: Enable orchestrator auto-sync with staggered scheduling
   try {
