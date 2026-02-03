@@ -1,6 +1,6 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
-import { productService } from '../../services/products.service';
-import type { Product } from '../../db/schema';
+import { useState, useEffect, useRef, useCallback } from "react";
+import { productService } from "../../services/products.service";
+import type { Product } from "../../db/schema";
 
 interface ProductSelectorProps {
   onSelect: (product: Product) => void;
@@ -11,11 +11,11 @@ interface ProductSelectorProps {
 
 export function ProductSelector({
   onSelect,
-  placeholder = 'Cerca prodotto per nome o codice articolo...',
+  placeholder = "Cerca prodotto per nome o codice articolo...",
   disabled = false,
   searchFn = productService.searchProducts.bind(productService),
 }: ProductSelectorProps) {
-  const [searchQuery, setSearchQuery] = useState('');
+  const [searchQuery, setSearchQuery] = useState("");
   const [results, setResults] = useState<Product[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -55,8 +55,8 @@ export function ProductSelector({
         setResults(products);
         setShowDropdown(products.length > 0);
       } catch (err) {
-        setError('Errore durante la ricerca');
-        console.error('[ProductSelector] Search failed:', err);
+        setError("Errore durante la ricerca");
+        console.error("[ProductSelector] Search failed:", err);
       } finally {
         setLoading(false);
       }
@@ -82,8 +82,8 @@ export function ProductSelector({
       }
     };
 
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
   // Handle keyboard navigation
@@ -92,30 +92,30 @@ export function ProductSelector({
       if (!showDropdown || results.length === 0) return;
 
       switch (e.key) {
-        case 'ArrowDown':
+        case "ArrowDown":
           e.preventDefault();
           setHighlightedIndex((prev) =>
-            prev < results.length - 1 ? prev + 1 : prev
+            prev < results.length - 1 ? prev + 1 : prev,
           );
           break;
-        case 'ArrowUp':
+        case "ArrowUp":
           e.preventDefault();
           setHighlightedIndex((prev) => (prev > 0 ? prev - 1 : 0));
           break;
-        case 'Enter':
+        case "Enter":
           e.preventDefault();
           if (highlightedIndex >= 0 && highlightedIndex < results.length) {
             handleSelect(results[highlightedIndex]);
           }
           break;
-        case 'Escape':
+        case "Escape":
           e.preventDefault();
           setShowDropdown(false);
           setHighlightedIndex(-1);
           break;
       }
     },
-    [showDropdown, results, highlightedIndex]
+    [showDropdown, results, highlightedIndex],
   );
 
   const handleSelect = (product: Product) => {
@@ -138,16 +138,16 @@ export function ProductSelector({
   };
 
   return (
-    <div style={{ position: 'relative', width: '100%' }}>
+    <div style={{ position: "relative", width: "100%" }}>
       {/* Input Field */}
-      <div style={{ marginBottom: '0.5rem' }}>
+      <div style={{ marginBottom: "0.5rem" }}>
         <label
           htmlFor="product-search"
           style={{
-            display: 'block',
-            marginBottom: '0.25rem',
-            fontWeight: '500',
-            fontSize: '0.875rem',
+            display: "block",
+            marginBottom: "0.25rem",
+            fontWeight: "500",
+            fontSize: "0.875rem",
           }}
         >
           Prodotto
@@ -161,20 +161,21 @@ export function ProductSelector({
           onKeyDown={handleKeyDown}
           placeholder={placeholder}
           disabled={disabled}
+          autoComplete="off"
           aria-label="Cerca prodotto"
           aria-autocomplete="list"
           aria-controls="product-dropdown"
           aria-expanded={showDropdown}
           style={{
-            width: '100%',
-            padding: '0.5rem',
-            fontSize: '1rem',
-            border: '1px solid #ccc',
-            borderRadius: '4px',
-            outline: 'none',
+            width: "100%",
+            padding: "0.5rem",
+            fontSize: "1rem",
+            border: "1px solid #ccc",
+            borderRadius: "4px",
+            outline: "none",
             ...(selectedProduct && {
-              borderColor: '#22c55e',
-              backgroundColor: '#f0fdf4',
+              borderColor: "#22c55e",
+              backgroundColor: "#f0fdf4",
             }),
           }}
         />
@@ -182,31 +183,31 @@ export function ProductSelector({
 
       {/* Loading Indicator */}
       {loading && (
-        <div style={{ fontSize: '0.875rem', color: '#6b7280' }}>
+        <div style={{ fontSize: "0.875rem", color: "#6b7280" }}>
           Ricerca in corso...
         </div>
       )}
 
       {/* Error Message */}
       {error && (
-        <div style={{ fontSize: '0.875rem', color: '#dc2626' }}>{error}</div>
+        <div style={{ fontSize: "0.875rem", color: "#dc2626" }}>{error}</div>
       )}
 
       {/* Selected Product Confirmation */}
       {selectedProduct && !showDropdown && (
         <div
           style={{
-            padding: '0.5rem',
-            backgroundColor: '#f0fdf4',
-            border: '1px solid #22c55e',
-            borderRadius: '4px',
-            fontSize: '0.875rem',
-            color: '#15803d',
+            padding: "0.5rem",
+            backgroundColor: "#f0fdf4",
+            border: "1px solid #22c55e",
+            borderRadius: "4px",
+            fontSize: "0.875rem",
+            color: "#15803d",
           }}
         >
           ✅ Prodotto selezionato: <strong>{selectedProduct.name}</strong>
           {selectedProduct.article && (
-            <span style={{ marginLeft: '0.5rem', color: '#6b7280' }}>
+            <span style={{ marginLeft: "0.5rem", color: "#6b7280" }}>
               ({selectedProduct.article})
             </span>
           )}
@@ -220,16 +221,16 @@ export function ProductSelector({
           id="product-dropdown"
           role="listbox"
           style={{
-            position: 'absolute',
-            top: '100%',
+            position: "absolute",
+            top: "100%",
             left: 0,
             right: 0,
-            maxHeight: '300px',
-            overflowY: 'auto',
-            backgroundColor: 'white',
-            border: '1px solid #ccc',
-            borderRadius: '4px',
-            boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)',
+            maxHeight: "300px",
+            overflowY: "auto",
+            backgroundColor: "white",
+            border: "1px solid #ccc",
+            borderRadius: "4px",
+            boxShadow: "0 4px 6px rgba(0, 0, 0, 0.1)",
             zIndex: 1000,
           }}
         >
@@ -244,23 +245,23 @@ export function ProductSelector({
                 handleSelect(product);
               }}
               style={{
-                padding: '0.75rem',
-                cursor: 'pointer',
+                padding: "0.75rem",
+                cursor: "pointer",
                 backgroundColor:
-                  index === highlightedIndex ? '#f3f4f6' : 'white',
+                  index === highlightedIndex ? "#f3f4f6" : "white",
                 borderBottom:
-                  index < results.length - 1 ? '1px solid #e5e7eb' : 'none',
+                  index < results.length - 1 ? "1px solid #e5e7eb" : "none",
               }}
               onMouseEnter={() => setHighlightedIndex(index)}
             >
-              <div style={{ fontWeight: '500' }}>{product.name}</div>
+              <div style={{ fontWeight: "500" }}>{product.name}</div>
               {product.article && (
-                <div style={{ fontSize: '0.875rem', color: '#6b7280' }}>
+                <div style={{ fontSize: "0.875rem", color: "#6b7280" }}>
                   Codice: {product.article}
                 </div>
               )}
               {product.description && (
-                <div style={{ fontSize: '0.75rem', color: '#9ca3af' }}>
+                <div style={{ fontSize: "0.75rem", color: "#9ca3af" }}>
                   {product.description}
                 </div>
               )}

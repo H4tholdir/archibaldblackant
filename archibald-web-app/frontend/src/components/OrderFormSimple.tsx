@@ -1785,6 +1785,7 @@ export default function OrderFormSimple() {
               value={customerSearch}
               onChange={(e) => handleCustomerSearch(e.target.value)}
               placeholder="Cerca cliente per nome..."
+              autoComplete="off"
               style={{
                 width: "100%",
                 padding: isMobile ? "0.875rem" : "0.75rem",
@@ -1928,6 +1929,7 @@ export default function OrderFormSimple() {
               value={productSearch}
               onChange={(e) => handleProductSearch(e.target.value)}
               placeholder="Cerca articolo..."
+              autoComplete="off"
               style={{
                 width: "100%",
                 padding: isMobile ? "0.875rem" : "0.75rem",
