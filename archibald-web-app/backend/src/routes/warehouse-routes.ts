@@ -306,10 +306,16 @@ router.post(
         });
       }
 
-      if (!quantity || quantity <= 0) {
+      // Type-safe quantity validation
+      if (
+        !quantity ||
+        typeof quantity !== "number" ||
+        !Number.isInteger(quantity) ||
+        quantity <= 0
+      ) {
         return res.status(400).json({
           success: false,
-          error: "Quantità deve essere maggiore di 0",
+          error: "Quantità deve essere un numero intero maggiore di 0",
         });
       }
 
@@ -353,20 +359,24 @@ router.post(
       }
 
       // Ensure box exists in warehouse_boxes (create if not exists)
+      // Use INSERT OR IGNORE to handle race conditions (idempotent)
       const now = Date.now();
-      const boxExists = usersDb
-        .prepare(
-          `SELECT COUNT(*) as count FROM warehouse_boxes WHERE user_id = ? AND name = ?`,
-        )
-        .get(userId, boxName.trim()) as any;
-
-      if (boxExists.count === 0) {
-        usersDb
+      try {
+        const insertResult = usersDb
           .prepare(
-            `INSERT INTO warehouse_boxes (user_id, name, created_at, updated_at) VALUES (?, ?, ?, ?)`,
+            `INSERT OR IGNORE INTO warehouse_boxes (user_id, name, created_at, updated_at) VALUES (?, ?, ?, ?)`,
           )
           .run(userId, boxName.trim(), now, now);
-        logger.info("✅ Auto-created box in warehouse_boxes", {
+
+        if (insertResult.changes > 0) {
+          logger.info("✅ Auto-created box in warehouse_boxes", {
+            userId,
+            boxName: boxName.trim(),
+          });
+        }
+      } catch (error) {
+        // Should never happen with OR IGNORE, but log just in case
+        logger.warn("⚠️ Box creation skipped (already exists)", {
           userId,
           boxName: boxName.trim(),
         });
@@ -499,6 +509,40 @@ router.get(
         ]),
       );
 
+      // Optimization: Single query for all referenced boxes (avoid N+1)
+      const pendingOrders = ordersDb
+        .prepare(
+          `
+        SELECT items_json
+        FROM pending_orders
+        WHERE user_id = ?
+      `,
+        )
+        .all(userId) as any[];
+
+      const referencedBoxes = new Set<string>();
+      for (const order of pendingOrders) {
+        try {
+          const items = JSON.parse(order.items_json);
+          for (const item of items) {
+            if (item.boxName) {
+              referencedBoxes.add(item.boxName);
+            }
+            // Also check warehouseSources if present
+            if (item.warehouseSources) {
+              for (const source of item.warehouseSources) {
+                if (source.boxName) {
+                  referencedBoxes.add(source.boxName);
+                }
+              }
+            }
+          }
+        } catch (parseError) {
+          // Skip malformed JSON
+          logger.warn("⚠️ Failed to parse items_json", { parseError });
+        }
+      }
+
       const boxes: BoxWithStats[] = allBoxes.map((box) => {
         const boxStats = statsMap.get(box.name) || {
           itemsCount: 0,
@@ -508,19 +552,9 @@ router.get(
           soldItems: 0,
         };
 
-        // Check if box is referenced in pending_orders
-        const orderCount = ordersDb
-          .prepare(
-            `
-          SELECT COUNT(*) as count
-          FROM pending_orders
-          WHERE user_id = ? AND items_json LIKE '%"boxName":"' || ? || '"%'
-        `,
-          )
-          .get(userId, box.name) as any;
-
-        const canDelete =
-          boxStats.itemsCount === 0 && (orderCount?.count || 0) === 0;
+        // O(1) lookup instead of query per box
+        const isReferenced = referencedBoxes.has(box.name);
+        const canDelete = boxStats.itemsCount === 0 && !isReferenced;
 
         return {
           name: box.name,
