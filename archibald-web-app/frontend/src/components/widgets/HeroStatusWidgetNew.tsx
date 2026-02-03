@@ -42,7 +42,6 @@ export function HeroStatusWidgetNew({ data }: HeroStatusWidgetNewProps) {
   // Format comparison delta
   const formatDelta = (
     previousValue: number,
-    currentValue: number,
     absoluteDelta: number,
     percentageDelta: number,
   ): string => {
@@ -183,7 +182,6 @@ export function HeroStatusWidgetNew({ data }: HeroStatusWidgetNewProps) {
                 <div style={{ fontSize: "16px", fontWeight: "600" }}>
                   {formatDelta(
                     data.comparisonPreviousMonth.previousValue,
-                    data.comparisonPreviousMonth.currentValue,
                     data.comparisonPreviousMonth.absoluteDelta,
                     data.comparisonPreviousMonth.percentageDelta,
                   )}
@@ -213,7 +211,6 @@ export function HeroStatusWidgetNew({ data }: HeroStatusWidgetNewProps) {
                 <div style={{ fontSize: "16px", fontWeight: "600" }}>
                   {formatDelta(
                     data.comparisonSameMonthLastYear.previousValue,
-                    data.comparisonSameMonthLastYear.currentValue,
                     data.comparisonSameMonthLastYear.absoluteDelta,
                     data.comparisonSameMonthLastYear.percentageDelta,
                   )}

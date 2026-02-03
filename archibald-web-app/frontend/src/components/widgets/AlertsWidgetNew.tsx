@@ -33,15 +33,6 @@ export function AlertsWidgetNew({ data }: AlertsWidgetNewProps) {
 
   const style = severityStyles[data.severity];
 
-  const formatCurrency = (amount: number): string => {
-    return new Intl.NumberFormat("it-IT", {
-      style: "currency",
-      currency: "EUR",
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0,
-    }).format(amount);
-  };
-
   return (
     <div
       style={{
