@@ -187,7 +187,7 @@ export async function getFormatGuide(): Promise<unknown> {
   return result.data;
 }
 
-// ========== MANUAL ADD ITEM ==========
+// ========== ITEM VALIDATION (for real-time fuzzy matching) ==========
 
 export interface Product {
   id: string;
@@ -196,6 +196,43 @@ export interface Product {
   price?: number;
   vat?: number;
 }
+
+export interface ValidateItemResult {
+  matchedProduct: Product | null;
+  confidence: number;
+  suggestions: Product[];
+}
+
+/**
+ * Validate article code with fuzzy matching (no insert)
+ * Used for real-time validation in AddItemManuallyModal
+ */
+export async function validateWarehouseItemCode(
+  articleCode: string,
+): Promise<ValidateItemResult> {
+  const token = localStorage.getItem("archibald_jwt");
+  const response = await fetchWithRetry(
+    `${API_BASE_URL}/api/warehouse/items/validate?code=${encodeURIComponent(articleCode)}`,
+    {
+      method: "GET",
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    },
+  );
+
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.error || "Errore validazione articolo");
+  }
+
+  const result = await response.json();
+  if (!result.success) throw new Error(result.error);
+
+  return result.data;
+}
+
+// ========== MANUAL ADD ITEM ==========
 
 export interface ManualAddItemResult {
   item: WarehouseItem;

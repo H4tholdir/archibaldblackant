@@ -193,6 +193,70 @@ router.get("/warehouse/format-guide", (req: Request, res: Response) => {
   });
 });
 
+// ========== ITEM VALIDATION (for real-time fuzzy matching) ==========
+
+/**
+ * GET /api/warehouse/items/validate
+ * Validate article code with fuzzy matching (no insert)
+ *
+ * Query params:
+ *   - code: string (article code to validate)
+ *
+ * Response:
+ * {
+ *   success: true,
+ *   data: {
+ *     matchedProduct: Product | null,
+ *     confidence: number,
+ *     suggestions: Product[]
+ *   }
+ * }
+ */
+router.get(
+  "/warehouse/items/validate",
+  authenticateJWT,
+  (req: AuthRequest, res: Response) => {
+    try {
+      const { code } = req.query;
+
+      if (!code || typeof code !== "string" || !code.trim()) {
+        return res.status(400).json({
+          success: false,
+          error: "Parametro 'code' obbligatorio",
+        });
+      }
+
+      // Fuzzy matching with product database
+      const searchResults = productDb.searchProductsByName(code.trim(), 5);
+
+      let matchedProduct = null;
+      let confidence = 0;
+      const suggestions = searchResults.map((r) => r.product);
+
+      if (searchResults.length > 0) {
+        const bestMatch = searchResults[0];
+        confidence = bestMatch.confidence;
+        matchedProduct = bestMatch.product;
+      }
+
+      res.json({
+        success: true,
+        data: {
+          matchedProduct,
+          confidence,
+          suggestions,
+        },
+      });
+    } catch (error) {
+      logger.error("❌ Error validating warehouse item code", { error });
+      res.status(500).json({
+        success: false,
+        error: error instanceof Error ? error.message : "Errore server",
+      });
+    }
+  },
+);
+
 // ========== MANUAL ADD ITEM ==========
 
 interface ManualAddItemRequest {
@@ -288,8 +352,27 @@ router.post(
         warning = `Nessun match trovato nel database prodotti. Articolo inserito con codice personalizzato.`;
       }
 
-      // Insert into warehouse_items
+      // Ensure box exists in warehouse_boxes (create if not exists)
       const now = Date.now();
+      const boxExists = usersDb
+        .prepare(
+          `SELECT COUNT(*) as count FROM warehouse_boxes WHERE user_id = ? AND name = ?`,
+        )
+        .get(userId, boxName.trim()) as any;
+
+      if (boxExists.count === 0) {
+        usersDb
+          .prepare(
+            `INSERT INTO warehouse_boxes (user_id, name, created_at, updated_at) VALUES (?, ?, ?, ?)`,
+          )
+          .run(userId, boxName.trim(), now, now);
+        logger.info("✅ Auto-created box in warehouse_boxes", {
+          userId,
+          boxName: boxName.trim(),
+        });
+      }
+
+      // Insert into warehouse_items
       const insertStmt = usersDb.prepare(`
         INSERT INTO warehouse_items (
           user_id, article_code, description, quantity, box_name,
@@ -363,7 +446,7 @@ interface BoxWithStats {
 
 /**
  * GET /api/warehouse/boxes
- * Get all boxes with statistics for current user
+ * Get all boxes with statistics for current user (including empty boxes)
  */
 router.get(
   "/warehouse/boxes",
@@ -372,7 +455,19 @@ router.get(
     try {
       const userId = req.user!.userId;
 
-      // Get box statistics
+      // Get all boxes from warehouse_boxes table (including empty ones)
+      const allBoxes = usersDb
+        .prepare(
+          `
+        SELECT name, created_at, updated_at
+        FROM warehouse_boxes
+        WHERE user_id = ?
+        ORDER BY name
+      `,
+        )
+        .all(userId) as any[];
+
+      // Get statistics for boxes that have items
       const stats = usersDb
         .prepare(
           `
@@ -386,12 +481,33 @@ router.get(
         FROM warehouse_items
         WHERE user_id = ?
         GROUP BY box_name
-        ORDER BY box_name
       `,
         )
         .all(userId) as any[];
 
-      const boxes: BoxWithStats[] = stats.map((stat) => {
+      // Create map for quick lookup
+      const statsMap = new Map(
+        stats.map((s: any) => [
+          s.box_name,
+          {
+            itemsCount: s.items_count,
+            totalQuantity: s.total_quantity || 0,
+            availableItems: s.available_items || 0,
+            reservedItems: s.reserved_items || 0,
+            soldItems: s.sold_items || 0,
+          },
+        ]),
+      );
+
+      const boxes: BoxWithStats[] = allBoxes.map((box) => {
+        const boxStats = statsMap.get(box.name) || {
+          itemsCount: 0,
+          totalQuantity: 0,
+          availableItems: 0,
+          reservedItems: 0,
+          soldItems: 0,
+        };
+
         // Check if box is referenced in pending_orders
         const orderCount = ordersDb
           .prepare(
@@ -401,18 +517,18 @@ router.get(
           WHERE user_id = ? AND items_json LIKE '%"boxName":"' || ? || '"%'
         `,
           )
-          .get(userId, stat.box_name) as any;
+          .get(userId, box.name) as any;
 
         const canDelete =
-          stat.items_count === 0 && (orderCount?.count || 0) === 0;
+          boxStats.itemsCount === 0 && (orderCount?.count || 0) === 0;
 
         return {
-          name: stat.box_name,
-          itemsCount: stat.items_count,
-          totalQuantity: stat.total_quantity || 0,
-          availableItems: stat.available_items || 0,
-          reservedItems: stat.reserved_items || 0,
-          soldItems: stat.sold_items || 0,
+          name: box.name,
+          itemsCount: boxStats.itemsCount,
+          totalQuantity: boxStats.totalQuantity,
+          availableItems: boxStats.availableItems,
+          reservedItems: boxStats.reservedItems,
+          soldItems: boxStats.soldItems,
           canDelete,
         };
       });
@@ -450,13 +566,13 @@ router.post(
         });
       }
 
-      // Check if box already exists
+      // Check if box already exists in warehouse_boxes
       const existing = usersDb
         .prepare(
           `
         SELECT COUNT(*) as count
-        FROM warehouse_items
-        WHERE user_id = ? AND box_name = ?
+        FROM warehouse_boxes
+        WHERE user_id = ? AND name = ?
       `,
         )
         .get(userId, name.trim()) as any;
@@ -468,8 +584,15 @@ router.post(
         });
       }
 
-      // Box created implicitly when first item is added
-      // Return success with empty stats
+      // Insert into warehouse_boxes table
+      const now = Date.now();
+      const insertStmt = usersDb.prepare(`
+        INSERT INTO warehouse_boxes (user_id, name, created_at, updated_at)
+        VALUES (?, ?, ?, ?)
+      `);
+
+      insertStmt.run(userId, name.trim(), now, now);
+
       const box: BoxWithStats = {
         name: name.trim(),
         itemsCount: 0,
@@ -480,7 +603,10 @@ router.post(
         canDelete: true,
       };
 
-      logger.info("✅ Warehouse box created", { userId, boxName: name.trim() });
+      logger.info("✅ Warehouse box created in warehouse_boxes", {
+        userId,
+        boxName: name.trim(),
+      });
 
       res.json({
         success: true,
@@ -523,13 +649,13 @@ router.put(
         });
       }
 
-      // Check if new name already exists
+      // Check if new name already exists in warehouse_boxes
       const existing = usersDb
         .prepare(
           `
         SELECT COUNT(*) as count
-        FROM warehouse_items
-        WHERE user_id = ? AND box_name = ?
+        FROM warehouse_boxes
+        WHERE user_id = ? AND name = ?
       `,
         )
         .get(userId, newName.trim()) as any;
@@ -541,43 +667,95 @@ router.put(
         });
       }
 
-      // Transaction: update warehouse_items + pending_orders
-      const updateItems = usersDb.prepare(`
+      // Atomic transaction: update warehouse_boxes + warehouse_items + pending_orders
+      // Step 1: Prepare statements
+      const updateBoxStmt = usersDb.prepare(`
+        UPDATE warehouse_boxes
+        SET name = ?, updated_at = ?
+        WHERE user_id = ? AND name = ?
+      `);
+
+      const updateItemsStmt = usersDb.prepare(`
         UPDATE warehouse_items
         SET box_name = ?
         WHERE user_id = ? AND box_name = ?
       `);
 
-      const itemsResult = updateItems.run(newName.trim(), userId, oldName);
-
-      // Update pending_orders.items_json
-      const pendingOrders = ordersDb
-        .prepare(
-          `
+      const selectOrdersStmt = ordersDb.prepare(`
         SELECT id, items_json
         FROM pending_orders
         WHERE user_id = ? AND items_json LIKE '%"boxName":"' || ? || '"%'
-      `,
-        )
-        .all(userId, oldName) as any[];
+      `);
 
-      let updatedOrders = 0;
       const updateOrderStmt = ordersDb.prepare(`
         UPDATE pending_orders
         SET items_json = ?
         WHERE id = ?
       `);
 
-      for (const order of pendingOrders) {
-        const items = JSON.parse(order.items_json);
-        const updatedItems = items.map((item: any) => {
-          if (item.boxName === oldName) {
-            return { ...item, boxName: newName.trim() };
-          }
-          return item;
+      // Step 2: Execute in transactions with rollback on failure
+      let itemsResult: any;
+      let updatedOrders = 0;
+      const updateTime = Date.now();
+
+      try {
+        // Transaction 1: Update warehouse_boxes + warehouse_items
+        const updateWarehouseTransaction = usersDb.transaction(() => {
+          // Update box name in warehouse_boxes
+          updateBoxStmt.run(newName.trim(), updateTime, userId, oldName);
+          // Update all items with old box name
+          return updateItemsStmt.run(newName.trim(), userId, oldName);
         });
-        updateOrderStmt.run(JSON.stringify(updatedItems), order.id);
-        updatedOrders++;
+        itemsResult = updateWarehouseTransaction();
+
+        // Transaction 2: Update pending_orders
+        const updateOrdersTransaction = ordersDb.transaction(() => {
+          const pendingOrders = selectOrdersStmt.all(userId, oldName) as any[];
+          let count = 0;
+
+          for (const order of pendingOrders) {
+            const items = JSON.parse(order.items_json);
+            const updatedItems = items.map((item: any) => {
+              if (item.boxName === oldName) {
+                return { ...item, boxName: newName.trim() };
+              }
+              return item;
+            });
+            updateOrderStmt.run(JSON.stringify(updatedItems), order.id);
+            count++;
+          }
+
+          return count;
+        });
+        updatedOrders = updateOrdersTransaction();
+      } catch (ordersError) {
+        // Rollback: revert warehouse_boxes + warehouse_items to old name
+        logger.error("❌ Error updating pending_orders, rolling back", {
+          ordersError,
+        });
+        try {
+          const rollbackTransaction = usersDb.transaction(() => {
+            // Revert warehouse_boxes
+            usersDb
+              .prepare(
+                `UPDATE warehouse_boxes SET name = ? WHERE user_id = ? AND name = ?`,
+              )
+              .run(oldName, userId, newName.trim());
+            // Revert warehouse_items
+            usersDb
+              .prepare(
+                `UPDATE warehouse_items SET box_name = ? WHERE user_id = ? AND box_name = ?`,
+              )
+              .run(oldName, userId, newName.trim());
+          });
+          rollbackTransaction();
+          logger.info(
+            "✅ Rollback successful (warehouse_boxes + warehouse_items)",
+          );
+        } catch (rollbackError) {
+          logger.error("❌ CRITICAL: Rollback failed!", { rollbackError });
+        }
+        throw ordersError; // Re-throw to return error to client
       }
 
       logger.info("✅ Warehouse box renamed", {
@@ -652,7 +830,12 @@ router.delete(
         });
       }
 
-      logger.info("✅ Warehouse box deleted (was empty)", {
+      // Delete from warehouse_boxes
+      usersDb
+        .prepare(`DELETE FROM warehouse_boxes WHERE user_id = ? AND name = ?`)
+        .run(userId, name);
+
+      logger.info("✅ Warehouse box deleted from warehouse_boxes", {
         userId,
         boxName: name,
       });

@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import {
   addWarehouseItemManually,
+  validateWarehouseItemCode,
   type ManualAddItemResult,
   type Product,
 } from "../services/warehouse-service";
@@ -54,22 +55,58 @@ export function AddItemManuallyModal({
     }
   }, [isOpen, availableBoxes]);
 
-  // Debounce validation (500ms)
+  // Debounce validation (500ms) - Real-time fuzzy matching
   useEffect(() => {
-    if (!articleCode.trim() || loading) return;
+    if (!articleCode.trim() || loading) {
+      // Reset validation state if empty
+      setValidationState({
+        status: "idle",
+        confidence: 0,
+        matchedProduct: null,
+        suggestions: [],
+      });
+      setDescription("");
+      return;
+    }
 
     const timer = setTimeout(async () => {
       try {
-        // Simulate fuzzy matching by calling the API
-        // (In realtà chiameremo solo al submit per semplicità)
+        // Call validation API for real-time fuzzy matching
+        const result = await validateWarehouseItemCode(articleCode.trim());
+
+        const { matchedProduct, confidence, suggestions } = result;
+
+        // Update validation state based on confidence
+        let status: "valid" | "warning" | "invalid" = "invalid";
+        if (confidence >= 0.7) {
+          status = "valid";
+          // Auto-fill description for high confidence matches
+          setDescription(
+            matchedProduct?.name || matchedProduct?.description || "",
+          );
+        } else if (confidence >= 0.3) {
+          status = "warning";
+          setDescription(""); // Allow manual entry
+        } else {
+          status = "invalid";
+          setDescription(""); // Allow manual entry
+        }
+
+        setValidationState({
+          status,
+          confidence,
+          matchedProduct,
+          suggestions,
+        });
+      } catch (error) {
+        console.error("Validation error:", error);
+        // On error, reset to idle (don't block user)
         setValidationState({
           status: "idle",
           confidence: 0,
           matchedProduct: null,
           suggestions: [],
         });
-      } catch (error) {
-        console.error("Validation error:", error);
       }
     }, 500);
 
@@ -158,8 +195,16 @@ export function AddItemManuallyModal({
   };
 
   const handleSuggestionClick = (product: Product) => {
+    // Set article code (will trigger validation via useEffect)
     setArticleCode(product.id);
+    // Pre-fill description and validation state immediately
     setDescription(product.name || product.description || "");
+    setValidationState({
+      status: "valid",
+      confidence: 1.0, // Perfect match since user clicked suggestion
+      matchedProduct: product,
+      suggestions: [],
+    });
   };
 
   if (!isOpen) return null;
@@ -337,17 +382,29 @@ export function AddItemManuallyModal({
                 }}
               >
                 Descrizione
+                {validationState.confidence >= 0.7 && (
+                  <span
+                    style={{
+                      marginLeft: "8px",
+                      fontSize: "12px",
+                      color: "#155724",
+                      fontWeight: 400,
+                    }}
+                  >
+                    (auto-compilato)
+                  </span>
+                )}
               </label>
               <input
                 type="text"
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
-                placeholder="Auto-compilato o manuale"
-                disabled={
-                  loading ||
-                  (validationState.matchedProduct !== null &&
-                    validationState.confidence >= 0.7)
+                placeholder={
+                  validationState.confidence >= 0.7
+                    ? "Auto-compilato da database"
+                    : "Inserisci descrizione manualmente"
                 }
+                disabled={loading || validationState.confidence >= 0.7}
                 style={{
                   width: "100%",
                   padding: "10px 12px",
@@ -355,6 +412,10 @@ export function AddItemManuallyModal({
                   border: "1px solid #ccc",
                   borderRadius: "6px",
                   boxSizing: "border-box",
+                  backgroundColor:
+                    validationState.confidence >= 0.7 ? "#f0f0f0" : "#fff",
+                  cursor:
+                    validationState.confidence >= 0.7 ? "not-allowed" : "text",
                 }}
               />
             </div>
