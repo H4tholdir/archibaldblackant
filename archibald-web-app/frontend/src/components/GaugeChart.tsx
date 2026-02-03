@@ -14,23 +14,35 @@ export function GaugeChart({
   animate = true,
 }: GaugeChartProps) {
   const [animatedPercentage, setAnimatedPercentage] = useState(0);
+  const [animatedNeedleAngle, setAnimatedNeedleAngle] = useState(180);
 
   useEffect(() => {
     if (animate) {
       // Animate from 0 to target percentage
       const duration = 1500; // ms
       const steps = 60;
-      const increment = percentage / steps;
-      let current = 0;
+      const targetAngle = 180 - (percentage / 100) * 180;
+      const angleIncrement = (180 - targetAngle) / steps;
+      const percentIncrement = percentage / steps;
+
+      let currentPercent = 0;
+      let currentAngle = 180;
       let step = 0;
 
       const timer = setInterval(() => {
         step++;
-        current = Math.min(percentage, current + increment);
-        setAnimatedPercentage(current);
+        currentPercent = Math.min(
+          percentage,
+          currentPercent + percentIncrement,
+        );
+        currentAngle = Math.max(targetAngle, currentAngle - angleIncrement);
 
-        if (step >= steps || current >= percentage) {
+        setAnimatedPercentage(currentPercent);
+        setAnimatedNeedleAngle(currentAngle);
+
+        if (step >= steps || currentPercent >= percentage) {
           setAnimatedPercentage(percentage);
+          setAnimatedNeedleAngle(targetAngle);
           clearInterval(timer);
         }
       }, duration / steps);
@@ -38,6 +50,7 @@ export function GaugeChart({
       return () => clearInterval(timer);
     } else {
       setAnimatedPercentage(percentage);
+      setAnimatedNeedleAngle(180 - (percentage / 100) * 180);
     }
   }, [percentage, animate]);
 
@@ -60,9 +73,6 @@ export function GaugeChart({
   };
 
   const color = getColor(clampedPercentage);
-
-  // Needle angle calculation (gauge goes from 180deg to 0deg, i.e., left to right)
-  const needleAngle = 180 - (clampedPercentage / 100) * 180;
 
   // Gauge colors for gradient segments
   const gradientId = `gauge-gradient-${Math.random()}`;
@@ -142,13 +152,7 @@ export function GaugeChart({
         })}
 
         {/* Needle (animated pointer) */}
-        <g
-          style={{
-            transformOrigin: `${center}px ${center}px`,
-            transform: `rotate(${needleAngle}deg)`,
-            transition: animate ? "transform 1.5s ease-out" : "none",
-          }}
-        >
+        <g transform={`rotate(${animatedNeedleAngle}, ${center}, ${center})`}>
           <line
             x1={center}
             y1={center}

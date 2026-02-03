@@ -4,6 +4,27 @@
  */
 
 import type { Database } from "better-sqlite3";
+import { logger } from "./logger";
+
+/**
+ * ORDER AMOUNT OVERRIDES
+ * Hardcoded corrections for orders with erroneous data from Archibald
+ *
+ * Format: { "ORDER_NUMBER": { correctAmount: number, reason: string } }
+ *
+ * NOTE: These overrides are applied during revenue calculations.
+ * The database values remain unchanged to preserve sync integrity.
+ */
+const ORDER_AMOUNT_OVERRIDES: Record<
+  string,
+  { correctAmount: number; reason: string }
+> = {
+  "ORD/26001461": {
+    correctAmount: 415.48,
+    reason:
+      "Bug Archibald: non ha registrato lo sconto globale. Imponibile reale: 415,48€ invece di 933,44€ (gen 2025)",
+  },
+};
 
 export interface TemporalComparison {
   previousValue: number;
@@ -103,6 +124,8 @@ export function getMonthsAgo(months: number): Date {
  * Calculate total revenue from orders in a date range
  * Uses 'total_amount' field (matches existing widget logic)
  * TODO: Switch to imponibile (taxable amount without VAT) when column is added
+ *
+ * NOTE: Applies ORDER_AMOUNT_OVERRIDES for known erroneous orders
  */
 export function calculateRevenueInRange(
   db: Database,
@@ -110,6 +133,7 @@ export function calculateRevenueInRange(
   startDate: Date,
   endDate: Date,
 ): number {
+  // First get basic sum
   const query = `
     SELECT COALESCE(SUM(CAST(total_amount AS REAL)), 0) as total
     FROM orders
@@ -126,7 +150,39 @@ export function calculateRevenueInRange(
     total: number;
   };
 
-  return result?.total || 0;
+  let adjustedTotal = result?.total || 0;
+
+  // Check if any orders in this range have overrides
+  const ordersQuery = `
+    SELECT order_number, CAST(total_amount AS REAL) as amount
+    FROM orders
+    WHERE user_id = ?
+      AND creation_date >= ?
+      AND creation_date <= ?
+      AND total_amount IS NOT NULL
+      AND total_amount != ''
+  `;
+
+  const orders = db
+    .prepare(ordersQuery)
+    .all(userId, startDate.toISOString(), endDate.toISOString()) as Array<{
+    order_number: string;
+    amount: number;
+  }>;
+
+  // Apply overrides
+  for (const order of orders) {
+    const override = ORDER_AMOUNT_OVERRIDES[order.order_number];
+    if (override) {
+      const diff = override.correctAmount - order.amount;
+      adjustedTotal += diff;
+      logger.info(
+        `[temporal-comparisons] Applied override for ${order.order_number}: ${order.amount}€ → ${override.correctAmount}€ (${diff > 0 ? "+" : ""}${diff.toFixed(2)}€) - ${override.reason}`,
+      );
+    }
+  }
+
+  return adjustedTotal;
 }
 
 /**

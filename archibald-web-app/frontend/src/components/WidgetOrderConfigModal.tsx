@@ -16,8 +16,8 @@ interface WidgetOrderConfigModalProps {
 export function WidgetOrderConfigModal({
   isOpen,
   onClose,
-  year,
-  month,
+  year: initialYear,
+  month: initialMonth,
   onUpdate,
 }: WidgetOrderConfigModalProps) {
   const [data, setData] = useState<WidgetOrdersResponse | null>(null);
@@ -27,20 +27,27 @@ export function WidgetOrderConfigModal({
   const [filterExcluded, setFilterExcluded] = useState<
     "all" | "included" | "excluded"
   >("all");
+  const [selectedYear, setSelectedYear] = useState(initialYear);
+  const [selectedMonth, setSelectedMonth] = useState(initialMonth);
 
   useEffect(() => {
     if (isOpen) {
+      setSelectedYear(initialYear);
+      setSelectedMonth(initialMonth);
       loadOrders();
     }
-  }, [isOpen, year, month]);
+  }, [isOpen, initialYear, initialMonth]);
 
   const loadOrders = async () => {
     setLoading(true);
     try {
       const token = localStorage.getItem("archibald_jwt");
-      const response = await fetch(`/api/widget/orders/${year}/${month}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const response = await fetch(
+        `/api/widget/orders/${selectedYear}/${selectedMonth}`,
+        {
+          headers: { Authorization: `Bearer ${token}` },
+        },
+      );
 
       if (response.ok) {
         const data = await response.json();
@@ -202,9 +209,156 @@ export function WidgetOrderConfigModal({
           </button>
         </div>
 
-        <p style={{ color: "#7f8c8d", marginBottom: "20px" }}>
-          Periodo: {month}/{year} • Seleziona quali ordini includere nei calcoli
-          del widget
+        {/* Period Selector */}
+        <div
+          style={{
+            display: "flex",
+            gap: "15px",
+            marginBottom: "20px",
+            padding: "15px",
+            backgroundColor: "#f8f9fa",
+            borderRadius: "8px",
+            alignItems: "center",
+            flexWrap: "wrap",
+          }}
+        >
+          <div style={{ display: "flex", gap: "10px", alignItems: "center" }}>
+            <label
+              style={{
+                fontSize: "14px",
+                fontWeight: "600",
+                color: "#2c3e50",
+              }}
+            >
+              📅 Periodo:
+            </label>
+            <select
+              value={selectedMonth}
+              onChange={(e) => {
+                setSelectedMonth(Number(e.target.value));
+              }}
+              style={{
+                padding: "8px 12px",
+                border: "2px solid #3498db",
+                borderRadius: "6px",
+                fontSize: "14px",
+                fontWeight: "500",
+                cursor: "pointer",
+                backgroundColor: "white",
+              }}
+            >
+              {[
+                "Gennaio",
+                "Febbraio",
+                "Marzo",
+                "Aprile",
+                "Maggio",
+                "Giugno",
+                "Luglio",
+                "Agosto",
+                "Settembre",
+                "Ottobre",
+                "Novembre",
+                "Dicembre",
+              ].map((monthName, index) => (
+                <option key={index + 1} value={index + 1}>
+                  {monthName}
+                </option>
+              ))}
+            </select>
+            <select
+              value={selectedYear}
+              onChange={(e) => {
+                setSelectedYear(Number(e.target.value));
+              }}
+              style={{
+                padding: "8px 12px",
+                border: "2px solid #3498db",
+                borderRadius: "6px",
+                fontSize: "14px",
+                fontWeight: "500",
+                cursor: "pointer",
+                backgroundColor: "white",
+              }}
+            >
+              {Array.from(
+                { length: 5 },
+                (_, i) => new Date().getFullYear() - i,
+              ).map((yearOption) => (
+                <option key={yearOption} value={yearOption}>
+                  {yearOption}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <button
+            onClick={loadOrders}
+            disabled={loading}
+            style={{
+              padding: "8px 16px",
+              backgroundColor: "#3498db",
+              color: "white",
+              border: "none",
+              borderRadius: "6px",
+              fontSize: "14px",
+              fontWeight: "600",
+              cursor: loading ? "not-allowed" : "pointer",
+              opacity: loading ? 0.6 : 1,
+            }}
+          >
+            {loading ? "⏳ Caricamento..." : "🔄 Carica Periodo"}
+          </button>
+
+          <div style={{ display: "flex", gap: "8px", marginLeft: "auto" }}>
+            <button
+              onClick={() => {
+                const newMonth = selectedMonth === 1 ? 12 : selectedMonth - 1;
+                const newYear =
+                  selectedMonth === 1 ? selectedYear - 1 : selectedYear;
+                setSelectedMonth(newMonth);
+                setSelectedYear(newYear);
+              }}
+              style={{
+                padding: "8px 12px",
+                backgroundColor: "#95a5a6",
+                color: "white",
+                border: "none",
+                borderRadius: "6px",
+                fontSize: "14px",
+                cursor: "pointer",
+              }}
+              title="Mese Precedente"
+            >
+              ◀ Precedente
+            </button>
+            <button
+              onClick={() => {
+                const newMonth = selectedMonth === 12 ? 1 : selectedMonth + 1;
+                const newYear =
+                  selectedMonth === 12 ? selectedYear + 1 : selectedYear;
+                setSelectedMonth(newMonth);
+                setSelectedYear(newYear);
+              }}
+              style={{
+                padding: "8px 12px",
+                backgroundColor: "#95a5a6",
+                color: "white",
+                border: "none",
+                borderRadius: "6px",
+                fontSize: "14px",
+                cursor: "pointer",
+              }}
+              title="Mese Successivo"
+            >
+              Successivo ▶
+            </button>
+          </div>
+        </div>
+
+        <p style={{ color: "#7f8c8d", marginBottom: "15px", fontSize: "13px" }}>
+          Seleziona quali ordini includere nei calcoli del widget per il periodo
+          scelto
         </p>
 
         {loading ? (
@@ -415,7 +569,9 @@ export function WidgetOrderConfigModal({
                             opacity: saving ? 0.6 : 1,
                           }}
                         >
-                          {order.excludedFromMonthly ? "❌ Escluso" : "✅ Incluso"}
+                          {order.excludedFromMonthly
+                            ? "❌ Escluso"
+                            : "✅ Incluso"}
                         </button>
                       </td>
                       <td style={{ padding: "12px", textAlign: "center" }}>
@@ -438,7 +594,9 @@ export function WidgetOrderConfigModal({
                             opacity: saving ? 0.6 : 1,
                           }}
                         >
-                          {order.excludedFromYearly ? "❌ Escluso" : "✅ Incluso"}
+                          {order.excludedFromYearly
+                            ? "❌ Escluso"
+                            : "✅ Incluso"}
                         </button>
                       </td>
                     </tr>

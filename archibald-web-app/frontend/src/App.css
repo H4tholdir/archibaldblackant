@@ -2076,7 +2076,9 @@
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
 }
 
-.privacy-toggle-checkbox:checked + .privacy-toggle-switch .privacy-toggle-slider {
+.privacy-toggle-checkbox:checked
+  + .privacy-toggle-switch
+  .privacy-toggle-slider {
   transform: translateX(24px);
 }
 
@@ -2186,6 +2188,14 @@
 @media (max-width: 480px) {
   .kpi-cards-grid {
     grid-template-columns: 1fr;
+  }
+
+  .kpi-card {
+    padding: 16px;
+  }
+
+  .kpi-card-value {
+    font-size: 1.5rem !important;
   }
 }
 
@@ -2760,5 +2770,161 @@
 
   .alerts-message {
     font-size: 0.95rem;
+  }
+}
+
+/* ============================================================================
+   MOBILE RESPONSIVENESS IMPROVEMENTS
+   Enhanced responsive styles for all widgets on small screens
+   ============================================================================ */
+
+/* Small mobile devices (iPhone SE, etc.) */
+@media (max-width: 375px) {
+  .app-main {
+    padding: 0.75rem;
+  }
+
+  .card {
+    padding: 1rem;
+    border-radius: 8px;
+  }
+
+  .card-title {
+    font-size: 1.1rem;
+  }
+}
+
+/* Tables responsive */
+@media (max-width: 768px) {
+  table {
+    display: block;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    white-space: nowrap;
+  }
+
+  /* Widget order config modal adjustments */
+  .modal-content {
+    width: 95% !important;
+    max-width: 95% !important;
+    padding: 20px !important;
+  }
+
+  /* Reduce font sizes in tables */
+  table th,
+  table td {
+    font-size: 12px !important;
+    padding: 8px 6px !important;
+  }
+
+  /* Stack filter controls vertically */
+  .filter-controls {
+    flex-direction: column !important;
+  }
+
+  .filter-controls > * {
+    width: 100% !important;
+  }
+}
+
+/* Orders Summary Widget responsive */
+@media (max-width: 640px) {
+  .orders-summary-widget {
+    overflow-x: auto;
+  }
+
+  .orders-summary-widget table {
+    min-width: 500px;
+  }
+}
+
+/* Forecast Widget responsive */
+@media (max-width: 768px) {
+  .forecast-widget {
+    padding: 16px !important;
+  }
+
+  .forecast-widget .widget-title {
+    font-size: 1.1rem !important;
+  }
+
+  .forecast-widget .forecast-value {
+    font-size: 1.3rem !important;
+  }
+}
+
+/* Balance Widget responsive */
+@media (max-width: 640px) {
+  .balance-widget {
+    padding: 16px !important;
+  }
+
+  .balance-chart-container {
+    max-width: 200px !important;
+    margin: 0 auto !important;
+  }
+}
+
+/* Action Suggestion Widget responsive */
+@media (max-width: 480px) {
+  .action-suggestion-widget {
+    padding: 16px !important;
+  }
+
+  .action-suggestion-icon {
+    font-size: 2rem !important;
+  }
+
+  .action-suggestion-text {
+    font-size: 0.95rem !important;
+  }
+}
+
+/* Alerts Widget responsive */
+@media (max-width: 640px) {
+  .alerts-widget {
+    padding: 16px !important;
+  }
+
+  .alert-item {
+    padding: 12px !important;
+  }
+
+  .alert-text {
+    font-size: 0.9rem !important;
+  }
+}
+
+/* Hero Widget additional mobile improvements */
+@media (max-width: 480px) {
+  .hero-status-widget-new {
+    padding: 20px 16px !important;
+  }
+
+  .hero-status-widget-new h2 {
+    font-size: 1.3rem !important;
+  }
+
+  .gauge-chart-container {
+    transform: scale(0.9);
+  }
+}
+
+/* Prevent horizontal overflow on all widgets */
+@media (max-width: 768px) {
+  * {
+    max-width: 100%;
+  }
+
+  img {
+    max-width: 100%;
+    height: auto;
+  }
+
+  /* Ensure buttons don't overflow */
+  button {
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
 }

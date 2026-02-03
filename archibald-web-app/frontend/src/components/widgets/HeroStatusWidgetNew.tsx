@@ -117,11 +117,13 @@ export function HeroStatusWidgetNew({ data }: HeroStatusWidgetNewProps) {
         {/* Current / Target Values */}
         <div
           style={{
-            fontSize: "24px",
-            fontWeight: "600",
-            marginTop: "20px",
-            marginBottom: "15px",
+            fontSize: "clamp(24px, 5vw, 32px)",
+            fontWeight: "700",
+            marginTop: "25px",
+            marginBottom: "20px",
             textAlign: "center",
+            letterSpacing: "0.5px",
+            textShadow: "0 2px 12px rgba(0,0,0,0.2)",
           }}
         >
           {maskValue(data.currentMonthRevenue, "money")} /{" "}
@@ -164,22 +166,37 @@ export function HeroStatusWidgetNew({ data }: HeroStatusWidgetNewProps) {
           {/* vs Mese Scorso */}
           {data.comparisonPreviousMonth && (
             <div
+              className="comparison-card"
               style={{
                 display: "flex",
                 alignItems: "center",
                 gap: "12px",
-                padding: "12px 20px",
+                padding: "14px 20px",
                 backgroundColor: "rgba(255,255,255,0.1)",
-                borderRadius: "10px",
+                borderRadius: "12px",
                 backdropFilter: "blur(10px)",
+                animation: "slideIn 0.6s ease-out 0.2s both",
+                boxShadow: "0 4px 12px rgba(0,0,0,0.1)",
               }}
             >
-              <span style={{ fontSize: "20px" }}>📊</span>
+              <span style={{ fontSize: "24px" }}>📊</span>
               <div style={{ flex: 1 }}>
-                <div style={{ fontSize: "14px", opacity: 0.9 }}>
+                <div
+                  style={{
+                    fontSize: "clamp(14px, 2.5vw, 16px)",
+                    opacity: 0.95,
+                    fontWeight: "500",
+                  }}
+                >
                   vs Mese Scorso:
                 </div>
-                <div style={{ fontSize: "16px", fontWeight: "600" }}>
+                <div
+                  style={{
+                    fontSize: "clamp(16px, 3vw, 18px)",
+                    fontWeight: "700",
+                    marginTop: "4px",
+                  }}
+                >
                   {formatDelta(
                     data.comparisonPreviousMonth.previousValue,
                     data.comparisonPreviousMonth.absoluteDelta,
@@ -193,22 +210,37 @@ export function HeroStatusWidgetNew({ data }: HeroStatusWidgetNewProps) {
           {/* vs Stesso Mese Anno Scorso */}
           {data.comparisonSameMonthLastYear && (
             <div
+              className="comparison-card"
               style={{
                 display: "flex",
                 alignItems: "center",
                 gap: "12px",
-                padding: "12px 20px",
+                padding: "14px 20px",
                 backgroundColor: "rgba(255,255,255,0.1)",
-                borderRadius: "10px",
+                borderRadius: "12px",
                 backdropFilter: "blur(10px)",
+                animation: "slideIn 0.6s ease-out 0.4s both",
+                boxShadow: "0 4px 12px rgba(0,0,0,0.1)",
               }}
             >
-              <span style={{ fontSize: "20px" }}>📅</span>
+              <span style={{ fontSize: "24px" }}>📅</span>
               <div style={{ flex: 1 }}>
-                <div style={{ fontSize: "14px", opacity: 0.9 }}>
+                <div
+                  style={{
+                    fontSize: "clamp(14px, 2.5vw, 16px)",
+                    opacity: 0.95,
+                    fontWeight: "500",
+                  }}
+                >
                   {data.comparisonSameMonthLastYear.label}:
                 </div>
-                <div style={{ fontSize: "16px", fontWeight: "600" }}>
+                <div
+                  style={{
+                    fontSize: "clamp(16px, 3vw, 18px)",
+                    fontWeight: "700",
+                    marginTop: "4px",
+                  }}
+                >
                   {formatDelta(
                     data.comparisonSameMonthLastYear.previousValue,
                     data.comparisonSameMonthLastYear.absoluteDelta,
@@ -222,23 +254,39 @@ export function HeroStatusWidgetNew({ data }: HeroStatusWidgetNewProps) {
           {/* vs Obiettivo Annuo */}
           {data.comparisonYearlyProgress && (
             <div
+              className="comparison-card"
               style={{
                 display: "flex",
                 alignItems: "center",
                 gap: "12px",
-                padding: "12px 20px",
+                padding: "14px 20px",
                 backgroundColor: "rgba(255,255,255,0.15)",
-                borderRadius: "10px",
+                borderRadius: "12px",
                 backdropFilter: "blur(10px)",
-                border: "2px solid rgba(255,255,255,0.2)",
+                border: "2px solid rgba(255,215,0,0.4)",
+                animation:
+                  "slideIn 0.6s ease-out 0.6s both, pulse 2s ease-in-out infinite",
+                boxShadow: "0 4px 16px rgba(255,215,0,0.2)",
               }}
             >
-              <span style={{ fontSize: "20px" }}>🎯</span>
+              <span style={{ fontSize: "24px" }}>🎯</span>
               <div style={{ flex: 1 }}>
-                <div style={{ fontSize: "14px", opacity: 0.9 }}>
+                <div
+                  style={{
+                    fontSize: "clamp(14px, 2.5vw, 16px)",
+                    opacity: 0.95,
+                    fontWeight: "500",
+                  }}
+                >
                   vs Obiettivo Annuo:
                 </div>
-                <div style={{ fontSize: "16px", fontWeight: "600" }}>
+                <div
+                  style={{
+                    fontSize: "clamp(16px, 3vw, 18px)",
+                    fontWeight: "700",
+                    marginTop: "4px",
+                  }}
+                >
                   {formatCurrency(data.comparisonYearlyProgress.currentValue)} (
                   {data.comparisonYearlyProgress.percentageDelta.toFixed(0)}%)
                   ⚡
@@ -249,11 +297,54 @@ export function HeroStatusWidgetNew({ data }: HeroStatusWidgetNewProps) {
         </div>
       </div>
 
-      {/* Responsive styles */}
+      {/* Animations and Responsive styles */}
       <style>{`
+        @keyframes slideIn {
+          from {
+            opacity: 0;
+            transform: translateY(20px);
+          }
+          to {
+            opacity: 1;
+            transform: translateY(0);
+          }
+        }
+
+        @keyframes pulse {
+          0%, 100% {
+            transform: scale(1);
+            box-shadow: 0 4px 16px rgba(255,215,0,0.2);
+          }
+          50% {
+            transform: scale(1.02);
+            box-shadow: 0 6px 24px rgba(255,215,0,0.4);
+          }
+        }
+
+        @keyframes glow {
+          0%, 100% {
+            filter: drop-shadow(0 0 8px rgba(39,174,96,0.6));
+          }
+          50% {
+            filter: drop-shadow(0 0 20px rgba(39,174,96,0.9));
+          }
+        }
+
+        .comparison-card {
+          transition: all 0.3s ease;
+        }
+
+        .comparison-card:hover {
+          transform: translateX(8px);
+          background-color: rgba(255,255,255,0.15) !important;
+        }
+
         @media (max-width: 640px) {
           .hero-status-widget-new {
             padding: 30px 20px !important;
+          }
+          .comparison-card {
+            padding: 12px 16px !important;
           }
         }
       `}</style>
