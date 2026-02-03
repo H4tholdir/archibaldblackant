@@ -1,7 +1,34 @@
+import { useState, useEffect } from "react";
 import { WarehouseUpload } from "../components/WarehouseUpload";
 import { WarehouseInventoryView } from "../components/WarehouseInventoryView";
+import { AddItemManuallyModal } from "../components/AddItemManuallyModal";
+import { BoxManagementModal } from "../components/BoxManagementModal";
+import { getWarehouseBoxes } from "../services/warehouse-service";
 
 export default function WarehouseManagementView() {
+  const [showAddItemModal, setShowAddItemModal] = useState(false);
+  const [showBoxManagementModal, setShowBoxManagementModal] = useState(false);
+  const [availableBoxes, setAvailableBoxes] = useState<string[]>([]);
+  const [refreshKey, setRefreshKey] = useState(0);
+
+  // Load available boxes on mount
+  useEffect(() => {
+    loadBoxes();
+  }, [refreshKey]);
+
+  const loadBoxes = async () => {
+    try {
+      const boxes = await getWarehouseBoxes();
+      setAvailableBoxes(boxes.map((b) => b.name));
+    } catch (error) {
+      console.error("Load boxes error:", error);
+    }
+  };
+
+  const handleRefresh = () => {
+    setRefreshKey((prev) => prev + 1);
+  };
+
   return (
     <div
       style={{
@@ -20,11 +47,65 @@ export default function WarehouseManagementView() {
         </p>
       </div>
 
+      {/* Action Buttons */}
+      <div
+        style={{
+          display: "flex",
+          gap: "12px",
+          marginBottom: "20px",
+          flexWrap: "wrap",
+        }}
+      >
+        <button
+          onClick={() => setShowAddItemModal(true)}
+          style={{
+            padding: "10px 16px",
+            fontSize: "14px",
+            fontWeight: 600,
+            border: "none",
+            borderRadius: "6px",
+            backgroundColor: "#4caf50",
+            color: "#fff",
+            cursor: "pointer",
+          }}
+        >
+          ➕ Aggiungi Articolo Manuale
+        </button>
+        <button
+          onClick={() => setShowBoxManagementModal(true)}
+          style={{
+            padding: "10px 16px",
+            fontSize: "14px",
+            fontWeight: 600,
+            border: "1px solid #ccc",
+            borderRadius: "6px",
+            backgroundColor: "#fff",
+            color: "#333",
+            cursor: "pointer",
+          }}
+        >
+          📦 Gestione Scatoli
+        </button>
+      </div>
+
       {/* Upload Component */}
       <WarehouseUpload />
 
       {/* Inventory View - Always Visible */}
-      <WarehouseInventoryView />
+      <WarehouseInventoryView key={refreshKey} />
+
+      {/* Modals */}
+      <AddItemManuallyModal
+        isOpen={showAddItemModal}
+        onClose={() => setShowAddItemModal(false)}
+        onSuccess={handleRefresh}
+        availableBoxes={availableBoxes}
+      />
+
+      <BoxManagementModal
+        isOpen={showBoxManagementModal}
+        onClose={() => setShowBoxManagementModal(false)}
+      />
 
       <style>{`
         @media (max-width: 768px) {

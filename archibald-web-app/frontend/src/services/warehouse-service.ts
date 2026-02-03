@@ -31,10 +31,13 @@ export async function uploadWarehouseFile(
   const formData = new FormData();
   formData.append("file", file);
 
-  const response = await fetchWithRetry(`${API_BASE_URL}/api/warehouse/upload`, {
-    method: "POST",
-    body: formData,
-  });
+  const response = await fetchWithRetry(
+    `${API_BASE_URL}/api/warehouse/upload`,
+    {
+      method: "POST",
+      body: formData,
+    },
+  );
 
   if (!response.ok) {
     const error = await response.json();
@@ -174,10 +177,273 @@ export async function clearWarehouseData(): Promise<void> {
  * Get format requirements (from backend)
  */
 export async function getFormatGuide(): Promise<unknown> {
-  const response = await fetchWithRetry(`${API_BASE_URL}/api/warehouse/format-guide`);
+  const response = await fetchWithRetry(
+    `${API_BASE_URL}/api/warehouse/format-guide`,
+  );
   if (!response.ok) {
     throw new Error("Failed to fetch format guide");
   }
   const result = await response.json();
   return result.data;
+}
+
+// ========== MANUAL ADD ITEM ==========
+
+export interface Product {
+  id: string;
+  name: string;
+  description?: string;
+  price?: number;
+  vat?: number;
+}
+
+export interface ManualAddItemResult {
+  item: WarehouseItem;
+  matchedProduct: Product | null;
+  confidence: number;
+  suggestions: Product[];
+  warning?: string;
+}
+
+/**
+ * Manually add warehouse item with fuzzy matching
+ */
+export async function addWarehouseItemManually(
+  articleCode: string,
+  quantity: number,
+  boxName: string,
+): Promise<ManualAddItemResult> {
+  const token = localStorage.getItem("archibald_jwt");
+  const response = await fetchWithRetry(
+    `${API_BASE_URL}/api/warehouse/items/manual-add`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ articleCode, quantity, boxName }),
+    },
+  );
+
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.error || "Errore aggiunta articolo");
+  }
+
+  const result = await response.json();
+  if (!result.success) throw new Error(result.error);
+
+  // Sync to IndexedDB
+  const itemWithId = {
+    ...result.data.item,
+    id: Number(result.data.item.id),
+  };
+  await db.warehouseItems.add(itemWithId);
+
+  console.log("[Warehouse] ✅ Item added manually", {
+    articleCode,
+    quantity,
+    boxName,
+    confidence: result.data.confidence,
+  });
+
+  return {
+    item: itemWithId,
+    matchedProduct: result.data.matchedProduct,
+    confidence: result.data.confidence,
+    suggestions: result.data.suggestions,
+    warning: result.warning,
+  };
+}
+
+// ========== BOX MANAGEMENT ==========
+
+export interface BoxWithStats {
+  name: string;
+  itemsCount: number;
+  totalQuantity: number;
+  availableItems: number;
+  reservedItems: number;
+  soldItems: number;
+  canDelete: boolean;
+}
+
+/**
+ * Get all warehouse boxes with statistics
+ */
+export async function getWarehouseBoxes(): Promise<BoxWithStats[]> {
+  const token = localStorage.getItem("archibald_jwt");
+  const response = await fetchWithRetry(`${API_BASE_URL}/api/warehouse/boxes`, {
+    method: "GET",
+    headers: { Authorization: `Bearer ${token}` },
+  });
+
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.error || "Errore caricamento scatoli");
+  }
+
+  const result = await response.json();
+  if (!result.success) throw new Error(result.error);
+
+  return result.boxes;
+}
+
+/**
+ * Create new warehouse box
+ */
+export async function createWarehouseBox(name: string): Promise<BoxWithStats> {
+  const token = localStorage.getItem("archibald_jwt");
+  const response = await fetchWithRetry(`${API_BASE_URL}/api/warehouse/boxes`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({ name }),
+  });
+
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.error || "Errore creazione scatolo");
+  }
+
+  const result = await response.json();
+  if (!result.success) throw new Error(result.error);
+
+  console.log("[Warehouse] ✅ Box created", { name });
+
+  return result.box;
+}
+
+/**
+ * Rename warehouse box (updates warehouse_items and pending_orders)
+ */
+export async function renameWarehouseBox(
+  oldName: string,
+  newName: string,
+): Promise<void> {
+  const token = localStorage.getItem("archibald_jwt");
+  const response = await fetchWithRetry(
+    `${API_BASE_URL}/api/warehouse/boxes/${encodeURIComponent(oldName)}`,
+    {
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ newName }),
+    },
+  );
+
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.error || "Errore rinomina scatolo");
+  }
+
+  const result = await response.json();
+  if (!result.success) throw new Error(result.error);
+
+  // Update local IndexedDB
+  const items = await db.warehouseItems
+    .where("boxName")
+    .equals(oldName)
+    .toArray();
+  for (const item of items) {
+    await db.warehouseItems.update(item.id!, { boxName: newName });
+  }
+
+  console.log("[Warehouse] ✅ Box renamed", {
+    oldName,
+    newName,
+    updatedItems: result.updatedItems,
+    updatedOrders: result.updatedOrders,
+  });
+}
+
+/**
+ * Delete warehouse box (only if empty and not referenced in orders)
+ */
+export async function deleteWarehouseBox(name: string): Promise<void> {
+  const token = localStorage.getItem("archibald_jwt");
+  const response = await fetchWithRetry(
+    `${API_BASE_URL}/api/warehouse/boxes/${encodeURIComponent(name)}`,
+    {
+      method: "DELETE",
+      headers: { Authorization: `Bearer ${token}` },
+    },
+  );
+
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.error || "Errore cancellazione scatolo");
+  }
+
+  const result = await response.json();
+  if (!result.success) throw new Error(result.error);
+
+  console.log("[Warehouse] ✅ Box deleted", { name });
+}
+
+// ========== MOVE ITEMS ==========
+
+export interface MoveItemsResult {
+  movedCount: number;
+  skippedCount: number;
+}
+
+/**
+ * Move warehouse items to different box (skips reserved/sold items)
+ */
+export async function moveWarehouseItems(
+  itemIds: number[],
+  destinationBox: string,
+): Promise<MoveItemsResult> {
+  const token = localStorage.getItem("archibald_jwt");
+  const response = await fetchWithRetry(
+    `${API_BASE_URL}/api/warehouse/items/move`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ itemIds, destinationBox }),
+    },
+  );
+
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.error || "Errore spostamento articoli");
+  }
+
+  const result = await response.json();
+  if (!result.success) throw new Error(result.error);
+
+  // Update local IndexedDB
+  const items = await db.warehouseItems.bulkGet(itemIds);
+  for (const item of items) {
+    if (
+      item &&
+      !item.reservedForOrder &&
+      !item.soldInOrder &&
+      item.id !== undefined
+    ) {
+      await db.warehouseItems.update(item.id, {
+        boxName: destinationBox,
+      });
+    }
+  }
+
+  console.log("[Warehouse] ✅ Items moved", {
+    destinationBox,
+    movedCount: result.movedCount,
+    skippedCount: result.skippedCount,
+  });
+
+  return {
+    movedCount: result.movedCount,
+    skippedCount: result.skippedCount,
+  };
 }

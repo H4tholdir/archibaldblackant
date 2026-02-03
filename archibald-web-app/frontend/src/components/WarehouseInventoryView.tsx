@@ -5,6 +5,7 @@ import {
   returnSpecificWarehouseItems,
 } from "../services/warehouse-order-integration";
 import { toastService } from "../services/toast.service";
+import { MoveItemsModal } from "./MoveItemsModal";
 
 type StatusFilter = "all" | "available" | "reserved" | "sold";
 
@@ -18,6 +19,7 @@ export function WarehouseInventoryView() {
     new Set(),
   );
   const [processing, setProcessing] = useState(false);
+  const [showMoveModal, setShowMoveModal] = useState(false);
 
   // Filters
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
@@ -704,9 +706,39 @@ export function WarehouseInventoryView() {
             >
               ↩️ Rendi al Magazzino
             </button>
+            <button
+              type="button"
+              onClick={() => setShowMoveModal(true)}
+              disabled={processing}
+              style={{
+                padding: "0.5rem 1rem",
+                background: "#4caf50",
+                color: "white",
+                border: "none",
+                borderRadius: "4px",
+                fontSize: "0.875rem",
+                fontWeight: "600",
+                cursor: processing ? "not-allowed" : "pointer",
+                opacity: processing ? 0.5 : 1,
+              }}
+            >
+              🔀 Sposta
+            </button>
           </div>
         </div>
       )}
+
+      {/* Move Items Modal */}
+      <MoveItemsModal
+        isOpen={showMoveModal}
+        onClose={() => setShowMoveModal(false)}
+        selectedItemIds={selectedItemIds}
+        items={items}
+        onSuccess={() => {
+          setSelectedItemIds(new Set());
+          loadInventory();
+        }}
+      />
 
       {/* Inventory Table */}
       <div
