@@ -140,6 +140,30 @@ export function calculateRevenueInRange(
   startDate: Date,
   endDate: Date,
 ): number {
+  logger.info(`[temporal-comparisons] calculateRevenueInRange called`, {
+    userId,
+    startDate: startDate.toISOString(),
+    endDate: endDate.toISOString(),
+  });
+
+  // First, get ALL orders in range to debug
+  const debugQuery = `
+    SELECT order_number, creation_date, total_amount
+    FROM orders
+    WHERE user_id = ?
+      AND creation_date >= ?
+      AND creation_date <= ?
+  `;
+
+  const allOrders = db
+    .prepare(debugQuery)
+    .all(userId, startDate.toISOString(), endDate.toISOString());
+
+  logger.info(
+    `[temporal-comparisons] Found ${allOrders.length} orders in range`,
+    { orders: allOrders },
+  );
+
   // First get basic sum
   const query = `
     SELECT COALESCE(SUM(CAST(total_amount AS REAL)), 0) as total
@@ -158,6 +182,8 @@ export function calculateRevenueInRange(
   };
 
   let adjustedTotal = result?.total || 0;
+
+  logger.info(`[temporal-comparisons] Base total: ${adjustedTotal}€`);
 
   // Check if any orders in this range have overrides
   const ordersQuery = `
