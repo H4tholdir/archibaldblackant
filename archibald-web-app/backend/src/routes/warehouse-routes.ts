@@ -467,17 +467,18 @@ router.get(
 
       // Get all boxes from warehouse_boxes table AND from warehouse_items (for backward compatibility)
       // This ensures we show boxes even if warehouse_boxes table is empty
+      // GROUP BY name to eliminate duplicates (boxes exist in both tables after migration)
       const allBoxes = usersDb
         .prepare(
           `
-        SELECT DISTINCT name, created_at, updated_at
+        SELECT name, MIN(created_at) as created_at, MAX(updated_at) as updated_at
         FROM (
           -- From warehouse_boxes table
           SELECT name, created_at, updated_at
           FROM warehouse_boxes
           WHERE user_id = ?
 
-          UNION
+          UNION ALL
 
           -- From warehouse_items (fallback for boxes not in warehouse_boxes)
           SELECT DISTINCT
@@ -488,6 +489,7 @@ router.get(
           WHERE user_id = ?
           GROUP BY box_name
         )
+        GROUP BY name
         ORDER BY name
       `,
         )
