@@ -195,10 +195,10 @@ export function AddItemManuallyModal({
   };
 
   const handleSuggestionClick = (product: Product) => {
-    // Set article code (will trigger validation via useEffect)
-    setArticleCode(product.id);
+    // Set article code using product.name (the article code, not variant)
+    setArticleCode(product.name);
     // Pre-fill description and validation state immediately
-    setDescription(product.name || product.description || "");
+    setDescription(product.description || "");
     setValidationState({
       status: "valid",
       confidence: 1.0, // Perfect match since user clicked suggestion
@@ -364,8 +364,13 @@ export function AddItemManuallyModal({
                       fontSize: "13px",
                     }}
                   >
-                    <strong>{product.id}</strong> - {product.name}
+                    <strong>{product.name}</strong>
                     {product.packageContent && ` (${product.packageContent})`}
+                    {product.id && (
+                      <span style={{ color: "#666", marginLeft: "8px" }}>
+                        [{product.id}]
+                      </span>
+                    )}
                   </div>
                 ))}
               </div>
@@ -484,6 +489,22 @@ export function AddItemManuallyModal({
                   </option>
                 ))}
               </select>
+              {availableBoxes.length === 0 && (
+                <div
+                  style={{
+                    marginTop: "8px",
+                    padding: "8px",
+                    backgroundColor: "#fff3cd",
+                    border: "1px solid #ffc107",
+                    borderRadius: "4px",
+                    fontSize: "12px",
+                    color: "#856404",
+                  }}
+                >
+                  ⚠️ Nessuno scatolo disponibile. Crea uno scatolo nella sezione
+                  "Gestione Scatoli" prima di aggiungere articoli.
+                </div>
+              )}
             </div>
           </div>
 
