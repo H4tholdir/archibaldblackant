@@ -243,28 +243,73 @@ export function PendingOrdersPage() {
 
   if (orders.length === 0) {
     return (
-      <div
-        style={{
-          padding: isMobile ? "1.5rem" : "2rem",
-          textAlign: "center",
-          color: "#6b7280",
-          backgroundColor: "#f9fafb",
-          borderRadius: "8px",
-          border: "1px dashed #d1d5db",
-          margin: isMobile ? "1rem" : "2rem",
-        }}
-      >
-        <h2
+      <div style={{ padding: isMobile ? "1rem" : "2rem" }}>
+        <div
           style={{
-            fontSize: isMobile ? "1.25rem" : "1.5rem",
-            marginBottom: "0.5rem",
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            marginBottom: isMobile ? "1rem" : "1.5rem",
           }}
         >
-          Nessun ordine in attesa
-        </h2>
-        <p style={{ fontSize: isMobile ? "0.875rem" : "1rem" }}>
-          Gli ordini creati appariranno qui prima dell'invio.
-        </p>
+          <h1
+            style={{
+              fontSize: isMobile ? "1.5rem" : "1.875rem",
+              fontWeight: "700",
+            }}
+          >
+            Ordini in Attesa (0)
+          </h1>
+          <button
+            onClick={handleForceSync}
+            style={{
+              padding: isMobile ? "0.875rem 1rem" : "0.75rem 1.25rem",
+              backgroundColor: "#10b981",
+              color: "white",
+              border: "none",
+              borderRadius: "8px",
+              fontSize: isMobile ? "1rem" : "0.95rem",
+              fontWeight: "600",
+              cursor: "pointer",
+              minHeight: "44px",
+            }}
+            title="Forza sincronizzazione con server"
+          >
+            🔄 {isMobile ? "Sync" : "Sincronizza"}
+          </button>
+        </div>
+        <div
+          style={{
+            padding: isMobile ? "1.5rem" : "2rem",
+            textAlign: "center",
+            color: "#6b7280",
+            backgroundColor: "#f9fafb",
+            borderRadius: "8px",
+            border: "1px dashed #d1d5db",
+          }}
+        >
+          <h2
+            style={{
+              fontSize: isMobile ? "1.25rem" : "1.5rem",
+              marginBottom: "0.5rem",
+            }}
+          >
+            Nessun ordine in attesa
+          </h2>
+          <p style={{ fontSize: isMobile ? "0.875rem" : "1rem" }}>
+            Gli ordini creati appariranno qui prima dell'invio.
+          </p>
+          <p
+            style={{
+              fontSize: isMobile ? "0.875rem" : "1rem",
+              marginTop: "0.5rem",
+              color: "#10b981",
+              fontWeight: "500",
+            }}
+          >
+            Premi 🔄 Sync per sincronizzare con il server
+          </p>
+        </div>
       </div>
     );
   }
