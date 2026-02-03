@@ -343,8 +343,8 @@ router.post(
 
         if (confidence >= 0.7) {
           // High confidence: use matched product
-          finalArticleCode = matchedProduct.id;
-          description = matchedProduct.name || matchedProduct.description || "";
+          finalArticleCode = matchedProduct.name; // Use name (article code like H254LE.314.012), not id (variant)
+          description = matchedProduct.description || ""; // Use actual description
         } else if (confidence >= 0.3) {
           // Medium confidence: warning + suggestions
           warning = `Match parziale (${Math.round(confidence * 100)}%). Verifica i suggerimenti o conferma il codice manuale.`;
