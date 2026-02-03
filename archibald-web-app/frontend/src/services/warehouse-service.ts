@@ -515,3 +515,73 @@ export async function moveWarehouseItems(
     skippedCount: result.skippedCount,
   };
 }
+
+// ========== SINGLE ITEM OPERATIONS ==========
+
+/**
+ * Update warehouse item quantity
+ */
+export async function updateWarehouseItem(
+  itemId: number,
+  quantity: number,
+): Promise<WarehouseItem> {
+  const token = localStorage.getItem("archibald_jwt");
+  const response = await fetchWithRetry(
+    `${API_BASE_URL}/api/warehouse/items/${itemId}`,
+    {
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ quantity }),
+    },
+  );
+
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.error || "Errore aggiornamento articolo");
+  }
+
+  const result = await response.json();
+  if (!result.success) throw new Error(result.error);
+
+  // Update local IndexedDB
+  await db.warehouseItems.update(itemId, { quantity });
+
+  console.log("[Warehouse] ✅ Item updated", {
+    itemId,
+    quantity,
+  });
+
+  return result.data.item;
+}
+
+/**
+ * Delete warehouse item
+ */
+export async function deleteWarehouseItem(itemId: number): Promise<void> {
+  const token = localStorage.getItem("archibald_jwt");
+  const response = await fetchWithRetry(
+    `${API_BASE_URL}/api/warehouse/items/${itemId}`,
+    {
+      method: "DELETE",
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    },
+  );
+
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.error || "Errore cancellazione articolo");
+  }
+
+  const result = await response.json();
+  if (!result.success) throw new Error(result.error);
+
+  // Delete from local IndexedDB
+  await db.warehouseItems.delete(itemId);
+
+  console.log("[Warehouse] ✅ Item deleted", { itemId });
+}

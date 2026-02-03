@@ -1023,4 +1023,210 @@ router.delete(
   },
 );
 
+// ========== SINGLE ITEM OPERATIONS ==========
+
+/**
+ * PUT /api/warehouse/items/:id
+ * Update warehouse item quantity
+ * Only available items (not reserved/sold) can be updated
+ */
+router.put(
+  "/warehouse/items/:id",
+  authenticateJWT,
+  (req: AuthRequest, res: Response) => {
+    try {
+      const userId = req.user!.userId;
+      const { id } = req.params;
+      const { quantity } = req.body;
+
+      // Validate quantity
+      if (
+        !quantity ||
+        typeof quantity !== "number" ||
+        !Number.isInteger(quantity) ||
+        quantity <= 0
+      ) {
+        return res.status(400).json({
+          success: false,
+          error: "Quantità deve essere un numero intero maggiore di 0",
+        });
+      }
+
+      // Check if item exists and is not reserved/sold
+      const item = usersDb
+        .prepare(
+          `
+        SELECT id, article_code, reserved_for_order, sold_in_order
+        FROM warehouse_items
+        WHERE id = ? AND user_id = ?
+      `,
+        )
+        .get(parseInt(id), userId) as any;
+
+      if (!item) {
+        return res.status(404).json({
+          success: false,
+          error: "Articolo non trovato",
+        });
+      }
+
+      if (item.reserved_for_order) {
+        return res.status(409).json({
+          success: false,
+          error: "Impossibile modificare: articolo riservato per un ordine",
+        });
+      }
+
+      if (item.sold_in_order) {
+        return res.status(409).json({
+          success: false,
+          error: "Impossibile modificare: articolo già venduto",
+        });
+      }
+
+      // Update quantity
+      const updateResult = usersDb
+        .prepare(
+          `
+        UPDATE warehouse_items
+        SET quantity = ?
+        WHERE id = ? AND user_id = ?
+      `,
+        )
+        .run(quantity, parseInt(id), userId);
+
+      if (updateResult.changes === 0) {
+        return res.status(500).json({
+          success: false,
+          error: "Errore durante aggiornamento",
+        });
+      }
+
+      // Fetch updated item
+      const updatedItem = usersDb
+        .prepare(
+          `
+        SELECT id, user_id, article_code, description, quantity, box_name,
+               reserved_for_order, sold_in_order, uploaded_at, device_id
+        FROM warehouse_items
+        WHERE id = ? AND user_id = ?
+      `,
+        )
+        .get(parseInt(id), userId) as any;
+
+      logger.info("✅ Warehouse item updated", {
+        userId,
+        itemId: id,
+        articleCode: item.article_code,
+        newQuantity: quantity,
+      });
+
+      res.json({
+        success: true,
+        data: {
+          item: {
+            id: updatedItem.id,
+            userId: updatedItem.user_id,
+            articleCode: updatedItem.article_code,
+            description: updatedItem.description,
+            quantity: updatedItem.quantity,
+            boxName: updatedItem.box_name,
+            reservedForOrder: updatedItem.reserved_for_order,
+            soldInOrder: updatedItem.sold_in_order,
+            uploadedAt: updatedItem.uploaded_at,
+            deviceId: updatedItem.device_id,
+          },
+        },
+      });
+    } catch (error) {
+      logger.error("❌ Error updating warehouse item", { error });
+      res.status(500).json({
+        success: false,
+        error: error instanceof Error ? error.message : "Errore server",
+      });
+    }
+  },
+);
+
+/**
+ * DELETE /api/warehouse/items/:id
+ * Delete warehouse item
+ * Only available items (not reserved/sold) can be deleted
+ */
+router.delete(
+  "/warehouse/items/:id",
+  authenticateJWT,
+  (req: AuthRequest, res: Response) => {
+    try {
+      const userId = req.user!.userId;
+      const { id } = req.params;
+
+      // Check if item exists and is not reserved/sold
+      const item = usersDb
+        .prepare(
+          `
+        SELECT id, article_code, reserved_for_order, sold_in_order
+        FROM warehouse_items
+        WHERE id = ? AND user_id = ?
+      `,
+        )
+        .get(parseInt(id), userId) as any;
+
+      if (!item) {
+        return res.status(404).json({
+          success: false,
+          error: "Articolo non trovato",
+        });
+      }
+
+      if (item.reserved_for_order) {
+        return res.status(409).json({
+          success: false,
+          error: "Impossibile cancellare: articolo riservato per un ordine",
+        });
+      }
+
+      if (item.sold_in_order) {
+        return res.status(409).json({
+          success: false,
+          error: "Impossibile cancellare: articolo già venduto",
+        });
+      }
+
+      // Delete item
+      const deleteResult = usersDb
+        .prepare(
+          `
+        DELETE FROM warehouse_items
+        WHERE id = ? AND user_id = ?
+      `,
+        )
+        .run(parseInt(id), userId);
+
+      if (deleteResult.changes === 0) {
+        return res.status(500).json({
+          success: false,
+          error: "Errore durante cancellazione",
+        });
+      }
+
+      logger.info("✅ Warehouse item deleted", {
+        userId,
+        itemId: id,
+        articleCode: item.article_code,
+      });
+
+      res.json({
+        success: true,
+      });
+    } catch (error) {
+      logger.error("❌ Error deleting warehouse item", { error });
+      res.status(500).json({
+        success: false,
+        error: error instanceof Error ? error.message : "Errore server",
+      });
+    }
+  },
+);
+
 export default router;

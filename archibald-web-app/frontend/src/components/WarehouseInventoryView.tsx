@@ -4,6 +4,10 @@ import {
   releaseWarehouseReservations,
   returnSpecificWarehouseItems,
 } from "../services/warehouse-order-integration";
+import {
+  updateWarehouseItem,
+  deleteWarehouseItem,
+} from "../services/warehouse-service";
 import { toastService } from "../services/toast.service";
 import { MoveItemsModal } from "./MoveItemsModal";
 
@@ -28,6 +32,10 @@ export function WarehouseInventoryView() {
 
   // Available boxes for filter dropdown
   const [availableBoxes, setAvailableBoxes] = useState<string[]>([]);
+
+  // Edit state
+  const [editingItemId, setEditingItemId] = useState<number | null>(null);
+  const [editQuantity, setEditQuantity] = useState<number>(1);
 
   // Load all items on mount
   useEffect(() => {
@@ -201,6 +209,66 @@ export function WarehouseInventoryView() {
     } catch (error) {
       console.error("[WarehouseInventory] Return failed:", error);
       toastService.error("Errore durante il reso degli articoli");
+    } finally {
+      setProcessing(false);
+    }
+  };
+
+  // Start editing item quantity
+  const handleStartEdit = (item: WarehouseItem) => {
+    setEditingItemId(item.id!);
+    setEditQuantity(item.quantity);
+  };
+
+  // Cancel editing
+  const handleCancelEdit = () => {
+    setEditingItemId(null);
+    setEditQuantity(1);
+  };
+
+  // Save edited quantity
+  const handleSaveEdit = async (itemId: number) => {
+    if (editQuantity <= 0) {
+      toastService.error("Quantità deve essere maggiore di 0");
+      return;
+    }
+
+    setProcessing(true);
+    try {
+      await updateWarehouseItem(itemId, editQuantity);
+      toastService.success("✅ Articolo aggiornato");
+      setEditingItemId(null);
+      await loadInventory();
+    } catch (error) {
+      console.error("[WarehouseInventory] Update failed:", error);
+      toastService.error(
+        error instanceof Error ? error.message : "Errore durante aggiornamento",
+      );
+    } finally {
+      setProcessing(false);
+    }
+  };
+
+  // Delete item
+  const handleDelete = async (item: WarehouseItem) => {
+    if (
+      !window.confirm(
+        `Sei sicuro di voler cancellare l'articolo "${item.articleCode}"?`,
+      )
+    ) {
+      return;
+    }
+
+    setProcessing(true);
+    try {
+      await deleteWarehouseItem(item.id!);
+      toastService.success("✅ Articolo cancellato");
+      await loadInventory();
+    } catch (error) {
+      console.error("[WarehouseInventory] Delete failed:", error);
+      toastService.error(
+        error instanceof Error ? error.message : "Errore durante cancellazione",
+      );
     } finally {
       setProcessing(false);
     }
@@ -855,13 +923,23 @@ export function WarehouseInventoryView() {
                 >
                   Riferimento Ordine
                 </th>
+                <th
+                  style={{
+                    padding: "0.75rem",
+                    textAlign: "center",
+                    fontWeight: "600",
+                    color: "#374151",
+                  }}
+                >
+                  Azioni
+                </th>
               </tr>
             </thead>
             <tbody>
               {filteredItems.length === 0 ? (
                 <tr>
                   <td
-                    colSpan={7}
+                    colSpan={8}
                     style={{
                       padding: "2rem",
                       textAlign: "center",
@@ -933,14 +1011,173 @@ export function WarehouseInventoryView() {
                         textAlign: "center",
                         fontWeight: "600",
                       }}
+                      onClick={(e) => e.stopPropagation()}
                     >
-                      {item.quantity}
+                      {editingItemId === item.id ? (
+                        <input
+                          type="number"
+                          min="1"
+                          value={editQuantity}
+                          onChange={(e) =>
+                            setEditQuantity(parseInt(e.target.value) || 1)
+                          }
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") handleSaveEdit(item.id!);
+                            if (e.key === "Escape") handleCancelEdit();
+                          }}
+                          autoFocus
+                          style={{
+                            width: "70px",
+                            padding: "4px 8px",
+                            fontSize: "0.875rem",
+                            border: "2px solid #4caf50",
+                            borderRadius: "4px",
+                            textAlign: "center",
+                          }}
+                        />
+                      ) : (
+                        item.quantity
+                      )}
                     </td>
                     <td style={{ padding: "0.75rem", textAlign: "center" }}>
                       {getStatusBadge(item)}
                     </td>
                     <td style={{ padding: "0.75rem" }}>
                       {getOrderReference(item)}
+                    </td>
+                    <td
+                      style={{ padding: "0.75rem", textAlign: "center" }}
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      {editingItemId === item.id ? (
+                        <div
+                          style={{
+                            display: "flex",
+                            gap: "4px",
+                            justifyContent: "center",
+                          }}
+                        >
+                          <button
+                            onClick={() => handleSaveEdit(item.id!)}
+                            disabled={processing}
+                            style={{
+                              padding: "4px 8px",
+                              fontSize: "0.75rem",
+                              fontWeight: "600",
+                              border: "none",
+                              borderRadius: "4px",
+                              backgroundColor: "#4caf50",
+                              color: "#fff",
+                              cursor: processing ? "not-allowed" : "pointer",
+                              opacity: processing ? 0.6 : 1,
+                            }}
+                            title="Salva"
+                          >
+                            ✓
+                          </button>
+                          <button
+                            onClick={handleCancelEdit}
+                            disabled={processing}
+                            style={{
+                              padding: "4px 8px",
+                              fontSize: "0.75rem",
+                              fontWeight: "600",
+                              border: "none",
+                              borderRadius: "4px",
+                              backgroundColor: "#6b7280",
+                              color: "#fff",
+                              cursor: processing ? "not-allowed" : "pointer",
+                              opacity: processing ? 0.6 : 1,
+                            }}
+                            title="Annulla"
+                          >
+                            ✕
+                          </button>
+                        </div>
+                      ) : (
+                        <div
+                          style={{
+                            display: "flex",
+                            gap: "4px",
+                            justifyContent: "center",
+                          }}
+                        >
+                          <button
+                            onClick={() => handleStartEdit(item)}
+                            disabled={
+                              processing ||
+                              !!item.reservedForOrder ||
+                              !!item.soldInOrder ||
+                              editingItemId !== null
+                            }
+                            style={{
+                              padding: "4px 8px",
+                              fontSize: "0.875rem",
+                              border: "1px solid #ccc",
+                              borderRadius: "4px",
+                              backgroundColor:
+                                item.reservedForOrder || item.soldInOrder
+                                  ? "#f5f5f5"
+                                  : "#fff",
+                              cursor:
+                                processing ||
+                                item.reservedForOrder ||
+                                item.soldInOrder ||
+                                editingItemId !== null
+                                  ? "not-allowed"
+                                  : "pointer",
+                              opacity:
+                                item.reservedForOrder || item.soldInOrder
+                                  ? 0.5
+                                  : 1,
+                            }}
+                            title={
+                              item.reservedForOrder || item.soldInOrder
+                                ? "Impossibile modificare: articolo riservato/venduto"
+                                : "Modifica quantità"
+                            }
+                          >
+                            ✏️
+                          </button>
+                          <button
+                            onClick={() => handleDelete(item)}
+                            disabled={
+                              processing ||
+                              !!item.reservedForOrder ||
+                              !!item.soldInOrder ||
+                              editingItemId !== null
+                            }
+                            style={{
+                              padding: "4px 8px",
+                              fontSize: "0.875rem",
+                              border: "1px solid #ccc",
+                              borderRadius: "4px",
+                              backgroundColor:
+                                item.reservedForOrder || item.soldInOrder
+                                  ? "#f5f5f5"
+                                  : "#fff",
+                              cursor:
+                                processing ||
+                                item.reservedForOrder ||
+                                item.soldInOrder ||
+                                editingItemId !== null
+                                  ? "not-allowed"
+                                  : "pointer",
+                              opacity:
+                                item.reservedForOrder || item.soldInOrder
+                                  ? 0.5
+                                  : 1,
+                            }}
+                            title={
+                              item.reservedForOrder || item.soldInOrder
+                                ? "Impossibile cancellare: articolo riservato/venduto"
+                                : "Cancella articolo"
+                            }
+                          >
+                            🗑️
+                          </button>
+                        </div>
+                      )}
                     </td>
                   </tr>
                 ))
