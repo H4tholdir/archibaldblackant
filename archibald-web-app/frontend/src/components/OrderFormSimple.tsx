@@ -1782,10 +1782,12 @@ export default function OrderFormSimple() {
           <>
             <input
               type="text"
+              name="customer-search-field"
               value={customerSearch}
               onChange={(e) => handleCustomerSearch(e.target.value)}
               placeholder="Cerca cliente per nome..."
-              autoComplete="off"
+              autoComplete="new-password"
+              data-form-type="other"
               style={{
                 width: "100%",
                 padding: isMobile ? "0.875rem" : "0.75rem",
@@ -1926,10 +1928,12 @@ export default function OrderFormSimple() {
             </label>
             <input
               type="text"
+              name="product-search-field"
               value={productSearch}
               onChange={(e) => handleProductSearch(e.target.value)}
               placeholder="Cerca articolo..."
-              autoComplete="off"
+              autoComplete="new-password"
+              data-form-type="other"
               style={{
                 width: "100%",
                 padding: isMobile ? "0.875rem" : "0.75rem",

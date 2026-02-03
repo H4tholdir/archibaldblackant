@@ -157,13 +157,15 @@ export function CustomerSelector({
         <input
           ref={inputRef}
           id="customer-search"
+          name="customer-search-field"
           type="text"
           value={searchQuery}
           onChange={handleInputChange}
           onKeyDown={handleKeyDown}
           placeholder={placeholder}
           disabled={disabled}
-          autoComplete="off"
+          autoComplete="new-password"
+          data-form-type="other"
           aria-label="Cerca cliente"
           aria-autocomplete="list"
           aria-controls="customer-dropdown"

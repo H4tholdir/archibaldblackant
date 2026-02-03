@@ -155,13 +155,15 @@ export function ProductSelector({
         <input
           ref={inputRef}
           id="product-search"
+          name="product-search-field"
           type="text"
           value={searchQuery}
           onChange={handleInputChange}
           onKeyDown={handleKeyDown}
           placeholder={placeholder}
           disabled={disabled}
-          autoComplete="off"
+          autoComplete="new-password"
+          data-form-type="other"
           aria-label="Cerca prodotto"
           aria-autocomplete="list"
           aria-controls="product-dropdown"
