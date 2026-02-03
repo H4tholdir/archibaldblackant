@@ -535,9 +535,77 @@ export function WidgetOrderConfigModal({
                           fontWeight: "bold",
                         }}
                       >
-                        {order.totalAmount
-                          ? formatCurrency(parseAmount(order.totalAmount))
-                          : "-"}
+                        {order.hasOverride ? (
+                          <div
+                            style={{
+                              display: "flex",
+                              flexDirection: "column",
+                              alignItems: "flex-end",
+                              gap: "4px",
+                            }}
+                          >
+                            <div
+                              style={{
+                                display: "flex",
+                                alignItems: "center",
+                                gap: "6px",
+                              }}
+                            >
+                              <span
+                                style={{
+                                  fontSize: "11px",
+                                  padding: "2px 6px",
+                                  backgroundColor: "#fff3cd",
+                                  color: "#856404",
+                                  borderRadius: "4px",
+                                  fontWeight: "600",
+                                }}
+                                title={order.overrideReason || undefined}
+                              >
+                                ⚠️ OVERRIDE
+                              </span>
+                            </div>
+                            <div
+                              style={{
+                                fontSize: "12px",
+                                color: "#999",
+                                textDecoration: "line-through",
+                              }}
+                            >
+                              {order.totalAmount
+                                ? formatCurrency(parseAmount(order.totalAmount))
+                                : "-"}
+                            </div>
+                            <div
+                              style={{
+                                fontSize: "14px",
+                                color: "#27ae60",
+                                fontWeight: "bold",
+                              }}
+                            >
+                              {order.overrideAmount
+                                ? formatCurrency(order.overrideAmount)
+                                : "-"}
+                            </div>
+                            {order.overrideReason && (
+                              <div
+                                style={{
+                                  fontSize: "11px",
+                                  color: "#7f8c8d",
+                                  fontStyle: "italic",
+                                  maxWidth: "200px",
+                                  textAlign: "right",
+                                }}
+                              >
+                                {order.overrideReason}
+                              </div>
+                            )}
+                          </div>
+                        ) : order.totalAmount ? (
+                          formatCurrency(parseAmount(order.totalAmount))
+                        ) : (
+                          "-"
+                        )}
                       </td>
                       <td
                         style={{

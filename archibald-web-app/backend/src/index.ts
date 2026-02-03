@@ -82,6 +82,7 @@ import { SyncOrchestrator, type SyncType } from "./sync-orchestrator";
 import { OrderArticlesSyncService } from "./order-articles-sync-service";
 import { runStartupHealthCheck } from "./python-health-check";
 import { runFilesystemChecks } from "./filesystem-check";
+import { getOrderAmountOverrides } from "./temporal-comparisons";
 
 const app = express();
 const server = createServer(app);
@@ -1905,17 +1906,26 @@ app.get(
         .filter((o) => o.excludedFromMonthly)
         .reduce((sum, o) => sum + parseAmount(o.totalAmount), 0);
 
+      // Get order amount overrides
+      const overrides = getOrderAmountOverrides();
+
       res.json({
-        orders: orders.map((o) => ({
-          id: o.id,
-          orderNumber: o.orderNumber,
-          customerName: o.customerName,
-          totalAmount: o.totalAmount,
-          creationDate: o.creationDate,
-          excludedFromYearly: o.excludedFromYearly,
-          excludedFromMonthly: o.excludedFromMonthly,
-          exclusionReason: o.exclusionReason,
-        })),
+        orders: orders.map((o) => {
+          const override = overrides[o.orderNumber];
+          return {
+            id: o.id,
+            orderNumber: o.orderNumber,
+            customerName: o.customerName,
+            totalAmount: o.totalAmount,
+            creationDate: o.creationDate,
+            excludedFromYearly: o.excludedFromYearly,
+            excludedFromMonthly: o.excludedFromMonthly,
+            exclusionReason: o.exclusionReason,
+            hasOverride: !!override,
+            overrideAmount: override?.correctAmount ?? null,
+            overrideReason: override?.reason ?? null,
+          };
+        }),
         summary: {
           totalOrders: orders.length,
           includedCount: orders.filter((o) => !o.excludedFromMonthly).length,

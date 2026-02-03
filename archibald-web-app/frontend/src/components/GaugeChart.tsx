@@ -14,19 +14,20 @@ export function GaugeChart({
   animate = true,
 }: GaugeChartProps) {
   const [animatedPercentage, setAnimatedPercentage] = useState(0);
-  const [animatedNeedleAngle, setAnimatedNeedleAngle] = useState(180);
+  const [animatedNeedleAngle, setAnimatedNeedleAngle] = useState(-90);
 
   useEffect(() => {
     if (animate) {
       // Animate from 0 to target percentage
       const duration = 1500; // ms
       const steps = 60;
-      const targetAngle = 180 - (percentage / 100) * 180;
-      const angleIncrement = (180 - targetAngle) / steps;
+      // Needle rotates from -90° (left/0%) to +90° (right/100%)
+      const targetAngle = -90 + (percentage / 100) * 180;
+      const angleIncrement = (targetAngle - -90) / steps;
       const percentIncrement = percentage / steps;
 
       let currentPercent = 0;
-      let currentAngle = 180;
+      let currentAngle = -90;
       let step = 0;
 
       const timer = setInterval(() => {
@@ -35,7 +36,7 @@ export function GaugeChart({
           percentage,
           currentPercent + percentIncrement,
         );
-        currentAngle = Math.max(targetAngle, currentAngle - angleIncrement);
+        currentAngle = Math.min(targetAngle, currentAngle + angleIncrement);
 
         setAnimatedPercentage(currentPercent);
         setAnimatedNeedleAngle(currentAngle);
@@ -50,7 +51,7 @@ export function GaugeChart({
       return () => clearInterval(timer);
     } else {
       setAnimatedPercentage(percentage);
-      setAnimatedNeedleAngle(180 - (percentage / 100) * 180);
+      setAnimatedNeedleAngle(-90 + (percentage / 100) * 180);
     }
   }, [percentage, animate]);
 

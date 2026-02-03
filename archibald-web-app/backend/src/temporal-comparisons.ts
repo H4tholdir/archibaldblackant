@@ -15,7 +15,7 @@ import { logger } from "./logger";
  * NOTE: These overrides are applied during revenue calculations.
  * The database values remain unchanged to preserve sync integrity.
  */
-const ORDER_AMOUNT_OVERRIDES: Record<
+export const ORDER_AMOUNT_OVERRIDES: Record<
   string,
   { correctAmount: number; reason: string }
 > = {
@@ -25,6 +25,13 @@ const ORDER_AMOUNT_OVERRIDES: Record<
       "Bug Archibald: non ha registrato lo sconto globale. Imponibile reale: 415,48€ invece di 933,44€ (gen 2025)",
   },
 };
+
+/**
+ * Get order amount overrides (for API responses)
+ */
+export function getOrderAmountOverrides() {
+  return ORDER_AMOUNT_OVERRIDES;
+}
 
 export interface TemporalComparison {
   previousValue: number;

@@ -7,6 +7,9 @@ export interface WidgetOrder {
   excludedFromYearly: boolean;
   excludedFromMonthly: boolean;
   exclusionReason: string | null;
+  hasOverride: boolean;
+  overrideAmount: number | null;
+  overrideReason: string | null;
 }
 
 export interface WidgetOrdersSummary {

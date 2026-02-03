@@ -54,6 +54,7 @@ export function HeroStatusWidgetNew({ data }: HeroStatusWidgetNewProps) {
 
   return (
     <div
+      className="hero-status-widget-new"
       style={{
         background: colors.bgGradient,
         borderRadius: "20px",
@@ -112,7 +113,11 @@ export function HeroStatusWidgetNew({ data }: HeroStatusWidgetNewProps) {
         }}
       >
         {/* Gauge Chart */}
-        <GaugeChart percentage={progressPercentage} size={280} thickness={35} />
+        <GaugeChart
+          percentage={progressPercentage}
+          size={window.innerWidth < 640 ? 220 : 280}
+          thickness={window.innerWidth < 640 ? 28 : 35}
+        />
 
         {/* Current / Target Values */}
         <div
@@ -345,6 +350,14 @@ export function HeroStatusWidgetNew({ data }: HeroStatusWidgetNewProps) {
           }
           .comparison-card {
             padding: 12px 16px !important;
+            font-size: 12px !important;
+          }
+          .comparison-card > div:last-child {
+            font-size: 10px !important;
+            max-width: 180px !important;
+          }
+          h2 {
+            font-size: 22px !important;
           }
         }
       `}</style>
