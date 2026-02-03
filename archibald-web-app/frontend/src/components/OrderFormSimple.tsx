@@ -202,7 +202,11 @@ export default function OrderFormSimple() {
   const [originalOrderItems, setOriginalOrderItems] = useState<
     PendingOrderItem[]
   >([]);
-  const [orderSavedSuccessfully, setOrderSavedSuccessfully] = useState(false);
+
+  // 🔧 CRITICAL FIX: Use ref instead of state to avoid race condition with navigate()
+  // setState is async, so navigate() could unmount component before flag is set,
+  // causing unmount handler to call saveDraft() and recreate the just-deleted draft
+  const orderSavedSuccessfullyRef = useRef(false);
 
   // === LOAD ORDER FOR EDITING ===
   // Check if we're editing an existing order
@@ -357,7 +361,7 @@ export default function OrderFormSimple() {
       // 3. We have original items to restore
       if (
         editingOrderId &&
-        !orderSavedSuccessfully &&
+        !orderSavedSuccessfullyRef.current &&
         originalOrderItems.length > 0
       ) {
         console.log(
@@ -385,7 +389,7 @@ export default function OrderFormSimple() {
         })();
       }
     };
-  }, [editingOrderId, orderSavedSuccessfully, originalOrderItems]);
+  }, [editingOrderId, originalOrderItems]);
 
   // === AUTO-SYNC VARIANTS ON MOUNT ===
   // Check if variants are populated, if not trigger cache refresh
@@ -618,11 +622,15 @@ export default function OrderFormSimple() {
       hasCustomer: !!selectedCustomer,
       itemsCount: items.length,
       draftId,
-      orderSavedSuccessfully,
+      orderSavedSuccessfully: orderSavedSuccessfullyRef.current,
     });
 
     // Don't save if editing existing order, no customer selected, or order was just finalized
-    if (editingOrderId || !selectedCustomer || orderSavedSuccessfully) {
+    if (
+      editingOrderId ||
+      !selectedCustomer ||
+      orderSavedSuccessfullyRef.current
+    ) {
       console.log("[OrderForm] Draft save skipped", {
         reason: editingOrderId
           ? "editing order"
@@ -689,13 +697,7 @@ export default function OrderFormSimple() {
     } catch (error) {
       console.error("[OrderForm] ❌ Draft save failed:", error);
     }
-  }, [
-    editingOrderId,
-    selectedCustomer,
-    items,
-    draftId,
-    orderSavedSuccessfully,
-  ]);
+  }, [editingOrderId, selectedCustomer, items, draftId]);
 
   // === CHECK FOR EXISTING DRAFT ON MOUNT ===
   useEffect(() => {
@@ -736,7 +738,11 @@ export default function OrderFormSimple() {
   // === AUTO-SAVE DRAFT ON EVERY OPERATION ===
   // Save immediately when customer or items change
   useEffect(() => {
-    if (editingOrderId || !selectedCustomer || orderSavedSuccessfully) {
+    if (
+      editingOrderId ||
+      !selectedCustomer ||
+      orderSavedSuccessfullyRef.current
+    ) {
       return;
     }
 
@@ -751,20 +757,18 @@ export default function OrderFormSimple() {
     }, 2000); // 2s debounce (increased from 500ms)
 
     return () => clearTimeout(timeoutId);
-  }, [
-    selectedCustomer,
-    items,
-    editingOrderId,
-    orderSavedSuccessfully,
-    saveDraft,
-  ]);
+  }, [selectedCustomer, items, editingOrderId, saveDraft]);
 
   // === SAVE DRAFT ON TAB CLOSE / PAGE UNLOAD / COMPONENT UNMOUNT ===
   useEffect(() => {
     const handleBeforeUnload = () => {
       console.log("[OrderForm] beforeunload triggered");
       // 🔧 FIX: Don't save draft if order was just finalized
-      if (selectedCustomer && !editingOrderId && !orderSavedSuccessfully) {
+      if (
+        selectedCustomer &&
+        !editingOrderId &&
+        !orderSavedSuccessfullyRef.current
+      ) {
         saveDraft();
       }
     };
@@ -776,7 +780,7 @@ export default function OrderFormSimple() {
         document.hidden &&
         selectedCustomer &&
         !editingOrderId &&
-        !orderSavedSuccessfully
+        !orderSavedSuccessfullyRef.current
       ) {
         saveDraft();
       }
@@ -791,14 +795,17 @@ export default function OrderFormSimple() {
       window.removeEventListener("beforeunload", handleBeforeUnload);
       window.removeEventListener("visibilitychange", handleVisibilityChange);
 
-      // 🔧 FIX: Don't save draft if order was just finalized to prevent recreation
-      // This prevents the bug where submitting an order and navigating away
-      // would recreate the draft that was just deleted
-      if (selectedCustomer && !editingOrderId && !orderSavedSuccessfully) {
+      // 🔧 CRITICAL FIX: Don't save draft if order was just finalized to prevent recreation
+      // Using ref instead of state ensures synchronous check - no race condition with navigate()
+      if (
+        selectedCustomer &&
+        !editingOrderId &&
+        !orderSavedSuccessfullyRef.current
+      ) {
         saveDraft();
       }
     };
-  }, [selectedCustomer, editingOrderId, orderSavedSuccessfully, saveDraft]);
+  }, [selectedCustomer, editingOrderId, saveDraft]);
 
   // === RECOVER DRAFT ===
   const handleRecoverDraft = async () => {
@@ -1527,8 +1534,9 @@ export default function OrderFormSimple() {
         );
       }
 
-      // Mark order as saved successfully (prevents warehouse restoration on cleanup)
-      setOrderSavedSuccessfully(true);
+      // 🔧 CRITICAL FIX: Use ref instead of setState to prevent race condition
+      // Must be synchronous before navigate() to prevent unmount handler from calling saveDraft()
+      orderSavedSuccessfullyRef.current = true;
 
       // Reset editing state
       setEditingOriginDraftId(null);
