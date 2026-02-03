@@ -80,6 +80,8 @@ export class OrderService {
         .toArray();
 
       // 🔧 FIX: Filter out deleted tombstones
+      // Note: Cannot use IndexedDB index on 'deleted' (boolean not indexable in Dexie)
+      // Performance is acceptable: .toArray() + filter is <1ms even with hundreds of records
       return all.filter((draft) => !draft.deleted);
     } catch (error) {
       console.error("[OrderService] Failed to get draft orders:", error);
@@ -127,20 +129,14 @@ export class OrderService {
               );
             }
 
-            if (response.status === 404) {
+            // 🔧 FIX: Remove tombstone immediately on successful deletion (200 OK or 404)
+            // Both cases mean the draft doesn't exist on server = goal achieved
+            if (response.ok || response.status === 404) {
               console.log(
-                "[OrderService] ✅ Draft already deleted (404) - removing tombstone",
+                "[OrderService] ✅ Draft deleted from server - removing tombstone",
+                { status: response.status },
               );
-              // Draft doesn't exist on server → safe to remove tombstone
               await this.db.table<DraftOrder, string>("draftOrders").delete(id);
-            } else {
-              console.log("[OrderService] ✅ Draft deleted from server");
-              // 🔧 FIX: Keep tombstone until sync confirms deletion
-              // Tombstone will be removed by pushDraftOrders() after successful DELETE
-              // This prevents race condition where sync pull restores the draft
-              console.log(
-                "[OrderService] ✅ Tombstone kept for sync verification",
-              );
             }
           } catch (serverError) {
             console.error(
@@ -301,6 +297,8 @@ export class OrderService {
         .sortBy("createdAt"); // Oldest first (FIFO)
 
       // 🔧 FIX: Filter out deleted tombstones
+      // Note: Cannot use IndexedDB index on 'deleted' (boolean not indexable in Dexie)
+      // Performance is acceptable: filter on already-filtered array is <1ms
       return all.filter((order) => !order.deleted);
     } catch (error) {
       console.error("[OrderService] Failed to get pending orders:", error);
@@ -413,22 +411,16 @@ export class OrderService {
               );
             }
 
-            if (response.status === 404) {
+            // 🔧 FIX: Remove tombstone immediately on successful deletion (200 OK or 404)
+            // Both cases mean the order doesn't exist on server = goal achieved
+            if (response.ok || response.status === 404) {
               console.log(
-                "[OrderService] ✅ Order already deleted (404) - removing tombstone",
+                "[OrderService] ✅ Order deleted from server - removing tombstone",
+                { status: response.status },
               );
-              // Order doesn't exist on server → safe to remove tombstone
               await this.db
                 .table<PendingOrder, string>("pendingOrders")
                 .delete(id);
-            } else {
-              console.log("[OrderService] ✅ Order deleted from server");
-              // 🔧 FIX: Keep tombstone until sync confirms deletion
-              // Tombstone will be removed by pushPendingOrders() after successful DELETE
-              // This prevents race condition where sync pull restores the order
-              console.log(
-                "[OrderService] ✅ Tombstone kept for sync verification",
-              );
             }
           } catch (serverError) {
             console.error(

@@ -188,6 +188,9 @@ export default function OrderFormSimple() {
   const [editingItemId, setEditingItemId] = useState<string | null>(null);
   const [cacheSyncing, setCacheSyncing] = useState(false);
   const [editingOrderId, setEditingOrderId] = useState<string | null>(null);
+  const [editingOriginDraftId, setEditingOriginDraftId] = useState<
+    string | null
+  >(null);
   const [loadingOrder, setLoadingOrder] = useState(false);
 
   // Auto-save draft state
@@ -219,6 +222,16 @@ export default function OrderFormSimple() {
           toastService.error("Ordine non trovato");
           navigate("/pending-orders");
           return;
+        }
+
+        // 🔧 FIX: Preserve originDraftId when editing to maintain draft→pending link
+        // This ensures cascade deletion still works if order is re-saved
+        if (order.originDraftId) {
+          setEditingOriginDraftId(order.originDraftId);
+          console.log("[OrderForm] Preserved originDraftId for editing:", {
+            orderId,
+            originDraftId: order.originDraftId,
+          });
         }
 
         // Save original order items for potential restoration
@@ -750,14 +763,21 @@ export default function OrderFormSimple() {
   useEffect(() => {
     const handleBeforeUnload = () => {
       console.log("[OrderForm] beforeunload triggered");
-      if (selectedCustomer && !editingOrderId) {
+      // 🔧 FIX: Don't save draft if order was just finalized
+      if (selectedCustomer && !editingOrderId && !orderSavedSuccessfully) {
         saveDraft();
       }
     };
 
     const handleVisibilityChange = () => {
       console.log("[OrderForm] visibilitychange, hidden:", document.hidden);
-      if (document.hidden && selectedCustomer && !editingOrderId) {
+      // 🔧 FIX: Don't save draft if order was just finalized
+      if (
+        document.hidden &&
+        selectedCustomer &&
+        !editingOrderId &&
+        !orderSavedSuccessfully
+      ) {
         saveDraft();
       }
     };
@@ -769,14 +789,16 @@ export default function OrderFormSimple() {
     return () => {
       console.log("[OrderForm] Component unmounting");
       window.removeEventListener("beforeunload", handleBeforeUnload);
-      document.removeEventListener("visibilitychange", handleVisibilityChange);
+      window.removeEventListener("visibilitychange", handleVisibilityChange);
 
-      // Final save before unmount
-      if (selectedCustomer && !editingOrderId) {
+      // 🔧 FIX: Don't save draft if order was just finalized to prevent recreation
+      // This prevents the bug where submitting an order and navigating away
+      // would recreate the draft that was just deleted
+      if (selectedCustomer && !editingOrderId && !orderSavedSuccessfully) {
         saveDraft();
       }
     };
-  }, [selectedCustomer, editingOrderId, saveDraft]);
+  }, [selectedCustomer, editingOrderId, orderSavedSuccessfully, saveDraft]);
 
   // === RECOVER DRAFT ===
   const handleRecoverDraft = async () => {
@@ -1399,8 +1421,10 @@ export default function OrderFormSimple() {
         return warehouseQty > 0 && warehouseQty === totalQty;
       });
 
-      // 🔧 FIX: Save draftId for server-side cascade deletion BEFORE clearing it
-      const originDraftId = draftId;
+      // 🔧 FIX: Preserve originDraftId from editing or current draft
+      // When editing: use editingOriginDraftId (preserved from loaded order)
+      // When creating from draft: use draftId
+      const originDraftId = editingOriginDraftId || draftId;
 
       // 🔧 FIX: Best-effort draft deletion (client-side)
       // Server will also delete the draft when it receives the pending order with originDraftId
@@ -1496,6 +1520,9 @@ export default function OrderFormSimple() {
 
       // Mark order as saved successfully (prevents warehouse restoration on cleanup)
       setOrderSavedSuccessfully(true);
+
+      // Reset editing state
+      setEditingOriginDraftId(null);
 
       navigate("/pending-orders");
     } catch (error) {
