@@ -195,6 +195,7 @@ export interface Product {
   description?: string;
   price?: number;
   vat?: number;
+  packageContent?: string;
 }
 
 export interface ValidateItemResult {

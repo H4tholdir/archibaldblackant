@@ -365,6 +365,7 @@ export function AddItemManuallyModal({
                     }}
                   >
                     <strong>{product.id}</strong> - {product.name}
+                    {product.packageContent && ` (${product.packageContent})`}
                   </div>
                 ))}
               </div>
