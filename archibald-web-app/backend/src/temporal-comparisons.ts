@@ -128,11 +128,35 @@ export function getMonthsAgo(months: number): Date {
 // ============================================================================
 
 /**
+ * Parse Italian-formatted currency string to number
+ * Handles formats like:
+ * - "123,45 €" → 123.45
+ * - "1.234,56 €" → 1234.56
+ * - "2.215,40 €" → 2215.40
+ */
+function parseItalianCurrency(value: string): number {
+  if (!value || value.trim() === "") return 0;
+
+  // Remove currency symbol and whitespace
+  let cleaned = value.replace(/€/g, "").trim();
+
+  // Remove thousand separators (.)
+  cleaned = cleaned.replace(/\./g, "");
+
+  // Replace decimal comma with dot
+  cleaned = cleaned.replace(/,/g, ".");
+
+  const parsed = parseFloat(cleaned);
+  return isNaN(parsed) ? 0 : parsed;
+}
+
+/**
  * Calculate total revenue from orders in a date range
  * Uses 'total_amount' field (matches existing widget logic)
  * TODO: Switch to imponibile (taxable amount without VAT) when column is added
  *
  * NOTE: Applies ORDER_AMOUNT_OVERRIDES for known erroneous orders
+ * NOTE: Properly parses Italian currency format ("2.215,40 €")
  */
 export function calculateRevenueInRange(
   db: Database,
@@ -146,48 +170,9 @@ export function calculateRevenueInRange(
     endDate: endDate.toISOString(),
   });
 
-  // First, get ALL orders in range to debug
-  const debugQuery = `
-    SELECT order_number, creation_date, total_amount
-    FROM orders
-    WHERE user_id = ?
-      AND creation_date >= ?
-      AND creation_date <= ?
-  `;
-
-  const allOrders = db
-    .prepare(debugQuery)
-    .all(userId, startDate.toISOString(), endDate.toISOString());
-
-  logger.info(
-    `[temporal-comparisons] Found ${allOrders.length} orders in range`,
-    { orders: allOrders },
-  );
-
-  // First get basic sum
+  // Get ALL orders in range
   const query = `
-    SELECT COALESCE(SUM(CAST(total_amount AS REAL)), 0) as total
-    FROM orders
-    WHERE user_id = ?
-      AND creation_date >= ?
-      AND creation_date <= ?
-      AND total_amount IS NOT NULL
-      AND total_amount != ''
-  `;
-
-  const result = db
-    .prepare(query)
-    .get(userId, startDate.toISOString(), endDate.toISOString()) as {
-    total: number;
-  };
-
-  let adjustedTotal = result?.total || 0;
-
-  logger.info(`[temporal-comparisons] Base total: ${adjustedTotal}€`);
-
-  // Check if any orders in this range have overrides
-  const ordersQuery = `
-    SELECT order_number, CAST(total_amount AS REAL) as amount
+    SELECT order_number, creation_date, total_amount
     FROM orders
     WHERE user_id = ?
       AND creation_date >= ?
@@ -197,25 +182,45 @@ export function calculateRevenueInRange(
   `;
 
   const orders = db
-    .prepare(ordersQuery)
+    .prepare(query)
     .all(userId, startDate.toISOString(), endDate.toISOString()) as Array<{
     order_number: string;
-    amount: number;
+    creation_date: string;
+    total_amount: string;
   }>;
+
+  logger.info(`[temporal-comparisons] Found ${orders.length} orders in range`, {
+    orders,
+  });
+
+  // Calculate total by parsing Italian currency format
+  let total = 0;
+  const parsedAmounts: Array<{ order_number: string; parsed: number }> = [];
+
+  for (const order of orders) {
+    const parsed = parseItalianCurrency(order.total_amount);
+    total += parsed;
+    parsedAmounts.push({ order_number: order.order_number, parsed });
+  }
+
+  logger.info(`[temporal-comparisons] Base total: ${total.toFixed(2)}€`, {
+    parsedAmounts,
+  });
 
   // Apply overrides
   for (const order of orders) {
     const override = ORDER_AMOUNT_OVERRIDES[order.order_number];
     if (override) {
-      const diff = override.correctAmount - order.amount;
-      adjustedTotal += diff;
+      const originalParsed = parseItalianCurrency(order.total_amount);
+      const diff = override.correctAmount - originalParsed;
+      total += diff;
       logger.info(
-        `[temporal-comparisons] Applied override for ${order.order_number}: ${order.amount}€ → ${override.correctAmount}€ (${diff > 0 ? "+" : ""}${diff.toFixed(2)}€) - ${override.reason}`,
+        `[temporal-comparisons] Applied override for ${order.order_number}: ${originalParsed.toFixed(2)}€ → ${override.correctAmount}€ (${diff > 0 ? "+" : ""}${diff.toFixed(2)}€) - ${override.reason}`,
       );
     }
   }
 
-  return adjustedTotal;
+  return parseFloat(total.toFixed(2));
 }
 
 /**
