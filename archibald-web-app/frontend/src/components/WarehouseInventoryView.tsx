@@ -1,6 +1,9 @@
 import { useState, useEffect } from "react";
 import { db, type WarehouseItem } from "../db/schema";
-import { releaseWarehouseReservations } from "../services/warehouse-order-integration";
+import {
+  releaseWarehouseReservations,
+  returnSpecificWarehouseItems,
+} from "../services/warehouse-order-integration";
 import { toastService } from "../services/toast.service";
 
 type StatusFilter = "all" | "available" | "reserved" | "sold";
@@ -9,6 +12,12 @@ export function WarehouseInventoryView() {
   const [items, setItems] = useState<WarehouseItem[]>([]);
   const [filteredItems, setFilteredItems] = useState<WarehouseItem[]>([]);
   const [loading, setLoading] = useState(true);
+
+  // Selection state
+  const [selectedItemIds, setSelectedItemIds] = useState<Set<number>>(
+    new Set(),
+  );
+  const [processing, setProcessing] = useState(false);
 
   // Filters
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
@@ -85,26 +94,113 @@ export function WarehouseInventoryView() {
     setFilteredItems(filtered);
   };
 
-  const handleReleaseReservation = async (reservedForOrder: string) => {
-    try {
-      // Extract pending order ID (e.g., "pending-uuid-123" -> "uuid-123")
-      const orderId = reservedForOrder.replace("pending-", "");
+  // Toggle selection of a single item
+  const handleToggleItem = (itemId: number) => {
+    const newSelected = new Set(selectedItemIds);
+    if (newSelected.has(itemId)) {
+      newSelected.delete(itemId);
+    } else {
+      newSelected.add(itemId);
+    }
+    setSelectedItemIds(newSelected);
+  };
 
-      if (!orderId) {
-        toastService.error(
-          "Formato ordine non valido. Impossibile rilasciare.",
-        );
+  // Select all visible items
+  const handleSelectAll = () => {
+    setSelectedItemIds(new Set(filteredItems.map((item) => item.id!)));
+  };
+
+  // Deselect all items
+  const handleDeselectAll = () => {
+    setSelectedItemIds(new Set());
+  };
+
+  // Release selected reserved items
+  const handleReleaseSelected = async () => {
+    if (selectedItemIds.size === 0) {
+      toastService.warning("Seleziona almeno un articolo da rilasciare");
+      return;
+    }
+
+    setProcessing(true);
+    try {
+      // Group selected items by their reservedForOrder
+      const selectedItems = items.filter(
+        (item) => selectedItemIds.has(item.id!) && item.reservedForOrder,
+      );
+
+      if (selectedItems.length === 0) {
+        toastService.warning("Nessun articolo riservato selezionato");
+        setProcessing(false);
         return;
       }
 
-      await releaseWarehouseReservations(orderId);
-      toastService.success(`✅ Articoli rilasciati da ${reservedForOrder}`);
+      const orderGroups = new Map<string, WarehouseItem[]>();
+      selectedItems.forEach((item) => {
+        const orderId = item.reservedForOrder!;
+        if (!orderGroups.has(orderId)) {
+          orderGroups.set(orderId, []);
+        }
+        orderGroups.get(orderId)!.push(item);
+      });
 
-      // Reload inventory
+      // Release each order group
+      for (const [reservedForOrder] of orderGroups) {
+        const orderId = reservedForOrder.replace("pending-", "");
+        await releaseWarehouseReservations(orderId);
+      }
+
+      toastService.success(
+        `✅ ${selectedItems.length} articoli riservati rilasciati`,
+      );
+
+      // Clear selection and reload
+      setSelectedItemIds(new Set());
       await loadInventory();
     } catch (error) {
       console.error("[WarehouseInventory] Release failed:", error);
       toastService.error("Errore durante il rilascio degli articoli");
+    } finally {
+      setProcessing(false);
+    }
+  };
+
+  // Return selected sold items to warehouse
+  const handleReturnSelected = async () => {
+    if (selectedItemIds.size === 0) {
+      toastService.warning("Seleziona almeno un articolo da rendere");
+      return;
+    }
+
+    setProcessing(true);
+    try {
+      // Filter only sold items
+      const selectedSoldItems = items.filter(
+        (item) => selectedItemIds.has(item.id!) && item.soldInOrder,
+      );
+
+      if (selectedSoldItems.length === 0) {
+        toastService.warning("Nessun articolo venduto selezionato");
+        setProcessing(false);
+        return;
+      }
+
+      const itemsReturned = await returnSpecificWarehouseItems(
+        selectedSoldItems.map((item) => item.id!),
+      );
+
+      toastService.success(
+        `✅ ${itemsReturned} articoli venduti resi al magazzino`,
+      );
+
+      // Clear selection and reload
+      setSelectedItemIds(new Set());
+      await loadInventory();
+    } catch (error) {
+      console.error("[WarehouseInventory] Return failed:", error);
+      toastService.error("Errore durante il reso degli articoli");
+    } finally {
+      setProcessing(false);
     }
   };
 
@@ -475,6 +571,143 @@ export function WarehouseInventoryView() {
         </div>
       </div>
 
+      {/* Selection Actions Bar */}
+      {selectedItemIds.size > 0 && (
+        <div
+          style={{
+            background: "#fef3c7",
+            padding: "1rem 1.5rem",
+            borderRadius: "8px",
+            border: "2px solid #f59e0b",
+            marginBottom: "1.5rem",
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            flexWrap: "wrap",
+            gap: "1rem",
+          }}
+        >
+          <div>
+            <div
+              style={{ fontSize: "1rem", fontWeight: "600", color: "#92400e" }}
+            >
+              {selectedItemIds.size}{" "}
+              {selectedItemIds.size === 1
+                ? "articolo selezionato"
+                : "articoli selezionati"}
+            </div>
+            <div style={{ fontSize: "0.875rem", color: "#92400e" }}>
+              {
+                items.filter(
+                  (item) =>
+                    selectedItemIds.has(item.id!) && item.reservedForOrder,
+                ).length
+              }{" "}
+              riservati •{" "}
+              {
+                items.filter(
+                  (item) => selectedItemIds.has(item.id!) && item.soldInOrder,
+                ).length
+              }{" "}
+              venduti
+            </div>
+          </div>
+          <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
+            <button
+              type="button"
+              onClick={handleDeselectAll}
+              disabled={processing}
+              style={{
+                padding: "0.5rem 1rem",
+                background: "#6b7280",
+                color: "white",
+                border: "none",
+                borderRadius: "4px",
+                fontSize: "0.875rem",
+                fontWeight: "600",
+                cursor: processing ? "not-allowed" : "pointer",
+                opacity: processing ? 0.5 : 1,
+              }}
+            >
+              Deseleziona Tutti
+            </button>
+            <button
+              type="button"
+              onClick={handleReleaseSelected}
+              disabled={
+                processing ||
+                items.filter(
+                  (item) =>
+                    selectedItemIds.has(item.id!) && item.reservedForOrder,
+                ).length === 0
+              }
+              style={{
+                padding: "0.5rem 1rem",
+                background: "#f59e0b",
+                color: "white",
+                border: "none",
+                borderRadius: "4px",
+                fontSize: "0.875rem",
+                fontWeight: "600",
+                cursor:
+                  processing ||
+                  items.filter(
+                    (item) =>
+                      selectedItemIds.has(item.id!) && item.reservedForOrder,
+                  ).length === 0
+                    ? "not-allowed"
+                    : "pointer",
+                opacity:
+                  processing ||
+                  items.filter(
+                    (item) =>
+                      selectedItemIds.has(item.id!) && item.reservedForOrder,
+                  ).length === 0
+                    ? 0.5
+                    : 1,
+              }}
+            >
+              🔓 Rilascia Riservati
+            </button>
+            <button
+              type="button"
+              onClick={handleReturnSelected}
+              disabled={
+                processing ||
+                items.filter(
+                  (item) => selectedItemIds.has(item.id!) && item.soldInOrder,
+                ).length === 0
+              }
+              style={{
+                padding: "0.5rem 1rem",
+                background: "#dc2626",
+                color: "white",
+                border: "none",
+                borderRadius: "4px",
+                fontSize: "0.875rem",
+                fontWeight: "600",
+                cursor:
+                  processing ||
+                  items.filter(
+                    (item) => selectedItemIds.has(item.id!) && item.soldInOrder,
+                  ).length === 0
+                    ? "not-allowed"
+                    : "pointer",
+                opacity:
+                  processing ||
+                  items.filter(
+                    (item) => selectedItemIds.has(item.id!) && item.soldInOrder,
+                  ).length === 0
+                    ? 0.5
+                    : 1,
+              }}
+            >
+              ↩️ Rendi al Magazzino
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Inventory Table */}
       <div
         style={{
@@ -499,6 +732,37 @@ export function WarehouseInventoryView() {
                   borderBottom: "2px solid #e5e7eb",
                 }}
               >
+                <th
+                  style={{
+                    padding: "0.75rem",
+                    textAlign: "center",
+                    fontWeight: "600",
+                    color: "#374151",
+                    width: "50px",
+                  }}
+                >
+                  <input
+                    type="checkbox"
+                    checked={
+                      filteredItems.length > 0 &&
+                      filteredItems.every((item) =>
+                        selectedItemIds.has(item.id!),
+                      )
+                    }
+                    onChange={(e) => {
+                      if (e.target.checked) {
+                        handleSelectAll();
+                      } else {
+                        handleDeselectAll();
+                      }
+                    }}
+                    style={{
+                      width: "18px",
+                      height: "18px",
+                      cursor: "pointer",
+                    }}
+                  />
+                </th>
                 <th
                   style={{
                     padding: "0.75rem",
@@ -559,16 +823,6 @@ export function WarehouseInventoryView() {
                 >
                   Riferimento Ordine
                 </th>
-                <th
-                  style={{
-                    padding: "0.75rem",
-                    textAlign: "center",
-                    fontWeight: "600",
-                    color: "#374151",
-                  }}
-                >
-                  Azioni
-                </th>
               </tr>
             </thead>
             <tbody>
@@ -592,7 +846,9 @@ export function WarehouseInventoryView() {
                     style={{
                       borderBottom: "1px solid #f3f4f6",
                       transition: "background 0.15s",
+                      cursor: "pointer",
                     }}
+                    onClick={() => handleToggleItem(item.id!)}
                     onMouseEnter={(e) =>
                       (e.currentTarget.style.background = "#f9fafb")
                     }
@@ -600,6 +856,24 @@ export function WarehouseInventoryView() {
                       (e.currentTarget.style.background = "transparent")
                     }
                   >
+                    <td
+                      style={{
+                        padding: "0.75rem",
+                        textAlign: "center",
+                      }}
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={selectedItemIds.has(item.id!)}
+                        onChange={() => handleToggleItem(item.id!)}
+                        style={{
+                          width: "18px",
+                          height: "18px",
+                          cursor: "pointer",
+                        }}
+                      />
+                    </td>
                     <td
                       style={{
                         padding: "0.75rem",
@@ -635,36 +909,6 @@ export function WarehouseInventoryView() {
                     </td>
                     <td style={{ padding: "0.75rem" }}>
                       {getOrderReference(item)}
-                    </td>
-                    <td style={{ padding: "0.75rem", textAlign: "center" }}>
-                      {item.reservedForOrder && (
-                        <button
-                          onClick={() =>
-                            handleReleaseReservation(item.reservedForOrder!)
-                          }
-                          style={{
-                            padding: "0.4rem 0.75rem",
-                            background: "#ef4444",
-                            color: "white",
-                            border: "none",
-                            borderRadius: "4px",
-                            fontSize: "0.75rem",
-                            fontWeight: "600",
-                            cursor: "pointer",
-                            transition: "all 0.2s",
-                          }}
-                          onMouseEnter={(e) => {
-                            e.currentTarget.style.background = "#dc2626";
-                            e.currentTarget.style.transform = "scale(1.05)";
-                          }}
-                          onMouseLeave={(e) => {
-                            e.currentTarget.style.background = "#ef4444";
-                            e.currentTarget.style.transform = "scale(1)";
-                          }}
-                        >
-                          🔓 Rilascia
-                        </button>
-                      )}
                     </td>
                   </tr>
                 ))
