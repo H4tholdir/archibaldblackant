@@ -165,9 +165,6 @@ export class UnifiedSyncService {
         throw new Error("Pull pending orders unsuccessful");
       }
 
-      // 🔧 FIX: Track server order IDs to detect deletions
-      const serverOrderIds = new Set(orders.map((o: any) => o.id));
-
       // Merge with local (LWW)
       for (const serverOrder of orders) {
         const localOrder = await db.pendingOrders.get(serverOrder.id);
@@ -214,24 +211,15 @@ export class UnifiedSyncService {
         }
       }
 
-      // 🔧 FIX: Remove local pending orders that no longer exist on server
-      // (deleted by another device)
-      const allLocalOrders = await db.pendingOrders.toArray();
-      for (const localOrder of allLocalOrders) {
-        // Skip if order has pending changes (being modified locally)
-        if (localOrder.needsSync) continue;
+      // 🔧 DISABLED: Don't auto-delete pending orders that don't exist on server
+      // Pending orders should ONLY be deleted when:
+      // 1. User explicitly deletes them
+      // 2. They are sent to Archibald via bot
+      // The server may not return orders that have been processed, but they should
+      // remain in local storage until explicitly removed by user action
 
-        // Skip if order has local tombstone (being deleted locally)
-        if (localOrder.deleted) continue;
-
-        // If order doesn't exist on server anymore → delete locally
-        if (!serverOrderIds.has(localOrder.id)) {
-          console.log(
-            `[UnifiedSync] Removing pending order ${localOrder.id} - deleted on server`,
-          );
-          await db.pendingOrders.delete(localOrder.id);
-        }
-      }
+      // NOTE: This means pending orders are LOCAL-FIRST and not auto-synced for deletion
+      // If multi-device deletion sync is needed, implement explicit "sentToArchibald" flag
     } catch (error) {
       console.error("[UnifiedSync] Pull pending orders failed:", error);
       throw error;
