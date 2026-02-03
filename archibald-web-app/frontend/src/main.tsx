@@ -7,14 +7,25 @@ import { registerSW } from "virtual:pwa-register";
 import { syncService } from "./services/sync.service";
 import { unifiedSyncService } from "./services/unified-sync-service";
 
-// Register service worker
-registerSW({
+// Register service worker with auto-update
+const updateSW = registerSW({
+  immediate: true,
   onNeedRefresh() {
-    console.log("[PWA] New content available, reload to update");
-    // Could show UI prompt here in future
+    console.log("[PWA] New content available, reloading...");
+    // Auto-reload immediately when new version is available
+    updateSW(true);
   },
   onOfflineReady() {
     console.log("[PWA] App ready to work offline");
+  },
+  onRegistered(registration) {
+    console.log("[PWA] Service Worker registered");
+    // Check for updates every 60 seconds
+    if (registration) {
+      setInterval(() => {
+        registration.update();
+      }, 60000);
+    }
   },
 });
 
