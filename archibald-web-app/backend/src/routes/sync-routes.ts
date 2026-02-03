@@ -575,6 +575,31 @@ router.post(
         logger.info("Cleared existing warehouse items", { userId });
       }
 
+      // Collect unique box names to auto-create in warehouse_boxes
+      const uniqueBoxes = new Set<string>();
+      for (const item of items) {
+        if (item.boxName) {
+          uniqueBoxes.add(item.boxName);
+        }
+      }
+
+      // Auto-create boxes in warehouse_boxes (if not exist)
+      const now = Date.now();
+      for (const boxName of uniqueBoxes) {
+        try {
+          usersDb
+            .prepare(
+              `INSERT OR IGNORE INTO warehouse_boxes (user_id, name, created_at, updated_at) VALUES (?, ?, ?, ?)`,
+            )
+            .run(userId, boxName, now, now);
+        } catch (boxError) {
+          logger.warn("Failed to auto-create box", {
+            boxName,
+            error: boxError,
+          });
+        }
+      }
+
       const results = [];
 
       for (const item of items) {
