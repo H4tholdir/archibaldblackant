@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import * as authApi from "../api/auth";
+import { jwtRefreshService } from "../services/jwt-refresh-service";
 
 const TOKEN_KEY = "archibald_jwt";
 const LAST_USER_KEY = "archibald_last_user";
@@ -81,14 +82,16 @@ export function useAuth() {
       if (response.success && response.token && response.user) {
         localStorage.setItem(TOKEN_KEY, response.token);
 
-        // Save lastUser for unlock flow if rememberCredentials is true
-        let lastUser = null;
+        // Save lastUser for unlock flow (NO password - security)
+        // Password is securely stored encrypted on backend only
+        // Backend auto-recovery via lazy-load makes frontend storage unnecessary
+        const lastUserData = {
+          userId: response.user.id,
+          fullName: response.user.fullName,
+          rememberCredentials,
+        };
         if (rememberCredentials) {
-          lastUser = {
-            userId: response.user.id,
-            fullName: response.user.fullName,
-          };
-          localStorage.setItem(LAST_USER_KEY, JSON.stringify(lastUser));
+          localStorage.setItem(LAST_USER_KEY, JSON.stringify(lastUserData));
         }
 
         setState({
@@ -98,8 +101,15 @@ export function useAuth() {
           isLoading: false,
           error: null,
           needsPinSetup: rememberCredentials,
-          lastUser: rememberCredentials ? lastUser : null,
+          lastUser: {
+            userId: response.user.id,
+            fullName: response.user.fullName,
+          },
         });
+
+        // Start JWT auto-refresh service
+        jwtRefreshService.start();
+
         return true;
       } else {
         setState((prev) => ({
@@ -123,6 +133,10 @@ export function useAuth() {
     if (state.token) {
       await authApi.logout(state.token).catch(() => {});
     }
+
+    // Stop JWT auto-refresh service
+    jwtRefreshService.stop();
+
     localStorage.removeItem(TOKEN_KEY);
     setState({
       isAuthenticated: false,

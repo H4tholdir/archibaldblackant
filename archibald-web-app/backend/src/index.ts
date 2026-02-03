@@ -10,6 +10,7 @@ import { config } from "./config";
 import { logger } from "./logger";
 import { ArchibaldBot } from "./archibald-bot";
 import { PasswordCache } from "./password-cache";
+import { passwordEncryption } from "./services/password-encryption-service";
 import {
   createOrderSchema,
   createUserSchema,
@@ -102,6 +103,11 @@ const productSyncService = ProductSyncService.getInstance();
 const priceSyncService = PriceSyncService.getInstance();
 const checkpointManager = SyncCheckpointManager.getInstance();
 const userDb = UserDatabase.getInstance();
+
+// Setup PasswordCache lazy-load dependencies (MUST be done before any operations)
+PasswordCache.getInstance().setDependencies(userDb, passwordEncryption);
+console.log('[PasswordCache] Lazy-load dependencies configured');
+
 const deviceManager = DeviceManager.getInstance();
 const sessionCleanup = new SessionCleanupJob();
 const orderHistoryService = new OrderHistoryService();
@@ -759,10 +765,25 @@ app.post(
         );
       }
 
-      // 4. Update lastLogin timestamp
+      // 4. Cache password and encrypt for persistent storage
+      PasswordCache.getInstance().set(user.id, password);
+
+      // 4a. Encrypt and save password to database (for auto-restore after restart)
+      try {
+        const encrypted = passwordEncryption.encrypt(password, user.id);
+        userDb.saveEncryptedPassword(user.id, encrypted);
+        logger.debug(`Password encrypted and saved for user: ${username}`);
+      } catch (encryptError) {
+        logger.error(`Failed to encrypt password for ${username}`, {
+          error: encryptError,
+        });
+        // Non-fatal: login can continue even if encryption fails
+      }
+
+      // 4b. Update lastLogin timestamp
       userDb.updateLastLogin(user.id);
 
-      // 4a. Register device (if provided)
+      // 4c. Register device (if provided)
       if (deviceId) {
         try {
           deviceManager.registerDevice(
@@ -780,7 +801,7 @@ app.post(
         }
       }
 
-      // 4b. Check and trigger background sync for customers+orders if needed (Opzione B)
+      // 4d. Check and trigger background sync for customers+orders if needed (Opzione B)
       const { userSpecificSyncService } =
         await import("./user-specific-sync-service");
       userSpecificSyncService
@@ -886,6 +907,58 @@ app.post(
       res.json({
         success: true,
         data: { message: "Logout effettuato con successo" },
+      });
+    }
+  },
+);
+
+// JWT refresh endpoint - generate new token without re-login
+app.post(
+  "/api/auth/refresh",
+  authenticateJWT,
+  async (req: AuthRequest, res: Response<ApiResponse>) => {
+    try {
+      const user = req.user!;
+
+      // Verify password is still in cache (needed for operations)
+      const cachedPassword = PasswordCache.getInstance().get(user.userId);
+      if (!cachedPassword) {
+        logger.warn(`JWT refresh failed: no cached password for user ${user.username}`);
+        return res.status(401).json({
+          success: false,
+          error: "CREDENTIALS_EXPIRED",
+          message: "Sessione scaduta. Effettua nuovamente il login.",
+        });
+      }
+
+      // Generate new JWT token
+      const newToken = await generateJWT({
+        userId: user.userId,
+        username: user.username,
+        role: user.role,
+        deviceId: user.deviceId,
+      });
+
+      // Get user details for response
+      const userDetails = userDb.getUserById(user.userId);
+
+      logger.info(`JWT refreshed for user: ${user.username}`);
+
+      res.json({
+        success: true,
+        token: newToken,
+        user: {
+          id: user.userId,
+          username: user.username,
+          fullName: userDetails?.fullName || user.username,
+          role: user.role,
+        },
+      });
+    } catch (error) {
+      logger.error("JWT refresh error", { error, userId: req.user!.userId });
+      res.status(500).json({
+        success: false,
+        error: "Errore durante il refresh del token",
       });
     }
   },
@@ -6037,6 +6110,16 @@ server.listen(config.server.port, async () => {
   } catch (error) {
     logger.warn("⚠️  Migration 020 failed or already applied", { error });
   }
+
+  // ========== AUTO-LOAD ENCRYPTED PASSWORDS (LAZY-LOAD) ==========
+  // NOTE: Password loading is now LAZY on-demand via PasswordCache.get()
+  // No need to pre-load at boot - this eliminates race conditions and improves startup time
+  // When PasswordCache.get(userId) is called:
+  //   1. Check in-memory cache (fast)
+  //   2. If not found, automatically load from encrypted DB (lazy)
+  //   3. Cache and return
+  // This makes backend restarts completely transparent to users!
+  logger.info("🔐 Password lazy-load configured - passwords will load on-demand from encrypted DB");
 
   // ========== AUTOMATIC BACKGROUND SYNC SERVICE ==========
   // Phase 24: Enable orchestrator auto-sync with staggered scheduling

@@ -6,6 +6,7 @@ import { initializeDatabase } from "./db/database";
 import { registerSW } from "virtual:pwa-register";
 import { syncService } from "./services/sync.service";
 import { unifiedSyncService } from "./services/unified-sync-service";
+import { jwtRefreshService } from "./services/jwt-refresh-service";
 
 // Register service worker with auto-update
 const updateSW = registerSW({
@@ -41,6 +42,28 @@ initializeDatabase().then(async (result) => {
     // Trigger initial sync for customers, products, prices
     await syncService.initializeSync();
   }
+
+  // Start JWT auto-refresh service if token exists
+  const token = localStorage.getItem('archibald_jwt');
+  if (token) {
+    jwtRefreshService.start();
+    console.log('[App] JWT auto-refresh service started');
+  }
+
+  // Stop JWT refresh service when token is removed (logout)
+  window.addEventListener('storage', (event) => {
+    if (event.key === 'archibald_jwt') {
+      if (event.newValue === null) {
+        // Token removed = logout
+        jwtRefreshService.stop();
+        console.log('[App] JWT auto-refresh service stopped (logout)');
+      } else if (event.oldValue === null && event.newValue) {
+        // Token added = login
+        jwtRefreshService.start();
+        console.log('[App] JWT auto-refresh service started (login)');
+      }
+    }
+  });
 
   // Render app
   const root = document.getElementById("root");

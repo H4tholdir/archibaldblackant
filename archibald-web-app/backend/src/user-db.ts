@@ -2,6 +2,7 @@ import Database from "better-sqlite3";
 import { v4 as uuidv4 } from "uuid";
 import path from "path";
 import { logger } from "./logger";
+import type { EncryptedPassword } from "./services/password-encryption-service";
 
 export type UserRole = "agent" | "admin";
 
@@ -117,6 +118,28 @@ export class UserDatabase {
         PRAGMA user_version = 4;
       `);
       logger.info("[UserDatabase] Migrated to schema v4 (privacy settings)");
+    }
+
+    if (currentVersion < 5) {
+      // Migrate to version 5: add encrypted password columns
+      try {
+        this.db.exec(`
+          ALTER TABLE users ADD COLUMN encrypted_password TEXT;
+          ALTER TABLE users ADD COLUMN encryption_iv TEXT;
+          ALTER TABLE users ADD COLUMN encryption_auth_tag TEXT;
+          ALTER TABLE users ADD COLUMN encryption_version INTEGER DEFAULT 1;
+          ALTER TABLE users ADD COLUMN password_updated_at TEXT;
+          PRAGMA user_version = 5;
+        `);
+        logger.info("[UserDatabase] Migrated to schema v5 (encrypted passwords)");
+      } catch (error: any) {
+        // Ignore if columns already exist
+        if (!error.message.includes('duplicate column name')) {
+          throw error;
+        }
+        logger.info("[UserDatabase] Schema v5 columns already exist, setting version");
+        this.db.exec(`PRAGMA user_version = 5;`);
+      }
     }
 
     logger.info("User database schema initialized");
@@ -593,6 +616,144 @@ export class UserDatabase {
         enabled,
         error,
       });
+      throw error;
+    }
+  }
+
+  /**
+   * Save encrypted password for a user
+   *
+   * @param userId - User ID
+   * @param encrypted - Encrypted password object
+   */
+  saveEncryptedPassword(userId: string, encrypted: EncryptedPassword): void {
+    try {
+      const stmt = this.db.prepare(`
+        UPDATE users
+        SET
+          encrypted_password = ?,
+          encryption_iv = ?,
+          encryption_auth_tag = ?,
+          encryption_version = ?,
+          password_updated_at = ?
+        WHERE id = ?
+      `);
+
+      const result = stmt.run(
+        encrypted.ciphertext,
+        encrypted.iv,
+        encrypted.authTag,
+        encrypted.version,
+        new Date().toISOString(),
+        userId
+      );
+
+      if (result.changes === 0) {
+        throw new Error(`User not found: ${userId}`);
+      }
+
+      logger.debug("Encrypted password saved", { userId });
+    } catch (error) {
+      logger.error("Error saving encrypted password", { userId, error });
+      throw error;
+    }
+  }
+
+  /**
+   * Get encrypted password for a user
+   *
+   * @param userId - User ID
+   * @returns Encrypted password object or null if not found
+   */
+  getEncryptedPassword(userId: string): EncryptedPassword | null {
+    try {
+      const stmt = this.db.prepare(`
+        SELECT
+          encrypted_password as ciphertext,
+          encryption_iv as iv,
+          encryption_auth_tag as authTag,
+          encryption_version as version
+        FROM users
+        WHERE id = ?
+      `);
+
+      const row = stmt.get(userId) as any;
+
+      if (!row || !row.ciphertext) {
+        return null;
+      }
+
+      return {
+        ciphertext: row.ciphertext,
+        iv: row.iv,
+        authTag: row.authTag,
+        version: row.version || 1,
+      };
+    } catch (error) {
+      logger.error("Error getting encrypted password", { userId, error });
+      throw error;
+    }
+  }
+
+  /**
+   * Get all users with encrypted passwords
+   * Used for key rotation and bulk operations
+   *
+   * @returns Array of users with encrypted password data
+   */
+  getAllUsersWithEncryptedPasswords(): Array<{
+    id: string;
+    username: string;
+    encrypted_password: string | null;
+    encryption_iv: string | null;
+    encryption_auth_tag: string | null;
+    encryption_version: number | null;
+  }> {
+    try {
+      const stmt = this.db.prepare(`
+        SELECT
+          id, username,
+          encrypted_password, encryption_iv,
+          encryption_auth_tag, encryption_version
+        FROM users
+        WHERE encrypted_password IS NOT NULL
+      `);
+
+      return stmt.all() as any[];
+    } catch (error) {
+      logger.error("Error getting users with encrypted passwords", { error });
+      throw error;
+    }
+  }
+
+  /**
+   * Clear encrypted password for a user
+   * Used during logout or password reset
+   *
+   * @param userId - User ID
+   */
+  clearEncryptedPassword(userId: string): void {
+    try {
+      const stmt = this.db.prepare(`
+        UPDATE users
+        SET
+          encrypted_password = NULL,
+          encryption_iv = NULL,
+          encryption_auth_tag = NULL,
+          encryption_version = NULL,
+          password_updated_at = NULL
+        WHERE id = ?
+      `);
+
+      const result = stmt.run(userId);
+
+      if (result.changes === 0) {
+        throw new Error(`User not found: ${userId}`);
+      }
+
+      logger.debug("Encrypted password cleared", { userId });
+    } catch (error) {
+      logger.error("Error clearing encrypted password", { userId, error });
       throw error;
     }
   }
