@@ -52,6 +52,7 @@ export function runMigration012(): void {
           created_at INTEGER NOT NULL,
           updated_at INTEGER NOT NULL,
           device_id TEXT NOT NULL,
+          origin_draft_id TEXT,
           synced_to_archibald INTEGER DEFAULT 0,
           CHECK (status IN ('pending', 'syncing', 'error', 'completed-warehouse'))
         );
