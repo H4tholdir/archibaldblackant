@@ -898,14 +898,14 @@ export class OrderDatabaseNew {
     const K3_VAT_RATE = 0.22; // 22% IVA
     let fixedCount = 0;
 
-    // Find K3 articles without VAT calculated
+    // Find K3 articles without VAT calculated (vat_percent NULL or 0)
     const k3Articles = this.db
       .prepare(
         `SELECT id, article_code, article_description, unit_price, line_amount
          FROM order_articles
          WHERE order_id = ?
          AND (article_code = 'K3' OR article_description LIKE '%Spese di trasporto K3%')
-         AND (vat_percent IS NULL OR vat_amount IS NULL OR line_total_with_vat IS NULL)`,
+         AND (vat_percent IS NULL OR vat_percent = 0)`,
       )
       .all(orderId) as Array<{
       id: number;

@@ -2038,7 +2038,7 @@ export function OrderCardNew({
                         marginLeft: "8px",
                       }}
                     >
-                      (Imp: € {totalWithVat.toFixed(2)})
+                      (Totale IVA incl.: € {totalWithVat.toFixed(2)})
                     </span>
                   );
                 }

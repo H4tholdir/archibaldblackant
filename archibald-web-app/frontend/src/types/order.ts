@@ -108,6 +108,8 @@ export interface Order {
   jobId?: string;
   archibaldOrderId?: string; // Order ID in Archibald system
   articlesSyncedAt?: string; // ISO timestamp of last articles sync
+  totalVatAmount?: string; // Total VAT amount from articles sync
+  totalWithVat?: string; // Total with VAT from articles sync
   createdAt?: string;
   lastUpdatedAt?: string;
   notes?: string;
