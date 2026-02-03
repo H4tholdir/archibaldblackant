@@ -165,12 +165,42 @@ export async function getWarehouseMetadata(): Promise<WarehouseMetadata | null> 
 }
 
 /**
- * Clear all warehouse data
+ * Clear all warehouse data (local IndexedDB + backend)
  */
 export async function clearWarehouseData(): Promise<void> {
+  // Clear local IndexedDB
   await db.warehouseItems.clear();
   await db.warehouseMetadata.clear();
-  console.log("[Warehouse] 🗑️ All data cleared");
+  console.log("[Warehouse] 🗑️ Local data cleared");
+
+  // Clear backend data
+  const token = localStorage.getItem("archibald_jwt");
+  if (token && navigator.onLine) {
+    try {
+      const response = await fetchWithRetry(
+        `${API_BASE_URL}/api/warehouse/clear-all`,
+        {
+          method: "DELETE",
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        },
+      );
+
+      if (!response.ok) {
+        throw new Error(`Clear backend failed: ${response.status}`);
+      }
+
+      const result = await response.json();
+      console.log("[Warehouse] 🗑️ Backend data cleared", {
+        itemsDeleted: result.itemsDeleted,
+        boxesDeleted: result.boxesDeleted,
+      });
+    } catch (error) {
+      console.error("[Warehouse] ⚠️ Failed to clear backend data:", error);
+      // Don't fail the operation if backend clear fails
+    }
+  }
 }
 
 /**

@@ -974,4 +974,51 @@ router.post(
   },
 );
 
+// ========== CLEAR ALL WAREHOUSE DATA ==========
+
+/**
+ * DELETE /api/warehouse/clear-all
+ * Clear all warehouse data (items, boxes, metadata) for current user
+ * Useful for resetting warehouse before re-uploading Excel file
+ */
+router.delete(
+  "/warehouse/clear-all",
+  authenticateJWT,
+  (req: AuthRequest, res: Response) => {
+    try {
+      const userId = req.user!.userId;
+
+      // Delete in correct order (respect foreign keys)
+      const itemsResult = usersDb
+        .prepare("DELETE FROM warehouse_items WHERE user_id = ?")
+        .run(userId);
+
+      const boxesResult = usersDb
+        .prepare("DELETE FROM warehouse_boxes WHERE user_id = ?")
+        .run(userId);
+
+      // Note: warehouse_metadata doesn't have user_id in current schema
+      // If it exists, it should be cleared separately
+
+      logger.info("✅ Warehouse data cleared", {
+        userId,
+        itemsDeleted: itemsResult.changes,
+        boxesDeleted: boxesResult.changes,
+      });
+
+      res.json({
+        success: true,
+        itemsDeleted: itemsResult.changes,
+        boxesDeleted: boxesResult.changes,
+      });
+    } catch (error) {
+      logger.error("❌ Error clearing warehouse data", { error });
+      res.status(500).json({
+        success: false,
+        error: error instanceof Error ? error.message : "Errore server",
+      });
+    }
+  },
+);
+
 export default router;
