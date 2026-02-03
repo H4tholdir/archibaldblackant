@@ -106,7 +106,7 @@ const userDb = UserDatabase.getInstance();
 
 // Setup PasswordCache lazy-load dependencies (MUST be done before any operations)
 PasswordCache.getInstance().setDependencies(userDb, passwordEncryption);
-console.log('[PasswordCache] Lazy-load dependencies configured');
+console.log("[PasswordCache] Lazy-load dependencies configured");
 
 const deviceManager = DeviceManager.getInstance();
 const sessionCleanup = new SessionCleanupJob();
@@ -923,7 +923,9 @@ app.post(
       // Verify password is still in cache (needed for operations)
       const cachedPassword = PasswordCache.getInstance().get(user.userId);
       if (!cachedPassword) {
-        logger.warn(`JWT refresh failed: no cached password for user ${user.username}`);
+        logger.warn(
+          `JWT refresh failed: no cached password for user ${user.username}`,
+        );
         return res.status(401).json({
           success: false,
           error: "CREDENTIALS_EXPIRED",
@@ -1519,6 +1521,9 @@ app.get(
         userConfig.monthlyTarget,
         currentYearRevenue,
         userConfig.bonusInterval,
+        userConfig.yearlyTarget,
+        orderDb["db"],
+        userId,
       );
 
       const kpiCards = WidgetCalc.calculateKpiCards(
@@ -1544,11 +1549,19 @@ app.get(
         userConfig.commissionRate,
         userConfig.bonusInterval,
         userConfig.bonusAmount,
+        userConfig.monthlyTarget,
+        orderDb["db"],
+        userId,
       );
 
       const actionSuggestion = WidgetCalc.calculateActionSuggestion(
+        currentMonthRevenue,
+        userConfig.monthlyTarget,
         bonusRoadmap.missingToNextBonus,
+        userConfig.bonusAmount,
         averageOrderValue,
+        userConfig.yearlyTarget,
+        currentYearRevenue,
       );
 
       const balance = WidgetCalc.calculateBalance(
@@ -1567,6 +1580,10 @@ app.get(
       const alerts = WidgetCalc.calculateAlerts(
         forecast.projectedMonthRevenue,
         userConfig.monthlyTarget,
+        currentMonthRevenue,
+        averageDailyRevenue,
+        workingDaysRemaining,
+        averageOrderValue,
       );
 
       // Return consolidated data
@@ -1727,11 +1744,110 @@ app.get(
         .get(userId, monthStart) as { count: number };
       const monthCount = monthResult?.count || 0;
 
+      // Calculate comparisons
+      const yesterday = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+      const yesterdayStart = new Date(
+        yesterday.getFullYear(),
+        yesterday.getMonth(),
+        yesterday.getDate(),
+        0,
+        0,
+        0,
+      ).toISOString();
+      const yesterdayEnd = new Date(
+        yesterday.getFullYear(),
+        yesterday.getMonth(),
+        yesterday.getDate(),
+        23,
+        59,
+        59,
+      ).toISOString();
+
+      const yesterdayResult = orderDb["db"]
+        .prepare(todayQuery)
+        .get(userId, yesterdayStart) as { count: number };
+      const yesterdayCount = yesterdayResult?.count || 0;
+
+      // Last week
+      const lastWeekStart = new Date(weekStart);
+      lastWeekStart.setDate(lastWeekStart.getDate() - 7);
+      const lastWeekEnd = new Date(weekStart);
+      lastWeekEnd.setDate(lastWeekEnd.getDate() - 1);
+      lastWeekEnd.setHours(23, 59, 59);
+
+      const lastWeekResult = orderDb["db"]
+        .prepare(weekQuery)
+        .get(userId, lastWeekStart.toISOString()) as { count: number };
+      const lastWeekCount = lastWeekResult?.count || 0;
+
+      // Last month (full previous month)
+      const firstDayLastMonth = new Date(
+        now.getFullYear(),
+        now.getMonth() - 1,
+        1,
+        0,
+        0,
+        0,
+      );
+      const lastDayLastMonth = new Date(
+        now.getFullYear(),
+        now.getMonth(),
+        0,
+        23,
+        59,
+        59,
+      );
+
+      const lastMonthQuery = `
+        SELECT COUNT(*) as count
+        FROM orders
+        WHERE user_id = ?
+          AND creation_date >= ?
+          AND creation_date <= ?
+      `;
+      const lastMonthResult = orderDb["db"]
+        .prepare(lastMonthQuery)
+        .get(
+          userId,
+          firstDayLastMonth.toISOString(),
+          lastDayLastMonth.toISOString(),
+        ) as { count: number };
+      const lastMonthCount = lastMonthResult?.count || 0;
+
+      // Build comparisons
+      const buildComparison = (
+        current: number,
+        previous: number,
+        label: string,
+      ) => ({
+        previousValue: previous,
+        currentValue: current,
+        absoluteDelta: current - previous,
+        percentageDelta:
+          previous > 0 ? ((current - previous) / previous) * 100 : 0,
+        label,
+      });
+
       res.json({
         todayCount,
         weekCount,
         monthCount,
         timestamp: now.toISOString(),
+        comparisonYesterday: buildComparison(
+          todayCount,
+          yesterdayCount,
+          "vs Ieri",
+        ),
+        comparisonLastWeek: buildComparison(
+          weekCount,
+          lastWeekCount,
+          "vs Settimana Scorsa",
+        ),
+        comparisonLastMonth: buildComparison(
+          monthCount,
+          lastMonthCount,
+          "vs Mese Scorso",
+        ),
       });
     } catch (error) {
       logger.error("Error getting order metrics", { error });
@@ -6119,7 +6235,9 @@ server.listen(config.server.port, async () => {
   //   2. If not found, automatically load from encrypted DB (lazy)
   //   3. Cache and return
   // This makes backend restarts completely transparent to users!
-  logger.info("🔐 Password lazy-load configured - passwords will load on-demand from encrypted DB");
+  logger.info(
+    "🔐 Password lazy-load configured - passwords will load on-demand from encrypted DB",
+  );
 
   // ========== AUTOMATIC BACKGROUND SYNC SERVICE ==========
   // Phase 24: Enable orchestrator auto-sync with staggered scheduling

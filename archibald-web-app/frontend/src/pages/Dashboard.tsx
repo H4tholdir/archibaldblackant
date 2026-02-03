@@ -1,26 +1,23 @@
 import { useState, useEffect } from "react";
-import { OrdersSummaryWidget } from "../components/OrdersSummaryWidget";
 import { WidgetOrderConfigModal } from "../components/WidgetOrderConfigModal";
 import { PrivacyToggle } from "../components/PrivacyToggle";
-import { HeroStatusWidget } from "../components/widgets/HeroStatusWidget";
+import { HeroStatusWidgetNew } from "../components/widgets/HeroStatusWidgetNew";
 import { KpiCardsWidget } from "../components/widgets/KpiCardsWidget";
-import { BonusRoadmapWidget } from "../components/widgets/BonusRoadmapWidget";
-import { ForecastWidget } from "../components/widgets/ForecastWidget";
-import { ActionSuggestionWidget } from "../components/widgets/ActionSuggestionWidget";
+import { BonusRoadmapWidgetNew } from "../components/widgets/BonusRoadmapWidgetNew";
+import { ForecastWidgetNew } from "../components/widgets/ForecastWidgetNew";
+import { ActionSuggestionWidgetNew } from "../components/widgets/ActionSuggestionWidgetNew";
 import { BalanceWidget } from "../components/widgets/BalanceWidget";
 import { ExtraBudgetWidget } from "../components/widgets/ExtraBudgetWidget";
-import { AlertsWidget } from "../components/widgets/AlertsWidget";
+import { AlertsWidgetNew } from "../components/widgets/AlertsWidgetNew";
+import { OrdersSummaryWidgetNew } from "../components/OrdersSummaryWidgetNew";
 import type { DashboardData } from "../types/dashboard";
+import type { OrdersMetrics } from "../types/dashboard";
 
 export function Dashboard() {
   const [dashboardData, setDashboardData] = useState<DashboardData | null>(
     null,
   );
-  const [orderMetrics, setOrderMetrics] = useState<{
-    todayCount: number;
-    weekCount: number;
-    monthCount: number;
-  } | null>(null);
+  const [orderMetrics, setOrderMetrics] = useState<OrdersMetrics | null>(null);
   const [loading, setLoading] = useState(true);
   const [showConfigModal, setShowConfigModal] = useState(false);
 
@@ -54,11 +51,7 @@ export function Dashboard() {
 
         if (ordersRes.ok) {
           const data = await ordersRes.json();
-          setOrderMetrics({
-            todayCount: data.todayCount,
-            weekCount: data.weekCount,
-            monthCount: data.monthCount,
-          });
+          setOrderMetrics(data);
         } else {
           console.error(
             "[Dashboard] Failed to load order metrics:",
@@ -97,11 +90,7 @@ export function Dashboard() {
 
       if (ordersRes.ok) {
         const data = await ordersRes.json();
-        setOrderMetrics({
-          todayCount: data.todayCount,
-          weekCount: data.weekCount,
-          monthCount: data.monthCount,
-        });
+        setOrderMetrics(data);
       }
     } catch (error) {
       console.error("[Dashboard] Failed to reload dashboard data:", error);
@@ -125,7 +114,7 @@ export function Dashboard() {
     );
   }
 
-  if (!dashboardData) {
+  if (!dashboardData || !orderMetrics) {
     return (
       <div
         style={{
@@ -222,39 +211,35 @@ export function Dashboard() {
         style={{
           display: "flex",
           flexDirection: "column",
-          gap: "20px",
+          gap: "24px",
         }}
       >
-        {/* 1. Hero Status Widget - Full Width */}
-        <HeroStatusWidget data={dashboardData.heroStatus} />
+        {/* 1. Hero Status Widget with Gauge - Full Width */}
+        <HeroStatusWidgetNew data={dashboardData.heroStatus} />
 
         {/* 2. KPI Cards Widget - 4 Fixed Cards */}
         <KpiCardsWidget cards={dashboardData.kpiCards} />
 
-        {/* 3. Bonus Roadmap Widget */}
-        <BonusRoadmapWidget data={dashboardData.bonusRoadmap} />
+        {/* 3. Bonus Roadmap Widget Rinnovato */}
+        <BonusRoadmapWidgetNew data={dashboardData.bonusRoadmap} />
 
-        {/* 4. Forecast Widget */}
-        <ForecastWidget data={dashboardData.forecast} />
+        {/* 4. Forecast Widget Rinnovato */}
+        <ForecastWidgetNew data={dashboardData.forecast} />
 
-        {/* 5. Action Suggestion Widget */}
-        <ActionSuggestionWidget data={dashboardData.actionSuggestion} />
+        {/* 5. Action Suggestion Widget Rinnovato */}
+        <ActionSuggestionWidgetNew data={dashboardData.actionSuggestion} />
 
         {/* 6. Balance Widget (Anticipi vs Maturato) */}
         <BalanceWidget data={dashboardData.balance} />
 
-        {/* 7. Orders Summary Widget (Existing) */}
-        <OrdersSummaryWidget
-          todayCount={orderMetrics?.todayCount ?? 0}
-          weekCount={orderMetrics?.weekCount ?? 0}
-          monthCount={orderMetrics?.monthCount ?? 0}
-        />
+        {/* 7. Orders Summary Widget with Comparisons */}
+        <OrdersSummaryWidgetNew data={orderMetrics} />
 
-        {/* 8. Extra Budget Widget (Conditional - Visible only if exceeded target) */}
+        {/* 8. Extra Budget Widget (Conditional) */}
         <ExtraBudgetWidget data={dashboardData.extraBudget} />
 
-        {/* 9. Alerts Widget (Conditional - Visible if at risk) */}
-        <AlertsWidget data={dashboardData.alerts} />
+        {/* 9. Alerts Widget Rinnovato (Conditional) */}
+        <AlertsWidgetNew data={dashboardData.alerts} />
       </div>
 
       {/* Widget Order Configuration Modal */}

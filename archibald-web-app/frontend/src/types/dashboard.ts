@@ -4,6 +4,32 @@
  */
 
 // ============================================================================
+// TEMPORAL COMPARISONS (for all widgets)
+// ============================================================================
+
+/**
+ * Temporal comparison with previous period
+ * Format: "€14,325 (+€1,719, +12%)"
+ */
+export interface TemporalComparison {
+  previousValue: number;
+  currentValue: number;
+  absoluteDelta: number; // currentValue - previousValue
+  percentageDelta: number; // (absoluteDelta / previousValue) * 100
+  label: string; // es. "vs Mese Scorso", "vs Gen 2025"
+}
+
+/**
+ * Sparkline mini-chart data
+ * Array of values for last N periods (months, weeks, days)
+ */
+export interface SparklineData {
+  values: number[]; // es. [12, 15, 18, 22, 25, 28] for last 6 months
+  labels?: string[]; // es. ["Ago", "Set", "Ott", "Nov", "Dic", "Gen"]
+  period: "daily" | "weekly" | "monthly" | "yearly";
+}
+
+// ============================================================================
 // HERO STATUS WIDGET
 // ============================================================================
 
@@ -17,6 +43,11 @@ export interface HeroStatusData {
   progressMonthly: number; // 0-1 decimal (es. 0.64 = 64%)
   progressNextBonus: number; // 0-1 decimal (es. 0.21 = 21%)
   microCopy: string;
+  // Temporal comparisons
+  comparisonPreviousMonth?: TemporalComparison;
+  comparisonSameMonthLastYear?: TemporalComparison;
+  comparisonYearlyProgress?: TemporalComparison; // Current year revenue vs yearly target
+  sparkline?: SparklineData; // Monthly trend for last 6-12 months
 }
 
 // ============================================================================
@@ -28,6 +59,10 @@ export interface KpiCardData {
   value: string; // Formatted value (es. "16.044 €")
   tooltip?: string;
   icon?: string;
+  // Temporal comparisons
+  comparisonPreviousMonth?: TemporalComparison;
+  comparisonSameMonthLastYear?: TemporalComparison;
+  sparkline?: SparklineData;
 }
 
 // ============================================================================
@@ -49,6 +84,9 @@ export interface BonusRoadmapData {
   currentYearRevenue: number;
   missingToNextBonus: number;
   nextBonusAmount: number;
+  // Temporal comparisons
+  comparisonLastYear?: TemporalComparison;
+  sparkline?: SparklineData;
 }
 
 // ============================================================================
@@ -62,6 +100,13 @@ export interface ForecastData {
   estimatedBonuses: number;
   averageDailyRevenue: number;
   workingDaysRemaining: number;
+  // Additional data for improved UI
+  currentMonthRevenue: number;
+  monthlyTarget: number;
+  requiredDailyRevenue: number; // Daily average needed to reach target
+  // Temporal comparisons
+  comparisonPreviousMonth?: TemporalComparison;
+  comparisonSameMonthLastYear?: TemporalComparison;
 }
 
 // ============================================================================
@@ -69,10 +114,29 @@ export interface ForecastData {
 // ============================================================================
 
 export interface ActionSuggestion {
-  message: string;
-  ordersNeeded?: number;
-  averageOrderValue?: number;
-  missingToNextBonus?: number;
+  // Primary suggestion
+  primaryGoal: "monthly_target" | "next_bonus" | "extra_budget";
+  primaryMessage: string;
+  primaryMetrics: {
+    missing: number;
+    ordersNeeded: number;
+    averageOrderValue: number;
+  };
+  // Secondary suggestion (if applicable)
+  secondaryGoal?: "monthly_target" | "next_bonus" | "extra_budget";
+  secondaryMessage?: string;
+  secondaryMetrics?: {
+    missing: number;
+    ordersNeeded: number;
+    roi?: number; // Return on investment percentage
+  };
+  // Strategic suggestions
+  strategySuggestions: string[]; // es. ["Focus on orders €2,000+", "3 hot clients to follow up"]
+  // Temporal comparison
+  comparisonLastMonth?: {
+    situation: string; // es. "Same situation last month"
+    outcome: string; // es. "You closed +2 orders and reached target"
+  };
 }
 
 // ============================================================================
@@ -84,6 +148,10 @@ export interface BalanceData {
   totalAdvancePaid: number;
   balance: number; // maturato - anticipi
   balanceStatus: "positive" | "negative"; // >= 0 = positive, < 0 = negative
+  // Temporal comparisons
+  comparisonPreviousMonth?: TemporalComparison;
+  comparisonSameMonthLastYear?: TemporalComparison;
+  sparkline?: SparklineData;
 }
 
 // ============================================================================
@@ -97,6 +165,9 @@ export interface ExtraBudgetData {
   extraBonusesAmount: number; // Total amount of extra bonuses
   nextStep: number;
   missingToNextStep: number;
+  // Temporal comparisons
+  comparisonLastYear?: TemporalComparison;
+  sparkline?: SparklineData;
 }
 
 // ============================================================================
@@ -110,6 +181,21 @@ export interface AlertData {
   message: string;
   severity: AlertSeverity;
   percentageGap?: number; // Gap percentage if applicable
+  // Detailed alert data
+  projectedMonthRevenue?: number;
+  monthlyTarget?: number;
+  gap?: number;
+  requiredDailyRevenue?: number;
+  currentDailyRevenue?: number;
+  daysRemaining?: number;
+  // Recovery suggestions
+  recoverySuggestions?: string[]; // es. ["3 large orders (€1,800+) in next 7 days"]
+  // Motivational comparison
+  comparisonLastMonth?: {
+    situation: string; // es. "You were at €14,200"
+    outcome: string; // es. "Recovered and closed at €24,500"
+    message: string; // es. "You still have margin to recover!"
+  };
 }
 
 // ============================================================================
@@ -165,4 +251,24 @@ export interface WorkingDaysInfo {
   workingDaysInMonth: number; // lun-ven
   workingDaysPassed: number;
   workingDaysRemaining: number;
+}
+
+// ============================================================================
+// ORDERS METRICS (for OrdersSummaryWidget)
+// ============================================================================
+
+export interface OrdersMetrics {
+  todayCount: number;
+  weekCount: number;
+  monthCount: number;
+  timestamp: string;
+  // Temporal comparisons
+  comparisonYesterday?: TemporalComparison;
+  comparisonLastWeek?: TemporalComparison;
+  comparisonLastMonth?: TemporalComparison;
+  comparisonSameMonthLastYear?: TemporalComparison;
+  // Sparklines
+  sparklineDaily?: SparklineData; // Last 7 days
+  sparklineWeekly?: SparklineData; // Last 8 weeks
+  sparklineMonthly?: SparklineData; // Last 12 months
 }

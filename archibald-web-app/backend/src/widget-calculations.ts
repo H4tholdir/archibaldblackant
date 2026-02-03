@@ -3,7 +3,19 @@
  * All formulas and logic for dashboard widgets according to PRD
  */
 
+import type { Database } from "better-sqlite3";
 import { logger } from "./logger";
+import {
+  buildPreviousMonthComparison,
+  buildSameMonthLastYearComparison,
+  buildYearlyProgressComparison,
+  generateMonthlySparkline,
+  calculatePreviousMonthRevenue,
+  calculateSameMonthLastYearRevenue,
+  buildComparison,
+  type TemporalComparison,
+  type SparklineData,
+} from "./temporal-comparisons";
 
 export interface UserConfig {
   yearlyTarget: number;
@@ -82,6 +94,9 @@ export function calculateHeroStatus(
   monthlyTarget: number,
   currentYearRevenue: number,
   bonusInterval: number,
+  yearlyTarget: number,
+  db: Database,
+  userId: string,
 ) {
   // Determine status according to PRD rules
   let status: WidgetStatus;
@@ -106,6 +121,25 @@ export function calculateHeroStatus(
   const progressInCurrentInterval = currentYearRevenue % bonusInterval;
   const progressNextBonus = progressInCurrentInterval / bonusInterval;
 
+  // Calculate temporal comparisons
+  const comparisonPreviousMonth = buildPreviousMonthComparison(
+    db,
+    userId,
+    currentMonthRevenue,
+  );
+  const comparisonSameMonthLastYear = buildSameMonthLastYearComparison(
+    db,
+    userId,
+    currentMonthRevenue,
+  );
+  const comparisonYearlyProgress = buildYearlyProgressComparison(
+    currentYearRevenue,
+    yearlyTarget,
+  );
+
+  // Generate sparkline for monthly trend
+  const sparkline = generateMonthlySparkline(db, userId, 12);
+
   return {
     status,
     currentMonthRevenue,
@@ -114,6 +148,10 @@ export function calculateHeroStatus(
     progressMonthly,
     progressNextBonus,
     microCopy,
+    comparisonPreviousMonth,
+    comparisonSameMonthLastYear,
+    comparisonYearlyProgress,
+    sparkline,
   };
 }
 
@@ -222,6 +260,9 @@ export function calculateForecast(
   commissionRate: number,
   bonusInterval: number,
   bonusAmount: number,
+  monthlyTarget: number,
+  db: Database,
+  userId: string,
 ) {
   // PRD Formula
   const projectedMonthRevenue =
@@ -235,6 +276,29 @@ export function calculateForecast(
   const projectedBonusSteps = Math.floor(projectedYearRevenue / bonusInterval);
   const estimatedBonuses = projectedBonusSteps * bonusAmount;
 
+  // Calculate required daily revenue to reach target
+  const missingToTarget = Math.max(0, monthlyTarget - currentMonthRevenue);
+  const requiredDailyRevenue =
+    workingDaysRemaining > 0 ? missingToTarget / workingDaysRemaining : 0;
+
+  // Calculate temporal comparisons
+  const previousMonthRevenue = calculatePreviousMonthRevenue(db, userId);
+  const sameMonthLastYearRevenue = calculateSameMonthLastYearRevenue(
+    db,
+    userId,
+  );
+
+  const comparisonPreviousMonth = buildComparison(
+    projectedMonthRevenue,
+    previousMonthRevenue,
+    "vs Mese Scorso",
+  );
+  const comparisonSameMonthLastYear = buildComparison(
+    projectedMonthRevenue,
+    sameMonthLastYearRevenue,
+    "vs Stesso Mese Anno Scorso",
+  );
+
   return {
     projectedMonthRevenue,
     projectedYearRevenue,
@@ -242,6 +306,11 @@ export function calculateForecast(
     estimatedBonuses,
     averageDailyRevenue,
     workingDaysRemaining,
+    currentMonthRevenue,
+    monthlyTarget,
+    requiredDailyRevenue,
+    comparisonPreviousMonth,
+    comparisonSameMonthLastYear,
   };
 }
 
@@ -250,8 +319,13 @@ export function calculateForecast(
 // ============================================================================
 
 export function calculateActionSuggestion(
+  currentMonthRevenue: number,
+  monthlyTarget: number,
   missingToNextBonus: number,
+  bonusAmount: number,
   averageOrderValue: number,
+  yearlyTarget: number,
+  currentYearRevenue: number,
 ) {
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat("it-IT", {
@@ -262,20 +336,110 @@ export function calculateActionSuggestion(
     }).format(value);
   };
 
-  let message: string;
+  const missingToMonthlyTarget = Math.max(
+    0,
+    monthlyTarget - currentMonthRevenue,
+  );
+  const ordersNeededForTarget = Math.ceil(
+    missingToMonthlyTarget / averageOrderValue,
+  );
+  const ordersNeededForBonus = Math.ceil(
+    missingToNextBonus / averageOrderValue,
+  );
+
+  // Determine primary goal based on proximity
+  let primaryGoal: "monthly_target" | "next_bonus" | "extra_budget";
+  let primaryMessage: string;
+  let primaryMetrics: any;
+
+  // Check if close to monthly target
+  const progressToTarget = (currentMonthRevenue / monthlyTarget) * 100;
+
+  if (progressToTarget < 90) {
+    // Priority: reach monthly target
+    primaryGoal = "monthly_target";
+    primaryMessage = `Mancano ${formatCurrency(missingToMonthlyTarget)} al target di ${formatCurrency(monthlyTarget)}`;
+    primaryMetrics = {
+      missing: missingToMonthlyTarget,
+      ordersNeeded: ordersNeededForTarget,
+      averageOrderValue,
+    };
+  } else if (missingToNextBonus <= averageOrderValue * 2) {
+    // Priority: next bonus is very close!
+    primaryGoal = "next_bonus";
+    primaryMessage = `Mancano solo ${formatCurrency(missingToNextBonus)} per sbloccare +${formatCurrency(bonusAmount)}`;
+    primaryMetrics = {
+      missing: missingToNextBonus,
+      ordersNeeded: ordersNeededForBonus,
+      averageOrderValue,
+    };
+  } else {
+    // Default: focus on monthly target
+    primaryGoal = "monthly_target";
+    primaryMessage = `Focus sul target mensile: ancora ${formatCurrency(missingToMonthlyTarget)}`;
+    primaryMetrics = {
+      missing: missingToMonthlyTarget,
+      ordersNeeded: ordersNeededForTarget,
+      averageOrderValue,
+    };
+  }
+
+  // Secondary goal
+  let secondaryGoal:
+    | "monthly_target"
+    | "next_bonus"
+    | "extra_budget"
+    | undefined;
+  let secondaryMessage: string | undefined;
+  let secondaryMetrics: any | undefined;
+
+  if (primaryGoal === "monthly_target" && missingToNextBonus > 0) {
+    secondaryGoal = "next_bonus";
+    secondaryMessage = `Dopo il target, ${formatCurrency(missingToNextBonus)} per il bonus`;
+    const roi = (bonusAmount / missingToNextBonus) * 100;
+    secondaryMetrics = {
+      missing: missingToNextBonus,
+      ordersNeeded: ordersNeededForBonus,
+      roi: Math.round(roi),
+    };
+  } else if (primaryGoal === "next_bonus" && missingToMonthlyTarget > 0) {
+    secondaryGoal = "monthly_target";
+    secondaryMessage = `E ${formatCurrency(missingToMonthlyTarget)} per il target mensile`;
+    secondaryMetrics = {
+      missing: missingToMonthlyTarget,
+      ordersNeeded: ordersNeededForTarget,
+    };
+  }
+
+  // Strategic suggestions
+  const strategySuggestions: string[] = [];
+
+  if (averageOrderValue > 2000) {
+    strategySuggestions.push(
+      `Concentrati su ordini ${formatCurrency(2000)}+ per massimizzare ROI`,
+    );
+  }
+
+  if (ordersNeededForTarget <= 5) {
+    strategySuggestions.push(
+      `Solo ${ordersNeededForTarget} ordini per raggiungere l'obiettivo`,
+    );
+  }
 
   if (missingToNextBonus <= averageOrderValue) {
-    message = `Un ordine medio ti porta al bonus da ${formatCurrency(5000)}`;
-  } else {
-    const ordersNeeded = Math.ceil(missingToNextBonus / averageOrderValue);
-    message = `Chiudendo ${ordersNeeded} ordini medi da ${formatCurrency(averageOrderValue)} sblocchi il prossimo bonus`;
+    strategySuggestions.push(`🔥 Un ordine medio ti porta al bonus!`);
   }
 
   return {
-    message,
-    ordersNeeded: Math.ceil(missingToNextBonus / averageOrderValue),
-    averageOrderValue,
-    missingToNextBonus,
+    primaryGoal,
+    primaryMessage,
+    primaryMetrics,
+    secondaryGoal,
+    secondaryMessage,
+    secondaryMetrics,
+    strategySuggestions,
+    // TODO: Add comparison with last month when available
+    comparisonLastMonth: undefined,
   };
 }
 
@@ -354,6 +518,10 @@ export function calculateExtraBudget(
 export function calculateAlerts(
   projectedMonthRevenue: number,
   monthlyTarget: number,
+  currentMonthRevenue: number,
+  averageDailyRevenue: number,
+  workingDaysRemaining: number,
+  averageOrderValue: number,
 ) {
   const visible = projectedMonthRevenue < monthlyTarget * 0.9;
 
@@ -365,18 +533,53 @@ export function calculateAlerts(
     };
   }
 
-  const percentageGap =
-    ((monthlyTarget - projectedMonthRevenue) / monthlyTarget) * 100;
+  const gap = monthlyTarget - projectedMonthRevenue;
+  const percentageGap = (gap / monthlyTarget) * 100;
 
   const message = `⚠️ Con questo ritmo chiuderai sotto il target mensile del ${Math.round(percentageGap)}%`;
 
   const severity: "warning" | "critical" =
     projectedMonthRevenue < monthlyTarget * 0.7 ? "critical" : "warning";
 
+  // Calculate required metrics
+  const requiredDailyRevenue =
+    workingDaysRemaining > 0
+      ? (monthlyTarget - currentMonthRevenue) / workingDaysRemaining
+      : 0;
+
+  const ordersNeeded = Math.ceil(gap / averageOrderValue);
+
+  // Recovery suggestions
+  const recoverySuggestions: string[] = [];
+  recoverySuggestions.push(
+    `Media giornaliera di ${new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", minimumFractionDigits: 0 }).format(requiredDailyRevenue)}/gg (ora: ${new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", minimumFractionDigits: 0 }).format(averageDailyRevenue)}/gg)`,
+  );
+
+  if (ordersNeeded <= 5) {
+    recoverySuggestions.push(
+      `${ordersNeeded} ordini grandi nei prossimi giorni`,
+    );
+  } else {
+    recoverySuggestions.push(
+      `${ordersNeeded} ordini da ${new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", minimumFractionDigits: 0 }).format(averageOrderValue)}`,
+    );
+  }
+
+  recoverySuggestions.push(`Focus su chiusura offerte pendenti`);
+
   return {
     visible: true,
     message,
     severity,
     percentageGap,
+    projectedMonthRevenue,
+    monthlyTarget,
+    gap,
+    requiredDailyRevenue,
+    currentDailyRevenue: averageDailyRevenue,
+    daysRemaining: workingDaysRemaining,
+    recoverySuggestions,
+    // TODO: Add comparison with last month
+    comparisonLastMonth: undefined,
   };
 }
