@@ -3,14 +3,68 @@ import { WarehouseUpload } from "../components/WarehouseUpload";
 import { WarehouseInventoryView } from "../components/WarehouseInventoryView";
 import { AddItemManuallyModal } from "../components/AddItemManuallyModal";
 import { BoxManagementModal } from "../components/BoxManagementModal";
+import { clearWarehouseData } from "../services/warehouse-service";
+import { toastService } from "../services/toast.service";
 
 export default function WarehouseManagementView() {
   const [showAddItemModal, setShowAddItemModal] = useState(false);
   const [showBoxManagementModal, setShowBoxManagementModal] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
+  const [clearing, setClearing] = useState(false);
 
   const handleRefresh = () => {
     setRefreshKey((prev) => prev + 1);
+  };
+
+  const handleClearWarehouse = async () => {
+    // Conferma con alert
+    const confirmed = window.confirm(
+      "⚠️ ATTENZIONE!\n\n" +
+        "Questa operazione cancellerà TUTTI i dati del magazzino:\n" +
+        "• Tutti gli articoli\n" +
+        "• Tutti gli scatoli\n" +
+        "• Metadati di caricamento\n\n" +
+        "I dati verranno rimossi sia dal browser che dal server.\n\n" +
+        "Questa operazione NON può essere annullata.\n\n" +
+        "Vuoi procedere?",
+    );
+
+    if (!confirmed) {
+      return;
+    }
+
+    // Seconda conferma
+    const doubleConfirmed = window.confirm(
+      "Sei assolutamente sicuro?\n\n" +
+        "Dopo questa operazione dovrai ricaricare il file Excel del magazzino.\n\n" +
+        "Clicca OK per confermare la cancellazione definitiva.",
+    );
+
+    if (!doubleConfirmed) {
+      return;
+    }
+
+    setClearing(true);
+
+    try {
+      await clearWarehouseData();
+      toastService.success(
+        "🗑️ Magazzino completamente svuotato. Ricarica il file Excel.",
+      );
+      handleRefresh();
+
+      // Reload pagina dopo 2 secondi per pulire tutto
+      setTimeout(() => {
+        window.location.reload();
+      }, 2000);
+    } catch (error) {
+      console.error("Clear warehouse error:", error);
+      toastService.error(
+        error instanceof Error ? error.message : "Errore durante cancellazione",
+      );
+    } finally {
+      setClearing(false);
+    }
   };
 
   return (
@@ -69,6 +123,23 @@ export default function WarehouseManagementView() {
           }}
         >
           📦 Gestione Scatoli
+        </button>
+        <button
+          onClick={handleClearWarehouse}
+          disabled={clearing}
+          style={{
+            padding: "10px 16px",
+            fontSize: "14px",
+            fontWeight: 600,
+            border: "none",
+            borderRadius: "6px",
+            backgroundColor: clearing ? "#ccc" : "#d32f2f",
+            color: "#fff",
+            cursor: clearing ? "not-allowed" : "pointer",
+            opacity: clearing ? 0.6 : 1,
+          }}
+        >
+          {clearing ? "Cancellazione..." : "🗑️ Pulisci Magazzino"}
         </button>
       </div>
 
