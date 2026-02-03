@@ -283,19 +283,43 @@ export class OrderArticlesSyncService extends EventEmitter {
       logger.info("[OrderArticlesSync] Inserting articles...");
       this.orderDb.saveOrderArticlesWithVat(enrichedArticles);
 
-      // Step 9: Update order totals
+      // Step 9: Recalculate totals after K3 VAT fix
+      // fixK3ArticleVAT is called inside saveOrderArticlesWithVat, so we need to
+      // recalculate totals from the database to include the corrected K3 VAT
+      logger.info(
+        "[OrderArticlesSync] Recalculating totals after K3 VAT fix...",
+      );
+      const articlesFromDb = this.orderDb.getOrderArticles(orderId);
+      const totalVatAmountAfterFix = articlesFromDb.reduce(
+        (sum, a) => sum + (a.vatAmount || 0),
+        0,
+      );
+      const totalWithVatAfterFix = articlesFromDb.reduce(
+        (sum, a) => sum + (a.lineTotalWithVat || 0),
+        0,
+      );
+
+      logger.info("[OrderArticlesSync] Totals recalculated after K3 fix", {
+        before: { totalVatAmount, totalWithVat },
+        after: {
+          totalVatAmount: totalVatAmountAfterFix,
+          totalWithVat: totalWithVatAfterFix,
+        },
+      });
+
+      // Step 10: Update order totals with corrected values
       logger.info("[OrderArticlesSync] Updating order totals...");
       this.orderDb.updateOrderTotals(orderId, {
-        totalVatAmount,
-        totalWithVat,
+        totalVatAmount: parseFloat(totalVatAmountAfterFix.toFixed(2)),
+        totalWithVat: parseFloat(totalWithVatAfterFix.toFixed(2)),
       });
 
       const duration = Date.now() - startTime;
       logger.info("[OrderArticlesSync] Completed", {
         orderId,
         articlesCount: enrichedArticles.length,
-        totalVatAmount,
-        totalWithVat,
+        totalVatAmount: totalVatAmountAfterFix,
+        totalWithVat: totalWithVatAfterFix,
         duration,
       });
 
@@ -308,8 +332,8 @@ export class OrderArticlesSyncService extends EventEmitter {
 
       return {
         articles: enrichedArticles,
-        totalVatAmount,
-        totalWithVat,
+        totalVatAmount: parseFloat(totalVatAmountAfterFix.toFixed(2)),
+        totalWithVat: parseFloat(totalWithVatAfterFix.toFixed(2)),
       };
     } catch (error) {
       logger.error("[OrderArticlesSync] Failed", {
