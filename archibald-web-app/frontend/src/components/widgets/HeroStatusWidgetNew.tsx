@@ -233,19 +233,18 @@ export function HeroStatusWidgetNew({ data }: HeroStatusWidgetNewProps) {
           {/* vs Obiettivo Annuo */}
           {data.comparisonYearlyProgress && (
             <div
-              className="comparison-card"
+              className="comparison-card comparison-card-yearly"
               style={{
                 display: "flex",
                 alignItems: "center",
                 gap: "12px",
                 padding: "14px 20px",
-                backgroundColor: "rgba(255,255,255,0.15)",
+                backgroundColor: "rgba(255,255,255,0.12)",
                 borderRadius: "12px",
                 backdropFilter: "blur(10px)",
-                border: "2px solid rgba(255,215,0,0.4)",
-                animation:
-                  "slideIn 0.6s ease-out 0.6s both, pulse 2s ease-in-out infinite",
-                boxShadow: "0 4px 16px rgba(255,215,0,0.2)",
+                border: "1px solid rgba(255,215,0,0.3)",
+                animation: "slideIn 0.6s ease-out 0.6s both",
+                boxShadow: "0 4px 12px rgba(255,215,0,0.15)",
               }}
             >
               <span style={{ fontSize: "24px" }}>🎯</span>
