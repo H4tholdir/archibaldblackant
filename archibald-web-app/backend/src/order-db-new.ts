@@ -875,7 +875,7 @@ export class OrderDatabaseNew {
     const totalWithVatStr = totals.totalWithVat.toFixed(2);
     const syncedAt = new Date().toISOString();
 
-    this.db
+    const result = this.db
       .prepare(
         `UPDATE orders
          SET total_vat_amount = ?, total_with_vat = ?, articles_synced_at = ?
@@ -887,6 +887,30 @@ export class OrderDatabaseNew {
       totalVatAmount: totalVatAmountStr,
       totalWithVat: totalWithVatStr,
       articlesSyncedAt: syncedAt,
+      rowsAffected: result.changes,
+    });
+
+    // Verify the update was successful by reading back
+    const verification = this.db
+      .prepare(
+        `SELECT total_vat_amount, total_with_vat, articles_synced_at FROM orders WHERE id = ?`,
+      )
+      .get(orderId) as {
+      total_vat_amount: string | null;
+      total_with_vat: string | null;
+      articles_synced_at: string | null;
+    };
+
+    logger.info(`[OrderDatabaseNew] Verified totals in database`, {
+      orderId,
+      storedValues: verification,
+      expectedValues: {
+        total_vat_amount: totalVatAmountStr,
+        total_with_vat: totalWithVatStr,
+      },
+      match:
+        verification?.total_vat_amount === totalVatAmountStr &&
+        verification?.total_with_vat === totalWithVatStr,
     });
   }
 
