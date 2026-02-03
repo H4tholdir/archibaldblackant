@@ -1,12 +1,12 @@
-import Database from 'better-sqlite3';
-import path from 'path';
+import Database from "better-sqlite3";
+import path from "path";
 
 /**
  * Migration 003: Add price_history table
  * Tracks all price changes for audit and dashboard display
  */
 export function migrate003PriceHistory(dbPath?: string): void {
-  const finalPath = dbPath || path.join(__dirname, '../../data/prices.db');
+  const finalPath = dbPath || path.join(__dirname, "../../data/prices.db");
   const db = new Database(finalPath);
 
   db.exec(`
@@ -56,7 +56,7 @@ export function migrate003PriceHistory(dbPath?: string): void {
   `);
 
   db.close();
-  console.log('[Migration 003] Price history table created');
+  console.log("[Migration 003] Price history table created");
 }
 
 // Run migration if executed directly

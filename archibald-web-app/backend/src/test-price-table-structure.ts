@@ -35,7 +35,9 @@ async function testPriceTableStructure() {
 
     // Wait for table
     await page.waitForSelector('table[id*="_DXMainTable"]', { timeout: 30000 });
-    await page.waitForSelector('tbody tr[id*="_DXDataRow"]', { timeout: 30000 });
+    await page.waitForSelector('tbody tr[id*="_DXDataRow"]', {
+      timeout: 30000,
+    });
     logger.info("✅ Table loaded");
 
     // Wait for full render
@@ -152,7 +154,9 @@ async function testPriceTableStructure() {
     logger.info(`\n📋 Full Header List (all columns):`);
     columnInfo.headers.forEach((header) => {
       if (header.text && header.text.length > 0) {
-        logger.info(`   [${header.index}] col${header.colNumber}: "${header.text}"`);
+        logger.info(
+          `   [${header.index}] col${header.colNumber}: "${header.text}"`,
+        );
       }
     });
 

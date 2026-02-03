@@ -119,7 +119,9 @@ export class ImageDownloader {
 
         // Save to disk
         fs.writeFileSync(localPath, buffer);
-        logger.info(`✅ Downloaded image: ${relativePath} (${buffer.length} bytes)`);
+        logger.info(
+          `✅ Downloaded image: ${relativePath} (${buffer.length} bytes)`,
+        );
 
         // Extract metadata
         const metadata = this.getImageMetadata(localPath);
@@ -223,9 +225,10 @@ export class ImageDownloader {
    * Extract image dimensions from buffer (basic implementation)
    * Supports JPEG and PNG formats
    */
-  private extractImageDimensions(
-    buffer: Buffer,
-  ): { width?: number; height?: number } {
+  private extractImageDimensions(buffer: Buffer): {
+    width?: number;
+    height?: number;
+  } {
     try {
       // Check for JPEG
       if (buffer[0] === 0xff && buffer[1] === 0xd8) {
@@ -251,9 +254,10 @@ export class ImageDownloader {
   /**
    * Extract JPEG dimensions
    */
-  private extractJpegDimensions(
-    buffer: Buffer,
-  ): { width?: number; height?: number } {
+  private extractJpegDimensions(buffer: Buffer): {
+    width?: number;
+    height?: number;
+  } {
     let offset = 2;
 
     while (offset < buffer.length) {
@@ -287,9 +291,10 @@ export class ImageDownloader {
   /**
    * Extract PNG dimensions
    */
-  private extractPngDimensions(
-    buffer: Buffer,
-  ): { width?: number; height?: number } {
+  private extractPngDimensions(buffer: Buffer): {
+    width?: number;
+    height?: number;
+  } {
     // PNG dimensions are in IHDR chunk at bytes 16-23
     if (buffer.length >= 24) {
       const width = buffer.readUInt32BE(16);

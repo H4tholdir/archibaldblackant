@@ -158,7 +158,10 @@ export class PDFParserProductsService {
 
       // Check pdfplumber
       const pdfplumberCheck = await new Promise<boolean>((resolve) => {
-        const python = spawn("python3", ["-c", "import pdfplumber; print('OK')"]);
+        const python = spawn("python3", [
+          "-c",
+          "import pdfplumber; print('OK')",
+        ]);
         let output = "";
         python.stdout.on("data", (data) => (output += data.toString()));
         python.on("close", (code) => {

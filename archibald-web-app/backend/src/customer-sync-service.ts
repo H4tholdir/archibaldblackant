@@ -92,9 +92,7 @@ export class CustomerSyncService extends EventEmitter {
 
   private throwIfStopRequested(stage: string): void {
     if (this.stopRequested) {
-      throw new SyncStopError(
-        `[CustomerSync] Stop requested during ${stage}`,
-      );
+      throw new SyncStopError(`[CustomerSync] Stop requested during ${stage}`);
     }
   }
 

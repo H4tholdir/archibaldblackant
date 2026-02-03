@@ -28,8 +28,12 @@ async function testPriceDataCells() {
       timeout: 60000,
     });
 
-    await bot.page.waitForSelector('table[id*="_DXMainTable"]', { timeout: 30000 });
-    await bot.page.waitForSelector('tbody tr[id*="_DXDataRow"]', { timeout: 30000 });
+    await bot.page.waitForSelector('table[id*="_DXMainTable"]', {
+      timeout: 30000,
+    });
+    await bot.page.waitForSelector('tbody tr[id*="_DXDataRow"]', {
+      timeout: 30000,
+    });
     logger.info("✅ Table loaded");
 
     await new Promise((resolve) => setTimeout(resolve, 3000));
@@ -41,7 +45,7 @@ async function testPriceDataCells() {
 
       // Get first 5 data rows
       const dataRows = Array.from(
-        table.querySelectorAll('tbody tr[id*="_DXDataRow"]')
+        table.querySelectorAll('tbody tr[id*="_DXDataRow"]'),
       ).slice(0, 5);
 
       const extractedRows: Array<{ [key: number]: string }> = [];
@@ -62,7 +66,9 @@ async function testPriceDataCells() {
 
       return {
         totalRows: dataRows.length,
-        cellCountFirstRow: extractedRows[0] ? Object.keys(extractedRows[0]).length : 0,
+        cellCountFirstRow: extractedRows[0]
+          ? Object.keys(extractedRows[0]).length
+          : 0,
         extractedRows,
       };
     });
@@ -101,7 +107,9 @@ async function testPriceDataCells() {
 
       if (valuesInColumn.length > 0) {
         const samples = valuesInColumn.slice(0, 3).join(" | ");
-        logger.info(`   [${i}] ${valuesInColumn.length}/${dataExtraction.totalRows} filled: ${samples}`);
+        logger.info(
+          `   [${i}] ${valuesInColumn.length}/${dataExtraction.totalRows} filled: ${samples}`,
+        );
       }
     }
 

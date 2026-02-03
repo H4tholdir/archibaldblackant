@@ -131,13 +131,17 @@ export class UserDatabase {
           ALTER TABLE users ADD COLUMN password_updated_at TEXT;
           PRAGMA user_version = 5;
         `);
-        logger.info("[UserDatabase] Migrated to schema v5 (encrypted passwords)");
+        logger.info(
+          "[UserDatabase] Migrated to schema v5 (encrypted passwords)",
+        );
       } catch (error: any) {
         // Ignore if columns already exist
-        if (!error.message.includes('duplicate column name')) {
+        if (!error.message.includes("duplicate column name")) {
           throw error;
         }
-        logger.info("[UserDatabase] Schema v5 columns already exist, setting version");
+        logger.info(
+          "[UserDatabase] Schema v5 columns already exist, setting version",
+        );
         this.db.exec(`PRAGMA user_version = 5;`);
       }
     }
@@ -645,7 +649,7 @@ export class UserDatabase {
         encrypted.authTag,
         encrypted.version,
         new Date().toISOString(),
-        userId
+        userId,
       );
 
       if (result.changes === 0) {

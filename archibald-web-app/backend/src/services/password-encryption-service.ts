@@ -18,38 +18,43 @@
  * - Mitigations: Key rotation, VPS hardening, file permissions
  */
 
-import crypto from 'crypto';
-import { logger } from '../logger';
+import crypto from "crypto";
+import { logger } from "../logger";
 
 const ENCRYPTION_CONFIG = {
-  algorithm: 'aes-256-gcm' as const,
-  ivLength: 16,  // 128 bits
+  algorithm: "aes-256-gcm" as const,
+  ivLength: 16, // 128 bits
   keyLength: 32, // 256 bits
   authTagLength: 16, // 128 bits
   keyDerivation: {
-    algorithm: 'pbkdf2',
+    algorithm: "pbkdf2",
     iterations: 100000, // OWASP recommended minimum
-    digest: 'sha256',
-    saltSuffix: 'archibald-salt-2026',
+    digest: "sha256",
+    saltSuffix: "archibald-salt-2026",
   },
   currentVersion: 1,
 };
 
 export interface EncryptedPassword {
-  ciphertext: string;  // Base64 encoded
-  iv: string;          // Base64 encoded
-  authTag: string;     // Base64 encoded
-  version: number;     // For future key rotation
+  ciphertext: string; // Base64 encoded
+  iv: string; // Base64 encoded
+  authTag: string; // Base64 encoded
+  version: number; // For future key rotation
 }
 
 export class PasswordEncryptionService {
   private jwtSecret: string;
 
   constructor(jwtSecret?: string) {
-    this.jwtSecret = jwtSecret || process.env.JWT_SECRET || 'dev-secret-key-change-in-production';
+    this.jwtSecret =
+      jwtSecret ||
+      process.env.JWT_SECRET ||
+      "dev-secret-key-change-in-production";
 
-    if (this.jwtSecret === 'dev-secret-key-change-in-production') {
-      logger.warn('⚠️  WARNING: Using default JWT_SECRET in production is INSECURE!');
+    if (this.jwtSecret === "dev-secret-key-change-in-production") {
+      logger.warn(
+        "⚠️  WARNING: Using default JWT_SECRET in production is INSECURE!",
+      );
     }
   }
 
@@ -72,12 +77,12 @@ export class PasswordEncryptionService {
       const cipher = crypto.createCipheriv(
         ENCRYPTION_CONFIG.algorithm,
         key,
-        iv
+        iv,
       );
 
       // 4. Encrypt the plaintext
       const encrypted = Buffer.concat([
-        cipher.update(plaintext, 'utf8'),
+        cipher.update(plaintext, "utf8"),
         cipher.final(),
       ]);
 
@@ -86,17 +91,17 @@ export class PasswordEncryptionService {
 
       // 6. Return Base64-encoded data
       return {
-        ciphertext: encrypted.toString('base64'),
-        iv: iv.toString('base64'),
-        authTag: authTag.toString('base64'),
+        ciphertext: encrypted.toString("base64"),
+        iv: iv.toString("base64"),
+        authTag: authTag.toString("base64"),
         version: ENCRYPTION_CONFIG.currentVersion,
       };
     } catch (error) {
-      logger.error('Password encryption failed', {
+      logger.error("Password encryption failed", {
         userId,
-        error: error instanceof Error ? error.message : 'Unknown error'
+        error: error instanceof Error ? error.message : "Unknown error",
       });
-      throw new Error('Failed to encrypt password');
+      throw new Error("Failed to encrypt password");
     }
   }
 
@@ -114,15 +119,15 @@ export class PasswordEncryptionService {
       const key = this.deriveKey(userId);
 
       // 2. Decode Base64 data
-      const ciphertext = Buffer.from(encrypted.ciphertext, 'base64');
-      const iv = Buffer.from(encrypted.iv, 'base64');
-      const authTag = Buffer.from(encrypted.authTag, 'base64');
+      const ciphertext = Buffer.from(encrypted.ciphertext, "base64");
+      const iv = Buffer.from(encrypted.iv, "base64");
+      const authTag = Buffer.from(encrypted.authTag, "base64");
 
       // 3. Create decipher with AES-256-GCM
       const decipher = crypto.createDecipheriv(
         ENCRYPTION_CONFIG.algorithm,
         key,
-        iv
+        iv,
       );
 
       // 4. Set authentication tag BEFORE calling decipher.update()
@@ -131,16 +136,18 @@ export class PasswordEncryptionService {
       // 5. Decrypt (will throw if auth tag doesn't match)
       const decrypted = Buffer.concat([
         decipher.update(ciphertext),
-        decipher.final(),  // Throws if auth tag verification fails
+        decipher.final(), // Throws if auth tag verification fails
       ]);
 
-      return decrypted.toString('utf8');
+      return decrypted.toString("utf8");
     } catch (error) {
-      logger.error('Password decryption failed', {
+      logger.error("Password decryption failed", {
         userId,
-        error: error instanceof Error ? error.message : 'Unknown error'
+        error: error instanceof Error ? error.message : "Unknown error",
       });
-      throw new Error('Failed to decrypt password - invalid auth tag or corrupted data');
+      throw new Error(
+        "Failed to decrypt password - invalid auth tag or corrupted data",
+      );
     }
   }
 
@@ -162,11 +169,11 @@ export class PasswordEncryptionService {
     // - Deterministic (same inputs = same key)
     // - Unique per user (userId in salt)
     return crypto.pbkdf2Sync(
-      this.jwtSecret,                                    // Password/secret
-      salt,                                               // Salt (unique per user)
-      ENCRYPTION_CONFIG.keyDerivation.iterations,        // Iterations (100k)
-      ENCRYPTION_CONFIG.keyLength,                       // Key length (32 bytes)
-      ENCRYPTION_CONFIG.keyDerivation.digest             // Hash function (SHA256)
+      this.jwtSecret, // Password/secret
+      salt, // Salt (unique per user)
+      ENCRYPTION_CONFIG.keyDerivation.iterations, // Iterations (100k)
+      ENCRYPTION_CONFIG.keyLength, // Key length (32 bytes)
+      ENCRYPTION_CONFIG.keyDerivation.digest, // Hash function (SHA256)
     );
   }
 
@@ -193,9 +200,9 @@ export class PasswordEncryptionService {
       encryption_auth_tag: string | null;
       encryption_version: number | null;
     }>,
-    updateCallback: (userId: string, encrypted: EncryptedPassword) => void
+    updateCallback: (userId: string, encrypted: EncryptedPassword) => void,
   ): Promise<number> {
-    logger.info('🔄 Starting encryption key rotation...');
+    logger.info("🔄 Starting encryption key rotation...");
 
     const users = getAllUsersCallback();
     let rotatedCount = 0;
@@ -203,19 +210,26 @@ export class PasswordEncryptionService {
 
     for (const user of users) {
       // Skip users without encrypted password
-      if (!user.encrypted_password || !user.encryption_iv || !user.encryption_auth_tag) {
+      if (
+        !user.encrypted_password ||
+        !user.encryption_iv ||
+        !user.encryption_auth_tag
+      ) {
         continue;
       }
 
       try {
         // 1. Decrypt with old key
         const oldService = new PasswordEncryptionService(oldSecret);
-        const plaintext = oldService.decrypt({
-          ciphertext: user.encrypted_password,
-          iv: user.encryption_iv,
-          authTag: user.encryption_auth_tag,
-          version: user.encryption_version || 1,
-        }, user.id);
+        const plaintext = oldService.decrypt(
+          {
+            ciphertext: user.encrypted_password,
+            iv: user.encryption_iv,
+            authTag: user.encryption_auth_tag,
+            version: user.encryption_version || 1,
+          },
+          user.id,
+        );
 
         // 2. Re-encrypt with new key
         const newService = new PasswordEncryptionService(newSecret);
@@ -229,12 +243,14 @@ export class PasswordEncryptionService {
       } catch (error) {
         errorCount++;
         logger.error(`❌ Failed to rotate key for user ${user.username}`, {
-          error: error instanceof Error ? error.message : 'Unknown error'
+          error: error instanceof Error ? error.message : "Unknown error",
         });
       }
     }
 
-    logger.info(`🎉 Key rotation complete: ${rotatedCount}/${users.length} successful, ${errorCount} errors`);
+    logger.info(
+      `🎉 Key rotation complete: ${rotatedCount}/${users.length} successful, ${errorCount} errors`,
+    );
     return rotatedCount;
   }
 }

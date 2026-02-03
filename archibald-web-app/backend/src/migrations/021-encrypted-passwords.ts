@@ -12,11 +12,11 @@
  * - password_updated_at: Timestamp of last password update
  */
 
-import Database from 'better-sqlite3';
-import { logger } from '../logger';
+import Database from "better-sqlite3";
+import { logger } from "../logger";
 
 export function up(db: Database.Database): void {
-  logger.info('Running migration 021: Add encrypted password columns');
+  logger.info("Running migration 021: Add encrypted password columns");
 
   try {
     // Add new columns for password encryption
@@ -28,15 +28,15 @@ export function up(db: Database.Database): void {
       ALTER TABLE users ADD COLUMN password_updated_at TEXT;
     `);
 
-    logger.info('✅ Migration 021 complete - encrypted password columns added');
+    logger.info("✅ Migration 021 complete - encrypted password columns added");
   } catch (error) {
-    logger.error('❌ Migration 021 failed', { error });
+    logger.error("❌ Migration 021 failed", { error });
     throw error;
   }
 }
 
 export function down(db: Database.Database): void {
-  logger.info('Rolling back migration 021');
+  logger.info("Rolling back migration 021");
 
   try {
     // SQLite doesn't support DROP COLUMN, so we need to recreate the table
@@ -62,9 +62,11 @@ export function down(db: Database.Database): void {
       CREATE INDEX IF NOT EXISTS idx_role ON users(role);
     `);
 
-    logger.info('✅ Rollback 021 complete - encrypted password columns removed');
+    logger.info(
+      "✅ Rollback 021 complete - encrypted password columns removed",
+    );
   } catch (error) {
-    logger.error('❌ Rollback 021 failed', { error });
+    logger.error("❌ Rollback 021 failed", { error });
     throw error;
   }
 }

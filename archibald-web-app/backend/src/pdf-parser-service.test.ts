@@ -14,9 +14,7 @@ describe("PDFParserService", () => {
   });
 
   it("should parse PDF successfully", async () => {
-    const result: PDFParseResult = await pdfParserService.parsePDF(
-      testPDFPath,
-    );
+    const result: PDFParseResult = await pdfParserService.parsePDF(testPDFPath);
 
     expect(result).toBeDefined();
     expect(result.total_customers).toBeGreaterThan(0);

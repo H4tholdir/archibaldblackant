@@ -102,11 +102,16 @@ export class PasswordCache {
           // Cache it for future requests
           this.set(userId, password);
 
-          console.log(`[PasswordCache] Lazy-loaded password for user ${userId} from database`);
+          console.log(
+            `[PasswordCache] Lazy-loaded password for user ${userId} from database`,
+          );
           return password;
         }
       } catch (error) {
-        console.error(`[PasswordCache] Failed to lazy-load password for user ${userId}:`, error);
+        console.error(
+          `[PasswordCache] Failed to lazy-load password for user ${userId}:`,
+          error,
+        );
         // Fall through to return null
       }
     }

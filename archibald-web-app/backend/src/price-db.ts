@@ -297,7 +297,9 @@ export class PriceDatabase {
    */
   searchPricesByName(searchTerm: string): Price[] {
     return this.db
-      .prepare("SELECT * FROM prices WHERE productName LIKE ? ORDER BY productName")
+      .prepare(
+        "SELECT * FROM prices WHERE productName LIKE ? ORDER BY productName",
+      )
       .all(`%${searchTerm}%`) as Price[];
   }
 

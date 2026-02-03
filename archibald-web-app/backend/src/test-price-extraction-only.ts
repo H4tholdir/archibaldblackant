@@ -84,8 +84,7 @@ async function testPriceExtractionOnly() {
          * [5] = Account description (es. "DETTAGLIO (consigliato)")
          */
 
-        const itemSelection =
-          (cells[6] as Element)?.textContent?.trim() || "";
+        const itemSelection = (cells[6] as Element)?.textContent?.trim() || "";
         const itemDescription =
           (cells[7] as Element)?.textContent?.trim() || "";
         const fromDate = (cells[8] as Element)?.textContent?.trim() || "";
@@ -142,9 +141,13 @@ async function testPriceExtractionOnly() {
     if (prices.length > 0) {
       logger.info(`\n📋 First 5 price entries:`);
       prices.slice(0, 5).forEach((p, idx) => {
-        logger.info(`\n   ${idx + 1}. ${p.itemSelection} - ${p.itemDescription}`);
+        logger.info(
+          `\n   ${idx + 1}. ${p.itemSelection} - ${p.itemDescription}`,
+        );
         logger.info(`      Price: ${p.price} ${p.currency}`);
-        logger.info(`      Account: ${p.accountCode} - ${p.accountDescription}`);
+        logger.info(
+          `      Account: ${p.accountCode} - ${p.accountDescription}`,
+        );
         logger.info(`      Valid from: ${p.fromDate} to ${p.toDate}`);
         logger.info(`      Qty range: ${p.qtyFrom} - ${p.qtyTo}`);
       });

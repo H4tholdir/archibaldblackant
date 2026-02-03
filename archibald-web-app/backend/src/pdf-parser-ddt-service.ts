@@ -24,10 +24,7 @@ export class PDFParserDDTService {
   private readonly timeout: number = 180000; // 3 minutes
 
   private constructor() {
-    this.parserPath = path.join(
-      __dirname,
-      "../../../scripts/parse-ddt-pdf.py",
-    );
+    this.parserPath = path.join(__dirname, "../../../scripts/parse-ddt-pdf.py");
   }
 
   static getInstance(): PDFParserDDTService {

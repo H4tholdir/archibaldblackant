@@ -43,16 +43,20 @@ async function simulateLongOperation(token: string): Promise<void> {
         headers: {
           Authorization: `Bearer ${token}`,
         },
-      }
+      },
     );
 
     const jobId = response.data.data.jobId;
     console.log(`✅ Order queued with jobId: ${jobId}`);
     console.log(`📊 Check status at: ${API_URL}/api/orders/status/${jobId}`);
-    console.log("\n💡 Now send SIGTERM to the server process to test graceful shutdown:");
+    console.log(
+      "\n💡 Now send SIGTERM to the server process to test graceful shutdown:",
+    );
     console.log("   ps aux | grep 'node.*index' | grep -v grep");
     console.log("   kill -SIGTERM <pid>");
-    console.log("\n   The server should wait for the order to complete before shutting down.");
+    console.log(
+      "\n   The server should wait for the order to complete before shutting down.",
+    );
   } catch (error: any) {
     console.error("❌ Error:", error.response?.data || error.message);
   }

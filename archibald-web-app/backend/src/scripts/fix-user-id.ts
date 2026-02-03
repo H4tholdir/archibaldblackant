@@ -6,13 +6,15 @@ const db = new Database(dbPath);
 
 const ADMIN_USER_ID = "bbed531f-97a5-4250-865e-39ec149cd048";
 
-console.log("Updating orders with user_id='sync-orchestrator' to admin user...");
+console.log(
+  "Updating orders with user_id='sync-orchestrator' to admin user...",
+);
 
 const result = db
   .prepare(
     `UPDATE orders
      SET user_id = ?
-     WHERE user_id = 'sync-orchestrator'`
+     WHERE user_id = 'sync-orchestrator'`,
   )
   .run(ADMIN_USER_ID);
 

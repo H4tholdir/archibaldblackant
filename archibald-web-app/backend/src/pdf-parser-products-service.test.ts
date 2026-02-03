@@ -1,16 +1,16 @@
-import { describe, test, expect, beforeAll } from 'vitest';
-import { PDFParserProductsService } from './pdf-parser-products-service';
-import path from 'path';
+import { describe, test, expect, beforeAll } from "vitest";
+import { PDFParserProductsService } from "./pdf-parser-products-service";
+import path from "path";
 
 const skipInCI = () => {
   if (process.env.CI) {
-    console.warn('⏭️  Skipping test in CI (requires Archibald credentials)');
+    console.warn("⏭️  Skipping test in CI (requires Archibald credentials)");
     return true;
   }
   return false;
 };
 
-describe('PDFParserProductsService', () => {
+describe("PDFParserProductsService", () => {
   let service: PDFParserProductsService;
   let testPdfPath: string;
 
@@ -18,10 +18,10 @@ describe('PDFParserProductsService', () => {
     if (skipInCI()) return;
 
     service = PDFParserProductsService.getInstance();
-    testPdfPath = process.env.PRODUCTS_PDF_PATH || '/tmp/articoli-test.pdf';
+    testPdfPath = process.env.PRODUCTS_PDF_PATH || "/tmp/articoli-test.pdf";
   });
 
-  test('should parse PDF successfully', async () => {
+  test("should parse PDF successfully", async () => {
     if (skipInCI()) return;
 
     const products = await service.parsePDF(testPdfPath);
@@ -30,7 +30,7 @@ describe('PDFParserProductsService', () => {
     expect(products.length).toBeGreaterThan(0);
   });
 
-  test('should return ~4,540 valid products', async () => {
+  test("should return ~4,540 valid products", async () => {
     if (skipInCI()) return;
 
     const products = await service.parsePDF(testPdfPath);
@@ -39,7 +39,7 @@ describe('PDFParserProductsService', () => {
     expect(products.length).toBeLessThanOrEqual(5000);
   });
 
-  test('should have all 26+ business fields', async () => {
+  test("should have all 26+ business fields", async () => {
     if (skipInCI()) return;
 
     const products = await service.parsePDF(testPdfPath);
@@ -56,12 +56,12 @@ describe('PDFParserProductsService', () => {
       sample.grandezza,
       sample.purch_price,
       sample.fermato,
-    ].some(field => field !== undefined && field !== null);
+    ].some((field) => field !== undefined && field !== null);
 
     expect(hasExtendedFields).toBe(true);
   });
 
-  test('should parse within performance target (<20s)', async () => {
+  test("should parse within performance target (<20s)", async () => {
     if (skipInCI()) return;
 
     const start = Date.now();
@@ -72,7 +72,7 @@ describe('PDFParserProductsService', () => {
     expect(duration).toBeLessThan(20000); // 20s buffer
   });
 
-  test('should pass health check', async () => {
+  test("should pass health check", async () => {
     if (skipInCI()) return;
 
     const health = await service.healthCheck();
@@ -82,11 +82,9 @@ describe('PDFParserProductsService', () => {
     expect(health.pdfplumberAvailable).toBe(true);
   });
 
-  test('should throw error for non-existent PDF', async () => {
+  test("should throw error for non-existent PDF", async () => {
     if (skipInCI()) return;
 
-    await expect(
-      service.parsePDF('/tmp/non-existent.pdf')
-    ).rejects.toThrow();
+    await expect(service.parsePDF("/tmp/non-existent.pdf")).rejects.toThrow();
   });
 });

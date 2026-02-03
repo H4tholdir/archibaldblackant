@@ -300,7 +300,9 @@ export class InvoiceSyncService extends EventEmitter {
           invoiceDueDate: parsedInvoice.due_date || null,
           invoicePaymentTermsId: parsedInvoice.payment_term_id || null,
           invoicePurchaseOrder: parsedInvoice.purchase_order || null,
-          invoiceClosed: parsedInvoice.closed ? parsedInvoice.closed === "Sì" || parsedInvoice.closed === "1" : null,
+          invoiceClosed: parsedInvoice.closed
+            ? parsedInvoice.closed === "Sì" || parsedInvoice.closed === "1"
+            : null,
         });
         updated++;
       } catch (error) {

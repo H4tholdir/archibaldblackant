@@ -43,7 +43,9 @@ async function testPriceSyncE2E() {
         priceUnit: price.price_unit ?? null,
         accountDescription: price.account_description ?? null,
         accountCode: price.account_code ?? null,
-        priceQtyFrom: price.quantity_from ? parseFloat(price.quantity_from) : null,
+        priceQtyFrom: price.quantity_from
+          ? parseFloat(price.quantity_from)
+          : null,
         priceQtyTo: price.quantity_to ? parseFloat(price.quantity_to) : null,
         lastModified: null, // Not in ParsedPrice interface
         dataAreaId: null, // Not in ParsedPrice interface

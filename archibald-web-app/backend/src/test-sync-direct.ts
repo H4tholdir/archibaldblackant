@@ -87,7 +87,10 @@ async function testSyncDirect() {
     if (loginButton) {
       await loginButton.click();
       // Wait for navigation after login
-      await page.waitForNavigation({ timeout: 10000, waitUntil: "networkidle2" });
+      await page.waitForNavigation({
+        timeout: 10000,
+        waitUntil: "networkidle2",
+      });
     }
 
     // Verify we're logged in by checking URL or page content
@@ -97,7 +100,10 @@ async function testSyncDirect() {
     // If still on login page, wait a bit more
     if (currentUrl.includes("Login.aspx")) {
       logger.info("[Test] Still on login page, waiting for redirect...");
-      await page.waitForNavigation({ timeout: 10000, waitUntil: "networkidle2" });
+      await page.waitForNavigation({
+        timeout: 10000,
+        waitUntil: "networkidle2",
+      });
     }
 
     logger.info("[Test] ✅ Logged in successfully");

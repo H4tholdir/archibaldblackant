@@ -3,20 +3,20 @@
  * Tests all fixes and improvements
  */
 
-import { OrderDatabaseNew } from './order-db-new';
-import { ProductDatabase } from './product-db';
-import { PDFParserSaleslinesService } from './pdf-parser-saleslines-service';
-import { OrderArticlesSyncService } from './order-articles-sync-service';
-import * as fs from 'fs/promises';
-import * as path from 'path';
-import { logger } from './logger';
+import { OrderDatabaseNew } from "./order-db-new";
+import { ProductDatabase } from "./product-db";
+import { PDFParserSaleslinesService } from "./pdf-parser-saleslines-service";
+import { OrderArticlesSyncService } from "./order-articles-sync-service";
+import * as fs from "fs/promises";
+import * as path from "path";
+import { logger } from "./logger";
 
-const testUserId = 'test-user-articles-sync';
-const testOrderId = 'test-order-123';
-const testPdfPath = path.join(__dirname, '../../../Salesline-Ref (1).pdf');
+const testUserId = "test-user-articles-sync";
+const testOrderId = "test-order-123";
+const testPdfPath = path.join(__dirname, "../../../Salesline-Ref (1).pdf");
 
 async function runTests() {
-  logger.info('[Test] Starting comprehensive articles sync tests');
+  logger.info("[Test] Starting comprehensive articles sync tests");
 
   const orderDb = OrderDatabaseNew.getInstance();
   const productDb = ProductDatabase.getInstance();
@@ -27,13 +27,13 @@ async function runTests() {
 
   // Test 1: PDF Parser validation (Fix #6)
   try {
-    logger.info('[Test 1] Testing PDF parser with validation...');
+    logger.info("[Test 1] Testing PDF parser with validation...");
 
     const articles = await pdfParser.parseSaleslinesPDF(testPdfPath);
 
     // Check articles parsed
     if (articles.length === 0) {
-      throw new Error('No articles parsed');
+      throw new Error("No articles parsed");
     }
 
     // Check validation: no negative values
@@ -41,57 +41,59 @@ async function runTests() {
       (a) => a.quantity <= 0 || a.unitPrice < 0 || a.discountPercent < 0,
     );
     if (hasNegative) {
-      throw new Error('Parser allowed negative values');
+      throw new Error("Parser allowed negative values");
     }
 
     // Check snake_case to camelCase conversion (Fix #12)
     const firstArticle = articles[0];
     if (!firstArticle.articleCode || !firstArticle.lineNumber) {
-      throw new Error('Snake case conversion failed');
+      throw new Error("Snake case conversion failed");
     }
 
-    logger.info(`[Test 1] ✅ PASSED - Parsed ${articles.length} articles with validation`);
+    logger.info(
+      `[Test 1] ✅ PASSED - Parsed ${articles.length} articles with validation`,
+    );
     testsPassed++;
   } catch (error) {
-    logger.error('[Test 1] ❌ FAILED', { error });
+    logger.error("[Test 1] ❌ FAILED", { error });
     testsFailed++;
   }
 
   // Test 2: Memory limit check (Fix #11)
   try {
-    logger.info('[Test 2] Testing memory limit...');
+    logger.info("[Test 2] Testing memory limit...");
 
     // This should work fine (11 articles < 1000 limit)
     const articles = await pdfParser.parseSaleslinesPDF(testPdfPath);
 
     if (articles.length > 1000) {
-      throw new Error('Memory limit not enforced');
+      throw new Error("Memory limit not enforced");
     }
 
-    logger.info('[Test 2] ✅ PASSED - Memory limit working');
+    logger.info("[Test 2] ✅ PASSED - Memory limit working");
     testsPassed++;
   } catch (error) {
-    logger.error('[Test 2] ❌ FAILED', { error });
+    logger.error("[Test 2] ❌ FAILED", { error });
     testsFailed++;
   }
 
   // Test 3: Database operations with VAT (Fix #8)
   try {
-    logger.info('[Test 3] Testing database operations...');
+    logger.info("[Test 3] Testing database operations...");
 
     // Create test order with minimal required fields
     orderDb.upsertOrder(testUserId, {
       id: testOrderId,
-      orderNumber: 'TEST-001',
+      orderNumber: "TEST-001",
       customerProfileId: null,
-      customerName: 'Test Customer',
+      customerName: "Test Customer",
       deliveryName: null,
       deliveryAddress: null,
       creationDate: new Date().toISOString(),
       deliveryDate: null,
       remainingSalesFinancial: null,
       customerReference: null,
-      salesStatus: 'pending',
+      salesStatus: "pending",
       orderType: null,
       documentStatus: null,
       salesOrigin: null,
@@ -100,8 +102,8 @@ async function runTests() {
       completionDate: null,
       discountPercent: null,
       grossAmount: null,
-      totalAmount: '0',
-      archibaldOrderId: '71723',
+      totalAmount: "0",
+      archibaldOrderId: "71723",
     });
 
     // Parse and save articles
@@ -126,11 +128,14 @@ async function runTests() {
     const saved = orderDb.saveOrderArticlesWithVat(enrichedArticles);
 
     if (saved !== enrichedArticles.length) {
-      throw new Error('Not all articles saved');
+      throw new Error("Not all articles saved");
     }
 
     // Update totals (Fix #8 - stored as numbers not formatted strings)
-    const totalVatAmount = enrichedArticles.reduce((sum, a) => sum + a.vatAmount, 0);
+    const totalVatAmount = enrichedArticles.reduce(
+      (sum, a) => sum + a.vatAmount,
+      0,
+    );
     const totalWithVat = enrichedArticles.reduce(
       (sum, a) => sum + a.lineTotalWithVat,
       0,
@@ -144,7 +149,7 @@ async function runTests() {
     // Verify saved correctly
     const savedArticles = orderDb.getOrderArticles(testOrderId);
     if (savedArticles.length !== enrichedArticles.length) {
-      throw new Error('Articles not retrieved correctly');
+      throw new Error("Articles not retrieved correctly");
     }
 
     // Check VAT fields exist
@@ -154,13 +159,13 @@ async function runTests() {
       firstSaved.vatAmount === undefined ||
       firstSaved.lineTotalWithVat === undefined
     ) {
-      throw new Error('VAT fields missing');
+      throw new Error("VAT fields missing");
     }
 
-    logger.info('[Test 3] ✅ PASSED - Database operations working');
+    logger.info("[Test 3] ✅ PASSED - Database operations working");
     testsPassed++;
   } catch (error) {
-    logger.error('[Test 3] ❌ FAILED', {
+    logger.error("[Test 3] ❌ FAILED", {
       error: error instanceof Error ? error.message : String(error),
       stack: error instanceof Error ? error.stack : undefined,
     });
@@ -169,44 +174,44 @@ async function runTests() {
 
   // Test 4: Lock mechanism (Fix #1, #2)
   try {
-    logger.info('[Test 4] Testing per-order lock mechanism...');
+    logger.info("[Test 4] Testing per-order lock mechanism...");
 
     const syncService = OrderArticlesSyncService.getInstance();
 
     // Check that lock is per-order (not global)
     // This is tested indirectly - the Map structure should allow different orders
 
-    logger.info('[Test 4] ✅ PASSED - Lock mechanism implemented');
+    logger.info("[Test 4] ✅ PASSED - Lock mechanism implemented");
     testsPassed++;
   } catch (error) {
-    logger.error('[Test 4] ❌ FAILED', { error });
+    logger.error("[Test 4] ❌ FAILED", { error });
     testsFailed++;
   }
 
   // Test 5: Error messages in italiano (Fix #13)
   try {
-    logger.info('[Test 5] Testing italian error messages...');
+    logger.info("[Test 5] Testing italian error messages...");
 
-    const { ERROR_MESSAGES } = await import('./error-messages');
+    const { ERROR_MESSAGES } = await import("./error-messages");
 
-    if (!ERROR_MESSAGES.ORDER_NOT_FOUND.includes('Ordine')) {
-      throw new Error('Error messages not in italiano');
+    if (!ERROR_MESSAGES.ORDER_NOT_FOUND.includes("Ordine")) {
+      throw new Error("Error messages not in italiano");
     }
 
-    if (!ERROR_MESSAGES.SYNC_IN_PROGRESS.includes('Sincronizzazione')) {
-      throw new Error('Error messages not translated');
+    if (!ERROR_MESSAGES.SYNC_IN_PROGRESS.includes("Sincronizzazione")) {
+      throw new Error("Error messages not translated");
     }
 
-    logger.info('[Test 5] ✅ PASSED - Error messages in italiano');
+    logger.info("[Test 5] ✅ PASSED - Error messages in italiano");
     testsPassed++;
   } catch (error) {
-    logger.error('[Test 5] ❌ FAILED', { error });
+    logger.error("[Test 5] ❌ FAILED", { error });
     testsFailed++;
   }
 
   // Test 6: Timestamp tracking (Fix #25)
   try {
-    logger.info('[Test 6] Testing articles_synced_at timestamp...');
+    logger.info("[Test 6] Testing articles_synced_at timestamp...");
 
     // Check order has timestamp after sync
     const order = orderDb.getOrderById(testUserId, testOrderId);
@@ -214,89 +219,89 @@ async function runTests() {
     // Timestamp should be set after updateOrderTotals call in Test 3
     // This is implicit in the DB schema migration
 
-    logger.info('[Test 6] ✅ PASSED - Timestamp tracking implemented');
+    logger.info("[Test 6] ✅ PASSED - Timestamp tracking implemented");
     testsPassed++;
   } catch (error) {
-    logger.error('[Test 6] ❌ FAILED', { error });
+    logger.error("[Test 6] ❌ FAILED", { error });
     testsFailed++;
   }
 
   // Test 7: Filesystem check (Fix #20, #31)
   try {
-    logger.info('[Test 7] Testing filesystem checks...');
+    logger.info("[Test 7] Testing filesystem checks...");
 
-    const { checkTmpWritable } = await import('./filesystem-check');
+    const { checkTmpWritable } = await import("./filesystem-check");
     const result = await checkTmpWritable();
 
     if (!result.writable) {
-      throw new Error('/tmp not writable');
+      throw new Error("/tmp not writable");
     }
 
-    logger.info('[Test 7] ✅ PASSED - Filesystem checks working');
+    logger.info("[Test 7] ✅ PASSED - Filesystem checks working");
     testsPassed++;
   } catch (error) {
-    logger.error('[Test 7] ❌ FAILED', { error });
+    logger.error("[Test 7] ❌ FAILED", { error });
     testsFailed++;
   }
 
   // Test 8: Python health check (Fix #24)
   try {
-    logger.info('[Test 8] Testing Python health check...');
+    logger.info("[Test 8] Testing Python health check...");
 
-    const { checkPythonDependencies } = await import('./python-health-check');
+    const { checkPythonDependencies } = await import("./python-health-check");
     const result = await checkPythonDependencies();
 
     if (!result.pythonAvailable) {
-      throw new Error('Python not available');
+      throw new Error("Python not available");
     }
 
     if (!result.pdfplumberAvailable) {
-      throw new Error('pdfplumber not available');
+      throw new Error("pdfplumber not available");
     }
 
-    logger.info('[Test 8] ✅ PASSED - Python health check working');
+    logger.info("[Test 8] ✅ PASSED - Python health check working");
     testsPassed++;
   } catch (error) {
-    logger.error('[Test 8] ❌ FAILED', { error });
+    logger.error("[Test 8] ❌ FAILED", { error });
     testsFailed++;
   }
 
   // Test 9: Decimal precision (Fix #15, #27)
   try {
-    logger.info('[Test 9] Testing decimal precision...');
+    logger.info("[Test 9] Testing decimal precision...");
 
-    const Decimal = (await import('decimal.js')).default;
+    const Decimal = (await import("decimal.js")).default;
 
     // Test that 0.1 + 0.2 = 0.3 with Decimal
     const result = new Decimal(0.1).plus(0.2);
 
     if (result.toNumber() !== 0.3) {
-      throw new Error('Decimal precision not working');
+      throw new Error("Decimal precision not working");
     }
 
-    logger.info('[Test 9] ✅ PASSED - Decimal precision working');
+    logger.info("[Test 9] ✅ PASSED - Decimal precision working");
     testsPassed++;
   } catch (error) {
-    logger.error('[Test 9] ❌ FAILED', { error });
+    logger.error("[Test 9] ❌ FAILED", { error });
     testsFailed++;
   }
 
   // Cleanup
   try {
     orderDb.deleteOrderArticles(testOrderId);
-    logger.info('[Cleanup] Test articles deleted');
+    logger.info("[Cleanup] Test articles deleted");
   } catch (error) {
-    logger.warn('[Cleanup] Failed to delete test articles', { error });
+    logger.warn("[Cleanup] Failed to delete test articles", { error });
   }
 
   // Summary
-  logger.info('');
-  logger.info('='.repeat(50));
-  logger.info('[Test Summary]');
+  logger.info("");
+  logger.info("=".repeat(50));
+  logger.info("[Test Summary]");
   logger.info(`✅ Tests passed: ${testsPassed}`);
   logger.info(`❌ Tests failed: ${testsFailed}`);
   logger.info(`📊 Total tests: ${testsPassed + testsFailed}`);
-  logger.info('='.repeat(50));
+  logger.info("=".repeat(50));
 
   if (testsFailed > 0) {
     process.exit(1);
@@ -306,7 +311,7 @@ async function runTests() {
 // Run tests if called directly
 if (require.main === module) {
   runTests().catch((error) => {
-    logger.error('[Test] Fatal error', { error });
+    logger.error("[Test] Fatal error", { error });
     process.exit(1);
   });
 }

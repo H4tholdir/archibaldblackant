@@ -37,7 +37,9 @@ async function testAllColumns() {
 
     // Wait for table
     await page.waitForSelector('table[id*="_DXMainTable"]', { timeout: 30000 });
-    await page.waitForSelector('tbody tr[id*="_DXDataRow"]', { timeout: 30000 });
+    await page.waitForSelector('tbody tr[id*="_DXDataRow"]', {
+      timeout: 30000,
+    });
     logger.info("✅ Table loaded");
 
     // Extract ALL column information
@@ -47,28 +49,32 @@ async function testAllColumns() {
 
       // Get header row
       const headerRow = table.querySelector('tbody tr[id*="_DXHeadersRow"]');
-      const headerCells = headerRow ? Array.from(headerRow.querySelectorAll('td')) : [];
+      const headerCells = headerRow
+        ? Array.from(headerRow.querySelectorAll("td"))
+        : [];
 
       // Get first data row
       const dataRow = table.querySelector('tbody tr[id*="_DXDataRow"]');
-      const dataCells = dataRow ? Array.from(dataRow.querySelectorAll('td')) : [];
+      const dataCells = dataRow
+        ? Array.from(dataRow.querySelectorAll("td"))
+        : [];
 
       // Extract header texts
       const headers = headerCells.map((cell, idx) => {
-        const id = cell.id || '';
-        const text = cell.textContent?.trim().split('\n')[0] || '';
+        const id = cell.id || "";
+        const text = cell.textContent?.trim().split("\n")[0] || "";
         return {
           index: idx,
           id,
           text,
-          colNumber: id.match(/_col(\d+)/)?.[1] || null
+          colNumber: id.match(/_col(\d+)/)?.[1] || null,
         };
       });
 
       // Extract data cell info
       const dataCellInfo = dataCells.map((cell, idx) => {
-        const text = cell.textContent?.trim().substring(0, 50) || '';
-        const hasImage = !!cell.querySelector('img');
+        const text = cell.textContent?.trim().substring(0, 50) || "";
+        const hasImage = !!cell.querySelector("img");
         const hasCheckbox = !!cell.querySelector('input[type="checkbox"]');
         const classes = cell.className;
 
@@ -77,7 +83,7 @@ async function testAllColumns() {
           text,
           hasImage,
           hasCheckbox,
-          classes
+          classes,
         };
       });
 
@@ -85,7 +91,7 @@ async function testAllColumns() {
         headerCount: headerCells.length,
         dataRowCellCount: dataCells.length,
         headers,
-        dataCells: dataCellInfo
+        dataCells: dataCellInfo,
       };
     });
 
@@ -109,8 +115,9 @@ async function testAllColumns() {
 
     logger.info(`\n📋 Data Row Cells (first 20):`);
     columnInfo.dataCells.slice(0, 20).forEach((cell, idx) => {
-      const type = cell.hasCheckbox ? '☑️' : cell.hasImage ? '🖼️' : '📝';
-      const preview = cell.text.length > 30 ? cell.text.substring(0, 30) + '...' : cell.text;
+      const type = cell.hasCheckbox ? "☑️" : cell.hasImage ? "🖼️" : "📝";
+      const preview =
+        cell.text.length > 30 ? cell.text.substring(0, 30) + "..." : cell.text;
       logger.info(`   [${idx}] ${type} "${preview}"`);
     });
 
@@ -120,13 +127,16 @@ async function testAllColumns() {
 
     // Check if header count matches data cell count
     if (columnInfo.headerCount !== columnInfo.dataRowCellCount) {
-      logger.warn(`\n⚠️  MISMATCH: Headers (${columnInfo.headerCount}) != Data cells (${columnInfo.dataRowCellCount})`);
+      logger.warn(
+        `\n⚠️  MISMATCH: Headers (${columnInfo.headerCount}) != Data cells (${columnInfo.dataRowCellCount})`,
+      );
     } else {
-      logger.info(`\n✅ Column count matches: ${columnInfo.headerCount} columns`);
+      logger.info(
+        `\n✅ Column count matches: ${columnInfo.headerCount} columns`,
+      );
     }
 
     logger.info("\n✅ Test completed!");
-
   } catch (error) {
     logger.error("❌ Test failed:", error);
     throw error;

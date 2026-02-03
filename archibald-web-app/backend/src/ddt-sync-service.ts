@@ -252,8 +252,8 @@ export class DDTSyncService extends EventEmitter {
       sample: parsedDDTs.slice(0, 5).map((d: ParsedDDT) => ({
         order_number: d.order_number,
         ddt_number: d.ddt_number,
-        tracking: d.tracking_number
-      }))
+        tracking: d.tracking_number,
+      })),
     });
 
     for (const parsedDDT of parsedDDTs) {
@@ -298,7 +298,9 @@ export class DDTSyncService extends EventEmitter {
       }
     }
 
-    logger.info(`[DDTSyncService] Updated ${updated} orders, ${notFound} not found`);
+    logger.info(
+      `[DDTSyncService] Updated ${updated} orders, ${notFound} not found`,
+    );
 
     return {
       ddtProcessed: parsedDDTs.length,

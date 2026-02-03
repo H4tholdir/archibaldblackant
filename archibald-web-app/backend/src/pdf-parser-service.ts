@@ -66,9 +66,10 @@ export class PDFParserService {
     // Path to parse-clienti-pdf.py
     // In Docker: /scripts/parse-clienti-pdf.py
     // In dev: ../../../scripts/parse-clienti-pdf.py
-    this.parserPath = process.env.NODE_ENV === "production"
-      ? "/scripts/parse-clienti-pdf.py"
-      : path.resolve(__dirname, "../../../scripts/parse-clienti-pdf.py");
+    this.parserPath =
+      process.env.NODE_ENV === "production"
+        ? "/scripts/parse-clienti-pdf.py"
+        : path.resolve(__dirname, "../../../scripts/parse-clienti-pdf.py");
   }
 
   /**

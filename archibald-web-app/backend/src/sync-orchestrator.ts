@@ -216,7 +216,7 @@ export class SyncOrchestrator extends EventEmitter {
     // Determine userId based on sync type:
     // - Products/Prices: shared data, no user_id needed
     // - Orders/Customers/DDT/Invoices: per-user data, require userId
-    const isSharedSync = type === 'products' || type === 'prices';
+    const isSharedSync = type === "products" || type === "prices";
 
     let defaultUserId = userId;
     if (!defaultUserId && !isSharedSync) {
@@ -225,13 +225,19 @@ export class SyncOrchestrator extends EventEmitter {
       const allUsers = userDb.getAllUsers();
       if (allUsers.length > 0) {
         defaultUserId = allUsers[0].id;
-        logger.info(`[SyncOrchestrator] Auto-sync for ${type}: using user ${allUsers[0].username} (${allUsers[0].id})`);
+        logger.info(
+          `[SyncOrchestrator] Auto-sync for ${type}: using user ${allUsers[0].username} (${allUsers[0].id})`,
+        );
         if (allUsers.length > 1) {
-          logger.warn(`[SyncOrchestrator] Multiple users detected (${allUsers.length}). Per-user sync for ${type} will run for each user.`);
+          logger.warn(
+            `[SyncOrchestrator] Multiple users detected (${allUsers.length}). Per-user sync for ${type} will run for each user.`,
+          );
         }
       } else {
         defaultUserId = "system";
-        logger.warn(`[SyncOrchestrator] No users found, using 'system' as fallback`);
+        logger.warn(
+          `[SyncOrchestrator] No users found, using 'system' as fallback`,
+        );
       }
     }
 
@@ -242,15 +248,19 @@ export class SyncOrchestrator extends EventEmitter {
 
       if (shouldSyncAllUsers) {
         const userDb = UserDatabase.getInstance();
-        usersToSync = userDb.getAllUsers().map(u => u.id);
-        logger.info(`[SyncOrchestrator] Per-user sync: will sync ${type} for ${usersToSync.length} users`);
+        usersToSync = userDb.getAllUsers().map((u) => u.id);
+        logger.info(
+          `[SyncOrchestrator] Per-user sync: will sync ${type} for ${usersToSync.length} users`,
+        );
       } else if (defaultUserId) {
         usersToSync = [defaultUserId];
       }
 
       // Execute sync for each user
       for (const syncUserId of usersToSync) {
-        logger.info(`[SyncOrchestrator] Syncing ${type} for user ${syncUserId}`);
+        logger.info(
+          `[SyncOrchestrator] Syncing ${type} for user ${syncUserId}`,
+        );
 
         switch (type) {
           case "customers":
@@ -528,7 +538,11 @@ export class SyncOrchestrator extends EventEmitter {
 
     // Define sync configurations
     const syncConfigs = [
-      { type: "orders" as SyncType, interval: intervals.orders * 60 * 1000, startDelay: 0 },
+      {
+        type: "orders" as SyncType,
+        interval: intervals.orders * 60 * 1000,
+        startDelay: 0,
+      },
       {
         type: "customers" as SyncType,
         interval: intervals.customers * 60 * 1000,
@@ -701,7 +715,9 @@ export class SyncOrchestrator extends EventEmitter {
       throw new Error("Interval must be between 5 and 1440 minutes");
     }
 
-    logger.info(`[SyncOrchestrator] Updating ${type} interval to ${intervalMinutes} minutes`);
+    logger.info(
+      `[SyncOrchestrator] Updating ${type} interval to ${intervalMinutes} minutes`,
+    );
 
     // Stop current auto-sync
     this.stopAutoSync();
@@ -712,6 +728,8 @@ export class SyncOrchestrator extends EventEmitter {
     // Restart auto-sync with new intervals
     this.startStaggeredAutoSync();
 
-    logger.info(`[SyncOrchestrator] Auto-sync restarted with new ${type} interval`);
+    logger.info(
+      `[SyncOrchestrator] Auto-sync restarted with new ${type} interval`,
+    );
   }
 }

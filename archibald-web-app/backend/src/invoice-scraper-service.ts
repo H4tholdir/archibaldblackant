@@ -520,25 +520,35 @@ export class InvoiceScraperService {
         await new Promise((resolve) => setTimeout(resolve, 3000));
 
         // Step 1: Find search input field (it's already visible, no need to click a button)
-        logger.info(`[InvoiceScraper] Searching for order ${order.orderNumber}`);
-        const searchInputSelector = 'input#Vertical_SearchAC_Menu_ITCNT0_xaf_a1_Ed_I';
+        logger.info(
+          `[InvoiceScraper] Searching for order ${order.orderNumber}`,
+        );
+        const searchInputSelector =
+          "input#Vertical_SearchAC_Menu_ITCNT0_xaf_a1_Ed_I";
         await page.waitForSelector(searchInputSelector, { timeout: 10000 });
 
         // Clear the placeholder text and paste order number (instant, not typing)
         await page.click(searchInputSelector);
-        await page.evaluate((selector, orderNumber) => {
-          const input = document.querySelector(selector) as HTMLInputElement;
-          if (input) {
-            input.value = orderNumber;
-            // Trigger input event to notify any listeners
-            input.dispatchEvent(new Event('input', { bubbles: true }));
-            input.dispatchEvent(new Event('change', { bubbles: true }));
-          }
-        }, searchInputSelector, order.orderNumber);
+        await page.evaluate(
+          (selector, orderNumber) => {
+            const input = document.querySelector(selector) as HTMLInputElement;
+            if (input) {
+              input.value = orderNumber;
+              // Trigger input event to notify any listeners
+              input.dispatchEvent(new Event("input", { bubbles: true }));
+              input.dispatchEvent(new Event("change", { bubbles: true }));
+            }
+          },
+          searchInputSelector,
+          order.orderNumber,
+        );
 
         // Step 2: Click the search button (B1) to execute search
-        logger.info("[InvoiceScraper] Clicking search button to execute search");
-        const searchButtonSelector = 'td#Vertical_SearchAC_Menu_ITCNT0_xaf_a1_Ed_B1';
+        logger.info(
+          "[InvoiceScraper] Clicking search button to execute search",
+        );
+        const searchButtonSelector =
+          "td#Vertical_SearchAC_Menu_ITCNT0_xaf_a1_Ed_B1";
         await page.click(searchButtonSelector);
 
         // Wait for search results
@@ -547,7 +557,8 @@ export class InvoiceScraperService {
 
         // Step 3: Click checkbox of first row
         logger.info("[InvoiceScraper] Selecting first invoice row checkbox");
-        const checkboxSelector = 'span.dxWeb_edtCheckBoxUnchecked_XafTheme.dxICheckBox_XafTheme';
+        const checkboxSelector =
+          "span.dxWeb_edtCheckBoxUnchecked_XafTheme.dxICheckBox_XafTheme";
         await page.waitForSelector(checkboxSelector, { timeout: 10000 });
         await page.click(checkboxSelector);
 

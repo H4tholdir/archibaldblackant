@@ -216,7 +216,9 @@ export class ProductSyncService extends EventEmitter {
 
       if (tempPdfPath) {
         await fs.unlink(tempPdfPath);
-        logger.info("[ProductSyncService] Temp PDF cleaned up", { tempPdfPath });
+        logger.info("[ProductSyncService] Temp PDF cleaned up", {
+          tempPdfPath,
+        });
       }
 
       const duration = Date.now() - startTime;
@@ -424,11 +426,14 @@ export class ProductSyncService extends EventEmitter {
     }, 5000);
 
     // Recurring sync
-    this.syncInterval = setInterval(() => {
-      if (!this.paused) {
-        this.syncWithRetry();
-      }
-    }, intervalMinutes * 60 * 1000);
+    this.syncInterval = setInterval(
+      () => {
+        if (!this.paused) {
+          this.syncWithRetry();
+        }
+      },
+      intervalMinutes * 60 * 1000,
+    );
   }
 
   /**

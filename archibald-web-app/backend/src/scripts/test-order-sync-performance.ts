@@ -39,7 +39,9 @@ async function testOrderSyncPerformance() {
     console.log("SYNC COMPLETED SUCCESSFULLY");
     console.log("=".repeat(80));
     console.log(`End Time: ${new Date().toISOString()}`);
-    console.log(`Duration: ${durationSeconds.toFixed(2)}s (${durationMinutes.toFixed(2)} minutes)`);
+    console.log(
+      `Duration: ${durationSeconds.toFixed(2)}s (${durationMinutes.toFixed(2)} minutes)`,
+    );
     console.log();
 
     // Get stats from DB
@@ -50,7 +52,9 @@ async function testOrderSyncPerformance() {
 
     console.log("SYNC STATISTICS:");
     console.log(`  Total Orders: ${orders.length}`);
-    console.log(`  Avg Time per Order: ${(durationSeconds / orders.length).toFixed(2)}s`);
+    console.log(
+      `  Avg Time per Order: ${(durationSeconds / orders.length).toFixed(2)}s`,
+    );
     console.log();
 
     // Group by status
@@ -62,7 +66,7 @@ async function testOrderSyncPerformance() {
 
     console.log("ORDERS BY STATUS:");
     for (const [status, count] of Object.entries(statusCounts).sort(
-      (a, b) => b[1] - a[1]
+      (a, b) => b[1] - a[1],
     )) {
       console.log(`  ${status}: ${count}`);
     }
@@ -71,7 +75,9 @@ async function testOrderSyncPerformance() {
     // Count orders with DDT data
     const ordersWithDDT = orders.filter((o) => o.ddtNumber).length;
     console.log("DDT COVERAGE:");
-    console.log(`  Orders with DDT: ${ordersWithDDT} (${((ordersWithDDT / orders.length) * 100).toFixed(1)}%)`);
+    console.log(
+      `  Orders with DDT: ${ordersWithDDT} (${((ordersWithDDT / orders.length) * 100).toFixed(1)}%)`,
+    );
     console.log();
 
     // Performance assessment
@@ -83,7 +89,9 @@ async function testOrderSyncPerformance() {
     } else if (durationMinutes < 10) {
       console.log("  ⚠️  SLOW - Sync took 5-10 minutes (may cause timeouts)");
     } else {
-      console.log("  ❌ TOO SLOW - Sync took over 10 minutes (WILL cause timeouts)");
+      console.log(
+        "  ❌ TOO SLOW - Sync took over 10 minutes (WILL cause timeouts)",
+      );
     }
     console.log();
 
