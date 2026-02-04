@@ -12,37 +12,42 @@ interface HeroStatusWidgetNewProps {
   data: HeroStatusData;
 }
 
-// Colors per status (5-level system) - Optimized for contrast with white text (WCAG AA)
+// Colors per status (5-level system) - High contrast pairs for maximum readability
 const COLORS = {
   champion: {
-    bgGradient: "linear-gradient(135deg, #5a67d8 0%, #6b46c1 100%)", // Viola più scuro
-    progressBar: "linear-gradient(90deg, #f093fb 0%, #f5576c 100%)",
-    accentColor: "#5a67d8",
+    bgGradient: "linear-gradient(135deg, #5a67d8 0%, #6b46c1 100%)", // Viola scuro
+    progressBar: "linear-gradient(90deg, #ffd700 0%, #ffed4e 100%)", // Giallo oro (alto contrasto)
+    accentColor: "#ffd700",
     textColor: "#ffffff",
+    cardBg: "rgba(255, 215, 0, 0.15)", // Giallo trasparente
   },
   excellent: {
-    bgGradient: "linear-gradient(135deg, #1e3c72 0%, #2a5298 100%)", // Blu - già ok
-    progressBar: "linear-gradient(90deg, #27ae60 0%, #2ecc71 100%)",
-    accentColor: "#27ae60",
+    bgGradient: "linear-gradient(135deg, #1e3c72 0%, #2a5298 100%)", // Blu scuro
+    progressBar: "linear-gradient(90deg, #00ff88 0%, #00d9ff 100%)", // Verde acqua brillante
+    accentColor: "#00ff88",
     textColor: "#ffffff",
+    cardBg: "rgba(0, 255, 136, 0.15)", // Verde trasparente
   },
   "on-track": {
-    bgGradient: "linear-gradient(135deg, #2c3e50 0%, #2980b9 100%)", // Blu più scuro
-    progressBar: "linear-gradient(90deg, #3498db 0%, #2ecc71 100%)",
-    accentColor: "#2980b9",
+    bgGradient: "linear-gradient(135deg, #2c3e50 0%, #2980b9 100%)", // Blu-grigio
+    progressBar: "linear-gradient(90deg, #1abc9c 0%, #16a085 100%)", // Verde smeraldo (contrasto)
+    accentColor: "#1abc9c",
     textColor: "#ffffff",
+    cardBg: "rgba(26, 188, 156, 0.15)", // Verde smeraldo trasparente
   },
   attention: {
-    bgGradient: "linear-gradient(135deg, #d35400 0%, #e67e22 100%)", // Arancione più scuro
-    progressBar: "linear-gradient(90deg, #f39c12 0%, #e67e22 100%)",
-    accentColor: "#d35400",
+    bgGradient: "linear-gradient(135deg, #c44100 0%, #d35400 100%)", // Arancione molto scuro
+    progressBar: "linear-gradient(90deg, #ffeb3b 0%, #fdd835 100%)", // Giallo brillante (massimo contrasto)
+    accentColor: "#ffeb3b",
     textColor: "#ffffff",
+    cardBg: "rgba(255, 235, 59, 0.15)", // Giallo trasparente
   },
   critical: {
-    bgGradient: "linear-gradient(135deg, #a93226 0%, #7d3c98 100%)", // Rosso-viola più scuro
-    progressBar: "linear-gradient(90deg, #e74c3c 0%, #c0392b 100%)",
-    accentColor: "#a93226",
+    bgGradient: "linear-gradient(135deg, #8b0000 0%, #b91400 100%)", // Rosso molto scuro
+    progressBar: "linear-gradient(90deg, #ff6b6b 0%, #ee5a6f 100%)", // Rosso chiaro (contrasto)
+    accentColor: "#ff6b6b",
     textColor: "#ffffff",
+    cardBg: "rgba(255, 107, 107, 0.15)", // Rosso chiaro trasparente
   },
 };
 
@@ -105,7 +110,7 @@ export function HeroStatusWidgetNew({ data }: HeroStatusWidgetNewProps) {
           fontSize: "28px",
           fontWeight: "bold",
           textAlign: "center",
-          textShadow: "0 2px 8px rgba(0,0,0,0.3)",
+          textShadow: "0 3px 12px rgba(0,0,0,0.5), 0 1px 3px rgba(0,0,0,0.8)",
         }}
       >
         🚀 {data.microCopy}
@@ -135,7 +140,7 @@ export function HeroStatusWidgetNew({ data }: HeroStatusWidgetNewProps) {
             marginBottom: "20px",
             textAlign: "center",
             letterSpacing: "0.5px",
-            textShadow: "0 2px 12px rgba(0,0,0,0.2)",
+            textShadow: "0 3px 15px rgba(0,0,0,0.6), 0 1px 4px rgba(0,0,0,0.9)",
           }}
         >
           {maskValue(data.currentMonthRevenue, "money")} /{" "}
@@ -184,11 +189,12 @@ export function HeroStatusWidgetNew({ data }: HeroStatusWidgetNewProps) {
                 alignItems: "center",
                 gap: "12px",
                 padding: "14px 20px",
-                backgroundColor: "rgba(255,255,255,0.1)",
+                backgroundColor: colors.cardBg,
                 borderRadius: "12px",
                 backdropFilter: "blur(10px)",
                 animation: "slideIn 0.6s ease-out 0.2s both",
-                boxShadow: "0 4px 12px rgba(0,0,0,0.1)",
+                boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
+                border: `1px solid ${colors.accentColor}40`,
               }}
             >
               <span style={{ fontSize: "24px" }}>📊</span>
@@ -228,11 +234,12 @@ export function HeroStatusWidgetNew({ data }: HeroStatusWidgetNewProps) {
                 alignItems: "center",
                 gap: "12px",
                 padding: "14px 20px",
-                backgroundColor: "rgba(255,255,255,0.1)",
+                backgroundColor: colors.cardBg,
                 borderRadius: "12px",
                 backdropFilter: "blur(10px)",
                 animation: "slideIn 0.6s ease-out 0.4s both",
-                boxShadow: "0 4px 12px rgba(0,0,0,0.1)",
+                boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
+                border: `1px solid ${colors.accentColor}40`,
               }}
             >
               <span style={{ fontSize: "24px" }}>📅</span>
@@ -272,12 +279,12 @@ export function HeroStatusWidgetNew({ data }: HeroStatusWidgetNewProps) {
                 alignItems: "center",
                 gap: "12px",
                 padding: "14px 20px",
-                backgroundColor: "rgba(255,255,255,0.12)",
+                backgroundColor: colors.cardBg,
                 borderRadius: "12px",
                 backdropFilter: "blur(10px)",
-                border: "1px solid rgba(255,215,0,0.3)",
+                border: `2px solid ${colors.accentColor}50`,
                 animation: "slideIn 0.6s ease-out 0.6s both",
-                boxShadow: "0 4px 12px rgba(255,215,0,0.15)",
+                boxShadow: `0 4px 12px ${colors.accentColor}30`,
               }}
             >
               <span style={{ fontSize: "24px" }}>🎯</span>
