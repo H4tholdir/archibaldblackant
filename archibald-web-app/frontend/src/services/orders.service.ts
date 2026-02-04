@@ -8,7 +8,6 @@ import {
 } from "./warehouse-order-integration";
 import { getDeviceId } from "../utils/device-id";
 import { unifiedSyncService } from "./unified-sync-service";
-import { fetchWithRetry } from "../utils/fetch-with-retry";
 
 export class OrderService {
   private db: Dexie;
