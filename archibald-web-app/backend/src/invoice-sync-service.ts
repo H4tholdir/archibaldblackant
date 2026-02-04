@@ -269,7 +269,7 @@ export class InvoiceSyncService extends EventEmitter {
       }
 
       // Match invoice to order by order number
-      const order = this.orderDb.getOrderById(
+      const order = this.orderDb.getOrderByNumber(
         userId,
         parsedInvoice.order_number,
       );

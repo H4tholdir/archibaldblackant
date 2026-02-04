@@ -1202,6 +1202,82 @@ export class OrderDatabaseNew {
     };
   }
 
+  getOrderByNumber(userId: string, orderNumber: string): OrderRecord | null {
+    const row = this.db
+      .prepare(
+        `SELECT * FROM orders WHERE user_id = ? AND order_number = ? LIMIT 1`,
+      )
+      .get(userId, orderNumber) as any;
+
+    if (!row) {
+      return null;
+    }
+
+    // Map snake_case to camelCase
+    return {
+      id: row.id,
+      userId: row.user_id,
+      orderNumber: row.order_number,
+      customerProfileId: row.customer_profile_id,
+      customerName: row.customer_name,
+      deliveryName: row.delivery_name,
+      deliveryAddress: row.delivery_address,
+      creationDate: row.creation_date,
+      deliveryDate: row.delivery_date,
+      remainingSalesFinancial: row.remaining_sales_financial,
+      customerReference: row.customer_reference,
+      salesStatus: row.sales_status,
+      orderType: row.order_type,
+      documentStatus: row.document_status,
+      salesOrigin: row.sales_origin,
+      transferStatus: row.transfer_status,
+      transferDate: row.transfer_date,
+      completionDate: row.completion_date,
+      discountPercent: row.discount_percent,
+      grossAmount: row.gross_amount,
+      totalAmount: row.total_amount,
+      lastSync: row.last_sync,
+      // DDT fields
+      ddtNumber: row.ddt_number,
+      ddtDeliveryDate: row.ddt_delivery_date,
+      ddtId: row.ddt_id,
+      ddtCustomerAccount: row.ddt_customer_account,
+      ddtSalesName: row.ddt_sales_name,
+      ddtDeliveryName: row.ddt_delivery_name,
+      deliveryTerms: row.delivery_terms,
+      deliveryMethod: row.delivery_method,
+      deliveryCity: row.delivery_city,
+      attentionTo: row.attention_to,
+      // Tracking fields
+      trackingNumber: row.tracking_number,
+      trackingUrl: row.tracking_url,
+      trackingCourier: row.tracking_courier,
+      // Invoice fields
+      invoiceNumber: row.invoice_number,
+      invoiceDate: row.invoice_date,
+      invoiceAmount: row.invoice_amount,
+      invoiceCustomerAccount: row.invoice_customer_account,
+      invoiceBillingName: row.invoice_billing_name,
+      invoiceQuantity: row.invoice_quantity,
+      invoiceRemainingAmount: row.invoice_remaining_amount,
+      invoiceTaxAmount: row.invoice_tax_amount,
+      invoiceLineDiscount: row.invoice_line_discount,
+      invoiceTotalDiscount: row.invoice_total_discount,
+      invoiceDueDate: row.invoice_due_date,
+      invoicePaymentTermsId: row.invoice_payment_terms_id,
+      invoicePurchaseOrder: row.invoice_purchase_order,
+      invoiceClosed: row.invoice_closed ? true : false,
+      // State fields
+      currentState: row.current_state,
+      sentToMilanoAt: row.sent_to_milano_at,
+      archibaldOrderId: row.archibald_order_id,
+      // Articles totals
+      totalVatAmount: row.total_vat_amount,
+      totalWithVat: row.total_with_vat,
+      articlesSyncedAt: row.articles_synced_at,
+    };
+  }
+
   clearUserOrders(userId: string): void {
     const result = this.db
       .prepare(`DELETE FROM orders WHERE user_id = ?`)

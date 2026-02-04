@@ -259,7 +259,10 @@ export class DDTSyncService extends EventEmitter {
     for (const parsedDDT of parsedDDTs) {
       this.throwIfStopRequested("saving");
       // Match DDT to order by order number
-      const order = this.orderDb.getOrderById(userId, parsedDDT.order_number);
+      const order = this.orderDb.getOrderByNumber(
+        userId,
+        parsedDDT.order_number,
+      );
 
       if (!order) {
         notFound++;
