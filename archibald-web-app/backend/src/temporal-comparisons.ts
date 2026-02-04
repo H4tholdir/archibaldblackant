@@ -133,8 +133,10 @@ export function getMonthsAgo(months: number): Date {
  * - "123,45 €" → 123.45
  * - "1.234,56 €" → 1234.56
  * - "2.215,40 €" → 2215.40
+ *
+ * Exported for use in other modules to avoid code duplication
  */
-function parseItalianCurrency(value: string): number {
+export function parseItalianCurrency(value: string | null): number {
   if (!value || value.trim() === "") return 0;
 
   // Remove currency symbol and whitespace
@@ -157,33 +159,56 @@ function parseItalianCurrency(value: string): number {
  *
  * NOTE: Applies ORDER_AMOUNT_OVERRIDES for known erroneous orders
  * NOTE: Properly parses Italian currency format ("2.215,40 €")
+ *
+ * @param excludeFromMonthly - If true, excludes orders marked as excluded_from_monthly
+ * @param excludeFromYearly - If true, excludes orders marked as excluded_from_yearly
  */
 export function calculateRevenueInRange(
   db: Database,
   userId: string,
   startDate: Date,
   endDate: Date,
+  options?: {
+    excludeFromMonthly?: boolean;
+    excludeFromYearly?: boolean;
+  },
 ): number {
   logger.info(`[temporal-comparisons] calculateRevenueInRange called`, {
     userId,
     startDate: startDate.toISOString(),
     endDate: endDate.toISOString(),
+    options,
   });
 
-  // Get ALL orders in range
-  const query = `
-    SELECT order_number, creation_date, total_amount
-    FROM orders
-    WHERE user_id = ?
-      AND creation_date >= ?
-      AND creation_date <= ?
-      AND total_amount IS NOT NULL
-      AND total_amount != ''
+  // Build query with optional exclusions
+  let query = `
+    SELECT o.id, o.order_number, o.creation_date, o.total_amount
+    FROM orders o
+    LEFT JOIN widget_order_exclusions e ON o.id = e.order_id AND e.user_id = ?
+    WHERE o.user_id = ?
+      AND o.creation_date >= ?
+      AND o.creation_date <= ?
+      AND o.total_amount IS NOT NULL
+      AND o.total_amount != ''
   `;
+
+  // Add exclusion filters if requested
+  if (options?.excludeFromMonthly) {
+    query += `\n      AND (e.excluded_from_monthly IS NULL OR e.excluded_from_monthly = 0)`;
+  }
+  if (options?.excludeFromYearly) {
+    query += `\n      AND (e.excluded_from_yearly IS NULL OR e.excluded_from_yearly = 0)`;
+  }
 
   const orders = db
     .prepare(query)
-    .all(userId, startDate.toISOString(), endDate.toISOString()) as Array<{
+    .all(
+      userId,
+      userId,
+      startDate.toISOString(),
+      endDate.toISOString(),
+    ) as Array<{
+    id: string;
     order_number: string;
     creation_date: string;
     total_amount: string;
@@ -225,14 +250,18 @@ export function calculateRevenueInRange(
 
 /**
  * Calculate current month revenue (from start of month to now)
+ * @param excludeFromMonthly - If true, excludes orders marked as excluded_from_monthly
  */
 export function calculateCurrentMonthRevenue(
   db: Database,
   userId: string,
+  excludeFromMonthly?: boolean,
 ): number {
   const now = new Date();
   const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
-  return calculateRevenueInRange(db, userId, monthStart, now);
+  return calculateRevenueInRange(db, userId, monthStart, now, {
+    excludeFromMonthly,
+  });
 }
 
 /**
@@ -266,14 +295,18 @@ export function calculateSameMonthLastYearRevenue(
 
 /**
  * Calculate current year revenue (from Jan 1 to now)
+ * @param excludeFromYearly - If true, excludes orders marked as excluded_from_yearly
  */
 export function calculateCurrentYearRevenue(
   db: Database,
   userId: string,
+  excludeFromYearly?: boolean,
 ): number {
   const now = new Date();
   const yearStart = getCurrentYearStart();
-  return calculateRevenueInRange(db, userId, yearStart, now);
+  return calculateRevenueInRange(db, userId, yearStart, now, {
+    excludeFromYearly,
+  });
 }
 
 /**
@@ -301,22 +334,71 @@ export function countOrdersInRange(
   userId: string,
   startDate: Date,
   endDate: Date,
+  options?: {
+    excludeFromMonthly?: boolean;
+    excludeFromYearly?: boolean;
+  },
 ): number {
-  const query = `
+  let query = `
     SELECT COUNT(*) as count
-    FROM orders
-    WHERE user_id = ?
-      AND creation_date >= ?
-      AND creation_date <= ?
+    FROM orders o
+    LEFT JOIN widget_order_exclusions e ON o.id = e.order_id AND e.user_id = ?
+    WHERE o.user_id = ?
+      AND o.creation_date >= ?
+      AND o.creation_date <= ?
   `;
+
+  // Add exclusion filters if requested
+  if (options?.excludeFromMonthly) {
+    query += `\n      AND (e.excluded_from_monthly IS NULL OR e.excluded_from_monthly = 0)`;
+  }
+  if (options?.excludeFromYearly) {
+    query += `\n      AND (e.excluded_from_yearly IS NULL OR e.excluded_from_yearly = 0)`;
+  }
 
   const result = db
     .prepare(query)
-    .get(userId, startDate.toISOString(), endDate.toISOString()) as {
+    .get(userId, userId, startDate.toISOString(), endDate.toISOString()) as {
     count: number;
   };
 
   return result?.count || 0;
+}
+
+/**
+ * Calculate average order value in a date range
+ * Uses correct Italian currency parsing for accurate results
+ */
+export function calculateAverageOrderValue(
+  db: Database,
+  userId: string,
+  startDate: Date,
+  endDate: Date,
+  options?: {
+    excludeFromMonthly?: boolean;
+    excludeFromYearly?: boolean;
+  },
+): number {
+  const totalRevenue = calculateRevenueInRange(
+    db,
+    userId,
+    startDate,
+    endDate,
+    options,
+  );
+  const orderCount = countOrdersInRange(
+    db,
+    userId,
+    startDate,
+    endDate,
+    options,
+  );
+
+  if (orderCount === 0) {
+    return 0;
+  }
+
+  return parseFloat((totalRevenue / orderCount).toFixed(2));
 }
 
 // ============================================================================

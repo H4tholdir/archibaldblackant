@@ -121,27 +121,46 @@ function SummaryCard({
       {comparison && (
         <div
           style={{
-            fontSize: "13px",
-            color: comparison.absoluteDelta >= 0 ? "#27ae60" : "#e74c3c",
-            fontWeight: "600",
             display: "flex",
-            alignItems: "center",
-            gap: "6px",
-            backgroundColor:
-              comparison.absoluteDelta >= 0 ? "#e8f8f0" : "#fdeaea",
-            padding: "6px 10px",
-            borderRadius: "8px",
+            flexDirection: "column",
+            gap: "4px",
           }}
         >
-          <span style={{ fontSize: "16px" }}>
-            {comparison.absoluteDelta >= 0 ? "📈" : "📉"}
-          </span>
-          <span>
-            {comparison.absoluteDelta >= 0 ? "+" : ""}
-            {comparison.absoluteDelta} (
-            {comparison.absoluteDelta >= 0 ? "+" : ""}
-            {comparison.percentageDelta.toFixed(0)}%)
-          </span>
+          <div
+            style={{
+              fontSize: "11px",
+              color: "#95a5a6",
+              fontWeight: "500",
+              textTransform: "uppercase",
+              letterSpacing: "0.5px",
+            }}
+          >
+            {comparison.label}
+          </div>
+          <div
+            style={{
+              fontSize: "13px",
+              color: comparison.absoluteDelta >= 0 ? "#27ae60" : "#e74c3c",
+              fontWeight: "600",
+              display: "flex",
+              alignItems: "center",
+              gap: "6px",
+              backgroundColor:
+                comparison.absoluteDelta >= 0 ? "#e8f8f0" : "#fdeaea",
+              padding: "6px 10px",
+              borderRadius: "8px",
+            }}
+          >
+            <span style={{ fontSize: "16px" }}>
+              {comparison.absoluteDelta >= 0 ? "📈" : "📉"}
+            </span>
+            <span>
+              {comparison.absoluteDelta >= 0 ? "+" : ""}
+              {comparison.absoluteDelta} (
+              {comparison.absoluteDelta >= 0 ? "+" : ""}
+              {comparison.percentageDelta.toFixed(0)}%)
+            </span>
+          </div>
         </div>
       )}
     </div>

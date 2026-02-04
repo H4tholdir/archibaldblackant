@@ -82,7 +82,14 @@ import { SyncOrchestrator, type SyncType } from "./sync-orchestrator";
 import { OrderArticlesSyncService } from "./order-articles-sync-service";
 import { runStartupHealthCheck } from "./python-health-check";
 import { runFilesystemChecks } from "./filesystem-check";
-import { getOrderAmountOverrides } from "./temporal-comparisons";
+import {
+  getOrderAmountOverrides,
+  calculateCurrentMonthRevenue,
+  calculateCurrentYearRevenue,
+  calculateAverageOrderValue,
+  getMonthsAgo,
+  parseItalianCurrency,
+} from "./temporal-comparisons";
 
 const app = express();
 const server = createServer(app);
@@ -1411,102 +1418,31 @@ app.get(
       }
 
       const now = new Date();
-      const currentYear = now.getFullYear();
-      const currentMonth = now.getMonth();
 
-      // Calculate date ranges
-      const startOfMonth = new Date(
-        currentYear,
-        currentMonth,
-        1,
-        0,
-        0,
-        0,
-      ).toISOString();
-      const endOfMonth = new Date(
-        currentYear,
-        currentMonth + 1,
-        0,
-        23,
-        59,
-        59,
-      ).toISOString();
-      const startOfYear = new Date(currentYear, 0, 1, 0, 0, 0).toISOString();
-      const endOfYear = new Date(currentYear, 11, 31, 23, 59, 59).toISOString();
+      // Calculate revenue using correct Italian currency parsing
+      // This fixes the bug where amounts > 999€ were incorrectly parsed by SQLite CAST
+      const currentMonthRevenue = calculateCurrentMonthRevenue(
+        orderDb["db"],
+        userId,
+        true, // exclude orders marked as excluded_from_monthly
+      );
 
-      // Last 3 months for average order value
-      const threeMonthsAgo = new Date(
-        currentYear,
-        currentMonth - 3,
-        1,
-        0,
-        0,
-        0,
-      ).toISOString();
+      const currentYearRevenue = calculateCurrentYearRevenue(
+        orderDb["db"],
+        userId,
+        true, // exclude orders marked as excluded_from_yearly
+      );
 
-      // Query current month revenue
-      const monthQuery = `
-        SELECT SUM(CAST(o.total_amount AS REAL)) as total
-        FROM orders o
-        LEFT JOIN widget_order_exclusions e ON o.id = e.order_id AND e.user_id = ?
-        WHERE o.user_id = ?
-          AND o.creation_date >= ?
-          AND o.creation_date <= ?
-          AND o.total_amount IS NOT NULL
-          AND o.total_amount != ''
-          AND (e.excluded_from_monthly IS NULL OR e.excluded_from_monthly = 0)
-      `;
-
-      const monthResult = orderDb["db"]
-        .prepare(monthQuery)
-        .get(userId, userId, startOfMonth, endOfMonth) as {
-        total: number | null;
-      };
-      const currentMonthRevenue = monthResult?.total || 0;
-
-      // Query current year revenue
-      const yearQuery = `
-        SELECT SUM(CAST(o.total_amount AS REAL)) as total
-        FROM orders o
-        LEFT JOIN widget_order_exclusions e ON o.id = e.order_id AND e.user_id = ?
-        WHERE o.user_id = ?
-          AND o.creation_date >= ?
-          AND o.creation_date <= ?
-          AND o.total_amount IS NOT NULL
-          AND o.total_amount != ''
-          AND (e.excluded_from_yearly IS NULL OR e.excluded_from_yearly = 0)
-      `;
-
-      const yearResult = orderDb["db"]
-        .prepare(yearQuery)
-        .get(userId, userId, startOfYear, endOfYear) as {
-        total: number | null;
-      };
-      const currentYearRevenue = yearResult?.total || 0;
-
-      // Query average order value (last 3 months)
-      const avgOrderQuery = `
-        SELECT
-          COUNT(*) as count,
-          SUM(CAST(o.total_amount AS REAL)) as total
-        FROM orders o
-        LEFT JOIN widget_order_exclusions e ON o.id = e.order_id AND e.user_id = ?
-        WHERE o.user_id = ?
-          AND o.creation_date >= ?
-          AND o.creation_date <= ?
-          AND o.total_amount IS NOT NULL
-          AND o.total_amount != ''
-          AND (e.excluded_from_monthly IS NULL OR e.excluded_from_monthly = 0)
-      `;
-
-      const avgResult = orderDb["db"]
-        .prepare(avgOrderQuery)
-        .get(userId, userId, threeMonthsAgo, endOfMonth) as {
-        count: number;
-        total: number | null;
-      };
+      // Calculate average order value (last 3 months) with correct parsing
+      const threeMonthsAgoDate = getMonthsAgo(3);
       const averageOrderValue =
-        avgResult.count > 0 ? (avgResult.total || 0) / avgResult.count : 4500; // Default fallback
+        calculateAverageOrderValue(
+          orderDb["db"],
+          userId,
+          threeMonthsAgoDate,
+          now,
+          { excludeFromMonthly: true },
+        ) || 4500; // Default fallback if no orders
 
       // Calculate working days remaining
       const workingDaysRemaining = WidgetCalc.calculateWorkingDaysRemaining();
@@ -1621,33 +1557,16 @@ app.get(
         return res.status(404).json({ error: "User not found" });
       }
 
-      // Calculate current month date range
+      // Calculate current month budget using correct Italian currency parsing
       const now = new Date();
-      const year = now.getFullYear();
-      const month = now.getMonth();
-      const startOfMonth = new Date(year, month, 1, 0, 0, 0).toISOString();
-      const endOfMonth = new Date(year, month + 1, 0, 23, 59, 59).toISOString();
       const monthLabel = now.toISOString().slice(0, 7); // "2026-01"
 
-      // Query current month budget from orders (excluding orders marked as excluded)
-      const query = `
-      SELECT SUM(CAST(o.total_amount AS REAL)) as total
-      FROM orders o
-      LEFT JOIN widget_order_exclusions e ON o.id = e.order_id AND e.user_id = ?
-      WHERE o.user_id = ?
-        AND o.creation_date >= ?
-        AND o.creation_date <= ?
-        AND o.total_amount IS NOT NULL
-        AND o.total_amount != ''
-        AND (e.excluded_from_monthly IS NULL OR e.excluded_from_monthly = 0)
-    `;
-
-      const result = orderDb["db"]
-        .prepare(query)
-        .get(userId, userId, startOfMonth, endOfMonth) as {
-        total: number | null;
-      };
-      const currentBudget = result?.total || 0;
+      // Use calculateCurrentMonthRevenue which correctly parses Italian format ("1.024,58 €")
+      const currentBudget = calculateCurrentMonthRevenue(
+        orderDb["db"],
+        userId,
+        true, // exclude orders marked as excluded_from_monthly
+      );
 
       // Calculate progress percentage
       const monthlyTarget = target.monthlyTarget;
@@ -1884,27 +1803,14 @@ app.get(
         endDate,
       );
 
-      // Calculate totals
-      const parseAmount = (amount: string | null): number => {
-        if (!amount) return 0;
-        // Italian format: "1.791,01 €" -> 1791.01
-        // Remove currency symbols and spaces
-        let cleaned = amount.replace(/[€\s]/g, "");
-        // Remove thousand separators (dots in Italian format)
-        cleaned = cleaned.replace(/\./g, "");
-        // Replace decimal comma with dot
-        cleaned = cleaned.replace(",", ".");
-        const parsed = parseFloat(cleaned);
-        return isNaN(parsed) ? 0 : parsed;
-      };
-
+      // Calculate totals using centralized Italian currency parser
       const totalIncluded = orders
         .filter((o) => !o.excludedFromMonthly)
-        .reduce((sum, o) => sum + parseAmount(o.totalAmount), 0);
+        .reduce((sum, o) => sum + parseItalianCurrency(o.totalAmount), 0);
 
       const totalExcluded = orders
         .filter((o) => o.excludedFromMonthly)
-        .reduce((sum, o) => sum + parseAmount(o.totalAmount), 0);
+        .reduce((sum, o) => sum + parseItalianCurrency(o.totalAmount), 0);
 
       // Get order amount overrides
       const overrides = getOrderAmountOverrides();
