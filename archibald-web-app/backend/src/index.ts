@@ -1695,11 +1695,12 @@ app.get(
         .get(userId, yesterdayStart, yesterdayEnd) as { count: number };
       const yesterdayCount = yesterdayResult?.count || 0;
 
-      // Last week
+      // Last week (same period - same number of days from Monday)
+      const daysFromMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
       const lastWeekStart = new Date(weekStart);
       lastWeekStart.setDate(lastWeekStart.getDate() - 7);
-      const lastWeekEnd = new Date(weekStart);
-      lastWeekEnd.setDate(lastWeekEnd.getDate() - 1);
+      const lastWeekEnd = new Date(lastWeekStart);
+      lastWeekEnd.setDate(lastWeekEnd.getDate() + daysFromMonday);
       lastWeekEnd.setHours(23, 59, 59);
 
       const lastWeekQuery = `
@@ -1720,7 +1721,8 @@ app.get(
       };
       const lastWeekCount = lastWeekResult?.count || 0;
 
-      // Last month (full previous month)
+      // Last month (same period - first N days of previous month)
+      const currentDayOfMonth = now.getDate();
       const firstDayLastMonth = new Date(
         now.getFullYear(),
         now.getMonth() - 1,
@@ -1731,8 +1733,8 @@ app.get(
       );
       const lastDayLastMonth = new Date(
         now.getFullYear(),
-        now.getMonth(),
-        0,
+        now.getMonth() - 1,
+        currentDayOfMonth,
         23,
         59,
         59,
