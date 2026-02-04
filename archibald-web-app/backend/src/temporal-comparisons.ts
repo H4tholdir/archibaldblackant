@@ -266,21 +266,27 @@ export function calculateCurrentMonthRevenue(
 
 /**
  * Calculate previous month revenue (full month)
+ * @param excludeFromMonthly - If true (default), excludes orders marked as excluded_from_monthly
  */
 export function calculatePreviousMonthRevenue(
   db: Database,
   userId: string,
+  excludeFromMonthly = true,
 ): number {
   const { start, end } = getPreviousMonthRange();
-  return calculateRevenueInRange(db, userId, start, end);
+  return calculateRevenueInRange(db, userId, start, end, {
+    excludeFromMonthly,
+  });
 }
 
 /**
  * Calculate same month last year revenue (up to same day)
+ * @param excludeFromMonthly - If true (default), excludes orders marked as excluded_from_monthly
  */
 export function calculateSameMonthLastYearRevenue(
   db: Database,
   userId: string,
+  excludeFromMonthly = true,
 ): number {
   const now = new Date();
   const currentDay = now.getDate();
@@ -290,7 +296,9 @@ export function calculateSameMonthLastYearRevenue(
   const start = new Date(lastYear, currentMonth, 1);
   const end = new Date(lastYear, currentMonth, currentDay, 23, 59, 59);
 
-  return calculateRevenueInRange(db, userId, start, end);
+  return calculateRevenueInRange(db, userId, start, end, {
+    excludeFromMonthly,
+  });
 }
 
 /**
