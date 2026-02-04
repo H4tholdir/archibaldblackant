@@ -40,6 +40,9 @@ jobs:
             ghcr.io/h4tholdir/archibald-backend:${{ github.sha }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+          build-args: |
+            BUILDKIT_INLINE_CACHE=1
+            GIT_COMMIT=${{ github.sha }}
         env:
           BUILDKIT_STEP_LOG_MAX_SIZE: 10485760
         continue-on-error: true
@@ -57,6 +60,9 @@ jobs:
             ghcr.io/h4tholdir/archibald-backend:${{ github.sha }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+          build-args: |
+            BUILDKIT_INLINE_CACHE=1
+            GIT_COMMIT=${{ github.sha }}
         env:
           BUILDKIT_STEP_LOG_MAX_SIZE: 10485760
 
@@ -69,8 +75,20 @@ jobs:
           tags: |
             ghcr.io/h4tholdir/archibald-frontend:latest
             ghcr.io/h4tholdir/archibald-frontend:${{ github.sha }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          # FIX: Use commit-specific cache key to prevent stale cache reuse
+          cache-from: |
+            type=gha,scope=frontend-${{ github.sha }}
+            type=gha,scope=frontend-main
+          cache-to: type=gha,mode=max,scope=frontend-${{ github.sha }}
+          build-args: |
+            BUILDKIT_INLINE_CACHE=1
+            GIT_COMMIT=${{ github.sha }}
+            BUILD_DATE=${{ github.event.head_commit.timestamp }}
+          # Add labels to track build metadata
+          labels: |
+            org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.created=${{ github.event.head_commit.timestamp }}
+            org.opencontainers.image.source=${{ github.repositoryUrl }}
         env:
           BUILDKIT_STEP_LOG_MAX_SIZE: 10485760
         continue-on-error: true
@@ -86,8 +104,20 @@ jobs:
           tags: |
             ghcr.io/h4tholdir/archibald-frontend:latest
             ghcr.io/h4tholdir/archibald-frontend:${{ github.sha }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          # FIX: Use commit-specific cache key to prevent stale cache reuse
+          cache-from: |
+            type=gha,scope=frontend-${{ github.sha }}
+            type=gha,scope=frontend-main
+          cache-to: type=gha,mode=max,scope=frontend-${{ github.sha }}
+          build-args: |
+            BUILDKIT_INLINE_CACHE=1
+            GIT_COMMIT=${{ github.sha }}
+            BUILD_DATE=${{ github.event.head_commit.timestamp }}
+          # Add labels to track build metadata
+          labels: |
+            org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.created=${{ github.event.head_commit.timestamp }}
+            org.opencontainers.image.source=${{ github.repositoryUrl }}
         env:
           BUILDKIT_STEP_LOG_MAX_SIZE: 10485760
 
@@ -158,10 +188,11 @@ jobs:
             echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin || { echo "❌ Docker login failed"; exit 1; }
 
             echo "📦 Pulling new images from GHCR..."
-            docker compose -f docker-compose.yml -f docker-compose.prod.yml pull backend frontend || { echo "❌ Docker pull failed"; exit 1; }
+            # FIX: Force pull without cache to ensure latest images
+            docker compose -f docker-compose.yml -f docker-compose.prod.yml pull --no-cache backend frontend || { echo "❌ Docker pull failed"; exit 1; }
 
             echo "🔄 Restarting services with graceful shutdown..."
-            docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --no-deps backend frontend || { echo "❌ Docker compose up failed"; exit 1; }
+            docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --no-deps --force-recreate backend frontend || { echo "❌ Docker compose up failed"; exit 1; }
 
             echo "⏳ Waiting for services to be healthy (30s)..."
             sleep 30
@@ -187,6 +218,10 @@ jobs:
 
             echo "✅ Deployment successful!"
 
+            echo "📊 Deployed commit: ${{ github.sha }}"
+            echo "📊 Frontend image labels:"
+            docker inspect ghcr.io/h4tholdir/archibald-frontend:latest --format '{{json .Config.Labels}}' | grep revision || echo "No revision label"
+
             echo "📊 Final disk space:"
             df -h / | grep -E "^/dev"
             docker system df
@@ -196,6 +231,9 @@ jobs:
         run: |
           if [ "${{ job.status }}" == "success" ]; then
             echo "✅ Deployment to production successful!"
+            echo "📊 Deployed commit: ${{ github.sha }}"
+            echo "📊 Frontend: ghcr.io/h4tholdir/archibald-frontend:${{ github.sha }}"
+            echo "📊 Backend: ghcr.io/h4tholdir/archibald-backend:${{ github.sha }}"
           else
             echo "❌ Deployment to production failed!"
             exit 1
