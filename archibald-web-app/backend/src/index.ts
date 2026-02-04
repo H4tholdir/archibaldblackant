@@ -1803,17 +1803,29 @@ app.get(
         endDate,
       );
 
-      // Calculate totals using centralized Italian currency parser
+      // Get order amount overrides
+      const overrides = getOrderAmountOverrides();
+
+      // Calculate totals using centralized Italian currency parser and apply overrides
       const totalIncluded = orders
         .filter((o) => !o.excludedFromMonthly)
-        .reduce((sum, o) => sum + parseItalianCurrency(o.totalAmount), 0);
+        .reduce((sum, o) => {
+          const override = overrides[o.orderNumber];
+          const amount = override
+            ? override.correctAmount
+            : parseItalianCurrency(o.totalAmount);
+          return sum + amount;
+        }, 0);
 
       const totalExcluded = orders
         .filter((o) => o.excludedFromMonthly)
-        .reduce((sum, o) => sum + parseItalianCurrency(o.totalAmount), 0);
-
-      // Get order amount overrides
-      const overrides = getOrderAmountOverrides();
+        .reduce((sum, o) => {
+          const override = overrides[o.orderNumber];
+          const amount = override
+            ? override.correctAmount
+            : parseItalianCurrency(o.totalAmount);
+          return sum + amount;
+        }, 0);
 
       res.json({
         orders: orders.map((o) => {
