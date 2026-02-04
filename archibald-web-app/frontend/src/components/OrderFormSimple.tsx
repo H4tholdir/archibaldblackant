@@ -3082,7 +3082,14 @@ export default function OrderFormSimple() {
       {/* SUBMIT BUTTON */}
       {items.length > 0 && (
         <div
-          style={{ display: "flex", justifyContent: "center", width: "100%" }}
+          style={{
+            display: "flex",
+            flexDirection: isMobile ? "column" : "row",
+            justifyContent: "center",
+            alignItems: "center",
+            gap: "1rem",
+            width: "100%",
+          }}
         >
           <button
             onClick={handleSubmit}
@@ -3096,13 +3103,35 @@ export default function OrderFormSimple() {
               fontSize: isMobile ? "1.125rem" : "1.125rem",
               fontWeight: "600",
               cursor: submitting ? "not-allowed" : "pointer",
-              width: "100%",
-              maxWidth: isMobile ? "100%" : "800px",
+              width: isMobile ? "100%" : "auto",
+              flex: isMobile ? "0" : "1",
+              maxWidth: isMobile ? "100%" : "600px",
               minHeight: isMobile ? "52px" : "auto",
             }}
           >
             {submitting ? "Salvataggio..." : "Salva in ordini in attesa"}
           </button>
+
+          {hasDraft && draftId && (
+            <button
+              onClick={handleDiscardDraft}
+              disabled={submitting}
+              style={{
+                padding: isMobile ? "1rem 2rem" : "1rem 2rem",
+                background: submitting ? "#d1d5db" : "#dc2626",
+                color: "white",
+                border: "none",
+                borderRadius: "8px",
+                fontSize: isMobile ? "1rem" : "1rem",
+                fontWeight: "600",
+                cursor: submitting ? "not-allowed" : "pointer",
+                width: isMobile ? "100%" : "auto",
+                minHeight: isMobile ? "52px" : "auto",
+              }}
+            >
+              🗑️ Cancella bozza
+            </button>
+          )}
         </div>
       )}
     </div>
