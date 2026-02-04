@@ -72,9 +72,9 @@ export function calculateWorkingDaysRemaining(): number {
 export type WidgetStatus =
   | "champion" // ≥ 120% - Superamento straordinario
   | "excellent" // ≥ 100% - Obiettivo raggiunto
-  | "on-track" // ≥ 80% - Sulla buona strada
-  | "attention" // ≥ 50% - Serve attenzione
-  | "critical"; // < 50% - Situazione critica
+  | "on-track" // ≥ 60% - Sulla buona strada
+  | "attention" // ≥ 35% - Serve attenzione
+  | "critical"; // < 35% - Situazione critica
 
 const MICRO_COPY = {
   champion: [
@@ -121,18 +121,18 @@ export function calculateHeroStatus(
   // Calculate progress percentage
   const progress = currentMonthRevenue / monthlyTarget;
 
-  // Determine status based on 5-level thresholds
+  // Determine status based on 5-level thresholds (adjusted for realistic monthly progression)
   let status: WidgetStatus;
   if (progress >= 1.2) {
     status = "champion";
   } else if (progress >= 1.0) {
     status = "excellent";
-  } else if (progress >= 0.8) {
-    status = "on-track";
-  } else if (progress >= 0.5) {
-    status = "attention";
+  } else if (progress >= 0.6) {
+    status = "on-track"; // Lowered from 0.8 - more breathing room
+  } else if (progress >= 0.35) {
+    status = "attention"; // Lowered from 0.5 - realistic for early month
   } else {
-    status = "critical";
+    status = "critical"; // Only <35% is truly critical
   }
 
   // Select micro-copy with deterministic daily rotation
