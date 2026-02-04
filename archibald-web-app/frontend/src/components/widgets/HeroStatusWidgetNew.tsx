@@ -12,32 +12,37 @@ interface HeroStatusWidgetNewProps {
   data: HeroStatusData;
 }
 
-// Colors per status (5-level system)
+// Colors per status (5-level system) - Optimized for contrast with white text (WCAG AA)
 const COLORS = {
   champion: {
-    bgGradient: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)", // Viola brillante
+    bgGradient: "linear-gradient(135deg, #5a67d8 0%, #6b46c1 100%)", // Viola più scuro
     progressBar: "linear-gradient(90deg, #f093fb 0%, #f5576c 100%)",
-    accentColor: "#667eea",
+    accentColor: "#5a67d8",
+    textColor: "#ffffff",
   },
   excellent: {
-    bgGradient: "linear-gradient(135deg, #1e3c72 0%, #2a5298 100%)", // Blu
+    bgGradient: "linear-gradient(135deg, #1e3c72 0%, #2a5298 100%)", // Blu - già ok
     progressBar: "linear-gradient(90deg, #27ae60 0%, #2ecc71 100%)",
     accentColor: "#27ae60",
+    textColor: "#ffffff",
   },
   "on-track": {
-    bgGradient: "linear-gradient(135deg, #2c3e50 0%, #3498db 100%)", // Blu chiaro
+    bgGradient: "linear-gradient(135deg, #2c3e50 0%, #2980b9 100%)", // Blu più scuro
     progressBar: "linear-gradient(90deg, #3498db 0%, #2ecc71 100%)",
-    accentColor: "#3498db",
+    accentColor: "#2980b9",
+    textColor: "#ffffff",
   },
   attention: {
-    bgGradient: "linear-gradient(135deg, #e67e22 0%, #f39c12 100%)", // Arancione
+    bgGradient: "linear-gradient(135deg, #d35400 0%, #e67e22 100%)", // Arancione più scuro
     progressBar: "linear-gradient(90deg, #f39c12 0%, #e67e22 100%)",
-    accentColor: "#f39c12",
+    accentColor: "#d35400",
+    textColor: "#ffffff",
   },
   critical: {
-    bgGradient: "linear-gradient(135deg, #c0392b 0%, #8e44ad 100%)", // Rosso-viola
+    bgGradient: "linear-gradient(135deg, #a93226 0%, #7d3c98 100%)", // Rosso-viola più scuro
     progressBar: "linear-gradient(90deg, #e74c3c 0%, #c0392b 100%)",
-    accentColor: "#e74c3c",
+    accentColor: "#a93226",
+    textColor: "#ffffff",
   },
 };
 
