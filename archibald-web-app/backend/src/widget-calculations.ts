@@ -321,7 +321,7 @@ export function calculateForecast(
   const comparisonPreviousMonth = buildComparison(
     projectedMonthRevenue,
     previousMonthRevenue,
-    "vs Mese Scorso",
+    "vs Stesso Periodo Mese Scorso",
   );
   const comparisonSameMonthLastYear = buildComparison(
     projectedMonthRevenue,

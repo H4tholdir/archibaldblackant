@@ -547,7 +547,7 @@ export function buildPreviousMonthComparison(
   currentValue: number,
 ): TemporalComparison {
   const previousValue = calculatePreviousMonthRevenue(db, userId);
-  return buildComparison(currentValue, previousValue, "vs Mese Scorso");
+  return buildComparison(currentValue, previousValue, "vs Stesso Periodo Mese Scorso");
 }
 
 /**
