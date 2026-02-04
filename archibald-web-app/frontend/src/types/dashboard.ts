@@ -33,7 +33,12 @@ export interface SparklineData {
 // HERO STATUS WIDGET
 // ============================================================================
 
-export type WidgetStatus = "positive" | "warning" | "critical";
+export type WidgetStatus =
+  | "champion" // ≥ 120% - Superamento straordinario
+  | "excellent" // ≥ 100% - Obiettivo raggiunto
+  | "on-track" // ≥ 80% - Sulla buona strada
+  | "attention" // ≥ 50% - Serve attenzione
+  | "critical"; // < 50% - Situazione critica
 
 export interface HeroStatusData {
   status: WidgetStatus;
