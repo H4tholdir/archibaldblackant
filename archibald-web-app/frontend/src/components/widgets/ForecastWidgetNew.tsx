@@ -383,7 +383,7 @@ export function ForecastWidgetNew({ data }: ForecastWidgetNewProps) {
                 fontWeight: "600",
               }}
             >
-              📊 vs Mese Scorso:{" "}
+              📊 {data.comparisonPreviousMonth.label}:{" "}
               {formatCurrency(data.comparisonPreviousMonth.previousValue)} (
               {data.comparisonPreviousMonth.absoluteDelta >= 0 ? "+" : ""}
               {formatCurrency(data.comparisonPreviousMonth.absoluteDelta)},{" "}

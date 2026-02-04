@@ -206,7 +206,7 @@ export function HeroStatusWidgetNew({ data }: HeroStatusWidgetNewProps) {
                     fontWeight: "500",
                   }}
                 >
-                  vs Mese Scorso:
+                  {data.comparisonPreviousMonth.label}:
                 </div>
                 <div
                   style={{

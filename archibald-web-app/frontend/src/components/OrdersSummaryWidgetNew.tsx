@@ -265,7 +265,7 @@ export function OrdersSummaryWidgetNew({ data }: OrdersSummaryWidgetNewProps) {
                   previousValue: data.comparisonLastWeek.previousValue,
                   absoluteDelta: data.comparisonLastWeek.absoluteDelta,
                   percentageDelta: data.comparisonLastWeek.percentageDelta,
-                  label: "vs Settimana Scorsa",
+                  label: data.comparisonLastWeek.label,
                 }
               : undefined
           }
@@ -285,7 +285,7 @@ export function OrdersSummaryWidgetNew({ data }: OrdersSummaryWidgetNewProps) {
                   previousValue: data.comparisonLastMonth.previousValue,
                   absoluteDelta: data.comparisonLastMonth.absoluteDelta,
                   percentageDelta: data.comparisonLastMonth.percentageDelta,
-                  label: "vs Mese Scorso",
+                  label: data.comparisonLastMonth.label,
                 }
               : undefined
           }
