@@ -1683,9 +1683,16 @@ app.get(
         59,
       ).toISOString();
 
+      const yesterdayQuery = `
+        SELECT COUNT(*) as count
+        FROM orders
+        WHERE user_id = ?
+          AND creation_date >= ?
+          AND creation_date <= ?
+      `;
       const yesterdayResult = orderDb["db"]
-        .prepare(todayQuery)
-        .get(userId, yesterdayStart) as { count: number };
+        .prepare(yesterdayQuery)
+        .get(userId, yesterdayStart, yesterdayEnd) as { count: number };
       const yesterdayCount = yesterdayResult?.count || 0;
 
       // Last week
@@ -1695,9 +1702,22 @@ app.get(
       lastWeekEnd.setDate(lastWeekEnd.getDate() - 1);
       lastWeekEnd.setHours(23, 59, 59);
 
+      const lastWeekQuery = `
+        SELECT COUNT(*) as count
+        FROM orders
+        WHERE user_id = ?
+          AND creation_date >= ?
+          AND creation_date <= ?
+      `;
       const lastWeekResult = orderDb["db"]
-        .prepare(weekQuery)
-        .get(userId, lastWeekStart.toISOString()) as { count: number };
+        .prepare(lastWeekQuery)
+        .get(
+          userId,
+          lastWeekStart.toISOString(),
+          lastWeekEnd.toISOString(),
+        ) as {
+        count: number;
+      };
       const lastWeekCount = lastWeekResult?.count || 0;
 
       // Last month (full previous month)
