@@ -12,42 +12,42 @@ interface HeroStatusWidgetNewProps {
   data: HeroStatusData;
 }
 
-// Colors per status (5-level system) - High contrast pairs for maximum readability
+// Colors per status (5-level system) - Highly distinctive colors for instant recognition
 const COLORS = {
   champion: {
     bgGradient: "linear-gradient(135deg, #5a67d8 0%, #6b46c1 100%)", // Viola scuro
-    progressBar: "linear-gradient(90deg, #ffd700 0%, #ffed4e 100%)", // Giallo oro (alto contrasto)
+    progressBar: "linear-gradient(90deg, #ffd700 0%, #ffa500 100%)", // Giallo-Arancio oro metallico
     accentColor: "#ffd700",
     textColor: "#ffffff",
-    cardBg: "rgba(255, 215, 0, 0.15)", // Giallo trasparente
+    cardBg: "rgba(255, 215, 0, 0.15)",
   },
   excellent: {
     bgGradient: "linear-gradient(135deg, #1e3c72 0%, #2a5298 100%)", // Blu scuro
-    progressBar: "linear-gradient(90deg, #00ff88 0%, #00d9ff 100%)", // Verde acqua brillante
+    progressBar: "linear-gradient(90deg, #00ff88 0%, #00ffcc 100%)", // Verde neon brillante
     accentColor: "#00ff88",
     textColor: "#ffffff",
-    cardBg: "rgba(0, 255, 136, 0.15)", // Verde trasparente
+    cardBg: "rgba(0, 255, 136, 0.15)",
   },
   "on-track": {
     bgGradient: "linear-gradient(135deg, #2c3e50 0%, #2980b9 100%)", // Blu-grigio
-    progressBar: "linear-gradient(90deg, #1abc9c 0%, #16a085 100%)", // Verde smeraldo (contrasto)
-    accentColor: "#1abc9c",
+    progressBar: "linear-gradient(90deg, #00d4ff 0%, #0095ff 100%)", // Azzurro ciano elettrico
+    accentColor: "#00d4ff",
     textColor: "#ffffff",
-    cardBg: "rgba(26, 188, 156, 0.15)", // Verde smeraldo trasparente
+    cardBg: "rgba(0, 212, 255, 0.15)",
   },
   attention: {
     bgGradient: "linear-gradient(135deg, #c44100 0%, #d35400 100%)", // Arancione molto scuro
-    progressBar: "linear-gradient(90deg, #ffeb3b 0%, #fdd835 100%)", // Giallo brillante (massimo contrasto)
-    accentColor: "#ffeb3b",
+    progressBar: "linear-gradient(90deg, #ffff00 0%, #ffea00 100%)", // Giallo puro brillante
+    accentColor: "#ffff00",
     textColor: "#ffffff",
-    cardBg: "rgba(255, 235, 59, 0.15)", // Giallo trasparente
+    cardBg: "rgba(255, 255, 0, 0.15)",
   },
   critical: {
     bgGradient: "linear-gradient(135deg, #8b0000 0%, #b91400 100%)", // Rosso molto scuro
-    progressBar: "linear-gradient(90deg, #ff6b6b 0%, #ee5a6f 100%)", // Rosso chiaro (contrasto)
-    accentColor: "#ff6b6b",
+    progressBar: "linear-gradient(90deg, #ff3366 0%, #ff1744 100%)", // Rosa-Rosso acceso
+    accentColor: "#ff3366",
     textColor: "#ffffff",
-    cardBg: "rgba(255, 107, 107, 0.15)", // Rosso chiaro trasparente
+    cardBg: "rgba(255, 51, 102, 0.15)",
   },
 };
 
