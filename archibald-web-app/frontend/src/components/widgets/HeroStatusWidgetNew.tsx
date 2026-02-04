@@ -1,6 +1,7 @@
 import { HeroStatusData } from "../../types/dashboard";
 import { usePrivacy } from "../../contexts/PrivacyContext";
 import { GaugeChart } from "../GaugeChart";
+import { useConfettiCelebration } from "../../hooks/useConfettiCelebration";
 
 /**
  * Hero Status Widget - Gauge Semicircolare con Comparazioni
@@ -44,6 +45,17 @@ export function HeroStatusWidgetNew({ data }: HeroStatusWidgetNewProps) {
   const { privacyEnabled, maskValue } = usePrivacy();
 
   const colors = COLORS[data.status];
+
+  // Confetti celebration when target reached (≥100%)
+  const shouldCelebrate = data.progressMonthly >= 1.0;
+  const now = new Date();
+  const celebrationKey = `monthly-target-${now.getFullYear()}-${now.getMonth() + 1}`;
+
+  useConfettiCelebration({
+    enabled: shouldCelebrate,
+    key: celebrationKey,
+    cooldownMs: 24 * 60 * 60 * 1000, // 24h cooldown
+  });
 
   // Format currency
   const formatCurrency = (amount: number): string => {
