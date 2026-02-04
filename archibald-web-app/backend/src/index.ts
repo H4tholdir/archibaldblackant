@@ -1783,12 +1783,12 @@ app.get(
         comparisonLastWeek: buildComparison(
           weekCount,
           lastWeekCount,
-          "vs Settimana Scorsa",
+          "vs Stesso Periodo Sett. Scorsa",
         ),
         comparisonLastMonth: buildComparison(
           monthCount,
           lastMonthCount,
-          "vs Mese Scorso",
+          "vs Stesso Periodo Mese Scorso",
         ),
       });
     } catch (error) {
