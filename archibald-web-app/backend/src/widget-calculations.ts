@@ -69,23 +69,43 @@ export function calculateWorkingDaysRemaining(): number {
 // HERO STATUS WIDGET
 // ============================================================================
 
-export type WidgetStatus = "positive" | "warning" | "critical";
+export type WidgetStatus =
+  | "champion" // ≥ 120% - Superamento straordinario
+  | "excellent" // ≥ 100% - Obiettivo raggiunto
+  | "on-track" // ≥ 80% - Sulla buona strada
+  | "attention" // ≥ 50% - Serve attenzione
+  | "critical"; // < 50% - Situazione critica
 
 const MICRO_COPY = {
-  positive: [
+  champion: [
+    "Obiettivo superato! 🏆",
+    "Risultato straordinario! 🚀",
+    "Performance eccezionale! ⭐",
+    "Oltre ogni aspettativa! 🎯",
+  ],
+  excellent: [
+    "Obiettivo raggiunto! 🎉",
+    "Target centrato! 🎯",
+    "Missione compiuta! ✅",
+    "Obiettivo conquistato! 🏅",
+  ],
+  "on-track": [
     "Sulla buona strada 🚀",
     "Obiettivo sotto controllo",
     "Ritmo giusto, continua così",
+    "Percorso allineato 📈",
   ],
-  warning: [
-    "Sei vicino al target, spingi ora",
-    "Manca poco, questo è il momento",
-    "Target a portata di mano",
-  ],
-  critical: [
+  attention: [
     "Serve una accelerazione",
     "È il momento di spingere forte",
     "Recupero necessario, si può fare",
+    "Focus sull'obiettivo! 💪",
+  ],
+  critical: [
+    "Situazione critica - azione immediata",
+    "Alert: serve cambio di strategia",
+    "Urgente: recupero necessario",
+    "Piano di recupero richiesto ⚡",
   ],
 };
 
@@ -98,18 +118,28 @@ export function calculateHeroStatus(
   db: Database,
   userId: string,
 ) {
-  // Determine status according to PRD rules
+  // Calculate progress percentage
+  const progress = currentMonthRevenue / monthlyTarget;
+
+  // Determine status based on 5-level thresholds
   let status: WidgetStatus;
-  if (currentMonthRevenue >= monthlyTarget) {
-    status = "positive";
-  } else if (currentMonthRevenue >= monthlyTarget * 0.8) {
-    status = "warning";
+  if (progress >= 1.2) {
+    status = "champion";
+  } else if (progress >= 1.0) {
+    status = "excellent";
+  } else if (progress >= 0.8) {
+    status = "on-track";
+  } else if (progress >= 0.5) {
+    status = "attention";
   } else {
     status = "critical";
   }
 
-  // Select micro-copy (using first one for consistency)
-  const microCopy = MICRO_COPY[status][0];
+  // Select micro-copy with deterministic daily rotation
+  const dayOfMonth = new Date().getDate();
+  const microCopyArray = MICRO_COPY[status];
+  const microCopyIndex = dayOfMonth % microCopyArray.length;
+  const microCopy = microCopyArray[microCopyIndex];
 
   const missingToMonthlyTarget = Math.max(
     0,
