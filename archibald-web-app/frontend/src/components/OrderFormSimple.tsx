@@ -635,10 +635,11 @@ export default function OrderFormSimple() {
       return;
     }
 
-    // Don't save if editing existing order, no customer selected, or order was just finalized
+    // Don't save if editing existing order, no customer selected, no items, or order was just finalized
     if (
       editingOrderId ||
       !selectedCustomer ||
+      items.length === 0 ||
       orderSavedSuccessfullyRef.current
     ) {
       console.log("[OrderForm] Draft save skipped", {
@@ -646,7 +647,9 @@ export default function OrderFormSimple() {
           ? "editing order"
           : !selectedCustomer
             ? "no customer"
-            : "order finalized",
+            : items.length === 0
+              ? "no items"
+              : "order finalized",
       });
       return;
     }

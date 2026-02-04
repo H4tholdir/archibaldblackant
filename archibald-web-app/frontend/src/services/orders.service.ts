@@ -113,48 +113,12 @@ export class OrderService {
 
       console.log("[OrderService] 🗑️ Draft marked as deleted (tombstone):", id);
 
-      // Try to delete from server immediately if online
-      if (navigator.onLine) {
-        const token = localStorage.getItem("archibald_jwt");
-        if (token) {
-          try {
-            console.log("[OrderService] Deleting draft from server...");
-
-            const response = await fetchWithRetry(
-              `/api/sync/draft-orders/${id}`,
-              {
-                method: "DELETE",
-                headers: {
-                  Authorization: `Bearer ${token}`,
-                },
-              },
-            );
-
-            // 🔧 FIX: Treat 404 as success (draft doesn't exist = goal achieved)
-            if (!response.ok && response.status !== 404) {
-              throw new Error(
-                `Server delete failed: ${response.status} ${response.statusText}`,
-              );
-            }
-
-            // 🔧 FIX: Remove tombstone immediately on successful deletion (200 OK or 404)
-            // Both cases mean the draft doesn't exist on server = goal achieved
-            if (response.ok || response.status === 404) {
-              console.log(
-                "[OrderService] ✅ Draft deleted from server - removing tombstone",
-                { status: response.status },
-              );
-              await this.db.table<DraftOrder, string>("draftOrders").delete(id);
-            }
-          } catch (serverError) {
-            console.error(
-              "[OrderService] Failed to delete from server (will retry on sync):",
-              serverError,
-            );
-            // Keep tombstone - will be pushed during next sync
-          }
-        }
-      }
+      // 🔧 FIX: Tombstone will be handled by sync service (pushDraftOrders)
+      // Don't delete locally even if server DELETE succeeds - prevents race conditions
+      // where draft gets re-pulled before sync completes
+      console.log(
+        "[OrderService] Tombstone will be synced and removed by unified sync service",
+      );
     } catch (error) {
       console.error("[OrderService] Failed to mark draft as deleted:", error);
       // Swallow error - deletion of non-existent draft is not critical
@@ -437,50 +401,12 @@ export class OrderService {
 
       console.log("[OrderService] 🗑️ Order marked as deleted (tombstone):", id);
 
-      // Try to delete from server immediately if online
-      if (navigator.onLine) {
-        const token = localStorage.getItem("archibald_jwt");
-        if (token) {
-          try {
-            console.log("[OrderService] Deleting order from server...");
-
-            const response = await fetchWithRetry(
-              `/api/sync/pending-orders/${id}`,
-              {
-                method: "DELETE",
-                headers: {
-                  Authorization: `Bearer ${token}`,
-                },
-              },
-            );
-
-            // 🔧 FIX: Treat 404 as success (order doesn't exist = goal achieved)
-            if (!response.ok && response.status !== 404) {
-              throw new Error(
-                `Server delete failed: ${response.status} ${response.statusText}`,
-              );
-            }
-
-            // 🔧 FIX: Remove tombstone immediately on successful deletion (200 OK or 404)
-            // Both cases mean the order doesn't exist on server = goal achieved
-            if (response.ok || response.status === 404) {
-              console.log(
-                "[OrderService] ✅ Order deleted from server - removing tombstone",
-                { status: response.status },
-              );
-              await this.db
-                .table<PendingOrder, string>("pendingOrders")
-                .delete(id);
-            }
-          } catch (serverError) {
-            console.error(
-              "[OrderService] Failed to delete from server (will retry on sync):",
-              serverError,
-            );
-            // Keep tombstone - will be pushed during next sync
-          }
-        }
-      }
+      // 🔧 FIX: Tombstone will be handled by sync service (pushPendingOrders)
+      // Don't delete locally even if server DELETE succeeds - prevents race conditions
+      // where order gets re-pulled before sync completes
+      console.log(
+        "[OrderService] Tombstone will be synced and removed by unified sync service",
+      );
     } catch (error) {
       console.error("[OrderService] Failed to mark order as deleted:", error);
       throw error;

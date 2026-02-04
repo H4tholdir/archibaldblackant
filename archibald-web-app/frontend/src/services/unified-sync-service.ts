@@ -58,8 +58,8 @@ export class UnifiedSyncService {
 
     document.addEventListener("visibilitychange", () => {
       if (!document.hidden && navigator.onLine) {
-        console.log("[UnifiedSync] Tab visible, pulling...");
-        this.pullAll();
+        console.log("[UnifiedSync] Tab visible, syncing...");
+        this.syncAll();
       }
     });
 
