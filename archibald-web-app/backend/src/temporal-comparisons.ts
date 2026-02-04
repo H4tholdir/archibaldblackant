@@ -200,13 +200,6 @@ export function calculateRevenueInRange(
     query += `\n      AND (e.excluded_from_yearly IS NULL OR e.excluded_from_yearly = 0)`;
   }
 
-  logger.info(`[temporal-comparisons] Executing query`, {
-    userId,
-    startDate: startDate.toISOString(),
-    endDate: endDate.toISOString(),
-    query,
-  });
-
   const orders = db
     .prepare(query)
     .all(
@@ -221,36 +214,12 @@ export function calculateRevenueInRange(
     total_amount: string;
   }>;
 
-  logger.info(`[temporal-comparisons] Found ${orders.length} orders in range`, {
+  logger.info(`[temporal-comparisons] calculateRevenueInRange called`, {
     userId,
     startDate: startDate.toISOString(),
     endDate: endDate.toISOString(),
-    orders: orders.map((o) => ({
-      orderNumber: o.order_number,
-      date: o.creation_date,
-      amount: o.total_amount,
-    })),
+    options,
   });
-
-  // 🔍 DEBUG: Check if Veralli order is present
-  const veralliOrder = orders.find(
-    (o) =>
-      o.order_number.includes("72.344") ||
-      o.order_number.toLowerCase().includes("veralli"),
-  );
-  if (veralliOrder) {
-    logger.warn(
-      `[temporal-comparisons] ✅ FOUND Veralli order in results:`,
-      veralliOrder,
-    );
-  } else {
-    logger.warn(
-      `[temporal-comparisons] ❌ Veralli order NOT FOUND in ${orders.length} orders`,
-      {
-        orderNumbers: orders.map((o) => o.order_number).slice(0, 10),
-      },
-    );
-  }
 
   // Calculate total by parsing Italian currency format
   let total = 0;
