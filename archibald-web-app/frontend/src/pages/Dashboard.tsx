@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { WidgetOrderConfigModal } from "../components/WidgetOrderConfigModal";
 import { PrivacyToggle } from "../components/PrivacyToggle";
 import { HeroStatusWidgetNew } from "../components/widgets/HeroStatusWidgetNew";
@@ -10,6 +10,7 @@ import { BalanceWidget } from "../components/widgets/BalanceWidget";
 import { ExtraBudgetWidget } from "../components/widgets/ExtraBudgetWidget";
 import { AlertsWidgetNew } from "../components/widgets/AlertsWidgetNew";
 import { OrdersSummaryWidgetNew } from "../components/OrdersSummaryWidgetNew";
+import { useAutoRefresh } from "../hooks/useAutoRefresh";
 import type { DashboardData } from "../types/dashboard";
 import type { OrdersMetrics } from "../types/dashboard";
 
@@ -21,57 +22,13 @@ export function Dashboard() {
   const [loading, setLoading] = useState(true);
   const [showConfigModal, setShowConfigModal] = useState(false);
 
-  useEffect(() => {
-    const fetchDashboardData = async () => {
-      const token = localStorage.getItem("archibald_jwt");
-      if (!token) {
-        setLoading(false);
-        return;
-      }
-
-      try {
-        const [dashboardRes, ordersRes] = await Promise.all([
-          fetch("/api/widget/dashboard-data", {
-            headers: { Authorization: `Bearer ${token}` },
-          }),
-          fetch("/api/metrics/orders", {
-            headers: { Authorization: `Bearer ${token}` },
-          }),
-        ]);
-
-        if (dashboardRes.ok) {
-          const data = await dashboardRes.json();
-          setDashboardData(data);
-        } else {
-          console.error(
-            "[Dashboard] Failed to load dashboard data:",
-            await dashboardRes.text(),
-          );
-        }
-
-        if (ordersRes.ok) {
-          const data = await ordersRes.json();
-          setOrderMetrics(data);
-        } else {
-          console.error(
-            "[Dashboard] Failed to load order metrics:",
-            await ordersRes.text(),
-          );
-        }
-      } catch (error) {
-        console.error("[Dashboard] Failed to load dashboard data:", error);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchDashboardData();
-  }, []);
-
-  const handleConfigUpdate = async () => {
-    // Reload dashboard data after config changes
+  // Centralized fetch function (reusable for initial load, config update, auto-refresh)
+  const fetchDashboardData = useCallback(async () => {
     const token = localStorage.getItem("archibald_jwt");
-    if (!token) return;
+    if (!token) {
+      setLoading(false);
+      return;
+    }
 
     try {
       const [dashboardRes, ordersRes] = await Promise.all([
@@ -86,15 +43,45 @@ export function Dashboard() {
       if (dashboardRes.ok) {
         const data = await dashboardRes.json();
         setDashboardData(data);
+      } else {
+        console.error(
+          "[Dashboard] Failed to load dashboard data:",
+          await dashboardRes.text(),
+        );
       }
 
       if (ordersRes.ok) {
         const data = await ordersRes.json();
         setOrderMetrics(data);
+      } else {
+        console.error(
+          "[Dashboard] Failed to load order metrics:",
+          await ordersRes.text(),
+        );
       }
     } catch (error) {
-      console.error("[Dashboard] Failed to reload dashboard data:", error);
+      console.error("[Dashboard] Failed to load dashboard data:", error);
+    } finally {
+      setLoading(false);
     }
+  }, []);
+
+  // Initial load
+  useEffect(() => {
+    fetchDashboardData();
+  }, [fetchDashboardData]);
+
+  // Auto-refresh every 60s
+  useAutoRefresh({
+    enabled: !loading && !!dashboardData,
+    intervalMs: 60000, // 1 minute
+    onRefresh: fetchDashboardData,
+    visibilityCheck: true,
+  });
+
+  const handleConfigUpdate = async () => {
+    // Reload dashboard data after config changes
+    await fetchDashboardData();
   };
 
   if (loading) {
