@@ -112,8 +112,9 @@ export default function OrderFormSimple() {
   const [productResults, setProductResults] = useState<Product[]>([]);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [searchingProduct, setSearchingProduct] = useState(false);
+  const [highlightedProductIndex, setHighlightedProductIndex] = useState(-1);
   const [quantity, setQuantity] = useState("");
-  const [itemDiscount, setItemDiscount] = useState("0");
+  const [itemDiscount, setItemDiscount] = useState("");
 
   // Packaging preview state
   const [packagingPreview, setPackagingPreview] =
@@ -139,7 +140,7 @@ export default function OrderFormSimple() {
 
   // Step 3: Order items
   const [items, setItems] = useState<OrderItem[]>([]);
-  const [globalDiscountPercent, setGlobalDiscountPercent] = useState("0");
+  const [globalDiscountPercent, setGlobalDiscountPercent] = useState("");
   const [targetTotal, setTargetTotal] = useState("");
 
   // 🔧 FIX #2: Memoize excluded warehouse item IDs to prevent re-renders
@@ -210,6 +211,10 @@ export default function OrderFormSimple() {
 
   // 🔧 FIX: Prevent concurrent draft saves that create duplicates
   const savingDraftRef = useRef(false);
+
+  // Refs for focus management
+  const productSearchInputRef = useRef<HTMLInputElement>(null);
+  const quantityInputRef = useRef<HTMLInputElement>(null);
 
   // === LOAD ORDER FOR EDITING ===
   // Check if we're editing an existing order
@@ -468,6 +473,7 @@ export default function OrderFormSimple() {
     setProductSearch(query);
     if (query.length < 2) {
       setProductResults([]);
+      setHighlightedProductIndex(-1);
       return;
     }
 
@@ -485,6 +491,7 @@ export default function OrderFormSimple() {
 
       const uniqueProducts = Array.from(groupedByName.values()).slice(0, 10);
       setProductResults(uniqueProducts);
+      setHighlightedProductIndex(-1);
     } catch (error) {
       console.error("Product search failed:", error);
     } finally {
@@ -496,6 +503,7 @@ export default function OrderFormSimple() {
     setSelectedProduct(product);
     setProductSearch(product.name);
     setProductResults([]);
+    setHighlightedProductIndex(-1);
     // Reset quantity and preview when product changes
     setQuantity("");
     setPackagingPreview(null);
@@ -503,6 +511,43 @@ export default function OrderFormSimple() {
     setProductVariants([]);
     // Reset warehouse selection
     setWarehouseSelection([]);
+
+    // Focus on quantity field after product selection
+    setTimeout(() => {
+      quantityInputRef.current?.focus();
+    }, 0);
+  };
+
+  // Handle keyboard navigation in product dropdown
+  const handleProductKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (productResults.length === 0) return;
+
+    switch (e.key) {
+      case "ArrowDown":
+        e.preventDefault();
+        setHighlightedProductIndex((prev) =>
+          prev < productResults.length - 1 ? prev + 1 : prev,
+        );
+        break;
+      case "ArrowUp":
+        e.preventDefault();
+        setHighlightedProductIndex((prev) => (prev > 0 ? prev - 1 : 0));
+        break;
+      case "Enter":
+        e.preventDefault();
+        if (
+          highlightedProductIndex >= 0 &&
+          highlightedProductIndex < productResults.length
+        ) {
+          handleSelectProduct(productResults[highlightedProductIndex]);
+        }
+        break;
+      case "Escape":
+        e.preventDefault();
+        setProductResults([]);
+        setHighlightedProductIndex(-1);
+        break;
+    }
   };
 
   // === LOAD PRODUCT DETAILS ===
@@ -1211,9 +1256,14 @@ export default function OrderFormSimple() {
     setSelectedProduct(null);
     setProductSearch("");
     setQuantity("");
-    setItemDiscount("0");
+    setItemDiscount("");
     setPackagingPreview(null);
     setWarehouseSelection([]);
+
+    // Focus back on product search field
+    setTimeout(() => {
+      productSearchInputRef.current?.focus();
+    }, 0);
   };
 
   // === EDIT / DELETE ITEM ===
@@ -1933,10 +1983,12 @@ export default function OrderFormSimple() {
               Nome Articolo
             </label>
             <input
+              ref={productSearchInputRef}
               type="text"
               name="product-search-field"
               value={productSearch}
               onChange={(e) => handleProductSearch(e.target.value)}
+              onKeyDown={handleProductKeyDown}
               placeholder="Cerca articolo..."
               autoComplete="new-password"
               data-form-type="other"
@@ -1966,22 +2018,19 @@ export default function OrderFormSimple() {
                   marginTop: "0.5rem",
                 }}
               >
-                {productResults.map((product) => (
+                {productResults.map((product, index) => (
                   <div
                     key={product.id}
                     onClick={() => handleSelectProduct(product)}
+                    onMouseEnter={() => setHighlightedProductIndex(index)}
                     style={{
                       padding: isMobile ? "1rem" : "0.75rem",
                       cursor: "pointer",
                       borderBottom: "1px solid #f3f4f6",
                       minHeight: isMobile ? "48px" : "auto",
+                      background:
+                        index === highlightedProductIndex ? "#f3f4f6" : "white",
                     }}
-                    onMouseEnter={(e) =>
-                      (e.currentTarget.style.background = "#f9fafb")
-                    }
-                    onMouseLeave={(e) =>
-                      (e.currentTarget.style.background = "white")
-                    }
                   >
                     <strong
                       style={{ fontSize: isMobile ? "1rem" : "0.875rem" }}
@@ -2221,11 +2270,17 @@ export default function OrderFormSimple() {
                     Quantità (pezzi)
                   </label>
                   <input
-                    type="number"
+                    ref={quantityInputRef}
+                    type="text"
+                    inputMode="numeric"
                     value={quantity}
                     onChange={(e) => setQuantity(e.target.value)}
-                    placeholder="Es: 7"
-                    min="1"
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        e.preventDefault();
+                        handleAddItem();
+                      }
+                    }}
                     style={{
                       width: "100%",
                       padding: isMobile ? "0.875rem" : "0.75rem",
@@ -2248,12 +2303,10 @@ export default function OrderFormSimple() {
                     Sconto su Riga (€)
                   </label>
                   <input
-                    type="number"
+                    type="text"
+                    inputMode="decimal"
                     value={itemDiscount}
                     onChange={(e) => setItemDiscount(e.target.value)}
-                    placeholder="0.00"
-                    min="0"
-                    step="0.01"
                     style={{
                       width: "100%",
                       padding: isMobile ? "0.875rem" : "0.75rem",
@@ -2844,13 +2897,10 @@ export default function OrderFormSimple() {
                 Sconto Globale (%)
               </label>
               <input
-                type="number"
+                type="text"
+                inputMode="decimal"
                 value={globalDiscountPercent}
                 onChange={(e) => setGlobalDiscountPercent(e.target.value)}
-                placeholder="0.00"
-                min="0"
-                max="100"
-                step="0.01"
                 style={{
                   width: "100%",
                   padding: isMobile ? "0.875rem" : "0.75rem",
@@ -2870,7 +2920,7 @@ export default function OrderFormSimple() {
                   fontSize: isMobile ? "0.875rem" : "1rem",
                 }}
               >
-                O inserisci totale desiderato (con IVA)
+                Inserisci totale desiderato (con IVA)
               </label>
               <div
                 style={{
@@ -2880,12 +2930,10 @@ export default function OrderFormSimple() {
                 }}
               >
                 <input
-                  type="number"
+                  type="text"
+                  inputMode="decimal"
                   value={targetTotal}
                   onChange={(e) => setTargetTotal(e.target.value)}
-                  placeholder="Es: 1000.00"
-                  min="0"
-                  step="0.01"
                   style={{
                     flex: 1,
                     padding: isMobile ? "0.875rem" : "0.75rem",
@@ -3016,7 +3064,9 @@ export default function OrderFormSimple() {
 
       {/* SUBMIT BUTTON */}
       {items.length > 0 && (
-        <div style={{ textAlign: isMobile ? "center" : "right" }}>
+        <div
+          style={{ display: "flex", justifyContent: "center", width: "100%" }}
+        >
           <button
             onClick={handleSubmit}
             disabled={submitting}
@@ -3029,11 +3079,12 @@ export default function OrderFormSimple() {
               fontSize: isMobile ? "1.125rem" : "1.125rem",
               fontWeight: "600",
               cursor: submitting ? "not-allowed" : "pointer",
-              width: isMobile ? "100%" : "auto",
+              width: "100%",
+              maxWidth: isMobile ? "100%" : "800px",
               minHeight: isMobile ? "52px" : "auto",
             }}
           >
-            {submitting ? "Salvataggio..." : "Salva in Coda Ordini"}
+            {submitting ? "Salvataggio..." : "Salva in ordini in attesa"}
           </button>
         </div>
       )}
