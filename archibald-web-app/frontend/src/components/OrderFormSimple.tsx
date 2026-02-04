@@ -215,6 +215,7 @@ export default function OrderFormSimple() {
   // Refs for focus management
   const productSearchInputRef = useRef<HTMLInputElement>(null);
   const quantityInputRef = useRef<HTMLInputElement>(null);
+  const productDropdownItemsRef = useRef<(HTMLDivElement | null)[]>([]);
 
   // === LOAD ORDER FOR EDITING ===
   // Check if we're editing an existing order
@@ -549,6 +550,19 @@ export default function OrderFormSimple() {
         break;
     }
   };
+
+  // Scroll highlighted item into view in product dropdown
+  useEffect(() => {
+    if (
+      highlightedProductIndex >= 0 &&
+      productDropdownItemsRef.current[highlightedProductIndex]
+    ) {
+      productDropdownItemsRef.current[highlightedProductIndex]?.scrollIntoView({
+        behavior: "smooth",
+        block: "nearest",
+      });
+    }
+  }, [highlightedProductIndex]);
 
   // === LOAD PRODUCT DETAILS ===
   // Load all variants with their prices and VAT when product is selected
@@ -2021,6 +2035,9 @@ export default function OrderFormSimple() {
                 {productResults.map((product, index) => (
                   <div
                     key={product.id}
+                    ref={(el) => {
+                      productDropdownItemsRef.current[index] = el;
+                    }}
                     onClick={() => handleSelectProduct(product)}
                     onMouseEnter={() => setHighlightedProductIndex(index)}
                     style={{
