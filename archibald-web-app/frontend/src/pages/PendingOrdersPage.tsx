@@ -155,6 +155,34 @@ export function PendingOrdersPage() {
     }
   };
 
+  const handleDeleteSelectedOrders = async () => {
+    if (selectedOrderIds.size === 0) return;
+
+    if (
+      !confirm(`Sei sicuro di voler eliminare ${selectedOrderIds.size} ordini?`)
+    ) {
+      return;
+    }
+
+    try {
+      // Delete all selected orders
+      for (const orderId of selectedOrderIds) {
+        await orderService.deletePendingOrder(orderId);
+      }
+
+      await refetch();
+      setSelectedOrderIds(new Set());
+    } catch (error) {
+      console.error(
+        "[PendingOrdersPage] Failed to delete selected orders:",
+        error,
+      );
+      toastService.error(
+        "Errore durante l'eliminazione degli ordini. Riprova.",
+      );
+    }
+  };
+
   const handleEditOrder = (orderId: string) => {
     // Navigate to order form with order ID as query parameter
     navigate(`/order?editOrderId=${orderId}`);
@@ -183,25 +211,6 @@ export function PendingOrdersPage() {
       const errorMessage =
         error instanceof Error ? error.message : "Errore sconosciuto";
       toastService.error(`Errore durante la stampa: ${errorMessage}`);
-    }
-  };
-
-  const handleDownloadSelectedPDF = () => {
-    if (selectedOrderIds.size === 0) {
-      toastService.warning("Seleziona almeno un ordine");
-      return;
-    }
-
-    try {
-      const selectedOrders = orders.filter((o) => selectedOrderIds.has(o.id!));
-      pdfExportService.downloadMultipleOrdersPDF(selectedOrders);
-      toastService.success(`${selectedOrderIds.size} ordini esportati in PDF`);
-    } catch (error) {
-      console.error(
-        "[PendingOrdersPage] Failed to export multiple PDFs:",
-        error,
-      );
-      toastService.error("Errore durante l'esportazione multipla");
     }
   };
 
@@ -276,12 +285,12 @@ export function PendingOrdersPage() {
           }}
         >
           <button
-            onClick={handleDownloadSelectedPDF}
+            onClick={handleDeleteSelectedOrders}
             disabled={selectedOrderIds.size === 0}
             style={{
               padding: isMobile ? "0.875rem 1rem" : "0.75rem 1.25rem",
               backgroundColor:
-                selectedOrderIds.size === 0 ? "#e5e7eb" : "#3b82f6",
+                selectedOrderIds.size === 0 ? "#e5e7eb" : "#dc2626",
               color: selectedOrderIds.size === 0 ? "#9ca3af" : "white",
               border: "none",
               borderRadius: "8px",
@@ -290,9 +299,9 @@ export function PendingOrdersPage() {
               cursor: selectedOrderIds.size === 0 ? "not-allowed" : "pointer",
               minHeight: "44px", // Touch target
             }}
-            title="Esporta ordini selezionati in PDF"
+            title="Elimina tutti gli ordini selezionati"
           >
-            📄 {isMobile ? "Esporta PDF" : "Esporta PDF"} (
+            🗑️ {isMobile ? "Elimina" : "Elimina Selezionati"} (
             {selectedOrderIds.size})
           </button>
           <button
