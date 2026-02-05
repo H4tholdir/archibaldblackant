@@ -23,6 +23,7 @@ import {
 import { releaseWarehouseReservations } from "../services/warehouse-order-integration";
 import { getDeviceId } from "../utils/device-id";
 import { unifiedSyncService } from "../services/unified-sync-service";
+import { useDraftSync } from "../hooks/useDraftSync";
 import { calculateShippingCosts } from "../utils/order-calculations";
 
 interface OrderItem {
@@ -87,6 +88,9 @@ function normalizeVatRate(vat: number | null | undefined): number {
 export default function OrderFormSimple() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
+
+  // 🔧 FIX: Use useDraftSync hook to get real-time draft updates via WebSocket
+  const { drafts: draftOrders } = useDraftSync();
 
   // Responsive design: detect mobile
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
@@ -780,41 +784,36 @@ export default function OrderFormSimple() {
     }
   }, [editingOrderId, selectedCustomer, items, draftId]);
 
-  // === CHECK FOR EXISTING DRAFT ON MOUNT ===
+  // === CHECK FOR EXISTING DRAFT - REAL-TIME UPDATES ===
+  // React to draftOrders changes from useDraftSync hook (real-time WebSocket updates)
   useEffect(() => {
-    const checkForDraft = async () => {
-      // Don't check for draft if we're editing an existing order
-      if (editingOrderId) return;
+    // Don't check for draft if we're editing an existing order
+    if (editingOrderId) {
+      setHasDraft(false);
+      setDraftId(null);
+      return;
+    }
 
-      try {
-        // 🔧 FIX: Sync BEFORE reading local drafts to ensure deleted drafts are removed
-        // This prevents showing drafts that were deleted on other devices
-        console.log("[OrderForm] Syncing before checking for drafts...");
-        if (navigator.onLine) {
-          try {
-            await unifiedSyncService.syncAll();
-            console.log("[OrderForm] ✅ Sync completed before draft check");
-          } catch (syncError) {
-            console.warn(
-              "[OrderForm] ⚠️ Sync failed, proceeding with local data:",
-              syncError,
-            );
-          }
-        }
+    // 🔧 FIX: Use draftOrders from useDraftSync hook for real-time updates
+    // This automatically updates when drafts are created/deleted on other devices
+    console.log("[OrderForm] Checking drafts from real-time hook:", {
+      draftCount: draftOrders.length,
+    });
 
-        const drafts = await orderService.getDraftOrders();
-        if (drafts.length > 0) {
-          const latestDraft = drafts[0]; // getDraftOrders returns sorted by updatedAt DESC
-          setHasDraft(true);
-          setDraftId(latestDraft.id!);
-        }
-      } catch (error) {
-        console.error("[OrderForm] Failed to check for drafts:", error);
-      }
-    };
-
-    checkForDraft();
-  }, [editingOrderId]);
+    if (draftOrders.length > 0) {
+      const latestDraft = draftOrders[0]; // useDraftSync returns sorted by updatedAt DESC
+      console.log("[OrderForm] ✅ Found latest draft:", {
+        draftId: latestDraft.id,
+        customerId: latestDraft.customerId,
+      });
+      setHasDraft(true);
+      setDraftId(latestDraft.id!);
+    } else {
+      console.log("[OrderForm] No drafts available");
+      setHasDraft(false);
+      setDraftId(null);
+    }
+  }, [editingOrderId, draftOrders]);
 
   // === AUTO-SAVE DRAFT ON EVERY OPERATION ===
   // Save immediately when customer or items change
