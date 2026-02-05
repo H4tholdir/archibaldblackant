@@ -34,39 +34,41 @@ export class WebSocketServerService {
       path: "/ws/realtime",
     });
 
-    this.wss.on("connection", async (ws: WebSocket, request: IncomingMessage) => {
-      try {
-        const userId = await this.authenticateConnection(ws, request);
+    this.wss.on(
+      "connection",
+      async (ws: WebSocket, request: IncomingMessage) => {
+        try {
+          const userId = await this.authenticateConnection(ws, request);
 
-        if (!userId) {
-          ws.close(1008, "Authentication failed");
-          return;
-        }
+          if (!userId) {
+            ws.close(1008, "Authentication failed");
+            return;
+          }
 
-        this.registerConnection(userId, ws);
-        logger.info("WebSocket client authenticated", { userId });
+          this.registerConnection(userId, ws);
+          logger.info("WebSocket client authenticated", { userId });
 
-        ws.on("close", () => {
-          this.unregisterConnection(userId, ws);
-          logger.info("WebSocket client disconnected", { userId });
-        });
+          ws.on("close", () => {
+            this.unregisterConnection(userId, ws);
+            logger.info("WebSocket client disconnected", { userId });
+          });
 
-        ws.on("error", (error) => {
-          logger.error("WebSocket client error", { userId, error });
-          this.unregisterConnection(userId, ws);
-        });
+          ws.on("error", (error) => {
+            logger.error("WebSocket client error", { userId, error });
+            this.unregisterConnection(userId, ws);
+          });
 
-        // Ping/pong heartbeat
-        (ws as any).isAlive = true;
-        ws.on("pong", () => {
+          // Ping/pong heartbeat
           (ws as any).isAlive = true;
-        });
-
-      } catch (error) {
-        logger.error("WebSocket connection error", { error });
-        ws.close(1011, "Internal server error");
-      }
-    });
+          ws.on("pong", () => {
+            (ws as any).isAlive = true;
+          });
+        } catch (error) {
+          logger.error("WebSocket connection error", { error });
+          ws.close(1011, "Internal server error");
+        }
+      },
+    );
 
     // Start ping/pong heartbeat every 30 seconds
     this.pingInterval = setInterval(() => {
@@ -89,7 +91,7 @@ export class WebSocketServerService {
    */
   private async authenticateConnection(
     ws: WebSocket,
-    request: IncomingMessage
+    request: IncomingMessage,
   ): Promise<string | null> {
     try {
       // Try query param first: ?token=xxx
@@ -168,7 +170,11 @@ export class WebSocketServerService {
       }
     });
 
-    logger.debug("Broadcast to user", { userId, eventType: event.type, connections: userConnections.size });
+    logger.debug("Broadcast to user", {
+      userId,
+      eventType: event.type,
+      connections: userConnections.size,
+    });
   }
 
   /**
@@ -187,7 +193,10 @@ export class WebSocketServerService {
       }
     });
 
-    logger.debug("Broadcast to all users", { eventType: event.type, connections: sentCount });
+    logger.debug("Broadcast to all users", {
+      eventType: event.type,
+      connections: sentCount,
+    });
   }
 
   /**
@@ -230,7 +239,7 @@ export class WebSocketServerService {
           } else {
             resolve();
           }
-        })
+        }),
       );
     });
 

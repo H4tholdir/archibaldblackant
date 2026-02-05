@@ -90,6 +90,7 @@ import {
   getMonthsAgo,
   parseItalianCurrency,
 } from "./temporal-comparisons";
+import { WebSocketServerService } from "./websocket-server";
 
 const app = express();
 const server = createServer(app);
@@ -1163,6 +1164,30 @@ app.get(
       res.status(500).json({
         success: false,
         error: error instanceof Error ? error.message : "Error checking lock",
+      });
+    }
+  },
+);
+
+// Get WebSocket connection stats (admin only)
+app.get(
+  "/api/websocket/stats",
+  authenticateJWT,
+  requireAdmin,
+  (req: AuthRequest, res: Response<ApiResponse>) => {
+    try {
+      const stats = WebSocketServerService.getInstance().getStats();
+      res.json({
+        success: true,
+        data: stats,
+        message: "WebSocket stats retrieved successfully",
+      });
+    } catch (error) {
+      logger.error("Error retrieving WebSocket stats", { error });
+      res.status(500).json({
+        success: false,
+        error:
+          error instanceof Error ? error.message : "Error retrieving stats",
       });
     }
   },
@@ -6087,6 +6112,17 @@ server.listen(config.server.port, async () => {
     `🔌 WebSocket disponibile su ws://localhost:${config.server.port}/ws/sync`,
   );
 
+  // Initialize WebSocket server for real-time draft/pending operations
+  try {
+    WebSocketServerService.getInstance().initialize(server);
+    logger.info(
+      `🔌 WebSocket server initialized on ws://localhost:${config.server.port}/ws/realtime`,
+    );
+  } catch (error) {
+    logger.error("❌ Failed to initialize WebSocket server", { error });
+    // Continue startup - WebSocket is not critical for basic functionality
+  }
+
   // Registra i callback per gestire i lock ordini/sync
   queueManager.setOrderLockCallbacks(acquireOrderLock, releaseOrderLock);
   logger.info("✅ Lock callbacks registrati per ordini");
@@ -6277,6 +6313,14 @@ process.on("SIGTERM", async () => {
   productSyncService.stopAutoSync();
   // priceSyncService.stopAutoSync(); // Price sync no longer has auto-sync
 
+  // Shutdown WebSocket server
+  logger.info("Shutting down WebSocket server...");
+  try {
+    await WebSocketServerService.getInstance().shutdown();
+  } catch (error) {
+    logger.error("Error shutting down WebSocket server", { error });
+  }
+
   // Shutdown queue manager
   logger.info("Shutting down queue manager...");
   await queueManager.shutdown();
@@ -6307,6 +6351,14 @@ process.on("SIGINT", async () => {
   sessionCleanup.stop();
   syncScheduler.stop(); // NEW: Stop adaptive scheduler
   syncService.stopAutoSync();
+
+  // Shutdown WebSocket server
+  logger.info("Shutting down WebSocket server...");
+  try {
+    await WebSocketServerService.getInstance().shutdown();
+  } catch (error) {
+    logger.error("Error shutting down WebSocket server", { error });
+  }
   productSyncService.stopAutoSync();
   // priceSyncService.stopAutoSync(); // Price sync no longer has auto-sync
 
