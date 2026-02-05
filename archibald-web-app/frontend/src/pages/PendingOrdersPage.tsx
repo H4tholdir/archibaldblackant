@@ -13,7 +13,6 @@ export function PendingOrdersPage() {
   // 🔧 FIX: Use usePendingSync hook to get real-time updates via WebSocket
   const {
     pendingOrders: orders,
-    isConnected,
     isSyncing: loading,
     refetch,
   } = usePendingSync();
