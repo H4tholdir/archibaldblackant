@@ -5,14 +5,22 @@ import { toastService } from "../services/toast.service";
 import { pdfExportService } from "../services/pdf-export.service";
 import type { PendingOrder } from "../db/schema";
 import { calculateShippingCosts } from "../utils/order-calculations";
+import { usePendingSync } from "../hooks/usePendingSync";
 
 export function PendingOrdersPage() {
   const navigate = useNavigate();
-  const [orders, setOrders] = useState<PendingOrder[]>([]);
+
+  // 🔧 FIX: Use usePendingSync hook to get real-time updates via WebSocket
+  const {
+    pendingOrders: orders,
+    isConnected,
+    isSyncing: loading,
+    refetch,
+  } = usePendingSync();
+
   const [selectedOrderIds, setSelectedOrderIds] = useState<Set<string>>(
     new Set(),
   );
-  const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
 
   // Expand/collapse state for each order
@@ -30,22 +38,6 @@ export function PendingOrdersPage() {
     window.addEventListener("resize", handleResize);
     return () => window.removeEventListener("resize", handleResize);
   }, []);
-
-  useEffect(() => {
-    loadOrders();
-  }, []);
-
-  const loadOrders = async () => {
-    setLoading(true);
-    try {
-      const pendingOrders = await orderService.getPendingOrders();
-      setOrders(pendingOrders);
-    } catch (error) {
-      console.error("[PendingOrdersPage] Failed to load orders:", error);
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const handleSelectOrder = (orderId: string) => {
     setSelectedOrderIds((prev) => {
@@ -133,7 +125,7 @@ export function PendingOrdersPage() {
         `Ordini inviati al bot. Job IDs: ${jobIds.join(", ")}`,
       );
 
-      await loadOrders();
+      await refetch();
       setSelectedOrderIds(new Set());
     } catch (error) {
       console.error("[PendingOrdersPage] Submission failed:", error);
@@ -151,7 +143,7 @@ export function PendingOrdersPage() {
     try {
       await orderService.deletePendingOrder(orderId);
       toastService.success("Ordine eliminato con successo");
-      await loadOrders();
+      await refetch();
       // Remove from selection if it was selected
       setSelectedOrderIds((prev) => {
         const updated = new Set(prev);
