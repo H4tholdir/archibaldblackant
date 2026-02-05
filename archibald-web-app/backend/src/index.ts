@@ -479,7 +479,7 @@ app.get("/api/health", (req: Request, res: Response<ApiResponse>) => {
 });
 
 // WebSocket health endpoint (admin-only)
-app.get("/api/websocket/health", requireAdmin, (req, res) => {
+app.get("/api/websocket/health", authenticateJWT, requireAdmin, (req, res) => {
   try {
     const wsService = WebSocketServerService.getInstance();
     const stats = wsService.getStats();
