@@ -4,6 +4,7 @@ import { logger } from "../logger";
 import Database from "better-sqlite3";
 import path from "path";
 import { DraftRealtimeService } from "../draft-realtime.service";
+import { PendingRealtimeService } from "../pending-realtime.service";
 
 const router = Router();
 
@@ -13,8 +14,9 @@ const usersDbPath = path.join(__dirname, "../../data/users.db");
 const ordersDb = new Database(ordersDbPath);
 const usersDb = new Database(usersDbPath);
 
-// Draft real-time service for WebSocket broadcasts
+// Real-time services for WebSocket broadcasts
 const draftRealtimeService = DraftRealtimeService.getInstance();
+const pendingRealtimeService = PendingRealtimeService.getInstance();
 
 // ========== PENDING ORDERS SYNC ==========
 
@@ -158,6 +160,26 @@ router.post(
               orderId: order.id,
               userId,
             });
+
+            // WebSocket broadcast: PENDING_UPDATED (Phase 32)
+            pendingRealtimeService.emitPendingUpdated(userId, {
+              id: order.id,
+              userId,
+              customerId: order.customerId,
+              customerName: order.customerName,
+              items: order.items,
+              status: order.status,
+              discountPercent: order.discountPercent,
+              targetTotalWithVAT: order.targetTotalWithVAT,
+              shippingCost: order.shippingCost || 0,
+              shippingTax: order.shippingTax || 0,
+              retryCount: order.retryCount || 0,
+              errorMessage: order.errorMessage,
+              createdAt: order.createdAt,
+              updatedAt: order.updatedAt,
+              deviceId: order.deviceId,
+              originDraftId: order.originDraftId,
+            });
           } else {
             // Insert new order
             ordersDb
@@ -193,6 +215,26 @@ router.post(
             logger.info("Pending order created", {
               orderId: order.id,
               userId,
+            });
+
+            // WebSocket broadcast: PENDING_CREATED (Phase 32)
+            pendingRealtimeService.emitPendingCreated(userId, {
+              id: order.id,
+              userId,
+              customerId: order.customerId,
+              customerName: order.customerName,
+              items: order.items,
+              status: order.status,
+              discountPercent: order.discountPercent,
+              targetTotalWithVAT: order.targetTotalWithVAT,
+              shippingCost: order.shippingCost || 0,
+              shippingTax: order.shippingTax || 0,
+              retryCount: order.retryCount || 0,
+              errorMessage: order.errorMessage,
+              createdAt: order.createdAt,
+              updatedAt: order.updatedAt,
+              deviceId: order.deviceId,
+              originDraftId: order.originDraftId,
             });
 
             // 🔧 FIX: Server-side cascade deletion - delete associated draft if originDraftId present
@@ -274,6 +316,7 @@ router.delete(
     try {
       const userId = req.user!.userId;
       const { id } = req.params;
+      const { deviceId } = req.query;
 
       const result = ordersDb
         .prepare(
@@ -291,6 +334,14 @@ router.delete(
       }
 
       logger.info("Pending order deleted", { orderId: id, userId });
+
+      // WebSocket broadcast: PENDING_DELETED (Phase 32)
+      pendingRealtimeService.emitPendingDeleted(
+        userId,
+        id,
+        (deviceId as string) || "unknown",
+      );
+
       res.json({ success: true });
     } catch (error) {
       logger.error("Error deleting pending order", { error });
