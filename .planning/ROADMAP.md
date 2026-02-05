@@ -45,7 +45,7 @@ None (full-stack web app con pattern standard)
 - [x] **Phase 28: Bot Performance Optimization v2** - Target < 60s per ordine ✅ COMPLETE
 - [ ] **Phase 28.1: Fix Order Form Critical Bugs (INSERTED)** - 🔴 CRITICAL: Fix customer selection, product filtering, white screen crash (PAUSED - superseded by 28.2)
 - [ ] **Phase 28.2: Rewrite OrderForm with Proper Architecture (INSERTED)** - 🔴 URGENT: Complete rewrite with 3-layer architecture (4/6 plans complete)
-- [ ] **Phase 29: WebSocket Server Infrastructure** - Setup Node.js WebSocket server con auth e connection manager
+- [x] **Phase 29: WebSocket Server Infrastructure** - Setup Node.js WebSocket server con auth e connection manager ✅ COMPLETE
 - [ ] **Phase 30: WebSocket Client & Auto-Reconnect** - Frontend client con reconnection automatica ed event handling
 - [ ] **Phase 31: Draft Orders Real-Time Sync** - Migrazione draft da polling a WebSocket (CREATE/UPDATE/DELETE)
 - [ ] **Phase 32: Pending Orders Real-Time Sync** - Migrazione pending orders ed eliminazione UnifiedSyncService
@@ -92,15 +92,15 @@ See phases 1-13 below for complete details of v1.0 milestone.
 
 **Milestone Goal:** Semplificare drasticamente l'architettura di sincronizzazione sostituendo polling HTTP (ogni 15s) + tombstones con WebSocket real-time bidirezionale, eliminando complessità, bug e raggiungendo latency <100ms per operazioni multi-device.
 
-#### Phase 29: WebSocket Server Infrastructure
+#### Phase 29: WebSocket Server Infrastructure ✅ COMPLETE
 **Goal**: Setup Node.js WebSocket server con autenticazione JWT, connection manager e broadcast per operazioni draft/pending
 **Depends on**: Phase 28.2 (OrderForm rewrite complete)
-**Research**: Likely (WebSocket architecture patterns, ws library specifics, connection lifecycle management)
-**Research topics**: WebSocket server architecture, authentication patterns, connection pooling, broadcast strategies
-**Plans**: TBD
+**Research**: Completed (Level 1 - Quick verification, ws 8.19.0 already installed)
+**Plans**: 1/1 complete
+**Completed**: 2026-02-05
 
 Plans:
-- [ ] 29-01: TBD (run /gsd:plan-phase 29 to break down)
+- [x] 29-01: WebSocket Server with JWT Auth & Express Integration — 8min ✅
 
 #### Phase 30: WebSocket Client & Auto-Reconnect
 **Goal**: Frontend WebSocket client con auto-reconnect, exponential backoff, pending operations queue per offline support
@@ -480,7 +480,7 @@ See `.planning/phases/28.2-rewrite-orderform-with-proper-architecture/28.2-01-SU
 | 26. Universal Fast Login | v2.0 | 1/1 | Complete | 2026-01-22 |
 | 27. Bot Performance Profiling v2 | v2.0 | 4/4 | Complete | 2026-01-22 |
 | 28. Bot Performance Optimization v2 | v2.0 | 1/1 | Complete | 2026-01-22 |
-| 29. WebSocket Server Infrastructure | v3.0 | 0/? | Not started | - |
+| 29. WebSocket Server Infrastructure | v3.0 | 1/1 | Complete | 2026-02-05 |
 | 30. WebSocket Client & Auto-Reconnect | v3.0 | 0/? | Not started | - |
 | 31. Draft Orders Real-Time Sync | v3.0 | 0/? | Not started | - |
 | 32. Pending Orders Real-Time Sync | v3.0 | 0/? | Not started | - |

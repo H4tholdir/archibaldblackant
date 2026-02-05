@@ -5,23 +5,23 @@
 See: .planning/PROJECT.md (updated 2026-01-11)
 
 **Core value:** Rendere la creazione ordini Archibald **veloce, affidabile e mobile-friendly** per agenti in movimento
-**Current focus:** v3.0 WebSocket Real-Time Sync — Phase 29 ready to plan
+**Current focus:** v3.0 WebSocket Real-Time Sync — Phase 29 complete
 
 ## Current Position
 
 Phase: 29 of 36 (WebSocket Server Infrastructure)
-Plan: Not started
-Status: Ready to plan
-Last activity: 2026-02-05 - Milestone v3.0 created
+Plan: 1 of 1 in current phase
+Status: Phase complete
+Last activity: 2026-02-05 - Completed 29-01-PLAN.md
 
-Progress: ░░░░░░░░░░ 0%
+Progress: █░░░░░░░░░ 12.5%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 111
+- Total plans completed: 112
 - Average duration: 48 min
-- Total execution time: 94.5 hours
+- Total execution time: 94.6 hours
 
 **By Phase:**
 
@@ -55,6 +55,7 @@ Progress: ░░░░░░░░░░ 0%
 | 26 | 1 | 25 min | 25 min |
 | 27 | 4 | 239 min | 60 min |
 | 28 | 1 | 0 min | 0 min |
+| 29 | 1 | 8 min | 8 min |
 
 **Recent Trend:**
 - Last 10 plans: 21-04 (90m), 21-05 (120m), 22-01 (15m), 22-02 (15m), 22-03 (30m), 23-01 (60m), 24-01 (15m), 25-01 (3m), 26-01 (25m), 27-01 (24m)
@@ -79,6 +80,12 @@ Recent decisions affecting current work:
 
 | Phase | Decision | Rationale |
 |-------|----------|-----------|
+| 29-01 | Use ws 8.19.0 library (no socket.io) | Consistency with existing stack, already installed, simpler than socket.io for our needs |
+| 29-01 | JWT auth via query param or header | Flexibility for client implementation, query param simplifies handshake, header for standards compliance |
+| 29-01 | Connection pool Map<userId, Set<WebSocket>> | Efficient per-user multi-device broadcast, O(1) lookup, automatic cleanup on disconnect |
+| 29-01 | Path /ws/realtime for new server | Coexistence with /ws/sync (sync progress), clear separation of concerns |
+| 29-01 | Ping/pong heartbeat 30s interval | Prevents zombie connections, detects stale clients, industry standard interval |
+| 29-01 | Async graceful shutdown with 5s timeout | Ensures clean connection closure, timeout prevents indefinite wait, non-blocking server termination |
 | 28-01 | Phase 28 complete via Phase 27 work | Manual optimization in Phase 27 exceeded Phase 28 target (<60s), no additional work needed |
 | 27-03 | Manual optimization vs automated profiling | Manual approach provides more control, immediate feedback, faster iteration, achieved ~35s improvement on 3-article orders |
 | 27-03 | 30-35% reduction strategy for timeouts | Aggressive but conservative enough to maintain 100% stability (8/8 test orders successful) |
@@ -686,10 +693,10 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-02-05
-Stopped at: Milestone v3.0 initialization complete
-Context file: None
-Next: Plan Phase 29 (WebSocket Server Infrastructure)
-Resume command: /gsd:plan-phase 29
+Stopped at: Phase 29 complete (29-01-PLAN.md executed successfully)
+Context file: .planning/phases/29-websocket-server-infrastructure/29-01-SUMMARY.md
+Next: Plan Phase 30 (WebSocket Client & Auto-Reconnect)
+Resume command: /gsd:plan-phase 30
 
 ### Session 101 (2026-01-23)
 **Command:** /gsd:execute-plan 28.2-03-PLAN.md
