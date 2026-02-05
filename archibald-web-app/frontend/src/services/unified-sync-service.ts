@@ -5,8 +5,8 @@ import { fetchWithRetry } from "../utils/fetch-with-retry";
  * UnifiedSyncService
  *
  * Manages multi-device sync for:
- * - Pending orders
- * - Draft orders
+ * - Pending orders (HTTP polling until Phase 32)
+ * - Draft orders (Phase 31: Removed - now using WebSocket real-time)
  * - Warehouse items
  *
  * Sync strategy:
@@ -108,11 +108,9 @@ export class UnifiedSyncService {
     this.isSyncing = true;
 
     try {
-      await Promise.all([
-        this.syncPendingOrders(),
-        this.syncDraftOrders(),
-        this.syncWarehouse(),
-      ]);
+      // Draft sync handled by WebSocket real-time (Phase 31)
+      // Pending orders still use HTTP polling (until Phase 32)
+      await Promise.all([this.syncPendingOrders(), this.syncWarehouse()]);
       console.log("[UnifiedSync] Sync all completed");
     } catch (error) {
       console.error("[UnifiedSync] Sync all failed:", error);
@@ -126,11 +124,9 @@ export class UnifiedSyncService {
    */
   async pullAll(): Promise<void> {
     try {
-      await Promise.all([
-        this.pullPendingOrders(),
-        this.pullDraftOrders(),
-        this.pullWarehouse(),
-      ]);
+      // Draft sync handled by WebSocket real-time (Phase 31)
+      // Pending orders still use HTTP polling (until Phase 32)
+      await Promise.all([this.pullPendingOrders(), this.pullWarehouse()]);
       console.log("[UnifiedSync] Pull all completed");
     } catch (error) {
       console.error("[UnifiedSync] Pull all failed:", error);
@@ -341,13 +337,19 @@ export class UnifiedSyncService {
   }
 
   // ========== DRAFT ORDERS ==========
+  // Phase 31: Draft sync handled by WebSocket real-time (removed from HTTP polling)
+  // Methods kept for reference until Phase 33 (tombstone removal)
 
-  private async syncDraftOrders(): Promise<void> {
-    // 🔧 FIX: Push BEFORE pull to avoid overwriting local changes
-    await this.pushDraftOrders();
-    await this.pullDraftOrders();
-  }
+  // DEPRECATED: Draft sync now handled by DraftRealtimeService (Phase 31)
+  // private async syncDraftOrders(): Promise<void> {
+  //   await this.pushDraftOrders();
+  //   await this.pullDraftOrders();
+  // }
 
+  // DEPRECATED: Draft sync now handled by DraftRealtimeService (Phase 31)
+  // Kept for reference until Phase 33 (tombstone removal)
+  // @ts-expect-error - Method intentionally unused (Phase 31: WebSocket real-time sync)
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   private async pullDraftOrders(): Promise<void> {
     const token = localStorage.getItem("archibald_jwt");
     if (!token) return;
@@ -434,6 +436,10 @@ export class UnifiedSyncService {
     }
   }
 
+  // DEPRECATED: Draft sync now handled by DraftRealtimeService (Phase 31)
+  // Kept for reference until Phase 33 (tombstone removal)
+  // @ts-expect-error - Method intentionally unused (Phase 31: WebSocket real-time sync)
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   private async pushDraftOrders(): Promise<void> {
     const token = localStorage.getItem("archibald_jwt");
     if (!token) return;
