@@ -32,6 +32,7 @@ import { PrivacyProvider } from "./contexts/PrivacyContext";
 import { ImpersonationBanner } from "./components/ImpersonationBanner";
 import { AdminSessionBanner } from "./components/AdminSessionBanner";
 import { WebSocketProvider } from "./contexts/WebSocketContext";
+import WebSocketSync from "./components/WebSocketSync";
 // import { UnifiedSyncProgress } from "./components/UnifiedSyncProgress"; // Temporarily disabled
 
 function AppRouter() {
@@ -230,6 +231,8 @@ function AppRouter() {
       <BrowserRouter>
         {/* WebSocket Real-Time Sync - Singleton provider for entire app */}
         <WebSocketProvider>
+          {/* Initialize WebSocket subscriptions for draft/pending sync when authenticated */}
+          {auth.isAuthenticated && <WebSocketSync />}
           <ToastContainer
             toasts={toasts}
             onClose={(id) => toastService.remove(id)}
