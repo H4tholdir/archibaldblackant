@@ -1,26 +1,20 @@
 import { useEffect } from "react";
-import { useDraftSync } from "../hooks/useDraftSync";
-import { usePendingSync } from "../hooks/usePendingSync";
 
 /**
  * Component che inizializza la sincronizzazione WebSocket real-time
  * per draft e pending orders.
  *
- * Deve essere montato una volta sola nell'app (in AppRouter o main component).
- * Gestisce automaticamente connessione/disconnessione e sync bidirezionale.
+ * NOTA: useDraftSync e usePendingSync sono chiamati direttamente dai componenti
+ * che necessitano dei dati. Non vanno chiamati qui per evitare subscriptions duplicate.
+ *
+ * Questo componente rimane come placeholder per future inizializzazioni globali.
  */
 export default function WebSocketSync() {
-  // Initialize draft orders real-time sync
-  useDraftSync();
-
-  // Initialize pending orders real-time sync
-  usePendingSync();
-
   useEffect(() => {
-    console.log("[WebSocketSync] Real-time sync initialized");
+    console.log("[WebSocketSync] Real-time sync placeholder mounted");
 
     return () => {
-      console.log("[WebSocketSync] Real-time sync cleanup");
+      console.log("[WebSocketSync] Real-time sync placeholder cleanup");
     };
   }, []);
 

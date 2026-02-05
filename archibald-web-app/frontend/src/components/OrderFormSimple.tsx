@@ -961,18 +961,30 @@ export default function OrderFormSimple() {
 
   // === DISCARD DRAFT ===
   const handleDiscardDraft = async () => {
-    if (!draftId) return;
-
     try {
-      await orderService.deleteDraftOrder(draftId);
+      // 🔧 FIX: Delete ALL drafts, not just the current one
+      // This prevents having to click "Annulla" multiple times when there are duplicate drafts
+      console.log("[OrderForm] Deleting all drafts", {
+        draftCount: draftOrders.length,
+      });
+
+      // Delete all drafts in parallel
+      await Promise.all(
+        draftOrders.map((draft) => orderService.deleteDraftOrder(draft.id!)),
+      );
+
       setHasDraft(false);
       setDraftId(null);
       // 🔧 FIX: Prevent unmount handler from recreating draft after explicit delete
       draftDeletedRef.current = true;
-      toastService.success("Bozza eliminata");
+
+      const count = draftOrders.length;
+      toastService.success(
+        count === 1 ? "Bozza eliminata" : `${count} bozze eliminate`,
+      );
     } catch (error) {
-      console.error("[OrderForm] Failed to discard draft:", error);
-      toastService.error("Errore durante l'eliminazione della bozza");
+      console.error("[OrderForm] Failed to discard drafts:", error);
+      toastService.error("Errore durante l'eliminazione delle bozze");
     }
   };
 
