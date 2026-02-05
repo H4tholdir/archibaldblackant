@@ -53,9 +53,7 @@ export default function WebSocketMonitor() {
     return `${minutes}m`;
   };
 
-  const getStatusColor = (
-    status: "healthy" | "idle" | "offline"
-  ): string => {
+  const getStatusColor = (status: "healthy" | "idle" | "offline"): string => {
     switch (status) {
       case "healthy":
         return "#4caf50"; // Green
@@ -186,10 +184,14 @@ export default function WebSocketMonitor() {
               border: "1px solid #2196f3",
             }}
           >
-            <div style={{ fontSize: "12px", color: "#666", marginBottom: "4px" }}>
+            <div
+              style={{ fontSize: "12px", color: "#666", marginBottom: "4px" }}
+            >
               Connessioni Attive
             </div>
-            <div style={{ fontSize: "28px", fontWeight: "bold", color: "#2196f3" }}>
+            <div
+              style={{ fontSize: "28px", fontWeight: "bold", color: "#2196f3" }}
+            >
               {health.stats.totalConnections}
             </div>
           </div>
@@ -203,10 +205,14 @@ export default function WebSocketMonitor() {
               border: "1px solid #4caf50",
             }}
           >
-            <div style={{ fontSize: "12px", color: "#666", marginBottom: "4px" }}>
+            <div
+              style={{ fontSize: "12px", color: "#666", marginBottom: "4px" }}
+            >
               Utenti Connessi
             </div>
-            <div style={{ fontSize: "28px", fontWeight: "bold", color: "#4caf50" }}>
+            <div
+              style={{ fontSize: "28px", fontWeight: "bold", color: "#4caf50" }}
+            >
               {health.stats.activeUsers}
             </div>
           </div>
@@ -220,10 +226,14 @@ export default function WebSocketMonitor() {
               border: "1px solid #9e9e9e",
             }}
           >
-            <div style={{ fontSize: "12px", color: "#666", marginBottom: "4px" }}>
+            <div
+              style={{ fontSize: "12px", color: "#666", marginBottom: "4px" }}
+            >
               Uptime
             </div>
-            <div style={{ fontSize: "28px", fontWeight: "bold", color: "#666" }}>
+            <div
+              style={{ fontSize: "28px", fontWeight: "bold", color: "#666" }}
+            >
               {formatUptime(health.stats.uptime)}
             </div>
           </div>
@@ -238,10 +248,18 @@ export default function WebSocketMonitor() {
               border: `1px solid ${latencyColor}`,
             }}
           >
-            <div style={{ fontSize: "12px", color: "#666", marginBottom: "4px" }}>
+            <div
+              style={{ fontSize: "12px", color: "#666", marginBottom: "4px" }}
+            >
               Latency Media
             </div>
-            <div style={{ fontSize: "28px", fontWeight: "bold", color: latencyColor }}>
+            <div
+              style={{
+                fontSize: "28px",
+                fontWeight: "bold",
+                color: latencyColor,
+              }}
+            >
               {health.stats.averageLatency.toFixed(1)}
               <span style={{ fontSize: "14px", marginLeft: "4px" }}>ms</span>
             </div>
@@ -256,10 +274,14 @@ export default function WebSocketMonitor() {
               border: "1px solid #9c27b0",
             }}
           >
-            <div style={{ fontSize: "12px", color: "#666", marginBottom: "4px" }}>
+            <div
+              style={{ fontSize: "12px", color: "#666", marginBottom: "4px" }}
+            >
               Messaggi Inviati
             </div>
-            <div style={{ fontSize: "28px", fontWeight: "bold", color: "#9c27b0" }}>
+            <div
+              style={{ fontSize: "28px", fontWeight: "bold", color: "#9c27b0" }}
+            >
               {health.stats.messagesSent.toLocaleString()}
             </div>
           </div>
@@ -273,10 +295,14 @@ export default function WebSocketMonitor() {
               border: "1px solid #ffc107",
             }}
           >
-            <div style={{ fontSize: "12px", color: "#666", marginBottom: "4px" }}>
+            <div
+              style={{ fontSize: "12px", color: "#666", marginBottom: "4px" }}
+            >
               Riconnessioni
             </div>
-            <div style={{ fontSize: "28px", fontWeight: "bold", color: "#f57c00" }}>
+            <div
+              style={{ fontSize: "28px", fontWeight: "bold", color: "#f57c00" }}
+            >
               {health.stats.reconnectionCount}
             </div>
           </div>
@@ -360,7 +386,7 @@ export default function WebSocketMonitor() {
                           {count}
                         </td>
                       </tr>
-                    )
+                    ),
                   )}
                 </tbody>
               </table>

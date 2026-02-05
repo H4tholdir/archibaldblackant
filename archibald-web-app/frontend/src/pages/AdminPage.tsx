@@ -3,6 +3,7 @@ import { useState, useEffect } from "react";
 import "../styles/AdminPage.css";
 import SyncControlPanel from "../components/SyncControlPanel";
 import SyncMonitoringDashboard from "../components/SyncMonitoringDashboard";
+import WebSocketMonitor from "../components/WebSocketMonitor";
 import { AdminImpersonationPanel } from "../components/AdminImpersonationPanel";
 
 interface AdminPageProps {
@@ -226,14 +227,22 @@ export function AdminPage({ onLogout, userName }: AdminPageProps) {
         </section>
 
         <section className="admin-section">
-          <h2 style={{ marginBottom: "16px", fontSize: "24px", fontWeight: 600 }}>
+          <WebSocketMonitor />
+        </section>
+
+        <section className="admin-section">
+          <h2
+            style={{ marginBottom: "16px", fontSize: "24px", fontWeight: 600 }}
+          >
             📊 Sync Monitoring Dashboard
           </h2>
           <SyncMonitoringDashboard />
         </section>
 
         <section className="admin-section">
-          <h2 style={{ marginBottom: "16px", fontSize: "24px", fontWeight: 600 }}>
+          <h2
+            style={{ marginBottom: "16px", fontSize: "24px", fontWeight: 600 }}
+          >
             👥 Admin Impersonation
           </h2>
           <AdminImpersonationPanel />
