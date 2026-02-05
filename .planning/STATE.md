@@ -5,23 +5,23 @@
 See: .planning/PROJECT.md (updated 2026-01-11)
 
 **Core value:** Rendere la creazione ordini Archibald **veloce, affidabile e mobile-friendly** per agenti in movimento
-**Current focus:** v3.0 WebSocket Real-Time Sync — Phase 30 complete
+**Current focus:** v3.0 WebSocket Real-Time Sync — Phase 31 complete
 
 ## Current Position
 
-Phase: 30 of 36 (WebSocket Client & Auto-Reconnect)
+Phase: 31 of 36 (Draft Orders Real-Time Sync)
 Plan: 1 of 1 in current phase
 Status: Phase complete
-Last activity: 2026-02-05 - Completed 30-01-PLAN.md
+Last activity: 2026-02-05 - Completed 31-01-PLAN.md
 
-Progress: ██░░░░░░░░ 25%
+Progress: ███░░░░░░░ 37.5%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 113
-- Average duration: 47 min
-- Total execution time: 94.6 hours
+- Total plans completed: 114
+- Average duration: 46 min
+- Total execution time: 94.7 hours
 
 **By Phase:**
 
@@ -57,6 +57,7 @@ Progress: ██░░░░░░░░ 25%
 | 28 | 1 | 0 min | 0 min |
 | 29 | 1 | 8 min | 8 min |
 | 30 | 1 | 3 min | 3 min |
+| 31 | 1 | 5 min | 5 min |
 
 **Recent Trend:**
 - Last 10 plans: 21-04 (90m), 21-05 (120m), 22-01 (15m), 22-02 (15m), 22-03 (30m), 23-01 (60m), 24-01 (15m), 25-01 (3m), 26-01 (25m), 27-01 (24m)
@@ -81,6 +82,11 @@ Recent decisions affecting current work:
 
 | Phase | Decision | Rationale |
 |-------|----------|-----------|
+| 31-01 | Last-Write-Wins conflict resolution (serverUpdatedAt) | Simple and predictable, matches existing patterns, server timestamp authoritative, prevents clock skew |
+| 31-01 | Echo prevention via deviceId filtering | Local changes already applied optimistically, prevents double-updates, reduces IndexedDB writes |
+| 31-01 | Tombstone pattern preserved until Phase 33 | Backward compatibility with existing code, allows offline deletion sync, server-side cascade exists |
+| 31-01 | REST endpoints preserved alongside WebSocket | HTTP fallback if WebSocket unavailable, backward compatibility, manual sync still works |
+| 31-01 | Full draft object in CREATED/UPDATED events | Simple client logic (no delta merge), self-contained events (no REST dependency), small payload (~1-5 KB) |
 | 30-01 | Exponential backoff 1s→30s with 2x multiplier | Prevents server overload, industry standard, balances responsiveness with resource usage |
 | 30-01 | Offline queue max 100 items | Prevents unbounded memory growth while supporting typical offline scenarios (100 operations = ~hours of offline work) |
 | 30-01 | localStorage persistence with 24h cleanup | Survives browser restarts, auto-cleanup prevents stale operations from accumulating |

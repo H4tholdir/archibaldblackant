@@ -47,7 +47,7 @@ None (full-stack web app con pattern standard)
 - [ ] **Phase 28.2: Rewrite OrderForm with Proper Architecture (INSERTED)** - 🔴 URGENT: Complete rewrite with 3-layer architecture (4/6 plans complete)
 - [x] **Phase 29: WebSocket Server Infrastructure** - Setup Node.js WebSocket server con auth e connection manager ✅ COMPLETE
 - [x] **Phase 30: WebSocket Client & Auto-Reconnect** - Frontend client con reconnection automatica ed event handling ✅ COMPLETE
-- [ ] **Phase 31: Draft Orders Real-Time Sync** - Migrazione draft da polling a WebSocket (CREATE/UPDATE/DELETE)
+- [x] **Phase 31: Draft Orders Real-Time Sync** - Migrazione draft da polling a WebSocket (CREATE/UPDATE/DELETE) ✅ COMPLETE
 - [ ] **Phase 32: Pending Orders Real-Time Sync** - Migrazione pending orders ed eliminazione UnifiedSyncService
 - [ ] **Phase 33: Direct Delete & Tombstone Removal** - Rimuovere tombstones, implementare direct DELETE
 - [ ] **Phase 34: E2E Testing & Multi-Device Validation** - Test suite completa e validazione multi-device
@@ -112,14 +112,15 @@ Plans:
 Plans:
 - [x] 30-01: WebSocket Client Hook & Offline Queue — 3min ✅
 
-#### Phase 31: Draft Orders Real-Time Sync
+#### Phase 31: Draft Orders Real-Time Sync ✅ COMPLETE
 **Goal**: Migrare draft orders da polling a WebSocket (CREATE_DRAFT, UPDATE_DRAFT, DELETE_DRAFT, DRAFT_CONVERTED events)
 **Depends on**: Phase 30
 **Research**: Unlikely (applying established WebSocket patterns from Phase 29-30)
-**Plans**: TBD
+**Plans**: 1/1 complete
+**Completed**: 2026-02-05
 
 Plans:
-- [ ] 31-01: TBD
+- [x] 31-01: Draft WebSocket Events & Real-Time Sync — 5min ✅
 
 #### Phase 32: Pending Orders Real-Time Sync
 **Goal**: Migrare pending orders a WebSocket, eliminare UnifiedSyncService e polling periodico (15s)
