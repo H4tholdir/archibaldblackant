@@ -107,14 +107,21 @@ export class UnifiedSyncService {
       return;
     }
 
-    console.log("[UnifiedSync] syncAll triggered (warehouse only)");
+    console.log("[UnifiedSync] syncAll triggered");
     this.isSyncing = true;
 
     try {
-      // Draft sync: WebSocket real-time (Phase 31)
-      // Pending orders sync: WebSocket real-time (Phase 32)
+      // Push draft orders with needsSync=true to server
+      // Server will broadcast via WebSocket to other devices (Phase 31)
+      await this.pushDraftOrders();
+
+      // Push pending orders with needsSync=true to server
+      // Server will broadcast via WebSocket to other devices (Phase 32)
+      await this.pushPendingOrders();
+
       // Warehouse sync: HTTP polling (preserved)
       await this.syncWarehouse();
+
       console.log("[UnifiedSync] Sync all completed");
     } catch (error) {
       console.error("[UnifiedSync] Sync all failed:", error);
@@ -186,7 +193,6 @@ export class UnifiedSyncService {
           );
           continue;
         }
-
 
         // Apply Last-Write-Wins for non-pending orders
         if (
@@ -356,7 +362,6 @@ export class UnifiedSyncService {
           continue;
         }
 
-
         // Apply Last-Write-Wins for non-pending drafts
         if (
           !localDraft ||
@@ -382,7 +387,6 @@ export class UnifiedSyncService {
       for (const localDraft of allLocalDrafts) {
         // Skip if draft has pending changes (being modified locally)
         if (localDraft.needsSync) continue;
-
 
         // If draft doesn't exist on server anymore → delete locally
         if (!serverDraftIds.has(localDraft.id)) {
