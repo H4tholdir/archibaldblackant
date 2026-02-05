@@ -22,3 +22,23 @@ export interface WebSocketHookReturn {
   subscribe: (eventType: string, callback: WebSocketEventHandler) => () => void;
   unsubscribe: (eventType: string, callback: WebSocketEventHandler) => void;
 }
+
+/**
+ * WebSocket health statistics (mirror of backend ConnectionStats)
+ */
+export interface WebSocketHealthStats {
+  totalConnections: number;
+  activeUsers: number;
+  uptime: number;
+  reconnectionCount: number;
+  messagesSent: number;
+  messagesReceived: number;
+  averageLatency: number;
+  connectionsPerUser: { [userId: string]: number };
+}
+
+export interface WebSocketHealthResponse {
+  success: boolean;
+  status: "healthy" | "idle" | "offline";
+  stats: WebSocketHealthStats;
+}
