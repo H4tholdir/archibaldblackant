@@ -31,6 +31,7 @@ import { toastService } from "./services/toast.service";
 import { PrivacyProvider } from "./contexts/PrivacyContext";
 import { ImpersonationBanner } from "./components/ImpersonationBanner";
 import { AdminSessionBanner } from "./components/AdminSessionBanner";
+import WebSocketSync from "./components/WebSocketSync";
 // import { UnifiedSyncProgress } from "./components/UnifiedSyncProgress"; // Temporarily disabled
 
 function AppRouter() {
@@ -240,6 +241,8 @@ function AppRouter() {
         {/* <UnifiedSyncProgress mode="badge" /> */}
         {/* Global Dashboard Navigation */}
         <DashboardNav />
+        {/* WebSocket Real-Time Sync (background, non-rendering) */}
+        {auth.isAuthenticated && <WebSocketSync />}
         <Routes>
           {/* Dashboard route */}
           <Route
