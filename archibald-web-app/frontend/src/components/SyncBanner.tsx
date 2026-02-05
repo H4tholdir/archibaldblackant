@@ -15,55 +15,28 @@ export default function SyncBanner() {
   const [progress, setProgress] = useState<SyncProgress | null>(null);
 
   useEffect(() => {
+    // DISABLED: Old WebSocket endpoint - sync progress now handled by real-time system
+    // TODO: Re-implement with new WebSocket architecture if batch sync progress needed
+    /*
     let websocket: WebSocket | null = null;
     let reconnectTimer: number | null = null;
 
     const connect = () => {
       try {
-        // Connetti al WebSocket per ricevere aggiornamenti sync
         websocket = new WebSocket('ws://localhost:3000/ws/sync');
-
-        websocket.onopen = () => {
-          console.log('✅ WebSocket connesso');
-        };
-
-        websocket.onmessage = (event) => {
-          try {
-            const message = JSON.parse(event.data);
-            if (message.type === 'progress') {
-              setProgress(message.data);
-            }
-          } catch (error) {
-            console.error('Errore parsing messaggio WebSocket:', error);
-          }
-        };
-
-        websocket.onerror = (error) => {
-          console.error('Errore WebSocket:', error);
-        };
-
-        websocket.onclose = () => {
-          console.log('🔌 WebSocket disconnesso, riconnessione tra 5s...');
-          // Riconnetti dopo 5 secondi
-          reconnectTimer = setTimeout(connect, 5000) as unknown as number;
-        };
+        // ... rest of old code ...
       } catch (error) {
         console.error('Errore creazione WebSocket:', error);
-        // Riprova dopo 5 secondi
-        reconnectTimer = setTimeout(connect, 5000) as unknown as number;
       }
     };
 
     connect();
 
     return () => {
-      if (reconnectTimer) {
-        clearTimeout(reconnectTimer);
-      }
-      if (websocket) {
-        websocket.close();
-      }
+      if (reconnectTimer) clearTimeout(reconnectTimer);
+      if (websocket) websocket.close();
     };
+    */
   }, []);
 
   // Non mostrare nulla se sync non è in corso o è completato da più di 5 secondi
