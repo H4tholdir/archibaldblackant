@@ -701,12 +701,13 @@ export default function OrderFormSimple() {
       return;
     }
 
-    // Don't save if editing existing order, no customer selected, no items, or order was just finalized
+    // Don't save if editing existing order, no customer selected, no items, order was just finalized, or draft was explicitly deleted
     if (
       editingOrderId ||
       !selectedCustomer ||
       items.length === 0 ||
-      orderSavedSuccessfullyRef.current
+      orderSavedSuccessfullyRef.current ||
+      draftDeletedRef.current
     ) {
       console.log("[OrderForm] Draft save skipped", {
         reason: editingOrderId
@@ -715,7 +716,9 @@ export default function OrderFormSimple() {
             ? "no customer"
             : items.length === 0
               ? "no items"
-              : "order finalized",
+              : orderSavedSuccessfullyRef.current
+                ? "order finalized"
+                : "draft deleted",
       });
       return;
     }
@@ -748,20 +751,45 @@ export default function OrderFormSimple() {
         });
         console.log("[OrderForm] ✅ Draft updated");
       } else {
-        // Create new draft
-        console.log("[OrderForm] Creating new draft");
-        const draft: Omit<DraftOrder, "id"> = {
-          customerId: selectedCustomer.id,
-          customerName: selectedCustomer.name,
-          items: draftItems,
-          createdAt: now,
-          updatedAt: now,
-          deviceId: getDeviceId(),
-          needsSync: true,
-        };
-        const id = await orderService.saveDraftOrder(draft);
-        setDraftId(id);
-        console.log("[OrderForm] ✅ Draft created:", id);
+        // 🔧 CRITICAL FIX: Check if draft already exists for this customer before creating a new one
+        // This prevents duplicate draft creation on remounts
+        const existingDrafts = await db.draftOrders
+          .where("customerId")
+          .equals(selectedCustomer.id)
+          .toArray();
+
+        if (existingDrafts.length > 0) {
+          // Use existing draft instead of creating a new one
+          const existingDraft = existingDrafts[0];
+          console.log(
+            "[OrderForm] Found existing draft for customer, reusing it:",
+            existingDraft.id,
+          );
+          setDraftId(existingDraft.id!);
+
+          // Update it with current data
+          await db.draftOrders.update(existingDraft.id!, {
+            items: draftItems,
+            updatedAt: now,
+            needsSync: true,
+          });
+          console.log("[OrderForm] ✅ Existing draft updated");
+        } else {
+          // Create new draft
+          console.log("[OrderForm] Creating new draft");
+          const draft: Omit<DraftOrder, "id"> = {
+            customerId: selectedCustomer.id,
+            customerName: selectedCustomer.name,
+            items: draftItems,
+            createdAt: now,
+            updatedAt: now,
+            deviceId: getDeviceId(),
+            needsSync: true,
+          };
+          const id = await orderService.saveDraftOrder(draft);
+          setDraftId(id);
+          console.log("[OrderForm] ✅ Draft created:", id);
+        }
       }
 
       // Trigger sync
@@ -854,6 +882,17 @@ export default function OrderFormSimple() {
       setDraftId(null);
     }
   }, [editingOrderId, draftOrders, selectedCustomer, draftId]);
+
+  // === RESET draftDeletedRef WHEN CUSTOMER CHANGES ===
+  // Allow creating new drafts when user starts working on a different customer
+  useEffect(() => {
+    if (selectedCustomer && draftDeletedRef.current) {
+      console.log(
+        "[OrderForm] Customer changed, resetting draftDeletedRef to allow new drafts",
+      );
+      draftDeletedRef.current = false;
+    }
+  }, [selectedCustomer?.id]);
 
   // === AUTO-SAVE DRAFT ON EVERY OPERATION ===
   // Save immediately when customer or items change
@@ -991,23 +1030,31 @@ export default function OrderFormSimple() {
 
       setItems(recoveredItems);
       setHasDraft(false);
+      setDraftId(null); // 🔧 Clear draftId before deleting drafts
 
-      // 🔧 CRITICAL FIX: Delete all OTHER drafts for this customer
-      // This prevents banner from reappearing when there are duplicate drafts from other devices
-      const otherDrafts = draftOrders.filter(
-        (d) => d.customerId === draft.customerId && d.id !== draftId,
+      // 🔧 CRITICAL FIX: Delete ALL drafts for this customer (including current one)
+      // This prevents banner from reappearing and auto-save from creating duplicates
+      const customerDrafts = draftOrders.filter(
+        (d) => d.customerId === draft.customerId,
       );
 
-      if (otherDrafts.length > 0) {
+      if (customerDrafts.length > 0) {
         console.log(
-          `[OrderForm] Deleting ${otherDrafts.length} other drafts for customer ${draft.customerId}`,
+          `[OrderForm] Deleting ${customerDrafts.length} drafts for customer ${draft.customerId}`,
         );
         await Promise.all(
-          otherDrafts.map((d) => orderService.deleteDraftOrder(d.id!)),
+          customerDrafts.map((d) => orderService.deleteDraftOrder(d.id!)),
         );
+
+        // 🔧 CRITICAL: Set flag to prevent auto-save from recreating draft immediately
+        draftDeletedRef.current = true;
+        console.log(
+          "[OrderForm] Set draftDeletedRef to prevent auto-save recreation",
+        );
+
         // Force refetch to update draftOrders
         await refetchDrafts();
-        console.log("[OrderForm] Other drafts deleted and refetched");
+        console.log("[OrderForm] All customer drafts deleted and refetched");
       }
 
       toastService.success("Bozza recuperata con successo!");
@@ -1053,37 +1100,67 @@ export default function OrderFormSimple() {
   };
 
   // === RESET FORM (RICOMINCIA DA CAPO) ===
-  const handleResetForm = () => {
-    // Reset customer
-    setCustomerSearch("");
-    setCustomerResults([]);
-    setSelectedCustomer(null);
-    setSearchingCustomer(false);
+  const handleResetForm = async () => {
+    try {
+      // 🔧 CRITICAL FIX: Delete ALL drafts from IndexedDB before resetting
+      // This prevents drafts from reappearing on other devices
+      if (selectedCustomer) {
+        const customerDrafts = draftOrders.filter(
+          (d) => d.customerId === selectedCustomer.id,
+        );
 
-    // Reset product
-    setProductSearch("");
-    setProductResults([]);
-    setSelectedProduct(null);
-    setSearchingProduct(false);
-    setHighlightedProductIndex(-1);
-    setQuantity("");
-    setItemDiscount("");
-    setPackagingPreview(null);
-    setCalculatingPackaging(false);
-    setWarehouseSelection([]);
-    setProductVariants([]);
+        if (customerDrafts.length > 0) {
+          console.log(
+            `[OrderForm] Deleting ${customerDrafts.length} drafts during form reset`,
+          );
+          await Promise.all(
+            customerDrafts.map((d) => orderService.deleteDraftOrder(d.id!)),
+          );
+          await refetchDrafts();
+          console.log("[OrderForm] Drafts deleted and refetched");
+        }
+      }
 
-    // Reset items
-    setItems([]);
-    setGlobalDiscountPercent("");
-    setTargetTotal("");
+      // Reset customer
+      setCustomerSearch("");
+      setCustomerResults([]);
+      setSelectedCustomer(null);
+      setSearchingCustomer(false);
 
-    // Reset draft state
-    setHasDraft(false);
-    setDraftId(null);
-    setLastAutoSave(null);
+      // Reset product
+      setProductSearch("");
+      setProductResults([]);
+      setSelectedProduct(null);
+      setSearchingProduct(false);
+      setHighlightedProductIndex(-1);
+      setQuantity("");
+      setItemDiscount("");
+      setPackagingPreview(null);
+      setCalculatingPackaging(false);
+      setWarehouseSelection([]);
+      setProductVariants([]);
 
-    toastService.success("Ordine resettato");
+      // Reset items
+      setItems([]);
+      setGlobalDiscountPercent("");
+      setTargetTotal("");
+
+      // Reset draft state
+      setHasDraft(false);
+      setDraftId(null);
+      setLastAutoSave(null);
+
+      // 🔧 CRITICAL: Reset flag to allow creating new drafts
+      draftDeletedRef.current = false;
+      console.log(
+        "[OrderForm] Reset draftDeletedRef to allow new draft creation",
+      );
+
+      toastService.success("Ordine resettato");
+    } catch (error) {
+      console.error("[OrderForm] Failed to reset form:", error);
+      toastService.error("Errore durante il reset del form");
+    }
   };
 
   // === ADD ITEM (WITH MULTIPLE LINES FOR VARIANTS) ===
