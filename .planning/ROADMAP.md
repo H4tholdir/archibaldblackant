@@ -45,9 +45,18 @@ None (full-stack web app con pattern standard)
 - [x] **Phase 28: Bot Performance Optimization v2** - Target < 60s per ordine ✅ COMPLETE
 - [ ] **Phase 28.1: Fix Order Form Critical Bugs (INSERTED)** - 🔴 CRITICAL: Fix customer selection, product filtering, white screen crash (PAUSED - superseded by 28.2)
 - [ ] **Phase 28.2: Rewrite OrderForm with Proper Architecture (INSERTED)** - 🔴 URGENT: Complete rewrite with 3-layer architecture (4/6 plans complete)
+- [ ] **Phase 29: WebSocket Server Infrastructure** - Setup Node.js WebSocket server con auth e connection manager
+- [ ] **Phase 30: WebSocket Client & Auto-Reconnect** - Frontend client con reconnection automatica ed event handling
+- [ ] **Phase 31: Draft Orders Real-Time Sync** - Migrazione draft da polling a WebSocket (CREATE/UPDATE/DELETE)
+- [ ] **Phase 32: Pending Orders Real-Time Sync** - Migrazione pending orders ed eliminazione UnifiedSyncService
+- [ ] **Phase 33: Direct Delete & Tombstone Removal** - Rimuovere tombstones, implementare direct DELETE
+- [ ] **Phase 34: E2E Testing & Multi-Device Validation** - Test suite completa e validazione multi-device
+- [ ] **Phase 35: Monitoring & Observability** - WebSocket health metrics e connection monitoring
+- [ ] **Phase 36: Performance Tuning & Optimization** - Load testing e latency optimization
 
 ## Milestones
 
+- 🚧 **v3.0 WebSocket Real-Time Sync** - Phases 29-36 (in progress)
 - ✅ **[v2.0 Agent Dashboard & Sync Reliability](milestones/v2.0-ROADMAP.md)** - Phases 14-28 (shipped 2026-01-22)
 - ✅ **v1.0 MVP & Production Deployment** - Phases 1-13 (shipped 2026-01-17)
 
@@ -78,6 +87,86 @@ See phases 1-13 below for complete details of v1.0 milestone.
 **Stats:** 17 phases, 52 plans, 5 days (2026-01-18 to 2026-01-22)
 
 </details>
+
+### 🚧 v3.0 WebSocket Real-Time Sync (In Progress)
+
+**Milestone Goal:** Semplificare drasticamente l'architettura di sincronizzazione sostituendo polling HTTP (ogni 15s) + tombstones con WebSocket real-time bidirezionale, eliminando complessità, bug e raggiungendo latency <100ms per operazioni multi-device.
+
+#### Phase 29: WebSocket Server Infrastructure
+**Goal**: Setup Node.js WebSocket server con autenticazione JWT, connection manager e broadcast per operazioni draft/pending
+**Depends on**: Phase 28.2 (OrderForm rewrite complete)
+**Research**: Likely (WebSocket architecture patterns, ws library specifics, connection lifecycle management)
+**Research topics**: WebSocket server architecture, authentication patterns, connection pooling, broadcast strategies
+**Plans**: TBD
+
+Plans:
+- [ ] 29-01: TBD (run /gsd:plan-phase 29 to break down)
+
+#### Phase 30: WebSocket Client & Auto-Reconnect
+**Goal**: Frontend WebSocket client con auto-reconnect, exponential backoff, pending operations queue per offline support
+**Depends on**: Phase 29
+**Research**: Likely (Client reconnection strategies, offline queue patterns, state management during disconnect)
+**Research topics**: Auto-reconnect algorithms, exponential backoff, queue persistence, state synchronization
+**Plans**: TBD
+
+Plans:
+- [ ] 30-01: TBD
+
+#### Phase 31: Draft Orders Real-Time Sync
+**Goal**: Migrare draft orders da polling a WebSocket (CREATE_DRAFT, UPDATE_DRAFT, DELETE_DRAFT, DRAFT_CONVERTED events)
+**Depends on**: Phase 30
+**Research**: Unlikely (applying established WebSocket patterns from Phase 29-30)
+**Plans**: TBD
+
+Plans:
+- [ ] 31-01: TBD
+
+#### Phase 32: Pending Orders Real-Time Sync
+**Goal**: Migrare pending orders a WebSocket, eliminare UnifiedSyncService e polling periodico (15s)
+**Depends on**: Phase 31
+**Research**: Unlikely (following Phase 31 patterns)
+**Plans**: TBD
+
+Plans:
+- [ ] 32-01: TBD
+
+#### Phase 33: Direct Delete & Tombstone Removal
+**Goal**: Rimuovere sistema tombstones, implementare direct DELETE, semplificare codice (eliminate ~500 righe)
+**Depends on**: Phase 32
+**Research**: Unlikely (simplification, no new technology)
+**Plans**: TBD
+
+Plans:
+- [ ] 33-01: TBD
+
+#### Phase 34: E2E Testing & Multi-Device Validation
+**Goal**: Test suite completa end-to-end, validazione multi-device con scenari real-world (2+ devices, offline/online)
+**Depends on**: Phase 33
+**Research**: Unlikely (testing patterns established, Playwright/Vitest in stack)
+**Plans**: TBD
+
+Plans:
+- [ ] 34-01: TBD
+
+#### Phase 35: Monitoring & Observability
+**Goal**: WebSocket health metrics, connection monitoring, latency tracking, dashboard per amministratori
+**Depends on**: Phase 34
+**Research**: Unlikely (extending existing monitoring from Phase 25)
+**Plans**: TBD
+
+Plans:
+- [ ] 35-01: TBD
+
+#### Phase 36: Performance Tuning & Optimization
+**Goal**: Load testing con 10+ concurrent users, latency optimization (<100ms target), stress testing
+**Depends on**: Phase 35
+**Research**: Unlikely (benchmarking and tuning established patterns)
+**Plans**: TBD
+
+Plans:
+- [ ] 36-01: TBD
+
+---
 
 #### Phase 14: Fix IndexedDB Critical Error ✅ COMPLETE
 **Goal**: Risolvere completamente l'errore `IDBObjectStore 'put'` che appare su tutte le pagine della PWA
@@ -391,3 +480,11 @@ See `.planning/phases/28.2-rewrite-orderform-with-proper-architecture/28.2-01-SU
 | 26. Universal Fast Login | v2.0 | 1/1 | Complete | 2026-01-22 |
 | 27. Bot Performance Profiling v2 | v2.0 | 4/4 | Complete | 2026-01-22 |
 | 28. Bot Performance Optimization v2 | v2.0 | 1/1 | Complete | 2026-01-22 |
+| 29. WebSocket Server Infrastructure | v3.0 | 0/? | Not started | - |
+| 30. WebSocket Client & Auto-Reconnect | v3.0 | 0/? | Not started | - |
+| 31. Draft Orders Real-Time Sync | v3.0 | 0/? | Not started | - |
+| 32. Pending Orders Real-Time Sync | v3.0 | 0/? | Not started | - |
+| 33. Direct Delete & Tombstone Removal | v3.0 | 0/? | Not started | - |
+| 34. E2E Testing & Multi-Device Validation | v3.0 | 0/? | Not started | - |
+| 35. Monitoring & Observability | v3.0 | 0/? | Not started | - |
+| 36. Performance Tuning & Optimization | v3.0 | 0/? | Not started | - |

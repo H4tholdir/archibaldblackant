@@ -5,16 +5,16 @@
 See: .planning/PROJECT.md (updated 2026-01-11)
 
 **Core value:** Rendere la creazione ordini Archibald **veloce, affidabile e mobile-friendly** per agenti in movimento
-**Current focus:** v2.0 Agent Dashboard & Sync Reliability — Phase 14 ready to plan
+**Current focus:** v3.0 WebSocket Real-Time Sync — Phase 29 ready to plan
 
 ## Current Position
 
-Phase: 28.2 (Rewrite OrderForm with Proper Architecture) - INSERTED
-Plan: 28.2-04 COMPLETE ✅ (Multi-Article & Discounts)
-Status: Ready for Plan 28.2-05 (OrderForm Integration & State Management)
-Last activity: 2026-01-23 — Plan 28.2-04 complete (4 components + calculation utilities, checkpoint skipped)
+Phase: 29 of 36 (WebSocket Server Infrastructure)
+Plan: Not started
+Status: Ready to plan
+Last activity: 2026-02-05 - Milestone v3.0 created
 
-Progress: Phase 28.2 Progress (4/6 plans complete)
+Progress: ░░░░░░░░░░ 0%
 
 ## Performance Metrics
 
@@ -345,6 +345,13 @@ None yet.
 None yet.
 
 ### Roadmap Evolution
+
+- **2026-02-05**: Milestone v3.0 created — WebSocket Real-Time Sync (8 phases: 29-36)
+  - **Focus**: Semplificare architettura sincronizzazione sostituendo polling + tombstones con WebSocket real-time
+  - **Goal**: Latency <100ms multi-device, eliminare complessità (75% meno codice), zero bug da race conditions
+  - **Scope**: WebSocket server/client, migrazione draft/pending orders, direct delete, E2E testing, monitoring, performance tuning
+  - **Phases**: 29-30 (Infrastructure, Research Likely) → 31-36 (Migration & Optimization, Research Unlikely)
+  - **Research**: 2 phases likely (WebSocket architecture, reconnection patterns), 6 phases unlikely (applying patterns)
 
 - **2026-01-23 (late afternoon)**: Phase 28.2 inserted after Phase 28 (Rewrite OrderForm with Proper Architecture) - URGENT
   - **Reason**: 🔴 URGENT - Tempo e soldi persi su bugs ricorrenti, architettura OrderForm instabile
@@ -678,11 +685,11 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-01-23 (late afternoon)
-Stopped at: Plan 28.2-03 complete ✅ (Customer & Product Selection Components) - Checkpoint skipped
-Context file: .planning/phases/28.2-rewrite-orderform-with-proper-architecture/28.2-03-SUMMARY.md
-Next: Execute Plan 28.2-04 (Multi-Article & Discounts)
-Resume command: /gsd:execute-plan .planning/phases/28.2-rewrite-orderform-with-proper-architecture/28.2-04-PLAN.md
+Last session: 2026-02-05
+Stopped at: Milestone v3.0 initialization complete
+Context file: None
+Next: Plan Phase 29 (WebSocket Server Infrastructure)
+Resume command: /gsd:plan-phase 29
 
 ### Session 101 (2026-01-23)
 **Command:** /gsd:execute-plan 28.2-03-PLAN.md
