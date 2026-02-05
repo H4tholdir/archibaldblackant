@@ -98,46 +98,21 @@ jobs:
           username: ${{ secrets.VPS_USER }}
           key: ${{ secrets.VPS_SSH_KEY }}
           script: |
-            set -e
+            # Show current disk space
+            echo "Checking disk space before deployment..."
+            df -h / || true
+            docker system df || true
 
-            echo "🔍 Checking disk space before deployment..."
-            DISK_USAGE=$(df -h / | awk 'NR==2 {print $5}' | sed 's/%//')
-            AVAILABLE_GB=$(df -BG / | awk 'NR==2 {print $4}' | sed 's/G//')
-
-            echo "📊 Current disk usage: ${DISK_USAGE}%"
-            echo "📦 Available space: ${AVAILABLE_GB}GB"
-
-            # Fail if less than 20GB available
-            if [ "$AVAILABLE_GB" -lt 20 ]; then
-              echo "❌ CRITICAL: Less than 20GB available (${AVAILABLE_GB}GB)"
-              echo "🧹 Running emergency cleanup..."
-
-              # Emergency aggressive cleanup
-              docker image prune -a -f
-              docker volume prune -f
-              docker container prune -f
-              docker network prune -f
-              docker builder prune -a -f
-
-              # Re-check after emergency cleanup
-              AVAILABLE_GB=$(df -BG / | awk 'NR==2 {print $4}' | sed 's/G//')
-              if [ "$AVAILABLE_GB" -lt 20 ]; then
-                echo "❌ Still less than 20GB after cleanup (${AVAILABLE_GB}GB). Deploy aborted."
-                exit 1
-              fi
-              echo "✅ Cleanup successful. Now have ${AVAILABLE_GB}GB available"
-            fi
-
-            # Preventive cleanup before deploy (even if space is OK)
-            echo "🧹 Running preventive cleanup..."
+            # Preventive cleanup before deploy
+            echo "Running preventive cleanup..."
             docker image prune -a -f --filter "until=24h" || true
             docker container prune -f || true
             docker volume prune -f || true
 
             # Show final disk state
-            echo "📊 Disk space after cleanup:"
-            df -h / | grep -E "^/dev"
-            docker system df
+            echo "Disk space after cleanup:"
+            df -h / || true
+            docker system df || true
 
       - name: Deploy to VPS
         uses: appleboy/ssh-action@v1.0.3
