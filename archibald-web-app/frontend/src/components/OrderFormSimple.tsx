@@ -838,7 +838,18 @@ export default function OrderFormSimple() {
       setHasDraft(true);
       setDraftId(latestDraft.id!);
     } else {
-      console.log("[OrderForm] No drafts available");
+      // 🔧 CRITICAL FIX: Don't reset draftId if user is actively working
+      // This prevents race condition where draftOrders hasn't loaded yet but user already created draft
+      if (selectedCustomer && draftId) {
+        console.log(
+          "[OrderForm] ⚠️ draftOrders empty but user is working, keeping current draftId:",
+          { draftId, customerId: selectedCustomer.id },
+        );
+        // Keep current draftId - it was just created and might not be in draftOrders yet
+        return;
+      }
+
+      console.log("[OrderForm] No drafts available and no active work");
       setHasDraft(false);
       setDraftId(null);
     }
