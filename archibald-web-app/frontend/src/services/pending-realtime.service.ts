@@ -330,25 +330,8 @@ export class PendingRealtimeService {
         return;
       }
 
-      // Mark pending order as deleted (tombstone pattern)
-      const existing = await db.pendingOrders.get(data.pendingOrderId);
-
-      if (!existing) {
-        console.log(
-          `[PendingRealtime] Pending order not found, skipping PENDING_DELETED`,
-          {
-            pendingOrderId: data.pendingOrderId,
-          },
-        );
-        return;
-      }
-
-      // Update with deleted flag (tombstone)
-      await db.pendingOrders.put({
-        ...existing,
-        deleted: true,
-        serverUpdatedAt: new Date(data.timestamp).getTime(),
-      });
+      // Perform direct deletion from IndexedDB
+      await db.pendingOrders.delete(data.pendingOrderId);
 
       console.log(`[PendingRealtime] PENDING_DELETED applied to IndexedDB`, {
         pendingOrderId: data.pendingOrderId,

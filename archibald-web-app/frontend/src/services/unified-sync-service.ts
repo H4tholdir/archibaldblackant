@@ -153,8 +153,7 @@ export class UnifiedSyncService {
   }
 
   // DEPRECATED: Pending orders sync now handled by PendingRealtimeService (Phase 32)
-  // Kept for reference until Phase 33 (tombstone removal)
-  // @ts-expect-error - Method intentionally unused (Phase 32: WebSocket real-time sync)
+  // Kept for reference only
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   private async pullPendingOrders(): Promise<void> {
     const token = localStorage.getItem("archibald_jwt");
@@ -188,13 +187,6 @@ export class UnifiedSyncService {
           continue;
         }
 
-        // 🔧 FIX: Skip if local has tombstone (deleted locally, pending server DELETE)
-        if (localOrder && localOrder.deleted) {
-          console.log(
-            `[UnifiedSync] Skipping pull for pending order ${serverOrder.id} - deleted locally`,
-          );
-          continue;
-        }
 
         // Apply Last-Write-Wins for non-pending orders
         if (
@@ -237,8 +229,7 @@ export class UnifiedSyncService {
   }
 
   // DEPRECATED: Pending orders sync now handled by PendingRealtimeService (Phase 32)
-  // Kept for reference until Phase 33 (tombstone removal)
-  // @ts-expect-error - Method intentionally unused (Phase 32: WebSocket real-time sync)
+  // Kept for reference only
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   private async pushPendingOrders(): Promise<void> {
     const token = localStorage.getItem("archibald_jwt");
@@ -257,9 +248,8 @@ export class UnifiedSyncService {
 
       if (localOrders.length === 0) return;
 
-      // 🔧 FIX: Separate tombstones (deleted) from regular orders
-      const tombstones = localOrders.filter((o) => o.deleted === true);
-      const regularOrders = localOrders.filter((o) => !o.deleted);
+      // No tombstones with direct deletion - all orders are regular
+      const regularOrders = localOrders;
 
       // Push regular orders (create/update)
       if (regularOrders.length > 0) {
@@ -310,44 +300,7 @@ export class UnifiedSyncService {
         );
       }
 
-      // 🔧 FIX: Push tombstones (deletions)
-      if (tombstones.length > 0) {
-        console.log(
-          `[UnifiedSync] Processing ${tombstones.length} pending order deletions`,
-        );
-
-        for (const tombstone of tombstones) {
-          try {
-            const response = await fetchWithRetry(
-              `/api/sync/pending-orders/${tombstone.id}`,
-              {
-                method: "DELETE",
-                headers: { Authorization: `Bearer ${token}` },
-              },
-            );
-
-            // 🔧 FIX: Treat 404 as success (order doesn't exist = goal achieved)
-            if (response.ok || response.status === 404) {
-              // Server delete successful or order doesn't exist → remove tombstone from local DB
-              await db.pendingOrders.delete(tombstone.id);
-              console.log(
-                `[UnifiedSync] ✅ Pending order ${tombstone.id} deleted from server and tombstone removed ${response.status === 404 ? "(404)" : ""}`,
-              );
-            } else {
-              console.error(
-                `[UnifiedSync] Failed to delete pending order ${tombstone.id}: ${response.status}`,
-              );
-              // Keep tombstone for retry
-            }
-          } catch (deleteError) {
-            console.error(
-              `[UnifiedSync] Error deleting pending order ${tombstone.id}:`,
-              deleteError,
-            );
-            // Keep tombstone for retry
-          }
-        }
-      }
+      // Note: Direct deletion - no tombstones to push
     } catch (error) {
       console.error("[UnifiedSync] Push pending orders failed:", error);
       throw error;
@@ -365,8 +318,8 @@ export class UnifiedSyncService {
   // }
 
   // DEPRECATED: Draft sync now handled by DraftRealtimeService (Phase 31)
-  // Kept for reference until Phase 33 (tombstone removal)
-  // @ts-expect-error - Method intentionally unused (Phase 31: WebSocket real-time sync)
+  // Kept for reference only
+  // @ts-ignore - Method intentionally unused (deprecated)
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   private async pullDraftOrders(): Promise<void> {
     const token = localStorage.getItem("archibald_jwt");
@@ -403,13 +356,6 @@ export class UnifiedSyncService {
           continue;
         }
 
-        // 🔧 FIX: Skip if local has tombstone (deleted locally, pending server DELETE)
-        if (localDraft && localDraft.deleted) {
-          console.log(
-            `[UnifiedSync] Skipping pull for draft ${serverDraft.id} - deleted locally`,
-          );
-          continue;
-        }
 
         // Apply Last-Write-Wins for non-pending drafts
         if (
@@ -437,8 +383,6 @@ export class UnifiedSyncService {
         // Skip if draft has pending changes (being modified locally)
         if (localDraft.needsSync) continue;
 
-        // Skip if draft has local tombstone (being deleted locally)
-        if (localDraft.deleted) continue;
 
         // If draft doesn't exist on server anymore → delete locally
         if (!serverDraftIds.has(localDraft.id)) {
@@ -455,8 +399,8 @@ export class UnifiedSyncService {
   }
 
   // DEPRECATED: Draft sync now handled by DraftRealtimeService (Phase 31)
-  // Kept for reference until Phase 33 (tombstone removal)
-  // @ts-expect-error - Method intentionally unused (Phase 31: WebSocket real-time sync)
+  // Kept for reference only
+  // @ts-ignore - Method intentionally unused (deprecated)
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   private async pushDraftOrders(): Promise<void> {
     const token = localStorage.getItem("archibald_jwt");
@@ -475,9 +419,8 @@ export class UnifiedSyncService {
 
       if (localDrafts.length === 0) return;
 
-      // 🔧 FIX: Separate tombstones (deleted) from regular drafts
-      const tombstones = localDrafts.filter((d) => d.deleted === true);
-      const regularDrafts = localDrafts.filter((d) => !d.deleted);
+      // No tombstones with direct deletion - all drafts are regular
+      const regularDrafts = localDrafts;
 
       // Push regular drafts (create/update)
       if (regularDrafts.length > 0) {
@@ -522,44 +465,7 @@ export class UnifiedSyncService {
         );
       }
 
-      // 🔧 FIX: Push tombstones (deletions)
-      if (tombstones.length > 0) {
-        console.log(
-          `[UnifiedSync] Processing ${tombstones.length} draft deletions`,
-        );
-
-        for (const tombstone of tombstones) {
-          try {
-            const response = await fetchWithRetry(
-              `/api/sync/draft-orders/${tombstone.id}`,
-              {
-                method: "DELETE",
-                headers: { Authorization: `Bearer ${token}` },
-              },
-            );
-
-            // 🔧 FIX: Treat 404 as success (draft doesn't exist = goal achieved)
-            if (response.ok || response.status === 404) {
-              // Server delete successful or draft doesn't exist → remove tombstone from local DB
-              await db.draftOrders.delete(tombstone.id);
-              console.log(
-                `[UnifiedSync] ✅ Draft ${tombstone.id} deleted from server and tombstone removed ${response.status === 404 ? "(404)" : ""}`,
-              );
-            } else {
-              console.error(
-                `[UnifiedSync] Failed to delete draft ${tombstone.id}: ${response.status}`,
-              );
-              // Keep tombstone for retry
-            }
-          } catch (deleteError) {
-            console.error(
-              `[UnifiedSync] Error deleting draft ${tombstone.id}:`,
-              deleteError,
-            );
-            // Keep tombstone for retry
-          }
-        }
-      }
+      // Note: Direct deletion - no tombstones to push
     } catch (error) {
       console.error("[UnifiedSync] Push draft orders failed:", error);
       throw error;

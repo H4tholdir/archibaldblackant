@@ -144,7 +144,7 @@ describe("OrderService", () => {
   });
 
   describe("deleteDraftOrder", () => {
-    test("marks draft as deleted with tombstone (offline)", async () => {
+    test("deletes draft directly from IndexedDB", async () => {
       // Arrange
       const draft: DraftOrder = { id: crypto.randomUUID(), ...mockDraftOrder };
       await testDb.draftOrders.add(draft);
@@ -152,11 +152,9 @@ describe("OrderService", () => {
       // Act
       await service.deleteDraftOrder(draft.id);
 
-      // Assert: verify tombstone created (not fully deleted when offline)
-      const tombstone = await testDb.draftOrders.get(draft.id);
-      expect(tombstone).toBeDefined();
-      expect(tombstone?.deleted).toBe(true);
-      expect(tombstone?.needsSync).toBe(true);
+      // Assert: verify draft was deleted (not tombstone)
+      const deleted = await testDb.draftOrders.get(draft.id);
+      expect(deleted).toBeUndefined();
     });
 
     test("does not throw when deleting non-existent draft", async () => {

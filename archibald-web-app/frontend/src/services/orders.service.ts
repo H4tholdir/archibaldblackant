@@ -80,16 +80,13 @@ export class OrderService {
    */
   async getDraftOrders(): Promise<DraftOrder[]> {
     try {
-      const all = await this.db
+      const drafts = await this.db
         .table<DraftOrder, string>("draftOrders")
         .orderBy("updatedAt")
         .reverse() // Most recent first
         .toArray();
 
-      // 🔧 FIX: Filter out deleted tombstones
-      // Note: Cannot use IndexedDB index on 'deleted' (boolean not indexable in Dexie)
-      // Performance is acceptable: .toArray() + filter is <1ms even with hundreds of records
-      return all.filter((draft) => !draft.deleted);
+      return drafts;
     } catch (error) {
       console.error("[OrderService] Failed to get draft orders:", error);
       return [];
@@ -102,24 +99,18 @@ export class OrderService {
    */
   async deleteDraftOrder(id: string): Promise<void> {
     try {
-      // 🔧 FIX: Mark as deleted with tombstone (don't delete immediately)
-      // This ensures deleted drafts don't reappear during sync pull
-      await this.db.table<DraftOrder, string>("draftOrders").update(id, {
-        deleted: true,
-        needsSync: true, // Push the deletion to server
-        updatedAt: new Date().toISOString(),
-      });
+      // Perform direct deletion from IndexedDB
+      await this.db.table<DraftOrder, string>("draftOrders").delete(id);
 
-      console.log("[OrderService] 🗑️ Draft marked as deleted (tombstone):", id);
+      console.log("[OrderService] 🗑️ Draft deleted from IndexedDB:", id);
 
-      // 🔧 FIX: Tombstone will be handled by sync service (pushDraftOrders)
-      // Don't delete locally even if server DELETE succeeds - prevents race conditions
-      // where draft gets re-pulled before sync completes
-      console.log(
-        "[OrderService] Tombstone will be synced and removed by unified sync service",
-      );
+      // Trigger sync to delete on server
+      if (navigator.onLine) {
+        // The DELETE will be sent via REST API by the component that calls this
+        console.log("[OrderService] Draft deleted locally, server sync needed");
+      }
     } catch (error) {
-      console.error("[OrderService] Failed to mark draft as deleted:", error);
+      console.error("[OrderService] Failed to delete draft:", error);
       // Swallow error - deletion of non-existent draft is not critical
     }
   }
@@ -303,16 +294,13 @@ export class OrderService {
    */
   async getPendingOrders(): Promise<PendingOrder[]> {
     try {
-      const all = await this.db
+      const orders = await this.db
         .table<PendingOrder, string>("pendingOrders")
         .where("status")
         .anyOf(["pending", "error"]) // Exclude 'syncing'
         .sortBy("createdAt"); // Oldest first (FIFO)
 
-      // 🔧 FIX: Filter out deleted tombstones
-      // Note: Cannot use IndexedDB index on 'deleted' (boolean not indexable in Dexie)
-      // Performance is acceptable: filter on already-filtered array is <1ms
-      return all.filter((order) => !order.deleted);
+      return orders;
     } catch (error) {
       console.error("[OrderService] Failed to get pending orders:", error);
       return [];
@@ -391,23 +379,18 @@ export class OrderService {
         // Continue with deletion even if warehouse cleanup fails
       }
 
-      // 🔧 FIX: Mark as deleted with tombstone (don't delete immediately)
-      await this.db.table<PendingOrder, string>("pendingOrders").update(id, {
-        deleted: true,
-        needsSync: true,
-        updatedAt: new Date().toISOString(),
-      });
+      // Perform direct deletion from IndexedDB
+      await this.db.table<PendingOrder, string>("pendingOrders").delete(id);
 
-      console.log("[OrderService] 🗑️ Order marked as deleted (tombstone):", id);
+      console.log("[OrderService] 🗑️ Order deleted from IndexedDB:", id);
 
-      // 🔧 FIX: Tombstone will be handled by sync service (pushPendingOrders)
-      // Don't delete locally even if server DELETE succeeds - prevents race conditions
-      // where order gets re-pulled before sync completes
-      console.log(
-        "[OrderService] Tombstone will be synced and removed by unified sync service",
-      );
+      // Trigger sync to delete on server
+      if (navigator.onLine) {
+        // The DELETE will be sent via REST API by the component that calls this
+        console.log("[OrderService] Order deleted locally, server sync needed");
+      }
     } catch (error) {
-      console.error("[OrderService] Failed to mark order as deleted:", error);
+      console.error("[OrderService] Failed to delete order:", error);
       throw error;
     }
   }

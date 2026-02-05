@@ -41,19 +41,16 @@ export function usePendingSync(): UsePendingSyncReturn {
   const loadPendingOrders = useCallback(async () => {
     try {
       setIsSyncing(true);
-      const allOrders = await db.pendingOrders.toArray();
-
-      // Filter out deleted orders (tombstones)
-      const activeOrders = allOrders.filter((order) => !order.deleted);
+      const orders = await db.pendingOrders.toArray();
 
       // Sort by updatedAt descending (newest first)
-      activeOrders.sort((a, b) => {
+      orders.sort((a, b) => {
         const aTime = new Date(a.updatedAt).getTime();
         const bTime = new Date(b.updatedAt).getTime();
         return bTime - aTime;
       });
 
-      setPendingOrders(activeOrders);
+      setPendingOrders(orders);
     } catch (error) {
       console.error("[usePendingSync] Error loading pending orders:", error);
     } finally {

@@ -271,22 +271,8 @@ export class DraftRealtimeService {
         return;
       }
 
-      // Mark draft as deleted (tombstone pattern)
-      const existing = await db.draftOrders.get(data.draftId);
-
-      if (!existing) {
-        console.log(`[DraftRealtime] Draft not found, skipping DRAFT_DELETED`, {
-          draftId: data.draftId,
-        });
-        return;
-      }
-
-      // Update with deleted flag (tombstone)
-      await db.draftOrders.put({
-        ...existing,
-        deleted: true,
-        serverUpdatedAt: new Date(data.timestamp).getTime(),
-      });
+      // Perform direct deletion from IndexedDB
+      await db.draftOrders.delete(data.draftId);
 
       console.log(`[DraftRealtime] DRAFT_DELETED applied to IndexedDB`, {
         draftId: data.draftId,

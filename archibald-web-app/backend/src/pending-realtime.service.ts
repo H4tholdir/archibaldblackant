@@ -186,7 +186,7 @@ export class PendingRealtimeService {
   }
 
   /**
-   * Emit PENDING_DELETED event when a pending order is deleted (tombstone pattern)
+   * Emit PENDING_DELETED event when a pending order is deleted
    */
   public emitPendingDeleted(
     userId: string,

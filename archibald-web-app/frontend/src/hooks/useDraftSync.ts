@@ -41,19 +41,16 @@ export function useDraftSync(): UseDraftSyncReturn {
   const loadDrafts = useCallback(async () => {
     try {
       setIsSyncing(true);
-      const allDrafts = await db.draftOrders.toArray();
-
-      // Filter out deleted drafts (tombstones)
-      const activeDrafts = allDrafts.filter((draft) => !draft.deleted);
+      const drafts = await db.draftOrders.toArray();
 
       // Sort by updatedAt descending (newest first)
-      activeDrafts.sort((a, b) => {
+      drafts.sort((a, b) => {
         const aTime = new Date(a.updatedAt).getTime();
         const bTime = new Date(b.updatedAt).getTime();
         return bTime - aTime;
       });
 
-      setDrafts(activeDrafts);
+      setDrafts(drafts);
     } catch (error) {
       console.error("[useDraftSync] Error loading drafts:", error);
     } finally {

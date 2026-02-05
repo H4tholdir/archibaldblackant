@@ -168,7 +168,7 @@ export class DraftRealtimeService {
   }
 
   /**
-   * Emit DRAFT_DELETED event when a draft is deleted (tombstone pattern)
+   * Emit DRAFT_DELETED event when a draft is deleted
    */
   public emitDraftDeleted(
     userId: string,
