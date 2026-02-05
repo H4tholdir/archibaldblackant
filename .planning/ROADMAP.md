@@ -49,7 +49,7 @@ None (full-stack web app con pattern standard)
 - [x] **Phase 30: WebSocket Client & Auto-Reconnect** - Frontend client con reconnection automatica ed event handling ✅ COMPLETE
 - [x] **Phase 31: Draft Orders Real-Time Sync** - Migrazione draft da polling a WebSocket (CREATE/UPDATE/DELETE) ✅ COMPLETE
 - [x] **Phase 32: Pending Orders Real-Time Sync** - Migrazione pending orders ed eliminazione UnifiedSyncService ✅ COMPLETE
-- [ ] **Phase 33: Direct Delete & Tombstone Removal** - Rimuovere tombstones, implementare direct DELETE
+- [x] **Phase 33: Direct Delete & Tombstone Removal** - Rimuovere tombstones, implementare direct DELETE ✅ COMPLETE
 - [ ] **Phase 34: E2E Testing & Multi-Device Validation** - Test suite completa e validazione multi-device
 - [ ] **Phase 35: Monitoring & Observability** - WebSocket health metrics e connection monitoring
 - [ ] **Phase 36: Performance Tuning & Optimization** - Load testing e latency optimization
@@ -132,14 +132,15 @@ Plans:
 Plans:
 - [x] 32-01: Pending Orders WebSocket & Sync Elimination — 6min ✅
 
-#### Phase 33: Direct Delete & Tombstone Removal
-**Goal**: Rimuovere sistema tombstones, implementare direct DELETE, semplificare codice (eliminate ~500 righe)
+#### Phase 33: Direct Delete & Tombstone Removal ✅ COMPLETE
+**Goal**: Rimuovere sistema tombstones, implementare direct DELETE, semplificare codice (~90 righe eliminate)
 **Depends on**: Phase 32
 **Research**: Unlikely (simplification, no new technology)
-**Plans**: TBD
+**Plans**: 1/1 complete
+**Completed**: 2026-02-05
 
 Plans:
-- [ ] 33-01: TBD
+- [x] 33-01: Direct DELETE Implementation & Tombstone Removal — 4min ✅
 
 #### Phase 34: E2E Testing & Multi-Device Validation
 **Goal**: Test suite completa end-to-end, validazione multi-device con scenari real-world (2+ devices, offline/online)
@@ -484,9 +485,9 @@ See `.planning/phases/28.2-rewrite-orderform-with-proper-architecture/28.2-01-SU
 | 28. Bot Performance Optimization v2 | v2.0 | 1/1 | Complete | 2026-01-22 |
 | 29. WebSocket Server Infrastructure | v3.0 | 1/1 | Complete | 2026-02-05 |
 | 30. WebSocket Client & Auto-Reconnect | v3.0 | 1/1 | Complete | 2026-02-05 |
-| 31. Draft Orders Real-Time Sync | v3.0 | 0/? | Not started | - |
-| 32. Pending Orders Real-Time Sync | v3.0 | 0/? | Not started | - |
-| 33. Direct Delete & Tombstone Removal | v3.0 | 0/? | Not started | - |
+| 31. Draft Orders Real-Time Sync | v3.0 | 1/1 | Complete | 2026-02-05 |
+| 32. Pending Orders Real-Time Sync | v3.0 | 1/1 | Complete | 2026-02-05 |
+| 33. Direct Delete & Tombstone Removal | v3.0 | 1/1 | Complete | 2026-02-05 |
 | 34. E2E Testing & Multi-Device Validation | v3.0 | 0/? | Not started | - |
 | 35. Monitoring & Observability | v3.0 | 0/? | Not started | - |
 | 36. Performance Tuning & Optimization | v3.0 | 0/? | Not started | - |

@@ -5,16 +5,16 @@
 See: .planning/PROJECT.md (updated 2026-01-11)
 
 **Core value:** Rendere la creazione ordini Archibald **veloce, affidabile e mobile-friendly** per agenti in movimento
-**Current focus:** v3.0 WebSocket Real-Time Sync — Phase 32 complete
+**Current focus:** v3.0 WebSocket Real-Time Sync — Phase 33 complete
 
 ## Current Position
 
-Phase: 32 of 36 (Pending Orders Real-Time Sync)
+Phase: 33 of 36 (Direct Delete & Tombstone Removal)
 Plan: 1 of 1 in current phase
 Status: Phase complete
-Last activity: 2026-02-05 - Completed 32-01-PLAN.md
+Last activity: 2026-02-05 - Completed 33-01-PLAN.md
 
-Progress: ████░░░░░░ 50%
+Progress: ██████░░░░ 62.5%
 
 ## Performance Metrics
 
@@ -59,6 +59,7 @@ Progress: ████░░░░░░ 50%
 | 30 | 1 | 3 min | 3 min |
 | 31 | 1 | 5 min | 5 min |
 | 32 | 1 | 6 min | 6 min |
+| 33 | 1 | 4 min | 4 min |
 
 **Recent Trend:**
 - Last 10 plans: 21-04 (90m), 21-05 (120m), 22-01 (15m), 22-02 (15m), 22-03 (30m), 23-01 (60m), 24-01 (15m), 25-01 (3m), 26-01 (25m), 27-01 (24m)
@@ -83,6 +84,9 @@ Recent decisions affecting current work:
 
 | Phase | Decision | Rationale |
 |-------|----------|-----------|
+| 33-01 | Direct deletion via db.delete() and SQL DELETE | Eliminated tombstone pattern, simplified code ~90 lines, cleaner schema, no filtering overhead |
+| 33-01 | Backward compatible WebSocket events | Event payload format unchanged (deleted: true preserved), ensures smooth migration, no client changes needed |
+| 33-01 | Schema cleanup: removed deleted field | DraftOrder and PendingOrder interfaces simplified, TypeScript strict mode compliance, cleaner types |
 | 32-01 | Periodic sync completely eliminated (startPeriodicSync disabled) | 100% real-time via WebSocket for drafts + pending, only warehouse uses HTTP polling (not in v3.0 scope) |
 | 32-01 | Bot coordination via PENDING_SUBMITTED events | Real-time status updates (syncing/completed/error), bot events always win (authoritative), enables real-time UI feedback |
 | 32-01 | UnifiedSyncService preserved for warehouse only | Warehouse HTTP polling maintained (Phase 32 scope: drafts + pending), complete service removal deferred |
@@ -709,10 +713,10 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-02-05
-Stopped at: Phase 30 complete (30-01-PLAN.md executed successfully)
-Context file: .planning/phases/30-websocket-client-reconnect/30-01-SUMMARY.md
-Next: Plan Phase 31 (Draft Orders Real-Time Sync)
-Resume command: /gsd:plan-phase 31
+Stopped at: Phase 33 complete (33-01-PLAN.md executed successfully)
+Context file: .planning/phases/33-direct-delete-tombstone-removal/33-01-SUMMARY.md
+Next: Plan Phase 34 (E2E Testing & Multi-Device Validation)
+Resume command: /gsd:plan-phase 34
 
 ### Session 101 (2026-01-23)
 **Command:** /gsd:execute-plan 28.2-03-PLAN.md
