@@ -125,4 +125,10 @@ export interface WebSocketMessage {
 export interface ConnectionStats {
   totalConnections: number;
   activeUsers: number;
+  uptime: number; // milliseconds since WebSocket server initialization
+  reconnectionCount: number; // total reconnections counter
+  messagesSent: number; // total broadcast messages sent
+  messagesReceived: number; // total messages received from clients
+  averageLatency: number; // average latency in ms (from ping/pong)
+  connectionsPerUser: { [userId: string]: number }; // userId → connection count
 }

@@ -478,6 +478,37 @@ app.get("/api/health", (req: Request, res: Response<ApiResponse>) => {
   });
 });
 
+// WebSocket health endpoint (admin-only)
+app.get("/api/websocket/health", requireAdmin, (req, res) => {
+  try {
+    const wsService = WebSocketServerService.getInstance();
+    const stats = wsService.getStats();
+
+    // Determine health status
+    let status: "healthy" | "idle" | "offline" = "offline";
+    if (stats.totalConnections > 0 && stats.activeUsers > 0) {
+      status = "healthy";
+    } else if (stats.totalConnections === 0 && stats.activeUsers === 0) {
+      // Server initialized but no connections
+      if (stats.uptime > 0) {
+        status = "idle";
+      }
+    }
+
+    res.json({
+      success: true,
+      status,
+      stats,
+    });
+  } catch (error) {
+    logger.error("Failed to get WebSocket stats", { error });
+    res.status(500).json({
+      success: false,
+      error: "Failed to retrieve WebSocket statistics",
+    });
+  }
+});
+
 // PDF Parser health check
 app.get("/api/health/pdf-parser", async (req, res) => {
   try {

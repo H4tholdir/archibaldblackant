@@ -15,6 +15,13 @@ export class WebSocketServerService {
   private wss: WebSocketServer | null = null;
   private connectionPool: Map<string, Set<WebSocket>> = new Map();
   private pingInterval: NodeJS.Timeout | null = null;
+  private initTimestamp: number = 0;
+  private metrics = {
+    reconnectionCount: 0,
+    messagesSent: 0,
+    messagesReceived: 0,
+    latencySamples: [] as number[],
+  };
 
   private constructor() {}
 
@@ -29,6 +36,7 @@ export class WebSocketServerService {
    * Initialize WebSocket server on dedicated path /ws/realtime
    */
   public initialize(httpServer: HTTPServer): void {
+    this.initTimestamp = Date.now();
     this.wss = new WebSocketServer({
       server: httpServer,
       path: "/ws/realtime",
@@ -58,10 +66,25 @@ export class WebSocketServerService {
             this.unregisterConnection(userId, ws);
           });
 
-          // Ping/pong heartbeat
+          // Track messages received
+          ws.on("message", () => {
+            this.metrics.messagesReceived++;
+          });
+
+          // Ping/pong heartbeat with latency tracking
           (ws as any).isAlive = true;
+          (ws as any).pingTime = 0;
           ws.on("pong", () => {
             (ws as any).isAlive = true;
+            const latency = Date.now() - (ws as any).pingTime;
+            if (latency > 0 && latency < 10000) {
+              // Valid latency sample
+              this.metrics.latencySamples.push(latency);
+              // Keep only last 100 samples
+              if (this.metrics.latencySamples.length > 100) {
+                this.metrics.latencySamples.shift();
+              }
+            }
           });
         } catch (error) {
           logger.error("WebSocket connection error", { error });
@@ -79,6 +102,7 @@ export class WebSocketServerService {
           return ws.terminate();
         }
         (ws as any).isAlive = false;
+        (ws as any).pingTime = Date.now();
         ws.ping();
       });
     }, 30000);
@@ -135,6 +159,9 @@ export class WebSocketServerService {
   private registerConnection(userId: string, ws: WebSocket): void {
     if (!this.connectionPool.has(userId)) {
       this.connectionPool.set(userId, new Set());
+    } else {
+      // User reconnecting - increment counter
+      this.metrics.reconnectionCount++;
     }
     this.connectionPool.get(userId)!.add(ws);
   }
@@ -163,12 +190,16 @@ export class WebSocketServerService {
     }
 
     const message = JSON.stringify(event);
+    let sentCount = 0;
 
     userConnections.forEach((ws) => {
       if (ws.readyState === ws.OPEN) {
         ws.send(message);
+        sentCount++;
       }
     });
+
+    this.metrics.messagesSent += sentCount;
 
     logger.debug("Broadcast to user", {
       userId,
@@ -193,6 +224,8 @@ export class WebSocketServerService {
       }
     });
 
+    this.metrics.messagesSent += sentCount;
+
     logger.debug("Broadcast to all users", {
       eventType: event.type,
       connections: sentCount,
@@ -205,10 +238,30 @@ export class WebSocketServerService {
   public getStats(): ConnectionStats {
     const totalConnections = this.wss?.clients.size || 0;
     const activeUsers = this.connectionPool.size;
+    const uptime = this.initTimestamp > 0 ? Date.now() - this.initTimestamp : 0;
+
+    // Calculate average latency from samples
+    const averageLatency =
+      this.metrics.latencySamples.length > 0
+        ? this.metrics.latencySamples.reduce((sum, val) => sum + val, 0) /
+          this.metrics.latencySamples.length
+        : 0;
+
+    // Build connectionsPerUser map
+    const connectionsPerUser: { [userId: string]: number } = {};
+    this.connectionPool.forEach((connections, userId) => {
+      connectionsPerUser[userId] = connections.size;
+    });
 
     return {
       totalConnections,
       activeUsers,
+      uptime,
+      reconnectionCount: this.metrics.reconnectionCount,
+      messagesSent: this.metrics.messagesSent,
+      messagesReceived: this.metrics.messagesReceived,
+      averageLatency: Math.round(averageLatency * 100) / 100, // round to 2 decimals
+      connectionsPerUser,
     };
   }
 
