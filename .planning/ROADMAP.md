@@ -152,14 +152,15 @@ Plans:
 Plans:
 - [x] 34-01: Playwright Setup & Multi-Device E2E Tests — 45min ✅
 
-#### Phase 35: Monitoring & Observability
+#### Phase 35: Monitoring & Observability ✅ COMPLETE
 **Goal**: WebSocket health metrics, connection monitoring, latency tracking, dashboard per amministratori
 **Depends on**: Phase 34
 **Research**: Unlikely (extending existing monitoring from Phase 25)
-**Plans**: TBD
+**Plans**: 1/1 complete
+**Completed**: 2026-02-05
 
 Plans:
-- [ ] 35-01: TBD
+- [x] 35-01: WebSocket Health & Metrics Dashboard — 48min ✅
 
 #### Phase 36: Performance Tuning & Optimization
 **Goal**: Load testing con 10+ concurrent users, latency optimization (<100ms target), stress testing
@@ -490,6 +491,5 @@ See `.planning/phases/28.2-rewrite-orderform-with-proper-architecture/28.2-01-SU
 | 32. Pending Orders Real-Time Sync | v3.0 | 1/1 | Complete | 2026-02-05 |
 | 33. Direct Delete & Tombstone Removal | v3.0 | 1/1 | Complete | 2026-02-05 |
 | 34. E2E Testing & Multi-Device Validation | v3.0 | 1/1 | Complete | 2026-02-05 |
-| 34. E2E Testing & Multi-Device Validation | v3.0 | 0/? | Not started | - |
-| 35. Monitoring & Observability | v3.0 | 0/? | Not started | - |
+| 35. Monitoring & Observability | v3.0 | 1/1 | Complete | 2026-02-05 |
 | 36. Performance Tuning & Optimization | v3.0 | 0/? | Not started | - |
