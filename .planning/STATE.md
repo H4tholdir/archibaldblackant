@@ -5,22 +5,22 @@
 See: .planning/PROJECT.md (updated 2026-01-11)
 
 **Core value:** Rendere la creazione ordini Archibald **veloce, affidabile e mobile-friendly** per agenti in movimento
-**Current focus:** v3.0 WebSocket Real-Time Sync — Phase 29 complete
+**Current focus:** v3.0 WebSocket Real-Time Sync — Phase 30 complete
 
 ## Current Position
 
-Phase: 29 of 36 (WebSocket Server Infrastructure)
+Phase: 30 of 36 (WebSocket Client & Auto-Reconnect)
 Plan: 1 of 1 in current phase
 Status: Phase complete
-Last activity: 2026-02-05 - Completed 29-01-PLAN.md
+Last activity: 2026-02-05 - Completed 30-01-PLAN.md
 
-Progress: █░░░░░░░░░ 12.5%
+Progress: ██░░░░░░░░ 25%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 112
-- Average duration: 48 min
+- Total plans completed: 113
+- Average duration: 47 min
 - Total execution time: 94.6 hours
 
 **By Phase:**
@@ -56,6 +56,7 @@ Progress: █░░░░░░░░░ 12.5%
 | 27 | 4 | 239 min | 60 min |
 | 28 | 1 | 0 min | 0 min |
 | 29 | 1 | 8 min | 8 min |
+| 30 | 1 | 3 min | 3 min |
 
 **Recent Trend:**
 - Last 10 plans: 21-04 (90m), 21-05 (120m), 22-01 (15m), 22-02 (15m), 22-03 (30m), 23-01 (60m), 24-01 (15m), 25-01 (3m), 26-01 (25m), 27-01 (24m)
@@ -80,6 +81,11 @@ Recent decisions affecting current work:
 
 | Phase | Decision | Rationale |
 |-------|----------|-----------|
+| 30-01 | Exponential backoff 1s→30s with 2x multiplier | Prevents server overload, industry standard, balances responsiveness with resource usage |
+| 30-01 | Offline queue max 100 items | Prevents unbounded memory growth while supporting typical offline scenarios (100 operations = ~hours of offline work) |
+| 30-01 | localStorage persistence with 24h cleanup | Survives browser restarts, auto-cleanup prevents stale operations from accumulating |
+| 30-01 | Browser native WebSocket API | No external library needed, reduces bundle size, sufficient for our use case |
+| 30-01 | Event subscription callback pattern | React-friendly, unsubscribe function return prevents memory leaks, efficient with Map<Set> structure |
 | 29-01 | Use ws 8.19.0 library (no socket.io) | Consistency with existing stack, already installed, simpler than socket.io for our needs |
 | 29-01 | JWT auth via query param or header | Flexibility for client implementation, query param simplifies handshake, header for standards compliance |
 | 29-01 | Connection pool Map<userId, Set<WebSocket>> | Efficient per-user multi-device broadcast, O(1) lookup, automatic cleanup on disconnect |
@@ -693,10 +699,10 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-02-05
-Stopped at: Phase 29 complete (29-01-PLAN.md executed successfully)
-Context file: .planning/phases/29-websocket-server-infrastructure/29-01-SUMMARY.md
-Next: Plan Phase 30 (WebSocket Client & Auto-Reconnect)
-Resume command: /gsd:plan-phase 30
+Stopped at: Phase 30 complete (30-01-PLAN.md executed successfully)
+Context file: .planning/phases/30-websocket-client-reconnect/30-01-SUMMARY.md
+Next: Plan Phase 31 (Draft Orders Real-Time Sync)
+Resume command: /gsd:plan-phase 31
 
 ### Session 101 (2026-01-23)
 **Command:** /gsd:execute-plan 28.2-03-PLAN.md

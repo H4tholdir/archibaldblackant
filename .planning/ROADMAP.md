@@ -46,7 +46,7 @@ None (full-stack web app con pattern standard)
 - [ ] **Phase 28.1: Fix Order Form Critical Bugs (INSERTED)** - 🔴 CRITICAL: Fix customer selection, product filtering, white screen crash (PAUSED - superseded by 28.2)
 - [ ] **Phase 28.2: Rewrite OrderForm with Proper Architecture (INSERTED)** - 🔴 URGENT: Complete rewrite with 3-layer architecture (4/6 plans complete)
 - [x] **Phase 29: WebSocket Server Infrastructure** - Setup Node.js WebSocket server con auth e connection manager ✅ COMPLETE
-- [ ] **Phase 30: WebSocket Client & Auto-Reconnect** - Frontend client con reconnection automatica ed event handling
+- [x] **Phase 30: WebSocket Client & Auto-Reconnect** - Frontend client con reconnection automatica ed event handling ✅ COMPLETE
 - [ ] **Phase 31: Draft Orders Real-Time Sync** - Migrazione draft da polling a WebSocket (CREATE/UPDATE/DELETE)
 - [ ] **Phase 32: Pending Orders Real-Time Sync** - Migrazione pending orders ed eliminazione UnifiedSyncService
 - [ ] **Phase 33: Direct Delete & Tombstone Removal** - Rimuovere tombstones, implementare direct DELETE
@@ -102,15 +102,15 @@ See phases 1-13 below for complete details of v1.0 milestone.
 Plans:
 - [x] 29-01: WebSocket Server with JWT Auth & Express Integration — 8min ✅
 
-#### Phase 30: WebSocket Client & Auto-Reconnect
+#### Phase 30: WebSocket Client & Auto-Reconnect ✅ COMPLETE
 **Goal**: Frontend WebSocket client con auto-reconnect, exponential backoff, pending operations queue per offline support
 **Depends on**: Phase 29
-**Research**: Likely (Client reconnection strategies, offline queue patterns, state management during disconnect)
-**Research topics**: Auto-reconnect algorithms, exponential backoff, queue persistence, state synchronization
-**Plans**: TBD
+**Research**: Completed (Level 1 - Quick verification, standard WebSocket patterns)
+**Plans**: 1/1 complete
+**Completed**: 2026-02-05
 
 Plans:
-- [ ] 30-01: TBD
+- [x] 30-01: WebSocket Client Hook & Offline Queue — 3min ✅
 
 #### Phase 31: Draft Orders Real-Time Sync
 **Goal**: Migrare draft orders da polling a WebSocket (CREATE_DRAFT, UPDATE_DRAFT, DELETE_DRAFT, DRAFT_CONVERTED events)
@@ -481,7 +481,7 @@ See `.planning/phases/28.2-rewrite-orderform-with-proper-architecture/28.2-01-SU
 | 27. Bot Performance Profiling v2 | v2.0 | 4/4 | Complete | 2026-01-22 |
 | 28. Bot Performance Optimization v2 | v2.0 | 1/1 | Complete | 2026-01-22 |
 | 29. WebSocket Server Infrastructure | v3.0 | 1/1 | Complete | 2026-02-05 |
-| 30. WebSocket Client & Auto-Reconnect | v3.0 | 0/? | Not started | - |
+| 30. WebSocket Client & Auto-Reconnect | v3.0 | 1/1 | Complete | 2026-02-05 |
 | 31. Draft Orders Real-Time Sync | v3.0 | 0/? | Not started | - |
 | 32. Pending Orders Real-Time Sync | v3.0 | 0/? | Not started | - |
 | 33. Direct Delete & Tombstone Removal | v3.0 | 0/? | Not started | - |
