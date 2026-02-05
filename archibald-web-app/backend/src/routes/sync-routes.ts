@@ -3,6 +3,7 @@ import { authenticateJWT, type AuthRequest } from "../middleware/auth";
 import { logger } from "../logger";
 import Database from "better-sqlite3";
 import path from "path";
+import { DraftRealtimeService } from "../draft-realtime.service";
 
 const router = Router();
 
@@ -11,6 +12,9 @@ const ordersDbPath = path.join(__dirname, "../../data/orders-new.db");
 const usersDbPath = path.join(__dirname, "../../data/users.db");
 const ordersDb = new Database(ordersDbPath);
 const usersDb = new Database(usersDbPath);
+
+// Draft real-time service for WebSocket broadcasts
+const draftRealtimeService = DraftRealtimeService.getInstance();
 
 // ========== PENDING ORDERS SYNC ==========
 
@@ -209,6 +213,14 @@ router.post(
                       pendingId: order.id,
                       userId,
                     },
+                  );
+
+                  // WebSocket broadcast: DRAFT_CONVERTED (Phase 31)
+                  draftRealtimeService.emitDraftConverted(
+                    userId,
+                    order.originDraftId,
+                    order.id,
+                    order.deviceId,
                   );
                 } else {
                   logger.debug("Draft not found or already deleted (cascade)", {
@@ -430,6 +442,17 @@ router.post(
               );
 
             results.push({ id: draft.id, action: "updated" });
+
+            // WebSocket broadcast: DRAFT_UPDATED (Phase 31)
+            draftRealtimeService.emitDraftUpdated(userId, {
+              id: draft.id,
+              customerId: draft.customerId,
+              customerName: draft.customerName,
+              items: draft.items,
+              createdAt: draft.createdAt,
+              updatedAt: draft.updatedAt,
+              deviceId: draft.deviceId,
+            });
           } else {
             // Insert
             ordersDb
@@ -453,6 +476,17 @@ router.post(
               );
 
             results.push({ id: draft.id, action: "created" });
+
+            // WebSocket broadcast: DRAFT_CREATED (Phase 31)
+            draftRealtimeService.emitDraftCreated(userId, {
+              id: draft.id,
+              customerId: draft.customerId,
+              customerName: draft.customerName,
+              items: draft.items,
+              createdAt: draft.createdAt,
+              updatedAt: draft.updatedAt,
+              deviceId: draft.deviceId,
+            });
           }
         } catch (draftError) {
           logger.error("Error syncing draft order", {
@@ -485,6 +519,7 @@ router.delete(
     try {
       const userId = req.user!.userId;
       const { id } = req.params;
+      const { deviceId } = req.query; // Get deviceId from query param
 
       const result = ordersDb
         .prepare("DELETE FROM draft_orders WHERE id = ? AND user_id = ?")
@@ -498,6 +533,14 @@ router.delete(
       }
 
       logger.info("Draft order deleted", { draftId: id, userId });
+
+      // WebSocket broadcast: DRAFT_DELETED (Phase 31)
+      draftRealtimeService.emitDraftDeleted(
+        userId,
+        id,
+        (deviceId as string) || "unknown",
+      );
+
       res.json({ success: true });
     } catch (error) {
       logger.error("Error deleting draft order", { error });
