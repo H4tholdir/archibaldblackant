@@ -5,16 +5,16 @@
 See: .planning/PROJECT.md (updated 2026-01-11)
 
 **Core value:** Rendere la creazione ordini Archibald **veloce, affidabile e mobile-friendly** per agenti in movimento
-**Current focus:** v3.0 WebSocket Real-Time Sync — Phase 33 complete
+**Current focus:** v3.0 WebSocket Real-Time Sync — Phase 34 complete
 
 ## Current Position
 
-Phase: 33 of 36 (Direct Delete & Tombstone Removal)
+Phase: 34 of 36 (E2E Testing & Multi-Device Validation)
 Plan: 1 of 1 in current phase
 Status: Phase complete
-Last activity: 2026-02-05 - Completed 33-01-PLAN.md
+Last activity: 2026-02-05 - Completed 34-01-PLAN.md
 
-Progress: ██████░░░░ 62.5%
+Progress: ███████░░░ 75%
 
 ## Performance Metrics
 
@@ -60,6 +60,7 @@ Progress: ██████░░░░ 62.5%
 | 31 | 1 | 5 min | 5 min |
 | 32 | 1 | 6 min | 6 min |
 | 33 | 1 | 4 min | 4 min |
+| 34 | 1 | 45 min | 45 min |
 
 **Recent Trend:**
 - Last 10 plans: 21-04 (90m), 21-05 (120m), 22-01 (15m), 22-02 (15m), 22-03 (30m), 23-01 (60m), 24-01 (15m), 25-01 (3m), 26-01 (25m), 27-01 (24m)
@@ -84,6 +85,9 @@ Recent decisions affecting current work:
 
 | Phase | Decision | Rationale |
 |-------|----------|-----------|
+| 34-01 | Playwright for E2E testing multi-device | Superior multi-browser support vs Puppeteer, auto-start dev server, parallel test execution, CI/CD ready |
+| 34-01 | Test actual IndexedDB state (no mocking) | Real IndexedDB queries verify sync correctness, catches integration issues mocks would miss |
+| 34-01 | Relaxed latency assertions for E2E (5s vs 100ms) | Test overhead requires realistic timeouts, production monitoring will use 100ms target |
 | 33-01 | Direct deletion via db.delete() and SQL DELETE | Eliminated tombstone pattern, simplified code ~90 lines, cleaner schema, no filtering overhead |
 | 33-01 | Backward compatible WebSocket events | Event payload format unchanged (deleted: true preserved), ensures smooth migration, no client changes needed |
 | 33-01 | Schema cleanup: removed deleted field | DraftOrder and PendingOrder interfaces simplified, TypeScript strict mode compliance, cleaner types |
@@ -713,10 +717,10 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-02-05
-Stopped at: Phase 33 complete (33-01-PLAN.md executed successfully)
-Context file: .planning/phases/33-direct-delete-tombstone-removal/33-01-SUMMARY.md
-Next: Plan Phase 34 (E2E Testing & Multi-Device Validation)
-Resume command: /gsd:plan-phase 34
+Stopped at: Phase 34 complete (34-01-PLAN.md executed successfully)
+Context file: .planning/phases/34-e2e-testing-multidevice/34-01-SUMMARY.md
+Next: Plan Phase 35 (Monitoring & Observability)
+Resume command: /gsd:plan-phase 35
 
 ### Session 101 (2026-01-23)
 **Command:** /gsd:execute-plan 28.2-03-PLAN.md
