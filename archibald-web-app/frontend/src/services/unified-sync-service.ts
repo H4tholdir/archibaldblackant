@@ -5,15 +5,14 @@ import { fetchWithRetry } from "../utils/fetch-with-retry";
  * UnifiedSyncService
  *
  * Manages multi-device sync for:
- * - Pending orders (HTTP polling until Phase 32)
- * - Draft orders (Phase 31: Removed - now using WebSocket real-time)
- * - Warehouse items
+ * - Draft orders: WebSocket real-time (Phase 31)
+ * - Pending orders: WebSocket real-time (Phase 32)
+ * - Warehouse items: HTTP polling (preserved - not in v3.0 scope)
  *
  * Sync strategy:
- * - Pull on app open (eager)
- * - Push on change (immediate if online)
- * - Periodic sync (every 15s by default)
- * - Event-driven sync (online/offline, visibility change)
+ * - Pull on app open (eager) - warehouse only
+ * - Event-driven sync (online/offline, visibility change) - warehouse only
+ * - Periodic sync: DISABLED (Phase 32 - all real-time via WebSocket)
  *
  * Conflict resolution: Last-Write-Wins (LWW) based on updatedAt timestamp
  */
@@ -38,7 +37,7 @@ export class UnifiedSyncService {
    * Initialize sync on app startup
    */
   async initSync(): Promise<void> {
-    // Eager pull on app open
+    // Eager pull on app open (warehouse only)
     if (navigator.onLine) {
       try {
         await this.pullAll();
@@ -47,23 +46,27 @@ export class UnifiedSyncService {
       }
     }
 
-    // Start periodic sync
-    this.startPeriodicSync();
+    // Periodic sync disabled: startPeriodicSync() no longer called (Phase 32)
+    // Draft sync: WebSocket real-time (Phase 31)
+    // Pending orders sync: WebSocket real-time (Phase 32)
+    // Warehouse sync: HTTP polling (preserved - not in v3.0 scope)
 
-    // Event listeners
+    // Event listeners (for warehouse sync only)
     window.addEventListener("online", () => {
-      console.log("[UnifiedSync] Network online, syncing...");
+      console.log("[UnifiedSync] Network online, syncing warehouse...");
       this.syncAll();
     });
 
     document.addEventListener("visibilitychange", () => {
       if (!document.hidden && navigator.onLine) {
-        console.log("[UnifiedSync] Tab visible, syncing...");
+        console.log("[UnifiedSync] Tab visible, syncing warehouse...");
         this.syncAll();
       }
     });
 
-    console.log("[UnifiedSync] Sync service initialized");
+    console.log(
+      "[UnifiedSync] Sync service initialized (periodic sync disabled - WebSocket real-time active)",
+    );
   }
 
   /**
@@ -104,13 +107,14 @@ export class UnifiedSyncService {
       return;
     }
 
-    console.log("[UnifiedSync] syncAll triggered");
+    console.log("[UnifiedSync] syncAll triggered (warehouse only)");
     this.isSyncing = true;
 
     try {
-      // Draft sync handled by WebSocket real-time (Phase 31)
-      // Pending orders still use HTTP polling (until Phase 32)
-      await Promise.all([this.syncPendingOrders(), this.syncWarehouse()]);
+      // Draft sync: WebSocket real-time (Phase 31)
+      // Pending orders sync: WebSocket real-time (Phase 32)
+      // Warehouse sync: HTTP polling (preserved)
+      await this.syncWarehouse();
       console.log("[UnifiedSync] Sync all completed");
     } catch (error) {
       console.error("[UnifiedSync] Sync all failed:", error);
@@ -124,10 +128,11 @@ export class UnifiedSyncService {
    */
   async pullAll(): Promise<void> {
     try {
-      // Draft sync handled by WebSocket real-time (Phase 31)
-      // Pending orders still use HTTP polling (until Phase 32)
-      await Promise.all([this.pullPendingOrders(), this.pullWarehouse()]);
-      console.log("[UnifiedSync] Pull all completed");
+      // Draft sync: WebSocket real-time (Phase 31)
+      // Pending orders sync: WebSocket real-time (Phase 32)
+      // Warehouse sync: HTTP polling (preserved)
+      await this.pullWarehouse();
+      console.log("[UnifiedSync] Pull all completed (warehouse only)");
     } catch (error) {
       console.error("[UnifiedSync] Pull all failed:", error);
       throw error;
@@ -135,13 +140,22 @@ export class UnifiedSyncService {
   }
 
   // ========== PENDING ORDERS ==========
+  // Phase 32: Pending orders sync handled by WebSocket real-time (removed from HTTP polling)
+  // Methods kept for reference until Phase 33 (tombstone removal)
 
+  // DEPRECATED: Pending orders sync now handled by PendingRealtimeService (Phase 32)
+  // @ts-expect-error - Method intentionally unused (Phase 32: WebSocket real-time sync)
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   private async syncPendingOrders(): Promise<void> {
     // 🔧 FIX: Push BEFORE pull to avoid overwriting local changes
     await this.pushPendingOrders();
     await this.pullPendingOrders();
   }
 
+  // DEPRECATED: Pending orders sync now handled by PendingRealtimeService (Phase 32)
+  // Kept for reference until Phase 33 (tombstone removal)
+  // @ts-expect-error - Method intentionally unused (Phase 32: WebSocket real-time sync)
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   private async pullPendingOrders(): Promise<void> {
     const token = localStorage.getItem("archibald_jwt");
     if (!token) return;
@@ -222,6 +236,10 @@ export class UnifiedSyncService {
     }
   }
 
+  // DEPRECATED: Pending orders sync now handled by PendingRealtimeService (Phase 32)
+  // Kept for reference until Phase 33 (tombstone removal)
+  // @ts-expect-error - Method intentionally unused (Phase 32: WebSocket real-time sync)
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   private async pushPendingOrders(): Promise<void> {
     const token = localStorage.getItem("archibald_jwt");
     if (!token) return;
