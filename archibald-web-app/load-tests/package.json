@@ -1,0 +1,25 @@
+{
+  "name": "archibald-load-tests",
+  "version": "1.0.0",
+  "description": "K6 load testing scripts for Archibald WebSocket real-time sync",
+  "scripts": {
+    "test:load": "k6 run websocket-load.js",
+    "test:load:small": "k6 run --vus 5 --duration 30s websocket-load.js",
+    "test:load:medium": "k6 run --vus 10 --duration 5m websocket-load.js",
+    "test:load:large": "k6 run --vus 20 --duration 10m websocket-load.js",
+    "test:stress": "k6 run stress-test.js"
+  },
+  "keywords": [
+    "k6",
+    "load-testing",
+    "websocket",
+    "performance"
+  ],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {},
+  "notes": {
+    "installation": "K6 is installed globally via system package manager (brew install k6 on macOS, apt-get install k6 on Ubuntu)",
+    "docs": "https://k6.io/docs/"
+  }
+}
