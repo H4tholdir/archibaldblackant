@@ -104,10 +104,41 @@ export class OrderService {
 
       console.log("[OrderService] 🗑️ Draft deleted from IndexedDB:", id);
 
-      // Trigger sync to delete on server
+      // Notify server to broadcast deletion to other devices
       if (navigator.onLine) {
-        // The DELETE will be sent via REST API by the component that calls this
-        console.log("[OrderService] Draft deleted locally, server sync needed");
+        const token = localStorage.getItem("archibald_jwt");
+        const deviceId = getDeviceId();
+
+        if (token) {
+          try {
+            const response = await fetch(
+              `/api/sync/draft-orders/${id}?deviceId=${encodeURIComponent(deviceId)}`,
+              {
+                method: "DELETE",
+                headers: {
+                  Authorization: `Bearer ${token}`,
+                },
+              },
+            );
+
+            if (response.ok) {
+              console.log(
+                "[OrderService] ✅ Server notified of draft deletion, broadcast sent",
+                { draftId: id },
+              );
+            } else {
+              console.warn(
+                "[OrderService] Failed to notify server of draft deletion",
+                { status: response.status },
+              );
+            }
+          } catch (error) {
+            console.error(
+              "[OrderService] Error notifying server of draft deletion:",
+              error,
+            );
+          }
+        }
       }
     } catch (error) {
       console.error("[OrderService] Failed to delete draft:", error);
