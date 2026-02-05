@@ -3,6 +3,7 @@ import { authenticateJWT, type AuthRequest } from "../middleware/auth";
 import type { OrderData } from "../types";
 import { QueueManager } from "../queue-manager";
 import { logger } from "../logger";
+import { randomUUID } from "crypto";
 
 const router = Router();
 const queueManager = QueueManager.getInstance();
@@ -48,14 +49,20 @@ router.post(
 
       for (const orderData of orders) {
         try {
+          // Extract pendingOrderId from order data or generate one
+          const pendingOrderId =
+            (orderData as any).pendingOrderId || randomUUID();
+
           const job = await queueManager.addOrder(
             orderData as OrderData,
             userId,
+            pendingOrderId,
           );
           jobIds.push(job.id!);
 
           logger.info("✅ Bot API: Order queued", {
             jobId: job.id,
+            pendingOrderId,
             customerName: orderData.customerName,
             itemsCount: orderData.items?.length || 0,
           });

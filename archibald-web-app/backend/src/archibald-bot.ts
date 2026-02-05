@@ -42,6 +42,12 @@ export class ArchibaldBot {
   private opSeq = 0;
   private lastOpEndNs: bigint | null = null;
   private hasError = false;
+  private progressCallback?:
+    | ((
+        operationCategory: string,
+        metadata?: Record<string, any>,
+      ) => Promise<void>)
+    | undefined;
   private opRecords: Array<{
     id: number;
     name: string;
@@ -69,6 +75,28 @@ export class ArchibaldBot {
     } else {
       // Legacy mode: use single-user session cache
       this.legacySessionCache = new SessionCacheManager();
+    }
+  }
+
+  public setProgressCallback(
+    callback: (
+      operationCategory: string,
+      metadata?: Record<string, any>,
+    ) => Promise<void>,
+  ): void {
+    this.progressCallback = callback;
+  }
+
+  private async emitProgress(
+    operationCategory: string,
+    metadata?: Record<string, any>,
+  ): Promise<void> {
+    if (this.progressCallback) {
+      try {
+        await this.progressCallback(operationCategory, metadata);
+      } catch (error) {
+        logger.warn(`[Bot] Progress callback error: ${error}`);
+      }
     }
   }
 
@@ -2608,6 +2636,8 @@ export class ArchibaldBot {
         "navigation.ordini",
       );
 
+      await this.emitProgress("navigation.ordini");
+
       // STEP 2: Click "Nuovo" button
       await this.runOp(
         "order.click_nuovo",
@@ -3305,6 +3335,8 @@ export class ArchibaldBot {
         },
         "form.customer",
       );
+
+      await this.emitProgress("form.customer");
 
       // STEP 4: Click "New" button in Linee di vendita
       await this.runOp(
@@ -5059,9 +5091,13 @@ export class ArchibaldBot {
           },
           "form.discount",
         );
+
+        await this.emitProgress("form.discount");
       }
 
       // STEP 10: Save and close order
+      await this.emitProgress("form.submit.start");
+
       await this.runOp(
         "order.save_and_close",
         async () => {
@@ -5147,6 +5183,8 @@ export class ArchibaldBot {
       );
 
       logger.info("🎉 BOT: ORDINE COMPLETATO", { orderId });
+
+      await this.emitProgress("form.submit.complete");
 
       // Write operation report
       await this.writeOperationReport();
@@ -5562,12 +5600,19 @@ export class ArchibaldBot {
         "operation",
       );
 
+      await this.emitProgress("form.articles.start");
+
       for (let i = 0; i < orderData.items.length; i++) {
         const item = orderData.items[i];
         const itemDisplay = item.productName || item.articleCode;
         logger.info(
           `Articolo ${i + 1}/${orderData.items.length}: ${itemDisplay}`,
         );
+
+        await this.emitProgress("form.articles.progress", {
+          currentArticle: i + 1,
+          totalArticles: orderData.items.length,
+        });
 
         // 4.1: Click sul pulsante + per aggiungere nuovo articolo
         await this.runOp(
@@ -6890,6 +6935,8 @@ export class ArchibaldBot {
           "operation",
         );
       }
+
+      await this.emitProgress("form.articles.complete");
 
       logger.info(
         "🤖 BOT: Tutti gli articoli inseriti con successo, ora salvo l'ordine",

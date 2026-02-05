@@ -12,6 +12,8 @@ import { OrderSyncService } from "./order-sync-service";
 import { DDTSyncService } from "./ddt-sync-service";
 import { InvoiceSyncService } from "./invoice-sync-service";
 import { operationTracker } from "./operation-tracker";
+import { PendingRealtimeService } from "./pending-realtime.service";
+import { getProgressMilestone } from "./job-progress-mapper";
 
 /**
  * Job data per la coda ordini
@@ -21,6 +23,7 @@ export interface OrderJobData {
   userId: string;
   username: string;
   timestamp: number;
+  pendingOrderId: string;
 }
 
 /**
@@ -44,6 +47,10 @@ export class QueueManager {
   private browserPool: BrowserPool;
   private onOrderStart?: () => boolean;
   private onOrderEnd?: () => void;
+  private jobToPendingMap: Map<
+    string,
+    { userId: string; pendingOrderId: string }
+  > = new Map();
 
   private constructor() {
     // Connessione Redis (usa Redis locale su porta 6379)
@@ -101,6 +108,56 @@ export class QueueManager {
   setOrderLockCallbacks(onStart: () => boolean, onEnd: () => void): void {
     this.onOrderStart = onStart;
     this.onOrderEnd = onEnd;
+  }
+
+  private linkJobToPending(
+    jobId: string,
+    userId: string,
+    pendingOrderId: string,
+  ): void {
+    this.jobToPendingMap.set(jobId, { userId, pendingOrderId });
+    logger.debug(
+      `[QueueManager] Linked job ${jobId} to pending ${pendingOrderId}`,
+    );
+  }
+
+  private getPendingFromJob(
+    jobId: string,
+  ): { userId: string; pendingOrderId: string } | null {
+    return this.jobToPendingMap.get(jobId) || null;
+  }
+
+  private unlinkJobFromPending(jobId: string): void {
+    this.jobToPendingMap.delete(jobId);
+    logger.debug(`[QueueManager] Unlinked job ${jobId}`);
+  }
+
+  private async broadcastJobProgress(
+    jobId: string,
+    operationCategory: string,
+    metadata?: Record<string, any>,
+  ): Promise<void> {
+    const pendingInfo = this.getPendingFromJob(jobId);
+    if (!pendingInfo) {
+      logger.warn(`[QueueManager] No pending linked to job ${jobId}`);
+      return;
+    }
+
+    const { userId, pendingOrderId } = pendingInfo;
+    const milestone = getProgressMilestone(operationCategory, metadata);
+    if (!milestone) return;
+
+    const { progress, label } = milestone;
+    const pendingService = PendingRealtimeService.getInstance();
+    pendingService.emitJobProgress(
+      userId,
+      jobId,
+      pendingOrderId,
+      progress,
+      label,
+      operationCategory,
+      metadata,
+    );
   }
 
   /**
@@ -185,7 +242,7 @@ export class QueueManager {
     // Track this operation for graceful shutdown
     return operationTracker.track(async () => {
       const startTime = Date.now();
-      const { orderData, userId, username } = job.data;
+      const { orderData, userId, username, pendingOrderId } = job.data;
 
       // Acquisisci il lock per ordini con priorità assoluta (blocca sync)
       if (this.onOrderStart) {
@@ -276,6 +333,17 @@ export class QueueManager {
 
         // Bot already logged in during initialize()
         // No need to call login() again
+
+        // Set progress callback
+        bot.setProgressCallback(
+          async (operationCategory: string, metadata?: Record<string, any>) => {
+            await this.broadcastJobProgress(
+              job.id!,
+              operationCategory,
+              metadata,
+            );
+          },
+        );
 
         // Aggiorna progress
         await job.updateProgress(25);
@@ -403,6 +471,16 @@ export class QueueManager {
 
         const duration = Date.now() - startTime;
 
+        // Broadcast JOB_COMPLETED
+        const pendingService = PendingRealtimeService.getInstance();
+        pendingService.emitJobCompleted(
+          userId,
+          job.id!,
+          pendingOrderId,
+          orderId,
+          duration,
+        );
+
         logger.info(`📋 QUEUE: FINE processamento ordine`, {
           orderId,
           duration: `${(duration / 1000).toFixed(2)}s`,
@@ -423,6 +501,17 @@ export class QueueManager {
         if (bot) {
           (bot as any).hasError = true;
         }
+
+        // Broadcast JOB_FAILED
+        const pendingService = PendingRealtimeService.getInstance();
+        pendingService.emitJobFailed(
+          userId,
+          job.id!,
+          pendingOrderId,
+          error instanceof Error ? error.message : String(error),
+          "order_creation",
+        );
+
         logger.error("Errore durante creazione ordine", {
           error,
           jobId: job.id,
@@ -440,6 +529,9 @@ export class QueueManager {
           });
         }
 
+        // Unlink job
+        this.unlinkJobFromPending(job.id!);
+
         // Rilascia il lock degli ordini
         if (this.onOrderEnd) {
           this.onOrderEnd();
@@ -454,6 +546,7 @@ export class QueueManager {
   async addOrder(
     orderData: OrderData,
     userId: string,
+    pendingOrderId: string,
   ): Promise<Job<OrderJobData, OrderJobResult>> {
     // Get username from userId
     const username = await this.getUsernameFromId(userId);
@@ -465,6 +558,7 @@ export class QueueManager {
         userId,
         username,
         timestamp: Date.now(),
+        pendingOrderId,
       },
       {
         attempts: 1, // No automatic retries: failures are deterministic
@@ -477,8 +571,16 @@ export class QueueManager {
       },
     );
 
+    // Link job to pending
+    this.linkJobToPending(job.id!, userId, pendingOrderId);
+
+    // Broadcast JOB_STARTED
+    const pendingService = PendingRealtimeService.getInstance();
+    pendingService.emitJobStarted(userId, job.id!, pendingOrderId);
+
     logger.info(`📋 QUEUE: Ordine aggiunto alla coda`, {
       jobId: job.id,
+      pendingOrderId,
       userId,
       username,
       customerName: orderData.customerName,
@@ -632,10 +734,10 @@ export class QueueManager {
       }
 
       // Extract original job data
-      const { orderData, userId, username } = job.data;
+      const { orderData, userId, username, pendingOrderId } = job.data;
 
       // Create new job with same data
-      const newJob = await this.addOrder(orderData, userId);
+      const newJob = await this.addOrder(orderData, userId, pendingOrderId);
 
       // Remove old failed job
       await job.remove();

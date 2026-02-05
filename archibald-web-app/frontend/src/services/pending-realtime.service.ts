@@ -90,6 +90,38 @@ interface PendingSubmittedPayload {
   timestamp: string;
 }
 
+interface JobStartedPayload {
+  jobId: string;
+  pendingOrderId: string;
+  timestamp: string;
+}
+
+interface JobProgressPayload {
+  jobId: string;
+  pendingOrderId: string;
+  progress: number;
+  operation: string;
+  operationCategory: string;
+  metadata?: Record<string, any>;
+  timestamp: string;
+}
+
+interface JobCompletedPayload {
+  jobId: string;
+  pendingOrderId: string;
+  orderId: string;
+  duration: number;
+  timestamp: string;
+}
+
+interface JobFailedPayload {
+  jobId: string;
+  pendingOrderId: string;
+  error: string;
+  failedAt: string;
+  timestamp: string;
+}
+
 /**
  * Event handler type for pending order updates
  */
@@ -402,6 +434,140 @@ export class PendingRealtimeService {
   }
 
   /**
+   * Handle JOB_STARTED event (Phase 72: Real-time job progress)
+   */
+  public async handleJobStarted(payload: unknown): Promise<void> {
+    try {
+      const data = payload as JobStartedPayload;
+
+      const existing = await db.pendingOrders.get(data.pendingOrderId);
+      if (!existing) {
+        console.warn(
+          `[PendingRealtime] Pending order not found: ${data.pendingOrderId}`,
+        );
+        return;
+      }
+
+      await db.pendingOrders.put({
+        ...existing,
+        jobId: data.jobId,
+        jobStatus: "started",
+        jobProgress: 0,
+        jobOperation: "Preparazione in corso...",
+        jobStartedAt: data.timestamp,
+        updatedAt: new Date().toISOString(),
+        serverUpdatedAt: new Date(data.timestamp).getTime(),
+      });
+
+      console.log(`[PendingRealtime] JOB_STARTED applied`, {
+        pendingOrderId: data.pendingOrderId,
+      });
+      this.notifyUpdate();
+    } catch (error) {
+      console.error("[PendingRealtime] Error handling JOB_STARTED:", error);
+    }
+  }
+
+  /**
+   * Handle JOB_PROGRESS event (Phase 72: Real-time job progress)
+   */
+  public async handleJobProgress(payload: unknown): Promise<void> {
+    try {
+      const data = payload as JobProgressPayload;
+
+      const existing = await db.pendingOrders.get(data.pendingOrderId);
+      if (!existing) return;
+
+      await db.pendingOrders.put({
+        ...existing,
+        jobStatus: "processing",
+        jobProgress: data.progress,
+        jobOperation: data.operation,
+        updatedAt: new Date().toISOString(),
+        serverUpdatedAt: new Date(data.timestamp).getTime(),
+      });
+
+      console.log(`[PendingRealtime] JOB_PROGRESS`, {
+        progress: data.progress,
+      });
+      this.notifyUpdate();
+    } catch (error) {
+      console.error("[PendingRealtime] Error handling JOB_PROGRESS:", error);
+    }
+  }
+
+  /**
+   * Handle JOB_COMPLETED event (Phase 72: Real-time job progress)
+   */
+  public async handleJobCompleted(payload: unknown): Promise<void> {
+    try {
+      const data = payload as JobCompletedPayload;
+
+      const existing = await db.pendingOrders.get(data.pendingOrderId);
+      if (!existing) return;
+
+      await db.pendingOrders.put({
+        ...existing,
+        jobStatus: "completed",
+        jobProgress: 100,
+        jobOperation: "Ordine creato con successo",
+        jobOrderId: data.orderId,
+        jobCompletedAt: data.timestamp,
+        updatedAt: new Date().toISOString(),
+        serverUpdatedAt: new Date(data.timestamp).getTime(),
+      });
+
+      console.log(`[PendingRealtime] JOB_COMPLETED`, {
+        orderId: data.orderId,
+      });
+      this.notifyUpdate();
+
+      // Auto-dismiss after 4 seconds
+      setTimeout(async () => {
+        try {
+          await db.pendingOrders.delete(data.pendingOrderId);
+          console.log(
+            `[PendingRealtime] Auto-dismissed ${data.pendingOrderId}`,
+          );
+          this.notifyUpdate();
+        } catch (error) {
+          console.error("[PendingRealtime] Error auto-dismissing:", error);
+        }
+      }, 4000);
+    } catch (error) {
+      console.error("[PendingRealtime] Error handling JOB_COMPLETED:", error);
+    }
+  }
+
+  /**
+   * Handle JOB_FAILED event (Phase 72: Real-time job progress)
+   */
+  public async handleJobFailed(payload: unknown): Promise<void> {
+    try {
+      const data = payload as JobFailedPayload;
+
+      const existing = await db.pendingOrders.get(data.pendingOrderId);
+      if (!existing) return;
+
+      await db.pendingOrders.put({
+        ...existing,
+        jobStatus: "failed",
+        jobError: data.error,
+        jobOperation: "Errore durante elaborazione",
+        status: "error",
+        errorMessage: data.error,
+        updatedAt: new Date().toISOString(),
+        serverUpdatedAt: new Date(data.timestamp).getTime(),
+      });
+
+      console.log(`[PendingRealtime] JOB_FAILED`, { error: data.error });
+      this.notifyUpdate();
+    } catch (error) {
+      console.error("[PendingRealtime] Error handling JOB_FAILED:", error);
+    }
+  }
+
+  /**
    * Initialize WebSocket subscriptions
    */
   public initializeSubscriptions(
@@ -434,7 +600,23 @@ export class PendingRealtimeService {
       ),
     );
 
-    console.log("[PendingRealtime] WebSocket subscriptions initialized");
+    // NEW: Job progress subscriptions (Phase 72)
+    unsubscribers.push(
+      subscribe("JOB_STARTED", (payload) => this.handleJobStarted(payload)),
+    );
+    unsubscribers.push(
+      subscribe("JOB_PROGRESS", (payload) => this.handleJobProgress(payload)),
+    );
+    unsubscribers.push(
+      subscribe("JOB_COMPLETED", (payload) => this.handleJobCompleted(payload)),
+    );
+    unsubscribers.push(
+      subscribe("JOB_FAILED", (payload) => this.handleJobFailed(payload)),
+    );
+
+    console.log(
+      "[PendingRealtime] WebSocket subscriptions initialized (with job events)",
+    );
 
     // Return cleanup function
     return unsubscribers;

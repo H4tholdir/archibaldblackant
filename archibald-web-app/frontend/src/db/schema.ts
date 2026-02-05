@@ -112,6 +112,15 @@ export interface PendingOrder {
   needsSync: boolean;
   serverUpdatedAt?: number;
   originDraftId?: string; // 🔧 FIX: Track which draft this pending came from for server-side cascade deletion
+  // Job tracking fields (Phase 72: Real-time job progress)
+  jobId?: string;
+  jobStatus?: "idle" | "started" | "processing" | "completed" | "failed";
+  jobProgress?: number; // 0-100
+  jobOperation?: string; // Current operation (Italian)
+  jobError?: string;
+  jobStartedAt?: string;
+  jobCompletedAt?: string;
+  jobOrderId?: string; // Archibald order ID (on success)
 }
 
 // Cache metadata (track freshness)
@@ -563,6 +572,21 @@ export class ArchibaldDatabase extends Dexie {
       warehouseMetadata: "++id, uploadedAt",
     });
     // No upgrade needed - just removing indices, data remains unchanged
+
+    // Version 14: Add job tracking fields to pendingOrders (Phase 72: Real-time job progress)
+    this.version(14).stores({
+      customers: "id, name, code, city, *hash",
+      products: "id, name, article, *hash",
+      productVariants: "++id, productId, variantId",
+      prices: "++id, articleId, articleName",
+      draftOrders: "id, customerId, createdAt, updatedAt",
+      pendingOrders: "id, status, createdAt, updatedAt, jobId", // Add jobId index for querying
+      cacheMetadata: "key, lastSynced",
+      warehouseItems:
+        "++id, articleCode, boxName, reservedForOrder, soldInOrder",
+      warehouseMetadata: "++id, uploadedAt",
+    });
+    // No upgrade function needed - optional fields added to PendingOrder interface
   }
 }
 

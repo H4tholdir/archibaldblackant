@@ -9,7 +9,11 @@ export type PendingEventType =
   | "PENDING_CREATED"
   | "PENDING_UPDATED"
   | "PENDING_DELETED"
-  | "PENDING_SUBMITTED";
+  | "PENDING_SUBMITTED"
+  | "JOB_STARTED"
+  | "JOB_PROGRESS"
+  | "JOB_COMPLETED"
+  | "JOB_FAILED";
 
 /**
  * Pending order event payloads
@@ -87,6 +91,38 @@ export interface PendingSubmittedPayload {
   pendingOrderId: string;
   status: "syncing" | "completed-warehouse" | "error";
   errorMessage?: string;
+  timestamp: string;
+}
+
+export interface JobStartedPayload {
+  jobId: string;
+  pendingOrderId: string;
+  timestamp: string;
+}
+
+export interface JobProgressPayload {
+  jobId: string;
+  pendingOrderId: string;
+  progress: number;
+  operation: string;
+  operationCategory: string;
+  metadata?: Record<string, any>;
+  timestamp: string;
+}
+
+export interface JobCompletedPayload {
+  jobId: string;
+  pendingOrderId: string;
+  orderId: string;
+  duration: number;
+  timestamp: string;
+}
+
+export interface JobFailedPayload {
+  jobId: string;
+  pendingOrderId: string;
+  error: string;
+  failedAt: string;
   timestamp: string;
 }
 
@@ -262,5 +298,101 @@ export class PendingRealtimeService {
         error,
       });
     }
+  }
+
+  public emitJobStarted(
+    userId: string,
+    jobId: string,
+    pendingOrderId: string,
+  ): void {
+    const payload: JobStartedPayload = {
+      jobId,
+      pendingOrderId,
+      timestamp: new Date().toISOString(),
+    };
+    const event: WebSocketMessage = {
+      type: "JOB_STARTED",
+      payload,
+      timestamp: new Date().toISOString(),
+    };
+    this.wsService.broadcast(userId, event);
+    logger.debug("[PendingRealtime] JOB_STARTED broadcast", { userId, jobId });
+  }
+
+  public emitJobProgress(
+    userId: string,
+    jobId: string,
+    pendingOrderId: string,
+    progress: number,
+    operation: string,
+    operationCategory: string,
+    metadata?: Record<string, any>,
+  ): void {
+    const payload: JobProgressPayload = {
+      jobId,
+      pendingOrderId,
+      progress,
+      operation,
+      operationCategory,
+      metadata,
+      timestamp: new Date().toISOString(),
+    };
+    const event: WebSocketMessage = {
+      type: "JOB_PROGRESS",
+      payload,
+      timestamp: new Date().toISOString(),
+    };
+    this.wsService.broadcast(userId, event);
+    logger.debug("[PendingRealtime] JOB_PROGRESS", {
+      userId,
+      progress,
+      operation,
+    });
+  }
+
+  public emitJobCompleted(
+    userId: string,
+    jobId: string,
+    pendingOrderId: string,
+    orderId: string,
+    duration: number,
+  ): void {
+    const payload: JobCompletedPayload = {
+      jobId,
+      pendingOrderId,
+      orderId,
+      duration,
+      timestamp: new Date().toISOString(),
+    };
+    const event: WebSocketMessage = {
+      type: "JOB_COMPLETED",
+      payload,
+      timestamp: new Date().toISOString(),
+    };
+    this.wsService.broadcast(userId, event);
+    logger.info("[PendingRealtime] JOB_COMPLETED", { userId, orderId });
+  }
+
+  public emitJobFailed(
+    userId: string,
+    jobId: string,
+    pendingOrderId: string,
+    error: string,
+    failedAt: string,
+  ): void {
+    const payload: JobFailedPayload = {
+      jobId,
+      pendingOrderId,
+      error,
+      failedAt,
+      timestamp: new Date().toISOString(),
+    };
+    const event: WebSocketMessage = {
+      type: "JOB_FAILED",
+      payload,
+      timestamp: new Date().toISOString(),
+    };
+    this.wsService.broadcast(userId, event);
+    logger.error("[PendingRealtime] JOB_FAILED", { userId, error });
   }
 }

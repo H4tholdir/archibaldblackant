@@ -4240,7 +4240,12 @@ app.post(
         }
 
         // Aggiungi alla coda con userId
-        const job = await queueManager.addOrder(orderData, userId);
+        const pendingOrderId = crypto.randomUUID();
+        const job = await queueManager.addOrder(
+          orderData,
+          userId,
+          pendingOrderId,
+        );
 
         logger.info("✅ API: Ordine aggiunto alla coda con successo", {
           jobId: job.id,
