@@ -798,9 +798,38 @@ export default function OrderFormSimple() {
     // This automatically updates when drafts are created/deleted on other devices
     console.log("[OrderForm] Checking drafts from real-time hook:", {
       draftCount: draftOrders.length,
+      currentCustomerId: selectedCustomer?.id,
+      currentDraftId: draftId,
     });
 
     if (draftOrders.length > 0) {
+      // 🔧 CRITICAL FIX: Don't overwrite draftId if user is already working on an order
+      // This prevents switching to a different draft when WebSocket receives updates
+      if (selectedCustomer && draftId) {
+        // User is actively working - verify current draft still exists
+        const currentDraftExists = draftOrders.some(
+          (d) => d.id === draftId && d.customerId === selectedCustomer.id,
+        );
+
+        if (currentDraftExists) {
+          // Current draft is valid, keep it
+          console.log("[OrderForm] ✅ Current draft still valid, keeping it:", {
+            draftId,
+            customerId: selectedCustomer.id,
+          });
+          setHasDraft(true);
+          return;
+        } else {
+          // Current draft was deleted or is for different customer
+          console.log(
+            "[OrderForm] ⚠️ Current draft no longer valid, resetting:",
+            { draftId },
+          );
+          setDraftId(null);
+        }
+      }
+
+      // No customer selected or no current draft - show banner for latest draft
       const latestDraft = draftOrders[0]; // useDraftSync returns sorted by updatedAt DESC
       console.log("[OrderForm] ✅ Found latest draft:", {
         draftId: latestDraft.id,
@@ -813,7 +842,7 @@ export default function OrderFormSimple() {
       setHasDraft(false);
       setDraftId(null);
     }
-  }, [editingOrderId, draftOrders]);
+  }, [editingOrderId, draftOrders, selectedCustomer, draftId]);
 
   // === AUTO-SAVE DRAFT ON EVERY OPERATION ===
   // Save immediately when customer or items change
