@@ -971,6 +971,40 @@ export default function OrderFormSimple() {
     }
   };
 
+  // === RESET FORM (RICOMINCIA DA CAPO) ===
+  const handleResetForm = () => {
+    // Reset customer
+    setCustomerSearch("");
+    setCustomerResults([]);
+    setSelectedCustomer(null);
+    setSearchingCustomer(false);
+
+    // Reset product
+    setProductSearch("");
+    setProductResults([]);
+    setSelectedProduct(null);
+    setSearchingProduct(false);
+    setHighlightedProductIndex(-1);
+    setQuantity("");
+    setItemDiscount("");
+    setPackagingPreview(null);
+    setCalculatingPackaging(false);
+    setWarehouseSelection([]);
+    setProductVariants([]);
+
+    // Reset items
+    setItems([]);
+    setGlobalDiscountPercent("");
+    setTargetTotal("");
+
+    // Reset draft state
+    setHasDraft(false);
+    setDraftId(null);
+    setLastAutoSave(null);
+
+    toastService.success("Ordine resettato");
+  };
+
   // === ADD ITEM (WITH MULTIPLE LINES FOR VARIANTS) ===
   const handleAddItem = async () => {
     if (!selectedProduct) {
@@ -3112,26 +3146,24 @@ export default function OrderFormSimple() {
             {submitting ? "Salvataggio..." : "Salva in ordini in attesa"}
           </button>
 
-          {hasDraft && draftId && (
-            <button
-              onClick={handleDiscardDraft}
-              disabled={submitting}
-              style={{
-                padding: isMobile ? "1rem 2rem" : "1rem 2rem",
-                background: submitting ? "#d1d5db" : "#dc2626",
-                color: "white",
-                border: "none",
-                borderRadius: "8px",
-                fontSize: isMobile ? "1rem" : "1rem",
-                fontWeight: "600",
-                cursor: submitting ? "not-allowed" : "pointer",
-                width: isMobile ? "100%" : "auto",
-                minHeight: isMobile ? "52px" : "auto",
-              }}
-            >
-              🗑️ Cancella bozza
-            </button>
-          )}
+          <button
+            onClick={handleResetForm}
+            disabled={submitting}
+            style={{
+              padding: isMobile ? "1rem 2rem" : "1rem 2rem",
+              background: submitting ? "#d1d5db" : "#dc2626",
+              color: "white",
+              border: "none",
+              borderRadius: "8px",
+              fontSize: isMobile ? "1rem" : "1rem",
+              fontWeight: "600",
+              cursor: submitting ? "not-allowed" : "pointer",
+              width: isMobile ? "100%" : "auto",
+              minHeight: isMobile ? "52px" : "auto",
+            }}
+          >
+            🗑️ Cancella bozza
+          </button>
         </div>
       )}
     </div>
