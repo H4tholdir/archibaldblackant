@@ -48,7 +48,7 @@ None (full-stack web app con pattern standard)
 - [x] **Phase 29: WebSocket Server Infrastructure** - Setup Node.js WebSocket server con auth e connection manager ✅ COMPLETE
 - [x] **Phase 30: WebSocket Client & Auto-Reconnect** - Frontend client con reconnection automatica ed event handling ✅ COMPLETE
 - [x] **Phase 31: Draft Orders Real-Time Sync** - Migrazione draft da polling a WebSocket (CREATE/UPDATE/DELETE) ✅ COMPLETE
-- [ ] **Phase 32: Pending Orders Real-Time Sync** - Migrazione pending orders ed eliminazione UnifiedSyncService
+- [x] **Phase 32: Pending Orders Real-Time Sync** - Migrazione pending orders ed eliminazione UnifiedSyncService ✅ COMPLETE
 - [ ] **Phase 33: Direct Delete & Tombstone Removal** - Rimuovere tombstones, implementare direct DELETE
 - [ ] **Phase 34: E2E Testing & Multi-Device Validation** - Test suite completa e validazione multi-device
 - [ ] **Phase 35: Monitoring & Observability** - WebSocket health metrics e connection monitoring
@@ -122,14 +122,15 @@ Plans:
 Plans:
 - [x] 31-01: Draft WebSocket Events & Real-Time Sync — 5min ✅
 
-#### Phase 32: Pending Orders Real-Time Sync
+#### Phase 32: Pending Orders Real-Time Sync ✅ COMPLETE
 **Goal**: Migrare pending orders a WebSocket, eliminare UnifiedSyncService e polling periodico (15s)
 **Depends on**: Phase 31
 **Research**: Unlikely (following Phase 31 patterns)
-**Plans**: TBD
+**Plans**: 1/1 complete
+**Completed**: 2026-02-05
 
 Plans:
-- [ ] 32-01: TBD
+- [x] 32-01: Pending Orders WebSocket & Sync Elimination — 6min ✅
 
 #### Phase 33: Direct Delete & Tombstone Removal
 **Goal**: Rimuovere sistema tombstones, implementare direct DELETE, semplificare codice (eliminate ~500 righe)

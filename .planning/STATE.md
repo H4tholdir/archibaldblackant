@@ -5,23 +5,23 @@
 See: .planning/PROJECT.md (updated 2026-01-11)
 
 **Core value:** Rendere la creazione ordini Archibald **veloce, affidabile e mobile-friendly** per agenti in movimento
-**Current focus:** v3.0 WebSocket Real-Time Sync — Phase 31 complete
+**Current focus:** v3.0 WebSocket Real-Time Sync — Phase 32 complete
 
 ## Current Position
 
-Phase: 31 of 36 (Draft Orders Real-Time Sync)
+Phase: 32 of 36 (Pending Orders Real-Time Sync)
 Plan: 1 of 1 in current phase
 Status: Phase complete
-Last activity: 2026-02-05 - Completed 31-01-PLAN.md
+Last activity: 2026-02-05 - Completed 32-01-PLAN.md
 
-Progress: ███░░░░░░░ 37.5%
+Progress: ████░░░░░░ 50%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 114
-- Average duration: 46 min
-- Total execution time: 94.7 hours
+- Total plans completed: 115
+- Average duration: 45 min
+- Total execution time: 94.8 hours
 
 **By Phase:**
 
@@ -58,6 +58,7 @@ Progress: ███░░░░░░░ 37.5%
 | 29 | 1 | 8 min | 8 min |
 | 30 | 1 | 3 min | 3 min |
 | 31 | 1 | 5 min | 5 min |
+| 32 | 1 | 6 min | 6 min |
 
 **Recent Trend:**
 - Last 10 plans: 21-04 (90m), 21-05 (120m), 22-01 (15m), 22-02 (15m), 22-03 (30m), 23-01 (60m), 24-01 (15m), 25-01 (3m), 26-01 (25m), 27-01 (24m)
@@ -82,6 +83,9 @@ Recent decisions affecting current work:
 
 | Phase | Decision | Rationale |
 |-------|----------|-----------|
+| 32-01 | Periodic sync completely eliminated (startPeriodicSync disabled) | 100% real-time via WebSocket for drafts + pending, only warehouse uses HTTP polling (not in v3.0 scope) |
+| 32-01 | Bot coordination via PENDING_SUBMITTED events | Real-time status updates (syncing/completed/error), bot events always win (authoritative), enables real-time UI feedback |
+| 32-01 | UnifiedSyncService preserved for warehouse only | Warehouse HTTP polling maintained (Phase 32 scope: drafts + pending), complete service removal deferred |
 | 31-01 | Last-Write-Wins conflict resolution (serverUpdatedAt) | Simple and predictable, matches existing patterns, server timestamp authoritative, prevents clock skew |
 | 31-01 | Echo prevention via deviceId filtering | Local changes already applied optimistically, prevents double-updates, reduces IndexedDB writes |
 | 31-01 | Tombstone pattern preserved until Phase 33 | Backward compatibility with existing code, allows offline deletion sync, server-side cascade exists |
