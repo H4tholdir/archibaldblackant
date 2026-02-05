@@ -142,6 +142,14 @@ export function WebSocketProvider({ children }: WebSocketProviderProps) {
   const handleMessage = useCallback((event: MessageEvent) => {
     try {
       const message = JSON.parse(event.data) as WebSocketEvent;
+
+      // 🔍 DEBUG: Log ALL incoming WebSocket messages
+      console.log("[WebSocket] Received message:", {
+        type: message.type,
+        payload: message.payload,
+        timestamp: message.timestamp,
+      });
+
       const handlers = eventHandlersRef.current.get(message.type);
 
       if (handlers && handlers.size > 0) {
