@@ -111,10 +111,13 @@ export const uploadExcelVat = [
             timestamp: new Date().toISOString(),
           };
 
+          // Serialize once for all clients (broadcast optimization)
+          const message = JSON.stringify(invalidationEvent);
+
           let broadcastCount = 0;
           wssInstance.clients.forEach((client: WebSocket) => {
             if (client.readyState === WebSocket.OPEN) {
-              client.send(JSON.stringify(invalidationEvent));
+              client.send(message);
               broadcastCount++;
             }
           });
