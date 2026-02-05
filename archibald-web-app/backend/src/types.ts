@@ -109,3 +109,20 @@ export interface ProfilingData {
     errorMessage?: string;
   }>;
 }
+
+/**
+ * WebSocket message structure for real-time draft/pending operations
+ */
+export interface WebSocketMessage {
+  type: string;
+  payload: unknown;
+  timestamp: string;
+}
+
+/**
+ * WebSocket connection statistics
+ */
+export interface ConnectionStats {
+  totalConnections: number;
+  activeUsers: number;
+}
