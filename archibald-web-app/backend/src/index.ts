@@ -2,7 +2,6 @@ import express, { type Request, type Response } from "express";
 import cors from "cors";
 import helmet from "helmet";
 import { createServer } from "http";
-import { WebSocketServer } from "ws";
 import { EventEmitter } from "events";
 import fs from "fs";
 import path from "path";
@@ -94,11 +93,6 @@ import { WebSocketServerService } from "./websocket-server";
 
 const app = express();
 const server = createServer(app);
-export const wss = new WebSocketServer({ server, path: "/ws/sync" });
-
-// Make wss available to price-endpoints for cache invalidation broadcast
-import { setWssInstance } from "./price-endpoints";
-setWssInstance(wss);
 
 // Legacy progress emitter for backward compatibility (can be removed when all progress tracking migrated to orchestrator)
 const syncProgressEmitter = new EventEmitter();
@@ -413,40 +407,14 @@ app.use("/api/admin", adminRoutes);
 // Sync routes (multi-device sync for orders, drafts, warehouse)
 app.use("/api/sync", syncRoutes);
 
-// WebSocket per notifiche sync in real-time
-wss.on("connection", (ws) => {
-  logger.info("Client WebSocket connesso");
-
-  // Invia stato corrente di entrambi i sync
-  ws.send(JSON.stringify(syncService.getProgress()));
-  ws.send(JSON.stringify(productSyncService.getProgress()));
-
-  // Listener per aggiornamenti clienti
-  const customerProgressListener = (progress: SyncProgress) => {
-    ws.send(JSON.stringify(progress));
-  };
-
-  // Listener per aggiornamenti prodotti
-  const productProgressListener = (progress: SyncProgress) => {
-    ws.send(JSON.stringify(progress));
-  };
-
-  // Listener per aggiornamenti prezzi
-  const priceProgressListener = (progress: PriceSyncProgress) => {
-    ws.send(JSON.stringify(progress));
-  };
-
-  syncService.on("progress", customerProgressListener);
-  productSyncService.on("progress", productProgressListener);
-  priceSyncService.on("progress", priceProgressListener);
-
-  ws.on("close", () => {
-    logger.info("Client WebSocket disconnesso");
-    syncService.off("progress", customerProgressListener);
-    productSyncService.off("progress", productProgressListener);
-    priceSyncService.off("progress", priceProgressListener);
-  });
-});
+// LEGACY: Old WebSocket sync progress handler - REMOVED (2026-02-05)
+// This was part of the old /ws/sync endpoint for progress notifications.
+// SyncBanner has been disabled in frontend (commit 2e2cf6c) due to infinite reconnection loops.
+// Sync progress tracking is now handled via orchestrator (Phase 36).
+// Real-time draft/pending sync uses new WebSocketServerService on /ws/realtime.
+//
+// TODO: If sync progress UI is re-implemented, migrate to WebSocketServerService.broadcastToAll()
+// with proper event types (e.g., "sync_progress" events)
 
 // Health check
 app.get("/api/health", (req: Request, res: Response<ApiResponse>) => {

@@ -8,7 +8,7 @@
  */
 
 import { useState, useEffect, useCallback } from "react";
-import { useWebSocket } from "./useWebSocket";
+import { useWebSocketContext } from "../contexts/WebSocketContext";
 import { DraftRealtimeService } from "../services/draft-realtime.service";
 import { db } from "../db/schema";
 import type { DraftOrder } from "../db/schema";
@@ -29,7 +29,7 @@ export interface UseDraftSyncReturn {
  * ```
  */
 export function useDraftSync(): UseDraftSyncReturn {
-  const { state, subscribe } = useWebSocket();
+  const { state, subscribe } = useWebSocketContext();
   const [drafts, setDrafts] = useState<DraftOrder[]>([]);
   const [isSyncing, setIsSyncing] = useState<boolean>(false);
 

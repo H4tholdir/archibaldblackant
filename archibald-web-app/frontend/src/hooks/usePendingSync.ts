@@ -8,7 +8,7 @@
  */
 
 import { useState, useEffect, useCallback } from "react";
-import { useWebSocket } from "./useWebSocket";
+import { useWebSocketContext } from "../contexts/WebSocketContext";
 import { PendingRealtimeService } from "../services/pending-realtime.service";
 import { db } from "../db/schema";
 import type { PendingOrder } from "../db/schema";
@@ -29,7 +29,7 @@ export interface UsePendingSyncReturn {
  * ```
  */
 export function usePendingSync(): UsePendingSyncReturn {
-  const { state, subscribe } = useWebSocket();
+  const { state, subscribe } = useWebSocketContext();
   const [pendingOrders, setPendingOrders] = useState<PendingOrder[]>([]);
   const [isSyncing, setIsSyncing] = useState<boolean>(false);
 

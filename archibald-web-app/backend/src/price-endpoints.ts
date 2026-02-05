@@ -12,17 +12,11 @@ import { Request, Response } from "express";
 import multer from "multer";
 import path from "path";
 import fs from "fs";
-import { WebSocket } from "ws";
 import { ExcelVatImporter } from "./excel-vat-importer";
 import { PriceAuditHelper } from "./price-audit-helper";
 import { ProductDatabase } from "./product-db";
+import { WebSocketServerService } from "./websocket-server";
 import { logger } from "./logger";
-
-// WebSocket server instance (imported lazily to avoid circular dependency)
-let wssInstance: any = null;
-export function setWssInstance(wss: any) {
-  wssInstance = wss;
-}
 
 // Configure multer for file uploads
 const upload = multer({
@@ -99,33 +93,23 @@ export const uploadExcelVat = [
         logger.info(`✅ Excel import completed: ${result.matchedRows} matched`);
 
         // 🔔 Broadcast cache invalidation to all connected WebSocket clients
-        if (wssInstance && wssInstance.clients) {
-          const invalidationEvent = {
-            type: "cache_invalidation",
+        const wsService = WebSocketServerService.getInstance();
+        wsService.broadcastToAll({
+          type: "cache_invalidation",
+          payload: {
             target: "products",
             reason: "excel_import",
             importId: result.importId,
             matchedRows: result.matchedRows,
             vatUpdatedCount: result.vatUpdatedCount,
             priceUpdatedCount: result.priceUpdatedCount,
-            timestamp: new Date().toISOString(),
-          };
+          },
+          timestamp: new Date().toISOString(),
+        });
 
-          // Serialize once for all clients (broadcast optimization)
-          const message = JSON.stringify(invalidationEvent);
-
-          let broadcastCount = 0;
-          wssInstance.clients.forEach((client: WebSocket) => {
-            if (client.readyState === WebSocket.OPEN) {
-              client.send(message);
-              broadcastCount++;
-            }
-          });
-
-          logger.info(
-            `📡 Cache invalidation broadcast sent to ${broadcastCount} clients`,
-          );
-        }
+        logger.info(
+          "📡 Cache invalidation broadcast sent to all WebSocket clients",
+        );
 
         res.json({
           success: true,

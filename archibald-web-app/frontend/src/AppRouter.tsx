@@ -31,7 +31,7 @@ import { toastService } from "./services/toast.service";
 import { PrivacyProvider } from "./contexts/PrivacyContext";
 import { ImpersonationBanner } from "./components/ImpersonationBanner";
 import { AdminSessionBanner } from "./components/AdminSessionBanner";
-import WebSocketSync from "./components/WebSocketSync";
+import { WebSocketProvider } from "./contexts/WebSocketContext";
 // import { UnifiedSyncProgress } from "./components/UnifiedSyncProgress"; // Temporarily disabled
 
 function AppRouter() {
@@ -228,280 +228,281 @@ function AppRouter() {
   return (
     <PrivacyProvider>
       <BrowserRouter>
-        <ToastContainer
-          toasts={toasts}
-          onClose={(id) => toastService.remove(id)}
-        />
-        <OfflineBanner />
-        <OfflineSyncBanner />
-        <ImpersonationBanner />
-        <AdminSessionBanner />
-        {/* Unified sync progress - temporarily disabled due to SSE errors */}
-        {/* <UnifiedSyncProgress mode="banner" /> */}
-        {/* <UnifiedSyncProgress mode="badge" /> */}
-        {/* Global Dashboard Navigation */}
-        <DashboardNav />
-        {/* WebSocket Real-Time Sync (background, non-rendering) */}
-        {auth.isAuthenticated && <WebSocketSync />}
-        <Routes>
-          {/* Dashboard route */}
-          <Route
-            path="/"
-            element={
-              <div
-                className="app"
-                style={{ marginTop: isOffline ? "64px" : "0" }}
-              >
-                <SyncBanner />
-                <main className="app-main" style={{ padding: "0" }}>
-                  <Dashboard />
-                </main>
-                <footer className="app-footer">
-                  <p>
-                    v1.0.0 • Formicanera by Francesco Formicola
-                    {/* TODO: Add live sync progress bar here */}
-                  </p>
-                </footer>
-              </div>
-            }
+        {/* WebSocket Real-Time Sync - Singleton provider for entire app */}
+        <WebSocketProvider>
+          <ToastContainer
+            toasts={toasts}
+            onClose={(id) => toastService.remove(id)}
           />
-
-          {/* Admin-only route */}
-          {isAdmin && (
+          <OfflineBanner />
+          <OfflineSyncBanner />
+          <ImpersonationBanner />
+          <AdminSessionBanner />
+          {/* Unified sync progress - temporarily disabled due to SSE errors */}
+          {/* <UnifiedSyncProgress mode="banner" /> */}
+          {/* <UnifiedSyncProgress mode="badge" /> */}
+          {/* Global Dashboard Navigation */}
+          <DashboardNav />
+          <Routes>
+            {/* Dashboard route */}
             <Route
-              path="/admin"
+              path="/"
               element={
-                <AdminPage
-                  onLogout={auth.logout}
-                  userName={auth.user?.fullName || ""}
-                />
+                <div
+                  className="app"
+                  style={{ marginTop: isOffline ? "64px" : "0" }}
+                >
+                  <SyncBanner />
+                  <main className="app-main" style={{ padding: "0" }}>
+                    <Dashboard />
+                  </main>
+                  <footer className="app-footer">
+                    <p>
+                      v1.0.0 • Formicanera by Francesco Formicola
+                      {/* TODO: Add live sync progress bar here */}
+                    </p>
+                  </footer>
+                </div>
               }
             />
-          )}
 
-          {/* Pending Orders route */}
-          <Route
-            path="/pending"
-            element={
-              <div
-                className="app"
-                style={{ marginTop: isOffline ? "64px" : "0" }}
-              >
-                <SyncBanner />
-                <main className="app-main" style={{ padding: "0" }}>
-                  <PendingOrdersView />
-                </main>
-                <footer className="app-footer">
-                  <p>
-                    v1.0.0 • Formicanera by Francesco Formicola
-                    {/* TODO: Add live sync progress bar here */}
-                  </p>
-                </footer>
-              </div>
-            }
-          />
+            {/* Admin-only route */}
+            {isAdmin && (
+              <Route
+                path="/admin"
+                element={
+                  <AdminPage
+                    onLogout={auth.logout}
+                    userName={auth.user?.fullName || ""}
+                  />
+                }
+              />
+            )}
 
-          {/* Order History route */}
-          <Route
-            path="/orders"
-            element={
-              <div
-                className="app"
-                style={{ marginTop: isOffline ? "64px" : "0" }}
-              >
-                <SyncBanner />
-                <main className="app-main" style={{ padding: "0" }}>
-                  <OrderHistory />
-                </main>
-                <footer className="app-footer">
-                  <p>
-                    v1.0.0 • Formicanera by Francesco Formicola
-                    {/* TODO: Add live sync progress bar here */}
-                  </p>
-                </footer>
-              </div>
-            }
-          />
+            {/* Pending Orders route */}
+            <Route
+              path="/pending"
+              element={
+                <div
+                  className="app"
+                  style={{ marginTop: isOffline ? "64px" : "0" }}
+                >
+                  <SyncBanner />
+                  <main className="app-main" style={{ padding: "0" }}>
+                    <PendingOrdersView />
+                  </main>
+                  <footer className="app-footer">
+                    <p>
+                      v1.0.0 • Formicanera by Francesco Formicola
+                      {/* TODO: Add live sync progress bar here */}
+                    </p>
+                  </footer>
+                </div>
+              }
+            />
 
-          {/* Pending Orders Queue (New) */}
-          <Route
-            path="/pending-orders"
-            element={
-              <div
-                className="app"
-                style={{ marginTop: isOffline ? "64px" : "0" }}
-              >
-                <SyncBanner />
-                <main className="app-main" style={{ padding: "0" }}>
-                  <PendingOrdersPage />
-                </main>
-                <footer className="app-footer">
-                  <p>
-                    v1.0.0 • Formicanera by Francesco Formicola
-                    {/* TODO: Add live sync progress bar here */}
-                  </p>
-                </footer>
-              </div>
-            }
-          />
+            {/* Order History route */}
+            <Route
+              path="/orders"
+              element={
+                <div
+                  className="app"
+                  style={{ marginTop: isOffline ? "64px" : "0" }}
+                >
+                  <SyncBanner />
+                  <main className="app-main" style={{ padding: "0" }}>
+                    <OrderHistory />
+                  </main>
+                  <footer className="app-footer">
+                    <p>
+                      v1.0.0 • Formicanera by Francesco Formicola
+                      {/* TODO: Add live sync progress bar here */}
+                    </p>
+                  </footer>
+                </div>
+              }
+            />
 
-          {/* Customers route */}
-          <Route
-            path="/customers"
-            element={
-              <div
-                className="app"
-                style={{ marginTop: isOffline ? "64px" : "0" }}
-              >
-                <SyncBanner />
-                <main className="app-main" style={{ padding: "0" }}>
-                  <CustomerList />
-                </main>
-                <footer className="app-footer">
-                  <p>
-                    v1.0.0 • Formicanera by Francesco Formicola
-                    {/* TODO: Add live sync progress bar here */}
-                  </p>
-                </footer>
-              </div>
-            }
-          />
+            {/* Pending Orders Queue (New) */}
+            <Route
+              path="/pending-orders"
+              element={
+                <div
+                  className="app"
+                  style={{ marginTop: isOffline ? "64px" : "0" }}
+                >
+                  <SyncBanner />
+                  <main className="app-main" style={{ padding: "0" }}>
+                    <PendingOrdersPage />
+                  </main>
+                  <footer className="app-footer">
+                    <p>
+                      v1.0.0 • Formicanera by Francesco Formicola
+                      {/* TODO: Add live sync progress bar here */}
+                    </p>
+                  </footer>
+                </div>
+              }
+            />
 
-          {/* Customer Edit route */}
-          <Route
-            path="/customers/:customerProfile/edit"
-            element={
-              <div
-                className="app"
-                style={{ marginTop: isOffline ? "64px" : "0" }}
-              >
-                <SyncBanner />
-                <main className="app-main" style={{ padding: "0" }}>
-                  <CustomerEdit />
-                </main>
-                <footer className="app-footer">
-                  <p>
-                    v1.0.0 • Formicanera by Francesco Formicola
-                    {/* TODO: Add live sync progress bar here */}
-                  </p>
-                </footer>
-              </div>
-            }
-          />
+            {/* Customers route */}
+            <Route
+              path="/customers"
+              element={
+                <div
+                  className="app"
+                  style={{ marginTop: isOffline ? "64px" : "0" }}
+                >
+                  <SyncBanner />
+                  <main className="app-main" style={{ padding: "0" }}>
+                    <CustomerList />
+                  </main>
+                  <footer className="app-footer">
+                    <p>
+                      v1.0.0 • Formicanera by Francesco Formicola
+                      {/* TODO: Add live sync progress bar here */}
+                    </p>
+                  </footer>
+                </div>
+              }
+            />
 
-          {/* Products route */}
-          <Route
-            path="/products"
-            element={
-              <div
-                className="app"
-                style={{ marginTop: isOffline ? "64px" : "0" }}
-              >
-                <SyncBanner />
-                <main className="app-main" style={{ padding: "0" }}>
-                  <ArticoliList />
-                </main>
-                <footer className="app-footer">
-                  <p>
-                    v1.0.0 • Formicanera by Francesco Formicola
-                    {/* TODO: Add live sync progress bar here */}
-                  </p>
-                </footer>
-              </div>
-            }
-          />
+            {/* Customer Edit route */}
+            <Route
+              path="/customers/:customerProfile/edit"
+              element={
+                <div
+                  className="app"
+                  style={{ marginTop: isOffline ? "64px" : "0" }}
+                >
+                  <SyncBanner />
+                  <main className="app-main" style={{ padding: "0" }}>
+                    <CustomerEdit />
+                  </main>
+                  <footer className="app-footer">
+                    <p>
+                      v1.0.0 • Formicanera by Francesco Formicola
+                      {/* TODO: Add live sync progress bar here */}
+                    </p>
+                  </footer>
+                </div>
+              }
+            />
 
-          {/* Profile route */}
-          <Route
-            path="/profile"
-            element={
-              <div
-                className="app"
-                style={{ marginTop: isOffline ? "64px" : "0" }}
-              >
-                <SyncBanner />
-                <main className="app-main" style={{ padding: "0" }}>
-                  <ProfilePage />
-                </main>
-                <footer className="app-footer">
-                  <p>
-                    v1.0.0 • Formicanera by Francesco Formicola
-                    {/* TODO: Add live sync progress bar here */}
-                  </p>
-                </footer>
-              </div>
-            }
-          />
+            {/* Products route */}
+            <Route
+              path="/products"
+              element={
+                <div
+                  className="app"
+                  style={{ marginTop: isOffline ? "64px" : "0" }}
+                >
+                  <SyncBanner />
+                  <main className="app-main" style={{ padding: "0" }}>
+                    <ArticoliList />
+                  </main>
+                  <footer className="app-footer">
+                    <p>
+                      v1.0.0 • Formicanera by Francesco Formicola
+                      {/* TODO: Add live sync progress bar here */}
+                    </p>
+                  </footer>
+                </div>
+              }
+            />
 
-          {/* Price Variations route */}
-          <Route
-            path="/prezzi-variazioni"
-            element={
-              <div
-                className="app"
-                style={{ marginTop: isOffline ? "64px" : "0" }}
-              >
-                <SyncBanner />
-                <main className="app-main" style={{ padding: "0" }}>
-                  <PriceVariationsPage />
-                </main>
-                <footer className="app-footer">
-                  <p>
-                    v1.0.0 • Formicanera by Francesco Formicola
-                    {/* TODO: Add live sync progress bar here */}
-                  </p>
-                </footer>
-              </div>
-            }
-          />
+            {/* Profile route */}
+            <Route
+              path="/profile"
+              element={
+                <div
+                  className="app"
+                  style={{ marginTop: isOffline ? "64px" : "0" }}
+                >
+                  <SyncBanner />
+                  <main className="app-main" style={{ padding: "0" }}>
+                    <ProfilePage />
+                  </main>
+                  <footer className="app-footer">
+                    <p>
+                      v1.0.0 • Formicanera by Francesco Formicola
+                      {/* TODO: Add live sync progress bar here */}
+                    </p>
+                  </footer>
+                </div>
+              }
+            />
 
-          {/* New Order Form route (Phase 28.2 rewrite) */}
-          <Route
-            path="/order"
-            element={
-              <div
-                className="app"
-                style={{ marginTop: isOffline ? "64px" : "0" }}
-              >
-                <SyncBanner />
-                <main className="app-main" style={{ padding: "0" }}>
-                  <OrderFormNew />
-                </main>
-                <footer className="app-footer">
-                  <p>
-                    v1.0.0 • Formicanera by Francesco Formicola
-                    {/* TODO: Add live sync progress bar here */}
-                  </p>
-                </footer>
-              </div>
-            }
-          />
+            {/* Price Variations route */}
+            <Route
+              path="/prezzi-variazioni"
+              element={
+                <div
+                  className="app"
+                  style={{ marginTop: isOffline ? "64px" : "0" }}
+                >
+                  <SyncBanner />
+                  <main className="app-main" style={{ padding: "0" }}>
+                    <PriceVariationsPage />
+                  </main>
+                  <footer className="app-footer">
+                    <p>
+                      v1.0.0 • Formicanera by Francesco Formicola
+                      {/* TODO: Add live sync progress bar here */}
+                    </p>
+                  </footer>
+                </div>
+              }
+            />
 
-          {/* Warehouse Management route - Upload Excel */}
-          <Route
-            path="/warehouse-management"
-            element={
-              <div
-                className="app"
-                style={{ marginTop: isOffline ? "64px" : "0" }}
-              >
-                <SyncBanner />
-                <main className="app-main" style={{ padding: "0" }}>
-                  <WarehouseManagementView />
-                </main>
-                <footer className="app-footer">
-                  <p>
-                    v1.0.0 • Formicanera by Francesco Formicola
-                    {/* TODO: Add live sync progress bar here */}
-                  </p>
-                </footer>
-              </div>
-            }
-          />
+            {/* New Order Form route (Phase 28.2 rewrite) */}
+            <Route
+              path="/order"
+              element={
+                <div
+                  className="app"
+                  style={{ marginTop: isOffline ? "64px" : "0" }}
+                >
+                  <SyncBanner />
+                  <main className="app-main" style={{ padding: "0" }}>
+                    <OrderFormNew />
+                  </main>
+                  <footer className="app-footer">
+                    <p>
+                      v1.0.0 • Formicanera by Francesco Formicola
+                      {/* TODO: Add live sync progress bar here */}
+                    </p>
+                  </footer>
+                </div>
+              }
+            />
 
-          {/* Redirect unknown routes */}
-          <Route path="*" element={<Navigate to="/" replace />} />
-        </Routes>
+            {/* Warehouse Management route - Upload Excel */}
+            <Route
+              path="/warehouse-management"
+              element={
+                <div
+                  className="app"
+                  style={{ marginTop: isOffline ? "64px" : "0" }}
+                >
+                  <SyncBanner />
+                  <main className="app-main" style={{ padding: "0" }}>
+                    <WarehouseManagementView />
+                  </main>
+                  <footer className="app-footer">
+                    <p>
+                      v1.0.0 • Formicanera by Francesco Formicola
+                      {/* TODO: Add live sync progress bar here */}
+                    </p>
+                  </footer>
+                </div>
+              }
+            />
+
+            {/* Redirect unknown routes */}
+            <Route path="*" element={<Navigate to="/" replace />} />
+          </Routes>
+        </WebSocketProvider>
       </BrowserRouter>
     </PrivacyProvider>
   );
