@@ -212,6 +212,9 @@ export default function OrderFormSimple() {
   // 🔧 FIX: Prevent concurrent draft saves that create duplicates
   const savingDraftRef = useRef(false);
 
+  // 🔧 FIX: Prevent draft recreation after user explicitly deletes it
+  const draftDeletedRef = useRef(false);
+
   // Refs for focus management
   const productSearchInputRef = useRef<HTMLInputElement>(null);
   const quantityInputRef = useRef<HTMLInputElement>(null);
@@ -873,12 +876,13 @@ export default function OrderFormSimple() {
       window.removeEventListener("beforeunload", handleBeforeUnload);
       window.removeEventListener("visibilitychange", handleVisibilityChange);
 
-      // 🔧 CRITICAL FIX: Don't save draft if order was just finalized to prevent recreation
-      // Using ref instead of state ensures synchronous check - no race condition with navigate()
+      // 🔧 CRITICAL FIX: Don't save draft if order was just finalized or deleted
+      // Using refs instead of state ensures synchronous check - no race condition with navigate()
       if (
         selectedCustomer &&
         !editingOrderId &&
-        !orderSavedSuccessfullyRef.current
+        !orderSavedSuccessfullyRef.current &&
+        !draftDeletedRef.current
       ) {
         saveDraft();
       }
@@ -964,6 +968,8 @@ export default function OrderFormSimple() {
       await orderService.deleteDraftOrder(draftId);
       setHasDraft(false);
       setDraftId(null);
+      // 🔧 FIX: Prevent unmount handler from recreating draft after explicit delete
+      draftDeletedRef.current = true;
       toastService.success("Bozza eliminata");
     } catch (error) {
       console.error("[OrderForm] Failed to discard draft:", error);
