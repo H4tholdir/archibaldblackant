@@ -90,7 +90,7 @@ export default function OrderFormSimple() {
   const [searchParams] = useSearchParams();
 
   // 🔧 FIX: Use useDraftSync hook to get real-time draft updates via WebSocket
-  const { drafts: draftOrders } = useDraftSync();
+  const { drafts: draftOrders, refetch: refetchDrafts } = useDraftSync();
 
   // Responsive design: detect mobile
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
@@ -992,6 +992,24 @@ export default function OrderFormSimple() {
       setItems(recoveredItems);
       setHasDraft(false);
 
+      // 🔧 CRITICAL FIX: Delete all OTHER drafts for this customer
+      // This prevents banner from reappearing when there are duplicate drafts from other devices
+      const otherDrafts = draftOrders.filter(
+        (d) => d.customerId === draft.customerId && d.id !== draftId,
+      );
+
+      if (otherDrafts.length > 0) {
+        console.log(
+          `[OrderForm] Deleting ${otherDrafts.length} other drafts for customer ${draft.customerId}`,
+        );
+        await Promise.all(
+          otherDrafts.map((d) => orderService.deleteDraftOrder(d.id!)),
+        );
+        // Force refetch to update draftOrders
+        await refetchDrafts();
+        console.log("[OrderForm] Other drafts deleted and refetched");
+      }
+
       toastService.success("Bozza recuperata con successo!");
     } catch (error) {
       console.error("[OrderForm] Failed to recover draft:", error);
@@ -1012,6 +1030,12 @@ export default function OrderFormSimple() {
       await Promise.all(
         draftOrders.map((draft) => orderService.deleteDraftOrder(draft.id!)),
       );
+
+      // 🔧 CRITICAL FIX: Force immediate refetch to update draftOrders
+      // This prevents banner from reappearing due to stale draftOrders state
+      console.log("[OrderForm] Forcing refetch after draft deletion");
+      await refetchDrafts();
+      console.log("[OrderForm] Refetch completed");
 
       setHasDraft(false);
       setDraftId(null);
