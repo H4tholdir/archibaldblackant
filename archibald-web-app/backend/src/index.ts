@@ -6107,9 +6107,6 @@ server.listen(config.server.port, async () => {
   logger.info(`🚀 Server avviato su http://localhost:${config.server.port}`);
   logger.info(`📝 Environment: ${config.server.nodeEnv}`);
   logger.info(`🎯 Archibald URL: ${config.archibald.url}`);
-  logger.info(
-    `🔌 WebSocket disponibile su ws://localhost:${config.server.port}/ws/sync`,
-  );
 
   // Initialize WebSocket server for real-time draft/pending operations
   try {
