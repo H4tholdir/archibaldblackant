@@ -120,7 +120,13 @@ export class CustomerDatabase {
         botStatus TEXT DEFAULT 'placed'
       );
 
-      -- Performance Indexes
+    `);
+
+    // Migration: Add new columns if they don't exist (backward compatibility)
+    // MUST run before index creation so columns exist for existing databases
+    this.migrateSchema();
+
+    this.db.exec(`
       CREATE INDEX IF NOT EXISTS idx_customers_name ON customers(name);
       CREATE INDEX IF NOT EXISTS idx_customers_hash ON customers(hash);
       CREATE INDEX IF NOT EXISTS idx_customers_lastSync ON customers(lastSync);
@@ -131,9 +137,6 @@ export class CustomerDatabase {
       CREATE INDEX IF NOT EXISTS idx_customers_lastOrderDate ON customers(lastOrderDate);
       CREATE INDEX IF NOT EXISTS idx_customers_botStatus ON customers(botStatus);
     `);
-
-    // Migration: Add new columns if they don't exist (backward compatibility)
-    this.migrateSchema();
 
     logger.info("Customer database schema initialized");
   }
