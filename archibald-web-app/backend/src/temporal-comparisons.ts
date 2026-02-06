@@ -252,7 +252,9 @@ export function calculateRevenueInRange(
 }
 
 /**
- * Calculate current month revenue (from start of month to now)
+ * Calculate current month revenue (from start of month to end of today)
+ * Uses end-of-day (23:59:59) instead of exact current time to ensure
+ * all orders created today are always included in the calculation.
  * @param excludeFromMonthly - If true, excludes orders marked as excluded_from_monthly
  */
 export function calculateCurrentMonthRevenue(
@@ -262,7 +264,15 @@ export function calculateCurrentMonthRevenue(
 ): number {
   const now = new Date();
   const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
-  return calculateRevenueInRange(db, userId, monthStart, now, {
+  const endOfToday = new Date(
+    now.getFullYear(),
+    now.getMonth(),
+    now.getDate(),
+    23,
+    59,
+    59,
+  );
+  return calculateRevenueInRange(db, userId, monthStart, endOfToday, {
     excludeFromMonthly,
   });
 }
@@ -305,7 +315,9 @@ export function calculateSameMonthLastYearRevenue(
 }
 
 /**
- * Calculate current year revenue (from Jan 1 to now)
+ * Calculate current year revenue (from Jan 1 to end of today)
+ * Uses end-of-day (23:59:59) instead of exact current time to ensure
+ * all orders created today are always included in the calculation.
  * @param excludeFromYearly - If true, excludes orders marked as excluded_from_yearly
  */
 export function calculateCurrentYearRevenue(
@@ -315,7 +327,15 @@ export function calculateCurrentYearRevenue(
 ): number {
   const now = new Date();
   const yearStart = getCurrentYearStart();
-  return calculateRevenueInRange(db, userId, yearStart, now, {
+  const endOfToday = new Date(
+    now.getFullYear(),
+    now.getMonth(),
+    now.getDate(),
+    23,
+    59,
+    59,
+  );
+  return calculateRevenueInRange(db, userId, yearStart, endOfToday, {
     excludeFromYearly,
   });
 }
