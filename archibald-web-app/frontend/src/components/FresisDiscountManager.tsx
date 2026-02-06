@@ -23,7 +23,15 @@ export function FresisDiscountManager() {
       const buffer = await file.arrayBuffer();
       const workbook = XLSX.read(buffer, { type: "array" });
       const sheet = workbook.Sheets[workbook.SheetNames[0]];
-      const rows = XLSX.utils.sheet_to_json<Record<string, any>>(sheet);
+      const rawRows = XLSX.utils.sheet_to_json<Record<string, any>>(sheet);
+
+      const rows = rawRows.map((row) => {
+        const trimmed: Record<string, any> = {};
+        for (const key of Object.keys(row)) {
+          trimmed[key.trim()] = row[key];
+        }
+        return trimmed;
+      });
 
       const parsed: FresisArticleDiscount[] = [];
 
