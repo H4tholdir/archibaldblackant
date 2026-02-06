@@ -77,16 +77,9 @@ export function ForecastWidgetNew({ data }: ForecastWidgetNewProps) {
             marginBottom: "24px",
           }}
         >
-          <div
-            style={{
-              display: "flex",
-              justifyContent: "space-between",
-              alignItems: "flex-start",
-              marginBottom: "16px",
-            }}
-          >
+          <div className="forecast-timeline" style={{ marginBottom: "16px" }}>
             {/* OGGI */}
-            <div style={{ flex: 1, textAlign: "center" }}>
+            <div className="forecast-step" style={{ textAlign: "center" }}>
               <div
                 style={{
                   fontSize: "12px",
@@ -98,13 +91,7 @@ export function ForecastWidgetNew({ data }: ForecastWidgetNewProps) {
               >
                 OGGI
               </div>
-              <div
-                style={{
-                  fontSize: "24px",
-                  fontWeight: "bold",
-                  color: "#3498db",
-                }}
-              >
+              <div className="forecast-step-value" style={{ color: "#3498db" }}>
                 {maskValue(data.currentMonthRevenue, "money")}
               </div>
               <div
@@ -115,20 +102,10 @@ export function ForecastWidgetNew({ data }: ForecastWidgetNewProps) {
             </div>
 
             {/* Arrow */}
-            <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-                padding: "0 20px",
-                fontSize: "24px",
-                color: "#95a5a6",
-              }}
-            >
-              →
-            </div>
+            <div className="forecast-arrow">→</div>
 
             {/* PROIEZIONE */}
-            <div style={{ flex: 1, textAlign: "center" }}>
+            <div className="forecast-step" style={{ textAlign: "center" }}>
               <div
                 style={{
                   fontSize: "12px",
@@ -141,11 +118,8 @@ export function ForecastWidgetNew({ data }: ForecastWidgetNewProps) {
                 PROIEZIONE
               </div>
               <div
-                style={{
-                  fontSize: "24px",
-                  fontWeight: "bold",
-                  color: willReachTarget ? "#27ae60" : "#e67e22",
-                }}
+                className="forecast-step-value"
+                style={{ color: willReachTarget ? "#27ae60" : "#e67e22" }}
               >
                 {maskValue(data.projectedMonthRevenue, "money")}
               </div>
@@ -157,20 +131,10 @@ export function ForecastWidgetNew({ data }: ForecastWidgetNewProps) {
             </div>
 
             {/* Arrow */}
-            <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-                padding: "0 20px",
-                fontSize: "24px",
-                color: "#95a5a6",
-              }}
-            >
-              →
-            </div>
+            <div className="forecast-arrow">→</div>
 
             {/* TARGET */}
-            <div style={{ flex: 1, textAlign: "center" }}>
+            <div className="forecast-step" style={{ textAlign: "center" }}>
               <div
                 style={{
                   fontSize: "12px",
@@ -182,13 +146,7 @@ export function ForecastWidgetNew({ data }: ForecastWidgetNewProps) {
               >
                 TARGET
               </div>
-              <div
-                style={{
-                  fontSize: "24px",
-                  fontWeight: "bold",
-                  color: "#2c3e50",
-                }}
-              >
+              <div className="forecast-step-value" style={{ color: "#2c3e50" }}>
                 {maskValue(data.monthlyTarget, "money")}
               </div>
               <div
@@ -417,13 +375,51 @@ export function ForecastWidgetNew({ data }: ForecastWidgetNewProps) {
 
       {/* Responsive styles */}
       <style>{`
-        @media (max-width: 768px) {
+        .forecast-timeline {
+          display: flex;
+          justify-content: space-between;
+          align-items: flex-start;
+        }
+        .forecast-step {
+          flex: 1;
+          min-width: 0;
+        }
+        .forecast-step-value {
+          font-size: 24px;
+          font-weight: bold;
+          word-break: break-word;
+          overflow-wrap: break-word;
+        }
+        .forecast-arrow {
+          display: flex;
+          align-items: center;
+          padding: 0 12px;
+          font-size: 24px;
+          color: #95a5a6;
+          flex-shrink: 0;
+        }
+        @media (max-width: 640px) {
           .forecast-timeline {
             flex-direction: column !important;
-            gap: 20px !important;
+            align-items: stretch !important;
+            gap: 4px !important;
+          }
+          .forecast-step {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            text-align: left !important;
+            padding: 10px 0;
+            border-bottom: 1px solid #eee;
+          }
+          .forecast-step:last-child {
+            border-bottom: none;
+          }
+          .forecast-step-value {
+            font-size: 20px !important;
           }
           .forecast-arrow {
-            transform: rotate(90deg);
+            display: none !important;
           }
         }
       `}</style>

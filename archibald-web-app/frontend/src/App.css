@@ -2101,8 +2101,11 @@
 
 /* Privacy blur effect for widgets */
 .privacy-blur {
-  filter: blur(8px);
-  transition: filter 0.3s ease;
+  filter: blur(12px);
+  opacity: 0.85;
+  transition:
+    filter 0.3s ease,
+    opacity 0.3s ease;
   user-select: none;
   pointer-events: none;
 }

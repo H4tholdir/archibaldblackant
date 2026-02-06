@@ -1,5 +1,6 @@
 import { useNavigate } from "react-router-dom";
 import type { OrdersMetrics } from "../types/dashboard";
+import { usePrivacy } from "../contexts/PrivacyContext";
 
 interface OrdersSummaryWidgetNewProps {
   data: OrdersMetrics;
@@ -169,6 +170,7 @@ function SummaryCard({
 
 export function OrdersSummaryWidgetNew({ data }: OrdersSummaryWidgetNewProps) {
   const navigate = useNavigate();
+  const { privacyEnabled } = usePrivacy();
 
   const handleTodayClick = () => {
     navigate("/orders?filter=today");
@@ -229,7 +231,7 @@ export function OrdersSummaryWidgetNew({ data }: OrdersSummaryWidgetNewProps) {
           display: "flex",
           gap: "20px",
         }}
-        className="orders-summary-cards"
+        className={`orders-summary-cards ${privacyEnabled ? "privacy-blur" : ""}`}
       >
         {/* Card 1: Oggi */}
         <SummaryCard

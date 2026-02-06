@@ -129,19 +129,6 @@ export function HeroStatusWidgetNew({ data }: HeroStatusWidgetNewProps) {
         overflow: "visible",
       }}
     >
-      {/* Title */}
-      <h2
-        style={{
-          margin: "0 0 30px 0",
-          fontSize: "28px",
-          fontWeight: "bold",
-          textAlign: "center",
-          textShadow: "0 3px 12px rgba(0,0,0,0.5), 0 1px 3px rgba(0,0,0,0.8)",
-        }}
-      >
-        🚀 {data.microCopy}
-      </h2>
-
       <div
         className={privacyEnabled ? "privacy-blur" : ""}
         style={{
@@ -150,6 +137,18 @@ export function HeroStatusWidgetNew({ data }: HeroStatusWidgetNewProps) {
           alignItems: "center",
         }}
       >
+        {/* Title */}
+        <h2
+          style={{
+            margin: "0 0 30px 0",
+            fontSize: "28px",
+            fontWeight: "bold",
+            textAlign: "center",
+            textShadow: "0 3px 12px rgba(0,0,0,0.5), 0 1px 3px rgba(0,0,0,0.8)",
+          }}
+        >
+          🚀 {data.microCopy}
+        </h2>
         {/* Gauge Chart */}
         <GaugeChart
           percentage={progressPercentage}
