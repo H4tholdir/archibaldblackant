@@ -1,5 +1,4 @@
 import { useState, useEffect } from "react";
-import { FresisDiscountManager } from "../components/FresisDiscountManager";
 
 interface TargetData {
   yearlyTarget: number;
@@ -558,11 +557,6 @@ export function ProfilePage() {
             </button>
           </div>
         </div>
-      </div>
-
-      {/* Section 3: Fresis Discounts */}
-      <div style={styles.card}>
-        <FresisDiscountManager />
       </div>
     </div>
   );

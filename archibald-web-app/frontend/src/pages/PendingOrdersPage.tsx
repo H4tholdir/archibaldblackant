@@ -7,9 +7,10 @@ import type { PendingOrder } from "../db/schema";
 import { calculateShippingCosts } from "../utils/order-calculations";
 import { usePendingSync } from "../hooks/usePendingSync";
 import { JobProgressBar } from "../components/JobProgressBar";
-import { isFresis, FRESIS_DEFAULT_DISCOUNT } from "../utils/fresis-constants";
+import { isFresis } from "../utils/fresis-constants";
 import { mergeFresisPendingOrders } from "../utils/order-merge";
 import { db } from "../db/schema";
+import { fresisDiscountService } from "../services/fresis-discount.service";
 
 export function PendingOrdersPage() {
   const navigate = useNavigate();
@@ -28,9 +29,7 @@ export function PendingOrdersPage() {
 
   // Merge Fresis state
   const [showMergeDialog, setShowMergeDialog] = useState(false);
-  const [mergeDiscount, setMergeDiscount] = useState(
-    String(FRESIS_DEFAULT_DISCOUNT),
-  );
+  const [mergeDiscount, setMergeDiscount] = useState("");
 
   // Expand/collapse state for each order
   const [expandedOrderIds, setExpandedOrderIds] = useState<Set<string>>(
@@ -273,10 +272,17 @@ export function PendingOrdersPage() {
     if (selectedFresisOrders.length < 2) return;
 
     try {
-      const discount = parseFloat(mergeDiscount) || FRESIS_DEFAULT_DISCOUNT;
+      const allDiscounts = await fresisDiscountService.getAllDiscounts();
+      const discountMap = new Map<string, number>();
+      for (const d of allDiscounts) {
+        discountMap.set(d.id, d.discountPercent);
+        discountMap.set(d.articleCode, d.discountPercent);
+      }
+
       const mergedOrder = mergeFresisPendingOrders(
         selectedFresisOrders,
-        discount,
+        discountMap,
+        parseFloat(mergeDiscount) || 0,
       );
 
       // Archive original orders to fresisHistory
@@ -317,7 +323,7 @@ export function PendingOrdersPage() {
       setSelectedOrderIds(new Set());
       setShowMergeDialog(false);
       toastService.success(
-        `Merge completato: ${selectedFresisOrders.length} ordini uniti con sconto ${discount}%`,
+        `Merge completato: ${selectedFresisOrders.length} ordini uniti con sconti per-riga`,
       );
     } catch (error) {
       console.error("[PendingOrdersPage] Merge failed:", error);
@@ -327,17 +333,16 @@ export function PendingOrdersPage() {
 
   const handleConfirmWarehouseOrder = async (order: PendingOrder) => {
     if (
-      !confirm("Confermi di aver verificato l'ordine magazzino? L'ordine verrà archiviato nello storico.")
+      !confirm(
+        "Confermi di aver verificato l'ordine magazzino? L'ordine verrà archiviato nello storico.",
+      )
     ) {
       return;
     }
 
     try {
       // Archive to fresisHistory if it's a Fresis sub-client order
-      if (
-        isFresis({ id: order.customerId }) &&
-        order.subClientCodice
-      ) {
+      if (isFresis({ id: order.customerId }) && order.subClientCodice) {
         await db.fresisHistory.add({
           id: crypto.randomUUID(),
           originalPendingOrderId: order.id!,
@@ -588,7 +593,7 @@ export function PendingOrdersPage() {
                   marginBottom: "0.25rem",
                 }}
               >
-                Sconto globale (%)
+                Sconto globale aggiuntivo (%)
               </label>
               <input
                 type="number"
@@ -678,7 +683,10 @@ export function PendingOrdersPage() {
         >
           <input
             type="checkbox"
-            checked={selectableOrders.length > 0 && selectedOrderIds.size === selectableOrders.length}
+            checked={
+              selectableOrders.length > 0 &&
+              selectedOrderIds.size === selectableOrders.length
+            }
             onChange={handleSelectAll}
             style={{
               width: isMobile ? "1.375rem" : "1.25rem",
@@ -730,9 +738,7 @@ export function PendingOrdersPage() {
                 border: isWarehouseOrder
                   ? "1px solid #93c5fd"
                   : "1px solid #e5e7eb",
-                borderLeft: isWarehouseOrder
-                  ? "4px solid #3b82f6"
-                  : undefined,
+                borderLeft: isWarehouseOrder ? "4px solid #3b82f6" : undefined,
                 borderRadius: "8px",
                 padding: isMobile ? "1rem" : "1.5rem",
                 backgroundColor: cardBgColor,
@@ -809,7 +815,8 @@ export function PendingOrdersPage() {
                           marginBottom: "0.25rem",
                         }}
                       >
-                        Sotto-cliente: {order.subClientName || order.subClientCodice}
+                        Sotto-cliente:{" "}
+                        {order.subClientName || order.subClientCodice}
                       </div>
                     )}
                     <div
@@ -1067,28 +1074,28 @@ export function PendingOrdersPage() {
                         <span>Conferma</span>
                       </button>
                     ) : (
-                    <button
-                      onClick={() => handleEditOrder(order.id!)}
-                      style={{
-                        padding: "0.75rem",
-                        background: "#3b82f6",
-                        color: "white",
-                        border: "none",
-                        borderRadius: "6px",
-                        cursor: "pointer",
-                        fontSize: "0.9375rem",
-                        fontWeight: "600",
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        gap: "0.375rem",
-                        minHeight: "44px",
-                      }}
-                      title="Modifica ordine"
-                    >
-                      <span>✏️</span>
-                      <span>Modifica</span>
-                    </button>
+                      <button
+                        onClick={() => handleEditOrder(order.id!)}
+                        style={{
+                          padding: "0.75rem",
+                          background: "#3b82f6",
+                          color: "white",
+                          border: "none",
+                          borderRadius: "6px",
+                          cursor: "pointer",
+                          fontSize: "0.9375rem",
+                          fontWeight: "600",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          gap: "0.375rem",
+                          minHeight: "44px",
+                        }}
+                        title="Modifica ordine"
+                      >
+                        <span>✏️</span>
+                        <span>Modifica</span>
+                      </button>
                     )}
                     <button
                       onClick={() => handleDeleteOrder(order.id!)}
@@ -1228,8 +1235,7 @@ export function PendingOrdersPage() {
                           <div>
                             <strong>Localita:</strong>{" "}
                             {order.subClientData.localita}{" "}
-                            {order.subClientData.cap}{" "}
-                            {order.subClientData.prov}
+                            {order.subClientData.cap} {order.subClientData.prov}
                           </div>
                         )}
                         {order.subClientData.partitaIva && (
@@ -1375,12 +1381,16 @@ export function PendingOrdersPage() {
                                   alignSelf: "center",
                                   color:
                                     item.discount && item.discount > 0
-                                      ? "#dc2626"
+                                      ? isFresis({ id: order.customerId })
+                                        ? "#059669"
+                                        : "#dc2626"
                                       : "#9ca3af",
                                 }}
                               >
                                 {item.discount && item.discount > 0
-                                  ? `-€${item.discount.toFixed(2)}`
+                                  ? isFresis({ id: order.customerId })
+                                    ? `${item.discount}%`
+                                    : `-€${item.discount.toFixed(2)}`
                                   : "—"}
                               </div>
 
@@ -1550,12 +1560,16 @@ export function PendingOrdersPage() {
                                       fontWeight: "500",
                                       color:
                                         item.discount && item.discount > 0
-                                          ? "#dc2626"
+                                          ? isFresis({ id: order.customerId })
+                                            ? "#059669"
+                                            : "#dc2626"
                                           : "#9ca3af",
                                     }}
                                   >
                                     {item.discount && item.discount > 0
-                                      ? `-€${item.discount.toFixed(2)}`
+                                      ? isFresis({ id: order.customerId })
+                                        ? `${item.discount}%`
+                                        : `-€${item.discount.toFixed(2)}`
                                       : "—"}
                                   </div>
                                 </div>

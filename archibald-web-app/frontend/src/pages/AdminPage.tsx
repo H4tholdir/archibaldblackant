@@ -5,6 +5,7 @@ import SyncControlPanel from "../components/SyncControlPanel";
 import SyncMonitoringDashboard from "../components/SyncMonitoringDashboard";
 import WebSocketMonitor from "../components/WebSocketMonitor";
 import { AdminImpersonationPanel } from "../components/AdminImpersonationPanel";
+import { FresisDiscountManager } from "../components/FresisDiscountManager";
 
 interface AdminPageProps {
   onLogout: () => void;
@@ -513,6 +514,10 @@ export function AdminPage({ onLogout, userName }: AdminPageProps) {
               </div>
             )}
           </div>
+        </section>
+
+        <section className="admin-section">
+          <FresisDiscountManager />
         </section>
 
         <section className="admin-section">

@@ -7,7 +7,8 @@ import { getDeviceId } from "./device-id";
 
 export function mergeFresisPendingOrders(
   orders: PendingOrder[],
-  discountPercent: number = FRESIS_DEFAULT_DISCOUNT,
+  discountMap: Map<string, number>,
+  globalDiscountPercent?: number,
 ): PendingOrder {
   if (orders.length === 0) {
     throw new Error("Cannot merge an empty array of orders");
@@ -38,6 +39,11 @@ export function mergeFresisPendingOrders(
 
   const mergedItems: PendingOrderItem[] = [];
   for (const { item, totalQty, totalWarehouseQty } of itemMap.values()) {
+    const lineDiscount =
+      discountMap.get(item.articleId ?? "") ??
+      discountMap.get(item.articleCode) ??
+      FRESIS_DEFAULT_DISCOUNT;
+
     mergedItems.push({
       articleCode: item.articleCode,
       articleId: item.articleId,
@@ -46,7 +52,7 @@ export function mergeFresisPendingOrders(
       quantity: totalQty,
       price: item.price,
       vat: item.vat,
-      discount: 0,
+      discount: lineDiscount,
       warehouseQuantity: totalWarehouseQty > 0 ? totalWarehouseQty : undefined,
       warehouseSources: undefined,
     });
@@ -59,7 +65,7 @@ export function mergeFresisPendingOrders(
     customerId: FRESIS_CUSTOMER_PROFILE,
     customerName: "Fresis Soc Cooperativa",
     items: mergedItems,
-    discountPercent,
+    discountPercent: globalDiscountPercent || 0,
     createdAt: now,
     updatedAt: now,
     status: "pending",
