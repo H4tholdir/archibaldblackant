@@ -78,62 +78,113 @@ export type WidgetStatus =
   | "critical" // proiezione ≥ 30% - Situazione critica
   | "emergency"; // proiezione < 30% - Emergenza
 
-const MICRO_COPY: Record<WidgetStatus, string[]> = {
+interface MicroCopyContext {
+  dayOfMonth: number;
+  absolutePercent: number;
+  projectedPercent: number;
+  daysRemaining: number;
+}
+
+type MicroCopyTemplate = (ctx: MicroCopyContext) => string;
+
+const MICRO_COPY: Record<WidgetStatus, MicroCopyTemplate[]> = {
   legendary: [
-    "Passo da record, mese straordinario! 🏆",
-    "Ritmo incredibile, stai volando! 🚀",
-    "Proiezione stellare, continua così! ⭐",
-    "Passo doppio rispetto al target! 💎",
-    "Ritmo leggendario, che mese! 🔥",
-    "A questo passo superi il doppio del target! 👑",
+    (ctx) =>
+      `Giorno ${ctx.dayOfMonth} e già al ${ctx.absolutePercent}%: proiezione ${ctx.projectedPercent}%! 🏆`,
+    (ctx) =>
+      `Solo giorno ${ctx.dayOfMonth} e punti al ${ctx.projectedPercent}% del target! 🚀`,
+    (ctx) =>
+      `${ctx.absolutePercent}% in ${ctx.dayOfMonth} giorni — ritmo da ${ctx.projectedPercent}%! ⭐`,
+    (ctx) =>
+      `A questo passo chiudi al ${ctx.projectedPercent}% del target, straordinario! 💎`,
+    (ctx) =>
+      `Mancano ${ctx.daysRemaining} giorni e la proiezione è ${ctx.projectedPercent}%! 🔥`,
+    (ctx) =>
+      `${ctx.absolutePercent}% al giorno ${ctx.dayOfMonth}: mese leggendario in vista! 👑`,
   ],
   champion: [
-    "Ritmo eccellente, nettamente sopra! 🏅",
-    "Passo fortissimo, target ampiamente superato! 💪",
-    "Proiezione ben oltre il target! 🎯",
-    "A questo ritmo chiudi alla grande! 🚀",
-    "Passo da campione, avanti così! ⚡",
-    "Ritmo altissimo, risultato assicurato! 🏆",
+    (ctx) =>
+      `Giorno ${ctx.dayOfMonth}, ${ctx.absolutePercent}%: proiezione ${ctx.projectedPercent}%! 🏅`,
+    (ctx) =>
+      `Al ${ctx.absolutePercent}% con ${ctx.daysRemaining} giorni ancora — chiudi forte! 💪`,
+    (ctx) =>
+      `Proiezione al ${ctx.projectedPercent}%: nettamente sopra target! 🎯`,
+    (ctx) =>
+      `Ritmo da ${ctx.projectedPercent}% al giorno ${ctx.dayOfMonth}, grande mese! 🚀`,
+    (ctx) =>
+      `${ctx.absolutePercent}% in ${ctx.dayOfMonth} giorni, passo da campione! ⚡`,
+    (ctx) =>
+      `Con ${ctx.daysRemaining} giorni rimasti punti al ${ctx.projectedPercent}%! 🏆`,
   ],
   excellent: [
-    "Buon passo, target alla portata! ✅",
-    "Ritmo solido, proiezione sopra il target! 📈",
-    "A questo passo superi l'obiettivo! 🎯",
-    "Proiezione positiva, ottimo lavoro! 🎉",
-    "Ritmo giusto per superare il target! 💚",
-    "Passo sicuro, obiettivo in vista! ✨",
+    (ctx) =>
+      `Al ${ctx.absolutePercent}% il giorno ${ctx.dayOfMonth}: proiezione ${ctx.projectedPercent}%! ✅`,
+    (ctx) =>
+      `Proiezione ${ctx.projectedPercent}%: con questo ritmo superi il target! 📈`,
+    (ctx) =>
+      `${ctx.absolutePercent}% e mancano ${ctx.daysRemaining} giorni, ottimo passo! 🎯`,
+    (ctx) =>
+      `Giorno ${ctx.dayOfMonth} al ${ctx.absolutePercent}%: sei sopra il ritmo target! 🎉`,
+    (ctx) =>
+      `A questo passo chiudi al ${ctx.projectedPercent}% — obiettivo superato! 💚`,
+    (ctx) =>
+      `${ctx.daysRemaining} giorni rimasti e proiezione al ${ctx.projectedPercent}%! ✨`,
   ],
   "on-track": [
-    "Ritmo allineato al target 📊",
-    "Passo regolare, sei in linea",
-    "Proiezione in zona target 🎯",
-    "A questo ritmo ci sei, mantieni il passo",
-    "Andatura costante, obiettivo raggiungibile",
-    "Passo buono, continua così 📈",
+    (ctx) =>
+      `Giorno ${ctx.dayOfMonth} al ${ctx.absolutePercent}%: proiezione ${ctx.projectedPercent}%, in linea 📊`,
+    (ctx) =>
+      `${ctx.absolutePercent}% con ${ctx.daysRemaining} giorni rimasti, ritmo allineato`,
+    (ctx) =>
+      `Proiezione ${ctx.projectedPercent}% al giorno ${ctx.dayOfMonth}: sei in zona target 🎯`,
+    (ctx) =>
+      `Al ${ctx.absolutePercent}% il giorno ${ctx.dayOfMonth}, mantieni questo passo`,
+    (ctx) =>
+      `Ritmo regolare: ${ctx.absolutePercent}% fatto, proiezione ${ctx.projectedPercent}%`,
+    (ctx) =>
+      `${ctx.daysRemaining} giorni rimasti, proiezione ${ctx.projectedPercent}%: continua così 📈`,
   ],
   attention: [
-    "Serve accelerare il ritmo",
-    "Passo sotto target, è il momento di spingere",
-    "Proiezione sotto obiettivo, recupero possibile 💪",
-    "Ritmo da aumentare per centrare il target",
-    "A questo passo mancheresti il target, accelera!",
-    "Serve una marcia in più per l'obiettivo",
+    (ctx) =>
+      `Giorno ${ctx.dayOfMonth} al ${ctx.absolutePercent}%: proiezione ${ctx.projectedPercent}%, serve accelerare`,
+    (ctx) =>
+      `${ctx.absolutePercent}% con ${ctx.daysRemaining} giorni rimasti — il ritmo non basta`,
+    (ctx) =>
+      `Proiezione al ${ctx.projectedPercent}%: serve spingere per centrare il target 💪`,
+    (ctx) =>
+      `Al giorno ${ctx.dayOfMonth} solo ${ctx.absolutePercent}%, accelera il passo`,
+    (ctx) =>
+      `Con questo ritmo chiudi al ${ctx.projectedPercent}%: si può recuperare!`,
+    (ctx) =>
+      `${ctx.daysRemaining} giorni per colmare il gap, proiezione ${ctx.projectedPercent}%`,
   ],
   critical: [
-    "Ritmo critico, azione immediata necessaria",
-    "Passo molto sotto target, serve svolta",
-    "Proiezione lontana dall'obiettivo ⚠️",
-    "Ritmo insufficiente, piano di recupero urgente",
-    "A questo passo il gap è importante, reagisci",
-    "Situazione critica, serve cambio di strategia",
+    (ctx) =>
+      `Giorno ${ctx.dayOfMonth} al ${ctx.absolutePercent}%: proiezione solo ${ctx.projectedPercent}% ⚠️`,
+    (ctx) =>
+      `${ctx.absolutePercent}% e mancano ${ctx.daysRemaining} giorni — situazione critica`,
+    (ctx) =>
+      `Proiezione ${ctx.projectedPercent}% al giorno ${ctx.dayOfMonth}: serve una svolta`,
+    (ctx) =>
+      `Solo ${ctx.absolutePercent}% in ${ctx.dayOfMonth} giorni, piano di recupero urgente`,
+    (ctx) =>
+      `Ritmo al ${ctx.projectedPercent}%: il gap è importante, reagisci ora`,
+    (ctx) =>
+      `${ctx.daysRemaining} giorni rimasti per risalire dal ${ctx.absolutePercent}%`,
   ],
   emergency: [
-    "Emergenza: ritmo quasi fermo ⛔",
-    "Passo d'emergenza, serve azione drastica",
-    "Proiezione molto lontana, intervieni subito",
-    "Ritmo d'allarme, ogni ordine conta",
-    "Emergenza target, serve tutto l'impegno possibile",
-    "Situazione d'emergenza, priorità massima al fatturato",
+    (ctx) =>
+      `Giorno ${ctx.dayOfMonth} al ${ctx.absolutePercent}%: proiezione ${ctx.projectedPercent}% ⛔`,
+    (ctx) =>
+      `Solo ${ctx.absolutePercent}% con ${ctx.daysRemaining} giorni rimasti — emergenza`,
+    (ctx) =>
+      `Proiezione ${ctx.projectedPercent}% al giorno ${ctx.dayOfMonth}: serve azione drastica`,
+    (ctx) =>
+      `${ctx.absolutePercent}% in ${ctx.dayOfMonth} giorni, ogni ordine conta`,
+    (ctx) =>
+      `Emergenza: proiezione al ${ctx.projectedPercent}%, priorità massima`,
+    (ctx) =>
+      `${ctx.daysRemaining} giorni rimasti e proiezione ${ctx.projectedPercent}%: intervieni subito`,
   ],
 };
 
@@ -223,9 +274,18 @@ export function calculateHeroStatus(
     );
 
   // Select micro-copy with deterministic daily rotation
+  const absolutePercent = Math.round(
+    (monthlyTarget > 0 ? currentMonthRevenue / monthlyTarget : 0) * 100,
+  );
+  const microCopyCtx: MicroCopyContext = {
+    dayOfMonth,
+    absolutePercent,
+    projectedPercent: Math.round(projectedProgress * 100),
+    daysRemaining: workingDaysRemaining,
+  };
   const microCopyArray = MICRO_COPY[status];
   const microCopyIndex = dayOfMonth % microCopyArray.length;
-  const microCopy = microCopyArray[microCopyIndex];
+  const microCopy = microCopyArray[microCopyIndex](microCopyCtx);
 
   const missingToMonthlyTarget = Math.max(
     0,
