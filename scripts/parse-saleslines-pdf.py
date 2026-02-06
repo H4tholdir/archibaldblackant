@@ -45,6 +45,12 @@ def parse_italian_decimal(value: str) -> Optional[float]:
         return None
 
 
+def is_totals_row(row) -> bool:
+    """Check if a table row is a totals/summary row (e.g. 'Count=11 Sum=52,00')."""
+    raw = ' '.join((cell or '') for cell in row).lower()
+    return 'count=' in raw or 'sum=' in raw
+
+
 def parse_page_pair(page_left, page_right, pair_idx: int):
     """
     Parse a pair of pages from the Saleslines PDF.
@@ -64,8 +70,9 @@ def parse_page_pair(page_left, page_right, pair_idx: int):
     if len(table1) <= 1 or len(table2) <= 1:
         return
 
-    # Skip header at index 0, skip totals at last row
-    max_rows = min(len(table1) - 1, len(table2) - 1)
+    end1 = len(table1) - 1 if is_totals_row(table1[-1]) else len(table1)
+    end2 = len(table2) - 1 if is_totals_row(table2[-1]) else len(table2)
+    max_rows = min(end1, end2)
 
     for row_idx in range(1, max_rows):
         try:
