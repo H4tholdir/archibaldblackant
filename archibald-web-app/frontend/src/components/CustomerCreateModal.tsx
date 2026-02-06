@@ -44,7 +44,7 @@ const FIELDS: Array<{
   },
   { key: "street", label: "Via e civico", defaultValue: "" },
   { key: "postalCode", label: "CAP", defaultValue: "", maxLength: 5 },
-  { key: "phone", label: "Telefono", defaultValue: "", type: "tel" },
+  { key: "phone", label: "Telefono", defaultValue: "+39 ", type: "tel" },
   { key: "email", label: "Email", defaultValue: "", type: "email" },
 ];
 
@@ -57,7 +57,7 @@ const INITIAL_FORM: CustomerFormData = {
   sdi: "",
   street: "",
   postalCode: "",
-  phone: "",
+  phone: "+39 ",
   email: "",
 };
 
@@ -71,7 +71,9 @@ function customerToFormData(customer: Customer): CustomerFormData {
     sdi: customer.sdi || "",
     street: customer.street || "",
     postalCode: customer.postalCode || "",
-    phone: customer.phone || "",
+    phone: customer.phone
+      ? customer.phone.startsWith("+39") ? customer.phone : `+39 ${customer.phone}`
+      : "+39 ",
     email: customer.pec || "",
   };
 }
@@ -94,7 +96,13 @@ export function CustomerCreateModal({
 
   useEffect(() => {
     if (isOpen && !isSummary && inputRef.current) {
-      inputRef.current.focus();
+      const input = inputRef.current;
+      input.focus();
+      const fieldKey = FIELDS[step]?.key;
+      if (fieldKey === "phone" && input.value.startsWith("+39 ")) {
+        const pos = input.value.length;
+        requestAnimationFrame(() => input.setSelectionRange(pos, pos));
+      }
     }
   }, [isOpen, step, isSummary]);
 
