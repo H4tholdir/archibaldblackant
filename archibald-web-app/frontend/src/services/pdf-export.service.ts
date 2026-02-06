@@ -1,6 +1,7 @@
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import type { PendingOrderItem, SubClient } from "../db/schema";
+import { isFresis as isFresisCustomer } from "../utils/fresis-constants";
 
 export type PDFOrderData = {
   id: string;
@@ -57,6 +58,13 @@ export class PDFExportService {
 
     // === HEADER SECTION ===
     const isFresis = !!order.subClientCodice;
+    const isMergedFresis =
+      isFresisCustomer({ id: order.customerId }) && !order.subClientCodice;
+
+    const lineSubtotal = (item: PendingOrderItem) =>
+      isMergedFresis
+        ? item.price * item.quantity * (1 - (item.discount || 0) / 100)
+        : item.price * item.quantity - (item.discount || 0);
     const logoX = margin;
     const logoY = 12;
     const logoWidth = 30;
@@ -120,7 +128,8 @@ export class PDFExportService {
     const rightX = margin + blockWidth + blockGap;
 
     // Fresis sub-client: taller block to fit extra data
-    const clientBlockHeight = isFresis && order.subClientData ? 42 : blockHeight;
+    const clientBlockHeight =
+      isFresis && order.subClientData ? 42 : blockHeight;
 
     doc.setDrawColor(230, 230, 230);
     doc.setLineWidth(0.2);
@@ -131,11 +140,7 @@ export class PDFExportService {
     doc.setFont("helvetica", "bold");
     doc.setFontSize(9);
     doc.setTextColor(...primaryColor);
-    doc.text(
-      isFresis ? "SOTTO-CLIENTE" : "CLIENTE",
-      leftX + 2,
-      infoY + 4.2,
-    );
+    doc.text(isFresis ? "SOTTO-CLIENTE" : "CLIENTE", leftX + 2, infoY + 4.2);
 
     doc.setFont("helvetica", "normal");
     doc.setFontSize(9);
@@ -225,7 +230,7 @@ export class PDFExportService {
 
     // Calculate totals
     const orderSubtotal = order.items.reduce(
-      (sum, item) => sum + item.price * item.quantity - (item.discount || 0),
+      (sum, item) => sum + lineSubtotal(item),
       0,
     );
 
@@ -243,10 +248,10 @@ export class PDFExportService {
     // Calculate VAT (including shipping)
     const orderVAT =
       order.items.reduce((sum, item) => {
-        const itemSubtotal = item.price * item.quantity - (item.discount || 0);
+        const itemSub = lineSubtotal(item);
         const itemAfterGlobalDiscount = order.discountPercent
-          ? itemSubtotal * (1 - order.discountPercent / 100)
-          : itemSubtotal;
+          ? itemSub * (1 - order.discountPercent / 100)
+          : itemSub;
         return sum + itemAfterGlobalDiscount * ((item.vat || 0) / 100);
       }, 0) + shippingTax;
 
@@ -277,7 +282,7 @@ export class PDFExportService {
           );
         }
 
-        const subtotal = item.price * item.quantity - (item.discount || 0);
+        const subtotal = lineSubtotal(item);
         const subtotalAfterGlobal = order.discountPercent
           ? subtotal * (1 - order.discountPercent / 100)
           : subtotal;
@@ -289,7 +294,9 @@ export class PDFExportService {
           item.quantity.toString(),
           `€${item.price.toFixed(2)}`,
           item.discount && item.discount > 0
-            ? `-€${item.discount.toFixed(2)}`
+            ? isMergedFresis
+              ? `${item.discount}%`
+              : `-€${item.discount.toFixed(2)}`
             : "-",
           `€${subtotal.toFixed(2)}`,
           `${item.vat || 0}%\n€${vatAmount.toFixed(2)}`,

@@ -317,10 +317,14 @@ export default function OrderFormSimple() {
         }
 
         // Convert order items to OrderItem format
+        const isMergedFresis =
+          isFresis({ id: order.customerId }) && !order.subClientCodice;
         const loadedItems: OrderItem[] = await Promise.all(
           order.items.map(async (item) => {
             const vatRate = normalizeVatRate(item.vat);
-            const subtotal = item.price * item.quantity - (item.discount || 0);
+            const subtotal = isMergedFresis
+              ? item.price * item.quantity * (1 - (item.discount || 0) / 100)
+              : item.price * item.quantity - (item.discount || 0);
             const vatAmount = subtotal * (vatRate / 100);
 
             // Prefer explicit variant ID, fallback to legacy articleCode
