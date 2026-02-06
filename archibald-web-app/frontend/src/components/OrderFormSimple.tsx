@@ -28,6 +28,7 @@ import { calculateShippingCosts } from "../utils/order-calculations";
 import type { SubClient } from "../db/schema";
 import { SubClientSelector } from "./new-order-form/SubClientSelector";
 import { isFresis } from "../utils/fresis-constants";
+import { normalizeVatRate } from "../utils/vat-utils";
 
 interface OrderItem {
   id: string;
@@ -51,41 +52,6 @@ interface OrderItem {
   }>;
   // 🔧 FIX #3: Group key to track variants of same product (for warehouse data preservation)
   productGroupKey?: string; // Used to group variants, preserve warehouse data when deleting rows
-}
-
-/**
- * Normalize VAT rate to valid Italian VAT values
- * Valid rates: 0, 4, 5, 10, 22 (most common)
- * Falls back to 22% (ordinary rate) if invalid or undefined
- */
-function normalizeVatRate(vat: number | null | undefined): number {
-  // If null or undefined, use ordinary rate
-  if (vat === null || vat === undefined) {
-    return 22;
-  }
-
-  // Valid Italian VAT rates (expanded list)
-  const validRates = [0, 4, 5, 10, 22];
-
-  // If exact match, use it
-  if (validRates.includes(vat)) {
-    return vat;
-  }
-
-  // If close to a valid rate (within 0.5%), round to nearest valid rate
-  // This handles floating point precision issues
-  for (const validRate of validRates) {
-    if (Math.abs(vat - validRate) < 0.5) {
-      console.warn(
-        `[OrderForm] VAT rate ${vat} rounded to ${validRate} (close match)`,
-      );
-      return validRate;
-    }
-  }
-
-  // Unknown VAT rate - log warning and use ordinary rate
-  console.warn(`[OrderForm] Unknown VAT rate ${vat}, using ordinary rate 22%`);
-  return 22;
 }
 
 export default function OrderFormSimple() {

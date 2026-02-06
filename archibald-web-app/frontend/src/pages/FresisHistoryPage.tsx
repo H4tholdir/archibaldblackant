@@ -1,14 +1,24 @@
 import { useState, useEffect, useCallback } from "react";
-import type { FresisHistoryOrder } from "../db/schema";
+import type {
+  FresisHistoryOrder,
+  PendingOrderItem,
+  SubClient,
+} from "../db/schema";
 import { fresisHistoryService } from "../services/fresis-history.service";
 import { PDFExportService } from "../services/pdf-export.service";
+import { SubClientSelector } from "../components/new-order-form/SubClientSelector";
+import { AddItemToHistory } from "../components/new-order-form/AddItemToHistory";
 
 const STATE_BADGE_CONFIG: Record<
   string,
   { label: string; bg: string; color: string }
 > = {
   piazzato: { label: "Piazzato", bg: "#e5e7eb", color: "#374151" },
-  inviato_milano: { label: "Inviato a Milano", bg: "#dbeafe", color: "#1e40af" },
+  inviato_milano: {
+    label: "Inviato a Milano",
+    bg: "#dbeafe",
+    color: "#1e40af",
+  },
   trasferito: { label: "Trasferito", bg: "#d1fae5", color: "#065f46" },
   transfer_error: {
     label: "Errore Trasferimento",
@@ -36,16 +46,27 @@ function getStateBadge(order: FresisHistoryOrder): {
   return cfg ?? { label: "In attesa", bg: "#f3f4f6", color: "#6b7280" };
 }
 
+type EditState = {
+  orderId: string;
+  items: PendingOrderItem[];
+  discountPercent: number;
+  notes: string;
+  subClientCodice: string;
+  subClientName: string;
+  subClientData: SubClient | null;
+};
+
 export function FresisHistoryPage() {
   const [orders, setOrders] = useState<FresisHistoryOrder[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [expandedOrderId, setExpandedOrderId] = useState<string | null>(null);
-  const [editingOrderId, setEditingOrderId] = useState<string | null>(null);
-  const [editNotes, setEditNotes] = useState("");
   const [loading, setLoading] = useState(true);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
   const [syncing, setSyncing] = useState(false);
   const [syncMessage, setSyncMessage] = useState<string | null>(null);
+
+  const [editState, setEditState] = useState<EditState | null>(null);
+  const [addingProduct, setAddingProduct] = useState(false);
 
   const loadOrders = useCallback(async () => {
     setLoading(true);
@@ -111,14 +132,77 @@ export function FresisHistoryPage() {
     }
   };
 
-  const handleSaveNotes = async (id: string) => {
+  const handleStartEdit = (order: FresisHistoryOrder) => {
+    setEditState({
+      orderId: order.id,
+      items: order.items.map((item) => ({ ...item })),
+      discountPercent: order.discountPercent ?? 0,
+      notes: order.notes ?? "",
+      subClientCodice: order.subClientCodice,
+      subClientName: order.subClientName,
+      subClientData: order.subClientData ?? null,
+    });
+    setAddingProduct(false);
+  };
+
+  const handleCancelEdit = () => {
+    setEditState(null);
+    setAddingProduct(false);
+  };
+
+  const handleSaveEdit = async () => {
+    if (!editState) return;
+    if (editState.items.length === 0) return;
+
+    const hasInvalidQty = editState.items.some(
+      (item) => !item.quantity || item.quantity <= 0,
+    );
+    if (hasInvalidQty) return;
+
     try {
-      await fresisHistoryService.updateHistoryOrder(id, { notes: editNotes });
-      setEditingOrderId(null);
+      await fresisHistoryService.updateHistoryOrder(editState.orderId, {
+        items: editState.items,
+        discountPercent: editState.discountPercent,
+        notes: editState.notes || undefined,
+        subClientCodice: editState.subClientCodice,
+        subClientName: editState.subClientName,
+        subClientData: editState.subClientData ?? undefined,
+      });
+      setEditState(null);
+      setAddingProduct(false);
       await loadOrders();
     } catch (err) {
-      console.error("[FresisHistoryPage] Update failed:", err);
+      console.error("[FresisHistoryPage] Save edit failed:", err);
     }
+  };
+
+  const handleEditItemQty = (idx: number, qty: number) => {
+    if (!editState) return;
+    const newItems = [...editState.items];
+    newItems[idx] = { ...newItems[idx], quantity: qty };
+    setEditState({ ...editState, items: newItems });
+  };
+
+  const handleEditItemPrice = (idx: number, price: number) => {
+    if (!editState) return;
+    const newItems = [...editState.items];
+    newItems[idx] = { ...newItems[idx], price };
+    setEditState({ ...editState, items: newItems });
+  };
+
+  const handleRemoveItem = (idx: number) => {
+    if (!editState) return;
+    const newItems = editState.items.filter((_, i) => i !== idx);
+    setEditState({ ...editState, items: newItems });
+  };
+
+  const handleAddItems = (newItems: PendingOrderItem[]) => {
+    if (!editState) return;
+    setEditState({
+      ...editState,
+      items: [...editState.items, ...newItems],
+    });
+    setAddingProduct(false);
   };
 
   const handleDownloadPDF = (order: FresisHistoryOrder) => {
@@ -148,6 +232,8 @@ export function FresisHistoryPage() {
       style: "currency",
       currency: "EUR",
     });
+
+  const isEditingOrder = (orderId: string) => editState?.orderId === orderId;
 
   return (
     <div style={{ maxWidth: "900px", margin: "0 auto", padding: "1rem" }}>
@@ -184,7 +270,7 @@ export function FresisHistoryPage() {
         }}
       >
         <button
-          onClick={() => alert("Funzionalità in arrivo")}
+          onClick={() => alert("Funzionalita' in arrivo")}
           style={{
             padding: "0.5rem 1rem",
             background: "#e5e7eb",
@@ -197,7 +283,7 @@ export function FresisHistoryPage() {
           Report
         </button>
         <button
-          onClick={() => alert("Funzionalità in arrivo")}
+          onClick={() => alert("Funzionalita' in arrivo")}
           style={{
             padding: "0.5rem 1rem",
             background: "#e5e7eb",
@@ -249,13 +335,14 @@ export function FresisHistoryPage() {
       <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
         {orders.map((order) => {
           const isExpanded = expandedOrderId === order.id;
-          const isEditing = editingOrderId === order.id;
+          const editing = isEditingOrder(order.id);
           const isDeleting = deleteConfirmId === order.id;
-          const totalItems = order.items.reduce(
+          const displayItems = editing ? editState!.items : order.items;
+          const totalItems = displayItems.reduce(
             (sum, item) => sum + item.quantity,
             0,
           );
-          const totalGross = order.items.reduce(
+          const totalGross = displayItems.reduce(
             (sum, item) => sum + item.price * item.quantity,
             0,
           );
@@ -265,20 +352,20 @@ export function FresisHistoryPage() {
             <div
               key={order.id}
               style={{
-                border: "1px solid #f59e0b",
+                border: editing ? "2px solid #f59e0b" : "1px solid #f59e0b",
                 borderRadius: "8px",
                 overflow: "hidden",
-                background: "#fffbeb",
+                background: editing ? "#fffef5" : "#fffbeb",
               }}
             >
               {/* Header */}
               <div
                 onClick={() =>
-                  setExpandedOrderId(isExpanded ? null : order.id)
+                  !editing && setExpandedOrderId(isExpanded ? null : order.id)
                 }
                 style={{
                   padding: "0.75rem 1rem",
-                  cursor: "pointer",
+                  cursor: editing ? "default" : "pointer",
                   display: "flex",
                   justifyContent: "space-between",
                   alignItems: "center",
@@ -293,7 +380,7 @@ export function FresisHistoryPage() {
                     }}
                   >
                     <span style={{ fontWeight: "600", fontSize: "1rem" }}>
-                      {order.subClientName}
+                      {editing ? editState!.subClientName : order.subClientName}
                     </span>
                     <span
                       style={{
@@ -308,6 +395,20 @@ export function FresisHistoryPage() {
                     >
                       {badge.label}
                     </span>
+                    {editing && (
+                      <span
+                        style={{
+                          fontSize: "0.7rem",
+                          padding: "0.15rem 0.5rem",
+                          borderRadius: "9999px",
+                          background: "#fef3c7",
+                          color: "#92400e",
+                          fontWeight: "600",
+                        }}
+                      >
+                        In modifica
+                      </span>
+                    )}
                   </div>
                   <div
                     style={{
@@ -315,21 +416,27 @@ export function FresisHistoryPage() {
                       color: "#78350f",
                     }}
                   >
-                    Cod: {order.subClientCodice} | {totalItems} articoli |{" "}
-                    {formatCurrency(totalGross)}
+                    Cod:{" "}
+                    {editing
+                      ? editState!.subClientCodice
+                      : order.subClientCodice}{" "}
+                    | {totalItems} articoli | {formatCurrency(totalGross)}
                   </div>
                   <div style={{ fontSize: "0.75rem", color: "#92400e" }}>
                     {formatDate(order.createdAt)}
-                    {order.mergedAt && ` | Mergiato: ${formatDate(order.mergedAt)}`}
+                    {order.mergedAt &&
+                      ` | Mergiato: ${formatDate(order.mergedAt)}`}
                   </div>
                 </div>
-                <div style={{ fontSize: "1.25rem", color: "#92400e" }}>
-                  {isExpanded ? "▲" : "▼"}
-                </div>
+                {!editing && (
+                  <div style={{ fontSize: "1.25rem", color: "#92400e" }}>
+                    {isExpanded ? "▲" : "▼"}
+                  </div>
+                )}
               </div>
 
               {/* Expanded details */}
-              {isExpanded && (
+              {(isExpanded || editing) && (
                 <div
                   style={{
                     padding: "0.75rem 1rem",
@@ -337,43 +444,67 @@ export function FresisHistoryPage() {
                     background: "white",
                   }}
                 >
-                  {/* Sub-client details */}
-                  {order.subClientData && (
-                    <div
-                      style={{
-                        marginBottom: "0.75rem",
-                        padding: "0.5rem",
-                        background: "#fef3c7",
-                        borderRadius: "4px",
-                        fontSize: "0.8rem",
-                      }}
-                    >
-                      <strong>Sotto-cliente:</strong>{" "}
-                      {order.subClientData.ragioneSociale}
-                      {order.subClientData.supplRagioneSociale &&
-                        ` - ${order.subClientData.supplRagioneSociale}`}
-                      <br />
-                      {order.subClientData.indirizzo && (
-                        <>
-                          {order.subClientData.indirizzo}
-                          {order.subClientData.localita &&
-                            `, ${order.subClientData.localita}`}
-                          {order.subClientData.cap &&
-                            ` ${order.subClientData.cap}`}
-                          {order.subClientData.prov &&
-                            ` (${order.subClientData.prov})`}
-                          <br />
-                        </>
-                      )}
-                      {order.subClientData.partitaIva &&
-                        `P.IVA: ${order.subClientData.partitaIva}`}
-                      {order.subClientData.codFiscale &&
-                        ` | CF: ${order.subClientData.codFiscale}`}
+                  {/* Sub-client: editable in edit mode */}
+                  {editing ? (
+                    <div style={{ marginBottom: "0.75rem" }}>
+                      <SubClientSelector
+                        selectedSubClient={editState!.subClientData}
+                        onSelect={(sc: SubClient) => {
+                          setEditState({
+                            ...editState!,
+                            subClientCodice: sc.codice,
+                            subClientName: sc.ragioneSociale,
+                            subClientData: sc,
+                          });
+                        }}
+                        onClear={() => {
+                          setEditState({
+                            ...editState!,
+                            subClientCodice: "",
+                            subClientName: "",
+                            subClientData: null,
+                          });
+                        }}
+                      />
                     </div>
+                  ) : (
+                    order.subClientData && (
+                      <div
+                        style={{
+                          marginBottom: "0.75rem",
+                          padding: "0.5rem",
+                          background: "#fef3c7",
+                          borderRadius: "4px",
+                          fontSize: "0.8rem",
+                        }}
+                      >
+                        <strong>Sotto-cliente:</strong>{" "}
+                        {order.subClientData.ragioneSociale}
+                        {order.subClientData.supplRagioneSociale &&
+                          ` - ${order.subClientData.supplRagioneSociale}`}
+                        <br />
+                        {order.subClientData.indirizzo && (
+                          <>
+                            {order.subClientData.indirizzo}
+                            {order.subClientData.localita &&
+                              `, ${order.subClientData.localita}`}
+                            {order.subClientData.cap &&
+                              ` ${order.subClientData.cap}`}
+                            {order.subClientData.prov &&
+                              ` (${order.subClientData.prov})`}
+                            <br />
+                          </>
+                        )}
+                        {order.subClientData.partitaIva &&
+                          `P.IVA: ${order.subClientData.partitaIva}`}
+                        {order.subClientData.codFiscale &&
+                          ` | CF: ${order.subClientData.codFiscale}`}
+                      </div>
+                    )
                   )}
 
-                  {/* Lifecycle section */}
-                  {order.archibaldOrderId && (
+                  {/* Lifecycle section (hidden in edit mode) */}
+                  {!editing && order.archibaldOrderId && (
                     <div
                       style={{
                         marginBottom: "0.75rem",
@@ -384,7 +515,9 @@ export function FresisHistoryPage() {
                         fontSize: "0.8rem",
                       }}
                     >
-                      <div style={{ fontWeight: "600", marginBottom: "0.25rem" }}>
+                      <div
+                        style={{ fontWeight: "600", marginBottom: "0.25rem" }}
+                      >
                         Ordine Archibald
                       </div>
                       <div>
@@ -408,7 +541,6 @@ export function FresisHistoryPage() {
                         )}
                       </div>
 
-                      {/* DDT/Spedizione */}
                       {order.ddtNumber && (
                         <div style={{ marginTop: "0.35rem" }}>
                           <strong>DDT:</strong> {order.ddtNumber}
@@ -436,7 +568,6 @@ export function FresisHistoryPage() {
                         </div>
                       )}
 
-                      {/* Fattura */}
                       {order.invoiceNumber && (
                         <div style={{ marginTop: "0.35rem" }}>
                           <strong>Fattura:</strong> {order.invoiceNumber}
@@ -446,7 +577,6 @@ export function FresisHistoryPage() {
                         </div>
                       )}
 
-                      {/* Consegna completata */}
                       {order.deliveryCompletedDate && (
                         <div style={{ marginTop: "0.35rem", color: "#166534" }}>
                           Consegnato il{" "}
@@ -475,7 +605,7 @@ export function FresisHistoryPage() {
                         <th style={{ padding: "0.3rem" }}>Codice</th>
                         <th style={{ padding: "0.3rem" }}>Prodotto</th>
                         <th style={{ padding: "0.3rem", textAlign: "right" }}>
-                          Qtà
+                          Qta'
                         </th>
                         <th style={{ padding: "0.3rem", textAlign: "right" }}>
                           Prezzo
@@ -483,10 +613,21 @@ export function FresisHistoryPage() {
                         <th style={{ padding: "0.3rem", textAlign: "right" }}>
                           Totale
                         </th>
+                        {editing && (
+                          <th
+                            style={{
+                              padding: "0.3rem",
+                              textAlign: "center",
+                              width: "40px",
+                            }}
+                          >
+                            {/* delete column */}
+                          </th>
+                        )}
                       </tr>
                     </thead>
                     <tbody>
-                      {order.items.map((item, idx) => (
+                      {displayItems.map((item, idx) => (
                         <tr
                           key={idx}
                           style={{
@@ -499,28 +640,156 @@ export function FresisHistoryPage() {
                           <td style={{ padding: "0.3rem" }}>
                             {item.productName || item.description || "-"}
                           </td>
-                          <td
-                            style={{ padding: "0.3rem", textAlign: "right" }}
-                          >
-                            {item.quantity}
+                          <td style={{ padding: "0.3rem", textAlign: "right" }}>
+                            {editing ? (
+                              <input
+                                type="number"
+                                value={item.quantity}
+                                onChange={(e) =>
+                                  handleEditItemQty(
+                                    idx,
+                                    parseInt(e.target.value, 10) || 0,
+                                  )
+                                }
+                                min={1}
+                                style={{
+                                  width: "60px",
+                                  padding: "0.2rem",
+                                  textAlign: "right",
+                                  border: "1px solid #d1d5db",
+                                  borderRadius: "3px",
+                                  fontSize: "0.8rem",
+                                }}
+                              />
+                            ) : (
+                              item.quantity
+                            )}
                           </td>
-                          <td
-                            style={{ padding: "0.3rem", textAlign: "right" }}
-                          >
-                            {formatCurrency(item.price)}
+                          <td style={{ padding: "0.3rem", textAlign: "right" }}>
+                            {editing ? (
+                              <input
+                                type="number"
+                                value={item.price}
+                                onChange={(e) =>
+                                  handleEditItemPrice(
+                                    idx,
+                                    parseFloat(e.target.value) || 0,
+                                  )
+                                }
+                                min={0}
+                                step={0.01}
+                                style={{
+                                  width: "80px",
+                                  padding: "0.2rem",
+                                  textAlign: "right",
+                                  border: "1px solid #d1d5db",
+                                  borderRadius: "3px",
+                                  fontSize: "0.8rem",
+                                }}
+                              />
+                            ) : (
+                              formatCurrency(item.price)
+                            )}
                           </td>
-                          <td
-                            style={{ padding: "0.3rem", textAlign: "right" }}
-                          >
+                          <td style={{ padding: "0.3rem", textAlign: "right" }}>
                             {formatCurrency(item.price * item.quantity)}
                           </td>
+                          {editing && (
+                            <td
+                              style={{ padding: "0.3rem", textAlign: "center" }}
+                            >
+                              <button
+                                onClick={() => handleRemoveItem(idx)}
+                                style={{
+                                  padding: "0.15rem 0.4rem",
+                                  background: "#fee2e2",
+                                  color: "#dc2626",
+                                  border: "1px solid #dc2626",
+                                  borderRadius: "3px",
+                                  cursor: "pointer",
+                                  fontSize: "0.75rem",
+                                  fontWeight: "bold",
+                                }}
+                              >
+                                X
+                              </button>
+                            </td>
+                          )}
                         </tr>
                       ))}
                     </tbody>
                   </table>
 
-                  {/* Discount info */}
-                  {order.discountPercent !== undefined &&
+                  {/* Add item button / component (edit mode only) */}
+                  {editing && !addingProduct && (
+                    <button
+                      onClick={() => setAddingProduct(true)}
+                      style={{
+                        padding: "0.4rem 0.75rem",
+                        background: "#f0fdf4",
+                        color: "#16a34a",
+                        border: "1px solid #86efac",
+                        borderRadius: "4px",
+                        cursor: "pointer",
+                        fontSize: "0.8rem",
+                        marginBottom: "0.75rem",
+                      }}
+                    >
+                      + Aggiungi articolo
+                    </button>
+                  )}
+
+                  {editing && addingProduct && (
+                    <div style={{ marginBottom: "0.75rem" }}>
+                      <AddItemToHistory
+                        onAdd={handleAddItems}
+                        onCancel={() => setAddingProduct(false)}
+                        existingItems={editState!.items}
+                      />
+                    </div>
+                  )}
+
+                  {/* Discount */}
+                  {editing ? (
+                    <div
+                      style={{
+                        fontSize: "0.85rem",
+                        fontWeight: "500",
+                        marginBottom: "0.5rem",
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "0.5rem",
+                      }}
+                    >
+                      <span>Sconto globale:</span>
+                      <input
+                        type="number"
+                        value={editState!.discountPercent}
+                        onChange={(e) =>
+                          setEditState({
+                            ...editState!,
+                            discountPercent: Math.min(
+                              100,
+                              Math.max(0, parseFloat(e.target.value) || 0),
+                            ),
+                          })
+                        }
+                        min={0}
+                        max={100}
+                        step={1}
+                        style={{
+                          width: "60px",
+                          padding: "0.2rem",
+                          textAlign: "right",
+                          border: "1px solid #d1d5db",
+                          borderRadius: "3px",
+                          fontSize: "0.85rem",
+                        }}
+                      />
+                      <span>%</span>
+                    </div>
+                  ) : (
+                    order.discountPercent !== undefined &&
                     order.discountPercent > 0 && (
                       <div
                         style={{
@@ -531,14 +800,17 @@ export function FresisHistoryPage() {
                       >
                         Sconto globale: {order.discountPercent}%
                       </div>
-                    )}
+                    )
+                  )}
 
                   {/* Notes */}
-                  {isEditing ? (
+                  {editing ? (
                     <div style={{ marginBottom: "0.5rem" }}>
                       <textarea
-                        value={editNotes}
-                        onChange={(e) => setEditNotes(e.target.value)}
+                        value={editState!.notes}
+                        onChange={(e) =>
+                          setEditState({ ...editState!, notes: e.target.value })
+                        }
                         placeholder="Note..."
                         rows={3}
                         style={{
@@ -550,41 +822,6 @@ export function FresisHistoryPage() {
                           resize: "vertical",
                         }}
                       />
-                      <div
-                        style={{
-                          display: "flex",
-                          gap: "0.5rem",
-                          marginTop: "0.25rem",
-                        }}
-                      >
-                        <button
-                          onClick={() => handleSaveNotes(order.id)}
-                          style={{
-                            padding: "0.3rem 0.75rem",
-                            background: "#16a34a",
-                            color: "white",
-                            border: "none",
-                            borderRadius: "4px",
-                            cursor: "pointer",
-                            fontSize: "0.8rem",
-                          }}
-                        >
-                          Salva
-                        </button>
-                        <button
-                          onClick={() => setEditingOrderId(null)}
-                          style={{
-                            padding: "0.3rem 0.75rem",
-                            background: "#e5e7eb",
-                            border: "1px solid #d1d5db",
-                            borderRadius: "4px",
-                            cursor: "pointer",
-                            fontSize: "0.8rem",
-                          }}
-                        >
-                          Annulla
-                        </button>
-                      </div>
                     </div>
                   ) : (
                     order.notes && (
@@ -602,108 +839,151 @@ export function FresisHistoryPage() {
                   )}
 
                   {/* Action buttons */}
-                  <div
-                    style={{
-                      display: "flex",
-                      gap: "0.5rem",
-                      flexWrap: "wrap",
-                    }}
-                  >
-                    <button
-                      onClick={() => handleDownloadPDF(order)}
+                  {editing ? (
+                    <div
                       style={{
-                        padding: "0.4rem 0.75rem",
-                        background: "#2563eb",
-                        color: "white",
-                        border: "none",
-                        borderRadius: "4px",
-                        cursor: "pointer",
-                        fontSize: "0.8rem",
+                        display: "flex",
+                        gap: "0.5rem",
+                        flexWrap: "wrap",
                       }}
                     >
-                      Scarica PDF
-                    </button>
-                    <button
-                      onClick={() => {
-                        setEditingOrderId(order.id);
-                        setEditNotes(order.notes || "");
-                      }}
-                      style={{
-                        padding: "0.4rem 0.75rem",
-                        background: "#f59e0b",
-                        color: "white",
-                        border: "none",
-                        borderRadius: "4px",
-                        cursor: "pointer",
-                        fontSize: "0.8rem",
-                      }}
-                    >
-                      Modifica Note
-                    </button>
-                    {order.currentState === "spedito" &&
-                      !order.deliveryCompletedDate && (
-                        <button
-                          onClick={() => handleMarkDelivered(order)}
-                          style={{
-                            padding: "0.4rem 0.75rem",
-                            background: "#16a34a",
-                            color: "white",
-                            border: "none",
-                            borderRadius: "4px",
-                            cursor: "pointer",
-                            fontSize: "0.8rem",
-                          }}
-                        >
-                          Segna Consegnato
-                        </button>
-                      )}
-                    {isDeleting ? (
-                      <>
-                        <button
-                          onClick={() => handleDelete(order.id)}
-                          style={{
-                            padding: "0.4rem 0.75rem",
-                            background: "#dc2626",
-                            color: "white",
-                            border: "none",
-                            borderRadius: "4px",
-                            cursor: "pointer",
-                            fontSize: "0.8rem",
-                          }}
-                        >
-                          Conferma Elimina
-                        </button>
-                        <button
-                          onClick={() => setDeleteConfirmId(null)}
-                          style={{
-                            padding: "0.4rem 0.75rem",
-                            background: "#e5e7eb",
-                            border: "1px solid #d1d5db",
-                            borderRadius: "4px",
-                            cursor: "pointer",
-                            fontSize: "0.8rem",
-                          }}
-                        >
-                          Annulla
-                        </button>
-                      </>
-                    ) : (
                       <button
-                        onClick={() => setDeleteConfirmId(order.id)}
+                        onClick={handleSaveEdit}
+                        disabled={editState!.items.length === 0}
+                        style={{
+                          padding: "0.4rem 1rem",
+                          background:
+                            editState!.items.length === 0
+                              ? "#9ca3af"
+                              : "#16a34a",
+                          color: "white",
+                          border: "none",
+                          borderRadius: "4px",
+                          cursor:
+                            editState!.items.length === 0
+                              ? "not-allowed"
+                              : "pointer",
+                          fontSize: "0.85rem",
+                          fontWeight: "600",
+                        }}
+                      >
+                        Salva
+                      </button>
+                      <button
+                        onClick={handleCancelEdit}
+                        style={{
+                          padding: "0.4rem 1rem",
+                          background: "#e5e7eb",
+                          border: "1px solid #d1d5db",
+                          borderRadius: "4px",
+                          cursor: "pointer",
+                          fontSize: "0.85rem",
+                        }}
+                      >
+                        Annulla
+                      </button>
+                    </div>
+                  ) : (
+                    <div
+                      style={{
+                        display: "flex",
+                        gap: "0.5rem",
+                        flexWrap: "wrap",
+                      }}
+                    >
+                      <button
+                        onClick={() => handleDownloadPDF(order)}
                         style={{
                           padding: "0.4rem 0.75rem",
-                          background: "#fee2e2",
-                          color: "#dc2626",
-                          border: "1px solid #dc2626",
+                          background: "#2563eb",
+                          color: "white",
+                          border: "none",
                           borderRadius: "4px",
                           cursor: "pointer",
                           fontSize: "0.8rem",
                         }}
                       >
-                        Elimina
+                        Scarica PDF
                       </button>
-                    )}
-                  </div>
+                      <button
+                        onClick={() => handleStartEdit(order)}
+                        style={{
+                          padding: "0.4rem 0.75rem",
+                          background: "#f59e0b",
+                          color: "white",
+                          border: "none",
+                          borderRadius: "4px",
+                          cursor: "pointer",
+                          fontSize: "0.8rem",
+                        }}
+                      >
+                        Modifica
+                      </button>
+                      {order.currentState === "spedito" &&
+                        !order.deliveryCompletedDate && (
+                          <button
+                            onClick={() => handleMarkDelivered(order)}
+                            style={{
+                              padding: "0.4rem 0.75rem",
+                              background: "#16a34a",
+                              color: "white",
+                              border: "none",
+                              borderRadius: "4px",
+                              cursor: "pointer",
+                              fontSize: "0.8rem",
+                            }}
+                          >
+                            Segna Consegnato
+                          </button>
+                        )}
+                      {isDeleting ? (
+                        <>
+                          <button
+                            onClick={() => handleDelete(order.id)}
+                            style={{
+                              padding: "0.4rem 0.75rem",
+                              background: "#dc2626",
+                              color: "white",
+                              border: "none",
+                              borderRadius: "4px",
+                              cursor: "pointer",
+                              fontSize: "0.8rem",
+                            }}
+                          >
+                            Conferma Elimina
+                          </button>
+                          <button
+                            onClick={() => setDeleteConfirmId(null)}
+                            style={{
+                              padding: "0.4rem 0.75rem",
+                              background: "#e5e7eb",
+                              border: "1px solid #d1d5db",
+                              borderRadius: "4px",
+                              cursor: "pointer",
+                              fontSize: "0.8rem",
+                            }}
+                          >
+                            Annulla
+                          </button>
+                        </>
+                      ) : (
+                        <button
+                          onClick={() => setDeleteConfirmId(order.id)}
+                          style={{
+                            padding: "0.4rem 0.75rem",
+                            background: "#fee2e2",
+                            color: "#dc2626",
+                            border: "1px solid #dc2626",
+                            borderRadius: "4px",
+                            cursor: "pointer",
+                            fontSize: "0.8rem",
+                          }}
+                        >
+                          Elimina
+                        </button>
+                      )}
+                    </div>
+                  )}
                 </div>
               )}
             </div>

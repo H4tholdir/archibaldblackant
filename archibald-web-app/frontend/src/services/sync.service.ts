@@ -2,6 +2,7 @@ import { customerService } from "./customers.service";
 import { productService } from "./products.service";
 import { priceService } from "./prices.service";
 import { subClientService } from "./subclient.service";
+import { fresisHistoryService } from "./fresis-history.service";
 
 export class SyncService {
   private syncInProgress = false;
@@ -27,7 +28,16 @@ export class SyncService {
         productService.syncProducts(),
         priceService.syncPrices(),
         subClientService.syncSubClients().catch((err) => {
-          console.warn("[SyncService] SubClient sync failed (non-blocking):", err);
+          console.warn(
+            "[SyncService] SubClient sync failed (non-blocking):",
+            err,
+          );
+        }),
+        fresisHistoryService.syncOrderLifecycles().catch((err) => {
+          console.warn(
+            "[SyncService] Fresis lifecycle sync failed (non-blocking):",
+            err,
+          );
         }),
       ]);
 
@@ -75,6 +85,11 @@ export class SyncService {
             console.warn("[SyncService] SubClient sync failed:", err);
           });
         }
+
+        // Sync Fresis lifecycle independently (frontend-initiated)
+        fresisHistoryService.syncOrderLifecycles().catch((err) => {
+          console.warn("[SyncService] Fresis lifecycle sync failed:", err);
+        });
       }
     } catch (error) {
       console.error("[SyncService] Initialize sync failed:", error);

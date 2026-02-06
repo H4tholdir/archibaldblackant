@@ -1,5 +1,6 @@
 import { db } from "../db/schema";
 import { fetchWithRetry } from "../utils/fetch-with-retry";
+import { fresisHistoryService } from "./fresis-history.service";
 
 /**
  * UnifiedSyncService
@@ -19,6 +20,7 @@ import { fetchWithRetry } from "../utils/fetch-with-retry";
 export class UnifiedSyncService {
   private static instance: UnifiedSyncService;
   private syncInterval: NodeJS.Timeout | null = null;
+  private lifecycleSyncInterval: NodeJS.Timeout | null = null;
   private syncIntervalMs = 15000; // 15 seconds default
   private isSyncing = false;
 
@@ -64,8 +66,21 @@ export class UnifiedSyncService {
       }
     });
 
+    // Periodic Fresis lifecycle sync (every 30 minutes)
+    this.lifecycleSyncInterval = setInterval(
+      () => {
+        if (navigator.onLine && !document.hidden) {
+          console.log("[UnifiedSync] Periodic Fresis lifecycle sync...");
+          fresisHistoryService.syncOrderLifecycles().catch((err) => {
+            console.warn("[UnifiedSync] Fresis lifecycle sync failed:", err);
+          });
+        }
+      },
+      30 * 60 * 1000,
+    );
+
     console.log(
-      "[UnifiedSync] Sync service initialized (periodic sync disabled - WebSocket real-time active)",
+      "[UnifiedSync] Sync service initialized (periodic sync disabled - WebSocket real-time active, Fresis lifecycle every 30min)",
     );
   }
 
@@ -94,8 +109,12 @@ export class UnifiedSyncService {
     if (this.syncInterval) {
       clearInterval(this.syncInterval);
       this.syncInterval = null;
-      console.log("[UnifiedSync] Periodic sync stopped");
     }
+    if (this.lifecycleSyncInterval) {
+      clearInterval(this.lifecycleSyncInterval);
+      this.lifecycleSyncInterval = null;
+    }
+    console.log("[UnifiedSync] Periodic sync stopped");
   }
 
   /**
@@ -121,6 +140,11 @@ export class UnifiedSyncService {
 
       // Warehouse sync: HTTP polling (preserved)
       await this.syncWarehouse();
+
+      // Fresis lifecycle sync (frontend-initiated, non-blocking)
+      fresisHistoryService.syncOrderLifecycles().catch((err) => {
+        console.warn("[UnifiedSync] Fresis lifecycle sync failed:", err);
+      });
 
       console.log("[UnifiedSync] Sync all completed");
     } catch (error) {

@@ -22,7 +22,8 @@ class FresisHistoryService {
         id: crypto.randomUUID(),
         originalPendingOrderId: order.id,
         subClientCodice: order.subClientCodice!,
-        subClientName: order.subClientName ?? order.subClientData!.ragioneSociale,
+        subClientName:
+          order.subClientName ?? order.subClientData!.ragioneSociale,
         subClientData: order.subClientData!,
         customerId: order.customerId,
         customerName: order.customerName,
@@ -51,7 +52,8 @@ class FresisHistoryService {
     const all = await db.fresisHistory.toArray();
     return all.filter((order) => {
       if (order.subClientName?.toLowerCase().includes(lowerQuery)) return true;
-      if (order.subClientCodice?.toLowerCase().includes(lowerQuery)) return true;
+      if (order.subClientCodice?.toLowerCase().includes(lowerQuery))
+        return true;
       if (order.customerName?.toLowerCase().includes(lowerQuery)) return true;
       if (order.createdAt?.includes(query)) return true;
       if (order.mergedAt?.includes(query)) return true;
@@ -83,6 +85,15 @@ class FresisHistoryService {
     id: string,
   ): Promise<FresisHistoryOrder | undefined> {
     return db.fresisHistory.get(id);
+  }
+
+  async getLastSyncTime(): Promise<string | null> {
+    try {
+      const meta = await db.cacheMetadata.get("fresisLifecycle");
+      return meta?.lastSynced ?? null;
+    } catch {
+      return null;
+    }
   }
 
   async syncOrderLifecycles(): Promise<number> {
@@ -132,6 +143,13 @@ class FresisHistoryService {
       });
       updatedCount++;
     }
+
+    await db.cacheMetadata.put({
+      key: "fresisLifecycle",
+      lastSynced: now,
+      recordCount: updatedCount,
+      version: 1,
+    });
 
     return updatedCount;
   }
