@@ -34,11 +34,13 @@ export interface SparklineData {
 // ============================================================================
 
 export type WidgetStatus =
-  | "champion" // ≥ 120% - Superamento straordinario
-  | "excellent" // ≥ 100% - Obiettivo raggiunto
-  | "on-track" // ≥ 60% - Sulla buona strada
-  | "attention" // ≥ 35% - Serve attenzione
-  | "critical"; // < 35% - Situazione critica
+  | "legendary" // proiezione ≥ 200% - Mese straordinario
+  | "champion" // proiezione ≥ 150% - Nettamente sopra target
+  | "excellent" // proiezione ≥ 110% - Sopra il target
+  | "on-track" // proiezione ≥ 85% - Allineato al target
+  | "attention" // proiezione ≥ 60% - Serve accelerare
+  | "critical" // proiezione ≥ 30% - Situazione critica
+  | "emergency"; // proiezione < 30% - Emergenza
 
 export interface HeroStatusData {
   status: WidgetStatus;
@@ -48,6 +50,8 @@ export interface HeroStatusData {
   progressMonthly: number; // 0-1 decimal (es. 0.64 = 64%)
   progressNextBonus: number; // 0-1 decimal (es. 0.21 = 21%)
   microCopy: string;
+  projectedProgress: number; // proiezione fine mese / target (es. 1.5 = 150%)
+  projectedMonthRevenue: number; // fatturato proiettato a fine mese
   // Temporal comparisons
   comparisonPreviousMonth?: TemporalComparison;
   comparisonSameMonthLastYear?: TemporalComparison;

@@ -1489,6 +1489,8 @@ app.get(
         userConfig.yearlyTarget,
         orderDb["db"],
         userId,
+        averageDailyRevenue,
+        workingDaysRemaining,
       );
 
       const kpiCards = WidgetCalc.calculateKpiCards(

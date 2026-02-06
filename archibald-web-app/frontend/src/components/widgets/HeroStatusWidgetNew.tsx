@@ -12,8 +12,26 @@ interface HeroStatusWidgetNewProps {
   data: HeroStatusData;
 }
 
-// Colors per status (5-level system) - Highly distinctive colors for instant recognition
-const COLORS = {
+// Colors per status (7-level system) - Highly distinctive colors for instant recognition
+const COLORS: Record<
+  import("../../types/dashboard").WidgetStatus,
+  {
+    bgGradient: string;
+    progressBar: string;
+    accentColor: string;
+    textColor: string;
+    cardBg: string;
+  }
+> = {
+  legendary: {
+    bgGradient:
+      "linear-gradient(135deg, #2d1b69 0%, #4a1a8a 50%, #6b21a8 100%)", // Viola profondo
+    progressBar:
+      "linear-gradient(90deg, #ffd700 0%, #ffaa00 50%, #ffd700 100%)", // Oro brillante
+    accentColor: "#ffd700",
+    textColor: "#ffffff",
+    cardBg: "rgba(255, 215, 0, 0.2)",
+  },
   champion: {
     bgGradient: "linear-gradient(135deg, #5a67d8 0%, #6b46c1 100%)", // Viola scuro
     progressBar: "linear-gradient(90deg, #ffd700 0%, #ffa500 100%)", // Giallo-Arancio oro metallico
@@ -48,6 +66,14 @@ const COLORS = {
     accentColor: "#ff3366",
     textColor: "#ffffff",
     cardBg: "rgba(255, 51, 102, 0.15)",
+  },
+  emergency: {
+    bgGradient:
+      "linear-gradient(135deg, #1a0000 0%, #4a0000 50%, #8b0000 100%)", // Rosso scuro/nero
+    progressBar: "linear-gradient(90deg, #ff0000 0%, #cc0000 100%)", // Rosso intenso
+    accentColor: "#ff0000",
+    textColor: "#ffffff",
+    cardBg: "rgba(255, 0, 0, 0.2)",
   },
 };
 

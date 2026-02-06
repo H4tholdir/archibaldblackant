@@ -70,44 +70,136 @@ export function calculateWorkingDaysRemaining(): number {
 // ============================================================================
 
 export type WidgetStatus =
-  | "champion" // ≥ 120% - Superamento straordinario
-  | "excellent" // ≥ 100% - Obiettivo raggiunto
-  | "on-track" // ≥ 60% - Sulla buona strada
-  | "attention" // ≥ 35% - Serve attenzione
-  | "critical"; // < 35% - Situazione critica
+  | "legendary" // proiezione ≥ 200% - Mese straordinario
+  | "champion" // proiezione ≥ 150% - Nettamente sopra target
+  | "excellent" // proiezione ≥ 110% - Sopra il target
+  | "on-track" // proiezione ≥ 85% - Allineato al target
+  | "attention" // proiezione ≥ 60% - Serve accelerare
+  | "critical" // proiezione ≥ 30% - Situazione critica
+  | "emergency"; // proiezione < 30% - Emergenza
 
-const MICRO_COPY = {
+const MICRO_COPY: Record<WidgetStatus, string[]> = {
+  legendary: [
+    "Passo da record, mese straordinario! 🏆",
+    "Ritmo incredibile, stai volando! 🚀",
+    "Proiezione stellare, continua così! ⭐",
+    "Passo doppio rispetto al target! 💎",
+    "Ritmo leggendario, che mese! 🔥",
+    "A questo passo superi il doppio del target! 👑",
+  ],
   champion: [
-    "Obiettivo superato! 🏆",
-    "Risultato straordinario! 🚀",
-    "Performance eccezionale! ⭐",
-    "Oltre ogni aspettativa! 🎯",
+    "Ritmo eccellente, nettamente sopra! 🏅",
+    "Passo fortissimo, target ampiamente superato! 💪",
+    "Proiezione ben oltre il target! 🎯",
+    "A questo ritmo chiudi alla grande! 🚀",
+    "Passo da campione, avanti così! ⚡",
+    "Ritmo altissimo, risultato assicurato! 🏆",
   ],
   excellent: [
-    "Obiettivo raggiunto! 🎉",
-    "Target centrato! 🎯",
-    "Missione compiuta! ✅",
-    "Obiettivo conquistato! 🏅",
+    "Buon passo, target alla portata! ✅",
+    "Ritmo solido, proiezione sopra il target! 📈",
+    "A questo passo superi l'obiettivo! 🎯",
+    "Proiezione positiva, ottimo lavoro! 🎉",
+    "Ritmo giusto per superare il target! 💚",
+    "Passo sicuro, obiettivo in vista! ✨",
   ],
   "on-track": [
-    "Sulla buona strada 🚀",
-    "Obiettivo sotto controllo",
-    "Ritmo giusto, continua così",
-    "Percorso allineato 📈",
+    "Ritmo allineato al target 📊",
+    "Passo regolare, sei in linea",
+    "Proiezione in zona target 🎯",
+    "A questo ritmo ci sei, mantieni il passo",
+    "Andatura costante, obiettivo raggiungibile",
+    "Passo buono, continua così 📈",
   ],
   attention: [
-    "Serve una accelerazione",
-    "È il momento di spingere forte",
-    "Recupero necessario, si può fare",
-    "Focus sull'obiettivo! 💪",
+    "Serve accelerare il ritmo",
+    "Passo sotto target, è il momento di spingere",
+    "Proiezione sotto obiettivo, recupero possibile 💪",
+    "Ritmo da aumentare per centrare il target",
+    "A questo passo mancheresti il target, accelera!",
+    "Serve una marcia in più per l'obiettivo",
   ],
   critical: [
-    "Situazione critica - azione immediata",
-    "Alert: serve cambio di strategia",
-    "Urgente: recupero necessario",
-    "Piano di recupero richiesto ⚡",
+    "Ritmo critico, azione immediata necessaria",
+    "Passo molto sotto target, serve svolta",
+    "Proiezione lontana dall'obiettivo ⚠️",
+    "Ritmo insufficiente, piano di recupero urgente",
+    "A questo passo il gap è importante, reagisci",
+    "Situazione critica, serve cambio di strategia",
+  ],
+  emergency: [
+    "Emergenza: ritmo quasi fermo ⛔",
+    "Passo d'emergenza, serve azione drastica",
+    "Proiezione molto lontana, intervieni subito",
+    "Ritmo d'allarme, ogni ordine conta",
+    "Emergenza target, serve tutto l'impegno possibile",
+    "Situazione d'emergenza, priorità massima al fatturato",
   ],
 };
+
+export function determineHeroStatus(
+  currentMonthRevenue: number,
+  monthlyTarget: number,
+  averageDailyRevenue: number,
+  workingDaysRemaining: number,
+  dayOfMonth: number,
+): {
+  status: WidgetStatus;
+  projectedProgress: number;
+  projectedMonthRevenue: number;
+} {
+  const projectedMonthRevenue =
+    currentMonthRevenue + averageDailyRevenue * workingDaysRemaining;
+  const projectedProgress =
+    monthlyTarget > 0 ? projectedMonthRevenue / monthlyTarget : 0;
+  const absoluteProgress =
+    monthlyTarget > 0 ? currentMonthRevenue / monthlyTarget : 0;
+
+  // Guardrail: primi 3 giorni con pochi dati → default on-track
+  if (dayOfMonth <= 3 && absoluteProgress < 0.1) {
+    return { status: "on-track", projectedProgress, projectedMonthRevenue };
+  }
+
+  // Override assoluto: target gia' raggiunto
+  if (absoluteProgress >= 2.0) {
+    return { status: "legendary", projectedProgress, projectedMonthRevenue };
+  }
+  if (absoluteProgress >= 1.0) {
+    // Almeno excellent, ma puo' essere meglio se la proiezione e' alta
+    const projectionStatus = projectedProgressToStatus(projectedProgress);
+    const statusRank = STATUS_RANK[projectionStatus];
+    const minStatus: WidgetStatus =
+      statusRank > STATUS_RANK["excellent"] ? projectionStatus : "excellent";
+    return { status: minStatus, projectedProgress, projectedMonthRevenue };
+  }
+
+  // Caso generale: basato su proiezione
+  return {
+    status: projectedProgressToStatus(projectedProgress),
+    projectedProgress,
+    projectedMonthRevenue,
+  };
+}
+
+const STATUS_RANK: Record<WidgetStatus, number> = {
+  emergency: 0,
+  critical: 1,
+  attention: 2,
+  "on-track": 3,
+  excellent: 4,
+  champion: 5,
+  legendary: 6,
+};
+
+function projectedProgressToStatus(projectedProgress: number): WidgetStatus {
+  if (projectedProgress >= 2.0) return "legendary";
+  if (projectedProgress >= 1.5) return "champion";
+  if (projectedProgress >= 1.1) return "excellent";
+  if (projectedProgress >= 0.85) return "on-track";
+  if (projectedProgress >= 0.6) return "attention";
+  if (projectedProgress >= 0.3) return "critical";
+  return "emergency";
+}
 
 export function calculateHeroStatus(
   currentMonthRevenue: number,
@@ -117,26 +209,20 @@ export function calculateHeroStatus(
   yearlyTarget: number,
   db: Database,
   userId: string,
+  averageDailyRevenue: number,
+  workingDaysRemaining: number,
 ) {
-  // Calculate progress percentage
-  const progress = currentMonthRevenue / monthlyTarget;
-
-  // Determine status based on 5-level thresholds (adjusted for realistic monthly progression)
-  let status: WidgetStatus;
-  if (progress >= 1.2) {
-    status = "champion";
-  } else if (progress >= 1.0) {
-    status = "excellent";
-  } else if (progress >= 0.6) {
-    status = "on-track"; // Lowered from 0.8 - more breathing room
-  } else if (progress >= 0.35) {
-    status = "attention"; // Lowered from 0.5 - realistic for early month
-  } else {
-    status = "critical"; // Only <35% is truly critical
-  }
+  const dayOfMonth = new Date().getDate();
+  const { status, projectedProgress, projectedMonthRevenue } =
+    determineHeroStatus(
+      currentMonthRevenue,
+      monthlyTarget,
+      averageDailyRevenue,
+      workingDaysRemaining,
+      dayOfMonth,
+    );
 
   // Select micro-copy with deterministic daily rotation
-  const dayOfMonth = new Date().getDate();
   const microCopyArray = MICRO_COPY[status];
   const microCopyIndex = dayOfMonth % microCopyArray.length;
   const microCopy = microCopyArray[microCopyIndex];
@@ -178,6 +264,8 @@ export function calculateHeroStatus(
     progressMonthly,
     progressNextBonus,
     microCopy,
+    projectedProgress,
+    projectedMonthRevenue,
     comparisonPreviousMonth,
     comparisonSameMonthLastYear,
     comparisonYearlyProgress,
