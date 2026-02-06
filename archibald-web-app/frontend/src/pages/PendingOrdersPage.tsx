@@ -1381,14 +1381,16 @@ export function PendingOrdersPage() {
                                   alignSelf: "center",
                                   color:
                                     item.discount && item.discount > 0
-                                      ? isFresis({ id: order.customerId })
+                                      ? isFresis({ id: order.customerId }) &&
+                                        !order.subClientCodice
                                         ? "#059669"
                                         : "#dc2626"
                                       : "#9ca3af",
                                 }}
                               >
                                 {item.discount && item.discount > 0
-                                  ? isFresis({ id: order.customerId })
+                                  ? isFresis({ id: order.customerId }) &&
+                                    !order.subClientCodice
                                     ? `${item.discount}%`
                                     : `-€${item.discount.toFixed(2)}`
                                   : "—"}
@@ -1560,14 +1562,17 @@ export function PendingOrdersPage() {
                                       fontWeight: "500",
                                       color:
                                         item.discount && item.discount > 0
-                                          ? isFresis({ id: order.customerId })
+                                          ? isFresis({
+                                              id: order.customerId,
+                                            }) && !order.subClientCodice
                                             ? "#059669"
                                             : "#dc2626"
                                           : "#9ca3af",
                                     }}
                                   >
                                     {item.discount && item.discount > 0
-                                      ? isFresis({ id: order.customerId })
+                                      ? isFresis({ id: order.customerId }) &&
+                                        !order.subClientCodice
                                         ? `${item.discount}%`
                                         : `-€${item.discount.toFixed(2)}`
                                       : "—"}

@@ -195,14 +195,23 @@ export default function OrderFormSimple() {
     }
 
     const discountPercent = parseFloat(globalDiscountPercent) || 0;
-    let totalRevenue = 0;
-    for (const item of items) {
-      const clientPrice = item.unitPrice * (1 - discountPercent / 100);
-      const fresisDiscount = item.discount || FRESIS_DEFAULT_DISCOUNT;
-      const fresisPrice = item.unitPrice * (1 - fresisDiscount / 100);
-      totalRevenue += (clientPrice - fresisPrice) * item.quantity;
-    }
-    setEstimatedRevenue(totalRevenue);
+
+    const calculateRevenue = async () => {
+      let totalRevenue = 0;
+      for (const item of items) {
+        const clientPrice = item.unitPrice * (1 - discountPercent / 100);
+        const fresisDiscount =
+          await fresisDiscountService.getDiscountForArticle(
+            item.productId,
+            item.article,
+          );
+        const fresisPrice = item.unitPrice * (1 - fresisDiscount / 100);
+        totalRevenue += (clientPrice - fresisPrice) * item.quantity;
+      }
+      setEstimatedRevenue(totalRevenue);
+    };
+
+    calculateRevenue();
   }, [items, selectedCustomer, selectedSubClient, globalDiscountPercent]);
 
   // Auto-save draft state
@@ -566,7 +575,7 @@ export default function OrderFormSimple() {
     }
   };
 
-  const handleSelectProduct = async (product: Product) => {
+  const handleSelectProduct = (product: Product) => {
     setSelectedProduct(product);
     setProductSearch(product.name);
     setProductResults([]);
@@ -578,14 +587,6 @@ export default function OrderFormSimple() {
     setProductVariants([]);
     // Reset warehouse selection
     setWarehouseSelection([]);
-
-    if (isFresis(selectedCustomer)) {
-      const fresisDiscount = await fresisDiscountService.getDiscountForArticle(
-        product.id,
-        product.name,
-      );
-      setItemDiscount(String(fresisDiscount));
-    }
 
     // Focus on quantity field after product selection
     setTimeout(() => {
@@ -2732,9 +2733,7 @@ export default function OrderFormSimple() {
                         fontSize: isMobile ? "0.875rem" : "1rem",
                       }}
                     >
-                      {isFresis(selectedCustomer)
-                        ? "Sconto Fresis (%)"
-                        : "Sconto su Riga (€)"}
+                      Sconto su Riga (€)
                     </label>
                     <input
                       type="text"
@@ -3081,18 +3080,11 @@ export default function OrderFormSimple() {
                       style={{
                         padding: "0.75rem",
                         textAlign: "right",
-                        color:
-                          item.discount > 0
-                            ? isFresis(selectedCustomer)
-                              ? "#059669"
-                              : "#dc2626"
-                            : "#9ca3af",
+                        color: item.discount > 0 ? "#dc2626" : "#9ca3af",
                       }}
                     >
                       {item.discount > 0
-                        ? isFresis(selectedCustomer)
-                          ? `${item.discount}%`
-                          : `-€${item.discount.toFixed(2)}`
+                        ? `-€${item.discount.toFixed(2)}`
                         : "—"}
                     </td>
                     <td style={{ padding: "0.75rem", textAlign: "right" }}>
@@ -3239,18 +3231,11 @@ export default function OrderFormSimple() {
                       <strong
                         style={{
                           marginLeft: "0.25rem",
-                          color:
-                            item.discount > 0
-                              ? isFresis(selectedCustomer)
-                                ? "#059669"
-                                : "#dc2626"
-                              : "#9ca3af",
+                          color: item.discount > 0 ? "#dc2626" : "#9ca3af",
                         }}
                       >
                         {item.discount > 0
-                          ? isFresis(selectedCustomer)
-                            ? `${item.discount}%`
-                            : `-€${item.discount.toFixed(2)}`
+                          ? `-€${item.discount.toFixed(2)}`
                           : "—"}
                       </strong>
                     </div>
