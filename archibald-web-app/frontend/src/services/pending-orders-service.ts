@@ -561,51 +561,11 @@ export class PendingOrdersService {
    * @param daysOld - Archive orders older than this many days (default: 7)
    * @returns Number of orders archived (deleted)
    */
-  async archiveCompletedWarehouseOrders(daysOld: number = 7): Promise<number> {
-    const warehouseCompleted = await db.pendingOrders
-      .where("status")
-      .equals("completed-warehouse")
-      .toArray();
-
-    if (warehouseCompleted.length === 0) {
-      return 0;
-    }
-
-    const cutoffDate = new Date();
-    cutoffDate.setDate(cutoffDate.getDate() - daysOld);
-
-    const toArchive = warehouseCompleted.filter((order) => {
-      const orderDate = new Date(order.createdAt);
-      return orderDate < cutoffDate;
-    });
-
-    if (toArchive.length === 0) {
-      console.log(
-        "[PendingOrders] No warehouse orders older than",
-        daysOld,
-        "days",
-      );
-      return 0;
-    }
-
-    console.log("[PendingOrders] 🏪 Archiving completed warehouse orders", {
-      count: toArchive.length,
-      cutoffDate: cutoffDate.toISOString(),
-    });
-
-    for (const order of toArchive) {
-      // Delete the order (warehouse items are already marked as sold)
-      await db.pendingOrders.delete(order.id!);
-      console.log("[PendingOrders] ✅ Archived warehouse order", {
-        orderId: order.id,
-      });
-    }
-
-    console.log("[PendingOrders] ✅ Archive complete", {
-      archived: toArchive.length,
-    });
-
-    return toArchive.length;
+  async archiveCompletedWarehouseOrders(
+    _daysOld: number = 7,
+  ): Promise<number> {
+    // Disabled: warehouse orders require manual confirmation before archiving
+    return 0;
   }
 }
 

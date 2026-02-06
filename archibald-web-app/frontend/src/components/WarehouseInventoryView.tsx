@@ -328,18 +328,48 @@ export function WarehouseInventoryView() {
   const getOrderReference = (item: WarehouseItem) => {
     if (item.soldInOrder) {
       return (
-        <div style={{ fontSize: "0.875rem", fontFamily: "monospace" }}>
-          <strong style={{ color: "#dc2626" }}>Ordine:</strong>{" "}
-          {item.soldInOrder}
+        <div style={{ fontSize: "0.8125rem", lineHeight: "1.4" }}>
+          <div>
+            <strong style={{ color: "#dc2626" }}>Venduto a:</strong>{" "}
+            {item.customerName || "—"}
+          </div>
+          {item.subClientName && (
+            <div style={{ color: "#6b7280" }}>
+              Sotto-cliente: {item.subClientName}
+            </div>
+          )}
+          {item.orderDate && (
+            <div style={{ color: "#6b7280" }}>
+              Data: {new Date(item.orderDate).toLocaleDateString("it-IT")}
+            </div>
+          )}
+          <div style={{ fontFamily: "monospace", color: "#9ca3af", fontSize: "0.75rem" }}>
+            {item.soldInOrder}
+          </div>
         </div>
       );
     }
 
     if (item.reservedForOrder) {
       return (
-        <div style={{ fontSize: "0.875rem", fontFamily: "monospace" }}>
-          <strong style={{ color: "#d97706" }}>Riservato per:</strong>{" "}
-          {item.reservedForOrder}
+        <div style={{ fontSize: "0.8125rem", lineHeight: "1.4" }}>
+          <div>
+            <strong style={{ color: "#d97706" }}>Riservato per:</strong>{" "}
+            {item.customerName || "—"}
+          </div>
+          {item.subClientName && (
+            <div style={{ color: "#6b7280" }}>
+              Sotto-cliente: {item.subClientName}
+            </div>
+          )}
+          {item.orderDate && (
+            <div style={{ color: "#6b7280" }}>
+              Data: {new Date(item.orderDate).toLocaleDateString("it-IT")}
+            </div>
+          )}
+          <div style={{ fontFamily: "monospace", color: "#9ca3af", fontSize: "0.75rem" }}>
+            {item.reservedForOrder}
+          </div>
         </div>
       );
     }

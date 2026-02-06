@@ -27,8 +27,9 @@ import { useDraftSync } from "../hooks/useDraftSync";
 import { calculateShippingCosts } from "../utils/order-calculations";
 import type { SubClient } from "../db/schema";
 import { SubClientSelector } from "./new-order-form/SubClientSelector";
-import { isFresis } from "../utils/fresis-constants";
+import { isFresis, FRESIS_DEFAULT_DISCOUNT } from "../utils/fresis-constants";
 import { normalizeVatRate } from "../utils/vat-utils";
+import { fresisDiscountService } from "../services/fresis-discount.service";
 
 interface OrderItem {
   id: string;
@@ -81,8 +82,9 @@ export default function OrderFormSimple() {
   const [searchingCustomer, setSearchingCustomer] = useState(false);
 
   // Step 1b: Sub-client selection (Fresis only)
-  const [selectedSubClient, setSelectedSubClient] =
-    useState<SubClient | null>(null);
+  const [selectedSubClient, setSelectedSubClient] = useState<SubClient | null>(
+    null,
+  );
 
   // Step 2: Product entry with intelligent variant selection
   const [productSearch, setProductSearch] = useState("");
@@ -119,6 +121,16 @@ export default function OrderFormSimple() {
   const [items, setItems] = useState<OrderItem[]>([]);
   const [globalDiscountPercent, setGlobalDiscountPercent] = useState("");
   const [targetTotal, setTargetTotal] = useState("");
+
+  // Ricavo stimato Fresis
+  const [estimatedRevenue, setEstimatedRevenue] = useState<number | null>(null);
+
+  // Maggiorazione prezzo
+  const [showMarkupPanel, setShowMarkupPanel] = useState(false);
+  const [markupArticleSelection, setMarkupArticleSelection] = useState<
+    Set<string>
+  >(new Set());
+  const [markupAmount, setMarkupAmount] = useState(0);
 
   // 🔧 FIX #2: Memoize excluded warehouse item IDs to prevent re-renders
   const excludedWarehouseItemIds = useMemo(
@@ -171,6 +183,37 @@ export default function OrderFormSimple() {
   >(null);
   const [loadingOrder, setLoadingOrder] = useState(false);
 
+  // Calculate estimated revenue for Fresis sub-client orders
+  useEffect(() => {
+    if (
+      !isFresis(selectedCustomer) ||
+      !selectedSubClient ||
+      items.length === 0
+    ) {
+      setEstimatedRevenue(null);
+      return;
+    }
+
+    const discountPercent = parseFloat(globalDiscountPercent) || 0;
+
+    const calculateRevenue = async () => {
+      let totalRevenue = 0;
+      for (const item of items) {
+        const clientPrice = item.unitPrice * (1 - discountPercent / 100);
+        const fresisDiscount =
+          await fresisDiscountService.getDiscountForArticle(
+            item.productId,
+            item.article,
+          );
+        const fresisPrice = item.unitPrice * (1 - fresisDiscount / 100);
+        totalRevenue += (clientPrice - fresisPrice) * item.quantity;
+      }
+      setEstimatedRevenue(totalRevenue);
+    };
+
+    calculateRevenue();
+  }, [items, selectedCustomer, selectedSubClient, globalDiscountPercent]);
+
   // Auto-save draft state
   const [hasDraft, setHasDraft] = useState(false);
   const [draftId, setDraftId] = useState<string | null>(null);
@@ -191,6 +234,12 @@ export default function OrderFormSimple() {
 
   // 🔧 FIX: Prevent draft recreation after user explicitly deletes it
   const draftDeletedRef = useRef(false);
+
+  // Customer keyboard navigation
+  const [highlightedCustomerIndex, setHighlightedCustomerIndex] = useState(-1);
+  const customerDropdownItemsRef = useRef<(HTMLDivElement | null)[]>([]);
+  const customerSearchInputRef = useRef<HTMLInputElement>(null);
+  const subClientInputRef = useRef<HTMLInputElement>(null);
 
   // Refs for focus management
   const productSearchInputRef = useRef<HTMLInputElement>(null);
@@ -332,9 +381,9 @@ export default function OrderFormSimple() {
 
         setItems(loadedItems);
 
-        // Calculate and set global discount if needed
-        // For now, we don't have global discount stored in the order
-        // so we leave it at 0
+        if (order.discountPercent) {
+          setGlobalDiscountPercent(order.discountPercent.toString());
+        }
       } catch (error) {
         console.error("[OrderForm] Failed to load order:", error);
         toastService.error("Errore durante il caricamento dell'ordine");
@@ -434,6 +483,7 @@ export default function OrderFormSimple() {
   // === CUSTOMER SEARCH ===
   const handleCustomerSearch = async (query: string) => {
     setCustomerSearch(query);
+    setHighlightedCustomerIndex(-1);
     if (query.length < 2) {
       setCustomerResults([]);
       return;
@@ -454,6 +504,44 @@ export default function OrderFormSimple() {
     setSelectedCustomer(customer);
     setCustomerSearch(customer.name);
     setCustomerResults([]);
+    setHighlightedCustomerIndex(-1);
+    setTimeout(() => {
+      if (isFresis(customer)) {
+        subClientInputRef.current?.focus();
+      } else {
+        productSearchInputRef.current?.focus();
+      }
+    }, 100);
+  };
+
+  const handleCustomerKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (customerResults.length === 0) return;
+    switch (e.key) {
+      case "ArrowDown":
+        e.preventDefault();
+        setHighlightedCustomerIndex((prev) =>
+          prev < customerResults.length - 1 ? prev + 1 : prev,
+        );
+        break;
+      case "ArrowUp":
+        e.preventDefault();
+        setHighlightedCustomerIndex((prev) => (prev > 0 ? prev - 1 : 0));
+        break;
+      case "Enter":
+        e.preventDefault();
+        if (
+          highlightedCustomerIndex >= 0 &&
+          highlightedCustomerIndex < customerResults.length
+        ) {
+          handleSelectCustomer(customerResults[highlightedCustomerIndex]);
+        }
+        break;
+      case "Escape":
+        e.preventDefault();
+        setCustomerResults([]);
+        setHighlightedCustomerIndex(-1);
+        break;
+    }
   };
 
   // === PRODUCT SEARCH (GROUPED BY NAME) ===
@@ -550,6 +638,21 @@ export default function OrderFormSimple() {
       });
     }
   }, [highlightedProductIndex]);
+
+  // Scroll highlighted item into view in customer dropdown
+  useEffect(() => {
+    if (
+      highlightedCustomerIndex >= 0 &&
+      customerDropdownItemsRef.current[highlightedCustomerIndex]
+    ) {
+      customerDropdownItemsRef.current[
+        highlightedCustomerIndex
+      ]?.scrollIntoView({
+        behavior: "smooth",
+        block: "nearest",
+      });
+    }
+  }, [highlightedCustomerIndex]);
 
   // === LOAD PRODUCT DETAILS ===
   // Load all variants with their prices and VAT when product is selected
@@ -1619,6 +1722,23 @@ export default function OrderFormSimple() {
     const target = parseFloat(targetTotal);
     if (isNaN(target) || target <= 0) return;
 
+    const currentTotal = calculateTotals().finalTotal;
+
+    // If target > current total, activate markup mode (only with sub-client)
+    if (target > currentTotal) {
+      if (!isFresis(selectedCustomer) || !selectedSubClient) {
+        toastService.error(
+          "La maggiorazione prezzo è disponibile solo per ordini Fresis con sottocliente",
+        );
+        return;
+      }
+      const diff = target - currentTotal;
+      setMarkupAmount(diff);
+      setMarkupArticleSelection(new Set(items.map((i) => i.id)));
+      setShowMarkupPanel(true);
+      return;
+    }
+
     const itemsSubtotal = items.reduce((sum, item) => sum + item.subtotal, 0);
 
     // With mixed VAT rates AND shipping costs, we need to solve iteratively
@@ -1670,8 +1790,62 @@ export default function OrderFormSimple() {
       return;
     }
 
-    setGlobalDiscountPercent(bestDiscount.toFixed(4));
+    setGlobalDiscountPercent(bestDiscount.toFixed(2));
     setTargetTotal("");
+  };
+
+  const applyMarkup = () => {
+    const selectedItems = items.filter((i) => markupArticleSelection.has(i.id));
+    if (selectedItems.length === 0) {
+      toastService.error("Seleziona almeno un articolo");
+      return;
+    }
+
+    // markupAmount is the IVA-inclusive difference
+    // We need to distribute the net (pre-VAT) amount proportionally across selected items
+    // Approximate: scorporo IVA using weighted average VAT rate of selected items
+    const selectedSubtotal = selectedItems.reduce(
+      (sum, i) => sum + i.subtotal,
+      0,
+    );
+    const selectedVAT = selectedItems.reduce((sum, i) => sum + i.vat, 0);
+    const avgVatRate =
+      selectedSubtotal > 0 ? selectedVAT / selectedSubtotal : 0.22;
+    const netMarkup = markupAmount / (1 + avgVatRate);
+
+    const updatedItems = items.map((item) => {
+      if (!markupArticleSelection.has(item.id)) return item;
+
+      // Distribute proportionally to item subtotal weight
+      const weight =
+        selectedSubtotal > 0
+          ? item.subtotal / selectedSubtotal
+          : 1 / selectedItems.length;
+      const itemMarkup = netMarkup * weight;
+      const newUnitPrice =
+        item.quantity > 0
+          ? item.unitPrice + itemMarkup / item.quantity
+          : item.unitPrice;
+
+      const newSubtotal = newUnitPrice * item.quantity;
+      const newVat = newSubtotal * (item.vatRate / 100);
+      const newTotal = newSubtotal + newVat;
+
+      return {
+        ...item,
+        unitPrice: Math.round(newUnitPrice * 100) / 100,
+        subtotal: Math.round(newSubtotal * 100) / 100,
+        vat: Math.round(newVat * 100) / 100,
+        total: Math.round(newTotal * 100) / 100,
+      };
+    });
+
+    setItems(updatedItems);
+    setShowMarkupPanel(false);
+    setTargetTotal("");
+    toastService.success(
+      `Maggiorazione di €${markupAmount.toFixed(2)} applicata su ${selectedItems.length} articol${selectedItems.length === 1 ? "o" : "i"}`,
+    );
   };
 
   // === SUBMIT ===
@@ -2042,11 +2216,13 @@ export default function OrderFormSimple() {
         {!selectedCustomer ? (
           <>
             <input
+              ref={customerSearchInputRef}
               type="text"
               name="customer-search-field"
               value={customerSearch}
               onChange={(e) => handleCustomerSearch(e.target.value)}
-              placeholder="Cerca cliente per nome..."
+              onKeyDown={handleCustomerKeyDown}
+              placeholder="Cerca cliente per nome, città, P.IVA..."
               autoComplete="new-password"
               data-form-type="other"
               style={{
@@ -2073,26 +2249,32 @@ export default function OrderFormSimple() {
                   background: "white",
                 }}
               >
-                {customerResults.map((customer) => (
+                {customerResults.map((customer, index) => (
                   <div
                     key={customer.id}
+                    ref={(el) => {
+                      customerDropdownItemsRef.current[index] = el;
+                    }}
                     onClick={() => handleSelectCustomer(customer)}
                     style={{
                       padding: isMobile ? "1rem" : "0.75rem",
                       cursor: "pointer",
                       borderBottom: "1px solid #f3f4f6",
                       minHeight: isMobile ? "48px" : "auto",
-                      display: "flex",
-                      alignItems: "center",
+                      background:
+                        index === highlightedCustomerIndex
+                          ? "#e0f2fe"
+                          : "white",
                     }}
-                    onMouseEnter={(e) =>
-                      (e.currentTarget.style.background = "#f9fafb")
-                    }
-                    onMouseLeave={(e) =>
-                      (e.currentTarget.style.background = "white")
-                    }
+                    onMouseEnter={() => setHighlightedCustomerIndex(index)}
                   >
-                    <div>
+                    <div
+                      style={{
+                        display: "flex",
+                        justifyContent: "space-between",
+                        alignItems: "baseline",
+                      }}
+                    >
                       <strong
                         style={{ fontSize: isMobile ? "1rem" : "0.875rem" }}
                       >
@@ -2104,9 +2286,33 @@ export default function OrderFormSimple() {
                             marginLeft: "0.5rem",
                             color: "#6b7280",
                             fontSize: isMobile ? "0.875rem" : "0.75rem",
+                            flexShrink: 0,
                           }}
                         >
-                          ({customer.code})
+                          {customer.code}
+                        </span>
+                      )}
+                    </div>
+                    <div
+                      style={{
+                        fontSize: isMobile ? "0.8rem" : "0.75rem",
+                        color: "#6b7280",
+                        marginTop: "0.125rem",
+                      }}
+                    >
+                      {customer.city && (
+                        <span>
+                          {customer.city}
+                          {customer.province && ` (${customer.province})`}
+                        </span>
+                      )}
+                      {customer.taxCode && (
+                        <span
+                          style={{
+                            marginLeft: customer.city ? "0.75rem" : 0,
+                          }}
+                        >
+                          P.IVA: {customer.taxCode}
                         </span>
                       )}
                     </div>
@@ -2163,545 +2369,554 @@ export default function OrderFormSimple() {
               onSelect={(sc) => setSelectedSubClient(sc)}
               onClear={() => setSelectedSubClient(null)}
               selectedSubClient={selectedSubClient}
+              externalInputRef={subClientInputRef}
+              onAfterSelect={() => productSearchInputRef.current?.focus()}
             />
           </div>
         )}
       </div>
 
       {/* STEP 2: ADD PRODUCTS WITH INTELLIGENT VARIANT SELECTION */}
-      {selectedCustomer && (!isFresis(selectedCustomer) || selectedSubClient) && (
-        <div
-          style={{
-            marginBottom: isMobile ? "1rem" : "2rem",
-            padding: isMobile ? "1rem" : "1.5rem",
-            background: "#f9fafb",
-            borderRadius: "8px",
-          }}
-        >
-          <h2
+      {selectedCustomer &&
+        (!isFresis(selectedCustomer) || selectedSubClient) && (
+          <div
             style={{
-              fontSize: isMobile ? "1.125rem" : "1.25rem",
-              marginBottom: "1rem",
+              marginBottom: isMobile ? "1rem" : "2rem",
+              padding: isMobile ? "1rem" : "1.5rem",
+              background: "#f9fafb",
+              borderRadius: "8px",
             }}
           >
-            2. Aggiungi Articoli
-          </h2>
-
-          {/* Product search */}
-          <div style={{ marginBottom: "1rem" }}>
-            <label
+            <h2
               style={{
-                display: "block",
-                marginBottom: "0.5rem",
-                fontWeight: "500",
-                fontSize: isMobile ? "0.875rem" : "1rem",
+                fontSize: isMobile ? "1.125rem" : "1.25rem",
+                marginBottom: "1rem",
               }}
             >
-              Nome Articolo
-            </label>
-            <input
-              ref={productSearchInputRef}
-              type="text"
-              name="product-search-field"
-              value={productSearch}
-              onChange={(e) => handleProductSearch(e.target.value)}
-              onKeyDown={handleProductKeyDown}
-              placeholder="Cerca articolo..."
-              autoComplete="new-password"
-              data-form-type="other"
-              style={{
-                width: "100%",
-                padding: isMobile ? "0.875rem" : "0.75rem",
-                fontSize: isMobile ? "16px" : "1rem",
-                border: "1px solid #d1d5db",
-                borderRadius: "4px",
-              }}
-            />
+              2. Aggiungi Articoli
+            </h2>
 
-            {searchingProduct && (
-              <p style={{ color: "#6b7280", marginTop: "0.5rem" }}>
-                Ricerca...
-              </p>
-            )}
-
-            {productResults.length > 0 && (
-              <div
+            {/* Product search */}
+            <div style={{ marginBottom: "1rem" }}>
+              <label
                 style={{
+                  display: "block",
+                  marginBottom: "0.5rem",
+                  fontWeight: "500",
+                  fontSize: isMobile ? "0.875rem" : "1rem",
+                }}
+              >
+                Nome Articolo
+              </label>
+              <input
+                ref={productSearchInputRef}
+                type="text"
+                name="product-search-field"
+                value={productSearch}
+                onChange={(e) => handleProductSearch(e.target.value)}
+                onKeyDown={handleProductKeyDown}
+                placeholder="Cerca articolo..."
+                autoComplete="new-password"
+                data-form-type="other"
+                style={{
+                  width: "100%",
+                  padding: isMobile ? "0.875rem" : "0.75rem",
+                  fontSize: isMobile ? "16px" : "1rem",
                   border: "1px solid #d1d5db",
                   borderRadius: "4px",
-                  maxHeight: isMobile ? "300px" : "200px",
-                  overflowY: "auto",
-                  background: "white",
-                  marginTop: "0.5rem",
                 }}
-              >
-                {productResults.map((product, index) => (
-                  <div
-                    key={product.id}
-                    ref={(el) => {
-                      productDropdownItemsRef.current[index] = el;
-                    }}
-                    onClick={() => handleSelectProduct(product)}
-                    onMouseEnter={() => setHighlightedProductIndex(index)}
-                    style={{
-                      padding: isMobile ? "1rem" : "0.75rem",
-                      cursor: "pointer",
-                      borderBottom: "1px solid #f3f4f6",
-                      minHeight: isMobile ? "48px" : "auto",
-                      background:
-                        index === highlightedProductIndex ? "#f3f4f6" : "white",
-                    }}
-                  >
-                    <strong
-                      style={{ fontSize: isMobile ? "1rem" : "0.875rem" }}
-                    >
-                      {product.name}
-                    </strong>
-                    {product.description && (
-                      <p
-                        style={{
-                          margin: "0.25rem 0 0 0",
-                          fontSize: isMobile ? "0.875rem" : "0.75rem",
-                          color: "#6b7280",
-                        }}
-                      >
-                        {product.description}
-                      </p>
-                    )}
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
+              />
 
-          {selectedProduct && (
-            <>
-              <div
-                style={{
-                  padding: "1.25rem",
-                  background: "#dbeafe",
-                  border: "2px solid #3b82f6",
-                  borderRadius: "8px",
-                  marginBottom: "1rem",
-                }}
-              >
+              {searchingProduct && (
+                <p style={{ color: "#6b7280", marginTop: "0.5rem" }}>
+                  Ricerca...
+                </p>
+              )}
+
+              {productResults.length > 0 && (
                 <div
                   style={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    alignItems: "flex-start",
+                    border: "1px solid #d1d5db",
+                    borderRadius: "4px",
+                    maxHeight: isMobile ? "300px" : "200px",
+                    overflowY: "auto",
+                    background: "white",
+                    marginTop: "0.5rem",
+                  }}
+                >
+                  {productResults.map((product, index) => (
+                    <div
+                      key={product.id}
+                      ref={(el) => {
+                        productDropdownItemsRef.current[index] = el;
+                      }}
+                      onClick={() => handleSelectProduct(product)}
+                      onMouseEnter={() => setHighlightedProductIndex(index)}
+                      style={{
+                        padding: isMobile ? "1rem" : "0.75rem",
+                        cursor: "pointer",
+                        borderBottom: "1px solid #f3f4f6",
+                        minHeight: isMobile ? "48px" : "auto",
+                        background:
+                          index === highlightedProductIndex
+                            ? "#f3f4f6"
+                            : "white",
+                      }}
+                    >
+                      <strong
+                        style={{ fontSize: isMobile ? "1rem" : "0.875rem" }}
+                      >
+                        {product.name}
+                      </strong>
+                      {product.description && (
+                        <p
+                          style={{
+                            margin: "0.25rem 0 0 0",
+                            fontSize: isMobile ? "0.875rem" : "0.75rem",
+                            color: "#6b7280",
+                          }}
+                        >
+                          {product.description}
+                        </p>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {selectedProduct && (
+              <>
+                <div
+                  style={{
+                    padding: "1.25rem",
+                    background: "#dbeafe",
+                    border: "2px solid #3b82f6",
+                    borderRadius: "8px",
+                    marginBottom: "1rem",
+                  }}
+                >
+                  <div
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      alignItems: "flex-start",
+                      marginBottom: "1rem",
+                    }}
+                  >
+                    <div>
+                      <strong
+                        style={{ fontSize: "1.125rem", color: "#1e40af" }}
+                      >
+                        Prodotto selezionato:
+                      </strong>
+                      <p style={{ margin: "0.25rem 0 0 0", fontSize: "1rem" }}>
+                        {selectedProduct.name}
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Variants Information Table */}
+                  {productVariants.length > 0 ? (
+                    <div
+                      style={{
+                        padding: isMobile ? "0.75rem" : "1rem",
+                        background: "#eff6ff",
+                        borderRadius: "6px",
+                        overflowX: "auto",
+                        position: "relative",
+                      }}
+                    >
+                      <div
+                        style={{
+                          fontSize: isMobile ? "0.75rem" : "0.875rem",
+                          fontWeight: "600",
+                          color: "#1e40af",
+                          marginBottom: "0.75rem",
+                        }}
+                      >
+                        Varianti disponibili:{" "}
+                        {isMobile && (
+                          <span
+                            style={{ fontWeight: "normal", fontSize: "0.7rem" }}
+                          >
+                            (scorri →)
+                          </span>
+                        )}
+                      </div>
+                      <div
+                        style={{
+                          overflowX: "auto",
+                          WebkitOverflowScrolling: "touch",
+                        }}
+                      >
+                        <table
+                          style={{
+                            width: "100%",
+                            minWidth: isMobile ? "500px" : "auto",
+                            borderCollapse: "collapse",
+                            fontSize: isMobile ? "0.75rem" : "0.875rem",
+                          }}
+                        >
+                          <thead>
+                            <tr
+                              style={{
+                                borderBottom: "2px solid #3b82f6",
+                              }}
+                            >
+                              <th
+                                style={{
+                                  textAlign: "left",
+                                  padding: isMobile ? "0.375rem" : "0.5rem",
+                                  color: "#1e40af",
+                                  fontWeight: "600",
+                                  whiteSpace: "nowrap",
+                                }}
+                              >
+                                Codice Variante
+                              </th>
+                              <th
+                                style={{
+                                  textAlign: "center",
+                                  padding: isMobile ? "0.375rem" : "0.5rem",
+                                  color: "#1e40af",
+                                  fontWeight: "600",
+                                  whiteSpace: "nowrap",
+                                }}
+                              >
+                                Confezionamento
+                              </th>
+                              <th
+                                style={{
+                                  textAlign: "right",
+                                  padding: isMobile ? "0.375rem" : "0.5rem",
+                                  color: "#1e40af",
+                                  fontWeight: "600",
+                                  whiteSpace: "nowrap",
+                                }}
+                              >
+                                Prezzo
+                              </th>
+                              <th
+                                style={{
+                                  textAlign: "right",
+                                  padding: isMobile ? "0.375rem" : "0.5rem",
+                                  color: "#1e40af",
+                                  fontWeight: "600",
+                                  whiteSpace: "nowrap",
+                                }}
+                              >
+                                IVA
+                              </th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {productVariants.map((variant, index) => (
+                              <tr
+                                key={variant.variantId}
+                                style={{
+                                  borderBottom:
+                                    index < productVariants.length - 1
+                                      ? "1px solid #bfdbfe"
+                                      : "none",
+                                }}
+                              >
+                                <td
+                                  style={{
+                                    padding: isMobile ? "0.375rem" : "0.5rem",
+                                    fontFamily: "monospace",
+                                    fontSize: isMobile ? "0.7rem" : "0.875rem",
+                                  }}
+                                >
+                                  {variant.variantId}
+                                </td>
+                                <td
+                                  style={{
+                                    padding: isMobile ? "0.375rem" : "0.5rem",
+                                    textAlign: "center",
+                                  }}
+                                >
+                                  {variant.packageContent}
+                                </td>
+                                <td
+                                  style={{
+                                    padding: isMobile ? "0.375rem" : "0.5rem",
+                                    textAlign: "right",
+                                    fontWeight: "600",
+                                    whiteSpace: "nowrap",
+                                  }}
+                                >
+                                  {variant.price !== null
+                                    ? `€${variant.price.toFixed(2)}`
+                                    : "N/D"}
+                                </td>
+                                <td
+                                  style={{
+                                    padding: isMobile ? "0.375rem" : "0.5rem",
+                                    textAlign: "right",
+                                    color: "#059669",
+                                    fontWeight: "600",
+                                    whiteSpace: "nowrap",
+                                  }}
+                                >
+                                  {variant.vat}%
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  ) : (
+                    <div
+                      style={{
+                        padding: isMobile ? "0.75rem" : "1rem",
+                        background: "#eff6ff",
+                        borderRadius: "6px",
+                        textAlign: "center",
+                        color: "#6b7280",
+                        fontSize: isMobile ? "0.875rem" : "1rem",
+                      }}
+                    >
+                      Caricamento varianti...
+                    </div>
+                  )}
+                </div>
+
+                <div
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr",
+                    gap: "1rem",
                     marginBottom: "1rem",
                   }}
                 >
                   <div>
-                    <strong style={{ fontSize: "1.125rem", color: "#1e40af" }}>
-                      Prodotto selezionato:
-                    </strong>
-                    <p style={{ margin: "0.25rem 0 0 0", fontSize: "1rem" }}>
-                      {selectedProduct.name}
+                    <label
+                      style={{
+                        display: "block",
+                        marginBottom: "0.5rem",
+                        fontWeight: "500",
+                        fontSize: isMobile ? "0.875rem" : "1rem",
+                      }}
+                    >
+                      Quantità (pezzi)
+                    </label>
+                    <input
+                      ref={quantityInputRef}
+                      type="text"
+                      inputMode="numeric"
+                      value={quantity}
+                      onChange={(e) => setQuantity(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          e.preventDefault();
+                          handleAddItem();
+                        }
+                      }}
+                      style={{
+                        width: "100%",
+                        padding: isMobile ? "0.875rem" : "0.75rem",
+                        fontSize: isMobile ? "16px" : "1rem",
+                        border: "1px solid #d1d5db",
+                        borderRadius: "4px",
+                      }}
+                    />
+                  </div>
+
+                  <div>
+                    <label
+                      style={{
+                        display: "block",
+                        marginBottom: "0.5rem",
+                        fontWeight: "500",
+                        fontSize: isMobile ? "0.875rem" : "1rem",
+                      }}
+                    >
+                      Sconto su Riga (€)
+                    </label>
+                    <input
+                      type="text"
+                      inputMode="decimal"
+                      value={itemDiscount}
+                      onChange={(e) => setItemDiscount(e.target.value)}
+                      style={{
+                        width: "100%",
+                        padding: isMobile ? "0.875rem" : "0.75rem",
+                        fontSize: isMobile ? "16px" : "1rem",
+                        border: "1px solid #d1d5db",
+                        borderRadius: "4px",
+                      }}
+                    />
+                  </div>
+                </div>
+
+                {/* INTELLIGENT PACKAGING PREVIEW */}
+                {calculatingPackaging && (
+                  <div
+                    style={{
+                      padding: "1rem",
+                      background: "#fef3c7",
+                      borderRadius: "4px",
+                      marginBottom: "1rem",
+                    }}
+                  >
+                    <p style={{ margin: 0, color: "#92400e" }}>
+                      ⏳ Calcolo confezionamento ottimale...
                     </p>
                   </div>
-                </div>
-
-                {/* Variants Information Table */}
-                {productVariants.length > 0 ? (
-                  <div
-                    style={{
-                      padding: isMobile ? "0.75rem" : "1rem",
-                      background: "#eff6ff",
-                      borderRadius: "6px",
-                      overflowX: "auto",
-                      position: "relative",
-                    }}
-                  >
-                    <div
-                      style={{
-                        fontSize: isMobile ? "0.75rem" : "0.875rem",
-                        fontWeight: "600",
-                        color: "#1e40af",
-                        marginBottom: "0.75rem",
-                      }}
-                    >
-                      Varianti disponibili:{" "}
-                      {isMobile && (
-                        <span
-                          style={{ fontWeight: "normal", fontSize: "0.7rem" }}
-                        >
-                          (scorri →)
-                        </span>
-                      )}
-                    </div>
-                    <div
-                      style={{
-                        overflowX: "auto",
-                        WebkitOverflowScrolling: "touch",
-                      }}
-                    >
-                      <table
-                        style={{
-                          width: "100%",
-                          minWidth: isMobile ? "500px" : "auto",
-                          borderCollapse: "collapse",
-                          fontSize: isMobile ? "0.75rem" : "0.875rem",
-                        }}
-                      >
-                        <thead>
-                          <tr
-                            style={{
-                              borderBottom: "2px solid #3b82f6",
-                            }}
-                          >
-                            <th
-                              style={{
-                                textAlign: "left",
-                                padding: isMobile ? "0.375rem" : "0.5rem",
-                                color: "#1e40af",
-                                fontWeight: "600",
-                                whiteSpace: "nowrap",
-                              }}
-                            >
-                              Codice Variante
-                            </th>
-                            <th
-                              style={{
-                                textAlign: "center",
-                                padding: isMobile ? "0.375rem" : "0.5rem",
-                                color: "#1e40af",
-                                fontWeight: "600",
-                                whiteSpace: "nowrap",
-                              }}
-                            >
-                              Confezionamento
-                            </th>
-                            <th
-                              style={{
-                                textAlign: "right",
-                                padding: isMobile ? "0.375rem" : "0.5rem",
-                                color: "#1e40af",
-                                fontWeight: "600",
-                                whiteSpace: "nowrap",
-                              }}
-                            >
-                              Prezzo
-                            </th>
-                            <th
-                              style={{
-                                textAlign: "right",
-                                padding: isMobile ? "0.375rem" : "0.5rem",
-                                color: "#1e40af",
-                                fontWeight: "600",
-                                whiteSpace: "nowrap",
-                              }}
-                            >
-                              IVA
-                            </th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {productVariants.map((variant, index) => (
-                            <tr
-                              key={variant.variantId}
-                              style={{
-                                borderBottom:
-                                  index < productVariants.length - 1
-                                    ? "1px solid #bfdbfe"
-                                    : "none",
-                              }}
-                            >
-                              <td
-                                style={{
-                                  padding: isMobile ? "0.375rem" : "0.5rem",
-                                  fontFamily: "monospace",
-                                  fontSize: isMobile ? "0.7rem" : "0.875rem",
-                                }}
-                              >
-                                {variant.variantId}
-                              </td>
-                              <td
-                                style={{
-                                  padding: isMobile ? "0.375rem" : "0.5rem",
-                                  textAlign: "center",
-                                }}
-                              >
-                                {variant.packageContent}
-                              </td>
-                              <td
-                                style={{
-                                  padding: isMobile ? "0.375rem" : "0.5rem",
-                                  textAlign: "right",
-                                  fontWeight: "600",
-                                  whiteSpace: "nowrap",
-                                }}
-                              >
-                                {variant.price !== null
-                                  ? `€${variant.price.toFixed(2)}`
-                                  : "N/D"}
-                              </td>
-                              <td
-                                style={{
-                                  padding: isMobile ? "0.375rem" : "0.5rem",
-                                  textAlign: "right",
-                                  color: "#059669",
-                                  fontWeight: "600",
-                                  whiteSpace: "nowrap",
-                                }}
-                              >
-                                {variant.vat}%
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  </div>
-                ) : (
-                  <div
-                    style={{
-                      padding: isMobile ? "0.75rem" : "1rem",
-                      background: "#eff6ff",
-                      borderRadius: "6px",
-                      textAlign: "center",
-                      color: "#6b7280",
-                      fontSize: isMobile ? "0.875rem" : "1rem",
-                    }}
-                  >
-                    Caricamento varianti...
-                  </div>
                 )}
-              </div>
 
-              <div
-                style={{
-                  display: "grid",
-                  gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr",
-                  gap: "1rem",
-                  marginBottom: "1rem",
-                }}
-              >
-                <div>
-                  <label
+                {packagingPreview && !calculatingPackaging && (
+                  <div
                     style={{
-                      display: "block",
-                      marginBottom: "0.5rem",
-                      fontWeight: "500",
-                      fontSize: isMobile ? "0.875rem" : "1rem",
+                      padding: isMobile ? "0.75rem" : "1rem",
+                      background: packagingPreview.success
+                        ? "#d1fae5"
+                        : "#fee2e2",
+                      borderRadius: isMobile ? "6px" : "4px",
+                      marginBottom: isMobile ? "0.75rem" : "1rem",
+                      border: `2px solid ${packagingPreview.success ? "#065f46" : "#dc2626"}`,
                     }}
                   >
-                    Quantità (pezzi)
-                  </label>
-                  <input
-                    ref={quantityInputRef}
-                    type="text"
-                    inputMode="numeric"
-                    value={quantity}
-                    onChange={(e) => setQuantity(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") {
-                        e.preventDefault();
-                        handleAddItem();
-                      }
-                    }}
-                    style={{
-                      width: "100%",
-                      padding: isMobile ? "0.875rem" : "0.75rem",
-                      fontSize: isMobile ? "16px" : "1rem",
-                      border: "1px solid #d1d5db",
-                      borderRadius: "4px",
-                    }}
-                  />
-                </div>
-
-                <div>
-                  <label
-                    style={{
-                      display: "block",
-                      marginBottom: "0.5rem",
-                      fontWeight: "500",
-                      fontSize: isMobile ? "0.875rem" : "1rem",
-                    }}
-                  >
-                    Sconto su Riga (€)
-                  </label>
-                  <input
-                    type="text"
-                    inputMode="decimal"
-                    value={itemDiscount}
-                    onChange={(e) => setItemDiscount(e.target.value)}
-                    style={{
-                      width: "100%",
-                      padding: isMobile ? "0.875rem" : "0.75rem",
-                      fontSize: isMobile ? "16px" : "1rem",
-                      border: "1px solid #d1d5db",
-                      borderRadius: "4px",
-                    }}
-                  />
-                </div>
-              </div>
-
-              {/* INTELLIGENT PACKAGING PREVIEW */}
-              {calculatingPackaging && (
-                <div
-                  style={{
-                    padding: "1rem",
-                    background: "#fef3c7",
-                    borderRadius: "4px",
-                    marginBottom: "1rem",
-                  }}
-                >
-                  <p style={{ margin: 0, color: "#92400e" }}>
-                    ⏳ Calcolo confezionamento ottimale...
-                  </p>
-                </div>
-              )}
-
-              {packagingPreview && !calculatingPackaging && (
-                <div
-                  style={{
-                    padding: isMobile ? "0.75rem" : "1rem",
-                    background: packagingPreview.success
-                      ? "#d1fae5"
-                      : "#fee2e2",
-                    borderRadius: isMobile ? "6px" : "4px",
-                    marginBottom: isMobile ? "0.75rem" : "1rem",
-                    border: `2px solid ${packagingPreview.success ? "#065f46" : "#dc2626"}`,
-                  }}
-                >
-                  {packagingPreview.success ? (
-                    <>
-                      <strong
-                        style={{
-                          color: "#065f46",
-                          display: "block",
-                          marginBottom: "0.5rem",
-                        }}
-                      >
-                        ✓ Confezionamento calcolato per{" "}
-                        {packagingPreview.quantity} pezzi:
-                      </strong>
-                      <ul
-                        style={{
-                          margin: "0.5rem 0",
-                          paddingLeft: "1.5rem",
-                          color: "#065f46",
-                        }}
-                      >
-                        {packagingPreview.breakdown?.map((item, idx) => (
-                          <li key={idx}>
-                            <strong>{item.packageCount}</strong> conf. da{" "}
-                            <strong>{item.packageSize}</strong>{" "}
-                            {item.packageSize === 1 ? "pezzo" : "pezzi"} ={" "}
-                            {item.totalPieces} pz
-                          </li>
-                        ))}
-                      </ul>
-                      <p
-                        style={{
-                          margin: "0.5rem 0 0 0",
-                          fontSize: "0.875rem",
-                          color: "#047857",
-                        }}
-                      >
-                        Totale: {packagingPreview.totalPackages} confezioni ={" "}
-                        {packagingPreview.quantity} pezzi
-                      </p>
-                    </>
-                  ) : warehouseSelectedQty >= parseInt(quantity, 10) ? (
-                    // Quantity fully covered by warehouse - no order needed
-                    <div
-                      style={{
-                        color: "#047857",
-                        fontSize: "0.875rem",
-                      }}
-                    >
-                      ✓ Quantità completamente coperta dal magazzino. Non è
-                      necessario ordinare.
-                    </div>
-                  ) : (
-                    <>
-                      <strong
-                        style={{
-                          color: "#dc2626",
-                          display: "block",
-                          marginBottom: "0.5rem",
-                        }}
-                      >
-                        ⚠ {packagingPreview.error}
-                      </strong>
-                      {packagingPreview.suggestedQuantity && (
-                        <button
-                          onClick={() =>
-                            setQuantity(
-                              packagingPreview.suggestedQuantity!.toString(),
-                            )
-                          }
+                    {packagingPreview.success ? (
+                      <>
+                        <strong
                           style={{
-                            padding: isMobile ? "0.75rem 1rem" : "0.5rem 1rem",
-                            background: "#dc2626",
-                            color: "white",
-                            border: "none",
-                            borderRadius: "6px",
-                            cursor: "pointer",
-                            fontSize: isMobile ? "0.875rem" : "0.875rem",
-                            marginTop: "0.5rem",
-                            minHeight: isMobile ? "44px" : "auto",
+                            color: "#065f46",
+                            display: "block",
+                            marginBottom: "0.5rem",
                           }}
                         >
-                          Usa quantità suggerita (
-                          {packagingPreview.suggestedQuantity} pz)
-                        </button>
-                      )}
-                    </>
-                  )}
-                </div>
-              )}
+                          ✓ Confezionamento calcolato per{" "}
+                          {packagingPreview.quantity} pezzi:
+                        </strong>
+                        <ul
+                          style={{
+                            margin: "0.5rem 0",
+                            paddingLeft: "1.5rem",
+                            color: "#065f46",
+                          }}
+                        >
+                          {packagingPreview.breakdown?.map((item, idx) => (
+                            <li key={idx}>
+                              <strong>{item.packageCount}</strong> conf. da{" "}
+                              <strong>{item.packageSize}</strong>{" "}
+                              {item.packageSize === 1 ? "pezzo" : "pezzi"} ={" "}
+                              {item.totalPieces} pz
+                            </li>
+                          ))}
+                        </ul>
+                        <p
+                          style={{
+                            margin: "0.5rem 0 0 0",
+                            fontSize: "0.875rem",
+                            color: "#047857",
+                          }}
+                        >
+                          Totale: {packagingPreview.totalPackages} confezioni ={" "}
+                          {packagingPreview.quantity} pezzi
+                        </p>
+                      </>
+                    ) : warehouseSelectedQty >= parseInt(quantity, 10) ? (
+                      // Quantity fully covered by warehouse - no order needed
+                      <div
+                        style={{
+                          color: "#047857",
+                          fontSize: "0.875rem",
+                        }}
+                      >
+                        ✓ Quantità completamente coperta dal magazzino. Non è
+                        necessario ordinare.
+                      </div>
+                    ) : (
+                      <>
+                        <strong
+                          style={{
+                            color: "#dc2626",
+                            display: "block",
+                            marginBottom: "0.5rem",
+                          }}
+                        >
+                          ⚠ {packagingPreview.error}
+                        </strong>
+                        {packagingPreview.suggestedQuantity && (
+                          <button
+                            onClick={() =>
+                              setQuantity(
+                                packagingPreview.suggestedQuantity!.toString(),
+                              )
+                            }
+                            style={{
+                              padding: isMobile
+                                ? "0.75rem 1rem"
+                                : "0.5rem 1rem",
+                              background: "#dc2626",
+                              color: "white",
+                              border: "none",
+                              borderRadius: "6px",
+                              cursor: "pointer",
+                              fontSize: isMobile ? "0.875rem" : "0.875rem",
+                              marginTop: "0.5rem",
+                              minHeight: isMobile ? "44px" : "auto",
+                            }}
+                          >
+                            Usa quantità suggerita (
+                            {packagingPreview.suggestedQuantity} pz)
+                          </button>
+                        )}
+                      </>
+                    )}
+                  </div>
+                )}
 
-              {/* WAREHOUSE MATCHING (PHASE 4) */}
-              {selectedProduct && quantity && parseInt(quantity, 10) > 0 && (
-                <div style={{ marginBottom: "1rem" }}>
-                  <WarehouseMatchAccordion
-                    articleCode={selectedProduct.article}
-                    description={selectedProduct.description}
-                    requestedQuantity={parseInt(quantity, 10)}
-                    onSelect={setWarehouseSelection}
-                    excludeWarehouseItemIds={excludedWarehouseItemIds}
-                    onTotalQuantityChange={handleTotalQuantityChange}
-                  />
-                </div>
-              )}
+                {/* WAREHOUSE MATCHING (PHASE 4) */}
+                {selectedProduct && (
+                  <div style={{ marginBottom: "1rem" }}>
+                    <WarehouseMatchAccordion
+                      articleCode={selectedProduct.article}
+                      description={selectedProduct.description}
+                      requestedQuantity={parseInt(quantity, 10) || 0}
+                      onSelect={setWarehouseSelection}
+                      excludeWarehouseItemIds={excludedWarehouseItemIds}
+                      onTotalQuantityChange={handleTotalQuantityChange}
+                    />
+                  </div>
+                )}
 
-              <button
-                onClick={handleAddItem}
-                disabled={
-                  !packagingPreview?.success &&
-                  warehouseSelectedQty < parseInt(quantity, 10)
-                }
-                style={{
-                  padding: isMobile ? "1rem 1.5rem" : "0.75rem 1.5rem",
-                  background:
-                    packagingPreview?.success ||
-                    warehouseSelectedQty >= parseInt(quantity, 10)
-                      ? "#22c55e"
-                      : "#d1d5db",
-                  color: "white",
-                  border: "none",
-                  borderRadius: "6px",
-                  fontSize: isMobile ? "1rem" : "1rem",
-                  fontWeight: "600",
-                  cursor:
-                    packagingPreview?.success ||
-                    warehouseSelectedQty >= parseInt(quantity, 10)
-                      ? "pointer"
-                      : "not-allowed",
-                  width: "100%",
-                  minHeight: isMobile ? "48px" : "auto",
-                }}
-              >
-                {editingItemId ? "Aggiorna Articolo" : "Aggiungi all'Ordine"}
-              </button>
-            </>
-          )}
-        </div>
-      )}
+                <button
+                  onClick={handleAddItem}
+                  disabled={
+                    !packagingPreview?.success &&
+                    warehouseSelectedQty < parseInt(quantity, 10)
+                  }
+                  style={{
+                    padding: isMobile ? "1rem 1.5rem" : "0.75rem 1.5rem",
+                    background:
+                      packagingPreview?.success ||
+                      warehouseSelectedQty >= parseInt(quantity, 10)
+                        ? "#22c55e"
+                        : "#d1d5db",
+                    color: "white",
+                    border: "none",
+                    borderRadius: "6px",
+                    fontSize: isMobile ? "1rem" : "1rem",
+                    fontWeight: "600",
+                    cursor:
+                      packagingPreview?.success ||
+                      warehouseSelectedQty >= parseInt(quantity, 10)
+                        ? "pointer"
+                        : "not-allowed",
+                    width: "100%",
+                    minHeight: isMobile ? "48px" : "auto",
+                  }}
+                >
+                  {editingItemId ? "Aggiorna Articolo" : "Aggiungi all'Ordine"}
+                </button>
+              </>
+            )}
+          </div>
+        )}
 
       {/* STEP 3: ORDER ITEMS LIST */}
       {items.length > 0 && (
@@ -3120,7 +3335,12 @@ export default function OrderFormSimple() {
                 type="text"
                 inputMode="decimal"
                 value={globalDiscountPercent}
-                onChange={(e) => setGlobalDiscountPercent(e.target.value)}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  if (val === "" || /^\d*\.?\d{0,2}$/.test(val)) {
+                    setGlobalDiscountPercent(val);
+                  }
+                }}
                 style={{
                   width: "100%",
                   padding: isMobile ? "0.875rem" : "0.75rem",
@@ -3182,6 +3402,166 @@ export default function OrderFormSimple() {
               </div>
             </div>
           </div>
+
+          {/* Markup Panel */}
+          {showMarkupPanel && (
+            <div
+              style={{
+                marginTop: "1rem",
+                padding: isMobile ? "1rem" : "1.5rem",
+                background: "#fffbeb",
+                borderRadius: "8px",
+                border: "2px solid #f59e0b",
+              }}
+            >
+              <h4
+                style={{
+                  margin: "0 0 0.75rem 0",
+                  fontSize: isMobile ? "0.9375rem" : "1rem",
+                  color: "#92400e",
+                }}
+              >
+                Maggiorazione: +€{markupAmount.toFixed(2)}
+              </h4>
+              <p
+                style={{
+                  margin: "0 0 0.75rem 0",
+                  fontSize: "0.8125rem",
+                  color: "#78350f",
+                }}
+              >
+                Il totale desiderato è superiore al totale attuale. Seleziona
+                gli articoli su cui distribuire la maggiorazione:
+              </p>
+              <div style={{ marginBottom: "0.75rem" }}>
+                <label
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "0.5rem",
+                    cursor: "pointer",
+                    fontSize: "0.875rem",
+                    fontWeight: "600",
+                    color: "#92400e",
+                    marginBottom: "0.5rem",
+                  }}
+                >
+                  <input
+                    type="checkbox"
+                    checked={markupArticleSelection.size === items.length}
+                    onChange={(e) => {
+                      if (e.target.checked) {
+                        setMarkupArticleSelection(
+                          new Set(items.map((i) => i.id)),
+                        );
+                      } else {
+                        setMarkupArticleSelection(new Set());
+                      }
+                    }}
+                  />
+                  Seleziona tutti
+                </label>
+                <div
+                  style={{
+                    maxHeight: "200px",
+                    overflowY: "auto",
+                    border: "1px solid #fde68a",
+                    borderRadius: "4px",
+                    background: "white",
+                  }}
+                >
+                  {items.map((item) => (
+                    <label
+                      key={item.id}
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "0.5rem",
+                        padding: "0.5rem 0.75rem",
+                        cursor: "pointer",
+                        fontSize: "0.8125rem",
+                        borderBottom: "1px solid #fef3c7",
+                        background: markupArticleSelection.has(item.id)
+                          ? "#fef9c3"
+                          : "transparent",
+                      }}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={markupArticleSelection.has(item.id)}
+                        onChange={(e) => {
+                          const next = new Set(markupArticleSelection);
+                          if (e.target.checked) {
+                            next.add(item.id);
+                          } else {
+                            next.delete(item.id);
+                          }
+                          setMarkupArticleSelection(next);
+                        }}
+                      />
+                      <span style={{ flex: 1 }}>
+                        {item.description} (x{item.quantity})
+                      </span>
+                      <span
+                        style={{ fontWeight: "500", fontFamily: "monospace" }}
+                      >
+                        €{item.subtotal.toFixed(2)}
+                      </span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+              <div
+                style={{
+                  display: "flex",
+                  gap: "0.5rem",
+                  flexDirection: isMobile ? "column" : "row",
+                }}
+              >
+                <button
+                  onClick={applyMarkup}
+                  disabled={markupArticleSelection.size === 0}
+                  style={{
+                    flex: 1,
+                    padding: isMobile ? "0.875rem" : "0.75rem 1rem",
+                    background:
+                      markupArticleSelection.size > 0 ? "#16a34a" : "#d1d5db",
+                    color: "white",
+                    border: "none",
+                    borderRadius: "4px",
+                    cursor:
+                      markupArticleSelection.size > 0
+                        ? "pointer"
+                        : "not-allowed",
+                    fontWeight: "600",
+                    fontSize: isMobile ? "16px" : "0.9375rem",
+                    minHeight: isMobile ? "48px" : "auto",
+                  }}
+                >
+                  Applica Maggiorazione
+                </button>
+                <button
+                  onClick={() => {
+                    setShowMarkupPanel(false);
+                    setTargetTotal("");
+                  }}
+                  style={{
+                    padding: isMobile ? "0.875rem" : "0.75rem 1rem",
+                    background: "transparent",
+                    color: "#92400e",
+                    border: "1px solid #f59e0b",
+                    borderRadius: "4px",
+                    cursor: "pointer",
+                    fontWeight: "500",
+                    fontSize: isMobile ? "16px" : "0.9375rem",
+                    minHeight: isMobile ? "48px" : "auto",
+                  }}
+                >
+                  Annulla
+                </button>
+              </div>
+            </div>
+          )}
 
           {/* Totals Summary */}
           <div
@@ -3278,6 +3658,23 @@ export default function OrderFormSimple() {
                 €{totals.finalTotal.toFixed(2)}
               </strong>
             </div>
+            {estimatedRevenue !== null && (
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  marginTop: "0.75rem",
+                  paddingTop: "0.5rem",
+                  borderTop: "1px dashed #10b981",
+                  fontSize: isMobile ? "0.875rem" : "1rem",
+                  color: "#059669",
+                }}
+                title={`Differenza tra prezzo cliente (sconto ${globalDiscountPercent || 0}%) e prezzo Fresis (sconto articolo o default ${FRESIS_DEFAULT_DISCOUNT}%)`}
+              >
+                <span style={{ fontWeight: "500" }}>Ricavo stimato:</span>
+                <strong>€{estimatedRevenue.toFixed(2)}</strong>
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -3294,6 +3691,25 @@ export default function OrderFormSimple() {
             width: "100%",
           }}
         >
+          <button
+            onClick={handleResetForm}
+            disabled={submitting}
+            style={{
+              padding: isMobile ? "1rem 2rem" : "1rem 2rem",
+              background: submitting ? "#d1d5db" : "#dc2626",
+              color: "white",
+              border: "none",
+              borderRadius: "8px",
+              fontSize: isMobile ? "1rem" : "1rem",
+              fontWeight: "600",
+              cursor: submitting ? "not-allowed" : "pointer",
+              width: isMobile ? "100%" : "auto",
+              minHeight: isMobile ? "52px" : "auto",
+            }}
+          >
+            🗑️ Cancella bozza
+          </button>
+
           <button
             onClick={handleSubmit}
             disabled={submitting}
@@ -3313,25 +3729,6 @@ export default function OrderFormSimple() {
             }}
           >
             {submitting ? "Salvataggio..." : "Salva in ordini in attesa"}
-          </button>
-
-          <button
-            onClick={handleResetForm}
-            disabled={submitting}
-            style={{
-              padding: isMobile ? "1rem 2rem" : "1rem 2rem",
-              background: submitting ? "#d1d5db" : "#dc2626",
-              color: "white",
-              border: "none",
-              borderRadius: "8px",
-              fontSize: isMobile ? "1rem" : "1rem",
-              fontWeight: "600",
-              cursor: submitting ? "not-allowed" : "pointer",
-              width: isMobile ? "100%" : "auto",
-              minHeight: isMobile ? "52px" : "auto",
-            }}
-          >
-            🗑️ Cancella bozza
           </button>
         </div>
       )}

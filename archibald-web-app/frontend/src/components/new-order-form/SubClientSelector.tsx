@@ -7,6 +7,8 @@ interface SubClientSelectorProps {
   onClear: () => void;
   selectedSubClient: SubClient | null;
   disabled?: boolean;
+  externalInputRef?: React.RefObject<HTMLInputElement | null>;
+  onAfterSelect?: () => void;
 }
 
 export function SubClientSelector({
@@ -14,6 +16,8 @@ export function SubClientSelector({
   onClear,
   selectedSubClient,
   disabled = false,
+  externalInputRef,
+  onAfterSelect,
 }: SubClientSelectorProps) {
   const [searchQuery, setSearchQuery] = useState("");
   const [results, setResults] = useState<SubClient[]>([]);
@@ -24,6 +28,19 @@ export function SubClientSelector({
   const inputRef = useRef<HTMLInputElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const debounceTimerRef = useRef<number | null>(null);
+
+  const setInputRef = useCallback(
+    (el: HTMLInputElement | null) => {
+      (inputRef as React.MutableRefObject<HTMLInputElement | null>).current =
+        el;
+      if (externalInputRef && "current" in externalInputRef) {
+        (
+          externalInputRef as React.MutableRefObject<HTMLInputElement | null>
+        ).current = el;
+      }
+    },
+    [externalInputRef],
+  );
 
   useEffect(() => {
     if (selectedSubClient) return;
@@ -111,6 +128,9 @@ export function SubClientSelector({
     setHighlightedIndex(-1);
     setResults([]);
     onSelect(subClient);
+    if (onAfterSelect) {
+      setTimeout(() => onAfterSelect(), 100);
+    }
   };
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -185,7 +205,7 @@ export function SubClientSelector({
           Sotto-Cliente Fresis
         </label>
         <input
-          ref={inputRef}
+          ref={setInputRef}
           id="subclient-search"
           type="text"
           value={searchQuery}

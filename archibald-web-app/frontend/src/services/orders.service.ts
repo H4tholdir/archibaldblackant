@@ -241,6 +241,12 @@ export class OrderService {
         deviceId,
       });
 
+      const tracking = {
+        customerName: order.customerName,
+        subClientName: order.subClientName,
+        orderDate: now,
+      };
+
       if (isWarehouseOnly) {
         // 🔧 FIX #5: Warehouse-only order - mark items as sold immediately
         console.log(
@@ -252,6 +258,7 @@ export class OrderService {
           await markWarehouseItemsAsSold(
             id,
             `warehouse-${Date.now()}`, // Special warehouse-only identifier
+            tracking,
           );
           console.log(
             "[OrderService] ✅ Warehouse items marked as sold (warehouse-only)",
@@ -270,7 +277,7 @@ export class OrderService {
       } else {
         // 🔧 FIX #1: Reserve warehouse items if any (normal pending order)
         try {
-          await reserveWarehouseItems(id, order.items);
+          await reserveWarehouseItems(id, order.items, tracking);
           console.log("[OrderService] ✅ Warehouse items reserved for order", {
             orderId: id,
           });

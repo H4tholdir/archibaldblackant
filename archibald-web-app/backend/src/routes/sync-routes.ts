@@ -637,6 +637,10 @@ router.get(
           soldInOrder: i.sold_in_order,
           uploadedAt: i.uploaded_at,
           deviceId: i.device_id,
+          customerName: i.customer_name,
+          subClientName: i.sub_client_name,
+          orderDate: i.order_date,
+          orderNumber: i.order_number,
         })),
       });
     } catch (error) {
@@ -712,8 +716,9 @@ router.post(
                 `
               INSERT INTO warehouse_items (
                 user_id, article_code, description, quantity, box_name,
-                reserved_for_order, sold_in_order, uploaded_at, device_id
-              ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                reserved_for_order, sold_in_order, uploaded_at, device_id,
+                customer_name, sub_client_name, order_date, order_number
+              ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             `,
               )
               .run(
@@ -726,6 +731,10 @@ router.post(
                 item.soldInOrder || null,
                 item.uploadedAt,
                 item.deviceId,
+                item.customerName || null,
+                item.subClientName || null,
+                item.orderDate || null,
+                item.orderNumber || null,
               );
 
             results.push({
@@ -745,7 +754,11 @@ router.post(
                 reserved_for_order = ?,
                 sold_in_order = ?,
                 uploaded_at = ?,
-                device_id = ?
+                device_id = ?,
+                customer_name = ?,
+                sub_client_name = ?,
+                order_date = ?,
+                order_number = ?
               WHERE id = ? AND user_id = ?
             `,
               )
@@ -758,6 +771,10 @@ router.post(
                 item.soldInOrder || null,
                 item.uploadedAt,
                 item.deviceId,
+                item.customerName || null,
+                item.subClientName || null,
+                item.orderDate || null,
+                item.orderNumber || null,
                 item.id,
                 userId,
               );
@@ -828,7 +845,8 @@ router.post(
     try {
       const userId = req.user!.userId;
       const { id } = req.params;
-      const { orderId } = req.body;
+      const { orderId, customerName, subClientName, orderDate, orderNumber } =
+        req.body;
 
       if (!orderId) {
         return res.status(400).json({
@@ -841,11 +859,23 @@ router.post(
         .prepare(
           `
         UPDATE warehouse_items
-        SET reserved_for_order = ?
+        SET reserved_for_order = ?,
+            customer_name = ?,
+            sub_client_name = ?,
+            order_date = ?,
+            order_number = ?
         WHERE id = ? AND user_id = ? AND reserved_for_order IS NULL
       `,
         )
-        .run(orderId, parseInt(id), userId);
+        .run(
+          orderId,
+          customerName || null,
+          subClientName || null,
+          orderDate || null,
+          orderNumber || null,
+          parseInt(id),
+          userId,
+        );
 
       if (result.changes === 0) {
         return res.status(409).json({
@@ -880,7 +910,11 @@ router.post(
         .prepare(
           `
         UPDATE warehouse_items
-        SET reserved_for_order = NULL
+        SET reserved_for_order = NULL,
+            customer_name = NULL,
+            sub_client_name = NULL,
+            order_date = NULL,
+            order_number = NULL
         WHERE id = ? AND user_id = ?
       `,
         )

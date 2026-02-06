@@ -29,17 +29,45 @@ export class CustomerService {
         return await customers.limit(limit).toArray();
       }
 
+      const lowerQuery = query.toLowerCase();
       const cached = await customers
-        .where("name")
-        .startsWithIgnoreCase(query)
-        .or("code")
-        .startsWithIgnoreCase(query)
+        .filter(
+          (c) =>
+            c.name.toLowerCase().includes(lowerQuery) ||
+            c.code.toLowerCase().includes(lowerQuery) ||
+            (c.city ? c.city.toLowerCase().includes(lowerQuery) : false) ||
+            (c.taxCode ? c.taxCode.toLowerCase().includes(lowerQuery) : false),
+        )
         .limit(limit)
         .toArray();
 
-      if (cached.length > 0) {
+      // Sort by lastModified descending (most recent first)
+      cached.sort((a, b) => b.lastModified.localeCompare(a.lastModified));
+
+      if (cached.length >= 3) {
         return cached;
       }
+
+      // Few cache results: also fetch from API and merge
+      try {
+        const response = await fetchWithRetry(
+          `/api/customers?search=${encodeURIComponent(query)}`,
+        );
+        if (response.ok) {
+          const data = await response.json();
+          const apiResults: Customer[] = data.data?.customers || [];
+          const cachedIds = new Set(cached.map((c) => c.id));
+          const merged = [
+            ...cached,
+            ...apiResults.filter((c) => !cachedIds.has(c.id)),
+          ];
+          return merged.slice(0, limit);
+        }
+      } catch {
+        // API failed, return whatever cache had
+      }
+
+      return cached;
     } catch (error) {
       console.warn("[CustomerService] Cache search failed:", error);
     }
@@ -98,15 +126,19 @@ export class CustomerService {
 
       // If no customers, log warning and skip sync
       if (customers.length === 0) {
-        console.warn("[CustomerService] No customers returned from API, skipping sync");
+        console.warn(
+          "[CustomerService] No customers returned from API, skipping sync",
+        );
         return;
       }
 
       // Filter customers with valid id field (required for IndexedDB key path)
-      const validCustomers = customers.filter(c => c.id && typeof c.id === 'string');
+      const validCustomers = customers.filter(
+        (c) => c.id && typeof c.id === "string",
+      );
       if (validCustomers.length < customers.length) {
         console.warn(
-          `[CustomerService] Filtered out ${customers.length - validCustomers.length} customers without valid id field`
+          `[CustomerService] Filtered out ${customers.length - validCustomers.length} customers without valid id field`,
         );
       }
 

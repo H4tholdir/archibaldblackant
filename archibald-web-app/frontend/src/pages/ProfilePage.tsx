@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { FresisDiscountManager } from "../components/FresisDiscountManager";
 
 interface TargetData {
   yearlyTarget: number;
@@ -77,7 +78,7 @@ export function ProfilePage() {
         } else {
           console.error(
             "[ProfilePage] Failed to load target:",
-            await response.text()
+            await response.text(),
           );
         }
       } catch (error) {
@@ -130,7 +131,7 @@ export function ProfilePage() {
 
     if (isNaN(extraInt) || extraInt <= 0) {
       setValidationError(
-        "L'intervallo extra-budget deve essere maggiore di zero"
+        "L'intervallo extra-budget deve essere maggiore di zero",
       );
       return false;
     }
@@ -334,14 +335,19 @@ export function ProfilePage() {
             <strong>Target annuale:</strong>{" "}
             {formatCurrency(currentTarget.yearlyTarget, currentTarget.currency)}{" "}
             (mensile:{" "}
-            {formatCurrency(currentTarget.monthlyTarget, currentTarget.currency)}
+            {formatCurrency(
+              currentTarget.monthlyTarget,
+              currentTarget.currency,
+            )}
             )
           </p>
           <p style={{ fontSize: "16px", color: "#2c3e50", margin: "4px 0" }}>
             <strong>Provvigioni:</strong>{" "}
             {(currentTarget.commissionRate * 100).toFixed(1)}%
           </p>
-          <p style={{ fontSize: "14px", color: "#7f8c8d", margin: "8px 0 0 0" }}>
+          <p
+            style={{ fontSize: "14px", color: "#7f8c8d", margin: "8px 0 0 0" }}
+          >
             Ultimo aggiornamento: {formatDate(currentTarget.updatedAt)}
           </p>
         </div>
@@ -350,9 +356,7 @@ export function ProfilePage() {
         <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
           {/* Yearly Target */}
           <div>
-            <label style={styles.label}>
-              Target Annuale ({editCurrency})
-            </label>
+            <label style={styles.label}>Target Annuale ({editCurrency})</label>
             <input
               type="number"
               value={editYearlyTarget}
@@ -360,11 +364,13 @@ export function ProfilePage() {
               style={styles.input}
               step="100"
             />
-            <p style={{ fontSize: "14px", color: "#7f8c8d", margin: "4px 0 0" }}>
+            <p
+              style={{ fontSize: "14px", color: "#7f8c8d", margin: "4px 0 0" }}
+            >
               Mensile:{" "}
               {formatCurrency(
                 Math.round(parseFloat(editYearlyTarget || "0") / 12),
-                editCurrency
+                editCurrency,
               )}
             </p>
           </div>
@@ -395,13 +401,20 @@ export function ProfilePage() {
               min="0"
               max="100"
             />
-            <p style={{ fontSize: "14px", color: "#7f8c8d", margin: "4px 0 0" }}>
-              Su {formatCurrency(parseFloat(editYearlyTarget || "0"), editCurrency)}, riceverai{" "}
+            <p
+              style={{ fontSize: "14px", color: "#7f8c8d", margin: "4px 0 0" }}
+            >
+              Su{" "}
+              {formatCurrency(
+                parseFloat(editYearlyTarget || "0"),
+                editCurrency,
+              )}
+              , riceverai{" "}
               {formatCurrency(
                 (parseFloat(editYearlyTarget || "0") *
                   parseFloat(editCommissionRate || "0")) /
                   100,
-                editCurrency
+                editCurrency,
               )}{" "}
               di provvigioni base
             </p>
@@ -477,11 +490,13 @@ export function ProfilePage() {
               style={styles.input}
               step="100"
             />
-            <p style={{ fontSize: "14px", color: "#7f8c8d", margin: "4px 0 0" }}>
+            <p
+              style={{ fontSize: "14px", color: "#7f8c8d", margin: "4px 0 0" }}
+            >
               Totale anticipato nell'anno:{" "}
               {formatCurrency(
                 parseFloat(editMonthlyAdvance || "0") * 12,
-                editCurrency
+                editCurrency,
               )}
             </p>
           </div>
@@ -543,6 +558,11 @@ export function ProfilePage() {
             </button>
           </div>
         </div>
+      </div>
+
+      {/* Section 3: Fresis Discounts */}
+      <div style={styles.card}>
+        <FresisDiscountManager />
       </div>
     </div>
   );

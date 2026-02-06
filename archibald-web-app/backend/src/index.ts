@@ -61,6 +61,7 @@ import { syncScheduler } from "./sync-scheduler";
 import deltaSyncRoutes from "./routes/delta-sync";
 import botRoutes from "./routes/bot";
 import warehouseRoutes from "./routes/warehouse-routes";
+import fresisDiscountRoutes from "./routes/fresis-discount-routes";
 import adminRoutes from "./routes/admin-routes";
 import syncRoutes from "./routes/sync-routes";
 import { SendToMilanoService } from "./send-to-milano-service";
@@ -405,6 +406,9 @@ app.use(botRoutes);
 
 // Warehouse routes (magazzino management)
 app.use("/api", warehouseRoutes);
+
+// Fresis discount routes
+app.use("/api", fresisDiscountRoutes);
 
 // Admin routes (multi-device sync + impersonation)
 app.use("/api/admin", adminRoutes);
@@ -3830,7 +3834,9 @@ app.post(
   async (req: Request, res: Response) => {
     try {
       if (!req.file) {
-        return res.status(400).json({ success: false, error: "No file uploaded" });
+        return res
+          .status(400)
+          .json({ success: false, error: "No file uploaded" });
       }
       const subClientDb = SubClientDatabase.getInstance();
       const result = importSubClientsFromExcel(req.file.path, subClientDb);
@@ -3880,7 +3886,9 @@ app.get(
       const subClientDb = SubClientDatabase.getInstance();
       const client = subClientDb.getSubClientByCodice(req.params.codice);
       if (!client) {
-        return res.status(404).json({ success: false, error: "SubClient not found" });
+        return res
+          .status(404)
+          .json({ success: false, error: "SubClient not found" });
       }
       res.json({ success: true, data: client });
     } catch (error: any) {
@@ -3903,11 +3911,7 @@ app.post(
 );
 
 // Manually update VAT for a product
-app.patch(
-  "/api/products/:productId/vat",
-  authenticateJWT,
-  updateProductVat,
-);
+app.patch("/api/products/:productId/vat", authenticateJWT, updateProductVat);
 
 // Get price change history for a specific product
 app.get(
@@ -6390,6 +6394,22 @@ server.listen(config.server.port, async () => {
     logger.info("✅ Migration 020 completed (warehouse_boxes table)");
   } catch (error) {
     logger.warn("⚠️  Migration 020 failed or already applied", { error });
+  }
+
+  try {
+    const { runMigration024 } = require("./migrations/024-warehouse-tracking");
+    runMigration024();
+    logger.info("✅ Migration 024 completed (warehouse tracking columns)");
+  } catch (error) {
+    logger.warn("⚠️  Migration 024 failed or already applied", { error });
+  }
+
+  try {
+    const { runMigration025 } = require("./migrations/025-fresis-discounts");
+    runMigration025();
+    logger.info("✅ Migration 025 completed (fresis_discounts table)");
+  } catch (error) {
+    logger.warn("⚠️  Migration 025 failed or already applied", { error });
   }
 
   // ========== AUTO-LOAD ENCRYPTED PASSWORDS (LAZY-LOAD) ==========

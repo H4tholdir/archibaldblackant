@@ -1,5 +1,11 @@
 import { db, type PendingOrderItem } from "../db/schema";
 
+export type TrackingInfo = {
+  customerName?: string;
+  subClientName?: string;
+  orderDate?: string;
+};
+
 /**
  * Reserve warehouse items for a pending order
  * Sets reservedForOrder flag on warehouse items
@@ -11,6 +17,7 @@ import { db, type PendingOrderItem } from "../db/schema";
 export async function reserveWarehouseItems(
   orderId: string,
   items: PendingOrderItem[],
+  tracking?: TrackingInfo,
 ): Promise<void> {
   console.log("[Warehouse] Reserving items for order", { orderId, items });
 
@@ -75,6 +82,10 @@ export async function reserveWarehouseItems(
   } of itemsToReserve) {
     await db.warehouseItems.update(warehouseItemId, {
       reservedForOrder: `pending-${orderId}`,
+      customerName: tracking?.customerName,
+      subClientName: tracking?.subClientName,
+      orderDate: tracking?.orderDate || new Date().toISOString(),
+      orderNumber: orderId,
     });
 
     console.log("[Warehouse] Reserved", {
@@ -111,6 +122,10 @@ export async function releaseWarehouseReservations(
   for (const item of reservedItems) {
     await db.warehouseItems.update(item.id!, {
       reservedForOrder: undefined,
+      customerName: undefined,
+      subClientName: undefined,
+      orderDate: undefined,
+      orderNumber: undefined,
     });
   }
 
@@ -129,6 +144,7 @@ export async function releaseWarehouseReservations(
 export async function markWarehouseItemsAsSold(
   pendingOrderId: string,
   archibaldOrderId: string,
+  tracking?: TrackingInfo,
 ): Promise<void> {
   console.log("[Warehouse] Marking items as sold", {
     pendingOrderId,
@@ -144,6 +160,12 @@ export async function markWarehouseItemsAsSold(
     await db.warehouseItems.update(item.id!, {
       reservedForOrder: undefined,
       soldInOrder: archibaldOrderId,
+      ...(tracking && {
+        customerName: tracking.customerName,
+        subClientName: tracking.subClientName,
+        orderDate: tracking.orderDate || new Date().toISOString(),
+        orderNumber: pendingOrderId,
+      }),
     });
   }
 

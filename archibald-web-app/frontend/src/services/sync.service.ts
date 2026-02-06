@@ -3,6 +3,7 @@ import { productService } from "./products.service";
 import { priceService } from "./prices.service";
 import { subClientService } from "./subclient.service";
 import { fresisHistoryService } from "./fresis-history.service";
+import { fresisDiscountService } from "./fresis-discount.service";
 
 export class SyncService {
   private syncInProgress = false;
@@ -36,6 +37,12 @@ export class SyncService {
         fresisHistoryService.syncOrderLifecycles().catch((err) => {
           console.warn(
             "[SyncService] Fresis lifecycle sync failed (non-blocking):",
+            err,
+          );
+        }),
+        fresisDiscountService.syncFromServer().catch((err) => {
+          console.warn(
+            "[SyncService] Fresis discount sync failed (non-blocking):",
             err,
           );
         }),

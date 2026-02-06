@@ -60,11 +60,15 @@ export function PendingOrdersPage() {
     });
   };
 
+  const selectableOrders = orders.filter(
+    (o) => o.status !== "completed-warehouse",
+  );
+
   const handleSelectAll = () => {
-    if (selectedOrderIds.size === orders.length) {
+    if (selectedOrderIds.size === selectableOrders.length) {
       setSelectedOrderIds(new Set());
     } else {
-      setSelectedOrderIds(new Set(orders.map((o) => o.id)));
+      setSelectedOrderIds(new Set(selectableOrders.map((o) => o.id)));
     }
   };
 
@@ -318,6 +322,54 @@ export function PendingOrdersPage() {
     } catch (error) {
       console.error("[PendingOrdersPage] Merge failed:", error);
       toastService.error("Errore durante il merge degli ordini");
+    }
+  };
+
+  const handleConfirmWarehouseOrder = async (order: PendingOrder) => {
+    if (
+      !confirm("Confermi di aver verificato l'ordine magazzino? L'ordine verrà archiviato nello storico.")
+    ) {
+      return;
+    }
+
+    try {
+      // Archive to fresisHistory if it's a Fresis sub-client order
+      if (
+        isFresis({ id: order.customerId }) &&
+        order.subClientCodice
+      ) {
+        await db.fresisHistory.add({
+          id: crypto.randomUUID(),
+          originalPendingOrderId: order.id!,
+          subClientCodice: order.subClientCodice,
+          subClientName: order.subClientName ?? "",
+          subClientData: order.subClientData ?? {
+            codice: order.subClientCodice,
+            ragioneSociale: order.subClientName ?? "",
+          },
+          customerId: order.customerId,
+          customerName: order.customerName,
+          items: order.items,
+          discountPercent: order.discountPercent,
+          targetTotalWithVAT: order.targetTotalWithVAT,
+          shippingCost: order.shippingCost,
+          shippingTax: order.shippingTax,
+          createdAt: order.createdAt,
+          updatedAt: new Date().toISOString(),
+        });
+      }
+
+      // Remove the order from pendingOrders (warehouse items already marked as sold)
+      await db.pendingOrders.delete(order.id!);
+
+      toastService.success("Ordine magazzino confermato e archiviato");
+      await refetch();
+    } catch (error) {
+      console.error(
+        "[PendingOrdersPage] Failed to confirm warehouse order:",
+        error,
+      );
+      toastService.error("Errore durante la conferma dell'ordine magazzino");
     }
   };
 
@@ -626,7 +678,7 @@ export function PendingOrdersPage() {
         >
           <input
             type="checkbox"
-            checked={selectedOrderIds.size === orders.length}
+            checked={selectableOrders.length > 0 && selectedOrderIds.size === selectableOrders.length}
             onChange={handleSelectAll}
             style={{
               width: isMobile ? "1.375rem" : "1.25rem",
@@ -661,18 +713,26 @@ export function PendingOrdersPage() {
           const isJobCompleted = order.jobStatus === "completed";
           const isJobFailed = order.jobStatus === "failed";
 
+          const isWarehouseOrder = order.status === "completed-warehouse";
           const cardOpacity = isJobActive || isJobCompleted ? 0.6 : 1;
           const cardBgColor = isJobCompleted
             ? "#f0fdf4"
             : isJobFailed
               ? "#fef2f2"
-              : "white";
+              : isWarehouseOrder
+                ? "#eff6ff"
+                : "white";
 
           return (
             <div
               key={order.id}
               style={{
-                border: "1px solid #e5e7eb",
+                border: isWarehouseOrder
+                  ? "1px solid #93c5fd"
+                  : "1px solid #e5e7eb",
+                borderLeft: isWarehouseOrder
+                  ? "4px solid #3b82f6"
+                  : undefined,
                 borderRadius: "8px",
                 padding: isMobile ? "1rem" : "1.5rem",
                 backgroundColor: cardBgColor,
@@ -698,19 +758,35 @@ export function PendingOrdersPage() {
                     gap: isMobile ? "0.75rem" : "1rem",
                   }}
                 >
-                  <input
-                    type="checkbox"
-                    checked={selectedOrderIds.has(order.id!)}
-                    onChange={() => handleSelectOrder(order.id!)}
-                    style={{
-                      width: isMobile ? "1.375rem" : "1.25rem",
-                      height: isMobile ? "1.375rem" : "1.25rem",
-                      cursor: "pointer",
-                      marginTop: "0.125rem",
-                      minWidth: "22px",
-                      minHeight: "22px",
-                    }}
-                  />
+                  {isWarehouseOrder ? (
+                    <div
+                      style={{
+                        width: isMobile ? "1.375rem" : "1.25rem",
+                        height: isMobile ? "1.375rem" : "1.25rem",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        fontSize: "1rem",
+                      }}
+                      title="Ordine magazzino: conferma manuale richiesta"
+                    >
+                      🏪
+                    </div>
+                  ) : (
+                    <input
+                      type="checkbox"
+                      checked={selectedOrderIds.has(order.id!)}
+                      onChange={() => handleSelectOrder(order.id!)}
+                      style={{
+                        width: isMobile ? "1.375rem" : "1.25rem",
+                        height: isMobile ? "1.375rem" : "1.25rem",
+                        cursor: "pointer",
+                        marginTop: "0.125rem",
+                        minWidth: "22px",
+                        minHeight: "22px",
+                      }}
+                    />
+                  )}
                   <div style={{ flex: 1 }}>
                     <div
                       style={{
@@ -764,13 +840,17 @@ export function PendingOrdersPage() {
                                 ? "#fef3c7"
                                 : order.status === "error"
                                   ? "#fee2e2"
-                                  : "#dbeafe",
+                                  : order.status === "completed-warehouse"
+                                    ? "#dbeafe"
+                                    : "#dbeafe",
                             color:
                               order.status === "pending"
                                 ? "#92400e"
                                 : order.status === "error"
                                   ? "#991b1b"
-                                  : "#1e40af",
+                                  : order.status === "completed-warehouse"
+                                    ? "#1e40af"
+                                    : "#1e40af",
                             display: "inline-block",
                           }}
                         >
@@ -778,7 +858,9 @@ export function PendingOrdersPage() {
                             ? "In Attesa"
                             : order.status === "error"
                               ? "Errore"
-                              : "In Elaborazione"}
+                              : order.status === "completed-warehouse"
+                                ? "Da Magazzino"
+                                : "In Elaborazione"}
                         </div>
                       </div>
                     )}
@@ -818,7 +900,9 @@ export function PendingOrdersPage() {
                         ? "In Attesa"
                         : order.status === "error"
                           ? "Errore"
-                          : "In Elaborazione"}
+                          : order.status === "completed-warehouse"
+                            ? "Da Magazzino"
+                            : "In Elaborazione"}
                     </div>
                     <button
                       onClick={() => handleDownloadPDF(order)}
@@ -852,22 +936,41 @@ export function PendingOrdersPage() {
                     >
                       🖨️ Stampa
                     </button>
-                    <button
-                      onClick={() => handleEditOrder(order.id!)}
-                      style={{
-                        padding: "0.5rem 0.75rem",
-                        background: "#3b82f6",
-                        color: "white",
-                        border: "none",
-                        borderRadius: "4px",
-                        cursor: "pointer",
-                        fontSize: "0.875rem",
-                        fontWeight: "500",
-                      }}
-                      title="Modifica ordine"
-                    >
-                      ✏️ Modifica
-                    </button>
+                    {isWarehouseOrder ? (
+                      <button
+                        onClick={() => handleConfirmWarehouseOrder(order)}
+                        style={{
+                          padding: "0.5rem 0.75rem",
+                          background: "#22c55e",
+                          color: "white",
+                          border: "none",
+                          borderRadius: "4px",
+                          cursor: "pointer",
+                          fontSize: "0.875rem",
+                          fontWeight: "600",
+                        }}
+                        title="Conferma e archivia ordine magazzino"
+                      >
+                        Conferma e Archivia
+                      </button>
+                    ) : (
+                      <button
+                        onClick={() => handleEditOrder(order.id!)}
+                        style={{
+                          padding: "0.5rem 0.75rem",
+                          background: "#3b82f6",
+                          color: "white",
+                          border: "none",
+                          borderRadius: "4px",
+                          cursor: "pointer",
+                          fontSize: "0.875rem",
+                          fontWeight: "500",
+                        }}
+                        title="Modifica ordine"
+                      >
+                        ✏️ Modifica
+                      </button>
+                    )}
                     <button
                       onClick={() => handleDeleteOrder(order.id!)}
                       style={{
@@ -941,6 +1044,29 @@ export function PendingOrdersPage() {
                       <span>🖨️</span>
                       <span>Stampa</span>
                     </button>
+                    {isWarehouseOrder ? (
+                      <button
+                        onClick={() => handleConfirmWarehouseOrder(order)}
+                        style={{
+                          padding: "0.75rem",
+                          background: "#22c55e",
+                          color: "white",
+                          border: "none",
+                          borderRadius: "6px",
+                          cursor: "pointer",
+                          fontSize: "0.9375rem",
+                          fontWeight: "600",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          gap: "0.375rem",
+                          minHeight: "44px",
+                        }}
+                        title="Conferma e archivia"
+                      >
+                        <span>Conferma</span>
+                      </button>
+                    ) : (
                     <button
                       onClick={() => handleEditOrder(order.id!)}
                       style={{
@@ -963,6 +1089,7 @@ export function PendingOrdersPage() {
                       <span>✏️</span>
                       <span>Modifica</span>
                     </button>
+                    )}
                     <button
                       onClick={() => handleDeleteOrder(order.id!)}
                       style={{

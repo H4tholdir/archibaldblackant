@@ -148,6 +148,18 @@ export interface WarehouseItem {
   soldInOrder?: string; // ID ordine Archibald se venduto
   uploadedAt: string; // Timestamp caricamento
   deviceId?: string; // Device che ha caricato/modificato
+  customerName?: string;
+  subClientName?: string;
+  orderDate?: string;
+  orderNumber?: string;
+}
+
+// Fresis article discount (imported from Excel)
+export interface FresisArticleDiscount {
+  id: string; // ID prodotto (es: "001627K0")
+  articleCode: string; // Codice articolo (es: "1.204.005")
+  discountPercent: number; // Sconto Fresis %
+  kpPriceUnit?: number; // Prezzo KP unitario (per verifica)
 }
 
 // Fresis sub-client (sotto-cliente)
@@ -228,6 +240,7 @@ export class ArchibaldDatabase extends Dexie {
   warehouseMetadata!: Table<WarehouseMetadata, number>;
   subClients!: Table<SubClient, string>;
   fresisHistory!: Table<FresisHistoryOrder, string>;
+  fresisDiscounts!: Table<FresisArticleDiscount, string>;
 
   constructor() {
     super("ArchibaldOfflineDB");
@@ -684,6 +697,24 @@ export class ArchibaldDatabase extends Dexie {
       subClients: "codice, ragioneSociale, supplRagioneSociale, partitaIva",
       fresisHistory:
         "id, subClientCodice, customerName, createdAt, updatedAt, archibaldOrderId, mergedIntoOrderId",
+    });
+
+    // Version 17: Add warehouse tracking fields + fresisDiscounts table
+    this.version(17).stores({
+      customers: "id, name, code, city, *hash",
+      products: "id, name, article, *hash",
+      productVariants: "++id, productId, variantId",
+      prices: "++id, articleId, articleName",
+      draftOrders: "id, customerId, createdAt, updatedAt",
+      pendingOrders: "id, status, createdAt, updatedAt, jobId",
+      cacheMetadata: "key, lastSynced",
+      warehouseItems:
+        "++id, articleCode, boxName, reservedForOrder, soldInOrder",
+      warehouseMetadata: "++id, uploadedAt",
+      subClients: "codice, ragioneSociale, supplRagioneSociale, partitaIva",
+      fresisHistory:
+        "id, subClientCodice, customerName, createdAt, updatedAt, archibaldOrderId, mergedIntoOrderId",
+      fresisDiscounts: "id, articleCode, discountPercent",
     });
   }
 }
