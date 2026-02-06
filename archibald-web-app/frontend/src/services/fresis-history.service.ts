@@ -84,6 +84,57 @@ class FresisHistoryService {
   ): Promise<FresisHistoryOrder | undefined> {
     return db.fresisHistory.get(id);
   }
+
+  async syncOrderLifecycles(): Promise<number> {
+    const allRecords = await db.fresisHistory.toArray();
+    const trackable = allRecords.filter(
+      (r) => r.archibaldOrderId && r.currentState !== "fatturato",
+    );
+
+    if (trackable.length === 0) return 0;
+
+    const uniqueIds = [...new Set(trackable.map((r) => r.archibaldOrderId!))];
+
+    const jwt = localStorage.getItem("archibald_jwt");
+    if (!jwt) return 0;
+
+    const response = await fetch(
+      `/api/orders/lifecycle-summary?ids=${uniqueIds.join(",")}`,
+      { headers: { Authorization: `Bearer ${jwt}` } },
+    );
+
+    if (!response.ok) return 0;
+
+    const json = await response.json();
+    if (!json.success || !json.data) return 0;
+
+    const now = new Date().toISOString();
+    let updatedCount = 0;
+
+    for (const record of trackable) {
+      const lifecycle = json.data[record.archibaldOrderId!];
+      if (!lifecycle) continue;
+
+      await db.fresisHistory.update(record.id, {
+        archibaldOrderNumber: lifecycle.orderNumber ?? undefined,
+        currentState: lifecycle.currentState ?? undefined,
+        stateUpdatedAt: now,
+        ddtNumber: lifecycle.ddtNumber ?? undefined,
+        ddtDeliveryDate: lifecycle.ddtDeliveryDate ?? undefined,
+        trackingNumber: lifecycle.trackingNumber ?? undefined,
+        trackingUrl: lifecycle.trackingUrl ?? undefined,
+        trackingCourier: lifecycle.trackingCourier ?? undefined,
+        deliveryCompletedDate: lifecycle.deliveryCompletedDate ?? undefined,
+        invoiceNumber: lifecycle.invoiceNumber ?? undefined,
+        invoiceDate: lifecycle.invoiceDate ?? undefined,
+        invoiceAmount: lifecycle.invoiceAmount ?? undefined,
+        updatedAt: now,
+      });
+      updatedCount++;
+    }
+
+    return updatedCount;
+  }
 }
 
 export const fresisHistoryService = FresisHistoryService.getInstance();

@@ -520,6 +520,34 @@ export class PendingRealtimeService {
       console.log(`[PendingRealtime] JOB_COMPLETED`, {
         orderId: data.orderId,
       });
+
+      // Bridge archibaldOrderId to fresisHistory records
+      try {
+        const historyRecords = await db.fresisHistory
+          .where("mergedIntoOrderId")
+          .equals(data.pendingOrderId)
+          .toArray();
+
+        if (historyRecords.length > 0) {
+          for (const record of historyRecords) {
+            await db.fresisHistory.update(record.id, {
+              archibaldOrderId: data.orderId,
+              currentState: "piazzato",
+              stateUpdatedAt: data.timestamp,
+              updatedAt: data.timestamp,
+            });
+          }
+          console.log(
+            `[PendingRealtime] Updated ${historyRecords.length} fresisHistory records with archibaldOrderId=${data.orderId}`,
+          );
+        }
+      } catch (historyError) {
+        console.error(
+          "[PendingRealtime] Error updating fresisHistory:",
+          historyError,
+        );
+      }
+
       this.notifyUpdate();
 
       // Auto-dismiss after 4 seconds

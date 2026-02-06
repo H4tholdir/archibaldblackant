@@ -3,6 +3,39 @@ import type { FresisHistoryOrder } from "../db/schema";
 import { fresisHistoryService } from "../services/fresis-history.service";
 import { PDFExportService } from "../services/pdf-export.service";
 
+const STATE_BADGE_CONFIG: Record<
+  string,
+  { label: string; bg: string; color: string }
+> = {
+  piazzato: { label: "Piazzato", bg: "#e5e7eb", color: "#374151" },
+  inviato_milano: { label: "Inviato a Milano", bg: "#dbeafe", color: "#1e40af" },
+  trasferito: { label: "Trasferito", bg: "#d1fae5", color: "#065f46" },
+  transfer_error: {
+    label: "Errore Trasferimento",
+    bg: "#fee2e2",
+    color: "#991b1b",
+  },
+  modifica: { label: "In Modifica", bg: "#fef3c7", color: "#92400e" },
+  ordine_aperto: { label: "Ordine Aperto", bg: "#ffedd5", color: "#9a3412" },
+  spedito: { label: "Spedito", bg: "#e0f2fe", color: "#0369a1" },
+  consegnato: { label: "Consegnato", bg: "#bbf7d0", color: "#166534" },
+  fatturato: { label: "Fatturato", bg: "#86efac", color: "#14532d" },
+};
+
+function getStateBadge(order: FresisHistoryOrder): {
+  label: string;
+  bg: string;
+  color: string;
+} {
+  if (!order.archibaldOrderId) {
+    return { label: "In attesa", bg: "#f3f4f6", color: "#6b7280" };
+  }
+  const cfg = order.currentState
+    ? STATE_BADGE_CONFIG[order.currentState]
+    : undefined;
+  return cfg ?? { label: "In attesa", bg: "#f3f4f6", color: "#6b7280" };
+}
+
 export function FresisHistoryPage() {
   const [orders, setOrders] = useState<FresisHistoryOrder[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
@@ -11,6 +44,8 @@ export function FresisHistoryPage() {
   const [editNotes, setEditNotes] = useState("");
   const [loading, setLoading] = useState(true);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
+  const [syncing, setSyncing] = useState(false);
+  const [syncMessage, setSyncMessage] = useState<string | null>(null);
 
   const loadOrders = useCallback(async () => {
     setLoading(true);
@@ -32,6 +67,39 @@ export function FresisHistoryPage() {
     }, 300);
     return () => clearTimeout(timer);
   }, [loadOrders]);
+
+  useEffect(() => {
+    fresisHistoryService.syncOrderLifecycles().then(() => loadOrders());
+  }, []);
+
+  const handleSyncLifecycles = async () => {
+    setSyncing(true);
+    setSyncMessage(null);
+    try {
+      const count = await fresisHistoryService.syncOrderLifecycles();
+      setSyncMessage(`Aggiornati ${count} ordini`);
+      await loadOrders();
+    } catch (err) {
+      console.error("[FresisHistoryPage] Sync failed:", err);
+      setSyncMessage("Errore durante aggiornamento");
+    } finally {
+      setSyncing(false);
+      setTimeout(() => setSyncMessage(null), 3000);
+    }
+  };
+
+  const handleMarkDelivered = async (order: FresisHistoryOrder) => {
+    try {
+      await fresisHistoryService.updateHistoryOrder(order.id, {
+        currentState: "consegnato",
+        deliveryCompletedDate: new Date().toISOString(),
+        stateUpdatedAt: new Date().toISOString(),
+      });
+      await loadOrders();
+    } catch (err) {
+      console.error("[FresisHistoryPage] Mark delivered failed:", err);
+    }
+  };
 
   const handleDelete = async (id: string) => {
     try {
@@ -105,13 +173,14 @@ export function FresisHistoryPage() {
         />
       </div>
 
-      {/* Placeholder buttons */}
+      {/* Action buttons */}
       <div
         style={{
           display: "flex",
           gap: "0.5rem",
           marginBottom: "1rem",
           flexWrap: "wrap",
+          alignItems: "center",
         }}
       >
         <button
@@ -140,6 +209,26 @@ export function FresisHistoryPage() {
         >
           Importa
         </button>
+        <button
+          onClick={handleSyncLifecycles}
+          disabled={syncing}
+          style={{
+            padding: "0.5rem 1rem",
+            background: syncing ? "#93c5fd" : "#3b82f6",
+            color: "white",
+            border: "none",
+            borderRadius: "6px",
+            cursor: syncing ? "default" : "pointer",
+            fontSize: "0.875rem",
+          }}
+        >
+          {syncing ? "Aggiornamento..." : "Aggiorna Stati"}
+        </button>
+        {syncMessage && (
+          <span style={{ fontSize: "0.8rem", color: "#6b7280" }}>
+            {syncMessage}
+          </span>
+        )}
       </div>
 
       {loading && (
@@ -170,6 +259,7 @@ export function FresisHistoryPage() {
             (sum, item) => sum + item.price * item.quantity,
             0,
           );
+          const badge = getStateBadge(order);
 
           return (
             <div
@@ -195,8 +285,29 @@ export function FresisHistoryPage() {
                 }}
               >
                 <div>
-                  <div style={{ fontWeight: "600", fontSize: "1rem" }}>
-                    {order.subClientName}
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "0.5rem",
+                    }}
+                  >
+                    <span style={{ fontWeight: "600", fontSize: "1rem" }}>
+                      {order.subClientName}
+                    </span>
+                    <span
+                      style={{
+                        fontSize: "0.7rem",
+                        padding: "0.15rem 0.5rem",
+                        borderRadius: "9999px",
+                        background: badge.bg,
+                        color: badge.color,
+                        fontWeight: "500",
+                        whiteSpace: "nowrap",
+                      }}
+                    >
+                      {badge.label}
+                    </span>
                   </div>
                   <div
                     style={{
@@ -258,6 +369,90 @@ export function FresisHistoryPage() {
                         `P.IVA: ${order.subClientData.partitaIva}`}
                       {order.subClientData.codFiscale &&
                         ` | CF: ${order.subClientData.codFiscale}`}
+                    </div>
+                  )}
+
+                  {/* Lifecycle section */}
+                  {order.archibaldOrderId && (
+                    <div
+                      style={{
+                        marginBottom: "0.75rem",
+                        padding: "0.5rem",
+                        background: "#f0f9ff",
+                        borderRadius: "4px",
+                        border: "1px solid #bae6fd",
+                        fontSize: "0.8rem",
+                      }}
+                    >
+                      <div style={{ fontWeight: "600", marginBottom: "0.25rem" }}>
+                        Ordine Archibald
+                      </div>
+                      <div>
+                        {order.archibaldOrderNumber && (
+                          <span>N. {order.archibaldOrderNumber}</span>
+                        )}
+                        {order.currentState && (
+                          <span
+                            style={{
+                              marginLeft: "0.5rem",
+                              fontSize: "0.7rem",
+                              padding: "0.1rem 0.4rem",
+                              borderRadius: "9999px",
+                              background: badge.bg,
+                              color: badge.color,
+                              fontWeight: "500",
+                            }}
+                          >
+                            {badge.label}
+                          </span>
+                        )}
+                      </div>
+
+                      {/* DDT/Spedizione */}
+                      {order.ddtNumber && (
+                        <div style={{ marginTop: "0.35rem" }}>
+                          <strong>DDT:</strong> {order.ddtNumber}
+                          {order.ddtDeliveryDate &&
+                            ` | Consegna prevista: ${formatDate(order.ddtDeliveryDate)}`}
+                          {order.trackingNumber && (
+                            <div>
+                              <strong>Tracking:</strong>{" "}
+                              {order.trackingUrl ? (
+                                <a
+                                  href={order.trackingUrl}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  style={{ color: "#2563eb" }}
+                                >
+                                  {order.trackingNumber}
+                                </a>
+                              ) : (
+                                order.trackingNumber
+                              )}
+                              {order.trackingCourier &&
+                                ` (${order.trackingCourier})`}
+                            </div>
+                          )}
+                        </div>
+                      )}
+
+                      {/* Fattura */}
+                      {order.invoiceNumber && (
+                        <div style={{ marginTop: "0.35rem" }}>
+                          <strong>Fattura:</strong> {order.invoiceNumber}
+                          {order.invoiceDate &&
+                            ` del ${formatDate(order.invoiceDate)}`}
+                          {order.invoiceAmount && ` - ${order.invoiceAmount}`}
+                        </div>
+                      )}
+
+                      {/* Consegna completata */}
+                      {order.deliveryCompletedDate && (
+                        <div style={{ marginTop: "0.35rem", color: "#166534" }}>
+                          Consegnato il{" "}
+                          {formatDate(order.deliveryCompletedDate)}
+                        </div>
+                      )}
                     </div>
                   )}
 
@@ -445,6 +640,23 @@ export function FresisHistoryPage() {
                     >
                       Modifica Note
                     </button>
+                    {order.currentState === "spedito" &&
+                      !order.deliveryCompletedDate && (
+                        <button
+                          onClick={() => handleMarkDelivered(order)}
+                          style={{
+                            padding: "0.4rem 0.75rem",
+                            background: "#16a34a",
+                            color: "white",
+                            border: "none",
+                            borderRadius: "4px",
+                            cursor: "pointer",
+                            fontSize: "0.8rem",
+                          }}
+                        >
+                          Segna Consegnato
+                        </button>
+                      )}
                     {isDeleting ? (
                       <>
                         <button

@@ -1,13 +1,15 @@
 # Stage 1: Dependencies
 FROM node:20-alpine AS deps
 WORKDIR /app
+RUN apk add --no-cache python3 make g++
 COPY archibald-web-app/backend/package*.json ./
-RUN npm ci --only=production && \
+RUN npm ci --omit=dev && \
     npm cache clean --force
 
 # Stage 2: Build TypeScript
 FROM node:20-alpine AS builder
 WORKDIR /app
+RUN apk add --no-cache python3 make g++
 COPY archibald-web-app/backend/package*.json archibald-web-app/backend/tsconfig.json ./
 COPY archibald-web-app/backend/src ./src
 RUN npm ci && \

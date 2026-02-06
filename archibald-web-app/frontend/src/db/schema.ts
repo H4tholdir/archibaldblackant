@@ -188,6 +188,22 @@ export interface FresisHistoryOrder {
   createdAt: string;
   updatedAt: string;
   notes?: string;
+
+  archibaldOrderId?: string;
+  archibaldOrderNumber?: string;
+  currentState?: string;
+  stateUpdatedAt?: string;
+
+  ddtNumber?: string;
+  ddtDeliveryDate?: string;
+  trackingNumber?: string;
+  trackingUrl?: string;
+  trackingCourier?: string;
+  deliveryCompletedDate?: string;
+
+  invoiceNumber?: string;
+  invoiceDate?: string;
+  invoiceAmount?: string;
 }
 
 // Warehouse metadata (info sul file caricato)
@@ -651,6 +667,23 @@ export class ArchibaldDatabase extends Dexie {
       subClients: "codice, ragioneSociale, supplRagioneSociale, partitaIva",
       fresisHistory:
         "id, subClientCodice, customerName, createdAt, updatedAt",
+    });
+
+    // Version 16: Add lifecycle tracking fields to fresisHistory + archibaldOrderId index
+    this.version(16).stores({
+      customers: "id, name, code, city, *hash",
+      products: "id, name, article, *hash",
+      productVariants: "++id, productId, variantId",
+      prices: "++id, articleId, articleName",
+      draftOrders: "id, customerId, createdAt, updatedAt",
+      pendingOrders: "id, status, createdAt, updatedAt, jobId",
+      cacheMetadata: "key, lastSynced",
+      warehouseItems:
+        "++id, articleCode, boxName, reservedForOrder, soldInOrder",
+      warehouseMetadata: "++id, uploadedAt",
+      subClients: "codice, ragioneSociale, supplRagioneSociale, partitaIva",
+      fresisHistory:
+        "id, subClientCodice, customerName, createdAt, updatedAt, archibaldOrderId, mergedIntoOrderId",
     });
   }
 }

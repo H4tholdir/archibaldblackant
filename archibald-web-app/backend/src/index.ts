@@ -68,6 +68,7 @@ import { OrderDatabaseNew } from "./order-db-new";
 import { PriorityManager } from "./priority-manager";
 import * as WidgetCalc from "./widget-calculations";
 import { OrderStateSyncService } from "./order-state-sync-service";
+import { OrderStateService } from "./order-state-service";
 import { pdfParserService } from "./pdf-parser-service";
 import { PDFParserProductsService } from "./pdf-parser-products-service";
 import { PDFParserPricesService } from "./pdf-parser-prices-service";
@@ -6156,6 +6157,82 @@ app.get(
       return res.status(500).json({
         success: false,
         error: error instanceof Error ? error.message : "Unknown error",
+      });
+    }
+  },
+);
+
+// Get lifecycle summary for multiple orders - GET /api/orders/lifecycle-summary
+app.get(
+  "/api/orders/lifecycle-summary",
+  authenticateJWT,
+  async (req: AuthRequest, res: Response) => {
+    const userId = req.user?.userId;
+    if (!userId) {
+      return res.status(401).json({ success: false, error: "Unauthorized" });
+    }
+
+    const idsParam = req.query.ids as string | undefined;
+    if (!idsParam) {
+      return res.status(400).json({
+        success: false,
+        error: "Query parameter 'ids' is required",
+      });
+    }
+
+    const ids = idsParam.split(",").filter(Boolean);
+    if (ids.length === 0) {
+      return res.status(400).json({
+        success: false,
+        error: "At least one order ID is required",
+      });
+    }
+    if (ids.length > 50) {
+      return res.status(400).json({
+        success: false,
+        error: "Maximum 50 order IDs per request",
+      });
+    }
+
+    try {
+      const orderDbInstance = OrderDatabaseNew.getInstance();
+      const stateService = new OrderStateService();
+      const data: Record<string, any> = {};
+
+      for (const id of ids) {
+        const order = orderDbInstance.getOrderById(userId, id);
+        if (!order) {
+          data[id] = null;
+          continue;
+        }
+
+        const stateResult = await stateService.detectOrderState(order);
+
+        data[id] = {
+          orderNumber: order.orderNumber ?? null,
+          currentState: stateResult.state,
+          ddtNumber: order.ddtNumber ?? null,
+          ddtDeliveryDate: order.ddtDeliveryDate ?? null,
+          trackingNumber: order.trackingNumber ?? null,
+          trackingUrl: order.trackingUrl ?? null,
+          trackingCourier: order.trackingCourier ?? null,
+          deliveryCompletedDate: order.deliveryCompletedDate ?? null,
+          invoiceNumber: order.invoiceNumber ?? null,
+          invoiceDate: order.invoiceDate ?? null,
+          invoiceAmount: order.invoiceAmount ?? null,
+        };
+      }
+
+      return res.json({ success: true, data });
+    } catch (error) {
+      logger.error("[API] Lifecycle summary failed", {
+        error: error instanceof Error ? error.message : String(error),
+        userId,
+      });
+
+      return res.status(500).json({
+        success: false,
+        error: "Failed to fetch lifecycle summary",
       });
     }
   },
