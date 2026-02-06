@@ -603,7 +603,7 @@ export function FresisHistoryPage() {
                         }}
                       >
                         <th style={{ padding: "0.3rem" }}>Codice</th>
-                        <th style={{ padding: "0.3rem" }}>Prodotto</th>
+                        <th style={{ padding: "0.3rem" }}>Descrizione</th>
                         <th style={{ padding: "0.3rem", textAlign: "right" }}>
                           Qta'
                         </th>
@@ -635,10 +635,10 @@ export function FresisHistoryPage() {
                           }}
                         >
                           <td style={{ padding: "0.3rem" }}>
-                            {item.articleCode}
+                            {item.productName || item.articleCode}
                           </td>
                           <td style={{ padding: "0.3rem" }}>
-                            {item.productName || item.description || "-"}
+                            {item.description || "-"}
                           </td>
                           <td style={{ padding: "0.3rem", textAlign: "right" }}>
                             {editing ? (
