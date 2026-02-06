@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { WidgetOrderConfigModal } from "../components/WidgetOrderConfigModal";
 import { PrivacyToggle } from "../components/PrivacyToggle";
 import { HeroStatusWidgetNew } from "../components/widgets/HeroStatusWidgetNew";
@@ -11,6 +11,7 @@ import { ExtraBudgetWidget } from "../components/widgets/ExtraBudgetWidget";
 import { AlertsWidgetNew } from "../components/widgets/AlertsWidgetNew";
 import { OrdersSummaryWidgetNew } from "../components/OrdersSummaryWidgetNew";
 import { useAutoRefresh } from "../hooks/useAutoRefresh";
+import { useWebSocketContext } from "../contexts/WebSocketContext";
 import type { DashboardData } from "../types/dashboard";
 import type { OrdersMetrics } from "../types/dashboard";
 
@@ -79,9 +80,45 @@ export function Dashboard() {
     visibilityCheck: true,
   });
 
+  // WebSocket: refresh dashboard instantly on order events
+  const { subscribe } = useWebSocketContext();
+  const debounceRef = useRef<NodeJS.Timeout | null>(null);
+
+  const debouncedRefresh = useCallback(() => {
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => {
+      fetchDashboardData();
+    }, 1500);
+  }, [fetchDashboardData]);
+
+  useEffect(() => {
+    const events = [
+      "JOB_COMPLETED",
+      "PENDING_CREATED",
+      "PENDING_DELETED",
+      "PENDING_SUBMITTED",
+    ];
+    const unsubscribers = events.map((event) =>
+      subscribe(event, () => {
+        console.log(
+          `[Dashboard] WebSocket event "${event}" received, refreshing...`,
+        );
+        debouncedRefresh();
+      }),
+    );
+    return () => {
+      unsubscribers.forEach((unsub) => unsub());
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+    };
+  }, [subscribe, debouncedRefresh]);
+
   const handleConfigUpdate = async () => {
-    // Reload dashboard data after config changes
     await fetchDashboardData();
+  };
+
+  const handleConfigClose = () => {
+    setShowConfigModal(false);
+    fetchDashboardData();
   };
 
   if (loading) {
@@ -232,7 +269,7 @@ export function Dashboard() {
       {/* Widget Order Configuration Modal */}
       <WidgetOrderConfigModal
         isOpen={showConfigModal}
-        onClose={() => setShowConfigModal(false)}
+        onClose={handleConfigClose}
         year={new Date().getFullYear()}
         month={new Date().getMonth() + 1}
         onUpdate={handleConfigUpdate}
