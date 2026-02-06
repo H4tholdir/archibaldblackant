@@ -12,6 +12,7 @@ import { useWebSocketContext } from "../contexts/WebSocketContext";
 import { DraftRealtimeService } from "../services/draft-realtime.service";
 import { db } from "../db/schema";
 import type { DraftOrder } from "../db/schema";
+import { isDraftDeleted } from "../utils/deleted-drafts";
 
 export interface UseDraftSyncReturn {
   drafts: DraftOrder[];
@@ -41,16 +42,17 @@ export function useDraftSync(): UseDraftSyncReturn {
   const loadDrafts = useCallback(async () => {
     try {
       setIsSyncing(true);
-      const drafts = await db.draftOrders.toArray();
+      const allDrafts = await db.draftOrders.toArray();
 
-      // Sort by updatedAt descending (newest first)
-      drafts.sort((a, b) => {
+      const activeDrafts = allDrafts.filter((d) => !isDraftDeleted(d.id));
+
+      activeDrafts.sort((a, b) => {
         const aTime = new Date(a.updatedAt).getTime();
         const bTime = new Date(b.updatedAt).getTime();
         return bTime - aTime;
       });
 
-      setDrafts(drafts);
+      setDrafts(activeDrafts);
     } catch (error) {
       console.error("[useDraftSync] Error loading drafts:", error);
     } finally {

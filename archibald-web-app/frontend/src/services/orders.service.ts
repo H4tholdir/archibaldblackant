@@ -8,6 +8,7 @@ import {
 } from "./warehouse-order-integration";
 import { getDeviceId } from "../utils/device-id";
 import { unifiedSyncService } from "./unified-sync-service";
+import { markDraftDeleted, queueOfflineDelete } from "../utils/deleted-drafts";
 
 export class OrderService {
   private db: Dexie;
@@ -22,6 +23,10 @@ export class OrderService {
    * @returns Generated draft ID
    */
   async saveDraftOrder(order: Omit<DraftOrder, "id">): Promise<string> {
+    if (!order.items || order.items.length === 0) {
+      throw new Error("Draft must have items");
+    }
+
     try {
       const id = crypto.randomUUID();
       const deviceId = getDeviceId();
@@ -99,12 +104,12 @@ export class OrderService {
    */
   async deleteDraftOrder(id: string): Promise<void> {
     try {
-      // Perform direct deletion from IndexedDB
+      markDraftDeleted(id);
+
       await this.db.table<DraftOrder, string>("draftOrders").delete(id);
 
-      console.log("[OrderService] 🗑️ Draft deleted from IndexedDB:", id);
+      console.log("[OrderService] Draft deleted from IndexedDB:", id);
 
-      // Notify server to broadcast deletion to other devices
       if (navigator.onLine) {
         const token = localStorage.getItem("archibald_jwt");
         const deviceId = getDeviceId();
@@ -122,10 +127,9 @@ export class OrderService {
             );
 
             if (response.ok) {
-              console.log(
-                "[OrderService] ✅ Server notified of draft deletion, broadcast sent",
-                { draftId: id },
-              );
+              console.log("[OrderService] Server notified of draft deletion", {
+                draftId: id,
+              });
             } else {
               console.warn(
                 "[OrderService] Failed to notify server of draft deletion",
@@ -139,10 +143,12 @@ export class OrderService {
             );
           }
         }
+      } else {
+        queueOfflineDelete(id);
+        console.log("[OrderService] Offline - queued draft deletion:", id);
       }
     } catch (error) {
       console.error("[OrderService] Failed to delete draft:", error);
-      // Swallow error - deletion of non-existent draft is not critical
     }
   }
 
@@ -177,6 +183,69 @@ export class OrderService {
         error,
       );
       // Non-critical error, swallow it
+    }
+  }
+
+  /**
+   * Delete ALL draft orders for the current user (local + server).
+   * Used by "Cancel" to ensure a clean slate across all devices.
+   */
+  async deleteAllUserDrafts(): Promise<void> {
+    try {
+      const allDrafts = await this.db
+        .table<DraftOrder, string>("draftOrders")
+        .toArray();
+
+      for (const draft of allDrafts) {
+        markDraftDeleted(draft.id);
+      }
+
+      await this.db.table<DraftOrder, string>("draftOrders").clear();
+      console.log(
+        `[OrderService] All ${allDrafts.length} local drafts deleted`,
+      );
+
+      if (navigator.onLine) {
+        const token = localStorage.getItem("archibald_jwt");
+        const deviceId = getDeviceId();
+
+        if (token) {
+          try {
+            const response = await fetch(
+              `/api/sync/draft-orders?deviceId=${encodeURIComponent(deviceId)}`,
+              {
+                method: "DELETE",
+                headers: { Authorization: `Bearer ${token}` },
+              },
+            );
+
+            if (response.ok) {
+              console.log(
+                "[OrderService] Server notified of bulk draft deletion",
+              );
+            } else {
+              console.warn(
+                "[OrderService] Failed to bulk-delete drafts on server",
+                { status: response.status },
+              );
+            }
+          } catch (error) {
+            console.error(
+              "[OrderService] Error bulk-deleting drafts on server:",
+              error,
+            );
+          }
+        }
+      } else {
+        for (const draft of allDrafts) {
+          queueOfflineDelete(draft.id);
+        }
+        console.log(
+          "[OrderService] Offline - queued all draft deletions for sync",
+        );
+      }
+    } catch (error) {
+      console.error("[OrderService] Failed to delete all user drafts:", error);
     }
   }
 

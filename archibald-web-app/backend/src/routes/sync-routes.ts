@@ -377,7 +377,7 @@ router.get(
 
       const drafts = ordersDb.prepare(query).all(...params) as any[];
 
-      res.json({
+      res.setHeader("Cache-Control", "no-store").json({
         success: true,
         drafts: drafts.map((d) => ({
           id: d.id,
@@ -454,6 +454,15 @@ router.post(
             continue;
           }
 
+          if (draft.items.length === 0) {
+            results.push({
+              id: draft.id,
+              action: "rejected",
+              reason: "empty_items",
+            });
+            continue;
+          }
+
           const existing = ordersDb
             .prepare("SELECT * FROM draft_orders WHERE id = ?")
             .get(draft.id) as any;
@@ -505,6 +514,23 @@ router.post(
               deviceId: draft.deviceId,
             });
           } else {
+            // Single-draft-per-user: reject if another draft already exists
+            const existingOther = ordersDb
+              .prepare(
+                "SELECT id FROM draft_orders WHERE user_id = ? AND id != ?",
+              )
+              .get(userId, draft.id) as { id: string } | undefined;
+
+            if (existingOther) {
+              results.push({
+                id: draft.id,
+                action: "rejected",
+                reason: "single_draft_limit",
+                existingDraftId: existingOther.id,
+              });
+              continue;
+            }
+
             // Insert
             ordersDb
               .prepare(
@@ -555,6 +581,53 @@ router.post(
       res.json({ success: true, results });
     } catch (error) {
       logger.error("Error pushing draft orders", { error });
+      res.status(500).json({ success: false, error: "Errore server" });
+    }
+  },
+);
+
+/**
+ * DELETE /api/sync/draft-orders
+ *
+ * Delete ALL draft orders for the current user.
+ * Used by the "Cancel" button to clear all drafts in one call.
+ */
+router.delete(
+  "/draft-orders",
+  authenticateJWT,
+  async (req: AuthRequest, res: Response) => {
+    try {
+      const userId = req.user!.userId;
+      const { deviceId } = req.query;
+
+      const drafts = ordersDb
+        .prepare("SELECT id FROM draft_orders WHERE user_id = ?")
+        .all(userId) as { id: string }[];
+
+      if (drafts.length === 0) {
+        return res.json({ success: true, deletedCount: 0 });
+      }
+
+      ordersDb
+        .prepare("DELETE FROM draft_orders WHERE user_id = ?")
+        .run(userId);
+
+      logger.info("All draft orders deleted for user", {
+        userId,
+        deletedCount: drafts.length,
+      });
+
+      for (const draft of drafts) {
+        draftRealtimeService.emitDraftDeleted(
+          userId,
+          draft.id,
+          (deviceId as string) || "unknown",
+        );
+      }
+
+      res.json({ success: true, deletedCount: drafts.length });
+    } catch (error) {
+      logger.error("Error deleting all draft orders", { error });
       res.status(500).json({ success: false, error: "Errore server" });
     }
   },

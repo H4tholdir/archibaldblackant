@@ -24,6 +24,11 @@ import { releaseWarehouseReservations } from "../services/warehouse-order-integr
 import { getDeviceId } from "../utils/device-id";
 import { unifiedSyncService } from "../services/unified-sync-service";
 import { useDraftSync } from "../hooks/useDraftSync";
+import {
+  isDraftDeleted,
+  markDraftDeleted,
+  clearDeletedDraftIds,
+} from "../utils/deleted-drafts";
 import { calculateShippingCosts } from "../utils/order-calculations";
 import type { SubClient } from "../db/schema";
 import { SubClientSelector } from "./new-order-form/SubClientSelector";
@@ -237,9 +242,6 @@ export default function OrderFormSimple() {
 
   // 🔧 FIX: Prevent concurrent draft saves that create duplicates
   const savingDraftRef = useRef(false);
-
-  // 🔧 FIX: Prevent draft recreation after user explicitly deletes it
-  const draftDeletedRef = useRef(false);
 
   // Customer keyboard navigation
   const [highlightedCustomerIndex, setHighlightedCustomerIndex] = useState(-1);
@@ -794,13 +796,12 @@ export default function OrderFormSimple() {
       return;
     }
 
-    // Don't save if editing existing order, no customer selected, no items, order was just finalized, or draft was explicitly deleted
     if (
       editingOrderId ||
       !selectedCustomer ||
       items.length === 0 ||
       orderSavedSuccessfullyRef.current ||
-      draftDeletedRef.current
+      isDraftDeleted(draftId || "")
     ) {
       console.log("[OrderForm] Draft save skipped", {
         reason: editingOrderId
@@ -847,24 +848,21 @@ export default function OrderFormSimple() {
         });
         console.log("[OrderForm] ✅ Draft updated");
       } else {
-        // 🔧 CRITICAL FIX: Check if draft already exists for this customer before creating a new one
-        // This prevents duplicate draft creation on remounts
-        const existingDrafts = await db.draftOrders
-          .where("customerId")
-          .equals(selectedCustomer.id)
-          .toArray();
+        // Single-draft-per-user: look for ANY existing non-deleted draft
+        const allDrafts = await db.draftOrders.toArray();
+        const activeDrafts = allDrafts.filter((d) => !isDraftDeleted(d.id));
 
-        if (existingDrafts.length > 0) {
-          // Use existing draft instead of creating a new one
-          const existingDraft = existingDrafts[0];
+        if (activeDrafts.length > 0) {
+          const existingDraft = activeDrafts[0];
           console.log(
-            "[OrderForm] Found existing draft for customer, reusing it:",
+            "[OrderForm] Found existing draft, reusing it:",
             existingDraft.id,
           );
           setDraftId(existingDraft.id!);
 
-          // Update it with current data
           await db.draftOrders.update(existingDraft.id!, {
+            customerId: selectedCustomer.id,
+            customerName: selectedCustomer.name,
             items: draftItems,
             updatedAt: now,
             needsSync: true,
@@ -872,7 +870,7 @@ export default function OrderFormSimple() {
             subClientName: selectedSubClient?.ragioneSociale,
             subClientData: selectedSubClient ?? undefined,
           });
-          console.log("[OrderForm] ✅ Existing draft updated");
+          console.log("[OrderForm] Existing draft updated");
         } else {
           // Create new draft
           console.log("[OrderForm] Creating new draft");
@@ -985,17 +983,6 @@ export default function OrderFormSimple() {
     }
   }, [editingOrderId, draftOrders, selectedCustomer, draftId]);
 
-  // === RESET draftDeletedRef WHEN CUSTOMER CHANGES ===
-  // Allow creating new drafts when user starts working on a different customer
-  useEffect(() => {
-    if (selectedCustomer && draftDeletedRef.current) {
-      console.log(
-        "[OrderForm] Customer changed, resetting draftDeletedRef to allow new drafts",
-      );
-      draftDeletedRef.current = false;
-    }
-  }, [selectedCustomer?.id]);
-
   // === AUTO-SAVE DRAFT ON EVERY OPERATION ===
   // Save immediately when customer or items change
   useEffect(() => {
@@ -1056,13 +1043,11 @@ export default function OrderFormSimple() {
       window.removeEventListener("beforeunload", handleBeforeUnload);
       window.removeEventListener("visibilitychange", handleVisibilityChange);
 
-      // 🔧 CRITICAL FIX: Don't save draft if order was just finalized or deleted
-      // Using refs instead of state ensures synchronous check - no race condition with navigate()
       if (
         selectedCustomer &&
         !editingOrderId &&
         !orderSavedSuccessfullyRef.current &&
-        !draftDeletedRef.current
+        !isDraftDeleted(draftId || "")
       ) {
         saveDraft();
       }
@@ -1155,16 +1140,11 @@ export default function OrderFormSimple() {
           customerDrafts.map((d) => orderService.deleteDraftOrder(d.id!)),
         );
 
-        // 🔧 CRITICAL: Set flag to prevent auto-save from recreating draft immediately
-        draftDeletedRef.current = true;
-        console.log(
-          "[OrderForm] Set draftDeletedRef to prevent auto-save recreation",
-        );
-
-        // Force refetch to update draftOrders
         await refetchDrafts();
         console.log("[OrderForm] All customer drafts deleted and refetched");
       }
+
+      clearDeletedDraftIds();
 
       toastService.success("Bozza recuperata con successo!");
     } catch (error) {
@@ -1176,29 +1156,20 @@ export default function OrderFormSimple() {
   // === DISCARD DRAFT ===
   const handleDiscardDraft = async () => {
     try {
-      // 🔧 FIX: Delete ALL drafts, not just the current one
-      // This prevents having to click "Annulla" multiple times when there are duplicate drafts
-      console.log("[OrderForm] Deleting all drafts", {
-        draftCount: draftOrders.length,
-      });
+      const count = draftOrders.length;
+      console.log("[OrderForm] Deleting all drafts", { draftCount: count });
 
-      // Delete all drafts in parallel
-      await Promise.all(
-        draftOrders.map((draft) => orderService.deleteDraftOrder(draft.id!)),
-      );
+      for (const draft of draftOrders) {
+        markDraftDeleted(draft.id!);
+      }
 
-      // 🔧 CRITICAL FIX: Force immediate refetch to update draftOrders
-      // This prevents banner from reappearing due to stale draftOrders state
-      console.log("[OrderForm] Forcing refetch after draft deletion");
+      await orderService.deleteAllUserDrafts();
+
       await refetchDrafts();
-      console.log("[OrderForm] Refetch completed");
 
       setHasDraft(false);
       setDraftId(null);
-      // 🔧 FIX: Prevent unmount handler from recreating draft after explicit delete
-      draftDeletedRef.current = true;
 
-      const count = draftOrders.length;
       toastService.success(
         count === 1 ? "Bozza eliminata" : `${count} bozze eliminate`,
       );
@@ -1259,11 +1230,7 @@ export default function OrderFormSimple() {
       setDraftId(null);
       setLastAutoSave(null);
 
-      // 🔧 CRITICAL: Reset flag to allow creating new drafts
-      draftDeletedRef.current = false;
-      console.log(
-        "[OrderForm] Reset draftDeletedRef to allow new draft creation",
-      );
+      clearDeletedDraftIds();
 
       toastService.success("Ordine resettato");
     } catch (error) {
@@ -1910,28 +1877,22 @@ export default function OrderFormSimple() {
         return warehouseQty > 0 && warehouseQty === totalQty;
       });
 
-      // 🔧 FIX: Preserve originDraftId from editing or current draft
-      // When editing: use editingOriginDraftId (preserved from loaded order)
-      // When creating from draft: use draftId
       const originDraftId = editingOriginDraftId || draftId;
 
-      // 🔧 FIX: Delete ALL drafts for this customer to cleanup duplicates/orphans
-      // This prevents draft banner from appearing after order submission
+      if (originDraftId) {
+        markDraftDeleted(originDraftId);
+      }
+
       try {
-        console.log(
-          "[OrderForm] Deleting ALL drafts for customer:",
-          selectedCustomer.id,
-        );
-        await orderService.deleteAllDraftsForCustomer(selectedCustomer.id);
+        console.log("[OrderForm] Deleting all user drafts on submit");
+        await orderService.deleteAllUserDrafts();
         setDraftId(null);
         setHasDraft(false);
-        console.log("[OrderForm] ✅ All customer drafts deleted");
       } catch (deleteError) {
         console.warn(
-          "[OrderForm] ⚠️ Failed to delete all customer drafts:",
+          "[OrderForm] Failed to delete user drafts on submit:",
           deleteError,
         );
-        // Non-critical, continue with order submission
       }
 
       // Save new/updated order (status will be determined by service)

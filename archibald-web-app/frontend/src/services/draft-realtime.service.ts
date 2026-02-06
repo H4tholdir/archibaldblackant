@@ -10,6 +10,7 @@
 import { db } from "../db/schema";
 import type { DraftOrder } from "../db/schema";
 import { getDeviceId } from "../utils/device-id";
+import { isDraftDeleted, markDraftDeleted } from "../utils/deleted-drafts";
 
 /**
  * Draft event payloads from backend
@@ -143,7 +144,14 @@ export class DraftRealtimeService {
         return;
       }
 
-      // Check if draft already exists
+      if (isDraftDeleted(data.draft.id)) {
+        console.log(
+          `[DraftRealtime] Ignoring DRAFT_CREATED for locally deleted draft`,
+          { draftId: data.draft.id },
+        );
+        return;
+      }
+
       const existing = await db.draftOrders.get(data.draft.id);
 
       if (existing) {
@@ -271,7 +279,7 @@ export class DraftRealtimeService {
         return;
       }
 
-      // Perform direct deletion from IndexedDB
+      markDraftDeleted(data.draftId);
       await db.draftOrders.delete(data.draftId);
 
       console.log(`[DraftRealtime] DRAFT_DELETED applied to IndexedDB`, {
@@ -306,7 +314,7 @@ export class DraftRealtimeService {
         return;
       }
 
-      // Remove draft from IndexedDB (converted to pending order)
+      markDraftDeleted(data.draftId);
       await db.draftOrders.delete(data.draftId);
 
       console.log(`[DraftRealtime] DRAFT_CONVERTED applied to IndexedDB`, {
