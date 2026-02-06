@@ -18,7 +18,7 @@ class FresisDiscountService {
       if (!Array.isArray(discounts) || discounts.length === 0) return 0;
 
       await db.fresisDiscounts.clear();
-      await db.fresisDiscounts.bulkAdd(
+      await db.fresisDiscounts.bulkPut(
         discounts.map((d: any) => ({
           id: d.id,
           articleCode: d.articleCode,
@@ -62,7 +62,7 @@ class FresisDiscountService {
 
   async importDiscounts(discounts: FresisArticleDiscount[]): Promise<number> {
     await db.fresisDiscounts.clear();
-    await db.fresisDiscounts.bulkAdd(discounts);
+    await db.fresisDiscounts.bulkPut(discounts);
     return discounts.length;
   }
 

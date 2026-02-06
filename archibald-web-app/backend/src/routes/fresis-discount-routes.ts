@@ -59,7 +59,7 @@ router.post(
         .run(userId);
 
       const insertStmt = usersDb.prepare(`
-        INSERT INTO fresis_discounts (id, article_code, discount_percent, kp_price_unit, user_id, created_at, updated_at)
+        INSERT OR REPLACE INTO fresis_discounts (id, article_code, discount_percent, kp_price_unit, user_id, created_at, updated_at)
         VALUES (?, ?, ?, ?, ?, ?, ?)
       `);
 
