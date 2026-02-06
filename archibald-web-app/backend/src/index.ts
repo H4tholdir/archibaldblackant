@@ -2004,6 +2004,7 @@ app.get("/api/customers", (req: Request, res: Response<ApiResponse>) => {
     const mappedCustomers = customers.map((c) => ({
       ...c,
       id: c.customerProfile, // IndexedDB expects 'id' field
+      botStatus: c.botStatus ?? null,
     }));
 
     res.json({
@@ -2776,7 +2777,75 @@ app.post("/api/admin/sync/frequency", (req: Request, res: Response) => {
   });
 });
 
-// Update customer endpoint
+// Create customer endpoint (write-through)
+app.post(
+  "/api/customers",
+  async (req: Request, res: Response<ApiResponse>) => {
+    try {
+      const customerData = req.body as import("./types").CustomerFormData;
+
+      if (!customerData.name || customerData.name.trim().length === 0) {
+        return res.status(400).json({
+          success: false,
+          error: "Il nome del cliente è obbligatorio",
+        });
+      }
+
+      const tempProfile = `TEMP-${Date.now()}`;
+
+      const customer = customerDb.upsertSingleCustomer(
+        customerData,
+        tempProfile,
+        "pending",
+      );
+
+      logger.info("Cliente creato localmente (write-through)", {
+        customerProfile: tempProfile,
+        name: customerData.name,
+      });
+
+      res.json({
+        success: true,
+        data: {
+          customer: { ...customer, id: customer.customerProfile },
+        },
+        message: "Cliente creato. Sincronizzazione con Archibald in corso...",
+      });
+
+      // Fire-and-forget: bot creates customer in Archibald
+      (async () => {
+        try {
+          const bot = new ArchibaldBot();
+          await bot.initialize();
+          await bot.login();
+          await bot.createCustomer(customerData);
+          await bot.close();
+          customerDb.updateCustomerBotStatus(tempProfile, "placed");
+          logger.info("Bot: cliente creato su Archibald", {
+            customerProfile: tempProfile,
+          });
+        } catch (error) {
+          customerDb.updateCustomerBotStatus(tempProfile, "failed");
+          logger.error("Bot: errore creazione cliente su Archibald", {
+            customerProfile: tempProfile,
+            error,
+          });
+        }
+      })();
+    } catch (error) {
+      logger.error("Errore API POST /api/customers", { error });
+      res.status(500).json({
+        success: false,
+        error:
+          error instanceof Error
+            ? error.message
+            : "Errore durante la creazione del cliente",
+      });
+    }
+  },
+);
+
+// Update customer endpoint (write-through)
 app.put(
   "/api/customers/:customerProfile",
   async (req: Request, res: Response<ApiResponse>) => {
@@ -2784,32 +2853,41 @@ app.put(
       const { customerProfile } = req.params;
       const customerData = req.body as import("./types").CustomerFormData;
 
-      logger.info("Richiesta aggiornamento cliente", {
+      logger.info("Richiesta aggiornamento cliente (write-through)", {
         customerProfile,
         customerData,
       });
 
-      // Initialize bot
-      const bot = new ArchibaldBot();
-      await bot.initialize();
-      await bot.login();
-
-      // Update customer in Archibald
-      await bot.updateCustomer(customerProfile, customerData);
-
-      await bot.close();
-
-      // Trigger sync to update local DB
-      syncOrchestrator.requestSync("customers").catch((error) => {
-        logger.error("Errore sync dopo update cliente", { error });
-      });
+      // Write-through: aggiorna subito il DB locale
+      customerDb.upsertSingleCustomer(customerData, customerProfile, "pending");
 
       res.json({
         success: true,
-        message: `Cliente ${customerProfile} aggiornato con successo`,
+        message: `Cliente ${customerProfile} aggiornato. Sincronizzazione con Archibald in corso...`,
       });
+
+      // Fire-and-forget: bot updates customer in Archibald
+      (async () => {
+        try {
+          const bot = new ArchibaldBot();
+          await bot.initialize();
+          await bot.login();
+          await bot.updateCustomer(customerProfile, customerData);
+          await bot.close();
+          customerDb.updateCustomerBotStatus(customerProfile, "placed");
+          logger.info("Bot: cliente aggiornato su Archibald", {
+            customerProfile,
+          });
+        } catch (error) {
+          customerDb.updateCustomerBotStatus(customerProfile, "failed");
+          logger.error("Bot: errore aggiornamento cliente su Archibald", {
+            customerProfile,
+            error,
+          });
+        }
+      })();
     } catch (error) {
-      logger.error("Errore API /api/customers/:customerProfile", { error });
+      logger.error("Errore API PUT /api/customers/:customerProfile", { error });
 
       res.status(500).json({
         success: false,
@@ -2817,6 +2895,83 @@ app.put(
           error instanceof Error
             ? error.message
             : "Errore durante l'aggiornamento del cliente",
+      });
+    }
+  },
+);
+
+// Retry bot placement for customer
+app.post(
+  "/api/customers/:customerProfile/retry",
+  async (req: Request, res: Response<ApiResponse>) => {
+    try {
+      const { customerProfile } = req.params;
+
+      const customer = customerDb.getCustomerByProfile(customerProfile);
+
+      if (!customer) {
+        return res.status(404).json({
+          success: false,
+          error: "Cliente non trovato",
+        });
+      }
+
+      customerDb.updateCustomerBotStatus(customerProfile, "pending");
+
+      res.json({
+        success: true,
+        message: "Retry avviato",
+      });
+
+      // Fire-and-forget: retry bot operation
+      (async () => {
+        try {
+          const bot = new ArchibaldBot();
+          await bot.initialize();
+          await bot.login();
+
+          if (customerProfile.startsWith("TEMP-")) {
+            await bot.createCustomer({
+              name: customer.name,
+              vatNumber: customer.vatNumber ?? undefined,
+              pec: customer.pec ?? undefined,
+              sdi: customer.sdi ?? undefined,
+              street: customer.street ?? undefined,
+              postalCode: customer.postalCode ?? undefined,
+              phone: customer.phone ?? undefined,
+              deliveryMode: customer.deliveryTerms ?? undefined,
+            });
+          } else {
+            await bot.updateCustomer(customerProfile, {
+              name: customer.name,
+              vatNumber: customer.vatNumber ?? undefined,
+              pec: customer.pec ?? undefined,
+              sdi: customer.sdi ?? undefined,
+              street: customer.street ?? undefined,
+              postalCode: customer.postalCode ?? undefined,
+              phone: customer.phone ?? undefined,
+              deliveryMode: customer.deliveryTerms ?? undefined,
+            });
+          }
+
+          await bot.close();
+          customerDb.updateCustomerBotStatus(customerProfile, "placed");
+          logger.info("Bot: retry riuscito", { customerProfile });
+        } catch (error) {
+          customerDb.updateCustomerBotStatus(customerProfile, "failed");
+          logger.error("Bot: retry fallito", { customerProfile, error });
+        }
+      })();
+    } catch (error) {
+      logger.error("Errore API POST /api/customers/:customerProfile/retry", {
+        error,
+      });
+      res.status(500).json({
+        success: false,
+        error:
+          error instanceof Error
+            ? error.message
+            : "Errore durante il retry",
       });
     }
   },

@@ -48,6 +48,7 @@ export interface Customer {
   // System Fields
   hash: string; // SHA256 hash for change detection
   lastSync: number; // Unix timestamp of last sync
+  botStatus?: "pending" | "placed" | "failed";
 }
 
 export class CustomerDatabase {
@@ -115,7 +116,8 @@ export class CustomerDatabase {
         hash TEXT NOT NULL,
         lastSync INTEGER NOT NULL,
         createdAt INTEGER DEFAULT (strftime('%s', 'now')),
-        updatedAt INTEGER DEFAULT (strftime('%s', 'now'))
+        updatedAt INTEGER DEFAULT (strftime('%s', 'now')),
+        botStatus TEXT DEFAULT 'placed'
       );
 
       -- Performance Indexes
@@ -127,6 +129,7 @@ export class CustomerDatabase {
       CREATE INDEX IF NOT EXISTS idx_customers_city ON customers(city);
       CREATE INDEX IF NOT EXISTS idx_customers_customerType ON customers(customerType);
       CREATE INDEX IF NOT EXISTS idx_customers_lastOrderDate ON customers(lastOrderDate);
+      CREATE INDEX IF NOT EXISTS idx_customers_botStatus ON customers(botStatus);
     `);
 
     // Migration: Add new columns if they don't exist (backward compatibility)
@@ -167,6 +170,7 @@ export class CustomerDatabase {
       { column: "previousSales2", type: "REAL DEFAULT 0.0" },
       { column: "externalAccountNumber", type: "TEXT" },
       { column: "ourAccountNumber", type: "TEXT" },
+      { column: "botStatus", type: "TEXT DEFAULT 'placed'" },
     ];
 
     for (const migration of migrations) {
@@ -639,6 +643,104 @@ export class CustomerDatabase {
     const stmt = this.db.prepare(`SELECT COUNT(*) as count FROM customers`);
     const result = stmt.get() as { count: number };
     return result.count;
+  }
+
+  /**
+   * Ottiene un singolo cliente per customerProfile (PK lookup)
+   */
+  getCustomerByProfile(customerProfile: string): Customer | undefined {
+    return this.db
+      .prepare("SELECT * FROM customers WHERE customerProfile = ?")
+      .get(customerProfile) as Customer | undefined;
+  }
+
+  /**
+   * Upsert di un singolo cliente (write-through dalla form)
+   */
+  upsertSingleCustomer(
+    formData: import("./types").CustomerFormData,
+    customerProfile: string,
+    botStatus: "pending" | "placed" | "failed",
+  ): Customer {
+    const now = Date.now();
+    const customerData: Omit<Customer, "hash" | "lastSync" | "botStatus"> = {
+      customerProfile,
+      name: formData.name,
+      vatNumber: formData.vatNumber ?? undefined,
+      pec: formData.pec ?? undefined,
+      sdi: formData.sdi ?? undefined,
+      street: formData.street ?? undefined,
+      postalCode: formData.postalCode ?? undefined,
+      phone: formData.phone ?? undefined,
+      deliveryTerms: formData.deliveryMode ?? undefined,
+    };
+
+    const hash = CustomerDatabase.calculateHash(customerData);
+
+    const stmt = this.db.prepare(`
+      INSERT INTO customers (
+        customerProfile, name, vatNumber, pec, sdi, street, postalCode, phone,
+        deliveryTerms, hash, lastSync, botStatus
+      )
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT(customerProfile) DO UPDATE SET
+        name = excluded.name,
+        vatNumber = excluded.vatNumber,
+        pec = excluded.pec,
+        sdi = excluded.sdi,
+        street = excluded.street,
+        postalCode = excluded.postalCode,
+        phone = excluded.phone,
+        deliveryTerms = excluded.deliveryTerms,
+        hash = excluded.hash,
+        lastSync = excluded.lastSync,
+        botStatus = excluded.botStatus,
+        updatedAt = strftime('%s', 'now')
+    `);
+
+    stmt.run(
+      customerProfile,
+      formData.name,
+      formData.vatNumber ?? null,
+      formData.pec ?? null,
+      formData.sdi ?? null,
+      formData.street ?? null,
+      formData.postalCode ?? null,
+      formData.phone ?? null,
+      formData.deliveryMode ?? null,
+      hash,
+      now,
+      botStatus,
+    );
+
+    const row = this.db
+      .prepare("SELECT * FROM customers WHERE customerProfile = ?")
+      .get(customerProfile) as Customer;
+
+    return row;
+  }
+
+  /**
+   * Aggiorna lo stato bot di un cliente
+   */
+  updateCustomerBotStatus(
+    customerProfile: string,
+    status: "pending" | "placed" | "failed",
+  ): void {
+    this.db
+      .prepare("UPDATE customers SET botStatus = ? WHERE customerProfile = ?")
+      .run(status, customerProfile);
+  }
+
+  /**
+   * Ottiene clienti per stato bot
+   */
+  getCustomersByBotStatus(
+    status: "pending" | "placed" | "failed",
+  ): Customer[] {
+    return this.db
+      .prepare("SELECT * FROM customers WHERE botStatus = ?")
+      .all(status) as Customer[];
   }
 
   /**

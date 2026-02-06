@@ -34,6 +34,7 @@ export interface Customer {
   lastSyncAt: number;
   createdAt: number;
   updatedAt: number;
+  botStatus?: "pending" | "placed" | "failed" | null;
 }
 
 export interface SyncCustomersResponse {

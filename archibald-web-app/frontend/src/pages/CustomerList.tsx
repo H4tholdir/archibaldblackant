@@ -1,8 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
-import { useNavigate } from "react-router-dom";
 import { CustomerCard } from "../components/CustomerCard";
-import { CustomerSyncModal } from "../components/CustomerSyncModal";
-import { useCustomerSync } from "../hooks/useCustomerSync";
+import { CustomerCreateModal } from "../components/CustomerCreateModal";
+import { customerService } from "../services/customers.service";
 import type { Customer } from "../types/customer";
 
 interface CustomerFilters {
@@ -20,12 +19,6 @@ interface CustomerListResponse {
 }
 
 export function CustomerList() {
-  const navigate = useNavigate();
-  const {
-    progress: syncProgress,
-    startSync,
-    reset: resetSync,
-  } = useCustomerSync();
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -38,7 +31,8 @@ export function CustomerList() {
     customerType: "",
   });
   const [debouncedSearch, setDebouncedSearch] = useState("");
-  const [syncModalOpen, setSyncModalOpen] = useState(false);
+  const [modalOpen, setModalOpen] = useState(false);
+  const [editingCustomer, setEditingCustomer] = useState<Customer | null>(null);
 
   // Debounce search input (300ms)
   useEffect(() => {
@@ -118,29 +112,22 @@ export function CustomerList() {
     });
   };
 
-  const handleForceSync = async () => {
-    const token = localStorage.getItem("archibald_jwt");
-    if (!token) {
-      setError("Non autenticato. Effettua il login.");
-      return;
-    }
-
-    // Open modal and start sync
-    setSyncModalOpen(true);
-    setError(null);
-
-    const result = await startSync(token);
-
-    if (result.success) {
-      // Reload customers after successful sync
+  const handleRetry = async (customerProfile: string) => {
+    try {
+      await customerService.retryBotPlacement(customerProfile);
       await fetchCustomers();
-    } else {
-      setError(result.error || "Errore nella sincronizzazione");
+    } catch (err) {
+      console.error("Retry failed:", err);
+      setError("Errore durante il retry");
     }
   };
 
   const handleEdit = (customerId: string) => {
-    navigate(`/customers/${customerId}/edit`);
+    const customer = customers.find((c) => c.customerProfile === customerId);
+    if (customer) {
+      setEditingCustomer(customer);
+      setModalOpen(true);
+    }
   };
 
   const hasActiveFilters =
@@ -262,39 +249,31 @@ export function CustomerList() {
             </button>
           )}
 
-          {/* Force sync button */}
+          {/* New customer button */}
           <button
-            onClick={handleForceSync}
-            disabled={syncProgress.isRunning || loading}
+            onClick={() => {
+              setEditingCustomer(null);
+              setModalOpen(true);
+            }}
             style={{
               padding: "8px 16px",
               fontSize: "14px",
               fontWeight: 600,
-              border: "1px solid #1976d2",
+              border: "1px solid #4caf50",
               borderRadius: "8px",
-              backgroundColor: syncProgress.isRunning ? "#e3f2fd" : "#fff",
-              color: syncProgress.isRunning ? "#999" : "#1976d2",
-              cursor:
-                syncProgress.isRunning || loading ? "not-allowed" : "pointer",
+              backgroundColor: "#4caf50",
+              color: "#fff",
+              cursor: "pointer",
               transition: "all 0.2s",
-              opacity: syncProgress.isRunning || loading ? 0.6 : 1,
             }}
             onMouseEnter={(e) => {
-              if (!syncProgress.isRunning && !loading) {
-                e.currentTarget.style.backgroundColor = "#1976d2";
-                e.currentTarget.style.color = "#fff";
-              }
+              e.currentTarget.style.backgroundColor = "#43a047";
             }}
             onMouseLeave={(e) => {
-              if (!syncProgress.isRunning && !loading) {
-                e.currentTarget.style.backgroundColor = "#fff";
-                e.currentTarget.style.color = "#1976d2";
-              }
+              e.currentTarget.style.backgroundColor = "#4caf50";
             }}
           >
-            {syncProgress.isRunning
-              ? "⏳ Sincronizzazione..."
-              : "🔄 Sincronizza"}
+            + Nuovo Cliente
           </button>
         </div>
       </div>
@@ -448,6 +427,7 @@ export function CustomerList() {
                   expanded={isExpanded}
                   onToggle={() => handleToggle(customer.customerProfile)}
                   onEdit={handleEdit}
+                  onRetry={handleRetry}
                 />
               );
             })}
@@ -455,14 +435,15 @@ export function CustomerList() {
         </div>
       )}
 
-      {/* Customer Sync Modal */}
-      <CustomerSyncModal
-        isOpen={syncModalOpen}
-        progress={syncProgress}
+      {/* Customer Create/Edit Modal */}
+      <CustomerCreateModal
+        isOpen={modalOpen}
         onClose={() => {
-          setSyncModalOpen(false);
-          resetSync();
+          setModalOpen(false);
+          setEditingCustomer(null);
         }}
+        onSaved={() => fetchCustomers()}
+        editCustomer={editingCustomer}
       />
     </div>
   );

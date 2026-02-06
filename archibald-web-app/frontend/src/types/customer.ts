@@ -30,4 +30,5 @@ export interface Customer {
   lastSync: number;
   createdAt: number;
   updatedAt: number;
+  botStatus?: "pending" | "placed" | "failed" | null;
 }

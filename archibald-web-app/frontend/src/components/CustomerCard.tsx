@@ -1,3 +1,4 @@
+import { useState, useRef } from "react";
 import type { Customer } from "../types/customer";
 
 interface CustomerCardProps {
@@ -5,6 +6,7 @@ interface CustomerCardProps {
   expanded: boolean;
   onToggle: () => void;
   onEdit: (customerId: string) => void;
+  onRetry: (customerProfile: string) => void;
 }
 
 export function CustomerCard({
@@ -12,7 +14,13 @@ export function CustomerCard({
   expanded,
   onToggle,
   onEdit,
+  onRetry,
 }: CustomerCardProps) {
+  const [swipeX, setSwipeX] = useState(0);
+  const touchStartX = useRef(0);
+  const hasSwipeAction =
+    customer.botStatus === "failed" || customer.botStatus === "pending";
+
   const formatDate = (timestamp: number | string | null): string => {
     if (!timestamp) return "N/A";
 
@@ -29,375 +37,512 @@ export function CustomerCard({
   };
 
   const formatCurrency = (amount: number | null): string => {
-    if (amount === null || amount === 0) return "€ 0,00";
+    if (amount === null || amount === 0) return "\u20AC 0,00";
     return new Intl.NumberFormat("it-IT", {
       style: "currency",
       currency: "EUR",
     }).format(amount);
   };
 
-  return (
-    <div
-      style={{
-        backgroundColor: "#fff",
-        borderRadius: "12px",
-        boxShadow: "0 2px 8px rgba(0, 0, 0, 0.1)",
-        overflow: "hidden",
-        transition: "all 0.3s",
-      }}
-    >
-      {/* Card Header */}
-      <div
-        onClick={onToggle}
+  const handleTouchStart = (e: React.TouchEvent) => {
+    if (!hasSwipeAction) return;
+    touchStartX.current = e.touches[0].clientX;
+  };
+
+  const handleTouchMove = (e: React.TouchEvent) => {
+    if (!hasSwipeAction) return;
+    const diff = touchStartX.current - e.touches[0].clientX;
+    if (diff > 0) {
+      setSwipeX(Math.min(diff, 120));
+    } else {
+      setSwipeX(0);
+    }
+  };
+
+  const handleTouchEnd = () => {
+    if (!hasSwipeAction) return;
+    if (swipeX < 80) {
+      setSwipeX(0);
+    }
+  };
+
+  const botStatusBadge = () => {
+    if (!customer.botStatus || customer.botStatus === "placed") return null;
+
+    if (customer.botStatus === "pending") {
+      return (
+        <span
+          style={{
+            display: "inline-block",
+            padding: "2px 8px",
+            fontSize: "11px",
+            fontWeight: 700,
+            backgroundColor: "#ff9800",
+            color: "#fff",
+            borderRadius: "12px",
+            marginLeft: "8px",
+          }}
+        >
+          In attesa
+        </span>
+      );
+    }
+
+    return (
+      <span
         style={{
-          padding: "20px",
-          cursor: "pointer",
-          transition: "background-color 0.2s",
-        }}
-        onMouseEnter={(e) => {
-          e.currentTarget.style.backgroundColor = "#f5f5f5";
-        }}
-        onMouseLeave={(e) => {
-          e.currentTarget.style.backgroundColor = "#fff";
+          display: "inline-block",
+          padding: "2px 8px",
+          fontSize: "11px",
+          fontWeight: 700,
+          backgroundColor: "#f44336",
+          color: "#fff",
+          borderRadius: "12px",
+          marginLeft: "8px",
         }}
       >
+        Errore Archibald
+      </span>
+    );
+  };
+
+  return (
+    <div style={{ position: "relative", overflow: "hidden", borderRadius: "12px" }}>
+      {/* Swipe reveal background */}
+      {hasSwipeAction && swipeX >= 80 && (
         <div
           style={{
+            position: "absolute",
+            top: 0,
+            right: 0,
+            bottom: 0,
+            width: "120px",
+            backgroundColor: "#f44336",
             display: "flex",
-            justifyContent: "space-between",
-            alignItems: "flex-start",
-            marginBottom: "12px",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 1,
+            borderRadius: "0 12px 12px 0",
           }}
         >
-          {/* Customer info */}
-          <div style={{ flex: 1 }}>
-            <div
-              style={{
-                fontSize: "18px",
-                fontWeight: 700,
-                color: "#333",
-                marginBottom: "4px",
-              }}
-            >
-              {customer.name}
-            </div>
-            <div
-              style={{
-                fontSize: "14px",
-                color: "#666",
-                display: "flex",
-                gap: "16px",
-                flexWrap: "wrap",
-              }}
-            >
-              {customer.customerProfile && (
-                <span>
-                  <strong>Profilo:</strong> {customer.customerProfile}
-                </span>
-              )}
-              {customer.city && (
-                <span>
-                  <strong>Città:</strong> {customer.city}
-                </span>
-              )}
-              {customer.vatNumber && (
-                <span>
-                  <strong>P.IVA:</strong> {customer.vatNumber}
-                </span>
-              )}
-            </div>
-          </div>
-
-          {/* Expand icon */}
-          <div
+          <button
+            onClick={() => {
+              setSwipeX(0);
+              onRetry(customer.customerProfile);
+            }}
             style={{
-              fontSize: "24px",
-              color: "#1976d2",
-              transition: "transform 0.3s",
-              transform: expanded ? "rotate(180deg)" : "rotate(0deg)",
+              padding: "10px 16px",
+              fontSize: "14px",
+              fontWeight: 700,
+              backgroundColor: "transparent",
+              color: "#fff",
+              border: "2px solid #fff",
+              borderRadius: "8px",
+              cursor: "pointer",
             }}
           >
-            ▼
-          </div>
+            Riprova
+          </button>
         </div>
+      )}
 
-        {/* Quick stats */}
+      {/* Main card */}
+      <div
+        onTouchStart={handleTouchStart}
+        onTouchMove={handleTouchMove}
+        onTouchEnd={handleTouchEnd}
+        style={{
+          backgroundColor: "#fff",
+          borderRadius: "12px",
+          boxShadow: "0 2px 8px rgba(0, 0, 0, 0.1)",
+          overflow: "hidden",
+          transition: swipeX === 0 ? "transform 0.3s ease" : "none",
+          transform: `translateX(-${swipeX}px)`,
+          position: "relative",
+          zIndex: 2,
+        }}
+      >
+        {/* Card Header */}
         <div
+          onClick={onToggle}
           style={{
-            display: "flex",
-            gap: "16px",
-            flexWrap: "wrap",
-            fontSize: "13px",
-            color: "#666",
-          }}
-        >
-          {customer.lastOrderDate && (
-            <div>
-              <strong>Ultimo ordine:</strong> {formatDate(customer.lastOrderDate)}
-            </div>
-          )}
-          {customer.actualOrderCount > 0 && (
-            <div>
-              <strong>Ordini:</strong> {customer.actualOrderCount}
-            </div>
-          )}
-          {customer.phone && (
-            <div>
-              <strong>Tel:</strong> {customer.phone}
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* Expanded Details */}
-      {expanded && (
-        <div
-          style={{
-            borderTop: "1px solid #e0e0e0",
             padding: "20px",
-            backgroundColor: "#fafafa",
+            cursor: "pointer",
+            transition: "background-color 0.2s",
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.backgroundColor = "#f5f5f5";
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.backgroundColor = "#fff";
           }}
         >
-          {/* Fiscal Data */}
-          <div style={{ marginBottom: "20px" }}>
-            <h3
-              style={{
-                fontSize: "16px",
-                fontWeight: 700,
-                color: "#333",
-                marginBottom: "12px",
-              }}
-            >
-              📄 Dati Fiscali
-            </h3>
-            <div
-              style={{
-                display: "grid",
-                gridTemplateColumns: "repeat(auto-fit, minmax(250px, 1fr))",
-                gap: "12px",
-                fontSize: "14px",
-              }}
-            >
-              <div>
-                <strong style={{ color: "#666" }}>Partita IVA:</strong>{" "}
-                {customer.vatNumber || "N/A"}
-              </div>
-              <div>
-                <strong style={{ color: "#666" }}>Codice Fiscale:</strong>{" "}
-                {customer.fiscalCode || "N/A"}
-              </div>
-              <div>
-                <strong style={{ color: "#666" }}>SDI:</strong>{" "}
-                {customer.sdi || "N/A"}
-              </div>
-              <div>
-                <strong style={{ color: "#666" }}>PEC:</strong>{" "}
-                {customer.pec || "N/A"}
-              </div>
-            </div>
-          </div>
-
-          {/* Contact Info */}
-          <div style={{ marginBottom: "20px" }}>
-            <h3
-              style={{
-                fontSize: "16px",
-                fontWeight: 700,
-                color: "#333",
-                marginBottom: "12px",
-              }}
-            >
-              📞 Contatti
-            </h3>
-            <div
-              style={{
-                display: "grid",
-                gridTemplateColumns: "repeat(auto-fit, minmax(250px, 1fr))",
-                gap: "12px",
-                fontSize: "14px",
-              }}
-            >
-              <div>
-                <strong style={{ color: "#666" }}>Telefono:</strong>{" "}
-                {customer.phone || "N/A"}
-              </div>
-              <div>
-                <strong style={{ color: "#666" }}>Cellulare:</strong>{" "}
-                {customer.mobile || "N/A"}
-              </div>
-              <div>
-                <strong style={{ color: "#666" }}>URL:</strong>{" "}
-                {customer.url ? (
-                  <a
-                    href={customer.url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    style={{ color: "#1976d2" }}
-                  >
-                    {customer.url}
-                  </a>
-                ) : (
-                  "N/A"
-                )}
-              </div>
-              <div>
-                <strong style={{ color: "#666" }}>All'attenzione di:</strong>{" "}
-                {customer.attentionTo || "N/A"}
-              </div>
-            </div>
-          </div>
-
-          {/* Address */}
-          <div style={{ marginBottom: "20px" }}>
-            <h3
-              style={{
-                fontSize: "16px",
-                fontWeight: 700,
-                color: "#333",
-                marginBottom: "12px",
-              }}
-            >
-              📍 Indirizzo
-            </h3>
-            <div
-              style={{
-                display: "grid",
-                gridTemplateColumns: "repeat(auto-fit, minmax(250px, 1fr))",
-                gap: "12px",
-                fontSize: "14px",
-              }}
-            >
-              <div>
-                <strong style={{ color: "#666" }}>Via:</strong>{" "}
-                {customer.street || "N/A"}
-              </div>
-              <div>
-                <strong style={{ color: "#666" }}>CAP:</strong>{" "}
-                {customer.postalCode || "N/A"}
-              </div>
-              <div>
-                <strong style={{ color: "#666" }}>Città:</strong>{" "}
-                {customer.city || "N/A"}
-              </div>
-              <div>
-                <strong style={{ color: "#666" }}>Indirizzo logistica:</strong>{" "}
-                {customer.logisticsAddress || "N/A"}
-              </div>
-            </div>
-          </div>
-
-          {/* Business Info */}
-          <div style={{ marginBottom: "20px" }}>
-            <h3
-              style={{
-                fontSize: "16px",
-                fontWeight: 700,
-                color: "#333",
-                marginBottom: "12px",
-              }}
-            >
-              💼 Info Commerciali
-            </h3>
-            <div
-              style={{
-                display: "grid",
-                gridTemplateColumns: "repeat(auto-fit, minmax(250px, 1fr))",
-                gap: "12px",
-                fontSize: "14px",
-              }}
-            >
-              <div>
-                <strong style={{ color: "#666" }}>Tipo cliente:</strong>{" "}
-                {customer.customerType || "N/A"}
-              </div>
-              <div>
-                <strong style={{ color: "#666" }}>Tipo:</strong>{" "}
-                {customer.type || "N/A"}
-              </div>
-              <div>
-                <strong style={{ color: "#666" }}>Termini di consegna:</strong>{" "}
-                {customer.deliveryTerms || "N/A"}
-              </div>
-              <div>
-                <strong style={{ color: "#666" }}>Descrizione:</strong>{" "}
-                {customer.description || "N/A"}
-              </div>
-            </div>
-          </div>
-
-          {/* Order History */}
-          <div style={{ marginBottom: "20px" }}>
-            <h3
-              style={{
-                fontSize: "16px",
-                fontWeight: 700,
-                color: "#333",
-                marginBottom: "12px",
-              }}
-            >
-              📊 Ordini
-            </h3>
-            <div
-              style={{
-                display: "grid",
-                gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))",
-                gap: "12px",
-                fontSize: "14px",
-              }}
-            >
-              <div>
-                <strong style={{ color: "#666" }}>Data ultimo ordine:</strong>{" "}
-                {formatDate(customer.lastOrderDate)}
-              </div>
-              <div>
-                <strong style={{ color: "#666" }}>Ordini totali:</strong>{" "}
-                {customer.actualOrderCount}
-              </div>
-              <div>
-                <strong style={{ color: "#666" }}>Ordini precedenti:</strong>{" "}
-                {customer.previousOrderCount1}
-              </div>
-              <div>
-                <strong style={{ color: "#666" }}>Vendite precedenti:</strong>{" "}
-                {formatCurrency(customer.previousSales1)}
-              </div>
-            </div>
-          </div>
-
-          {/* Actions */}
           <div
             style={{
               display: "flex",
-              gap: "12px",
-              paddingTop: "12px",
-              borderTop: "1px solid #e0e0e0",
+              justifyContent: "space-between",
+              alignItems: "flex-start",
+              marginBottom: "12px",
             }}
           >
-            <button
-              onClick={() => onEdit(customer.customerProfile)}
+            {/* Customer info */}
+            <div style={{ flex: 1 }}>
+              <div
+                style={{
+                  fontSize: "18px",
+                  fontWeight: 700,
+                  color: "#333",
+                  marginBottom: "4px",
+                  display: "flex",
+                  alignItems: "center",
+                  flexWrap: "wrap",
+                }}
+              >
+                {customer.name}
+                {botStatusBadge()}
+              </div>
+              <div
+                style={{
+                  fontSize: "14px",
+                  color: "#666",
+                  display: "flex",
+                  gap: "16px",
+                  flexWrap: "wrap",
+                }}
+              >
+                {customer.customerProfile && (
+                  <span>
+                    <strong>Profilo:</strong> {customer.customerProfile}
+                  </span>
+                )}
+                {customer.city && (
+                  <span>
+                    <strong>Città:</strong> {customer.city}
+                  </span>
+                )}
+                {customer.vatNumber && (
+                  <span>
+                    <strong>P.IVA:</strong> {customer.vatNumber}
+                  </span>
+                )}
+              </div>
+            </div>
+
+            {/* Expand icon */}
+            <div
               style={{
-                padding: "10px 20px",
-                fontSize: "14px",
-                fontWeight: 600,
-                backgroundColor: "#1976d2",
-                color: "#fff",
-                border: "none",
-                borderRadius: "8px",
-                cursor: "pointer",
-                transition: "background-color 0.2s",
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.backgroundColor = "#1565c0";
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.backgroundColor = "#1976d2";
+                fontSize: "24px",
+                color: "#1976d2",
+                transition: "transform 0.3s",
+                transform: expanded ? "rotate(180deg)" : "rotate(0deg)",
               }}
             >
-              ✏️ Modifica
-            </button>
+              ▼
+            </div>
+          </div>
+
+          {/* Quick stats */}
+          <div
+            style={{
+              display: "flex",
+              gap: "16px",
+              flexWrap: "wrap",
+              fontSize: "13px",
+              color: "#666",
+            }}
+          >
+            {customer.lastOrderDate && (
+              <div>
+                <strong>Ultimo ordine:</strong> {formatDate(customer.lastOrderDate)}
+              </div>
+            )}
+            {customer.actualOrderCount > 0 && (
+              <div>
+                <strong>Ordini:</strong> {customer.actualOrderCount}
+              </div>
+            )}
+            {customer.phone && (
+              <div>
+                <strong>Tel:</strong> {customer.phone}
+              </div>
+            )}
           </div>
         </div>
-      )}
+
+        {/* Expanded Details */}
+        {expanded && (
+          <div
+            style={{
+              borderTop: "1px solid #e0e0e0",
+              padding: "20px",
+              backgroundColor: "#fafafa",
+            }}
+          >
+            {/* Fiscal Data */}
+            <div style={{ marginBottom: "20px" }}>
+              <h3
+                style={{
+                  fontSize: "16px",
+                  fontWeight: 700,
+                  color: "#333",
+                  marginBottom: "12px",
+                }}
+              >
+                Dati Fiscali
+              </h3>
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "repeat(auto-fit, minmax(250px, 1fr))",
+                  gap: "12px",
+                  fontSize: "14px",
+                }}
+              >
+                <div>
+                  <strong style={{ color: "#666" }}>Partita IVA:</strong>{" "}
+                  {customer.vatNumber || "N/A"}
+                </div>
+                <div>
+                  <strong style={{ color: "#666" }}>Codice Fiscale:</strong>{" "}
+                  {customer.fiscalCode || "N/A"}
+                </div>
+                <div>
+                  <strong style={{ color: "#666" }}>SDI:</strong>{" "}
+                  {customer.sdi || "N/A"}
+                </div>
+                <div>
+                  <strong style={{ color: "#666" }}>PEC:</strong>{" "}
+                  {customer.pec || "N/A"}
+                </div>
+              </div>
+            </div>
+
+            {/* Contact Info */}
+            <div style={{ marginBottom: "20px" }}>
+              <h3
+                style={{
+                  fontSize: "16px",
+                  fontWeight: 700,
+                  color: "#333",
+                  marginBottom: "12px",
+                }}
+              >
+                Contatti
+              </h3>
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "repeat(auto-fit, minmax(250px, 1fr))",
+                  gap: "12px",
+                  fontSize: "14px",
+                }}
+              >
+                <div>
+                  <strong style={{ color: "#666" }}>Telefono:</strong>{" "}
+                  {customer.phone || "N/A"}
+                </div>
+                <div>
+                  <strong style={{ color: "#666" }}>Cellulare:</strong>{" "}
+                  {customer.mobile || "N/A"}
+                </div>
+                <div>
+                  <strong style={{ color: "#666" }}>URL:</strong>{" "}
+                  {customer.url ? (
+                    <a
+                      href={customer.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      style={{ color: "#1976d2" }}
+                    >
+                      {customer.url}
+                    </a>
+                  ) : (
+                    "N/A"
+                  )}
+                </div>
+                <div>
+                  <strong style={{ color: "#666" }}>All'attenzione di:</strong>{" "}
+                  {customer.attentionTo || "N/A"}
+                </div>
+              </div>
+            </div>
+
+            {/* Address */}
+            <div style={{ marginBottom: "20px" }}>
+              <h3
+                style={{
+                  fontSize: "16px",
+                  fontWeight: 700,
+                  color: "#333",
+                  marginBottom: "12px",
+                }}
+              >
+                Indirizzo
+              </h3>
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "repeat(auto-fit, minmax(250px, 1fr))",
+                  gap: "12px",
+                  fontSize: "14px",
+                }}
+              >
+                <div>
+                  <strong style={{ color: "#666" }}>Via:</strong>{" "}
+                  {customer.street || "N/A"}
+                </div>
+                <div>
+                  <strong style={{ color: "#666" }}>CAP:</strong>{" "}
+                  {customer.postalCode || "N/A"}
+                </div>
+                <div>
+                  <strong style={{ color: "#666" }}>Città:</strong>{" "}
+                  {customer.city || "N/A"}
+                </div>
+                <div>
+                  <strong style={{ color: "#666" }}>Indirizzo logistica:</strong>{" "}
+                  {customer.logisticsAddress || "N/A"}
+                </div>
+              </div>
+            </div>
+
+            {/* Business Info */}
+            <div style={{ marginBottom: "20px" }}>
+              <h3
+                style={{
+                  fontSize: "16px",
+                  fontWeight: 700,
+                  color: "#333",
+                  marginBottom: "12px",
+                }}
+              >
+                Info Commerciali
+              </h3>
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "repeat(auto-fit, minmax(250px, 1fr))",
+                  gap: "12px",
+                  fontSize: "14px",
+                }}
+              >
+                <div>
+                  <strong style={{ color: "#666" }}>Tipo cliente:</strong>{" "}
+                  {customer.customerType || "N/A"}
+                </div>
+                <div>
+                  <strong style={{ color: "#666" }}>Tipo:</strong>{" "}
+                  {customer.type || "N/A"}
+                </div>
+                <div>
+                  <strong style={{ color: "#666" }}>Termini di consegna:</strong>{" "}
+                  {customer.deliveryTerms || "N/A"}
+                </div>
+                <div>
+                  <strong style={{ color: "#666" }}>Descrizione:</strong>{" "}
+                  {customer.description || "N/A"}
+                </div>
+              </div>
+            </div>
+
+            {/* Order History */}
+            <div style={{ marginBottom: "20px" }}>
+              <h3
+                style={{
+                  fontSize: "16px",
+                  fontWeight: 700,
+                  color: "#333",
+                  marginBottom: "12px",
+                }}
+              >
+                Ordini
+              </h3>
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))",
+                  gap: "12px",
+                  fontSize: "14px",
+                }}
+              >
+                <div>
+                  <strong style={{ color: "#666" }}>Data ultimo ordine:</strong>{" "}
+                  {formatDate(customer.lastOrderDate)}
+                </div>
+                <div>
+                  <strong style={{ color: "#666" }}>Ordini totali:</strong>{" "}
+                  {customer.actualOrderCount}
+                </div>
+                <div>
+                  <strong style={{ color: "#666" }}>Ordini precedenti:</strong>{" "}
+                  {customer.previousOrderCount1}
+                </div>
+                <div>
+                  <strong style={{ color: "#666" }}>Vendite precedenti:</strong>{" "}
+                  {formatCurrency(customer.previousSales1)}
+                </div>
+              </div>
+            </div>
+
+            {/* Actions */}
+            <div
+              style={{
+                display: "flex",
+                gap: "12px",
+                paddingTop: "12px",
+                borderTop: "1px solid #e0e0e0",
+              }}
+            >
+              <button
+                onClick={() => onEdit(customer.customerProfile)}
+                style={{
+                  padding: "10px 20px",
+                  fontSize: "14px",
+                  fontWeight: 600,
+                  backgroundColor: "#1976d2",
+                  color: "#fff",
+                  border: "none",
+                  borderRadius: "8px",
+                  cursor: "pointer",
+                  transition: "background-color 0.2s",
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.backgroundColor = "#1565c0";
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.backgroundColor = "#1976d2";
+                }}
+              >
+                Modifica
+              </button>
+              {hasSwipeAction && (
+                <button
+                  onClick={() => onRetry(customer.customerProfile)}
+                  style={{
+                    padding: "10px 20px",
+                    fontSize: "14px",
+                    fontWeight: 600,
+                    backgroundColor: "#ff9800",
+                    color: "#fff",
+                    border: "none",
+                    borderRadius: "8px",
+                    cursor: "pointer",
+                    transition: "background-color 0.2s",
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.backgroundColor = "#f57c00";
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.backgroundColor = "#ff9800";
+                  }}
+                >
+                  Riprova sync
+                </button>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   );
 }

@@ -73,6 +73,12 @@ export default function OrderFormSimple() {
     return () => window.removeEventListener("resize", handleResize);
   }, []);
 
+  useEffect(() => {
+    customerService.syncCustomers().catch((err) => {
+      console.warn("[OrderForm] Background customer sync failed:", err);
+    });
+  }, []);
+
   // Step 1: Customer selection
   const [customerSearch, setCustomerSearch] = useState("");
   const [customerResults, setCustomerResults] = useState<Customer[]>([]);

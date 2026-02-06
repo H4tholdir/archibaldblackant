@@ -192,6 +192,96 @@ export class CustomerService {
       return null;
     }
   }
+
+  /**
+   * Create a new customer via API + save to IndexedDB cache
+   */
+  async createCustomer(formData: {
+    name: string;
+    vatNumber?: string;
+    pec?: string;
+    sdi?: string;
+    street?: string;
+    postalCode?: string;
+    phone?: string;
+    email?: string;
+    deliveryMode?: string;
+    paymentTerms?: string;
+  }): Promise<Customer | null> {
+    try {
+      const response = await fetchWithRetry("/api/customers", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(formData),
+      });
+
+      if (!response.ok) {
+        throw new Error(`API request failed: ${response.status}`);
+      }
+
+      const data = await response.json();
+      const customer: Customer | undefined = data.data?.customer;
+
+      if (customer && customer.id) {
+        const customersTable = this.db.table<Customer, string>("customers");
+        await customersTable.put(customer);
+      }
+
+      return customer ?? null;
+    } catch (error) {
+      console.error("[CustomerService] createCustomer failed:", error);
+      throw error;
+    }
+  }
+
+  /**
+   * Update an existing customer via PUT + refresh IndexedDB cache
+   */
+  async updateCustomer(
+    customerProfile: string,
+    formData: {
+      name: string;
+      vatNumber?: string;
+      pec?: string;
+      sdi?: string;
+      street?: string;
+      postalCode?: string;
+      phone?: string;
+      email?: string;
+      deliveryMode?: string;
+      paymentTerms?: string;
+    },
+  ): Promise<void> {
+    const response = await fetchWithRetry(
+      `/api/customers/${encodeURIComponent(customerProfile)}`,
+      {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(formData),
+      },
+    );
+
+    if (!response.ok) {
+      throw new Error(`Update failed: ${response.status}`);
+    }
+
+    // Refresh cache in background
+    this.syncCustomers().catch(() => {});
+  }
+
+  /**
+   * Retry bot placement for a customer
+   */
+  async retryBotPlacement(customerProfile: string): Promise<void> {
+    const response = await fetchWithRetry(
+      `/api/customers/${encodeURIComponent(customerProfile)}/retry`,
+      { method: "POST" },
+    );
+
+    if (!response.ok) {
+      throw new Error(`Retry failed: ${response.status}`);
+    }
+  }
 }
 
 // Singleton instance
