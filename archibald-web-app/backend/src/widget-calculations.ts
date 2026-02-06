@@ -90,101 +90,101 @@ type MicroCopyTemplate = (ctx: MicroCopyContext) => string;
 const MICRO_COPY: Record<WidgetStatus, MicroCopyTemplate[]> = {
   legendary: [
     (ctx) =>
-      `Giorno ${ctx.dayOfMonth} e già al ${ctx.absolutePercent}%: proiezione ${ctx.projectedPercent}%! 🏆`,
+      `Giorno ${ctx.dayOfMonth} e già al ${ctx.absolutePercent}%: proiezione ${ctx.projectedPercent}%! Sei una macchina, che mese incredibile! 🏆`,
     (ctx) =>
-      `Solo giorno ${ctx.dayOfMonth} e punti al ${ctx.projectedPercent}% del target! 🚀`,
+      `Solo giorno ${ctx.dayOfMonth} e punti al ${ctx.projectedPercent}% del target! Stai facendo la storia questo mese! 🚀`,
     (ctx) =>
-      `${ctx.absolutePercent}% in ${ctx.dayOfMonth} giorni — ritmo da ${ctx.projectedPercent}%! ⭐`,
+      `${ctx.absolutePercent}% in ${ctx.dayOfMonth} giorni, ritmo da ${ctx.projectedPercent}%! Nessuno ti ferma, continua a volare! ⭐`,
     (ctx) =>
-      `A questo passo chiudi al ${ctx.projectedPercent}% del target, straordinario! 💎`,
+      `A questo passo chiudi al ${ctx.projectedPercent}% del target! Risultato straordinario, sei un campione! 💎`,
     (ctx) =>
-      `Mancano ${ctx.daysRemaining} giorni e la proiezione è ${ctx.projectedPercent}%! 🔥`,
+      `Mancano ${ctx.daysRemaining} giorni e la proiezione è ${ctx.projectedPercent}%! Numeri pazzeschi, complimenti! 🔥`,
     (ctx) =>
-      `${ctx.absolutePercent}% al giorno ${ctx.dayOfMonth}: mese leggendario in vista! 👑`,
+      `${ctx.absolutePercent}% al giorno ${ctx.dayOfMonth}: mese leggendario in arrivo! Sei su un altro livello! 👑`,
   ],
   champion: [
     (ctx) =>
-      `Giorno ${ctx.dayOfMonth}, ${ctx.absolutePercent}%: proiezione ${ctx.projectedPercent}%! 🏅`,
+      `Giorno ${ctx.dayOfMonth}, ${ctx.absolutePercent}%: proiezione ${ctx.projectedPercent}%! Grandissimo ritmo, stai spaccando! 🏅`,
     (ctx) =>
-      `Al ${ctx.absolutePercent}% con ${ctx.daysRemaining} giorni ancora — chiudi forte! 💪`,
+      `Al ${ctx.absolutePercent}% con ${ctx.daysRemaining} giorni ancora — chiuderai alla grande, che lavoro! 💪`,
     (ctx) =>
-      `Proiezione al ${ctx.projectedPercent}%: nettamente sopra target! 🎯`,
+      `Proiezione al ${ctx.projectedPercent}%: nettamente sopra target! Il tuo impegno sta dando frutti enormi! 🎯`,
     (ctx) =>
-      `Ritmo da ${ctx.projectedPercent}% al giorno ${ctx.dayOfMonth}, grande mese! 🚀`,
+      `Ritmo da ${ctx.projectedPercent}% al giorno ${ctx.dayOfMonth}! Stai dominando questo mese, bravo! 🚀`,
     (ctx) =>
-      `${ctx.absolutePercent}% in ${ctx.dayOfMonth} giorni, passo da campione! ⚡`,
+      `${ctx.absolutePercent}% in ${ctx.dayOfMonth} giorni, passo da campione! Continua così, sei fortissimo! ⚡`,
     (ctx) =>
-      `Con ${ctx.daysRemaining} giorni rimasti punti al ${ctx.projectedPercent}%! 🏆`,
+      `Con ${ctx.daysRemaining} giorni rimasti punti al ${ctx.projectedPercent}%! Sei in una forma strepitosa! 🏆`,
   ],
   excellent: [
     (ctx) =>
-      `Al ${ctx.absolutePercent}% il giorno ${ctx.dayOfMonth}: proiezione ${ctx.projectedPercent}%! ✅`,
+      `Al ${ctx.absolutePercent}% il giorno ${ctx.dayOfMonth}: proiezione ${ctx.projectedPercent}%! Ottimo lavoro, il target è tuo! ✅`,
     (ctx) =>
-      `Proiezione ${ctx.projectedPercent}%: con questo ritmo superi il target! 📈`,
+      `Proiezione ${ctx.projectedPercent}%: con questo ritmo superi il target! Stai lavorando benissimo! 📈`,
     (ctx) =>
-      `${ctx.absolutePercent}% e mancano ${ctx.daysRemaining} giorni, ottimo passo! 🎯`,
+      `${ctx.absolutePercent}% e mancano ${ctx.daysRemaining} giorni — passo solido, sei sulla strada giusta! 🎯`,
     (ctx) =>
-      `Giorno ${ctx.dayOfMonth} al ${ctx.absolutePercent}%: sei sopra il ritmo target! 🎉`,
+      `Giorno ${ctx.dayOfMonth} al ${ctx.absolutePercent}%: sei sopra il ritmo target! Bel lavoro, continua così! 🎉`,
     (ctx) =>
-      `A questo passo chiudi al ${ctx.projectedPercent}% — obiettivo superato! 💚`,
+      `A questo passo chiudi al ${ctx.projectedPercent}%: obiettivo in cassaforte! Grande costanza! 💚`,
     (ctx) =>
-      `${ctx.daysRemaining} giorni rimasti e proiezione al ${ctx.projectedPercent}%! ✨`,
+      `${ctx.daysRemaining} giorni rimasti e proiezione al ${ctx.projectedPercent}%! Ce la stai facendo alla grande! ✨`,
   ],
   "on-track": [
     (ctx) =>
-      `Giorno ${ctx.dayOfMonth} al ${ctx.absolutePercent}%: proiezione ${ctx.projectedPercent}%, in linea 📊`,
+      `Giorno ${ctx.dayOfMonth} al ${ctx.absolutePercent}%: proiezione ${ctx.projectedPercent}%, sei in linea. Mantieni il ritmo, stai andando bene! 📊`,
     (ctx) =>
-      `${ctx.absolutePercent}% con ${ctx.daysRemaining} giorni rimasti, ritmo allineato`,
+      `${ctx.absolutePercent}% con ${ctx.daysRemaining} giorni rimasti, ritmo allineato al target. Buon lavoro, non mollare! 👍`,
     (ctx) =>
-      `Proiezione ${ctx.projectedPercent}% al giorno ${ctx.dayOfMonth}: sei in zona target 🎯`,
+      `Proiezione ${ctx.projectedPercent}% al giorno ${ctx.dayOfMonth}: sei in zona target. Ogni giorno conta, avanti così! 🎯`,
     (ctx) =>
-      `Al ${ctx.absolutePercent}% il giorno ${ctx.dayOfMonth}, mantieni questo passo`,
+      `Al ${ctx.absolutePercent}% il giorno ${ctx.dayOfMonth}, passo regolare. Sei sulla buona strada, tieni duro! 💪`,
     (ctx) =>
-      `Ritmo regolare: ${ctx.absolutePercent}% fatto, proiezione ${ctx.projectedPercent}%`,
+      `Ritmo regolare: ${ctx.absolutePercent}% fatto, proiezione ${ctx.projectedPercent}%. Ci sei, un passo alla volta! 🚶‍♂️`,
     (ctx) =>
-      `${ctx.daysRemaining} giorni rimasti, proiezione ${ctx.projectedPercent}%: continua così 📈`,
+      `${ctx.daysRemaining} giorni rimasti, proiezione ${ctx.projectedPercent}%: continua così e il target è tuo! 📈`,
   ],
   attention: [
     (ctx) =>
-      `Giorno ${ctx.dayOfMonth} al ${ctx.absolutePercent}%: proiezione ${ctx.projectedPercent}%, serve accelerare`,
+      `Giorno ${ctx.dayOfMonth} al ${ctx.absolutePercent}%: proiezione ${ctx.projectedPercent}%. Serve accelerare, ma hai tutto il tempo per farcela! 💪`,
     (ctx) =>
-      `${ctx.absolutePercent}% con ${ctx.daysRemaining} giorni rimasti — il ritmo non basta`,
+      `${ctx.absolutePercent}% con ${ctx.daysRemaining} giorni rimasti — il ritmo non basta ancora, ma sai come rimontare! 🔄`,
     (ctx) =>
-      `Proiezione al ${ctx.projectedPercent}%: serve spingere per centrare il target 💪`,
+      `Proiezione al ${ctx.projectedPercent}%: serve spingere di più, ma il target è ancora raggiungibile! Dai gas! 🏃`,
     (ctx) =>
-      `Al giorno ${ctx.dayOfMonth} solo ${ctx.absolutePercent}%, accelera il passo`,
+      `Al giorno ${ctx.dayOfMonth} sei al ${ctx.absolutePercent}%: accelera il passo, hai le capacità per recuperare! 💥`,
     (ctx) =>
-      `Con questo ritmo chiudi al ${ctx.projectedPercent}%: si può recuperare!`,
+      `Con questo ritmo chiuderesti al ${ctx.projectedPercent}%: si può fare di meglio e lo sai! Forza! 🔥`,
     (ctx) =>
-      `${ctx.daysRemaining} giorni per colmare il gap, proiezione ${ctx.projectedPercent}%`,
+      `${ctx.daysRemaining} giorni per colmare il gap, proiezione ${ctx.projectedPercent}%. Ce la puoi fare, concentra le energie! 🎯`,
   ],
   critical: [
     (ctx) =>
-      `Giorno ${ctx.dayOfMonth} al ${ctx.absolutePercent}%: proiezione solo ${ctx.projectedPercent}% ⚠️`,
+      `Giorno ${ctx.dayOfMonth} al ${ctx.absolutePercent}%: proiezione solo ${ctx.projectedPercent}%. È dura ma non impossibile, serve uno scatto adesso! ⚠️`,
     (ctx) =>
-      `${ctx.absolutePercent}% e mancano ${ctx.daysRemaining} giorni — situazione critica`,
+      `${ctx.absolutePercent}% e mancano ${ctx.daysRemaining} giorni — situazione difficile, ma hai già superato momenti così. Reagisci! 💪`,
     (ctx) =>
-      `Proiezione ${ctx.projectedPercent}% al giorno ${ctx.dayOfMonth}: serve una svolta`,
+      `Proiezione ${ctx.projectedPercent}% al giorno ${ctx.dayOfMonth}: serve una svolta. Concentra tutto sui clienti migliori! 🎯`,
     (ctx) =>
-      `Solo ${ctx.absolutePercent}% in ${ctx.dayOfMonth} giorni, piano di recupero urgente`,
+      `Solo ${ctx.absolutePercent}% in ${ctx.dayOfMonth} giorni — non arrenderti, un paio di ordini grandi cambiano tutto! 🔥`,
     (ctx) =>
-      `Ritmo al ${ctx.projectedPercent}%: il gap è importante, reagisci ora`,
+      `Ritmo al ${ctx.projectedPercent}%: il gap è importante, ma ogni giorno è un'occasione. Non mollare! ⚡`,
     (ctx) =>
-      `${ctx.daysRemaining} giorni rimasti per risalire dal ${ctx.absolutePercent}%`,
+      `${ctx.daysRemaining} giorni rimasti per risalire dal ${ctx.absolutePercent}%. Hai le capacità, serve solo lo sprint finale! 🏃`,
   ],
   emergency: [
     (ctx) =>
-      `Giorno ${ctx.dayOfMonth} al ${ctx.absolutePercent}%: proiezione ${ctx.projectedPercent}% ⛔`,
+      `Giorno ${ctx.dayOfMonth} al ${ctx.absolutePercent}%: proiezione ${ctx.projectedPercent}%. Momento critico, ma ogni singolo ordine ti avvicina. Non arrenderti! ⛔`,
     (ctx) =>
-      `Solo ${ctx.absolutePercent}% con ${ctx.daysRemaining} giorni rimasti — emergenza`,
+      `Solo ${ctx.absolutePercent}% con ${ctx.daysRemaining} giorni rimasti — è emergenza, ma ricorda: basta un grande ordine per ripartire! 💪`,
     (ctx) =>
-      `Proiezione ${ctx.projectedPercent}% al giorno ${ctx.dayOfMonth}: serve azione drastica`,
+      `Proiezione ${ctx.projectedPercent}% al giorno ${ctx.dayOfMonth}: serve azione immediata. Chiama i clienti più caldi, ogni contatto conta! 📞`,
     (ctx) =>
-      `${ctx.absolutePercent}% in ${ctx.dayOfMonth} giorni, ogni ordine conta`,
+      `${ctx.absolutePercent}% in ${ctx.dayOfMonth} giorni — ogni ordine fa la differenza. Concentra tutte le energie sul fatturato! 🔥`,
     (ctx) =>
-      `Emergenza: proiezione al ${ctx.projectedPercent}%, priorità massima`,
+      `Emergenza: proiezione al ${ctx.projectedPercent}%. Priorità massima, ma ricorda che hai ribaltato situazioni peggiori! 💥`,
     (ctx) =>
-      `${ctx.daysRemaining} giorni rimasti e proiezione ${ctx.projectedPercent}%: intervieni subito`,
+      `${ctx.daysRemaining} giorni rimasti e proiezione ${ctx.projectedPercent}%: non è finita, ogni giornata può cambiare tutto! 🚀`,
   ],
 };
 
