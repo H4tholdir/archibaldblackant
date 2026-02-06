@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Parse Saleslines PDF (single order) - 2-table structure
+Parse Saleslines PDF (single order) - 2-table structure per page pair
 Outputs JSON to stdout (one article per line)
 
 Best practices:
@@ -8,6 +8,7 @@ Best practices:
 - Italian number format parsing: "16,25 €" → 16.25
 - JSON streaming: ensure_ascii=False for Italian chars
 - Robust error handling with continue on row errors
+- Multi-page support: processes page pairs (0,1), (2,3), (4,5)...
 """
 
 import pdfplumber
@@ -44,102 +45,121 @@ def parse_italian_decimal(value: str) -> Optional[float]:
         return None
 
 
+def parse_page_pair(page_left, page_right, pair_idx: int):
+    """
+    Parse a pair of pages from the Saleslines PDF.
+    Left page: LINEA, NOME ARTICOLO, QTÀ ORDINATA, UNITÀ DI PREZZO, SCONTO %
+    Right page: IMPORTO DELLA LINEA, PREZZO NETTO, NOME (description)
+    """
+    tables_left = page_left.extract_tables()
+    tables_right = page_right.extract_tables()
+
+    if not tables_left or not tables_right:
+        print(f"Warning: Missing tables in page pair {pair_idx} (pages {pair_idx*2+1}-{pair_idx*2+2})", file=sys.stderr)
+        return
+
+    table1 = tables_left[0]
+    table2 = tables_right[0]
+
+    if len(table1) <= 1 or len(table2) <= 1:
+        return
+
+    # Skip header at index 0, skip totals at last row
+    max_rows = min(len(table1) - 1, len(table2) - 1)
+
+    for row_idx in range(1, max_rows):
+        try:
+            # Table 1: [LINEA, NOME ARTICOLO, QTÀ, PREZZO, SCONTO %, APPLICA SCONTO %]
+            row1 = table1[row_idx] if row_idx < len(table1) else []
+            line_number = (row1[0] or '').strip() if len(row1) > 0 else None
+            article_code = (row1[1] or '').strip() if len(row1) > 1 else None
+            quantity = parse_italian_decimal(row1[2]) if len(row1) > 2 else None
+            unit_price = parse_italian_decimal(row1[3]) if len(row1) > 3 else None
+            # APPLICA SCONTO % is in column 5, not column 4 (SCONTO % is always 0)
+            discount_percent = parse_italian_decimal(row1[5]) if len(row1) > 5 else None
+
+            # Table 2: [IMPORTO DELLA LINEA, PREZZO NETTO (skip), NOME]
+            row2 = table2[row_idx] if row_idx < len(table2) else []
+            line_amount = parse_italian_decimal(row2[0]) if len(row2) > 0 else None
+            description_raw = (row2[2] or '').strip() if len(row2) > 2 else None
+
+            # Clean description: remove article code if it appears at the start
+            description = description_raw
+            if description and article_code and description.startswith(article_code):
+                description = description[len(article_code):].strip()
+                if description.startswith('\n'):
+                    description = description[1:].strip()
+
+            # Validate required fields
+            if not article_code or quantity is None or unit_price is None:
+                continue
+
+            # Validate value ranges
+            if quantity <= 0:
+                print(f"Warning: Invalid quantity {quantity} at pair {pair_idx} row {row_idx}, skipping", file=sys.stderr)
+                continue
+            if unit_price < 0:
+                print(f"Warning: Invalid unit price {unit_price} at pair {pair_idx} row {row_idx}, skipping", file=sys.stderr)
+                continue
+            if discount_percent is not None and (discount_percent < 0 or discount_percent > 100):
+                print(f"Warning: Invalid discount {discount_percent}% at pair {pair_idx} row {row_idx}, clamping to 0-100", file=sys.stderr)
+                discount_percent = max(0.0, min(100.0, discount_percent))
+
+            article = ParsedArticle(
+                line_number=line_number or '',
+                article_code=article_code,
+                quantity=quantity,
+                unit_price=unit_price,
+                discount_percent=discount_percent or 0.0,
+                line_amount=line_amount or (quantity * unit_price * (1 - (discount_percent or 0) / 100)),
+                description=description
+            )
+
+            yield article
+
+        except Exception as e:
+            print(f"Warning: Error parsing pair {pair_idx} row {row_idx}: {e}", file=sys.stderr)
+            continue
+
+
 def parse_saleslines_pdf(pdf_path: str):
     """
-    Parse Saleslines PDF with 2-table structure.
+    Parse Saleslines PDF with 2-table structure per page pair.
     Yields one ParsedArticle per line.
 
-    Table 1 (Page 1): LINEA, NOME ARTICOLO, QTÀ ORDINATA, UNITÀ DI PREZZO, SCONTO %
-    Table 2 (Page 2): IMPORTO DELLA LINEA, NOME (description)
+    Archibald exports wide tables split across page pairs:
+      Pages (0,1): first batch of articles
+      Pages (2,3): next batch of articles
+      Pages (4,5): ...and so on
+
+    Left page: LINEA, NOME ARTICOLO, QTÀ ORDINATA, UNITÀ DI PREZZO, SCONTO %
+    Right page: IMPORTO DELLA LINEA, NOME (description)
     """
     with pdfplumber.open(pdf_path) as pdf:
-        if len(pdf.pages) < 2:
+        num_pages = len(pdf.pages)
+
+        if num_pages < 2:
             print(f"Error: PDF has less than 2 pages", file=sys.stderr)
             return
 
-        # Extract both tables
-        page1 = pdf.pages[0]
-        page2 = pdf.pages[1]
+        if num_pages % 2 != 0:
+            print(f"Warning: PDF has odd number of pages ({num_pages}), last page will be skipped", file=sys.stderr)
 
-        tables1 = page1.extract_tables()
-        tables2 = page2.extract_tables()
+        num_pairs = num_pages // 2
+        print(f"Processing {num_pairs} page pair(s) from {num_pages} pages", file=sys.stderr)
 
-        # Free memory
-        page1 = None
-        page2 = None
+        for pair_idx in range(num_pairs):
+            left_idx = pair_idx * 2
+            right_idx = pair_idx * 2 + 1
 
-        if not tables1 or not tables2:
-            print(f"Error: Missing tables in PDF", file=sys.stderr)
-            return
+            page_left = pdf.pages[left_idx]
+            page_right = pdf.pages[right_idx]
 
-        table1 = tables1[0]
-        table2 = tables2[0]
+            yield from parse_page_pair(page_left, page_right, pair_idx)
 
-        # Skip header rows
-        if len(table1) <= 1 or len(table2) <= 1:
-            return
-
-        # Process rows (skip header at index 0, skip totals at last row)
-        max_rows = min(len(table1) - 1, len(table2) - 1)  # -1 to skip "Count=11 Sum=52,00"
-
-        for row_idx in range(1, max_rows):
-            try:
-                # Table 1: [LINEA, NOME ARTICOLO, QTÀ, PREZZO, SCONTO %, APPLICA SCONTO %]
-                row1 = table1[row_idx] if row_idx < len(table1) else []
-                line_number = (row1[0] or '').strip() if len(row1) > 0 else None
-                article_code = (row1[1] or '').strip() if len(row1) > 1 else None
-                quantity = parse_italian_decimal(row1[2]) if len(row1) > 2 else None
-                unit_price = parse_italian_decimal(row1[3]) if len(row1) > 3 else None
-                # APPLICA SCONTO % is in column 5, not column 4 (SCONTO % is always 0)
-                discount_percent = parse_italian_decimal(row1[5]) if len(row1) > 5 else None
-
-                # Table 2: [IMPORTO DELLA LINEA, PREZZO NETTO (skip), NOME]
-                row2 = table2[row_idx] if row_idx < len(table2) else []
-                line_amount = parse_italian_decimal(row2[0]) if len(row2) > 0 else None
-                description_raw = (row2[2] or '').strip() if len(row2) > 2 else None
-
-                # Clean description: remove article code if it appears at the start
-                description = description_raw
-                if description and article_code and description.startswith(article_code):
-                    description = description[len(article_code):].strip()
-                    # Remove leading newline if present
-                    if description.startswith('\n'):
-                        description = description[1:].strip()
-
-                # Validate required fields
-                if not article_code or quantity is None or unit_price is None:
-                    continue
-
-                # Validate value ranges
-                if quantity <= 0:
-                    print(f"Warning: Invalid quantity {quantity} at row {row_idx}, skipping", file=sys.stderr)
-                    continue
-                if unit_price < 0:
-                    print(f"Warning: Invalid unit price {unit_price} at row {row_idx}, skipping", file=sys.stderr)
-                    continue
-                if discount_percent is not None and (discount_percent < 0 or discount_percent > 100):
-                    print(f"Warning: Invalid discount {discount_percent}% at row {row_idx}, clamping to 0-100", file=sys.stderr)
-                    discount_percent = max(0.0, min(100.0, discount_percent))
-
-                article = ParsedArticle(
-                    line_number=line_number or '',
-                    article_code=article_code,
-                    quantity=quantity,
-                    unit_price=unit_price,
-                    discount_percent=discount_percent or 0.0,
-                    line_amount=line_amount or (quantity * unit_price * (1 - (discount_percent or 0) / 100)),
-                    description=description
-                )
-
-                yield article
-
-            except Exception as e:
-                print(f"Warning: Error parsing row {row_idx}: {e}", file=sys.stderr)
-                continue
-
-        # Free memory
-        tables1 = None
-        tables2 = None
+            # Free memory
+            page_left = None
+            page_right = None
 
 
 def main():
