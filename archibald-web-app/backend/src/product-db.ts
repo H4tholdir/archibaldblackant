@@ -58,7 +58,7 @@ export interface Product {
   priceSource?: "archibald" | "excel" | null;
   priceUpdatedAt?: number;
   vat?: number;
-  vatSource?: "archibald" | "excel" | null;
+  vatSource?: "archibald" | "excel" | "manual" | null;
   vatUpdatedAt?: number;
 
   // ========== SYSTEM FIELDS ==========
@@ -1260,12 +1260,33 @@ export class ProductDatabase {
    *
    * @returns true if updated, false if product not found
    */
+  updateProductVat(
+    productId: string,
+    vat: number,
+  ): boolean {
+    const now = Math.floor(Date.now() / 1000);
+
+    const result = this.db
+      .prepare(
+        `
+      UPDATE products SET
+        vat = ?,
+        vatSource = 'manual',
+        vatUpdatedAt = ?
+      WHERE id = ?
+    `,
+      )
+      .run(vat, now, productId);
+
+    return result.changes > 0;
+  }
+
   updateProductPrice(
     productId: string,
     price: string | number,
     vat: number | null,
     priceSource: "archibald" | "excel" | "prices-db",
-    vatSource: "archibald" | "excel" | null,
+    vatSource: "archibald" | "excel" | "manual" | null,
   ): boolean {
     const now = Math.floor(Date.now() / 1000);
 

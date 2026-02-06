@@ -1,11 +1,13 @@
+import { useState } from "react";
 import type { Product } from "../api/products";
+import { updateProductVat } from "../api/products";
 
 interface ProductCardProps {
   product: Product;
   expanded: boolean;
   onToggle: () => void;
-  showVariantBadge?: boolean; // Optional badge showing variant count
-  variantCount?: number; // Number of variants for this product
+  showVariantBadge?: boolean;
+  variantCount?: number;
 }
 
 export function ProductCard({
@@ -15,6 +17,10 @@ export function ProductCard({
   showVariantBadge = false,
   variantCount = 1,
 }: ProductCardProps) {
+  const [vatInput, setVatInput] = useState("");
+  const [savingVat, setSavingVat] = useState(false);
+  const [vatError, setVatError] = useState("");
+  const [savedVat, setSavedVat] = useState<number | null>(null);
   // Utility functions
   const formatCurrency = (amount: number | string | null | undefined): string => {
     if (amount === null || amount === undefined) return "€ 0,00";
@@ -501,22 +507,119 @@ export function ProductCard({
                   </div>
                 )}
               </div>
-              {product.vat !== undefined && product.vat !== null && (
+              {(product.vat !== undefined && product.vat !== null) ||
+              savedVat !== null ? (
                 <div>
-                  <strong style={{ color: "#666" }}>IVA:</strong> {product.vat}%{" "}
-                  {product.vatSource && (
+                  <strong style={{ color: "#666" }}>IVA:</strong>{" "}
+                  {savedVat !== null ? savedVat : product.vat}%{" "}
+                  {(savedVat !== null || product.vatSource) && (
                     <span
                       style={{
                         marginLeft: "8px",
                         fontSize: "12px",
                         padding: "2px 6px",
                         borderRadius: "4px",
-                        backgroundColor: "#e8f5e9",
-                        color: "#2e7d32",
+                        backgroundColor:
+                          savedVat !== null ? "#fff3e0" : "#e8f5e9",
+                        color: savedVat !== null ? "#f57c00" : "#2e7d32",
                       }}
                     >
-                      {product.vatSource}
+                      {savedVat !== null
+                        ? "manual"
+                        : product.vatSource}
                     </span>
+                  )}
+                </div>
+              ) : (
+                <div>
+                  <strong style={{ color: "#666" }}>IVA:</strong>{" "}
+                  <span
+                    style={{
+                      color: "#c62828",
+                      fontSize: "13px",
+                      marginRight: "8px",
+                    }}
+                  >
+                    Non disponibile
+                  </span>
+                  <div
+                    style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: "6px",
+                      marginTop: "4px",
+                    }}
+                  >
+                    <input
+                      type="number"
+                      min="0"
+                      max="100"
+                      step="1"
+                      placeholder="es. 22"
+                      value={vatInput}
+                      onChange={(e) => {
+                        setVatInput(e.target.value);
+                        setVatError("");
+                      }}
+                      onClick={(e) => e.stopPropagation()}
+                      style={{
+                        width: "70px",
+                        padding: "4px 8px",
+                        fontSize: "14px",
+                        border: vatError
+                          ? "1px solid #c62828"
+                          : "1px solid #ccc",
+                        borderRadius: "4px",
+                        outline: "none",
+                      }}
+                    />
+                    <span style={{ fontSize: "14px", color: "#666" }}>%</span>
+                    <button
+                      disabled={savingVat || !vatInput}
+                      onClick={async (e) => {
+                        e.stopPropagation();
+                        const parsed = parseFloat(vatInput);
+                        if (isNaN(parsed) || parsed < 0 || parsed > 100) {
+                          setVatError("Valore non valido (0-100)");
+                          return;
+                        }
+                        setSavingVat(true);
+                        setVatError("");
+                        try {
+                          const token =
+                            localStorage.getItem("archibald_jwt") || "";
+                          await updateProductVat(token, product.id, parsed);
+                          setSavedVat(parsed);
+                          setVatInput("");
+                        } catch (err: any) {
+                          setVatError(err.message || "Errore salvataggio");
+                        } finally {
+                          setSavingVat(false);
+                        }
+                      }}
+                      style={{
+                        padding: "4px 12px",
+                        fontSize: "13px",
+                        backgroundColor: savingVat ? "#bdbdbd" : "#1976d2",
+                        color: "#fff",
+                        border: "none",
+                        borderRadius: "4px",
+                        cursor: savingVat ? "not-allowed" : "pointer",
+                      }}
+                    >
+                      {savingVat ? "..." : "Salva"}
+                    </button>
+                  </div>
+                  {vatError && (
+                    <div
+                      style={{
+                        color: "#c62828",
+                        fontSize: "12px",
+                        marginTop: "4px",
+                      }}
+                    >
+                      {vatError}
+                    </div>
                   )}
                 </div>
               )}

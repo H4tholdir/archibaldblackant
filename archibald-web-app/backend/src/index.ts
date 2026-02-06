@@ -51,6 +51,7 @@ import {
   getRecentPriceChanges,
   getImportHistory,
   getUnmatchedProducts,
+  updateProductVat,
 } from "./price-endpoints";
 import { SyncCheckpointManager } from "./sync-checkpoint";
 import { SessionCleanupJob } from "./session-cleanup-job";
@@ -3899,6 +3900,13 @@ app.post(
   authenticateJWT,
   requireAdmin,
   ...uploadExcelVat,
+);
+
+// Manually update VAT for a product
+app.patch(
+  "/api/products/:productId/vat",
+  authenticateJWT,
+  updateProductVat,
 );
 
 // Get price change history for a specific product

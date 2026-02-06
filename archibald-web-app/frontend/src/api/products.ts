@@ -242,6 +242,31 @@ export async function getProductPriceHistory(
   return response.json();
 }
 
+export async function updateProductVat(
+  token: string,
+  productId: string,
+  vat: number,
+): Promise<{ success: boolean; data?: { productId: string; vat: number; vatSource: string }; error?: string }> {
+  const response = await fetchWithRetry(
+    `${API_BASE_URL}/api/products/${encodeURIComponent(productId)}/vat`,
+    {
+      method: "PATCH",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ vat }),
+    },
+  );
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}));
+    throw new Error(errorData.error || `HTTP ${response.status}`);
+  }
+
+  return response.json();
+}
+
 export interface SyncProductsResult {
   success: boolean;
   productsProcessed?: number;

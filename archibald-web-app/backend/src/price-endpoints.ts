@@ -144,6 +144,97 @@ export const uploadExcelVat = [
 ];
 
 /**
+ * PATCH /api/products/:productId/vat
+ * Manually set VAT for a product that has no VAT value
+ */
+export async function updateProductVat(
+  req: AuthRequest,
+  res: Response<ApiResponse>,
+) {
+  try {
+    const { productId } = req.params;
+    const { vat } = req.body;
+
+    if (vat === undefined || vat === null || typeof vat !== "number") {
+      return res.status(400).json({
+        success: false,
+        error: "vat must be a number",
+      });
+    }
+
+    if (vat < 0 || vat > 100) {
+      return res.status(400).json({
+        success: false,
+        error: "vat must be between 0 and 100",
+      });
+    }
+
+    const db = ProductDatabase.getInstance();
+    const product = db.getProductById(productId);
+
+    if (!product) {
+      return res.status(404).json({
+        success: false,
+        error: "Product not found",
+      });
+    }
+
+    const oldVat = product.vat ?? null;
+    const oldVatSource = product.vatSource ?? null;
+
+    const updated = db.updateProductVat(productId, vat);
+
+    if (!updated) {
+      return res.status(500).json({
+        success: false,
+        error: "Failed to update VAT",
+      });
+    }
+
+    const auditHelper = new PriceAuditHelper(db["db"]);
+    auditHelper.logPriceChange({
+      productId,
+      oldPrice: product.price ?? null,
+      newPrice: product.price ?? null,
+      oldVat,
+      newVat: vat,
+      oldPriceSource: product.priceSource ?? null,
+      oldVatSource,
+      newPriceSource: product.priceSource ?? "archibald",
+      newVatSource: "manual",
+      source: "manual",
+    });
+
+    logger.info(
+      `✏️ Manual VAT update: product ${productId} VAT set to ${vat}% by ${req.user?.userId}`,
+    );
+
+    const wsService = WebSocketServerService.getInstance();
+    wsService.broadcastToAll({
+      type: "cache_invalidation",
+      payload: {
+        target: "products",
+        reason: "manual_vat_update",
+        productId,
+      },
+      timestamp: new Date().toISOString(),
+    });
+
+    res.json({
+      success: true,
+      data: { productId, vat, vatSource: "manual" },
+      message: `IVA aggiornata a ${vat}%`,
+    });
+  } catch (error: any) {
+    logger.error("Error updating product VAT:", error);
+    res.status(500).json({
+      success: false,
+      error: error.message || "Internal server error",
+    });
+  }
+}
+
+/**
  * GET /api/prices/:productId/history
  * Get price change history for a specific product
  */
