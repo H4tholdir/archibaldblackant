@@ -25,6 +25,7 @@ import { ArticoliList } from "./pages/ArticoliList";
 import { Dashboard } from "./pages/Dashboard";
 import { ProfilePage } from "./pages/ProfilePage";
 import { PriceVariationsPage } from "./pages/PriceVariationsPage";
+import { FresisHistoryPage } from "./pages/FresisHistoryPage";
 import WarehouseManagementView from "./pages/WarehouseManagementView";
 import { DashboardNav } from "./components/DashboardNav";
 import { toastService } from "./services/toast.service";
@@ -496,6 +497,27 @@ function AppRouter() {
                     <p>
                       v1.0.0 • Formicanera by Francesco Formicola
                       {/* TODO: Add live sync progress bar here */}
+                    </p>
+                  </footer>
+                </div>
+              }
+            />
+
+            {/* Fresis History route */}
+            <Route
+              path="/fresis-history"
+              element={
+                <div
+                  className="app"
+                  style={{ marginTop: isOffline ? "64px" : "0" }}
+                >
+                  <SyncBanner />
+                  <main className="app-main" style={{ padding: "0" }}>
+                    <FresisHistoryPage />
+                  </main>
+                  <footer className="app-footer">
+                    <p>
+                      v1.0.0 • Formicanera by Francesco Formicola
                     </p>
                   </footer>
                 </div>

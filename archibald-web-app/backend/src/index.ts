@@ -90,6 +90,9 @@ import {
   parseItalianCurrency,
 } from "./temporal-comparisons";
 import { WebSocketServerService } from "./websocket-server";
+import { SubClientDatabase } from "./subclient-db";
+import { importSubClientsFromExcel } from "./subclient-excel-importer";
+import multerSubClients from "multer";
 
 const app = express();
 const server = createServer(app);
@@ -3791,6 +3794,94 @@ app.post(
         success: false,
         error: error.message || "Failed to update interval",
       });
+    }
+  },
+);
+
+// ============================================================================
+// SUBCLIENT MANAGEMENT ENDPOINTS
+// ============================================================================
+
+const subClientUpload = multerSubClients({
+  dest: path.join(__dirname, "../data/uploads"),
+  limits: { fileSize: 10 * 1024 * 1024 },
+  fileFilter: (_req, file, cb) => {
+    if (
+      file.mimetype ===
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" ||
+      file.mimetype === "application/vnd.ms-excel"
+    ) {
+      cb(null, true);
+    } else {
+      cb(new Error("Only Excel files (.xlsx, .xls) are allowed"));
+    }
+  },
+});
+
+app.post(
+  "/api/admin/subclients/import",
+  authenticateJWT,
+  requireAdmin,
+  subClientUpload.single("file"),
+  async (req: Request, res: Response) => {
+    try {
+      if (!req.file) {
+        return res.status(400).json({ success: false, error: "No file uploaded" });
+      }
+      const subClientDb = SubClientDatabase.getInstance();
+      const result = importSubClientsFromExcel(req.file.path, subClientDb);
+
+      // Clean up uploaded file
+      try {
+        fs.unlinkSync(req.file.path);
+      } catch (_e) {
+        // ignore cleanup errors
+      }
+
+      if (!result.success) {
+        return res.status(400).json({ success: false, error: result.error });
+      }
+
+      res.json({ success: true, data: result });
+    } catch (error: any) {
+      logger.error("Subclient import error:", error);
+      res.status(500).json({ success: false, error: error.message });
+    }
+  },
+);
+
+app.get(
+  "/api/subclients",
+  authenticateJWT,
+  async (req: Request, res: Response) => {
+    try {
+      const subClientDb = SubClientDatabase.getInstance();
+      const search = req.query.search as string | undefined;
+      const clients = search
+        ? subClientDb.searchSubClients(search)
+        : subClientDb.getAllSubClients();
+      res.json({ success: true, data: clients });
+    } catch (error: any) {
+      logger.error("Subclient search error:", error);
+      res.status(500).json({ success: false, error: error.message });
+    }
+  },
+);
+
+app.get(
+  "/api/subclients/:codice",
+  authenticateJWT,
+  async (req: Request, res: Response) => {
+    try {
+      const subClientDb = SubClientDatabase.getInstance();
+      const client = subClientDb.getSubClientByCodice(req.params.codice);
+      if (!client) {
+        return res.status(404).json({ success: false, error: "SubClient not found" });
+      }
+      res.json({ success: true, data: client });
+    } catch (error: any) {
+      logger.error("Subclient get error:", error);
+      res.status(500).json({ success: false, error: error.message });
     }
   },
 );

@@ -25,6 +25,9 @@ import { getDeviceId } from "../utils/device-id";
 import { unifiedSyncService } from "../services/unified-sync-service";
 import { useDraftSync } from "../hooks/useDraftSync";
 import { calculateShippingCosts } from "../utils/order-calculations";
+import type { SubClient } from "../db/schema";
+import { SubClientSelector } from "./new-order-form/SubClientSelector";
+import { isFresis } from "../utils/fresis-constants";
 
 interface OrderItem {
   id: string;
@@ -110,6 +113,10 @@ export default function OrderFormSimple() {
     null,
   );
   const [searchingCustomer, setSearchingCustomer] = useState(false);
+
+  // Step 1b: Sub-client selection (Fresis only)
+  const [selectedSubClient, setSelectedSubClient] =
+    useState<SubClient | null>(null);
 
   // Step 2: Product entry with intelligent variant selection
   const [productSearch, setProductSearch] = useState("");
@@ -285,6 +292,13 @@ export default function OrderFormSimple() {
         if (customer) {
           setSelectedCustomer(customer);
           setCustomerSearch(customer.name);
+        }
+
+        // Restore sub-client from order
+        if (order.subClientData) {
+          setSelectedSubClient(order.subClientData);
+        } else {
+          setSelectedSubClient(null);
         }
 
         // Convert order items to OrderItem format
@@ -748,6 +762,9 @@ export default function OrderFormSimple() {
           items: draftItems,
           updatedAt: now,
           needsSync: true,
+          subClientCodice: selectedSubClient?.codice,
+          subClientName: selectedSubClient?.ragioneSociale,
+          subClientData: selectedSubClient ?? undefined,
         });
         console.log("[OrderForm] ✅ Draft updated");
       } else {
@@ -772,6 +789,9 @@ export default function OrderFormSimple() {
             items: draftItems,
             updatedAt: now,
             needsSync: true,
+            subClientCodice: selectedSubClient?.codice,
+            subClientName: selectedSubClient?.ragioneSociale,
+            subClientData: selectedSubClient ?? undefined,
           });
           console.log("[OrderForm] ✅ Existing draft updated");
         } else {
@@ -785,6 +805,9 @@ export default function OrderFormSimple() {
             updatedAt: now,
             deviceId: getDeviceId(),
             needsSync: true,
+            subClientCodice: selectedSubClient?.codice,
+            subClientName: selectedSubClient?.ragioneSociale,
+            subClientData: selectedSubClient ?? undefined,
           };
           const id = await orderService.saveDraftOrder(draft);
           setDraftId(id);
@@ -985,6 +1008,13 @@ export default function OrderFormSimple() {
       if (customer) {
         setSelectedCustomer(customer);
         setCustomerSearch(customer.name);
+      }
+
+      // Restore sub-client from draft
+      if (draft.subClientData) {
+        setSelectedSubClient(draft.subClientData);
+      } else {
+        setSelectedSubClient(null);
       }
 
       // Convert DraftOrderItems back to OrderItems
@@ -1762,7 +1792,10 @@ export default function OrderFormSimple() {
         items: orderItems,
         discountPercent: parseFloat(globalDiscountPercent) || undefined,
         targetTotalWithVAT: totals.finalTotal,
-        originDraftId: originDraftId || undefined, // Track which draft this came from
+        originDraftId: originDraftId || undefined,
+        subClientCodice: selectedSubClient?.codice,
+        subClientName: selectedSubClient?.ragioneSociale,
+        subClientData: selectedSubClient ?? undefined,
       });
 
       // 🔧 FIX: If created from draft, wait for sync to complete BEFORE showing success
@@ -2139,6 +2172,7 @@ export default function OrderFormSimple() {
               onClick={() => {
                 setSelectedCustomer(null);
                 setCustomerSearch("");
+                setSelectedSubClient(null);
               }}
               style={{
                 padding: isMobile ? "0.75rem 1rem" : "0.5rem 1rem",
@@ -2155,10 +2189,21 @@ export default function OrderFormSimple() {
             </button>
           </div>
         )}
+
+        {/* Sub-client selector for Fresis */}
+        {selectedCustomer && isFresis(selectedCustomer) && (
+          <div style={{ marginTop: "0.75rem" }}>
+            <SubClientSelector
+              onSelect={(sc) => setSelectedSubClient(sc)}
+              onClear={() => setSelectedSubClient(null)}
+              selectedSubClient={selectedSubClient}
+            />
+          </div>
+        )}
       </div>
 
       {/* STEP 2: ADD PRODUCTS WITH INTELLIGENT VARIANT SELECTION */}
-      {selectedCustomer && (
+      {selectedCustomer && (!isFresis(selectedCustomer) || selectedSubClient) && (
         <div
           style={{
             marginBottom: isMobile ? "1rem" : "2rem",

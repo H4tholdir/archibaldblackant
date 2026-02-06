@@ -60,6 +60,7 @@ export function DashboardNav() {
     { path: "/customers", label: "👥 Clienti" },
     { path: "/products", label: "📦 Articoli" },
     { path: "/profile", label: "👤 Profilo" },
+    { path: "/fresis-history", label: "📋 Storico Fresis" },
   ];
 
   // Add admin link if user is admin

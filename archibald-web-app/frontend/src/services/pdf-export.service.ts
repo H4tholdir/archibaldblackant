@@ -1,7 +1,19 @@
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
-import type { PendingOrder } from "../db/schema";
+import type { PendingOrderItem, SubClient } from "../db/schema";
+
+export type PDFOrderData = {
+  id: string;
+  customerId: string;
+  customerName: string;
+  items: PendingOrderItem[];
+  discountPercent?: number;
+  createdAt: string;
+  subClientCodice?: string;
+  subClientData?: SubClient;
+};
 import { calculateShippingCosts } from "../utils/order-calculations";
+import { FRESIS_LOGO_BASE64 } from "../assets/fresis-logo-base64";
 
 // Komet logo as base64 (to be embedded in PDF)
 const KOMET_LOGO_BASE64 =
@@ -22,7 +34,7 @@ export class PDFExportService {
   /**
    * Generate PDF for a pending order
    */
-  generateOrderPDF(order: PendingOrder): jsPDF {
+  generateOrderPDF(order: PDFOrderData): jsPDF {
     console.log("[PDFExportService] Generating PDF for order:", {
       customerId: order.customerId,
       customerName: order.customerName,
@@ -44,28 +56,42 @@ export class PDFExportService {
     const lightFill: [number, number, number] = [242, 245, 250];
 
     // === HEADER SECTION ===
+    const isFresis = !!order.subClientCodice;
     const logoX = margin;
     const logoY = 12;
     const logoWidth = 30;
     const logoHeight = 12;
 
     try {
-      doc.addImage(
-        KOMET_LOGO_BASE64,
-        "PNG",
-        logoX,
-        logoY,
-        logoWidth,
-        logoHeight,
-      );
+      if (isFresis) {
+        doc.addImage(
+          FRESIS_LOGO_BASE64,
+          "JPEG",
+          logoX,
+          logoY,
+          logoWidth,
+          logoHeight,
+        );
+      } else {
+        doc.addImage(
+          KOMET_LOGO_BASE64,
+          "PNG",
+          logoX,
+          logoY,
+          logoWidth,
+          logoHeight,
+        );
+      }
     } catch (error) {
       console.warn("[PDFExportService] Could not add logo:", error);
     }
 
-    doc.setFontSize(9);
-    doc.setFont("helvetica", "normal");
-    doc.setTextColor(60, 60, 60);
-    doc.text("Agente Formicola Biagio", logoX, logoY + logoHeight + 5);
+    if (!isFresis) {
+      doc.setFontSize(9);
+      doc.setFont("helvetica", "normal");
+      doc.setTextColor(60, 60, 60);
+      doc.text("Agente Formicola Biagio", logoX, logoY + logoHeight + 5);
+    }
 
     const headerRightX = pageWidth - margin;
     doc.setFontSize(20);
@@ -93,30 +119,80 @@ export class PDFExportService {
     const leftX = margin;
     const rightX = margin + blockWidth + blockGap;
 
+    // Fresis sub-client: taller block to fit extra data
+    const clientBlockHeight = isFresis && order.subClientData ? 42 : blockHeight;
+
     doc.setDrawColor(230, 230, 230);
     doc.setLineWidth(0.2);
     doc.setFillColor(...lightFill);
     doc.rect(leftX, infoY, blockWidth, headerHeight, "F");
-    doc.rect(leftX, infoY, blockWidth, blockHeight);
+    doc.rect(leftX, infoY, blockWidth, clientBlockHeight);
 
     doc.setFont("helvetica", "bold");
     doc.setFontSize(9);
     doc.setTextColor(...primaryColor);
-    doc.text("CLIENTE", leftX + 2, infoY + 4.2);
+    doc.text(
+      isFresis ? "SOTTO-CLIENTE" : "CLIENTE",
+      leftX + 2,
+      infoY + 4.2,
+    );
 
     doc.setFont("helvetica", "normal");
     doc.setFontSize(9);
     doc.setTextColor(0, 0, 0);
-    doc.text(`${order.customerName}`, leftX + 2, infoY + headerHeight + 6);
-    doc.text(
-      `Codice: ${order.customerId}`,
-      leftX + 2,
-      infoY + headerHeight + 12,
-    );
+
+    if (isFresis && order.subClientData) {
+      const sc = order.subClientData;
+      let lineY = infoY + headerHeight + 5;
+      const lineH = 4;
+
+      doc.setFont("helvetica", "bold");
+      doc.text(sc.ragioneSociale, leftX + 2, lineY);
+      lineY += lineH;
+      doc.setFont("helvetica", "normal");
+
+      if (sc.supplRagioneSociale) {
+        doc.text(sc.supplRagioneSociale, leftX + 2, lineY);
+        lineY += lineH;
+      }
+      doc.text(`Cod: ${sc.codice}`, leftX + 2, lineY);
+      lineY += lineH;
+      if (sc.indirizzo) {
+        const addr = [sc.indirizzo, sc.cap, sc.localita, sc.prov]
+          .filter(Boolean)
+          .join(" ");
+        doc.text(addr, leftX + 2, lineY);
+        lineY += lineH;
+      }
+      const fiscal = [
+        sc.partitaIva ? `P.IVA: ${sc.partitaIva}` : null,
+        sc.codFiscale ? `CF: ${sc.codFiscale}` : null,
+      ]
+        .filter(Boolean)
+        .join("  ");
+      if (fiscal) {
+        doc.text(fiscal, leftX + 2, lineY);
+        lineY += lineH;
+      }
+      if (sc.telefono?.trim()) {
+        doc.text(`Tel: ${sc.telefono.trim()}`, leftX + 2, lineY);
+        lineY += lineH;
+      }
+      if (sc.email?.trim()) {
+        doc.text(`Email: ${sc.email.trim()}`, leftX + 2, lineY);
+      }
+    } else {
+      doc.text(`${order.customerName}`, leftX + 2, infoY + headerHeight + 6);
+      doc.text(
+        `Codice: ${order.customerId}`,
+        leftX + 2,
+        infoY + headerHeight + 12,
+      );
+    }
 
     doc.setFillColor(...lightFill);
     doc.rect(rightX, infoY, blockWidth, headerHeight, "F");
-    doc.rect(rightX, infoY, blockWidth, blockHeight);
+    doc.rect(rightX, infoY, blockWidth, clientBlockHeight);
 
     doc.setFont("helvetica", "bold");
     doc.setFontSize(9);
@@ -440,7 +516,7 @@ export class PDFExportService {
   /**
    * Download PDF for an order
    */
-  downloadOrderPDF(order: PendingOrder): void {
+  downloadOrderPDF(order: PDFOrderData): void {
     const doc = this.generateOrderPDF(order);
     const fileName = `preventivo_${order.customerName.replace(/[^a-z0-9]/gi, "_")}_${new Date(order.createdAt).toISOString().split("T")[0]}.pdf`;
     doc.save(fileName);
@@ -449,7 +525,7 @@ export class PDFExportService {
   /**
    * Print PDF for an order
    */
-  printOrderPDF(order: PendingOrder): void {
+  printOrderPDF(order: PDFOrderData): void {
     const doc = this.generateOrderPDF(order);
     const pdfBlob = doc.output("blob");
     const pdfUrl = URL.createObjectURL(pdfBlob);
@@ -469,7 +545,7 @@ export class PDFExportService {
    * Generate PDF for multiple orders (batch export)
    * Downloads each order as a separate PDF file
    */
-  downloadMultipleOrdersPDF(orders: PendingOrder[]): void {
+  downloadMultipleOrdersPDF(orders: PDFOrderData[]): void {
     orders.forEach((order) => {
       this.downloadOrderPDF(order);
     });

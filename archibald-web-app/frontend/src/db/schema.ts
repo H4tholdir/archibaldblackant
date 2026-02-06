@@ -62,6 +62,9 @@ export interface DraftOrder {
   deviceId: string;
   needsSync: boolean;
   serverUpdatedAt?: number;
+  subClientCodice?: string;
+  subClientName?: string;
+  subClientData?: SubClient;
 }
 
 export interface DraftOrderItem {
@@ -121,6 +124,9 @@ export interface PendingOrder {
   jobStartedAt?: string;
   jobCompletedAt?: string;
   jobOrderId?: string; // Archibald order ID (on success)
+  subClientCodice?: string;
+  subClientName?: string;
+  subClientData?: SubClient;
 }
 
 // Cache metadata (track freshness)
@@ -144,6 +150,46 @@ export interface WarehouseItem {
   deviceId?: string; // Device che ha caricato/modificato
 }
 
+// Fresis sub-client (sotto-cliente)
+export interface SubClient {
+  codice: string;
+  ragioneSociale: string;
+  supplRagioneSociale?: string;
+  indirizzo?: string;
+  cap?: string;
+  localita?: string;
+  prov?: string;
+  telefono?: string;
+  fax?: string;
+  email?: string;
+  partitaIva?: string;
+  codFiscale?: string;
+  zona?: string;
+  persDaContattare?: string;
+  emailAmministraz?: string;
+}
+
+// Fresis history order (archived orders from merge)
+export interface FresisHistoryOrder {
+  id: string;
+  originalPendingOrderId: string;
+  subClientCodice: string;
+  subClientName: string;
+  subClientData: SubClient;
+  customerId: string;
+  customerName: string;
+  items: PendingOrderItem[];
+  discountPercent?: number;
+  targetTotalWithVAT?: number;
+  shippingCost?: number;
+  shippingTax?: number;
+  mergedIntoOrderId?: string;
+  mergedAt?: string;
+  createdAt: string;
+  updatedAt: string;
+  notes?: string;
+}
+
 // Warehouse metadata (info sul file caricato)
 export interface WarehouseMetadata {
   id?: number;
@@ -164,6 +210,8 @@ export class ArchibaldDatabase extends Dexie {
   cacheMetadata!: Table<CacheMetadata, string>;
   warehouseItems!: Table<WarehouseItem, number>;
   warehouseMetadata!: Table<WarehouseMetadata, number>;
+  subClients!: Table<SubClient, string>;
+  fresisHistory!: Table<FresisHistoryOrder, string>;
 
   constructor() {
     super("ArchibaldOfflineDB");
@@ -587,6 +635,23 @@ export class ArchibaldDatabase extends Dexie {
       warehouseMetadata: "++id, uploadedAt",
     });
     // No upgrade function needed - optional fields added to PendingOrder interface
+
+    // Version 15: Add subClients and fresisHistory tables + subclient fields on orders
+    this.version(15).stores({
+      customers: "id, name, code, city, *hash",
+      products: "id, name, article, *hash",
+      productVariants: "++id, productId, variantId",
+      prices: "++id, articleId, articleName",
+      draftOrders: "id, customerId, createdAt, updatedAt",
+      pendingOrders: "id, status, createdAt, updatedAt, jobId",
+      cacheMetadata: "key, lastSynced",
+      warehouseItems:
+        "++id, articleCode, boxName, reservedForOrder, soldInOrder",
+      warehouseMetadata: "++id, uploadedAt",
+      subClients: "codice, ragioneSociale, supplRagioneSociale, partitaIva",
+      fresisHistory:
+        "id, subClientCodice, customerName, createdAt, updatedAt",
+    });
   }
 }
 

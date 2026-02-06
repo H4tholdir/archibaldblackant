@@ -34,6 +34,8 @@ export function AdminPage({ onLogout, userName }: AdminPageProps) {
   const [retryingJobId, setRetryingJobId] = useState<string | null>(null);
   const [uploadingExcel, setUploadingExcel] = useState(false);
   const [uploadResult, setUploadResult] = useState<any>(null);
+  const [uploadingSubClients, setUploadingSubClients] = useState(false);
+  const [subClientResult, setSubClientResult] = useState<any>(null);
   const jobsPerPage = 20;
 
   useEffect(() => {
@@ -146,6 +148,60 @@ export function AdminPage({ onLogout, userName }: AdminPageProps) {
     } finally {
       setUploadingExcel(false);
       // Reset file input
+      event.target.value = "";
+    }
+  };
+
+  const handleSubClientImport = async (
+    event: React.ChangeEvent<HTMLInputElement>,
+  ) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    const jwt = localStorage.getItem("archibald_jwt");
+    if (!jwt) {
+      alert("Devi effettuare il login");
+      return;
+    }
+
+    setUploadingSubClients(true);
+    setSubClientResult(null);
+
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+
+      const response = await fetch("/api/admin/subclients/import", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${jwt}` },
+        body: formData,
+      });
+
+      const data = await response.json();
+
+      if (!data.success) {
+        alert(`Errore import sotto-clienti: ${data.error}`);
+        setSubClientResult(data);
+        return;
+      }
+
+      setSubClientResult(data.data);
+
+      alert(
+        `Import sotto-clienti completato!\n\n` +
+          `Totale righe: ${data.data.totalRows}\n` +
+          `Inseriti: ${data.data.inserted}\n` +
+          `Aggiornati: ${data.data.updated}\n` +
+          `Invariati: ${data.data.unchanged}\n` +
+          `Eliminati: ${data.data.deleted}`,
+      );
+    } catch (error) {
+      console.error("SubClient import error:", error);
+      alert(
+        `Errore durante l'import: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    } finally {
+      setUploadingSubClients(false);
       event.target.value = "";
     }
   };
@@ -365,6 +421,97 @@ export function AdminPage({ onLogout, userName }: AdminPageProps) {
                 </li>
               </ul>
             </div>
+          </div>
+        </section>
+
+        <section className="admin-section">
+          <h2>📋 Import Sotto-Clienti Fresis</h2>
+          <p className="admin-description">
+            Carica il file Excel con i sotto-clienti Fresis (clienti arca.xlsx).
+            Il sistema importa/aggiorna tutti i record e rimuove quelli non più
+            presenti nel file.
+          </p>
+
+          <div
+            style={{
+              padding: "20px",
+              border: "1px solid #ddd",
+              borderRadius: "8px",
+              backgroundColor: "#fafafa",
+            }}
+          >
+            <div style={{ marginBottom: "16px" }}>
+              <label
+                htmlFor="subclient-upload"
+                style={{
+                  display: "block",
+                  fontWeight: 600,
+                  marginBottom: "8px",
+                }}
+              >
+                Seleziona file Excel (.xlsx, .xls)
+              </label>
+              <input
+                id="subclient-upload"
+                type="file"
+                accept=".xlsx,.xls"
+                onChange={handleSubClientImport}
+                disabled={uploadingSubClients}
+                style={{
+                  padding: "8px",
+                  border: "1px solid #ddd",
+                  borderRadius: "4px",
+                  backgroundColor: "#fff",
+                  cursor: uploadingSubClients ? "not-allowed" : "pointer",
+                }}
+              />
+            </div>
+
+            {uploadingSubClients && (
+              <div
+                style={{
+                  padding: "12px",
+                  backgroundColor: "#fff3e0",
+                  borderRadius: "4px",
+                  marginTop: "12px",
+                }}
+              >
+                Caricamento sotto-clienti in corso...
+              </div>
+            )}
+
+            {subClientResult && subClientResult.totalRows !== undefined && (
+              <div
+                style={{
+                  marginTop: "16px",
+                  padding: "16px",
+                  backgroundColor: "#d4edda",
+                  border: "1px solid #28a745",
+                  borderRadius: "4px",
+                }}
+              >
+                <h3 style={{ margin: "0 0 12px 0", color: "#155724" }}>
+                  Import completato
+                </h3>
+                <div style={{ display: "grid", gap: "8px", fontSize: "14px" }}>
+                  <div>
+                    <strong>Totale righe:</strong> {subClientResult.totalRows}
+                  </div>
+                  <div>
+                    <strong>Inseriti:</strong> {subClientResult.inserted}
+                  </div>
+                  <div>
+                    <strong>Aggiornati:</strong> {subClientResult.updated}
+                  </div>
+                  <div>
+                    <strong>Invariati:</strong> {subClientResult.unchanged}
+                  </div>
+                  <div>
+                    <strong>Eliminati:</strong> {subClientResult.deleted}
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         </section>
 

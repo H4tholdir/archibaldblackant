@@ -7,6 +7,9 @@ import type { PendingOrder } from "../db/schema";
 import { calculateShippingCosts } from "../utils/order-calculations";
 import { usePendingSync } from "../hooks/usePendingSync";
 import { JobProgressBar } from "../components/JobProgressBar";
+import { isFresis, FRESIS_DEFAULT_DISCOUNT } from "../utils/fresis-constants";
+import { mergeFresisPendingOrders } from "../utils/order-merge";
+import { db } from "../db/schema";
 
 export function PendingOrdersPage() {
   const navigate = useNavigate();
@@ -22,6 +25,12 @@ export function PendingOrdersPage() {
     new Set(),
   );
   const [submitting, setSubmitting] = useState(false);
+
+  // Merge Fresis state
+  const [showMergeDialog, setShowMergeDialog] = useState(false);
+  const [mergeDiscount, setMergeDiscount] = useState(
+    String(FRESIS_DEFAULT_DISCOUNT),
+  );
 
   // Expand/collapse state for each order
   const [expandedOrderIds, setExpandedOrderIds] = useState<Set<string>>(
@@ -252,6 +261,66 @@ export function PendingOrdersPage() {
     }
   };
 
+  const selectedFresisOrders = orders.filter(
+    (o) => selectedOrderIds.has(o.id!) && isFresis({ id: o.customerId }),
+  );
+
+  const handleMergeFresis = async () => {
+    if (selectedFresisOrders.length < 2) return;
+
+    try {
+      const discount = parseFloat(mergeDiscount) || FRESIS_DEFAULT_DISCOUNT;
+      const mergedOrder = mergeFresisPendingOrders(
+        selectedFresisOrders,
+        discount,
+      );
+
+      // Archive original orders to fresisHistory
+      const now = new Date().toISOString();
+      for (const original of selectedFresisOrders) {
+        await db.fresisHistory.add({
+          id: crypto.randomUUID(),
+          originalPendingOrderId: original.id!,
+          subClientCodice: original.subClientCodice ?? "",
+          subClientName: original.subClientName ?? "",
+          subClientData: original.subClientData ?? {
+            codice: "",
+            ragioneSociale: "",
+          },
+          customerId: original.customerId,
+          customerName: original.customerName,
+          items: original.items,
+          discountPercent: original.discountPercent,
+          targetTotalWithVAT: original.targetTotalWithVAT,
+          shippingCost: original.shippingCost,
+          shippingTax: original.shippingTax,
+          mergedIntoOrderId: mergedOrder.id,
+          mergedAt: now,
+          createdAt: original.createdAt,
+          updatedAt: now,
+        });
+      }
+
+      // Add merged order
+      await db.pendingOrders.add(mergedOrder);
+
+      // Delete original orders
+      for (const original of selectedFresisOrders) {
+        await orderService.deletePendingOrder(original.id!);
+      }
+
+      await refetch();
+      setSelectedOrderIds(new Set());
+      setShowMergeDialog(false);
+      toastService.success(
+        `Merge completato: ${selectedFresisOrders.length} ordini uniti con sconto ${discount}%`,
+      );
+    } catch (error) {
+      console.error("[PendingOrdersPage] Merge failed:", error);
+      toastService.error("Errore durante il merge degli ordini");
+    }
+  };
+
   const handleEditOrder = (orderId: string) => {
     // Navigate to order form with order ID as query parameter
     navigate(`/order?editOrderId=${orderId}`);
@@ -395,8 +464,149 @@ export function PendingOrdersPage() {
                 ? `Invia (${selectedOrderIds.size})`
                 : `Invia Ordini Selezionati (${selectedOrderIds.size})`}
           </button>
+          {selectedFresisOrders.length >= 2 && (
+            <button
+              onClick={() => setShowMergeDialog(true)}
+              style={{
+                padding: isMobile ? "0.875rem 1rem" : "0.75rem 1.25rem",
+                backgroundColor: "#f59e0b",
+                color: "white",
+                border: "none",
+                borderRadius: "8px",
+                fontSize: isMobile ? "1rem" : "0.95rem",
+                fontWeight: "600",
+                cursor: "pointer",
+                minHeight: "44px",
+              }}
+            >
+              Merge Fresis ({selectedFresisOrders.length})
+            </button>
+          )}
         </div>
       </div>
+
+      {/* Merge Fresis Dialog */}
+      {showMergeDialog && (
+        <div
+          style={{
+            position: "fixed",
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: "rgba(0,0,0,0.5)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 9999,
+          }}
+          onClick={() => setShowMergeDialog(false)}
+        >
+          <div
+            style={{
+              backgroundColor: "white",
+              borderRadius: "12px",
+              padding: "1.5rem",
+              maxWidth: "500px",
+              width: "90%",
+              maxHeight: "80vh",
+              overflowY: "auto",
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h2
+              style={{
+                fontSize: "1.25rem",
+                fontWeight: "700",
+                marginBottom: "1rem",
+              }}
+            >
+              Merge Ordini Fresis
+            </h2>
+            <p style={{ marginBottom: "0.75rem", color: "#6b7280" }}>
+              Unisci {selectedFresisOrders.length} ordini in un unico ordine
+              Fresis. Gli articoli con lo stesso codice verranno sommati.
+            </p>
+
+            <div style={{ marginBottom: "1rem" }}>
+              <label
+                style={{
+                  display: "block",
+                  fontWeight: "600",
+                  marginBottom: "0.25rem",
+                }}
+              >
+                Sconto globale (%)
+              </label>
+              <input
+                type="number"
+                value={mergeDiscount}
+                onChange={(e) => setMergeDiscount(e.target.value)}
+                style={{
+                  width: "100px",
+                  padding: "0.5rem",
+                  border: "1px solid #d1d5db",
+                  borderRadius: "4px",
+                  fontSize: "1rem",
+                }}
+              />
+            </div>
+
+            <div
+              style={{
+                marginBottom: "1rem",
+                padding: "0.75rem",
+                backgroundColor: "#fffbeb",
+                borderRadius: "8px",
+                fontSize: "0.875rem",
+              }}
+            >
+              <strong>Ordini da unire:</strong>
+              <ul style={{ margin: "0.5rem 0 0 1rem", padding: 0 }}>
+                {selectedFresisOrders.map((o) => (
+                  <li key={o.id}>
+                    {o.subClientName || o.customerName} - {o.items.length}{" "}
+                    articoli
+                  </li>
+                ))}
+              </ul>
+            </div>
+
+            <div style={{ display: "flex", gap: "0.75rem" }}>
+              <button
+                onClick={handleMergeFresis}
+                style={{
+                  flex: 1,
+                  padding: "0.75rem",
+                  backgroundColor: "#f59e0b",
+                  color: "white",
+                  border: "none",
+                  borderRadius: "8px",
+                  fontWeight: "600",
+                  cursor: "pointer",
+                }}
+              >
+                Conferma Merge
+              </button>
+              <button
+                onClick={() => setShowMergeDialog(false)}
+                style={{
+                  flex: 1,
+                  padding: "0.75rem",
+                  backgroundColor: "#e5e7eb",
+                  color: "#374151",
+                  border: "none",
+                  borderRadius: "8px",
+                  fontWeight: "600",
+                  cursor: "pointer",
+                }}
+              >
+                Annulla
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <div
         style={{
@@ -511,6 +721,21 @@ export function PendingOrdersPage() {
                     >
                       {order.customerName}
                     </div>
+                    {order.subClientCodice && (
+                      <div
+                        style={{
+                          fontSize: isMobile ? "0.75rem" : "0.8125rem",
+                          color: "#92400e",
+                          backgroundColor: "#fef3c7",
+                          padding: "0.125rem 0.5rem",
+                          borderRadius: "4px",
+                          display: "inline-block",
+                          marginBottom: "0.25rem",
+                        }}
+                      >
+                        Sotto-cliente: {order.subClientName || order.subClientCodice}
+                      </div>
+                    )}
                     <div
                       style={{
                         fontSize: isMobile ? "0.8125rem" : "0.875rem",
@@ -840,6 +1065,55 @@ export function PendingOrdersPage() {
                 {/* Content - only shown when expanded */}
                 {expandedOrderIds.has(order.id!) && (
                   <>
+                    {/* Sub-client details for Fresis orders */}
+                    {order.subClientData && (
+                      <div
+                        style={{
+                          padding: "0.75rem 1rem",
+                          backgroundColor: "#fffbeb",
+                          borderBottom: "1px solid #f59e0b",
+                          fontSize: "0.8125rem",
+                          display: "grid",
+                          gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr 1fr",
+                          gap: "0.25rem 1rem",
+                        }}
+                      >
+                        <div>
+                          <strong>Codice:</strong> {order.subClientData.codice}
+                        </div>
+                        <div>
+                          <strong>Ragione Sociale:</strong>{" "}
+                          {order.subClientData.ragioneSociale}
+                        </div>
+                        {order.subClientData.supplRagioneSociale && (
+                          <div>
+                            <strong>Suppl.:</strong>{" "}
+                            {order.subClientData.supplRagioneSociale}
+                          </div>
+                        )}
+                        {order.subClientData.indirizzo && (
+                          <div>
+                            <strong>Indirizzo:</strong>{" "}
+                            {order.subClientData.indirizzo}
+                          </div>
+                        )}
+                        {order.subClientData.localita && (
+                          <div>
+                            <strong>Localita:</strong>{" "}
+                            {order.subClientData.localita}{" "}
+                            {order.subClientData.cap}{" "}
+                            {order.subClientData.prov}
+                          </div>
+                        )}
+                        {order.subClientData.partitaIva && (
+                          <div>
+                            <strong>P.IVA:</strong>{" "}
+                            {order.subClientData.partitaIva}
+                          </div>
+                        )}
+                      </div>
+                    )}
+
                     {/* Table Header - desktop only */}
                     {!isMobile && (
                       <div
