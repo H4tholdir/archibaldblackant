@@ -12,6 +12,18 @@ import { mergeFresisPendingOrders } from "../utils/order-merge";
 import { db } from "../db/schema";
 import { fresisDiscountService } from "../services/fresis-discount.service";
 
+function itemSubtotal(
+  order: PendingOrder,
+  item: { price: number; quantity: number; discount?: number },
+): number {
+  const isMergedFresis =
+    isFresis({ id: order.customerId }) && !order.subClientCodice;
+  if (isMergedFresis) {
+    return item.price * item.quantity * (1 - (item.discount || 0) / 100);
+  }
+  return item.price * item.quantity - (item.discount || 0);
+}
+
 export function PendingOrdersPage() {
   const navigate = useNavigate();
 
@@ -1275,8 +1287,7 @@ export function PendingOrdersPage() {
 
                     {/* Items */}
                     {order.items.map((item, index) => {
-                      const subtotal =
-                        item.price * item.quantity - (item.discount || 0);
+                      const subtotal = itemSubtotal(order, item);
                       // Apply global discount if present
                       const subtotalAfterGlobal = order.discountPercent
                         ? subtotal * (1 - order.discountPercent / 100)
@@ -1656,10 +1667,7 @@ export function PendingOrdersPage() {
                       {/* Calculate totals */}
                       {(() => {
                         const orderSubtotal = order.items.reduce(
-                          (sum, item) =>
-                            sum +
-                            item.price * item.quantity -
-                            (item.discount || 0),
+                          (sum, item) => sum + itemSubtotal(order, item),
                           0,
                         );
 
@@ -1679,11 +1687,10 @@ export function PendingOrdersPage() {
 
                         // Calculate VAT including shipping tax
                         const itemsVAT = order.items.reduce((sum, item) => {
-                          const itemSubtotal =
-                            item.price * item.quantity - (item.discount || 0);
+                          const lineSubtotal = itemSubtotal(order, item);
                           const itemAfterGlobalDiscount = order.discountPercent
-                            ? itemSubtotal * (1 - order.discountPercent / 100)
-                            : itemSubtotal;
+                            ? lineSubtotal * (1 - order.discountPercent / 100)
+                            : lineSubtotal;
                           return (
                             sum + itemAfterGlobalDiscount * (item.vat / 100)
                           );
