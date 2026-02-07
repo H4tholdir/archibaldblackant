@@ -1,0 +1,5180 @@
+{
+  "timestamp": "2026-02-07T11:53:25.336Z",
+  "url": "https://4.231.124.90/Archibald/SALESTABLE_DetailViewAgent/?NewObject=true",
+  "listPageControls": {
+    "error": null,
+    "controls": [
+      {
+        "name": "gvGlobalEventListener",
+        "type": "ret",
+        "hasAddNewRow": false,
+        "hasUpdateEdit": false,
+        "hasInCallback": true,
+        "hasGotoPage": false,
+        "hasGetEditor": false
+      },
+      {
+        "name": "globalCallbackControl",
+        "type": "ret",
+        "hasAddNewRow": false,
+        "hasUpdateEdit": false,
+        "hasInCallback": true,
+        "hasGotoPage": false,
+        "hasGetEditor": false
+      },
+      {
+        "name": "ctl03",
+        "type": "ret",
+        "hasAddNewRow": false,
+        "hasUpdateEdit": false,
+        "hasInCallback": true,
+        "hasGotoPage": false,
+        "hasGetEditor": false
+      },
+      {
+        "name": "Vertical_PopupWindowCallback",
+        "type": "ret",
+        "hasAddNewRow": false,
+        "hasUpdateEdit": false,
+        "hasInCallback": true,
+        "hasGotoPage": false,
+        "hasGetEditor": false
+      },
+      {
+        "name": "Vertical_SAC_Menu",
+        "type": "ret",
+        "hasAddNewRow": false,
+        "hasUpdateEdit": false,
+        "hasInCallback": true,
+        "hasGotoPage": false,
+        "hasGetEditor": false
+      },
+      {
+        "name": "Vertical_NC_NB_ITC0i0_TL",
+        "type": "ret",
+        "hasAddNewRow": false,
+        "hasUpdateEdit": false,
+        "hasInCallback": true,
+        "hasGotoPage": false,
+        "hasGetEditor": false
+      },
+      {
+        "name": "Vertical_NC_NB",
+        "type": "ret",
+        "hasAddNewRow": false,
+        "hasUpdateEdit": false,
+        "hasInCallback": true,
+        "hasGotoPage": false,
+        "hasGetEditor": false
+      },
+      {
+        "name": "Vertical_mainMenu_Menu_ITCNT8_xaf_a1_Cb_DDD_L",
+        "type": "ret",
+        "hasAddNewRow": false,
+        "hasUpdateEdit": false,
+        "hasInCallback": true,
+        "hasGotoPage": false,
+        "hasGetEditor": false
+      },
+      {
+        "name": "Vertical_mainMenu_Menu_ITCNT8_xaf_a1_Cb_DDD",
+        "type": "ret",
+        "hasAddNewRow": false,
+        "hasUpdateEdit": false,
+        "hasInCallback": true,
+        "hasGotoPage": false,
+        "hasGetEditor": false
+      },
+      {
+        "name": "Vertical_mainMenu_Menu_ITCNT8_xaf_a1_Cb",
+        "type": "ret",
+        "hasAddNewRow": false,
+        "hasUpdateEdit": false,
+        "hasInCallback": true,
+        "hasGotoPage": false,
+        "hasGetEditor": false
+      },
+      {
+        "name": "Vertical_mainMenu_Menu",
+        "type": "ret",
+        "hasAddNewRow": false,
+        "hasUpdateEdit": false,
+        "hasInCallback": true,
+        "hasGotoPage": false,
+        "hasGetEditor": false
+      },
+      {
+        "name": "Vertical_SearchAC_Menu_ITCNT0_xaf_a0_Ed",
+        "type": "ret",
+        "hasAddNewRow": false,
+        "hasUpdateEdit": false,
+        "hasInCallback": true,
+        "hasGotoPage": false,
+        "hasGetEditor": false
+      },
+      {
+        "name": "Vertical_SearchAC_Menu",
+        "type": "ret",
+        "hasAddNewRow": false,
+        "hasUpdateEdit": false,
+        "hasInCallback": true,
+        "hasGotoPage": false,
+        "hasGetEditor": false
+      },
+      {
+        "name": "Vertical_v2_8210753_LE_v2_DXFREditorcol32",
+        "type": "ret",
+        "hasAddNewRow": false,
+        "hasUpdateEdit": false,
+        "hasInCallback": true,
+        "hasGotoPage": false,
+        "hasGetEditor": false
+      },
+      {
+        "name": "Vertical_v2_8210753_LE_v2_DXFREditorcol48",
+        "type": "ret",
+        "hasAddNewRow": false,
+        "hasUpdateEdit": false,
+        "hasInCallback": true,
+        "hasGotoPage": false,
+        "hasGetEditor": false
+      },
+      {
+        "name": "Vertical_v2_8210753_LE_v2_DXFREditorcol6",
+        "type": "ret",
+        "hasAddNewRow": false,
+        "hasUpdateEdit": false,
+        "hasInCallback": true,
+        "hasGotoPage": false,
+        "hasGetEditor": false
+      },
+      {
+        "name": "Vertical_v2_8210753_LE_v2_DXFREditorcol49",
+        "type": "ret",
+        "hasAddNewRow": false,
+        "hasUpdateEdit": false,
+        "hasInCallback": true,
+        "hasGotoPage": false,
+        "hasGetEditor": false
+      },
+      {
+        "name": "Vertical_v2_8210753_LE_v2_DXFREditorcol12",
+        "type": "ret",
+        "hasAddNewRow": false,
+        "hasUpdateEdit": false,
+        "hasInCallback": true,
+        "hasGotoPage": false,
+        "hasGetEditor": false
+      },
+      {
+        "name": "Vertical_v2_8210753_LE_v2_DXFREditorcol15",
+        "type": "ret",
+        "hasAddNewRow": false,
+        "hasUpdateEdit": false,
+        "hasInCallback": true,
+        "hasGotoPage": false,
+        "hasGetEditor": false
+      },
+      {
+        "name": "Vertical_v2_8210753_LE_v2_DXFREditorcol5_DDD_C",
+        "type": "ret",
+        "hasAddNewRow": false,
+        "hasUpdateEdit": false,
+        "hasInCallback": true,
+        "hasGotoPage": false,
+        "hasGetEditor": false
+      },
+      {
+        "name": "Vertical_v2_8210753_LE_v2_DXFREditorcol5_DDD",
+        "type": "ret",
+        "hasAddNewRow": false,
+        "hasUpdateEdit": false,
+        "hasInCallback": true,
+        "hasGotoPage": false,
+        "hasGetEditor": false
+      },
+      {
+        "name": "Vertical_v2_8210753_LE_v2_DXFREditorcol5",
+        "type": "ret",
+        "hasAddNewRow": false,
+        "hasUpdateEdit": false,
+        "hasInCallback": true,
+        "hasGotoPage": false,
+        "hasGetEditor": false
+      },
+      {
+        "name": "Vertical_v2_8210753_LE_v2_DXFREditorcol11_DDD_C",
+        "type": "ret",
+        "hasAddNewRow": false,
+        "hasUpdateEdit": false,
+        "hasInCallback": true,
+        "hasGotoPage": false,
+        "hasGetEditor": false
+      },
+      {
+        "name": "Vertical_v2_8210753_LE_v2_DXFREditorcol11_DDD",
+        "type": "ret",
+        "hasAddNewRow": false,
+        "hasUpdateEdit": false,
+        "hasInCallback": true,
+        "hasGotoPage": false,
+        "hasGetEditor": false
+      },
+      {
+        "name": "Vertical_v2_8210753_LE_v2_DXFREditorcol11",
+        "type": "ret",
+        "hasAddNewRow": false,
+        "hasUpdateEdit": false,
+        "hasInCallback": true,
+        "hasGotoPage": false,
+        "hasGetEditor": false
+      },
+      {
+        "name": "Vertical_v2_8210753_LE_v2_DXFREditorcol44",
+        "type": "ret",
+        "hasAddNewRow": false,
+        "hasUpdateEdit": false,
+        "hasInCallback": true,
+        "hasGotoPage": false,
+        "hasGetEditor": false
+      },
+      {
+        "name": "Vertical_v2_8210753_LE_v2_DXFREditorcol7",
+        "type": "ret",
+        "hasAddNewRow": false,
+        "hasUpdateEdit": false,
+        "hasInCallback": true,
+        "hasGotoPage": false,
+        "hasGetEditor": false
+      },
+      {
+        "name": "Vertical_v2_8210753_LE_v2_DXFREditorcol52_DDD_L",
+        "type": "ret",
+        "hasAddNewRow": false,
+        "hasUpdateEdit": false,
+        "hasInCallback": true,
+        "hasGotoPage": false,
+        "hasGetEditor": false
+      },
+      {
+        "name": "Vertical_v2_8210753_LE_v2_DXFREditorcol52_DDD",
+        "type": "ret",
+        "hasAddNewRow": false,
+        "hasUpdateEdit": false,
+        "hasInCallback": true,
+        "hasGotoPage": false,
+        "hasGetEditor": false
+      },
+      {
+        "name": "Vertical_v2_8210753_LE_v2_DXFREditorcol52",
+        "type": "ret",
+        "hasAddNewRow": false,
+        "hasUpdateEdit": false,
+        "hasInCallback": true,
+        "hasGotoPage": false,
+        "hasGetEditor": false
+      },
+      {
+        "name": "Vertical_v2_8210753_LE_v2_DXFREditorcol53_DDD_L",
+        "type": "ret",
+        "hasAddNewRow": false,
+        "hasUpdateEdit": false,
+        "hasInCallback": true,
+        "hasGotoPage": false,
+        "hasGetEditor": false
+      },
+      {
+        "name": "Vertical_v2_8210753_LE_v2_DXFREditorcol53_DDD",
+        "type": "ret",
+        "hasAddNewRow": false,
+        "hasUpdateEdit": false,
+        "hasInCallback": true,
+        "hasGotoPage": false,
+        "hasGetEditor": false
+      },
+      {
+        "name": "Vertical_v2_8210753_LE_v2_DXFREditorcol53",
+        "type": "ret",
+        "hasAddNewRow": false,
+        "hasUpdateEdit": false,
+        "hasInCallback": true,
+        "hasGotoPage": false,
+        "hasGetEditor": false
+      },
+      {
+        "name": "Vertical_v2_8210753_LE_v2_DXFREditorcol26_DDD_L",
+        "type": "ret",
+        "hasAddNewRow": false,
+        "hasUpdateEdit": false,
+        "hasInCallback": true,
+        "hasGotoPage": false,
+        "hasGetEditor": false
+      },
+      {
+        "name": "Vertical_v2_8210753_LE_v2_DXFREditorcol26_DDD",
+        "type": "ret",
+        "hasAddNewRow": false,
+        "hasUpdateEdit": false,
+        "hasInCallback": true,
+        "hasGotoPage": false,
+        "hasGetEditor": false
+      },
+      {
+        "name": "Vertical_v2_8210753_LE_v2_DXFREditorcol26",
+        "type": "ret",
+        "hasAddNewRow": false,
+        "hasUpdateEdit": false,
+        "hasInCallback": true,
+        "hasGotoPage": false,
+        "hasGetEditor": false
+      },
+      {
+        "name": "Vertical_v2_8210753_LE_v2_DXFREditorcol50",
+        "type": "ret",
+        "hasAddNewRow": false,
+        "hasUpdateEdit": false,
+        "hasInCallback": true,
+        "hasGotoPage": false,
+        "hasGetEditor": false
+      },
+      {
+        "name": "Vertical_v2_8210753_LE_v2_DXFREditorcol59_DDD_L",
+        "type": "ret",
+        "hasAddNewRow": false,
+        "hasUpdateEdit": false,
+        "hasInCallback": true,
+        "hasGotoPage": false,
+        "hasGetEditor": false
+      },
+      {
+        "name": "Vertical_v2_8210753_LE_v2_DXFREditorcol59_DDD",
+        "type": "ret",
+        "hasAddNewRow": false,
+        "hasUpdateEdit": false,
+        "hasInCallback": true,
+        "hasGotoPage": false,
+        "hasGetEditor": false
+      },
+      {
+        "name": "Vertical_v2_8210753_LE_v2_DXFREditorcol59",
+        "type": "ret",
+        "hasAddNewRow": false,
+        "hasUpdateEdit": false,
+        "hasInCallback": true,
+        "hasGotoPage": false,
+        "hasGetEditor": false
+      },
+      {
+        "name": "Vertical_v2_8210753_LE_v2_DXFREditorcol58_DDD_C",
+        "type": "ret",
+        "hasAddNewRow": false,
+        "hasUpdateEdit": false,
+        "hasInCallback": true,
+        "hasGotoPage": false,
+        "hasGetEditor": false
+      },
+      {
+        "name": "Vertical_v2_8210753_LE_v2_DXFREditorcol58_DDD",
+        "type": "ret",
+        "hasAddNewRow": false,
+        "hasUpdateEdit": false,
+        "hasInCallback": true,
+        "hasGotoPage": false,
+        "hasGetEditor": false
+      },
+      {
+        "name": "Vertical_v2_8210753_LE_v2_DXFREditorcol58",
+        "type": "ret",
+        "hasAddNewRow": false,
+        "hasUpdateEdit": false,
+        "hasInCallback": true,
+        "hasGotoPage": false,
+        "hasGetEditor": false
+      },
+      {
+        "name": "Vertical_v2_8210753_LE_v2_DXFREditorcol3_DDD_C",
+        "type": "ret",
+        "hasAddNewRow": false,
+        "hasUpdateEdit": false,
+        "hasInCallback": true,
+        "hasGotoPage": false,
+        "hasGetEditor": false
+      },
+      {
+        "name": "Vertical_v2_8210753_LE_v2_DXFREditorcol3_DDD",
+        "type": "ret",
+        "hasAddNewRow": false,
+        "hasUpdateEdit": false,
+        "hasInCallback": true,
+        "hasGotoPage": false,
+        "hasGetEditor": false
+      },
+      {
+        "name": "Vertical_v2_8210753_LE_v2_DXFREditorcol3",
+        "type": "ret",
+        "hasAddNewRow": false,
+        "hasUpdateEdit": false,
+        "hasInCallback": true,
+        "hasGotoPage": false,
+        "hasGetEditor": false
+      },
+      {
+        "name": "Vertical_v2_8210753_LE_v2_DXFREditorcol45_DDD_L",
+        "type": "ret",
+        "hasAddNewRow": false,
+        "hasUpdateEdit": false,
+        "hasInCallback": true,
+        "hasGotoPage": false,
+        "hasGetEditor": false
+      },
+      {
+        "name": "Vertical_v2_8210753_LE_v2_DXFREditorcol45_DDD",
+        "type": "ret",
+        "hasAddNewRow": false,
+        "hasUpdateEdit": false,
+        "hasInCallback": true,
+        "hasGotoPage": false,
+        "hasGetEditor": false
+      },
+      {
+        "name": "Vertical_v2_8210753_LE_v2_DXFREditorcol45",
+        "type": "ret",
+        "hasAddNewRow": false,
+        "hasUpdateEdit": false,
+        "hasInCallback": true,
+        "hasGotoPage": false,
+        "hasGetEditor": false
+      },
+      {
+        "name": "Vertical_v2_8210753_LE_v2_DXFREditorcol36",
+        "type": "ret",
+        "hasAddNewRow": false,
+        "hasUpdateEdit": false,
+        "hasInCallback": true,
+        "hasGotoPage": false,
+        "hasGetEditor": false
+      },
+      {
+        "name": "Vertical_v2_8210753_LE_v2_DXFREditorcol31",
+        "type": "ret",
+        "hasAddNewRow": false,
+        "hasUpdateEdit": false,
+        "hasInCallback": true,
+        "hasGotoPage": false,
+        "hasGetEditor": false
+      },
+      {
+        "name": "Vertical_v2_8210753_LE_v2_DXFREditorcol0",
+        "type": "ret",
+        "hasAddNewRow": false,
+        "hasUpdateEdit": false,
+        "hasInCallback": true,
+        "hasGotoPage": false,
+        "hasGetEditor": false
+      },
+      {
+        "name": "Vertical_v2_8210753_LE_v2_DXFREditorcol54_DDD_L",
+        "type": "ret",
+        "hasAddNewRow": false,
+        "hasUpdateEdit": false,
+        "hasInCallback": true,
+        "hasGotoPage": false,
+        "hasGetEditor": false
+      },
+      {
+        "name": "Vertical_v2_8210753_LE_v2_DXFREditorcol54_DDD",
+        "type": "ret",
+        "hasAddNewRow": false,
+        "hasUpdateEdit": false,
+        "hasInCallback": true,
+        "hasGotoPage": false,
+        "hasGetEditor": false
+      },
+      {
+        "name": "Vertical_v2_8210753_LE_v2_DXFREditorcol54",
+        "type": "ret",
+        "hasAddNewRow": false,
+        "hasUpdateEdit": false,
+        "hasInCallback": true,
+        "hasGotoPage": false,
+        "hasGetEditor": false
+      },
+      {
+        "name": "Vertical_v2_8210753_LE_v2_custwindow",
+        "type": "ret",
+        "hasAddNewRow": false,
+        "hasUpdateEdit": false,
+        "hasInCallback": true,
+        "hasGotoPage": false,
+        "hasGetEditor": false
+      },
+      {
+        "name": "Vertical_v2_8210753_LE_v2_DXHFP_TPCFCm1_O",
+        "type": "ret",
+        "hasAddNewRow": false,
+        "hasUpdateEdit": false,
+        "hasInCallback": true,
+        "hasGotoPage": false,
+        "hasGetEditor": false
+      },
+      {
+        "name": "Vertical_v2_8210753_LE_v2_DXHFP_TPCFCm1_C",
+        "type": "ret",
+        "hasAddNewRow": false,
+        "hasUpdateEdit": false,
+        "hasInCallback": true,
+        "hasGotoPage": false,
+        "hasGetEditor": false
+      },
+      {
+        "name": "Vertical_v2_8210753_LE_v2_DXHFP",
+        "type": "ret",
+        "hasAddNewRow": false,
+        "hasUpdateEdit": false,
+        "hasInCallback": true,
+        "hasGotoPage": false,
+        "hasGetEditor": false
+      },
+      {
+        "name": "Vertical_v2_8210753_LE_v2_DXFilterRowMenu",
+        "type": "ret",
+        "hasAddNewRow": false,
+        "hasUpdateEdit": false,
+        "hasInCallback": true,
+        "hasGotoPage": false,
+        "hasGetEditor": false
+      },
+      {
+        "name": "Vertical_v2_8210753_LE_v2_DXContextMenu_GroupPanel",
+        "type": "ret",
+        "hasAddNewRow": false,
+        "hasUpdateEdit": false,
+        "hasInCallback": true,
+        "hasGotoPage": false,
+        "hasGetEditor": false
+      },
+      {
+        "name": "Vertical_v2_8210753_LE_v2_DXContextMenu_Columns",
+        "type": "ret",
+        "hasAddNewRow": false,
+        "hasUpdateEdit": false,
+        "hasInCallback": true,
+        "hasGotoPage": false,
+        "hasGetEditor": false
+      },
+      {
+        "name": "Vertical_v2_8210753_LE_v2_DXContextMenu_Footer",
+        "type": "ret",
+        "hasAddNewRow": false,
+        "hasUpdateEdit": false,
+        "hasInCallback": true,
+        "hasGotoPage": false,
+        "hasGetEditor": false
+      },
+      {
+        "name": "Vertical_v2_8210753_LE_v2_DXCDWindow_DXCDPageControl",
+        "type": "ret",
+        "hasAddNewRow": false,
+        "hasUpdateEdit": false,
+        "hasInCallback": true,
+        "hasGotoPage": false,
+        "hasGetEditor": false
+      },
+      {
+        "name": "Vertical_v2_8210753_LE_v2_DXCDWindow",
+        "type": "ret",
+        "hasAddNewRow": false,
+        "hasUpdateEdit": false,
+        "hasInCallback": true,
+        "hasGotoPage": false,
+        "hasGetEditor": false
+      },
+      {
+        "name": "Vertical_v2_8210753_LE_v2_DXPagerBottom_PSP",
+        "type": "ret",
+        "hasAddNewRow": false,
+        "hasUpdateEdit": false,
+        "hasInCallback": true,
+        "hasGotoPage": false,
+        "hasGetEditor": false
+      },
+      {
+        "name": "Vertical_v2_8210753_LE_v2_DXPagerBottom",
+        "type": "ret",
+        "hasAddNewRow": false,
+        "hasUpdateEdit": false,
+        "hasInCallback": true,
+        "hasGotoPage": false,
+        "hasGetEditor": false
+      },
+      {
+        "name": "Vertical_v2_8210753_LE_v2_DXFREditorcol1",
+        "type": "ret",
+        "hasAddNewRow": false,
+        "hasUpdateEdit": false,
+        "hasInCallback": true,
+        "hasGotoPage": false,
+        "hasGetEditor": false
+      },
+      {
+        "name": "Vertical_v2_8210753_LE_v2_DXFREditorcol2_DDD_L",
+        "type": "ret",
+        "hasAddNewRow": false,
+        "hasUpdateEdit": false,
+        "hasInCallback": true,
+        "hasGotoPage": false,
+        "hasGetEditor": false
+      },
+      {
+        "name": "Vertical_v2_8210753_LE_v2_DXFREditorcol2_DDD",
+        "type": "ret",
+        "hasAddNewRow": false,
+        "hasUpdateEdit": false,
+        "hasInCallback": true,
+        "hasGotoPage": false,
+        "hasGetEditor": false
+      },
+      {
+        "name": "Vertical_v2_8210753_LE_v2_DXFREditorcol2",
+        "type": "ret",
+        "hasAddNewRow": false,
+        "hasUpdateEdit": false,
+        "hasInCallback": true,
+        "hasGotoPage": false,
+        "hasGetEditor": false
+      },
+      {
+        "name": "Vertical_v2_8210753_LE_v2_DXFREditorcol4",
+        "type": "ret",
+        "hasAddNewRow": false,
+        "hasUpdateEdit": false,
+        "hasInCallback": true,
+        "hasGotoPage": false,
+        "hasGetEditor": false
+      },
+      {
+        "name": "Vertical_v2_8210753_LE_v2_DXFREditorcol8",
+        "type": "ret",
+        "hasAddNewRow": false,
+        "hasUpdateEdit": false,
+        "hasInCallback": true,
+        "hasGotoPage": false,
+        "hasGetEditor": false
+      },
+      {
+        "name": "Vertical_v2_8210753_LE_v2_DXFREditorcol9",
+        "type": "ret",
+        "hasAddNewRow": false,
+        "hasUpdateEdit": false,
+        "hasInCallback": true,
+        "hasGotoPage": false,
+        "hasGetEditor": false
+      },
+      {
+        "name": "Vertical_v2_8210753_LE_v2_DXFREditorcol10",
+        "type": "ret",
+        "hasAddNewRow": false,
+        "hasUpdateEdit": false,
+        "hasInCallback": true,
+        "hasGotoPage": false,
+        "hasGetEditor": false
+      },
+      {
+        "name": "Vertical_v2_8210753_LE_v2_DXFREditorcol13",
+        "type": "ret",
+        "hasAddNewRow": false,
+        "hasUpdateEdit": false,
+        "hasInCallback": true,
+        "hasGotoPage": false,
+        "hasGetEditor": false
+      },
+      {
+        "name": "Vertical_v2_8210753_LE_v2_DXFREditorcol14",
+        "type": "ret",
+        "hasAddNewRow": false,
+        "hasUpdateEdit": false,
+        "hasInCallback": true,
+        "hasGotoPage": false,
+        "hasGetEditor": false
+      },
+      {
+        "name": "Vertical_v2_8210753_LE_v2_DXFREditorcol16",
+        "type": "ret",
+        "hasAddNewRow": false,
+        "hasUpdateEdit": false,
+        "hasInCallback": true,
+        "hasGotoPage": false,
+        "hasGetEditor": false
+      },
+      {
+        "name": "Vertical_v2_8210753_LE_v2_DXFREditorcol17",
+        "type": "ret",
+        "hasAddNewRow": false,
+        "hasUpdateEdit": false,
+        "hasInCallback": true,
+        "hasGotoPage": false,
+        "hasGetEditor": false
+      },
+      {
+        "name": "Vertical_v2_8210753_LE_v2_DXFREditorcol18",
+        "type": "ret",
+        "hasAddNewRow": false,
+        "hasUpdateEdit": false,
+        "hasInCallback": true,
+        "hasGotoPage": false,
+        "hasGetEditor": false
+      },
+      {
+        "name": "Vertical_v2_8210753_LE_v2_DXFREditorcol19",
+        "type": "ret",
+        "hasAddNewRow": false,
+        "hasUpdateEdit": false,
+        "hasInCallback": true,
+        "hasGotoPage": false,
+        "hasGetEditor": false
+      },
+      {
+        "name": "Vertical_v2_8210753_LE_v2_DXFREditorcol20",
+        "type": "ret",
+        "hasAddNewRow": false,
+        "hasUpdateEdit": false,
+        "hasInCallback": true,
+        "hasGotoPage": false,
+        "hasGetEditor": false
+      },
+      {
+        "name": "Vertical_v2_8210753_LE_v2_DXFREditorcol21",
+        "type": "ret",
+        "hasAddNewRow": false,
+        "hasUpdateEdit": false,
+        "hasInCallback": true,
+        "hasGotoPage": false,
+        "hasGetEditor": false
+      },
+      {
+        "name": "Vertical_v2_8210753_LE_v2_DXFREditorcol22",
+        "type": "ret",
+        "hasAddNewRow": false,
+        "hasUpdateEdit": false,
+        "hasInCallback": true,
+        "hasGotoPage": false,
+        "hasGetEditor": false
+      },
+      {
+        "name": "Vertical_v2_8210753_LE_v2_DXFREditorcol23",
+        "type": "ret",
+        "hasAddNewRow": false,
+        "hasUpdateEdit": false,
+        "hasInCallback": true,
+        "hasGotoPage": false,
+        "hasGetEditor": false
+      },
+      {
+        "name": "Vertical_v2_8210753_LE_v2_DXFREditorcol24",
+        "type": "ret",
+        "hasAddNewRow": false,
+        "hasUpdateEdit": false,
+        "hasInCallback": true,
+        "hasGotoPage": false,
+        "hasGetEditor": false
+      },
+      {
+        "name": "Vertical_v2_8210753_LE_v2_DXFREditorcol25",
+        "type": "ret",
+        "hasAddNewRow": false,
+        "hasUpdateEdit": false,
+        "hasInCallback": true,
+        "hasGotoPage": false,
+        "hasGetEditor": false
+      },
+      {
+        "name": "Vertical_v2_8210753_LE_v2_DXFREditorcol27",
+        "type": "ret",
+        "hasAddNewRow": false,
+        "hasUpdateEdit": false,
+        "hasInCallback": true,
+        "hasGotoPage": false,
+        "hasGetEditor": false
+      },
+      {
+        "name": "Vertical_v2_8210753_LE_v2_DXFREditorcol28",
+        "type": "ret",
+        "hasAddNewRow": false,
+        "hasUpdateEdit": false,
+        "hasInCallback": true,
+        "hasGotoPage": false,
+        "hasGetEditor": false
+      },
+      {
+        "name": "Vertical_v2_8210753_LE_v2_DXFREditorcol29",
+        "type": "ret",
+        "hasAddNewRow": false,
+        "hasUpdateEdit": false,
+        "hasInCallback": true,
+        "hasGotoPage": false,
+        "hasGetEditor": false
+      },
+      {
+        "name": "Vertical_v2_8210753_LE_v2_DXFREditorcol30",
+        "type": "ret",
+        "hasAddNewRow": false,
+        "hasUpdateEdit": false,
+        "hasInCallback": true,
+        "hasGotoPage": false,
+        "hasGetEditor": false
+      },
+      {
+        "name": "Vertical_v2_8210753_LE_v2_DXFREditorcol33_DDD_L",
+        "type": "ret",
+        "hasAddNewRow": false,
+        "hasUpdateEdit": false,
+        "hasInCallback": true,
+        "hasGotoPage": false,
+        "hasGetEditor": false
+      },
+      {
+        "name": "Vertical_v2_8210753_LE_v2_DXFREditorcol33_DDD",
+        "type": "ret",
+        "hasAddNewRow": false,
+        "hasUpdateEdit": false,
+        "hasInCallback": true,
+        "hasGotoPage": false,
+        "hasGetEditor": false
+      },
+      {
+        "name": "Vertical_v2_8210753_LE_v2_DXFREditorcol33",
+        "type": "ret",
+        "hasAddNewRow": false,
+        "hasUpdateEdit": false,
+        "hasInCallback": true,
+        "hasGotoPage": false,
+        "hasGetEditor": false
+      },
+      {
+        "name": "Vertical_v2_8210753_LE_v2_DXFREditorcol34",
+        "type": "ret",
+        "hasAddNewRow": false,
+        "hasUpdateEdit": false,
+        "hasInCallback": true,
+        "hasGotoPage": false,
+        "hasGetEditor": false
+      },
+      {
+        "name": "Vertical_v2_8210753_LE_v2_DXFREditorcol35",
+        "type": "ret",
+        "hasAddNewRow": false,
+        "hasUpdateEdit": false,
+        "hasInCallback": true,
+        "hasGotoPage": false,
+        "hasGetEditor": false
+      },
+      {
+        "name": "Vertical_v2_8210753_LE_v2_DXFREditorcol37",
+        "type": "ret",
+        "hasAddNewRow": false,
+        "hasUpdateEdit": false,
+        "hasInCallback": true,
+        "hasGotoPage": false,
+        "hasGetEditor": false
+      },
+      {
+        "name": "Vertical_v2_8210753_LE_v2_DXFREditorcol38_DDD_C",
+        "type": "ret",
+        "hasAddNewRow": false,
+        "hasUpdateEdit": false,
+        "hasInCallback": true,
+        "hasGotoPage": false,
+        "hasGetEditor": false
+      },
+      {
+        "name": "Vertical_v2_8210753_LE_v2_DXFREditorcol38_DDD",
+        "type": "ret",
+        "hasAddNewRow": false,
+        "hasUpdateEdit": false,
+        "hasInCallback": true,
+        "hasGotoPage": false,
+        "hasGetEditor": false
+      },
+      {
+        "name": "Vertical_v2_8210753_LE_v2_DXFREditorcol38",
+        "type": "ret",
+        "hasAddNewRow": false,
+        "hasUpdateEdit": false,
+        "hasInCallback": true,
+        "hasGotoPage": false,
+        "hasGetEditor": false
+      },
+      {
+        "name": "Vertical_v2_8210753_LE_v2_DXFREditorcol39",
+        "type": "ret",
+        "hasAddNewRow": false,
+        "hasUpdateEdit": false,
+        "hasInCallback": true,
+        "hasGotoPage": false,
+        "hasGetEditor": false
+      },
+      {
+        "name": "Vertical_v2_8210753_LE_v2_DXFREditorcol40",
+        "type": "ret",
+        "hasAddNewRow": false,
+        "hasUpdateEdit": false,
+        "hasInCallback": true,
+        "hasGotoPage": false,
+        "hasGetEditor": false
+      },
+      {
+        "name": "Vertical_v2_8210753_LE_v2_DXFREditorcol41",
+        "type": "ret",
+        "hasAddNewRow": false,
+        "hasUpdateEdit": false,
+        "hasInCallback": true,
+        "hasGotoPage": false,
+        "hasGetEditor": false
+      },
+      {
+        "name": "Vertical_v2_8210753_LE_v2_DXFREditorcol42",
+        "type": "ret",
+        "hasAddNewRow": false,
+        "hasUpdateEdit": false,
+        "hasInCallback": true,
+        "hasGotoPage": false,
+        "hasGetEditor": false
+      },
+      {
+        "name": "Vertical_v2_8210753_LE_v2_DXFREditorcol43",
+        "type": "ret",
+        "hasAddNewRow": false,
+        "hasUpdateEdit": false,
+        "hasInCallback": true,
+        "hasGotoPage": false,
+        "hasGetEditor": false
+      },
+      {
+        "name": "Vertical_v2_8210753_LE_v2_DXFREditorcol46",
+        "type": "ret",
+        "hasAddNewRow": false,
+        "hasUpdateEdit": false,
+        "hasInCallback": true,
+        "hasGotoPage": false,
+        "hasGetEditor": false
+      },
+      {
+        "name": "Vertical_v2_8210753_LE_v2_DXFREditorcol47",
+        "type": "ret",
+        "hasAddNewRow": false,
+        "hasUpdateEdit": false,
+        "hasInCallback": true,
+        "hasGotoPage": false,
+        "hasGetEditor": false
+      },
+      {
+        "name": "Vertical_v2_8210753_LE_v2_DXFREditorcol51",
+        "type": "ret",
+        "hasAddNewRow": false,
+        "hasUpdateEdit": false,
+        "hasInCallback": true,
+        "hasGotoPage": false,
+        "hasGetEditor": false
+      },
+      {
+        "name": "Vertical_v2_8210753_LE_v2_DXFREditorcol55",
+        "type": "ret",
+        "hasAddNewRow": false,
+        "hasUpdateEdit": false,
+        "hasInCallback": true,
+        "hasGotoPage": false,
+        "hasGetEditor": false
+      },
+      {
+        "name": "Vertical_v2_8210753_LE_v2_DXFREditorcol56",
+        "type": "ret",
+        "hasAddNewRow": false,
+        "hasUpdateEdit": false,
+        "hasInCallback": true,
+        "hasGotoPage": false,
+        "hasGetEditor": false
+      },
+      {
+        "name": "Vertical_v2_8210753_LE_v2_DXFREditorcol57",
+        "type": "ret",
+        "hasAddNewRow": false,
+        "hasUpdateEdit": false,
+        "hasInCallback": true,
+        "hasGotoPage": false,
+        "hasGetEditor": false
+      },
+      {
+        "name": "Vertical_v2_8210753_LE_v2_DXFREditorcol60",
+        "type": "ret",
+        "hasAddNewRow": false,
+        "hasUpdateEdit": false,
+        "hasInCallback": true,
+        "hasGotoPage": false,
+        "hasGetEditor": false
+      },
+      {
+        "name": "Vertical_v2_8210753_LE_v2_DXFREditorcol61",
+        "type": "ret",
+        "hasAddNewRow": false,
+        "hasUpdateEdit": false,
+        "hasInCallback": true,
+        "hasGotoPage": false,
+        "hasGetEditor": false
+      },
+      {
+        "name": "Vertical_v2_8210753_LE_v2_DXFREditorcol62",
+        "type": "ret",
+        "hasAddNewRow": false,
+        "hasUpdateEdit": false,
+        "hasInCallback": true,
+        "hasGotoPage": false,
+        "hasGetEditor": false
+      },
+      {
+        "name": "Vertical_v2_8210753_LE_v2",
+        "type": "ret",
+        "hasAddNewRow": true,
+        "hasUpdateEdit": true,
+        "hasInCallback": true,
+        "hasGotoPage": true,
+        "hasGetEditor": true
+      },
+      {
+        "name": "ASPxGlobalEvents",
+        "type": "ret",
+        "hasAddNewRow": false,
+        "hasUpdateEdit": false,
+        "hasInCallback": true,
+        "hasGotoPage": false,
+        "hasGetEditor": false
+      },
+      {
+        "name": "ClientServerParams",
+        "type": "ret",
+        "hasAddNewRow": false,
+        "hasUpdateEdit": false,
+        "hasInCallback": true,
+        "hasGotoPage": false,
+        "hasGetEditor": false
+      },
+      {
+        "name": "NotifyWindowCloseControl",
+        "type": "ret",
+        "hasAddNewRow": false,
+        "hasUpdateEdit": false,
+        "hasInCallback": true,
+        "hasGotoPage": false,
+        "hasGetEditor": false
+      },
+      {
+        "name": "Vertical_v2_8210753_LE_v2_DXCBtn0",
+        "type": "ret",
+        "hasAddNewRow": false,
+        "hasUpdateEdit": false,
+        "hasInCallback": true,
+        "hasGotoPage": false,
+        "hasGetEditor": false
+      },
+      {
+        "name": "Vertical_v2_8210753_LE_v2_DXCBtn1",
+        "type": "ret",
+        "hasAddNewRow": false,
+        "hasUpdateEdit": false,
+        "hasInCallback": true,
+        "hasGotoPage": false,
+        "hasGetEditor": false
+      },
+      {
+        "name": "Vertical_v2_8210753_LE_v2_DXCBtn2",
+        "type": "ret",
+        "hasAddNewRow": false,
+        "hasUpdateEdit": false,
+        "hasInCallback": true,
+        "hasGotoPage": false,
+        "hasGetEditor": false
+      },
+      {
+        "name": "Vertical_v2_8210753_LE_v2_DXCBtn3",
+        "type": "ret",
+        "hasAddNewRow": false,
+        "hasUpdateEdit": false,
+        "hasInCallback": true,
+        "hasGotoPage": false,
+        "hasGetEditor": false
+      },
+      {
+        "name": "Vertical_v2_8210753_LE_v2_DXCBtn4",
+        "type": "ret",
+        "hasAddNewRow": false,
+        "hasUpdateEdit": false,
+        "hasInCallback": true,
+        "hasGotoPage": false,
+        "hasGetEditor": false
+      },
+      {
+        "name": "Vertical_v2_8210753_LE_v2_DXCBtn5",
+        "type": "ret",
+        "hasAddNewRow": false,
+        "hasUpdateEdit": false,
+        "hasInCallback": true,
+        "hasGotoPage": false,
+        "hasGetEditor": false
+      },
+      {
+        "name": "Vertical_v2_8210753_LE_v2_DXCBtn6",
+        "type": "ret",
+        "hasAddNewRow": false,
+        "hasUpdateEdit": false,
+        "hasInCallback": true,
+        "hasGotoPage": false,
+        "hasGetEditor": false
+      },
+      {
+        "name": "Vertical_v2_8210753_LE_v2_DXCBtn7",
+        "type": "ret",
+        "hasAddNewRow": false,
+        "hasUpdateEdit": false,
+        "hasInCallback": true,
+        "hasGotoPage": false,
+        "hasGetEditor": false
+      },
+      {
+        "name": "Vertical_v2_8210753_LE_v2_DXCBtn8",
+        "type": "ret",
+        "hasAddNewRow": false,
+        "hasUpdateEdit": false,
+        "hasInCallback": true,
+        "hasGotoPage": false,
+        "hasGetEditor": false
+      },
+      {
+        "name": "Vertical_v2_8210753_LE_v2_DXCBtn9",
+        "type": "ret",
+        "hasAddNewRow": false,
+        "hasUpdateEdit": false,
+        "hasInCallback": true,
+        "hasGotoPage": false,
+        "hasGetEditor": false
+      },
+      {
+        "name": "Vertical_v2_8210753_LE_v2_DXCBtn10",
+        "type": "ret",
+        "hasAddNewRow": false,
+        "hasUpdateEdit": false,
+        "hasInCallback": true,
+        "hasGotoPage": false,
+        "hasGetEditor": false
+      },
+      {
+        "name": "Vertical_v2_8210753_LE_v2_DXCBtn11",
+        "type": "ret",
+        "hasAddNewRow": false,
+        "hasUpdateEdit": false,
+        "hasInCallback": true,
+        "hasGotoPage": false,
+        "hasGetEditor": false
+      },
+      {
+        "name": "Vertical_v2_8210753_LE_v2_DXCBtn12",
+        "type": "ret",
+        "hasAddNewRow": false,
+        "hasUpdateEdit": false,
+        "hasInCallback": true,
+        "hasGotoPage": false,
+        "hasGetEditor": false
+      },
+      {
+        "name": "Vertical_v2_8210753_LE_v2_DXCBtn13",
+        "type": "ret",
+        "hasAddNewRow": false,
+        "hasUpdateEdit": false,
+        "hasInCallback": true,
+        "hasGotoPage": false,
+        "hasGetEditor": false
+      },
+      {
+        "name": "Vertical_v2_8210753_LE_v2_DXCBtn14",
+        "type": "ret",
+        "hasAddNewRow": false,
+        "hasUpdateEdit": false,
+        "hasInCallback": true,
+        "hasGotoPage": false,
+        "hasGetEditor": false
+      },
+      {
+        "name": "Vertical_v2_8210753_LE_v2_DXCBtn15",
+        "type": "ret",
+        "hasAddNewRow": false,
+        "hasUpdateEdit": false,
+        "hasInCallback": true,
+        "hasGotoPage": false,
+        "hasGetEditor": false
+      },
+      {
+        "name": "Vertical_v2_8210753_LE_v2_DXCBtn16",
+        "type": "ret",
+        "hasAddNewRow": false,
+        "hasUpdateEdit": false,
+        "hasInCallback": true,
+        "hasGotoPage": false,
+        "hasGetEditor": false
+      },
+      {
+        "name": "Vertical_v2_8210753_LE_v2_DXCBtn17",
+        "type": "ret",
+        "hasAddNewRow": false,
+        "hasUpdateEdit": false,
+        "hasInCallback": true,
+        "hasGotoPage": false,
+        "hasGetEditor": false
+      },
+      {
+        "name": "Vertical_v2_8210753_LE_v2_DXCBtn18",
+        "type": "ret",
+        "hasAddNewRow": false,
+        "hasUpdateEdit": false,
+        "hasInCallback": true,
+        "hasGotoPage": false,
+        "hasGetEditor": false
+      },
+      {
+        "name": "Vertical_v2_8210753_LE_v2_DXCBtn19",
+        "type": "ret",
+        "hasAddNewRow": false,
+        "hasUpdateEdit": false,
+        "hasInCallback": true,
+        "hasGotoPage": false,
+        "hasGetEditor": false
+      },
+      {
+        "name": "Vertical_v2_8210753_LE_v2_DXCDWindow_DXCBtn20",
+        "type": "ret",
+        "hasAddNewRow": false,
+        "hasUpdateEdit": false,
+        "hasInCallback": true,
+        "hasGotoPage": false,
+        "hasGetEditor": false
+      },
+      {
+        "name": "Vertical_v2_8210753_LE_v2_DXCDWindow_DXCBtn21",
+        "type": "ret",
+        "hasAddNewRow": false,
+        "hasUpdateEdit": false,
+        "hasInCallback": true,
+        "hasGotoPage": false,
+        "hasGetEditor": false
+      }
+    ]
+  },
+  "orderFormControls": {
+    "error": null,
+    "controls": [
+      {
+        "name": "gvGlobalEventListener",
+        "type": "ret",
+        "methods": [
+          "InCallback"
+        ],
+        "isGrid": false,
+        "isComboBox": false,
+        "isLookup": false,
+        "isTabControl": false,
+        "isMenu": false
+      },
+      {
+        "name": "globalCallbackControl",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "PerformCallback"
+        ],
+        "isGrid": false,
+        "isComboBox": false,
+        "isLookup": false,
+        "isTabControl": false,
+        "isMenu": false
+      },
+      {
+        "name": "ctl03",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "SetText",
+          "GetText"
+        ],
+        "isGrid": false,
+        "isComboBox": false,
+        "isLookup": false,
+        "isTabControl": false,
+        "isMenu": false
+      },
+      {
+        "name": "Vertical_SAC_Menu",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "GetItemCount"
+        ],
+        "isGrid": false,
+        "isComboBox": false,
+        "isLookup": false,
+        "isTabControl": false,
+        "isMenu": true
+      },
+      {
+        "name": "Vertical_NC_NB_ITC0i0_TL",
+        "type": "ret",
+        "methods": [
+          "InCallback"
+        ],
+        "isGrid": false,
+        "isComboBox": false,
+        "isLookup": false,
+        "isTabControl": false,
+        "isMenu": false
+      },
+      {
+        "name": "Vertical_NC_NB",
+        "type": "ret",
+        "methods": [
+          "InCallback"
+        ],
+        "isGrid": false,
+        "isComboBox": false,
+        "isLookup": false,
+        "isTabControl": false,
+        "isMenu": true
+      },
+      {
+        "name": "ASPxGlobalEvents",
+        "type": "ret",
+        "methods": [
+          "InCallback"
+        ],
+        "isGrid": false,
+        "isComboBox": false,
+        "isLookup": false,
+        "isTabControl": false,
+        "isMenu": false
+      },
+      {
+        "name": "ClientServerParams",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "PerformCallback"
+        ],
+        "isGrid": false,
+        "isComboBox": false,
+        "isLookup": false,
+        "isTabControl": false,
+        "isMenu": false
+      },
+      {
+        "name": "NotifyWindowCloseControl",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "PerformCallback"
+        ],
+        "isGrid": false,
+        "isComboBox": false,
+        "isLookup": false,
+        "isTabControl": false,
+        "isMenu": false
+      },
+      {
+        "name": "Vertical_PopupWindowCallback",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "PerformCallback"
+        ],
+        "isGrid": false,
+        "isComboBox": false,
+        "isLookup": false,
+        "isTabControl": false,
+        "isMenu": false
+      },
+      {
+        "name": "Vertical_mainMenu_Menu",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "GetItemCount"
+        ],
+        "isGrid": false,
+        "isComboBox": false,
+        "isLookup": false,
+        "isTabControl": false,
+        "isMenu": true
+      },
+      {
+        "name": "Vertical_v7_61007966_MainLayoutEdit_xaf_l275_pg_xaf_l278_im",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "PerformCallback"
+        ],
+        "isGrid": false,
+        "isComboBox": false,
+        "isLookup": false,
+        "isTabControl": false,
+        "isMenu": false
+      },
+      {
+        "name": "Vertical_v7_61007966_MainLayoutEdit_xaf_l275_pg_xaf_l282_xaf_l300_xaf_l308_xaf_dviID_Edit_EditorClientInfo",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "PerformCallback"
+        ],
+        "isGrid": false,
+        "isComboBox": false,
+        "isLookup": false,
+        "isTabControl": false,
+        "isMenu": false
+      },
+      {
+        "name": "Vertical_v7_61007966_MainLayoutEdit_xaf_l275_pg_xaf_l282_xaf_l300_xaf_l308_xaf_dviID_Edit",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "SetValue",
+          "GetValue",
+          "SetText",
+          "GetText"
+        ],
+        "isGrid": false,
+        "isComboBox": false,
+        "isLookup": false,
+        "isTabControl": false,
+        "isMenu": false
+      },
+      {
+        "name": "Vertical_v7_61007966_MainLayoutEdit_xaf_l275_pg_xaf_l282_xaf_l300_xaf_l316_xaf_dviCUSTTABLE_Edit_EditorClientInfo",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "PerformCallback"
+        ],
+        "isGrid": false,
+        "isComboBox": false,
+        "isLookup": false,
+        "isTabControl": false,
+        "isMenu": false
+      },
+      {
+        "name": "Vertical_v7_61007966_MainLayoutEdit_xaf_l275_pg_xaf_l282_xaf_l300_xaf_l316_xaf_dviCUSTTABLE_Edit_DDD_gv_DXSE",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "SetValue",
+          "GetValue",
+          "SetText",
+          "GetText"
+        ],
+        "isGrid": false,
+        "isComboBox": false,
+        "isLookup": false,
+        "isTabControl": false,
+        "isMenu": false
+      },
+      {
+        "name": "Vertical_v7_61007966_MainLayoutEdit_xaf_l275_pg_xaf_l282_xaf_l300_xaf_l316_xaf_dviCUSTTABLE_Edit_DDD_gv_DXFREditorcol0",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "SetValue",
+          "GetValue",
+          "SetText",
+          "GetText"
+        ],
+        "isGrid": false,
+        "isComboBox": false,
+        "isLookup": false,
+        "isTabControl": false,
+        "isMenu": false
+      },
+      {
+        "name": "Vertical_v7_61007966_MainLayoutEdit_xaf_l275_pg_xaf_l282_xaf_l300_xaf_l316_xaf_dviCUSTTABLE_Edit_DDD_gv_DXFREditorcol6",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "SetValue",
+          "GetValue",
+          "SetText",
+          "GetText"
+        ],
+        "isGrid": false,
+        "isComboBox": false,
+        "isLookup": false,
+        "isTabControl": false,
+        "isMenu": false
+      },
+      {
+        "name": "Vertical_v7_61007966_MainLayoutEdit_xaf_l275_pg_xaf_l282_xaf_l300_xaf_l316_xaf_dviCUSTTABLE_Edit_DDD_gv_DXFREditorcol8",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "SetValue",
+          "GetValue",
+          "SetText",
+          "GetText"
+        ],
+        "isGrid": false,
+        "isComboBox": false,
+        "isLookup": false,
+        "isTabControl": false,
+        "isMenu": false
+      },
+      {
+        "name": "Vertical_v7_61007966_MainLayoutEdit_xaf_l275_pg_xaf_l282_xaf_l300_xaf_l316_xaf_dviCUSTTABLE_Edit_DDD_gv_DXFREditorcol10",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "SetValue",
+          "GetValue",
+          "SetText",
+          "GetText"
+        ],
+        "isGrid": false,
+        "isComboBox": false,
+        "isLookup": false,
+        "isTabControl": false,
+        "isMenu": false
+      },
+      {
+        "name": "Vertical_v7_61007966_MainLayoutEdit_xaf_l275_pg_xaf_l282_xaf_l300_xaf_l316_xaf_dviCUSTTABLE_Edit_DDD_gv_DXFREditorcol3",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "SetValue",
+          "GetValue",
+          "SetText",
+          "GetText"
+        ],
+        "isGrid": false,
+        "isComboBox": false,
+        "isLookup": false,
+        "isTabControl": false,
+        "isMenu": false
+      },
+      {
+        "name": "Vertical_v7_61007966_MainLayoutEdit_xaf_l275_pg_xaf_l282_xaf_l300_xaf_l316_xaf_dviCUSTTABLE_Edit_DDD_gv_DXFREditorcol2",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "SetValue",
+          "GetValue",
+          "SetText",
+          "GetText"
+        ],
+        "isGrid": false,
+        "isComboBox": false,
+        "isLookup": false,
+        "isTabControl": false,
+        "isMenu": false
+      },
+      {
+        "name": "Vertical_v7_61007966_MainLayoutEdit_xaf_l275_pg_xaf_l282_xaf_l300_xaf_l316_xaf_dviCUSTTABLE_Edit_DDD_gv_DXFREditorcol7",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "SetValue",
+          "GetValue",
+          "SetText",
+          "GetText"
+        ],
+        "isGrid": false,
+        "isComboBox": false,
+        "isLookup": false,
+        "isTabControl": false,
+        "isMenu": false
+      },
+      {
+        "name": "Vertical_v7_61007966_MainLayoutEdit_xaf_l275_pg_xaf_l282_xaf_l300_xaf_l316_xaf_dviCUSTTABLE_Edit_DDD_gv_custwindow",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "PerformCallback"
+        ],
+        "isGrid": false,
+        "isComboBox": false,
+        "isLookup": false,
+        "isTabControl": false,
+        "isMenu": false
+      },
+      {
+        "name": "Vertical_v7_61007966_MainLayoutEdit_xaf_l275_pg_xaf_l282_xaf_l300_xaf_l316_xaf_dviCUSTTABLE_Edit_DDD_gv_DXHFP",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "PerformCallback"
+        ],
+        "isGrid": false,
+        "isComboBox": false,
+        "isLookup": false,
+        "isTabControl": false,
+        "isMenu": false
+      },
+      {
+        "name": "Vertical_v7_61007966_MainLayoutEdit_xaf_l275_pg_xaf_l282_xaf_l300_xaf_l316_xaf_dviCUSTTABLE_Edit_DDD_gv_DXContextMenu_Columns",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "GetItemCount"
+        ],
+        "isGrid": false,
+        "isComboBox": false,
+        "isLookup": false,
+        "isTabControl": false,
+        "isMenu": true
+      },
+      {
+        "name": "Vertical_v7_61007966_MainLayoutEdit_xaf_l275_pg_xaf_l282_xaf_l300_xaf_l316_xaf_dviCUSTTABLE_Edit_DDD_gv_DXContextMenu_Rows",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "GetItemCount"
+        ],
+        "isGrid": false,
+        "isComboBox": false,
+        "isLookup": false,
+        "isTabControl": false,
+        "isMenu": true
+      },
+      {
+        "name": "Vertical_v7_61007966_MainLayoutEdit_xaf_l275_pg_xaf_l282_xaf_l300_xaf_l316_xaf_dviCUSTTABLE_Edit_DDD_gv_DXPagerBottom_PSP",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "GetItemCount"
+        ],
+        "isGrid": false,
+        "isComboBox": false,
+        "isLookup": false,
+        "isTabControl": false,
+        "isMenu": true
+      },
+      {
+        "name": "Vertical_v7_61007966_MainLayoutEdit_xaf_l275_pg_xaf_l282_xaf_l300_xaf_l316_xaf_dviCUSTTABLE_Edit_DDD_gv_DXPagerBottom",
+        "type": "ret",
+        "methods": [
+          "InCallback"
+        ],
+        "isGrid": false,
+        "isComboBox": false,
+        "isLookup": false,
+        "isTabControl": false,
+        "isMenu": false
+      },
+      {
+        "name": "Vertical_v7_61007966_MainLayoutEdit_xaf_l275_pg_xaf_l282_xaf_l300_xaf_l316_xaf_dviCUSTTABLE_Edit_DDD_gv",
+        "type": "ret",
+        "methods": [
+          "AddNewRow",
+          "UpdateEdit",
+          "CancelEdit",
+          "DeleteRow",
+          "GotoPage",
+          "NextPage",
+          "PrevPage",
+          "GetPageIndex",
+          "GetPageCount",
+          "GetVisibleRowsOnPage",
+          "InCallback",
+          "IsEditing",
+          "IsNewRowEditing",
+          "SetEditValue",
+          "GetEditValue",
+          "GetEditor",
+          "FocusEditor",
+          "SetFocusedRowIndex",
+          "GetFocusedRowIndex",
+          "Refresh",
+          "PerformCallback",
+          "StartEditRow",
+          "GetRowValues"
+        ],
+        "isGrid": true,
+        "isComboBox": false,
+        "isLookup": false,
+        "isTabControl": false,
+        "isMenu": false,
+        "pageCount": 74,
+        "pageIndex": 0,
+        "isEditing": false,
+        "visibleRowsOnPage": 20
+      },
+      {
+        "name": "Vertical_v7_61007966_MainLayoutEdit_xaf_l275_pg_xaf_l282_xaf_l300_xaf_l316_xaf_dviCUSTTABLE_Edit_DDD",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "PerformCallback"
+        ],
+        "isGrid": false,
+        "isComboBox": false,
+        "isLookup": false,
+        "isTabControl": false,
+        "isMenu": false
+      },
+      {
+        "name": "Vertical_v7_61007966_MainLayoutEdit_xaf_l275_pg_xaf_l282_xaf_l300_xaf_l316_xaf_dviCUSTTABLE_Edit",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "SetValue",
+          "GetValue",
+          "SetText",
+          "GetText",
+          "ShowDropDown",
+          "HideDropDown"
+        ],
+        "isGrid": false,
+        "isComboBox": false,
+        "isLookup": true,
+        "isTabControl": false,
+        "isMenu": false
+      },
+      {
+        "name": "Vertical_v7_61007966_MainLayoutEdit_xaf_l275_pg_xaf_l282_xaf_l323_xaf_l331_xaf_dviSALESID_Edit_EditorClientInfo",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "PerformCallback"
+        ],
+        "isGrid": false,
+        "isComboBox": false,
+        "isLookup": false,
+        "isTabControl": false,
+        "isMenu": false
+      },
+      {
+        "name": "Vertical_v7_61007966_MainLayoutEdit_xaf_l275_pg_xaf_l282_xaf_l323_xaf_l331_xaf_dviSALESID_Edit",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "SetValue",
+          "GetValue",
+          "SetText",
+          "GetText"
+        ],
+        "isGrid": false,
+        "isComboBox": false,
+        "isLookup": false,
+        "isTabControl": false,
+        "isMenu": false
+      },
+      {
+        "name": "Vertical_v7_61007966_MainLayoutEdit_xaf_l275_pg_xaf_l282_xaf_l352_xaf_dviSALESNAME_Edit_EditorClientInfo",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "PerformCallback"
+        ],
+        "isGrid": false,
+        "isComboBox": false,
+        "isLookup": false,
+        "isTabControl": false,
+        "isMenu": false
+      },
+      {
+        "name": "Vertical_v7_61007966_MainLayoutEdit_xaf_l275_pg_xaf_l282_xaf_l352_xaf_dviSALESNAME_Edit",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "SetValue",
+          "GetValue",
+          "SetText",
+          "GetText"
+        ],
+        "isGrid": false,
+        "isComboBox": false,
+        "isLookup": false,
+        "isTabControl": false,
+        "isMenu": false
+      },
+      {
+        "name": "Vertical_v7_61007966_MainLayoutEdit_xaf_l275_pg_xaf_l282_xaf_l369_xaf_l379_xaf_dviORDERDATE_Edit_EditorClientInfo",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "PerformCallback"
+        ],
+        "isGrid": false,
+        "isComboBox": false,
+        "isLookup": false,
+        "isTabControl": false,
+        "isMenu": false
+      },
+      {
+        "name": "Vertical_v7_61007966_MainLayoutEdit_xaf_l275_pg_xaf_l282_xaf_l369_xaf_l379_xaf_dviORDERDATE_Edit_DDD_C",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "SetValue",
+          "GetValue"
+        ],
+        "isGrid": false,
+        "isComboBox": false,
+        "isLookup": false,
+        "isTabControl": false,
+        "isMenu": false
+      },
+      {
+        "name": "Vertical_v7_61007966_MainLayoutEdit_xaf_l275_pg_xaf_l282_xaf_l369_xaf_l379_xaf_dviORDERDATE_Edit_DDD",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "PerformCallback"
+        ],
+        "isGrid": false,
+        "isComboBox": false,
+        "isLookup": false,
+        "isTabControl": false,
+        "isMenu": false
+      },
+      {
+        "name": "Vertical_v7_61007966_MainLayoutEdit_xaf_l275_pg_xaf_l282_xaf_l369_xaf_l379_xaf_dviORDERDATE_Edit",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "SetValue",
+          "GetValue",
+          "SetText",
+          "GetText",
+          "ShowDropDown",
+          "HideDropDown"
+        ],
+        "isGrid": false,
+        "isComboBox": false,
+        "isLookup": true,
+        "isTabControl": false,
+        "isMenu": false
+      },
+      {
+        "name": "Vertical_v7_61007966_MainLayoutEdit_xaf_l275_pg_xaf_l282_xaf_l369_xaf_l389_xaf_dviSAMPLEORDER_Edit_EditorClientInfo",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "PerformCallback"
+        ],
+        "isGrid": false,
+        "isComboBox": false,
+        "isLookup": false,
+        "isTabControl": false,
+        "isMenu": false
+      },
+      {
+        "name": "Vertical_v7_61007966_MainLayoutEdit_xaf_l275_pg_xaf_l282_xaf_l369_xaf_l389_xaf_dviSAMPLEORDER_Edit",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "SetValue",
+          "GetValue",
+          "SetText",
+          "GetText"
+        ],
+        "isGrid": false,
+        "isComboBox": false,
+        "isLookup": false,
+        "isTabControl": false,
+        "isMenu": false
+      },
+      {
+        "name": "Vertical_v7_61007966_MainLayoutEdit_xaf_l275_pg_xaf_l282_xaf_l408_xaf_l408_xaf_dviDELIVERYDATE_Edit_EditorClientInfo",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "PerformCallback"
+        ],
+        "isGrid": false,
+        "isComboBox": false,
+        "isLookup": false,
+        "isTabControl": false,
+        "isMenu": false
+      },
+      {
+        "name": "Vertical_v7_61007966_MainLayoutEdit_xaf_l275_pg_xaf_l282_xaf_l408_xaf_l408_xaf_dviDELIVERYDATE_Edit_DDD_C",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "SetValue",
+          "GetValue"
+        ],
+        "isGrid": false,
+        "isComboBox": false,
+        "isLookup": false,
+        "isTabControl": false,
+        "isMenu": false
+      },
+      {
+        "name": "Vertical_v7_61007966_MainLayoutEdit_xaf_l275_pg_xaf_l282_xaf_l408_xaf_l408_xaf_dviDELIVERYDATE_Edit_DDD",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "PerformCallback"
+        ],
+        "isGrid": false,
+        "isComboBox": false,
+        "isLookup": false,
+        "isTabControl": false,
+        "isMenu": false
+      },
+      {
+        "name": "Vertical_v7_61007966_MainLayoutEdit_xaf_l275_pg_xaf_l282_xaf_l408_xaf_l408_xaf_dviDELIVERYDATE_Edit",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "SetValue",
+          "GetValue",
+          "SetText",
+          "GetText",
+          "ShowDropDown",
+          "HideDropDown"
+        ],
+        "isGrid": false,
+        "isComboBox": false,
+        "isLookup": true,
+        "isTabControl": false,
+        "isMenu": false
+      },
+      {
+        "name": "Vertical_v7_61007966_MainLayoutEdit_xaf_l275_pg_xaf_l412_xaf_l417_xaf_dviDELIVERYPOSTALADDRESS_Edit_EditorClientInfo",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "PerformCallback"
+        ],
+        "isGrid": false,
+        "isComboBox": false,
+        "isLookup": false,
+        "isTabControl": false,
+        "isMenu": false
+      },
+      {
+        "name": "Vertical_v7_61007966_MainLayoutEdit_xaf_l275_pg_xaf_l412_xaf_l417_xaf_dviDELIVERYPOSTALADDRESS_Edit_DDD_gv_DXSE",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "SetValue",
+          "GetValue",
+          "SetText",
+          "GetText"
+        ],
+        "isGrid": false,
+        "isComboBox": false,
+        "isLookup": false,
+        "isTabControl": false,
+        "isMenu": false
+      },
+      {
+        "name": "Vertical_v7_61007966_MainLayoutEdit_xaf_l275_pg_xaf_l412_xaf_l417_xaf_dviDELIVERYPOSTALADDRESS_Edit_DDD_gv_DXFREditorcol1",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "SetValue",
+          "GetValue",
+          "SetText",
+          "GetText"
+        ],
+        "isGrid": false,
+        "isComboBox": false,
+        "isLookup": false,
+        "isTabControl": false,
+        "isMenu": false
+      },
+      {
+        "name": "Vertical_v7_61007966_MainLayoutEdit_xaf_l275_pg_xaf_l412_xaf_l417_xaf_dviDELIVERYPOSTALADDRESS_Edit_DDD_gv_DXFREditorcol2",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "SetValue",
+          "GetValue",
+          "SetText",
+          "GetText"
+        ],
+        "isGrid": false,
+        "isComboBox": false,
+        "isLookup": false,
+        "isTabControl": false,
+        "isMenu": false
+      },
+      {
+        "name": "Vertical_v7_61007966_MainLayoutEdit_xaf_l275_pg_xaf_l412_xaf_l417_xaf_dviDELIVERYPOSTALADDRESS_Edit_DDD_gv_DXFREditorcol4",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "SetValue",
+          "GetValue",
+          "SetText",
+          "GetText"
+        ],
+        "isGrid": false,
+        "isComboBox": false,
+        "isLookup": false,
+        "isTabControl": false,
+        "isMenu": false
+      },
+      {
+        "name": "Vertical_v7_61007966_MainLayoutEdit_xaf_l275_pg_xaf_l412_xaf_l417_xaf_dviDELIVERYPOSTALADDRESS_Edit_DDD_gv_DXFREditorcol0",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "SetValue",
+          "GetValue",
+          "SetText",
+          "GetText"
+        ],
+        "isGrid": false,
+        "isComboBox": false,
+        "isLookup": false,
+        "isTabControl": false,
+        "isMenu": false
+      },
+      {
+        "name": "Vertical_v7_61007966_MainLayoutEdit_xaf_l275_pg_xaf_l412_xaf_l417_xaf_dviDELIVERYPOSTALADDRESS_Edit_DDD_gv_DXFREditorcol3_DDD_L",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "PerformCallback",
+          "SetValue",
+          "GetValue",
+          "SetSelectedIndex",
+          "FindItemByValue",
+          "FindItemByText",
+          "GetItemCount"
+        ],
+        "isGrid": false,
+        "isComboBox": false,
+        "isLookup": false,
+        "isTabControl": false,
+        "isMenu": false
+      },
+      {
+        "name": "Vertical_v7_61007966_MainLayoutEdit_xaf_l275_pg_xaf_l412_xaf_l417_xaf_dviDELIVERYPOSTALADDRESS_Edit_DDD_gv_DXFREditorcol3_DDD",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "PerformCallback"
+        ],
+        "isGrid": false,
+        "isComboBox": false,
+        "isLookup": false,
+        "isTabControl": false,
+        "isMenu": false
+      },
+      {
+        "name": "Vertical_v7_61007966_MainLayoutEdit_xaf_l275_pg_xaf_l412_xaf_l417_xaf_dviDELIVERYPOSTALADDRESS_Edit_DDD_gv_DXFREditorcol3",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "PerformCallback",
+          "SetValue",
+          "GetValue",
+          "SetText",
+          "GetText",
+          "SetSelectedIndex",
+          "FindItemByValue",
+          "FindItemByText",
+          "ShowDropDown",
+          "HideDropDown",
+          "GetItemCount",
+          "EnsureDropDownLoaded"
+        ],
+        "isGrid": false,
+        "isComboBox": true,
+        "isLookup": false,
+        "isTabControl": false,
+        "isMenu": false
+      },
+      {
+        "name": "Vertical_v7_61007966_MainLayoutEdit_xaf_l275_pg_xaf_l412_xaf_l417_xaf_dviDELIVERYPOSTALADDRESS_Edit_DDD_gv_custwindow",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "PerformCallback"
+        ],
+        "isGrid": false,
+        "isComboBox": false,
+        "isLookup": false,
+        "isTabControl": false,
+        "isMenu": false
+      },
+      {
+        "name": "Vertical_v7_61007966_MainLayoutEdit_xaf_l275_pg_xaf_l412_xaf_l417_xaf_dviDELIVERYPOSTALADDRESS_Edit_DDD_gv_DXHFP",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "PerformCallback"
+        ],
+        "isGrid": false,
+        "isComboBox": false,
+        "isLookup": false,
+        "isTabControl": false,
+        "isMenu": false
+      },
+      {
+        "name": "Vertical_v7_61007966_MainLayoutEdit_xaf_l275_pg_xaf_l412_xaf_l417_xaf_dviDELIVERYPOSTALADDRESS_Edit_DDD_gv_DXContextMenu_Columns",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "GetItemCount"
+        ],
+        "isGrid": false,
+        "isComboBox": false,
+        "isLookup": false,
+        "isTabControl": false,
+        "isMenu": true
+      },
+      {
+        "name": "Vertical_v7_61007966_MainLayoutEdit_xaf_l275_pg_xaf_l412_xaf_l417_xaf_dviDELIVERYPOSTALADDRESS_Edit_DDD_gv_DXContextMenu_Rows",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "GetItemCount"
+        ],
+        "isGrid": false,
+        "isComboBox": false,
+        "isLookup": false,
+        "isTabControl": false,
+        "isMenu": true
+      },
+      {
+        "name": "Vertical_v7_61007966_MainLayoutEdit_xaf_l275_pg_xaf_l412_xaf_l417_xaf_dviDELIVERYPOSTALADDRESS_Edit_DDD_gv_DXPagerBottom_PSP",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "GetItemCount"
+        ],
+        "isGrid": false,
+        "isComboBox": false,
+        "isLookup": false,
+        "isTabControl": false,
+        "isMenu": true
+      },
+      {
+        "name": "Vertical_v7_61007966_MainLayoutEdit_xaf_l275_pg_xaf_l412_xaf_l417_xaf_dviDELIVERYPOSTALADDRESS_Edit_DDD_gv_DXPagerBottom",
+        "type": "ret",
+        "methods": [
+          "InCallback"
+        ],
+        "isGrid": false,
+        "isComboBox": false,
+        "isLookup": false,
+        "isTabControl": false,
+        "isMenu": false
+      },
+      {
+        "name": "Vertical_v7_61007966_MainLayoutEdit_xaf_l275_pg_xaf_l412_xaf_l417_xaf_dviDELIVERYPOSTALADDRESS_Edit_DDD_gv",
+        "type": "ret",
+        "methods": [
+          "AddNewRow",
+          "UpdateEdit",
+          "CancelEdit",
+          "DeleteRow",
+          "GotoPage",
+          "NextPage",
+          "PrevPage",
+          "GetPageIndex",
+          "GetPageCount",
+          "GetVisibleRowsOnPage",
+          "InCallback",
+          "IsEditing",
+          "IsNewRowEditing",
+          "SetEditValue",
+          "GetEditValue",
+          "GetEditor",
+          "FocusEditor",
+          "SetFocusedRowIndex",
+          "GetFocusedRowIndex",
+          "Refresh",
+          "PerformCallback",
+          "StartEditRow",
+          "GetRowValues"
+        ],
+        "isGrid": true,
+        "isComboBox": false,
+        "isLookup": false,
+        "isTabControl": false,
+        "isMenu": false,
+        "pageCount": 3,
+        "pageIndex": 0,
+        "isEditing": false,
+        "visibleRowsOnPage": 20
+      },
+      {
+        "name": "Vertical_v7_61007966_MainLayoutEdit_xaf_l275_pg_xaf_l412_xaf_l417_xaf_dviDELIVERYPOSTALADDRESS_Edit_DDD",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "PerformCallback"
+        ],
+        "isGrid": false,
+        "isComboBox": false,
+        "isLookup": false,
+        "isTabControl": false,
+        "isMenu": false
+      },
+      {
+        "name": "Vertical_v7_61007966_MainLayoutEdit_xaf_l275_pg_xaf_l412_xaf_l417_xaf_dviDELIVERYPOSTALADDRESS_Edit",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "SetValue",
+          "GetValue",
+          "SetText",
+          "GetText",
+          "ShowDropDown",
+          "HideDropDown"
+        ],
+        "isGrid": false,
+        "isComboBox": false,
+        "isLookup": true,
+        "isTabControl": false,
+        "isMenu": false
+      },
+      {
+        "name": "Vertical_v7_61007966_MainLayoutEdit_xaf_l275_pg_xaf_l412_xaf_l422_xaf_dviDELIVERYNAME_Edit_EditorClientInfo",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "PerformCallback"
+        ],
+        "isGrid": false,
+        "isComboBox": false,
+        "isLookup": false,
+        "isTabControl": false,
+        "isMenu": false
+      },
+      {
+        "name": "Vertical_v7_61007966_MainLayoutEdit_xaf_l275_pg_xaf_l412_xaf_l422_xaf_dviDELIVERYNAME_Edit",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "SetValue",
+          "GetValue",
+          "SetText",
+          "GetText"
+        ],
+        "isGrid": false,
+        "isComboBox": false,
+        "isLookup": false,
+        "isTabControl": false,
+        "isMenu": false
+      },
+      {
+        "name": "Vertical_v7_61007966_MainLayoutEdit_xaf_l275_pg_xaf_l412_xaf_l427_xaf_dviDLVADDRESS_Edit_EditorClientInfo",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "PerformCallback"
+        ],
+        "isGrid": false,
+        "isComboBox": false,
+        "isLookup": false,
+        "isTabControl": false,
+        "isMenu": false
+      },
+      {
+        "name": "Vertical_v7_61007966_MainLayoutEdit_xaf_l275_pg_xaf_l412_xaf_l427_xaf_dviDLVADDRESS_Edit",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "SetValue",
+          "GetValue",
+          "SetText",
+          "GetText"
+        ],
+        "isGrid": false,
+        "isComboBox": false,
+        "isLookup": false,
+        "isTabControl": false,
+        "isMenu": false
+      },
+      {
+        "name": "Vertical_v7_61007966_MainLayoutEdit_xaf_l275_pg_xaf_l431_xaf_l436_xaf_dviPURCHORDERFORMNUM_Edit_EditorClientInfo",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "PerformCallback"
+        ],
+        "isGrid": false,
+        "isComboBox": false,
+        "isLookup": false,
+        "isTabControl": false,
+        "isMenu": false
+      },
+      {
+        "name": "Vertical_v7_61007966_MainLayoutEdit_xaf_l275_pg_xaf_l431_xaf_l436_xaf_dviPURCHORDERFORMNUM_Edit",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "SetValue",
+          "GetValue",
+          "SetText",
+          "GetText"
+        ],
+        "isGrid": false,
+        "isComboBox": false,
+        "isLookup": false,
+        "isTabControl": false,
+        "isMenu": false
+      },
+      {
+        "name": "Vertical_v7_61007966_MainLayoutEdit_xaf_l275_pg_xaf_l431_xaf_l441_xaf_dviCUSTOMERREF_Edit_EditorClientInfo",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "PerformCallback"
+        ],
+        "isGrid": false,
+        "isComboBox": false,
+        "isLookup": false,
+        "isTabControl": false,
+        "isMenu": false
+      },
+      {
+        "name": "Vertical_v7_61007966_MainLayoutEdit_xaf_l275_pg_xaf_l431_xaf_l441_xaf_dviCUSTOMERREF_Edit",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "SetValue",
+          "GetValue",
+          "SetText",
+          "GetText"
+        ],
+        "isGrid": false,
+        "isComboBox": false,
+        "isLookup": false,
+        "isTabControl": false,
+        "isMenu": false
+      },
+      {
+        "name": "Vertical_v7_61007966_MainLayoutEdit_xaf_l275_pg_xaf_l431_xaf_l446_xaf_dviBRASCRMATTENTIONTO_Edit_EditorClientInfo",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "PerformCallback"
+        ],
+        "isGrid": false,
+        "isComboBox": false,
+        "isLookup": false,
+        "isTabControl": false,
+        "isMenu": false
+      },
+      {
+        "name": "Vertical_v7_61007966_MainLayoutEdit_xaf_l275_pg_xaf_l431_xaf_l446_xaf_dviBRASCRMATTENTIONTO_Edit",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "SetValue",
+          "GetValue",
+          "SetText",
+          "GetText"
+        ],
+        "isGrid": false,
+        "isComboBox": false,
+        "isLookup": false,
+        "isTabControl": false,
+        "isMenu": false
+      },
+      {
+        "name": "Vertical_v7_61007966_MainLayoutEdit_xaf_l275_pg_xaf_l431_xaf_l451_xaf_dviDLVEMAIL_Edit_EditorClientInfo",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "PerformCallback"
+        ],
+        "isGrid": false,
+        "isComboBox": false,
+        "isLookup": false,
+        "isTabControl": false,
+        "isMenu": false
+      },
+      {
+        "name": "Vertical_v7_61007966_MainLayoutEdit_xaf_l275_pg_xaf_l431_xaf_l451_xaf_dviDLVEMAIL_Edit",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "SetValue",
+          "GetValue",
+          "SetText",
+          "GetText"
+        ],
+        "isGrid": false,
+        "isComboBox": false,
+        "isLookup": false,
+        "isTabControl": false,
+        "isMenu": false
+      },
+      {
+        "name": "Vertical_v7_61007966_MainLayoutEdit_xaf_l275_pg_xaf_l431_xaf_l456_xaf_dviSALESORIGINID_Edit_EditorClientInfo",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "PerformCallback"
+        ],
+        "isGrid": false,
+        "isComboBox": false,
+        "isLookup": false,
+        "isTabControl": false,
+        "isMenu": false
+      },
+      {
+        "name": "Vertical_v7_61007966_MainLayoutEdit_xaf_l275_pg_xaf_l431_xaf_l456_xaf_dviSALESORIGINID_Edit_dropdown_DD_DDD_L",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "PerformCallback",
+          "SetValue",
+          "GetValue",
+          "SetSelectedIndex",
+          "FindItemByValue",
+          "FindItemByText",
+          "GetItemCount"
+        ],
+        "isGrid": false,
+        "isComboBox": false,
+        "isLookup": false,
+        "isTabControl": false,
+        "isMenu": false
+      },
+      {
+        "name": "Vertical_v7_61007966_MainLayoutEdit_xaf_l275_pg_xaf_l431_xaf_l456_xaf_dviSALESORIGINID_Edit_dropdown_DD_DDD",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "PerformCallback"
+        ],
+        "isGrid": false,
+        "isComboBox": false,
+        "isLookup": false,
+        "isTabControl": false,
+        "isMenu": false
+      },
+      {
+        "name": "Vertical_v7_61007966_MainLayoutEdit_xaf_l275_pg_xaf_l431_xaf_l456_xaf_dviSALESORIGINID_Edit_dropdown_DD",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "PerformCallback",
+          "SetValue",
+          "GetValue",
+          "SetText",
+          "GetText",
+          "SetSelectedIndex",
+          "FindItemByValue",
+          "FindItemByText",
+          "ShowDropDown",
+          "HideDropDown",
+          "GetItemCount",
+          "EnsureDropDownLoaded"
+        ],
+        "isGrid": false,
+        "isComboBox": true,
+        "isLookup": false,
+        "isTabControl": false,
+        "isMenu": false
+      },
+      {
+        "name": "Vertical_v7_61007966_MainLayoutEdit_xaf_l275_pg_xaf_l460_xaf_l465_xaf_dviDLVMODE_Edit_EditorClientInfo",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "PerformCallback"
+        ],
+        "isGrid": false,
+        "isComboBox": false,
+        "isLookup": false,
+        "isTabControl": false,
+        "isMenu": false
+      },
+      {
+        "name": "Vertical_v7_61007966_MainLayoutEdit_xaf_l275_pg_xaf_l460_xaf_l465_xaf_dviDLVMODE_Edit_dropdown_DD_DDD_L",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "PerformCallback",
+          "SetValue",
+          "GetValue",
+          "SetSelectedIndex",
+          "FindItemByValue",
+          "FindItemByText",
+          "GetItemCount"
+        ],
+        "isGrid": false,
+        "isComboBox": false,
+        "isLookup": false,
+        "isTabControl": false,
+        "isMenu": false
+      },
+      {
+        "name": "Vertical_v7_61007966_MainLayoutEdit_xaf_l275_pg_xaf_l460_xaf_l465_xaf_dviDLVMODE_Edit_dropdown_DD_DDD",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "PerformCallback"
+        ],
+        "isGrid": false,
+        "isComboBox": false,
+        "isLookup": false,
+        "isTabControl": false,
+        "isMenu": false
+      },
+      {
+        "name": "Vertical_v7_61007966_MainLayoutEdit_xaf_l275_pg_xaf_l460_xaf_l465_xaf_dviDLVMODE_Edit_dropdown_DD",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "PerformCallback",
+          "SetValue",
+          "GetValue",
+          "SetText",
+          "GetText",
+          "SetSelectedIndex",
+          "FindItemByValue",
+          "FindItemByText",
+          "ShowDropDown",
+          "HideDropDown",
+          "GetItemCount",
+          "EnsureDropDownLoaded"
+        ],
+        "isGrid": false,
+        "isComboBox": true,
+        "isLookup": false,
+        "isTabControl": false,
+        "isMenu": false
+      },
+      {
+        "name": "Vertical_v7_61007966_MainLayoutEdit_xaf_l275_pg_xaf_l460_xaf_l470_xaf_dviVATNUM_Edit_EditorClientInfo",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "PerformCallback"
+        ],
+        "isGrid": false,
+        "isComboBox": false,
+        "isLookup": false,
+        "isTabControl": false,
+        "isMenu": false
+      },
+      {
+        "name": "Vertical_v7_61007966_MainLayoutEdit_xaf_l275_pg_xaf_l460_xaf_l470_xaf_dviVATNUM_Edit",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "SetValue",
+          "GetValue",
+          "SetText",
+          "GetText"
+        ],
+        "isGrid": false,
+        "isComboBox": false,
+        "isLookup": false,
+        "isTabControl": false,
+        "isMenu": false
+      },
+      {
+        "name": "Vertical_v7_61007966_MainLayoutEdit_xaf_l275_pg_xaf_l460_xaf_l475_xaf_dviQUOTE_Edit_EditorClientInfo",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "PerformCallback"
+        ],
+        "isGrid": false,
+        "isComboBox": false,
+        "isLookup": false,
+        "isTabControl": false,
+        "isMenu": false
+      },
+      {
+        "name": "Vertical_v7_61007966_MainLayoutEdit_xaf_l275_pg_xaf_l460_xaf_l475_xaf_dviQUOTE_Edit_DDD_L",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "PerformCallback",
+          "SetValue",
+          "GetValue",
+          "SetSelectedIndex",
+          "FindItemByValue",
+          "FindItemByText",
+          "GetItemCount"
+        ],
+        "isGrid": false,
+        "isComboBox": false,
+        "isLookup": false,
+        "isTabControl": false,
+        "isMenu": false
+      },
+      {
+        "name": "Vertical_v7_61007966_MainLayoutEdit_xaf_l275_pg_xaf_l460_xaf_l475_xaf_dviQUOTE_Edit_DDD",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "PerformCallback"
+        ],
+        "isGrid": false,
+        "isComboBox": false,
+        "isLookup": false,
+        "isTabControl": false,
+        "isMenu": false
+      },
+      {
+        "name": "Vertical_v7_61007966_MainLayoutEdit_xaf_l275_pg_xaf_l460_xaf_l475_xaf_dviQUOTE_Edit",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "PerformCallback",
+          "SetValue",
+          "GetValue",
+          "SetText",
+          "GetText",
+          "SetSelectedIndex",
+          "FindItemByValue",
+          "FindItemByText",
+          "ShowDropDown",
+          "HideDropDown",
+          "GetItemCount",
+          "EnsureDropDownLoaded"
+        ],
+        "isGrid": false,
+        "isComboBox": true,
+        "isLookup": false,
+        "isTabControl": false,
+        "isMenu": false
+      },
+      {
+        "name": "Vertical_v7_61007966_MainLayoutEdit_xaf_l275_pg_xaf_l460_xaf_l480_xaf_dviLANGUAGEID_Edit_EditorClientInfo",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "PerformCallback"
+        ],
+        "isGrid": false,
+        "isComboBox": false,
+        "isLookup": false,
+        "isTabControl": false,
+        "isMenu": false
+      },
+      {
+        "name": "Vertical_v7_61007966_MainLayoutEdit_xaf_l275_pg_xaf_l460_xaf_l480_xaf_dviLANGUAGEID_Edit_DDD_L",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "PerformCallback",
+          "SetValue",
+          "GetValue",
+          "SetSelectedIndex",
+          "FindItemByValue",
+          "FindItemByText",
+          "GetItemCount"
+        ],
+        "isGrid": false,
+        "isComboBox": false,
+        "isLookup": false,
+        "isTabControl": false,
+        "isMenu": false
+      },
+      {
+        "name": "Vertical_v7_61007966_MainLayoutEdit_xaf_l275_pg_xaf_l460_xaf_l480_xaf_dviLANGUAGEID_Edit_DDD",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "PerformCallback"
+        ],
+        "isGrid": false,
+        "isComboBox": false,
+        "isLookup": false,
+        "isTabControl": false,
+        "isMenu": false
+      },
+      {
+        "name": "Vertical_v7_61007966_MainLayoutEdit_xaf_l275_pg_xaf_l460_xaf_l480_xaf_dviLANGUAGEID_Edit",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "PerformCallback",
+          "SetValue",
+          "GetValue",
+          "SetText",
+          "GetText",
+          "SetSelectedIndex",
+          "FindItemByValue",
+          "FindItemByText",
+          "ShowDropDown",
+          "HideDropDown",
+          "GetItemCount",
+          "EnsureDropDownLoaded"
+        ],
+        "isGrid": false,
+        "isComboBox": true,
+        "isLookup": false,
+        "isTabControl": false,
+        "isMenu": false
+      },
+      {
+        "name": "Vertical_v7_61007966_MainLayoutEdit_xaf_l275_pg_xaf_l460_xaf_l485_xaf_dviCOMPLETEDDATE_Edit_EditorClientInfo",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "PerformCallback"
+        ],
+        "isGrid": false,
+        "isComboBox": false,
+        "isLookup": false,
+        "isTabControl": false,
+        "isMenu": false
+      },
+      {
+        "name": "Vertical_v7_61007966_MainLayoutEdit_xaf_l275_pg_xaf_l460_xaf_l485_xaf_dviCOMPLETEDDATE_Edit_DDD_C",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "SetValue",
+          "GetValue"
+        ],
+        "isGrid": false,
+        "isComboBox": false,
+        "isLookup": false,
+        "isTabControl": false,
+        "isMenu": false
+      },
+      {
+        "name": "Vertical_v7_61007966_MainLayoutEdit_xaf_l275_pg_xaf_l460_xaf_l485_xaf_dviCOMPLETEDDATE_Edit_DDD",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "PerformCallback"
+        ],
+        "isGrid": false,
+        "isComboBox": false,
+        "isLookup": false,
+        "isTabControl": false,
+        "isMenu": false
+      },
+      {
+        "name": "Vertical_v7_61007966_MainLayoutEdit_xaf_l275_pg_xaf_l460_xaf_l485_xaf_dviCOMPLETEDDATE_Edit",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "SetValue",
+          "GetValue",
+          "SetText",
+          "GetText",
+          "ShowDropDown",
+          "HideDropDown"
+        ],
+        "isGrid": false,
+        "isComboBox": false,
+        "isLookup": true,
+        "isTabControl": false,
+        "isMenu": false
+      },
+      {
+        "name": "Vertical_v7_61007966_MainLayoutEdit_xaf_l275_pg_xaf_l489_xaf_l494_xaf_dviTEXTEXTERNAL_Edit_EditorClientInfo",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "PerformCallback"
+        ],
+        "isGrid": false,
+        "isComboBox": false,
+        "isLookup": false,
+        "isTabControl": false,
+        "isMenu": false
+      },
+      {
+        "name": "Vertical_v7_61007966_MainLayoutEdit_xaf_l275_pg_xaf_l489_xaf_l494_xaf_dviTEXTEXTERNAL_Edit",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "SetValue",
+          "GetValue",
+          "SetText",
+          "GetText"
+        ],
+        "isGrid": false,
+        "isComboBox": false,
+        "isLookup": false,
+        "isTabControl": false,
+        "isMenu": false
+      },
+      {
+        "name": "Vertical_v7_61007966_MainLayoutEdit_xaf_l275_pg_xaf_l489_xaf_l499_xaf_dviTEXTINTERNAL_Edit_EditorClientInfo",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "PerformCallback"
+        ],
+        "isGrid": false,
+        "isComboBox": false,
+        "isLookup": false,
+        "isTabControl": false,
+        "isMenu": false
+      },
+      {
+        "name": "Vertical_v7_61007966_MainLayoutEdit_xaf_l275_pg_xaf_l489_xaf_l499_xaf_dviTEXTINTERNAL_Edit",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "SetValue",
+          "GetValue",
+          "SetText",
+          "GetText"
+        ],
+        "isGrid": false,
+        "isComboBox": false,
+        "isLookup": false,
+        "isTabControl": false,
+        "isMenu": false
+      },
+      {
+        "name": "Vertical_v7_61007966_MainLayoutEdit_xaf_l275_pg_xaf_l503_xaf_l508_xaf_dviSALESTYPE_Edit_EditorClientInfo",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "PerformCallback"
+        ],
+        "isGrid": false,
+        "isComboBox": false,
+        "isLookup": false,
+        "isTabControl": false,
+        "isMenu": false
+      },
+      {
+        "name": "Vertical_v7_61007966_MainLayoutEdit_xaf_l275_pg_xaf_l503_xaf_l508_xaf_dviSALESTYPE_Edit_DDD_L",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "PerformCallback",
+          "SetValue",
+          "GetValue",
+          "SetSelectedIndex",
+          "FindItemByValue",
+          "FindItemByText",
+          "GetItemCount"
+        ],
+        "isGrid": false,
+        "isComboBox": false,
+        "isLookup": false,
+        "isTabControl": false,
+        "isMenu": false
+      },
+      {
+        "name": "Vertical_v7_61007966_MainLayoutEdit_xaf_l275_pg_xaf_l503_xaf_l508_xaf_dviSALESTYPE_Edit_DDD",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "PerformCallback"
+        ],
+        "isGrid": false,
+        "isComboBox": false,
+        "isLookup": false,
+        "isTabControl": false,
+        "isMenu": false
+      },
+      {
+        "name": "Vertical_v7_61007966_MainLayoutEdit_xaf_l275_pg_xaf_l503_xaf_l508_xaf_dviSALESTYPE_Edit",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "PerformCallback",
+          "SetValue",
+          "GetValue",
+          "SetText",
+          "GetText",
+          "SetSelectedIndex",
+          "FindItemByValue",
+          "FindItemByText",
+          "ShowDropDown",
+          "HideDropDown",
+          "GetItemCount",
+          "EnsureDropDownLoaded"
+        ],
+        "isGrid": false,
+        "isComboBox": true,
+        "isLookup": false,
+        "isTabControl": false,
+        "isMenu": false
+      },
+      {
+        "name": "Vertical_v7_61007966_MainLayoutEdit_xaf_l275_pg_xaf_l503_xaf_l513_xaf_dviSALESSTATUS_Edit_EditorClientInfo",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "PerformCallback"
+        ],
+        "isGrid": false,
+        "isComboBox": false,
+        "isLookup": false,
+        "isTabControl": false,
+        "isMenu": false
+      },
+      {
+        "name": "Vertical_v7_61007966_MainLayoutEdit_xaf_l275_pg_xaf_l503_xaf_l513_xaf_dviSALESSTATUS_Edit_DDD_L",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "PerformCallback",
+          "SetValue",
+          "GetValue",
+          "SetSelectedIndex",
+          "FindItemByValue",
+          "FindItemByText",
+          "GetItemCount"
+        ],
+        "isGrid": false,
+        "isComboBox": false,
+        "isLookup": false,
+        "isTabControl": false,
+        "isMenu": false
+      },
+      {
+        "name": "Vertical_v7_61007966_MainLayoutEdit_xaf_l275_pg_xaf_l503_xaf_l513_xaf_dviSALESSTATUS_Edit_DDD",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "PerformCallback"
+        ],
+        "isGrid": false,
+        "isComboBox": false,
+        "isLookup": false,
+        "isTabControl": false,
+        "isMenu": false
+      },
+      {
+        "name": "Vertical_v7_61007966_MainLayoutEdit_xaf_l275_pg_xaf_l503_xaf_l513_xaf_dviSALESSTATUS_Edit",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "PerformCallback",
+          "SetValue",
+          "GetValue",
+          "SetText",
+          "GetText",
+          "SetSelectedIndex",
+          "FindItemByValue",
+          "FindItemByText",
+          "ShowDropDown",
+          "HideDropDown",
+          "GetItemCount",
+          "EnsureDropDownLoaded"
+        ],
+        "isGrid": false,
+        "isComboBox": true,
+        "isLookup": false,
+        "isTabControl": false,
+        "isMenu": false
+      },
+      {
+        "name": "Vertical_v7_61007966_MainLayoutEdit_xaf_l275_pg_xaf_l503_xaf_l518_xaf_dviDOCUMENTSTATUS_Edit_EditorClientInfo",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "PerformCallback"
+        ],
+        "isGrid": false,
+        "isComboBox": false,
+        "isLookup": false,
+        "isTabControl": false,
+        "isMenu": false
+      },
+      {
+        "name": "Vertical_v7_61007966_MainLayoutEdit_xaf_l275_pg_xaf_l503_xaf_l518_xaf_dviDOCUMENTSTATUS_Edit_DDD_L",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "PerformCallback",
+          "SetValue",
+          "GetValue",
+          "SetSelectedIndex",
+          "FindItemByValue",
+          "FindItemByText",
+          "GetItemCount"
+        ],
+        "isGrid": false,
+        "isComboBox": false,
+        "isLookup": false,
+        "isTabControl": false,
+        "isMenu": false
+      },
+      {
+        "name": "Vertical_v7_61007966_MainLayoutEdit_xaf_l275_pg_xaf_l503_xaf_l518_xaf_dviDOCUMENTSTATUS_Edit_DDD",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "PerformCallback"
+        ],
+        "isGrid": false,
+        "isComboBox": false,
+        "isLookup": false,
+        "isTabControl": false,
+        "isMenu": false
+      },
+      {
+        "name": "Vertical_v7_61007966_MainLayoutEdit_xaf_l275_pg_xaf_l503_xaf_l518_xaf_dviDOCUMENTSTATUS_Edit",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "PerformCallback",
+          "SetValue",
+          "GetValue",
+          "SetText",
+          "GetText",
+          "SetSelectedIndex",
+          "FindItemByValue",
+          "FindItemByText",
+          "ShowDropDown",
+          "HideDropDown",
+          "GetItemCount",
+          "EnsureDropDownLoaded"
+        ],
+        "isGrid": false,
+        "isComboBox": true,
+        "isLookup": false,
+        "isTabControl": false,
+        "isMenu": false
+      },
+      {
+        "name": "Vertical_v7_61007966_MainLayoutEdit_xaf_l275_pg_xaf_l503_xaf_l523_xaf_dviTRANSFERSTATUS_Edit_EditorClientInfo",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "PerformCallback"
+        ],
+        "isGrid": false,
+        "isComboBox": false,
+        "isLookup": false,
+        "isTabControl": false,
+        "isMenu": false
+      },
+      {
+        "name": "Vertical_v7_61007966_MainLayoutEdit_xaf_l275_pg_xaf_l503_xaf_l523_xaf_dviTRANSFERSTATUS_Edit_DDD_L",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "PerformCallback",
+          "SetValue",
+          "GetValue",
+          "SetSelectedIndex",
+          "FindItemByValue",
+          "FindItemByText",
+          "GetItemCount"
+        ],
+        "isGrid": false,
+        "isComboBox": false,
+        "isLookup": false,
+        "isTabControl": false,
+        "isMenu": false
+      },
+      {
+        "name": "Vertical_v7_61007966_MainLayoutEdit_xaf_l275_pg_xaf_l503_xaf_l523_xaf_dviTRANSFERSTATUS_Edit_DDD",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "PerformCallback"
+        ],
+        "isGrid": false,
+        "isComboBox": false,
+        "isLookup": false,
+        "isTabControl": false,
+        "isMenu": false
+      },
+      {
+        "name": "Vertical_v7_61007966_MainLayoutEdit_xaf_l275_pg_xaf_l503_xaf_l523_xaf_dviTRANSFERSTATUS_Edit",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "PerformCallback",
+          "SetValue",
+          "GetValue",
+          "SetText",
+          "GetText",
+          "SetSelectedIndex",
+          "FindItemByValue",
+          "FindItemByText",
+          "ShowDropDown",
+          "HideDropDown",
+          "GetItemCount",
+          "EnsureDropDownLoaded"
+        ],
+        "isGrid": false,
+        "isComboBox": true,
+        "isLookup": false,
+        "isTabControl": false,
+        "isMenu": false
+      },
+      {
+        "name": "Vertical_v7_61007966_MainLayoutEdit_xaf_l275_pg_xaf_l503_xaf_l528_xaf_dviTRANSFERREDDATE_Edit_EditorClientInfo",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "PerformCallback"
+        ],
+        "isGrid": false,
+        "isComboBox": false,
+        "isLookup": false,
+        "isTabControl": false,
+        "isMenu": false
+      },
+      {
+        "name": "Vertical_v7_61007966_MainLayoutEdit_xaf_l275_pg_xaf_l503_xaf_l528_xaf_dviTRANSFERREDDATE_Edit_DDD_C",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "SetValue",
+          "GetValue"
+        ],
+        "isGrid": false,
+        "isComboBox": false,
+        "isLookup": false,
+        "isTabControl": false,
+        "isMenu": false
+      },
+      {
+        "name": "Vertical_v7_61007966_MainLayoutEdit_xaf_l275_pg_xaf_l503_xaf_l528_xaf_dviTRANSFERREDDATE_Edit_DDD",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "PerformCallback"
+        ],
+        "isGrid": false,
+        "isComboBox": false,
+        "isLookup": false,
+        "isTabControl": false,
+        "isMenu": false
+      },
+      {
+        "name": "Vertical_v7_61007966_MainLayoutEdit_xaf_l275_pg_xaf_l503_xaf_l528_xaf_dviTRANSFERREDDATE_Edit",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "SetValue",
+          "GetValue",
+          "SetText",
+          "GetText",
+          "ShowDropDown",
+          "HideDropDown"
+        ],
+        "isGrid": false,
+        "isComboBox": false,
+        "isLookup": true,
+        "isTabControl": false,
+        "isMenu": false
+      },
+      {
+        "name": "Vertical_v7_61007966_MainLayoutEdit_xaf_l275_pg_xaf_l535_im",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "PerformCallback"
+        ],
+        "isGrid": false,
+        "isComboBox": false,
+        "isLookup": false,
+        "isTabControl": false,
+        "isMenu": false
+      },
+      {
+        "name": "Vertical_v7_61007966_MainLayoutEdit_xaf_l275_pg_xaf_l690_im",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "PerformCallback"
+        ],
+        "isGrid": false,
+        "isComboBox": false,
+        "isLookup": false,
+        "isTabControl": false,
+        "isMenu": false
+      },
+      {
+        "name": "Vertical_v7_61007966_MainLayoutEdit_xaf_l275_pg",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "PerformCallback"
+        ],
+        "isGrid": false,
+        "isComboBox": false,
+        "isLookup": false,
+        "isTabControl": true,
+        "isMenu": false
+      },
+      {
+        "name": "Vertical_v7_61007966_MainLayoutEdit_xaf_l715_pg_xaf_l718_im",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "PerformCallback"
+        ],
+        "isGrid": false,
+        "isComboBox": false,
+        "isLookup": false,
+        "isTabControl": false,
+        "isMenu": false
+      },
+      {
+        "name": "Vertical_v7_61007966_MainLayoutEdit_xaf_l715_pg_xaf_l721_xaf_dviSALESLINEs_ToolBar_Menu",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "GetItemCount"
+        ],
+        "isGrid": false,
+        "isComboBox": false,
+        "isLookup": false,
+        "isTabControl": false,
+        "isMenu": true
+      },
+      {
+        "name": "Vertical_v7_61007966_MainLayoutEdit_xaf_l715_pg_xaf_l721_xaf_dviSALESLINEs_v10_30726963_LE_v10_custwindow",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "PerformCallback"
+        ],
+        "isGrid": false,
+        "isComboBox": false,
+        "isLookup": false,
+        "isTabControl": false,
+        "isMenu": false
+      },
+      {
+        "name": "Vertical_v7_61007966_MainLayoutEdit_xaf_l715_pg_xaf_l721_xaf_dviSALESLINEs_v10_30726963_LE_v10_DXHFP_TPCFCm1_O",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "SetText",
+          "GetText"
+        ],
+        "isGrid": false,
+        "isComboBox": false,
+        "isLookup": false,
+        "isTabControl": false,
+        "isMenu": false
+      },
+      {
+        "name": "Vertical_v7_61007966_MainLayoutEdit_xaf_l715_pg_xaf_l721_xaf_dviSALESLINEs_v10_30726963_LE_v10_DXHFP_TPCFCm1_C",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "SetText",
+          "GetText"
+        ],
+        "isGrid": false,
+        "isComboBox": false,
+        "isLookup": false,
+        "isTabControl": false,
+        "isMenu": false
+      },
+      {
+        "name": "Vertical_v7_61007966_MainLayoutEdit_xaf_l715_pg_xaf_l721_xaf_dviSALESLINEs_v10_30726963_LE_v10_DXHFP",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "PerformCallback"
+        ],
+        "isGrid": false,
+        "isComboBox": false,
+        "isLookup": false,
+        "isTabControl": false,
+        "isMenu": false
+      },
+      {
+        "name": "Vertical_v7_61007966_MainLayoutEdit_xaf_l715_pg_xaf_l721_xaf_dviSALESLINEs_v10_30726963_LE_v10_DXFilterRowMenu",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "GetItemCount"
+        ],
+        "isGrid": false,
+        "isComboBox": false,
+        "isLookup": false,
+        "isTabControl": false,
+        "isMenu": true
+      },
+      {
+        "name": "Vertical_v7_61007966_MainLayoutEdit_xaf_l715_pg_xaf_l721_xaf_dviSALESLINEs_v10_30726963_LE_v10_DXContextMenu_Columns",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "GetItemCount"
+        ],
+        "isGrid": false,
+        "isComboBox": false,
+        "isLookup": false,
+        "isTabControl": false,
+        "isMenu": true
+      },
+      {
+        "name": "Vertical_v7_61007966_MainLayoutEdit_xaf_l715_pg_xaf_l721_xaf_dviSALESLINEs_v10_30726963_LE_v10_DXContextMenu_Footer",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "GetItemCount"
+        ],
+        "isGrid": false,
+        "isComboBox": false,
+        "isLookup": false,
+        "isTabControl": false,
+        "isMenu": true
+      },
+      {
+        "name": "Vertical_v7_61007966_MainLayoutEdit_xaf_l715_pg_xaf_l721_xaf_dviSALESLINEs_v10_30726963_LE_v10_DXCDWindow_DXCDPageControl",
+        "type": "ret",
+        "methods": [
+          "InCallback"
+        ],
+        "isGrid": false,
+        "isComboBox": false,
+        "isLookup": false,
+        "isTabControl": true,
+        "isMenu": false
+      },
+      {
+        "name": "Vertical_v7_61007966_MainLayoutEdit_xaf_l715_pg_xaf_l721_xaf_dviSALESLINEs_v10_30726963_LE_v10_DXCDWindow",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "PerformCallback"
+        ],
+        "isGrid": false,
+        "isComboBox": false,
+        "isLookup": false,
+        "isTabControl": false,
+        "isMenu": false
+      },
+      {
+        "name": "Vertical_v7_61007966_MainLayoutEdit_xaf_l715_pg_xaf_l721_xaf_dviSALESLINEs_v10_30726963_LE_v10_DXFREditorcol0_DDD_L",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "PerformCallback",
+          "SetValue",
+          "GetValue",
+          "SetSelectedIndex",
+          "FindItemByValue",
+          "FindItemByText",
+          "GetItemCount"
+        ],
+        "isGrid": false,
+        "isComboBox": false,
+        "isLookup": false,
+        "isTabControl": false,
+        "isMenu": false
+      },
+      {
+        "name": "Vertical_v7_61007966_MainLayoutEdit_xaf_l715_pg_xaf_l721_xaf_dviSALESLINEs_v10_30726963_LE_v10_DXFREditorcol0_DDD",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "PerformCallback"
+        ],
+        "isGrid": false,
+        "isComboBox": false,
+        "isLookup": false,
+        "isTabControl": false,
+        "isMenu": false
+      },
+      {
+        "name": "Vertical_v7_61007966_MainLayoutEdit_xaf_l715_pg_xaf_l721_xaf_dviSALESLINEs_v10_30726963_LE_v10_DXFREditorcol0",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "PerformCallback",
+          "SetValue",
+          "GetValue",
+          "SetText",
+          "GetText",
+          "SetSelectedIndex",
+          "FindItemByValue",
+          "FindItemByText",
+          "ShowDropDown",
+          "HideDropDown",
+          "GetItemCount",
+          "EnsureDropDownLoaded"
+        ],
+        "isGrid": false,
+        "isComboBox": true,
+        "isLookup": false,
+        "isTabControl": false,
+        "isMenu": false
+      },
+      {
+        "name": "Vertical_v7_61007966_MainLayoutEdit_xaf_l715_pg_xaf_l721_xaf_dviSALESLINEs_v10_30726963_LE_v10_DXFREditorcol1_DDD_L",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "PerformCallback",
+          "SetValue",
+          "GetValue",
+          "SetSelectedIndex",
+          "FindItemByValue",
+          "FindItemByText",
+          "GetItemCount"
+        ],
+        "isGrid": false,
+        "isComboBox": false,
+        "isLookup": false,
+        "isTabControl": false,
+        "isMenu": false
+      },
+      {
+        "name": "Vertical_v7_61007966_MainLayoutEdit_xaf_l715_pg_xaf_l721_xaf_dviSALESLINEs_v10_30726963_LE_v10_DXFREditorcol1_DDD",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "PerformCallback"
+        ],
+        "isGrid": false,
+        "isComboBox": false,
+        "isLookup": false,
+        "isTabControl": false,
+        "isMenu": false
+      },
+      {
+        "name": "Vertical_v7_61007966_MainLayoutEdit_xaf_l715_pg_xaf_l721_xaf_dviSALESLINEs_v10_30726963_LE_v10_DXFREditorcol1",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "PerformCallback",
+          "SetValue",
+          "GetValue",
+          "SetText",
+          "GetText",
+          "SetSelectedIndex",
+          "FindItemByValue",
+          "FindItemByText",
+          "ShowDropDown",
+          "HideDropDown",
+          "GetItemCount",
+          "EnsureDropDownLoaded"
+        ],
+        "isGrid": false,
+        "isComboBox": true,
+        "isLookup": false,
+        "isTabControl": false,
+        "isMenu": false
+      },
+      {
+        "name": "Vertical_v7_61007966_MainLayoutEdit_xaf_l715_pg_xaf_l721_xaf_dviSALESLINEs_v10_30726963_LE_v10_DXFREditorcol2_DDD_C",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "SetValue",
+          "GetValue"
+        ],
+        "isGrid": false,
+        "isComboBox": false,
+        "isLookup": false,
+        "isTabControl": false,
+        "isMenu": false
+      },
+      {
+        "name": "Vertical_v7_61007966_MainLayoutEdit_xaf_l715_pg_xaf_l721_xaf_dviSALESLINEs_v10_30726963_LE_v10_DXFREditorcol2_DDD",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "PerformCallback"
+        ],
+        "isGrid": false,
+        "isComboBox": false,
+        "isLookup": false,
+        "isTabControl": false,
+        "isMenu": false
+      },
+      {
+        "name": "Vertical_v7_61007966_MainLayoutEdit_xaf_l715_pg_xaf_l721_xaf_dviSALESLINEs_v10_30726963_LE_v10_DXFREditorcol2",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "SetValue",
+          "GetValue",
+          "SetText",
+          "GetText",
+          "ShowDropDown",
+          "HideDropDown"
+        ],
+        "isGrid": false,
+        "isComboBox": false,
+        "isLookup": true,
+        "isTabControl": false,
+        "isMenu": false
+      },
+      {
+        "name": "Vertical_v7_61007966_MainLayoutEdit_xaf_l715_pg_xaf_l721_xaf_dviSALESLINEs_v10_30726963_LE_v10_DXFREditorcol3_DDD_C",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "SetValue",
+          "GetValue"
+        ],
+        "isGrid": false,
+        "isComboBox": false,
+        "isLookup": false,
+        "isTabControl": false,
+        "isMenu": false
+      },
+      {
+        "name": "Vertical_v7_61007966_MainLayoutEdit_xaf_l715_pg_xaf_l721_xaf_dviSALESLINEs_v10_30726963_LE_v10_DXFREditorcol3_DDD",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "PerformCallback"
+        ],
+        "isGrid": false,
+        "isComboBox": false,
+        "isLookup": false,
+        "isTabControl": false,
+        "isMenu": false
+      },
+      {
+        "name": "Vertical_v7_61007966_MainLayoutEdit_xaf_l715_pg_xaf_l721_xaf_dviSALESLINEs_v10_30726963_LE_v10_DXFREditorcol3",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "SetValue",
+          "GetValue",
+          "SetText",
+          "GetText",
+          "ShowDropDown",
+          "HideDropDown"
+        ],
+        "isGrid": false,
+        "isComboBox": false,
+        "isLookup": true,
+        "isTabControl": false,
+        "isMenu": false
+      },
+      {
+        "name": "Vertical_v7_61007966_MainLayoutEdit_xaf_l715_pg_xaf_l721_xaf_dviSALESLINEs_v10_30726963_LE_v10_DXFREditorcol4",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "SetValue",
+          "GetValue",
+          "SetText",
+          "GetText"
+        ],
+        "isGrid": false,
+        "isComboBox": false,
+        "isLookup": false,
+        "isTabControl": false,
+        "isMenu": false
+      },
+      {
+        "name": "Vertical_v7_61007966_MainLayoutEdit_xaf_l715_pg_xaf_l721_xaf_dviSALESLINEs_v10_30726963_LE_v10_DXFREditorcol5",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "SetValue",
+          "GetValue",
+          "SetText",
+          "GetText"
+        ],
+        "isGrid": false,
+        "isComboBox": false,
+        "isLookup": false,
+        "isTabControl": false,
+        "isMenu": false
+      },
+      {
+        "name": "Vertical_v7_61007966_MainLayoutEdit_xaf_l715_pg_xaf_l721_xaf_dviSALESLINEs_v10_30726963_LE_v10_DXFREditorcol6",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "SetValue",
+          "GetValue",
+          "SetText",
+          "GetText"
+        ],
+        "isGrid": false,
+        "isComboBox": false,
+        "isLookup": false,
+        "isTabControl": false,
+        "isMenu": false
+      },
+      {
+        "name": "Vertical_v7_61007966_MainLayoutEdit_xaf_l715_pg_xaf_l721_xaf_dviSALESLINEs_v10_30726963_LE_v10_DXFREditorcol7",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "SetValue",
+          "GetValue",
+          "SetText",
+          "GetText"
+        ],
+        "isGrid": false,
+        "isComboBox": false,
+        "isLookup": false,
+        "isTabControl": false,
+        "isMenu": false
+      },
+      {
+        "name": "Vertical_v7_61007966_MainLayoutEdit_xaf_l715_pg_xaf_l721_xaf_dviSALESLINEs_v10_30726963_LE_v10_DXFREditorcol8_DDD_L",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "PerformCallback",
+          "SetValue",
+          "GetValue",
+          "SetSelectedIndex",
+          "FindItemByValue",
+          "FindItemByText",
+          "GetItemCount"
+        ],
+        "isGrid": false,
+        "isComboBox": false,
+        "isLookup": false,
+        "isTabControl": false,
+        "isMenu": false
+      },
+      {
+        "name": "Vertical_v7_61007966_MainLayoutEdit_xaf_l715_pg_xaf_l721_xaf_dviSALESLINEs_v10_30726963_LE_v10_DXFREditorcol8_DDD",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "PerformCallback"
+        ],
+        "isGrid": false,
+        "isComboBox": false,
+        "isLookup": false,
+        "isTabControl": false,
+        "isMenu": false
+      },
+      {
+        "name": "Vertical_v7_61007966_MainLayoutEdit_xaf_l715_pg_xaf_l721_xaf_dviSALESLINEs_v10_30726963_LE_v10_DXFREditorcol8",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "PerformCallback",
+          "SetValue",
+          "GetValue",
+          "SetText",
+          "GetText",
+          "SetSelectedIndex",
+          "FindItemByValue",
+          "FindItemByText",
+          "ShowDropDown",
+          "HideDropDown",
+          "GetItemCount",
+          "EnsureDropDownLoaded"
+        ],
+        "isGrid": false,
+        "isComboBox": true,
+        "isLookup": false,
+        "isTabControl": false,
+        "isMenu": false
+      },
+      {
+        "name": "Vertical_v7_61007966_MainLayoutEdit_xaf_l715_pg_xaf_l721_xaf_dviSALESLINEs_v10_30726963_LE_v10_DXFREditorcol9",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "SetValue",
+          "GetValue",
+          "SetText",
+          "GetText"
+        ],
+        "isGrid": false,
+        "isComboBox": false,
+        "isLookup": false,
+        "isTabControl": false,
+        "isMenu": false
+      },
+      {
+        "name": "Vertical_v7_61007966_MainLayoutEdit_xaf_l715_pg_xaf_l721_xaf_dviSALESLINEs_v10_30726963_LE_v10_DXFREditorcol10",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "SetValue",
+          "GetValue",
+          "SetText",
+          "GetText"
+        ],
+        "isGrid": false,
+        "isComboBox": false,
+        "isLookup": false,
+        "isTabControl": false,
+        "isMenu": false
+      },
+      {
+        "name": "Vertical_v7_61007966_MainLayoutEdit_xaf_l715_pg_xaf_l721_xaf_dviSALESLINEs_v10_30726963_LE_v10_DXFREditorcol11",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "SetValue",
+          "GetValue",
+          "SetText",
+          "GetText"
+        ],
+        "isGrid": false,
+        "isComboBox": false,
+        "isLookup": false,
+        "isTabControl": false,
+        "isMenu": false
+      },
+      {
+        "name": "Vertical_v7_61007966_MainLayoutEdit_xaf_l715_pg_xaf_l721_xaf_dviSALESLINEs_v10_30726963_LE_v10_DXFREditorcol12",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "SetValue",
+          "GetValue",
+          "SetText",
+          "GetText"
+        ],
+        "isGrid": false,
+        "isComboBox": false,
+        "isLookup": false,
+        "isTabControl": false,
+        "isMenu": false
+      },
+      {
+        "name": "Vertical_v7_61007966_MainLayoutEdit_xaf_l715_pg_xaf_l721_xaf_dviSALESLINEs_v10_30726963_LE_v10_DXFREditorcol13",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "SetValue",
+          "GetValue",
+          "SetText",
+          "GetText"
+        ],
+        "isGrid": false,
+        "isComboBox": false,
+        "isLookup": false,
+        "isTabControl": false,
+        "isMenu": false
+      },
+      {
+        "name": "Vertical_v7_61007966_MainLayoutEdit_xaf_l715_pg_xaf_l721_xaf_dviSALESLINEs_v10_30726963_LE_v10_DXFREditorcol14",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "SetValue",
+          "GetValue",
+          "SetText",
+          "GetText"
+        ],
+        "isGrid": false,
+        "isComboBox": false,
+        "isLookup": false,
+        "isTabControl": false,
+        "isMenu": false
+      },
+      {
+        "name": "Vertical_v7_61007966_MainLayoutEdit_xaf_l715_pg_xaf_l721_xaf_dviSALESLINEs_v10_30726963_LE_v10_DXFREditorcol15",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "SetValue",
+          "GetValue",
+          "SetText",
+          "GetText"
+        ],
+        "isGrid": false,
+        "isComboBox": false,
+        "isLookup": false,
+        "isTabControl": false,
+        "isMenu": false
+      },
+      {
+        "name": "Vertical_v7_61007966_MainLayoutEdit_xaf_l715_pg_xaf_l721_xaf_dviSALESLINEs_v10_30726963_LE_v10_DXFREditorcol16",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "SetValue",
+          "GetValue",
+          "SetText",
+          "GetText"
+        ],
+        "isGrid": false,
+        "isComboBox": false,
+        "isLookup": false,
+        "isTabControl": false,
+        "isMenu": false
+      },
+      {
+        "name": "Vertical_v7_61007966_MainLayoutEdit_xaf_l715_pg_xaf_l721_xaf_dviSALESLINEs_v10_30726963_LE_v10_DXFREditorcol17",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "SetValue",
+          "GetValue",
+          "SetText",
+          "GetText"
+        ],
+        "isGrid": false,
+        "isComboBox": false,
+        "isLookup": false,
+        "isTabControl": false,
+        "isMenu": false
+      },
+      {
+        "name": "Vertical_v7_61007966_MainLayoutEdit_xaf_l715_pg_xaf_l721_xaf_dviSALESLINEs_v10_30726963_LE_v10_DXFREditorcol18",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "SetValue",
+          "GetValue",
+          "SetText",
+          "GetText"
+        ],
+        "isGrid": false,
+        "isComboBox": false,
+        "isLookup": false,
+        "isTabControl": false,
+        "isMenu": false
+      },
+      {
+        "name": "Vertical_v7_61007966_MainLayoutEdit_xaf_l715_pg_xaf_l721_xaf_dviSALESLINEs_v10_30726963_LE_v10_DXFREditorcol19",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "SetValue",
+          "GetValue",
+          "SetText",
+          "GetText"
+        ],
+        "isGrid": false,
+        "isComboBox": false,
+        "isLookup": false,
+        "isTabControl": false,
+        "isMenu": false
+      },
+      {
+        "name": "Vertical_v7_61007966_MainLayoutEdit_xaf_l715_pg_xaf_l721_xaf_dviSALESLINEs_v10_30726963_LE_v10_DXFREditorcol20",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "SetValue",
+          "GetValue",
+          "SetText",
+          "GetText"
+        ],
+        "isGrid": false,
+        "isComboBox": false,
+        "isLookup": false,
+        "isTabControl": false,
+        "isMenu": false
+      },
+      {
+        "name": "Vertical_v7_61007966_MainLayoutEdit_xaf_l715_pg_xaf_l721_xaf_dviSALESLINEs_v10_30726963_LE_v10_DXFREditorcol21",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "SetValue",
+          "GetValue",
+          "SetText",
+          "GetText"
+        ],
+        "isGrid": false,
+        "isComboBox": false,
+        "isLookup": false,
+        "isTabControl": false,
+        "isMenu": false
+      },
+      {
+        "name": "Vertical_v7_61007966_MainLayoutEdit_xaf_l715_pg_xaf_l721_xaf_dviSALESLINEs_v10_30726963_LE_v10_DXFREditorcol22",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "SetValue",
+          "GetValue",
+          "SetText",
+          "GetText"
+        ],
+        "isGrid": false,
+        "isComboBox": false,
+        "isLookup": false,
+        "isTabControl": false,
+        "isMenu": false
+      },
+      {
+        "name": "Vertical_v7_61007966_MainLayoutEdit_xaf_l715_pg_xaf_l721_xaf_dviSALESLINEs_v10_30726963_LE_v10_DXFREditorcol23",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "SetValue",
+          "GetValue",
+          "SetText",
+          "GetText"
+        ],
+        "isGrid": false,
+        "isComboBox": false,
+        "isLookup": false,
+        "isTabControl": false,
+        "isMenu": false
+      },
+      {
+        "name": "Vertical_v7_61007966_MainLayoutEdit_xaf_l715_pg_xaf_l721_xaf_dviSALESLINEs_v10_30726963_LE_v10_DXFREditorcol24",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "SetValue",
+          "GetValue",
+          "SetText",
+          "GetText"
+        ],
+        "isGrid": false,
+        "isComboBox": false,
+        "isLookup": false,
+        "isTabControl": false,
+        "isMenu": false
+      },
+      {
+        "name": "Vertical_v7_61007966_MainLayoutEdit_xaf_l715_pg_xaf_l721_xaf_dviSALESLINEs_v10_30726963_LE_v10_DXFREditorcol25",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "SetValue",
+          "GetValue",
+          "SetText",
+          "GetText"
+        ],
+        "isGrid": false,
+        "isComboBox": false,
+        "isLookup": false,
+        "isTabControl": false,
+        "isMenu": false
+      },
+      {
+        "name": "Vertical_v7_61007966_MainLayoutEdit_xaf_l715_pg_xaf_l721_xaf_dviSALESLINEs_v10_30726963_LE_v10_DXFREditorcol26",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "SetValue",
+          "GetValue",
+          "SetText",
+          "GetText"
+        ],
+        "isGrid": false,
+        "isComboBox": false,
+        "isLookup": false,
+        "isTabControl": false,
+        "isMenu": false
+      },
+      {
+        "name": "Vertical_v7_61007966_MainLayoutEdit_xaf_l715_pg_xaf_l721_xaf_dviSALESLINEs_v10_30726963_LE_v10_DXFREditorcol27",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "SetValue",
+          "GetValue",
+          "SetText",
+          "GetText"
+        ],
+        "isGrid": false,
+        "isComboBox": false,
+        "isLookup": false,
+        "isTabControl": false,
+        "isMenu": false
+      },
+      {
+        "name": "Vertical_v7_61007966_MainLayoutEdit_xaf_l715_pg_xaf_l721_xaf_dviSALESLINEs_v10_30726963_LE_v10_DXFREditorcol28",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "SetValue",
+          "GetValue",
+          "SetText",
+          "GetText"
+        ],
+        "isGrid": false,
+        "isComboBox": false,
+        "isLookup": false,
+        "isTabControl": false,
+        "isMenu": false
+      },
+      {
+        "name": "Vertical_v7_61007966_MainLayoutEdit_xaf_l715_pg_xaf_l721_xaf_dviSALESLINEs_v10_30726963_LE_v10_DXFREditorcol29",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "SetValue",
+          "GetValue",
+          "SetText",
+          "GetText"
+        ],
+        "isGrid": false,
+        "isComboBox": false,
+        "isLookup": false,
+        "isTabControl": false,
+        "isMenu": false
+      },
+      {
+        "name": "Vertical_v7_61007966_MainLayoutEdit_xaf_l715_pg_xaf_l721_xaf_dviSALESLINEs_v10_30726963_LE_v10_DXFREditorcol30",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "SetValue",
+          "GetValue",
+          "SetText",
+          "GetText"
+        ],
+        "isGrid": false,
+        "isComboBox": false,
+        "isLookup": false,
+        "isTabControl": false,
+        "isMenu": false
+      },
+      {
+        "name": "Vertical_v7_61007966_MainLayoutEdit_xaf_l715_pg_xaf_l721_xaf_dviSALESLINEs_v10_30726963_LE_v10",
+        "type": "ret",
+        "methods": [
+          "AddNewRow",
+          "UpdateEdit",
+          "CancelEdit",
+          "DeleteRow",
+          "GotoPage",
+          "NextPage",
+          "PrevPage",
+          "GetPageIndex",
+          "GetPageCount",
+          "GetVisibleRowsOnPage",
+          "InCallback",
+          "IsEditing",
+          "IsNewRowEditing",
+          "SetEditValue",
+          "GetEditValue",
+          "GetEditor",
+          "FocusEditor",
+          "SetFocusedRowIndex",
+          "GetFocusedRowIndex",
+          "Refresh",
+          "PerformCallback",
+          "StartEditRow",
+          "GetRowValues"
+        ],
+        "isGrid": true,
+        "isComboBox": false,
+        "isLookup": false,
+        "isTabControl": false,
+        "isMenu": false,
+        "pageCount": 0,
+        "pageIndex": 0,
+        "isEditing": false,
+        "visibleRowsOnPage": 0
+      },
+      {
+        "name": "Vertical_v7_61007966_MainLayoutEdit_xaf_l715_pg_xaf_l724_im",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "PerformCallback"
+        ],
+        "isGrid": false,
+        "isComboBox": false,
+        "isLookup": false,
+        "isTabControl": false,
+        "isMenu": false
+      },
+      {
+        "name": "Vertical_v7_61007966_MainLayoutEdit_xaf_l715_pg",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "PerformCallback"
+        ],
+        "isGrid": false,
+        "isComboBox": false,
+        "isLookup": false,
+        "isTabControl": true,
+        "isMenu": false
+      },
+      {
+        "name": "Vertical_v7_61007966_MainLayoutEdit_xaf_l275_pg_xaf_l412_xaf_l417_xaf_dviDELIVERYPOSTALADDRESS_Edit_DDD_gv_DXCBtn0",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "SetText",
+          "GetText"
+        ],
+        "isGrid": false,
+        "isComboBox": false,
+        "isLookup": false,
+        "isTabControl": false,
+        "isMenu": false
+      },
+      {
+        "name": "Vertical_v7_61007966_MainLayoutEdit_xaf_l275_pg_xaf_l412_xaf_l417_xaf_dviDELIVERYPOSTALADDRESS_Edit_DDD_gv_DXCBtn1",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "SetText",
+          "GetText"
+        ],
+        "isGrid": false,
+        "isComboBox": false,
+        "isLookup": false,
+        "isTabControl": false,
+        "isMenu": false
+      },
+      {
+        "name": "Vertical_v7_61007966_MainLayoutEdit_xaf_l275_pg_xaf_l412_xaf_l417_xaf_dviDELIVERYPOSTALADDRESS_Edit_DDD_gv_DXCBtn2",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "SetText",
+          "GetText"
+        ],
+        "isGrid": false,
+        "isComboBox": false,
+        "isLookup": false,
+        "isTabControl": false,
+        "isMenu": false
+      },
+      {
+        "name": "Vertical_v7_61007966_MainLayoutEdit_xaf_l275_pg_xaf_l412_xaf_l417_xaf_dviDELIVERYPOSTALADDRESS_Edit_DDD_gv_DXCBtn3",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "SetText",
+          "GetText"
+        ],
+        "isGrid": false,
+        "isComboBox": false,
+        "isLookup": false,
+        "isTabControl": false,
+        "isMenu": false
+      },
+      {
+        "name": "Vertical_v7_61007966_MainLayoutEdit_xaf_l275_pg_xaf_l412_xaf_l417_xaf_dviDELIVERYPOSTALADDRESS_Edit_DDD_gv_DXCBtn4",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "SetText",
+          "GetText"
+        ],
+        "isGrid": false,
+        "isComboBox": false,
+        "isLookup": false,
+        "isTabControl": false,
+        "isMenu": false
+      },
+      {
+        "name": "Vertical_v7_61007966_MainLayoutEdit_xaf_l275_pg_xaf_l412_xaf_l417_xaf_dviDELIVERYPOSTALADDRESS_Edit_DDD_gv_DXCBtn5",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "SetText",
+          "GetText"
+        ],
+        "isGrid": false,
+        "isComboBox": false,
+        "isLookup": false,
+        "isTabControl": false,
+        "isMenu": false
+      },
+      {
+        "name": "Vertical_v7_61007966_MainLayoutEdit_xaf_l275_pg_xaf_l412_xaf_l417_xaf_dviDELIVERYPOSTALADDRESS_Edit_DDD_gv_DXCBtn6",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "SetText",
+          "GetText"
+        ],
+        "isGrid": false,
+        "isComboBox": false,
+        "isLookup": false,
+        "isTabControl": false,
+        "isMenu": false
+      },
+      {
+        "name": "Vertical_v7_61007966_MainLayoutEdit_xaf_l275_pg_xaf_l412_xaf_l417_xaf_dviDELIVERYPOSTALADDRESS_Edit_DDD_gv_DXCBtn7",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "SetText",
+          "GetText"
+        ],
+        "isGrid": false,
+        "isComboBox": false,
+        "isLookup": false,
+        "isTabControl": false,
+        "isMenu": false
+      },
+      {
+        "name": "Vertical_v7_61007966_MainLayoutEdit_xaf_l275_pg_xaf_l412_xaf_l417_xaf_dviDELIVERYPOSTALADDRESS_Edit_DDD_gv_DXCBtn8",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "SetText",
+          "GetText"
+        ],
+        "isGrid": false,
+        "isComboBox": false,
+        "isLookup": false,
+        "isTabControl": false,
+        "isMenu": false
+      },
+      {
+        "name": "Vertical_v7_61007966_MainLayoutEdit_xaf_l275_pg_xaf_l412_xaf_l417_xaf_dviDELIVERYPOSTALADDRESS_Edit_DDD_gv_DXCBtn9",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "SetText",
+          "GetText"
+        ],
+        "isGrid": false,
+        "isComboBox": false,
+        "isLookup": false,
+        "isTabControl": false,
+        "isMenu": false
+      },
+      {
+        "name": "Vertical_v7_61007966_MainLayoutEdit_xaf_l275_pg_xaf_l412_xaf_l417_xaf_dviDELIVERYPOSTALADDRESS_Edit_DDD_gv_DXCBtn10",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "SetText",
+          "GetText"
+        ],
+        "isGrid": false,
+        "isComboBox": false,
+        "isLookup": false,
+        "isTabControl": false,
+        "isMenu": false
+      },
+      {
+        "name": "Vertical_v7_61007966_MainLayoutEdit_xaf_l275_pg_xaf_l412_xaf_l417_xaf_dviDELIVERYPOSTALADDRESS_Edit_DDD_gv_DXCBtn11",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "SetText",
+          "GetText"
+        ],
+        "isGrid": false,
+        "isComboBox": false,
+        "isLookup": false,
+        "isTabControl": false,
+        "isMenu": false
+      },
+      {
+        "name": "Vertical_v7_61007966_MainLayoutEdit_xaf_l275_pg_xaf_l412_xaf_l417_xaf_dviDELIVERYPOSTALADDRESS_Edit_DDD_gv_DXCBtn12",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "SetText",
+          "GetText"
+        ],
+        "isGrid": false,
+        "isComboBox": false,
+        "isLookup": false,
+        "isTabControl": false,
+        "isMenu": false
+      },
+      {
+        "name": "Vertical_v7_61007966_MainLayoutEdit_xaf_l275_pg_xaf_l412_xaf_l417_xaf_dviDELIVERYPOSTALADDRESS_Edit_DDD_gv_DXCBtn13",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "SetText",
+          "GetText"
+        ],
+        "isGrid": false,
+        "isComboBox": false,
+        "isLookup": false,
+        "isTabControl": false,
+        "isMenu": false
+      },
+      {
+        "name": "Vertical_v7_61007966_MainLayoutEdit_xaf_l275_pg_xaf_l412_xaf_l417_xaf_dviDELIVERYPOSTALADDRESS_Edit_DDD_gv_DXCBtn14",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "SetText",
+          "GetText"
+        ],
+        "isGrid": false,
+        "isComboBox": false,
+        "isLookup": false,
+        "isTabControl": false,
+        "isMenu": false
+      },
+      {
+        "name": "Vertical_v7_61007966_MainLayoutEdit_xaf_l275_pg_xaf_l412_xaf_l417_xaf_dviDELIVERYPOSTALADDRESS_Edit_DDD_gv_DXCBtn15",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "SetText",
+          "GetText"
+        ],
+        "isGrid": false,
+        "isComboBox": false,
+        "isLookup": false,
+        "isTabControl": false,
+        "isMenu": false
+      },
+      {
+        "name": "Vertical_v7_61007966_MainLayoutEdit_xaf_l275_pg_xaf_l412_xaf_l417_xaf_dviDELIVERYPOSTALADDRESS_Edit_DDD_gv_DXCBtn16",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "SetText",
+          "GetText"
+        ],
+        "isGrid": false,
+        "isComboBox": false,
+        "isLookup": false,
+        "isTabControl": false,
+        "isMenu": false
+      },
+      {
+        "name": "Vertical_v7_61007966_MainLayoutEdit_xaf_l275_pg_xaf_l412_xaf_l417_xaf_dviDELIVERYPOSTALADDRESS_Edit_DDD_gv_DXCBtn17",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "SetText",
+          "GetText"
+        ],
+        "isGrid": false,
+        "isComboBox": false,
+        "isLookup": false,
+        "isTabControl": false,
+        "isMenu": false
+      },
+      {
+        "name": "Vertical_v7_61007966_MainLayoutEdit_xaf_l275_pg_xaf_l412_xaf_l417_xaf_dviDELIVERYPOSTALADDRESS_Edit_DDD_gv_DXCBtn18",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "SetText",
+          "GetText"
+        ],
+        "isGrid": false,
+        "isComboBox": false,
+        "isLookup": false,
+        "isTabControl": false,
+        "isMenu": false
+      },
+      {
+        "name": "Vertical_v7_61007966_MainLayoutEdit_xaf_l275_pg_xaf_l412_xaf_l417_xaf_dviDELIVERYPOSTALADDRESS_Edit_DDD_gv_DXCBtn19",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "SetText",
+          "GetText"
+        ],
+        "isGrid": false,
+        "isComboBox": false,
+        "isLookup": false,
+        "isTabControl": false,
+        "isMenu": false
+      },
+      {
+        "name": "Vertical_v7_61007966_MainLayoutEdit_xaf_l275_pg_xaf_l412_xaf_l417_xaf_dviDELIVERYPOSTALADDRESS_Edit_DDD_gv_DXCBtn20",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "SetText",
+          "GetText"
+        ],
+        "isGrid": false,
+        "isComboBox": false,
+        "isLookup": false,
+        "isTabControl": false,
+        "isMenu": false
+      },
+      {
+        "name": "Vertical_v7_61007966_MainLayoutEdit_xaf_l275_pg_xaf_l412_xaf_l417_xaf_dviDELIVERYPOSTALADDRESS_Edit_DDD_gv_DXCBtn21",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "SetText",
+          "GetText"
+        ],
+        "isGrid": false,
+        "isComboBox": false,
+        "isLookup": false,
+        "isTabControl": false,
+        "isMenu": false
+      },
+      {
+        "name": "Vertical_v7_61007966_MainLayoutEdit_xaf_l275_pg_xaf_l412_xaf_l417_xaf_dviDELIVERYPOSTALADDRESS_Edit_DDD_gv_DXCBtn22",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "SetText",
+          "GetText"
+        ],
+        "isGrid": false,
+        "isComboBox": false,
+        "isLookup": false,
+        "isTabControl": false,
+        "isMenu": false
+      },
+      {
+        "name": "Vertical_v7_61007966_MainLayoutEdit_xaf_l275_pg_xaf_l412_xaf_l417_xaf_dviDELIVERYPOSTALADDRESS_Edit_DDD_gv_DXCBtn23",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "SetText",
+          "GetText"
+        ],
+        "isGrid": false,
+        "isComboBox": false,
+        "isLookup": false,
+        "isTabControl": false,
+        "isMenu": false
+      },
+      {
+        "name": "Vertical_v7_61007966_MainLayoutEdit_xaf_l275_pg_xaf_l412_xaf_l417_xaf_dviDELIVERYPOSTALADDRESS_Edit_DDD_gv_DXCBtn24",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "SetText",
+          "GetText"
+        ],
+        "isGrid": false,
+        "isComboBox": false,
+        "isLookup": false,
+        "isTabControl": false,
+        "isMenu": false
+      },
+      {
+        "name": "Vertical_v7_61007966_MainLayoutEdit_xaf_l275_pg_xaf_l412_xaf_l417_xaf_dviDELIVERYPOSTALADDRESS_Edit_DDD_gv_DXCBtn25",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "SetText",
+          "GetText"
+        ],
+        "isGrid": false,
+        "isComboBox": false,
+        "isLookup": false,
+        "isTabControl": false,
+        "isMenu": false
+      },
+      {
+        "name": "Vertical_v7_61007966_MainLayoutEdit_xaf_l275_pg_xaf_l412_xaf_l417_xaf_dviDELIVERYPOSTALADDRESS_Edit_DDD_gv_DXCBtn26",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "SetText",
+          "GetText"
+        ],
+        "isGrid": false,
+        "isComboBox": false,
+        "isLookup": false,
+        "isTabControl": false,
+        "isMenu": false
+      },
+      {
+        "name": "Vertical_v7_61007966_MainLayoutEdit_xaf_l275_pg_xaf_l412_xaf_l417_xaf_dviDELIVERYPOSTALADDRESS_Edit_DDD_gv_DXCBtn27",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "SetText",
+          "GetText"
+        ],
+        "isGrid": false,
+        "isComboBox": false,
+        "isLookup": false,
+        "isTabControl": false,
+        "isMenu": false
+      },
+      {
+        "name": "Vertical_v7_61007966_MainLayoutEdit_xaf_l275_pg_xaf_l412_xaf_l417_xaf_dviDELIVERYPOSTALADDRESS_Edit_DDD_gv_DXCBtn28",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "SetText",
+          "GetText"
+        ],
+        "isGrid": false,
+        "isComboBox": false,
+        "isLookup": false,
+        "isTabControl": false,
+        "isMenu": false
+      },
+      {
+        "name": "Vertical_v7_61007966_MainLayoutEdit_xaf_l275_pg_xaf_l412_xaf_l417_xaf_dviDELIVERYPOSTALADDRESS_Edit_DDD_gv_DXCBtn29",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "SetText",
+          "GetText"
+        ],
+        "isGrid": false,
+        "isComboBox": false,
+        "isLookup": false,
+        "isTabControl": false,
+        "isMenu": false
+      },
+      {
+        "name": "Vertical_v7_61007966_MainLayoutEdit_xaf_l275_pg_xaf_l412_xaf_l417_xaf_dviDELIVERYPOSTALADDRESS_Edit_DDD_gv_DXCBtn30",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "SetText",
+          "GetText"
+        ],
+        "isGrid": false,
+        "isComboBox": false,
+        "isLookup": false,
+        "isTabControl": false,
+        "isMenu": false
+      },
+      {
+        "name": "Vertical_v7_61007966_MainLayoutEdit_xaf_l275_pg_xaf_l412_xaf_l417_xaf_dviDELIVERYPOSTALADDRESS_Edit_DDD_gv_DXCBtn31",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "SetText",
+          "GetText"
+        ],
+        "isGrid": false,
+        "isComboBox": false,
+        "isLookup": false,
+        "isTabControl": false,
+        "isMenu": false
+      },
+      {
+        "name": "Vertical_v7_61007966_MainLayoutEdit_xaf_l275_pg_xaf_l412_xaf_l417_xaf_dviDELIVERYPOSTALADDRESS_Edit_DDD_gv_DXCBtn32",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "SetText",
+          "GetText"
+        ],
+        "isGrid": false,
+        "isComboBox": false,
+        "isLookup": false,
+        "isTabControl": false,
+        "isMenu": false
+      },
+      {
+        "name": "Vertical_v7_61007966_MainLayoutEdit_xaf_l275_pg_xaf_l412_xaf_l417_xaf_dviDELIVERYPOSTALADDRESS_Edit_DDD_gv_DXCBtn33",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "SetText",
+          "GetText"
+        ],
+        "isGrid": false,
+        "isComboBox": false,
+        "isLookup": false,
+        "isTabControl": false,
+        "isMenu": false
+      },
+      {
+        "name": "Vertical_v7_61007966_MainLayoutEdit_xaf_l275_pg_xaf_l412_xaf_l417_xaf_dviDELIVERYPOSTALADDRESS_Edit_DDD_gv_DXCBtn34",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "SetText",
+          "GetText"
+        ],
+        "isGrid": false,
+        "isComboBox": false,
+        "isLookup": false,
+        "isTabControl": false,
+        "isMenu": false
+      },
+      {
+        "name": "Vertical_v7_61007966_MainLayoutEdit_xaf_l275_pg_xaf_l412_xaf_l417_xaf_dviDELIVERYPOSTALADDRESS_Edit_DDD_gv_DXCBtn35",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "SetText",
+          "GetText"
+        ],
+        "isGrid": false,
+        "isComboBox": false,
+        "isLookup": false,
+        "isTabControl": false,
+        "isMenu": false
+      },
+      {
+        "name": "Vertical_v7_61007966_MainLayoutEdit_xaf_l275_pg_xaf_l412_xaf_l417_xaf_dviDELIVERYPOSTALADDRESS_Edit_DDD_gv_DXCBtn36",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "SetText",
+          "GetText"
+        ],
+        "isGrid": false,
+        "isComboBox": false,
+        "isLookup": false,
+        "isTabControl": false,
+        "isMenu": false
+      },
+      {
+        "name": "Vertical_v7_61007966_MainLayoutEdit_xaf_l275_pg_xaf_l412_xaf_l417_xaf_dviDELIVERYPOSTALADDRESS_Edit_DDD_gv_DXCBtn37",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "SetText",
+          "GetText"
+        ],
+        "isGrid": false,
+        "isComboBox": false,
+        "isLookup": false,
+        "isTabControl": false,
+        "isMenu": false
+      },
+      {
+        "name": "Vertical_v7_61007966_MainLayoutEdit_xaf_l275_pg_xaf_l412_xaf_l417_xaf_dviDELIVERYPOSTALADDRESS_Edit_DDD_gv_DXCBtn38",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "SetText",
+          "GetText"
+        ],
+        "isGrid": false,
+        "isComboBox": false,
+        "isLookup": false,
+        "isTabControl": false,
+        "isMenu": false
+      },
+      {
+        "name": "Vertical_v7_61007966_MainLayoutEdit_xaf_l275_pg_xaf_l412_xaf_l417_xaf_dviDELIVERYPOSTALADDRESS_Edit_DDD_gv_DXCBtn39",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "SetText",
+          "GetText"
+        ],
+        "isGrid": false,
+        "isComboBox": false,
+        "isLookup": false,
+        "isTabControl": false,
+        "isMenu": false
+      },
+      {
+        "name": "Vertical_v7_61007966_MainLayoutEdit_xaf_l715_pg_xaf_l721_xaf_dviSALESLINEs_v10_30726963_LE_v10_DXCDWindow_DXCBtn0",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "SetText",
+          "GetText"
+        ],
+        "isGrid": false,
+        "isComboBox": false,
+        "isLookup": false,
+        "isTabControl": false,
+        "isMenu": false
+      },
+      {
+        "name": "Vertical_v7_61007966_MainLayoutEdit_xaf_l715_pg_xaf_l721_xaf_dviSALESLINEs_v10_30726963_LE_v10_DXCDWindow_DXCBtn1",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "SetText",
+          "GetText"
+        ],
+        "isGrid": false,
+        "isComboBox": false,
+        "isLookup": false,
+        "isTabControl": false,
+        "isMenu": false
+      }
+    ]
+  },
+  "summary": {
+    "totalControls": 222,
+    "grids": [
+      {
+        "name": "Vertical_v7_61007966_MainLayoutEdit_xaf_l275_pg_xaf_l282_xaf_l300_xaf_l316_xaf_dviCUSTTABLE_Edit_DDD_gv",
+        "type": "ret",
+        "pageCount": 74,
+        "visibleRowsOnPage": 20,
+        "methods": [
+          "AddNewRow",
+          "UpdateEdit",
+          "CancelEdit",
+          "DeleteRow",
+          "GotoPage",
+          "NextPage",
+          "PrevPage",
+          "GetPageIndex",
+          "GetPageCount",
+          "GetVisibleRowsOnPage",
+          "InCallback",
+          "IsEditing",
+          "IsNewRowEditing",
+          "SetEditValue",
+          "GetEditValue",
+          "GetEditor",
+          "FocusEditor",
+          "SetFocusedRowIndex",
+          "GetFocusedRowIndex",
+          "Refresh",
+          "PerformCallback",
+          "StartEditRow",
+          "GetRowValues"
+        ]
+      },
+      {
+        "name": "Vertical_v7_61007966_MainLayoutEdit_xaf_l275_pg_xaf_l412_xaf_l417_xaf_dviDELIVERYPOSTALADDRESS_Edit_DDD_gv",
+        "type": "ret",
+        "pageCount": 3,
+        "visibleRowsOnPage": 20,
+        "methods": [
+          "AddNewRow",
+          "UpdateEdit",
+          "CancelEdit",
+          "DeleteRow",
+          "GotoPage",
+          "NextPage",
+          "PrevPage",
+          "GetPageIndex",
+          "GetPageCount",
+          "GetVisibleRowsOnPage",
+          "InCallback",
+          "IsEditing",
+          "IsNewRowEditing",
+          "SetEditValue",
+          "GetEditValue",
+          "GetEditor",
+          "FocusEditor",
+          "SetFocusedRowIndex",
+          "GetFocusedRowIndex",
+          "Refresh",
+          "PerformCallback",
+          "StartEditRow",
+          "GetRowValues"
+        ]
+      },
+      {
+        "name": "Vertical_v7_61007966_MainLayoutEdit_xaf_l715_pg_xaf_l721_xaf_dviSALESLINEs_v10_30726963_LE_v10",
+        "type": "ret",
+        "pageCount": 0,
+        "visibleRowsOnPage": 0,
+        "methods": [
+          "AddNewRow",
+          "UpdateEdit",
+          "CancelEdit",
+          "DeleteRow",
+          "GotoPage",
+          "NextPage",
+          "PrevPage",
+          "GetPageIndex",
+          "GetPageCount",
+          "GetVisibleRowsOnPage",
+          "InCallback",
+          "IsEditing",
+          "IsNewRowEditing",
+          "SetEditValue",
+          "GetEditValue",
+          "GetEditor",
+          "FocusEditor",
+          "SetFocusedRowIndex",
+          "GetFocusedRowIndex",
+          "Refresh",
+          "PerformCallback",
+          "StartEditRow",
+          "GetRowValues"
+        ]
+      }
+    ],
+    "comboBoxes": [
+      {
+        "name": "Vertical_v7_61007966_MainLayoutEdit_xaf_l275_pg_xaf_l282_xaf_l300_xaf_l316_xaf_dviCUSTTABLE_Edit",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "SetValue",
+          "GetValue",
+          "SetText",
+          "GetText",
+          "ShowDropDown",
+          "HideDropDown"
+        ]
+      },
+      {
+        "name": "Vertical_v7_61007966_MainLayoutEdit_xaf_l275_pg_xaf_l282_xaf_l369_xaf_l379_xaf_dviORDERDATE_Edit",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "SetValue",
+          "GetValue",
+          "SetText",
+          "GetText",
+          "ShowDropDown",
+          "HideDropDown"
+        ]
+      },
+      {
+        "name": "Vertical_v7_61007966_MainLayoutEdit_xaf_l275_pg_xaf_l282_xaf_l408_xaf_l408_xaf_dviDELIVERYDATE_Edit",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "SetValue",
+          "GetValue",
+          "SetText",
+          "GetText",
+          "ShowDropDown",
+          "HideDropDown"
+        ]
+      },
+      {
+        "name": "Vertical_v7_61007966_MainLayoutEdit_xaf_l275_pg_xaf_l412_xaf_l417_xaf_dviDELIVERYPOSTALADDRESS_Edit_DDD_gv_DXFREditorcol3",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "PerformCallback",
+          "SetValue",
+          "GetValue",
+          "SetText",
+          "GetText",
+          "SetSelectedIndex",
+          "FindItemByValue",
+          "FindItemByText",
+          "ShowDropDown",
+          "HideDropDown",
+          "GetItemCount",
+          "EnsureDropDownLoaded"
+        ]
+      },
+      {
+        "name": "Vertical_v7_61007966_MainLayoutEdit_xaf_l275_pg_xaf_l412_xaf_l417_xaf_dviDELIVERYPOSTALADDRESS_Edit",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "SetValue",
+          "GetValue",
+          "SetText",
+          "GetText",
+          "ShowDropDown",
+          "HideDropDown"
+        ]
+      },
+      {
+        "name": "Vertical_v7_61007966_MainLayoutEdit_xaf_l275_pg_xaf_l431_xaf_l456_xaf_dviSALESORIGINID_Edit_dropdown_DD",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "PerformCallback",
+          "SetValue",
+          "GetValue",
+          "SetText",
+          "GetText",
+          "SetSelectedIndex",
+          "FindItemByValue",
+          "FindItemByText",
+          "ShowDropDown",
+          "HideDropDown",
+          "GetItemCount",
+          "EnsureDropDownLoaded"
+        ]
+      },
+      {
+        "name": "Vertical_v7_61007966_MainLayoutEdit_xaf_l275_pg_xaf_l460_xaf_l465_xaf_dviDLVMODE_Edit_dropdown_DD",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "PerformCallback",
+          "SetValue",
+          "GetValue",
+          "SetText",
+          "GetText",
+          "SetSelectedIndex",
+          "FindItemByValue",
+          "FindItemByText",
+          "ShowDropDown",
+          "HideDropDown",
+          "GetItemCount",
+          "EnsureDropDownLoaded"
+        ]
+      },
+      {
+        "name": "Vertical_v7_61007966_MainLayoutEdit_xaf_l275_pg_xaf_l460_xaf_l475_xaf_dviQUOTE_Edit",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "PerformCallback",
+          "SetValue",
+          "GetValue",
+          "SetText",
+          "GetText",
+          "SetSelectedIndex",
+          "FindItemByValue",
+          "FindItemByText",
+          "ShowDropDown",
+          "HideDropDown",
+          "GetItemCount",
+          "EnsureDropDownLoaded"
+        ]
+      },
+      {
+        "name": "Vertical_v7_61007966_MainLayoutEdit_xaf_l275_pg_xaf_l460_xaf_l480_xaf_dviLANGUAGEID_Edit",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "PerformCallback",
+          "SetValue",
+          "GetValue",
+          "SetText",
+          "GetText",
+          "SetSelectedIndex",
+          "FindItemByValue",
+          "FindItemByText",
+          "ShowDropDown",
+          "HideDropDown",
+          "GetItemCount",
+          "EnsureDropDownLoaded"
+        ]
+      },
+      {
+        "name": "Vertical_v7_61007966_MainLayoutEdit_xaf_l275_pg_xaf_l460_xaf_l485_xaf_dviCOMPLETEDDATE_Edit",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "SetValue",
+          "GetValue",
+          "SetText",
+          "GetText",
+          "ShowDropDown",
+          "HideDropDown"
+        ]
+      },
+      {
+        "name": "Vertical_v7_61007966_MainLayoutEdit_xaf_l275_pg_xaf_l503_xaf_l508_xaf_dviSALESTYPE_Edit",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "PerformCallback",
+          "SetValue",
+          "GetValue",
+          "SetText",
+          "GetText",
+          "SetSelectedIndex",
+          "FindItemByValue",
+          "FindItemByText",
+          "ShowDropDown",
+          "HideDropDown",
+          "GetItemCount",
+          "EnsureDropDownLoaded"
+        ]
+      },
+      {
+        "name": "Vertical_v7_61007966_MainLayoutEdit_xaf_l275_pg_xaf_l503_xaf_l513_xaf_dviSALESSTATUS_Edit",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "PerformCallback",
+          "SetValue",
+          "GetValue",
+          "SetText",
+          "GetText",
+          "SetSelectedIndex",
+          "FindItemByValue",
+          "FindItemByText",
+          "ShowDropDown",
+          "HideDropDown",
+          "GetItemCount",
+          "EnsureDropDownLoaded"
+        ]
+      },
+      {
+        "name": "Vertical_v7_61007966_MainLayoutEdit_xaf_l275_pg_xaf_l503_xaf_l518_xaf_dviDOCUMENTSTATUS_Edit",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "PerformCallback",
+          "SetValue",
+          "GetValue",
+          "SetText",
+          "GetText",
+          "SetSelectedIndex",
+          "FindItemByValue",
+          "FindItemByText",
+          "ShowDropDown",
+          "HideDropDown",
+          "GetItemCount",
+          "EnsureDropDownLoaded"
+        ]
+      },
+      {
+        "name": "Vertical_v7_61007966_MainLayoutEdit_xaf_l275_pg_xaf_l503_xaf_l523_xaf_dviTRANSFERSTATUS_Edit",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "PerformCallback",
+          "SetValue",
+          "GetValue",
+          "SetText",
+          "GetText",
+          "SetSelectedIndex",
+          "FindItemByValue",
+          "FindItemByText",
+          "ShowDropDown",
+          "HideDropDown",
+          "GetItemCount",
+          "EnsureDropDownLoaded"
+        ]
+      },
+      {
+        "name": "Vertical_v7_61007966_MainLayoutEdit_xaf_l275_pg_xaf_l503_xaf_l528_xaf_dviTRANSFERREDDATE_Edit",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "SetValue",
+          "GetValue",
+          "SetText",
+          "GetText",
+          "ShowDropDown",
+          "HideDropDown"
+        ]
+      },
+      {
+        "name": "Vertical_v7_61007966_MainLayoutEdit_xaf_l715_pg_xaf_l721_xaf_dviSALESLINEs_v10_30726963_LE_v10_DXFREditorcol0",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "PerformCallback",
+          "SetValue",
+          "GetValue",
+          "SetText",
+          "GetText",
+          "SetSelectedIndex",
+          "FindItemByValue",
+          "FindItemByText",
+          "ShowDropDown",
+          "HideDropDown",
+          "GetItemCount",
+          "EnsureDropDownLoaded"
+        ]
+      },
+      {
+        "name": "Vertical_v7_61007966_MainLayoutEdit_xaf_l715_pg_xaf_l721_xaf_dviSALESLINEs_v10_30726963_LE_v10_DXFREditorcol1",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "PerformCallback",
+          "SetValue",
+          "GetValue",
+          "SetText",
+          "GetText",
+          "SetSelectedIndex",
+          "FindItemByValue",
+          "FindItemByText",
+          "ShowDropDown",
+          "HideDropDown",
+          "GetItemCount",
+          "EnsureDropDownLoaded"
+        ]
+      },
+      {
+        "name": "Vertical_v7_61007966_MainLayoutEdit_xaf_l715_pg_xaf_l721_xaf_dviSALESLINEs_v10_30726963_LE_v10_DXFREditorcol2",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "SetValue",
+          "GetValue",
+          "SetText",
+          "GetText",
+          "ShowDropDown",
+          "HideDropDown"
+        ]
+      },
+      {
+        "name": "Vertical_v7_61007966_MainLayoutEdit_xaf_l715_pg_xaf_l721_xaf_dviSALESLINEs_v10_30726963_LE_v10_DXFREditorcol3",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "SetValue",
+          "GetValue",
+          "SetText",
+          "GetText",
+          "ShowDropDown",
+          "HideDropDown"
+        ]
+      },
+      {
+        "name": "Vertical_v7_61007966_MainLayoutEdit_xaf_l715_pg_xaf_l721_xaf_dviSALESLINEs_v10_30726963_LE_v10_DXFREditorcol8",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "PerformCallback",
+          "SetValue",
+          "GetValue",
+          "SetText",
+          "GetText",
+          "SetSelectedIndex",
+          "FindItemByValue",
+          "FindItemByText",
+          "ShowDropDown",
+          "HideDropDown",
+          "GetItemCount",
+          "EnsureDropDownLoaded"
+        ]
+      }
+    ],
+    "tabControls": [
+      {
+        "name": "Vertical_v7_61007966_MainLayoutEdit_xaf_l275_pg",
+        "type": "ret"
+      },
+      {
+        "name": "Vertical_v7_61007966_MainLayoutEdit_xaf_l715_pg_xaf_l721_xaf_dviSALESLINEs_v10_30726963_LE_v10_DXCDWindow_DXCDPageControl",
+        "type": "ret"
+      },
+      {
+        "name": "Vertical_v7_61007966_MainLayoutEdit_xaf_l715_pg",
+        "type": "ret"
+      }
+    ],
+    "menus": [
+      {
+        "name": "Vertical_SAC_Menu",
+        "type": "ret"
+      },
+      {
+        "name": "Vertical_NC_NB",
+        "type": "ret"
+      },
+      {
+        "name": "Vertical_mainMenu_Menu",
+        "type": "ret"
+      },
+      {
+        "name": "Vertical_v7_61007966_MainLayoutEdit_xaf_l275_pg_xaf_l282_xaf_l300_xaf_l316_xaf_dviCUSTTABLE_Edit_DDD_gv_DXContextMenu_Columns",
+        "type": "ret"
+      },
+      {
+        "name": "Vertical_v7_61007966_MainLayoutEdit_xaf_l275_pg_xaf_l282_xaf_l300_xaf_l316_xaf_dviCUSTTABLE_Edit_DDD_gv_DXContextMenu_Rows",
+        "type": "ret"
+      },
+      {
+        "name": "Vertical_v7_61007966_MainLayoutEdit_xaf_l275_pg_xaf_l282_xaf_l300_xaf_l316_xaf_dviCUSTTABLE_Edit_DDD_gv_DXPagerBottom_PSP",
+        "type": "ret"
+      },
+      {
+        "name": "Vertical_v7_61007966_MainLayoutEdit_xaf_l275_pg_xaf_l412_xaf_l417_xaf_dviDELIVERYPOSTALADDRESS_Edit_DDD_gv_DXContextMenu_Columns",
+        "type": "ret"
+      },
+      {
+        "name": "Vertical_v7_61007966_MainLayoutEdit_xaf_l275_pg_xaf_l412_xaf_l417_xaf_dviDELIVERYPOSTALADDRESS_Edit_DDD_gv_DXContextMenu_Rows",
+        "type": "ret"
+      },
+      {
+        "name": "Vertical_v7_61007966_MainLayoutEdit_xaf_l275_pg_xaf_l412_xaf_l417_xaf_dviDELIVERYPOSTALADDRESS_Edit_DDD_gv_DXPagerBottom_PSP",
+        "type": "ret"
+      },
+      {
+        "name": "Vertical_v7_61007966_MainLayoutEdit_xaf_l715_pg_xaf_l721_xaf_dviSALESLINEs_ToolBar_Menu",
+        "type": "ret"
+      },
+      {
+        "name": "Vertical_v7_61007966_MainLayoutEdit_xaf_l715_pg_xaf_l721_xaf_dviSALESLINEs_v10_30726963_LE_v10_DXFilterRowMenu",
+        "type": "ret"
+      },
+      {
+        "name": "Vertical_v7_61007966_MainLayoutEdit_xaf_l715_pg_xaf_l721_xaf_dviSALESLINEs_v10_30726963_LE_v10_DXContextMenu_Columns",
+        "type": "ret"
+      },
+      {
+        "name": "Vertical_v7_61007966_MainLayoutEdit_xaf_l715_pg_xaf_l721_xaf_dviSALESLINEs_v10_30726963_LE_v10_DXContextMenu_Footer",
+        "type": "ret"
+      }
+    ],
+    "customerFieldId": "Vertical_v7_61007966_MainLayoutEdit_xaf_l275_pg_xaf_l282_xaf_l300_xaf_l316_xaf_dviCUSTTABLE_Edit_I"
+  }
+}
