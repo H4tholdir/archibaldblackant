@@ -287,6 +287,23 @@ export async function forceStopAllSyncs(): Promise<void> {
     (invoiceSyncService as any).currentProgress = { status: "idle" };
   }
 
+  // Reset orchestrator's currentSync (the main blocker for acquireOrderLock)
+  const orchStatus = syncOrchestrator.getStatus();
+  if (orchStatus.currentSync) {
+    logger.error(
+      `🔨 FORCE-RESET: Orchestrator currentSync bloccato su "${orchStatus.currentSync}", reset forzato`,
+    );
+    (syncOrchestrator as any).currentSync = null;
+  }
+
+  // Reset global lock if held by a sync operation (not by an order)
+  if (activeOperation && activeOperation !== "order") {
+    logger.error(
+      `🔨 FORCE-RESET: Lock globale bloccato su "${activeOperation}", reset forzato`,
+    );
+    activeOperation = null;
+  }
+
   logger.info("✅ FORCE-RESET: Reset stati fantasma completato");
 }
 
