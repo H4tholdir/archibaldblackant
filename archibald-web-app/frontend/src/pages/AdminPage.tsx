@@ -33,6 +33,7 @@ export function AdminPage({ onLogout, userName }: AdminPageProps) {
   const [statusFilter, setStatusFilter] = useState("all");
   const [currentPage, setCurrentPage] = useState(1);
   const [retryingJobId, setRetryingJobId] = useState<string | null>(null);
+  const [cancellingJobId, setCancellingJobId] = useState<string | null>(null);
   const [uploadingExcel, setUploadingExcel] = useState(false);
   const [uploadResult, setUploadResult] = useState<any>(null);
   const [uploadingSubClients, setUploadingSubClients] = useState(false);
@@ -91,6 +92,34 @@ export function AdminPage({ onLogout, userName }: AdminPageProps) {
       alert("Error retrying job");
     } finally {
       setRetryingJobId(null);
+    }
+  };
+
+  const handleCancel = async (jobId: string) => {
+    if (!confirm("Sei sicuro di voler cancellare questo job?")) return;
+
+    const jwt = localStorage.getItem("archibald_jwt");
+    if (!jwt) return;
+
+    setCancellingJobId(jobId);
+
+    try {
+      const response = await fetch(`/api/admin/jobs/cancel/${jobId}`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${jwt}` },
+      });
+
+      const data = await response.json();
+      if (data.success) {
+        loadJobs();
+      } else {
+        alert(`Cancel failed: ${data.error}`);
+      }
+    } catch (error) {
+      console.error("Error cancelling job:", error);
+      alert("Error cancelling job");
+    } finally {
+      setCancellingJobId(null);
     }
   };
 
@@ -709,6 +738,27 @@ export function AdminPage({ onLogout, userName }: AdminPageProps) {
                               }}
                             >
                               {retryingJobId === job.jobId ? "⏳" : "🔄 Retry"}
+                            </button>
+                          )}
+                          {(job.status === "active" || job.status === "waiting") && (
+                            <button
+                              onClick={() => handleCancel(job.jobId)}
+                              disabled={cancellingJobId === job.jobId}
+                              className="btn btn-sm"
+                              style={{
+                                backgroundColor: "#f44336",
+                                color: "#fff",
+                                border: "none",
+                                padding: "6px 12px",
+                                borderRadius: "6px",
+                                cursor:
+                                  cancellingJobId === job.jobId
+                                    ? "not-allowed"
+                                    : "pointer",
+                                opacity: cancellingJobId === job.jobId ? 0.6 : 1,
+                              }}
+                            >
+                              {cancellingJobId === job.jobId ? "⏳" : "✕ Cancel"}
                             </button>
                           )}
                         </td>

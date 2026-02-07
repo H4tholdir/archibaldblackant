@@ -4699,6 +4699,42 @@ app.post(
   },
 );
 
+// Cancel a stuck/active job (admin only)
+app.post(
+  "/api/admin/jobs/cancel/:jobId",
+  authenticateJWT,
+  requireAdmin,
+  async (req: AuthRequest, res: Response<ApiResponse>) => {
+    try {
+      const { jobId } = req.params;
+
+      logger.info(`[Admin] Cancel job ${jobId}`, {
+        userId: req.user!.userId,
+      });
+
+      const result = await queueManager.cancelJob(jobId);
+
+      if (!result.success) {
+        return res.status(400).json({
+          success: false,
+          error: result.error || "Failed to cancel job",
+        });
+      }
+
+      res.json({
+        success: true,
+        message: `Job ${jobId} cancelled successfully`,
+      });
+    } catch (error) {
+      logger.error("Error cancelling job", { error });
+      res.status(500).json({
+        success: false,
+        error: error instanceof Error ? error.message : "Error cancelling job",
+      });
+    }
+  },
+);
+
 // ============================================================================
 // ORDER HISTORY ENDPOINTS (Phase 10)
 // ============================================================================

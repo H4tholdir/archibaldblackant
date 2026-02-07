@@ -760,6 +760,50 @@ export class QueueManager {
   }
 
   /**
+   * Cancel a stuck/active job by moving it to failed state
+   */
+  async cancelJob(
+    jobId: string,
+  ): Promise<{ success: boolean; error?: string }> {
+    try {
+      const job = await this.queue.getJob(jobId);
+
+      if (!job) {
+        return { success: false, error: "Job not found" };
+      }
+
+      const state = await job.getState();
+
+      if (state === "completed" || state === "failed") {
+        return { success: false, error: `Job is already ${state}` };
+      }
+
+      if (state === "active") {
+        await job.moveToFailed(
+          new Error("Cancelled by admin"),
+          "0",
+          false,
+        );
+      } else {
+        await job.remove();
+      }
+
+      logger.info(`🚫 QUEUE: Job ${jobId} cancelled by admin`, {
+        jobId,
+        previousState: state,
+      });
+
+      return { success: true };
+    } catch (error) {
+      logger.error("Error cancelling job", { error, jobId });
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : "Unknown error",
+      };
+    }
+  }
+
+  /**
    * Get all jobs from all users (admin-only)
    */
   async getAllJobs(
