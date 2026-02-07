@@ -3,6 +3,15 @@ import type { Customer, CacheMetadata } from "../db/schema";
 import type Dexie from "dexie";
 import { fetchWithRetry } from "../utils/fetch-with-retry";
 
+function parseLastOrderDate(raw: string | undefined | null): string {
+  if (!raw) return '';
+  const ddmmyyyy = raw.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+  if (ddmmyyyy) {
+    return `${ddmmyyyy[3]}-${ddmmyyyy[2]}-${ddmmyyyy[1]}`;
+  }
+  return raw;
+}
+
 function mapBackendCustomer(c: any): Customer {
   return {
     id: c.customerProfile || c.internalId || c.id || '',
@@ -19,7 +28,7 @@ function mapBackendCustomer(c: any): Customer {
     lastModified: c.lastSync
       ? new Date(c.lastSync * 1000).toISOString()
       : c.lastModified || new Date().toISOString(),
-    lastOrderDate: c.lastOrderDate || '',
+    lastOrderDate: parseLastOrderDate(c.lastOrderDate),
     hash: c.hash || '',
   };
 }
