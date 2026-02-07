@@ -3,6 +3,27 @@ import type { Customer, CacheMetadata } from "../db/schema";
 import type Dexie from "dexie";
 import { fetchWithRetry } from "../utils/fetch-with-retry";
 
+function mapBackendCustomer(c: any): Customer {
+  return {
+    id: c.customerProfile || c.internalId || c.id || '',
+    name: c.name || '',
+    code: c.customerProfile || c.code || '',
+    taxCode: c.fiscalCode || c.vatNumber || c.taxCode || '',
+    address: c.street || c.logisticsAddress || c.address || '',
+    city: c.city || '',
+    province: c.province || '',
+    cap: c.postalCode || c.cap || '',
+    phone: c.phone || c.mobile || '',
+    email: c.pec || c.email || '',
+    fax: c.fax || '',
+    lastModified: c.lastSync
+      ? new Date(c.lastSync * 1000).toISOString()
+      : c.lastModified || new Date().toISOString(),
+    lastOrderDate: c.lastOrderDate || '',
+    hash: c.hash || '',
+  };
+}
+
 export class CustomerService {
   private db: Dexie;
 
@@ -36,13 +57,23 @@ export class CustomerService {
             c.name.toLowerCase().includes(lowerQuery) ||
             c.code.toLowerCase().includes(lowerQuery) ||
             (c.city ? c.city.toLowerCase().includes(lowerQuery) : false) ||
-            (c.taxCode ? c.taxCode.toLowerCase().includes(lowerQuery) : false),
+            (c.taxCode ? c.taxCode.toLowerCase().includes(lowerQuery) : false) ||
+            (c.address ? c.address.toLowerCase().includes(lowerQuery) : false) ||
+            (c.cap ? c.cap.toLowerCase().includes(lowerQuery) : false),
         )
         .limit(limit)
         .toArray();
 
-      // Sort by lastModified descending (most recent first)
-      cached.sort((a, b) => b.lastModified.localeCompare(a.lastModified));
+      const oneMonthAgo = new Date();
+      oneMonthAgo.setMonth(oneMonthAgo.getMonth() - 1);
+      const oneMonthAgoStr = oneMonthAgo.toISOString();
+
+      cached.sort((a, b) => {
+        const aRecent = a.lastOrderDate && a.lastOrderDate > oneMonthAgoStr ? 1 : 0;
+        const bRecent = b.lastOrderDate && b.lastOrderDate > oneMonthAgoStr ? 1 : 0;
+        if (aRecent !== bRecent) return bRecent - aRecent;
+        return b.lastModified.localeCompare(a.lastModified);
+      });
 
       if (cached.length >= 3) {
         return cached;
@@ -55,7 +86,7 @@ export class CustomerService {
         );
         if (response.ok) {
           const data = await response.json();
-          const apiResults: Customer[] = data.data?.customers || [];
+          const apiResults: Customer[] = (data.data?.customers || []).map(mapBackendCustomer);
           const cachedIds = new Set(cached.map((c) => c.id));
           const merged = [
             ...cached,
@@ -118,19 +149,21 @@ export class CustomerService {
       }
 
       const data = await response.json();
-      const customers: Customer[] = data.data?.customers || [];
+      const rawCustomers: any[] = data.data?.customers || [];
 
       console.log(
-        `[CustomerService] Fetched ${customers.length} customers from API`,
+        `[CustomerService] Fetched ${rawCustomers.length} customers from API`,
       );
 
       // If no customers, log warning and skip sync
-      if (customers.length === 0) {
+      if (rawCustomers.length === 0) {
         console.warn(
           "[CustomerService] No customers returned from API, skipping sync",
         );
         return;
       }
+
+      const customers: Customer[] = rawCustomers.map(mapBackendCustomer);
 
       // Filter customers with valid id field (required for IndexedDB key path)
       const validCustomers = customers.filter(

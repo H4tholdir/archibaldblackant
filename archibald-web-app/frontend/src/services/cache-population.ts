@@ -96,6 +96,7 @@ export class CachePopulationService {
         email: c.pec || '', // Use PEC email
         fax: '', // Not provided by backend
         lastModified: c.lastSync ? new Date(c.lastSync * 1000).toISOString() : new Date().toISOString(),
+        lastOrderDate: c.lastOrderDate || '',
         hash: c.hash || '',
       }));
 

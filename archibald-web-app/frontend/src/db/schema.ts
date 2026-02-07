@@ -14,6 +14,7 @@ export interface Customer {
   email: string;
   fax: string;
   lastModified: string;
+  lastOrderDate?: string;
   hash: string;
 }
 

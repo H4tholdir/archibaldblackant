@@ -24,7 +24,7 @@ import { releaseWarehouseReservations } from "../services/warehouse-order-integr
 import { getDeviceId } from "../utils/device-id";
 import { unifiedSyncService } from "../services/unified-sync-service";
 import { useDraftSync } from "../hooks/useDraftSync";
-import { calculateShippingCosts } from "../utils/order-calculations";
+import { calculateShippingCosts, roundUp } from "../utils/order-calculations";
 import type { SubClient } from "../db/schema";
 import { SubClientSelector } from "./new-order-form/SubClientSelector";
 import { isFresis, FRESIS_DEFAULT_DISCOUNT } from "../utils/fresis-constants";
@@ -161,12 +161,7 @@ export default function OrderFormSimple() {
   // 🔧 FIX #1: Memoize callback to prevent re-render loops in WarehouseMatchAccordion
   const handleTotalQuantityChange = useCallback(
     (totalQty: number) => {
-      const requestedQty = parseInt(quantity, 10);
-      if (
-        totalQty > 0 &&
-        totalQty < requestedQty &&
-        !isWarehouseUpdateRef.current
-      ) {
+      if (totalQty > 0 && !isWarehouseUpdateRef.current) {
         // Set flag to prevent loop
         isWarehouseUpdateRef.current = true;
         setQuantity(totalQty.toString());
@@ -176,8 +171,30 @@ export default function OrderFormSimple() {
         }, 100);
       }
     },
-    [quantity],
+    [],
   );
+
+  const scrollFieldIntoView = useCallback((element: HTMLElement | null) => {
+    if (!element) return;
+    setTimeout(() => {
+      element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }, 100);
+  }, []);
+
+  useEffect(() => {
+    const vv = window.visualViewport;
+    if (!vv) return;
+    const handleResize = () => {
+      const active = document.activeElement as HTMLElement | null;
+      if (active && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA')) {
+        setTimeout(() => {
+          active.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }, 100);
+      }
+    };
+    vv.addEventListener('resize', handleResize);
+    return () => vv.removeEventListener('resize', handleResize);
+  }, []);
 
   // UI state
   const [submitting, setSubmitting] = useState(false);
@@ -1565,8 +1582,8 @@ export default function OrderFormSimple() {
     }, 0);
     const finalVAT = itemsVATAfterDiscount + shippingTax;
 
-    // Total includes items + shipping cost + total VAT
-    const finalTotal = finalSubtotal + shippingCost + finalVAT;
+    // Total includes items + shipping cost + total VAT (rounded up)
+    const finalTotal = roundUp(finalSubtotal + shippingCost + finalVAT);
 
     return {
       itemsSubtotal,
@@ -1989,7 +2006,8 @@ export default function OrderFormSimple() {
               value={customerSearch}
               onChange={(e) => handleCustomerSearch(e.target.value)}
               onKeyDown={handleCustomerKeyDown}
-              placeholder="Cerca cliente per nome, città, P.IVA..."
+              onFocus={(e) => scrollFieldIntoView(e.target)}
+              placeholder="Cerca cliente per nome, indirizzo, città, CAP, P.IVA..."
               autoComplete="new-password"
               data-form-type="other"
               style={{
@@ -2067,19 +2085,33 @@ export default function OrderFormSimple() {
                         marginTop: "0.125rem",
                       }}
                     >
-                      {customer.city && (
-                        <span>
-                          {customer.city}
-                          {customer.province && ` (${customer.province})`}
+                      {customer.taxCode && (
+                        <span style={{ fontWeight: "600", color: "#374151" }}>
+                          P.IVA: {customer.taxCode}
                         </span>
                       )}
-                      {customer.taxCode && (
+                      {(customer.address || customer.cap || customer.city) && (
                         <span
                           style={{
-                            marginLeft: customer.city ? "0.75rem" : 0,
+                            marginLeft: customer.taxCode ? "0.75rem" : 0,
                           }}
                         >
-                          P.IVA: {customer.taxCode}
+                          {[customer.address, customer.cap, customer.city && `${customer.city}${customer.province ? ` (${customer.province})` : ''}`].filter(Boolean).join(', ')}
+                        </span>
+                      )}
+                      {customer.lastOrderDate && customer.lastOrderDate > new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString() && (
+                        <span
+                          style={{
+                            marginLeft: "0.5rem",
+                            background: "#dcfce7",
+                            color: "#166534",
+                            padding: "0.1rem 0.4rem",
+                            borderRadius: "4px",
+                            fontSize: isMobile ? "0.7rem" : "0.65rem",
+                            fontWeight: "500",
+                          }}
+                        >
+                          Ordine recente
                         </span>
                       )}
                     </div>
@@ -2182,6 +2214,7 @@ export default function OrderFormSimple() {
                 value={productSearch}
                 onChange={(e) => handleProductSearch(e.target.value)}
                 onKeyDown={handleProductKeyDown}
+                onFocus={(e) => scrollFieldIntoView(e.target)}
                 placeholder="Cerca articolo..."
                 autoComplete="new-password"
                 data-form-type="other"
@@ -2475,6 +2508,7 @@ export default function OrderFormSimple() {
                       inputMode="numeric"
                       value={quantity}
                       onChange={(e) => setQuantity(e.target.value)}
+                      onFocus={(e) => scrollFieldIntoView(e.target)}
                       onKeyDown={(e) => {
                         if (e.key === "Enter") {
                           e.preventDefault();
@@ -2507,6 +2541,7 @@ export default function OrderFormSimple() {
                       inputMode="decimal"
                       value={itemDiscount}
                       onChange={(e) => setItemDiscount(e.target.value)}
+                      onFocus={(e) => scrollFieldIntoView(e.target)}
                       style={{
                         width: "100%",
                         padding: isMobile ? "0.875rem" : "0.75rem",
@@ -3102,6 +3137,7 @@ export default function OrderFormSimple() {
                 type="text"
                 inputMode="decimal"
                 value={globalDiscountPercent}
+                onFocus={(e) => scrollFieldIntoView(e.target)}
                 onChange={(e) => {
                   const val = e.target.value;
                   if (val === "" || /^\d*\.?\d{0,2}$/.test(val)) {
@@ -3140,6 +3176,7 @@ export default function OrderFormSimple() {
                   type="text"
                   inputMode="decimal"
                   value={targetTotal}
+                  onFocus={(e) => scrollFieldIntoView(e.target)}
                   onChange={(e) => setTargetTotal(e.target.value)}
                   style={{
                     flex: 1,
@@ -3267,7 +3304,7 @@ export default function OrderFormSimple() {
                         }}
                       />
                       <span style={{ flex: 1 }}>
-                        {item.description} (x{item.quantity})
+                        {item.article} (x{item.quantity})
                       </span>
                       <span
                         style={{ fontWeight: "500", fontFamily: "monospace" }}

@@ -444,10 +444,12 @@ export class CustomerDatabase {
            OR vatNumber LIKE ?
            OR city LIKE ?
            OR fiscalCode LIKE ?
+           OR street LIKE ?
+           OR postalCode LIKE ?
         ORDER BY name ASC
         LIMIT 100
       `);
-      return stmt.all(query, query, query, query, query) as Customer[];
+      return stmt.all(query, query, query, query, query, query, query) as Customer[];
     }
 
     stmt = this.db.prepare(`

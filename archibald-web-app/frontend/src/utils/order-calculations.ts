@@ -202,3 +202,7 @@ export function reverseCalculateGlobalDiscount(
 function round(value: number): number {
   return Math.round(value * 100) / 100;
 }
+
+export function roundUp(value: number): number {
+  return Math.ceil(value * 100) / 100;
+}
