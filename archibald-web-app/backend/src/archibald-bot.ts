@@ -3292,12 +3292,19 @@ export class ArchibaldBot {
         return warehouseJobId;
       }
 
+      await this.emitProgress("form.articles.start");
+
       for (let i = 0; i < itemsToOrder.length; i++) {
         const item = itemsToOrder[i];
 
         logger.info(`Processing item ${i + 1}/${itemsToOrder.length}`, {
           articleCode: item.articleCode,
           quantity: item.quantity,
+        });
+
+        await this.emitProgress("form.articles.progress", {
+          currentArticle: i + 1,
+          totalArticles: itemsToOrder.length,
         });
 
         // 5.1: Query database for correct package variant
@@ -4610,6 +4617,8 @@ export class ArchibaldBot {
         return true;
       };
 
+      await this.emitProgress("form.articles.complete");
+
       let prezziTabOpened = false;
 
       // STEP 9: Extract order ID before saving (while still on form)
@@ -4824,33 +4833,138 @@ export class ArchibaldBot {
               // proceed
             }
 
-            // Trova il campo "APPLICA SCONTO %" e impostalo
+            // Trova il campo "APPLICA SCONTO %" nel tab Prezzi e sconti
+            // Pattern noti: ENDDISCPERCENT, ENDDISCP, DISCPERC, APPLYSCONTO
+            const discountInputInfo = await this.page!.evaluate(() => {
+              // Cerca tutti gli input nel tab Prezzi e sconti
+              const candidates = Array.from(
+                document.querySelectorAll(
+                  'input[type="text"][id*="_Edit_I"]',
+                ),
+              ) as HTMLInputElement[];
+
+              // Filtra solo quelli visibili nel tab Prezzi e sconti
+              const visible = candidates.filter(
+                (inp) =>
+                  inp.offsetParent !== null &&
+                  inp.getBoundingClientRect().width > 0,
+              );
+
+              // Cerca per pattern ID noti (sconto/discount)
+              const patterns = [
+                "ENDDISCPERCENT",
+                "ENDDISCP",
+                "DISCPERC",
+                "DISCOUNT",
+                "SCONTO",
+              ];
+              for (const pattern of patterns) {
+                const match = visible.find((inp) =>
+                  inp.id.toUpperCase().includes(pattern),
+                );
+                if (match) {
+                  match.scrollIntoView({ block: "center" });
+                  match.focus();
+                  match.click();
+                  return {
+                    id: match.id,
+                    value: match.value,
+                    method: "pattern",
+                    pattern,
+                  };
+                }
+              }
+
+              // Fallback: cerca label "Applica sconto" e prendi l'input associato
+              const labels = Array.from(
+                document.querySelectorAll(
+                  "td, span, label, div",
+                ),
+              );
+              for (const label of labels) {
+                const text = label.textContent?.trim() || "";
+                if (
+                  text.includes("Applica sconto") ||
+                  text.includes("APPLICA SCONTO")
+                ) {
+                  // Cerca input vicino (sibling, parent, next element)
+                  const container =
+                    label.closest("tr") || label.parentElement;
+                  if (container) {
+                    const nearInput = container.querySelector(
+                      'input[type="text"]',
+                    ) as HTMLInputElement | null;
+                    if (nearInput && nearInput.offsetParent !== null) {
+                      nearInput.scrollIntoView({ block: "center" });
+                      nearInput.focus();
+                      nearInput.click();
+                      return {
+                        id: nearInput.id,
+                        value: nearInput.value,
+                        method: "label-proximity",
+                        pattern: text.substring(0, 30),
+                      };
+                    }
+                  }
+                }
+              }
+
+              // Debug: dump visible fields in Prezzi e sconti
+              const debugFields = visible.map((inp) => ({
+                id: inp.id.substring(
+                  inp.id.lastIndexOf("_dvi") >= 0
+                    ? inp.id.lastIndexOf("_dvi")
+                    : Math.max(0, inp.id.length - 50),
+                ),
+                value: inp.value,
+              }));
+
+              return {
+                id: "",
+                value: "",
+                method: "not-found",
+                pattern: "",
+                debugFields,
+              };
+            });
+
+            if (!discountInputInfo.id) {
+              logger.warn("Global discount field not found", {
+                method: discountInputInfo.method,
+                debugFields: (discountInputInfo as any).debugFields,
+              });
+              return;
+            }
+
+            logger.debug("Global discount field found", {
+              id: discountInputInfo.id,
+              currentValue: discountInputInfo.value,
+              method: discountInputInfo.method,
+            });
+
+            // Scrivi il valore dello sconto
             const discountFormatted = orderData
               .discountPercent!.toString()
               .replace(".", ",");
 
-            const fieldState = await this.page!.evaluate(() => {
-              const focused =
-                document.activeElement as HTMLInputElement;
-              return {
-                id: focused?.id || "",
-                tag: focused?.tagName || "",
-                value: focused?.value || "",
-              };
-            });
-
-            logger.debug("Discount field state", fieldState);
-
-            // Select all + type (approccio robusto come quantità)
-            await this.page!.evaluate(() => {
-              const input =
-                document.activeElement as HTMLInputElement;
-              if (input?.select) input.select();
-            });
-
-            await this.page!.keyboard.type(discountFormatted, {
-              delay: 30,
-            });
+            await this.page!.evaluate(
+              (inputId, val) => {
+                const input = document.getElementById(
+                  inputId,
+                ) as HTMLInputElement;
+                if (input) {
+                  input.value = val;
+                  input.dispatchEvent(
+                    new Event("input", { bubbles: true }),
+                  );
+                  input.dispatchEvent(
+                    new Event("change", { bubbles: true }),
+                  );
+                }
+              },
+              discountInputInfo.id,
+              discountFormatted,
+            );
 
             // Tab per confermare
             await this.page!.keyboard.press("Tab");
@@ -4878,8 +4992,17 @@ export class ArchibaldBot {
               // proceed
             }
 
+            // Verifica
+            const verifyValue = await this.page!.evaluate((inputId) => {
+              const input = document.getElementById(
+                inputId,
+              ) as HTMLInputElement;
+              return input?.value || "";
+            }, discountInputInfo.id);
+
             logger.info(
               `✅ Global discount applied: ${orderData.discountPercent}%`,
+              { setValue: discountFormatted, actualValue: verifyValue },
             );
           },
           "form.discount",
