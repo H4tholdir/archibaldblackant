@@ -1,3 +1,5 @@
+import * as fs from "fs";
+import * as fsp from "fs/promises";
 import puppeteer, {
   type Browser,
   type BrowserContext,
@@ -5352,443 +5354,281 @@ export class ArchibaldBot {
     }
   }
 
-  /**
-   * Download Clienti PDF export from Archibald
-   * @param context Existing browser context (must be logged in)
-   * @returns Absolute path to downloaded PDF file
-   * @throws Error if navigation fails, download times out, or file not found
-   */
-  async downloadCustomersPDF(context: BrowserContext): Promise<string> {
-    const page = await context.newPage();
-    const startTime = Date.now();
-
+  private async waitForDevExpressReadyOnPage(
+    page: Page,
+    timeout = 5000,
+  ): Promise<void> {
     try {
-      logger.info("[ArchibaldBot] Starting Clienti PDF download");
-
-      // Force Italian language for PDF export
-      await page.setExtraHTTPHeaders({
-        "Accept-Language": "it-IT,it;q=0.9,en-US;q=0.8,en;q=0.7",
-      });
-
-      // 1. Navigate to Clienti ListView page
-      const clientiUrl =
-        "https://4.231.124.90/Archibald/CUSTTABLE_ListView_Agent/";
-      await page.goto(clientiUrl, {
-        waitUntil: "domcontentloaded",
-        timeout: 60000,
-      });
-      logger.info("[ArchibaldBot] Navigated to Clienti ListView page");
-
-      // Wait for dynamic content to load (same pattern as DDT download)
-      await new Promise((resolve) => setTimeout(resolve, 2000));
-
-      // Additional delay for slower, more reliable execution
-      await new Promise((resolve) => setTimeout(resolve, 200));
-
-      // 2. Setup download handling (Puppeteer approach)
-      const timestamp = Date.now();
-      const userId = this.userId || "unknown";
-      const downloadPath = `/tmp/clienti-${timestamp}-${userId}.pdf`;
-
-      // Enable download interception
-      const client = await page.target().createCDPSession();
-      await client.send("Page.setDownloadBehavior", {
-        behavior: "allow",
-        downloadPath: "/tmp",
-      });
-
-      // Additional delay before starting button search
-      await new Promise((resolve) => setTimeout(resolve, 200));
-
-      // 3. Trigger PDF export
-      // The button structure: <li id="Vertical_mainMenu_Menu_DXI6_"> <a id="Vertical_mainMenu_Menu_DXI6_T">
-      // We need to find and interact with this complex menu item
-
-      logger.info("[ArchibaldBot] Searching for PDF export button...");
-
-      // Wait for the menu container to be present
-      await page.waitForSelector("#Vertical_mainMenu_Menu_DXI6_", {
-        timeout: 10000,
-      });
-
-      logger.info("[ArchibaldBot] Menu container found");
-      await new Promise((resolve) => setTimeout(resolve, 200));
-
-      // Check if button is already visible or needs hover
-      const isVisible = await page.evaluate(() => {
-        const li = document.querySelector("#Vertical_mainMenu_Menu_DXI6_");
-        const a = document.querySelector("#Vertical_mainMenu_Menu_DXI6_T");
-
-        if (!li || !a) return false;
-
-        const liRect = li.getBoundingClientRect();
-        const aRect = a.getBoundingClientRect();
-
-        return (
-          liRect.width > 0 &&
-          liRect.height > 0 &&
-          aRect.width > 0 &&
-          aRect.height > 0
-        );
-      });
-
-      logger.info(`[ArchibaldBot] Button visibility check: ${isVisible}`);
-
-      // If not visible, might need to hover on parent menu
-      if (!isVisible) {
-        logger.info(
-          "[ArchibaldBot] Button not visible, checking for parent menu...",
-        );
-
-        // Try to find and hover on parent menu item
-        const parentMenuSelector = "a.dxm-content";
-        try {
-          await page.hover(parentMenuSelector);
-          logger.info("[ArchibaldBot] Hovered on parent menu");
-          await new Promise((resolve) => setTimeout(resolve, 500));
-        } catch (error) {
-          logger.warn(
-            "[ArchibaldBot] Could not hover on parent menu, proceeding anyway",
-          );
-        }
-      }
-
-      // Additional delay after finding button, before setting up download
-      await new Promise((resolve) => setTimeout(resolve, 200));
-
-      // Setup download promise before clicking
-      const downloadComplete = new Promise<void>((resolve, reject) => {
-        const fs = require("fs");
-        const timeout = setTimeout(() => {
-          reject(
-            new Error(
-              "PDF download timeout (300s exceeded). Archibald may be generating PDF.",
+      await page.waitForFunction(
+        () => {
+          const loadingIndicators = Array.from(
+            document.querySelectorAll(
+              '[id*="LPV"], .dxlp, .dxlpLoadingPanel, [id*="Loading"]',
             ),
           );
-        }, 300000);
-
-        // Poll for file creation
-        const checkFile = setInterval(() => {
-          // Look for Clienti.pdf/Customers.pdf (Archibald's default names) or our custom pattern
-          const files = fs.readdirSync("/tmp");
-          const pdfFiles = files.filter(
-            (f: string) =>
-              f === "Clienti.pdf" ||
-              f === "Customers.pdf" ||
-              (f.startsWith("clienti-") && f.endsWith(".pdf")) ||
-              (f.startsWith("customers-") && f.endsWith(".pdf")),
+          return loadingIndicators.every(
+            (el) =>
+              (el as HTMLElement).style.display === "none" ||
+              (el as HTMLElement).offsetParent === null,
           );
-
-          if (pdfFiles.length > 0) {
-            // Find the most recent one (prefer Clienti.pdf/Customers.pdf if they exist)
-            const recentPdf =
-              pdfFiles.find((f: string) => f === "Clienti.pdf") ||
-              pdfFiles.find((f: string) => f === "Customers.pdf") ||
-              pdfFiles[pdfFiles.length - 1];
-            const tempPath = `/tmp/${recentPdf}`;
-
-            // Rename to our expected path
-            fs.renameSync(tempPath, downloadPath);
-
-            clearTimeout(timeout);
-            clearInterval(checkFile);
-            resolve();
-          }
-        }, 500);
-      });
-
-      // Click using evaluate to avoid clickability issues
-      // We need to click the <a> element with ID Vertical_mainMenu_Menu_DXI6_T
-      logger.info("[ArchibaldBot] Clicking PDF export button...");
-
-      // Additional delay before clicking
-      await new Promise((resolve) => setTimeout(resolve, 200));
-
-      // Trigger the click on the specific menu item
-      const clickResult = await page.evaluate(() => {
-        const button = document.querySelector(
-          "#Vertical_mainMenu_Menu_DXI6_T",
-        ) as HTMLElement;
-
-        if (!button) {
-          return { success: false, error: "Button element not found" };
-        }
-
-        // Try multiple click approaches for DevExpress menu
-        try {
-          // 1. Standard click
-          button.click();
-
-          // 2. Also dispatch mousedown/mouseup events (DevExpress may listen to these)
-          button.dispatchEvent(new MouseEvent("mousedown", { bubbles: true }));
-          button.dispatchEvent(new MouseEvent("mouseup", { bubbles: true }));
-          button.dispatchEvent(new MouseEvent("click", { bubbles: true }));
-
-          return { success: true, buttonText: button.textContent || "" };
-        } catch (err: any) {
-          return { success: false, error: err.message };
-        }
-      });
-
-      if (!clickResult.success) {
-        // Take screenshot for debugging
-        const screenshotPath = `/tmp/clienti-click-failed-${Date.now()}.png`;
-        await page.screenshot({ path: screenshotPath, fullPage: true });
-        logger.error(
-          `[ArchibaldBot] Click failed. Screenshot: ${screenshotPath}`,
-        );
-        throw new Error(
-          `Failed to click PDF export button: ${clickResult.error}`,
-        );
-      }
-
-      logger.info(
-        `[ArchibaldBot] Button clicked successfully (text: "${clickResult.buttonText}")`,
+        },
+        { timeout, polling: 100 },
       );
-
-      // Additional delay after clicking before waiting for download
-      await new Promise((resolve) => setTimeout(resolve, 200));
-
-      // 4. Wait for download to complete
-      await downloadComplete;
-
-      const duration = Date.now() - startTime;
-      logger.info(
-        `[ArchibaldBot] PDF downloaded to ${downloadPath} in ${duration}ms`,
-      );
-
-      // 5. Verify file exists and has content
-      const stats = require("fs").statSync(downloadPath);
-
-      if (stats.size === 0) {
-        throw new Error("Downloaded PDF is empty (0 bytes)");
-      }
-
-      logger.info(
-        `[ArchibaldBot] PDF file size: ${(stats.size / 1024).toFixed(2)} KB`,
-      );
-
-      return downloadPath;
-    } catch (error: any) {
-      const duration = Date.now() - startTime;
-      logger.error(
-        `[ArchibaldBot] PDF download failed after ${duration}ms:`,
-        error,
-      );
-
-      // Enhance error messages
-      if (error.message?.includes("timeout")) {
-        throw new Error(
-          "PDF download timeout (300s exceeded). Archibald may be generating PDF or button selector changed.",
-        );
-      }
-
-      throw new Error(`PDF download failed: ${error.message}`);
-    } finally {
-      // Close page to free resources
-      if (!page.isClosed()) {
-        await page.close().catch(() => {});
-      }
+      await new Promise((resolve) => setTimeout(resolve, 300));
+    } catch {
+      await new Promise((resolve) => setTimeout(resolve, 1000));
     }
   }
 
-  /**
-   * Download products PDF export from Archibald
-   * @param context Browser context to use
-   * @returns Path to downloaded PDF file in /tmp
-   */
-  async downloadProductsPDF(context: BrowserContext): Promise<string> {
+  private async downloadPDFExport(options: {
+    context: BrowserContext;
+    pageUrl: string;
+    buttonSelector: string;
+    containerSelector: string;
+    expectedFileNames: string[];
+    filePrefix: string;
+    downloadTimeout?: number;
+    beforeClick?: (page: Page) => Promise<void>;
+    clickStrategy?: "direct" | "responsive-fallback";
+    responsiveMenuButtonSelector?: string;
+    responsiveExportButtonSelector?: string;
+  }): Promise<string> {
+    const {
+      context,
+      pageUrl,
+      buttonSelector,
+      containerSelector,
+      expectedFileNames,
+      filePrefix,
+      downloadTimeout = 120000,
+      beforeClick,
+      clickStrategy = "direct",
+      responsiveMenuButtonSelector,
+      responsiveExportButtonSelector,
+    } = options;
+
     const page = await context.newPage();
     const startTime = Date.now();
 
     try {
-      logger.info("[ArchibaldBot] Starting Products PDF download");
+      logger.info(`[ArchibaldBot] Starting ${filePrefix} PDF download`);
 
-      // Force Italian language for PDF export
       await page.setExtraHTTPHeaders({
         "Accept-Language": "it-IT,it;q=0.9,en-US;q=0.8,en;q=0.7",
       });
 
-      // 1. Navigate to Products ListView page
-      const productsUrl =
-        "https://4.231.124.90/Archibald/INVENTTABLE_ListView/";
-      await page.goto(productsUrl, {
+      await page.goto(pageUrl, {
         waitUntil: "domcontentloaded",
         timeout: 60000,
       });
-      logger.info("[ArchibaldBot] Navigated to Products ListView page");
+      logger.info(
+        `[ArchibaldBot] Navigated to ${filePrefix} page: ${pageUrl}`,
+      );
 
-      // Wait for dynamic content to load (same pattern as customers sync)
-      await new Promise((resolve) => setTimeout(resolve, 2000));
+      await this.waitForDevExpressReadyOnPage(page);
 
-      // Additional delay for slower, more reliable execution
-      await new Promise((resolve) => setTimeout(resolve, 200));
+      if (beforeClick) {
+        await beforeClick(page);
+      }
 
-      // 2. Setup download handling (Puppeteer approach)
       const timestamp = Date.now();
       const userId = this.userId || "unknown";
-      const downloadPath = `/tmp/prodotti-${timestamp}-${userId}.pdf`;
+      const downloadPath = `/tmp/${filePrefix}-${timestamp}-${userId}.pdf`;
 
-      // Enable download interception
       const client = await page.target().createCDPSession();
       await client.send("Page.setDownloadBehavior", {
         behavior: "allow",
         downloadPath: "/tmp",
       });
 
-      // Additional delay before starting button search
-      await new Promise((resolve) => setTimeout(resolve, 200));
+      await page.waitForSelector(containerSelector, { timeout: 10000 });
+      logger.info(`[ArchibaldBot] Menu container found: ${containerSelector}`);
 
-      // 3. Trigger PDF export
-      // Button ID: Vertical_mainMenu_Menu_DXI7_T
-      // Title: "Esportare in PDF File"
-      logger.info("[ArchibaldBot] Searching for PDF export button...");
+      const isVisible = await page.evaluate((sel: string) => {
+        const el = document.querySelector(sel) as HTMLElement | null;
+        if (!el) return false;
+        const rect = el.getBoundingClientRect();
+        return rect.width > 0 && rect.height > 0;
+      }, buttonSelector);
 
-      // Wait for the menu container to be present
-      await page.waitForSelector("#Vertical_mainMenu_Menu_DXI3_", {
-        timeout: 10000,
-      });
-
-      logger.info("[ArchibaldBot] Menu container found");
-      await new Promise((resolve) => setTimeout(resolve, 200));
-
-      // Check if button is already visible or needs hover
-      const isVisible = await page.evaluate(() => {
-        const li = document.querySelector("#Vertical_mainMenu_Menu_DXI3_");
-        const a = document.querySelector("#Vertical_mainMenu_Menu_DXI3_T");
-
-        if (!li || !a) return false;
-
-        const liRect = li.getBoundingClientRect();
-        const aRect = a.getBoundingClientRect();
-
-        return (
-          liRect.width > 0 &&
-          liRect.height > 0 &&
-          aRect.width > 0 &&
-          aRect.height > 0
-        );
-      });
-
-      logger.info(`[ArchibaldBot] Button visibility check: ${isVisible}`);
-
-      // If not visible, might need to hover on parent menu
       if (!isVisible) {
         logger.info(
-          "[ArchibaldBot] Button not visible, checking for parent menu...",
+          "[ArchibaldBot] Button not visible, hovering parent menu...",
         );
-
-        // Try to find and hover on parent menu item
-        const parentMenuSelector = "a.dxm-content";
         try {
-          await page.hover(parentMenuSelector);
-          logger.info("[ArchibaldBot] Hovered on parent menu");
+          await page.hover("a.dxm-content");
           await new Promise((resolve) => setTimeout(resolve, 500));
-        } catch (error) {
+        } catch {
           logger.warn(
             "[ArchibaldBot] Could not hover on parent menu, proceeding anyway",
           );
         }
       }
 
-      // Additional delay after finding button, before setting up download
-      await new Promise((resolve) => setTimeout(resolve, 200));
-
-      // Setup download promise before clicking
       const downloadComplete = new Promise<void>((resolve, reject) => {
-        const fs = require("fs");
         const timeout = setTimeout(() => {
+          clearInterval(checkFile);
           reject(
             new Error(
-              "PDF download timeout (300s exceeded). Archibald may be generating PDF.",
+              `PDF download timeout (${downloadTimeout / 1000}s exceeded)`,
             ),
           );
-        }, 300000);
+        }, downloadTimeout);
 
-        // Poll for file creation
-        const checkFile = setInterval(() => {
-          // Look for Prodotti.pdf/Products.pdf (Archibald's default names) or our custom pattern
-          const files = fs.readdirSync("/tmp");
-          const pdfFiles = files.filter(
-            (f: string) =>
-              f === "Prodotti.pdf" ||
-              f === "Products.pdf" ||
-              (f.startsWith("prodotti-") && f.endsWith(".pdf")) ||
-              (f.startsWith("products-") && f.endsWith(".pdf")),
-          );
+        const checkFile = setInterval(async () => {
+          try {
+            const files = await fsp.readdir("/tmp");
+            const pdfFiles = files.filter(
+              (f) =>
+                expectedFileNames.includes(f) ||
+                (f.startsWith(`${filePrefix}-`) && f.endsWith(".pdf")),
+            );
 
-          if (pdfFiles.length > 0) {
-            // Find the most recent one (prefer Prodotti.pdf/Products.pdf if they exist)
-            const recentPdf =
-              pdfFiles.find((f: string) => f === "Prodotti.pdf") ||
-              pdfFiles.find((f: string) => f === "Products.pdf") ||
-              pdfFiles[pdfFiles.length - 1];
-            const tempPath = `/tmp/${recentPdf}`;
+            if (pdfFiles.length > 0) {
+              const recentPdf =
+                pdfFiles.find((f) => expectedFileNames.includes(f)) ||
+                pdfFiles[pdfFiles.length - 1];
+              const tempPath = `/tmp/${recentPdf}`;
 
-            // Rename to our expected path
-            fs.renameSync(tempPath, downloadPath);
-
+              try {
+                await fsp.rename(tempPath, downloadPath);
+                clearTimeout(timeout);
+                clearInterval(checkFile);
+                resolve();
+              } catch (renameErr) {
+                logger.warn(
+                  `[ArchibaldBot] Rename failed, retrying next poll`,
+                  { error: renameErr },
+                );
+              }
+            }
+          } catch (pollErr) {
+            logger.error("[ArchibaldBot] Error during PDF polling", {
+              error: pollErr,
+            });
             clearTimeout(timeout);
             clearInterval(checkFile);
-            resolve();
+            reject(pollErr);
           }
         }, 500);
       });
 
-      // Click using evaluate to avoid clickability issues
-      // We need to click the <a> element with ID Vertical_mainMenu_Menu_DXI7_T
       logger.info("[ArchibaldBot] Clicking PDF export button...");
 
-      // Additional delay before clicking
-      await new Promise((resolve) => setTimeout(resolve, 200));
+      let clicked = false;
 
-      // Trigger the click on the specific menu item
-      const clickResult = await page.evaluate(() => {
-        const button = document.querySelector(
-          "#Vertical_mainMenu_Menu_DXI3_T",
-        ) as HTMLElement;
+      if (
+        clickStrategy === "responsive-fallback" &&
+        responsiveMenuButtonSelector &&
+        responsiveExportButtonSelector
+      ) {
+        const showHiddenResult = await page.evaluate((sel: string) => {
+          const btn = document.querySelector(sel) as HTMLElement;
+          if (!btn) return { success: false };
+          btn.click();
+          return { success: true };
+        }, responsiveMenuButtonSelector);
 
-        if (!button) {
-          return { success: false, error: "Button not found in DOM" };
+        if (showHiddenResult.success) {
+          logger.info(
+            "[ArchibaldBot] Responsive menu opened, waiting for submenu...",
+          );
+          await new Promise((resolve) => setTimeout(resolve, 500));
+
+          const respClickResult = await page.evaluate((sel: string) => {
+            const btn = document.querySelector(sel) as HTMLElement;
+            if (!btn) return { success: false };
+            btn.click();
+            return { success: true };
+          }, responsiveExportButtonSelector);
+
+          if (respClickResult.success) {
+            logger.info(
+              "[ArchibaldBot] PDF export clicked via responsive menu",
+            );
+            clicked = true;
+          }
         }
+      }
 
-        button.click();
-        return { success: true };
-      });
+      if (!clicked) {
+        const clickResult = await page.evaluate((sel: string) => {
+          const button = document.querySelector(sel) as HTMLElement;
+          if (!button)
+            return { success: false, error: "Button not found in DOM" };
 
-      if (!clickResult.success) {
-        throw new Error(
-          `Failed to click PDF export button: ${clickResult.error}`,
-        );
+          button.dispatchEvent(
+            new MouseEvent("mousedown", { bubbles: true }),
+          );
+          button.dispatchEvent(new MouseEvent("mouseup", { bubbles: true }));
+          button.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+          return { success: true };
+        }, buttonSelector);
+
+        if (!clickResult.success) {
+          const screenshotPath = `/tmp/${filePrefix}-click-failed-${Date.now()}.png`;
+          await page.screenshot({ path: screenshotPath, fullPage: true });
+          logger.error(
+            `[ArchibaldBot] Click failed. Screenshot: ${screenshotPath}`,
+          );
+          throw new Error(
+            `Failed to click PDF export button: ${clickResult.error}`,
+          );
+        }
       }
 
       logger.info(
         "[ArchibaldBot] PDF export button clicked, waiting for download...",
       );
 
-      // Wait for download to complete
       await downloadComplete;
 
+      const stats = fs.statSync(downloadPath);
+      if (stats.size === 0) {
+        throw new Error("Downloaded PDF is empty (0 bytes)");
+      }
+
       const duration = Date.now() - startTime;
-      logger.info("[ArchibaldBot] Products PDF downloaded successfully", {
-        downloadPath,
-        durationMs: duration,
-      });
+      logger.info(
+        `[ArchibaldBot] ${filePrefix} PDF downloaded to ${downloadPath} in ${duration}ms (${(stats.size / 1024).toFixed(2)} KB)`,
+      );
 
       return downloadPath;
     } catch (error: any) {
       const duration = Date.now() - startTime;
-      logger.error("[ArchibaldBot] Products PDF download failed", {
-        error: error.message,
-        durationMs: duration,
-      });
-      throw error;
+      logger.error(
+        `[ArchibaldBot] ${filePrefix} PDF download failed after ${duration}ms`,
+        { error: error.message },
+      );
+      throw new Error(`PDF download failed: ${error.message}`);
     } finally {
-      // Close page to free resources
       if (!page.isClosed()) {
         await page.close().catch(() => {});
       }
     }
+  }
+
+  async downloadCustomersPDF(context: BrowserContext): Promise<string> {
+    return this.downloadPDFExport({
+      context,
+      pageUrl:
+        "https://4.231.124.90/Archibald/CUSTTABLE_ListView_Agent/",
+      buttonSelector: "#Vertical_mainMenu_Menu_DXI6_T",
+      containerSelector: "#Vertical_mainMenu_Menu_DXI6_",
+      expectedFileNames: ["Clienti.pdf", "Customers.pdf"],
+      filePrefix: "clienti",
+    });
+  }
+
+  async downloadProductsPDF(context: BrowserContext): Promise<string> {
+    return this.downloadPDFExport({
+      context,
+      pageUrl: "https://4.231.124.90/Archibald/INVENTTABLE_ListView/",
+      buttonSelector: "#Vertical_mainMenu_Menu_DXI3_T",
+      containerSelector: "#Vertical_mainMenu_Menu_DXI3_",
+      expectedFileNames: ["Prodotti.pdf", "Products.pdf"],
+      filePrefix: "prodotti",
+    });
   }
 
   /**
@@ -5954,700 +5794,69 @@ export class ArchibaldBot {
    * @returns Path to downloaded PDF file in /tmp
    */
   async downloadOrdersPDF(context: BrowserContext): Promise<string> {
-    const page = await context.newPage();
-    const startTime = Date.now();
-
-    try {
-      logger.info("[ArchibaldBot] Starting Orders PDF download");
-
-      // Force Italian language for PDF export
-      await page.setExtraHTTPHeaders({
-        "Accept-Language": "it-IT,it;q=0.9,en-US;q=0.8,en;q=0.7",
-      });
-
-      // 1. Navigate to Orders ListView page
-      const ordersUrl =
-        "https://4.231.124.90/Archibald/SALESTABLE_ListView_Agent/";
-      await page.goto(ordersUrl, {
-        waitUntil: "domcontentloaded",
-        timeout: 60000,
-      });
-      logger.info("[ArchibaldBot] Navigated to Orders ListView page");
-
-      // Wait for dynamic content to load
-      await new Promise((resolve) => setTimeout(resolve, 2000));
-      await new Promise((resolve) => setTimeout(resolve, 200));
-
-      // 1.5. Ensure filter is set to "Tutti gli ordini"
-      await this.ensureOrdersFilterSetToAll(page);
-
-      // 2. Setup download handling
-      const timestamp = Date.now();
-      const downloadPath = `/tmp/ordini-${timestamp}.pdf`;
-
-      // Enable download interception
-      const client = await page.target().createCDPSession();
-      await client.send("Page.setDownloadBehavior", {
-        behavior: "allow",
-        downloadPath: "/tmp",
-      });
-
-      await new Promise((resolve) => setTimeout(resolve, 200));
-
-      // 3. Trigger PDF export
-      logger.info("[ArchibaldBot] Searching for PDF export button...");
-
-      // Wait for the menu container to be present
-      await page.waitForSelector("#Vertical_mainMenu_Menu_DXI3_", {
-        timeout: 10000,
-      });
-
-      logger.info("[ArchibaldBot] Menu container found");
-      await new Promise((resolve) => setTimeout(resolve, 200));
-
-      // Check if button is already visible or needs hover
-      const isVisible = await page.evaluate(() => {
-        const li = document.querySelector("#Vertical_mainMenu_Menu_DXI3_");
-        const a = document.querySelector("#Vertical_mainMenu_Menu_DXI3_T");
-
-        if (!li || !a) return false;
-
-        const liRect = li.getBoundingClientRect();
-        const aRect = a.getBoundingClientRect();
-
-        return (
-          liRect.width > 0 &&
-          liRect.height > 0 &&
-          aRect.width > 0 &&
-          aRect.height > 0
-        );
-      });
-
-      logger.info(`[ArchibaldBot] Button visibility check: ${isVisible}`);
-
-      // If not visible, hover on parent menu
-      if (!isVisible) {
-        logger.info(
-          "[ArchibaldBot] Button not visible, checking for parent menu...",
-        );
-
-        const parentMenuSelector = "a.dxm-content";
-        try {
-          await page.hover(parentMenuSelector);
-          logger.info("[ArchibaldBot] Hovered on parent menu");
-          await new Promise((resolve) => setTimeout(resolve, 500));
-        } catch (error) {
-          logger.warn(
-            "[ArchibaldBot] Could not hover on parent menu, proceeding anyway",
-          );
-        }
-      }
-
-      await new Promise((resolve) => setTimeout(resolve, 200));
-
-      // Setup download promise before clicking
-      logger.info("[ArchibaldBot] Setting up download promise with polling...");
-      const downloadComplete = new Promise<void>((resolve, reject) => {
-        const fs = require("fs");
-        let pollCount = 0;
-        const timeout = setTimeout(() => {
-          logger.error("[ArchibaldBot] PDF download timeout exceeded (300s)", {
-            pollCount,
-            downloadPath,
-          });
-          reject(
-            new Error(
-              "PDF download timeout (300s exceeded). Archibald may be generating PDF.",
-            ),
-          );
-        }, 300000);
-
-        // Poll for file creation
-        const checkFile = setInterval(() => {
-          pollCount++;
-          try {
-            const files = fs.readdirSync("/tmp");
-            const pdfFiles = files.filter(
-              (f: string) =>
-                f === "Ordini.pdf" ||
-                f === "Ordini cliente.pdf" ||
-                f === "Customer orders.pdf" ||
-                (f.startsWith("ordini-") && f.endsWith(".pdf")),
-            );
-
-            // Log polling progress every 10 seconds (20 polls at 500ms interval)
-            if (pollCount % 20 === 0) {
-              logger.info("[ArchibaldBot] Still waiting for PDF download...", {
-                pollCount,
-                elapsedSeconds: Math.floor((pollCount * 500) / 1000),
-                pdfFilesFound: pdfFiles.length,
-              });
-            }
-
-            if (pdfFiles.length > 0) {
-              const recentPdf =
-                pdfFiles.find((f: string) => f === "Ordini cliente.pdf") ||
-                pdfFiles.find((f: string) => f === "Customer orders.pdf") ||
-                pdfFiles[pdfFiles.length - 1];
-              const tempPath = `/tmp/${recentPdf}`;
-
-              logger.info("[ArchibaldBot] PDF file detected, renaming...", {
-                tempPath,
-                downloadPath,
-                pollCount,
-                elapsedSeconds: Math.floor((pollCount * 500) / 1000),
-              });
-
-              // Rename to our expected path
-              fs.renameSync(tempPath, downloadPath);
-
-              logger.info("[ArchibaldBot] PDF file renamed successfully", {
-                downloadPath,
-              });
-
-              clearTimeout(timeout);
-              clearInterval(checkFile);
-              resolve();
-            }
-          } catch (pollError) {
-            logger.error("[ArchibaldBot] Error during PDF polling", {
-              error:
-                pollError instanceof Error
-                  ? pollError.message
-                  : String(pollError),
-              stack: pollError instanceof Error ? pollError.stack : undefined,
-              pollCount,
-            });
-            clearTimeout(timeout);
-            clearInterval(checkFile);
-            reject(pollError);
-          }
-        }, 500);
-      });
-
-      // Click PDF export button with fallback strategy
-      logger.info("[ArchibaldBot] Attempting to click PDF export button...");
-
-      await new Promise((resolve) => setTimeout(resolve, 200));
-
-      // Attempt 1: Try responsive menu first (DXI9 → DXI7)
-      logger.info("[ArchibaldBot] Trying responsive menu method first...");
-
-      const showHiddenResult = await page.evaluate(() => {
-        const hiddenMenuButton = document.querySelector(
-          "#Vertical_mainMenu_Menu_DXI9_T",
-        ) as HTMLElement;
-
-        if (!hiddenMenuButton) {
-          return {
-            success: false,
-            error: "Show hidden items button not found",
-          };
-        }
-
-        hiddenMenuButton.click();
-        return { success: true };
-      });
-
-      let clickResult: any;
-
-      if (showHiddenResult.success) {
-        logger.info(
-          "[ArchibaldBot] Responsive menu opened, waiting for submenu...",
-        );
-        await new Promise((resolve) => setTimeout(resolve, 500));
-
-        // Try to click DXI7 button from responsive menu
-        clickResult = await page.evaluate(() => {
-          const button = document.querySelector(
-            "#Vertical_mainMenu_Menu_DXI7_T",
-          ) as HTMLElement;
-
-          if (!button) {
-            return {
-              success: false,
-              error: "DXI7 button not found in responsive menu",
-            };
-          }
-
-          button.click();
-          return { success: true, method: "responsive-DXI7" };
-        });
-
-        if (clickResult.success) {
-          logger.info(
-            "[ArchibaldBot] PDF export clicked via responsive menu (DXI7)",
-          );
-        }
-      } else {
-        clickResult = { success: false };
-      }
-
-      // Attempt 2: If responsive menu failed, try direct button (DXI3)
-      if (!clickResult.success) {
-        logger.info(
-          "[ArchibaldBot] Responsive menu not available, trying direct button fallback...",
-        );
-
-        clickResult = await page.evaluate(() => {
-          const button = document.querySelector(
-            "#Vertical_mainMenu_Menu_DXI3_T",
-          ) as HTMLElement;
-
-          if (!button) {
-            return { success: false, error: "DXI3 button not found" };
-          }
-
-          button.click();
-          return { success: true, method: "direct-DXI3" };
-        });
-
-        if (!clickResult.success) {
-          logger.error(
-            "[ArchibaldBot] Both methods failed to click PDF export button",
-            {
-              error: clickResult.error,
-            },
-          );
-          throw new Error(
-            `Failed to click PDF export button: ${clickResult.error}`,
-          );
-        }
-
-        logger.info(
-          "[ArchibaldBot] PDF export clicked via direct button (DXI3)",
-        );
-      }
-
-      logger.info(
-        `[ArchibaldBot] PDF export button clicked successfully (method: ${clickResult.method}), waiting for download...`,
-      );
-
-      // Wait for download to complete
-      try {
-        await downloadComplete;
-        logger.info("[ArchibaldBot] Download promise resolved successfully");
-      } catch (downloadError) {
-        logger.error("[ArchibaldBot] Download promise rejected", {
-          error:
-            downloadError instanceof Error
-              ? downloadError.message
-              : String(downloadError),
-          stack:
-            downloadError instanceof Error ? downloadError.stack : undefined,
-        });
-        throw downloadError;
-      }
-
-      const duration = Date.now() - startTime;
-      logger.info("[ArchibaldBot] Orders PDF downloaded successfully", {
-        downloadPath,
-        durationMs: duration,
-      });
-
-      return downloadPath;
-    } catch (error: any) {
-      const duration = Date.now() - startTime;
-      logger.error("[ArchibaldBot] Orders PDF download failed", {
-        error: error.message,
-        durationMs: duration,
-      });
-      throw error;
-    } finally {
-      if (!page.isClosed()) {
-        await page.close().catch(() => {});
-      }
-    }
+    return this.downloadPDFExport({
+      context,
+      pageUrl:
+        "https://4.231.124.90/Archibald/SALESTABLE_ListView_Agent/",
+      buttonSelector: "#Vertical_mainMenu_Menu_DXI3_T",
+      containerSelector: "#Vertical_mainMenu_Menu_DXI3_",
+      expectedFileNames: [
+        "Ordini.pdf",
+        "Ordini cliente.pdf",
+        "Customer orders.pdf",
+      ],
+      filePrefix: "ordini",
+      beforeClick: (page) => this.ensureOrdersFilterSetToAll(page),
+      clickStrategy: "responsive-fallback",
+      responsiveMenuButtonSelector: "#Vertical_mainMenu_Menu_DXI9_T",
+      responsiveExportButtonSelector: "#Vertical_mainMenu_Menu_DXI7_T",
+    });
   }
 
-  /**
-   * Download DDT PDF export from Archibald
-   * @param context Browser context to use
-   * @returns Path to downloaded PDF file in /tmp
-   */
   async downloadDDTPDF(context: BrowserContext): Promise<string> {
-    const page = await context.newPage();
-    const startTime = Date.now();
-
-    try {
-      logger.info("[ArchibaldBot] Starting DDT PDF download");
-
-      // Force Italian language for PDF export
-      await page.setExtraHTTPHeaders({
-        "Accept-Language": "it-IT,it;q=0.9,en-US;q=0.8,en;q=0.7",
-      });
-
-      // 1. Navigate to DDT ListView page
-      const ddtUrl =
-        "https://4.231.124.90/Archibald/CUSTPACKINGSLIPJOUR_ListView/";
-      await page.goto(ddtUrl, {
-        waitUntil: "domcontentloaded",
-        timeout: 60000,
-      });
-      logger.info("[ArchibaldBot] Navigated to DDT ListView page");
-
-      // Wait for dynamic content to load
-      await new Promise((resolve) => setTimeout(resolve, 2000));
-      await new Promise((resolve) => setTimeout(resolve, 200));
-
-      // 2. Setup download handling
-      const timestamp = Date.now();
-      const downloadPath = `/tmp/ddt-${timestamp}.pdf`;
-
-      // Enable download interception
-      const client = await page.target().createCDPSession();
-      await client.send("Page.setDownloadBehavior", {
-        behavior: "allow",
-        downloadPath: "/tmp",
-      });
-
-      await new Promise((resolve) => setTimeout(resolve, 200));
-
-      // 3. Trigger PDF export
-      logger.info("[ArchibaldBot] Searching for PDF export button...");
-
-      // Wait for the menu container to be present
-      await page.waitForSelector("#Vertical_mainMenu_Menu_DXI3_", {
-        timeout: 10000,
-      });
-
-      logger.info("[ArchibaldBot] Menu container found");
-      await new Promise((resolve) => setTimeout(resolve, 200));
-
-      // Check if button is already visible or needs hover
-      const isVisible = await page.evaluate(() => {
-        const li = document.querySelector("#Vertical_mainMenu_Menu_DXI3_");
-        const a = document.querySelector("#Vertical_mainMenu_Menu_DXI3_T");
-
-        if (!li || !a) return false;
-
-        const liRect = li.getBoundingClientRect();
-        const aRect = a.getBoundingClientRect();
-
-        return (
-          liRect.width > 0 &&
-          liRect.height > 0 &&
-          aRect.width > 0 &&
-          aRect.height > 0
-        );
-      });
-
-      logger.info(`[ArchibaldBot] Button visibility check: ${isVisible}`);
-
-      // If not visible, hover on parent menu
-      if (!isVisible) {
-        logger.info(
-          "[ArchibaldBot] Button not visible, checking for parent menu...",
-        );
-
-        const parentMenuSelector = "a.dxm-content";
-        try {
-          await page.hover(parentMenuSelector);
-          logger.info("[ArchibaldBot] Hovered on parent menu");
-          await new Promise((resolve) => setTimeout(resolve, 500));
-        } catch (error) {
-          logger.warn(
-            "[ArchibaldBot] Could not hover on parent menu, proceeding anyway",
-          );
-        }
-      }
-
-      await new Promise((resolve) => setTimeout(resolve, 200));
-
-      // Setup download promise before clicking
-      const downloadComplete = new Promise<void>((resolve, reject) => {
-        const fs = require("fs");
-        const timeout = setTimeout(() => {
-          reject(
-            new Error(
-              "PDF download timeout (300s exceeded). Archibald may be generating PDF.",
-            ),
-          );
-        }, 300000);
-
-        // Poll for file creation
-        const checkFile = setInterval(() => {
-          const files = fs.readdirSync("/tmp");
-          const pdfFiles = files.filter(
-            (f: string) =>
-              f === "Documenti di trasporto.pdf" ||
-              f === "Giornale di registrazione bolla di consegna.pdf" ||
-              f === "Packing slip journal.pdf" ||
-              (f.startsWith("ddt-") && f.endsWith(".pdf")),
-          );
-
-          if (pdfFiles.length > 0) {
-            const recentPdf =
-              pdfFiles.find(
-                (f: string) => f === "Documenti di trasporto.pdf",
-              ) ||
-              pdfFiles.find(
-                (f: string) =>
-                  f === "Giornale di registrazione bolla di consegna.pdf",
-              ) ||
-              pdfFiles.find((f: string) => f === "Packing slip journal.pdf") ||
-              pdfFiles[pdfFiles.length - 1];
-            const tempPath = `/tmp/${recentPdf}`;
-
-            // Rename to our expected path
-            fs.renameSync(tempPath, downloadPath);
-
-            clearTimeout(timeout);
-            clearInterval(checkFile);
-            resolve();
-          }
-        }, 500);
-      });
-
-      // Click PDF export button
-      logger.info("[ArchibaldBot] Clicking PDF export button...");
-
-      await new Promise((resolve) => setTimeout(resolve, 200));
-
-      const clickResult = await page.evaluate(() => {
-        const button = document.querySelector(
-          "#Vertical_mainMenu_Menu_DXI3_T",
-        ) as HTMLElement;
-
-        if (!button) {
-          return { success: false, error: "Button not found in DOM" };
-        }
-
-        button.click();
-        return { success: true };
-      });
-
-      if (!clickResult.success) {
-        throw new Error(
-          `Failed to click PDF export button: ${clickResult.error}`,
-        );
-      }
-
-      logger.info(
-        "[ArchibaldBot] PDF export button clicked, waiting for download...",
-      );
-
-      // Wait for download to complete
-      await downloadComplete;
-
-      const duration = Date.now() - startTime;
-      logger.info("[ArchibaldBot] DDT PDF downloaded successfully", {
-        downloadPath,
-        durationMs: duration,
-      });
-
-      return downloadPath;
-    } catch (error: any) {
-      const duration = Date.now() - startTime;
-      logger.error("[ArchibaldBot] DDT PDF download failed", {
-        error: error.message,
-        durationMs: duration,
-      });
-      throw error;
-    } finally {
-      if (!page.isClosed()) {
-        await page.close().catch(() => {});
-      }
-    }
+    return this.downloadPDFExport({
+      context,
+      pageUrl:
+        "https://4.231.124.90/Archibald/CUSTPACKINGSLIPJOUR_ListView/",
+      buttonSelector: "#Vertical_mainMenu_Menu_DXI3_T",
+      containerSelector: "#Vertical_mainMenu_Menu_DXI3_",
+      expectedFileNames: [
+        "Documenti di trasporto.pdf",
+        "Giornale di registrazione bolla di consegna.pdf",
+        "Packing slip journal.pdf",
+      ],
+      filePrefix: "ddt",
+    });
   }
 
-  /**
-   * Download invoices PDF export from Archibald
-   * @param context Browser context to use
-   * @returns Path to downloaded PDF file in /tmp
-   */
   async downloadInvoicesPDF(context: BrowserContext): Promise<string> {
-    const page = await context.newPage();
-    const startTime = Date.now();
-
-    try {
-      logger.info("[ArchibaldBot] Starting Invoices PDF download");
-
-      // Force Italian language for PDF export
-      await page.setExtraHTTPHeaders({
-        "Accept-Language": "it-IT,it;q=0.9,en-US;q=0.8,en;q=0.7",
-      });
-
-      // 1. Navigate to Invoices ListView page
-      const invoicesUrl =
-        "https://4.231.124.90/Archibald/CUSTINVOICEJOUR_ListView/";
-      await page.goto(invoicesUrl, {
-        waitUntil: "domcontentloaded",
-        timeout: 60000,
-      });
-      logger.info("[ArchibaldBot] Navigated to Invoices ListView page");
-
-      // Wait for dynamic content to load
-      await new Promise((resolve) => setTimeout(resolve, 2000));
-      await new Promise((resolve) => setTimeout(resolve, 200));
-
-      // 2. Setup download handling
-      const timestamp = Date.now();
-      const downloadPath = `/tmp/fatture-${timestamp}.pdf`;
-
-      // Enable download interception
-      const client = await page.target().createCDPSession();
-      await client.send("Page.setDownloadBehavior", {
-        behavior: "allow",
-        downloadPath: "/tmp",
-      });
-
-      await new Promise((resolve) => setTimeout(resolve, 200));
-
-      // 3. Trigger PDF export
-      logger.info("[ArchibaldBot] Searching for PDF export button...");
-
-      // Wait for the menu container to be present
-      await page.waitForSelector("#Vertical_mainMenu_Menu_DXI3_", {
-        timeout: 10000,
-      });
-
-      logger.info("[ArchibaldBot] Menu container found");
-      await new Promise((resolve) => setTimeout(resolve, 200));
-
-      // Check if button is already visible or needs hover
-      const isVisible = await page.evaluate(() => {
-        const li = document.querySelector("#Vertical_mainMenu_Menu_DXI3_");
-        const a = document.querySelector("#Vertical_mainMenu_Menu_DXI3_T");
-
-        if (!li || !a) return false;
-
-        const liRect = li.getBoundingClientRect();
-        const aRect = a.getBoundingClientRect();
-
-        return (
-          liRect.width > 0 &&
-          liRect.height > 0 &&
-          aRect.width > 0 &&
-          aRect.height > 0
-        );
-      });
-
-      logger.info(`[ArchibaldBot] Button visibility check: ${isVisible}`);
-
-      // If not visible, hover on parent menu
-      if (!isVisible) {
-        logger.info(
-          "[ArchibaldBot] Button not visible, checking for parent menu...",
-        );
-
-        const parentMenuSelector = "a.dxm-content";
-        try {
-          await page.hover(parentMenuSelector);
-          logger.info("[ArchibaldBot] Hovered on parent menu");
-          await new Promise((resolve) => setTimeout(resolve, 500));
-        } catch (error) {
-          logger.warn(
-            "[ArchibaldBot] Could not hover on parent menu, proceeding anyway",
-          );
-        }
-      }
-
-      await new Promise((resolve) => setTimeout(resolve, 200));
-
-      // Setup download promise before clicking
-      const downloadComplete = new Promise<void>((resolve, reject) => {
-        const fs = require("fs");
-        const timeout = setTimeout(() => {
-          reject(
-            new Error(
-              "PDF download timeout (300s exceeded). Archibald may be generating PDF.",
-            ),
-          );
-        }, 300000);
-
-        // Poll for file creation
-        const checkFile = setInterval(() => {
-          const files = fs.readdirSync("/tmp");
-          const pdfFiles = files.filter(
-            (f: string) =>
-              f === "Fatture.pdf" ||
-              f === "Giornale di registrazione fatture cliente.pdf" ||
-              f === "Customer invoice journal.pdf" ||
-              (f.startsWith("fatture-") && f.endsWith(".pdf")),
-          );
-
-          if (pdfFiles.length > 0) {
-            const recentPdf =
-              pdfFiles.find((f: string) => f === "Fatture.pdf") ||
-              pdfFiles.find(
-                (f: string) =>
-                  f === "Giornale di registrazione fatture cliente.pdf",
-              ) ||
-              pdfFiles.find(
-                (f: string) => f === "Customer invoice journal.pdf",
-              ) ||
-              pdfFiles[pdfFiles.length - 1];
-            const tempPath = `/tmp/${recentPdf}`;
-
-            // Rename to our expected path
-            fs.renameSync(tempPath, downloadPath);
-
-            clearTimeout(timeout);
-            clearInterval(checkFile);
-            resolve();
-          }
-        }, 500);
-      });
-
-      // Click PDF export button
-      logger.info("[ArchibaldBot] Clicking PDF export button...");
-
-      await new Promise((resolve) => setTimeout(resolve, 200));
-
-      const clickResult = await page.evaluate(() => {
-        const button = document.querySelector(
-          "#Vertical_mainMenu_Menu_DXI3_T",
-        ) as HTMLElement;
-
-        if (!button) {
-          return { success: false, error: "Button not found in DOM" };
-        }
-
-        button.click();
-        return { success: true };
-      });
-
-      if (!clickResult.success) {
-        throw new Error(
-          `Failed to click PDF export button: ${clickResult.error}`,
-        );
-      }
-
-      logger.info(
-        "[ArchibaldBot] PDF export button clicked, waiting for download...",
-      );
-
-      // Wait for download to complete
-      await downloadComplete;
-
-      const duration = Date.now() - startTime;
-      logger.info("[ArchibaldBot] Invoices PDF downloaded successfully", {
-        downloadPath,
-        durationMs: duration,
-      });
-
-      return downloadPath;
-    } catch (error: any) {
-      const duration = Date.now() - startTime;
-      logger.error("[ArchibaldBot] Invoices PDF download failed", {
-        error: error.message,
-        durationMs: duration,
-      });
-      throw error;
-    } finally {
-      if (!page.isClosed()) {
-        await page.close().catch(() => {});
-      }
-    }
+    return this.downloadPDFExport({
+      context,
+      pageUrl:
+        "https://4.231.124.90/Archibald/CUSTINVOICEJOUR_ListView/",
+      buttonSelector: "#Vertical_mainMenu_Menu_DXI3_T",
+      containerSelector: "#Vertical_mainMenu_Menu_DXI3_",
+      expectedFileNames: [
+        "Fatture.pdf",
+        "Giornale di registrazione fatture cliente.pdf",
+        "Customer invoice journal.pdf",
+      ],
+      filePrefix: "fatture",
+    });
   }
 
-  /**
-   * Download Order Articles (Saleslines) PDF export from Archibald
-   * @param context Browser context to use
-   * @param archibaldOrderId Order ID from Archibald (e.g., "71723")
-   * @returns Path to downloaded PDF file in /tmp
-   */
+  async downloadPricesPDF(context: BrowserContext): Promise<string> {
+    return this.downloadPDFExport({
+      context,
+      pageUrl:
+        "https://4.231.124.90/Archibald/PRICEDISCTABLE_ListView/",
+      buttonSelector: "#Vertical_mainMenu_Menu_DXI3_T",
+      containerSelector: "#Vertical_mainMenu_Menu_DXI3_",
+      expectedFileNames: ["Tabella prezzi.pdf", "Price table.pdf"],
+      filePrefix: "prezzi",
+    });
+  }
+
   async downloadOrderArticlesPDF(
     context: BrowserContext,
     archibaldOrderId: string,
@@ -6660,14 +5869,10 @@ export class ArchibaldBot {
         archibaldOrderId,
       });
 
-      // Force Italian language for PDF export
       await page.setExtraHTTPHeaders({
         "Accept-Language": "it-IT,it;q=0.9,en-US;q=0.8,en;q=0.7",
       });
 
-      // Navigate to order detail page
-      // Remove dots from order ID (e.g., "71.723" -> "71723")
-      // Archibald expects integer format without dots
       const cleanOrderId = archibaldOrderId.replace(/\./g, "");
       const orderUrl = `https://4.231.124.90/Archibald/SALESTABLE_DetailViewAgent/${cleanOrderId}/?mode=View`;
       await page.goto(orderUrl, {
@@ -6677,96 +5882,113 @@ export class ArchibaldBot {
       logger.info("[ArchibaldBot] Navigated to order detail page", {
         archibaldOrderId,
         cleanOrderId,
-        orderUrl,
       });
 
-      // Wait for articles table to load
-      await new Promise((resolve) => setTimeout(resolve, 3000));
+      await this.waitForDevExpressReadyOnPage(page);
 
-      // Setup download handling
       const timestamp = Date.now();
-      const downloadPath = `/tmp/saleslines-${archibaldOrderId}-${timestamp}.pdf`;
+      const userId = this.userId || "unknown";
+      const downloadPath = `/tmp/saleslines-${archibaldOrderId}-${timestamp}-${userId}.pdf`;
 
-      // Enable download interception
       const client = await page.target().createCDPSession();
       await client.send("Page.setDownloadBehavior", {
         behavior: "allow",
         downloadPath: "/tmp",
       });
 
-      await new Promise((resolve) => setTimeout(resolve, 1000));
-
-      // Find and click export button
-      logger.info("[ArchibaldBot] Searching for PDF export button...");
-
-      // Wait for toolbar and export button (in SalesLines detail view)
-      // Button ID pattern: Vertical_v5_*_xaf_dviSALESLINEs_ToolBar_Menu_DXI1_T
-      await page.waitForSelector(
-        'a[id*="xaf_dviSALESLINEs_ToolBar_Menu_DXI1_T"]',
-        {
-          timeout: 15000,
-        },
-      );
-
+      const btnSelector =
+        'a[id*="xaf_dviSALESLINEs_ToolBar_Menu_DXI1_T"]';
+      await page.waitForSelector(btnSelector, { timeout: 15000 });
       logger.info("[ArchibaldBot] PDF export button found");
 
-      // Click export button
+      const downloadComplete = new Promise<void>((resolve, reject) => {
+        const timeout = setTimeout(() => {
+          clearInterval(checkFile);
+          reject(
+            new Error("PDF download timeout (120s exceeded)"),
+          );
+        }, 120000);
+
+        const checkFile = setInterval(async () => {
+          try {
+            const files = await fsp.readdir("/tmp");
+            const pdfFiles = files.filter(
+              (f) =>
+                (f.startsWith("Salesline") && f.endsWith(".pdf")) ||
+                (f.startsWith(`saleslines-${archibaldOrderId}`) &&
+                  f.endsWith(".pdf")),
+            );
+
+            if (pdfFiles.length > 0) {
+              const sorted = await Promise.all(
+                pdfFiles.map(async (f) => {
+                  const stat = await fsp.stat(`/tmp/${f}`);
+                  return { name: f, mtime: stat.mtime };
+                }),
+              );
+              sorted.sort((a, b) => b.mtime.getTime() - a.mtime.getTime());
+
+              const tempPath = `/tmp/${sorted[0].name}`;
+              try {
+                await fsp.rename(tempPath, downloadPath);
+                clearTimeout(timeout);
+                clearInterval(checkFile);
+                resolve();
+              } catch {
+                // retry next poll
+              }
+            }
+          } catch (pollErr) {
+            clearTimeout(timeout);
+            clearInterval(checkFile);
+            reject(pollErr);
+          }
+        }, 500);
+      });
+
       logger.info("[ArchibaldBot] Clicking PDF export button...");
+      await page.evaluate((sel: string) => {
+        const btn = document.querySelector(sel) as HTMLElement;
+        if (btn) {
+          btn.dispatchEvent(
+            new MouseEvent("mousedown", { bubbles: true }),
+          );
+          btn.dispatchEvent(
+            new MouseEvent("mouseup", { bubbles: true }),
+          );
+          btn.dispatchEvent(
+            new MouseEvent("click", { bubbles: true }),
+          );
+        }
+      }, btnSelector);
 
-      await page.click('a[id*="xaf_dviSALESLINEs_ToolBar_Menu_DXI1_T"]');
+      await downloadComplete;
 
-      logger.info(
-        "[ArchibaldBot] Export button clicked, waiting for download...",
-      );
-
-      // Wait for download to complete
-      await new Promise((resolve) => setTimeout(resolve, 5000));
-
-      // Check if file was downloaded
-      // Archibald downloads files with generic names like "Salesline-Ref.pdf"
-      // We need to find the most recently modified PDF in /tmp
-      const fs = require("fs");
-      const path = require("path");
-
-      const pdfFiles = fs
-        .readdirSync("/tmp")
-        .filter((f: string) => f.startsWith("Salesline") && f.endsWith(".pdf"))
-        .map((f: string) => ({
-          name: f,
-          path: path.join("/tmp", f),
-          mtime: fs.statSync(path.join("/tmp", f)).mtime,
-        }))
-        .sort((a: any, b: any) => b.mtime - a.mtime); // Most recent first
-
-      if (pdfFiles.length === 0) {
-        throw new Error("PDF file was not downloaded");
-      }
-
-      // Use most recent file
-      const actualPath = pdfFiles[0].path;
-
-      // Rename to expected path if different
-      if (actualPath !== downloadPath) {
-        fs.renameSync(actualPath, downloadPath);
+      const stats = fs.statSync(downloadPath);
+      if (stats.size === 0) {
+        throw new Error("Downloaded PDF is empty (0 bytes)");
       }
 
       const duration = Date.now() - startTime;
       logger.info("[ArchibaldBot] Order Articles PDF downloaded successfully", {
         archibaldOrderId,
         downloadPath,
-        duration,
+        durationMs: duration,
+        sizeKB: (stats.size / 1024).toFixed(2),
       });
 
       return downloadPath;
-    } catch (error) {
+    } catch (error: any) {
       logger.error("[ArchibaldBot] Failed to download Order Articles PDF", {
         archibaldOrderId,
-        error,
-        duration: Date.now() - startTime,
+        error: error.message,
+        durationMs: Date.now() - startTime,
       });
-      throw error;
+      throw new Error(`PDF download failed: ${error.message}`);
     } finally {
-      await page.close().catch(() => {});
+      if (!page.isClosed()) {
+        await page.close().catch(() => {});
+      }
     }
   }
 

@@ -274,12 +274,7 @@ export class PriceSyncService extends EventEmitter {
     }
   }
 
-  /**
-   * Download prices PDF via bot
-   * Follows Phase 18/19 bot pattern - uses BrowserPool and ArchibaldBot
-   */
   private async downloadPricesPDF(): Promise<string> {
-    // Use browser pool context (same pattern as customer/product sync)
     const syncUserId = "price-sync-service";
     const context = await this.browserPool.acquireContext(syncUserId);
     this.activeContext = context;
@@ -289,167 +284,11 @@ export class PriceSyncService extends EventEmitter {
     let success = false;
 
     try {
-      // Download PDF using bot with context
-      const pdfPath = await this.downloadPricesPDFFromContext(context, bot);
+      const pdfPath = await bot.downloadPricesPDF(context);
       success = true;
-
       return pdfPath;
     } finally {
       await this.releaseActiveContext(success, "download-prices-pdf");
-    }
-  }
-
-  /**
-   * Download prices PDF from authenticated context
-   * Same pattern as downloadProductsPDF but for PRICEDISCTABLE_ListView
-   */
-  private async downloadPricesPDFFromContext(
-    context: any,
-    bot: ArchibaldBot,
-  ): Promise<string> {
-    const page = await context.newPage();
-    const startTime = Date.now();
-
-    try {
-      logger.info("[PriceSyncService] Starting Prices PDF download");
-
-      // Force Italian language for PDF export
-      await page.setExtraHTTPHeaders({
-        "Accept-Language": "it-IT,it;q=0.9,en-US;q=0.8,en;q=0.7",
-      });
-
-      // Navigate to Prices ListView page
-      const pricesUrl =
-        "https://4.231.124.90/Archibald/PRICEDISCTABLE_ListView/";
-      await page.goto(pricesUrl, {
-        waitUntil: "domcontentloaded",
-        timeout: 60000,
-      });
-      logger.info("[PriceSyncService] Navigated to Prices ListView page");
-
-      // Wait for dynamic content to load (same pattern as products/customers sync)
-      await new Promise((resolve) => setTimeout(resolve, 2000));
-      await new Promise((resolve) => setTimeout(resolve, 200));
-
-      // Setup download handling
-      const timestamp = Date.now();
-      const downloadPath = `/tmp/prezzi-${timestamp}.pdf`;
-
-      const client = await page.target().createCDPSession();
-      await client.send("Page.setDownloadBehavior", {
-        behavior: "allow",
-        downloadPath: "/tmp",
-      });
-
-      await new Promise((resolve) => setTimeout(resolve, 200));
-
-      // Trigger PDF export - same button ID as products
-      // Button ID: Vertical_mainMenu_Menu_DXI3_T
-      logger.info("[PriceSyncService] Searching for PDF export button...");
-
-      await page.waitForSelector("#Vertical_mainMenu_Menu_DXI3_", {
-        timeout: 10000,
-      });
-
-      logger.info("[PriceSyncService] Menu container found");
-      await new Promise((resolve) => setTimeout(resolve, 200));
-
-      // Check button visibility
-      const isVisible = await page.evaluate(() => {
-        const li = document.querySelector("#Vertical_mainMenu_Menu_DXI3_");
-        const a = document.querySelector("#Vertical_mainMenu_Menu_DXI3_T");
-
-        if (!li || !a) return false;
-
-        const liRect = li.getBoundingClientRect();
-        const aRect = a.getBoundingClientRect();
-
-        return (
-          liRect.width > 0 &&
-          liRect.height > 0 &&
-          aRect.width > 0 &&
-          aRect.height > 0
-        );
-      });
-
-      logger.info(`[PriceSyncService] Button visibility: ${isVisible}`);
-
-      if (!isVisible) {
-        logger.info(
-          "[PriceSyncService] Button not visible, checking parent menu...",
-        );
-
-        try {
-          await page.hover("a.dxm-content");
-          logger.info("[PriceSyncService] Hovered on parent menu");
-          await new Promise((resolve) => setTimeout(resolve, 500));
-        } catch (error) {
-          logger.warn(
-            "[PriceSyncService] Could not hover on parent menu, proceeding anyway",
-          );
-        }
-      }
-
-      await new Promise((resolve) => setTimeout(resolve, 200));
-
-      // Setup download promise before clicking
-      const downloadComplete = new Promise<void>((resolve, reject) => {
-        const fs = require("fs");
-        const timeout = setTimeout(() => {
-          reject(
-            new Error(
-              "PDF download timeout (120s exceeded). Archibald may be generating PDF.",
-            ),
-          );
-        }, 120000);
-
-        // Poll for file creation
-        const checkFile = setInterval(() => {
-          // Look for "Tabella prezzi.pdf" (Italian) or "Price table.pdf" (English) - Archibald's default names
-          const files = fs.readdirSync("/tmp");
-          const pdfFiles = files.filter(
-            (f: string) =>
-              f === "Tabella prezzi.pdf" ||
-              f === "Price table.pdf" ||
-              (f.startsWith("prezzi-") && f.endsWith(".pdf")),
-          );
-
-          if (pdfFiles.length > 0) {
-            // Find the most recent one (prefer "Tabella prezzi.pdf" if it exists)
-            const recentPdf =
-              pdfFiles.find((f: string) => f === "Tabella prezzi.pdf") ||
-              pdfFiles.find((f: string) => f === "Price table.pdf") ||
-              pdfFiles[pdfFiles.length - 1];
-            const tempPath = `/tmp/${recentPdf}`;
-
-            // Rename to our expected path
-            fs.renameSync(tempPath, downloadPath);
-
-            clearTimeout(timeout);
-            clearInterval(checkFile);
-            resolve();
-          }
-        }, 500);
-      });
-
-      // Click PDF export button
-      await page.click("#Vertical_mainMenu_Menu_DXI3_T");
-      logger.info("[PriceSyncService] Clicked PDF export button");
-
-      // Wait for download to complete
-      await downloadComplete;
-
-      const duration = Date.now() - startTime;
-      logger.info(
-        `[PriceSyncService] PDF download complete in ${duration}ms: ${downloadPath}`,
-      );
-
-      return downloadPath;
-    } catch (error) {
-      logger.error("[PriceSyncService] PDF download failed", { error });
-      throw error;
-    } finally {
-      await page.close();
     }
   }
 
