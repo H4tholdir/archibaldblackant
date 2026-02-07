@@ -97,8 +97,9 @@ export function WarehouseMatchAccordion({
     const newSelected = new Map(selectedMatches);
 
     if (checked) {
-      // Auto-select max available or requested quantity, whichever is smaller
-      const defaultQty = Math.min(match.availableQty, requestedQuantity);
+      const defaultQty = requestedQuantity > 0
+        ? Math.min(match.availableQty, requestedQuantity)
+        : match.availableQty;
       newSelected.set(match.item.id!, defaultQty);
     } else {
       newSelected.delete(match.item.id!);
