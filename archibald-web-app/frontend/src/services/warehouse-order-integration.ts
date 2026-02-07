@@ -199,6 +199,10 @@ export async function returnWarehouseItemsFromSold(
   for (const item of soldItems) {
     await db.warehouseItems.update(item.id!, {
       soldInOrder: undefined,
+      customerName: undefined,
+      subClientName: undefined,
+      orderDate: undefined,
+      orderNumber: undefined,
     });
   }
 
@@ -231,6 +235,10 @@ export async function returnSpecificWarehouseItems(
     if (item && item.soldInOrder) {
       await db.warehouseItems.update(itemId, {
         soldInOrder: undefined,
+        customerName: undefined,
+        subClientName: undefined,
+        orderDate: undefined,
+        orderNumber: undefined,
       });
       returnedCount++;
     }

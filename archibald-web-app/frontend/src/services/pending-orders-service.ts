@@ -123,7 +123,11 @@ export class PendingOrdersService {
 
     // Reserve warehouse items if any
     try {
-      await reserveWarehouseItems(id, order.items);
+      await reserveWarehouseItems(id, order.items, {
+        customerName: order.customerName,
+        subClientName: (order as any).subClientName,
+        orderDate: now,
+      });
     } catch (error) {
       console.error("[Warehouse] Failed to reserve items", { error });
       // Don't fail order creation if reservation fails
@@ -260,6 +264,11 @@ export class PendingOrdersService {
           await markWarehouseItemsAsSold(
             order.id!,
             result.jobId || `job-${order.id}`,
+            {
+              customerName: order.customerName,
+              subClientName: order.subClientName,
+              orderDate: order.createdAt,
+            },
           );
           warehouseMarkedAsSold = true;
 

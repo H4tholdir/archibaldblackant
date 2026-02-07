@@ -294,16 +294,17 @@ export class OrderService {
       };
 
       if (isWarehouseOnly) {
-        // 🔧 FIX #5: Warehouse-only order - mark items as sold immediately
+        // Warehouse-only order: reserve first, then mark as sold immediately
         console.log(
-          "[OrderService] 🏪 Warehouse-only order detected, marking items as sold",
+          "[OrderService] 🏪 Warehouse-only order detected, reserving then marking as sold",
           { orderId: id },
         );
 
         try {
+          await reserveWarehouseItems(id, order.items, tracking);
           await markWarehouseItemsAsSold(
             id,
-            `warehouse-${Date.now()}`, // Special warehouse-only identifier
+            `warehouse-${Date.now()}`,
             tracking,
           );
           console.log(
@@ -315,7 +316,6 @@ export class OrderService {
             "[OrderService] Failed to mark warehouse items as sold",
             warehouseError,
           );
-          // This is critical for warehouse-only orders - throw error
           throw new Error(
             "Impossibile completare ordine da magazzino: errore marcatura items",
           );
