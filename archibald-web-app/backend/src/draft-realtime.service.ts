@@ -31,6 +31,9 @@ export interface DraftCreatedPayload {
     createdAt: string;
     updatedAt: string;
     deviceId: string;
+    subClientCodice?: string;
+    subClientName?: string;
+    subClientData?: Record<string, unknown>;
   };
   timestamp: string;
   deviceId: string;
@@ -53,6 +56,9 @@ export interface DraftUpdatedPayload {
     createdAt: string;
     updatedAt: string;
     deviceId: string;
+    subClientCodice?: string;
+    subClientName?: string;
+    subClientData?: Record<string, unknown>;
   };
   timestamp: string;
   deviceId: string;

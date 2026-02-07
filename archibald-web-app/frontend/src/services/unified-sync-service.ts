@@ -1,13 +1,6 @@
 import { db } from "../db/schema";
 import { fetchWithRetry } from "../utils/fetch-with-retry";
 import { fresisHistoryService } from "./fresis-history.service";
-import { getDeviceId } from "../utils/device-id";
-import {
-  getDeletedDraftIds,
-  markDraftDeleted,
-  getQueuedDeletes,
-  clearQueuedDeletes,
-} from "../utils/deleted-drafts";
 
 /**
  * UnifiedSyncService
@@ -137,13 +130,10 @@ export class UnifiedSyncService {
     this.isSyncing = true;
 
     try {
-      // 1. Push queued offline deletions first
-      await this.pushQueuedDraftDeletes();
-
-      // 2. PULL draft orders (server is authoritative)
+      // 1. PULL draft orders (server is authoritative)
       await this.pullDraftOrders();
 
-      // 3. PUSH draft orders (only non-deleted)
+      // 2. PUSH draft orders
       await this.pushDraftOrders();
 
       // 4. Push pending orders
@@ -350,39 +340,6 @@ export class UnifiedSyncService {
 
   // ========== DRAFT ORDERS ==========
 
-  private async pushQueuedDraftDeletes(): Promise<void> {
-    const queued = getQueuedDeletes();
-    if (queued.length === 0) return;
-
-    const token = localStorage.getItem("archibald_jwt");
-    if (!token) return;
-
-    console.log(
-      `[UnifiedSync] Pushing ${queued.length} queued draft deletions`,
-    );
-
-    const deviceId = getDeviceId();
-
-    for (const draftId of queued) {
-      try {
-        await fetchWithRetry(
-          `/api/sync/draft-orders/${draftId}?deviceId=${encodeURIComponent(deviceId)}`,
-          {
-            method: "DELETE",
-            headers: { Authorization: `Bearer ${token}` },
-          },
-        );
-      } catch {
-        console.warn(
-          `[UnifiedSync] Failed to push queued delete for ${draftId}`,
-        );
-      }
-    }
-
-    clearQueuedDeletes();
-    console.log("[UnifiedSync] Queued draft deletions processed");
-  }
-
   private async pullDraftOrders(): Promise<void> {
     const token = localStorage.getItem("archibald_jwt");
     if (!token) return;
@@ -403,16 +360,8 @@ export class UnifiedSyncService {
       }
 
       const serverDraftIds = new Set(drafts.map((d: any) => d.id));
-      const deletedIds = new Set(getDeletedDraftIds());
 
       for (const serverDraft of drafts) {
-        if (deletedIds.has(serverDraft.id)) {
-          console.log(
-            `[UnifiedSync] Skipping server draft ${serverDraft.id} - locally marked deleted`,
-          );
-          continue;
-        }
-
         const localDraft = await db.draftOrders.get(serverDraft.id);
 
         if (localDraft && localDraft.needsSync) {
@@ -436,6 +385,9 @@ export class UnifiedSyncService {
             deviceId: serverDraft.deviceId,
             needsSync: false,
             serverUpdatedAt: serverDraft.updatedAt,
+            subClientCodice: serverDraft.subClientCodice,
+            subClientName: serverDraft.subClientName,
+            subClientData: serverDraft.subClientData,
           });
         }
       }
@@ -444,16 +396,12 @@ export class UnifiedSyncService {
       const allLocalDrafts = await db.draftOrders.toArray();
       for (const localDraft of allLocalDrafts) {
         if (!serverDraftIds.has(localDraft.id)) {
-          // If the draft was previously synced (has serverUpdatedAt), the server
-          // is authoritative — it was deleted on another device
           if (localDraft.serverUpdatedAt) {
             console.log(
               `[UnifiedSync] Removing synced draft ${localDraft.id} - no longer on server`,
             );
-            markDraftDeleted(localDraft.id);
             await db.draftOrders.delete(localDraft.id);
           }
-          // If no serverUpdatedAt, this was created offline — keep it for push
         }
       }
     } catch (error) {
@@ -470,10 +418,9 @@ export class UnifiedSyncService {
       console.log("[UnifiedSync] Pushing draft orders...");
 
       const allDrafts = await db.draftOrders.toArray();
-      const deletedIds = new Set(getDeletedDraftIds());
 
       const localDrafts = allDrafts.filter(
-        (draft) => draft.needsSync === true && !deletedIds.has(draft.id),
+        (draft) => draft.needsSync === true,
       );
 
       console.log(
@@ -497,6 +444,9 @@ export class UnifiedSyncService {
             createdAt: new Date(d.createdAt).getTime(),
             updatedAt: new Date(d.updatedAt).getTime(),
             deviceId: d.deviceId,
+            subClientCodice: d.subClientCodice,
+            subClientName: d.subClientName,
+            subClientData: d.subClientData,
           })),
         }),
       });

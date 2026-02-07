@@ -10,7 +10,6 @@
 import { db } from "../db/schema";
 import type { DraftOrder } from "../db/schema";
 import { getDeviceId } from "../utils/device-id";
-import { isDraftDeleted, markDraftDeleted } from "../utils/deleted-drafts";
 
 /**
  * Draft event payloads from backend
@@ -32,6 +31,9 @@ interface DraftCreatedPayload {
     createdAt: string;
     updatedAt: string;
     deviceId: string;
+    subClientCodice?: string;
+    subClientName?: string;
+    subClientData?: Record<string, unknown>;
   };
   timestamp: string;
   deviceId: string;
@@ -54,6 +56,9 @@ interface DraftUpdatedPayload {
     createdAt: string;
     updatedAt: string;
     deviceId: string;
+    subClientCodice?: string;
+    subClientName?: string;
+    subClientData?: Record<string, unknown>;
   };
   timestamp: string;
   deviceId: string;
@@ -144,14 +149,6 @@ export class DraftRealtimeService {
         return;
       }
 
-      if (isDraftDeleted(data.draft.id)) {
-        console.log(
-          `[DraftRealtime] Ignoring DRAFT_CREATED for locally deleted draft`,
-          { draftId: data.draft.id },
-        );
-        return;
-      }
-
       const existing = await db.draftOrders.get(data.draft.id);
 
       if (existing) {
@@ -173,8 +170,11 @@ export class DraftRealtimeService {
         createdAt: data.draft.createdAt,
         updatedAt: data.draft.updatedAt,
         deviceId: data.draft.deviceId,
-        needsSync: false, // Already synced via WebSocket
+        needsSync: false,
         serverUpdatedAt: new Date(data.timestamp).getTime(),
+        subClientCodice: data.draft.subClientCodice,
+        subClientName: data.draft.subClientName,
+        subClientData: data.draft.subClientData as DraftOrder["subClientData"],
       };
 
       await db.draftOrders.put(draftOrder);
@@ -240,8 +240,11 @@ export class DraftRealtimeService {
         createdAt: data.draft.createdAt,
         updatedAt: data.draft.updatedAt,
         deviceId: data.draft.deviceId,
-        needsSync: false, // Already synced via WebSocket
+        needsSync: false,
         serverUpdatedAt: incomingTimestamp,
+        subClientCodice: data.draft.subClientCodice,
+        subClientName: data.draft.subClientName,
+        subClientData: data.draft.subClientData as DraftOrder["subClientData"],
       };
 
       await db.draftOrders.put(draftOrder);
@@ -279,7 +282,6 @@ export class DraftRealtimeService {
         return;
       }
 
-      markDraftDeleted(data.draftId);
       await db.draftOrders.delete(data.draftId);
 
       console.log(`[DraftRealtime] DRAFT_DELETED applied to IndexedDB`, {
@@ -314,7 +316,6 @@ export class DraftRealtimeService {
         return;
       }
 
-      markDraftDeleted(data.draftId);
       await db.draftOrders.delete(data.draftId);
 
       console.log(`[DraftRealtime] DRAFT_CONVERTED applied to IndexedDB`, {

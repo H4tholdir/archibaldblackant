@@ -8,7 +8,6 @@ import {
 } from "./warehouse-order-integration";
 import { getDeviceId } from "../utils/device-id";
 import { unifiedSyncService } from "./unified-sync-service";
-import { markDraftDeleted, queueOfflineDelete } from "../utils/deleted-drafts";
 
 export class OrderService {
   private db: Dexie;
@@ -104,8 +103,6 @@ export class OrderService {
    */
   async deleteDraftOrder(id: string): Promise<void> {
     try {
-      markDraftDeleted(id);
-
       await this.db.table<DraftOrder, string>("draftOrders").delete(id);
 
       console.log("[OrderService] Draft deleted from IndexedDB:", id);
@@ -143,9 +140,6 @@ export class OrderService {
             );
           }
         }
-      } else {
-        queueOfflineDelete(id);
-        console.log("[OrderService] Offline - queued draft deletion:", id);
       }
     } catch (error) {
       console.error("[OrderService] Failed to delete draft:", error);
@@ -192,18 +186,8 @@ export class OrderService {
    */
   async deleteAllUserDrafts(): Promise<void> {
     try {
-      const allDrafts = await this.db
-        .table<DraftOrder, string>("draftOrders")
-        .toArray();
-
-      for (const draft of allDrafts) {
-        markDraftDeleted(draft.id);
-      }
-
       await this.db.table<DraftOrder, string>("draftOrders").clear();
-      console.log(
-        `[OrderService] All ${allDrafts.length} local drafts deleted`,
-      );
+      console.log("[OrderService] All local drafts deleted");
 
       if (navigator.onLine) {
         const token = localStorage.getItem("archibald_jwt");
@@ -236,13 +220,6 @@ export class OrderService {
             );
           }
         }
-      } else {
-        for (const draft of allDrafts) {
-          queueOfflineDelete(draft.id);
-        }
-        console.log(
-          "[OrderService] Offline - queued all draft deletions for sync",
-        );
       }
     } catch (error) {
       console.error("[OrderService] Failed to delete all user drafts:", error);

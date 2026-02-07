@@ -388,6 +388,11 @@ router.get(
           createdAt: d.created_at,
           updatedAt: d.updated_at,
           deviceId: d.device_id,
+          subClientCodice: d.sub_client_codice || undefined,
+          subClientName: d.sub_client_name || undefined,
+          subClientData: d.sub_client_data_json
+            ? JSON.parse(d.sub_client_data_json)
+            : undefined,
         })),
       });
     } catch (error) {
@@ -488,7 +493,10 @@ router.post(
                 customer_name = ?,
                 items_json = ?,
                 updated_at = ?,
-                device_id = ?
+                device_id = ?,
+                sub_client_codice = ?,
+                sub_client_name = ?,
+                sub_client_data_json = ?
               WHERE id = ?
             `,
               )
@@ -498,6 +506,11 @@ router.post(
                 JSON.stringify(draft.items),
                 draft.updatedAt,
                 draft.deviceId,
+                draft.subClientCodice || null,
+                draft.subClientName || null,
+                draft.subClientData
+                  ? JSON.stringify(draft.subClientData)
+                  : null,
                 draft.id,
               );
 
@@ -512,6 +525,9 @@ router.post(
               createdAt: draft.createdAt,
               updatedAt: draft.updatedAt,
               deviceId: draft.deviceId,
+              subClientCodice: draft.subClientCodice,
+              subClientName: draft.subClientName,
+              subClientData: draft.subClientData,
             });
           } else {
             // Single-draft-per-user: reject if another draft already exists
@@ -537,8 +553,9 @@ router.post(
                 `
               INSERT INTO draft_orders (
                 id, user_id, customer_id, customer_name, items_json,
-                created_at, updated_at, device_id
-              ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                created_at, updated_at, device_id,
+                sub_client_codice, sub_client_name, sub_client_data_json
+              ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             `,
               )
               .run(
@@ -550,6 +567,11 @@ router.post(
                 draft.createdAt,
                 draft.updatedAt,
                 draft.deviceId,
+                draft.subClientCodice || null,
+                draft.subClientName || null,
+                draft.subClientData
+                  ? JSON.stringify(draft.subClientData)
+                  : null,
               );
 
             results.push({ id: draft.id, action: "created" });
@@ -563,6 +585,9 @@ router.post(
               createdAt: draft.createdAt,
               updatedAt: draft.updatedAt,
               deviceId: draft.deviceId,
+              subClientCodice: draft.subClientCodice,
+              subClientName: draft.subClientName,
+              subClientData: draft.subClientData,
             });
           }
         } catch (draftError) {
