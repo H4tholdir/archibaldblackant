@@ -7155,10 +7155,12 @@ export class ArchibaldBot {
   async updateCustomer(
     customerProfile: string,
     customerData: import("./types").CustomerFormData,
+    originalName?: string,
   ): Promise<void> {
     if (!this.page) throw new Error("Browser page is null");
 
-    logger.info("Updating customer", { customerProfile, name: customerData.name });
+    const searchName = originalName || customerData.name;
+    logger.info("Updating customer", { customerProfile, searchName, newName: customerData.name });
 
     await this.page.goto(`${config.archibald.url}/CUSTTABLE_ListView_Agent/`, {
       waitUntil: "networkidle2",
@@ -7193,7 +7195,7 @@ export class ArchibaldBot {
         );
         return { found: true, id: searchInput.id };
       },
-      customerData.name,
+      searchName,
     );
 
     if (!searchResult.found) throw new Error("Search input not found");

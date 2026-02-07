@@ -2875,8 +2875,15 @@ app.put(
         customerData,
       });
 
+      // Recupera il nome originale PRIMA di aggiornare il DB
+      const existingCustomer = customerDb.getCustomerByProfile(customerProfile);
+      const originalName = existingCustomer?.archibaldName || existingCustomer?.name || customerData.name;
+
       // Write-through: aggiorna subito il DB locale
       customerDb.upsertSingleCustomer(customerData, customerProfile, "pending");
+
+      // Salva il nome con cui cercare su Archibald
+      customerDb.updateArchibaldName(customerProfile, originalName);
 
       res.json({
         success: true,
@@ -2889,9 +2896,11 @@ app.put(
           const bot = new ArchibaldBot();
           await bot.initialize();
           await bot.login();
-          await bot.updateCustomer(customerProfile, customerData);
+          await bot.updateCustomer(customerProfile, customerData, originalName);
           await bot.close();
           customerDb.updateCustomerBotStatus(customerProfile, "placed");
+          // Ora Archibald ha il nome nuovo
+          customerDb.updateArchibaldName(customerProfile, customerData.name);
           logger.info("Bot: cliente aggiornato su Archibald", {
             customerProfile,
           });
@@ -2959,6 +2968,7 @@ app.post(
               deliveryMode: customer.deliveryTerms ?? undefined,
             });
           } else {
+            const searchName = customer.archibaldName || customer.name;
             await bot.updateCustomer(customerProfile, {
               name: customer.name,
               vatNumber: customer.vatNumber ?? undefined,
@@ -2968,11 +2978,12 @@ app.post(
               postalCode: customer.postalCode ?? undefined,
               phone: customer.phone ?? undefined,
               deliveryMode: customer.deliveryTerms ?? undefined,
-            });
+            }, searchName);
           }
 
           await bot.close();
           customerDb.updateCustomerBotStatus(customerProfile, "placed");
+          customerDb.updateArchibaldName(customerProfile, customer.name);
           logger.info("Bot: retry riuscito", { customerProfile });
         } catch (error) {
           customerDb.updateCustomerBotStatus(customerProfile, "failed");

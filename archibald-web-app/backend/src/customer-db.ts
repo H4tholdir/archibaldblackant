@@ -49,6 +49,7 @@ export interface Customer {
   hash: string; // SHA256 hash for change detection
   lastSync: number; // Unix timestamp of last sync
   botStatus?: "pending" | "placed" | "failed";
+  archibaldName?: string; // Nome attuale su Archibald (per ricerca durante update)
 }
 
 export class CustomerDatabase {
@@ -174,6 +175,7 @@ export class CustomerDatabase {
       { column: "externalAccountNumber", type: "TEXT" },
       { column: "ourAccountNumber", type: "TEXT" },
       { column: "botStatus", type: "TEXT DEFAULT 'placed'" },
+      { column: "archibaldName", type: "TEXT" },
     ];
 
     for (const migration of migrations) {
@@ -735,6 +737,14 @@ export class CustomerDatabase {
     this.db
       .prepare("UPDATE customers SET botStatus = ? WHERE customerProfile = ?")
       .run(status, customerProfile);
+  }
+
+  updateArchibaldName(customerProfile: string, archibaldName: string): void {
+    this.db
+      .prepare(
+        "UPDATE customers SET archibaldName = ? WHERE customerProfile = ?",
+      )
+      .run(archibaldName, customerProfile);
   }
 
   /**
