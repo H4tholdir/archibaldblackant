@@ -78,33 +78,40 @@ export async function initializeDatabase(): Promise<{
         };
       }
 
-      if (error.name === "VersionError") {
-        // Version conflict - try automatic recovery
+      const recoverableErrors = [
+        "VersionError",
+        "TransactionInactiveError",
+        "DatabaseClosedError",
+      ];
+      const errorMsg = error.message || "";
+      const isRecoverable =
+        recoverableErrors.includes(error.name) ||
+        recoverableErrors.some((e) => errorMsg.includes(e));
+
+      if (isRecoverable) {
         console.warn(
-          "[IndexedDB:Database] VersionError detected - attempting automatic recovery",
+          `[IndexedDB:Database] ${error.name} detected - attempting automatic recovery`,
         );
 
         try {
-          // Delete database and retry initialization
           await db.delete();
           console.log(
             "[IndexedDB:Database] Database deleted, retrying initialization...",
           );
 
-          // Retry open
           await db.open();
           console.log(
-            "[IndexedDB:Database] ✅ Recovery successful after delete+retry",
+            "[IndexedDB:Database] Recovery successful after delete+retry",
           );
 
           return { success: true };
         } catch (retryError) {
-          console.error("[IndexedDB:Database] ❌ Recovery failed:", retryError);
+          console.error("[IndexedDB:Database] Recovery failed:", retryError);
           localStorage.setItem("db_recovery_failed", "true");
           return {
             success: false,
             error:
-              "Errore di versione database non recuperabile. Contatta il supporto.",
+              "Errore di database non recuperabile. Contatta il supporto.",
           };
         }
       }

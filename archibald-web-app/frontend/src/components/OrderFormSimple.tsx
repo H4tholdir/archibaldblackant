@@ -900,6 +900,7 @@ export default function OrderFormSimple() {
         });
       }
 
+      lastDraftUpdatedAtRef.current = now;
       setLastAutoSave(new Date());
       console.log(
         "[OrderForm] Draft saved at",
