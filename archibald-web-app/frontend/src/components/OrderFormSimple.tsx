@@ -990,7 +990,7 @@ export default function OrderFormSimple() {
 
   // === MULTI-DEVICE WATCHER ===
   useEffect(() => {
-    if (!draftId) return;
+    if (!draftId || draftOrders.length === 0) return;
 
     const currentDraft = draftOrders.find(d => d.id === draftId);
 
