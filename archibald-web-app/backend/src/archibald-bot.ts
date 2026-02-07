@@ -7081,6 +7081,77 @@ export class ArchibaldBot {
     return profileId;
   }
 
+  private async updateCustomerName(newName: string): Promise<void> {
+    if (!this.page) throw new Error("Browser page is null");
+
+    logger.info("updateCustomerName: clearing NOME DI RICERCA and setting NOME", { newName });
+
+    const searchNameCleared = await this.page.evaluate(() => {
+      const inputs = Array.from(document.querySelectorAll("input"));
+      const searchNameInput = inputs.find(
+        (i) => /SEARCHNAME.*_Edit_I$|NAMEALIAS.*_Edit_I$/.test(i.id),
+      ) as HTMLInputElement | null;
+
+      if (!searchNameInput) {
+        const nameInput = inputs.find((i) => /xaf_dviNAME_Edit_I$/.test(i.id));
+        if (nameInput) {
+          const allVisible = inputs.filter(
+            (i) => i.offsetParent !== null && i.type !== "hidden",
+          );
+          const nameIdx = allVisible.indexOf(nameInput as HTMLInputElement);
+          if (nameIdx >= 0 && nameIdx + 1 < allVisible.length) {
+            const candidate = allVisible[nameIdx + 1];
+            candidate.scrollIntoView({ block: "center" });
+            candidate.focus();
+            candidate.click();
+            const setter = Object.getOwnPropertyDescriptor(
+              HTMLInputElement.prototype,
+              "value",
+            )?.set;
+            if (setter) setter.call(candidate, "");
+            else candidate.value = "";
+            candidate.dispatchEvent(new Event("input", { bubbles: true }));
+            candidate.dispatchEvent(new Event("change", { bubbles: true }));
+            return { cleared: true, id: candidate.id, method: "fallback-next-input" };
+          }
+        }
+        return { cleared: false, id: "", method: "not-found" };
+      }
+
+      searchNameInput.scrollIntoView({ block: "center" });
+      searchNameInput.focus();
+      searchNameInput.click();
+      const setter = Object.getOwnPropertyDescriptor(
+        HTMLInputElement.prototype,
+        "value",
+      )?.set;
+      if (setter) setter.call(searchNameInput, "");
+      else searchNameInput.value = "";
+      searchNameInput.dispatchEvent(new Event("input", { bubbles: true }));
+      searchNameInput.dispatchEvent(new Event("change", { bubbles: true }));
+      return { cleared: true, id: searchNameInput.id, method: "direct-match" };
+    });
+
+    if (searchNameCleared.cleared) {
+      await this.page.keyboard.press("Tab");
+      await this.waitForDevExpressIdle({ timeout: 5000, label: "clear-searchname" });
+      logger.debug("NOME DI RICERCA cleared", searchNameCleared);
+    } else {
+      logger.warn("NOME DI RICERCA field not found, proceeding without clearing");
+    }
+
+    await this.setDevExpressField(/xaf_dviNAME_Edit_I$/, newName + ".");
+    await this.page.evaluate(() => {
+      (document.activeElement as HTMLElement)?.blur();
+      document.body.click();
+    });
+    await this.waitForDevExpressIdle({ timeout: 5000, label: "name-blur-autoupdate" });
+
+    await this.setDevExpressField(/xaf_dviNAME_Edit_I$/, newName);
+
+    logger.info("updateCustomerName completed", { newName });
+  }
+
   async updateCustomer(
     customerProfile: string,
     customerData: import("./types").CustomerFormData,
@@ -7156,7 +7227,7 @@ export class ArchibaldBot {
     logger.info("Edit form loaded, updating fields");
 
     if (customerData.name) {
-      await this.setDevExpressField(/xaf_dviNAME_Edit_I$/, customerData.name);
+      await this.updateCustomerName(customerData.name);
     }
 
     if (customerData.deliveryMode) {
