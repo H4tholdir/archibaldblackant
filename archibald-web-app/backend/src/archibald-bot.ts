@@ -4680,10 +4680,28 @@ export class ArchibaldBot {
 
           logger.debug("Setting line discount to N/A...");
 
-          // Phase 1: Trova e focus campo input LINEDISC
+          // Phase 1: Attendi che il campo LINEDISC appaia nel DOM (il tab carica lazy)
+          try {
+            await this.page!.waitForFunction(
+              () => {
+                const input = document.querySelector(
+                  'input[id*="LINEDISC"][id$="_I"]',
+                ) as HTMLInputElement | null;
+                return input && input.offsetParent !== null;
+              },
+              { timeout: 10000, polling: 200 },
+            );
+          } catch {
+            logger.warn(
+              "LINEDISC input not found after waiting, retrying tab click...",
+            );
+            await openPrezziEScontiTab();
+            await this.wait(1000);
+          }
+
           const inputInfo = await this.page!.evaluate(() => {
             const input = document.querySelector(
-              'input[id*="LINEDISC_Edit"][id$="_I"]',
+              'input[id*="LINEDISC"][id$="_I"]',
             ) as HTMLInputElement | null;
             if (!input || input.offsetParent === null) return null;
             input.scrollIntoView({ block: "center" });
