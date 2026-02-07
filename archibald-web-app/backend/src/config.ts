@@ -23,7 +23,7 @@ export const config = {
     headless: process.env.NODE_ENV === "production" ? true : false, // Headless in production, visible in dev
     slowMo: process.env.NODE_ENV === "production" ? 50 : 200, // 50ms in production (fast but stable), 200ms in dev
     timeout: 60000, // Increased to 60s for slow Archibald responses
-    protocolTimeout: 180000, // 3 minutes - increased for large orders (22+ items)
+    protocolTimeout: 300000, // 5 minutes - increased for large orders (12+ items)
   },
   features: {
     // Feature flag for Send to Milano - disabled by default until safe test order available
