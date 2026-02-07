@@ -6145,6 +6145,7 @@ export class ArchibaldBot {
   private async selectFromDevExpressLookup(
     buttonRegex: RegExp,
     searchValue: string,
+    matchHint?: string,
   ): Promise<void> {
     if (!this.page) throw new Error("Browser page is null");
 
@@ -6204,9 +6205,9 @@ export class ArchibaldBot {
     logger.debug("Iframe check", iframeInfo);
 
     if (iframeInfo.hasIframe) {
-      await this.selectFromDevExpressLookupViaIframe(iframeInfo.id, searchValue);
+      await this.selectFromDevExpressLookupViaIframe(iframeInfo.id, searchValue, matchHint);
     } else {
-      await this.selectFromDevExpressLookupDirect(searchValue);
+      await this.selectFromDevExpressLookupDirect(searchValue, matchHint);
     }
 
     await this.waitForDevExpressIdle({ timeout: 5000, label: "lookup-close" });
@@ -6215,6 +6216,7 @@ export class ArchibaldBot {
 
   private async selectFromDevExpressLookupDirect(
     searchValue: string,
+    matchHint?: string,
   ): Promise<void> {
     if (!this.page) return;
 
@@ -6296,7 +6298,7 @@ export class ArchibaldBot {
       logger.warn("Rows not detected in direct lookup dialog");
     }
 
-    await this.selectRowInLookupDialog(searchValue);
+    await this.selectRowInLookupDialog(searchValue, matchHint);
 
     await this.wait(200);
     await this.clickElementByText("OK", { exact: true, selectors: ["span", "button", "a", "td"] });
@@ -6320,19 +6322,20 @@ export class ArchibaldBot {
   private async selectFromDevExpressLookupViaIframe(
     iframeId: string,
     searchValue: string,
+    matchHint?: string,
   ): Promise<void> {
     if (!this.page) return;
 
     const iframeHandle = await this.page.$(`#${iframeId}`);
     if (!iframeHandle) {
       logger.warn("Iframe element not found by id, falling back to direct mode");
-      return this.selectFromDevExpressLookupDirect(searchValue);
+      return this.selectFromDevExpressLookupDirect(searchValue, matchHint);
     }
 
     const frame = await iframeHandle.contentFrame();
     if (!frame) {
       logger.warn("Could not get contentFrame, falling back to direct mode");
-      return this.selectFromDevExpressLookupDirect(searchValue);
+      return this.selectFromDevExpressLookupDirect(searchValue, matchHint);
     }
 
     logger.debug("Working inside iframe for lookup");
@@ -6414,7 +6417,7 @@ export class ArchibaldBot {
     }
 
     // Select the matching row inside the iframe
-    const selectionResult = await frame.evaluate((query: string) => {
+    const selectionResult = await frame.evaluate((query: string, hint?: string) => {
       const rows = Array.from(
         document.querySelectorAll('tr[class*="dxgvDataRow"]'),
       ).filter((r) => (r as HTMLElement).offsetParent !== null);
@@ -6426,6 +6429,18 @@ export class ArchibaldBot {
         (target as HTMLElement).scrollIntoView({ block: "center" });
         (target as HTMLElement).click();
         return { clicked: true, reason: "single-row" };
+      }
+
+      if (hint) {
+        const hintLower = hint.trim().toLowerCase();
+        for (const row of rows) {
+          if (row.textContent?.toLowerCase().includes(hintLower)) {
+            const target = row.querySelector("td") || (row as HTMLElement);
+            (target as HTMLElement).scrollIntoView({ block: "center" });
+            (target as HTMLElement).click();
+            return { clicked: true, reason: "hint-match" };
+          }
+        }
       }
 
       const queryLower = query.trim().toLowerCase();
@@ -6452,7 +6467,7 @@ export class ArchibaldBot {
       (target as HTMLElement).scrollIntoView({ block: "center" });
       (target as HTMLElement).click();
       return { clicked: true, reason: "fallback-first" };
-    }, searchValue);
+    }, searchValue, matchHint);
 
     logger.debug("Iframe row selection result", selectionResult);
 
@@ -6496,10 +6511,10 @@ export class ArchibaldBot {
     }
   }
 
-  private async selectRowInLookupDialog(searchValue: string): Promise<void> {
+  private async selectRowInLookupDialog(searchValue: string, matchHint?: string): Promise<void> {
     if (!this.page) return;
 
-    const selectionResult = await this.page.evaluate((query: string) => {
+    const selectionResult = await this.page.evaluate((query: string, hint?: string) => {
       const dialogs = Array.from(
         document.querySelectorAll('[id*="_DDD"], .dxpcLite, .dxpc-content, .dxpc-mainDiv, [id*="PopupControl"], [id*="_PW"], .dxpnlControl'),
       ).filter((node) => {
@@ -6529,6 +6544,18 @@ export class ArchibaldBot {
         return { clicked: true, reason: "single-row" };
       }
 
+      if (hint) {
+        const hintLower = hint.trim().toLowerCase();
+        for (const row of rows) {
+          if (row.textContent?.toLowerCase().includes(hintLower)) {
+            const target = row.querySelector("td") || (row as HTMLElement);
+            (target as HTMLElement).scrollIntoView({ block: "center" });
+            (target as HTMLElement).click();
+            return { clicked: true, reason: "hint-match" };
+          }
+        }
+      }
+
       const queryLower = query.trim().toLowerCase();
       for (const row of rows) {
         const cells = Array.from(row.querySelectorAll("td"));
@@ -6553,7 +6580,7 @@ export class ArchibaldBot {
       (target as HTMLElement).scrollIntoView({ block: "center" });
       (target as HTMLElement).click();
       return { clicked: true, reason: "fallback-first" };
-    }, searchValue);
+    }, searchValue, matchHint);
 
     logger.debug("Row selection result", selectionResult);
   }
@@ -6669,6 +6696,7 @@ export class ArchibaldBot {
   private async fillDeliveryAddress(
     deliveryStreet: string,
     deliveryPostalCode: string,
+    deliveryPostalCodeCity?: string,
   ): Promise<void> {
     if (!this.page) throw new Error("Browser page is null");
 
@@ -6866,6 +6894,7 @@ export class ArchibaldBot {
       await this.selectFromDevExpressLookup(
         new RegExp(findBtnId.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")),
         deliveryPostalCode,
+        deliveryPostalCodeCity,
       );
     } else {
       // Fallback: try direct input if find button not found
@@ -6974,6 +7003,7 @@ export class ArchibaldBot {
       await this.selectFromDevExpressLookup(
         /xaf_dviLOGISTICSADDRESSZIPCODE_Edit_find_Edit_B0/,
         customerData.postalCode,
+        customerData.postalCodeCity,
       );
     }
 
@@ -7012,6 +7042,7 @@ export class ArchibaldBot {
       await this.fillDeliveryAddress(
         customerData.deliveryStreet,
         customerData.deliveryPostalCode,
+        customerData.deliveryPostalCodeCity,
       );
     }
 
@@ -7162,6 +7193,7 @@ export class ArchibaldBot {
       await this.selectFromDevExpressLookup(
         /xaf_dviLOGISTICSADDRESSZIPCODE_Edit_find_Edit_B0/,
         customerData.postalCode,
+        customerData.postalCodeCity,
       );
     }
 
@@ -7201,6 +7233,7 @@ export class ArchibaldBot {
       await this.fillDeliveryAddress(
         customerData.deliveryStreet,
         customerData.deliveryPostalCode,
+        customerData.deliveryPostalCodeCity,
       );
     }
 

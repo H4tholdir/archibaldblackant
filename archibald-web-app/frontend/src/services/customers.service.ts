@@ -209,6 +209,10 @@ export class CustomerService {
     paymentTerms?: string;
     deliveryStreet?: string;
     deliveryPostalCode?: string;
+    postalCodeCity?: string;
+    postalCodeCountry?: string;
+    deliveryPostalCodeCity?: string;
+    deliveryPostalCodeCountry?: string;
   }): Promise<Customer | null> {
     try {
       const response = await fetchWithRetry("/api/customers", {
@@ -254,6 +258,10 @@ export class CustomerService {
       paymentTerms?: string;
       deliveryStreet?: string;
       deliveryPostalCode?: string;
+      postalCodeCity?: string;
+      postalCodeCountry?: string;
+      deliveryPostalCodeCity?: string;
+      deliveryPostalCodeCountry?: string;
     },
   ): Promise<void> {
     const response = await fetchWithRetry(

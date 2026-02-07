@@ -45,6 +45,12 @@ export interface CustomerFormData {
   // Optional fields - Delivery address (tab "Indirizzo alt.")
   deliveryStreet?: string;
   deliveryPostalCode?: string;
+
+  // Optional fields - CAP disambiguation hints (frontend → bot, not persisted)
+  postalCodeCity?: string;
+  postalCodeCountry?: string;
+  deliveryPostalCodeCity?: string;
+  deliveryPostalCodeCountry?: string;
 }
 
 export type ApiResponse<T = unknown> = {

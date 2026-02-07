@@ -44,7 +44,7 @@ export default defineConfig({
       },
       workbox: {
         globPatterns: ["**/*.{js,css,html,ico,png,svg}"],
-        // Clean old caches on activation
+        maximumFileSizeToCacheInBytes: 3 * 1024 * 1024,
         cleanupOutdatedCaches: true,
         // Skip waiting - activate new service worker immediately
         skipWaiting: true,
@@ -122,13 +122,14 @@ export default defineConfig({
     }),
   ],
   build: {
-    // Generate unique hash for each file to prevent caching issues
     rollupOptions: {
       output: {
-        // Add hash to file names for cache busting
         entryFileNames: "assets/[name].[hash].js",
         chunkFileNames: "assets/[name].[hash].js",
         assetFileNames: "assets/[name].[hash].[ext]",
+        manualChunks: {
+          "cap-data": ["./src/data/cap-list.ts"],
+        },
       },
     },
     // Force sourcemap generation for production debugging
