@@ -207,6 +207,8 @@ export class CustomerService {
     email?: string;
     deliveryMode?: string;
     paymentTerms?: string;
+    deliveryStreet?: string;
+    deliveryPostalCode?: string;
   }): Promise<Customer | null> {
     try {
       const response = await fetchWithRetry("/api/customers", {
@@ -250,6 +252,8 @@ export class CustomerService {
       email?: string;
       deliveryMode?: string;
       paymentTerms?: string;
+      deliveryStreet?: string;
+      deliveryPostalCode?: string;
     },
   ): Promise<void> {
     const response = await fetchWithRetry(

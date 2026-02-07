@@ -1237,12 +1237,9 @@ export class ArchibaldBot {
         },
         { timeout, polling: 100 },
       );
-
-      // Additional stabilization wait
-      await this.wait(300);
     } catch {
-      // Fallback: just wait fixed time if loading detection fails
-      await this.wait(1000);
+      // Fallback: small wait if loading detection fails
+      await this.wait(400);
     }
   }
 
@@ -1255,12 +1252,9 @@ export class ArchibaldBot {
     stablePolls?: number;
     label?: string;
   }): Promise<void> {
-    const { timeout = 6000, stablePolls = 3, label } = options || {};
+    const { timeout = 6000, stablePolls = 2, label } = options || {};
 
     if (!this.page) return;
-
-    // First, wait for obvious loading panels to disappear.
-    await this.waitForDevExpressReady({ timeout: Math.min(timeout, 5000) });
 
     try {
       await this.page.waitForFunction(
@@ -6049,194 +6043,979 @@ export class ArchibaldBot {
     };
   }
 
+  // ─── DevExpress-aware Customer Helpers ────────────────────────────────
+
+  private async setDevExpressField(
+    fieldRegex: RegExp,
+    value: string,
+  ): Promise<void> {
+    if (!this.page) throw new Error("Browser page is null");
+
+    const result = await this.page.evaluate(
+      (regex: string, val: string) => {
+        const inputs = Array.from(document.querySelectorAll("input"));
+        const input = inputs.find((i) =>
+          new RegExp(regex).test(i.id),
+        ) as HTMLInputElement | null;
+        if (!input) return { found: false, id: "" };
+
+        input.scrollIntoView({ block: "center" });
+        input.focus();
+        input.click();
+
+        const setter = Object.getOwnPropertyDescriptor(
+          HTMLInputElement.prototype,
+          "value",
+        )?.set;
+        if (setter) {
+          setter.call(input, val);
+        } else {
+          input.value = val;
+        }
+        input.dispatchEvent(new Event("input", { bubbles: true }));
+        input.dispatchEvent(new Event("change", { bubbles: true }));
+
+        return { found: true, id: input.id };
+      },
+      fieldRegex.source,
+      value,
+    );
+
+    if (!result.found) {
+      throw new Error(`Input field not found: ${fieldRegex}`);
+    }
+
+    await this.page.keyboard.press("Tab");
+    await this.waitForDevExpressIdle({ timeout: 5000, label: `field-${result.id}` });
+
+    logger.debug("setDevExpressField done", { id: result.id, value });
+  }
+
+  private async setDevExpressComboBox(
+    fieldRegex: RegExp,
+    value: string,
+  ): Promise<void> {
+    if (!this.page) throw new Error("Browser page is null");
+
+    const inputId = await this.page.evaluate(
+      (regex: string, val: string) => {
+        const inputs = Array.from(document.querySelectorAll("input"));
+        const input = inputs.find((i) =>
+          new RegExp(regex).test(i.id),
+        ) as HTMLInputElement | null;
+        if (!input) return null;
+
+        input.scrollIntoView({ block: "center" });
+        input.focus();
+        input.click();
+
+        const setter = Object.getOwnPropertyDescriptor(
+          HTMLInputElement.prototype,
+          "value",
+        )?.set;
+        if (setter) {
+          setter.call(input, val);
+        } else {
+          input.value = val;
+        }
+        input.dispatchEvent(new Event("input", { bubbles: true }));
+        input.dispatchEvent(new Event("change", { bubbles: true }));
+
+        return input.id;
+      },
+      fieldRegex.source,
+      value,
+    );
+
+    if (!inputId) {
+      throw new Error(`ComboBox input not found: ${fieldRegex}`);
+    }
+
+    await this.page.keyboard.press("Tab");
+    await this.waitForDevExpressIdle({ timeout: 5000, label: `combo-${inputId}` });
+
+    const actual = await this.page.evaluate((id: string) => {
+      const input = document.getElementById(id) as HTMLInputElement;
+      return input?.value || "";
+    }, inputId);
+
+    logger.debug("setDevExpressComboBox done", { id: inputId, requested: value, actual });
+  }
+
+  private async selectFromDevExpressLookup(
+    buttonRegex: RegExp,
+    searchValue: string,
+  ): Promise<void> {
+    if (!this.page) throw new Error("Browser page is null");
+
+    logger.debug("selectFromDevExpressLookup", { pattern: buttonRegex.source, searchValue });
+
+    const buttonId = await this.page.evaluate((regex: string) => {
+      const allEls = Array.from(
+        document.querySelectorAll("td, img, button, a, div"),
+      );
+      const btn = allEls.find((el) => new RegExp(regex).test(el.id));
+      if (btn) {
+        (btn as HTMLElement).scrollIntoView({ block: "center" });
+        (btn as HTMLElement).click();
+        return btn.id;
+      }
+      return null;
+    }, buttonRegex.source);
+
+    if (!buttonId) {
+      throw new Error(`Lookup button not found: ${buttonRegex}`);
+    }
+
+    logger.debug("Lookup button clicked", { buttonId });
+
+    try {
+      await this.page.waitForFunction(
+        () => {
+          const dialogs = Array.from(
+            document.querySelectorAll('[id*="_DDD"], .dxpcLite, .dxpc-mainDiv, .dxpc-content, [id*="PopupControl"], [id*="_PW"], .dxpnlControl'),
+          ).filter((node) => {
+            const el = node as HTMLElement;
+            return el.offsetParent !== null && el.getBoundingClientRect().width > 0;
+          });
+          return dialogs.length > 0;
+        },
+        { timeout: 10000, polling: 100 },
+      );
+    } catch {
+      logger.warn("Lookup dialog not detected by waitForFunction, proceeding with fallback...");
+      await this.wait(2000);
+    }
+
+    logger.debug("Lookup dialog appeared");
+
+    // Check if the popup content is inside an iframe (DevExpress FindPopup pattern)
+    const iframeInfo = await this.page.evaluate(() => {
+      const iframes = Array.from(document.querySelectorAll("iframe")).filter((f) => {
+        const el = f as HTMLElement;
+        return el.offsetParent !== null && f.src && f.src.includes("FindPopup");
+      });
+      if (iframes.length > 0) {
+        return { hasIframe: true, src: iframes[0].src, id: iframes[0].id };
+      }
+      return { hasIframe: false, src: "", id: "" };
+    });
+
+    logger.debug("Iframe check", iframeInfo);
+
+    if (iframeInfo.hasIframe) {
+      await this.selectFromDevExpressLookupViaIframe(iframeInfo.id, searchValue);
+    } else {
+      await this.selectFromDevExpressLookupDirect(searchValue);
+    }
+
+    await this.waitForDevExpressIdle({ timeout: 5000, label: "lookup-close" });
+    logger.debug("selectFromDevExpressLookup completed");
+  }
+
+  private async selectFromDevExpressLookupDirect(
+    searchValue: string,
+  ): Promise<void> {
+    if (!this.page) return;
+
+    const searchInputId = await this.page.evaluate(() => {
+      const dialogs = Array.from(
+        document.querySelectorAll('[id*="_DDD"], .dxpcLite, .dxpc-mainDiv, .dxpc-content, [id*="PopupControl"], [id*="_PW"], .dxpnlControl'),
+      ).filter((node) => {
+        const el = node as HTMLElement;
+        return el.offsetParent !== null && el.getBoundingClientRect().width > 0;
+      });
+
+      for (const dialog of dialogs) {
+        const searchInput = dialog.querySelector(
+          'input[id*="_DXSE_I"], input[id*="_DXFREditorcol0_I"]',
+        ) as HTMLInputElement | null;
+        if (searchInput && searchInput.offsetParent !== null) {
+          return searchInput.id;
+        }
+        const visibleInputs = Array.from(
+          dialog.querySelectorAll('input[type="text"]'),
+        ).filter(
+          (i) => (i as HTMLElement).offsetParent !== null,
+        ) as HTMLInputElement[];
+        if (visibleInputs.length > 0) {
+          return visibleInputs[0].id;
+        }
+      }
+      return null;
+    });
+
+    if (searchInputId) {
+      await this.page.evaluate(
+        (id: string, val: string) => {
+          const input = document.getElementById(id) as HTMLInputElement;
+          if (!input) return;
+          input.focus();
+          const setter = Object.getOwnPropertyDescriptor(
+            HTMLInputElement.prototype,
+            "value",
+          )?.set;
+          if (setter) setter.call(input, val);
+          else input.value = val;
+          input.dispatchEvent(new Event("input", { bubbles: true }));
+          input.dispatchEvent(new Event("change", { bubbles: true }));
+          input.dispatchEvent(
+            new KeyboardEvent("keydown", { key: "Enter", code: "Enter", keyCode: 13, bubbles: true }),
+          );
+          input.dispatchEvent(
+            new KeyboardEvent("keyup", { key: "Enter", code: "Enter", keyCode: 13, bubbles: true }),
+          );
+        },
+        searchInputId,
+        searchValue,
+      );
+    } else {
+      await this.page.keyboard.type(searchValue, { delay: 30 });
+      await this.page.keyboard.press("Enter");
+    }
+
+    logger.debug("Search value entered (direct), waiting for results...");
+
+    try {
+      await this.page.waitForFunction(
+        () => {
+          const selectors = '[id*="_DDD"], .dxpcLite, .dxpc-mainDiv, .dxpc-content, [id*="PopupControl"], [id*="_PW"], .dxpnlControl';
+          const popups = Array.from(document.querySelectorAll(selectors)).filter((node) => {
+            const el = node as HTMLElement;
+            return el.offsetParent !== null && el.getBoundingClientRect().width > 0;
+          });
+          for (const popup of popups) {
+            const rows = popup.querySelectorAll('tr[class*="dxgvDataRow"], tr[class*="dxgvFocusedRow"]');
+            if (rows.length > 0) return true;
+          }
+          return false;
+        },
+        { timeout: 12000, polling: 150 },
+      );
+    } catch {
+      logger.warn("Rows not detected in direct lookup dialog");
+    }
+
+    await this.selectRowInLookupDialog(searchValue);
+
+    await this.wait(200);
+    await this.clickElementByText("OK", { exact: true, selectors: ["span", "button", "a", "td"] });
+
+    await this.page.waitForFunction(
+      () => {
+        const dialogs = Array.from(
+          document.querySelectorAll('[id*="_DDD"], .dxpcLite'),
+        ).filter((node) => {
+          const el = node as HTMLElement;
+          return el.offsetParent !== null && el.getBoundingClientRect().width > 0;
+        });
+        return dialogs.every((d) =>
+          d.querySelectorAll('tr[class*="dxgvDataRow"]').length === 0,
+        );
+      },
+      { timeout: 5000, polling: 100 },
+    ).catch(() => {});
+  }
+
+  private async selectFromDevExpressLookupViaIframe(
+    iframeId: string,
+    searchValue: string,
+  ): Promise<void> {
+    if (!this.page) return;
+
+    const iframeHandle = await this.page.$(`#${iframeId}`);
+    if (!iframeHandle) {
+      logger.warn("Iframe element not found by id, falling back to direct mode");
+      return this.selectFromDevExpressLookupDirect(searchValue);
+    }
+
+    const frame = await iframeHandle.contentFrame();
+    if (!frame) {
+      logger.warn("Could not get contentFrame, falling back to direct mode");
+      return this.selectFromDevExpressLookupDirect(searchValue);
+    }
+
+    logger.debug("Working inside iframe for lookup");
+
+    // Wait for iframe content to load and DevExpress to initialize
+    try {
+      await frame.waitForFunction(
+        () => {
+          const w = window as any;
+          return document.readyState === "complete" && !!w.ASPxClientControl?.GetControlCollection;
+        },
+        { timeout: 10000, polling: 200 },
+      );
+    } catch {
+      logger.warn("Iframe not fully ready, proceeding...");
+    }
+
+    await this.wait(300);
+
+    // Find and focus the search input inside the iframe
+    const searchFound = await frame.evaluate(() => {
+      const inputs = Array.from(document.querySelectorAll('input[type="text"]')).filter(
+        (i) => (i as HTMLElement).offsetParent !== null,
+      ) as HTMLInputElement[];
+
+      const searchInput = inputs.find((i) =>
+        /_DXSE_I$/.test(i.id) || /_DXFREditorcol0_I$/.test(i.id),
+      ) || inputs[0];
+
+      if (!searchInput) return false;
+
+      searchInput.focus();
+      searchInput.click();
+      // Clear any existing value
+      searchInput.value = "";
+      return true;
+    });
+
+    if (!searchFound) {
+      logger.warn("No search input found inside iframe");
+      return;
+    }
+
+    // Use real keyboard to type and press Enter (dispatchEvent doesn't trigger DevExpress callbacks)
+    await this.page!.keyboard.type(searchValue, { delay: 20 });
+    await this.wait(200);
+    await this.page!.keyboard.press("Enter");
+
+    logger.debug("Search value entered in iframe via real keyboard, waiting for results...");
+
+    // Wait for rows to appear inside the iframe
+    try {
+      await frame.waitForFunction(
+        () => {
+          const w = window as any;
+          const col = w.ASPxClientControl?.GetControlCollection?.();
+          if (col && typeof col.ForEachControl === "function") {
+            let busy = false;
+            col.ForEachControl((c: any) => {
+              try { if (c.InCallback?.()) busy = true; } catch {}
+            });
+            if (busy) return false;
+          }
+          const rows = document.querySelectorAll('tr[class*="dxgvDataRow"], tr[class*="dxgvFocusedRow"]');
+          return rows.length > 0;
+        },
+        { timeout: 12000, polling: 150 },
+      );
+    } catch {
+      logger.warn("Rows not detected inside iframe lookup");
+      const iframeDiag = await frame.evaluate(() => {
+        return {
+          bodyHtml: document.body?.innerHTML?.substring(0, 800) || "(empty)",
+          inputCount: document.querySelectorAll("input").length,
+          rowCount: document.querySelectorAll("tr").length,
+        };
+      });
+      logger.debug("Iframe diagnostic", iframeDiag);
+    }
+
+    // Select the matching row inside the iframe
+    const selectionResult = await frame.evaluate((query: string) => {
+      const rows = Array.from(
+        document.querySelectorAll('tr[class*="dxgvDataRow"]'),
+      ).filter((r) => (r as HTMLElement).offsetParent !== null);
+
+      if (rows.length === 0) return { clicked: false, reason: "no-rows" };
+
+      if (rows.length === 1) {
+        const target = rows[0].querySelector("td") || (rows[0] as HTMLElement);
+        (target as HTMLElement).scrollIntoView({ block: "center" });
+        (target as HTMLElement).click();
+        return { clicked: true, reason: "single-row" };
+      }
+
+      const queryLower = query.trim().toLowerCase();
+      for (const row of rows) {
+        const cells = Array.from(row.querySelectorAll("td"));
+        if (cells.some((c) => c.textContent?.trim().toLowerCase() === queryLower)) {
+          const target = cells[0] || (row as HTMLElement);
+          (target as HTMLElement).scrollIntoView({ block: "center" });
+          (target as HTMLElement).click();
+          return { clicked: true, reason: "exact-match" };
+        }
+      }
+
+      for (const row of rows) {
+        if (row.textContent?.toLowerCase().includes(queryLower)) {
+          const target = row.querySelector("td") || (row as HTMLElement);
+          (target as HTMLElement).scrollIntoView({ block: "center" });
+          (target as HTMLElement).click();
+          return { clicked: true, reason: "contains-match" };
+        }
+      }
+
+      const target = rows[0].querySelector("td") || (rows[0] as HTMLElement);
+      (target as HTMLElement).scrollIntoView({ block: "center" });
+      (target as HTMLElement).click();
+      return { clicked: true, reason: "fallback-first" };
+    }, searchValue);
+
+    logger.debug("Iframe row selection result", selectionResult);
+
+    await this.wait(300);
+
+    // Click OK — could be inside iframe or in main page
+    let okClicked = await frame.evaluate(() => {
+      const okBtns = Array.from(document.querySelectorAll("span, button, a, td"))
+        .filter((el) => {
+          const h = el as HTMLElement;
+          return h.offsetParent !== null && h.textContent?.trim() === "OK";
+        });
+      if (okBtns.length > 0) {
+        (okBtns[0] as HTMLElement).click();
+        return true;
+      }
+      return false;
+    });
+
+    if (!okClicked) {
+      okClicked = await this.clickElementByText("OK", { exact: true, selectors: ["span", "button", "a", "td"] });
+    }
+    logger.debug("OK button clicked", { okClicked, context: okClicked ? "found" : "not-found" });
+
+    // Wait for popup to close in main page
+    try {
+      await this.page.waitForFunction(
+        () => {
+          const iframes = Array.from(document.querySelectorAll("iframe")).filter((f) => {
+            const el = f as HTMLElement;
+            return el.offsetParent !== null && f.src && f.src.includes("FindPopup");
+          });
+          return iframes.length === 0;
+        },
+        { timeout: 8000, polling: 200 },
+      );
+    } catch {
+      logger.warn("Iframe popup did not close within timeout, trying Escape");
+      await this.page.keyboard.press("Escape");
+      await this.wait(1000);
+    }
+  }
+
+  private async selectRowInLookupDialog(searchValue: string): Promise<void> {
+    if (!this.page) return;
+
+    const selectionResult = await this.page.evaluate((query: string) => {
+      const dialogs = Array.from(
+        document.querySelectorAll('[id*="_DDD"], .dxpcLite, .dxpc-content, .dxpc-mainDiv, [id*="PopupControl"], [id*="_PW"], .dxpnlControl'),
+      ).filter((node) => {
+        const el = node as HTMLElement;
+        return el.offsetParent !== null && el.getBoundingClientRect().width > 0;
+      });
+
+      let container: Element | null = null;
+      for (const d of dialogs) {
+        if (d.querySelector('tr[class*="dxgvDataRow"]')) {
+          container = d;
+          break;
+        }
+      }
+      if (!container) return { clicked: false, reason: "no-container" };
+
+      const rows = Array.from(
+        container.querySelectorAll('tr[class*="dxgvDataRow"]'),
+      ).filter((r) => (r as HTMLElement).offsetParent !== null);
+
+      if (rows.length === 0) return { clicked: false, reason: "no-rows" };
+
+      if (rows.length === 1) {
+        const target = rows[0].querySelector("td") || (rows[0] as HTMLElement);
+        (target as HTMLElement).scrollIntoView({ block: "center" });
+        (target as HTMLElement).click();
+        return { clicked: true, reason: "single-row" };
+      }
+
+      const queryLower = query.trim().toLowerCase();
+      for (const row of rows) {
+        const cells = Array.from(row.querySelectorAll("td"));
+        if (cells.some((c) => c.textContent?.trim().toLowerCase() === queryLower)) {
+          const target = cells[0] || (row as HTMLElement);
+          (target as HTMLElement).scrollIntoView({ block: "center" });
+          (target as HTMLElement).click();
+          return { clicked: true, reason: "exact-match" };
+        }
+      }
+
+      for (const row of rows) {
+        if (row.textContent?.toLowerCase().includes(queryLower)) {
+          const target = row.querySelector("td") || (row as HTMLElement);
+          (target as HTMLElement).scrollIntoView({ block: "center" });
+          (target as HTMLElement).click();
+          return { clicked: true, reason: "contains-match" };
+        }
+      }
+
+      const target = rows[0].querySelector("td") || (rows[0] as HTMLElement);
+      (target as HTMLElement).scrollIntoView({ block: "center" });
+      (target as HTMLElement).click();
+      return { clicked: true, reason: "fallback-first" };
+    }, searchValue);
+
+    logger.debug("Row selection result", selectionResult);
+  }
+
+  private async openCustomerTab(tabText: string): Promise<boolean> {
+    if (!this.page) return false;
+
+    const clicked = await this.page.evaluate((text: string) => {
+      const links = Array.from(
+        document.querySelectorAll("a.dxtc-link, span.dx-vam"),
+      );
+
+      for (const el of links) {
+        const elText = el.textContent?.trim() || "";
+        if (elText.includes(text)) {
+          const clickTarget = el.tagName === "A" ? el : el.parentElement;
+          if (clickTarget && (clickTarget as HTMLElement).offsetParent !== null) {
+            (clickTarget as HTMLElement).click();
+            return true;
+          }
+        }
+      }
+
+      const tabs = Array.from(
+        document.querySelectorAll('li[id*="_pg_AT"]'),
+      );
+      for (const tab of tabs) {
+        const link = tab.querySelector("a.dxtc-link");
+        const span = tab.querySelector("span.dx-vam");
+        const tabLabel = span?.textContent?.trim() || "";
+        if (tabLabel.includes(text) && link && (link as HTMLElement).offsetParent !== null) {
+          (link as HTMLElement).click();
+          return true;
+        }
+      }
+      return false;
+    }, tabText);
+
+    if (!clicked) {
+      logger.warn(`Tab "${tabText}" not found`);
+      return false;
+    }
+
+    logger.info(`Tab "${tabText}" clicked`);
+
+    try {
+      await this.page.waitForFunction(
+        () => {
+          const w = window as any;
+          const col = w.ASPxClientControl?.GetControlCollection?.();
+          if (!col || typeof col.ForEachControl !== "function") return true;
+          let busy = false;
+          col.ForEachControl((c: any) => {
+            try { if (c.InCallback?.()) busy = true; } catch {}
+          });
+          return !busy;
+        },
+        { timeout: 5000, polling: 100 },
+      );
+    } catch {}
+
+    return true;
+  }
+
+  private async saveAndCloseCustomer(): Promise<void> {
+    if (!this.page) throw new Error("Browser page is null");
+
+    logger.info("Saving customer (Salva e chiudi)");
+
+    let saved = await this.clickElementByText("Salva e chiudi", {
+      selectors: ["a", "span", "button", "li"],
+    });
+
+    if (!saved) {
+      saved = await this.page.evaluate(() => {
+        const el = document.querySelector("#Vertical_mainMenu_Menu_DXI1i1_T") as HTMLElement;
+        if (el) { el.click(); return true; }
+        return false;
+      });
+    }
+
+    if (!saved) throw new Error("Save button not found");
+
+    await this.waitForDevExpressIdle({ timeout: 8000, label: "save-customer" });
+
+    const warningFound = await this.page.evaluate(() => {
+      const checkbox = document.querySelector(
+        'input[id$="_ErrorInfo_Ch_S"]',
+      ) as HTMLInputElement | null;
+      if (!checkbox) return false;
+      const wrapper = checkbox.closest('span[id$="_ErrorInfo_Ch_S_D"]');
+      if (wrapper) {
+        (wrapper as HTMLElement).click();
+      } else {
+        checkbox.click();
+      }
+      return true;
+    });
+
+    if (warningFound) {
+      logger.info("Warning checkbox acknowledged, saving again");
+      await this.waitForDevExpressIdle({ timeout: 3000, label: "warning-ack" });
+
+      await this.clickElementByText("Salva e chiudi", {
+        selectors: ["a", "span", "button", "li"],
+      });
+      await this.waitForDevExpressIdle({ timeout: 8000, label: "save-customer-2" });
+    }
+
+    logger.info("Customer saved");
+  }
+
+  private async fillDeliveryAddress(
+    deliveryStreet: string,
+    deliveryPostalCode: string,
+  ): Promise<void> {
+    if (!this.page) throw new Error("Browser page is null");
+
+    logger.info("Filling delivery address in 'Indirizzo alt.' tab", {
+      deliveryStreet,
+      deliveryPostalCode,
+    });
+
+    await this.openCustomerTab("Indirizzo alt");
+    await this.waitForDevExpressIdle({ timeout: 5000, label: "tab-indirizzo-alt" });
+
+    const altGridName = await this.page.evaluate(() => {
+      const w = window as any;
+      if (!w.ASPxClientControl?.GetControlCollection) return "";
+      let found = "";
+      w.ASPxClientControl.GetControlCollection().ForEachControl(
+        (c: any) => {
+          if (typeof c?.GetGridView === "function") {
+            const gv = c.GetGridView?.();
+            const name = gv?.GetName?.() || c.GetName?.() || "";
+            if (
+              name.includes("LOGISTICS") ||
+              name.includes("Address") ||
+              name.includes("address")
+            ) {
+              found = c.GetName?.() || "";
+            }
+          }
+          const cName = c?.name || c?.GetName?.() || "";
+          if (
+            cName.includes("LOGISTICS") ||
+            cName.includes("Address") ||
+            cName.includes("address")
+          ) {
+            if (typeof c?.AddNewRow === "function") {
+              found = cName;
+            }
+          }
+        },
+      );
+      return found;
+    });
+
+    logger.debug("Alt address grid discovered", { altGridName });
+
+    if (altGridName) {
+      await this.page.evaluate((name: string) => {
+        const w = window as any;
+        const grid = w.ASPxClientControl?.GetControlCollection?.()?.GetByName?.(name);
+        if (grid) grid.AddNewRow();
+      }, altGridName);
+    } else {
+      const addNewResult = await this.page.evaluate(() => {
+        const candidates = Array.from(
+          document.querySelectorAll('a[data-args*="AddNew"]'),
+        ).filter((node) => {
+          const el = node as HTMLElement;
+          return el.offsetParent !== null && el.getBoundingClientRect().width > 0;
+        }) as HTMLElement[];
+        if (candidates.length > 0) {
+          candidates[0].click();
+          return true;
+        }
+        return false;
+      });
+      if (!addNewResult) {
+        throw new Error("AddNew button not found in address grid");
+      }
+    }
+
+    await this.waitForDevExpressIdle({ timeout: 8000, label: "address-addnew" });
+    logger.debug("New row added to address grid");
+
+    const tipoSet = await this.page.evaluate(() => {
+      const inputs = Array.from(
+        document.querySelectorAll('input[type="text"]'),
+      ).filter(
+        (i) => (i as HTMLElement).offsetParent !== null,
+      ) as HTMLInputElement[];
+
+      const tipoInput = inputs.find((i) => {
+        const id = i.id.toLowerCase();
+        return id.includes("type") || id.includes("tipo") || id.includes("addresstype");
+      });
+
+      if (tipoInput) {
+        tipoInput.focus();
+        tipoInput.click();
+        const setter = Object.getOwnPropertyDescriptor(
+          HTMLInputElement.prototype, "value",
+        )?.set;
+        if (setter) setter.call(tipoInput, "Consegna");
+        else tipoInput.value = "Consegna";
+        tipoInput.dispatchEvent(new Event("input", { bubbles: true }));
+        tipoInput.dispatchEvent(new Event("change", { bubbles: true }));
+        return { found: true, id: tipoInput.id };
+      }
+
+      for (const inp of inputs) {
+        const row = inp.closest("tr");
+        if (row && row.classList.toString().includes("dxgvEditingRow")) {
+          inp.focus();
+          inp.click();
+          const setter = Object.getOwnPropertyDescriptor(
+            HTMLInputElement.prototype, "value",
+          )?.set;
+          if (setter) setter.call(inp, "Consegna");
+          else inp.value = "Consegna";
+          inp.dispatchEvent(new Event("input", { bubbles: true }));
+          inp.dispatchEvent(new Event("change", { bubbles: true }));
+          return { found: true, id: inp.id };
+        }
+      }
+
+      return { found: false, id: "" };
+    });
+
+    if (!tipoSet.found) {
+      logger.warn("TIPO input not found, trying Tab to first cell");
+      await this.page.keyboard.type("Consegna", { delay: 30 });
+    }
+
+    await this.page.keyboard.press("Tab");
+    await this.waitForDevExpressIdle({ timeout: 3000, label: "tipo-set" });
+    logger.debug("TIPO set to 'Consegna'");
+
+    // Grid columns: TIPO → NOME → VIA → INDIRIZZO LOGISTICO CODICE POSTALE
+    // After Tab from TIPO, cursor is on NOME — skip it with another Tab
+    logger.debug("Skipping NOME column (Tab)");
+    await this.page.keyboard.press("Tab");
+    await this.waitForDevExpressIdle({ timeout: 3000, label: "nome-skip" });
+
+    // Now cursor should be on VIA — type the delivery street
+    logger.debug("Setting VIA column");
+    const editingRowInputs = await this.page.evaluate((street: string) => {
+      const editingRow = document.querySelector('tr[class*="dxgvEditingRow"]');
+      if (!editingRow) return { inputs: [] as string[], streetSet: false };
+
+      const inputs = Array.from(
+        editingRow.querySelectorAll('input[type="text"]'),
+      ).filter(
+        (i) => (i as HTMLElement).offsetParent !== null,
+      ) as HTMLInputElement[];
+
+      const inputIds = inputs.map((i) => i.id.substring(i.id.length - 40));
+
+      // The focused/active input should be VIA after the two Tabs
+      const activeEl = document.activeElement as HTMLInputElement;
+      if (activeEl && activeEl.tagName === "INPUT" && editingRow.contains(activeEl)) {
+        const setter = Object.getOwnPropertyDescriptor(
+          HTMLInputElement.prototype, "value",
+        )?.set;
+        if (setter) setter.call(activeEl, street);
+        else activeEl.value = street;
+        activeEl.dispatchEvent(new Event("input", { bubbles: true }));
+        activeEl.dispatchEvent(new Event("change", { bubbles: true }));
+        return { inputs: inputIds, streetSet: true, activeId: activeEl.id };
+      }
+
+      return { inputs: inputIds, streetSet: false };
+    }, deliveryStreet);
+
+    logger.debug("Editing row state after VIA", editingRowInputs);
+
+    if (!editingRowInputs.streetSet) {
+      logger.warn("Active element not in editing row, typing VIA directly");
+      await this.page.keyboard.type(deliveryStreet, { delay: 30 });
+    }
+
+    await this.page.keyboard.press("Tab");
+    await this.waitForDevExpressIdle({ timeout: 3000, label: "street-set" });
+    logger.debug("Delivery street set, cursor should be on INDIRIZZO LOGISTICO CODICE POSTALE");
+
+    // CAP column is a lookup field — find the B0 (find) button in the editing row and use it
+    logger.debug("Setting INDIRIZZO LOGISTICO CODICE POSTALE via lookup");
+
+    const findBtnId = await this.page.evaluate(() => {
+      const editingRow = document.querySelector('tr[class*="dxgvEditingRow"]');
+      if (editingRow) {
+        const btns = Array.from(editingRow.querySelectorAll('td, img, button, a, div'))
+          .filter((el) => /LOGISTICSADDRESSZIPCODE.*_B0$|_find_Edit_B0$/.test(el.id));
+        if (btns.length > 0) return btns[0].id;
+      }
+      // Fallback: search all visible B0 buttons near LOGISTICSADDRESSZIPCODE
+      const allBtns = Array.from(document.querySelectorAll('td, img, button, a, div'))
+        .filter((el) => {
+          const h = el as HTMLElement;
+          return h.offsetParent !== null && /LOGISTICSADDRESSZIPCODE.*_B0$/.test(el.id);
+        });
+      return allBtns.length > 0 ? allBtns[allBtns.length - 1].id : null;
+    });
+
+    if (findBtnId) {
+      logger.debug("CAP find button found in grid", { findBtnId });
+      await this.selectFromDevExpressLookup(
+        new RegExp(findBtnId.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")),
+        deliveryPostalCode,
+      );
+    } else {
+      // Fallback: try direct input if find button not found
+      logger.warn("CAP find button not found in editing row, trying direct input");
+      const activeEl = document.activeElement as HTMLInputElement | null;
+      await this.page.keyboard.type(deliveryPostalCode, { delay: 20 });
+      await this.page.keyboard.press("Tab");
+      await this.waitForDevExpressIdle({ timeout: 3000, label: "cap-set-direct" });
+    }
+
+    logger.debug("Delivery postal code set, confirming row with UpdateEdit");
+
+    if (altGridName) {
+      await this.page.evaluate((name: string) => {
+        const w = window as any;
+        const grid = w.ASPxClientControl?.GetControlCollection?.()?.GetByName?.(name);
+        if (grid) grid.UpdateEdit();
+      }, altGridName);
+    } else {
+      const updateResult = await this.page.evaluate(() => {
+        const candidates = Array.from(
+          document.querySelectorAll('a[data-args*="UpdateEdit"]'),
+        ).filter((node) => {
+          const el = node as HTMLElement;
+          return el.offsetParent !== null && el.getBoundingClientRect().width > 0;
+        }) as HTMLElement[];
+        if (candidates.length > 0) {
+          candidates[0].click();
+          return true;
+        }
+        return false;
+      });
+      if (!updateResult) {
+        logger.warn("UpdateEdit button not found, trying keyboard");
+        await this.page.keyboard.press("Enter");
+      }
+    }
+
+    await this.waitForDevExpressIdle({ timeout: 8000, label: "address-update-edit" });
+    logger.info("Delivery address row confirmed");
+  }
+
+  // ─── Customer CRUD Operations ───────────────────────────────────────
+
   async createCustomer(
     customerData: import("./types").CustomerFormData,
   ): Promise<string> {
-    if (!this.page) {
-      throw new Error("Browser page is null");
-    }
+    if (!this.page) throw new Error("Browser page is null");
 
     logger.info("Creating new customer", { name: customerData.name });
 
-    const page = this.page;
-
-    logger.info("Navigating to customer list");
-    await page.goto(`${config.archibald.url}/CUSTTABLE_ListView_Agent/`, {
+    await this.page.goto(`${config.archibald.url}/CUSTTABLE_ListView_Agent/`, {
       waitUntil: "networkidle2",
       timeout: 60000,
     });
 
-    await page.waitForSelector("table", { timeout: 10000 });
-    await new Promise((resolve) => setTimeout(resolve, 3000));
+    await this.waitForDevExpressReady({ timeout: 10000 });
 
-    logger.info("Clicking 'Nuovo' button");
-    const nuovoClicked = await page.evaluate(() => {
-      const allElements = Array.from(document.querySelectorAll("*"));
-      const nuovoElements = allElements.filter((el) => {
-        const text = el.textContent?.trim() || "";
-        return text === "Nuovo" || text.startsWith("Nuovo");
-      });
-
-      for (const el of nuovoElements) {
-        const clickable =
-          el.tagName === "A" || el.tagName === "BUTTON"
-            ? el
-            : el.closest("a") || el.closest("button");
-
-        if (clickable) {
-          (clickable as HTMLElement).click();
-          return true;
-        }
-      }
-
-      return false;
+    const nuovoClicked = await this.clickElementByText("Nuovo", {
+      selectors: ["a", "span", "button"],
     });
+    if (!nuovoClicked) throw new Error("'Nuovo' button not found");
 
-    if (!nuovoClicked) {
-      throw new Error("Could not find or click 'Nuovo' button");
-    }
+    await this.page.waitForFunction(
+      (baseUrl: string) => !window.location.href.includes("ListView"),
+      { timeout: 15000, polling: 200 },
+      config.archibald.url,
+    );
+    await this.waitForDevExpressReady({ timeout: 10000 });
 
-    logger.info("Waiting for customer form to load");
-    await new Promise((resolve) => setTimeout(resolve, 5000));
-    await page.waitForSelector("input[type='text']", { timeout: 10000 });
+    logger.info("Customer form loaded, filling fields");
 
-    await page.screenshot({
-      path: "/Users/hatholdir/Downloads/Archibald/archibald-web-app/backend/logs/customer-form-loaded.png",
-      fullPage: false,
-    });
+    await this.setDevExpressField(/xaf_dviNAME_Edit_I$/, customerData.name);
 
-    const allInputIds = await page.evaluate(() => {
-      const inputs = Array.from(
-        document.querySelectorAll("input[type='text']"),
-      );
-      return inputs.slice(0, 30).map((input) => input.id);
-    });
-
-    logger.info("Found input fields", {
-      count: allInputIds.length,
-      sample: allInputIds,
-    });
-
-    logger.info("Filling customer form fields");
-
-    // Fill Name field
-    logger.info("Filling: Name");
-    await this.fillFieldByPattern(/xaf_dviNAME_Edit_I$/, customerData.name);
-    await new Promise((resolve) => setTimeout(resolve, 1000));
-
-    // Fill VAT Number field
-    if (customerData.vatNumber) {
-      logger.info("Filling: VAT Number");
-      await this.fillFieldByPattern(
-        /xaf_dviVATNUM_Edit_I$/,
-        customerData.vatNumber,
-      );
-      await new Promise((resolve) => setTimeout(resolve, 1000));
-    }
-
-    // Fill PEC field
-    if (customerData.pec) {
-      logger.info("Filling: PEC");
-      await this.fillFieldByPattern(
-        /xaf_dviLEGALEMAIL_Edit_I$/,
-        customerData.pec,
-      );
-      await new Promise((resolve) => setTimeout(resolve, 1000));
-    }
-
-    // Fill SDI field
-    if (customerData.sdi) {
-      logger.info("Filling: SDI");
-      await this.fillFieldByPattern(
-        /xaf_dviLEGALAUTHORITY_Edit_I$/,
-        customerData.sdi,
-      );
-      await new Promise((resolve) => setTimeout(resolve, 1000));
-    }
-
-    // Fill Street field
-    if (customerData.street) {
-      logger.info("Filling: Street");
-      await this.fillFieldByPattern(
-        /xaf_dviSTREET_Edit_I$/,
-        customerData.street,
-      );
-      await new Promise((resolve) => setTimeout(resolve, 1000));
-    }
-
-    // Fill Phone field
-    if (customerData.phone) {
-      logger.info("Filling: Phone");
-      await this.fillFieldByPattern(/xaf_dviPHONE_Edit_I$/, customerData.phone);
-      await new Promise((resolve) => setTimeout(resolve, 1000));
-    }
-
-    // Fill Email field
-    if (customerData.email) {
-      logger.info("Filling: Email");
-      await this.fillFieldByPattern(/xaf_dviEMAIL_Edit_I$/, customerData.email);
-      await new Promise((resolve) => setTimeout(resolve, 1000));
-    }
-
-    // Select Delivery Mode dropdown
     if (customerData.deliveryMode) {
-      logger.info("Selecting: Delivery Mode");
-      await this.selectFromDropdown(
+      await this.setDevExpressComboBox(
         /xaf_dviDLVMODE_Edit_dropdown_DD_I$/,
         customerData.deliveryMode,
       );
-      await new Promise((resolve) => setTimeout(resolve, 1000));
     }
 
-    // Select Payment Terms lookup
+    if (customerData.vatNumber) {
+      await this.setDevExpressField(/xaf_dviVATNUM_Edit_I$/, customerData.vatNumber);
+    }
+
     if (customerData.paymentTerms) {
-      logger.info("Selecting: Payment Terms");
-      await this.selectFromLookup(
-        /xaf_dviPAYMTERMID_Edit_find_B$/,
+      await this.selectFromDevExpressLookup(
+        /xaf_dviPAYMTERMID_Edit_find_Edit_B0/,
         customerData.paymentTerms,
       );
-      await new Promise((resolve) => setTimeout(resolve, 1000));
     }
 
-    // Select Postal Code lookup
+    if (customerData.pec) {
+      await this.setDevExpressField(/xaf_dviLEGALEMAIL_Edit_I$/, customerData.pec);
+    }
+
+    if (customerData.sdi) {
+      await this.setDevExpressField(/xaf_dviLEGALAUTHORITY_Edit_I$/, customerData.sdi);
+    }
+
+    if (customerData.street) {
+      await this.setDevExpressField(/xaf_dviSTREET_Edit_I$/, customerData.street);
+    }
+
     if (customerData.postalCode) {
-      logger.info("Selecting: Postal Code");
-      await this.selectFromLookup(
-        /xaf_dviLOGISTICSADDRESSZIPCODE_Edit_find_B$/,
+      await this.selectFromDevExpressLookup(
+        /xaf_dviLOGISTICSADDRESSZIPCODE_Edit_find_Edit_B0/,
         customerData.postalCode,
       );
-      await new Promise((resolve) => setTimeout(resolve, 1000));
     }
 
-    logger.info("Clicking 'Prezzi e sconti' tab");
-    await page.evaluate(() => {
-      const allElements = Array.from(document.querySelectorAll("*"));
-      const tabElement = allElements.find((el) => {
-        const text = el.textContent?.trim() || "";
-        return text === "Prezzi e sconti";
-      });
+    if (customerData.phone) {
+      await this.setDevExpressField(/xaf_dviPHONE_Edit_I$/, customerData.phone);
+    }
 
-      if (tabElement) {
-        const clickable =
-          tabElement.tagName === "A"
-            ? tabElement
-            : tabElement.closest("a") || tabElement.closest("li");
-        if (clickable) {
-          (clickable as HTMLElement).click();
-        }
-      }
-    });
+    if (customerData.email) {
+      await this.setDevExpressField(/xaf_dviEMAIL_Edit_I$/, customerData.email);
+    }
 
-    await new Promise((resolve) => setTimeout(resolve, 2000));
+    await this.openCustomerTab("Prezzi e sconti");
 
-    if (customerData.lineDiscount) {
-      await this.selectFromDropdown(
-        /xaf_dviLINEDISC_Edit_dropdown_DD_I$/,
-        customerData.lineDiscount,
+    try {
+      await this.page.waitForFunction(
+        () => {
+          const input = document.querySelector(
+            'input[id*="LINEDISC"][id$="_I"]',
+          ) as HTMLInputElement | null;
+          return input && input.offsetParent !== null;
+        },
+        { timeout: 10000, polling: 200 },
+      );
+    } catch {
+      logger.warn("LINEDISC not found after tab switch, retrying...");
+      await this.openCustomerTab("Prezzi e sconti");
+      await this.wait(1000);
+    }
+
+    await this.setDevExpressComboBox(
+      /xaf_dviLINEDISC_Edit_dropdown_DD_I$/,
+      customerData.lineDiscount || "N/A",
+    );
+
+    if (customerData.deliveryStreet && customerData.deliveryPostalCode) {
+      await this.fillDeliveryAddress(
+        customerData.deliveryStreet,
+        customerData.deliveryPostalCode,
       );
     }
 
-    await this.saveCustomer();
+    await this.saveAndCloseCustomer();
 
     const customerProfileId = await this.getCustomerProfileId();
     logger.info("Customer created successfully", {
@@ -6247,430 +7026,24 @@ export class ArchibaldBot {
     return customerProfileId;
   }
 
-  private async fillFieldByPattern(
-    pattern: RegExp,
-    value: string,
-  ): Promise<void> {
-    if (!this.page) {
-      throw new Error("Browser page is null");
-    }
-
-    const page = this.page;
-
-    const filled = await page.evaluate(
-      (regex, val) => {
-        const inputs = Array.from(document.querySelectorAll("input"));
-        const targetInput = inputs.find((input) =>
-          new RegExp(regex).test(input.id),
-        );
-
-        if (targetInput) {
-          targetInput.value = val;
-          targetInput.dispatchEvent(new Event("input", { bubbles: true }));
-          targetInput.dispatchEvent(new Event("change", { bubbles: true }));
-          return true;
-        }
-        return false;
-      },
-      pattern.source,
-      value,
-    );
-
-    if (!filled) {
-      throw new Error(`Could not find input field matching pattern ${pattern}`);
-    }
-  }
-
-  private async selectFromDropdown(
-    inputPattern: RegExp,
-    value: string,
-  ): Promise<void> {
-    if (!this.page) {
-      throw new Error("Browser page is null");
-    }
-
-    const page = this.page;
-
-    const inputId = await page.evaluate((regex) => {
-      const inputs = Array.from(document.querySelectorAll("input"));
-      const targetInput = inputs.find((input) =>
-        new RegExp(regex).test(input.id),
-      );
-
-      if (!targetInput) {
-        return null;
-      }
-
-      return targetInput.id;
-    }, inputPattern.source);
-
-    if (!inputId) {
-      throw new Error(
-        `Could not find dropdown input matching pattern ${inputPattern}`,
-      );
-    }
-
-    logger.info("Typing value into dropdown", { inputId, value });
-
-    await page.evaluate((id) => {
-      const input = document.getElementById(id) as HTMLInputElement;
-      if (input) {
-        input.focus();
-        input.click();
-      }
-    }, inputId);
-
-    await new Promise((resolve) => setTimeout(resolve, 500));
-
-    await page.evaluate(
-      (id, val) => {
-        const input = document.getElementById(id) as HTMLInputElement;
-        if (input) {
-          input.value = val;
-          input.dispatchEvent(new Event("input", { bubbles: true }));
-          input.dispatchEvent(new Event("change", { bubbles: true }));
-        }
-      },
-      inputId,
-      value,
-    );
-
-    await new Promise((resolve) => setTimeout(resolve, 1000));
-
-    await page.keyboard.press("Tab");
-    await new Promise((resolve) => setTimeout(resolve, 1000));
-
-    const finalValue = await page.evaluate((id) => {
-      const input = document.getElementById(id) as HTMLInputElement;
-      return input ? input.value : "";
-    }, inputId);
-
-    logger.info("Dropdown value set", {
-      inputId,
-      requestedValue: value,
-      finalValue,
-    });
-  }
-
-  private async selectFromLookup(
-    buttonPattern: RegExp,
-    value: string,
-  ): Promise<void> {
-    if (!this.page) {
-      throw new Error("Browser page is null");
-    }
-
-    const page = this.page;
-
-    logger.info("Clicking lookup button", {
-      pattern: buttonPattern.source,
-      value,
-    });
-
-    const clicked = await page.evaluate((regex) => {
-      const elements = Array.from(
-        document.querySelectorAll("button, img, td, a, div"),
-      );
-      const targetButton = elements.find((el) => new RegExp(regex).test(el.id));
-
-      if (targetButton) {
-        console.log(`Found lookup button: ${targetButton.id}`);
-        (targetButton as HTMLElement).click();
-        return { success: true, id: targetButton.id };
-      }
-
-      console.log("Looking for alternative lookup button patterns...");
-      const inputFieldRegex = regex.replace("_B$", "_Edit_I");
-      const inputs = Array.from(document.querySelectorAll("input"));
-      const lookupInput = inputs.find((input) =>
-        new RegExp(inputFieldRegex).test(input.id),
-      );
-
-      if (lookupInput) {
-        const inputId = lookupInput.id;
-        console.log(`Found lookup input: ${inputId}`);
-
-        const possibleButtonIds = [
-          inputId.replace(/_I$/, "_B0"),
-          inputId.replace(/_I$/, "_B-1"),
-          inputId.replace(/_I$/, "_B"),
-          inputId.replace(/_Edit_I$/, "_Edit_B0"),
-          inputId.replace(/_find_Edit_I$/, "_find_Edit_B0"),
-        ];
-
-        console.log(`Trying button IDs: ${possibleButtonIds.join(", ")}`);
-
-        for (const btnId of possibleButtonIds) {
-          const btn = document.getElementById(btnId);
-          if (btn) {
-            console.log(`✓ Found alternative lookup button: ${btnId}`);
-            (btn as HTMLElement).click();
-            return { success: true, id: btnId };
-          }
-        }
-
-        console.log("❌ None of the button IDs found");
-      }
-
-      return { success: false };
-    }, buttonPattern.source);
-
-    if (!clicked.success) {
-      throw new Error(
-        `Could not find lookup button matching pattern ${buttonPattern}`,
-      );
-    }
-
-    logger.info("Lookup button clicked successfully", { buttonId: clicked.id });
-
-    logger.info("Waiting for lookup dialog to load (3 seconds)...");
-    await new Promise((resolve) => setTimeout(resolve, 3000));
-
-    logger.info("Taking screenshot of opened dialog");
-    await page.screenshot({
-      path: "/Users/hatholdir/Downloads/Archibald/archibald-web-app/backend/logs/lookup-dialog-opened.png",
-      fullPage: true,
-    });
-
-    logger.info("Typing value directly into dialog", { value });
-    await page.keyboard.type(value);
-
-    logger.info("Pressing Enter to activate filter");
-    await page.keyboard.press("Enter");
-
-    logger.info("Waiting for filtered results to load (500ms)...");
-    await new Promise((resolve) => setTimeout(resolve, 500));
-
-    logger.info("Taking screenshot after filtering");
-    await page.screenshot({
-      path: "/Users/hatholdir/Downloads/Archibald/archibald-web-app/backend/logs/lookup-after-filter.png",
-      fullPage: true,
-    });
-
-    // Use physical mouse interaction to click the filtered row
-    const mouseX = 380; // X coordinate of first column data
-    const mouseY = 340; // Y coordinate of data row (not header)
-
-    logger.info(`Moving mouse to coordinates (${mouseX}, ${mouseY})`);
-    await page.mouse.move(mouseX, mouseY);
-
-    await new Promise((resolve) => setTimeout(resolve, 500));
-
-    logger.info("Performing double-click on row");
-    await page.mouse.click(mouseX, mouseY, { clickCount: 2 });
-
-    logger.info("Waiting for selection to register (500ms)");
-    await new Promise((resolve) => setTimeout(resolve, 500));
-
-    // Check if dialog is still open - if yes, do single click + OK button
-    const dialogStatus = await page.evaluate(() => {
-      const okButtons = Array.from(
-        document.querySelectorAll("span, button, a, td"),
-      ).filter((el) => {
-        const text = el.textContent?.trim() || "";
-        return text === "OK" || text === "Ok";
-      });
-      return { dialogOpen: okButtons.length > 0 };
-    });
-
-    if (dialogStatus.dialogOpen) {
-      logger.info("Dialog still open, performing single click + OK button");
-      await page.mouse.click(mouseX, mouseY); // Single click to select
-      await new Promise((resolve) => setTimeout(resolve, 500));
-    }
-
-    logger.info("Clicking OK button to confirm selection");
-    const okClicked = await page.evaluate(() => {
-      const okButtons = Array.from(
-        document.querySelectorAll("span, button, a, td"),
-      ).filter((el) => {
-        const text = el.textContent?.trim() || "";
-        return text === "OK" || text === "Ok";
-      });
-
-      if (okButtons.length > 0) {
-        const okButton = okButtons[0] as HTMLElement;
-        console.log(`✓ Found OK button, clicking it`);
-        okButton.click();
-        return { success: true };
-      }
-
-      console.log("❌ OK button not found");
-      return { success: false };
-    });
-
-    if (!okClicked.success) {
-      logger.warn("Could not find OK button");
-      throw new Error("Could not find OK button to confirm selection");
-    }
-
-    logger.info("OK button clicked successfully");
-
-    logger.info("Waiting for dialog to close (1 second)...");
-    await new Promise((resolve) => setTimeout(resolve, 1000));
-  }
-
-  private async saveCustomer(): Promise<void> {
-    if (!this.page) {
-      throw new Error("Browser page is null");
-    }
-
-    const page = this.page;
-
-    logger.info("Saving customer");
-
-    const saved = await page.evaluate(() => {
-      const allElements = Array.from(
-        document.querySelectorAll("button, a, li, span"),
-      );
-
-      const saveAndCloseButton = allElements.find((el) => {
-        const text = el.textContent?.trim().toLowerCase() || "";
-        const title = el.getAttribute("title")?.toLowerCase() || "";
-        return (
-          text.includes("salva e chiudi") ||
-          text.includes("salva") ||
-          title.includes("salva e chiudi") ||
-          title.includes("salvare")
-        );
-      });
-
-      if (saveAndCloseButton) {
-        console.log(
-          `Found save button: ${saveAndCloseButton.tagName} - title="${saveAndCloseButton.getAttribute("title")}" text="${saveAndCloseButton.textContent?.trim().substring(0, 50)}"`,
-        );
-
-        const clickTarget =
-          saveAndCloseButton.tagName === "A"
-            ? saveAndCloseButton
-            : saveAndCloseButton.querySelector("a") || saveAndCloseButton;
-
-        (clickTarget as HTMLElement).click();
-        return {
-          success: true,
-          element: saveAndCloseButton.tagName,
-          text: saveAndCloseButton.textContent?.trim().substring(0, 30),
-        };
-      }
-
-      console.log("Save button not found");
-      return { success: false };
-    });
-
-    if (!saved.success) {
-      throw new Error("Could not find save button");
-    }
-
-    logger.info("Save button clicked", saved);
-
-    await new Promise((resolve) => setTimeout(resolve, 3000));
-
-    // Check for warning popup with checkbox (ErrorInfo)
-    logger.info("Checking for warning popup with checkbox");
-
-    const warningFound = await page.evaluate(() => {
-      // Look for checkbox with ID pattern matching Vertical_ErrorInfo_Ch_S
-      const checkbox = document.querySelector(
-        'input[id$="_ErrorInfo_Ch_S"]',
-      ) as HTMLInputElement | null;
-
-      if (checkbox) {
-        console.log("Found warning checkbox, clicking it");
-        // Click the checkbox wrapper span to check it
-        const checkboxWrapper = checkbox.closest(
-          'span[id$="_ErrorInfo_Ch_S_D"]',
-        );
-        if (checkboxWrapper) {
-          (checkboxWrapper as HTMLElement).click();
-        } else {
-          // Fallback: click the checkbox directly
-          checkbox.click();
-        }
-        return true;
-      }
-
-      return false;
-    });
-
-    if (warningFound) {
-      logger.info("Warning checkbox clicked, waiting before second save");
-      await new Promise((resolve) => setTimeout(resolve, 1000));
-
-      // Click "Salva e chiudi" again after checking the warning checkbox
-      logger.info("Clicking save button again after warning acknowledgment");
-
-      const secondSave = await page.evaluate(() => {
-        const allElements = Array.from(
-          document.querySelectorAll("button, a, li, span"),
-        );
-
-        const saveAndCloseButton = allElements.find((el) => {
-          const text = el.textContent?.trim().toLowerCase() || "";
-          const title = el.getAttribute("title")?.toLowerCase() || "";
-          return (
-            text.includes("salva e chiudi") ||
-            text.includes("salva") ||
-            title.includes("salva e chiudi") ||
-            title.includes("salvare")
-          );
-        });
-
-        if (saveAndCloseButton) {
-          const clickTarget =
-            saveAndCloseButton.tagName === "A"
-              ? saveAndCloseButton
-              : saveAndCloseButton.querySelector("a") || saveAndCloseButton;
-
-          (clickTarget as HTMLElement).click();
-          return { success: true };
-        }
-
-        return { success: false };
-      });
-
-      if (!secondSave.success) {
-        throw new Error("Could not find save button for second click");
-      }
-
-      logger.info("Second save button clicked after warning");
-      await new Promise((resolve) => setTimeout(resolve, 3000));
-    } else {
-      logger.info("No warning popup found, proceeding normally");
-      await new Promise((resolve) => setTimeout(resolve, 2000));
-    }
-  }
-
   private async getCustomerProfileId(): Promise<string> {
-    if (!this.page) {
-      throw new Error("Browser page is null");
-    }
+    if (!this.page) throw new Error("Browser page is null");
 
-    const page = this.page;
+    await this.waitForDevExpressIdle({ timeout: 5000, label: "get-profile-id" });
 
-    await new Promise((resolve) => setTimeout(resolve, 3000));
-
-    const profileId = await page.evaluate(() => {
+    const profileId = await this.page.evaluate(() => {
       const inputs = Array.from(document.querySelectorAll("input"));
       const profileInput = inputs.find((input) =>
         /xaf_dviACCOUNTNUM_Edit_I$/.test(input.id),
       );
-
       if (profileInput) {
-        const value = (profileInput as HTMLInputElement).value;
-        console.log(`Found ACCOUNTNUM field with value: "${value}"`);
-        return value;
+        return (profileInput as HTMLInputElement).value;
       }
-
-      console.log("ACCOUNTNUM field not found");
       return "";
     });
 
     if (!profileId || profileId.trim() === "") {
-      logger.warn("Could not extract customer profile ID, checking URL");
-
-      const currentUrl = page.url();
-      logger.info("Current URL after save", { url: currentUrl });
-
+      logger.warn("Could not extract customer profile ID");
       return "UNKNOWN";
     }
 
@@ -6681,189 +7054,157 @@ export class ArchibaldBot {
     customerProfile: string,
     customerData: import("./types").CustomerFormData,
   ): Promise<void> {
-    if (!this.page) {
-      throw new Error("Browser page is null");
-    }
+    if (!this.page) throw new Error("Browser page is null");
 
-    logger.info("Updating customer", {
-      customerProfile,
-      name: customerData.name,
-    });
+    logger.info("Updating customer", { customerProfile, name: customerData.name });
 
-    const page = this.page;
-
-    // Navigate to customer list page
-    logger.info("Navigating to customer list page");
-    await page.goto(`${config.archibald.url}/CUSTTABLE_ListView_Agent/`, {
+    await this.page.goto(`${config.archibald.url}/CUSTTABLE_ListView_Agent/`, {
       waitUntil: "networkidle2",
       timeout: 60000,
     });
 
-    // Wait for search input to be available
-    await page.waitForSelector('input.dxeEditArea_XafTheme[id*="SearchAC"]', {
-      timeout: 10000,
+    await this.waitForDevExpressReady({ timeout: 10000 });
+
+    const searchResult = await this.page.evaluate(
+      (name: string) => {
+        const inputs = Array.from(document.querySelectorAll("input"));
+        const searchInput = inputs.find((i) =>
+          /SearchAC.*Ed_I$/.test(i.id),
+        ) as HTMLInputElement | null;
+        if (!searchInput) return { found: false };
+
+        searchInput.focus();
+        searchInput.click();
+        const setter = Object.getOwnPropertyDescriptor(
+          HTMLInputElement.prototype,
+          "value",
+        )?.set;
+        if (setter) setter.call(searchInput, name);
+        else searchInput.value = name;
+        searchInput.dispatchEvent(new Event("input", { bubbles: true }));
+        searchInput.dispatchEvent(new Event("change", { bubbles: true }));
+        searchInput.dispatchEvent(
+          new KeyboardEvent("keydown", { key: "Enter", code: "Enter", keyCode: 13, bubbles: true }),
+        );
+        searchInput.dispatchEvent(
+          new KeyboardEvent("keyup", { key: "Enter", code: "Enter", keyCode: 13, bubbles: true }),
+        );
+        return { found: true, id: searchInput.id };
+      },
+      customerData.name,
+    );
+
+    if (!searchResult.found) throw new Error("Search input not found");
+
+    await this.waitForDevExpressIdle({ timeout: 8000, label: "customer-search" });
+
+    const editClicked = await this.page.evaluate(() => {
+      const editBtns = Array.from(
+        document.querySelectorAll(
+          'a[data-args*="Edit"], img[title="Modifica"]',
+        ),
+      ).filter((el) => (el as HTMLElement).offsetParent !== null);
+
+      if (editBtns.length === 0) return false;
+
+      const target = editBtns[0].tagName === "IMG"
+        ? editBtns[0].closest("a") || editBtns[0]
+        : editBtns[0];
+      (target as HTMLElement).click();
+      return true;
     });
-    await new Promise((resolve) => setTimeout(resolve, 2000));
 
-    // Click on search input and paste customer name
-    logger.info("Searching for customer by name", { name: customerData.name });
-    const searchInput = await page.$(
-      'input.dxeEditArea_XafTheme[id*="SearchAC"]',
+    if (!editClicked) throw new Error("Edit button not found - customer may not exist");
+
+    await this.page.waitForFunction(
+      () => !window.location.href.includes("ListView"),
+      { timeout: 15000, polling: 200 },
     );
-    if (!searchInput) {
-      throw new Error("Search input not found");
-    }
+    await this.waitForDevExpressReady({ timeout: 10000 });
 
-    await searchInput.click();
-    await new Promise((resolve) => setTimeout(resolve, 500));
-
-    // Clear existing value and paste new search (faster than typing)
-    await searchInput.evaluate((el, value) => {
-      (el as HTMLInputElement).value = "";
-      (el as HTMLInputElement).value = value;
-      // Trigger input event to notify DevExpress
-      el.dispatchEvent(new Event("input", { bubbles: true }));
-      el.dispatchEvent(new Event("change", { bubbles: true }));
-    }, customerData.name);
-    await new Promise((resolve) => setTimeout(resolve, 500));
-
-    // Press Enter to trigger search
-    await searchInput.press("Enter");
-    await new Promise((resolve) => setTimeout(resolve, 3000));
-
-    // Find and click the Edit button (matita) for the first result
-    logger.info("Clicking Edit button for customer");
-    const editButton = await page.$(
-      'a.dxbButton_XafTheme.dxgvCommandColumnItem_XafTheme[data-args*="Edit"]',
-    );
-    if (!editButton) {
-      throw new Error("Edit button not found - customer may not exist");
-    }
-
-    await editButton.click();
-    await new Promise((resolve) => setTimeout(resolve, 3000));
-
-    // Wait for edit form to load
-    await page.waitForSelector("input[type='text']", { timeout: 10000 });
-    await new Promise((resolve) => setTimeout(resolve, 2000));
-
-    // Update form fields (same logic as createCustomer, but updating instead)
-    logger.info("Updating customer form fields");
+    logger.info("Edit form loaded, updating fields");
 
     if (customerData.name) {
-      logger.info("Updating: Name");
-      await this.fillFieldByPattern(/xaf_dviNAME_Edit_I$/, customerData.name);
-      await new Promise((resolve) => setTimeout(resolve, 1000));
-    }
-
-    if (customerData.vatNumber) {
-      logger.info("Updating: VAT Number");
-      await this.fillFieldByPattern(
-        /xaf_dviVATNUM_Edit_I$/,
-        customerData.vatNumber,
-      );
-      await new Promise((resolve) => setTimeout(resolve, 1000));
-    }
-
-    if (customerData.pec) {
-      logger.info("Updating: PEC");
-      await this.fillFieldByPattern(
-        /xaf_dviLEGALEMAIL_Edit_I$/,
-        customerData.pec,
-      );
-      await new Promise((resolve) => setTimeout(resolve, 1000));
-    }
-
-    if (customerData.sdi) {
-      logger.info("Updating: SDI");
-      await this.fillFieldByPattern(
-        /xaf_dviLEGALAUTHORITY_Edit_I$/,
-        customerData.sdi,
-      );
-      await new Promise((resolve) => setTimeout(resolve, 1000));
-    }
-
-    if (customerData.street) {
-      logger.info("Updating: Street");
-      await this.fillFieldByPattern(
-        /xaf_dviSTREET_Edit_I$/,
-        customerData.street,
-      );
-      await new Promise((resolve) => setTimeout(resolve, 1000));
-    }
-
-    if (customerData.phone) {
-      logger.info("Updating: Phone");
-      await this.fillFieldByPattern(/xaf_dviPHONE_Edit_I$/, customerData.phone);
-      await new Promise((resolve) => setTimeout(resolve, 1000));
-    }
-
-    if (customerData.email) {
-      logger.info("Updating: Email");
-      await this.fillFieldByPattern(/xaf_dviEMAIL_Edit_I$/, customerData.email);
-      await new Promise((resolve) => setTimeout(resolve, 1000));
+      await this.setDevExpressField(/xaf_dviNAME_Edit_I$/, customerData.name);
     }
 
     if (customerData.deliveryMode) {
-      logger.info("Updating: Delivery Mode");
-      await this.selectFromDropdown(
+      await this.setDevExpressComboBox(
         /xaf_dviDLVMODE_Edit_dropdown_DD_I$/,
         customerData.deliveryMode,
       );
-      await new Promise((resolve) => setTimeout(resolve, 1000));
+    }
+
+    if (customerData.vatNumber) {
+      await this.setDevExpressField(/xaf_dviVATNUM_Edit_I$/, customerData.vatNumber);
     }
 
     if (customerData.paymentTerms) {
-      logger.info("Updating: Payment Terms");
-      await this.selectFromLookup(
-        /xaf_dviPAYMTERMID_Edit_find_B$/,
+      await this.selectFromDevExpressLookup(
+        /xaf_dviPAYMTERMID_Edit_find_Edit_B0/,
         customerData.paymentTerms,
       );
-      await new Promise((resolve) => setTimeout(resolve, 1000));
+    }
+
+    if (customerData.pec) {
+      await this.setDevExpressField(/xaf_dviLEGALEMAIL_Edit_I$/, customerData.pec);
+    }
+
+    if (customerData.sdi) {
+      await this.setDevExpressField(/xaf_dviLEGALAUTHORITY_Edit_I$/, customerData.sdi);
+    }
+
+    if (customerData.street) {
+      await this.setDevExpressField(/xaf_dviSTREET_Edit_I$/, customerData.street);
     }
 
     if (customerData.postalCode) {
-      logger.info("Updating: Postal Code");
-      await this.selectFromLookup(
-        /xaf_dviLOGISTICSADDRESSZIPCODE_Edit_find_B$/,
+      await this.selectFromDevExpressLookup(
+        /xaf_dviLOGISTICSADDRESSZIPCODE_Edit_find_Edit_B0/,
         customerData.postalCode,
       );
-      await new Promise((resolve) => setTimeout(resolve, 1000));
     }
 
-    // Click "Prezzi e sconti" tab if lineDiscount is provided
+    if (customerData.phone) {
+      await this.setDevExpressField(/xaf_dviPHONE_Edit_I$/, customerData.phone);
+    }
+
+    if (customerData.email) {
+      await this.setDevExpressField(/xaf_dviEMAIL_Edit_I$/, customerData.email);
+    }
+
     if (customerData.lineDiscount) {
-      logger.info("Clicking 'Prezzi e sconti' tab");
-      await page.evaluate(() => {
-        const allElements = Array.from(document.querySelectorAll("*"));
-        const tabElement = allElements.find((el) => {
-          const text = el.textContent?.trim() || "";
-          return text === "Prezzi e sconti";
-        });
+      await this.openCustomerTab("Prezzi e sconti");
 
-        if (tabElement) {
-          const clickable =
-            tabElement.tagName === "A"
-              ? tabElement
-              : tabElement.closest("a") || tabElement.closest("li");
-          if (clickable) {
-            (clickable as HTMLElement).click();
-          }
-        }
-      });
+      try {
+        await this.page.waitForFunction(
+          () => {
+            const input = document.querySelector(
+              'input[id*="LINEDISC"][id$="_I"]',
+            ) as HTMLInputElement | null;
+            return input && input.offsetParent !== null;
+          },
+          { timeout: 10000, polling: 200 },
+        );
+      } catch {
+        await this.openCustomerTab("Prezzi e sconti");
+        await this.wait(1000);
+      }
 
-      await new Promise((resolve) => setTimeout(resolve, 2000));
-
-      logger.info("Updating: Line Discount");
-      await this.selectFromDropdown(
+      await this.setDevExpressComboBox(
         /xaf_dviLINEDISC_Edit_dropdown_DD_I$/,
         customerData.lineDiscount,
       );
-      await new Promise((resolve) => setTimeout(resolve, 1000));
     }
 
-    // Save customer
-    await this.saveCustomer();
+    if (customerData.deliveryStreet && customerData.deliveryPostalCode) {
+      await this.fillDeliveryAddress(
+        customerData.deliveryStreet,
+        customerData.deliveryPostalCode,
+      );
+    }
+
+    await this.saveAndCloseCustomer();
 
     logger.info("Customer updated successfully", {
       customerProfile,

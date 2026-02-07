@@ -41,6 +41,10 @@ export interface CustomerFormData {
   deliveryMode?: "FedEx" | string; // Default: FedEx
   paymentTerms?: string; // Default: "206"
   lineDiscount?: "N/A" | string; // Default: N/A
+
+  // Optional fields - Delivery address (tab "Indirizzo alt.")
+  deliveryStreet?: string;
+  deliveryPostalCode?: string;
 }
 
 export type ApiResponse<T = unknown> = {
