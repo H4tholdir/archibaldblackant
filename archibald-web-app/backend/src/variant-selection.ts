@@ -397,6 +397,7 @@ export function buildTextMatchCandidates(
   query: string,
 ): TextMatchCandidate[] {
   const normalizedQuery = normalizeLookupText(query);
+  const trimmedQuery = normalizeText(query);
 
   return rows.map((row) => {
     const cellTexts = row.cellTexts.map((text) => text || "");
@@ -404,8 +405,8 @@ export function buildTextMatchCandidates(
     const normalizedTexts = cellTexts.map((text) => normalizeLookupText(text));
     const normalizedCombined = normalizeLookupText(cellTexts.join(" "));
 
-    const exactMatch = normalizedQuery
-      ? normalizedTexts.some((text) => text === normalizedQuery)
+    const exactMatch = trimmedQuery
+      ? cellTexts.some((text) => normalizeText(text) === trimmedQuery)
       : false;
 
     const containsMatch = normalizedQuery
@@ -432,15 +433,42 @@ export function chooseBestTextMatchCandidate(
     return { chosen: null, reason: null };
   }
 
-  const exact = candidates.find((candidate) => candidate.exactMatch) || null;
-  if (exact) {
-    return { chosen: exact, reason: "exact" };
+  // Exact matches: prefer the one with shortest combined text (most specific)
+  const exactMatches = candidates.filter((candidate) => candidate.exactMatch);
+  if (exactMatches.length === 1) {
+    return { chosen: exactMatches[0], reason: "exact" };
+  }
+  if (exactMatches.length > 1) {
+    exactMatches.sort(
+      (a, b) => a.normalizedCombined.length - b.normalizedCombined.length,
+    );
+    return { chosen: exactMatches[0], reason: "exact" };
   }
 
+  // Contains matches: prefer the one whose text is closest in length to the query
   const containsMatches = candidates.filter(
     (candidate) => candidate.containsMatch,
   );
   if (containsMatches.length === 1) {
+    return { chosen: containsMatches[0], reason: "contains" };
+  }
+  if (containsMatches.length > 1) {
+    // Pick the candidate whose best-matching cell is closest in length to the query
+    const queryLen = candidates[0]
+      ? normalizeLookupText(candidates[0].normalizedCombined).length
+      : 0;
+    containsMatches.sort((a, b) => {
+      // Prefer candidates where a single cell exactly matches the query
+      const aHasExactCell = a.normalizedTexts.some((t) =>
+        t.includes(normalizeLookupText(a.normalizedCombined)),
+      );
+      const bHasExactCell = b.normalizedTexts.some((t) =>
+        t.includes(normalizeLookupText(b.normalizedCombined)),
+      );
+      if (aHasExactCell !== bHasExactCell) return aHasExactCell ? -1 : 1;
+      // Then prefer shorter combined text (more specific match)
+      return a.normalizedCombined.length - b.normalizedCombined.length;
+    });
     return { chosen: containsMatches[0], reason: "contains" };
   }
 
