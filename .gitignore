@@ -116,6 +116,11 @@ archibald-web-app/backend/src/debug-*.ts
 archibald-web-app/backend/data/*.backup*
 client.jpg
 
+# Binary data files (not diffable, may contain sensitive data)
+*.xlsx
+*.jpeg
+LOGO-FRESIS*.jpeg
+
 # Planning analysis documents (temporary)
 .planning/CUSTOMER_SCRAPING_*.md
 VPS-ACCESS-CREDENTIALS.md
