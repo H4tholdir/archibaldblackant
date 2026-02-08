@@ -1,5 +1,6 @@
 import { BonusRoadmapData } from "../../types/dashboard";
 import { usePrivacy } from "../../contexts/PrivacyContext";
+import { useConfettiCelebration } from "../../hooks/useConfettiCelebration";
 
 /**
  * Bonus Roadmap Widget - Linea Temporale Intuitiva
@@ -24,6 +25,19 @@ const STATUS_LABELS = {
 
 export function BonusRoadmapWidgetNew({ data }: BonusRoadmapWidgetNewProps) {
   const { privacyEnabled, maskValue } = usePrivacy();
+
+  const completedBonuses = data.steps.filter(
+    (s) => s.status === "completed",
+  ).length;
+  const now = new Date();
+  const bonusCelebrationKey = `bonus-fireworks-${now.getFullYear()}-${completedBonuses}`;
+
+  useConfettiCelebration({
+    enabled: completedBonuses > 0,
+    key: bonusCelebrationKey,
+    variant: "fireworks",
+    cooldownMs: 24 * 60 * 60 * 1000,
+  });
 
   const formatCurrency = (amount: number): string => {
     return new Intl.NumberFormat("it-IT", {

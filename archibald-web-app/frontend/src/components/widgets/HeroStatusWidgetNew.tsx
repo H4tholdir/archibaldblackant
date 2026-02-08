@@ -90,7 +90,8 @@ export function HeroStatusWidgetNew({ data }: HeroStatusWidgetNewProps) {
   useConfettiCelebration({
     enabled: shouldCelebrate,
     key: celebrationKey,
-    cooldownMs: 24 * 60 * 60 * 1000, // 24h cooldown
+    variant: "sideCannons",
+    cooldownMs: 24 * 60 * 60 * 1000,
   });
 
   // Format currency
