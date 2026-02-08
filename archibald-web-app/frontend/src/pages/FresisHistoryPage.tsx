@@ -4,13 +4,20 @@ import type {
   PendingOrderItem,
   SubClient,
 } from "../db/schema";
-import { fresisHistoryService } from "../services/fresis-history.service";
+import {
+  fresisHistoryService,
+  parseLinkedIds,
+  serializeLinkedIds,
+} from "../services/fresis-history.service";
 import { PDFExportService } from "../services/pdf-export.service";
 import { SubClientSelector } from "../components/new-order-form/SubClientSelector";
 import { AddItemToHistory } from "../components/new-order-form/AddItemToHistory";
 import { useFresisHistorySync } from "../hooks/useFresisHistorySync";
 import { ArcaImportModal } from "../components/ArcaImportModal";
-import { OrderPickerModal } from "../components/OrderPickerModal";
+import {
+  OrderPickerModal,
+  type SearchResult,
+} from "../components/OrderPickerModal";
 
 const STATE_BADGE_CONFIG: Record<
   string,
@@ -236,17 +243,33 @@ export function FresisHistoryPage() {
 
   const handleLinkOrder = async (
     historyId: string,
-    archibaldOrder: { id: string; orderNumber: string },
+    archibaldOrders: Array<{ id: string; orderNumber: string }>,
   ) => {
     try {
+      const ids = archibaldOrders.map((o) => o.id);
+      const numbers = archibaldOrders.map((o) => o.orderNumber);
       await fresisHistoryService.updateHistoryOrder(historyId, {
-        archibaldOrderId: archibaldOrder.id,
-        archibaldOrderNumber: archibaldOrder.orderNumber,
+        archibaldOrderId: serializeLinkedIds(ids),
+        archibaldOrderNumber: serializeLinkedIds(numbers),
       });
       setLinkingOrderId(null);
       await wsRefetch();
     } catch (err) {
       console.error("[FresisHistoryPage] Link order failed:", err);
+    }
+  };
+
+  const handleUnlinkOrder = async (historyId: string) => {
+    try {
+      await fresisHistoryService.updateHistoryOrder(historyId, {
+        archibaldOrderId: undefined,
+        archibaldOrderNumber: undefined,
+        currentState: undefined,
+        stateUpdatedAt: undefined,
+      });
+      await wsRefetch();
+    } catch (err) {
+      console.error("[FresisHistoryPage] Unlink order failed:", err);
     }
   };
 
@@ -644,87 +667,95 @@ export function FresisHistoryPage() {
                   )}
 
                   {/* Lifecycle section (hidden in edit mode) */}
-                  {!editing && order.archibaldOrderId && (
-                    <div
-                      style={{
-                        marginBottom: "0.75rem",
-                        padding: "0.5rem",
-                        background: "#f0f9ff",
-                        borderRadius: "4px",
-                        border: "1px solid #bae6fd",
-                        fontSize: "0.8rem",
-                      }}
-                    >
+                  {!editing && order.archibaldOrderId && (() => {
+                    const linkedNumbers = parseLinkedIds(order.archibaldOrderNumber);
+                    return (
                       <div
-                        style={{ fontWeight: "600", marginBottom: "0.25rem" }}
+                        style={{
+                          marginBottom: "0.75rem",
+                          padding: "0.5rem",
+                          background: "#f0f9ff",
+                          borderRadius: "4px",
+                          border: "1px solid #bae6fd",
+                          fontSize: "0.8rem",
+                        }}
                       >
-                        Ordine Archibald
-                      </div>
-                      <div>
-                        {order.archibaldOrderNumber && (
-                          <span>N. {order.archibaldOrderNumber}</span>
-                        )}
-                        {order.currentState && (
-                          <span
-                            style={{
-                              marginLeft: "0.5rem",
-                              fontSize: "0.7rem",
-                              padding: "0.1rem 0.4rem",
-                              borderRadius: "9999px",
-                              background: badge.bg,
-                              color: badge.color,
-                              fontWeight: "500",
-                            }}
-                          >
-                            {badge.label}
-                          </span>
-                        )}
-                      </div>
-
-                      {order.ddtNumber && (
-                        <div style={{ marginTop: "0.35rem" }}>
-                          <strong>DDT:</strong> {order.ddtNumber}
-                          {order.ddtDeliveryDate &&
-                            ` | Consegna prevista: ${formatDate(order.ddtDeliveryDate)}`}
-                          {order.trackingNumber && (
-                            <div>
-                              <strong>Tracking:</strong>{" "}
-                              {order.trackingUrl ? (
-                                <a
-                                  href={order.trackingUrl}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  style={{ color: "#2563eb" }}
-                                >
-                                  {order.trackingNumber}
-                                </a>
-                              ) : (
-                                order.trackingNumber
-                              )}
-                              {order.trackingCourier &&
-                                ` (${order.trackingCourier})`}
-                            </div>
+                        <div
+                          style={{ fontWeight: "600", marginBottom: "0.25rem" }}
+                        >
+                          {linkedNumbers.length > 1
+                            ? `Ordini Archibald (${linkedNumbers.length})`
+                            : "Ordine Archibald"}
+                        </div>
+                        <div>
+                          {linkedNumbers.map((num, i) => (
+                            <span key={i}>
+                              {i > 0 && ", "}
+                              N. {num}
+                            </span>
+                          ))}
+                          {order.currentState && (
+                            <span
+                              style={{
+                                marginLeft: "0.5rem",
+                                fontSize: "0.7rem",
+                                padding: "0.1rem 0.4rem",
+                                borderRadius: "9999px",
+                                background: badge.bg,
+                                color: badge.color,
+                                fontWeight: "500",
+                              }}
+                            >
+                              {badge.label}
+                            </span>
                           )}
                         </div>
-                      )}
 
-                      {order.invoiceNumber && (
-                        <div style={{ marginTop: "0.35rem" }}>
-                          <strong>Fattura:</strong> {order.invoiceNumber}
-                          {order.invoiceDate &&
-                            ` del ${formatDate(order.invoiceDate)}`}
-                          {order.invoiceAmount && ` - ${order.invoiceAmount}`}
-                        </div>
-                      )}
+                        {order.ddtNumber && (
+                          <div style={{ marginTop: "0.35rem" }}>
+                            <strong>DDT:</strong> {order.ddtNumber}
+                            {order.ddtDeliveryDate &&
+                              ` | Consegna prevista: ${formatDate(order.ddtDeliveryDate)}`}
+                            {order.trackingNumber && (
+                              <div>
+                                <strong>Tracking:</strong>{" "}
+                                {order.trackingUrl ? (
+                                  <a
+                                    href={order.trackingUrl}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    style={{ color: "#2563eb" }}
+                                  >
+                                    {order.trackingNumber}
+                                  </a>
+                                ) : (
+                                  order.trackingNumber
+                                )}
+                                {order.trackingCourier &&
+                                  ` (${order.trackingCourier})`}
+                              </div>
+                            )}
+                          </div>
+                        )}
 
-                      {order.deliveryCompletedDate && (
-                        <div style={{ marginTop: "0.35rem", color: "#166534" }}>
-                          Consegnato il{" "}
-                          {formatDate(order.deliveryCompletedDate)}
-                        </div>
-                      )}
-                    </div>
-                  )}
+                        {order.invoiceNumber && (
+                          <div style={{ marginTop: "0.35rem" }}>
+                            <strong>Fattura:</strong> {order.invoiceNumber}
+                            {order.invoiceDate &&
+                              ` del ${formatDate(order.invoiceDate)}`}
+                            {order.invoiceAmount && ` - ${order.invoiceAmount}`}
+                          </div>
+                        )}
+
+                        {order.deliveryCompletedDate && (
+                          <div style={{ marginTop: "0.35rem", color: "#166534" }}>
+                            Consegnato il{" "}
+                            {formatDate(order.deliveryCompletedDate)}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })()}
 
                   {/* Items table */}
                   <table
@@ -1111,20 +1142,46 @@ export function FresisHistoryPage() {
                       >
                         Modifica
                       </button>
-                      {!order.archibaldOrderId && (
+                      <button
+                        onClick={() => setLinkingOrderId(order.id)}
+                        style={{
+                          padding: "0.4rem 0.75rem",
+                          background: order.archibaldOrderId
+                            ? "#6366f1"
+                            : "#7c3aed",
+                          color: "white",
+                          border: "none",
+                          borderRadius: "4px",
+                          cursor: "pointer",
+                          fontSize: "0.8rem",
+                        }}
+                      >
+                        {order.archibaldOrderId
+                          ? "Modifica collegamento"
+                          : "Collega ordine"}
+                      </button>
+                      {order.archibaldOrderId && (
                         <button
-                          onClick={() => setLinkingOrderId(order.id)}
+                          onClick={() => {
+                            if (
+                              window.confirm(
+                                "Sei sicuro di voler scollegare questo ordine?",
+                              )
+                            ) {
+                              handleUnlinkOrder(order.id);
+                            }
+                          }}
                           style={{
                             padding: "0.4rem 0.75rem",
-                            background: "#7c3aed",
-                            color: "white",
-                            border: "none",
+                            background: "#fef2f2",
+                            color: "#dc2626",
+                            border: "1px solid #fca5a5",
                             borderRadius: "4px",
                             cursor: "pointer",
                             fontSize: "0.8rem",
                           }}
                         >
-                          Collega ordine
+                          Scollega
                         </button>
                       )}
                       {order.currentState === "spedito" &&
@@ -1208,17 +1265,27 @@ export function FresisHistoryPage() {
         />
       )}
 
-      {linkingOrderId && (
-        <OrderPickerModal
-          onClose={() => setLinkingOrderId(null)}
-          onSelect={(order) => {
-            handleLinkOrder(linkingOrderId, {
-              id: order.id,
-              orderNumber: order.orderNumber,
-            });
-          }}
-        />
-      )}
+      {linkingOrderId && (() => {
+        const linkingOrder = orders.find((o) => o.id === linkingOrderId);
+        const existingIds = linkingOrder
+          ? parseLinkedIds(linkingOrder.archibaldOrderId)
+          : [];
+        return (
+          <OrderPickerModal
+            onClose={() => setLinkingOrderId(null)}
+            initialSelection={existingIds.length > 0 ? existingIds : undefined}
+            onSelect={(selectedOrders: SearchResult[]) => {
+              handleLinkOrder(
+                linkingOrderId,
+                selectedOrders.map((o) => ({
+                  id: o.id,
+                  orderNumber: o.orderNumber,
+                })),
+              );
+            }}
+          />
+        );
+      })()}
     </div>
   );
 }

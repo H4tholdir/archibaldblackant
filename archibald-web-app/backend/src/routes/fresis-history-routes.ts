@@ -260,9 +260,6 @@ router.get(
   (req: AuthRequest, res: Response) => {
     try {
       const q = (req.query.q as string) || "";
-      if (!q.trim()) {
-        return res.json({ success: true, orders: [] });
-      }
 
       const ordersDbPath = path.join(__dirname, "../../data/orders-new.db");
       let ordersDb: Database.Database;
@@ -273,16 +270,37 @@ router.get(
       }
 
       try {
-        const searchPattern = `%${q.trim()}%`;
-        const rows = ordersDb
-          .prepare(
-            `SELECT id, order_number, customer_name, created_at, status
-             FROM orders
-             WHERE order_number LIKE ? OR customer_name LIKE ?
-             ORDER BY created_at DESC
-             LIMIT 20`,
-          )
-          .all(searchPattern, searchPattern) as any[];
+        let rows: any[];
+
+        if (!q.trim()) {
+          rows = ordersDb
+            .prepare(
+              `SELECT o.id, o.order_number, o.customer_name, o.created_at, o.status,
+                      o.total_amount, o.gross_amount, o.discount_percent,
+                      o.current_state, o.delivery_name, o.delivery_address,
+                      o.ddt_number, o.invoice_number,
+                      (SELECT COUNT(*) FROM order_articles WHERE order_id = o.id) as items_count
+               FROM orders o
+               ORDER BY o.created_at DESC
+               LIMIT 50`,
+            )
+            .all() as any[];
+        } else {
+          const searchPattern = `%${q.trim()}%`;
+          rows = ordersDb
+            .prepare(
+              `SELECT o.id, o.order_number, o.customer_name, o.created_at, o.status,
+                      o.total_amount, o.gross_amount, o.discount_percent,
+                      o.current_state, o.delivery_name, o.delivery_address,
+                      o.ddt_number, o.invoice_number,
+                      (SELECT COUNT(*) FROM order_articles WHERE order_id = o.id) as items_count
+               FROM orders o
+               WHERE o.order_number LIKE ? OR o.customer_name LIKE ? OR o.delivery_name LIKE ?
+               ORDER BY o.created_at DESC
+               LIMIT 50`,
+            )
+            .all(searchPattern, searchPattern, searchPattern) as any[];
+        }
 
         res.json({
           success: true,
@@ -292,6 +310,14 @@ router.get(
             customerName: r.customer_name,
             createdAt: r.created_at,
             status: r.status,
+            totalAmount: r.total_amount ?? null,
+            grossAmount: r.gross_amount ?? null,
+            discountPercent: r.discount_percent ?? null,
+            currentState: r.current_state ?? null,
+            deliveryName: r.delivery_name ?? null,
+            ddtNumber: r.ddt_number ?? null,
+            invoiceNumber: r.invoice_number ?? null,
+            itemsCount: r.items_count ?? 0,
           })),
         });
       } finally {

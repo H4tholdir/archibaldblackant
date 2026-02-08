@@ -1,6 +1,22 @@
 import { db } from "../db/schema";
 import type { FresisHistoryOrder, PendingOrder } from "../db/schema";
 
+export function parseLinkedIds(value?: string): string[] {
+  if (!value) return [];
+  try {
+    const parsed = JSON.parse(value);
+    if (Array.isArray(parsed)) return parsed;
+  } catch {
+    /* not JSON */
+  }
+  return [value];
+}
+
+export function serializeLinkedIds(ids: string[]): string {
+  if (ids.length === 1) return ids[0];
+  return JSON.stringify(ids);
+}
+
 class FresisHistoryService {
   private static instance: FresisHistoryService;
 
@@ -277,7 +293,12 @@ class FresisHistoryService {
 
     if (trackable.length === 0) return 0;
 
-    const uniqueIds = [...new Set(trackable.map((r) => r.archibaldOrderId!))];
+    const allLinkedIds = trackable.flatMap((r) =>
+      parseLinkedIds(r.archibaldOrderId),
+    );
+    const uniqueIds = [...new Set(allLinkedIds)];
+
+    if (uniqueIds.length === 0) return 0;
 
     const jwt = this.getToken();
     if (!jwt) return 0;
@@ -292,26 +313,55 @@ class FresisHistoryService {
     const json = await response.json();
     if (!json.success || !json.data) return 0;
 
+    const STATE_PRIORITY: Record<string, number> = {
+      piazzato: 0,
+      ordine_aperto: 1,
+      modifica: 2,
+      inviato_milano: 3,
+      trasferito: 4,
+      spedito: 5,
+      consegnato: 6,
+      fatturato: 7,
+      transfer_error: -1,
+    };
+
     const now = new Date().toISOString();
     let updatedCount = 0;
 
     for (const record of trackable) {
-      const lifecycle = json.data[record.archibaldOrderId!];
-      if (!lifecycle) continue;
+      const linkedIds = parseLinkedIds(record.archibaldOrderId);
+      const lifecycles = linkedIds
+        .map((id) => json.data[id])
+        .filter(Boolean);
+
+      if (lifecycles.length === 0) continue;
+
+      const best = lifecycles.reduce((a: any, b: any) => {
+        const pa = STATE_PRIORITY[a.currentState] ?? -1;
+        const pb = STATE_PRIORITY[b.currentState] ?? -1;
+        return pb > pa ? b : a;
+      });
+
+      const orderNumbers = lifecycles
+        .map((l: any) => l.orderNumber)
+        .filter(Boolean);
 
       await db.fresisHistory.update(record.id, {
-        archibaldOrderNumber: lifecycle.orderNumber ?? undefined,
-        currentState: lifecycle.currentState ?? undefined,
+        archibaldOrderNumber:
+          orderNumbers.length <= 1
+            ? (orderNumbers[0] ?? undefined)
+            : JSON.stringify(orderNumbers),
+        currentState: best.currentState ?? undefined,
         stateUpdatedAt: now,
-        ddtNumber: lifecycle.ddtNumber ?? undefined,
-        ddtDeliveryDate: lifecycle.ddtDeliveryDate ?? undefined,
-        trackingNumber: lifecycle.trackingNumber ?? undefined,
-        trackingUrl: lifecycle.trackingUrl ?? undefined,
-        trackingCourier: lifecycle.trackingCourier ?? undefined,
-        deliveryCompletedDate: lifecycle.deliveryCompletedDate ?? undefined,
-        invoiceNumber: lifecycle.invoiceNumber ?? undefined,
-        invoiceDate: lifecycle.invoiceDate ?? undefined,
-        invoiceAmount: lifecycle.invoiceAmount ?? undefined,
+        ddtNumber: best.ddtNumber ?? undefined,
+        ddtDeliveryDate: best.ddtDeliveryDate ?? undefined,
+        trackingNumber: best.trackingNumber ?? undefined,
+        trackingUrl: best.trackingUrl ?? undefined,
+        trackingCourier: best.trackingCourier ?? undefined,
+        deliveryCompletedDate: best.deliveryCompletedDate ?? undefined,
+        invoiceNumber: best.invoiceNumber ?? undefined,
+        invoiceDate: best.invoiceDate ?? undefined,
+        invoiceAmount: best.invoiceAmount ?? undefined,
         updatedAt: now,
       });
       updatedCount++;
