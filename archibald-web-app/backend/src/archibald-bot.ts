@@ -4474,11 +4474,11 @@ export class ArchibaldBot {
             async () => {
               logger.debug(`Adding new row for article ${i + 2}...`);
 
-              // Handle pagination: after UpdateEdit, grid may have paginated
-              // Navigate to last page so AddNewRow works correctly
-              if (this.salesLinesGridName) {
-                await this.gridGotoLastPage();
-              }
+              // NOTE: gridGotoLastPage() was removed here because it caused
+              // the ERP server callback to hang indefinitely, freezing the
+              // entire browser page (Runtime.callFunctionOn timed out).
+              // Archibald uses 20 rows/page and AddNewRow() works regardless
+              // of current page — rows auto-paginate on the server side.
 
               // Strategy 0: DevExpress API AddNewRow (most reliable)
               let addNewDone = false;
