@@ -2908,7 +2908,7 @@ app.put(
           customerDb.updateCustomerBotStatus(customerProfile, "failed");
           logger.error("Bot: errore aggiornamento cliente su Archibald", {
             customerProfile,
-            error,
+            error: error instanceof Error ? { message: error.message, stack: error.stack } : error,
           });
         }
       })();
@@ -2987,7 +2987,10 @@ app.post(
           logger.info("Bot: retry riuscito", { customerProfile });
         } catch (error) {
           customerDb.updateCustomerBotStatus(customerProfile, "failed");
-          logger.error("Bot: retry fallito", { customerProfile, error });
+          logger.error("Bot: retry fallito", {
+            customerProfile,
+            error: error instanceof Error ? { message: error.message, stack: error.stack } : error,
+          });
         }
       })();
     } catch (error) {
