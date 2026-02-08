@@ -7167,7 +7167,21 @@ export class ArchibaldBot {
       timeout: 60000,
     });
 
+    const pageUrl = this.page.url();
+    logger.info("Customer list page loaded", { pageUrl });
+
     await this.waitForDevExpressReady({ timeout: 10000 });
+
+    const pageDebug = await this.page.evaluate(() => {
+      const inputs = Array.from(document.querySelectorAll("input"));
+      return {
+        inputCount: inputs.length,
+        inputIds: inputs.slice(0, 15).map((i) => i.id).filter(Boolean),
+        title: document.title,
+        bodyText: document.body?.innerText?.substring(0, 200),
+      };
+    });
+    logger.info("Customer list page debug", pageDebug);
 
     const searchResult = await this.page.evaluate(
       (name: string) => {
