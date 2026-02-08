@@ -279,6 +279,22 @@ export default function OrderFormSimple() {
     calculateRevenue();
   }, [items, selectedCustomer, selectedSubClient, globalDiscountPercent]);
 
+  // Normalize sub-client codice for matching between SubClient table ("1376")
+  // and fresisHistory Arca format ("C01376")
+  const matchesSubClientCodice = useCallback(
+    (historyCode: string | undefined, subClientCode: string) => {
+      if (!historyCode) return false;
+      const h = historyCode.toLowerCase();
+      const s = subClientCode.toLowerCase();
+      if (h === s) return true;
+      // Arca format "C01376" → extract numeric "1376"
+      const hNumeric = h.replace(/^c0*/i, "");
+      const sNumeric = s.replace(/^c0*/i, "");
+      return hNumeric === sNumeric;
+    },
+    [],
+  );
+
   // Fresis history: find last purchase of selected article by sub-client
   useEffect(() => {
     if (!selectedProduct || !selectedSubClient || !isFresis(selectedCustomer)) {
@@ -288,9 +304,8 @@ export default function OrderFormSimple() {
 
     const searchArticleHistory = async () => {
       const allOrders = await db.fresisHistory.toArray();
-      const subCode = selectedSubClient.codice.toLowerCase();
-      const clientOrders = allOrders.filter(
-        (o) => o.subClientCodice?.toLowerCase() === subCode,
+      const clientOrders = allOrders.filter((o) =>
+        matchesSubClientCodice(o.subClientCodice, selectedSubClient.codice),
       );
 
       const productCode = (
@@ -733,9 +748,8 @@ export default function OrderFormSimple() {
     if (!selectedSubClient) return;
 
     const all = await db.fresisHistory.toArray();
-    const subCode = selectedSubClient.codice.toLowerCase();
-    const allOrders = all.filter(
-      (o) => o.subClientCodice?.toLowerCase() === subCode,
+    const allOrders = all.filter((o) =>
+      matchesSubClientCodice(o.subClientCodice, selectedSubClient.codice),
     );
 
     const aggregated = new Map<
@@ -779,9 +793,8 @@ export default function OrderFormSimple() {
     }
 
     const all = await db.fresisHistory.toArray();
-    const subCode = selectedSubClient.codice.toLowerCase();
-    const allOrders = all.filter(
-      (o) => o.subClientCodice?.toLowerCase() === subCode,
+    const allOrders = all.filter((o) =>
+      matchesSubClientCodice(o.subClientCodice, selectedSubClient.codice),
     );
 
     const q = query.toLowerCase();

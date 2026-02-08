@@ -229,45 +229,23 @@ export function WarehouseMatchAccordion({
                 </div>
 
                 <div className="match-details">
-                  <div className="match-code">
+                  <div className="match-info-row">
                     <strong>{match.item.articleCode}</strong>
                     {match.item.description && (
                       <span className="match-description">
                         {match.item.description}
                       </span>
                     )}
-                  </div>
-                  <div className="match-location">
-                    📦 <strong>{match.item.boxName}</strong> · Disponibili:{" "}
-                    {match.availableQty} pz
-                    {/* 🔧 FIX #2: Show reservation status */}
+                    <span className="match-location-inline">
+                      📦 {match.item.boxName} · {match.availableQty} pz
+                    </span>
                     {match.item.reservedForOrder && (
-                      <span
-                        style={{
-                          marginLeft: "0.5rem",
-                          padding: "2px 6px",
-                          background: "#fef3c7",
-                          color: "#92400e",
-                          fontSize: "0.75rem",
-                          borderRadius: "4px",
-                          fontWeight: "600",
-                        }}
-                      >
+                      <span className="match-status-badge reserved">
                         🔒 Riservato
                       </span>
                     )}
                     {match.item.soldInOrder && (
-                      <span
-                        style={{
-                          marginLeft: "0.5rem",
-                          padding: "2px 6px",
-                          background: "#fee2e2",
-                          color: "#991b1b",
-                          fontSize: "0.75rem",
-                          borderRadius: "4px",
-                          fontWeight: "600",
-                        }}
-                      >
+                      <span className="match-status-badge sold">
                         ❌ Venduto
                       </span>
                     )}
@@ -448,11 +426,11 @@ export function WarehouseMatchAccordion({
           font-size: 0.825em;
         }
 
-        .match-code {
+        .match-info-row {
           display: flex;
-          flex-direction: column;
-          gap: 1px;
-          margin-bottom: 2px;
+          flex-wrap: wrap;
+          align-items: baseline;
+          gap: 4px 8px;
         }
 
         .match-description {
@@ -460,9 +438,27 @@ export function WarehouseMatchAccordion({
           font-size: 0.9em;
         }
 
-        .match-location {
+        .match-location-inline {
           color: #555;
-          margin-bottom: 2px;
+          white-space: nowrap;
+        }
+
+        .match-status-badge {
+          padding: 1px 5px;
+          font-size: 0.75em;
+          border-radius: 3px;
+          font-weight: 600;
+          white-space: nowrap;
+        }
+
+        .match-status-badge.reserved {
+          background: #fef3c7;
+          color: #92400e;
+        }
+
+        .match-status-badge.sold {
+          background: #fee2e2;
+          color: #991b1b;
         }
 
         .match-reason {
