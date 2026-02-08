@@ -6772,7 +6772,61 @@ export class ArchibaldBot {
       await this.waitForDevExpressIdle({ timeout: 8000, label: "save-customer-2" });
     }
 
-    logger.info("Customer saved");
+    // Verify the form actually closed (URL should navigate away from DetailView)
+    let formClosed = false;
+    try {
+      await this.page.waitForFunction(
+        () => !window.location.href.includes("DetailView"),
+        { timeout: 10000, polling: 500 },
+      );
+      formClosed = true;
+    } catch {
+      formClosed = false;
+    }
+
+    if (!formClosed) {
+      // Form still open — scan for any visible error messages on page
+      const pageErrors = await this.page.evaluate(() => {
+        const errorTexts: string[] = [];
+
+        // DevExpress error info checkboxes (any variant)
+        document.querySelectorAll('input[id*="ErrorInfo"]').forEach((el) => {
+          const row = el.closest("tr") || el.parentElement;
+          const text = row?.textContent?.trim();
+          if (text) errorTexts.push(text);
+        });
+
+        // DevExpress popup dialogs (validation errors, alerts)
+        document.querySelectorAll(".dxpc-content, .dxpc-contentWrapper").forEach((el) => {
+          const htmlEl = el as HTMLElement;
+          if (htmlEl.offsetParent !== null && htmlEl.textContent?.trim()) {
+            errorTexts.push(htmlEl.textContent.trim());
+          }
+        });
+
+        // Generic error/alert elements
+        document.querySelectorAll('[role="alert"], [role="alertdialog"], .dxeErrorCell').forEach((el) => {
+          const htmlEl = el as HTMLElement;
+          if (htmlEl.offsetParent !== null && htmlEl.textContent?.trim()) {
+            errorTexts.push(htmlEl.textContent.trim());
+          }
+        });
+
+        return errorTexts;
+      });
+
+      const errorDetail = pageErrors.length > 0
+        ? pageErrors.join("; ").substring(0, 500)
+        : "errore di validazione non rilevato";
+
+      logger.error("Save failed: form did not close after save", { pageErrors });
+
+      throw new Error(
+        `Salvataggio fallito: il form non si è chiuso. Dettaglio: ${errorDetail}`,
+      );
+    }
+
+    logger.info("Customer saved (form closed successfully)");
   }
 
   private async fillDeliveryAddress(

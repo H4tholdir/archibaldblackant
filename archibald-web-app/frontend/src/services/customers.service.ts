@@ -327,6 +327,22 @@ export class CustomerService {
   }
 
   /**
+   * Get customer bot status (polling fallback)
+   */
+  async getCustomerBotStatus(customerProfile: string): Promise<string> {
+    const response = await fetchWithRetry(
+      `/api/customers/${encodeURIComponent(customerProfile)}/status`,
+    );
+
+    if (!response.ok) {
+      throw new Error(`Status check failed: ${response.status}`);
+    }
+
+    const data = await response.json();
+    return data.data?.botStatus || "placed";
+  }
+
+  /**
    * Retry bot placement for a customer
    */
   async retryBotPlacement(customerProfile: string): Promise<void> {

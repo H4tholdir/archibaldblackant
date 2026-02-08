@@ -10,10 +10,20 @@ import type { WebSocketMessage, ConnectionStats } from "./types";
  * WebSocket server dedicato per real-time draft/pending operations.
  * Implementa JWT authentication durante handshake e gestione connection pool per-user.
  */
+type BufferedEvent = {
+  event: WebSocketMessage;
+  timestamp: number;
+};
+
+const EVENT_BUFFER_MAX_SIZE = 200;
+const EVENT_BUFFER_MAX_AGE_MS = 5 * 60 * 1000; // 5 minutes
+const TRANSIENT_EVENT_TYPES = new Set(["JOB_PROGRESS", "CUSTOMER_UPDATE_PROGRESS"]);
+
 export class WebSocketServerService {
   private static instance: WebSocketServerService;
   private wss: WebSocketServer | null = null;
   private connectionPool: Map<string, Set<WebSocket>> = new Map();
+  private eventBuffer: Map<string, BufferedEvent[]> = new Map();
   private pingInterval: NodeJS.Timeout | null = null;
   private initTimestamp: number = 0;
   private metrics = {
@@ -56,6 +66,15 @@ export class WebSocketServerService {
           this.registerConnection(userId, ws);
           logger.info("WebSocket client authenticated", { userId });
 
+          // Replay buffered events if client provides lastEventTs
+          if (request.url) {
+            const connUrl = new URL(request.url, `http://${request.headers.host}`);
+            const lastEventTs = connUrl.searchParams.get("lastEventTs");
+            if (lastEventTs) {
+              this.replayEvents(userId, ws, lastEventTs);
+            }
+          }
+
           ws.on("close", () => {
             this.unregisterConnection(userId, ws);
             logger.info("WebSocket client disconnected", { userId });
@@ -93,7 +112,7 @@ export class WebSocketServerService {
       },
     );
 
-    // Start ping/pong heartbeat every 30 seconds
+    // Start ping/pong heartbeat every 30 seconds + purge stale buffered events
     this.pingInterval = setInterval(() => {
       if (!this.wss) return;
 
@@ -105,6 +124,8 @@ export class WebSocketServerService {
         (ws as any).pingTime = Date.now();
         ws.ping();
       });
+
+      this.purgeStaleEvents();
     }, 30000);
 
     logger.info("WebSocket server initialized on /ws/realtime");
@@ -180,9 +201,76 @@ export class WebSocketServerService {
   }
 
   /**
+   * Buffer an event for replay on reconnection.
+   * Transient events (JOB_PROGRESS, CUSTOMER_UPDATE_PROGRESS) are excluded.
+   */
+  private bufferEvent(userId: string, event: WebSocketMessage): void {
+    if (TRANSIENT_EVENT_TYPES.has(event.type)) return;
+
+    if (!this.eventBuffer.has(userId)) {
+      this.eventBuffer.set(userId, []);
+    }
+
+    const buffer = this.eventBuffer.get(userId)!;
+    buffer.push({ event, timestamp: Date.now() });
+
+    if (buffer.length > EVENT_BUFFER_MAX_SIZE) {
+      buffer.splice(0, buffer.length - EVENT_BUFFER_MAX_SIZE);
+    }
+  }
+
+  /**
+   * Purge stale events from all user buffers (older than EVENT_BUFFER_MAX_AGE_MS)
+   */
+  private purgeStaleEvents(): void {
+    const cutoff = Date.now() - EVENT_BUFFER_MAX_AGE_MS;
+
+    for (const [userId, buffer] of this.eventBuffer) {
+      const firstValidIndex = buffer.findIndex((e) => e.timestamp > cutoff);
+      if (firstValidIndex === -1) {
+        this.eventBuffer.delete(userId);
+      } else if (firstValidIndex > 0) {
+        buffer.splice(0, firstValidIndex);
+      }
+    }
+  }
+
+  /**
+   * Replay buffered events to a client that reconnected with lastEventTs
+   */
+  private replayEvents(userId: string, ws: WebSocket, lastEventTs: string): void {
+    const buffer = this.eventBuffer.get(userId);
+    if (!buffer || buffer.length === 0) return;
+
+    const lastTs = new Date(lastEventTs).getTime();
+    if (isNaN(lastTs)) return;
+
+    const eventsToReplay = buffer.filter(
+      (e) => new Date(e.event.timestamp).getTime() > lastTs,
+    );
+
+    if (eventsToReplay.length === 0) return;
+
+    logger.info("Replaying buffered events on reconnect", {
+      userId,
+      count: eventsToReplay.length,
+      lastEventTs,
+    });
+
+    for (const { event } of eventsToReplay) {
+      if (ws.readyState === ws.OPEN) {
+        ws.send(JSON.stringify(event));
+        this.metrics.messagesSent++;
+      }
+    }
+  }
+
+  /**
    * Broadcast event to all connections of a specific user (multi-device sync)
    */
   public broadcast(userId: string, event: WebSocketMessage): void {
+    this.bufferEvent(userId, event);
+
     const userConnections = this.connectionPool.get(userId);
 
     if (!userConnections || userConnections.size === 0) {

@@ -137,10 +137,14 @@ export type PendingUpdateHandler = () => void;
  * - Filter own deviceId to prevent echo (except for PENDING_SUBMITTED)
  * - Emit UI update events for React components
  */
+const PROGRESS_FLUSH_INTERVAL_MS = 300;
+
 export class PendingRealtimeService {
   private static instance: PendingRealtimeService;
   private deviceId: string;
   private updateHandlers: Set<PendingUpdateHandler> = new Set();
+  private pendingProgressUpdates: Map<string, JobProgressPayload> = new Map();
+  private progressFlushTimer: ReturnType<typeof setTimeout> | null = null;
 
   private constructor() {
     this.deviceId = getDeviceId();
@@ -469,30 +473,58 @@ export class PendingRealtimeService {
   }
 
   /**
-   * Handle JOB_PROGRESS event (Phase 72: Real-time job progress)
+   * Flush all accumulated JOB_PROGRESS updates to IndexedDB in one batch
    */
-  public async handleJobProgress(payload: unknown): Promise<void> {
-    try {
-      const data = payload as JobProgressPayload;
+  private async flushProgressUpdates(): Promise<void> {
+    this.progressFlushTimer = null;
 
-      const existing = await db.pendingOrders.get(data.pendingOrderId);
-      if (!existing) return;
+    if (this.pendingProgressUpdates.size === 0) return;
 
-      await db.pendingOrders.put({
-        ...existing,
-        jobStatus: "processing",
-        jobProgress: data.progress,
-        jobOperation: data.operation,
-        updatedAt: new Date().toISOString(),
-        serverUpdatedAt: new Date(data.timestamp).getTime(),
-      });
+    const updates = new Map(this.pendingProgressUpdates);
+    this.pendingProgressUpdates.clear();
 
-      console.log(`[PendingRealtime] JOB_PROGRESS`, {
-        progress: data.progress,
-      });
-      this.notifyUpdate();
-    } catch (error) {
-      console.error("[PendingRealtime] Error handling JOB_PROGRESS:", error);
+    for (const [pendingOrderId, data] of updates) {
+      try {
+        const existing = await db.pendingOrders.get(pendingOrderId);
+        if (!existing) continue;
+
+        await db.pendingOrders.put({
+          ...existing,
+          jobStatus: "processing",
+          jobProgress: data.progress,
+          jobOperation: data.operation,
+          updatedAt: new Date().toISOString(),
+          serverUpdatedAt: new Date(data.timestamp).getTime(),
+        });
+
+        console.log(`[PendingRealtime] JOB_PROGRESS (flushed)`, {
+          pendingOrderId,
+          progress: data.progress,
+        });
+      } catch (error) {
+        console.error(
+          "[PendingRealtime] Error flushing JOB_PROGRESS:",
+          error,
+        );
+      }
+    }
+
+    this.notifyUpdate();
+  }
+
+  /**
+   * Handle JOB_PROGRESS event (Phase 72: Real-time job progress)
+   * Throttled: accumulates updates and flushes every 300ms
+   */
+  public handleJobProgress(payload: unknown): void {
+    const data = payload as JobProgressPayload;
+    this.pendingProgressUpdates.set(data.pendingOrderId, data);
+
+    if (!this.progressFlushTimer) {
+      this.progressFlushTimer = setTimeout(
+        () => this.flushProgressUpdates(),
+        PROGRESS_FLUSH_INTERVAL_MS,
+      );
     }
   }
 
@@ -502,6 +534,8 @@ export class PendingRealtimeService {
   public async handleJobCompleted(payload: unknown): Promise<void> {
     try {
       const data = payload as JobCompletedPayload;
+
+      await this.flushProgressUpdates();
 
       const existing = await db.pendingOrders.get(data.pendingOrderId);
       if (!existing) return;
@@ -573,6 +607,8 @@ export class PendingRealtimeService {
   public async handleJobFailed(payload: unknown): Promise<void> {
     try {
       const data = payload as JobFailedPayload;
+
+      await this.flushProgressUpdates();
 
       const existing = await db.pendingOrders.get(data.pendingOrderId);
       if (!existing) return;

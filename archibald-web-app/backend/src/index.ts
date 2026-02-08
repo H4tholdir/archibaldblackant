@@ -2994,6 +2994,33 @@ app.put(
   },
 );
 
+// Get customer bot status (polling fallback for WebSocket)
+app.get(
+  "/api/customers/:customerProfile/status",
+  authenticateJWT,
+  async (req: AuthRequest, res: Response<ApiResponse>) => {
+    try {
+      const { customerProfile } = req.params;
+      const customer = customerDb.getCustomerByProfile(customerProfile);
+
+      if (!customer) {
+        return res.status(404).json({ success: false, error: "Cliente non trovato" });
+      }
+
+      res.json({
+        success: true,
+        data: { botStatus: customer.botStatus || "placed" },
+      });
+    } catch (error) {
+      logger.error("Errore API GET /api/customers/:customerProfile/status", { error });
+      res.status(500).json({
+        success: false,
+        error: "Errore durante il recupero dello stato",
+      });
+    }
+  },
+);
+
 // Retry bot placement for customer
 app.post(
   "/api/customers/:customerProfile/retry",

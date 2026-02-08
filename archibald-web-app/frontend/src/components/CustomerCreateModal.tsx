@@ -217,7 +217,27 @@ export function CustomerCreateModal({
   useEffect(() => {
     if (!taskId) return;
 
+    let resolved = false;
     const unsubs: Array<() => void> = [];
+
+    const markCompleted = () => {
+      if (resolved) return;
+      resolved = true;
+      setProcessingState("completed");
+      setProgress(100);
+      setProgressLabel("Completato");
+      setTimeout(() => {
+        onSaved();
+        onClose();
+      }, 2000);
+    };
+
+    const markFailed = (errorMsg: string) => {
+      if (resolved) return;
+      resolved = true;
+      setProcessingState("failed");
+      setBotError(errorMsg);
+    };
 
     unsubs.push(
       subscribe("CUSTOMER_UPDATE_PROGRESS", (payload: any) => {
@@ -230,26 +250,44 @@ export function CustomerCreateModal({
     unsubs.push(
       subscribe("CUSTOMER_UPDATE_COMPLETED", (payload: any) => {
         if (payload.taskId !== taskId) return;
-        setProcessingState("completed");
-        setProgress(100);
-        setProgressLabel("Completato");
-        setTimeout(() => {
-          onSaved();
-          onClose();
-        }, 2000);
+        markCompleted();
       }),
     );
 
     unsubs.push(
       subscribe("CUSTOMER_UPDATE_FAILED", (payload: any) => {
         if (payload.taskId !== taskId) return;
-        setProcessingState("failed");
-        setBotError(payload.error || "Errore sconosciuto");
+        markFailed(payload.error || "Errore sconosciuto");
       }),
     );
 
-    return () => unsubs.forEach((u) => u());
-  }, [taskId, subscribe, onSaved, onClose]);
+    // Polling fallback: if WebSocket events don't arrive, poll botStatus
+    const customerProfile = editCustomer?.customerProfile;
+    let pollInterval: ReturnType<typeof setInterval> | null = null;
+
+    const pollTimeout = setTimeout(() => {
+      if (resolved || !customerProfile) return;
+      pollInterval = setInterval(async () => {
+        if (resolved) {
+          if (pollInterval) clearInterval(pollInterval);
+          return;
+        }
+        try {
+          const status = await customerService.getCustomerBotStatus(customerProfile);
+          if (status === "placed") markCompleted();
+          else if (status === "failed") markFailed("Operazione fallita su Archibald");
+        } catch {
+          // ignore polling errors
+        }
+      }, 5000);
+    }, 10000);
+
+    return () => {
+      unsubs.forEach((u) => u());
+      clearTimeout(pollTimeout);
+      if (pollInterval) clearInterval(pollInterval);
+    };
+  }, [taskId, subscribe, onSaved, onClose, editCustomer]);
 
   if (!isOpen) return null;
 

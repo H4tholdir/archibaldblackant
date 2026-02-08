@@ -71,6 +71,7 @@ export function WebSocketProvider({ children }: WebSocketProviderProps) {
     new Map(),
   );
   const isIntentionalCloseRef = useRef<boolean>(false);
+  const lastEventTsRef = useRef<string | null>(null);
 
   /**
    * Get JWT token from localStorage
@@ -151,6 +152,10 @@ export function WebSocketProvider({ children }: WebSocketProviderProps) {
         timestamp: message.timestamp,
       });
 
+      if (message.timestamp) {
+        lastEventTsRef.current = message.timestamp;
+      }
+
       const handlers = eventHandlersRef.current.get(message.type);
 
       if (handlers && handlers.size > 0) {
@@ -212,7 +217,10 @@ export function WebSocketProvider({ children }: WebSocketProviderProps) {
 
     setState("connecting");
 
-    const url = `${getWebSocketUrl()}?token=${encodeURIComponent(token)}`;
+    let url = `${getWebSocketUrl()}?token=${encodeURIComponent(token)}`;
+    if (lastEventTsRef.current) {
+      url += `&lastEventTs=${encodeURIComponent(lastEventTsRef.current)}`;
+    }
     const ws = new WebSocket(url);
     wsRef.current = ws;
 
