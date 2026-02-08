@@ -259,6 +259,7 @@ router.get(
   authenticateJWT,
   (req: AuthRequest, res: Response) => {
     try {
+      const userId = req.user!.userId;
       const q = (req.query.q as string) || "";
 
       const ordersDbPath = path.join(__dirname, "../../data/orders-new.db");
@@ -281,10 +282,11 @@ router.get(
                       o.ddt_number, o.invoice_number,
                       (SELECT COUNT(*) FROM order_articles WHERE order_id = o.id) as items_count
                FROM orders o
+               WHERE o.user_id = ?
                ORDER BY o.created_at DESC
                LIMIT 50`,
             )
-            .all() as any[];
+            .all(userId) as any[];
         } else {
           const searchPattern = `%${q.trim()}%`;
           rows = ordersDb
@@ -295,11 +297,11 @@ router.get(
                       o.ddt_number, o.invoice_number,
                       (SELECT COUNT(*) FROM order_articles WHERE order_id = o.id) as items_count
                FROM orders o
-               WHERE o.order_number LIKE ? OR o.customer_name LIKE ? OR o.delivery_name LIKE ?
+               WHERE o.user_id = ? AND (o.order_number LIKE ? OR o.customer_name LIKE ? OR o.delivery_name LIKE ?)
                ORDER BY o.created_at DESC
                LIMIT 50`,
             )
-            .all(searchPattern, searchPattern, searchPattern) as any[];
+            .all(userId, searchPattern, searchPattern, searchPattern) as any[];
         }
 
         res.json({
