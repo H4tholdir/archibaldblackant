@@ -7294,10 +7294,27 @@ export class ArchibaldBot {
 
       if (!fieldId) throw new Error("Search input not found");
 
-      await this.page!.keyboard.press("Enter");
-      await this.waitForDevExpressIdle({ timeout: 10000, label: "customer-search" });
+      // Try clicking the search/find button if present, otherwise press Enter
+      const searchBtnClicked = await this.page!.evaluate(() => {
+        const btns = Array.from(document.querySelectorAll('img[id*="Search"], td[id*="Search"][id*="_B0"], div[id*="Search"][id*="_B"]'));
+        for (const btn of btns) {
+          if ((btn as HTMLElement).offsetParent !== null) {
+            (btn as HTMLElement).click();
+            return true;
+          }
+        }
+        return false;
+      });
 
-      logger.info("Customer search completed", { nameToSearch });
+      if (!searchBtnClicked) {
+        await this.page!.keyboard.press("Enter");
+      }
+
+      await this.wait(1000);
+      await this.waitForDevExpressIdle({ timeout: 15000, label: "customer-search" });
+      await this.wait(500);
+
+      logger.info("Customer search completed", { nameToSearch, searchBtnClicked });
 
       // Find exact match in filtered results and click Edit
       const result = await this.page!.evaluate(
@@ -7366,7 +7383,7 @@ export class ArchibaldBot {
     let editResult = await searchAndFindCustomer(searchName);
     logger.info("Customer edit selection (primary)", editResult);
 
-    // Fallback: if not found and we have an alternative name, retry with new name
+    // Fallback 1: if not found and we have an alternative name, retry with new name
     if (!editResult.found && fallbackName) {
       logger.info("Primary search failed, retrying with new name", { fallbackName });
       await this.page.goto(`${config.archibald.url}/CUSTTABLE_ListView_Agent/`, {
@@ -7375,13 +7392,25 @@ export class ArchibaldBot {
       });
       await this.waitForDevExpressReady({ timeout: 10000 });
       editResult = await searchAndFindCustomer(fallbackName);
-      logger.info("Customer edit selection (fallback)", editResult);
+      logger.info("Customer edit selection (fallback name)", editResult);
+    }
+
+    // Fallback 2: search by customerProfile code
+    if (!editResult.found) {
+      logger.info("Name searches failed, retrying with customerProfile", { customerProfile });
+      await this.page.goto(`${config.archibald.url}/CUSTTABLE_ListView_Agent/`, {
+        waitUntil: "networkidle2",
+        timeout: 60000,
+      });
+      await this.waitForDevExpressReady({ timeout: 10000 });
+      editResult = await searchAndFindCustomer(customerProfile);
+      logger.info("Customer edit selection (fallback profile)", editResult);
     }
 
     await this.emitProgress("customer.search");
 
     if (!editResult.found) {
-      throw new Error(`Cliente "${searchName}"${fallbackName ? ` e "${fallbackName}"` : ""} non trovato nei risultati (${editResult.reason}, ${editResult.rowCount} righe)`);
+      throw new Error(`Cliente "${searchName}"${fallbackName ? `, "${fallbackName}"` : ""} e profilo "${customerProfile}" non trovato nei risultati (${editResult.reason}, ${editResult.rowCount} righe)`);
     }
 
     await this.page.waitForFunction(
