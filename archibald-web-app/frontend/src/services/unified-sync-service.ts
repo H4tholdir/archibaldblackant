@@ -142,6 +142,11 @@ export class UnifiedSyncService {
       // 5. Warehouse sync
       await this.syncWarehouse();
 
+      // Fresis history full sync (non-blocking)
+      fresisHistoryService.fullSync().catch((err) => {
+        console.warn("[UnifiedSync] Fresis history sync failed:", err);
+      });
+
       // Fresis lifecycle sync (non-blocking)
       fresisHistoryService.syncOrderLifecycles().catch((err) => {
         console.warn("[UnifiedSync] Fresis lifecycle sync failed:", err);
@@ -419,9 +424,7 @@ export class UnifiedSyncService {
 
       const allDrafts = await db.draftOrders.toArray();
 
-      const localDrafts = allDrafts.filter(
-        (draft) => draft.needsSync === true,
-      );
+      const localDrafts = allDrafts.filter((draft) => draft.needsSync === true);
 
       console.log(
         `[UnifiedSync] Found ${localDrafts.length} draft orders to push`,

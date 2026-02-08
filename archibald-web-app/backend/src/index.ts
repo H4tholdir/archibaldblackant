@@ -62,6 +62,7 @@ import deltaSyncRoutes from "./routes/delta-sync";
 import botRoutes from "./routes/bot";
 import warehouseRoutes from "./routes/warehouse-routes";
 import fresisDiscountRoutes from "./routes/fresis-discount-routes";
+import fresisHistoryRoutes from "./routes/fresis-history-routes";
 import adminRoutes from "./routes/admin-routes";
 import syncRoutes from "./routes/sync-routes";
 import { SendToMilanoService } from "./send-to-milano-service";
@@ -428,6 +429,9 @@ app.use("/api", warehouseRoutes);
 
 // Fresis discount routes
 app.use("/api", fresisDiscountRoutes);
+
+// Fresis history routes
+app.use("/api", fresisHistoryRoutes);
 
 // Admin routes (multi-device sync + impersonation)
 app.use("/api/admin", adminRoutes);
@@ -6740,6 +6744,14 @@ server.listen(config.server.port, async () => {
     logger.info("✅ Migration 026 completed (draft sub-client fields)");
   } catch (error) {
     logger.warn("⚠️  Migration 026 failed or already applied", { error });
+  }
+
+  try {
+    const { runMigration027 } = require("./migrations/027-fresis-history");
+    runMigration027();
+    logger.info("✅ Migration 027 completed (fresis_history table)");
+  } catch (error) {
+    logger.warn("⚠️  Migration 027 failed or already applied", { error });
   }
 
   // ========== AUTO-LOAD ENCRYPTED PASSWORDS (LAZY-LOAD) ==========

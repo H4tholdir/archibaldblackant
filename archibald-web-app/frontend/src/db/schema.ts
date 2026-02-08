@@ -217,6 +217,8 @@ export interface FresisHistoryOrder {
   invoiceNumber?: string;
   invoiceDate?: string;
   invoiceAmount?: string;
+
+  source?: "app" | "arca_import";
 }
 
 // Warehouse metadata (info sul file caricato)
@@ -679,8 +681,7 @@ export class ArchibaldDatabase extends Dexie {
         "++id, articleCode, boxName, reservedForOrder, soldInOrder",
       warehouseMetadata: "++id, uploadedAt",
       subClients: "codice, ragioneSociale, supplRagioneSociale, partitaIva",
-      fresisHistory:
-        "id, subClientCodice, customerName, createdAt, updatedAt",
+      fresisHistory: "id, subClientCodice, customerName, createdAt, updatedAt",
     });
 
     // Version 16: Add lifecycle tracking fields to fresisHistory + archibaldOrderId index

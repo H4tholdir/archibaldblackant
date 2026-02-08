@@ -11,6 +11,7 @@ import { isFresis } from "../utils/fresis-constants";
 import { mergeFresisPendingOrders } from "../utils/order-merge";
 import { db } from "../db/schema";
 import { fresisDiscountService } from "../services/fresis-discount.service";
+import { fresisHistoryService } from "../services/fresis-history.service";
 
 function itemSubtotal(
   order: PendingOrder,
@@ -298,30 +299,10 @@ export function PendingOrdersPage() {
       );
 
       // Archive original orders to fresisHistory
-      const now = new Date().toISOString();
-      for (const original of selectedFresisOrders) {
-        await db.fresisHistory.add({
-          id: crypto.randomUUID(),
-          originalPendingOrderId: original.id!,
-          subClientCodice: original.subClientCodice ?? "",
-          subClientName: original.subClientName ?? "",
-          subClientData: original.subClientData ?? {
-            codice: "",
-            ragioneSociale: "",
-          },
-          customerId: original.customerId,
-          customerName: original.customerName,
-          items: original.items,
-          discountPercent: original.discountPercent,
-          targetTotalWithVAT: original.targetTotalWithVAT,
-          shippingCost: original.shippingCost,
-          shippingTax: original.shippingTax,
-          mergedIntoOrderId: mergedOrder.id,
-          mergedAt: now,
-          createdAt: original.createdAt,
-          updatedAt: now,
-        });
-      }
+      await fresisHistoryService.archiveOrders(
+        selectedFresisOrders,
+        mergedOrder.id,
+      );
 
       // Add merged order
       await db.pendingOrders.add(mergedOrder);
@@ -355,25 +336,7 @@ export function PendingOrdersPage() {
     try {
       // Archive to fresisHistory if it's a Fresis sub-client order
       if (isFresis({ id: order.customerId }) && order.subClientCodice) {
-        await db.fresisHistory.add({
-          id: crypto.randomUUID(),
-          originalPendingOrderId: order.id!,
-          subClientCodice: order.subClientCodice,
-          subClientName: order.subClientName ?? "",
-          subClientData: order.subClientData ?? {
-            codice: order.subClientCodice,
-            ragioneSociale: order.subClientName ?? "",
-          },
-          customerId: order.customerId,
-          customerName: order.customerName,
-          items: order.items,
-          discountPercent: order.discountPercent,
-          targetTotalWithVAT: order.targetTotalWithVAT,
-          shippingCost: order.shippingCost,
-          shippingTax: order.shippingTax,
-          createdAt: order.createdAt,
-          updatedAt: new Date().toISOString(),
-        });
+        await fresisHistoryService.archiveOrders([order]);
       }
 
       // Remove the order from pendingOrders (warehouse items already marked as sold)

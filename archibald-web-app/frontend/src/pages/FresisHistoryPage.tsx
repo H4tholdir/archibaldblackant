@@ -8,6 +8,9 @@ import { fresisHistoryService } from "../services/fresis-history.service";
 import { PDFExportService } from "../services/pdf-export.service";
 import { SubClientSelector } from "../components/new-order-form/SubClientSelector";
 import { AddItemToHistory } from "../components/new-order-form/AddItemToHistory";
+import { useFresisHistorySync } from "../hooks/useFresisHistorySync";
+import { ArcaImportModal } from "../components/ArcaImportModal";
+import { OrderPickerModal } from "../components/OrderPickerModal";
 
 const STATE_BADGE_CONFIG: Record<
   string,
@@ -30,6 +33,11 @@ const STATE_BADGE_CONFIG: Record<
   spedito: { label: "Spedito", bg: "#e0f2fe", color: "#0369a1" },
   consegnato: { label: "Consegnato", bg: "#bbf7d0", color: "#166534" },
   fatturato: { label: "Fatturato", bg: "#86efac", color: "#14532d" },
+  importato_arca: {
+    label: "Importato da Arca",
+    bg: "#e9d5ff",
+    color: "#6b21a8",
+  },
 };
 
 function getStateBadge(order: FresisHistoryOrder): {
@@ -57,6 +65,9 @@ type EditState = {
 };
 
 export function FresisHistoryPage() {
+  const { historyOrders: wsOrders, refetch: wsRefetch } =
+    useFresisHistorySync();
+
   const [orders, setOrders] = useState<FresisHistoryOrder[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [expandedOrderId, setExpandedOrderId] = useState<string | null>(null);
@@ -67,20 +78,26 @@ export function FresisHistoryPage() {
 
   const [editState, setEditState] = useState<EditState | null>(null);
   const [addingProduct, setAddingProduct] = useState(false);
+  const [showImportModal, setShowImportModal] = useState(false);
+  const [linkingOrderId, setLinkingOrderId] = useState<string | null>(null);
 
   const loadOrders = useCallback(async () => {
     setLoading(true);
     try {
-      const result = searchQuery.trim()
-        ? await fresisHistoryService.searchHistoryOrders(searchQuery.trim())
-        : await fresisHistoryService.getAllHistoryOrders();
-      setOrders(result);
+      if (searchQuery.trim()) {
+        const result = await fresisHistoryService.searchHistoryOrders(
+          searchQuery.trim(),
+        );
+        setOrders(result);
+      } else {
+        setOrders(wsOrders);
+      }
     } catch (err) {
       console.error("[FresisHistoryPage] Failed to load orders:", err);
     } finally {
       setLoading(false);
     }
-  }, [searchQuery]);
+  }, [searchQuery, wsOrders]);
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -89,17 +106,13 @@ export function FresisHistoryPage() {
     return () => clearTimeout(timer);
   }, [loadOrders]);
 
-  useEffect(() => {
-    fresisHistoryService.syncOrderLifecycles().then(() => loadOrders());
-  }, []);
-
   const handleSyncLifecycles = async () => {
     setSyncing(true);
     setSyncMessage(null);
     try {
       const count = await fresisHistoryService.syncOrderLifecycles();
       setSyncMessage(`Aggiornati ${count} ordini`);
-      await loadOrders();
+      await wsRefetch();
     } catch (err) {
       console.error("[FresisHistoryPage] Sync failed:", err);
       setSyncMessage("Errore durante aggiornamento");
@@ -116,7 +129,7 @@ export function FresisHistoryPage() {
         deliveryCompletedDate: new Date().toISOString(),
         stateUpdatedAt: new Date().toISOString(),
       });
-      await loadOrders();
+      await wsRefetch();
     } catch (err) {
       console.error("[FresisHistoryPage] Mark delivered failed:", err);
     }
@@ -126,7 +139,7 @@ export function FresisHistoryPage() {
     try {
       await fresisHistoryService.deleteHistoryOrder(id);
       setDeleteConfirmId(null);
-      await loadOrders();
+      await wsRefetch();
     } catch (err) {
       console.error("[FresisHistoryPage] Delete failed:", err);
     }
@@ -170,7 +183,7 @@ export function FresisHistoryPage() {
       });
       setEditState(null);
       setAddingProduct(false);
-      await loadOrders();
+      await wsRefetch();
     } catch (err) {
       console.error("[FresisHistoryPage] Save edit failed:", err);
     }
@@ -203,6 +216,22 @@ export function FresisHistoryPage() {
       items: [...editState.items, ...newItems],
     });
     setAddingProduct(false);
+  };
+
+  const handleLinkOrder = async (
+    historyId: string,
+    archibaldOrder: { id: string; orderNumber: string },
+  ) => {
+    try {
+      await fresisHistoryService.updateHistoryOrder(historyId, {
+        archibaldOrderId: archibaldOrder.id,
+        archibaldOrderNumber: archibaldOrder.orderNumber,
+      });
+      setLinkingOrderId(null);
+      await wsRefetch();
+    } catch (err) {
+      console.error("[FresisHistoryPage] Link order failed:", err);
+    }
   };
 
   const handleDownloadPDF = (order: FresisHistoryOrder) => {
@@ -283,7 +312,7 @@ export function FresisHistoryPage() {
           Report
         </button>
         <button
-          onClick={() => alert("Funzionalita' in arrivo")}
+          onClick={() => setShowImportModal(true)}
           style={{
             padding: "0.5rem 1rem",
             background: "#e5e7eb",
@@ -293,7 +322,7 @@ export function FresisHistoryPage() {
             fontSize: "0.875rem",
           }}
         >
-          Importa
+          Importa da Arca
         </button>
         <button
           onClick={handleSyncLifecycles}
@@ -919,6 +948,22 @@ export function FresisHistoryPage() {
                       >
                         Modifica
                       </button>
+                      {!order.archibaldOrderId && (
+                        <button
+                          onClick={() => setLinkingOrderId(order.id)}
+                          style={{
+                            padding: "0.4rem 0.75rem",
+                            background: "#7c3aed",
+                            color: "white",
+                            border: "none",
+                            borderRadius: "4px",
+                            cursor: "pointer",
+                            fontSize: "0.8rem",
+                          }}
+                        >
+                          Collega ordine
+                        </button>
+                      )}
                       {order.currentState === "spedito" &&
                         !order.deliveryCompletedDate && (
                           <button
@@ -990,6 +1035,27 @@ export function FresisHistoryPage() {
           );
         })}
       </div>
+
+      {showImportModal && (
+        <ArcaImportModal
+          onClose={() => setShowImportModal(false)}
+          onImportComplete={() => {
+            fresisHistoryService.syncFromServer().then(() => wsRefetch());
+          }}
+        />
+      )}
+
+      {linkingOrderId && (
+        <OrderPickerModal
+          onClose={() => setLinkingOrderId(null)}
+          onSelect={(order) => {
+            handleLinkOrder(linkingOrderId, {
+              id: order.id,
+              orderNumber: order.orderNumber,
+            });
+          }}
+        />
+      )}
     </div>
   );
 }
