@@ -2782,11 +2782,12 @@ export default function OrderFormSimple() {
                               flexWrap: "wrap",
                               gap: "0.75rem",
                               alignItems: "center",
-                              fontSize: isMobile ? "0.75rem" : "0.8rem",
+                              fontSize: isMobile ? "0.85rem" : "0.9rem",
+                              fontWeight: "600",
                               color: "#92400e",
                             }}
                           >
-                            <span style={{ fontWeight: "600" }}>
+                            <span style={{ fontWeight: "700" }}>
                               Ultimo acquisto:
                             </span>
                             <span>
@@ -2814,9 +2815,9 @@ export default function OrderFormSimple() {
                         ) : (
                           <div
                             style={{
-                              fontSize: isMobile ? "0.75rem" : "0.8rem",
+                              fontSize: isMobile ? "0.85rem" : "0.9rem",
                               color: "#92400e",
-                              fontWeight: "500",
+                              fontWeight: "600",
                             }}
                           >
                             Articolo mai acquistato da questo cliente
@@ -4193,12 +4194,17 @@ export default function OrderFormSimple() {
                       >
                         {item.articleCode}
                       </span>
-                      {item.productName && (
+                      {item.description && (
                         <span style={{ color: "#374151" }}>
-                          {item.productName}
+                          {item.description}
                         </span>
                       )}
-                      <span style={{ color: "#6b7280" }}>
+                      <span
+                        style={{
+                          color: "#374151",
+                          fontWeight: "700",
+                        }}
+                      >
                         Qt: {item.quantity}
                       </span>
                       <span style={{ color: "#6b7280" }}>
