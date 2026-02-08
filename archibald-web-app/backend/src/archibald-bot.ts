@@ -6680,7 +6680,7 @@ export class ArchibaldBot {
 
       logger.debug('Direct "Salva e chiudi" not found, trying "Salvare" dropdown...');
 
-      const dropdownOpened = await this.page.evaluate(() => {
+      const dropdownOpened = await this.page!.evaluate(() => {
         const allElements = Array.from(
           document.querySelectorAll("span, button, a"),
         );
@@ -6715,7 +6715,7 @@ export class ArchibaldBot {
       });
 
       if (!dropdownOpened) {
-        const byId = await this.page.evaluate(() => {
+        const byId = await this.page!.evaluate(() => {
           const el = document.querySelector("#Vertical_mainMenu_Menu_DXI1i1_T") as HTMLElement;
           if (el) { el.click(); return true; }
           return false;
