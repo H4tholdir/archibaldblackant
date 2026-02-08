@@ -275,7 +275,7 @@ router.get(
         if (!q.trim()) {
           rows = ordersDb
             .prepare(
-              `SELECT o.id, o.order_number, o.customer_name, o.created_at, o.status,
+              `SELECT o.id, o.order_number, o.customer_name, o.created_at, o.sales_status,
                       o.total_amount, o.gross_amount, o.discount_percent,
                       o.current_state, o.delivery_name, o.delivery_address,
                       o.ddt_number, o.invoice_number,
@@ -289,7 +289,7 @@ router.get(
           const searchPattern = `%${q.trim()}%`;
           rows = ordersDb
             .prepare(
-              `SELECT o.id, o.order_number, o.customer_name, o.created_at, o.status,
+              `SELECT o.id, o.order_number, o.customer_name, o.created_at, o.sales_status,
                       o.total_amount, o.gross_amount, o.discount_percent,
                       o.current_state, o.delivery_name, o.delivery_address,
                       o.ddt_number, o.invoice_number,
@@ -309,7 +309,7 @@ router.get(
             orderNumber: r.order_number,
             customerName: r.customer_name,
             createdAt: r.created_at,
-            status: r.status,
+            status: r.sales_status ?? null,
             totalAmount: r.total_amount ?? null,
             grossAmount: r.gross_amount ?? null,
             discountPercent: r.discount_percent ?? null,
