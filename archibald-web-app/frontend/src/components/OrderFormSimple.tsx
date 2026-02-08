@@ -159,25 +159,22 @@ export default function OrderFormSimple() {
   const isWarehouseUpdateRef = useRef(false);
 
   // 🔧 FIX #1: Memoize callback to prevent re-render loops in WarehouseMatchAccordion
-  const handleTotalQuantityChange = useCallback(
-    (totalQty: number) => {
-      if (totalQty > 0 && !isWarehouseUpdateRef.current) {
-        // Set flag to prevent loop
-        isWarehouseUpdateRef.current = true;
-        setQuantity(totalQty.toString());
-        // Reset flag after update
-        setTimeout(() => {
-          isWarehouseUpdateRef.current = false;
-        }, 100);
-      }
-    },
-    [],
-  );
+  const handleTotalQuantityChange = useCallback((totalQty: number) => {
+    if (totalQty > 0 && !isWarehouseUpdateRef.current) {
+      // Set flag to prevent loop
+      isWarehouseUpdateRef.current = true;
+      setQuantity(totalQty.toString());
+      // Reset flag after update
+      setTimeout(() => {
+        isWarehouseUpdateRef.current = false;
+      }, 100);
+    }
+  }, []);
 
   const scrollFieldIntoView = useCallback((element: HTMLElement | null) => {
     if (!element) return;
     setTimeout(() => {
-      element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      element.scrollIntoView({ behavior: "smooth", block: "center" });
     }, 100);
   }, []);
 
@@ -186,14 +183,17 @@ export default function OrderFormSimple() {
     if (!vv) return;
     const handleResize = () => {
       const active = document.activeElement as HTMLElement | null;
-      if (active && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA')) {
+      if (
+        active &&
+        (active.tagName === "INPUT" || active.tagName === "TEXTAREA")
+      ) {
         setTimeout(() => {
-          active.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          active.scrollIntoView({ behavior: "smooth", block: "center" });
         }, 100);
       }
     };
-    vv.addEventListener('resize', handleResize);
-    return () => vv.removeEventListener('resize', handleResize);
+    vv.addEventListener("resize", handleResize);
+    return () => vv.removeEventListener("resize", handleResize);
   }, []);
 
   // UI state
@@ -205,6 +205,48 @@ export default function OrderFormSimple() {
     string | null
   >(null);
   const [loadingOrder, setLoadingOrder] = useState(false);
+
+  // Fresis history: article purchase history for selected sub-client
+  const [articleHistory, setArticleHistory] = useState<{
+    found: boolean;
+    lastPurchase?: {
+      date: string;
+      quantity: number;
+      price: number;
+      discount?: number;
+      vat: number;
+    };
+  } | null>(null);
+
+  // Fresis history: top sold items modal
+  const [showTopSoldModal, setShowTopSoldModal] = useState(false);
+  const [topSoldItems, setTopSoldItems] = useState<
+    Array<{
+      articleCode: string;
+      productName: string;
+      description?: string;
+      totalQuantity: number;
+    }>
+  >([]);
+
+  // Fresis history: search in history modal
+  const [showHistorySearchModal, setShowHistorySearchModal] = useState(false);
+  const [historySearchQuery, setHistorySearchQuery] = useState("");
+  const [historySearchResults, setHistorySearchResults] = useState<
+    Array<{
+      orderId: string;
+      orderDate: string;
+      items: Array<{
+        articleCode: string;
+        productName?: string;
+        description?: string;
+        quantity: number;
+        price: number;
+        discount?: number;
+        vat: number;
+      }>;
+    }>
+  >([]);
 
   // Calculate estimated revenue for Fresis sub-client orders
   useEffect(() => {
@@ -236,6 +278,62 @@ export default function OrderFormSimple() {
 
     calculateRevenue();
   }, [items, selectedCustomer, selectedSubClient, globalDiscountPercent]);
+
+  // Fresis history: find last purchase of selected article by sub-client
+  useEffect(() => {
+    if (!selectedProduct || !selectedSubClient || !isFresis(selectedCustomer)) {
+      setArticleHistory(null);
+      return;
+    }
+
+    const searchArticleHistory = async () => {
+      const allOrders = await db.fresisHistory
+        .where("subClientCodice")
+        .equals(selectedSubClient.codice)
+        .toArray();
+
+      const productCode = selectedProduct.article || selectedProduct.name;
+      let lastDate = "";
+      let lastItem: {
+        date: string;
+        quantity: number;
+        price: number;
+        discount?: number;
+        vat: number;
+      } | null = null;
+
+      for (const order of allOrders) {
+        for (const item of order.items) {
+          const matchesCode =
+            item.articleCode?.includes(productCode) ||
+            productCode.includes(item.articleCode || "");
+          const matchesName =
+            item.productName?.includes(productCode) ||
+            productCode.includes(item.productName || "");
+
+          if (matchesCode || matchesName) {
+            const orderDate = order.createdAt || order.updatedAt || "";
+            if (orderDate > lastDate) {
+              lastDate = orderDate;
+              lastItem = {
+                date: orderDate,
+                quantity: item.quantity,
+                price: item.price,
+                discount: item.discount,
+                vat: item.vat,
+              };
+            }
+          }
+        }
+      }
+
+      setArticleHistory(
+        lastItem ? { found: true, lastPurchase: lastItem } : { found: false },
+      );
+    };
+
+    searchArticleHistory();
+  }, [selectedProduct, selectedSubClient, selectedCustomer]);
 
   // Auto-save draft state
   const [draftId, setDraftId] = useState<string | null>(null);
@@ -617,6 +715,114 @@ export default function OrderFormSimple() {
     setTimeout(() => {
       quantityInputRef.current?.focus();
     }, 0);
+  };
+
+  const loadTopSoldItems = async () => {
+    if (!selectedSubClient) return;
+
+    const allOrders = await db.fresisHistory
+      .where("subClientCodice")
+      .equals(selectedSubClient.codice)
+      .toArray();
+
+    const aggregated = new Map<
+      string,
+      {
+        articleCode: string;
+        productName: string;
+        description?: string;
+        totalQuantity: number;
+      }
+    >();
+
+    for (const order of allOrders) {
+      for (const item of order.items) {
+        const key = item.productName || item.articleCode;
+        const existing = aggregated.get(key);
+        if (existing) {
+          existing.totalQuantity += item.quantity;
+        } else {
+          aggregated.set(key, {
+            articleCode: item.articleCode,
+            productName: item.productName || item.articleCode,
+            description: item.description,
+            totalQuantity: item.quantity,
+          });
+        }
+      }
+    }
+
+    const sorted = Array.from(aggregated.values()).sort(
+      (a, b) => b.totalQuantity - a.totalQuantity,
+    );
+    setTopSoldItems(sorted);
+    setShowTopSoldModal(true);
+  };
+
+  const searchInHistory = async (query: string) => {
+    if (!selectedSubClient || !query.trim()) {
+      setHistorySearchResults([]);
+      return;
+    }
+
+    const allOrders = await db.fresisHistory
+      .where("subClientCodice")
+      .equals(selectedSubClient.codice)
+      .toArray();
+
+    const q = query.toLowerCase();
+    const results: typeof historySearchResults = [];
+
+    for (const order of allOrders) {
+      const matchingItems = order.items.filter(
+        (item) =>
+          item.articleCode?.toLowerCase().includes(q) ||
+          item.productName?.toLowerCase().includes(q) ||
+          item.description?.toLowerCase().includes(q),
+      );
+
+      if (matchingItems.length > 0) {
+        results.push({
+          orderId: order.id,
+          orderDate: order.createdAt || order.updatedAt || "",
+          items: matchingItems.map((item) => ({
+            articleCode: item.articleCode,
+            productName: item.productName,
+            description: item.description,
+            quantity: item.quantity,
+            price: item.price,
+            discount: item.discount,
+            vat: item.vat,
+          })),
+        });
+      }
+    }
+
+    results.sort((a, b) => b.orderDate.localeCompare(a.orderDate));
+    setHistorySearchResults(results);
+  };
+
+  const historySearchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(
+    null,
+  );
+
+  const handleHistorySearchChange = (value: string) => {
+    setHistorySearchQuery(value);
+    if (historySearchDebounceRef.current) {
+      clearTimeout(historySearchDebounceRef.current);
+    }
+    historySearchDebounceRef.current = setTimeout(() => {
+      searchInHistory(value);
+    }, 300);
+  };
+
+  const selectArticleFromHistory = async (articleCode: string) => {
+    const products = await productService.searchProducts(articleCode);
+    if (products.length > 0) {
+      handleSelectProduct(products[0]);
+    }
+    setShowTopSoldModal(false);
+    setShowHistorySearchModal(false);
   };
 
   // Handle keyboard navigation in product dropdown
@@ -1003,16 +1209,25 @@ export default function OrderFormSimple() {
       }
     };
     autoLoad();
-  }, [loadingOrder, editingOrderId, selectedCustomer, items, draftOrders, loadDraftIntoForm]);
+  }, [
+    loadingOrder,
+    editingOrderId,
+    selectedCustomer,
+    items,
+    draftOrders,
+    loadDraftIntoForm,
+  ]);
 
   // === MULTI-DEVICE WATCHER ===
   useEffect(() => {
     if (!draftId || draftOrders.length === 0) return;
 
-    const currentDraft = draftOrders.find(d => d.id === draftId);
+    const currentDraft = draftOrders.find((d) => d.id === draftId);
 
     if (!currentDraft) {
-      console.log("[OrderForm] Draft disappeared from other device, resetting form");
+      console.log(
+        "[OrderForm] Draft disappeared from other device, resetting form",
+      );
       setDraftId(null);
       setSelectedCustomer(null);
       setCustomerSearch("");
@@ -1023,7 +1238,10 @@ export default function OrderFormSimple() {
       return;
     }
 
-    if (lastDraftUpdatedAtRef.current && currentDraft.updatedAt > lastDraftUpdatedAtRef.current) {
+    if (
+      lastDraftUpdatedAtRef.current &&
+      currentDraft.updatedAt > lastDraftUpdatedAtRef.current
+    ) {
       console.log("[OrderForm] Draft updated from other device, reloading");
       lastDraftUpdatedAtRef.current = currentDraft.updatedAt;
       loadDraftIntoForm(currentDraft.id!);
@@ -2096,24 +2314,35 @@ export default function OrderFormSimple() {
                             marginLeft: customer.taxCode ? "0.75rem" : 0,
                           }}
                         >
-                          {[customer.address, customer.cap, customer.city && `${customer.city}${customer.province ? ` (${customer.province})` : ''}`].filter(Boolean).join(', ')}
+                          {[
+                            customer.address,
+                            customer.cap,
+                            customer.city &&
+                              `${customer.city}${customer.province ? ` (${customer.province})` : ""}`,
+                          ]
+                            .filter(Boolean)
+                            .join(", ")}
                         </span>
                       )}
-                      {customer.lastOrderDate && customer.lastOrderDate > new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString() && (
-                        <span
-                          style={{
-                            marginLeft: "0.5rem",
-                            background: "#dcfce7",
-                            color: "#166534",
-                            padding: "0.1rem 0.4rem",
-                            borderRadius: "4px",
-                            fontSize: isMobile ? "0.7rem" : "0.65rem",
-                            fontWeight: "500",
-                          }}
-                        >
-                          Ordine recente
-                        </span>
-                      )}
+                      {customer.lastOrderDate &&
+                        customer.lastOrderDate >
+                          new Date(
+                            Date.now() - 30 * 24 * 60 * 60 * 1000,
+                          ).toISOString() && (
+                          <span
+                            style={{
+                              marginLeft: "0.5rem",
+                              background: "#dcfce7",
+                              color: "#166534",
+                              padding: "0.1rem 0.4rem",
+                              borderRadius: "4px",
+                              fontSize: isMobile ? "0.7rem" : "0.65rem",
+                              fontWeight: "500",
+                            }}
+                          >
+                            Ordine recente
+                          </span>
+                        )}
                     </div>
                   </div>
                 ))}
@@ -2174,6 +2403,55 @@ export default function OrderFormSimple() {
           </div>
         )}
       </div>
+
+      {/* Fresis history tabs: Top Sold & Search History */}
+      {selectedCustomer && isFresis(selectedCustomer) && selectedSubClient && (
+        <div
+          style={{
+            display: "flex",
+            flexWrap: "wrap",
+            gap: "0.5rem",
+            marginBottom: "1rem",
+          }}
+        >
+          <button
+            onClick={loadTopSoldItems}
+            style={{
+              padding: isMobile ? "0.75rem 1rem" : "0.5rem 1rem",
+              background: "#7c3aed",
+              color: "white",
+              border: "none",
+              borderRadius: "6px",
+              fontSize: isMobile ? "0.875rem" : "0.875rem",
+              fontWeight: "600",
+              cursor: "pointer",
+              minHeight: isMobile ? "44px" : "auto",
+            }}
+          >
+            I più venduti
+          </button>
+          <button
+            onClick={() => {
+              setHistorySearchQuery("");
+              setHistorySearchResults([]);
+              setShowHistorySearchModal(true);
+            }}
+            style={{
+              padding: isMobile ? "0.75rem 1rem" : "0.5rem 1rem",
+              background: "#2563eb",
+              color: "white",
+              border: "none",
+              borderRadius: "6px",
+              fontSize: isMobile ? "0.875rem" : "0.875rem",
+              fontWeight: "600",
+              cursor: "pointer",
+              minHeight: isMobile ? "44px" : "auto",
+            }}
+          >
+            Cerca nello Storico
+          </button>
+        </div>
+      )}
 
       {/* STEP 2: ADD PRODUCTS WITH INTELLIGENT VARIANT SELECTION */}
       {selectedCustomer &&
@@ -2289,61 +2567,36 @@ export default function OrderFormSimple() {
               <>
                 <div
                   style={{
-                    padding: "1.25rem",
+                    padding: isMobile ? "0.75rem" : "1rem",
                     background: "#dbeafe",
                     border: "2px solid #3b82f6",
                     borderRadius: "8px",
                     marginBottom: "1rem",
                   }}
                 >
-                  <div
-                    style={{
-                      display: "flex",
-                      justifyContent: "space-between",
-                      alignItems: "flex-start",
-                      marginBottom: "1rem",
-                    }}
-                  >
-                    <div>
-                      <strong
-                        style={{ fontSize: "1.125rem", color: "#1e40af" }}
-                      >
-                        Prodotto selezionato:
-                      </strong>
-                      <p style={{ margin: "0.25rem 0 0 0", fontSize: "1rem" }}>
-                        {selectedProduct.name}
-                      </p>
-                    </div>
-                  </div>
-
                   {/* Variants Information Table */}
                   {productVariants.length > 0 ? (
                     <div
                       style={{
-                        padding: isMobile ? "0.75rem" : "1rem",
+                        padding: isMobile ? "0.5rem" : "0.75rem",
                         background: "#eff6ff",
                         borderRadius: "6px",
                         overflowX: "auto",
                         position: "relative",
                       }}
                     >
-                      <div
-                        style={{
-                          fontSize: isMobile ? "0.75rem" : "0.875rem",
-                          fontWeight: "600",
-                          color: "#1e40af",
-                          marginBottom: "0.75rem",
-                        }}
-                      >
-                        Varianti disponibili:{" "}
-                        {isMobile && (
-                          <span
-                            style={{ fontWeight: "normal", fontSize: "0.7rem" }}
-                          >
-                            (scorri →)
-                          </span>
-                        )}
-                      </div>
+                      {isMobile && (
+                        <div
+                          style={{
+                            fontSize: "0.7rem",
+                            color: "#6b7280",
+                            marginBottom: "0.25rem",
+                            textAlign: "right",
+                          }}
+                        >
+                          (scorri →)
+                        </div>
+                      )}
                       <div
                         style={{
                           overflowX: "auto",
@@ -2479,6 +2732,91 @@ export default function OrderFormSimple() {
                       }}
                     >
                       Caricamento varianti...
+                    </div>
+                  )}
+
+                  {/* Storico acquisti sottocliente (amber section) */}
+                  {isFresis(selectedCustomer) &&
+                    selectedSubClient &&
+                    articleHistory && (
+                      <div
+                        style={{
+                          marginTop: "0.75rem",
+                          padding: isMobile ? "0.5rem 0.75rem" : "0.75rem 1rem",
+                          background: "#fef3c7",
+                          border: "1px solid #f59e0b",
+                          borderRadius: "6px",
+                        }}
+                      >
+                        {articleHistory.found && articleHistory.lastPurchase ? (
+                          <div
+                            style={{
+                              display: "flex",
+                              flexWrap: "wrap",
+                              gap: "0.75rem",
+                              alignItems: "center",
+                              fontSize: isMobile ? "0.75rem" : "0.8rem",
+                              color: "#92400e",
+                            }}
+                          >
+                            <span style={{ fontWeight: "600" }}>
+                              Ultimo acquisto:
+                            </span>
+                            <span>
+                              {new Date(
+                                articleHistory.lastPurchase.date,
+                              ).toLocaleDateString("it-IT")}
+                            </span>
+                            <span>
+                              Qt: {articleHistory.lastPurchase.quantity}
+                            </span>
+                            <span>
+                              Prezzo:{" "}
+                              {articleHistory.lastPurchase.price.toFixed(2)}
+                            </span>
+                            {articleHistory.lastPurchase.discount ? (
+                              <span>
+                                Sconto:{" "}
+                                {articleHistory.lastPurchase.discount.toFixed(
+                                  2,
+                                )}
+                              </span>
+                            ) : null}
+                            <span>IVA: {articleHistory.lastPurchase.vat}%</span>
+                          </div>
+                        ) : (
+                          <div
+                            style={{
+                              fontSize: isMobile ? "0.75rem" : "0.8rem",
+                              color: "#92400e",
+                              fontWeight: "500",
+                            }}
+                          >
+                            Articolo mai acquistato da questo cliente
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                  {/* Disponibilità magazzino (green section) */}
+                  {selectedProduct && (
+                    <div
+                      style={{
+                        marginTop: "0.75rem",
+                        padding: isMobile ? "0.5rem 0.75rem" : "0.75rem 1rem",
+                        background: "#d1fae5",
+                        border: "1px solid #10b981",
+                        borderRadius: "6px",
+                      }}
+                    >
+                      <WarehouseMatchAccordion
+                        articleCode={selectedProduct.article}
+                        description={selectedProduct.description}
+                        requestedQuantity={parseInt(quantity, 10) || 0}
+                        onSelect={setWarehouseSelection}
+                        excludeWarehouseItemIds={excludedWarehouseItemIds}
+                        onTotalQuantityChange={handleTotalQuantityChange}
+                      />
                     </div>
                   )}
                 </div>
@@ -2669,20 +3007,6 @@ export default function OrderFormSimple() {
                         )}
                       </>
                     )}
-                  </div>
-                )}
-
-                {/* WAREHOUSE MATCHING (PHASE 4) */}
-                {selectedProduct && (
-                  <div style={{ marginBottom: "1rem" }}>
-                    <WarehouseMatchAccordion
-                      articleCode={selectedProduct.article}
-                      description={selectedProduct.description}
-                      requestedQuantity={parseInt(quantity, 10) || 0}
-                      onSelect={setWarehouseSelection}
-                      excludeWarehouseItemIds={excludedWarehouseItemIds}
-                      onTotalQuantityChange={handleTotalQuantityChange}
-                    />
                   </div>
                 )}
 
@@ -3534,6 +3858,337 @@ export default function OrderFormSimple() {
           >
             {submitting ? "Salvataggio..." : "Salva in ordini in attesa"}
           </button>
+        </div>
+      )}
+
+      {/* Modal: I più venduti */}
+      {showTopSoldModal && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(0,0,0,0.5)",
+            zIndex: 1000,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: isMobile ? "0" : "2rem",
+          }}
+          onClick={() => setShowTopSoldModal(false)}
+        >
+          <div
+            style={{
+              background: "white",
+              borderRadius: isMobile ? "0" : "12px",
+              width: isMobile ? "100%" : "600px",
+              height: isMobile ? "100%" : "auto",
+              maxHeight: isMobile ? "100%" : "80vh",
+              display: "flex",
+              flexDirection: "column",
+              overflow: "hidden",
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div
+              style={{
+                padding: "1rem",
+                borderBottom: "1px solid #e5e7eb",
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+              }}
+            >
+              <h3 style={{ margin: 0, fontSize: "1.125rem" }}>
+                I più venduti — {selectedSubClient?.ragioneSociale}
+              </h3>
+              <button
+                onClick={() => setShowTopSoldModal(false)}
+                style={{
+                  background: "none",
+                  border: "none",
+                  fontSize: "1.5rem",
+                  cursor: "pointer",
+                  padding: "0.25rem",
+                  lineHeight: 1,
+                  color: "#6b7280",
+                }}
+              >
+                ✕
+              </button>
+            </div>
+            <div style={{ flex: 1, overflowY: "auto", padding: "0.5rem" }}>
+              {topSoldItems.length === 0 ? (
+                <div
+                  style={{
+                    padding: "2rem",
+                    textAlign: "center",
+                    color: "#6b7280",
+                  }}
+                >
+                  Nessun articolo trovato nello storico
+                </div>
+              ) : (
+                <table
+                  style={{
+                    width: "100%",
+                    borderCollapse: "collapse",
+                    fontSize: isMobile ? "0.75rem" : "0.875rem",
+                  }}
+                >
+                  <thead>
+                    <tr style={{ borderBottom: "2px solid #e5e7eb" }}>
+                      <th
+                        style={{
+                          textAlign: "left",
+                          padding: "0.5rem",
+                          fontWeight: "600",
+                          whiteSpace: "nowrap",
+                        }}
+                      >
+                        Codice
+                      </th>
+                      <th
+                        style={{
+                          textAlign: "left",
+                          padding: "0.5rem",
+                          fontWeight: "600",
+                        }}
+                      >
+                        Descrizione
+                      </th>
+                      <th
+                        style={{
+                          textAlign: "right",
+                          padding: "0.5rem",
+                          fontWeight: "600",
+                          whiteSpace: "nowrap",
+                        }}
+                      >
+                        Qt. Totale
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {topSoldItems.map((item, index) => (
+                      <tr
+                        key={item.articleCode + index}
+                        onClick={() =>
+                          selectArticleFromHistory(item.articleCode)
+                        }
+                        style={{
+                          borderBottom: "1px solid #f3f4f6",
+                          cursor: "pointer",
+                        }}
+                        onMouseEnter={(e) => {
+                          e.currentTarget.style.background = "#f3f4f6";
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.background = "transparent";
+                        }}
+                      >
+                        <td
+                          style={{
+                            padding: "0.5rem",
+                            fontFamily: "monospace",
+                            fontSize: isMobile ? "0.7rem" : "0.8rem",
+                            whiteSpace: "nowrap",
+                          }}
+                        >
+                          {item.articleCode}
+                        </td>
+                        <td style={{ padding: "0.5rem" }}>
+                          {item.productName}
+                          {item.description && (
+                            <div
+                              style={{
+                                fontSize: "0.7rem",
+                                color: "#6b7280",
+                              }}
+                            >
+                              {item.description}
+                            </div>
+                          )}
+                        </td>
+                        <td
+                          style={{
+                            padding: "0.5rem",
+                            textAlign: "right",
+                            fontWeight: "600",
+                          }}
+                        >
+                          {item.totalQuantity}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal: Cerca nello Storico */}
+      {showHistorySearchModal && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(0,0,0,0.5)",
+            zIndex: 1000,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: isMobile ? "0" : "2rem",
+          }}
+          onClick={() => setShowHistorySearchModal(false)}
+        >
+          <div
+            style={{
+              background: "white",
+              borderRadius: isMobile ? "0" : "12px",
+              width: isMobile ? "100%" : "600px",
+              height: isMobile ? "100%" : "auto",
+              maxHeight: isMobile ? "100%" : "80vh",
+              display: "flex",
+              flexDirection: "column",
+              overflow: "hidden",
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div
+              style={{
+                padding: "1rem",
+                borderBottom: "1px solid #e5e7eb",
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+              }}
+            >
+              <h3 style={{ margin: 0, fontSize: "1.125rem" }}>
+                Cerca nello Storico — {selectedSubClient?.ragioneSociale}
+              </h3>
+              <button
+                onClick={() => setShowHistorySearchModal(false)}
+                style={{
+                  background: "none",
+                  border: "none",
+                  fontSize: "1.5rem",
+                  cursor: "pointer",
+                  padding: "0.25rem",
+                  lineHeight: 1,
+                  color: "#6b7280",
+                }}
+              >
+                ✕
+              </button>
+            </div>
+            <div style={{ padding: "0.75rem 1rem" }}>
+              <input
+                type="text"
+                value={historySearchQuery}
+                onChange={(e) => handleHistorySearchChange(e.target.value)}
+                placeholder="Cerca per codice articolo o descrizione..."
+                autoFocus
+                style={{
+                  width: "100%",
+                  padding: isMobile ? "0.875rem" : "0.75rem",
+                  fontSize: isMobile ? "16px" : "1rem",
+                  border: "1px solid #d1d5db",
+                  borderRadius: "6px",
+                }}
+              />
+            </div>
+            <div
+              style={{ flex: 1, overflowY: "auto", padding: "0 0.5rem 0.5rem" }}
+            >
+              {historySearchResults.length === 0 &&
+                historySearchQuery.trim() && (
+                  <div
+                    style={{
+                      padding: "2rem",
+                      textAlign: "center",
+                      color: "#6b7280",
+                    }}
+                  >
+                    Nessun risultato
+                  </div>
+                )}
+              {historySearchResults.map((order) => (
+                <div
+                  key={order.orderId}
+                  style={{
+                    marginBottom: "0.75rem",
+                    border: "1px solid #e5e7eb",
+                    borderRadius: "6px",
+                    overflow: "hidden",
+                  }}
+                >
+                  <div
+                    style={{
+                      padding: "0.5rem 0.75rem",
+                      background: "#f9fafb",
+                      fontSize: isMobile ? "0.75rem" : "0.8rem",
+                      fontWeight: "600",
+                      color: "#374151",
+                    }}
+                  >
+                    Ordine del{" "}
+                    {new Date(order.orderDate).toLocaleDateString("it-IT")}
+                  </div>
+                  {order.items.map((item, idx) => (
+                    <div
+                      key={idx}
+                      onClick={() => selectArticleFromHistory(item.articleCode)}
+                      style={{
+                        padding: "0.5rem 0.75rem",
+                        borderTop: "1px solid #f3f4f6",
+                        cursor: "pointer",
+                        display: "flex",
+                        flexWrap: "wrap",
+                        gap: "0.5rem",
+                        alignItems: "center",
+                        fontSize: isMobile ? "0.75rem" : "0.8rem",
+                      }}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.background = "#f3f4f6";
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.background = "transparent";
+                      }}
+                    >
+                      <span
+                        style={{
+                          fontFamily: "monospace",
+                          fontWeight: "600",
+                          fontSize: isMobile ? "0.7rem" : "0.75rem",
+                        }}
+                      >
+                        {item.articleCode}
+                      </span>
+                      {item.productName && (
+                        <span style={{ color: "#374151" }}>
+                          {item.productName}
+                        </span>
+                      )}
+                      <span style={{ color: "#6b7280" }}>
+                        Qt: {item.quantity}
+                      </span>
+                      <span style={{ color: "#6b7280" }}>
+                        €{item.price.toFixed(2)}
+                      </span>
+                      {item.discount ? (
+                        <span style={{ color: "#dc2626" }}>
+                          Sc: €{item.discount.toFixed(2)}
+                        </span>
+                      ) : null}
+                      <span style={{ color: "#059669" }}>IVA {item.vat}%</span>
+                    </div>
+                  ))}
+                </div>
+              ))}
+            </div>
+          </div>
         </div>
       )}
     </div>
