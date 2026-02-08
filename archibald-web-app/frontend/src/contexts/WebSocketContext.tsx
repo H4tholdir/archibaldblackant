@@ -39,6 +39,7 @@ const TOKEN_KEY = "archibald_jwt";
 const INITIAL_RECONNECT_DELAY = 1000; // 1 second
 const MAX_RECONNECT_DELAY = 30000; // 30 seconds
 const RECONNECT_MULTIPLIER = 2;
+const WATCHDOG_INTERVAL = 30000; // 30 seconds - check connection health
 
 // WebSocket endpoint (production: wss://formicanera.com/ws/realtime)
 const getWebSocketUrl = (): string => {
@@ -195,7 +196,10 @@ export function WebSocketProvider({ children }: WebSocketProviderProps) {
    * Connect to WebSocket server
    */
   const connect = useCallback(() => {
-    if (wsRef.current?.readyState === WebSocket.OPEN) {
+    if (
+      wsRef.current?.readyState === WebSocket.OPEN ||
+      wsRef.current?.readyState === WebSocket.CONNECTING
+    ) {
       return;
     }
 
@@ -284,6 +288,61 @@ export function WebSocketProvider({ children }: WebSocketProviderProps) {
       disconnect();
     };
   }, [connect, disconnect]);
+
+  /**
+   * Watchdog: periodically verify connection is alive, reconnect if dead
+   */
+  useEffect(() => {
+    const watchdog = setInterval(() => {
+      if (isIntentionalCloseRef.current) return;
+      const ws = wsRef.current;
+      if (!ws || ws.readyState === WebSocket.CLOSED) {
+        console.log("[WebSocket] Watchdog: connection dead, reconnecting");
+        reconnectDelayRef.current = INITIAL_RECONNECT_DELAY;
+        connect();
+      }
+    }, WATCHDOG_INTERVAL);
+
+    return () => clearInterval(watchdog);
+  }, [connect]);
+
+  /**
+   * Visibility change: reconnect when tab becomes visible
+   */
+  useEffect(() => {
+    const handleVisibility = () => {
+      if (
+        document.visibilityState === "visible" &&
+        !isIntentionalCloseRef.current
+      ) {
+        const ws = wsRef.current;
+        if (!ws || ws.readyState !== WebSocket.OPEN) {
+          console.log("[WebSocket] Tab visible, forcing reconnect");
+          reconnectDelayRef.current = INITIAL_RECONNECT_DELAY;
+          connect();
+        }
+      }
+    };
+
+    document.addEventListener("visibilitychange", handleVisibility);
+    return () =>
+      document.removeEventListener("visibilitychange", handleVisibility);
+  }, [connect]);
+
+  /**
+   * Online/offline: reconnect immediately when network comes back
+   */
+  useEffect(() => {
+    const handleOnline = () => {
+      if (isIntentionalCloseRef.current) return;
+      console.log("[WebSocket] Network online, forcing reconnect");
+      reconnectDelayRef.current = INITIAL_RECONNECT_DELAY;
+      connect();
+    };
+
+    window.addEventListener("online", handleOnline);
+    return () => window.removeEventListener("online", handleOnline);
+  }, [connect]);
 
   const value: WebSocketHookReturn = {
     state,
