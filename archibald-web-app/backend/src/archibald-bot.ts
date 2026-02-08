@@ -2438,6 +2438,18 @@ export class ArchibaldBot {
 
         // Save session cookies to persistent cache
         const cookies = await this.page.cookies();
+        logger.info("Cookies after login", {
+          cookieNames: cookies.map((c) => c.name),
+          cookieDetails: cookies.map((c) => ({
+            name: c.name,
+            domain: c.domain,
+            path: c.path,
+            secure: c.secure,
+            httpOnly: c.httpOnly,
+            session: c.session,
+            expires: c.expires,
+          })),
+        });
         // Map cookies to Protocol.Network.Cookie format (use type assertion to handle version mismatch)
         const protocolCookies = cookies as any;
 
@@ -7161,6 +7173,12 @@ export class ArchibaldBot {
 
     const searchName = originalName || customerData.name;
     logger.info("Updating customer", { customerProfile, searchName, newName: customerData.name });
+
+    const cookiesBefore = await this.page.cookies();
+    logger.info("Cookies before customer list navigation", {
+      cookieNames: cookiesBefore.map((c) => c.name),
+      currentUrl: this.page.url(),
+    });
 
     await this.page.goto(`${config.archibald.url}/CUSTTABLE_ListView_Agent/`, {
       waitUntil: "networkidle2",
