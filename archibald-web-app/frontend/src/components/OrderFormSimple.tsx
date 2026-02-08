@@ -259,7 +259,7 @@ export default function OrderFormSimple() {
       return;
     }
 
-    const discountPercent = parseFloat(globalDiscountPercent) || 0;
+    const discountPercent = parseFloat(globalDiscountPercent.replace(",", ".")) || 0;
 
     const calculateRevenue = async () => {
       let totalRevenue = 0;
@@ -1466,7 +1466,7 @@ export default function OrderFormSimple() {
     }
 
     // Get discount (will be applied to total, not per line)
-    const disc = parseFloat(itemDiscount) || 0;
+    const disc = parseFloat(itemDiscount.replace(",", ".")) || 0;
 
     const warehouseSources =
       warehouseQty > 0
@@ -1810,7 +1810,7 @@ export default function OrderFormSimple() {
     const itemsTotal = items.reduce((sum, item) => sum + item.total, 0);
 
     // Calculate discount as percentage of subtotal
-    const discountPercent = parseFloat(globalDiscountPercent) || 0;
+    const discountPercent = parseFloat(globalDiscountPercent.replace(",", ".")) || 0;
     const globalDiscAmount = (itemsSubtotal * discountPercent) / 100;
     const finalSubtotal = itemsSubtotal - globalDiscAmount;
 
@@ -2047,7 +2047,7 @@ export default function OrderFormSimple() {
         customerId: selectedCustomer.id,
         customerName: selectedCustomer.name,
         items: orderItems,
-        discountPercent: parseFloat(globalDiscountPercent) || undefined,
+        discountPercent: parseFloat(globalDiscountPercent.replace(",", ".")) || undefined,
         targetTotalWithVAT: totals.finalTotal,
         originDraftId: originDraftId || undefined,
         subClientCodice: selectedSubClient?.codice,
@@ -3504,7 +3504,7 @@ export default function OrderFormSimple() {
                 onFocus={(e) => scrollFieldIntoView(e.target)}
                 onChange={(e) => {
                   const val = e.target.value;
-                  if (val === "" || /^\d*\.?\d{0,2}$/.test(val)) {
+                  if (val === "" || /^\d*[.,]?\d{0,2}$/.test(val)) {
                     setGlobalDiscountPercent(val);
                   }
                 }}

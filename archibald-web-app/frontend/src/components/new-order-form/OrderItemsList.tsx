@@ -287,7 +287,7 @@ function EditItemModal({ item, onSave, onCancel }: EditItemModalProps) {
             id="edit-discount-value"
             type="number"
             value={discountValue}
-            onChange={(e) => setDiscountValue(parseFloat(e.target.value))}
+            onChange={(e) => setDiscountValue(parseFloat(e.target.value.replace(",", ".")) || 0)}
             style={{
               width: '100%',
               padding: '0.5rem',

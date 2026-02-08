@@ -103,10 +103,11 @@ export function DiscountSystem({
               onChange={(e) =>
                 onChange({
                   discountType,
-                  discountValue: parseFloat(e.target.value) || 0,
+                  discountValue:
+                    parseFloat(e.target.value.replace(",", ".")) || 0,
                 })
               }
-              placeholder={discountType === "percentage" ? "0-100" : "0.00"}
+              placeholder={discountType === "percentage" ? "0-100" : "0,00"}
               style={{
                 width: "100%",
                 padding: "0.5rem",
@@ -135,9 +136,11 @@ export function DiscountSystem({
               type="number"
               value={targetTotal}
               onChange={(e) =>
-                handleTargetTotalChange(parseFloat(e.target.value) || 0)
+                handleTargetTotalChange(
+                  parseFloat(e.target.value.replace(",", ".")) || 0,
+                )
               }
-              placeholder="0.00"
+              placeholder="0,00"
               style={{
                 width: "100%",
                 padding: "0.5rem",
