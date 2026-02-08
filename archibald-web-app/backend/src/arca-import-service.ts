@@ -81,21 +81,20 @@ interface ParseResult {
   };
 }
 
-async function writeTempFile(buffer: Buffer, suffix: string): Promise<string> {
-  const tmpDir = path.join(os.tmpdir(), "archibald-arca-import");
+function createTempDir(): string {
+  const tmpDir = path.join(
+    os.tmpdir(),
+    `archibald-arca-import-${Date.now()}`,
+  );
   fs.mkdirSync(tmpDir, { recursive: true });
-  const filePath = path.join(tmpDir, `import_${Date.now()}${suffix}`);
-  fs.writeFileSync(filePath, buffer);
-  return filePath;
+  return tmpDir;
 }
 
-function cleanupTempFiles(paths: string[]): void {
-  for (const p of paths) {
-    try {
-      fs.unlinkSync(p);
-    } catch {
-      // ignore
-    }
+function cleanupTempDir(dirPath: string): void {
+  try {
+    fs.rmSync(dirPath, { recursive: true, force: true });
+  } catch {
+    // ignore
   }
 }
 
@@ -113,26 +112,31 @@ function formatDate(d: unknown): string | null {
 }
 
 export async function parseArcaExport(
-  files: {
-    dt: Buffer;
-    dr: Buffer;
-    cf: Buffer;
-    ar?: Buffer;
-  },
+  uploadedFiles: Array<{ originalName: string; buffer: Buffer }>,
   userId: string,
 ): Promise<ParseResult> {
-  const tempFiles: string[] = [];
+  const tmpDir = createTempDir();
   const errors: string[] = [];
 
   try {
-    // Write buffers to temp files (dbffile requires file paths)
-    const dtPath = await writeTempFile(files.dt, "_DT.DBF");
-    const drPath = await writeTempFile(files.dr, "_DR.DBF");
-    const cfPath = await writeTempFile(files.cf, "_CF.DBF");
-    tempFiles.push(dtPath, drPath, cfPath);
+    // Write ALL files preserving original names so dbffile finds .DBT companions
+    let dtPath: string | null = null;
+    let drPath: string | null = null;
+    let cfPath: string | null = null;
 
-    // Also write .DBT memo files if they exist alongside the DBF data
-    // dbffile handles memo fields automatically if .DBT is in same directory
+    for (const file of uploadedFiles) {
+      const filePath = path.join(tmpDir, file.originalName);
+      fs.writeFileSync(filePath, file.buffer);
+
+      const nameUpper = file.originalName.toUpperCase();
+      if (nameUpper.endsWith("DT.DBF")) dtPath = filePath;
+      else if (nameUpper.endsWith("DR.DBF")) drPath = filePath;
+      else if (nameUpper.endsWith("CF.DBF")) cfPath = filePath;
+    }
+
+    if (!dtPath || !drPath || !cfPath) {
+      throw new Error("File DT, DR o CF mancanti");
+    }
 
     // 1. Parse CF → client map
     const cfFile = await DBFFile.open(cfPath, { encoding: "latin1" });
@@ -293,6 +297,6 @@ export async function parseArcaExport(
       },
     };
   } finally {
-    cleanupTempFiles(tempFiles);
+    cleanupTempDir(tmpDir);
   }
 }

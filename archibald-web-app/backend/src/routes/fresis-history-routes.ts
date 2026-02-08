@@ -320,20 +320,16 @@ router.post(
         });
       }
 
-      let dtBuffer: Buffer | null = null;
-      let drBuffer: Buffer | null = null;
-      let cfBuffer: Buffer | null = null;
-      let arBuffer: Buffer | null = null;
+      const uploadedFiles = files.map((f) => ({
+        originalName: f.originalname,
+        buffer: f.buffer,
+      }));
 
-      for (const file of files) {
-        const name = file.originalname.toUpperCase();
-        if (name.endsWith("DT.DBF")) dtBuffer = file.buffer;
-        else if (name.endsWith("DR.DBF")) drBuffer = file.buffer;
-        else if (name.endsWith("CF.DBF")) cfBuffer = file.buffer;
-        else if (name.endsWith("AR.DBF")) arBuffer = file.buffer;
-      }
+      const hasRequired = ["DT.DBF", "DR.DBF", "CF.DBF"].every((suffix) =>
+        files.some((f) => f.originalname.toUpperCase().endsWith(suffix)),
+      );
 
-      if (!dtBuffer || !drBuffer || !cfBuffer) {
+      if (!hasRequired) {
         return res.status(400).json({
           success: false,
           error:
@@ -341,10 +337,7 @@ router.post(
         });
       }
 
-      const result = await parseArcaExport(
-        { dt: dtBuffer, dr: drBuffer, cf: cfBuffer, ar: arBuffer ?? undefined },
-        userId,
-      );
+      const result = await parseArcaExport(uploadedFiles, userId);
 
       // Insert records into database
       const insertStmt = usersDb.prepare(`

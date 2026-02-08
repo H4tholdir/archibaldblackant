@@ -122,14 +122,15 @@ export function ArcaImportModal({
               almeno: <strong>*DT.DBF</strong> (teste documento),{" "}
               <strong>*DR.DBF</strong> (righe documento),{" "}
               <strong>*CF.DBF</strong> (clienti). Opzionale:{" "}
-              <strong>*AR.DBF</strong> (articoli).
+              <strong>*AR.DBF</strong> (articoli). Includere anche i file{" "}
+              <strong>*.DBT</strong> se presenti.
             </p>
 
             <input
               ref={fileInputRef}
               type="file"
               multiple
-              accept=".dbf,.DBF"
+              accept=".dbf,.DBF,.dbt,.DBT"
               onChange={handleFileChange}
               style={{ display: "none" }}
             />
@@ -162,6 +163,7 @@ export function ArcaImportModal({
                 </div>
                 {files.map((f, i) => {
                   const name = f.name.toUpperCase();
+                  const isDBT = name.endsWith(".DBT");
                   const isDT = name.endsWith("DT.DBF");
                   const isDR = name.endsWith("DR.DBF");
                   const isCF = name.endsWith("CF.DBF");
@@ -174,7 +176,9 @@ export function ArcaImportModal({
                         ? "CF"
                         : isAR
                           ? "AR"
-                          : null;
+                          : isDBT
+                            ? "DBT"
+                            : null;
 
                   return (
                     <div
