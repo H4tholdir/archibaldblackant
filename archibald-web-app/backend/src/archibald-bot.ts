@@ -2429,11 +2429,9 @@ export class ArchibaldBot {
       );
 
       const currentUrl = this.page.url();
+      const urlPath = new URL(currentUrl).pathname;
 
-      if (
-        currentUrl.includes("Default.aspx") ||
-        !currentUrl.includes("Login.aspx")
-      ) {
+      if (!urlPath.includes("Login.aspx")) {
         logger.info("Login riuscito!", { url: currentUrl });
 
         // Save session cookies to persistent cache
@@ -2464,7 +2462,16 @@ export class ArchibaldBot {
           this.legacySessionCache.saveSession(protocolCookies);
         }
       } else {
-        throw new Error("Login fallito: ancora sulla pagina di login");
+        const loginPageError = await this.page.evaluate(() => {
+          const errorEl = document.querySelector(".dxeErrorCell, .error, .validation-summary-errors, [class*='error']");
+          return errorEl?.textContent?.trim() || document.body?.innerText?.substring(0, 300);
+        });
+        logger.error("Login fallito - pagina di login ancora visibile", {
+          url: currentUrl,
+          urlPath,
+          pageContent: loginPageError,
+        });
+        throw new Error(`Login fallito: ancora sulla pagina di login. ${loginPageError ? `Dettaglio: ${loginPageError.substring(0, 100)}` : ""}`);
       }
     } catch (error) {
       const errorMessage =
