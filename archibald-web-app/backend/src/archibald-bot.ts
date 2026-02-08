@@ -4281,6 +4281,13 @@ export class ArchibaldBot {
                   if (updateResult.clicked) {
                     logger.info("✅ UpdateEdit via DOM click");
                     updateDone = true;
+                    // Wait for the grid to finish its server callback.
+                    // With slowMo reduced from 200→50ms, the bot fires
+                    // operations much faster; the ERP needs time to complete
+                    // UpdateEdit callbacks especially on paginated grids (20+ rows).
+                    if (this.salesLinesGridName) {
+                      await this.waitForGridCallback(this.salesLinesGridName, 20000);
+                    }
                     await this.waitForDevExpressIdle({
                       timeout: 4000,
                       label: `item-${i}-row-saved`,
