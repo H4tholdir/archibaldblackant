@@ -7309,12 +7309,17 @@ export class ArchibaldBot {
 
           if (rows.length === 0) return { found: false, reason: "no-rows", rowCount: 0 };
 
+          const getCellTexts = (row: Element): string[] => {
+            return Array.from(row.querySelectorAll("td")).map((c) => {
+              const clone = c.cloneNode(true) as HTMLElement;
+              clone.querySelectorAll("script, style").forEach((s) => s.remove());
+              return (clone.innerText || clone.textContent || "").replace(/\s+/g, " ").trim().toLowerCase();
+            }).filter(Boolean);
+          };
+
           for (const row of rows) {
-            const cells = Array.from(row.querySelectorAll("td"));
-            const hasExactMatch = cells.some(
-              (c) => c.textContent?.trim().toLowerCase() === nameLower,
-            );
-            if (hasExactMatch) {
+            const cellTexts = getCellTexts(row);
+            if (cellTexts.some((t) => t === nameLower)) {
               const editBtn = row.querySelector('img[title="Modifica"], a[data-args*="Edit"]');
               if (editBtn) {
                 const target = editBtn.tagName === "IMG"
@@ -7327,7 +7332,8 @@ export class ArchibaldBot {
           }
 
           for (const row of rows) {
-            if (row.textContent?.toLowerCase().includes(nameLower)) {
+            const cellTexts = getCellTexts(row);
+            if (cellTexts.some((t) => t.includes(nameLower))) {
               const editBtn = row.querySelector('img[title="Modifica"], a[data-args*="Edit"]');
               if (editBtn) {
                 const target = editBtn.tagName === "IMG"
@@ -7339,11 +7345,15 @@ export class ArchibaldBot {
             }
           }
 
+          const sampleTexts = rows.slice(0, 5).map((r) =>
+            getCellTexts(r).filter((t) => t.length > 0 && t.length < 100).join(" | "),
+          );
+
           return {
             found: false,
             reason: "no-match",
             rowCount: rows.length,
-            rowNames: rows.slice(0, 5).map((r) => r.textContent?.substring(0, 80)),
+            rowNames: sampleTexts,
           };
         },
         nameToSearch,
