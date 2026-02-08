@@ -6745,31 +6745,53 @@ export class ArchibaldBot {
     await this.waitForDevExpressIdle({ timeout: 8000, label: "save-customer" });
 
     const warningFound = await this.page.evaluate(() => {
+      // Try checkbox first (id ending with _ErrorInfo_Ch_S)
       const checkbox = document.querySelector(
         'input[id$="_ErrorInfo_Ch_S"]',
       ) as HTMLInputElement | null;
-      if (!checkbox) return false;
-      const wrapper = checkbox.closest('span[id$="_ErrorInfo_Ch_S_D"]');
-      if (wrapper) {
-        (wrapper as HTMLElement).click();
-      } else {
-        checkbox.click();
+      if (checkbox) {
+        const wrapper = checkbox.closest('span[id$="_ErrorInfo_Ch_S_D"]');
+        if (wrapper) {
+          (wrapper as HTMLElement).click();
+        } else {
+          checkbox.click();
+        }
+        return "checkbox";
       }
-      return true;
+
+      // Try "Ignore warnings" button/link in DevExpress popup
+      const allClickable = Array.from(document.querySelectorAll("a, span, button, div, td"));
+      for (const el of allClickable) {
+        const text = (el as HTMLElement).textContent?.trim();
+        if (text === "Ignore warnings" || text === "Ignora avvisi") {
+          (el as HTMLElement).click();
+          return "button";
+        }
+      }
+
+      return null;
     });
 
     if (warningFound) {
-      logger.info("Warning checkbox acknowledged, saving again");
+      logger.info("Warning acknowledged via " + warningFound + ", saving again");
       await this.waitForDevExpressIdle({ timeout: 3000, label: "warning-ack" });
 
-      const savedAgain = await saveAttempt();
-      if (!savedAgain) {
-        logger.warn("Second save attempt failed, trying direct click fallback");
-        await this.clickElementByText("Salva e chiudi", {
-          selectors: ["a", "span", "button", "li"],
-        });
+      // After clicking "Ignore warnings" button, the form may auto-save
+      // Check if form already closed before attempting second save
+      const alreadyClosed = await this.page.evaluate(
+        () => !window.location.href.includes("DetailView"),
+      );
+
+      if (!alreadyClosed) {
+        const savedAgain = await saveAttempt();
+        if (!savedAgain) {
+          logger.warn("Second save attempt failed, trying direct click fallback");
+          await this.clickElementByText("Salva e chiudi", {
+            selectors: ["a", "span", "button", "li"],
+          });
+        }
+        await this.waitForDevExpressIdle({ timeout: 8000, label: "save-customer-2" });
       }
-      await this.waitForDevExpressIdle({ timeout: 8000, label: "save-customer-2" });
     }
 
     // Verify the form actually closed (URL should navigate away from DetailView)
