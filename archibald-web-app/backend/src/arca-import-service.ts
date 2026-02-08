@@ -33,6 +33,8 @@ interface ArcaItem {
   total: number;
   unit: string;
   rowNumber: number;
+  discount: number;
+  vat: number;
 }
 
 interface FresisHistoryRow {
@@ -117,6 +119,18 @@ function deterministicId(...parts: string[]): string {
   ].join("-");
 }
 
+function parseCascadeDiscount(sconti: string): number {
+  const s = sconti.trim();
+  if (!s) return 0;
+  const parts = s.split("+").map((p) => parseFloat(p.trim()));
+  if (parts.some(isNaN)) return 0;
+  let factor = 1;
+  for (const pct of parts) {
+    factor *= 1 - pct / 100;
+  }
+  return Math.round((1 - factor) * 10000) / 100;
+}
+
 function formatDate(d: unknown): string | null {
   if (!d) return null;
   if (d instanceof Date) {
@@ -194,6 +208,9 @@ export async function parseArcaExport(
       const quantity = ((row as any).QUANTITA as number) || 0;
       const priceUnit = ((row as any).PREZZOUN as number) || 0;
       const priceTotal = ((row as any).PREZZOTOT as number) || 0;
+      const rowDiscount = parseCascadeDiscount(trimStr((row as any).SCONTI));
+      const vatCode = trimStr((row as any).ALIIVA);
+      const vat = parseFloat(vatCode) || 0;
 
       const item: ArcaItem = {
         productId: articleCode,
@@ -205,6 +222,8 @@ export async function parseArcaExport(
         total: priceTotal,
         unit: trimStr((row as any).UNMISURA),
         rowNumber: ((row as any).NUMERORIGA as number) || 0,
+        discount: rowDiscount,
+        vat,
       };
 
       if (!rowsByTesta.has(idTesta)) {
@@ -234,9 +253,18 @@ export async function parseArcaExport(
       const numerodoc = trimStr((row as any).NUMERODOC);
       const datadoc = (row as any).DATADOC;
       const totdoc = ((row as any).TOTDOC as number) || 0;
-      const totimp = ((row as any).TOTIMP as number) || 0;
+      const totmerce = ((row as any).TOTMERCE as number) || 0;
+      const totsconto = ((row as any).TOTSCONTO as number) || 0;
       const spesetr = ((row as any).SPESETR as number) || 0;
+      const speseim = ((row as any).SPESEIM as number) || 0;
+      const speseva = ((row as any).SPESEVA as number) || 0;
       const totiva = ((row as any).TOTIVA as number) || 0;
+
+      const docDiscountPercent =
+        totmerce > 0
+          ? Math.round((totsconto / totmerce) * 10000) / 100
+          : 0;
+      const totalShipping = spesetr + speseim + speseva;
 
       const client = clientMap.get(codicecf);
       if (!client) {
@@ -272,12 +300,14 @@ export async function parseArcaExport(
             description: item.description,
             quantity: item.quantity,
             price: item.price,
+            vat: item.vat,
+            discount: item.discount || undefined,
           })),
         ),
-        discount_percent: null,
+        discount_percent: docDiscountPercent || null,
         target_total_with_vat: totdoc,
-        shipping_cost: spesetr,
-        shipping_tax: null,
+        shipping_cost: totalShipping || null,
+        shipping_tax: totiva || null,
         merged_into_order_id: null,
         merged_at: null,
         created_at: invoiceDate || now,

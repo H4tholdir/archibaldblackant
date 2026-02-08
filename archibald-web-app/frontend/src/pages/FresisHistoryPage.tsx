@@ -475,6 +475,9 @@ export function FresisHistoryPage() {
           const editing = isEditingOrder(order.id);
           const isDeleting = deleteConfirmId === order.id;
           const displayItems = editing ? editState!.items : order.items;
+          const hasRowDiscounts = displayItems.some(
+            (item) => item.discount && item.discount > 0,
+          );
           const totalItems = displayItems.reduce(
             (sum, item) => sum + item.quantity,
             0,
@@ -747,6 +750,11 @@ export function FresisHistoryPage() {
                         <th style={{ padding: "0.3rem", textAlign: "right" }}>
                           Prezzo
                         </th>
+                        {hasRowDiscounts && (
+                          <th style={{ padding: "0.3rem", textAlign: "right" }}>
+                            Sc.%
+                          </th>
+                        )}
                         <th style={{ padding: "0.3rem", textAlign: "right" }}>
                           Totale
                         </th>
@@ -828,8 +836,23 @@ export function FresisHistoryPage() {
                               formatCurrency(item.price)
                             )}
                           </td>
+                          {hasRowDiscounts && (
+                            <td
+                              style={{
+                                padding: "0.3rem",
+                                textAlign: "right",
+                                color: item.discount ? "#dc2626" : "#9ca3af",
+                              }}
+                            >
+                              {item.discount ? `${item.discount}%` : "-"}
+                            </td>
+                          )}
                           <td style={{ padding: "0.3rem", textAlign: "right" }}>
-                            {formatCurrency(item.price * item.quantity)}
+                            {formatCurrency(
+                              item.price *
+                                item.quantity *
+                                (1 - (item.discount || 0) / 100),
+                            )}
                           </td>
                           {editing && (
                             <td
@@ -939,6 +962,38 @@ export function FresisHistoryPage() {
                       </div>
                     )
                   )}
+
+                  {/* Shipping & totals (read-only) */}
+                  {!editing &&
+                    (order.shippingCost || order.shippingTax || order.targetTotalWithVAT) && (
+                      <div
+                        style={{
+                          fontSize: "0.8rem",
+                          color: "#374151",
+                          marginBottom: "0.5rem",
+                          display: "flex",
+                          gap: "1rem",
+                          flexWrap: "wrap",
+                        }}
+                      >
+                        {order.shippingCost !== undefined &&
+                          order.shippingCost > 0 && (
+                            <span>
+                              Spese: {formatCurrency(order.shippingCost)}
+                            </span>
+                          )}
+                        {order.shippingTax !== undefined &&
+                          order.shippingTax > 0 && (
+                            <span>IVA: {formatCurrency(order.shippingTax)}</span>
+                          )}
+                        {order.targetTotalWithVAT !== undefined &&
+                          order.targetTotalWithVAT > 0 && (
+                            <span style={{ fontWeight: "600" }}>
+                              Totale doc.: {formatCurrency(order.targetTotalWithVAT)}
+                            </span>
+                          )}
+                      </div>
+                    )}
 
                   {/* Notes */}
                   {editing ? (
