@@ -1105,27 +1105,59 @@ export class OrderDatabaseNew {
       return 0;
     }
 
-    // Build placeholders for IN clause
     const placeholders = validOrderIds.map(() => "?").join(",");
+    const params = [userId, ...validOrderIds];
 
-    // Delete orders not in the list
-    const result = this.db
+    const staleOrderIds = this.db
       .prepare(
-        `
-      DELETE FROM orders
-      WHERE user_id = ?
-      AND id NOT IN (${placeholders})
-    `,
+        `SELECT id FROM orders WHERE user_id = ? AND id NOT IN (${placeholders})`,
       )
-      .run(userId, ...validOrderIds);
+      .all(...params) as { id: string }[];
+
+    if (staleOrderIds.length === 0) {
+      logger.info(
+        "[OrderDatabaseNew] deleteOrdersNotInList: no stale orders found",
+        { userId, validOrderIdsCount: validOrderIds.length },
+      );
+      return 0;
+    }
+
+    const staleIds = staleOrderIds.map((r) => r.id);
+    const stalePlaceholders = staleIds.map(() => "?").join(",");
+
+    logger.info(
+      "[OrderDatabaseNew] deleteOrdersNotInList: removing stale orders and their child records",
+      { userId, staleOrderIds: staleIds },
+    );
+
+    const deleteChildren = this.db.transaction(() => {
+      this.db
+        .prepare(
+          `DELETE FROM order_articles WHERE order_id IN (${stalePlaceholders})`,
+        )
+        .run(...staleIds);
+      this.db
+        .prepare(
+          `DELETE FROM order_state_history WHERE order_id IN (${stalePlaceholders})`,
+        )
+        .run(...staleIds);
+      const result = this.db
+        .prepare(
+          `DELETE FROM orders WHERE user_id = ? AND id IN (${stalePlaceholders})`,
+        )
+        .run(userId, ...staleIds);
+      return result.changes;
+    });
+
+    const deletedCount = deleteChildren();
 
     logger.info("[OrderDatabaseNew] deleteOrdersNotInList: completed", {
       userId,
       validOrderIdsCount: validOrderIds.length,
-      deletedCount: result.changes,
+      deletedCount,
     });
 
-    return result.changes;
+    return deletedCount;
   }
 
   getOrderById(userId: string, orderId: string): OrderRecord | null {
