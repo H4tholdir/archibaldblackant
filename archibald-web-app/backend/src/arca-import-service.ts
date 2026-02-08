@@ -103,6 +103,20 @@ function trimStr(val: unknown): string {
   return String(val).trim();
 }
 
+function deterministicId(...parts: string[]): string {
+  const hash = crypto
+    .createHash("sha256")
+    .update(parts.join("|"))
+    .digest("hex");
+  return [
+    hash.slice(0, 8),
+    hash.slice(8, 12),
+    hash.slice(12, 16),
+    hash.slice(16, 20),
+    hash.slice(20, 32),
+  ].join("-");
+}
+
 function formatDate(d: unknown): string | null {
   if (!d) return null;
   if (d instanceof Date) {
@@ -242,7 +256,7 @@ export async function parseArcaExport(
       const clientName = client?.ragioneSociale || codicecf;
 
       records.push({
-        id: crypto.randomUUID(),
+        id: deterministicId(userId, numerodoc, codicecf),
         user_id: userId,
         original_pending_order_id: null,
         sub_client_codice: codicecf,
