@@ -72,6 +72,9 @@ export function FresisHistoryPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [expandedOrderId, setExpandedOrderId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [selectedMonth, setSelectedMonth] = useState<Date | null>(
+    () => new Date(new Date().getFullYear(), new Date().getMonth(), 1),
+  );
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
   const [syncing, setSyncing] = useState(false);
   const [syncMessage, setSyncMessage] = useState<string | null>(null);
@@ -81,6 +84,19 @@ export function FresisHistoryPage() {
   const [showImportModal, setShowImportModal] = useState(false);
   const [linkingOrderId, setLinkingOrderId] = useState<string | null>(null);
 
+  const filterByMonth = useCallback(
+    (list: FresisHistoryOrder[]) => {
+      if (!selectedMonth) return list;
+      const year = selectedMonth.getFullYear();
+      const month = selectedMonth.getMonth();
+      return list.filter((o) => {
+        const d = new Date(o.createdAt);
+        return d.getFullYear() === year && d.getMonth() === month;
+      });
+    },
+    [selectedMonth],
+  );
+
   const loadOrders = useCallback(async () => {
     setLoading(true);
     try {
@@ -88,16 +104,16 @@ export function FresisHistoryPage() {
         const result = await fresisHistoryService.searchHistoryOrders(
           searchQuery.trim(),
         );
-        setOrders(result);
+        setOrders(filterByMonth(result));
       } else {
-        setOrders(wsOrders);
+        setOrders(filterByMonth(wsOrders));
       }
     } catch (err) {
       console.error("[FresisHistoryPage] Failed to load orders:", err);
     } finally {
       setLoading(false);
     }
-  }, [searchQuery, wsOrders]);
+  }, [searchQuery, wsOrders, filterByMonth]);
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -286,6 +302,98 @@ export function FresisHistoryPage() {
             outline: "none",
           }}
         />
+      </div>
+
+      {/* Month filter */}
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: "0.5rem",
+          marginBottom: "1rem",
+          fontSize: "0.9rem",
+        }}
+      >
+        <button
+          onClick={() => {
+            if (!selectedMonth) {
+              setSelectedMonth(
+                new Date(new Date().getFullYear(), new Date().getMonth(), 1),
+              );
+              return;
+            }
+            setSelectedMonth(
+              new Date(
+                selectedMonth.getFullYear(),
+                selectedMonth.getMonth() - 1,
+                1,
+              ),
+            );
+          }}
+          style={{
+            padding: "0.3rem 0.6rem",
+            background: "#f3f4f6",
+            border: "1px solid #d1d5db",
+            borderRadius: "4px",
+            cursor: "pointer",
+            fontSize: "1rem",
+            lineHeight: 1,
+          }}
+        >
+          &lt;
+        </button>
+        <span
+          style={{
+            minWidth: "140px",
+            textAlign: "center",
+            fontWeight: "600",
+          }}
+        >
+          {selectedMonth
+            ? selectedMonth.toLocaleDateString("it-IT", {
+                month: "long",
+                year: "numeric",
+              })
+            : "Tutti i mesi"}
+        </span>
+        <button
+          onClick={() => {
+            if (!selectedMonth) return;
+            setSelectedMonth(
+              new Date(
+                selectedMonth.getFullYear(),
+                selectedMonth.getMonth() + 1,
+                1,
+              ),
+            );
+          }}
+          disabled={!selectedMonth}
+          style={{
+            padding: "0.3rem 0.6rem",
+            background: "#f3f4f6",
+            border: "1px solid #d1d5db",
+            borderRadius: "4px",
+            cursor: selectedMonth ? "pointer" : "not-allowed",
+            fontSize: "1rem",
+            lineHeight: 1,
+          }}
+        >
+          &gt;
+        </button>
+        <button
+          onClick={() => setSelectedMonth(selectedMonth ? null : new Date(new Date().getFullYear(), new Date().getMonth(), 1))}
+          style={{
+            padding: "0.3rem 0.6rem",
+            background: selectedMonth ? "#e5e7eb" : "#3b82f6",
+            color: selectedMonth ? "#374151" : "white",
+            border: "1px solid #d1d5db",
+            borderRadius: "4px",
+            cursor: "pointer",
+            fontSize: "0.8rem",
+          }}
+        >
+          {selectedMonth ? "Tutti" : "Mese corrente"}
+        </button>
       </div>
 
       {/* Action buttons */}
