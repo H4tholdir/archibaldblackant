@@ -18,6 +18,7 @@ export interface Customer {
   // Contact Information
   phone?: string; // Telefono
   mobile?: string; // Cellulare
+  email?: string; // Email
   url?: string; // Website
   attentionTo?: string; // Contact person
 
@@ -176,6 +177,7 @@ export class CustomerDatabase {
       { column: "ourAccountNumber", type: "TEXT" },
       { column: "botStatus", type: "TEXT DEFAULT 'placed'" },
       { column: "archibaldName", type: "TEXT" },
+      { column: "email", type: "TEXT" },
     ];
 
     for (const migration of migrations) {
@@ -220,6 +222,7 @@ export class CustomerDatabase {
       customer.pec,
       customer.phone,
       customer.mobile,
+      customer.email,
       customer.url,
       customer.attentionTo,
       customer.street,
@@ -679,6 +682,7 @@ export class CustomerDatabase {
       street: formData.street ?? undefined,
       postalCode: formData.postalCode ?? undefined,
       phone: formData.phone ?? undefined,
+      email: formData.email ?? undefined,
       deliveryTerms: formData.deliveryMode ?? undefined,
     };
 
@@ -687,9 +691,9 @@ export class CustomerDatabase {
     const stmt = this.db.prepare(`
       INSERT INTO customers (
         customerProfile, name, vatNumber, pec, sdi, street, postalCode, phone,
-        deliveryTerms, hash, lastSync, botStatus
+        email, deliveryTerms, hash, lastSync, botStatus
       )
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       ON CONFLICT(customerProfile) DO UPDATE SET
         name = excluded.name,
         vatNumber = excluded.vatNumber,
@@ -698,6 +702,7 @@ export class CustomerDatabase {
         street = excluded.street,
         postalCode = excluded.postalCode,
         phone = excluded.phone,
+        email = excluded.email,
         deliveryTerms = excluded.deliveryTerms,
         hash = excluded.hash,
         lastSync = excluded.lastSync,
@@ -714,6 +719,7 @@ export class CustomerDatabase {
       formData.street ?? null,
       formData.postalCode ?? null,
       formData.phone ?? null,
+      formData.email ?? null,
       formData.deliveryMode ?? null,
       hash,
       now,

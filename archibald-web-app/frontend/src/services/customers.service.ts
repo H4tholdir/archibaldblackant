@@ -255,7 +255,7 @@ export class CustomerService {
     postalCodeCountry?: string;
     deliveryPostalCodeCity?: string;
     deliveryPostalCodeCountry?: string;
-  }): Promise<Customer | null> {
+  }): Promise<{ customer: Customer | null; taskId: string | null }> {
     try {
       const response = await fetchWithRetry("/api/customers", {
         method: "POST",
@@ -269,13 +269,14 @@ export class CustomerService {
 
       const data = await response.json();
       const customer: Customer | undefined = data.data?.customer;
+      const taskId: string | undefined = data.data?.taskId;
 
       if (customer && customer.id) {
         const customersTable = this.db.table<Customer, string>("customers");
         await customersTable.put(customer);
       }
 
-      return customer ?? null;
+      return { customer: customer ?? null, taskId: taskId ?? null };
     } catch (error) {
       console.error("[CustomerService] createCustomer failed:", error);
       throw error;
@@ -305,7 +306,7 @@ export class CustomerService {
       deliveryPostalCodeCity?: string;
       deliveryPostalCodeCountry?: string;
     },
-  ): Promise<void> {
+  ): Promise<{ taskId: string | null }> {
     const response = await fetchWithRetry(
       `/api/customers/${encodeURIComponent(customerProfile)}`,
       {
@@ -319,8 +320,10 @@ export class CustomerService {
       throw new Error(`Update failed: ${response.status}`);
     }
 
-    // Refresh cache in background
-    this.syncCustomers().catch(() => {});
+    const data = await response.json();
+    const taskId: string | undefined = data.data?.taskId;
+
+    return { taskId: taskId ?? null };
   }
 
   /**

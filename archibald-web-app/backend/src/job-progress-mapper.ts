@@ -63,6 +63,22 @@ export function formatProgressLabel(
   return formatted;
 }
 
+const CUSTOMER_PROGRESS_MILESTONES: Record<string, { progress: number; label: string }> = {
+  "customer.navigation": { progress: 15, label: "Navigazione alla lista clienti" },
+  "customer.search": { progress: 30, label: "Ricerca cliente" },
+  "customer.edit_loaded": { progress: 40, label: "Scheda modifica aperta" },
+  "customer.field": { progress: 60, label: "Aggiornamento campi" },
+  "customer.save": { progress: 85, label: "Salvataggio in corso" },
+  "customer.sync": { progress: 95, label: "Sincronizzazione dati" },
+  "customer.complete": { progress: 100, label: "Completato" },
+};
+
+export function getCustomerProgressMilestone(
+  category: string,
+): { progress: number; label: string } | null {
+  return CUSTOMER_PROGRESS_MILESTONES[category] ?? null;
+}
+
 export function getProgressMilestone(
   operationCategory: string,
   metadata?: Record<string, any>,

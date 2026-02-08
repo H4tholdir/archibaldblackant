@@ -2313,108 +2313,105 @@ export class ArchibaldBot {
         );
       }
 
-      const fillResult = await this.runOp(
-        "login.fillAndSubmit",
-        async () =>
-          this.page!.evaluate(
-            (user: string, pass: string) => {
-              const textInputs = Array.from(
-                document.querySelectorAll('input[type="text"]'),
-              ) as HTMLInputElement[];
-              const userInput =
-                textInputs.find(
-                  (i) =>
-                    i.id.includes("UserName") ||
-                    i.name.includes("UserName") ||
-                    i.placeholder?.toLowerCase().includes("account") ||
-                    i.placeholder?.toLowerCase().includes("username"),
-                ) || textInputs[0];
+      // Step 1: Find login fields
+      const fields = await this.page!.evaluate(() => {
+        const textInputs = Array.from(
+          document.querySelectorAll('input[type="text"]'),
+        ) as HTMLInputElement[];
+        const userInput =
+          textInputs.find(
+            (i) =>
+              i.id.includes("UserName") ||
+              i.name.includes("UserName") ||
+              i.placeholder?.toLowerCase().includes("account") ||
+              i.placeholder?.toLowerCase().includes("username"),
+          ) || textInputs[0];
 
-              const passInput = document.querySelector(
-                'input[type="password"]',
-              ) as HTMLInputElement | null;
+        const passInput = document.querySelector(
+          'input[type="password"]',
+        ) as HTMLInputElement | null;
 
-              if (!userInput || !passInput) {
-                return {
-                  ok: false,
-                  error: "fields-not-found",
-                  userField: null,
-                  passField: null,
-                };
-              }
+        if (!userInput || !passInput) return null;
+        return { userFieldId: userInput.id, passFieldId: passInput.id };
+      });
 
-              const setter = Object.getOwnPropertyDescriptor(
-                HTMLInputElement.prototype,
-                "value",
-              )?.set;
-              if (setter) {
-                setter.call(userInput, user);
-                userInput.dispatchEvent(
-                  new Event("input", { bubbles: true }),
-                );
-                userInput.dispatchEvent(
-                  new Event("change", { bubbles: true }),
-                );
-
-                setter.call(passInput, pass);
-                passInput.dispatchEvent(
-                  new Event("input", { bubbles: true }),
-                );
-                passInput.dispatchEvent(
-                  new Event("change", { bubbles: true }),
-                );
-              } else {
-                userInput.value = user;
-                userInput.dispatchEvent(
-                  new Event("input", { bubbles: true }),
-                );
-                passInput.value = pass;
-                passInput.dispatchEvent(
-                  new Event("input", { bubbles: true }),
-                );
-              }
-
-              const buttons = Array.from(
-                document.querySelectorAll(
-                  'button, input[type="submit"], a',
-                ),
-              );
-              const btnText = (b: Element) => b.textContent?.toLowerCase().replace(/\s+/g, "") || "";
-              const btnId = (b: Element) => (b as HTMLElement).id?.toLowerCase() || "";
-              const loginBtn = buttons.find(
-                (btn) =>
-                  btnText(btn).includes("accedi") ||
-                  btnText(btn).includes("login") ||
-                  btnId(btn).includes("login") ||
-                  btnId(btn).includes("logon"),
-              );
-              if (loginBtn) {
-                (loginBtn as HTMLElement).click();
-              } else {
-                passInput.form?.submit();
-              }
-
-              return {
-                ok: true,
-                error: null,
-                userField: userInput.id,
-                passField: passInput.id,
-              };
-            },
-            username,
-            password,
-          ),
-        "login",
-      );
-
-      if (!fillResult.ok) {
+      if (!fields) {
         await this.page.screenshot({ path: "logs/login-error.png" });
         throw new Error("Campi login non trovati nella pagina");
       }
 
+      // Step 2: Fill username (like setDevExpressField)
+      await this.page!.evaluate(
+        (fieldId: string, val: string) => {
+          const input = document.getElementById(fieldId) as HTMLInputElement;
+          if (!input) return;
+          input.scrollIntoView({ block: "center" });
+          input.focus();
+          input.click();
+          const setter = Object.getOwnPropertyDescriptor(
+            HTMLInputElement.prototype, "value",
+          )?.set;
+          if (setter) setter.call(input, val);
+          else input.value = val;
+          input.dispatchEvent(new Event("input", { bubbles: true }));
+          input.dispatchEvent(new Event("change", { bubbles: true }));
+        },
+        fields.userFieldId,
+        username,
+      );
+      await this.page!.keyboard.press("Tab");
+      await this.waitForDevExpressIdle({ timeout: 3000, label: "login-user" });
+
+      // Step 3: Fill password (like setDevExpressField)
+      await this.page!.evaluate(
+        (fieldId: string, val: string) => {
+          const input = document.getElementById(fieldId) as HTMLInputElement;
+          if (!input) return;
+          input.scrollIntoView({ block: "center" });
+          input.focus();
+          input.click();
+          const setter = Object.getOwnPropertyDescriptor(
+            HTMLInputElement.prototype, "value",
+          )?.set;
+          if (setter) setter.call(input, val);
+          else input.value = val;
+          input.dispatchEvent(new Event("input", { bubbles: true }));
+          input.dispatchEvent(new Event("change", { bubbles: true }));
+        },
+        fields.passFieldId,
+        password,
+      );
+      await this.page!.keyboard.press("Tab");
+      await this.waitForDevExpressIdle({ timeout: 3000, label: "login-pass" });
+
+      // Step 4: Click login button
+      const fillResult = await this.page!.evaluate(() => {
+        const buttons = Array.from(
+          document.querySelectorAll("button, input[type='submit'], a, div[role='button']"),
+        );
+        const loginBtn = buttons.find((btn) => {
+          const text = (btn.textContent || "").toLowerCase().replace(/\s+/g, "");
+          const id = ((btn as HTMLElement).id || "").toLowerCase();
+          return text.includes("accedi") ||
+            text.includes("login") ||
+            id.includes("login") ||
+            id.includes("logon");
+        });
+        if (loginBtn) {
+          (loginBtn as HTMLElement).click();
+          return { ok: true, error: null, buttonId: (loginBtn as HTMLElement).id, buttonText: loginBtn.textContent };
+        }
+        return { ok: false, error: "login-button-not-found", buttonId: null, buttonText: null };
+      });
+
+      if (!fillResult.ok) {
+        await this.page.screenshot({ path: "logs/login-error.png" });
+        throw new Error("Bottone login non trovato nella pagina");
+      }
+
       logger.debug("Credenziali inserite e login inviato", {
-        userField: fillResult.userField,
-        passField: fillResult.passField,
+        buttonId: fillResult.buttonId,
+        buttonText: fillResult.buttonText,
       });
 
       // Attendi redirect dopo login
@@ -6273,6 +6270,7 @@ export class ArchibaldBot {
           const input = document.getElementById(id) as HTMLInputElement;
           if (!input) return;
           input.focus();
+          input.click();
           const setter = Object.getOwnPropertyDescriptor(
             HTMLInputElement.prototype,
             "value",
@@ -6281,16 +6279,11 @@ export class ArchibaldBot {
           else input.value = val;
           input.dispatchEvent(new Event("input", { bubbles: true }));
           input.dispatchEvent(new Event("change", { bubbles: true }));
-          input.dispatchEvent(
-            new KeyboardEvent("keydown", { key: "Enter", code: "Enter", keyCode: 13, bubbles: true }),
-          );
-          input.dispatchEvent(
-            new KeyboardEvent("keyup", { key: "Enter", code: "Enter", keyCode: 13, bubbles: true }),
-          );
         },
         searchInputId,
         searchValue,
       );
+      await this.page.keyboard.press("Enter");
     } else {
       await this.page.keyboard.type(searchValue, { delay: 30 });
       await this.page.keyboard.press("Enter");
@@ -6442,13 +6435,15 @@ export class ArchibaldBot {
         document.querySelectorAll('tr[class*="dxgvDataRow"]'),
       ).filter((r) => (r as HTMLElement).offsetParent !== null);
 
-      if (rows.length === 0) return { clicked: false, reason: "no-rows" };
+      const rowTexts = rows.slice(0, 10).map((r) => r.textContent?.trim().substring(0, 80) || "");
+
+      if (rows.length === 0) return { clicked: false, reason: "no-rows", rowCount: 0, rowTexts };
 
       if (rows.length === 1) {
         const target = rows[0].querySelector("td") || (rows[0] as HTMLElement);
         (target as HTMLElement).scrollIntoView({ block: "center" });
         (target as HTMLElement).click();
-        return { clicked: true, reason: "single-row" };
+        return { clicked: true, reason: "single-row", rowCount: 1, rowTexts };
       }
 
       if (hint) {
@@ -6458,7 +6453,7 @@ export class ArchibaldBot {
             const target = row.querySelector("td") || (row as HTMLElement);
             (target as HTMLElement).scrollIntoView({ block: "center" });
             (target as HTMLElement).click();
-            return { clicked: true, reason: "hint-match" };
+            return { clicked: true, reason: "hint-match", rowCount: rows.length, rowTexts, hint };
           }
         }
       }
@@ -6470,7 +6465,7 @@ export class ArchibaldBot {
           const target = cells[0] || (row as HTMLElement);
           (target as HTMLElement).scrollIntoView({ block: "center" });
           (target as HTMLElement).click();
-          return { clicked: true, reason: "exact-match" };
+          return { clicked: true, reason: "exact-match", rowCount: rows.length, rowTexts };
         }
       }
 
@@ -6479,14 +6474,14 @@ export class ArchibaldBot {
           const target = row.querySelector("td") || (row as HTMLElement);
           (target as HTMLElement).scrollIntoView({ block: "center" });
           (target as HTMLElement).click();
-          return { clicked: true, reason: "contains-match" };
+          return { clicked: true, reason: "contains-match", rowCount: rows.length, rowTexts };
         }
       }
 
       const target = rows[0].querySelector("td") || (rows[0] as HTMLElement);
       (target as HTMLElement).scrollIntoView({ block: "center" });
       (target as HTMLElement).click();
-      return { clicked: true, reason: "fallback-first" };
+      return { clicked: true, reason: "fallback-first", rowCount: rows.length, rowTexts };
     }, searchValue, matchHint);
 
     logger.debug("Iframe row selection result", selectionResult);
@@ -6549,19 +6544,21 @@ export class ArchibaldBot {
           break;
         }
       }
-      if (!container) return { clicked: false, reason: "no-container" };
+      if (!container) return { clicked: false, reason: "no-container", rowCount: 0, rowTexts: [] as string[] };
 
       const rows = Array.from(
         container.querySelectorAll('tr[class*="dxgvDataRow"]'),
       ).filter((r) => (r as HTMLElement).offsetParent !== null);
 
-      if (rows.length === 0) return { clicked: false, reason: "no-rows" };
+      const rowTexts = rows.slice(0, 10).map((r) => r.textContent?.trim().substring(0, 80) || "");
+
+      if (rows.length === 0) return { clicked: false, reason: "no-rows", rowCount: 0, rowTexts };
 
       if (rows.length === 1) {
         const target = rows[0].querySelector("td") || (rows[0] as HTMLElement);
         (target as HTMLElement).scrollIntoView({ block: "center" });
         (target as HTMLElement).click();
-        return { clicked: true, reason: "single-row" };
+        return { clicked: true, reason: "single-row", rowCount: 1, rowTexts };
       }
 
       if (hint) {
@@ -6571,7 +6568,7 @@ export class ArchibaldBot {
             const target = row.querySelector("td") || (row as HTMLElement);
             (target as HTMLElement).scrollIntoView({ block: "center" });
             (target as HTMLElement).click();
-            return { clicked: true, reason: "hint-match" };
+            return { clicked: true, reason: "hint-match", rowCount: rows.length, rowTexts, hint };
           }
         }
       }
@@ -6583,7 +6580,7 @@ export class ArchibaldBot {
           const target = cells[0] || (row as HTMLElement);
           (target as HTMLElement).scrollIntoView({ block: "center" });
           (target as HTMLElement).click();
-          return { clicked: true, reason: "exact-match" };
+          return { clicked: true, reason: "exact-match", rowCount: rows.length, rowTexts };
         }
       }
 
@@ -6592,14 +6589,14 @@ export class ArchibaldBot {
           const target = row.querySelector("td") || (row as HTMLElement);
           (target as HTMLElement).scrollIntoView({ block: "center" });
           (target as HTMLElement).click();
-          return { clicked: true, reason: "contains-match" };
+          return { clicked: true, reason: "contains-match", rowCount: rows.length, rowTexts };
         }
       }
 
       const target = rows[0].querySelector("td") || (rows[0] as HTMLElement);
       (target as HTMLElement).scrollIntoView({ block: "center" });
       (target as HTMLElement).click();
-      return { clicked: true, reason: "fallback-first" };
+      return { clicked: true, reason: "fallback-first", rowCount: rows.length, rowTexts };
     }, searchValue, matchHint);
 
     logger.debug("Row selection result", selectionResult);
@@ -6670,18 +6667,79 @@ export class ArchibaldBot {
 
     logger.info("Saving customer (Salva e chiudi)");
 
-    let saved = await this.clickElementByText("Salva e chiudi", {
-      selectors: ["a", "span", "button", "li"],
-    });
-
-    if (!saved) {
-      saved = await this.page.evaluate(() => {
-        const el = document.querySelector("#Vertical_mainMenu_Menu_DXI1i1_T") as HTMLElement;
-        if (el) { el.click(); return true; }
-        return false;
+    const saveAttempt = async (): Promise<boolean> => {
+      const directSaveClicked = await this.clickElementByText("Salva e chiudi", {
+        exact: true,
+        selectors: ["a", "span", "div", "li"],
       });
-    }
 
+      if (directSaveClicked) {
+        logger.info('Clicked "Salva e chiudi" directly');
+        return true;
+      }
+
+      logger.debug('Direct "Salva e chiudi" not found, trying "Salvare" dropdown...');
+
+      const dropdownOpened = await this.page.evaluate(() => {
+        const allElements = Array.from(
+          document.querySelectorAll("span, button, a"),
+        );
+        const salvareBtn = allElements.find((el) => {
+          const text = el.textContent?.trim() || "";
+          return text.toLowerCase().includes("salvare");
+        });
+
+        if (!salvareBtn) return false;
+
+        const parent = salvareBtn.closest("li") || salvareBtn.parentElement;
+        if (!parent) return false;
+
+        const popOut =
+          parent.querySelector("div.dxm-popOut") ||
+          parent.querySelector('[id*="_P"]');
+        if (popOut && (popOut as HTMLElement).offsetParent !== null) {
+          (popOut as HTMLElement).click();
+          return true;
+        }
+
+        const arrow = parent.querySelector(
+          'img[id*="_B-1"], img[alt*="down"]',
+        );
+        if (arrow) {
+          (arrow as HTMLElement).click();
+          return true;
+        }
+
+        (salvareBtn as HTMLElement).click();
+        return true;
+      });
+
+      if (!dropdownOpened) {
+        const byId = await this.page.evaluate(() => {
+          const el = document.querySelector("#Vertical_mainMenu_Menu_DXI1i1_T") as HTMLElement;
+          if (el) { el.click(); return true; }
+          return false;
+        });
+        return byId;
+      }
+
+      await this.wait(500);
+
+      const saveClicked = await this.clickElementByText("Salva e chiudi", {
+        exact: true,
+        selectors: ["a", "span", "div"],
+      });
+
+      if (!saveClicked) {
+        logger.warn('"Salva e chiudi" not found in dropdown');
+        return false;
+      }
+
+      logger.info('Clicked "Salva e chiudi" from dropdown');
+      return true;
+    };
+
+    const saved = await saveAttempt();
     if (!saved) throw new Error("Save button not found");
 
     await this.waitForDevExpressIdle({ timeout: 8000, label: "save-customer" });
@@ -6704,9 +6762,13 @@ export class ArchibaldBot {
       logger.info("Warning checkbox acknowledged, saving again");
       await this.waitForDevExpressIdle({ timeout: 3000, label: "warning-ack" });
 
-      await this.clickElementByText("Salva e chiudi", {
-        selectors: ["a", "span", "button", "li"],
-      });
+      const savedAgain = await saveAttempt();
+      if (!savedAgain) {
+        logger.warn("Second save attempt failed, trying direct click fallback");
+        await this.clickElementByText("Salva e chiudi", {
+          selectors: ["a", "span", "button", "li"],
+        });
+      }
       await this.waitForDevExpressIdle({ timeout: 8000, label: "save-customer-2" });
     }
 
@@ -6978,12 +7040,16 @@ export class ArchibaldBot {
     });
     if (!nuovoClicked) throw new Error("'Nuovo' button not found");
 
+    await this.emitProgress("customer.navigation");
+
     await this.page.waitForFunction(
       (baseUrl: string) => !window.location.href.includes("ListView"),
       { timeout: 15000, polling: 200 },
       config.archibald.url,
     );
     await this.waitForDevExpressReady({ timeout: 10000 });
+
+    await this.emitProgress("customer.edit_loaded");
 
     logger.info("Customer form loaded, filling fields");
 
@@ -7018,6 +7084,8 @@ export class ArchibaldBot {
     if (customerData.street) {
       await this.setDevExpressField(/xaf_dviSTREET_Edit_I$/, customerData.street);
     }
+
+    await this.emitProgress("customer.field");
 
     if (customerData.postalCode) {
       await this.selectFromDevExpressLookup(
@@ -7066,6 +7134,7 @@ export class ArchibaldBot {
       );
     }
 
+    await this.emitProgress("customer.save");
     await this.saveAndCloseCustomer();
 
     const customerProfileId = await this.getCustomerProfileId();
@@ -7073,6 +7142,8 @@ export class ArchibaldBot {
       customerProfileId,
       name: customerData.name,
     });
+
+    await this.emitProgress("customer.complete");
 
     return customerProfileId;
   }
@@ -7182,89 +7253,118 @@ export class ArchibaldBot {
     const searchName = originalName || customerData.name;
     logger.info("Updating customer", { customerProfile, searchName, newName: customerData.name });
 
-    const cookiesBefore = await this.page.cookies();
-    logger.info("Cookies before customer list navigation", {
-      cookieNames: cookiesBefore.map((c) => c.name),
-      currentUrl: this.page.url(),
-    });
-
     await this.page.goto(`${config.archibald.url}/CUSTTABLE_ListView_Agent/`, {
       waitUntil: "networkidle2",
       timeout: 60000,
     });
 
-    const pageUrl = this.page.url();
-    logger.info("Customer list page loaded", { pageUrl });
+    if (this.page.url().includes("Login.aspx")) {
+      throw new Error("Sessione scaduta: reindirizzato al login");
+    }
 
     await this.waitForDevExpressReady({ timeout: 10000 });
 
-    const pageDebug = await this.page.evaluate(() => {
-      const inputs = Array.from(document.querySelectorAll("input"));
-      return {
-        inputCount: inputs.length,
-        inputIds: inputs.slice(0, 15).map((i) => i.id).filter(Boolean),
-        title: document.title,
-        bodyText: document.body?.innerText?.substring(0, 200),
-      };
-    });
-    logger.info("Customer list page debug", pageDebug);
+    await this.emitProgress("customer.navigation");
 
-    const searchResult = await this.page.evaluate(
+    // Step 1: Fill search field (like setDevExpressField)
+    const searchFieldId = await this.page.evaluate(
       (name: string) => {
         const inputs = Array.from(document.querySelectorAll("input"));
         const searchInput = inputs.find((i) =>
           /SearchAC.*Ed_I$/.test(i.id),
         ) as HTMLInputElement | null;
-        if (!searchInput) return { found: false };
+        if (!searchInput) return null;
 
+        searchInput.scrollIntoView({ block: "center" });
         searchInput.focus();
         searchInput.click();
         const setter = Object.getOwnPropertyDescriptor(
-          HTMLInputElement.prototype,
-          "value",
+          HTMLInputElement.prototype, "value",
         )?.set;
         if (setter) setter.call(searchInput, name);
         else searchInput.value = name;
         searchInput.dispatchEvent(new Event("input", { bubbles: true }));
         searchInput.dispatchEvent(new Event("change", { bubbles: true }));
-        searchInput.dispatchEvent(
-          new KeyboardEvent("keydown", { key: "Enter", code: "Enter", keyCode: 13, bubbles: true }),
-        );
-        searchInput.dispatchEvent(
-          new KeyboardEvent("keyup", { key: "Enter", code: "Enter", keyCode: 13, bubbles: true }),
-        );
-        return { found: true, id: searchInput.id };
+        return searchInput.id;
       },
       searchName,
     );
 
-    if (!searchResult.found) throw new Error("Search input not found");
+    if (!searchFieldId) throw new Error("Search input not found");
 
-    await this.waitForDevExpressIdle({ timeout: 8000, label: "customer-search" });
+    // Step 2: Press Enter via Puppeteer keyboard to trigger search
+    await this.page.keyboard.press("Enter");
+    await this.waitForDevExpressIdle({ timeout: 10000, label: "customer-search" });
 
-    const editClicked = await this.page.evaluate(() => {
-      const editBtns = Array.from(
-        document.querySelectorAll(
-          'a[data-args*="Edit"], img[title="Modifica"]',
-        ),
-      ).filter((el) => (el as HTMLElement).offsetParent !== null);
+    logger.info("Customer search completed", { searchName });
 
-      if (editBtns.length === 0) return false;
+    await this.emitProgress("customer.search");
 
-      const target = editBtns[0].tagName === "IMG"
-        ? editBtns[0].closest("a") || editBtns[0]
-        : editBtns[0];
-      (target as HTMLElement).click();
-      return true;
-    });
+    // Step 3: Find exact match in filtered results and click Edit on that row
+    const editResult = await this.page.evaluate(
+      (targetName: string) => {
+        const nameLower = targetName.trim().toLowerCase();
+        const rows = Array.from(
+          document.querySelectorAll('tr[class*="dxgvDataRow"]'),
+        ).filter((r) => (r as HTMLElement).offsetParent !== null);
 
-    if (!editClicked) throw new Error("Edit button not found - customer may not exist");
+        if (rows.length === 0) return { found: false, reason: "no-rows", rowCount: 0 };
+
+        // Find the row with exact name match
+        for (const row of rows) {
+          const cells = Array.from(row.querySelectorAll("td"));
+          const hasExactMatch = cells.some(
+            (c) => c.textContent?.trim().toLowerCase() === nameLower,
+          );
+          if (hasExactMatch) {
+            const editBtn = row.querySelector('img[title="Modifica"], a[data-args*="Edit"]');
+            if (editBtn) {
+              const target = editBtn.tagName === "IMG"
+                ? editBtn.closest("a") || editBtn
+                : editBtn;
+              (target as HTMLElement).click();
+              return { found: true, reason: "exact-match", rowCount: rows.length };
+            }
+          }
+        }
+
+        // Fallback: contains match
+        for (const row of rows) {
+          if (row.textContent?.toLowerCase().includes(nameLower)) {
+            const editBtn = row.querySelector('img[title="Modifica"], a[data-args*="Edit"]');
+            if (editBtn) {
+              const target = editBtn.tagName === "IMG"
+                ? editBtn.closest("a") || editBtn
+                : editBtn;
+              (target as HTMLElement).click();
+              return { found: true, reason: "contains-match", rowCount: rows.length };
+            }
+          }
+        }
+
+        return {
+          found: false,
+          reason: "no-match",
+          rowCount: rows.length,
+          rowNames: rows.slice(0, 5).map((r) => r.textContent?.substring(0, 80)),
+        };
+      },
+      searchName,
+    );
+
+    logger.info("Customer edit selection", editResult);
+
+    if (!editResult.found) {
+      throw new Error(`Cliente "${searchName}" non trovato nei risultati (${editResult.reason}, ${editResult.rowCount} righe)`);
+    }
 
     await this.page.waitForFunction(
       () => !window.location.href.includes("ListView"),
       { timeout: 15000, polling: 200 },
     );
     await this.waitForDevExpressReady({ timeout: 10000 });
+
+    await this.emitProgress("customer.edit_loaded");
 
     logger.info("Edit form loaded, updating fields");
 
@@ -7301,6 +7401,8 @@ export class ArchibaldBot {
     if (customerData.street) {
       await this.setDevExpressField(/xaf_dviSTREET_Edit_I$/, customerData.street);
     }
+
+    await this.emitProgress("customer.field");
 
     if (customerData.postalCode) {
       await this.selectFromDevExpressLookup(
@@ -7350,11 +7452,14 @@ export class ArchibaldBot {
       );
     }
 
+    await this.emitProgress("customer.save");
     await this.saveAndCloseCustomer();
 
     logger.info("Customer updated successfully", {
       customerProfile,
       name: customerData.name,
     });
+
+    await this.emitProgress("customer.complete");
   }
 }

@@ -4,6 +4,9 @@ import type { Customer } from "../types/customer";
 import { PAYMENT_TERMS } from "../data/payment-terms";
 import { CAP_BY_CODE } from "../data/cap-list";
 import type { CapEntry } from "../data/cap-list";
+import { useWebSocketContext } from "../contexts/WebSocketContext";
+
+type ProcessingState = "idle" | "processing" | "completed" | "failed";
 
 interface CustomerFormData {
   name: string;
@@ -150,6 +153,14 @@ export function CustomerCreateModal({
 
   const [capDisambiguationEntries, setCapDisambiguationEntries] = useState<CapEntry[]>([]);
 
+  const [processingState, setProcessingState] = useState<ProcessingState>("idle");
+  const [taskId, setTaskId] = useState<string | null>(null);
+  const [progress, setProgress] = useState(0);
+  const [progressLabel, setProgressLabel] = useState("");
+  const [botError, setBotError] = useState<string | null>(null);
+
+  const { subscribe } = useWebSocketContext();
+
   const totalFieldsBefore = FIELDS_BEFORE_ADDRESS_QUESTION.length;
   const totalDeliveryFields = DELIVERY_ADDRESS_FIELDS.length;
 
@@ -189,6 +200,11 @@ export function CustomerCreateModal({
       setPaymentTermsSearch("");
       setPaymentTermsHighlight(0);
       setCapDisambiguationEntries([]);
+      setProcessingState("idle");
+      setTaskId(null);
+      setProgress(0);
+      setProgressLabel("");
+      setBotError(null);
       if (editCustomer) {
         setFormData(customerToFormData(editCustomer));
       } else {
@@ -197,6 +213,43 @@ export function CustomerCreateModal({
       setCurrentStep({ kind: "field", fieldIndex: 0 });
     }
   }, [isOpen, editCustomer]);
+
+  useEffect(() => {
+    if (!taskId) return;
+
+    const unsubs: Array<() => void> = [];
+
+    unsubs.push(
+      subscribe("CUSTOMER_UPDATE_PROGRESS", (payload: any) => {
+        if (payload.taskId !== taskId) return;
+        setProgress(payload.progress);
+        setProgressLabel(payload.label || "");
+      }),
+    );
+
+    unsubs.push(
+      subscribe("CUSTOMER_UPDATE_COMPLETED", (payload: any) => {
+        if (payload.taskId !== taskId) return;
+        setProcessingState("completed");
+        setProgress(100);
+        setProgressLabel("Completato");
+        setTimeout(() => {
+          onSaved();
+          onClose();
+        }, 2000);
+      }),
+    );
+
+    unsubs.push(
+      subscribe("CUSTOMER_UPDATE_FAILED", (payload: any) => {
+        if (payload.taskId !== taskId) return;
+        setProcessingState("failed");
+        setBotError(payload.error || "Errore sconosciuto");
+      }),
+    );
+
+    return () => unsubs.forEach((u) => u());
+  }, [taskId, subscribe, onSaved, onClose]);
 
   if (!isOpen) return null;
 
@@ -431,17 +484,30 @@ export function CustomerCreateModal({
   const handleSave = async () => {
     setSaving(true);
     setError(null);
+    setBotError(null);
     try {
+      let resultTaskId: string | null = null;
+
       if (isEditMode) {
-        await customerService.updateCustomer(
+        const result = await customerService.updateCustomer(
           editCustomer!.customerProfile,
           formData,
         );
+        resultTaskId = result.taskId;
       } else {
-        await customerService.createCustomer(formData);
+        const result = await customerService.createCustomer(formData);
+        resultTaskId = result.taskId;
       }
-      onSaved();
-      onClose();
+
+      if (resultTaskId) {
+        setTaskId(resultTaskId);
+        setProcessingState("processing");
+        setProgress(5);
+        setProgressLabel("Avvio operazione...");
+      } else {
+        onSaved();
+        onClose();
+      }
     } catch (err) {
       setError(
         err instanceof Error ? err.message : "Errore durante il salvataggio",
@@ -449,6 +515,16 @@ export function CustomerCreateModal({
     } finally {
       setSaving(false);
     }
+  };
+
+  const handleRetry = async () => {
+    if (!editCustomer && !taskId) return;
+    setProcessingState("idle");
+    setBotError(null);
+    setProgress(0);
+    setProgressLabel("");
+    setTaskId(null);
+    await handleSave();
   };
 
   const handleDiscard = () => {
@@ -464,6 +540,7 @@ export function CustomerCreateModal({
   const isCapDisambiguation = currentStep.kind === "cap-disambiguation";
   const isSummary = currentStep.kind === "summary";
   const isFirstStep = currentStep.kind === "field" && currentStep.fieldIndex === 0;
+  const isProcessing = processingState !== "idle";
 
   return (
     <div
@@ -494,28 +571,30 @@ export function CustomerCreateModal({
         }}
       >
         {/* Header */}
-        <div style={{ marginBottom: "24px", textAlign: "center" }}>
-          <h2
-            style={{
-              fontSize: "24px",
-              fontWeight: 700,
-              color: "#333",
-              marginBottom: "8px",
-            }}
-          >
-            {isEditMode ? "Modifica Cliente" : "Nuovo Cliente"}
-          </h2>
-          {!isSummary && !isCapDisambiguation && (
-            <p style={{ fontSize: "14px", color: "#999" }}>
-              Passo {currentStepNumber} di {totalSteps}{!isAddressQuestion ? " — Premi Enter per avanzare" : ""}
-            </p>
-          )}
-          {isEditMode && !isSummary && !isCapDisambiguation && (
-            <p style={{ fontSize: "12px", color: "#1976d2", marginTop: "4px" }}>
-              {editCustomer!.customerProfile}
-            </p>
-          )}
-        </div>
+        {!isProcessing && (
+          <div style={{ marginBottom: "24px", textAlign: "center" }}>
+            <h2
+              style={{
+                fontSize: "24px",
+                fontWeight: 700,
+                color: "#333",
+                marginBottom: "8px",
+              }}
+            >
+              {isEditMode ? "Modifica Cliente" : "Nuovo Cliente"}
+            </h2>
+            {!isSummary && !isCapDisambiguation && (
+              <p style={{ fontSize: "14px", color: "#999" }}>
+                Passo {currentStepNumber} di {totalSteps}{!isAddressQuestion ? " — Premi Enter per avanzare" : ""}
+              </p>
+            )}
+            {isEditMode && !isSummary && !isCapDisambiguation && (
+              <p style={{ fontSize: "12px", color: "#1976d2", marginTop: "4px" }}>
+                {editCustomer!.customerProfile}
+              </p>
+            )}
+          </div>
+        )}
 
         {/* Field input step */}
         {isFieldStep && currentField && !isPaymentTermsStep && (
@@ -920,7 +999,7 @@ export function CustomerCreateModal({
         )}
 
         {/* Summary step */}
-        {isSummary && (
+        {isSummary && !isProcessing && (
           <div>
             <div
               style={{
@@ -1080,6 +1159,123 @@ export function CustomerCreateModal({
                 {isEditMode ? "Annulla" : "Elimina"}
               </button>
             </div>
+          </div>
+        )}
+
+        {/* Processing state overlay */}
+        {isProcessing && (
+          <div>
+            <div style={{ textAlign: "center", marginBottom: "24px" }}>
+              <h2 style={{ fontSize: "24px", fontWeight: 700, color: "#333", marginBottom: "8px" }}>
+                {processingState === "completed"
+                  ? "Operazione completata"
+                  : processingState === "failed"
+                    ? "Errore"
+                    : isEditMode ? "Aggiornamento in corso..." : "Creazione in corso..."}
+              </h2>
+            </div>
+
+            {processingState === "processing" && (
+              <div style={{ marginBottom: "24px" }}>
+                <div
+                  style={{
+                    height: "8px",
+                    backgroundColor: "#e0e0e0",
+                    borderRadius: "4px",
+                    overflow: "hidden",
+                    marginBottom: "12px",
+                  }}
+                >
+                  <div
+                    style={{
+                      width: `${progress}%`,
+                      height: "100%",
+                      backgroundColor: "#1976d2",
+                      borderRadius: "4px",
+                      transition: "width 0.5s ease",
+                    }}
+                  />
+                </div>
+                <p style={{ fontSize: "14px", color: "#666", textAlign: "center" }}>
+                  {progressLabel || "Elaborazione..."}
+                </p>
+                <p style={{ fontSize: "12px", color: "#999", textAlign: "center", marginTop: "4px" }}>
+                  {progress}%
+                </p>
+              </div>
+            )}
+
+            {processingState === "completed" && (
+              <div
+                style={{
+                  padding: "16px",
+                  backgroundColor: "#e8f5e9",
+                  border: "1px solid #4caf50",
+                  borderRadius: "8px",
+                  textAlign: "center",
+                  marginBottom: "16px",
+                }}
+              >
+                <p style={{ color: "#2e7d32", fontSize: "16px", fontWeight: 600 }}>
+                  {isEditMode ? "Cliente aggiornato con successo!" : "Cliente creato con successo!"}
+                </p>
+                <p style={{ color: "#666", fontSize: "13px", marginTop: "4px" }}>
+                  Chiusura automatica...
+                </p>
+              </div>
+            )}
+
+            {processingState === "failed" && (
+              <div>
+                <div
+                  style={{
+                    padding: "16px",
+                    backgroundColor: "#ffebee",
+                    border: "1px solid #f44336",
+                    borderRadius: "8px",
+                    marginBottom: "16px",
+                  }}
+                >
+                  <p style={{ color: "#c62828", fontSize: "14px" }}>
+                    {botError || "Si è verificato un errore durante l'operazione."}
+                  </p>
+                </div>
+                <div style={{ display: "flex", gap: "12px" }}>
+                  <button
+                    onClick={handleRetry}
+                    style={{
+                      flex: 1,
+                      padding: "14px",
+                      fontSize: "16px",
+                      fontWeight: 700,
+                      backgroundColor: "#ff9800",
+                      color: "#fff",
+                      border: "none",
+                      borderRadius: "8px",
+                      cursor: "pointer",
+                    }}
+                  >
+                    Riprova
+                  </button>
+                  <button
+                    onClick={onClose}
+                    style={{
+                      flex: 1,
+                      padding: "14px",
+                      fontSize: "16px",
+                      fontWeight: 700,
+                      backgroundColor: "#f44336",
+                      color: "#fff",
+                      border: "none",
+                      borderRadius: "8px",
+                      cursor: "pointer",
+                    }}
+                  >
+                    Chiudi
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         )}
       </div>

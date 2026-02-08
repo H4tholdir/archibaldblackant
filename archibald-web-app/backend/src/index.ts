@@ -96,6 +96,8 @@ import { WebSocketServerService } from "./websocket-server";
 import { SubClientDatabase } from "./subclient-db";
 import { importSubClientsFromExcel } from "./subclient-excel-importer";
 import multerSubClients from "multer";
+import crypto from "crypto";
+import { getCustomerProgressMilestone } from "./job-progress-mapper";
 
 const app = express();
 const server = createServer(app);
@@ -2797,8 +2799,10 @@ app.post("/api/admin/sync/frequency", (req: Request, res: Response) => {
 // Create customer endpoint (write-through)
 app.post(
   "/api/customers",
-  async (req: Request, res: Response<ApiResponse>) => {
+  authenticateJWT,
+  async (req: AuthRequest, res: Response<ApiResponse>) => {
     try {
+      const userId = req.user!.userId;
       const customerData = req.body as import("./types").CustomerFormData;
 
       if (!customerData.name || customerData.name.trim().length === 0) {
@@ -2809,6 +2813,7 @@ app.post(
       }
 
       const tempProfile = `TEMP-${Date.now()}`;
+      const taskId = crypto.randomUUID();
 
       const customer = customerDb.upsertSingleCustomer(
         customerData,
@@ -2825,27 +2830,55 @@ app.post(
         success: true,
         data: {
           customer: { ...customer, id: customer.customerProfile },
+          taskId,
         },
         message: "Cliente creato. Sincronizzazione con Archibald in corso...",
       });
 
-      // Fire-and-forget: bot creates customer in Archibald
+      // Fire-and-forget: bot creates customer in Archibald via BrowserPool
       (async () => {
         try {
-          const bot = new ArchibaldBot();
+          const bot = new ArchibaldBot(userId);
           await bot.initialize();
-          await bot.login();
+
+          bot.setProgressCallback(async (category, metadata) => {
+            const milestone = getCustomerProgressMilestone(category);
+            if (milestone) {
+              WebSocketServerService.getInstance().broadcast(userId, {
+                type: "CUSTOMER_UPDATE_PROGRESS",
+                payload: { taskId, customerProfile: tempProfile, progress: milestone.progress, label: milestone.label, operation: "create" },
+                timestamp: new Date().toISOString(),
+              });
+            }
+          });
+
           await bot.createCustomer(customerData);
           await bot.close();
           customerDb.updateCustomerBotStatus(tempProfile, "placed");
           logger.info("Bot: cliente creato su Archibald", {
             customerProfile: tempProfile,
           });
+
+          syncOrchestrator.smartCustomerSync().catch((err) =>
+            logger.error("Smart customer sync after create failed", { err })
+          );
+
+          WebSocketServerService.getInstance().broadcast(userId, {
+            type: "CUSTOMER_UPDATE_COMPLETED",
+            payload: { taskId, customerProfile: tempProfile },
+            timestamp: new Date().toISOString(),
+          });
         } catch (error) {
           customerDb.updateCustomerBotStatus(tempProfile, "failed");
           logger.error("Bot: errore creazione cliente su Archibald", {
             customerProfile: tempProfile,
-            error,
+            error: error instanceof Error ? { message: error.message, stack: error.stack } : error,
+          });
+
+          WebSocketServerService.getInstance().broadcast(userId, {
+            type: "CUSTOMER_UPDATE_FAILED",
+            payload: { taskId, customerProfile: tempProfile, error: error instanceof Error ? error.message : "Errore sconosciuto" },
+            timestamp: new Date().toISOString(),
           });
         }
       })();
@@ -2865,8 +2898,10 @@ app.post(
 // Update customer endpoint (write-through)
 app.put(
   "/api/customers/:customerProfile",
-  async (req: Request, res: Response<ApiResponse>) => {
+  authenticateJWT,
+  async (req: AuthRequest, res: Response<ApiResponse>) => {
     try {
+      const userId = req.user!.userId;
       const { customerProfile } = req.params;
       const customerData = req.body as import("./types").CustomerFormData;
 
@@ -2885,30 +2920,59 @@ app.put(
       // Salva il nome con cui cercare su Archibald
       customerDb.updateArchibaldName(customerProfile, originalName);
 
+      const taskId = crypto.randomUUID();
+
       res.json({
         success: true,
+        data: { taskId },
         message: `Cliente ${customerProfile} aggiornato. Sincronizzazione con Archibald in corso...`,
       });
 
-      // Fire-and-forget: bot updates customer in Archibald
+      // Fire-and-forget: bot updates customer in Archibald via BrowserPool
       (async () => {
         try {
-          const bot = new ArchibaldBot();
+          const bot = new ArchibaldBot(userId);
           await bot.initialize();
-          await bot.login();
+
+          bot.setProgressCallback(async (category, metadata) => {
+            const milestone = getCustomerProgressMilestone(category);
+            if (milestone) {
+              WebSocketServerService.getInstance().broadcast(userId, {
+                type: "CUSTOMER_UPDATE_PROGRESS",
+                payload: { taskId, customerProfile, progress: milestone.progress, label: milestone.label, operation: "update" },
+                timestamp: new Date().toISOString(),
+              });
+            }
+          });
+
           await bot.updateCustomer(customerProfile, customerData, originalName);
           await bot.close();
           customerDb.updateCustomerBotStatus(customerProfile, "placed");
-          // Ora Archibald ha il nome nuovo
           customerDb.updateArchibaldName(customerProfile, customerData.name);
           logger.info("Bot: cliente aggiornato su Archibald", {
             customerProfile,
+          });
+
+          syncOrchestrator.smartCustomerSync().catch((err) =>
+            logger.error("Smart customer sync after update failed", { err })
+          );
+
+          WebSocketServerService.getInstance().broadcast(userId, {
+            type: "CUSTOMER_UPDATE_COMPLETED",
+            payload: { taskId, customerProfile },
+            timestamp: new Date().toISOString(),
           });
         } catch (error) {
           customerDb.updateCustomerBotStatus(customerProfile, "failed");
           logger.error("Bot: errore aggiornamento cliente su Archibald", {
             customerProfile,
             error: error instanceof Error ? { message: error.message, stack: error.stack } : error,
+          });
+
+          WebSocketServerService.getInstance().broadcast(userId, {
+            type: "CUSTOMER_UPDATE_FAILED",
+            payload: { taskId, customerProfile, error: error instanceof Error ? error.message : "Errore sconosciuto" },
+            timestamp: new Date().toISOString(),
           });
         }
       })();
@@ -2929,8 +2993,10 @@ app.put(
 // Retry bot placement for customer
 app.post(
   "/api/customers/:customerProfile/retry",
-  async (req: Request, res: Response<ApiResponse>) => {
+  authenticateJWT,
+  async (req: AuthRequest, res: Response<ApiResponse>) => {
     try {
+      const userId = req.user!.userId;
       const { customerProfile } = req.params;
 
       const customer = customerDb.getCustomerByProfile(customerProfile);
@@ -2944,19 +3010,34 @@ app.post(
 
       customerDb.updateCustomerBotStatus(customerProfile, "pending");
 
+      const taskId = crypto.randomUUID();
+
       res.json({
         success: true,
+        data: { taskId },
         message: "Retry avviato",
       });
 
-      // Fire-and-forget: retry bot operation
+      // Fire-and-forget: retry bot operation via BrowserPool
       (async () => {
         try {
-          const bot = new ArchibaldBot();
+          const bot = new ArchibaldBot(userId);
           await bot.initialize();
-          await bot.login();
 
-          if (customerProfile.startsWith("TEMP-")) {
+          const isCreate = customerProfile.startsWith("TEMP-");
+
+          bot.setProgressCallback(async (category, metadata) => {
+            const milestone = getCustomerProgressMilestone(category);
+            if (milestone) {
+              WebSocketServerService.getInstance().broadcast(userId, {
+                type: "CUSTOMER_UPDATE_PROGRESS",
+                payload: { taskId, customerProfile, progress: milestone.progress, label: milestone.label, operation: isCreate ? "create" : "update" },
+                timestamp: new Date().toISOString(),
+              });
+            }
+          });
+
+          if (isCreate) {
             await bot.createCustomer({
               name: customer.name,
               vatNumber: customer.vatNumber ?? undefined,
@@ -2965,6 +3046,7 @@ app.post(
               street: customer.street ?? undefined,
               postalCode: customer.postalCode ?? undefined,
               phone: customer.phone ?? undefined,
+              email: customer.email ?? undefined,
               deliveryMode: customer.deliveryTerms ?? undefined,
             });
           } else {
@@ -2976,7 +3058,9 @@ app.post(
               sdi: customer.sdi ?? undefined,
               street: customer.street ?? undefined,
               postalCode: customer.postalCode ?? undefined,
+              postalCodeCity: customer.city ?? undefined,
               phone: customer.phone ?? undefined,
+              email: customer.email ?? undefined,
               deliveryMode: customer.deliveryTerms ?? undefined,
             }, searchName);
           }
@@ -2985,11 +3069,27 @@ app.post(
           customerDb.updateCustomerBotStatus(customerProfile, "placed");
           customerDb.updateArchibaldName(customerProfile, customer.name);
           logger.info("Bot: retry riuscito", { customerProfile });
+
+          syncOrchestrator.smartCustomerSync().catch((err) =>
+            logger.error("Smart customer sync after retry failed", { err })
+          );
+
+          WebSocketServerService.getInstance().broadcast(userId, {
+            type: "CUSTOMER_UPDATE_COMPLETED",
+            payload: { taskId, customerProfile },
+            timestamp: new Date().toISOString(),
+          });
         } catch (error) {
           customerDb.updateCustomerBotStatus(customerProfile, "failed");
           logger.error("Bot: retry fallito", {
             customerProfile,
             error: error instanceof Error ? { message: error.message, stack: error.stack } : error,
+          });
+
+          WebSocketServerService.getInstance().broadcast(userId, {
+            type: "CUSTOMER_UPDATE_FAILED",
+            payload: { taskId, customerProfile, error: error instanceof Error ? error.message : "Errore sconosciuto" },
+            timestamp: new Date().toISOString(),
           });
         }
       })();
