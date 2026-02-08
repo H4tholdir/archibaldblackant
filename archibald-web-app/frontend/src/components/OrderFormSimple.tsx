@@ -2811,6 +2811,21 @@ export default function OrderFormSimple() {
                               </span>
                             ) : null}
                             <span>IVA: {articleHistory.lastPurchase.vat}%</span>
+                            <span style={{ color: "#1e40af" }}>
+                              Netto: €{(() => {
+                                const p = articleHistory.lastPurchase;
+                                const subtotal = p.price * p.quantity - (p.discount || 0);
+                                return subtotal.toFixed(2);
+                              })()}
+                            </span>
+                            <span style={{ color: "#065f46" }}>
+                              Totale: €{(() => {
+                                const p = articleHistory.lastPurchase;
+                                const subtotal = p.price * p.quantity - (p.discount || 0);
+                                const total = subtotal * (1 + p.vat / 100);
+                                return total.toFixed(2);
+                              })()}
+                            </span>
                           </div>
                         ) : (
                           <div
@@ -4024,18 +4039,8 @@ export default function OrderFormSimple() {
                         >
                           {item.articleCode}
                         </td>
-                        <td style={{ padding: "0.5rem" }}>
-                          {item.productName}
-                          {item.description && (
-                            <div
-                              style={{
-                                fontSize: "0.7rem",
-                                color: "#6b7280",
-                              }}
-                            >
-                              {item.description}
-                            </div>
-                          )}
+                        <td style={{ padding: "0.5rem", color: "#374151" }}>
+                          {item.description || "—"}
                         </td>
                         <td
                           style={{
@@ -4194,11 +4199,6 @@ export default function OrderFormSimple() {
                       >
                         {item.articleCode}
                       </span>
-                      {item.description && (
-                        <span style={{ color: "#374151" }}>
-                          {item.description}
-                        </span>
-                      )}
                       <span
                         style={{
                           color: "#374151",
@@ -4215,7 +4215,20 @@ export default function OrderFormSimple() {
                           Sc: €{item.discount.toFixed(2)}
                         </span>
                       ) : null}
-                      <span style={{ color: "#059669" }}>IVA {item.vat}%</span>
+                      <span style={{ color: "#374151" }}>IVA {item.vat}%</span>
+                      <span style={{ color: "#2563eb", fontWeight: "600" }}>
+                        Netto: €{(() => {
+                          const subtotal = item.price * item.quantity - (item.discount || 0);
+                          return subtotal.toFixed(2);
+                        })()}
+                      </span>
+                      <span style={{ color: "#059669", fontWeight: "700" }}>
+                        Totale: €{(() => {
+                          const subtotal = item.price * item.quantity - (item.discount || 0);
+                          const total = subtotal * (1 + item.vat / 100);
+                          return total.toFixed(2);
+                        })()}
+                      </span>
                     </div>
                   ))}
                 </div>
