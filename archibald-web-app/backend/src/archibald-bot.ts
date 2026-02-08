@@ -4262,47 +4262,53 @@ export class ArchibaldBot {
                   }
 
                   // Save row via UpdateEdit
+                  // DOM click is primary strategy — it returns immediately
+                  // while the server processes the callback asynchronously.
+                  // The API approach (grid.UpdateEdit()) can block the JS
+                  // thread and freeze the page after several articles.
                   logger.debug("Saving row via UpdateEdit...");
 
                   let updateDone = false;
 
-                  // Strategy 0: DevExpress API
-                  if (this.salesLinesGridName) {
+                  // Strategy 0: DOM-based click (primary — non-blocking)
+                  const updateResult = await this.clickDevExpressGridCommand({
+                    command: "UpdateEdit",
+                    baseIdHint: "SALESLINEs",
+                    timeout: 7000,
+                    label: `item-${i}-update-integrated`,
+                  });
+
+                  if (updateResult.clicked) {
+                    logger.info("✅ UpdateEdit via DOM click");
+                    updateDone = true;
+                    await this.waitForDevExpressIdle({
+                      timeout: 4000,
+                      label: `item-${i}-row-saved`,
+                    });
+                  }
+
+                  // Fallback: DevExpress API
+                  if (!updateDone && this.salesLinesGridName) {
                     try {
                       updateDone = await this.gridUpdateEdit();
                       if (updateDone) {
-                        logger.info("✅ UpdateEdit via DevExpress API");
+                        logger.info("✅ UpdateEdit via DevExpress API (fallback)");
                       }
                     } catch (err) {
-                      logger.warn("DevExpress API UpdateEdit failed, falling back to DOM", {
+                      logger.warn("UpdateEdit failed (both DOM and API)", {
                         error: err instanceof Error ? err.message : String(err),
                       });
                     }
                   }
 
-                  // Fallback: DOM-based click
                   if (!updateDone) {
-                    const updateResult = await this.clickDevExpressGridCommand({
-                      command: "UpdateEdit",
-                      baseIdHint: "SALESLINEs",
-                      timeout: 7000,
-                      label: `item-${i}-update-integrated`,
+                    await this.page!.screenshot({
+                      path: `logs/update-button-not-found-${Date.now()}.png`,
+                      fullPage: true,
                     });
-
-                    if (!updateResult.clicked) {
-                      await this.page!.screenshot({
-                        path: `logs/update-button-not-found-${Date.now()}.png`,
-                        fullPage: true,
-                      });
-                      throw new Error(
-                        'Button "Update" not found (both API and DOM failed)',
-                      );
-                    }
-                    logger.info("✅ UpdateEdit via DOM fallback");
-                    await this.waitForDevExpressIdle({
-                      timeout: 4000,
-                      label: `item-${i}-row-saved`,
-                    });
+                    throw new Error(
+                      'Button "Update" not found (both DOM and API failed)',
+                    );
                   }
 
                   await this.wait(200);
@@ -4469,78 +4475,70 @@ export class ArchibaldBot {
 
         // 5.8: Add new row for next article (if not last)
         if (i < itemsToOrder.length - 1) {
-          // Every 3 articles, pause to let the ERP server finish pending
-          // callbacks. Without this, the server saturates after ~5 rapid
-          // operations and stops responding (Runtime.callFunctionOn timeout).
-          if ((i + 1) % 3 === 0) {
-            logger.info(
-              `⏸️ Stability pause after article ${i + 1} (every 3 articles)`,
-            );
-            await this.wait(2000);
-          }
-
           await this.runOp(
             `order.item.${i}.click_new_for_next`,
             async () => {
               logger.debug(`Adding new row for article ${i + 2}...`);
 
-              // NOTE: gridGotoLastPage() was removed here because it caused
-              // the ERP server callback to hang indefinitely, freezing the
-              // entire browser page (Runtime.callFunctionOn timed out).
-              // Archibald uses 20 rows/page and AddNewRow() works regardless
-              // of current page — rows auto-paginate on the server side.
+              // DOM click is primary strategy — it returns immediately
+              // while the server processes the callback asynchronously.
+              // The API approach (grid.AddNewRow()) can block the JS thread
+              // and freeze the page after several articles.
+              // See: successful 27-item orders before bcf4a05 refactoring.
 
-              // Strategy 0: DevExpress API AddNewRow (most reliable)
+              // Ensure edit row is closed before creating a new one
+              try {
+                await this.page!.waitForFunction(
+                  () => {
+                    const editRows = Array.from(
+                      document.querySelectorAll('tr[id*="editnew"]'),
+                    ).filter(
+                      (row) => (row as HTMLElement).offsetParent !== null,
+                    );
+                    return editRows.length === 0;
+                  },
+                  { timeout: 3000 },
+                );
+              } catch {
+                logger.warn("Edit row still visible before AddNew; proceeding");
+              }
+
+              // Strategy 0: DOM-based click (primary — non-blocking)
               let addNewDone = false;
-              if (this.salesLinesGridName) {
+              const newCommandResult = await this.clickDevExpressGridCommand({
+                command: "AddNew",
+                baseIdHint: "SALESLINEs",
+                timeout: 7000,
+                label: `item-${i}-new-command`,
+              });
+
+              if (newCommandResult.clicked) {
+                addNewDone = true;
+                logger.info(`✅ AddNewRow via DOM click for article ${i + 2}`);
+              }
+
+              // Fallback: DevExpress API
+              if (!addNewDone && this.salesLinesGridName) {
                 try {
                   addNewDone = await this.gridAddNewRow();
                   if (addNewDone) {
-                    logger.info(`✅ AddNewRow via API for article ${i + 2}`);
+                    logger.info(`✅ AddNewRow via API for article ${i + 2} (fallback)`);
                   }
                 } catch (err) {
-                  logger.warn("API AddNewRow failed for next article, falling back to DOM", {
+                  logger.warn("AddNewRow failed (both DOM and API)", {
                     error: err instanceof Error ? err.message : String(err),
                   });
                 }
               }
 
-              // Fallback: DOM-based click
               if (!addNewDone) {
-                // Ensure edit row is closed before creating a new one
-                try {
-                  await this.page!.waitForFunction(
-                    () => {
-                      const editRows = Array.from(
-                        document.querySelectorAll('tr[id*="editnew"]'),
-                      ).filter(
-                        (row) => (row as HTMLElement).offsetParent !== null,
-                      );
-                      return editRows.length === 0;
-                    },
-                    { timeout: 3000 },
-                  );
-                } catch {
-                  logger.warn("Edit row still visible before AddNew; proceeding");
-                }
-
-                const newCommandResult = await this.clickDevExpressGridCommand({
-                  command: "AddNew",
-                  baseIdHint: "SALESLINEs",
-                  timeout: 7000,
-                  label: `item-${i}-new-command`,
+                await this.page!.screenshot({
+                  path: `logs/new-button-for-next-not-found-${Date.now()}.png`,
+                  fullPage: true,
                 });
-
-                if (!newCommandResult.clicked) {
-                  await this.page!.screenshot({
-                    path: `logs/new-button-for-next-not-found-${Date.now()}.png`,
-                    fullPage: true,
-                  });
-                  throw new Error(
-                    `AddNew failed for article ${i + 2} (both API and DOM failed)`,
-                  );
-                }
-                logger.debug("AddNew via DOM fallback for next article");
+                throw new Error(
+                  `AddNew failed for article ${i + 2} (both DOM and API failed)`,
+                );
               }
 
               // Wait for new editable row to appear
