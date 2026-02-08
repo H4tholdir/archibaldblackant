@@ -174,7 +174,7 @@ export function ArcaImportModal({
                         ? "CF"
                         : isAR
                           ? "AR"
-                          : "?";
+                          : null;
 
                   return (
                     <div
@@ -182,7 +182,7 @@ export function ArcaImportModal({
                       style={{
                         fontSize: "0.8rem",
                         padding: "0.2rem 0",
-                        color: tag === "?" ? "#dc2626" : "#374151",
+                        color: tag ? "#374151" : "#9ca3af",
                       }}
                     >
                       <span
@@ -190,12 +190,19 @@ export function ArcaImportModal({
                           display: "inline-block",
                           width: "30px",
                           fontWeight: "600",
-                          color: tag === "?" ? "#dc2626" : "#2563eb",
+                          color: tag ? "#2563eb" : "#9ca3af",
                         }}
                       >
-                        {tag}
+                        {tag ?? "--"}
                       </span>
                       {f.name} ({(f.size / 1024).toFixed(0)} KB)
+                      {!tag && (
+                        <span
+                          style={{ fontSize: "0.7rem", marginLeft: "0.3rem" }}
+                        >
+                          (ignorato)
+                        </span>
+                      )}
                     </div>
                   );
                 })}
