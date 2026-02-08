@@ -1,17 +1,15 @@
 import { describe, test, expect, beforeEach, afterEach } from "vitest";
 import Dexie from "dexie";
 import { OrderService } from "./orders.service";
-import type { DraftOrder, PendingOrder } from "../db/schema";
+import type { PendingOrder } from "../db/schema";
 
 // Test database with same schema as production
 class TestDatabase extends Dexie {
-  draftOrders!: Dexie.Table<DraftOrder, string>;
   pendingOrders!: Dexie.Table<PendingOrder, string>;
 
   constructor() {
     super("TestOrderDB");
     this.version(1).stores({
-      draftOrders: "id, customerId, createdAt, updatedAt, needsSync",
       pendingOrders: "id, status, createdAt, updatedAt, needsSync",
     });
   }
@@ -20,25 +18,6 @@ class TestDatabase extends Dexie {
 describe("OrderService", () => {
   let testDb: TestDatabase;
   let service: OrderService;
-
-  const mockDraftOrder: Omit<DraftOrder, "id"> = {
-    customerId: "C001",
-    customerName: "Mario Rossi",
-    items: [
-      {
-        productId: "P001",
-        productName: "Vite M6",
-        article: "V001",
-        variantId: "V1",
-        quantity: 100,
-        packageContent: "Scatola 10 pezzi",
-      },
-    ],
-    createdAt: "2025-01-23T10:00:00Z",
-    updatedAt: "2025-01-23T10:00:00Z",
-    deviceId: "test-device-001",
-    needsSync: true,
-  };
 
   const mockPendingOrder: Omit<PendingOrder, "id"> = {
     customerId: "C001",
@@ -70,99 +49,6 @@ describe("OrderService", () => {
   afterEach(async () => {
     // Clean up test database
     await testDb.delete();
-  });
-
-  describe("saveDraftOrder", () => {
-    test("saves draft order and returns UUID", async () => {
-      // Act
-      const id = await service.saveDraftOrder(mockDraftOrder);
-
-      // Assert
-      expect(id).toBeTypeOf("string");
-      expect(id).toMatch(
-        /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
-      );
-
-      // Verify saved in database
-      const saved = await testDb.draftOrders.get(id);
-      expect(saved).toBeDefined();
-      expect(saved?.customerId).toBe("C001");
-      expect(saved?.items).toHaveLength(1);
-    });
-
-    test("sets updatedAt timestamp", async () => {
-      // Act
-      const id = await service.saveDraftOrder(mockDraftOrder);
-
-      // Assert
-      const saved = await testDb.draftOrders.get(id);
-      expect(saved?.updatedAt).toBeDefined();
-      expect(new Date(saved!.updatedAt).getTime()).toBeGreaterThan(0);
-    });
-  });
-
-  describe("getDraftOrders", () => {
-    test("returns all drafts sorted by updatedAt descending", async () => {
-      // Arrange: add 3 drafts at different times
-      const draft1: DraftOrder = {
-        id: crypto.randomUUID(),
-        ...mockDraftOrder,
-        updatedAt: "2025-01-23T10:00:00Z",
-      };
-      const draft2: DraftOrder = {
-        id: crypto.randomUUID(),
-        ...mockDraftOrder,
-        customerId: "C002",
-        updatedAt: "2025-01-23T11:00:00Z",
-      };
-      const draft3: DraftOrder = {
-        id: crypto.randomUUID(),
-        ...mockDraftOrder,
-        customerId: "C003",
-        updatedAt: "2025-01-23T09:00:00Z",
-      };
-
-      await testDb.draftOrders.bulkAdd([draft1, draft2, draft3]);
-
-      // Act
-      const drafts = await service.getDraftOrders();
-
-      // Assert: most recent first
-      expect(drafts).toHaveLength(3);
-      expect(drafts[0].customerId).toBe("C002"); // 11:00 (most recent)
-      expect(drafts[1].customerId).toBe("C001"); // 10:00
-      expect(drafts[2].customerId).toBe("C003"); // 09:00 (oldest)
-    });
-
-    test("returns empty array when no drafts exist", async () => {
-      // Act
-      const drafts = await service.getDraftOrders();
-
-      // Assert
-      expect(drafts).toEqual([]);
-    });
-  });
-
-  describe("deleteDraftOrder", () => {
-    test("deletes draft directly from IndexedDB", async () => {
-      // Arrange
-      const draft: DraftOrder = { id: crypto.randomUUID(), ...mockDraftOrder };
-      await testDb.draftOrders.add(draft);
-
-      // Act
-      await service.deleteDraftOrder(draft.id);
-
-      // Assert: verify draft was deleted (not tombstone)
-      const deleted = await testDb.draftOrders.get(draft.id);
-      expect(deleted).toBeUndefined();
-    });
-
-    test("does not throw when deleting non-existent draft", async () => {
-      // Act & Assert: should not throw
-      await expect(
-        service.deleteDraftOrder("non-existent-uuid"),
-      ).resolves.not.toThrow();
-    });
   });
 
   describe("savePendingOrder", () => {

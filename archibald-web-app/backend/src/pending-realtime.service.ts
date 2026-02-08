@@ -43,7 +43,6 @@ export interface PendingCreatedPayload {
     createdAt: number;
     updatedAt: number;
     deviceId: string;
-    originDraftId?: string;
   };
   timestamp: string;
   deviceId: string;
@@ -74,7 +73,6 @@ export interface PendingUpdatedPayload {
     createdAt: number;
     updatedAt: number;
     deviceId: string;
-    originDraftId?: string;
   };
   timestamp: string;
   deviceId: string;

@@ -6,7 +6,6 @@ import { fresisHistoryService } from "./fresis-history.service";
  * UnifiedSyncService
  *
  * Manages multi-device sync for:
- * - Draft orders: WebSocket real-time (Phase 31)
  * - Pending orders: WebSocket real-time (Phase 32)
  * - Warehouse items: HTTP polling (preserved - not in v3.0 scope)
  *
@@ -49,7 +48,6 @@ export class UnifiedSyncService {
     }
 
     // Periodic sync disabled: startPeriodicSync() no longer called (Phase 32)
-    // Draft sync: WebSocket real-time (Phase 31)
     // Pending orders sync: WebSocket real-time (Phase 32)
     // Warehouse sync: HTTP polling (preserved - not in v3.0 scope)
 
@@ -130,13 +128,7 @@ export class UnifiedSyncService {
     this.isSyncing = true;
 
     try {
-      // 1. PULL draft orders (server is authoritative)
-      await this.pullDraftOrders();
-
-      // 2. PUSH draft orders
-      await this.pushDraftOrders();
-
-      // 4. Push pending orders
+      // Push pending orders
       await this.pushPendingOrders();
 
       // 5. Warehouse sync
@@ -165,7 +157,6 @@ export class UnifiedSyncService {
    */
   async pullAll(): Promise<void> {
     try {
-      // Draft sync: WebSocket real-time (Phase 31)
       // Pending orders sync: WebSocket real-time (Phase 32)
       // Warehouse sync: HTTP polling (preserved)
       await this.pullWarehouse();
@@ -309,7 +300,6 @@ export class UnifiedSyncService {
               errorMessage: o.errorMessage,
               retryCount: o.retryCount,
               deviceId: o.deviceId,
-              originDraftId: o.originDraftId, // 🔧 FIX: Include originDraftId for server-side cascade deletion
             })),
           }),
         });
@@ -339,159 +329,6 @@ export class UnifiedSyncService {
       // Note: Direct deletion - no tombstones to push
     } catch (error) {
       console.error("[UnifiedSync] Push pending orders failed:", error);
-      throw error;
-    }
-  }
-
-  // ========== DRAFT ORDERS ==========
-
-  private async pullDraftOrders(): Promise<void> {
-    const token = localStorage.getItem("archibald_jwt");
-    if (!token) return;
-
-    try {
-      const response = await fetchWithRetry("/api/sync/draft-orders", {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-
-      if (!response.ok) {
-        throw new Error(`Pull draft orders failed: ${response.status}`);
-      }
-
-      const { success, drafts } = await response.json();
-
-      if (!success) {
-        throw new Error("Pull draft orders unsuccessful");
-      }
-
-      const serverDraftIds = new Set(drafts.map((d: any) => d.id));
-
-      for (const serverDraft of drafts) {
-        const localDraft = await db.draftOrders.get(serverDraft.id);
-
-        if (localDraft && localDraft.needsSync) {
-          console.log(
-            `[UnifiedSync] Skipping pull for draft ${serverDraft.id} - local has pending changes`,
-          );
-          continue;
-        }
-
-        if (
-          !localDraft ||
-          serverDraft.updatedAt > (localDraft.updatedAt || 0)
-        ) {
-          await db.draftOrders.put({
-            id: serverDraft.id,
-            customerId: serverDraft.customerId,
-            customerName: serverDraft.customerName,
-            items: serverDraft.items,
-            createdAt: new Date(serverDraft.createdAt).toISOString(),
-            updatedAt: new Date(serverDraft.updatedAt).toISOString(),
-            deviceId: serverDraft.deviceId,
-            needsSync: false,
-            serverUpdatedAt: serverDraft.updatedAt,
-            subClientCodice: serverDraft.subClientCodice,
-            subClientName: serverDraft.subClientName,
-            subClientData: serverDraft.subClientData,
-          });
-        }
-      }
-
-      // Remove local drafts that no longer exist on server
-      const allLocalDrafts = await db.draftOrders.toArray();
-      for (const localDraft of allLocalDrafts) {
-        if (!serverDraftIds.has(localDraft.id)) {
-          if (localDraft.serverUpdatedAt) {
-            console.log(
-              `[UnifiedSync] Removing synced draft ${localDraft.id} - no longer on server`,
-            );
-            await db.draftOrders.delete(localDraft.id);
-          }
-        }
-      }
-    } catch (error) {
-      console.error("[UnifiedSync] Pull draft orders failed:", error);
-      throw error;
-    }
-  }
-
-  private async pushDraftOrders(): Promise<void> {
-    const token = localStorage.getItem("archibald_jwt");
-    if (!token) return;
-
-    try {
-      console.log("[UnifiedSync] Pushing draft orders...");
-
-      const allDrafts = await db.draftOrders.toArray();
-
-      const localDrafts = allDrafts.filter((draft) => draft.needsSync === true);
-
-      console.log(
-        `[UnifiedSync] Found ${localDrafts.length} draft orders to push`,
-      );
-
-      if (localDrafts.length === 0) return;
-
-      const response = await fetchWithRetry("/api/sync/draft-orders", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          drafts: localDrafts.map((d) => ({
-            id: d.id,
-            customerId: d.customerId,
-            customerName: d.customerName,
-            items: d.items,
-            createdAt: new Date(d.createdAt).getTime(),
-            updatedAt: new Date(d.updatedAt).getTime(),
-            deviceId: d.deviceId,
-            subClientCodice: d.subClientCodice,
-            subClientName: d.subClientName,
-            subClientData: d.subClientData,
-          })),
-        }),
-      });
-
-      if (!response.ok) {
-        throw new Error(`Push draft orders failed: ${response.status}`);
-      }
-
-      const { success, results } = await response.json();
-
-      if (!success) {
-        throw new Error("Push draft orders unsuccessful");
-      }
-
-      for (const result of results) {
-        if (
-          result.action === "rejected" &&
-          result.reason === "single_draft_limit"
-        ) {
-          console.log(
-            `[UnifiedSync] Draft ${result.id} rejected (single_draft_limit), removing local`,
-          );
-          await db.draftOrders.delete(result.id);
-        } else if (
-          result.action === "rejected" &&
-          result.reason === "empty_items"
-        ) {
-          console.log(
-            `[UnifiedSync] Draft ${result.id} rejected (empty_items), removing local`,
-          );
-          await db.draftOrders.delete(result.id);
-        } else if (
-          result.action !== "skipped" &&
-          result.action !== "rejected"
-        ) {
-          await db.draftOrders.update(result.id, { needsSync: false });
-        }
-      }
-
-      console.log(`[UnifiedSync] Pushed ${localDrafts.length} draft orders`);
-    } catch (error) {
-      console.error("[UnifiedSync] Push draft orders failed:", error);
       throw error;
     }
   }

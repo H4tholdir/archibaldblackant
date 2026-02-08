@@ -436,14 +436,14 @@ app.use("/api", fresisHistoryRoutes);
 // Admin routes (multi-device sync + impersonation)
 app.use("/api/admin", adminRoutes);
 
-// Sync routes (multi-device sync for orders, drafts, warehouse)
+// Sync routes (multi-device sync for orders, warehouse)
 app.use("/api/sync", syncRoutes);
 
 // LEGACY: Old WebSocket sync progress handler - REMOVED (2026-02-05)
 // This was part of the old /ws/sync endpoint for progress notifications.
 // SyncBanner has been disabled in frontend (commit 2e2cf6c) due to infinite reconnection loops.
 // Sync progress tracking is now handled via orchestrator (Phase 36).
-// Real-time draft/pending sync uses new WebSocketServerService on /ws/realtime.
+// Real-time pending sync uses new WebSocketServerService on /ws/realtime.
 //
 // TODO: If sync progress UI is re-implemented, migrate to WebSocketServerService.broadcastToAll()
 // with proper event types (e.g., "sync_progress" events)
@@ -2850,7 +2850,13 @@ app.post(
             if (milestone) {
               WebSocketServerService.getInstance().broadcast(userId, {
                 type: "CUSTOMER_UPDATE_PROGRESS",
-                payload: { taskId, customerProfile: tempProfile, progress: milestone.progress, label: milestone.label, operation: "create" },
+                payload: {
+                  taskId,
+                  customerProfile: tempProfile,
+                  progress: milestone.progress,
+                  label: milestone.label,
+                  operation: "create",
+                },
                 timestamp: new Date().toISOString(),
               });
             }
@@ -2863,9 +2869,11 @@ app.post(
             customerProfile: tempProfile,
           });
 
-          syncOrchestrator.smartCustomerSync().catch((err) =>
-            logger.error("Smart customer sync after create failed", { err })
-          );
+          syncOrchestrator
+            .smartCustomerSync()
+            .catch((err) =>
+              logger.error("Smart customer sync after create failed", { err }),
+            );
 
           WebSocketServerService.getInstance().broadcast(userId, {
             type: "CUSTOMER_UPDATE_COMPLETED",
@@ -2876,12 +2884,20 @@ app.post(
           customerDb.updateCustomerBotStatus(tempProfile, "failed");
           logger.error("Bot: errore creazione cliente su Archibald", {
             customerProfile: tempProfile,
-            error: error instanceof Error ? { message: error.message, stack: error.stack } : error,
+            error:
+              error instanceof Error
+                ? { message: error.message, stack: error.stack }
+                : error,
           });
 
           WebSocketServerService.getInstance().broadcast(userId, {
             type: "CUSTOMER_UPDATE_FAILED",
-            payload: { taskId, customerProfile: tempProfile, error: error instanceof Error ? error.message : "Errore sconosciuto" },
+            payload: {
+              taskId,
+              customerProfile: tempProfile,
+              error:
+                error instanceof Error ? error.message : "Errore sconosciuto",
+            },
             timestamp: new Date().toISOString(),
           });
         }
@@ -2916,7 +2932,10 @@ app.put(
 
       // Recupera il nome originale PRIMA di aggiornare il DB
       const existingCustomer = customerDb.getCustomerByProfile(customerProfile);
-      const originalName = existingCustomer?.archibaldName || existingCustomer?.name || customerData.name;
+      const originalName =
+        existingCustomer?.archibaldName ||
+        existingCustomer?.name ||
+        customerData.name;
 
       // Write-through: aggiorna subito il DB locale
       customerDb.upsertSingleCustomer(customerData, customerProfile, "pending");
@@ -2943,7 +2962,13 @@ app.put(
             if (milestone) {
               WebSocketServerService.getInstance().broadcast(userId, {
                 type: "CUSTOMER_UPDATE_PROGRESS",
-                payload: { taskId, customerProfile, progress: milestone.progress, label: milestone.label, operation: "update" },
+                payload: {
+                  taskId,
+                  customerProfile,
+                  progress: milestone.progress,
+                  label: milestone.label,
+                  operation: "update",
+                },
                 timestamp: new Date().toISOString(),
               });
             }
@@ -2957,9 +2982,11 @@ app.put(
             customerProfile,
           });
 
-          syncOrchestrator.smartCustomerSync().catch((err) =>
-            logger.error("Smart customer sync after update failed", { err })
-          );
+          syncOrchestrator
+            .smartCustomerSync()
+            .catch((err) =>
+              logger.error("Smart customer sync after update failed", { err }),
+            );
 
           WebSocketServerService.getInstance().broadcast(userId, {
             type: "CUSTOMER_UPDATE_COMPLETED",
@@ -2970,12 +2997,20 @@ app.put(
           customerDb.updateCustomerBotStatus(customerProfile, "failed");
           logger.error("Bot: errore aggiornamento cliente su Archibald", {
             customerProfile,
-            error: error instanceof Error ? { message: error.message, stack: error.stack } : error,
+            error:
+              error instanceof Error
+                ? { message: error.message, stack: error.stack }
+                : error,
           });
 
           WebSocketServerService.getInstance().broadcast(userId, {
             type: "CUSTOMER_UPDATE_FAILED",
-            payload: { taskId, customerProfile, error: error instanceof Error ? error.message : "Errore sconosciuto" },
+            payload: {
+              taskId,
+              customerProfile,
+              error:
+                error instanceof Error ? error.message : "Errore sconosciuto",
+            },
             timestamp: new Date().toISOString(),
           });
         }
@@ -3004,7 +3039,9 @@ app.get(
       const customer = customerDb.getCustomerByProfile(customerProfile);
 
       if (!customer) {
-        return res.status(404).json({ success: false, error: "Cliente non trovato" });
+        return res
+          .status(404)
+          .json({ success: false, error: "Cliente non trovato" });
       }
 
       res.json({
@@ -3012,7 +3049,9 @@ app.get(
         data: { botStatus: customer.botStatus || "placed" },
       });
     } catch (error) {
-      logger.error("Errore API GET /api/customers/:customerProfile/status", { error });
+      logger.error("Errore API GET /api/customers/:customerProfile/status", {
+        error,
+      });
       res.status(500).json({
         success: false,
         error: "Errore durante il recupero dello stato",
@@ -3062,7 +3101,13 @@ app.post(
             if (milestone) {
               WebSocketServerService.getInstance().broadcast(userId, {
                 type: "CUSTOMER_UPDATE_PROGRESS",
-                payload: { taskId, customerProfile, progress: milestone.progress, label: milestone.label, operation: isCreate ? "create" : "update" },
+                payload: {
+                  taskId,
+                  customerProfile,
+                  progress: milestone.progress,
+                  label: milestone.label,
+                  operation: isCreate ? "create" : "update",
+                },
                 timestamp: new Date().toISOString(),
               });
             }
@@ -3082,18 +3127,22 @@ app.post(
             });
           } else {
             const searchName = customer.archibaldName || customer.name;
-            await bot.updateCustomer(customerProfile, {
-              name: customer.name,
-              vatNumber: customer.vatNumber ?? undefined,
-              pec: customer.pec ?? undefined,
-              sdi: customer.sdi ?? undefined,
-              street: customer.street ?? undefined,
-              postalCode: customer.postalCode ?? undefined,
-              postalCodeCity: customer.city ?? undefined,
-              phone: customer.phone ?? undefined,
-              email: customer.email ?? undefined,
-              deliveryMode: customer.deliveryTerms ?? undefined,
-            }, searchName);
+            await bot.updateCustomer(
+              customerProfile,
+              {
+                name: customer.name,
+                vatNumber: customer.vatNumber ?? undefined,
+                pec: customer.pec ?? undefined,
+                sdi: customer.sdi ?? undefined,
+                street: customer.street ?? undefined,
+                postalCode: customer.postalCode ?? undefined,
+                postalCodeCity: customer.city ?? undefined,
+                phone: customer.phone ?? undefined,
+                email: customer.email ?? undefined,
+                deliveryMode: customer.deliveryTerms ?? undefined,
+              },
+              searchName,
+            );
           }
 
           await bot.close();
@@ -3101,9 +3150,11 @@ app.post(
           customerDb.updateArchibaldName(customerProfile, customer.name);
           logger.info("Bot: retry riuscito", { customerProfile });
 
-          syncOrchestrator.smartCustomerSync().catch((err) =>
-            logger.error("Smart customer sync after retry failed", { err })
-          );
+          syncOrchestrator
+            .smartCustomerSync()
+            .catch((err) =>
+              logger.error("Smart customer sync after retry failed", { err }),
+            );
 
           WebSocketServerService.getInstance().broadcast(userId, {
             type: "CUSTOMER_UPDATE_COMPLETED",
@@ -3114,12 +3165,20 @@ app.post(
           customerDb.updateCustomerBotStatus(customerProfile, "failed");
           logger.error("Bot: retry fallito", {
             customerProfile,
-            error: error instanceof Error ? { message: error.message, stack: error.stack } : error,
+            error:
+              error instanceof Error
+                ? { message: error.message, stack: error.stack }
+                : error,
           });
 
           WebSocketServerService.getInstance().broadcast(userId, {
             type: "CUSTOMER_UPDATE_FAILED",
-            payload: { taskId, customerProfile, error: error instanceof Error ? error.message : "Errore sconosciuto" },
+            payload: {
+              taskId,
+              customerProfile,
+              error:
+                error instanceof Error ? error.message : "Errore sconosciuto",
+            },
             timestamp: new Date().toISOString(),
           });
         }
@@ -3131,9 +3190,7 @@ app.post(
       res.status(500).json({
         success: false,
         error:
-          error instanceof Error
-            ? error.message
-            : "Errore durante il retry",
+          error instanceof Error ? error.message : "Errore durante il retry",
       });
     }
   },
@@ -5593,270 +5650,6 @@ app.post(
   },
 );
 
-// Place draft order to Archibald - POST /api/orders/draft/place
-app.post(
-  "/api/orders/draft/place",
-  authenticateJWT,
-  async (req: AuthRequest, res: Response<ApiResponse>) => {
-    const userId = req.user!.userId;
-
-    try {
-      logger.info(`[DraftPlace] Draft order place request received`, {
-        userId,
-      });
-
-      // Validate request body
-      const {
-        customerId,
-        customerName,
-        items,
-        discountPercent,
-        targetTotalWithVAT,
-      } = req.body;
-
-      if (
-        !customerId ||
-        !customerName ||
-        !items ||
-        !Array.isArray(items) ||
-        items.length === 0
-      ) {
-        return res.status(400).json({
-          success: false,
-          error: "Missing required fields: customerId, customerName, items",
-        });
-      }
-
-      // Validate items structure
-      for (const item of items) {
-        if (
-          !item.articleCode ||
-          typeof item.quantity !== "number" ||
-          typeof item.price !== "number"
-        ) {
-          return res.status(400).json({
-            success: false,
-            error:
-              "Invalid item structure: articleCode, quantity, and price are required",
-          });
-        }
-      }
-
-      logger.info(`[DraftPlace] Validated draft order`, {
-        userId,
-        customerId,
-        customerName,
-        itemCount: items.length,
-      });
-
-      let bot: any = null;
-
-      try {
-        // Create order using bot with BrowserPool (same logic as queue-manager)
-        logger.info(`[DraftPlace] Creating bot with BrowserPool for order`, {
-          userId,
-          customerName,
-        });
-
-        const botModulePath = "./archibald-bot";
-        const { ArchibaldBot } = await import(botModulePath);
-
-        // Create bot with userId to use password cache and per-user sessions
-        bot = new ArchibaldBot(userId);
-
-        // Initialize via BrowserPool (fast login + cached context)
-        await bot.initialize();
-
-        logger.info(
-          `[DraftPlace] Bot initialized via BrowserPool, creating order on Archibald`,
-          {
-            userId,
-            customerName,
-            bot: "archibald-bot",
-          },
-        );
-
-        // Create order on Archibald with priority lock (pauses all sync services)
-        const orderData = {
-          customerId,
-          customerName,
-          items,
-          discountPercent,
-          targetTotalWithVAT,
-        };
-
-        logger.info(`[DraftPlace] Order flow: current`);
-
-        const orderId = await priorityManager.withPriority(async () => {
-          return await bot.createOrder(orderData);
-        });
-
-        logger.info(`[DraftPlace] Order created successfully on Archibald`, {
-          userId,
-          orderId,
-          customerName,
-        });
-
-        // Create order record directly in database instead of scraping
-        // (optimization: we already have all the data from the draft)
-        logger.info(
-          `[DraftPlace] Creating order record in database from draft data`,
-          {
-            userId,
-            orderId,
-          },
-        );
-
-        const now = new Date().toISOString();
-
-        // Calculate totals for the order
-        const subtotal = items.reduce((sum: number, item: any) => {
-          const itemTotal = item.quantity * item.price;
-          const discountAmount = item.discount
-            ? (itemTotal * item.discount) / 100
-            : 0;
-          return sum + (itemTotal - discountAmount);
-        }, 0);
-
-        const discountAmount = discountPercent
-          ? (subtotal * discountPercent) / 100
-          : 0;
-        const netAmount = subtotal - discountAmount;
-        const vatAmount = netAmount * 0.22; // 22% IVA
-        const total = netAmount + vatAmount;
-
-        // Create StoredOrder from draft data
-        const storedOrder = {
-          id: orderId, // Archibald order ID
-          userId,
-
-          // Order List fields
-          orderNumber: "", // Empty for "piazzato" orders (Milano assigns ORD/ later)
-          customerProfileId: customerId,
-          customerName,
-          deliveryName: customerName,
-          deliveryAddress: "",
-          creationDate: now,
-          deliveryDate: "",
-          remainingSalesFinancial: null,
-          customerReference: null,
-          salesStatus: "Aperto", // Default status for new orders
-          orderType: "Giornale",
-          documentStatus: "Nessuno",
-          salesOrigin: "App Mobile",
-          transferStatus: null,
-          transferDate: null,
-          completionDate: null,
-          discountPercent: discountPercent ? String(discountPercent) : null,
-          grossAmount: String(subtotal.toFixed(2)),
-          totalAmount: String(total.toFixed(2)),
-
-          // Legacy field
-          status: "Aperto",
-
-          // Metadata
-          lastScraped: now,
-          lastUpdated: now,
-          isOpen: true,
-
-          // Extended data (items detail)
-          detailJson: JSON.stringify({
-            items: items.map((item: any) => ({
-              articleCode: item.articleCode,
-              productName: item.productName || item.articleCode,
-              description: item.description || "",
-              quantity: item.quantity,
-              price: item.price,
-              discount: item.discount || 0,
-              total:
-                item.quantity * item.price * (1 - (item.discount || 0) / 100),
-            })),
-            subtotal,
-            discountPercent: discountPercent || 0,
-            discountAmount,
-            netAmount,
-            vatAmount,
-            total,
-          }),
-
-          // Order management fields
-          sentToMilanoAt: null,
-          currentState: "piazzato", // State: order placed on Archibald but not sent to Milano yet
-
-          // DDT fields (will be populated later after "Invia a Milano")
-          ddtId: null,
-          ddtNumber: null,
-          ddtDeliveryDate: null,
-          ddtOrderNumber: null,
-          ddtCustomerAccount: null,
-          ddtSalesName: null,
-          ddtDeliveryName: null,
-          trackingNumber: null,
-          deliveryTerms: null,
-          deliveryMethod: null,
-          deliveryCity: null,
-          trackingUrl: null,
-          trackingCourier: null,
-
-          // Invoice fields (will be populated later)
-          invoiceNumber: null,
-          invoiceDate: null,
-          invoiceAmount: null,
-        };
-
-        // Save to database
-        orderHistoryService.orderDb.upsertOrders(userId, [storedOrder]);
-
-        logger.info(`[DraftPlace] Order record created in database`, {
-          userId,
-          orderId,
-          currentState: "piazzato",
-        });
-
-        return res.json({
-          success: true,
-          message: `Order created and placed successfully`,
-          data: {
-            orderId,
-            customerName,
-          },
-        });
-      } catch (error) {
-        // Mark bot as having error so context will be closed on release
-        if (bot) {
-          (bot as any).hasError = true;
-        }
-        throw error;
-      } finally {
-        // Close bot browser
-        if (bot) {
-          try {
-            await bot.close();
-            logger.info(`[DraftPlace] Bot browser closed`);
-          } catch (error) {
-            logger.error(`[DraftPlace] Error closing bot browser`, { error });
-          }
-        }
-      }
-    } catch (error) {
-      logger.error("[DraftPlace] Error placing draft order", {
-        error,
-        userId,
-        message: error instanceof Error ? error.message : String(error),
-        stack: error instanceof Error ? error.stack : undefined,
-      });
-
-      return res.status(500).json({
-        success: false,
-        error:
-          error instanceof Error
-            ? error.message
-            : "Failed to place draft order",
-      });
-    }
-  },
-);
-
 // Sync DDT (transport documents) and tracking data - POST /api/orders/sync-ddt
 app.post(
   "/api/orders/sync-ddt",
@@ -6648,7 +6441,7 @@ server.listen(config.server.port, async () => {
   logger.info(`📝 Environment: ${config.server.nodeEnv}`);
   logger.info(`🎯 Archibald URL: ${config.archibald.url}`);
 
-  // Initialize WebSocket server for real-time draft/pending operations
+  // Initialize WebSocket server for real-time pending operations
   try {
     WebSocketServerService.getInstance().initialize(server);
     logger.info(
@@ -6766,7 +6559,9 @@ server.listen(config.server.port, async () => {
   }
 
   try {
-    const { runMigration026 } = require("./migrations/026-add-draft-subclient-fields");
+    const {
+      runMigration026,
+    } = require("./migrations/026-add-draft-subclient-fields");
     runMigration026();
     logger.info("✅ Migration 026 completed (draft sub-client fields)");
   } catch (error) {
@@ -6779,6 +6574,16 @@ server.listen(config.server.port, async () => {
     logger.info("✅ Migration 027 completed (fresis_history table)");
   } catch (error) {
     logger.warn("⚠️  Migration 027 failed or already applied", { error });
+  }
+
+  try {
+    const {
+      runMigration028,
+    } = require("./migrations/028-drop-draft-orders-table");
+    runMigration028();
+    logger.info("✅ Migration 028 completed (drop draft_orders table)");
+  } catch (error) {
+    logger.warn("⚠️  Migration 028 failed or already applied", { error });
   }
 
   // ========== AUTO-LOAD ENCRYPTED PASSWORDS (LAZY-LOAD) ==========

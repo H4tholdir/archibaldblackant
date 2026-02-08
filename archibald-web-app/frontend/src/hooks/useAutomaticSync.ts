@@ -13,7 +13,7 @@ export function useAutomaticSync(jwt: string | null) {
       if (wasOffline.current) {
         // Network returned online after being offline
         console.log(
-          "[AutoSync] Network reconnected, syncing all data (orders, drafts, warehouse)...",
+          "[AutoSync] Network reconnected, syncing all data (orders, warehouse)...",
         );
 
         unifiedSyncService

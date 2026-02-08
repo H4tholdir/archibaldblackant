@@ -10,20 +10,12 @@ import { orderService } from "../services/orders.service";
 import { cachePopulationService } from "../services/cache-population";
 import { toastService } from "../services/toast.service";
 import { db } from "../db/schema";
-import type {
-  Customer,
-  Product,
-  DraftOrder,
-  PendingOrderItem,
-} from "../db/schema";
+import type { Customer, Product, PendingOrderItem } from "../db/schema";
 import {
   WarehouseMatchAccordion,
   type SelectedWarehouseMatch,
 } from "./WarehouseMatchAccordion";
 import { releaseWarehouseReservations } from "../services/warehouse-order-integration";
-import { getDeviceId } from "../utils/device-id";
-import { unifiedSyncService } from "../services/unified-sync-service";
-import { useDraftSync } from "../hooks/useDraftSync";
 import { calculateShippingCosts, roundUp } from "../utils/order-calculations";
 import type { SubClient } from "../db/schema";
 import { SubClientSelector } from "./new-order-form/SubClientSelector";
@@ -58,9 +50,6 @@ interface OrderItem {
 export default function OrderFormSimple() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-
-  // 🔧 FIX: Use useDraftSync hook to get real-time draft updates via WebSocket
-  const { drafts: draftOrders, refetch: refetchDrafts } = useDraftSync();
 
   // Responsive design: detect mobile
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
@@ -201,9 +190,6 @@ export default function OrderFormSimple() {
   const [editingItemId, setEditingItemId] = useState<string | null>(null);
   const [cacheSyncing, setCacheSyncing] = useState(false);
   const [editingOrderId, setEditingOrderId] = useState<string | null>(null);
-  const [editingOriginDraftId, setEditingOriginDraftId] = useState<
-    string | null
-  >(null);
   const [loadingOrder, setLoadingOrder] = useState(false);
 
   // Fresis history: article purchase history for selected sub-client
@@ -259,7 +245,8 @@ export default function OrderFormSimple() {
       return;
     }
 
-    const discountPercent = parseFloat(globalDiscountPercent.replace(",", ".")) || 0;
+    const discountPercent =
+      parseFloat(globalDiscountPercent.replace(",", ".")) || 0;
 
     const calculateRevenue = async () => {
       let totalRevenue = 0;
@@ -362,24 +349,10 @@ export default function OrderFormSimple() {
     searchArticleHistory();
   }, [selectedProduct, selectedSubClient, selectedCustomer, productVariants]);
 
-  // Auto-save draft state
-  const [draftId, setDraftId] = useState<string | null>(null);
-  const [lastAutoSave, setLastAutoSave] = useState<Date | null>(null);
-  const draftLoadedOnceRef = useRef(false);
-  const lastDraftUpdatedAtRef = useRef<string | null>(null);
-
   // Track original order items for warehouse restoration if user exits without saving
   const [originalOrderItems, setOriginalOrderItems] = useState<
     PendingOrderItem[]
   >([]);
-
-  // 🔧 CRITICAL FIX: Use ref instead of state to avoid race condition with navigate()
-  // setState is async, so navigate() could unmount component before flag is set,
-  // causing unmount handler to call saveDraft() and recreate the just-deleted draft
-  const orderSavedSuccessfullyRef = useRef(false);
-
-  // 🔧 FIX: Prevent concurrent draft saves that create duplicates
-  const savingDraftRef = useRef(false);
 
   // Customer keyboard navigation
   const [highlightedCustomerIndex, setHighlightedCustomerIndex] = useState(-1);
@@ -410,16 +383,6 @@ export default function OrderFormSimple() {
           toastService.error("Ordine non trovato");
           navigate("/pending-orders");
           return;
-        }
-
-        // 🔧 FIX: Preserve originDraftId when editing to maintain draft→pending link
-        // This ensures cascade deletion still works if order is re-saved
-        if (order.originDraftId) {
-          setEditingOriginDraftId(order.originDraftId);
-          console.log("[OrderForm] Preserved originDraftId for editing:", {
-            orderId,
-            originDraftId: order.originDraftId,
-          });
         }
 
         // Save original order items for potential restoration
@@ -545,6 +508,9 @@ export default function OrderFormSimple() {
 
     loadOrderForEditing();
   }, [searchParams, navigate]);
+
+  // Track whether order was saved to prevent warehouse reservation restoration on unmount
+  const orderSavedSuccessfullyRef = useRef(false);
 
   // === CLEANUP: RESTORE WAREHOUSE RESERVATIONS IF USER EXITS WITHOUT SAVING ===
   useEffect(() => {
@@ -1025,369 +991,33 @@ export default function OrderFormSimple() {
     calculatePackaging();
   }, [selectedProduct, quantity]);
 
-  // === SAVE DRAFT FUNCTION (SHARED) ===
-  const saveDraft = useCallback(async () => {
-    console.log("[OrderForm] saveDraft called", {
-      editingOrderId,
-      hasCustomer: !!selectedCustomer,
-      itemsCount: items.length,
-      draftId,
-      orderSavedSuccessfully: orderSavedSuccessfullyRef.current,
-      alreadySaving: savingDraftRef.current,
-    });
-
-    // 🔧 FIX: Prevent concurrent draft saves (causes duplicates)
-    if (savingDraftRef.current) {
-      console.log("[OrderForm] Draft save already in progress, skipping");
-      return;
-    }
-
-    if (
-      editingOrderId ||
-      !selectedCustomer ||
-      items.length === 0 ||
-      orderSavedSuccessfullyRef.current
-    ) {
-      console.log("[OrderForm] Draft save skipped", {
-        reason: editingOrderId
-          ? "editing order"
-          : !selectedCustomer
-            ? "no customer"
-            : items.length === 0
-              ? "no items"
-              : "order finalized",
-      });
-      return;
-    }
-
-    // Set lock
-    savingDraftRef.current = true;
-
-    try {
-      const now = new Date().toISOString();
-
-      // Convert OrderItems to DraftOrderItems
-      const draftItems = items.map((item) => ({
-        productId: item.productId,
-        productName: item.productName,
-        article: item.article,
-        variantId: item.article,
-        quantity: item.quantity,
-        packageContent: item.description || "",
-      }));
-
-      if (draftId) {
-        // Update existing draft — detect stale draftId (deleted on another device)
-        console.log("[OrderForm] Updating existing draft:", draftId);
-        const updated = await db.draftOrders.update(draftId, {
-          customerId: selectedCustomer.id,
-          customerName: selectedCustomer.name,
-          items: draftItems,
-          updatedAt: now,
-          needsSync: true,
-          subClientCodice: selectedSubClient?.codice,
-          subClientName: selectedSubClient?.ragioneSociale,
-          subClientData: selectedSubClient ?? undefined,
-        });
-
-        if (updated === 0) {
-          // Draft was deleted on another device — reset draftId so next auto-save creates a new one
-          console.log(
-            "[OrderForm] Draft no longer exists (deleted on another device), resetting draftId",
-          );
-          setDraftId(null);
-          return;
-        }
-        console.log("[OrderForm] ✅ Draft updated");
-      } else {
-        // Single-draft-per-user: look for ANY existing draft
-        const allDrafts = await db.draftOrders.toArray();
-
-        if (allDrafts.length > 0) {
-          const existingDraft = allDrafts[0];
-          console.log(
-            "[OrderForm] Found existing draft, reusing it:",
-            existingDraft.id,
-          );
-          setDraftId(existingDraft.id!);
-
-          await db.draftOrders.update(existingDraft.id!, {
-            customerId: selectedCustomer.id,
-            customerName: selectedCustomer.name,
-            items: draftItems,
-            updatedAt: now,
-            needsSync: true,
-            subClientCodice: selectedSubClient?.codice,
-            subClientName: selectedSubClient?.ragioneSociale,
-            subClientData: selectedSubClient ?? undefined,
-          });
-          console.log("[OrderForm] Existing draft updated");
-        } else {
-          // Create new draft
-          console.log("[OrderForm] Creating new draft");
-          const draft: Omit<DraftOrder, "id"> = {
-            customerId: selectedCustomer.id,
-            customerName: selectedCustomer.name,
-            items: draftItems,
-            createdAt: now,
-            updatedAt: now,
-            deviceId: getDeviceId(),
-            needsSync: true,
-            subClientCodice: selectedSubClient?.codice,
-            subClientName: selectedSubClient?.ragioneSociale,
-            subClientData: selectedSubClient ?? undefined,
-          };
-          const id = await orderService.saveDraftOrder(draft);
-          setDraftId(id);
-          console.log("[OrderForm] ✅ Draft created:", id);
-        }
-      }
-
-      // Trigger sync
-      if (navigator.onLine) {
-        unifiedSyncService.syncAll().catch((error) => {
-          console.error("[OrderForm] Draft sync failed:", error);
-        });
-      }
-
-      lastDraftUpdatedAtRef.current = now;
-      setLastAutoSave(new Date());
-      console.log(
-        "[OrderForm] Draft saved at",
-        new Date().toLocaleTimeString(),
-      );
-    } catch (error) {
-      console.error("[OrderForm] ❌ Draft save failed:", error);
-    } finally {
-      // Release lock
-      savingDraftRef.current = false;
-    }
-  }, [editingOrderId, selectedCustomer, items, draftId]);
-
-  // === LOAD DRAFT INTO FORM (shared helper) ===
-  const loadDraftIntoForm = useCallback(async (targetDraftId: string) => {
-    const draft = await db.draftOrders.get(targetDraftId);
-    if (!draft) {
-      console.log("[OrderForm] Draft not found in IndexedDB:", targetDraftId);
-      return;
-    }
-
-    const customer = await customerService.getCustomerById(draft.customerId);
-    if (customer) {
-      setSelectedCustomer(customer);
-      setCustomerSearch(customer.name);
-    }
-
-    if (draft.subClientData) {
-      setSelectedSubClient(draft.subClientData);
-    } else {
-      setSelectedSubClient(null);
-    }
-
-    const recoveredItems: OrderItem[] = [];
-    for (const draftItem of draft.items) {
-      const variantId = draftItem.article;
-      const product = await db.products.get(variantId);
-      const unitPrice = await priceService.getPriceByArticleId(variantId);
-
-      if (product && unitPrice !== null) {
-        const vatRate = normalizeVatRate(product.vat);
-        const subtotal = unitPrice * draftItem.quantity;
-        const vat = subtotal * (vatRate / 100);
-
-        recoveredItems.push({
-          id: crypto.randomUUID(),
-          productId: variantId,
-          article: draftItem.article,
-          productName: draftItem.productName,
-          description: draftItem.packageContent,
-          quantity: draftItem.quantity,
-          unitPrice,
-          vatRate,
-          discount: 0,
-          subtotal,
-          vat,
-          total: subtotal + vat,
-        });
-      } else {
-        console.warn(
-          `[OrderForm] Product or price not found for variant ${variantId} during draft auto-load`,
-          { product, unitPrice },
-        );
-      }
-    }
-
-    setItems(recoveredItems);
-    setDraftId(draft.id!);
-    lastDraftUpdatedAtRef.current = draft.updatedAt;
-    console.log("[OrderForm] Draft auto-loaded:", draft.id);
-  }, []);
-
-  // === AUTO-LOAD DRAFT ON MOUNT ===
-  useEffect(() => {
-    if (loadingOrder || editingOrderId || draftLoadedOnceRef.current) return;
-    if (selectedCustomer || items.length > 0) return;
-
-    const autoLoad = async () => {
-      const allDrafts = await db.draftOrders.toArray();
-      if (allDrafts.length > 0) {
-        draftLoadedOnceRef.current = true;
-        await loadDraftIntoForm(allDrafts[0].id!);
-      }
-    };
-    autoLoad();
-  }, [
-    loadingOrder,
-    editingOrderId,
-    selectedCustomer,
-    items,
-    draftOrders,
-    loadDraftIntoForm,
-  ]);
-
-  // === MULTI-DEVICE WATCHER ===
-  useEffect(() => {
-    if (!draftId || draftOrders.length === 0) return;
-
-    const currentDraft = draftOrders.find((d) => d.id === draftId);
-
-    if (!currentDraft) {
-      console.log(
-        "[OrderForm] Draft disappeared from other device, resetting form",
-      );
-      setDraftId(null);
-      setSelectedCustomer(null);
-      setCustomerSearch("");
-      setItems([]);
-      setSelectedSubClient(null);
-      draftLoadedOnceRef.current = false;
-      lastDraftUpdatedAtRef.current = null;
-      return;
-    }
-
-    if (
-      lastDraftUpdatedAtRef.current &&
-      currentDraft.updatedAt > lastDraftUpdatedAtRef.current
-    ) {
-      console.log("[OrderForm] Draft updated from other device, reloading");
-      lastDraftUpdatedAtRef.current = currentDraft.updatedAt;
-      loadDraftIntoForm(currentDraft.id!);
-    }
-  }, [draftOrders, draftId, loadDraftIntoForm]);
-
-  // === AUTO-SAVE DRAFT ON EVERY OPERATION ===
-  // Save immediately when customer or items change
-  useEffect(() => {
-    if (
-      editingOrderId ||
-      !selectedCustomer ||
-      orderSavedSuccessfullyRef.current
-    ) {
-      return;
-    }
-
-    console.log("[OrderForm] Operation detected - auto-saving draft", {
-      customer: selectedCustomer.name,
-      itemsCount: items.length,
-    });
-
-    // 🔧 FIX: Debounce auto-save to reduce battery/performance impact on mobile
-    const timeoutId = setTimeout(() => {
-      saveDraft();
-    }, 2000); // 2s debounce (increased from 500ms)
-
-    return () => clearTimeout(timeoutId);
-  }, [selectedCustomer, items, editingOrderId, saveDraft]);
-
-  // === SAVE DRAFT ON TAB CLOSE / PAGE UNLOAD / COMPONENT UNMOUNT ===
-  useEffect(() => {
-    const handleBeforeUnload = () => {
-      console.log("[OrderForm] beforeunload triggered");
-      // 🔧 FIX: Don't save draft if order was just finalized
-      if (
-        selectedCustomer &&
-        !editingOrderId &&
-        !orderSavedSuccessfullyRef.current
-      ) {
-        saveDraft();
-      }
-    };
-
-    const handleVisibilityChange = () => {
-      console.log("[OrderForm] visibilitychange, hidden:", document.hidden);
-      // 🔧 FIX: Don't save draft if order was just finalized
-      if (
-        document.hidden &&
-        selectedCustomer &&
-        !editingOrderId &&
-        !orderSavedSuccessfullyRef.current
-      ) {
-        saveDraft();
-      }
-    };
-
-    window.addEventListener("beforeunload", handleBeforeUnload);
-    document.addEventListener("visibilitychange", handleVisibilityChange);
-
-    // Save draft on component unmount (when user navigates away)
-    return () => {
-      console.log("[OrderForm] Component unmounting");
-      window.removeEventListener("beforeunload", handleBeforeUnload);
-      window.removeEventListener("visibilitychange", handleVisibilityChange);
-
-      if (
-        selectedCustomer &&
-        !editingOrderId &&
-        !orderSavedSuccessfullyRef.current &&
-        draftId
-      ) {
-        saveDraft();
-      }
-    };
-  }, [selectedCustomer, editingOrderId, saveDraft]);
-
   // === RESET FORM (RICOMINCIA DA CAPO) ===
-  const handleResetForm = async () => {
-    try {
-      await orderService.deleteAllUserDrafts();
-      await refetchDrafts();
-      console.log("[OrderForm] All drafts deleted during form reset");
+  const handleResetForm = () => {
+    // Reset customer
+    setCustomerSearch("");
+    setCustomerResults([]);
+    setSelectedCustomer(null);
+    setSearchingCustomer(false);
 
-      // Reset customer
-      setCustomerSearch("");
-      setCustomerResults([]);
-      setSelectedCustomer(null);
-      setSearchingCustomer(false);
+    // Reset product
+    setProductSearch("");
+    setProductResults([]);
+    setSelectedProduct(null);
+    setSearchingProduct(false);
+    setHighlightedProductIndex(-1);
+    setQuantity("");
+    setItemDiscount("");
+    setPackagingPreview(null);
+    setCalculatingPackaging(false);
+    setWarehouseSelection([]);
+    setProductVariants([]);
 
-      // Reset product
-      setProductSearch("");
-      setProductResults([]);
-      setSelectedProduct(null);
-      setSearchingProduct(false);
-      setHighlightedProductIndex(-1);
-      setQuantity("");
-      setItemDiscount("");
-      setPackagingPreview(null);
-      setCalculatingPackaging(false);
-      setWarehouseSelection([]);
-      setProductVariants([]);
+    // Reset items
+    setItems([]);
+    setGlobalDiscountPercent("");
+    setTargetTotal("");
 
-      // Reset items
-      setItems([]);
-      setGlobalDiscountPercent("");
-      setTargetTotal("");
-
-      // Reset draft state
-      setDraftId(null);
-      setLastAutoSave(null);
-      draftLoadedOnceRef.current = false;
-      lastDraftUpdatedAtRef.current = null;
-
-      toastService.success("Ordine resettato");
-    } catch (error) {
-      console.error("[OrderForm] Failed to reset form:", error);
-      toastService.error("Errore durante il reset del form");
-    }
+    toastService.success("Ordine resettato");
   };
 
   // === ADD ITEM (WITH MULTIPLE LINES FOR VARIANTS) ===
@@ -1810,7 +1440,8 @@ export default function OrderFormSimple() {
     const itemsTotal = items.reduce((sum, item) => sum + item.total, 0);
 
     // Calculate discount as percentage of subtotal
-    const discountPercent = parseFloat(globalDiscountPercent.replace(",", ".")) || 0;
+    const discountPercent =
+      parseFloat(globalDiscountPercent.replace(",", ".")) || 0;
     const globalDiscAmount = (itemsSubtotal * discountPercent) / 100;
     const finalSubtotal = itemsSubtotal - globalDiscAmount;
 
@@ -2028,54 +1659,20 @@ export default function OrderFormSimple() {
         return warehouseQty > 0 && warehouseQty === totalQty;
       });
 
-      const originDraftId = editingOriginDraftId || draftId;
-
-      try {
-        console.log("[OrderForm] Deleting all user drafts on submit");
-        await orderService.deleteAllUserDrafts();
-        setDraftId(null);
-      } catch (deleteError) {
-        console.warn(
-          "[OrderForm] Failed to delete user drafts on submit:",
-          deleteError,
-        );
-      }
-
       // Save new/updated order (status will be determined by service)
-      // 🔧 FIX: Pass originDraftId for server-side cascade deletion
       await orderService.savePendingOrder({
         customerId: selectedCustomer.id,
         customerName: selectedCustomer.name,
         items: orderItems,
-        discountPercent: parseFloat(globalDiscountPercent.replace(",", ".")) || undefined,
+        discountPercent:
+          parseFloat(globalDiscountPercent.replace(",", ".")) || undefined,
         targetTotalWithVAT: totals.finalTotal,
-        originDraftId: originDraftId || undefined,
         subClientCodice: selectedSubClient?.codice,
         subClientName: selectedSubClient?.ragioneSociale,
         subClientData: selectedSubClient ?? undefined,
       });
 
-      // 🔧 FIX: If created from draft, wait for sync to complete BEFORE showing success
-      // This ensures draft is deleted on server before other devices sync
-      if (originDraftId && navigator.onLine) {
-        console.log(
-          "[OrderForm] ⏳ Waiting for sync to complete (draft conversion)...",
-        );
-        try {
-          await unifiedSyncService.syncAll();
-          console.log(
-            "[OrderForm] ✅ Sync completed - draft deleted on server",
-          );
-        } catch (syncError) {
-          console.warn(
-            "[OrderForm] ⚠️ Sync failed after pending creation:",
-            syncError,
-          );
-          // Don't block user - server will cleanup eventually
-        }
-      }
-
-      // 🔧 FIX #5: Show specific message for warehouse-only orders
+      // Show specific message for warehouse-only orders
       if (isWarehouseOnly) {
         toastService.success(
           "🏪 Ordine completato dal magazzino! Nessun invio ad Archibald necessario.",
@@ -2086,12 +1683,8 @@ export default function OrderFormSimple() {
         );
       }
 
-      // 🔧 CRITICAL FIX: Use ref instead of setState to prevent race condition
-      // Must be synchronous before navigate() to prevent unmount handler from calling saveDraft()
+      // Mark order as saved to prevent warehouse reservation restoration on unmount
       orderSavedSuccessfullyRef.current = true;
-
-      // Reset editing state
-      setEditingOriginDraftId(null);
 
       navigate("/pending-orders");
     } catch (error) {
@@ -2139,23 +1732,6 @@ export default function OrderFormSimple() {
         <h1 style={{ fontSize: "1.75rem", margin: 0 }}>
           {editingOrderId ? "Modifica Ordine" : "Nuovo Ordine"}
         </h1>
-        {lastAutoSave && !editingOrderId && (
-          <div
-            style={{
-              fontSize: "0.75rem",
-              color: "#6b7280",
-              display: "flex",
-              alignItems: "center",
-              gap: "0.5rem",
-            }}
-          >
-            <span>💾</span>
-            <span>
-              Salvato automaticamente alle{" "}
-              {lastAutoSave.toLocaleTimeString("it-IT")}
-            </span>
-          </div>
-        )}
       </div>
 
       {/* LOADING ORDER BANNER */}
@@ -2809,16 +2385,20 @@ export default function OrderFormSimple() {
                             ) : null}
                             <span>IVA: {articleHistory.lastPurchase.vat}%</span>
                             <span style={{ color: "#1e40af" }}>
-                              Netto: €{(() => {
+                              Netto: €
+                              {(() => {
                                 const p = articleHistory.lastPurchase;
-                                const netto = p.price - (p.price * (p.discount || 0) / 100);
+                                const netto =
+                                  p.price - (p.price * (p.discount || 0)) / 100;
                                 return netto.toFixed(2);
                               })()}
                             </span>
                             <span style={{ color: "#065f46" }}>
-                              Totale: €{(() => {
+                              Totale: €
+                              {(() => {
                                 const p = articleHistory.lastPurchase;
-                                const netto = p.price - (p.price * (p.discount || 0) / 100);
+                                const netto =
+                                  p.price - (p.price * (p.discount || 0)) / 100;
                                 const total = netto * (1 + p.vat / 100);
                                 return total.toFixed(2);
                               })()}
@@ -3875,7 +3455,7 @@ export default function OrderFormSimple() {
               minHeight: isMobile ? "52px" : "auto",
             }}
           >
-            🗑️ Cancella bozza
+            🔄 Ricomincia
           </button>
 
           <button
@@ -4214,14 +3794,20 @@ export default function OrderFormSimple() {
                       ) : null}
                       <span style={{ color: "#374151" }}>IVA {item.vat}%</span>
                       <span style={{ color: "#2563eb", fontWeight: "600" }}>
-                        Netto: €{(() => {
-                          const netto = item.price - (item.price * (item.discount || 0) / 100);
+                        Netto: €
+                        {(() => {
+                          const netto =
+                            item.price -
+                            (item.price * (item.discount || 0)) / 100;
                           return netto.toFixed(2);
                         })()}
                       </span>
                       <span style={{ color: "#059669", fontWeight: "700" }}>
-                        Totale: €{(() => {
-                          const netto = item.price - (item.price * (item.discount || 0) / 100);
+                        Totale: €
+                        {(() => {
+                          const netto =
+                            item.price -
+                            (item.price * (item.discount || 0)) / 100;
                           const total = netto * (1 + item.vat / 100);
                           return total.toFixed(2);
                         })()}

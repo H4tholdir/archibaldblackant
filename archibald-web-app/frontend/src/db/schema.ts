@@ -52,31 +52,6 @@ export interface Price {
   lastSynced: string;
 }
 
-// Draft orders (offline-first feature)
-export interface DraftOrder {
-  id: string; // UUID (changed from number for multi-device sync)
-  customerId: string;
-  customerName: string;
-  items: DraftOrderItem[];
-  createdAt: string;
-  updatedAt: string;
-  deviceId: string;
-  needsSync: boolean;
-  serverUpdatedAt?: number;
-  subClientCodice?: string;
-  subClientName?: string;
-  subClientData?: SubClient;
-}
-
-export interface DraftOrderItem {
-  productId: string;
-  productName: string;
-  article: string;
-  variantId: string;
-  quantity: number;
-  packageContent: string;
-}
-
 // Pending order item (can be from warehouse or to be ordered)
 export interface PendingOrderItem {
   articleCode: string;
@@ -115,7 +90,6 @@ export interface PendingOrder {
   deviceId: string;
   needsSync: boolean;
   serverUpdatedAt?: number;
-  originDraftId?: string; // 🔧 FIX: Track which draft this pending came from for server-side cascade deletion
   // Job tracking fields (Phase 72: Real-time job progress)
   jobId?: string;
   jobStatus?: "idle" | "started" | "processing" | "completed" | "failed";
@@ -236,7 +210,6 @@ export class ArchibaldDatabase extends Dexie {
   products!: Table<Product, string>;
   productVariants!: Table<ProductVariant, number>;
   prices!: Table<Price, number>;
-  draftOrders!: Table<DraftOrder, string>; // Changed to string (UUID)
   pendingOrders!: Table<PendingOrder, string>; // Changed to string (UUID)
   cacheMetadata!: Table<CacheMetadata, string>;
   warehouseItems!: Table<WarehouseItem, number>;
@@ -708,6 +681,24 @@ export class ArchibaldDatabase extends Dexie {
       productVariants: "++id, productId, variantId",
       prices: "++id, articleId, articleName",
       draftOrders: "id, customerId, createdAt, updatedAt",
+      pendingOrders: "id, status, createdAt, updatedAt, jobId",
+      cacheMetadata: "key, lastSynced",
+      warehouseItems:
+        "++id, articleCode, boxName, reservedForOrder, soldInOrder",
+      warehouseMetadata: "++id, uploadedAt",
+      subClients: "codice, ragioneSociale, supplRagioneSociale, partitaIva",
+      fresisHistory:
+        "id, subClientCodice, customerName, createdAt, updatedAt, archibaldOrderId, mergedIntoOrderId",
+      fresisDiscounts: "id, articleCode, discountPercent",
+    });
+
+    // Version 18: Remove draft orders table (draft system removed)
+    this.version(18).stores({
+      customers: "id, name, code, city, *hash",
+      products: "id, name, article, *hash",
+      productVariants: "++id, productId, variantId",
+      prices: "++id, articleId, articleName",
+      draftOrders: null,
       pendingOrders: "id, status, createdAt, updatedAt, jobId",
       cacheMetadata: "key, lastSynced",
       warehouseItems:

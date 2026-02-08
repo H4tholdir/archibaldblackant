@@ -232,7 +232,7 @@ function AppRouter() {
       <BrowserRouter>
         {/* WebSocket Real-Time Sync - Singleton provider for entire app */}
         <WebSocketProvider>
-          {/* Initialize WebSocket subscriptions for draft/pending sync when authenticated */}
+          {/* Initialize WebSocket subscriptions for pending sync when authenticated */}
           {auth.isAuthenticated && <WebSocketSync />}
           <ToastContainer
             toasts={toasts}
@@ -494,9 +494,7 @@ function AppRouter() {
                     <FresisHistoryPage />
                   </main>
                   <footer className="app-footer">
-                    <p>
-                      v1.0.0 • Formicanera by Francesco Formicola
-                    </p>
+                    <p>v1.0.0 • Formicanera by Francesco Formicola</p>
                   </footer>
                 </div>
               }

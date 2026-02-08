@@ -39,7 +39,6 @@ interface PendingCreatedPayload {
     createdAt: number;
     updatedAt: number;
     deviceId: string;
-    originDraftId?: string;
   };
   timestamp: string;
   deviceId: string;
@@ -70,7 +69,6 @@ interface PendingUpdatedPayload {
     createdAt: number;
     updatedAt: number;
     deviceId: string;
-    originDraftId?: string;
   };
   timestamp: string;
   deviceId: string;
@@ -241,7 +239,6 @@ export class PendingRealtimeService {
         deviceId: data.pendingOrder.deviceId,
         needsSync: false, // Already synced via WebSocket
         serverUpdatedAt: new Date(data.timestamp).getTime(),
-        originDraftId: data.pendingOrder.originDraftId,
       };
 
       await db.pendingOrders.put(pendingOrder);
@@ -328,7 +325,6 @@ export class PendingRealtimeService {
         deviceId: data.pendingOrder.deviceId,
         needsSync: false, // Already synced via WebSocket
         serverUpdatedAt: incomingTimestamp,
-        originDraftId: data.pendingOrder.originDraftId,
       };
 
       await db.pendingOrders.put(pendingOrder);
@@ -502,10 +498,7 @@ export class PendingRealtimeService {
           progress: data.progress,
         });
       } catch (error) {
-        console.error(
-          "[PendingRealtime] Error flushing JOB_PROGRESS:",
-          error,
-        );
+        console.error("[PendingRealtime] Error flushing JOB_PROGRESS:", error);
       }
     }
 

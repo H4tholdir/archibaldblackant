@@ -101,7 +101,7 @@ export function OrderActions({
           </>
         )}
 
-        {/* Buttons for "creato" state (draft orders) */}
+        {/* Buttons for "creato" state (placed orders) */}
         {showEdit && (
           <>
             <button

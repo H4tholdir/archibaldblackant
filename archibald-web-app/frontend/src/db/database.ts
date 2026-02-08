@@ -110,8 +110,7 @@ export async function initializeDatabase(): Promise<{
           localStorage.setItem("db_recovery_failed", "true");
           return {
             success: false,
-            error:
-              "Errore di database non recuperabile. Contatta il supporto.",
+            error: "Errore di database non recuperabile. Contatta il supporto.",
           };
         }
       }
@@ -183,7 +182,6 @@ export async function clearAllData(): Promise<void> {
   await db.products.clear();
   await db.productVariants.clear();
   await db.prices.clear();
-  await db.draftOrders.clear();
   await db.pendingOrders.clear();
   await db.cacheMetadata.clear();
 }
@@ -212,7 +210,6 @@ db.on("ready", async () => {
     products: await db.products.count(),
     variants: await db.productVariants.count(),
     prices: await db.prices.count(),
-    drafts: await db.draftOrders.count(),
     pending: await db.pendingOrders.count(),
   };
 

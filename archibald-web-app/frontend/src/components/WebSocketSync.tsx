@@ -2,10 +2,10 @@ import { useEffect } from "react";
 
 /**
  * Component che inizializza la sincronizzazione WebSocket real-time
- * per draft e pending orders.
+ * per pending orders.
  *
- * NOTA: useDraftSync e usePendingSync sono chiamati direttamente dai componenti
- * che necessitano dei dati. Non vanno chiamati qui per evitare subscriptions duplicate.
+ * NOTA: usePendingSync è chiamato direttamente dai componenti
+ * che necessitano dei dati. Non va chiamato qui per evitare subscriptions duplicate.
  *
  * Questo componente rimane come placeholder per future inizializzazioni globali.
  */

@@ -97,11 +97,14 @@ export function OrderHistory() {
       if (filters.status) params.append("status", filters.status);
       params.append("limit", "100");
 
-      const response = await fetchWithRetry(`/api/orders/history?${params.toString()}`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
+      const response = await fetchWithRetry(
+        `/api/orders/history?${params.toString()}`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
         },
-      });
+      );
 
       if (!response.ok) {
         if (response.status === 401) {
@@ -223,7 +226,7 @@ export function OrderHistory() {
   };
 
   const handleEdit = (orderId: string) => {
-    // Navigate to OrderForm with orderId to restore draft
+    // Navigate to OrderForm with orderId to edit
     window.location.href = `/order?orderId=${orderId}`;
   };
 

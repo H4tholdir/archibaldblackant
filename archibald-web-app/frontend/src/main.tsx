@@ -36,7 +36,7 @@ initializeDatabase().then(async (result) => {
     console.error("[App] Database initialization failed:", result.error);
     // App will still render but offline features won't work
   } else {
-    // Initialize multi-device sync service (orders, drafts, warehouse)
+    // Initialize multi-device sync service (orders, warehouse)
     await unifiedSyncService.initSync();
 
     // Trigger initial sync for customers, products, prices
@@ -44,23 +44,23 @@ initializeDatabase().then(async (result) => {
   }
 
   // Start JWT auto-refresh service if token exists
-  const token = localStorage.getItem('archibald_jwt');
+  const token = localStorage.getItem("archibald_jwt");
   if (token) {
     jwtRefreshService.start();
-    console.log('[App] JWT auto-refresh service started');
+    console.log("[App] JWT auto-refresh service started");
   }
 
   // Stop JWT refresh service when token is removed (logout)
-  window.addEventListener('storage', (event) => {
-    if (event.key === 'archibald_jwt') {
+  window.addEventListener("storage", (event) => {
+    if (event.key === "archibald_jwt") {
       if (event.newValue === null) {
         // Token removed = logout
         jwtRefreshService.stop();
-        console.log('[App] JWT auto-refresh service stopped (logout)');
+        console.log("[App] JWT auto-refresh service stopped (logout)");
       } else if (event.oldValue === null && event.newValue) {
         // Token added = login
         jwtRefreshService.start();
-        console.log('[App] JWT auto-refresh service started (login)');
+        console.log("[App] JWT auto-refresh service started (login)");
       }
     }
   });

@@ -3,7 +3,6 @@ import { authenticateJWT, type AuthRequest } from "../middleware/auth";
 import { logger } from "../logger";
 import Database from "better-sqlite3";
 import path from "path";
-import { DraftRealtimeService } from "../draft-realtime.service";
 import { PendingRealtimeService } from "../pending-realtime.service";
 
 const router = Router();
@@ -15,7 +14,6 @@ const ordersDb = new Database(ordersDbPath);
 const usersDb = new Database(usersDbPath);
 
 // Real-time services for WebSocket broadcasts
-const draftRealtimeService = DraftRealtimeService.getInstance();
 const pendingRealtimeService = PendingRealtimeService.getInstance();
 
 // ========== PENDING ORDERS SYNC ==========
@@ -133,8 +131,7 @@ router.post(
                 retry_count = ?,
                 error_message = ?,
                 updated_at = ?,
-                device_id = ?,
-                origin_draft_id = ?
+                device_id = ?
               WHERE id = ?
             `,
               )
@@ -151,7 +148,6 @@ router.post(
                 order.errorMessage || null,
                 order.updatedAt,
                 order.deviceId,
-                order.originDraftId || null,
                 order.id,
               );
 
@@ -178,7 +174,6 @@ router.post(
               createdAt: order.createdAt,
               updatedAt: order.updatedAt,
               deviceId: order.deviceId,
-              originDraftId: order.originDraftId,
             });
           } else {
             // Insert new order
@@ -188,8 +183,8 @@ router.post(
               INSERT INTO pending_orders (
                 id, user_id, customer_id, customer_name, items_json, status,
                 discount_percent, target_total_with_vat, shipping_cost, shipping_tax,
-                retry_count, error_message, created_at, updated_at, device_id, origin_draft_id
-              ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                retry_count, error_message, created_at, updated_at, device_id
+              ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             `,
               )
               .run(
@@ -208,7 +203,6 @@ router.post(
                 order.createdAt,
                 order.updatedAt,
                 order.deviceId,
-                order.originDraftId || null,
               );
 
             results.push({ id: order.id, action: "created" });
@@ -234,51 +228,7 @@ router.post(
               createdAt: order.createdAt,
               updatedAt: order.updatedAt,
               deviceId: order.deviceId,
-              originDraftId: order.originDraftId,
             });
-
-            // 🔧 FIX: Server-side cascade deletion - delete associated draft if originDraftId present
-            // Only do this on INSERT (first creation), not on subsequent updates
-            if (order.originDraftId) {
-              try {
-                const draftDeleted = ordersDb
-                  .prepare(
-                    "DELETE FROM draft_orders WHERE id = ? AND user_id = ?",
-                  )
-                  .run(order.originDraftId, userId);
-
-                if (draftDeleted.changes > 0) {
-                  logger.info(
-                    "Auto-deleted draft after pending creation (cascade)",
-                    {
-                      draftId: order.originDraftId,
-                      pendingId: order.id,
-                      userId,
-                    },
-                  );
-
-                  // WebSocket broadcast: DRAFT_CONVERTED (Phase 31)
-                  draftRealtimeService.emitDraftConverted(
-                    userId,
-                    order.originDraftId,
-                    order.id,
-                    order.deviceId,
-                  );
-                } else {
-                  logger.debug("Draft not found or already deleted (cascade)", {
-                    draftId: order.originDraftId,
-                    pendingId: order.id,
-                  });
-                }
-              } catch (draftDeleteError) {
-                // Log but don't fail - draft deletion is best-effort cleanup
-                logger.warn("Failed to auto-delete draft (cascade)", {
-                  draftId: order.originDraftId,
-                  pendingId: order.id,
-                  error: draftDeleteError,
-                });
-              }
-            }
           }
         } catch (orderError) {
           logger.error("Error syncing pending order", {
@@ -345,354 +295,6 @@ router.delete(
       res.json({ success: true });
     } catch (error) {
       logger.error("Error deleting pending order", { error });
-      res.status(500).json({ success: false, error: "Errore server" });
-    }
-  },
-);
-
-// ========== DRAFT ORDERS SYNC ==========
-
-/**
- * GET /api/sync/draft-orders
- *
- * Pull draft orders for current user
- */
-router.get(
-  "/draft-orders",
-  authenticateJWT,
-  async (req: AuthRequest, res: Response) => {
-    try {
-      const userId = req.user!.userId;
-      const { updatedAfter } = req.query;
-
-      let query = "SELECT * FROM draft_orders WHERE user_id = ?";
-      const params: any[] = [userId];
-
-      if (updatedAfter) {
-        query += " AND updated_at > ?";
-        params.push(parseInt(updatedAfter as string));
-      }
-
-      query += " ORDER BY updated_at DESC";
-
-      const drafts = ordersDb.prepare(query).all(...params) as any[];
-
-      res.setHeader("Cache-Control", "no-store").json({
-        success: true,
-        drafts: drafts.map((d) => ({
-          id: d.id,
-          userId: d.user_id,
-          customerId: d.customer_id,
-          customerName: d.customer_name,
-          items: JSON.parse(d.items_json),
-          createdAt: d.created_at,
-          updatedAt: d.updated_at,
-          deviceId: d.device_id,
-          subClientCodice: d.sub_client_codice || undefined,
-          subClientName: d.sub_client_name || undefined,
-          subClientData: d.sub_client_data_json
-            ? JSON.parse(d.sub_client_data_json)
-            : undefined,
-        })),
-      });
-    } catch (error) {
-      logger.error("Error fetching draft orders", { error });
-      res.status(500).json({ success: false, error: "Errore server" });
-    }
-  },
-);
-
-/**
- * POST /api/sync/draft-orders
- *
- * Push/update draft orders (batch)
- */
-router.post(
-  "/draft-orders",
-  authenticateJWT,
-  async (req: AuthRequest, res: Response) => {
-    try {
-      const userId = req.user!.userId;
-      const { drafts } = req.body;
-
-      if (!Array.isArray(drafts)) {
-        return res.status(400).json({
-          success: false,
-          error: "drafts deve essere array",
-        });
-      }
-
-      // 🔧 FIX: Basic validation for payload size and data integrity
-      if (drafts.length > 50) {
-        return res.status(400).json({
-          success: false,
-          error: "Troppi draft in un singolo batch (max 50)",
-        });
-      }
-
-      const results = [];
-
-      for (const draft of drafts) {
-        try {
-          // 🔧 FIX: Validate draft data integrity
-          if (
-            !draft.id ||
-            !draft.customerId ||
-            !draft.customerName ||
-            !Array.isArray(draft.items)
-          ) {
-            results.push({
-              id: draft.id || "unknown",
-              action: "rejected",
-              reason: "invalid_data",
-            });
-            continue;
-          }
-
-          // Validate items array size
-          if (draft.items.length > 100) {
-            results.push({
-              id: draft.id,
-              action: "rejected",
-              reason: "too_many_items",
-            });
-            continue;
-          }
-
-          if (draft.items.length === 0) {
-            results.push({
-              id: draft.id,
-              action: "rejected",
-              reason: "empty_items",
-            });
-            continue;
-          }
-
-          const existing = ordersDb
-            .prepare("SELECT * FROM draft_orders WHERE id = ?")
-            .get(draft.id) as any;
-
-          if (existing) {
-            // LWW conflict resolution
-            if (existing.updated_at > draft.updatedAt) {
-              results.push({
-                id: draft.id,
-                action: "skipped",
-                reason: "server_newer",
-                serverUpdatedAt: existing.updated_at,
-              });
-              continue;
-            }
-
-            // Update
-            ordersDb
-              .prepare(
-                `
-              UPDATE draft_orders SET
-                customer_id = ?,
-                customer_name = ?,
-                items_json = ?,
-                updated_at = ?,
-                device_id = ?,
-                sub_client_codice = ?,
-                sub_client_name = ?,
-                sub_client_data_json = ?
-              WHERE id = ?
-            `,
-              )
-              .run(
-                draft.customerId,
-                draft.customerName,
-                JSON.stringify(draft.items),
-                draft.updatedAt,
-                draft.deviceId,
-                draft.subClientCodice || null,
-                draft.subClientName || null,
-                draft.subClientData
-                  ? JSON.stringify(draft.subClientData)
-                  : null,
-                draft.id,
-              );
-
-            results.push({ id: draft.id, action: "updated" });
-
-            // WebSocket broadcast: DRAFT_UPDATED (Phase 31)
-            draftRealtimeService.emitDraftUpdated(userId, {
-              id: draft.id,
-              customerId: draft.customerId,
-              customerName: draft.customerName,
-              items: draft.items,
-              createdAt: draft.createdAt,
-              updatedAt: draft.updatedAt,
-              deviceId: draft.deviceId,
-              subClientCodice: draft.subClientCodice,
-              subClientName: draft.subClientName,
-              subClientData: draft.subClientData,
-            });
-          } else {
-            // Single-draft-per-user: reject if another draft already exists
-            const existingOther = ordersDb
-              .prepare(
-                "SELECT id FROM draft_orders WHERE user_id = ? AND id != ?",
-              )
-              .get(userId, draft.id) as { id: string } | undefined;
-
-            if (existingOther) {
-              results.push({
-                id: draft.id,
-                action: "rejected",
-                reason: "single_draft_limit",
-                existingDraftId: existingOther.id,
-              });
-              continue;
-            }
-
-            // Insert
-            ordersDb
-              .prepare(
-                `
-              INSERT INTO draft_orders (
-                id, user_id, customer_id, customer_name, items_json,
-                created_at, updated_at, device_id,
-                sub_client_codice, sub_client_name, sub_client_data_json
-              ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            `,
-              )
-              .run(
-                draft.id,
-                userId,
-                draft.customerId,
-                draft.customerName,
-                JSON.stringify(draft.items),
-                draft.createdAt,
-                draft.updatedAt,
-                draft.deviceId,
-                draft.subClientCodice || null,
-                draft.subClientName || null,
-                draft.subClientData
-                  ? JSON.stringify(draft.subClientData)
-                  : null,
-              );
-
-            results.push({ id: draft.id, action: "created" });
-
-            // WebSocket broadcast: DRAFT_CREATED (Phase 31)
-            draftRealtimeService.emitDraftCreated(userId, {
-              id: draft.id,
-              customerId: draft.customerId,
-              customerName: draft.customerName,
-              items: draft.items,
-              createdAt: draft.createdAt,
-              updatedAt: draft.updatedAt,
-              deviceId: draft.deviceId,
-              subClientCodice: draft.subClientCodice,
-              subClientName: draft.subClientName,
-              subClientData: draft.subClientData,
-            });
-          }
-        } catch (draftError) {
-          logger.error("Error syncing draft order", {
-            draftId: draft.id,
-            error: draftError,
-          });
-          results.push({
-            id: draft.id,
-            action: "error",
-            reason: "sync_failed",
-          });
-        }
-      }
-
-      res.json({ success: true, results });
-    } catch (error) {
-      logger.error("Error pushing draft orders", { error });
-      res.status(500).json({ success: false, error: "Errore server" });
-    }
-  },
-);
-
-/**
- * DELETE /api/sync/draft-orders
- *
- * Delete ALL draft orders for the current user.
- * Used by the "Cancel" button to clear all drafts in one call.
- */
-router.delete(
-  "/draft-orders",
-  authenticateJWT,
-  async (req: AuthRequest, res: Response) => {
-    try {
-      const userId = req.user!.userId;
-      const { deviceId } = req.query;
-
-      const drafts = ordersDb
-        .prepare("SELECT id FROM draft_orders WHERE user_id = ?")
-        .all(userId) as { id: string }[];
-
-      if (drafts.length === 0) {
-        return res.json({ success: true, deletedCount: 0 });
-      }
-
-      ordersDb
-        .prepare("DELETE FROM draft_orders WHERE user_id = ?")
-        .run(userId);
-
-      logger.info("All draft orders deleted for user", {
-        userId,
-        deletedCount: drafts.length,
-      });
-
-      for (const draft of drafts) {
-        draftRealtimeService.emitDraftDeleted(
-          userId,
-          draft.id,
-          (deviceId as string) || "unknown",
-        );
-      }
-
-      res.json({ success: true, deletedCount: drafts.length });
-    } catch (error) {
-      logger.error("Error deleting all draft orders", { error });
-      res.status(500).json({ success: false, error: "Errore server" });
-    }
-  },
-);
-
-/**
- * DELETE /api/sync/draft-orders/:id
- */
-router.delete(
-  "/draft-orders/:id",
-  authenticateJWT,
-  async (req: AuthRequest, res: Response) => {
-    try {
-      const userId = req.user!.userId;
-      const { id } = req.params;
-      const { deviceId } = req.query; // Get deviceId from query param
-
-      const result = ordersDb
-        .prepare("DELETE FROM draft_orders WHERE id = ? AND user_id = ?")
-        .run(id, userId);
-
-      if (result.changes === 0) {
-        return res.status(404).json({
-          success: false,
-          error: "Bozza non trovata",
-        });
-      }
-
-      logger.info("Draft order deleted", { draftId: id, userId });
-
-      // WebSocket broadcast: DRAFT_DELETED (Phase 31)
-      draftRealtimeService.emitDraftDeleted(
-        userId,
-        id,
-        (deviceId as string) || "unknown",
-      );
-
-      res.json({ success: true });
-    } catch (error) {
-      logger.error("Error deleting draft order", { error });
       res.status(500).json({ success: false, error: "Errore server" });
     }
   },
