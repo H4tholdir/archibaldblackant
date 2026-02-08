@@ -6807,33 +6807,91 @@ export class ArchibaldBot {
     }
 
     if (!formClosed) {
-      // Form still open — scan for any visible error messages on page
+      // Form still open — retry: the warning may have appeared late
+      logger.info("Form still open after save, retrying warning check");
+
+      const lateWarning = await this.page.evaluate(() => {
+        // Try checkbox (any ErrorInfo variant)
+        const checkboxes = Array.from(document.querySelectorAll('input[id*="ErrorInfo"]'));
+        for (const cb of checkboxes) {
+          const input = cb as HTMLInputElement;
+          if (input.type === "checkbox" && !input.checked) {
+            const wrapper = input.closest("span") || input.parentElement;
+            if (wrapper) {
+              (wrapper as HTMLElement).click();
+            } else {
+              input.click();
+            }
+            return "checkbox";
+          }
+        }
+
+        // Try any clickable element with "Ignore warnings" / "Ignora avvisi"
+        const all = Array.from(document.querySelectorAll("*"));
+        for (const el of all) {
+          const htmlEl = el as HTMLElement;
+          if (htmlEl.children.length > 0) continue;
+          const text = htmlEl.textContent?.trim();
+          if (text === "Ignore warnings" || text === "Ignora avvisi") {
+            htmlEl.click();
+            return "button";
+          }
+        }
+
+        return null;
+      });
+
+      if (lateWarning) {
+        logger.info("Late warning acknowledged via " + lateWarning + ", saving again");
+        await this.waitForDevExpressIdle({ timeout: 3000, label: "late-warning-ack" });
+
+        const alreadyClosed = await this.page.evaluate(
+          () => !window.location.href.includes("DetailView"),
+        );
+
+        if (!alreadyClosed) {
+          const savedAgain = await saveAttempt();
+          if (!savedAgain) {
+            await this.clickElementByText("Salva e chiudi", {
+              selectors: ["a", "span", "button", "li"],
+            });
+          }
+          await this.waitForDevExpressIdle({ timeout: 8000, label: "save-customer-3" });
+        }
+
+        // Final form-closed check
+        try {
+          await this.page.waitForFunction(
+            () => !window.location.href.includes("DetailView"),
+            { timeout: 10000, polling: 500 },
+          );
+          formClosed = true;
+        } catch {
+          formClosed = false;
+        }
+      }
+    }
+
+    if (!formClosed) {
       const pageErrors = await this.page.evaluate(() => {
         const errorTexts: string[] = [];
-
-        // DevExpress error info checkboxes (any variant)
         document.querySelectorAll('input[id*="ErrorInfo"]').forEach((el) => {
           const row = el.closest("tr") || el.parentElement;
           const text = row?.textContent?.trim();
           if (text) errorTexts.push(text);
         });
-
-        // DevExpress popup dialogs (validation errors, alerts)
         document.querySelectorAll(".dxpc-content, .dxpc-contentWrapper").forEach((el) => {
           const htmlEl = el as HTMLElement;
           if (htmlEl.offsetParent !== null && htmlEl.textContent?.trim()) {
             errorTexts.push(htmlEl.textContent.trim());
           }
         });
-
-        // Generic error/alert elements
         document.querySelectorAll('[role="alert"], [role="alertdialog"], .dxeErrorCell').forEach((el) => {
           const htmlEl = el as HTMLElement;
           if (htmlEl.offsetParent !== null && htmlEl.textContent?.trim()) {
             errorTexts.push(htmlEl.textContent.trim());
           }
         });
-
         return errorTexts;
       });
 
