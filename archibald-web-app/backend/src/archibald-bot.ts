@@ -2379,13 +2379,14 @@ export class ArchibaldBot {
                   'button, input[type="submit"], a',
                 ),
               );
+              const btnText = (b: Element) => b.textContent?.toLowerCase().replace(/\s+/g, "") || "";
+              const btnId = (b: Element) => (b as HTMLElement).id?.toLowerCase() || "";
               const loginBtn = buttons.find(
                 (btn) =>
-                  btn.textContent?.toLowerCase().includes("accedi") ||
-                  btn.textContent?.toLowerCase().includes("login") ||
-                  (btn as HTMLElement).id
-                    ?.toLowerCase()
-                    .includes("login"),
+                  btnText(btn).includes("accedi") ||
+                  btnText(btn).includes("login") ||
+                  btnId(btn).includes("login") ||
+                  btnId(btn).includes("logon"),
               );
               if (loginBtn) {
                 (loginBtn as HTMLElement).click();
