@@ -4469,6 +4469,16 @@ export class ArchibaldBot {
 
         // 5.8: Add new row for next article (if not last)
         if (i < itemsToOrder.length - 1) {
+          // Every 3 articles, pause to let the ERP server finish pending
+          // callbacks. Without this, the server saturates after ~5 rapid
+          // operations and stops responding (Runtime.callFunctionOn timeout).
+          if ((i + 1) % 3 === 0) {
+            logger.info(
+              `⏸️ Stability pause after article ${i + 1} (every 3 articles)`,
+            );
+            await this.wait(2000);
+          }
+
           await this.runOp(
             `order.item.${i}.click_new_for_next`,
             async () => {
