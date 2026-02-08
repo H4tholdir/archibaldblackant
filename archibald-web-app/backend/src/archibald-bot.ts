@@ -3161,6 +3161,202 @@ export class ArchibaldBot {
 
       await this.emitProgress("form.customer");
 
+      // Helper: open "Prezzi e sconti" tab
+      const openPrezziEScontiTab = async (): Promise<boolean> => {
+        logger.debug('Looking for "Prezzi e sconti" tab...');
+
+        const tabClicked = await this.page!.evaluate(() => {
+          // Find tab with text "Prezzi e sconti"
+          const allLinks = Array.from(
+            document.querySelectorAll("a.dxtc-link, span.dx-vam"),
+          );
+
+          for (const element of allLinks) {
+            const text = element.textContent?.trim() || "";
+            if (text.includes("Prezzi") && text.includes("sconti")) {
+              const clickTarget =
+                element.tagName === "A" ? element : element.parentElement;
+              if (
+                clickTarget &&
+                (clickTarget as HTMLElement).offsetParent !== null
+              ) {
+                (clickTarget as HTMLElement).click();
+                return true;
+              }
+            }
+          }
+
+          // Alternative: Find by tab ID pattern (pg_AT2 = Prezzi e sconti)
+          const tabs = Array.from(
+            document.querySelectorAll('li[id*="_pg_AT"]'),
+          );
+          for (const tab of tabs) {
+            const link = tab.querySelector("a.dxtc-link");
+            const span = tab.querySelector("span.dx-vam");
+            const text = span?.textContent?.trim() || "";
+
+            if (text.includes("Prezzi") && text.includes("sconti")) {
+              if (link && (link as HTMLElement).offsetParent !== null) {
+                (link as HTMLElement).click();
+                return true;
+              }
+            }
+          }
+
+          return false;
+        });
+
+        if (!tabClicked) {
+          logger.warn(
+            '"Prezzi e sconti" tab not found, trying to continue anyway...',
+          );
+          return false;
+        }
+
+        logger.info('✅ Clicked "Prezzi e sconti" tab');
+        try {
+          await this.page!.waitForFunction(
+            () => {
+              const w = window as any;
+              const col =
+                w.ASPxClientControl?.GetControlCollection?.();
+              if (!col || typeof col.ForEachControl !== "function")
+                return true;
+              let busy = false;
+              col.ForEachControl((c: any) => {
+                try {
+                  if (c.InCallback?.()) busy = true;
+                } catch {}
+              });
+              return !busy;
+            },
+            { timeout: 5000, polling: 100 },
+          );
+        } catch {
+          // proceed
+        }
+        return true;
+      };
+
+      let prezziTabOpened = false;
+
+      // STEP 3.5: Set line discount to N/A BEFORE entering articles
+      // This must happen before article entry so that the ERP respects
+      // manually entered per-line discounts during UpdateEdit callbacks.
+      const hasAnyLineDiscount = orderData.items.some(
+        (item) => item.discount !== undefined && item.discount > 0,
+      );
+      if (hasAnyLineDiscount) {
+        await this.runOp(
+          "order.apply_line_discount",
+          async () => {
+            const tabClicked = await openPrezziEScontiTab();
+            prezziTabOpened = prezziTabOpened || tabClicked;
+
+            logger.debug("Setting line discount to N/A...");
+
+            // Phase 1: Wait for LINEDISC field to appear
+            try {
+              await this.page!.waitForFunction(
+                () => {
+                  const input = document.querySelector(
+                    'input[id*="LINEDISC"][id$="_I"]',
+                  ) as HTMLInputElement | null;
+                  return input && input.offsetParent !== null;
+                },
+                { timeout: 10000, polling: 200 },
+              );
+            } catch {
+              logger.warn(
+                "LINEDISC input not found after waiting, retrying tab click...",
+              );
+              await openPrezziEScontiTab();
+              await this.wait(1000);
+            }
+
+            const inputInfo = await this.page!.evaluate(() => {
+              const input = document.querySelector(
+                'input[id*="LINEDISC"][id$="_I"]',
+              ) as HTMLInputElement | null;
+              if (!input || input.offsetParent === null) return null;
+              input.scrollIntoView({ block: "center" });
+              input.focus();
+              input.click();
+              return { id: input.id, currentValue: input.value };
+            });
+
+            if (!inputInfo) {
+              throw new Error("LINEDISC input field not found");
+            }
+
+            logger.debug("LINEDISC input found", {
+              id: inputInfo.id,
+              currentValue: inputInfo.currentValue,
+            });
+
+            if (
+              inputInfo.currentValue.trim().toUpperCase() === "N/A"
+            ) {
+              logger.info("⚡ Line discount already N/A, skipping");
+            } else {
+              await this.page!.evaluate((inputId) => {
+                const input = document.getElementById(
+                  inputId,
+                ) as HTMLInputElement;
+                if (input) {
+                  input.value = "N/A";
+                  input.dispatchEvent(
+                    new Event("input", { bubbles: true }),
+                  );
+                  input.dispatchEvent(
+                    new Event("change", { bubbles: true }),
+                  );
+                }
+              }, inputInfo.id);
+
+              await this.page!.keyboard.press("Tab");
+
+              try {
+                await this.page!.waitForFunction(
+                  () => {
+                    const w = window as any;
+                    const col =
+                      w.ASPxClientControl?.GetControlCollection?.();
+                    if (!col || typeof col.ForEachControl !== "function")
+                      return true;
+                    let busy = false;
+                    col.ForEachControl((c: any) => {
+                      try {
+                        if (c.InCallback?.()) busy = true;
+                      } catch {}
+                    });
+                    return !busy;
+                  },
+                  { timeout: 5000, polling: 100 },
+                );
+              } catch {
+                // proceed
+              }
+
+              const verifyValue = await this.page!.evaluate((inputId) => {
+                const input = document.getElementById(
+                  inputId,
+                ) as HTMLInputElement;
+                return input?.value || "";
+              }, inputInfo.id);
+
+              logger.debug("LINEDISC verification", {
+                setValue: "N/A",
+                actualValue: verifyValue,
+              });
+            }
+
+            logger.info("✅ Line discount set to N/A");
+          },
+          "form.discount",
+        );
+      }
+
       // STEP 4: Add first new row in Linee di vendita
       await this.runOp(
         "order.lineditems.click_new",
@@ -4569,85 +4765,7 @@ export class ArchibaldBot {
         }
       }
 
-      const openPrezziEScontiTab = async (): Promise<boolean> => {
-        logger.debug('Looking for "Prezzi e sconti" tab...');
-
-        const tabClicked = await this.page!.evaluate(() => {
-          // Find tab with text "Prezzi e sconti"
-          const allLinks = Array.from(
-            document.querySelectorAll("a.dxtc-link, span.dx-vam"),
-          );
-
-          for (const element of allLinks) {
-            const text = element.textContent?.trim() || "";
-            if (text.includes("Prezzi") && text.includes("sconti")) {
-              const clickTarget =
-                element.tagName === "A" ? element : element.parentElement;
-              if (
-                clickTarget &&
-                (clickTarget as HTMLElement).offsetParent !== null
-              ) {
-                (clickTarget as HTMLElement).click();
-                return true;
-              }
-            }
-          }
-
-          // Alternative: Find by tab ID pattern (pg_AT2 = Prezzi e sconti)
-          const tabs = Array.from(
-            document.querySelectorAll('li[id*="_pg_AT"]'),
-          );
-          for (const tab of tabs) {
-            const link = tab.querySelector("a.dxtc-link");
-            const span = tab.querySelector("span.dx-vam");
-            const text = span?.textContent?.trim() || "";
-
-            if (text.includes("Prezzi") && text.includes("sconti")) {
-              if (link && (link as HTMLElement).offsetParent !== null) {
-                (link as HTMLElement).click();
-                return true;
-              }
-            }
-          }
-
-          return false;
-        });
-
-        if (!tabClicked) {
-          logger.warn(
-            '"Prezzi e sconti" tab not found, trying to continue anyway...',
-          );
-          return false;
-        }
-
-        logger.info('✅ Clicked "Prezzi e sconti" tab');
-        try {
-          await this.page!.waitForFunction(
-            () => {
-              const w = window as any;
-              const col =
-                w.ASPxClientControl?.GetControlCollection?.();
-              if (!col || typeof col.ForEachControl !== "function")
-                return true;
-              let busy = false;
-              col.ForEachControl((c: any) => {
-                try {
-                  if (c.InCallback?.()) busy = true;
-                } catch {}
-              });
-              return !busy;
-            },
-            { timeout: 5000, polling: 100 },
-          );
-        } catch {
-          // proceed
-        }
-        return true;
-      };
-
       await this.emitProgress("form.articles.complete");
-
-      let prezziTabOpened = false;
 
       // STEP 9: Extract order ID before saving (while still on form)
       await this.runOp(
@@ -4706,121 +4824,6 @@ export class ArchibaldBot {
           orderId = `ORDER-${Date.now()}`;
         },
         "form.submit",
-      );
-
-      // STEP 9.2: Set line discount to N/A (mandatory)
-      await this.runOp(
-        "order.apply_line_discount",
-        async () => {
-          const tabClicked = await openPrezziEScontiTab();
-          prezziTabOpened = prezziTabOpened || tabClicked;
-
-          logger.debug("Setting line discount to N/A...");
-
-          // Phase 1: Attendi che il campo LINEDISC appaia nel DOM (il tab carica lazy)
-          try {
-            await this.page!.waitForFunction(
-              () => {
-                const input = document.querySelector(
-                  'input[id*="LINEDISC"][id$="_I"]',
-                ) as HTMLInputElement | null;
-                return input && input.offsetParent !== null;
-              },
-              { timeout: 10000, polling: 200 },
-            );
-          } catch {
-            logger.warn(
-              "LINEDISC input not found after waiting, retrying tab click...",
-            );
-            await openPrezziEScontiTab();
-            await this.wait(1000);
-          }
-
-          const inputInfo = await this.page!.evaluate(() => {
-            const input = document.querySelector(
-              'input[id*="LINEDISC"][id$="_I"]',
-            ) as HTMLInputElement | null;
-            if (!input || input.offsetParent === null) return null;
-            input.scrollIntoView({ block: "center" });
-            input.focus();
-            input.click();
-            return { id: input.id, currentValue: input.value };
-          });
-
-          if (!inputInfo) {
-            throw new Error("LINEDISC input field not found");
-          }
-
-          logger.debug("LINEDISC input found", {
-            id: inputInfo.id,
-            currentValue: inputInfo.currentValue,
-          });
-
-          // Phase 2: Se già "N/A", skip
-          if (
-            inputInfo.currentValue.trim().toUpperCase() === "N/A"
-          ) {
-            logger.info("⚡ Line discount already N/A, skipping");
-          } else {
-            // Phase 3: Scrivi "N/A" direttamente nell'input
-            await this.page!.evaluate((inputId) => {
-              const input = document.getElementById(
-                inputId,
-              ) as HTMLInputElement;
-              if (input) {
-                input.value = "N/A";
-                input.dispatchEvent(
-                  new Event("input", { bubbles: true }),
-                );
-                input.dispatchEvent(
-                  new Event("change", { bubbles: true }),
-                );
-              }
-            }, inputInfo.id);
-
-            // Phase 4: Tab per confermare
-            await this.page!.keyboard.press("Tab");
-
-            // Phase 5: Attendi callback conferma
-            try {
-              await this.page!.waitForFunction(
-                () => {
-                  const w = window as any;
-                  const col =
-                    w.ASPxClientControl?.GetControlCollection?.();
-                  if (!col || typeof col.ForEachControl !== "function")
-                    return true;
-                  let busy = false;
-                  col.ForEachControl((c: any) => {
-                    try {
-                      if (c.InCallback?.()) busy = true;
-                    } catch {}
-                  });
-                  return !busy;
-                },
-                { timeout: 5000, polling: 100 },
-              );
-            } catch {
-              // proceed
-            }
-
-            // Phase 6: Verifica valore impostato
-            const verifyValue = await this.page!.evaluate((inputId) => {
-              const input = document.getElementById(
-                inputId,
-              ) as HTMLInputElement;
-              return input?.value || "";
-            }, inputInfo.id);
-
-            logger.debug("LINEDISC verification", {
-              setValue: "N/A",
-              actualValue: verifyValue,
-            });
-          }
-
-          logger.info("✅ Line discount set to N/A");
-        },
-        "form.discount",
       );
 
       // STEP 9.5: Apply global discount (if specified)
