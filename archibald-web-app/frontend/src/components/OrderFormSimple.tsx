@@ -287,12 +287,19 @@ export default function OrderFormSimple() {
     }
 
     const searchArticleHistory = async () => {
-      const allOrders = await db.fresisHistory
-        .where("subClientCodice")
-        .equals(selectedSubClient.codice)
-        .toArray();
+      const allOrders = await db.fresisHistory.toArray();
+      const subCode = selectedSubClient.codice.toLowerCase();
+      const clientOrders = allOrders.filter(
+        (o) => o.subClientCodice?.toLowerCase() === subCode,
+      );
 
-      const productCode = selectedProduct.article || selectedProduct.name;
+      const productCode = (
+        selectedProduct.article || selectedProduct.name
+      ).toLowerCase();
+      const variantCodes = new Set(
+        productVariants.map((v) => v.variantId.toLowerCase()),
+      );
+
       let lastDate = "";
       let lastItem: {
         date: string;
@@ -302,16 +309,21 @@ export default function OrderFormSimple() {
         vat: number;
       } | null = null;
 
-      for (const order of allOrders) {
+      for (const order of clientOrders) {
         for (const item of order.items) {
-          const matchesCode =
-            item.articleCode?.includes(productCode) ||
-            productCode.includes(item.articleCode || "");
-          const matchesName =
-            item.productName?.includes(productCode) ||
-            productCode.includes(item.productName || "");
+          const code = (item.articleCode || "").toLowerCase();
+          const name = (item.productName || "").toLowerCase();
+          const desc = (item.description || "").toLowerCase();
 
-          if (matchesCode || matchesName) {
+          const matches =
+            code.includes(productCode) ||
+            productCode.includes(code) ||
+            name.includes(productCode) ||
+            productCode.includes(name) ||
+            desc.includes(productCode) ||
+            variantCodes.has(code);
+
+          if (matches) {
             const orderDate = order.createdAt || order.updatedAt || "";
             if (orderDate > lastDate) {
               lastDate = orderDate;
@@ -333,7 +345,7 @@ export default function OrderFormSimple() {
     };
 
     searchArticleHistory();
-  }, [selectedProduct, selectedSubClient, selectedCustomer]);
+  }, [selectedProduct, selectedSubClient, selectedCustomer, productVariants]);
 
   // Auto-save draft state
   const [draftId, setDraftId] = useState<string | null>(null);
@@ -720,10 +732,11 @@ export default function OrderFormSimple() {
   const loadTopSoldItems = async () => {
     if (!selectedSubClient) return;
 
-    const allOrders = await db.fresisHistory
-      .where("subClientCodice")
-      .equals(selectedSubClient.codice)
-      .toArray();
+    const all = await db.fresisHistory.toArray();
+    const subCode = selectedSubClient.codice.toLowerCase();
+    const allOrders = all.filter(
+      (o) => o.subClientCodice?.toLowerCase() === subCode,
+    );
 
     const aggregated = new Map<
       string,
@@ -765,10 +778,11 @@ export default function OrderFormSimple() {
       return;
     }
 
-    const allOrders = await db.fresisHistory
-      .where("subClientCodice")
-      .equals(selectedSubClient.codice)
-      .toArray();
+    const all = await db.fresisHistory.toArray();
+    const subCode = selectedSubClient.codice.toLowerCase();
+    const allOrders = all.filter(
+      (o) => o.subClientCodice?.toLowerCase() === subCode,
+    );
 
     const q = query.toLowerCase();
     const results: typeof historySearchResults = [];

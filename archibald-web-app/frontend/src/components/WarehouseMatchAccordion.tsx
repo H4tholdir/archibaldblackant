@@ -97,9 +97,10 @@ export function WarehouseMatchAccordion({
     const newSelected = new Map(selectedMatches);
 
     if (checked) {
-      const defaultQty = requestedQuantity > 0
-        ? Math.min(match.availableQty, requestedQuantity)
-        : match.availableQty;
+      const defaultQty =
+        requestedQuantity > 0
+          ? Math.min(match.availableQty, requestedQuantity)
+          : match.availableQty;
       newSelected.set(match.item.id!, defaultQty);
     } else {
       newSelected.delete(match.item.id!);
@@ -351,7 +352,7 @@ export function WarehouseMatchAccordion({
 
       <style>{`
         .warehouse-match-accordion {
-          margin-top: 8px;
+          margin-top: 4px;
           border: 1px solid #ddd;
           border-radius: 6px;
           background: #f9f9f9;
@@ -362,11 +363,11 @@ export function WarehouseMatchAccordion({
           display: flex;
           justify-content: space-between;
           align-items: center;
-          padding: 10px 12px;
+          padding: 6px 10px;
           background: none;
           border: none;
           cursor: pointer;
-          font-size: 0.95em;
+          font-size: 0.875em;
           font-weight: 500;
           transition: background 0.2s;
         }
@@ -386,22 +387,22 @@ export function WarehouseMatchAccordion({
 
         .warehouse-match-loading,
         .warehouse-match-empty {
-          padding: 8px 12px;
+          padding: 6px 10px;
           color: #666;
-          font-size: 0.9em;
+          font-size: 0.85em;
         }
 
         .warehouse-match-body {
-          padding: 0 12px 12px 12px;
+          padding: 0 8px 8px 8px;
           border-top: 1px solid #ddd;
         }
 
         .match-item {
           background: white;
-          border: 2px solid #e0e0e0;
-          border-radius: 6px;
-          padding: 12px;
-          margin-top: 10px;
+          border: 1px solid #e0e0e0;
+          border-radius: 5px;
+          padding: 8px;
+          margin-top: 6px;
           transition: border-color 0.2s;
         }
 
@@ -414,13 +415,13 @@ export function WarehouseMatchAccordion({
           display: flex;
           justify-content: space-between;
           align-items: center;
-          margin-bottom: 8px;
+          margin-bottom: 4px;
         }
 
         .match-checkbox {
           display: flex;
           align-items: center;
-          gap: 8px;
+          gap: 6px;
           cursor: pointer;
         }
 
@@ -429,73 +430,74 @@ export function WarehouseMatchAccordion({
         }
 
         .match-level-badge {
-          font-size: 0.9em;
+          font-size: 0.8em;
           font-weight: 500;
         }
 
         .match-score {
           background: #28a745;
           color: white;
-          padding: 2px 8px;
-          border-radius: 12px;
-          font-size: 0.85em;
+          padding: 1px 6px;
+          border-radius: 10px;
+          font-size: 0.8em;
           font-weight: 600;
         }
 
         .match-details {
-          margin: 8px 0;
-          font-size: 0.9em;
+          margin: 2px 0;
+          font-size: 0.825em;
         }
 
         .match-code {
           display: flex;
           flex-direction: column;
-          gap: 4px;
-          margin-bottom: 6px;
+          gap: 1px;
+          margin-bottom: 2px;
         }
 
         .match-description {
           color: #666;
-          font-size: 0.95em;
+          font-size: 0.9em;
         }
 
         .match-location {
           color: #555;
-          margin-bottom: 4px;
+          margin-bottom: 2px;
         }
 
         .match-reason {
           color: #888;
-          font-size: 0.85em;
+          font-size: 0.8em;
           font-style: italic;
         }
 
         .match-quantity-selector {
-          margin-top: 10px;
-          padding-top: 10px;
+          margin-top: 6px;
+          padding-top: 6px;
           border-top: 1px solid #ddd;
         }
 
         .match-quantity-selector label {
-          font-size: 0.9em;
+          font-size: 0.85em;
           font-weight: 500;
           display: block;
-          margin-bottom: 6px;
+          margin-bottom: 4px;
         }
 
         .quantity-input-group {
           display: flex;
-          gap: 6px;
+          gap: 4px;
           align-items: center;
         }
 
         .quantity-input-group button {
-          padding: 6px 12px;
+          padding: 4px 10px;
           border: 1px solid #ddd;
           background: white;
           border-radius: 4px;
           cursor: pointer;
           font-weight: 600;
+          font-size: 0.85em;
         }
 
         .quantity-input-group button:hover:not(:disabled) {
@@ -508,17 +510,19 @@ export function WarehouseMatchAccordion({
         }
 
         .quantity-input-group input {
-          width: 70px;
-          padding: 6px;
+          width: 60px;
+          padding: 4px;
           border: 1px solid #ddd;
           border-radius: 4px;
           text-align: center;
+          font-size: 0.85em;
         }
 
         .btn-use-all {
           background: #007bff !important;
           color: white !important;
           border-color: #007bff !important;
+          font-size: 0.8em !important;
         }
 
         .btn-use-all:hover:not(:disabled) {
@@ -526,45 +530,45 @@ export function WarehouseMatchAccordion({
         }
 
         .warehouse-summary {
-          margin-top: 12px;
-          padding: 10px;
+          margin-top: 8px;
+          padding: 6px 8px;
           background: #e7f3ff;
-          border-radius: 6px;
-          border-left: 4px solid #007bff;
+          border-radius: 5px;
+          border-left: 3px solid #007bff;
         }
 
         .summary-row {
           display: flex;
           justify-content: space-between;
           align-items: center;
-          padding: 4px 0;
-          font-size: 0.9em;
+          padding: 2px 0;
+          font-size: 0.85em;
         }
 
         .summary-row.warning {
           color: #856404;
           background: #fff3cd;
-          padding: 6px 8px;
+          padding: 4px 6px;
           border-radius: 4px;
-          margin-top: 4px;
+          margin-top: 3px;
         }
 
         .summary-row.success {
           color: #155724;
           background: #d4edda;
-          padding: 6px 8px;
+          padding: 4px 6px;
           border-radius: 4px;
-          margin-top: 4px;
+          margin-top: 3px;
           justify-content: center;
         }
 
         @media (max-width: 768px) {
           .warehouse-match-body {
-            padding: 0 8px 8px 8px;
+            padding: 0 6px 6px 6px;
           }
 
           .match-item {
-            padding: 10px;
+            padding: 6px;
           }
 
           .quantity-input-group {
@@ -572,7 +576,7 @@ export function WarehouseMatchAccordion({
           }
 
           .quantity-input-group input {
-            width: 60px;
+            width: 50px;
           }
         }
       `}</style>
