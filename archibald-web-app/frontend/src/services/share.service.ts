@@ -1,11 +1,32 @@
-import { fetchWithRetry } from "../utils/fetch-with-retry";
-
 function normalizeItalianPhone(phone: string): string {
   let cleaned = phone.replace(/[\s\-().]/g, "");
   if (cleaned.startsWith("+")) return cleaned;
   if (cleaned.startsWith("00")) return "+" + cleaned.slice(2);
   if (cleaned.startsWith("3") && cleaned.length >= 9) return "+39" + cleaned;
   return "+39" + cleaned;
+}
+
+async function shareFetch(
+  url: string,
+  options: RequestInit,
+): Promise<Response> {
+  const headers = new Headers(options.headers);
+  const token = localStorage.getItem("archibald_jwt");
+  if (token) headers.set("Authorization", `Bearer ${token}`);
+
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 120_000);
+
+  try {
+    const response = await fetch(url, {
+      ...options,
+      headers,
+      signal: controller.signal,
+    });
+    return response;
+  } finally {
+    clearTimeout(timeout);
+  }
 }
 
 class ShareService {
@@ -25,7 +46,7 @@ class ShareService {
     const formData = new FormData();
     formData.append("file", blob, fileName);
 
-    const response = await fetchWithRetry("/api/share/upload-pdf", {
+    const response = await shareFetch("/api/share/upload-pdf", {
       method: "POST",
       body: formData,
     });
@@ -51,7 +72,7 @@ class ShareService {
     formData.append("subject", subject);
     formData.append("body", body);
 
-    const response = await fetchWithRetry("/api/share/email", {
+    const response = await shareFetch("/api/share/email", {
       method: "POST",
       body: formData,
     });
@@ -72,7 +93,7 @@ class ShareService {
     formData.append("file", blob, fileName);
     formData.append("fileName", fileName);
 
-    const response = await fetchWithRetry("/api/share/dropbox", {
+    const response = await shareFetch("/api/share/dropbox", {
       method: "POST",
       body: formData,
     });
