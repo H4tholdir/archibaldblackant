@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import type { Customer } from "../types/customer";
 
 interface CustomerCardProps {
@@ -26,6 +26,13 @@ export function CustomerCard({
   const touchStartX = useRef(0);
   const hasSwipeAction =
     customer.botStatus === "failed" || customer.botStatus === "pending";
+  const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
+
+  useEffect(() => {
+    const handleResize = () => setIsMobile(window.innerWidth < 768);
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
 
   const formatDate = (timestamp: number | string | null): string => {
     if (!timestamp) return "N/A";
@@ -506,13 +513,71 @@ export function CustomerCard({
                   fontSize: "14px",
                 }}
               >
-                <div>
-                  <strong style={{ color: "#666" }}>Telefono:</strong>{" "}
-                  {customer.phone || "N/A"}
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "8px",
+                    flexWrap: "wrap",
+                  }}
+                >
+                  <span>
+                    <strong style={{ color: "#666" }}>Telefono:</strong>{" "}
+                    {customer.phone || "N/A"}
+                  </span>
+                  {isMobile && customer.phone && (
+                    <a
+                      href={`tel:${customer.phone}`}
+                      onClick={(e) => e.stopPropagation()}
+                      style={{
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: "4px",
+                        padding: "4px 12px",
+                        fontSize: "13px",
+                        fontWeight: 600,
+                        backgroundColor: "#25D366",
+                        color: "#fff",
+                        borderRadius: "6px",
+                        textDecoration: "none",
+                      }}
+                    >
+                      Chiama
+                    </a>
+                  )}
                 </div>
-                <div>
-                  <strong style={{ color: "#666" }}>Cellulare:</strong>{" "}
-                  {customer.mobile || "N/A"}
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "8px",
+                    flexWrap: "wrap",
+                  }}
+                >
+                  <span>
+                    <strong style={{ color: "#666" }}>Cellulare:</strong>{" "}
+                    {customer.mobile || "N/A"}
+                  </span>
+                  {isMobile && customer.mobile && (
+                    <a
+                      href={`tel:${customer.mobile}`}
+                      onClick={(e) => e.stopPropagation()}
+                      style={{
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: "4px",
+                        padding: "4px 12px",
+                        fontSize: "13px",
+                        fontWeight: 600,
+                        backgroundColor: "#25D366",
+                        color: "#fff",
+                        borderRadius: "6px",
+                        textDecoration: "none",
+                      }}
+                    >
+                      Chiama
+                    </a>
+                  )}
                 </div>
                 <div>
                   <strong style={{ color: "#666" }}>URL:</strong>{" "}
