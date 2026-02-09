@@ -107,7 +107,9 @@ export function CustomerCard({
   };
 
   return (
-    <div style={{ position: "relative", overflow: "hidden", borderRadius: "12px" }}>
+    <div
+      style={{ position: "relative", overflow: "hidden", borderRadius: "12px" }}
+    >
       {/* Swipe reveal background */}
       {hasSwipeAction && swipeX >= 80 && (
         <div
@@ -253,7 +255,8 @@ export function CustomerCard({
           >
             {customer.lastOrderDate && (
               <div>
-                <strong>Ultimo ordine:</strong> {formatDate(customer.lastOrderDate)}
+                <strong>Ultimo ordine:</strong>{" "}
+                {formatDate(customer.lastOrderDate)}
               </div>
             )}
             {customer.actualOrderCount > 0 && (
@@ -400,10 +403,42 @@ export function CustomerCard({
                   {customer.city || "N/A"}
                 </div>
                 <div>
-                  <strong style={{ color: "#666" }}>Indirizzo logistica:</strong>{" "}
+                  <strong style={{ color: "#666" }}>
+                    Indirizzo logistica:
+                  </strong>{" "}
                   {customer.logisticsAddress || "N/A"}
                 </div>
               </div>
+              {(customer.street || customer.city) && (
+                <a
+                  href={`https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent([customer.street, customer.postalCode, customer.city].filter(Boolean).join(", "))}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={(e) => e.stopPropagation()}
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: "6px",
+                    marginTop: "12px",
+                    padding: "8px 16px",
+                    fontSize: "14px",
+                    fontWeight: 600,
+                    backgroundColor: "#1976d2",
+                    color: "#fff",
+                    borderRadius: "8px",
+                    textDecoration: "none",
+                    transition: "background-color 0.2s",
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.backgroundColor = "#1565c0";
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.backgroundColor = "#1976d2";
+                  }}
+                >
+                  Indicazioni stradali
+                </a>
+              )}
             </div>
 
             {/* Business Info */}
@@ -435,7 +470,9 @@ export function CustomerCard({
                   {customer.type || "N/A"}
                 </div>
                 <div>
-                  <strong style={{ color: "#666" }}>Termini di consegna:</strong>{" "}
+                  <strong style={{ color: "#666" }}>
+                    Termini di consegna:
+                  </strong>{" "}
                   {customer.deliveryTerms || "N/A"}
                 </div>
                 <div>

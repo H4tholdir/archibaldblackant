@@ -1542,14 +1542,31 @@ export default function OrderFormSimple() {
       bestDiscount = mid;
     }
 
-    if (bestDiscount < 0 || bestDiscount > 100) {
+    // Round discount to 2 decimal places, ensuring total >= target (always round up)
+    const ceilDisc = Math.ceil(bestDiscount * 100) / 100;
+    const floorDisc = Math.floor(bestDiscount * 100) / 100;
+
+    const computeTotalForDiscount = (disc: number) => {
+      const sub = itemsSubtotal * (1 - disc / 100);
+      const ship = calculateShippingCosts(sub);
+      const vat = items.reduce((sum, item) => {
+        return sum + item.subtotal * (1 - disc / 100) * (item.vatRate / 100);
+      }, 0);
+      return roundUp(sub + ship.cost + vat + ship.tax);
+    };
+
+    // Prefer ceil (tighter fit), fall back to floor if ceil gives total < target
+    const finalDiscount =
+      computeTotalForDiscount(ceilDisc) >= target ? ceilDisc : floorDisc;
+
+    if (finalDiscount < 0 || finalDiscount > 100) {
       toastService.error(
         "Impossibile raggiungere il totale target con uno sconto valido",
       );
       return;
     }
 
-    setGlobalDiscountPercent(bestDiscount.toFixed(2));
+    setGlobalDiscountPercent(finalDiscount.toFixed(2));
     setTargetTotal("");
   };
 
@@ -3248,7 +3265,7 @@ export default function OrderFormSimple() {
                         }}
                       />
                       <span style={{ flex: 1 }}>
-                        {item.article} (x{item.quantity})
+                        {item.productName} (x{item.quantity})
                       </span>
                       <span
                         style={{ fontWeight: "500", fontFamily: "monospace" }}
