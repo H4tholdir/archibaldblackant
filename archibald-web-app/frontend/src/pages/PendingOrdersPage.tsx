@@ -393,6 +393,17 @@ export function PendingOrdersPage() {
     }
   };
 
+  function getOrderRecipientName(order: PendingOrder): string {
+    if (order.subClientData) {
+      return (
+        order.subClientData.ragioneSociale ||
+        order.subClientName ||
+        order.customerName
+      );
+    }
+    return order.customerName;
+  }
+
   async function getOrderContactInfo(order: PendingOrder) {
     if (order.subClientData) {
       return {
@@ -2074,7 +2085,9 @@ export function PendingOrdersPage() {
         onClose={() => setEmailDialogOrder(null)}
         onSend={handleEmailSend}
         defaultEmail={emailDialogDefaultEmail}
-        customerName={emailDialogOrder?.customerName || ""}
+        customerName={
+          emailDialogOrder ? getOrderRecipientName(emailDialogOrder) : ""
+        }
         isLoading={emailDialogLoading}
       />
     </div>
