@@ -3582,10 +3582,11 @@ export class ArchibaldBot {
                 `Article ${i + 1}: focusing INVENTTABLE editor`,
               );
 
-              // Strategy 1: Find INVENTTABLE input anywhere on the page and click it
+              // Strategy 1: Focus INVENTTABLE input via JS (not mouse click).
+              // Mouse click at input coordinates can hit a saved row cell
+              // (z-index overlap) and open the "Linea di vendita" popup.
               try {
-                const inventtableInfo = await this.page!.evaluate(() => {
-                  // Search for visible INVENTTABLE inputs on the page
+                const inventtableId = await this.page!.evaluate(() => {
                   const inputs = Array.from(
                     document.querySelectorAll(
                       'input[id*="INVENTTABLE"][id$="_I"]',
@@ -3594,24 +3595,24 @@ export class ArchibaldBot {
                   for (const inp of inputs) {
                     const el = inp as HTMLElement;
                     if (el.offsetParent !== null && el.offsetWidth > 0) {
-                      el.scrollIntoView({ block: "center" });
-                      const rect = el.getBoundingClientRect();
-                      return {
-                        id: (inp as HTMLInputElement).id,
-                        x: rect.x + rect.width / 2,
-                        y: rect.y + rect.height / 2,
-                      };
+                      return (inp as HTMLInputElement).id;
                     }
                   }
                   return null;
                 });
 
-                if (inventtableInfo) {
-                  await this.page!.mouse.click(
-                    inventtableInfo.x,
-                    inventtableInfo.y,
-                  );
-                  await this.wait(150);
+                if (inventtableId) {
+                  await this.page!.evaluate((inputId: string) => {
+                    const el = document.getElementById(
+                      inputId,
+                    ) as HTMLInputElement;
+                    if (el) {
+                      el.scrollIntoView({ block: "center" });
+                      el.focus();
+                      el.click();
+                    }
+                  }, inventtableId);
+                  await this.wait(200);
 
                   inventtableFocused = await this.page!.evaluate(() => {
                     const focused =
@@ -3621,7 +3622,7 @@ export class ArchibaldBot {
 
                   if (inventtableFocused) {
                     logger.debug(
-                      "✅ INVENTTABLE field focused via coordinate click on page input",
+                      "✅ INVENTTABLE field focused via JS focus",
                     );
                   }
                 } else {
@@ -3630,7 +3631,7 @@ export class ArchibaldBot {
                   );
                 }
               } catch (clickError) {
-                logger.warn("INVENTTABLE coordinate click failed", {
+                logger.warn("INVENTTABLE JS focus failed", {
                   error:
                     clickError instanceof Error
                       ? clickError.message
@@ -4441,16 +4442,9 @@ export class ArchibaldBot {
                   const hasDiscount =
                     item.discount !== undefined && item.discount > 0;
                   if (hasDiscount) {
-                    const discountVal = Number.isInteger(item.discount!)
-                      ? item.discount!.toString()
-                      : item.discount!.toFixed(2);
-                    const discountFormatted = discountVal.replace(".", ",");
-                    logger.debug(`Setting discount: ${discountFormatted}`);
+                    logger.debug(`Setting discount: ${item.discount}%`);
 
-                    // Use editTableCell approach (double-click + type) which is the
-                    // only method DevExpress actually registers for value changes.
-                    // After setting the value, restore focus to QTYORDERED to prevent
-                    // the grid's internal focus state from being disrupted.
+                    // Find the visible MANUALDISCOUNT input (template editor)
                     const discInputId = await this.page!.evaluate(() => {
                       const inputs = Array.from(
                         document.querySelectorAll('input[type="text"]'),
@@ -4467,74 +4461,62 @@ export class ArchibaldBot {
                     });
 
                     if (discInputId) {
-                      // Step 1: double-click to enter edit mode
-                      await this.page!.evaluate((inputId: string) => {
-                        const inp = document.querySelector(
-                          `#${inputId}`,
-                        ) as HTMLInputElement;
-                        if (!inp) return;
-                        inp.focus();
-                        inp.dispatchEvent(
-                          new MouseEvent("dblclick", {
-                            view: window,
-                            bubbles: true,
-                            cancelable: true,
-                            detail: 2,
-                          }),
-                        );
-                        const start = Date.now();
-                        while (Date.now() - start < 150) {}
-                      }, discInputId);
-                      await this.wait(300);
-
-                      // Step 2: select all + clear + type value
-                      await this.page!.evaluate((inputId: string) => {
-                        const inp = document.querySelector(
-                          `#${inputId}`,
-                        ) as HTMLInputElement;
-                        if (inp) {
-                          inp.focus();
-                          inp.select();
-                        }
-                      }, discInputId);
-                      await this.wait(100);
-                      await this.page!.keyboard.press("Backspace");
-                      await this.wait(50);
-                      await this.page!.keyboard.type(discountFormatted, {
-                        delay: 30,
-                      });
-                      await this.wait(300);
-
-                      logger.info(
-                        `✅ Discount set via editTableCell: ${item.discount}%`,
+                      // Double-click to enter edit mode on the spin editor
+                      const discCoord = await this.page!.evaluate(
+                        (inputId: string) => {
+                          const inp = document.getElementById(
+                            inputId,
+                          ) as HTMLInputElement;
+                          if (!inp) return null;
+                          inp.scrollIntoView({ block: "center" });
+                          const r = inp.getBoundingClientRect();
+                          return {
+                            x: r.x + r.width / 2,
+                            y: r.y + r.height / 2,
+                          };
+                        },
+                        discInputId,
                       );
 
-                      // Step 3: restore focus to QTYORDERED to reset grid focus state.
-                      // Without this, the grid's internal focus tracking stays on
-                      // MANUALDISCOUNT, preventing INVENTTABLE focus on the next article.
-                      const qtyCoord = await this.page!.evaluate(() => {
-                        const inputs = Array.from(
-                          document.querySelectorAll('input[type="text"]'),
-                        ) as HTMLInputElement[];
-                        const q = inputs.find((inp) => {
-                          const id = inp.id.toLowerCase();
-                          return (
-                            id.includes("qtyordered") &&
-                            id.includes("salesline") &&
-                            inp.offsetParent !== null
-                          );
-                        });
-                        if (!q) return null;
-                        const r = q.getBoundingClientRect();
-                        return { x: r.x + r.width / 2, y: r.y + r.height / 2 };
-                      });
-                      if (qtyCoord) {
+                      if (discCoord) {
                         await this.page!.mouse.click(
-                          qtyCoord.x,
-                          qtyCoord.y,
+                          discCoord.x,
+                          discCoord.y,
+                          { clickCount: 2 },
                         );
-                        await this.wait(200);
+                        await this.wait(300);
                       }
+
+                      // Select all + paste discount value via insertText
+                      // Use Control (not Meta) — bot runs on Linux VPS
+                      await this.page!.keyboard.down("Control");
+                      await this.page!.keyboard.press("a");
+                      await this.page!.keyboard.up("Control");
+                      await this.wait(50);
+
+                      const discountStr = item.discount!.toString();
+                      await this.page!.evaluate((val: string) => {
+                        document.execCommand("insertText", false, val);
+                      }, discountStr);
+                      await this.wait(200);
+
+                      // Enter to confirm the value in the spin editor
+                      await this.page!.keyboard.press("Enter");
+                      await this.wait(500);
+
+                      const discAfter = await this.page!.evaluate(
+                        (inputId: string) =>
+                          (
+                            document.getElementById(
+                              inputId,
+                            ) as HTMLInputElement
+                          )?.value || "",
+                        discInputId,
+                      );
+
+                      logger.info(
+                        `✅ Discount set: ${item.discount}% (${discAfter})`,
+                      );
                     } else {
                       logger.warn(
                         `⚠️ MANUALDISCOUNT input not found, discount not set`,
