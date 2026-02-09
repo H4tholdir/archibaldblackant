@@ -50,7 +50,12 @@ const FIELDS_BEFORE_ADDRESS_QUESTION: FieldDef[] = [
   { key: "name", label: "Nome *", defaultValue: "" },
   { key: "deliveryMode", label: "Modalità di consegna", defaultValue: "FedEx" },
   { key: "vatNumber", label: "Partita IVA", defaultValue: "", maxLength: 11 },
-  { key: "paymentTerms", label: "Termini di pagamento", defaultValue: "206", fieldType: "payment-terms" },
+  {
+    key: "paymentTerms",
+    label: "Termini di pagamento",
+    defaultValue: "206",
+    fieldType: "payment-terms",
+  },
   { key: "pec", label: "PEC", defaultValue: "", type: "email" },
   {
     key: "sdi",
@@ -60,14 +65,26 @@ const FIELDS_BEFORE_ADDRESS_QUESTION: FieldDef[] = [
     transform: (v: string) => v.toUpperCase(),
   },
   { key: "street", label: "Via e civico", defaultValue: "" },
-  { key: "postalCode", label: "CAP", defaultValue: "", maxLength: 5, fieldType: "cap" },
+  {
+    key: "postalCode",
+    label: "CAP",
+    defaultValue: "",
+    maxLength: 5,
+    fieldType: "cap",
+  },
   { key: "phone", label: "Telefono", defaultValue: "+39", type: "tel" },
   { key: "email", label: "Email", defaultValue: "", type: "email" },
 ];
 
 const DELIVERY_ADDRESS_FIELDS: FieldDef[] = [
   { key: "deliveryStreet", label: "Via e civico (consegna)", defaultValue: "" },
-  { key: "deliveryPostalCode", label: "CAP (consegna)", defaultValue: "", maxLength: 5, fieldType: "cap" },
+  {
+    key: "deliveryPostalCode",
+    label: "CAP (consegna)",
+    defaultValue: "",
+    maxLength: 5,
+    fieldType: "cap",
+  },
 ];
 
 const ALL_DISPLAY_FIELDS: FieldDef[] = [
@@ -105,7 +122,9 @@ function customerToFormData(customer: Customer): CustomerFormData {
     street: customer.street || "",
     postalCode: customer.postalCode || "",
     phone: customer.phone
-      ? customer.phone.startsWith("+39") ? customer.phone : `+39 ${customer.phone}`
+      ? customer.phone.startsWith("+39")
+        ? customer.phone
+        : `+39 ${customer.phone}`
       : "+39",
     email: customer.pec || "",
     deliveryStreet: "",
@@ -121,7 +140,10 @@ type StepType =
   | { kind: "field"; fieldIndex: number }
   | { kind: "address-question" }
   | { kind: "delivery-field"; fieldIndex: number }
-  | { kind: "cap-disambiguation"; targetField: "postalCode" | "deliveryPostalCode" }
+  | {
+      kind: "cap-disambiguation";
+      targetField: "postalCode" | "deliveryPostalCode";
+    }
   | { kind: "summary" };
 
 function getPaymentTermDisplay(id: string): string {
@@ -141,19 +163,29 @@ export function CustomerCreateModal({
   editCustomer,
 }: CustomerCreateModalProps) {
   const isEditMode = !!editCustomer;
-  const [currentStep, setCurrentStep] = useState<StepType>({ kind: "field", fieldIndex: 0 });
-  const [formData, setFormData] = useState<CustomerFormData>({ ...INITIAL_FORM });
+  const [currentStep, setCurrentStep] = useState<StepType>({
+    kind: "field",
+    fieldIndex: 0,
+  });
+  const [formData, setFormData] = useState<CustomerFormData>({
+    ...INITIAL_FORM,
+  });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [sameDeliveryAddress, setSameDeliveryAddress] = useState<boolean | null>(null);
+  const [sameDeliveryAddress, setSameDeliveryAddress] = useState<
+    boolean | null
+  >(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
   const [paymentTermsSearch, setPaymentTermsSearch] = useState("");
   const [paymentTermsHighlight, setPaymentTermsHighlight] = useState(0);
 
-  const [capDisambiguationEntries, setCapDisambiguationEntries] = useState<CapEntry[]>([]);
+  const [capDisambiguationEntries, setCapDisambiguationEntries] = useState<
+    CapEntry[]
+  >([]);
 
-  const [processingState, setProcessingState] = useState<ProcessingState>("idle");
+  const [processingState, setProcessingState] =
+    useState<ProcessingState>("idle");
   const [taskId, setTaskId] = useState<string | null>(null);
   const [progress, setProgress] = useState(0);
   const [progressLabel, setProgressLabel] = useState("");
@@ -164,17 +196,33 @@ export function CustomerCreateModal({
   const totalFieldsBefore = FIELDS_BEFORE_ADDRESS_QUESTION.length;
   const totalDeliveryFields = DELIVERY_ADDRESS_FIELDS.length;
 
-  const totalSteps = totalFieldsBefore + 1 + (sameDeliveryAddress === false ? totalDeliveryFields : 0) + 1;
+  const totalSteps =
+    totalFieldsBefore +
+    1 +
+    (sameDeliveryAddress === false ? totalDeliveryFields : 0) +
+    1;
 
   const currentStepNumber = (() => {
     switch (currentStep.kind) {
-      case "field": return currentStep.fieldIndex + 1;
-      case "address-question": return totalFieldsBefore + 1;
-      case "delivery-field": return totalFieldsBefore + 1 + currentStep.fieldIndex + 1;
-      case "cap-disambiguation": return currentStep.targetField === "postalCode"
-        ? FIELDS_BEFORE_ADDRESS_QUESTION.findIndex((f) => f.key === "postalCode") + 1
-        : totalFieldsBefore + 1 + DELIVERY_ADDRESS_FIELDS.findIndex((f) => f.key === "deliveryPostalCode") + 1;
-      case "summary": return totalSteps;
+      case "field":
+        return currentStep.fieldIndex + 1;
+      case "address-question":
+        return totalFieldsBefore + 1;
+      case "delivery-field":
+        return totalFieldsBefore + 1 + currentStep.fieldIndex + 1;
+      case "cap-disambiguation":
+        return currentStep.targetField === "postalCode"
+          ? FIELDS_BEFORE_ADDRESS_QUESTION.findIndex(
+              (f) => f.key === "postalCode",
+            ) + 1
+          : totalFieldsBefore +
+              1 +
+              DELIVERY_ADDRESS_FIELDS.findIndex(
+                (f) => f.key === "deliveryPostalCode",
+              ) +
+              1;
+      case "summary":
+        return totalSteps;
     }
   })();
 
@@ -183,7 +231,8 @@ export function CustomerCreateModal({
       const input = inputRef.current;
       input.focus();
       if (currentStep.kind === "field") {
-        const fieldKey = FIELDS_BEFORE_ADDRESS_QUESTION[currentStep.fieldIndex]?.key;
+        const fieldKey =
+          FIELDS_BEFORE_ADDRESS_QUESTION[currentStep.fieldIndex]?.key;
         if (fieldKey === "phone" && input.value.startsWith("+39")) {
           const pos = input.value.length;
           requestAnimationFrame(() => input.setSelectionRange(pos, pos));
@@ -273,9 +322,11 @@ export function CustomerCreateModal({
           return;
         }
         try {
-          const status = await customerService.getCustomerBotStatus(customerProfile);
+          const status =
+            await customerService.getCustomerBotStatus(customerProfile);
           if (status === "placed") markCompleted();
-          else if (status === "failed") markFailed("Operazione fallita su Archibald");
+          else if (status === "failed")
+            markFailed("Operazione fallita su Archibald");
         } catch {
           // ignore polling errors
         }
@@ -303,8 +354,14 @@ export function CustomerCreateModal({
     const entries = CAP_BY_CODE.get(capValue);
     if (!entries || entries.length <= 1) {
       if (entries && entries.length === 1) {
-        const cityKey = targetField === "postalCode" ? "postalCodeCity" : "deliveryPostalCodeCity";
-        const countryKey = targetField === "postalCode" ? "postalCodeCountry" : "deliveryPostalCodeCountry";
+        const cityKey =
+          targetField === "postalCode"
+            ? "postalCodeCity"
+            : "deliveryPostalCodeCity";
+        const countryKey =
+          targetField === "postalCode"
+            ? "postalCodeCountry"
+            : "deliveryPostalCodeCountry";
         setFormData((prev) => ({
           ...prev,
           [cityKey]: entries[0].citta,
@@ -322,19 +379,32 @@ export function CustomerCreateModal({
     switch (currentStep.kind) {
       case "field": {
         const field = FIELDS_BEFORE_ADDRESS_QUESTION[currentStep.fieldIndex];
-        const isCapField = field && "fieldType" in field && field.fieldType === "cap";
+        const isCapField =
+          field && "fieldType" in field && field.fieldType === "cap";
 
         if (currentStep.fieldIndex < totalFieldsBefore - 1) {
-          const nextStep = () => setCurrentStep({ kind: "field", fieldIndex: currentStep.fieldIndex + 1 });
+          const nextStep = () =>
+            setCurrentStep({
+              kind: "field",
+              fieldIndex: currentStep.fieldIndex + 1,
+            });
           if (isCapField) {
-            resolveCapAndAdvance(formData[field.key], field.key as "postalCode", nextStep);
+            resolveCapAndAdvance(
+              formData[field.key],
+              field.key as "postalCode",
+              nextStep,
+            );
           } else {
             nextStep();
           }
         } else {
           const nextStep = () => setCurrentStep({ kind: "address-question" });
           if (isCapField) {
-            resolveCapAndAdvance(formData[field.key], field.key as "postalCode", nextStep);
+            resolveCapAndAdvance(
+              formData[field.key],
+              field.key as "postalCode",
+              nextStep,
+            );
           } else {
             nextStep();
           }
@@ -345,19 +415,32 @@ export function CustomerCreateModal({
         break;
       case "delivery-field": {
         const field = DELIVERY_ADDRESS_FIELDS[currentStep.fieldIndex];
-        const isCapField = field && "fieldType" in field && field.fieldType === "cap";
+        const isCapField =
+          field && "fieldType" in field && field.fieldType === "cap";
 
         if (currentStep.fieldIndex < totalDeliveryFields - 1) {
-          const nextStep = () => setCurrentStep({ kind: "delivery-field", fieldIndex: currentStep.fieldIndex + 1 });
+          const nextStep = () =>
+            setCurrentStep({
+              kind: "delivery-field",
+              fieldIndex: currentStep.fieldIndex + 1,
+            });
           if (isCapField) {
-            resolveCapAndAdvance(formData[field.key], field.key as "deliveryPostalCode", nextStep);
+            resolveCapAndAdvance(
+              formData[field.key],
+              field.key as "deliveryPostalCode",
+              nextStep,
+            );
           } else {
             nextStep();
           }
         } else {
           const nextStep = () => setCurrentStep({ kind: "summary" });
           if (isCapField) {
-            resolveCapAndAdvance(formData[field.key], field.key as "deliveryPostalCode", nextStep);
+            resolveCapAndAdvance(
+              formData[field.key],
+              field.key as "deliveryPostalCode",
+              nextStep,
+            );
           } else {
             nextStep();
           }
@@ -374,7 +457,10 @@ export function CustomerCreateModal({
     switch (currentStep.kind) {
       case "field": {
         if (currentStep.fieldIndex > 0) {
-          setCurrentStep({ kind: "field", fieldIndex: currentStep.fieldIndex - 1 });
+          setCurrentStep({
+            kind: "field",
+            fieldIndex: currentStep.fieldIndex - 1,
+          });
         }
         break;
       }
@@ -383,7 +469,10 @@ export function CustomerCreateModal({
         break;
       case "delivery-field": {
         if (currentStep.fieldIndex > 0) {
-          setCurrentStep({ kind: "delivery-field", fieldIndex: currentStep.fieldIndex - 1 });
+          setCurrentStep({
+            kind: "delivery-field",
+            fieldIndex: currentStep.fieldIndex - 1,
+          });
         } else {
           setSameDeliveryAddress(null);
           setCurrentStep({ kind: "address-question" });
@@ -392,17 +481,30 @@ export function CustomerCreateModal({
       }
       case "cap-disambiguation": {
         if (currentStep.targetField === "postalCode") {
-          const idx = FIELDS_BEFORE_ADDRESS_QUESTION.findIndex((f) => f.key === "postalCode");
-          setCurrentStep({ kind: "field", fieldIndex: idx >= 0 ? idx : totalFieldsBefore - 1 });
+          const idx = FIELDS_BEFORE_ADDRESS_QUESTION.findIndex(
+            (f) => f.key === "postalCode",
+          );
+          setCurrentStep({
+            kind: "field",
+            fieldIndex: idx >= 0 ? idx : totalFieldsBefore - 1,
+          });
         } else {
-          const idx = DELIVERY_ADDRESS_FIELDS.findIndex((f) => f.key === "deliveryPostalCode");
-          setCurrentStep({ kind: "delivery-field", fieldIndex: idx >= 0 ? idx : 0 });
+          const idx = DELIVERY_ADDRESS_FIELDS.findIndex(
+            (f) => f.key === "deliveryPostalCode",
+          );
+          setCurrentStep({
+            kind: "delivery-field",
+            fieldIndex: idx >= 0 ? idx : 0,
+          });
         }
         break;
       }
       case "summary": {
         if (sameDeliveryAddress === false) {
-          setCurrentStep({ kind: "delivery-field", fieldIndex: totalDeliveryFields - 1 });
+          setCurrentStep({
+            kind: "delivery-field",
+            fieldIndex: totalDeliveryFields - 1,
+          });
         } else {
           setCurrentStep({ kind: "address-question" });
         }
@@ -439,14 +541,19 @@ export function CustomerCreateModal({
 
   const currentField = getCurrentField();
 
-  const isPaymentTermsStep = currentField !== null && "fieldType" in currentField && currentField.fieldType === "payment-terms";
+  const isPaymentTermsStep =
+    currentField !== null &&
+    "fieldType" in currentField &&
+    currentField.fieldType === "payment-terms";
 
   const filteredPaymentTerms = (() => {
     if (!isPaymentTermsStep) return [];
     if (!paymentTermsSearch) return PAYMENT_TERMS;
     const q = paymentTermsSearch.toLowerCase();
     return PAYMENT_TERMS.filter(
-      (t) => t.id.toLowerCase().includes(q) || t.descrizione.toLowerCase().includes(q),
+      (t) =>
+        t.id.toLowerCase().includes(q) ||
+        t.descrizione.toLowerCase().includes(q),
     );
   })();
 
@@ -458,9 +565,20 @@ export function CustomerCreateModal({
   };
 
   const handleCapDisambiguationSelect = (entry: CapEntry) => {
-    const targetField = (currentStep as { kind: "cap-disambiguation"; targetField: "postalCode" | "deliveryPostalCode" }).targetField;
-    const cityKey = targetField === "postalCode" ? "postalCodeCity" : "deliveryPostalCodeCity";
-    const countryKey = targetField === "postalCode" ? "postalCodeCountry" : "deliveryPostalCodeCountry";
+    const targetField = (
+      currentStep as {
+        kind: "cap-disambiguation";
+        targetField: "postalCode" | "deliveryPostalCode";
+      }
+    ).targetField;
+    const cityKey =
+      targetField === "postalCode"
+        ? "postalCodeCity"
+        : "deliveryPostalCodeCity";
+    const countryKey =
+      targetField === "postalCode"
+        ? "postalCodeCountry"
+        : "deliveryPostalCodeCountry";
     setFormData((prev) => ({
       ...prev,
       [cityKey]: entry.citta,
@@ -468,14 +586,18 @@ export function CustomerCreateModal({
     }));
 
     if (targetField === "postalCode") {
-      const capIdx = FIELDS_BEFORE_ADDRESS_QUESTION.findIndex((f) => f.key === "postalCode");
+      const capIdx = FIELDS_BEFORE_ADDRESS_QUESTION.findIndex(
+        (f) => f.key === "postalCode",
+      );
       if (capIdx < totalFieldsBefore - 1) {
         setCurrentStep({ kind: "field", fieldIndex: capIdx + 1 });
       } else {
         setCurrentStep({ kind: "address-question" });
       }
     } else {
-      const capIdx = DELIVERY_ADDRESS_FIELDS.findIndex((f) => f.key === "deliveryPostalCode");
+      const capIdx = DELIVERY_ADDRESS_FIELDS.findIndex(
+        (f) => f.key === "deliveryPostalCode",
+      );
       if (capIdx < totalDeliveryFields - 1) {
         setCurrentStep({ kind: "delivery-field", fieldIndex: capIdx + 1 });
       } else {
@@ -488,7 +610,9 @@ export function CustomerCreateModal({
     if (isPaymentTermsStep) {
       if (e.key === "ArrowDown") {
         e.preventDefault();
-        setPaymentTermsHighlight((prev) => Math.min(prev + 1, filteredPaymentTerms.length - 1));
+        setPaymentTermsHighlight((prev) =>
+          Math.min(prev + 1, filteredPaymentTerms.length - 1),
+        );
         return;
       }
       if (e.key === "ArrowUp") {
@@ -499,7 +623,9 @@ export function CustomerCreateModal({
       if (e.key === "Enter") {
         e.preventDefault();
         if (filteredPaymentTerms.length > 0) {
-          handlePaymentTermSelect(filteredPaymentTerms[paymentTermsHighlight].id);
+          handlePaymentTermSelect(
+            filteredPaymentTerms[paymentTermsHighlight].id,
+          );
         }
         return;
       }
@@ -508,7 +634,12 @@ export function CustomerCreateModal({
 
     if (e.key === "Enter") {
       e.preventDefault();
-      if (currentStep.kind === "field" && currentStep.fieldIndex === 0 && formData.name.trim().length === 0) return;
+      if (
+        currentStep.kind === "field" &&
+        currentStep.fieldIndex === 0 &&
+        formData.name.trim().length === 0
+      )
+        return;
       goForward();
     }
   };
@@ -516,7 +647,13 @@ export function CustomerCreateModal({
   const handleFieldChange = (key: keyof CustomerFormData, value: string) => {
     const field = ALL_DISPLAY_FIELDS.find((f) => f.key === key);
     const transformed = field?.transform ? field.transform(value) : value;
-    setFormData((prev) => ({ ...prev, [key]: transformed }));
+    setFormData((prev) => {
+      const next = { ...prev, [key]: transformed };
+      if (key === "pec" && transformed.trim().length > 0 && !prev.sdi) {
+        next.sdi = "0000000";
+      }
+      return next;
+    });
   };
 
   const handleSave = async () => {
@@ -573,11 +710,13 @@ export function CustomerCreateModal({
     setCurrentStep({ kind: "field", fieldIndex: 0 });
   };
 
-  const isFieldStep = currentStep.kind === "field" || currentStep.kind === "delivery-field";
+  const isFieldStep =
+    currentStep.kind === "field" || currentStep.kind === "delivery-field";
   const isAddressQuestion = currentStep.kind === "address-question";
   const isCapDisambiguation = currentStep.kind === "cap-disambiguation";
   const isSummary = currentStep.kind === "summary";
-  const isFirstStep = currentStep.kind === "field" && currentStep.fieldIndex === 0;
+  const isFirstStep =
+    currentStep.kind === "field" && currentStep.fieldIndex === 0;
   const isProcessing = processingState !== "idle";
 
   return (
@@ -623,11 +762,14 @@ export function CustomerCreateModal({
             </h2>
             {!isSummary && !isCapDisambiguation && (
               <p style={{ fontSize: "14px", color: "#999" }}>
-                Passo {currentStepNumber} di {totalSteps}{!isAddressQuestion ? " — Premi Enter per avanzare" : ""}
+                Passo {currentStepNumber} di {totalSteps}
+                {!isAddressQuestion ? " — Premi Enter per avanzare" : ""}
               </p>
             )}
             {isEditMode && !isSummary && !isCapDisambiguation && (
-              <p style={{ fontSize: "12px", color: "#1976d2", marginTop: "4px" }}>
+              <p
+                style={{ fontSize: "12px", color: "#1976d2", marginTop: "4px" }}
+              >
                 {editCustomer!.customerProfile}
               </p>
             )}
@@ -650,7 +792,11 @@ export function CustomerCreateModal({
             </label>
             <input
               ref={inputRef}
-              type={"type" in currentField && currentField.type ? currentField.type : "text"}
+              type={
+                "type" in currentField && currentField.type
+                  ? currentField.type
+                  : "text"
+              }
               value={formData[currentField.key]}
               onChange={(e) =>
                 handleFieldChange(currentField.key, e.target.value)
@@ -717,7 +863,12 @@ export function CustomerCreateModal({
               </button>
               <button
                 onClick={() => {
-                  if (currentStep.kind === "field" && currentStep.fieldIndex === 0 && formData.name.trim().length === 0) return;
+                  if (
+                    currentStep.kind === "field" &&
+                    currentStep.fieldIndex === 0 &&
+                    formData.name.trim().length === 0
+                  )
+                    return;
                   goForward();
                 }}
                 style={{
@@ -788,22 +939,41 @@ export function CustomerCreateModal({
                     padding: "10px 16px",
                     fontSize: "14px",
                     cursor: "pointer",
-                    backgroundColor: i === paymentTermsHighlight ? "#e3f2fd" : "#fff",
-                    borderBottom: i < filteredPaymentTerms.length - 1 ? "1px solid #f0f0f0" : "none",
+                    backgroundColor:
+                      i === paymentTermsHighlight ? "#e3f2fd" : "#fff",
+                    borderBottom:
+                      i < filteredPaymentTerms.length - 1
+                        ? "1px solid #f0f0f0"
+                        : "none",
                   }}
                 >
-                  <span style={{ fontWeight: 700, color: "#1976d2" }}>{term.id}</span>
+                  <span style={{ fontWeight: 700, color: "#1976d2" }}>
+                    {term.id}
+                  </span>
                   <span style={{ color: "#666" }}> — {term.descrizione}</span>
                 </div>
               ))}
               {filteredPaymentTerms.length === 0 && (
-                <div style={{ padding: "10px 16px", fontSize: "14px", color: "#999" }}>
+                <div
+                  style={{
+                    padding: "10px 16px",
+                    fontSize: "14px",
+                    color: "#999",
+                  }}
+                >
                   Nessun risultato
                 </div>
               )}
             </div>
             {formData.paymentTerms && (
-              <div style={{ marginTop: "8px", fontSize: "13px", color: "#4caf50", fontWeight: 600 }}>
+              <div
+                style={{
+                  marginTop: "8px",
+                  fontSize: "13px",
+                  color: "#4caf50",
+                  fontWeight: 600,
+                }}
+              >
                 Selezionato: {getPaymentTermDisplay(formData.paymentTerms)}
               </div>
             )}
@@ -882,7 +1052,16 @@ export function CustomerCreateModal({
             >
               Il CAP{" "}
               <span style={{ color: "#1976d2" }}>
-                {formData[(currentStep as { kind: "cap-disambiguation"; targetField: "postalCode" | "deliveryPostalCode" }).targetField]}
+                {
+                  formData[
+                    (
+                      currentStep as {
+                        kind: "cap-disambiguation";
+                        targetField: "postalCode" | "deliveryPostalCode";
+                      }
+                    ).targetField
+                  ]
+                }
               </span>{" "}
               corrisponde a più località. Seleziona:
             </p>
@@ -903,19 +1082,32 @@ export function CustomerCreateModal({
                     fontSize: "15px",
                     cursor: "pointer",
                     backgroundColor: "#fff",
-                    borderBottom: i < capDisambiguationEntries.length - 1 ? "1px solid #f0f0f0" : "none",
+                    borderBottom:
+                      i < capDisambiguationEntries.length - 1
+                        ? "1px solid #f0f0f0"
+                        : "none",
                   }}
                   onMouseEnter={(e) => {
-                    (e.currentTarget as HTMLElement).style.backgroundColor = "#e3f2fd";
+                    (e.currentTarget as HTMLElement).style.backgroundColor =
+                      "#e3f2fd";
                   }}
                   onMouseLeave={(e) => {
-                    (e.currentTarget as HTMLElement).style.backgroundColor = "#fff";
+                    (e.currentTarget as HTMLElement).style.backgroundColor =
+                      "#fff";
                   }}
                 >
-                  <span style={{ fontWeight: 700, color: "#333" }}>{entry.citta}</span>
+                  <span style={{ fontWeight: 700, color: "#333" }}>
+                    {entry.citta}
+                  </span>
                   <span style={{ color: "#666" }}> ({entry.contea})</span>
                   {entry.paese !== "IT" && (
-                    <span style={{ color: "#999", marginLeft: "8px", fontSize: "12px" }}>
+                    <span
+                      style={{
+                        color: "#999",
+                        marginLeft: "8px",
+                        fontSize: "12px",
+                      }}
+                    >
                       [{entry.paese}]
                     </span>
                   )}
@@ -1016,7 +1208,13 @@ export function CustomerCreateModal({
                 }}
               />
             </div>
-            <div style={{ display: "flex", justifyContent: "flex-start", marginTop: "16px" }}>
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "flex-start",
+                marginTop: "16px",
+              }}
+            >
               <button
                 onClick={goBack}
                 style={{
@@ -1055,7 +1253,10 @@ export function CustomerCreateModal({
                   displayValue = getPaymentTermDisplay(value);
                 }
                 if (field.key === "postalCode" && formData.postalCodeCity) {
-                  displayValue = getCapCityDisplay(value, formData.postalCodeCity);
+                  displayValue = getCapCityDisplay(
+                    value,
+                    formData.postalCodeCity,
+                  );
                 }
                 return (
                   <div
@@ -1071,35 +1272,60 @@ export function CustomerCreateModal({
                     <span style={{ color: "#666", fontWeight: 600 }}>
                       {field.label.replace(" *", "")}
                     </span>
-                    <span style={{ color: "#333", maxWidth: "60%", textAlign: "right", wordBreak: "break-word" }}>{displayValue}</span>
-                  </div>
-                );
-              })}
-              {sameDeliveryAddress === false && DELIVERY_ADDRESS_FIELDS.map((field) => {
-                const value = formData[field.key];
-                if (!value) return null;
-                let displayValue = value;
-                if (field.key === "deliveryPostalCode" && formData.deliveryPostalCodeCity) {
-                  displayValue = getCapCityDisplay(value, formData.deliveryPostalCodeCity);
-                }
-                return (
-                  <div
-                    key={field.key}
-                    style={{
-                      display: "flex",
-                      justifyContent: "space-between",
-                      padding: "8px 0",
-                      borderBottom: "1px solid #e0e0e0",
-                      fontSize: "14px",
-                    }}
-                  >
-                    <span style={{ color: "#666", fontWeight: 600 }}>
-                      {field.label}
+                    <span
+                      style={{
+                        color: "#333",
+                        maxWidth: "60%",
+                        textAlign: "right",
+                        wordBreak: "break-word",
+                      }}
+                    >
+                      {displayValue}
                     </span>
-                    <span style={{ color: "#333", maxWidth: "60%", textAlign: "right", wordBreak: "break-word" }}>{displayValue}</span>
                   </div>
                 );
               })}
+              {sameDeliveryAddress === false &&
+                DELIVERY_ADDRESS_FIELDS.map((field) => {
+                  const value = formData[field.key];
+                  if (!value) return null;
+                  let displayValue = value;
+                  if (
+                    field.key === "deliveryPostalCode" &&
+                    formData.deliveryPostalCodeCity
+                  ) {
+                    displayValue = getCapCityDisplay(
+                      value,
+                      formData.deliveryPostalCodeCity,
+                    );
+                  }
+                  return (
+                    <div
+                      key={field.key}
+                      style={{
+                        display: "flex",
+                        justifyContent: "space-between",
+                        padding: "8px 0",
+                        borderBottom: "1px solid #e0e0e0",
+                        fontSize: "14px",
+                      }}
+                    >
+                      <span style={{ color: "#666", fontWeight: 600 }}>
+                        {field.label}
+                      </span>
+                      <span
+                        style={{
+                          color: "#333",
+                          maxWidth: "60%",
+                          textAlign: "right",
+                          wordBreak: "break-word",
+                        }}
+                      >
+                        {displayValue}
+                      </span>
+                    </div>
+                  );
+                })}
               <div
                 style={{
                   display: "flex",
@@ -1111,8 +1337,15 @@ export function CustomerCreateModal({
                 <span style={{ color: "#666", fontWeight: 600 }}>
                   Indirizzo consegna
                 </span>
-                <span style={{ color: sameDeliveryAddress ? "#4caf50" : "#ff9800", fontWeight: 600 }}>
-                  {sameDeliveryAddress ? "Coincide con fatturazione" : "Diverso"}
+                <span
+                  style={{
+                    color: sameDeliveryAddress ? "#4caf50" : "#ff9800",
+                    fontWeight: 600,
+                  }}
+                >
+                  {sameDeliveryAddress
+                    ? "Coincide con fatturazione"
+                    : "Diverso"}
                 </span>
               </div>
             </div>
@@ -1204,12 +1437,21 @@ export function CustomerCreateModal({
         {isProcessing && (
           <div>
             <div style={{ textAlign: "center", marginBottom: "24px" }}>
-              <h2 style={{ fontSize: "24px", fontWeight: 700, color: "#333", marginBottom: "8px" }}>
+              <h2
+                style={{
+                  fontSize: "24px",
+                  fontWeight: 700,
+                  color: "#333",
+                  marginBottom: "8px",
+                }}
+              >
                 {processingState === "completed"
                   ? "Operazione completata"
                   : processingState === "failed"
                     ? "Errore"
-                    : isEditMode ? "Aggiornamento in corso..." : "Creazione in corso..."}
+                    : isEditMode
+                      ? "Aggiornamento in corso..."
+                      : "Creazione in corso..."}
               </h2>
             </div>
 
@@ -1234,10 +1476,23 @@ export function CustomerCreateModal({
                     }}
                   />
                 </div>
-                <p style={{ fontSize: "14px", color: "#666", textAlign: "center" }}>
+                <p
+                  style={{
+                    fontSize: "14px",
+                    color: "#666",
+                    textAlign: "center",
+                  }}
+                >
                   {progressLabel || "Elaborazione..."}
                 </p>
-                <p style={{ fontSize: "12px", color: "#999", textAlign: "center", marginTop: "4px" }}>
+                <p
+                  style={{
+                    fontSize: "12px",
+                    color: "#999",
+                    textAlign: "center",
+                    marginTop: "4px",
+                  }}
+                >
                   {progress}%
                 </p>
               </div>
@@ -1254,10 +1509,20 @@ export function CustomerCreateModal({
                   marginBottom: "16px",
                 }}
               >
-                <p style={{ color: "#2e7d32", fontSize: "16px", fontWeight: 600 }}>
-                  {isEditMode ? "Cliente aggiornato con successo!" : "Cliente creato con successo!"}
+                <p
+                  style={{
+                    color: "#2e7d32",
+                    fontSize: "16px",
+                    fontWeight: 600,
+                  }}
+                >
+                  {isEditMode
+                    ? "Cliente aggiornato con successo!"
+                    : "Cliente creato con successo!"}
                 </p>
-                <p style={{ color: "#666", fontSize: "13px", marginTop: "4px" }}>
+                <p
+                  style={{ color: "#666", fontSize: "13px", marginTop: "4px" }}
+                >
                   Chiusura automatica...
                 </p>
               </div>
@@ -1275,7 +1540,8 @@ export function CustomerCreateModal({
                   }}
                 >
                   <p style={{ color: "#c62828", fontSize: "14px" }}>
-                    {botError || "Si è verificato un errore durante l'operazione."}
+                    {botError ||
+                      "Si è verificato un errore durante l'operazione."}
                   </p>
                 </div>
                 <div style={{ display: "flex", gap: "12px" }}>
