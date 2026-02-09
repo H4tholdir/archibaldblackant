@@ -16,15 +16,10 @@ import { shareService } from "../services/share.service";
 import { EmailShareDialog } from "../components/EmailShareDialog";
 
 function itemSubtotal(
-  order: PendingOrder,
+  _order: PendingOrder,
   item: { price: number; quantity: number; discount?: number },
 ): number {
-  const isMergedFresis =
-    isFresis({ id: order.customerId }) && !order.subClientCodice;
-  if (isMergedFresis) {
-    return item.price * item.quantity * (1 - (item.discount || 0) / 100);
-  }
-  return item.price * item.quantity - (item.discount || 0);
+  return item.price * item.quantity * (1 - (item.discount || 0) / 100);
 }
 
 export function PendingOrdersPage() {
@@ -1601,18 +1596,12 @@ export function PendingOrdersPage() {
                                   alignSelf: "center",
                                   color:
                                     item.discount && item.discount > 0
-                                      ? isFresis({ id: order.customerId }) &&
-                                        !order.subClientCodice
-                                        ? "#059669"
-                                        : "#dc2626"
+                                      ? "#059669"
                                       : "#9ca3af",
                                 }}
                               >
                                 {item.discount && item.discount > 0
-                                  ? isFresis({ id: order.customerId }) &&
-                                    !order.subClientCodice
-                                    ? `${item.discount}%`
-                                    : `-€${item.discount.toFixed(2)}`
+                                  ? `${item.discount}%`
                                   : "—"}
                               </div>
 
@@ -1782,19 +1771,12 @@ export function PendingOrdersPage() {
                                       fontWeight: "500",
                                       color:
                                         item.discount && item.discount > 0
-                                          ? isFresis({
-                                              id: order.customerId,
-                                            }) && !order.subClientCodice
-                                            ? "#059669"
-                                            : "#dc2626"
+                                          ? "#059669"
                                           : "#9ca3af",
                                     }}
                                   >
                                     {item.discount && item.discount > 0
-                                      ? isFresis({ id: order.customerId }) &&
-                                        !order.subClientCodice
-                                        ? `${item.discount}%`
-                                        : `-€${item.discount.toFixed(2)}`
+                                      ? `${item.discount}%`
                                       : "—"}
                                   </div>
                                 </div>

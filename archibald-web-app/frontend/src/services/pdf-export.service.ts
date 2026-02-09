@@ -1,7 +1,6 @@
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import type { PendingOrderItem, SubClient } from "../db/schema";
-import { isFresis as isFresisCustomer } from "../utils/fresis-constants";
 
 export type PDFOrderData = {
   id: string;
@@ -58,13 +57,9 @@ export class PDFExportService {
 
     // === HEADER SECTION ===
     const isFresis = !!order.subClientCodice;
-    const isMergedFresis =
-      isFresisCustomer({ id: order.customerId }) && !order.subClientCodice;
 
     const lineSubtotal = (item: PendingOrderItem) =>
-      isMergedFresis
-        ? item.price * item.quantity * (1 - (item.discount || 0) / 100)
-        : item.price * item.quantity - (item.discount || 0);
+      item.price * item.quantity * (1 - (item.discount || 0) / 100);
     const logoX = margin;
     const logoY = 12;
     const logoWidth = 30;
@@ -294,9 +289,7 @@ export class PDFExportService {
           item.quantity.toString(),
           `€${item.price.toFixed(2)}`,
           item.discount && item.discount > 0
-            ? isMergedFresis
-              ? `${item.discount}%`
-              : `-€${item.discount.toFixed(2)}`
+            ? `${item.discount}%`
             : "-",
           `€${subtotal.toFixed(2)}`,
           `${item.vat || 0}%\n€${vatAmount.toFixed(2)}`,

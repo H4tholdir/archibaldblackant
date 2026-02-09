@@ -32,8 +32,8 @@ interface OrderItem {
   quantity: number;
   unitPrice: number;
   vatRate: number; // Aliquota IVA (0, 4, 5, 10, 22, etc.)
-  discount: number; // Sconto in euro
-  subtotal: number; // Prezzo * quantità - sconto
+  discount: number; // Sconto in percentuale
+  subtotal: number; // Prezzo * quantità * (1 - sconto/100)
   vat: number; // Importo IVA calcolato
   total: number; // Subtotal + IVA
   // Warehouse integration (Phase 4)
@@ -162,9 +162,21 @@ export default function OrderFormSimple() {
 
   const scrollFieldIntoView = useCallback((element: HTMLElement | null) => {
     if (!element) return;
-    setTimeout(() => {
-      element.scrollIntoView({ behavior: "smooth", block: "center" });
-    }, 100);
+    const doScroll = () => {
+      const vv = window.visualViewport;
+      if (vv && vv.height < window.innerHeight * 0.85) {
+        const rect = element.getBoundingClientRect();
+        const visibleTop = vv.offsetTop;
+        const visibleHeight = vv.height;
+        const targetY = visibleTop + visibleHeight * 0.3;
+        const scrollBy = rect.top - targetY;
+        window.scrollBy({ top: scrollBy, behavior: "smooth" });
+      } else {
+        element.scrollIntoView({ behavior: "smooth", block: "center" });
+      }
+    };
+    setTimeout(doScroll, 150);
+    setTimeout(doScroll, 400);
   }, []);
 
   useEffect(() => {
@@ -176,9 +188,12 @@ export default function OrderFormSimple() {
         active &&
         (active.tagName === "INPUT" || active.tagName === "TEXTAREA")
       ) {
-        setTimeout(() => {
-          active.scrollIntoView({ behavior: "smooth", block: "center" });
-        }, 100);
+        const rect = active.getBoundingClientRect();
+        const visibleTop = vv.offsetTop;
+        const visibleHeight = vv.height;
+        const targetY = visibleTop + visibleHeight * 0.3;
+        const scrollBy = rect.top - targetY;
+        window.scrollBy({ top: scrollBy, behavior: "smooth" });
       }
     };
     vv.addEventListener("resize", handleResize);
@@ -363,6 +378,7 @@ export default function OrderFormSimple() {
   // Refs for focus management
   const productSearchInputRef = useRef<HTMLInputElement>(null);
   const quantityInputRef = useRef<HTMLInputElement>(null);
+  const discountInputRef = useRef<HTMLInputElement>(null);
   const productDropdownItemsRef = useRef<(HTMLDivElement | null)[]>([]);
 
   // === LOAD ORDER FOR EDITING ===
@@ -426,14 +442,11 @@ export default function OrderFormSimple() {
         }
 
         // Convert order items to OrderItem format
-        const isMergedFresis =
-          isFresis({ id: order.customerId }) && !order.subClientCodice;
         const loadedItems: OrderItem[] = await Promise.all(
           order.items.map(async (item) => {
             const vatRate = normalizeVatRate(item.vat);
-            const subtotal = isMergedFresis
-              ? item.price * item.quantity * (1 - (item.discount || 0) / 100)
-              : item.price * item.quantity - (item.discount || 0);
+            const subtotal =
+              item.price * item.quantity * (1 - (item.discount || 0) / 100);
             const vatAmount = subtotal * (vatRate / 100);
 
             // Prefer explicit variant ID, fallback to legacy articleCode
@@ -1095,7 +1108,7 @@ export default function OrderFormSimple() {
       }
     }
 
-    // Get discount (will be applied to total, not per line)
+    // Get discount percentage (applied to each line)
     const disc = parseFloat(itemDiscount.replace(",", ".")) || 0;
 
     const warehouseSources =
@@ -1171,7 +1184,7 @@ export default function OrderFormSimple() {
       // The user may have selected more/less items from warehouse than initially requested
       const finalQty = warehouseQty;
 
-      const lineSubtotal = price * finalQty - disc;
+      const lineSubtotal = price * finalQty * (1 - disc / 100);
       const lineVat = lineSubtotal * (vatRate / 100);
       const lineTotal = lineSubtotal + lineVat;
 
@@ -1199,7 +1212,6 @@ export default function OrderFormSimple() {
       // 🔧 FIX #3: Partially from warehouse WITH valid residual packaging
       // Create order items for residual quantity + attach warehouse metadata
       const breakdown = residualPackaging.breakdown!;
-      const discountPerLine = disc / breakdown.length; // Split discount across lines
 
       // 🔧 FIX #3: Generate group key to track variants of same product
       const productGroupKey =
@@ -1224,7 +1236,7 @@ export default function OrderFormSimple() {
         const variantProduct = await db.products.get(variantArticleCode);
         const vatRate = normalizeVatRate(variantProduct?.vat);
 
-        const lineSubtotal = price * pkg.totalPieces - discountPerLine;
+        const lineSubtotal = price * pkg.totalPieces * (1 - disc / 100);
         const lineVat = lineSubtotal * (vatRate / 100);
         const lineTotal = lineSubtotal + lineVat;
 
@@ -1237,7 +1249,7 @@ export default function OrderFormSimple() {
           quantity: pkg.totalPieces,
           unitPrice: price,
           vatRate,
-          discount: discountPerLine,
+          discount: disc,
           subtotal: lineSubtotal,
           vat: lineVat,
           total: lineTotal,
@@ -1250,7 +1262,6 @@ export default function OrderFormSimple() {
     } else {
       // Normal order with packaging breakdown
       const breakdown = packagingPreview!.breakdown!;
-      const discountPerLine = disc / breakdown.length; // Split discount across lines
 
       // 🔧 FIX #3: Generate group key to track variants of same product
       // Used to preserve warehouse data when deleting rows
@@ -1286,7 +1297,7 @@ export default function OrderFormSimple() {
         const variantProduct = await db.products.get(variantArticleCode);
         const vatRate = normalizeVatRate(variantProduct?.vat);
 
-        const lineSubtotal = price * pkg.totalPieces - discountPerLine;
+        const lineSubtotal = price * pkg.totalPieces * (1 - disc / 100);
         const lineVat = lineSubtotal * (vatRate / 100);
         const lineTotal = lineSubtotal + lineVat;
 
@@ -1299,7 +1310,7 @@ export default function OrderFormSimple() {
           quantity: pkg.totalPieces,
           unitPrice: price,
           vatRate,
-          discount: discountPerLine,
+          discount: disc,
           subtotal: lineSubtotal,
           vat: lineVat,
           total: lineTotal,
@@ -2487,7 +2498,7 @@ export default function OrderFormSimple() {
                       onKeyDown={(e) => {
                         if (e.key === "Enter") {
                           e.preventDefault();
-                          handleAddItem();
+                          discountInputRef.current?.focus();
                         }
                       }}
                       style={{
@@ -2509,14 +2520,21 @@ export default function OrderFormSimple() {
                         fontSize: isMobile ? "0.875rem" : "1rem",
                       }}
                     >
-                      Sconto su Riga (€)
+                      Sconto su Riga (%)
                     </label>
                     <input
+                      ref={discountInputRef}
                       type="text"
                       inputMode="decimal"
                       value={itemDiscount}
                       onChange={(e) => setItemDiscount(e.target.value)}
                       onFocus={(e) => scrollFieldIntoView(e.target)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          e.preventDefault();
+                          handleAddItem();
+                        }
+                      }}
                       style={{
                         width: "100%",
                         padding: isMobile ? "0.875rem" : "0.75rem",
@@ -2847,7 +2865,7 @@ export default function OrderFormSimple() {
                       }}
                     >
                       {item.discount > 0
-                        ? `-€${item.discount.toFixed(2)}`
+                        ? `${item.discount}%`
                         : "—"}
                     </td>
                     <td style={{ padding: "0.75rem", textAlign: "right" }}>
@@ -2998,7 +3016,7 @@ export default function OrderFormSimple() {
                         }}
                       >
                         {item.discount > 0
-                          ? `-€${item.discount.toFixed(2)}`
+                          ? `${item.discount}%`
                           : "—"}
                       </strong>
                     </div>

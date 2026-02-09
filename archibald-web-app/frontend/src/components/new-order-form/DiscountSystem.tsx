@@ -16,7 +16,7 @@ interface DiscountSystemProps {
 
 export function DiscountSystem({
   orderSubtotal: _orderSubtotal,
-  discountType = "percentage",
+  discountType: _discountType = "percentage",
   discountValue = 0,
   reverseMode = false,
   calculatedDiscountPercent,
@@ -51,73 +51,38 @@ export function DiscountSystem({
       </h3>
 
       {!reverseMode ? (
-        <>
-          <div style={{ marginBottom: "1rem" }}>
-            <label
-              htmlFor="discount-type"
-              style={{
-                display: "block",
-                marginBottom: "0.5rem",
-                fontWeight: "500",
-              }}
-            >
-              Tipo Sconto Globale
-            </label>
-            <select
-              id="discount-type"
-              value={discountType}
-              onChange={(e) =>
-                onChange({
-                  discountType: e.target.value as "percentage" | "amount",
-                  discountValue,
-                })
-              }
-              style={{
-                width: "100%",
-                padding: "0.5rem",
-                border: "1px solid #d1d5db",
-                borderRadius: "4px",
-                backgroundColor: "white",
-              }}
-            >
-              <option value="percentage">Percentuale (%)</option>
-              <option value="amount">Importo (€)</option>
-            </select>
-          </div>
-
-          <div style={{ marginBottom: "1rem" }}>
-            <label
-              htmlFor="discount-value"
-              style={{
-                display: "block",
-                marginBottom: "0.5rem",
-                fontWeight: "500",
-              }}
-            >
-              Valore Sconto
-            </label>
-            <input
-              id="discount-value"
-              type="number"
-              value={discountValue}
-              onChange={(e) =>
-                onChange({
-                  discountType,
-                  discountValue:
-                    parseFloat(e.target.value.replace(",", ".")) || 0,
-                })
-              }
-              placeholder={discountType === "percentage" ? "0-100" : "0,00"}
-              style={{
-                width: "100%",
-                padding: "0.5rem",
-                border: "1px solid #d1d5db",
-                borderRadius: "4px",
-                backgroundColor: "white",
-              }}
-            />
-          </div>
-        </>
+        <div style={{ marginBottom: "1rem" }}>
+          <label
+            htmlFor="discount-value"
+            style={{
+              display: "block",
+              marginBottom: "0.5rem",
+              fontWeight: "500",
+            }}
+          >
+            Sconto Globale (%)
+          </label>
+          <input
+            id="discount-value"
+            type="number"
+            value={discountValue}
+            onChange={(e) =>
+              onChange({
+                discountType: "percentage",
+                discountValue:
+                  parseFloat(e.target.value.replace(",", ".")) || 0,
+              })
+            }
+            placeholder="0-100"
+            style={{
+              width: "100%",
+              padding: "0.5rem",
+              border: "1px solid #d1d5db",
+              borderRadius: "4px",
+              backgroundColor: "white",
+            }}
+          />
+        </div>
       ) : (
         <>
           <div style={{ marginBottom: "1rem" }}>

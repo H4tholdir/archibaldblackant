@@ -115,7 +115,7 @@ export function OrderItemsList({
             <div>
               {item.discount > 0 ? (
                 <span style={{ color: '#dc2626' }}>
-                  -€{item.discount.toFixed(2)}
+                  {item.discount}%
                 </span>
               ) : (
                 <span style={{ color: '#9ca3af' }}>—</span>
@@ -189,15 +189,12 @@ interface EditItemModalProps {
 
 function EditItemModal({ item, onSave, onCancel }: EditItemModalProps) {
   const [quantity, setQuantity] = useState(item.quantity);
-  const [discountType, setDiscountType] = useState<'percentage' | 'amount'>(
-    item.discountType || 'percentage'
-  );
-  const [discountValue, setDiscountValue] = useState(item.discountValue || 0);
+  const [discountValue, setDiscountValue] = useState(item.discountValue || item.discount || 0);
 
   const handleSave = () => {
     onSave({
       quantity,
-      discountType,
+      discountType: 'percentage',
       discountValue,
     });
   };
@@ -251,37 +248,12 @@ function EditItemModal({ item, onSave, onCancel }: EditItemModalProps) {
           />
         </div>
 
-        <div style={{ marginBottom: '1rem' }}>
-          <label
-            htmlFor="edit-discount-type"
-            style={{ display: 'block', marginBottom: '0.25rem' }}
-          >
-            Tipo Sconto
-          </label>
-          <select
-            id="edit-discount-type"
-            value={discountType}
-            onChange={(e) =>
-              setDiscountType(e.target.value as 'percentage' | 'amount')
-            }
-            style={{
-              width: '100%',
-              padding: '0.5rem',
-              border: '1px solid #ccc',
-              borderRadius: '4px',
-            }}
-          >
-            <option value="percentage">Percentuale (%)</option>
-            <option value="amount">Importo (€)</option>
-          </select>
-        </div>
-
         <div style={{ marginBottom: '1.5rem' }}>
           <label
             htmlFor="edit-discount-value"
             style={{ display: 'block', marginBottom: '0.25rem' }}
           >
-            Valore Sconto
+            Sconto (%)
           </label>
           <input
             id="edit-discount-value"

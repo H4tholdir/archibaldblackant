@@ -78,7 +78,7 @@ export class PendingOrdersService {
       const itemTotals = calculateItemTotals({
         unitPrice: item.price,
         quantity: item.quantity,
-        discountType: item.discount ? "amount" : undefined,
+        discountType: item.discount ? "percentage" : undefined,
         discountValue: item.discount,
       });
       return {
