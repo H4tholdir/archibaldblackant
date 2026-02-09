@@ -320,11 +320,11 @@ export function PendingOrdersPage() {
       setSelectedOrderIds(new Set());
       setShowMergeDialog(false);
       toastService.success(
-        `Merge completato: ${selectedFresisOrders.length} ordini uniti con sconti per-riga`,
+        `Unione completata: ${selectedFresisOrders.length} ordini uniti con sconti per-riga`,
       );
     } catch (error) {
       console.error("[PendingOrdersPage] Merge failed:", error);
-      toastService.error("Errore durante il merge degli ordini");
+      toastService.error("Errore durante l'unione degli ordini");
     }
   };
 
@@ -607,7 +607,7 @@ export function PendingOrdersPage() {
                 minHeight: "44px",
               }}
             >
-              Merge Fresis ({selectedFresisOrders.length})
+              Unisci Fresis ({selectedFresisOrders.length})
             </button>
           )}
         </div>
@@ -649,7 +649,7 @@ export function PendingOrdersPage() {
                 marginBottom: "1rem",
               }}
             >
-              Merge Ordini Fresis
+              Unisci Ordini Fresis
             </h2>
             <p style={{ marginBottom: "0.75rem", color: "#6b7280" }}>
               Unisci {selectedFresisOrders.length} ordini in un unico ordine
@@ -714,7 +714,7 @@ export function PendingOrdersPage() {
                   cursor: "pointer",
                 }}
               >
-                Conferma Merge
+                Conferma Unione
               </button>
               <button
                 onClick={() => setShowMergeDialog(false)}

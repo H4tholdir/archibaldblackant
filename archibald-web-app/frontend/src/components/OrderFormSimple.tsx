@@ -829,6 +829,10 @@ export default function OrderFormSimple() {
     }
     setShowTopSoldModal(false);
     setShowHistorySearchModal(false);
+    // Focus quantity after modal closes and React re-renders
+    setTimeout(() => {
+      quantityInputRef.current?.focus();
+    }, 150);
   };
 
   // Handle keyboard navigation in product dropdown
@@ -2048,6 +2052,7 @@ export default function OrderFormSimple() {
           <button
             onClick={loadTopSoldItems}
             style={{
+              flex: 1,
               padding: isMobile ? "0.75rem 1rem" : "0.5rem 1rem",
               background: "#7c3aed",
               color: "white",
@@ -2068,6 +2073,7 @@ export default function OrderFormSimple() {
               setShowHistorySearchModal(true);
             }}
             style={{
+              flex: 1,
               padding: isMobile ? "0.75rem 1rem" : "0.5rem 1rem",
               background: "#2563eb",
               color: "white",

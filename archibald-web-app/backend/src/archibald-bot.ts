@@ -2654,7 +2654,9 @@ export class ArchibaldBot {
       items: orderData.items.map((item) => ({
         name: item.articleCode,
         qty: item.quantity,
+        discount: item.discount,
       })),
+      globalDiscount: orderData.discountPercent,
       slowdownConfig:
         Object.keys(this.slowdownConfig).length > 0
           ? this.slowdownConfig

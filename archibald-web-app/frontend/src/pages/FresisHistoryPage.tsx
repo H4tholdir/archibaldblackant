@@ -588,7 +588,7 @@ export function FresisHistoryPage() {
                   <div style={{ fontSize: "0.75rem", color: "#92400e" }}>
                     {formatDate(order.createdAt)}
                     {order.mergedAt &&
-                      ` | Mergiato: ${formatDate(order.mergedAt)}`}
+                      ` | Unito: ${formatDate(order.mergedAt)}`}
                   </div>
                 </div>
                 {!editing && (
