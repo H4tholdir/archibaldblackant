@@ -4447,60 +4447,99 @@ export class ArchibaldBot {
                     const discountFormatted = discountVal.replace(".", ",");
                     logger.debug(`Setting discount: ${discountFormatted}`);
 
-                    // Set MANUALDISCOUNT value programmatically WITHOUT changing focus.
-                    // editTableCell's double-click approach disrupts the grid's edit state,
-                    // causing INVENTTABLE focus failures on subsequent articles.
-                    const discountSet = await this.page!.evaluate(
-                      (val: string) => {
+                    // Use editTableCell approach (double-click + type) which is the
+                    // only method DevExpress actually registers for value changes.
+                    // After setting the value, restore focus to QTYORDERED to prevent
+                    // the grid's internal focus state from being disrupted.
+                    const discInputId = await this.page!.evaluate(() => {
+                      const inputs = Array.from(
+                        document.querySelectorAll('input[type="text"]'),
+                      ) as HTMLInputElement[];
+                      const d = inputs.find((inp) => {
+                        const id = inp.id.toLowerCase();
+                        return (
+                          id.includes("manualdiscount") &&
+                          id.includes("salesline") &&
+                          inp.offsetParent !== null
+                        );
+                      });
+                      return d?.id || null;
+                    });
+
+                    if (discInputId) {
+                      // Step 1: double-click to enter edit mode
+                      await this.page!.evaluate((inputId: string) => {
+                        const inp = document.querySelector(
+                          `#${inputId}`,
+                        ) as HTMLInputElement;
+                        if (!inp) return;
+                        inp.focus();
+                        inp.dispatchEvent(
+                          new MouseEvent("dblclick", {
+                            view: window,
+                            bubbles: true,
+                            cancelable: true,
+                            detail: 2,
+                          }),
+                        );
+                        const start = Date.now();
+                        while (Date.now() - start < 150) {}
+                      }, discInputId);
+                      await this.wait(300);
+
+                      // Step 2: select all + clear + type value
+                      await this.page!.evaluate((inputId: string) => {
+                        const inp = document.querySelector(
+                          `#${inputId}`,
+                        ) as HTMLInputElement;
+                        if (inp) {
+                          inp.focus();
+                          inp.select();
+                        }
+                      }, discInputId);
+                      await this.wait(100);
+                      await this.page!.keyboard.press("Backspace");
+                      await this.wait(50);
+                      await this.page!.keyboard.type(discountFormatted, {
+                        delay: 30,
+                      });
+                      await this.wait(300);
+
+                      logger.info(
+                        `✅ Discount set via editTableCell: ${item.discount}%`,
+                      );
+
+                      // Step 3: restore focus to QTYORDERED to reset grid focus state.
+                      // Without this, the grid's internal focus tracking stays on
+                      // MANUALDISCOUNT, preventing INVENTTABLE focus on the next article.
+                      const qtyCoord = await this.page!.evaluate(() => {
                         const inputs = Array.from(
                           document.querySelectorAll('input[type="text"]'),
                         ) as HTMLInputElement[];
-                        const discInput = inputs.find((inp) => {
+                        const q = inputs.find((inp) => {
                           const id = inp.id.toLowerCase();
                           return (
-                            id.includes("manualdiscount") &&
+                            id.includes("qtyordered") &&
                             id.includes("salesline") &&
                             inp.offsetParent !== null
                           );
                         });
-                        if (!discInput) return { ok: false, reason: "not found" };
-
-                        // Set value via native setter to trigger DevExpress change detection
-                        const setter = Object.getOwnPropertyDescriptor(
-                          HTMLInputElement.prototype,
-                          "value",
-                        )?.set;
-                        if (setter) {
-                          setter.call(discInput, val);
-                        } else {
-                          discInput.value = val;
-                        }
-                        discInput.dispatchEvent(
-                          new Event("change", { bubbles: true }),
+                        if (!q) return null;
+                        const r = q.getBoundingClientRect();
+                        return { x: r.x + r.width / 2, y: r.y + r.height / 2 };
+                      });
+                      if (qtyCoord) {
+                        await this.page!.mouse.click(
+                          qtyCoord.x,
+                          qtyCoord.y,
                         );
-                        discInput.dispatchEvent(
-                          new Event("input", { bubbles: true }),
-                        );
-                        // DevExpress also listens to keyup for validation
-                        discInput.dispatchEvent(
-                          new KeyboardEvent("keyup", { bubbles: true }),
-                        );
-                        return { ok: true, id: discInput.id, value: val };
-                      },
-                      discountFormatted,
-                    );
-
-                    if (discountSet.ok) {
-                      logger.info(
-                        `✅ Discount set programmatically: ${item.discount}%`,
-                        { inputId: discountSet.id },
-                      );
+                        await this.wait(200);
+                      }
                     } else {
                       logger.warn(
                         `⚠️ MANUALDISCOUNT input not found, discount not set`,
                       );
                     }
-                    await this.wait(200);
                   }
 
                   // Save row via UpdateEdit
