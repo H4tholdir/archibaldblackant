@@ -7,6 +7,9 @@ interface CustomerCardProps {
   onToggle: () => void;
   onEdit: (customerId: string) => void;
   onRetry: (customerProfile: string) => void;
+  photoUrl?: string | null;
+  onPhotoUpload?: (customerProfile: string, file: File) => void;
+  onPhotoDelete?: (customerProfile: string) => void;
 }
 
 export function CustomerCard({
@@ -15,6 +18,9 @@ export function CustomerCard({
   onToggle,
   onEdit,
   onRetry,
+  photoUrl,
+  onPhotoUpload,
+  onPhotoDelete,
 }: CustomerCardProps) {
   const [swipeX, setSwipeX] = useState(0);
   const touchStartX = useRef(0);
@@ -188,45 +194,85 @@ export function CustomerCard({
             }}
           >
             {/* Customer info */}
-            <div style={{ flex: 1 }}>
+            <div
+              style={{
+                flex: 1,
+                display: "flex",
+                alignItems: "flex-start",
+                gap: "12px",
+              }}
+            >
+              {/* Avatar */}
               <div
                 style={{
-                  fontSize: "18px",
-                  fontWeight: 700,
-                  color: "#333",
-                  marginBottom: "4px",
+                  width: "40px",
+                  height: "40px",
+                  minWidth: "40px",
+                  borderRadius: "50%",
+                  backgroundColor: photoUrl ? "transparent" : "#bdbdbd",
                   display: "flex",
                   alignItems: "center",
-                  flexWrap: "wrap",
+                  justifyContent: "center",
+                  fontSize: "18px",
+                  fontWeight: 700,
+                  color: "#fff",
+                  overflow: "hidden",
                 }}
               >
-                {customer.name}
-                {botStatusBadge()}
+                {photoUrl ? (
+                  <img
+                    src={photoUrl}
+                    alt={customer.name}
+                    style={{
+                      width: "100%",
+                      height: "100%",
+                      objectFit: "cover",
+                    }}
+                  />
+                ) : (
+                  customer.name.charAt(0).toUpperCase()
+                )}
               </div>
-              <div
-                style={{
-                  fontSize: "14px",
-                  color: "#666",
-                  display: "flex",
-                  gap: "16px",
-                  flexWrap: "wrap",
-                }}
-              >
-                {customer.customerProfile && (
-                  <span>
-                    <strong>Profilo:</strong> {customer.customerProfile}
-                  </span>
-                )}
-                {customer.city && (
-                  <span>
-                    <strong>Città:</strong> {customer.city}
-                  </span>
-                )}
-                {customer.vatNumber && (
-                  <span>
-                    <strong>P.IVA:</strong> {customer.vatNumber}
-                  </span>
-                )}
+              <div style={{ flex: 1 }}>
+                <div
+                  style={{
+                    fontSize: "18px",
+                    fontWeight: 700,
+                    color: "#333",
+                    marginBottom: "4px",
+                    display: "flex",
+                    alignItems: "center",
+                    flexWrap: "wrap",
+                  }}
+                >
+                  {customer.name}
+                  {botStatusBadge()}
+                </div>
+                <div
+                  style={{
+                    fontSize: "14px",
+                    color: "#666",
+                    display: "flex",
+                    gap: "16px",
+                    flexWrap: "wrap",
+                  }}
+                >
+                  {customer.customerProfile && (
+                    <span>
+                      <strong>Profilo:</strong> {customer.customerProfile}
+                    </span>
+                  )}
+                  {customer.city && (
+                    <span>
+                      <strong>Città:</strong> {customer.city}
+                    </span>
+                  )}
+                  {customer.vatNumber && (
+                    <span>
+                      <strong>P.IVA:</strong> {customer.vatNumber}
+                    </span>
+                  )}
+                </div>
               </div>
             </div>
 
@@ -281,6 +327,126 @@ export function CustomerCard({
               backgroundColor: "#fafafa",
             }}
           >
+            {/* Photo Section */}
+            <div
+              style={{
+                marginBottom: "20px",
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+                gap: "12px",
+              }}
+            >
+              <div
+                style={{
+                  width: "120px",
+                  height: "120px",
+                  borderRadius: "50%",
+                  backgroundColor: photoUrl ? "transparent" : "#e0e0e0",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  fontSize: "48px",
+                  fontWeight: 700,
+                  color: "#9e9e9e",
+                  overflow: "hidden",
+                  border: "3px solid #e0e0e0",
+                }}
+              >
+                {photoUrl ? (
+                  <img
+                    src={photoUrl}
+                    alt={customer.name}
+                    style={{
+                      width: "100%",
+                      height: "100%",
+                      objectFit: "cover",
+                    }}
+                  />
+                ) : (
+                  customer.name.charAt(0).toUpperCase()
+                )}
+              </div>
+              <div
+                style={{
+                  display: "flex",
+                  gap: "8px",
+                  flexWrap: "wrap",
+                  justifyContent: "center",
+                }}
+              >
+                <label
+                  style={{
+                    padding: "8px 16px",
+                    fontSize: "13px",
+                    fontWeight: 600,
+                    backgroundColor: "#1976d2",
+                    color: "#fff",
+                    borderRadius: "8px",
+                    cursor: "pointer",
+                  }}
+                >
+                  Scatta foto
+                  <input
+                    type="file"
+                    accept="image/*"
+                    capture="environment"
+                    style={{ display: "none" }}
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file && onPhotoUpload) {
+                        onPhotoUpload(customer.customerProfile, file);
+                      }
+                      e.target.value = "";
+                    }}
+                  />
+                </label>
+                <label
+                  style={{
+                    padding: "8px 16px",
+                    fontSize: "13px",
+                    fontWeight: 600,
+                    backgroundColor: "#fff",
+                    color: "#1976d2",
+                    border: "1px solid #1976d2",
+                    borderRadius: "8px",
+                    cursor: "pointer",
+                  }}
+                >
+                  Scegli dalla galleria
+                  <input
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp"
+                    style={{ display: "none" }}
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file && onPhotoUpload) {
+                        onPhotoUpload(customer.customerProfile, file);
+                      }
+                      e.target.value = "";
+                    }}
+                  />
+                </label>
+                {photoUrl && onPhotoDelete && (
+                  <button
+                    onClick={() => onPhotoDelete(customer.customerProfile)}
+                    style={{
+                      padding: "8px 16px",
+                      fontSize: "13px",
+                      fontWeight: 600,
+                      backgroundColor: "#fff",
+                      color: "#f44336",
+                      border: "1px solid #f44336",
+                      borderRadius: "8px",
+                      cursor: "pointer",
+                    }}
+                  >
+                    Rimuovi foto
+                  </button>
+                )}
+              </div>
+            </div>
+
             {/* Fiscal Data */}
             <div style={{ marginBottom: "20px" }}>
               <h3

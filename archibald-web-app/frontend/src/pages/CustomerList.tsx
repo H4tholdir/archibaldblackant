@@ -33,6 +33,9 @@ export function CustomerList() {
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [modalOpen, setModalOpen] = useState(false);
   const [editingCustomer, setEditingCustomer] = useState<Customer | null>(null);
+  const [customerPhotos, setCustomerPhotos] = useState<
+    Record<string, string | null>
+  >({});
 
   // Debounce search input (300ms)
   useEffect(() => {
@@ -95,6 +98,60 @@ export function CustomerList() {
   useEffect(() => {
     fetchCustomers();
   }, [fetchCustomers]);
+
+  // Lazy load photos for visible customers
+  useEffect(() => {
+    if (customers.length === 0) return;
+
+    let cancelled = false;
+    const loadPhotos = async () => {
+      for (const c of customers) {
+        if (cancelled) break;
+        if (customerPhotos[c.customerProfile] !== undefined) continue;
+        try {
+          const url = await customerService.getPhotoUrl(c.customerProfile);
+          if (!cancelled) {
+            setCustomerPhotos((prev) => ({
+              ...prev,
+              [c.customerProfile]: url,
+            }));
+          }
+        } catch {
+          if (!cancelled) {
+            setCustomerPhotos((prev) => ({
+              ...prev,
+              [c.customerProfile]: null,
+            }));
+          }
+        }
+      }
+    };
+    loadPhotos();
+    return () => {
+      cancelled = true;
+    };
+  }, [customers]);
+
+  const handlePhotoUpload = async (customerProfile: string, file: File) => {
+    try {
+      await customerService.uploadPhoto(customerProfile, file);
+      const url = await customerService.getPhotoUrl(customerProfile);
+      setCustomerPhotos((prev) => ({ ...prev, [customerProfile]: url }));
+    } catch (err) {
+      console.error("Photo upload failed:", err);
+      setError("Errore durante il caricamento della foto");
+    }
+  };
+
+  const handlePhotoDelete = async (customerProfile: string) => {
+    try {
+      await customerService.deletePhoto(customerProfile);
+      setCustomerPhotos((prev) => ({ ...prev, [customerProfile]: null }));
+    } catch (err) {
+      console.error("Photo delete failed:", err);
+      setError("Errore durante l'eliminazione della foto");
+    }
+  };
 
   const handleToggle = (customerId: string) => {
     if (expandedCustomerId === customerId) {
@@ -428,6 +485,9 @@ export function CustomerList() {
                   onToggle={() => handleToggle(customer.customerProfile)}
                   onEdit={handleEdit}
                   onRetry={handleRetry}
+                  photoUrl={customerPhotos[customer.customerProfile]}
+                  onPhotoUpload={handlePhotoUpload}
+                  onPhotoDelete={handlePhotoDelete}
                 />
               );
             })}

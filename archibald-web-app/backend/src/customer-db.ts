@@ -51,6 +51,7 @@ export interface Customer {
   lastSync: number; // Unix timestamp of last sync
   botStatus?: "pending" | "placed" | "failed";
   archibaldName?: string; // Nome attuale su Archibald (per ricerca durante update)
+  photo?: string; // Base64 data URI della foto cliente
 }
 
 export class CustomerDatabase {
@@ -178,6 +179,7 @@ export class CustomerDatabase {
       { column: "botStatus", type: "TEXT DEFAULT 'placed'" },
       { column: "archibaldName", type: "TEXT" },
       { column: "email", type: "TEXT" },
+      { column: "photo", type: "TEXT" },
     ];
 
     for (const migration of migrations) {
@@ -437,13 +439,26 @@ export class CustomerDatabase {
   /**
    * Ottiene tutti i clienti (con ricerca opzionale)
    */
+  private static readonly COLUMNS_WITHOUT_PHOTO = `
+    customerProfile, internalId, name,
+    vatNumber, fiscalCode, sdi, pec,
+    phone, mobile, email, url, attentionTo,
+    street, logisticsAddress, postalCode, city,
+    customerType, type, deliveryTerms, description,
+    lastOrderDate, actualOrderCount,
+    previousOrderCount1, previousSales1,
+    previousOrderCount2, previousSales2,
+    externalAccountNumber, ourAccountNumber,
+    hash, lastSync, createdAt, updatedAt, botStatus, archibaldName
+  `;
+
   getCustomers(searchQuery?: string): Customer[] {
     let stmt;
 
     if (searchQuery) {
       const query = `%${searchQuery}%`;
       stmt = this.db.prepare(`
-        SELECT * FROM customers
+        SELECT ${CustomerDatabase.COLUMNS_WITHOUT_PHOTO} FROM customers
         WHERE name LIKE ?
            OR customerProfile LIKE ?
            OR vatNumber LIKE ?
@@ -454,11 +469,19 @@ export class CustomerDatabase {
         ORDER BY name ASC
         LIMIT 100
       `);
-      return stmt.all(query, query, query, query, query, query, query) as Customer[];
+      return stmt.all(
+        query,
+        query,
+        query,
+        query,
+        query,
+        query,
+        query,
+      ) as Customer[];
     }
 
     stmt = this.db.prepare(`
-      SELECT * FROM customers
+      SELECT ${CustomerDatabase.COLUMNS_WITHOUT_PHOTO} FROM customers
       ORDER BY name ASC
     `);
     return stmt.all() as Customer[];
@@ -498,7 +521,7 @@ export class CustomerDatabase {
     const allCustomers = this.db
       .prepare(
         `
-      SELECT * FROM customers
+      SELECT ${CustomerDatabase.COLUMNS_WITHOUT_PHOTO} FROM customers
       ORDER BY lastSync DESC
     `,
       )
@@ -631,7 +654,7 @@ export class CustomerDatabase {
    */
   getAllCustomers(limit?: number, offset?: number): Customer[] {
     let query = `
-      SELECT * FROM customers
+      SELECT ${CustomerDatabase.COLUMNS_WITHOUT_PHOTO} FROM customers
       ORDER BY name ASC
     `;
 
@@ -756,12 +779,29 @@ export class CustomerDatabase {
   /**
    * Ottiene clienti per stato bot
    */
-  getCustomersByBotStatus(
-    status: "pending" | "placed" | "failed",
-  ): Customer[] {
+  getCustomersByBotStatus(status: "pending" | "placed" | "failed"): Customer[] {
     return this.db
       .prepare("SELECT * FROM customers WHERE botStatus = ?")
       .all(status) as Customer[];
+  }
+
+  getCustomerPhoto(customerProfile: string): string | undefined {
+    const row = this.db
+      .prepare("SELECT photo FROM customers WHERE customerProfile = ?")
+      .get(customerProfile) as { photo: string | null } | undefined;
+    return row?.photo ?? undefined;
+  }
+
+  setCustomerPhoto(customerProfile: string, photo: string): void {
+    this.db
+      .prepare("UPDATE customers SET photo = ? WHERE customerProfile = ?")
+      .run(photo, customerProfile);
+  }
+
+  deleteCustomerPhoto(customerProfile: string): void {
+    this.db
+      .prepare("UPDATE customers SET photo = NULL WHERE customerProfile = ?")
+      .run(customerProfile);
   }
 
   /**

@@ -97,6 +97,7 @@ import { WebSocketServerService } from "./websocket-server";
 import { SubClientDatabase } from "./subclient-db";
 import { importSubClientsFromExcel } from "./subclient-excel-importer";
 import multerSubClients from "multer";
+import multerPhotos from "multer";
 import crypto from "crypto";
 import { getCustomerProgressMilestone } from "./job-progress-mapper";
 
@@ -3191,6 +3192,136 @@ app.post(
         success: false,
         error:
           error instanceof Error ? error.message : "Errore durante il retry",
+      });
+    }
+  },
+);
+
+// ========== CUSTOMER PHOTO ENDPOINTS ==========
+
+const photoUpload = multerPhotos({
+  storage: multerPhotos.memoryStorage(),
+  limits: { fileSize: 5 * 1024 * 1024 },
+  fileFilter: (_req, file, cb) => {
+    if (
+      file.mimetype === "image/jpeg" ||
+      file.mimetype === "image/png" ||
+      file.mimetype === "image/webp"
+    ) {
+      cb(null, true);
+    } else {
+      cb(new Error("Solo immagini JPEG, PNG o WebP sono accettate"));
+    }
+  },
+});
+
+app.post(
+  "/api/customers/:customerProfile/photo",
+  authenticateJWT,
+  photoUpload.single("photo"),
+  async (req: AuthRequest, res: Response<ApiResponse>) => {
+    try {
+      const { customerProfile } = req.params;
+      const customer = customerDb.getCustomerByProfile(customerProfile);
+
+      if (!customer) {
+        return res
+          .status(404)
+          .json({ success: false, error: "Cliente non trovato" });
+      }
+
+      if (!req.file) {
+        return res
+          .status(400)
+          .json({ success: false, error: "Nessun file caricato" });
+      }
+
+      const base64 = req.file.buffer.toString("base64");
+      const dataUri = `data:${req.file.mimetype};base64,${base64}`;
+      customerDb.setCustomerPhoto(customerProfile, dataUri);
+
+      logger.info("Foto cliente caricata", { customerProfile });
+      res.json({ success: true, message: "Foto caricata" });
+    } catch (error) {
+      logger.error("Errore API POST /api/customers/:customerProfile/photo", {
+        error,
+      });
+      res.status(500).json({
+        success: false,
+        error:
+          error instanceof Error
+            ? error.message
+            : "Errore durante il caricamento della foto",
+      });
+    }
+  },
+);
+
+app.get(
+  "/api/customers/:customerProfile/photo",
+  authenticateJWT,
+  async (req: AuthRequest, res: Response) => {
+    try {
+      const { customerProfile } = req.params;
+      const photo = customerDb.getCustomerPhoto(customerProfile);
+
+      if (!photo) {
+        return res
+          .status(404)
+          .json({ success: false, error: "Foto non trovata" });
+      }
+
+      const matches = photo.match(/^data:(.+);base64,(.+)$/);
+      if (!matches) {
+        return res
+          .status(500)
+          .json({ success: false, error: "Formato foto non valido" });
+      }
+
+      const mimeType = matches[1];
+      const buffer = Buffer.from(matches[2], "base64");
+
+      res.set("Content-Type", mimeType);
+      res.set("Cache-Control", "public, max-age=86400");
+      res.send(buffer);
+    } catch (error) {
+      logger.error("Errore API GET /api/customers/:customerProfile/photo", {
+        error,
+      });
+      res
+        .status(500)
+        .json({
+          success: false,
+          error: "Errore durante il recupero della foto",
+        });
+    }
+  },
+);
+
+app.delete(
+  "/api/customers/:customerProfile/photo",
+  authenticateJWT,
+  async (req: AuthRequest, res: Response<ApiResponse>) => {
+    try {
+      const { customerProfile } = req.params;
+      const customer = customerDb.getCustomerByProfile(customerProfile);
+
+      if (!customer) {
+        return res
+          .status(404)
+          .json({ success: false, error: "Cliente non trovato" });
+      }
+
+      customerDb.deleteCustomerPhoto(customerProfile);
+      logger.info("Foto cliente eliminata", { customerProfile });
+      res.json({ success: true, message: "Foto eliminata" });
+    } catch (error) {
+      logger.error("Errore API DELETE /api/customers/:customerProfile/photo", {
+        error,
+      });
+      res.status(500).json({
+        success: false,
+        error: "Errore durante l'eliminazione della foto",
       });
     }
   },

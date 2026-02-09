@@ -16,6 +16,7 @@ export interface Customer {
   lastModified: string;
   lastOrderDate?: string;
   hash: string;
+  photo?: string;
 }
 
 // Match backend SQLite schema for products
@@ -694,6 +695,24 @@ export class ArchibaldDatabase extends Dexie {
 
     // Version 18: Remove draft orders table (draft system removed)
     this.version(18).stores({
+      customers: "id, name, code, city, *hash",
+      products: "id, name, article, *hash",
+      productVariants: "++id, productId, variantId",
+      prices: "++id, articleId, articleName",
+      draftOrders: null,
+      pendingOrders: "id, status, createdAt, updatedAt, jobId",
+      cacheMetadata: "key, lastSynced",
+      warehouseItems:
+        "++id, articleCode, boxName, reservedForOrder, soldInOrder",
+      warehouseMetadata: "++id, uploadedAt",
+      subClients: "codice, ragioneSociale, supplRagioneSociale, partitaIva",
+      fresisHistory:
+        "id, subClientCodice, customerName, createdAt, updatedAt, archibaldOrderId, mergedIntoOrderId",
+      fresisDiscounts: "id, articleCode, discountPercent",
+    });
+
+    // Version 19: Add photo field to customers (non-indexed, stored as base64 data URI)
+    this.version(19).stores({
       customers: "id, name, code, city, *hash",
       products: "id, name, article, *hash",
       productVariants: "++id, productId, variantId",

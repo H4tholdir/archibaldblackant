@@ -4,7 +4,7 @@ import type Dexie from "dexie";
 import { fetchWithRetry } from "../utils/fetch-with-retry";
 
 function parseLastOrderDate(raw: string | undefined | null): string {
-  if (!raw) return '';
+  if (!raw) return "";
   const ddmmyyyy = raw.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
   if (ddmmyyyy) {
     return `${ddmmyyyy[3]}-${ddmmyyyy[2]}-${ddmmyyyy[1]}`;
@@ -14,22 +14,22 @@ function parseLastOrderDate(raw: string | undefined | null): string {
 
 function mapBackendCustomer(c: any): Customer {
   return {
-    id: c.customerProfile || c.internalId || c.id || '',
-    name: c.name || '',
-    code: c.customerProfile || c.code || '',
-    taxCode: c.fiscalCode || c.vatNumber || c.taxCode || '',
-    address: c.street || c.logisticsAddress || c.address || '',
-    city: c.city || '',
-    province: c.province || '',
-    cap: c.postalCode || c.cap || '',
-    phone: c.phone || c.mobile || '',
-    email: c.pec || c.email || '',
-    fax: c.fax || '',
+    id: c.customerProfile || c.internalId || c.id || "",
+    name: c.name || "",
+    code: c.customerProfile || c.code || "",
+    taxCode: c.fiscalCode || c.vatNumber || c.taxCode || "",
+    address: c.street || c.logisticsAddress || c.address || "",
+    city: c.city || "",
+    province: c.province || "",
+    cap: c.postalCode || c.cap || "",
+    phone: c.phone || c.mobile || "",
+    email: c.pec || c.email || "",
+    fax: c.fax || "",
     lastModified: c.lastSync
       ? new Date(c.lastSync * 1000).toISOString()
       : c.lastModified || new Date().toISOString(),
     lastOrderDate: parseLastOrderDate(c.lastOrderDate),
-    hash: c.hash || '',
+    hash: c.hash || "",
   };
 }
 
@@ -66,8 +66,12 @@ export class CustomerService {
             c.name.toLowerCase().includes(lowerQuery) ||
             c.code.toLowerCase().includes(lowerQuery) ||
             (c.city ? c.city.toLowerCase().includes(lowerQuery) : false) ||
-            (c.taxCode ? c.taxCode.toLowerCase().includes(lowerQuery) : false) ||
-            (c.address ? c.address.toLowerCase().includes(lowerQuery) : false) ||
+            (c.taxCode
+              ? c.taxCode.toLowerCase().includes(lowerQuery)
+              : false) ||
+            (c.address
+              ? c.address.toLowerCase().includes(lowerQuery)
+              : false) ||
             (c.cap ? c.cap.toLowerCase().includes(lowerQuery) : false),
         )
         .limit(limit)
@@ -78,8 +82,10 @@ export class CustomerService {
       const oneMonthAgoStr = oneMonthAgo.toISOString();
 
       cached.sort((a, b) => {
-        const aRecent = a.lastOrderDate && a.lastOrderDate > oneMonthAgoStr ? 1 : 0;
-        const bRecent = b.lastOrderDate && b.lastOrderDate > oneMonthAgoStr ? 1 : 0;
+        const aRecent =
+          a.lastOrderDate && a.lastOrderDate > oneMonthAgoStr ? 1 : 0;
+        const bRecent =
+          b.lastOrderDate && b.lastOrderDate > oneMonthAgoStr ? 1 : 0;
         if (aRecent !== bRecent) return bRecent - aRecent;
         return b.lastModified.localeCompare(a.lastModified);
       });
@@ -95,7 +101,9 @@ export class CustomerService {
         );
         if (response.ok) {
           const data = await response.json();
-          const apiResults: Customer[] = (data.data?.customers || []).map(mapBackendCustomer);
+          const apiResults: Customer[] = (data.data?.customers || []).map(
+            mapBackendCustomer,
+          );
           const cachedIds = new Set(cached.map((c) => c.id));
           const merged = [
             ...cached,
@@ -189,10 +197,22 @@ export class CustomerService {
         return;
       }
 
-      // Clear and populate IndexedDB
+      // Preserve photos before clearing
       const customersTable = this.db.table<Customer, string>("customers");
+      const existingCustomers = await customersTable.toArray();
+      const photoMap = new Map<string, string>();
+      for (const c of existingCustomers) {
+        if (c.photo) photoMap.set(c.id, c.photo);
+      }
+
+      // Clear and populate IndexedDB
       await customersTable.clear();
       await customersTable.bulkAdd(validCustomers);
+
+      // Re-apply preserved photos
+      for (const [id, photo] of photoMap) {
+        await customersTable.update(id, { photo });
+      }
 
       console.log(
         `[CustomerService] Populated IndexedDB with ${validCustomers.length} customers`,
@@ -354,6 +374,94 @@ export class CustomerService {
     if (!response.ok) {
       throw new Error(`Retry failed: ${response.status}`);
     }
+  }
+  async uploadPhoto(customerProfile: string, file: File): Promise<void> {
+    const compressed = await this.compressImage(file, 800, 0.7);
+    const dataUri = await this.blobToDataUri(compressed);
+
+    const formData = new FormData();
+    formData.append("photo", compressed, "photo.jpg");
+
+    await fetchWithRetry(
+      `/api/customers/${encodeURIComponent(customerProfile)}/photo`,
+      { method: "POST", body: formData },
+    );
+
+    // Cache in IndexedDB
+    const customersTable = this.db.table<Customer, string>("customers");
+    await customersTable.update(customerProfile, { photo: dataUri });
+  }
+
+  async deletePhoto(customerProfile: string): Promise<void> {
+    await fetchWithRetry(
+      `/api/customers/${encodeURIComponent(customerProfile)}/photo`,
+      { method: "DELETE" },
+    );
+
+    const customersTable = this.db.table<Customer, string>("customers");
+    await customersTable.update(customerProfile, { photo: undefined });
+  }
+
+  async getPhotoUrl(customerProfile: string): Promise<string | null> {
+    // Cache-first
+    const customersTable = this.db.table<Customer, string>("customers");
+    const cached = await customersTable.get(customerProfile);
+    if (cached?.photo) return cached.photo;
+
+    // Fetch from backend
+    try {
+      const response = await fetchWithRetry(
+        `/api/customers/${encodeURIComponent(customerProfile)}/photo`,
+      );
+      if (!response.ok) return null;
+
+      const blob = await response.blob();
+      const dataUri = await this.blobToDataUri(blob);
+
+      // Cache locally
+      await customersTable.update(customerProfile, { photo: dataUri });
+
+      return dataUri;
+    } catch {
+      return null;
+    }
+  }
+
+  private compressImage(
+    file: File,
+    maxWidth: number,
+    quality: number,
+  ): Promise<Blob> {
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      img.onload = () => {
+        const scale = Math.min(1, maxWidth / img.width);
+        const canvas = document.createElement("canvas");
+        canvas.width = img.width * scale;
+        canvas.height = img.height * scale;
+        const ctx = canvas.getContext("2d")!;
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        canvas.toBlob(
+          (blob) => {
+            if (blob) resolve(blob);
+            else reject(new Error("Compressione immagine fallita"));
+          },
+          "image/jpeg",
+          quality,
+        );
+      };
+      img.onerror = () => reject(new Error("Impossibile caricare l'immagine"));
+      img.src = URL.createObjectURL(file);
+    });
+  }
+
+  private blobToDataUri(blob: Blob): Promise<string> {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result as string);
+      reader.onerror = () => reject(new Error("Lettura file fallita"));
+      reader.readAsDataURL(blob);
+    });
   }
 }
 

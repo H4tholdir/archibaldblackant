@@ -31,4 +31,5 @@ export interface Customer {
   createdAt: number;
   updatedAt: number;
   botStatus?: "pending" | "placed" | "failed" | null;
+  photoUrl?: string | null;
 }
