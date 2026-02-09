@@ -8,74 +8,43 @@
  */
 
 import { db } from "../db/schema";
-import type { PendingOrder } from "../db/schema";
+import type { PendingOrder, PendingOrderItem } from "../db/schema";
 import { getDeviceId } from "../utils/device-id";
 
 /**
  * Pending order event payloads from backend
  */
+interface PendingOrderPayload {
+  id: string;
+  userId: string;
+  customerId: string;
+  customerName: string;
+  items: Array<Record<string, unknown>>;
+  status: "pending" | "syncing" | "error" | "completed-warehouse";
+  discountPercent?: number;
+  targetTotalWithVAT?: number;
+  shippingCost?: number;
+  shippingTax?: number;
+  retryCount: number;
+  errorMessage?: string;
+  createdAt: number;
+  updatedAt: number;
+  deviceId: string;
+  subClientCodice?: string | null;
+  subClientName?: string | null;
+  subClientData?: Record<string, unknown> | null;
+}
+
 interface PendingCreatedPayload {
   pendingOrderId: string;
-  pendingOrder: {
-    id: string;
-    userId: string;
-    customerId: string;
-    customerName: string;
-    items: Array<{
-      productId: string;
-      productName: string;
-      article: string;
-      variantId: string;
-      quantity: number;
-      packageContent: string;
-    }>;
-    status: "pending" | "syncing" | "error" | "completed-warehouse";
-    discountPercent?: number;
-    targetTotalWithVAT?: number;
-    shippingCost?: number;
-    shippingTax?: number;
-    retryCount: number;
-    errorMessage?: string;
-    createdAt: number;
-    updatedAt: number;
-    deviceId: string;
-    subClientCodice?: string | null;
-    subClientName?: string | null;
-    subClientData?: Record<string, unknown> | null;
-  };
+  pendingOrder: PendingOrderPayload;
   timestamp: string;
   deviceId: string;
 }
 
 interface PendingUpdatedPayload {
   pendingOrderId: string;
-  pendingOrder: {
-    id: string;
-    userId: string;
-    customerId: string;
-    customerName: string;
-    items: Array<{
-      productId: string;
-      productName: string;
-      article: string;
-      variantId: string;
-      quantity: number;
-      packageContent: string;
-    }>;
-    status: "pending" | "syncing" | "error" | "completed-warehouse";
-    discountPercent?: number;
-    targetTotalWithVAT?: number;
-    shippingCost?: number;
-    shippingTax?: number;
-    retryCount: number;
-    errorMessage?: string;
-    createdAt: number;
-    updatedAt: number;
-    deviceId: string;
-    subClientCodice?: string | null;
-    subClientName?: string | null;
-    subClientData?: Record<string, unknown> | null;
-  };
+  pendingOrder: PendingOrderPayload;
   timestamp: string;
   deviceId: string;
 }
@@ -216,15 +185,19 @@ export class PendingRealtimeService {
       }
 
       // Convert backend items to frontend PendingOrderItem format
-      const items = data.pendingOrder.items.map((item) => ({
-        articleCode: item.article,
-        articleId: item.variantId,
-        productName: item.productName,
-        description: item.productName,
-        quantity: item.quantity,
-        price: 0, // Backend doesn't send prices in real-time events
-        vat: 0,
-        discount: 0,
+      // Items from sync push already have the full PendingOrderItem shape;
+      // items from bot events use different field names (article/variantId).
+      const items = data.pendingOrder.items.map((item: Record<string, unknown>) => ({
+        articleCode: (item.articleCode as string) || (item.article as string) || "",
+        articleId: (item.articleId as string) || (item.variantId as string) || undefined,
+        productName: (item.productName as string) || undefined,
+        description: (item.description as string) || (item.productName as string) || undefined,
+        quantity: (item.quantity as number) || 0,
+        price: (item.price as number) || 0,
+        vat: (item.vat as number) || 0,
+        discount: (item.discount as number) || 0,
+        warehouseQuantity: (item.warehouseQuantity as number) || undefined,
+        warehouseSources: (item.warehouseSources as PendingOrderItem["warehouseSources"]) || undefined,
       }));
 
       // Insert pending order into IndexedDB
@@ -306,15 +279,19 @@ export class PendingRealtimeService {
       }
 
       // Convert backend items to frontend PendingOrderItem format
-      const items = data.pendingOrder.items.map((item) => ({
-        articleCode: item.article,
-        articleId: item.variantId,
-        productName: item.productName,
-        description: item.productName,
-        quantity: item.quantity,
-        price: 0, // Backend doesn't send prices in real-time events
-        vat: 0,
-        discount: 0,
+      // Items from sync push already have the full PendingOrderItem shape;
+      // items from bot events use different field names (article/variantId).
+      const items = data.pendingOrder.items.map((item: Record<string, unknown>) => ({
+        articleCode: (item.articleCode as string) || (item.article as string) || "",
+        articleId: (item.articleId as string) || (item.variantId as string) || undefined,
+        productName: (item.productName as string) || undefined,
+        description: (item.description as string) || (item.productName as string) || undefined,
+        quantity: (item.quantity as number) || 0,
+        price: (item.price as number) || 0,
+        vat: (item.vat as number) || 0,
+        discount: (item.discount as number) || 0,
+        warehouseQuantity: (item.warehouseQuantity as number) || undefined,
+        warehouseSources: (item.warehouseSources as PendingOrderItem["warehouseSources"]) || undefined,
       }));
 
       // Upsert pending order with serverUpdatedAt

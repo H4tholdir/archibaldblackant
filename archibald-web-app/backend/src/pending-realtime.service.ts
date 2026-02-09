@@ -18,68 +18,37 @@ export type PendingEventType =
 /**
  * Pending order event payloads
  */
+interface PendingOrderPayload {
+  id: string;
+  userId: string;
+  customerId: string;
+  customerName: string;
+  items: Array<Record<string, unknown>>;
+  status: "pending" | "syncing" | "error" | "completed-warehouse";
+  discountPercent?: number;
+  targetTotalWithVAT?: number;
+  shippingCost?: number;
+  shippingTax?: number;
+  retryCount: number;
+  errorMessage?: string;
+  createdAt: number;
+  updatedAt: number;
+  deviceId: string;
+  subClientCodice?: string | null;
+  subClientName?: string | null;
+  subClientData?: Record<string, unknown> | null;
+}
+
 export interface PendingCreatedPayload {
   pendingOrderId: string;
-  pendingOrder: {
-    id: string;
-    userId: string;
-    customerId: string;
-    customerName: string;
-    items: Array<{
-      productId: string;
-      productName: string;
-      article: string;
-      variantId: string;
-      quantity: number;
-      packageContent: string;
-    }>;
-    status: "pending" | "syncing" | "error" | "completed-warehouse";
-    discountPercent?: number;
-    targetTotalWithVAT?: number;
-    shippingCost?: number;
-    shippingTax?: number;
-    retryCount: number;
-    errorMessage?: string;
-    createdAt: number;
-    updatedAt: number;
-    deviceId: string;
-    subClientCodice?: string | null;
-    subClientName?: string | null;
-    subClientData?: Record<string, unknown> | null;
-  };
+  pendingOrder: PendingOrderPayload;
   timestamp: string;
   deviceId: string;
 }
 
 export interface PendingUpdatedPayload {
   pendingOrderId: string;
-  pendingOrder: {
-    id: string;
-    userId: string;
-    customerId: string;
-    customerName: string;
-    items: Array<{
-      productId: string;
-      productName: string;
-      article: string;
-      variantId: string;
-      quantity: number;
-      packageContent: string;
-    }>;
-    status: "pending" | "syncing" | "error" | "completed-warehouse";
-    discountPercent?: number;
-    targetTotalWithVAT?: number;
-    shippingCost?: number;
-    shippingTax?: number;
-    retryCount: number;
-    errorMessage?: string;
-    createdAt: number;
-    updatedAt: number;
-    deviceId: string;
-    subClientCodice?: string | null;
-    subClientName?: string | null;
-    subClientData?: Record<string, unknown> | null;
-  };
+  pendingOrder: PendingOrderPayload;
   timestamp: string;
   deviceId: string;
 }
