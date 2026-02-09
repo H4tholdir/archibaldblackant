@@ -12,6 +12,8 @@ import { mergeFresisPendingOrders } from "../utils/order-merge";
 import { db } from "../db/schema";
 import { fresisDiscountService } from "../services/fresis-discount.service";
 import { fresisHistoryService } from "../services/fresis-history.service";
+import { shareService } from "../services/share.service";
+import { EmailShareDialog } from "../components/EmailShareDialog";
 
 function itemSubtotal(
   order: PendingOrder,
@@ -48,6 +50,13 @@ export function PendingOrdersPage() {
   const [expandedOrderIds, setExpandedOrderIds] = useState<Set<string>>(
     new Set(),
   );
+
+  // Share state
+  const [emailDialogOrder, setEmailDialogOrder] = useState<PendingOrder | null>(
+    null,
+  );
+  const [emailDialogLoading, setEmailDialogLoading] = useState(false);
+  const [sharingOrderId, setSharingOrderId] = useState<string | null>(null);
 
   // Mobile responsiveness
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
@@ -383,6 +392,96 @@ export function PendingOrdersPage() {
       toastService.error(`Errore durante la stampa: ${errorMessage}`);
     }
   };
+
+  async function getOrderContactInfo(order: PendingOrder) {
+    if (order.subClientData) {
+      return {
+        phone: order.subClientData.telefono,
+        email: order.subClientData.email,
+      };
+    }
+    const customer = await db.customers.get(order.customerId);
+    return { phone: customer?.phone, email: customer?.email };
+  }
+
+  const handleWhatsApp = async (order: PendingOrder) => {
+    try {
+      setSharingOrderId(order.id!);
+      const blob = pdfExportService.getOrderPDFBlob(order);
+      const fileName = pdfExportService.getOrderPDFFileName(order);
+      const { url } = await shareService.uploadPDFForSharing(blob, fileName);
+
+      const contact = await getOrderContactInfo(order);
+      if (!contact.phone) {
+        toastService.error(
+          "Nessun numero di telefono trovato per questo cliente",
+        );
+        return;
+      }
+
+      const message = `Buongiorno, ecco il preventivo richiesto:\n${url}`;
+      shareService.openWhatsApp(contact.phone, message);
+    } catch (error) {
+      console.error("[PendingOrdersPage] WhatsApp share failed:", error);
+      const errorMessage =
+        error instanceof Error ? error.message : "Errore sconosciuto";
+      toastService.error(`Errore condivisione WhatsApp: ${errorMessage}`);
+    } finally {
+      setSharingOrderId(null);
+    }
+  };
+
+  const handleEmail = (order: PendingOrder) => {
+    setEmailDialogOrder(order);
+  };
+
+  const handleEmailSend = async (to: string, subject: string, body: string) => {
+    if (!emailDialogOrder) return;
+    try {
+      setEmailDialogLoading(true);
+      const blob = pdfExportService.getOrderPDFBlob(emailDialogOrder);
+      const fileName = pdfExportService.getOrderPDFFileName(emailDialogOrder);
+      await shareService.sendEmail(blob, fileName, to, subject, body);
+      toastService.success("Email inviata con successo");
+      setEmailDialogOrder(null);
+    } catch (error) {
+      console.error("[PendingOrdersPage] Email send failed:", error);
+      const errorMessage =
+        error instanceof Error ? error.message : "Errore sconosciuto";
+      toastService.error(`Errore invio email: ${errorMessage}`);
+    } finally {
+      setEmailDialogLoading(false);
+    }
+  };
+
+  const handleDropbox = async (order: PendingOrder) => {
+    try {
+      setSharingOrderId(order.id!);
+      const blob = pdfExportService.getOrderPDFBlob(order);
+      const fileName = pdfExportService.getOrderPDFFileName(order);
+      const result = await shareService.uploadToDropbox(blob, fileName);
+      toastService.success(`PDF caricato su Dropbox: ${result.path}`);
+    } catch (error) {
+      console.error("[PendingOrdersPage] Dropbox upload failed:", error);
+      const errorMessage =
+        error instanceof Error ? error.message : "Errore sconosciuto";
+      toastService.error(`Errore upload Dropbox: ${errorMessage}`);
+    } finally {
+      setSharingOrderId(null);
+    }
+  };
+
+  // Email dialog helper: get default email for the order
+  const [emailDialogDefaultEmail, setEmailDialogDefaultEmail] = useState("");
+  useEffect(() => {
+    if (!emailDialogOrder) {
+      setEmailDialogDefaultEmail("");
+      return;
+    }
+    getOrderContactInfo(emailDialogOrder).then((contact) => {
+      setEmailDialogDefaultEmail(contact.email || "");
+    });
+  }, [emailDialogOrder]);
 
   if (loading) {
     return (
@@ -918,6 +1017,69 @@ export function PendingOrdersPage() {
                     >
                       🖨️ Stampa
                     </button>
+                    <button
+                      onClick={() => handleWhatsApp(order)}
+                      disabled={sharingOrderId === order.id}
+                      style={{
+                        padding: "0.5rem 0.75rem",
+                        background:
+                          sharingOrderId === order.id ? "#9ca3af" : "#25D366",
+                        color: "white",
+                        border: "none",
+                        borderRadius: "4px",
+                        cursor:
+                          sharingOrderId === order.id
+                            ? "not-allowed"
+                            : "pointer",
+                        fontSize: "0.875rem",
+                        fontWeight: "500",
+                      }}
+                      title="Invia via WhatsApp"
+                    >
+                      {sharingOrderId === order.id ? "..." : "WhatsApp"}
+                    </button>
+                    <button
+                      onClick={() => handleEmail(order)}
+                      disabled={sharingOrderId === order.id}
+                      style={{
+                        padding: "0.5rem 0.75rem",
+                        background:
+                          sharingOrderId === order.id ? "#9ca3af" : "#ea580c",
+                        color: "white",
+                        border: "none",
+                        borderRadius: "4px",
+                        cursor:
+                          sharingOrderId === order.id
+                            ? "not-allowed"
+                            : "pointer",
+                        fontSize: "0.875rem",
+                        fontWeight: "500",
+                      }}
+                      title="Invia via Email"
+                    >
+                      Email
+                    </button>
+                    <button
+                      onClick={() => handleDropbox(order)}
+                      disabled={sharingOrderId === order.id}
+                      style={{
+                        padding: "0.5rem 0.75rem",
+                        background:
+                          sharingOrderId === order.id ? "#9ca3af" : "#0061FF",
+                        color: "white",
+                        border: "none",
+                        borderRadius: "4px",
+                        cursor:
+                          sharingOrderId === order.id
+                            ? "not-allowed"
+                            : "pointer",
+                        fontSize: "0.875rem",
+                        fontWeight: "500",
+                      }}
+                      title="Carica su Dropbox"
+                    >
+                      {sharingOrderId === order.id ? "..." : "Dropbox"}
+                    </button>
                     {isWarehouseOrder ? (
                       <button
                         onClick={() => handleConfirmWarehouseOrder(order)}
@@ -977,7 +1139,7 @@ export function PendingOrdersPage() {
                   <div
                     style={{
                       display: "grid",
-                      gridTemplateColumns: "repeat(2, 1fr)",
+                      gridTemplateColumns: "repeat(3, 1fr)",
                       gap: "0.5rem",
                       marginTop: "0.5rem",
                     }}
@@ -1025,6 +1187,88 @@ export function PendingOrdersPage() {
                     >
                       <span>🖨️</span>
                       <span>Stampa</span>
+                    </button>
+                    <button
+                      onClick={() => handleWhatsApp(order)}
+                      disabled={sharingOrderId === order.id}
+                      style={{
+                        padding: "0.75rem",
+                        background:
+                          sharingOrderId === order.id ? "#9ca3af" : "#25D366",
+                        color: "white",
+                        border: "none",
+                        borderRadius: "6px",
+                        cursor:
+                          sharingOrderId === order.id
+                            ? "not-allowed"
+                            : "pointer",
+                        fontSize: "0.9375rem",
+                        fontWeight: "600",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        gap: "0.375rem",
+                        minHeight: "44px",
+                      }}
+                      title="Invia via WhatsApp"
+                    >
+                      <span>
+                        {sharingOrderId === order.id ? "..." : "WhatsApp"}
+                      </span>
+                    </button>
+                    <button
+                      onClick={() => handleEmail(order)}
+                      disabled={sharingOrderId === order.id}
+                      style={{
+                        padding: "0.75rem",
+                        background:
+                          sharingOrderId === order.id ? "#9ca3af" : "#ea580c",
+                        color: "white",
+                        border: "none",
+                        borderRadius: "6px",
+                        cursor:
+                          sharingOrderId === order.id
+                            ? "not-allowed"
+                            : "pointer",
+                        fontSize: "0.9375rem",
+                        fontWeight: "600",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        gap: "0.375rem",
+                        minHeight: "44px",
+                      }}
+                      title="Invia via Email"
+                    >
+                      <span>Email</span>
+                    </button>
+                    <button
+                      onClick={() => handleDropbox(order)}
+                      disabled={sharingOrderId === order.id}
+                      style={{
+                        padding: "0.75rem",
+                        background:
+                          sharingOrderId === order.id ? "#9ca3af" : "#0061FF",
+                        color: "white",
+                        border: "none",
+                        borderRadius: "6px",
+                        cursor:
+                          sharingOrderId === order.id
+                            ? "not-allowed"
+                            : "pointer",
+                        fontSize: "0.9375rem",
+                        fontWeight: "600",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        gap: "0.375rem",
+                        minHeight: "44px",
+                      }}
+                      title="Carica su Dropbox"
+                    >
+                      <span>
+                        {sharingOrderId === order.id ? "..." : "Dropbox"}
+                      </span>
                     </button>
                     {isWarehouseOrder ? (
                       <button
@@ -1824,6 +2068,15 @@ export function PendingOrdersPage() {
           );
         })}
       </div>
+
+      <EmailShareDialog
+        isOpen={emailDialogOrder !== null}
+        onClose={() => setEmailDialogOrder(null)}
+        onSend={handleEmailSend}
+        defaultEmail={emailDialogDefaultEmail}
+        customerName={emailDialogOrder?.customerName || ""}
+        isLoading={emailDialogLoading}
+      />
     </div>
   );
 }

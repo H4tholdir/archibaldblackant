@@ -65,6 +65,7 @@ import fresisDiscountRoutes from "./routes/fresis-discount-routes";
 import fresisHistoryRoutes from "./routes/fresis-history-routes";
 import adminRoutes from "./routes/admin-routes";
 import syncRoutes from "./routes/sync-routes";
+import shareRoutes from "./routes/share-routes";
 import { SendToMilanoService } from "./send-to-milano-service";
 import { DDTScraperService } from "./ddt-scraper-service";
 import { OrderDatabaseNew } from "./order-db-new";
@@ -439,6 +440,9 @@ app.use("/api/admin", adminRoutes);
 
 // Sync routes (multi-device sync for orders, warehouse)
 app.use("/api/sync", syncRoutes);
+
+// Share routes (WhatsApp, Email, Dropbox PDF sharing)
+app.use("/api/share", shareRoutes);
 
 // LEGACY: Old WebSocket sync progress handler - REMOVED (2026-02-05)
 // This was part of the old /ws/sync endpoint for progress notifications.
@@ -3288,12 +3292,10 @@ app.get(
       logger.error("Errore API GET /api/customers/:customerProfile/photo", {
         error,
       });
-      res
-        .status(500)
-        .json({
-          success: false,
-          error: "Errore durante il recupero della foto",
-        });
+      res.status(500).json({
+        success: false,
+        error: "Errore durante il recupero della foto",
+      });
     }
   },
 );

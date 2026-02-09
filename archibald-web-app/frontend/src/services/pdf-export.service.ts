@@ -523,6 +523,15 @@ export class PDFExportService {
   /**
    * Download PDF for an order
    */
+  getOrderPDFBlob(order: PDFOrderData): Blob {
+    const doc = this.generateOrderPDF(order);
+    return doc.output("blob");
+  }
+
+  getOrderPDFFileName(order: PDFOrderData): string {
+    return `preventivo_${order.customerName.replace(/[^a-z0-9]/gi, "_")}_${new Date(order.createdAt).toISOString().split("T")[0]}.pdf`;
+  }
+
   downloadOrderPDF(order: PDFOrderData): void {
     const doc = this.generateOrderPDF(order);
     const fileName = `preventivo_${order.customerName.replace(/[^a-z0-9]/gi, "_")}_${new Date(order.createdAt).toISOString().split("T")[0]}.pdf`;
