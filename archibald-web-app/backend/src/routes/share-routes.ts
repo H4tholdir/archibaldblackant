@@ -94,7 +94,9 @@ router.post(
         originalName: req.file.originalname || "preventivo.pdf",
       });
 
-      const url = `${config.share.baseUrl}/api/share/pdf/${id}`;
+      const protocol = req.headers["x-forwarded-proto"] || req.protocol;
+      const host = req.headers["x-forwarded-host"] || req.get("host");
+      const url = `${protocol}://${host}/api/share/pdf/${id}`;
 
       logger.info("PDF uploaded for sharing", {
         id,

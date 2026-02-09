@@ -420,11 +420,9 @@ export function PendingOrdersPage() {
       setSharingOrderId(order.id!);
       const blob = pdfExportService.getOrderPDFBlob(order);
       const fileName = pdfExportService.getOrderPDFFileName(order);
-      const { url } = await shareService.uploadPDFForSharing(blob, fileName);
-
       const recipientName = getOrderRecipientName(order);
-      const message = `Buongiorno, ecco il preventivo per ${recipientName}:\n${url}`;
-      shareService.openWhatsApp(message);
+      const message = `Buongiorno, ecco il preventivo per ${recipientName}:`;
+      await shareService.shareViaWhatsApp(blob, fileName, message);
     } catch (error) {
       console.error("[PendingOrdersPage] WhatsApp share failed:", error);
       const errorMessage =

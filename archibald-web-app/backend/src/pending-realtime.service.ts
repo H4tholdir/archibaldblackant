@@ -43,6 +43,9 @@ export interface PendingCreatedPayload {
     createdAt: number;
     updatedAt: number;
     deviceId: string;
+    subClientCodice?: string | null;
+    subClientName?: string | null;
+    subClientData?: Record<string, unknown> | null;
   };
   timestamp: string;
   deviceId: string;
@@ -73,6 +76,9 @@ export interface PendingUpdatedPayload {
     createdAt: number;
     updatedAt: number;
     deviceId: string;
+    subClientCodice?: string | null;
+    subClientName?: string | null;
+    subClientData?: Record<string, unknown> | null;
   };
   timestamp: string;
   deviceId: string;

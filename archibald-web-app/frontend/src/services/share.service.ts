@@ -98,6 +98,28 @@ class ShareService {
     return response.json();
   }
 
+  async shareViaWhatsApp(
+    blob: Blob,
+    fileName: string,
+    message: string,
+  ): Promise<void> {
+    const file = new File([blob], fileName, { type: "application/pdf" });
+    const isTouchDevice =
+      "ontouchstart" in window || navigator.maxTouchPoints > 0;
+
+    if (isTouchDevice && navigator.canShare?.({ files: [file] })) {
+      await navigator.share({
+        text: message,
+        files: [file],
+      });
+      return;
+    }
+
+    const { url } = await this.uploadPDFForSharing(blob, fileName);
+    const fullMessage = `${message}\n${url}`;
+    this.openWhatsApp(fullMessage);
+  }
+
   openWhatsApp(message: string) {
     const encoded = encodeURIComponent(message);
     window.open(`https://wa.me/?text=${encoded}`);
