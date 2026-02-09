@@ -14,6 +14,7 @@
     "test:order": "tsx src/scripts/test-create-order.ts",
     "test:queue": "tsx src/scripts/test-queue.ts",
     "test:multi-user": "tsx src/scripts/test-multi-user.ts",
+    "test:grid-discount": "tsx src/scripts/test-grid-discount-cell.ts",
     "seed:users": "tsx src/scripts/seed-users.ts"
   },
   "keywords": [

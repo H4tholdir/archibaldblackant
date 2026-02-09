@@ -4441,19 +4441,28 @@ export class ArchibaldBot {
                   if (hasDiscount) {
                     logger.debug(`Setting discount: ${item.discount}%`);
 
-                    // Tab → campo discount (già selezionato automaticamente)
-                    await this.page!.keyboard.press("Tab");
-                    await this.wait(100);
-
-                    // Type discount (formato italiano, testo già selezionato)
-                    const discountFormatted = item
-                      .discount!.toString()
-                      .replace(".", ",");
-                    await this.page!.keyboard.type(discountFormatted, {
-                      delay: 30,
-                    });
-
-                    logger.info(`✅ Discount set: ${item.discount}%`);
+                    // Primary: direct MANUALDISCOUNT cell targeting via editTableCell
+                    // Tab from quantity exits the grid (tabIndex=-1 on intermediate cells),
+                    // so we must target the discount input by ID pattern instead.
+                    try {
+                      await this.editTableCell("discount", item.discount!);
+                      logger.info(`✅ Discount set via editTableCell: ${item.discount}%`);
+                    } catch (editCellError) {
+                      // Fallback: Tab-based navigation (legacy)
+                      logger.warn(
+                        `editTableCell failed for discount, falling back to Tab`,
+                        { error: editCellError instanceof Error ? editCellError.message : String(editCellError) },
+                      );
+                      await this.page!.keyboard.press("Tab");
+                      await this.wait(100);
+                      const discountFormatted = item
+                        .discount!.toString()
+                        .replace(".", ",");
+                      await this.page!.keyboard.type(discountFormatted, {
+                        delay: 30,
+                      });
+                      logger.info(`✅ Discount set via Tab fallback: ${item.discount}%`);
+                    }
                     await this.wait(200);
                   }
 
