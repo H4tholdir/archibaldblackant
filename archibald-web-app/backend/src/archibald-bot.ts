@@ -4441,29 +4441,64 @@ export class ArchibaldBot {
                   const hasDiscount =
                     item.discount !== undefined && item.discount > 0;
                   if (hasDiscount) {
-                    logger.debug(`Setting discount: ${item.discount}%`);
+                    const discountVal = Number.isInteger(item.discount!)
+                      ? item.discount!.toString()
+                      : item.discount!.toFixed(2);
+                    const discountFormatted = discountVal.replace(".", ",");
+                    logger.debug(`Setting discount: ${discountFormatted}`);
 
-                    // Primary: direct MANUALDISCOUNT cell targeting via editTableCell
-                    // Tab from quantity exits the grid (tabIndex=-1 on intermediate cells),
-                    // so we must target the discount input by ID pattern instead.
-                    try {
-                      await this.editTableCell("discount", item.discount!);
-                      logger.info(`✅ Discount set via editTableCell: ${item.discount}%`);
-                    } catch (editCellError) {
-                      // Fallback: Tab-based navigation (legacy)
-                      logger.warn(
-                        `editTableCell failed for discount, falling back to Tab`,
-                        { error: editCellError instanceof Error ? editCellError.message : String(editCellError) },
+                    // Set MANUALDISCOUNT value programmatically WITHOUT changing focus.
+                    // editTableCell's double-click approach disrupts the grid's edit state,
+                    // causing INVENTTABLE focus failures on subsequent articles.
+                    const discountSet = await this.page!.evaluate(
+                      (val: string) => {
+                        const inputs = Array.from(
+                          document.querySelectorAll('input[type="text"]'),
+                        ) as HTMLInputElement[];
+                        const discInput = inputs.find((inp) => {
+                          const id = inp.id.toLowerCase();
+                          return (
+                            id.includes("manualdiscount") &&
+                            id.includes("salesline") &&
+                            inp.offsetParent !== null
+                          );
+                        });
+                        if (!discInput) return { ok: false, reason: "not found" };
+
+                        // Set value via native setter to trigger DevExpress change detection
+                        const setter = Object.getOwnPropertyDescriptor(
+                          HTMLInputElement.prototype,
+                          "value",
+                        )?.set;
+                        if (setter) {
+                          setter.call(discInput, val);
+                        } else {
+                          discInput.value = val;
+                        }
+                        discInput.dispatchEvent(
+                          new Event("change", { bubbles: true }),
+                        );
+                        discInput.dispatchEvent(
+                          new Event("input", { bubbles: true }),
+                        );
+                        // DevExpress also listens to keyup for validation
+                        discInput.dispatchEvent(
+                          new KeyboardEvent("keyup", { bubbles: true }),
+                        );
+                        return { ok: true, id: discInput.id, value: val };
+                      },
+                      discountFormatted,
+                    );
+
+                    if (discountSet.ok) {
+                      logger.info(
+                        `✅ Discount set programmatically: ${item.discount}%`,
+                        { inputId: discountSet.id },
                       );
-                      await this.page!.keyboard.press("Tab");
-                      await this.wait(100);
-                      const discountFormatted = item
-                        .discount!.toString()
-                        .replace(".", ",");
-                      await this.page!.keyboard.type(discountFormatted, {
-                        delay: 30,
-                      });
-                      logger.info(`✅ Discount set via Tab fallback: ${item.discount}%`);
+                    } else {
+                      logger.warn(
+                        `⚠️ MANUALDISCOUNT input not found, discount not set`,
+                      );
                     }
                     await this.wait(200);
                   }
