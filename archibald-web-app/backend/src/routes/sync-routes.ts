@@ -56,12 +56,19 @@ router.get(
           status: o.status,
           discountPercent: o.discount_percent,
           targetTotalWithVAT: o.target_total_with_vat,
+          shippingCost: o.shipping_cost || 0,
+          shippingTax: o.shipping_tax || 0,
           retryCount: o.retry_count,
           errorMessage: o.error_message,
           createdAt: o.created_at,
           updatedAt: o.updated_at,
           deviceId: o.device_id,
           syncedToArchibald: o.synced_to_archibald === 1,
+          subClientCodice: o.sub_client_codice || null,
+          subClientName: o.sub_client_name || null,
+          subClientData: o.sub_client_data_json
+            ? JSON.parse(o.sub_client_data_json)
+            : null,
         })),
       });
     } catch (error) {
@@ -131,7 +138,10 @@ router.post(
                 retry_count = ?,
                 error_message = ?,
                 updated_at = ?,
-                device_id = ?
+                device_id = ?,
+                sub_client_codice = ?,
+                sub_client_name = ?,
+                sub_client_data_json = ?
               WHERE id = ?
             `,
               )
@@ -148,6 +158,11 @@ router.post(
                 order.errorMessage || null,
                 order.updatedAt,
                 order.deviceId,
+                order.subClientCodice || null,
+                order.subClientName || null,
+                order.subClientData
+                  ? JSON.stringify(order.subClientData)
+                  : null,
                 order.id,
               );
 
@@ -174,6 +189,9 @@ router.post(
               createdAt: order.createdAt,
               updatedAt: order.updatedAt,
               deviceId: order.deviceId,
+              subClientCodice: order.subClientCodice || null,
+              subClientName: order.subClientName || null,
+              subClientData: order.subClientData || null,
             });
           } else {
             // Insert new order
@@ -183,8 +201,9 @@ router.post(
               INSERT INTO pending_orders (
                 id, user_id, customer_id, customer_name, items_json, status,
                 discount_percent, target_total_with_vat, shipping_cost, shipping_tax,
-                retry_count, error_message, created_at, updated_at, device_id
-              ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                retry_count, error_message, created_at, updated_at, device_id,
+                sub_client_codice, sub_client_name, sub_client_data_json
+              ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             `,
               )
               .run(
@@ -203,6 +222,11 @@ router.post(
                 order.createdAt,
                 order.updatedAt,
                 order.deviceId,
+                order.subClientCodice || null,
+                order.subClientName || null,
+                order.subClientData
+                  ? JSON.stringify(order.subClientData)
+                  : null,
               );
 
             results.push({ id: order.id, action: "created" });
@@ -228,6 +252,9 @@ router.post(
               createdAt: order.createdAt,
               updatedAt: order.updatedAt,
               deviceId: order.deviceId,
+              subClientCodice: order.subClientCodice || null,
+              subClientName: order.subClientName || null,
+              subClientData: order.subClientData || null,
             });
           }
         } catch (orderError) {

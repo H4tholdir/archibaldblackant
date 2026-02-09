@@ -80,25 +80,27 @@ export function usePendingSync(): UsePendingSyncReturn {
           !localOrder ||
           serverOrder.updatedAt > (localOrder.serverUpdatedAt || 0)
         ) {
-          const serverFields = {
+          await db.pendingOrders.put({
             id: serverOrder.id,
             customerId: serverOrder.customerId,
             customerName: serverOrder.customerName,
             items: serverOrder.items,
             discountPercent: serverOrder.discountPercent,
             targetTotalWithVAT: serverOrder.targetTotalWithVAT,
+            shippingCost: serverOrder.shippingCost || 0,
+            shippingTax: serverOrder.shippingTax || 0,
             createdAt: new Date(serverOrder.createdAt).toISOString(),
             updatedAt: new Date(serverOrder.updatedAt).toISOString(),
             status: serverOrder.status,
             errorMessage: serverOrder.errorMessage,
             retryCount: serverOrder.retryCount || 0,
             deviceId: serverOrder.deviceId,
+            subClientCodice: serverOrder.subClientCodice || undefined,
+            subClientName: serverOrder.subClientName || undefined,
+            subClientData: serverOrder.subClientData || undefined,
             needsSync: false,
             serverUpdatedAt: serverOrder.updatedAt,
-          };
-          await db.pendingOrders.put(
-            localOrder ? { ...localOrder, ...serverFields } : serverFields,
-          );
+          } as PendingOrder);
         }
       }
 

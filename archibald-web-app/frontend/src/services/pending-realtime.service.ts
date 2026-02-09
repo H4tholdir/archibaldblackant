@@ -39,6 +39,9 @@ interface PendingCreatedPayload {
     createdAt: number;
     updatedAt: number;
     deviceId: string;
+    subClientCodice?: string | null;
+    subClientName?: string | null;
+    subClientData?: Record<string, unknown> | null;
   };
   timestamp: string;
   deviceId: string;
@@ -69,6 +72,9 @@ interface PendingUpdatedPayload {
     createdAt: number;
     updatedAt: number;
     deviceId: string;
+    subClientCodice?: string | null;
+    subClientName?: string | null;
+    subClientData?: Record<string, unknown> | null;
   };
   timestamp: string;
   deviceId: string;
@@ -239,6 +245,10 @@ export class PendingRealtimeService {
         deviceId: data.pendingOrder.deviceId,
         needsSync: false, // Already synced via WebSocket
         serverUpdatedAt: new Date(data.timestamp).getTime(),
+        subClientCodice: data.pendingOrder.subClientCodice || undefined,
+        subClientName: data.pendingOrder.subClientName || undefined,
+        subClientData: data.pendingOrder
+          .subClientData as PendingOrder["subClientData"],
       };
 
       await db.pendingOrders.put(pendingOrder);
@@ -309,6 +319,7 @@ export class PendingRealtimeService {
 
       // Upsert pending order with serverUpdatedAt
       const pendingOrder: PendingOrder = {
+        ...(existing || {}),
         id: data.pendingOrder.id,
         customerId: data.pendingOrder.customerId,
         customerName: data.pendingOrder.customerName,
@@ -325,6 +336,13 @@ export class PendingRealtimeService {
         deviceId: data.pendingOrder.deviceId,
         needsSync: false, // Already synced via WebSocket
         serverUpdatedAt: incomingTimestamp,
+        subClientCodice:
+          data.pendingOrder.subClientCodice || existing?.subClientCodice,
+        subClientName:
+          data.pendingOrder.subClientName || existing?.subClientName,
+        subClientData:
+          (data.pendingOrder.subClientData as PendingOrder["subClientData"]) ||
+          existing?.subClientData,
       };
 
       await db.pendingOrders.put(pendingOrder);

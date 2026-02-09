@@ -6719,6 +6719,16 @@ server.listen(config.server.port, async () => {
     logger.warn("⚠️  Migration 028 failed or already applied", { error });
   }
 
+  try {
+    const {
+      runMigration029,
+    } = require("./migrations/029-add-subclient-to-pending-orders");
+    runMigration029();
+    logger.info("✅ Migration 029 completed (add sub-client fields to pending_orders)");
+  } catch (error) {
+    logger.warn("⚠️  Migration 029 failed or already applied", { error });
+  }
+
   // ========== AUTO-LOAD ENCRYPTED PASSWORDS (LAZY-LOAD) ==========
   // NOTE: Password loading is now LAZY on-demand via PasswordCache.get()
   // No need to pre-load at boot - this eliminates race conditions and improves startup time
