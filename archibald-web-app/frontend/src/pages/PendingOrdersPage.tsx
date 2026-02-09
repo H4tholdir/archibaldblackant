@@ -422,16 +422,9 @@ export function PendingOrdersPage() {
       const fileName = pdfExportService.getOrderPDFFileName(order);
       const { url } = await shareService.uploadPDFForSharing(blob, fileName);
 
-      const contact = await getOrderContactInfo(order);
-      if (!contact.phone) {
-        toastService.error(
-          "Nessun numero di telefono trovato per questo cliente",
-        );
-        return;
-      }
-
-      const message = `Buongiorno, ecco il preventivo richiesto:\n${url}`;
-      shareService.openWhatsApp(contact.phone, message);
+      const recipientName = getOrderRecipientName(order);
+      const message = `Buongiorno, ecco il preventivo per ${recipientName}:\n${url}`;
+      shareService.openWhatsApp(message);
     } catch (error) {
       console.error("[PendingOrdersPage] WhatsApp share failed:", error);
       const errorMessage =

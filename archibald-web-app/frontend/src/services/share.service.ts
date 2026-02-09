@@ -1,11 +1,3 @@
-function normalizeItalianPhone(phone: string): string {
-  let cleaned = phone.replace(/[\s\-().]/g, "");
-  if (cleaned.startsWith("+")) return cleaned;
-  if (cleaned.startsWith("00")) return "+" + cleaned.slice(2);
-  if (cleaned.startsWith("3") && cleaned.length >= 9) return "+39" + cleaned;
-  return "+39" + cleaned;
-}
-
 async function shareFetch(
   url: string,
   options: RequestInit,
@@ -106,10 +98,9 @@ class ShareService {
     return response.json();
   }
 
-  openWhatsApp(phone: string, message: string) {
-    const normalized = normalizeItalianPhone(phone);
+  openWhatsApp(message: string) {
     const encoded = encodeURIComponent(message);
-    window.open(`https://wa.me/${normalized.replace("+", "")}?text=${encoded}`);
+    window.open(`https://wa.me/?text=${encoded}`);
   }
 }
 
