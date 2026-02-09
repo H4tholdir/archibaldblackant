@@ -4764,14 +4764,6 @@ export class ArchibaldBot {
               if (newCommandResult.clicked) {
                 addNewDone = true;
                 logger.info(`✅ AddNewRow via DOM click for article ${i + 2}`);
-                // Wait for grid callback to complete before focusing INVENTTABLE
-                if (this.salesLinesGridName) {
-                  await this.waitForGridCallback(this.salesLinesGridName, 10000);
-                }
-                await this.waitForDevExpressIdle({
-                  timeout: 4000,
-                  label: `item-${i}-addnew-settled`,
-                });
               }
 
               // Fallback: DevExpress API
