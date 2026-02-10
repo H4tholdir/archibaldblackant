@@ -129,6 +129,7 @@ export interface Order {
   // Metadata
   botUserId?: string;
   lastUpdatedAt?: string;
+  archibaldOrderId?: string | null;
 
   // Articles totals (from order_articles sync)
   totalVatAmount?: string | null;
@@ -1036,6 +1037,7 @@ export class OrderHistoryService {
       // Metadata
       botUserId: stored.userId,
       lastUpdatedAt: stored.lastUpdated,
+      archibaldOrderId: stored.archibaldOrderId,
 
       // Articles totals (from order_articles sync)
       totalVatAmount: stored.totalVatAmount,

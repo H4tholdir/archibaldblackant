@@ -5189,6 +5189,7 @@ app.get(
             // Metadata (10 columns)
             botUserId: order.botUserId,
             jobId: undefined, // Not in current implementation
+            archibaldOrderId: order.archibaldOrderId,
             createdAt: order.lastUpdatedAt, // lastScraped not in Order anymore
             lastUpdatedAt: order.lastUpdatedAt,
             notes: undefined, // Will be in detailJson
@@ -5197,6 +5198,11 @@ app.get(
             stateTimeline: order.stateTimeline, // Already populated from storedOrderToOrder (empty for now)
             statusTimeline: order.stateTimeline, // Alias for stateTimeline
             documents: order.documents, // Already populated from storedOrderToOrder (empty for now)
+
+            // Articles totals (persisted from articles sync)
+            totalVatAmount: order.totalVatAmount,
+            totalWithVat: order.totalWithVat,
+            articlesSyncedAt: order.articlesSyncedAt,
           };
         });
 
