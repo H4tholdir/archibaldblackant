@@ -6072,7 +6072,8 @@ app.get(
     if (!userId) {
       return res.status(401).json({ success: false, error: "Unauthorized" });
     }
-    const { orderId } = req.params;
+    // Decode the orderId parameter (handles ORD%2F26000567 -> ORD/26000567)
+    const orderId = decodeURIComponent(req.params.orderId);
     const orderDb = OrderDatabaseNew.getInstance();
     const invoiceScraperService = new (
       await import("./invoice-scraper-service")
@@ -6085,7 +6086,20 @@ app.get(
       );
 
       // Verify order belongs to user
-      const order = orderDb.getOrderById(userId, orderId);
+      // Try to find by internal id first, then by orderNumber (ORD/xxxxxxxx format)
+      let order = orderDb.getOrderById(userId, orderId);
+
+      if (!order) {
+        const allOrders = orderDb.getOrdersByUser(userId);
+        order = allOrders.find((o) => o.orderNumber === orderId) || null;
+
+        if (order) {
+          logger.info(
+            `[Invoice Download] Order found by orderNumber: ${order.id}`,
+          );
+        }
+      }
+
       if (!order) {
         return res.status(404).json({
           success: false,

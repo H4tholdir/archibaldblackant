@@ -1885,6 +1885,10 @@ export function OrderCardNew({
     "panoramica" | "articoli" | "logistica" | "finanziario" | "storico"
   >("panoramica");
 
+  const [isDownloadingDDTQuick, setIsDownloadingDDTQuick] = useState(false);
+  const [isDownloadingInvoiceQuick, setIsDownloadingInvoiceQuick] =
+    useState(false);
+
   // Articles totals state (updated when articles are loaded/synced)
   // Initialize from order prop if available
   const [articlesTotals, setArticlesTotals] = useState<{
@@ -2093,13 +2097,18 @@ export function OrderCardNew({
               )}
 
               {/* DDT Download Button */}
-              {order.ddt?.ddtNumber && (
+              {order.ddt?.ddtNumber && order.ddt?.trackingNumber && (
                 <button
+                  disabled={isDownloadingDDTQuick}
                   onClick={async (e) => {
                     e.stopPropagation();
+                    if (isDownloadingDDTQuick) return;
+                    setIsDownloadingDDTQuick(true);
                     try {
+                      const orderIdentifier = order.orderNumber || order.id;
+                      const encodedId = encodeURIComponent(orderIdentifier);
                       const response = await fetchWithRetry(
-                        `/api/orders/${order.id}/ddt/download`,
+                        `/api/orders/${encodedId}/ddt/download`,
                         {
                           headers: {
                             Authorization: `Bearer ${token}`,
@@ -2117,6 +2126,8 @@ export function OrderCardNew({
                       }
                     } catch (error) {
                       console.error("Error downloading DDT:", error);
+                    } finally {
+                      setIsDownloadingDDTQuick(false);
                     }
                   }}
                   style={{
@@ -2126,34 +2137,44 @@ export function OrderCardNew({
                     padding: "6px 12px",
                     fontSize: "12px",
                     fontWeight: 600,
-                    backgroundColor: "#fff",
-                    color: "#388e3c",
-                    border: "1px solid #388e3c",
+                    backgroundColor: isDownloadingDDTQuick ? "#e8f5e9" : "#fff",
+                    color: isDownloadingDDTQuick ? "#81c784" : "#388e3c",
+                    border: `1px solid ${isDownloadingDDTQuick ? "#81c784" : "#388e3c"}`,
                     borderRadius: "6px",
-                    cursor: "pointer",
+                    cursor: isDownloadingDDTQuick ? "wait" : "pointer",
                     transition: "all 0.2s",
+                    opacity: isDownloadingDDTQuick ? 0.7 : 1,
                   }}
                   onMouseEnter={(e) => {
-                    e.currentTarget.style.backgroundColor = "#388e3c";
-                    e.currentTarget.style.color = "#fff";
+                    if (!isDownloadingDDTQuick) {
+                      e.currentTarget.style.backgroundColor = "#388e3c";
+                      e.currentTarget.style.color = "#fff";
+                    }
                   }}
                   onMouseLeave={(e) => {
-                    e.currentTarget.style.backgroundColor = "#fff";
-                    e.currentTarget.style.color = "#388e3c";
+                    if (!isDownloadingDDTQuick) {
+                      e.currentTarget.style.backgroundColor = "#fff";
+                      e.currentTarget.style.color = "#388e3c";
+                    }
                   }}
                 >
-                  📄 DDT
+                  {isDownloadingDDTQuick ? "⏳ DDT..." : "📄 DDT"}
                 </button>
               )}
 
               {/* Invoice Download Button */}
               {order.invoiceNumber && (
                 <button
+                  disabled={isDownloadingInvoiceQuick}
                   onClick={async (e) => {
                     e.stopPropagation();
+                    if (isDownloadingInvoiceQuick) return;
+                    setIsDownloadingInvoiceQuick(true);
                     try {
+                      const orderIdentifier = order.orderNumber || order.id;
+                      const encodedId = encodeURIComponent(orderIdentifier);
                       const response = await fetchWithRetry(
-                        `/api/orders/${order.id}/invoice/download`,
+                        `/api/orders/${encodedId}/invoice/download`,
                         {
                           headers: {
                             Authorization: `Bearer ${token}`,
@@ -2171,6 +2192,8 @@ export function OrderCardNew({
                       }
                     } catch (error) {
                       console.error("Error downloading invoice:", error);
+                    } finally {
+                      setIsDownloadingInvoiceQuick(false);
                     }
                   }}
                   style={{
@@ -2180,23 +2203,32 @@ export function OrderCardNew({
                     padding: "6px 12px",
                     fontSize: "12px",
                     fontWeight: 600,
-                    backgroundColor: "#fff",
-                    color: "#7b1fa2",
-                    border: "1px solid #7b1fa2",
+                    backgroundColor: isDownloadingInvoiceQuick
+                      ? "#f3e5f5"
+                      : "#fff",
+                    color: isDownloadingInvoiceQuick ? "#ba68c8" : "#7b1fa2",
+                    border: `1px solid ${isDownloadingInvoiceQuick ? "#ba68c8" : "#7b1fa2"}`,
                     borderRadius: "6px",
-                    cursor: "pointer",
+                    cursor: isDownloadingInvoiceQuick ? "wait" : "pointer",
                     transition: "all 0.2s",
+                    opacity: isDownloadingInvoiceQuick ? 0.7 : 1,
                   }}
                   onMouseEnter={(e) => {
-                    e.currentTarget.style.backgroundColor = "#7b1fa2";
-                    e.currentTarget.style.color = "#fff";
+                    if (!isDownloadingInvoiceQuick) {
+                      e.currentTarget.style.backgroundColor = "#7b1fa2";
+                      e.currentTarget.style.color = "#fff";
+                    }
                   }}
                   onMouseLeave={(e) => {
-                    e.currentTarget.style.backgroundColor = "#fff";
-                    e.currentTarget.style.color = "#7b1fa2";
+                    if (!isDownloadingInvoiceQuick) {
+                      e.currentTarget.style.backgroundColor = "#fff";
+                      e.currentTarget.style.color = "#7b1fa2";
+                    }
                   }}
                 >
-                  📑 Fattura
+                  {isDownloadingInvoiceQuick
+                    ? "⏳ Fattura..."
+                    : "📑 Fattura"}
                 </button>
               )}
             </div>
