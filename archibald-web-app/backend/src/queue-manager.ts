@@ -14,6 +14,12 @@ import { InvoiceSyncService } from "./invoice-sync-service";
 import { operationTracker } from "./operation-tracker";
 import { PendingRealtimeService } from "./pending-realtime.service";
 import { getProgressMilestone } from "./job-progress-mapper";
+import Database from "better-sqlite3";
+import path from "path";
+
+const ordersDb = new Database(
+  path.join(__dirname, "../data/orders-new.db"),
+);
 
 /**
  * Job data per la coda ordini
@@ -480,6 +486,23 @@ export class QueueManager {
           orderId,
           duration,
         );
+
+        // Delete pending order from server DB so it won't be
+        // re-pulled by the frontend sync (pullFromServer).
+        try {
+          const del = ordersDb
+            .prepare("DELETE FROM pending_orders WHERE id = ?")
+            .run(pendingOrderId);
+          if (del.changes > 0) {
+            logger.info(
+              `🗑️ Pending order deleted from server DB: ${pendingOrderId}`,
+            );
+          }
+        } catch (dbErr) {
+          logger.error(`Failed to delete pending order ${pendingOrderId}`, {
+            error: dbErr instanceof Error ? dbErr.message : String(dbErr),
+          });
+        }
 
         logger.info(`📋 QUEUE: FINE processamento ordine`, {
           orderId,
