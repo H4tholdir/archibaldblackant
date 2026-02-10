@@ -102,6 +102,7 @@ export const uploadExcelVat = [
             importId: result.importId,
             matchedRows: result.matchedRows,
             vatUpdatedCount: result.vatUpdatedCount,
+            vatPropagatedCount: result.vatPropagatedCount,
             priceUpdatedCount: result.priceUpdatedCount,
           },
           timestamp: new Date().toISOString(),

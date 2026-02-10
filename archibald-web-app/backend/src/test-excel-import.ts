@@ -23,6 +23,7 @@ async function testExcelImport() {
     logger.info(`   Matched: ${result.matchedRows}`);
     logger.info(`   Unmatched: ${result.unmatchedRows}`);
     logger.info(`   VAT updated: ${result.vatUpdatedCount}`);
+    logger.info(`   VAT propagated to siblings: ${result.vatPropagatedCount}`);
     logger.info(`   Price updated: ${result.priceUpdatedCount}`);
 
     if (result.unmatchedProducts.length > 0) {

@@ -27,6 +27,7 @@ export interface ExcelVatImportResult {
   matchedRows: number;
   unmatchedRows: number;
   vatUpdatedCount: number;
+  vatPropagatedCount: number;
   priceUpdatedCount: number;
   unmatchedProducts: Array<{
     excelId: string;
@@ -157,6 +158,7 @@ export class ExcelVatImporter {
         matchedRows: 0,
         unmatchedRows: 0,
         vatUpdatedCount: 0,
+        vatPropagatedCount: 0,
         priceUpdatedCount: 0,
       };
 
@@ -188,6 +190,21 @@ export class ExcelVatImporter {
           newPrice, newVat, newPriceSource, newVatSource,
           changedAt, syncSessionId, source
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'excel_import')
+      `);
+
+      const getVariantsWithoutVat = this.db.prepare(`
+        SELECT id, price, vat, priceSource, vatSource
+        FROM products
+        WHERE (vat IS NULL OR vat = 0)
+          AND id GLOB '*[KR][0-9]'
+      `);
+
+      const getSiblingVat = this.db.prepare(`
+        SELECT vat FROM products
+        WHERE SUBSTR(id, 1, LENGTH(id) - 2) = ?
+          AND id GLOB '*[KR][0-9]'
+          AND vat IS NOT NULL AND vat > 0
+        LIMIT 1
       `);
 
       // Process in transaction
@@ -276,6 +293,44 @@ export class ExcelVatImporter {
             null, // No syncSessionId for Excel imports
           );
         }
+
+        // Propagate VAT to sibling variants (same base code, different K/R suffix)
+        const orphanVariants = getVariantsWithoutVat.all() as any[];
+        const now = Math.floor(Date.now() / 1000);
+
+        for (const variant of orphanVariants) {
+          const baseCode = variant.id.slice(0, -2);
+          const sibling = getSiblingVat.get(baseCode) as any;
+
+          if (!sibling) continue;
+
+          updateProduct.run(
+            variant.price,
+            sibling.vat,
+            variant.priceSource,
+            "excel",
+            null,
+            now,
+            variant.id,
+          );
+
+          insertPriceChange.run(
+            variant.id,
+            "vat_updated",
+            variant.price,
+            variant.vat,
+            variant.priceSource,
+            variant.vatSource,
+            variant.price,
+            sibling.vat,
+            variant.priceSource,
+            "excel",
+            now,
+            null,
+          );
+
+          stats.vatPropagatedCount++;
+        }
       });
 
       transaction();
@@ -304,6 +359,7 @@ export class ExcelVatImporter {
       logger.info(`   Matched: ${stats.matchedRows}`);
       logger.info(`   Unmatched: ${stats.unmatchedRows}`);
       logger.info(`   VAT updated: ${stats.vatUpdatedCount}`);
+      logger.info(`   VAT propagated to siblings: ${stats.vatPropagatedCount}`);
       logger.info(`   Price updated: ${stats.priceUpdatedCount}`);
 
       return {
@@ -333,6 +389,7 @@ export class ExcelVatImporter {
         matchedRows: 0,
         unmatchedRows: 0,
         vatUpdatedCount: 0,
+        vatPropagatedCount: 0,
         priceUpdatedCount: 0,
         unmatchedProducts: [],
         error: error.message,
