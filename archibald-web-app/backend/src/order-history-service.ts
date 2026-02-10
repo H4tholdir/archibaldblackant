@@ -97,6 +97,8 @@ export interface Order {
   discountPercent?: string | null; // Col 17: Applica sconto %
   grossAmount?: string | null; // Col 18: Importo lordo
   totalAmount?: string | null; // Col 19: Importo totale
+  isQuote?: string | null; // Col 19 (cells): Preventivo ("Sì"/"No")
+  isGiftOrder?: string | null; // Col 23 (cells): Ordine omaggio ("Sì"/"No")
 
   // Legacy field (for backward compatibility)
   status: string; // Required field, can't be undefined
@@ -1026,6 +1028,8 @@ export class OrderHistoryService {
       discountPercent: stored.discountPercent || undefined,
       grossAmount: stored.grossAmount || undefined,
       totalAmount: stored.totalAmount || undefined,
+      isQuote: stored.isQuote || undefined,
+      isGiftOrder: stored.isGiftOrder || undefined,
 
       // Legacy status field (required, can't be null)
       status: stored.status || stored.salesStatus || "Unknown",
@@ -1621,10 +1625,11 @@ export class OrderHistoryService {
           const transferStatus = cells[16]?.textContent?.trim() || "";
           const transferDateText = cells[17]?.textContent?.trim() || "";
           const completionDateText = cells[18]?.textContent?.trim() || "";
-          // cells[19] contains unknown field ("No"/"Yes")
+          const isQuote = cells[19]?.textContent?.trim() || "";
           const discountPercent = cells[20]?.textContent?.trim() || "";
           const grossAmount = cells[21]?.textContent?.trim() || "";
           const totalAmount = cells[22]?.textContent?.trim() || "";
+          const isGiftOrder = cells[23]?.textContent?.trim() || "";
 
           results.push({
             id,
@@ -1647,6 +1652,8 @@ export class OrderHistoryService {
             discountPercent: discountPercent || null,
             grossAmount: grossAmount || null,
             totalAmount: totalAmount || null,
+            isQuote: isQuote || null,
+            isGiftOrder: isGiftOrder || null,
             status: salesStatus || "Unknown",
           });
         } catch (error) {

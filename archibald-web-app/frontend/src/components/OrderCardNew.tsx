@@ -328,6 +328,25 @@ function LocationBadge({
 // TAB CONTENT COMPONENTS
 // ============================================================================
 
+function getStepInfo(order: Order): { index: number; isError: boolean } {
+  const ts = order.transferStatus?.toUpperCase() || "";
+  const ss = (order.state || order.status)?.toUpperCase() || "";
+  const dt = order.documentState?.toUpperCase() || "";
+  const ot = order.orderType?.toUpperCase() || "";
+
+  if (ss === "FATTURATO" || dt.includes("FATTURA") || order.invoiceNumber)
+    return { index: 3, isError: false };
+  if (
+    ss === "CONSEGNATO" ||
+    ot.includes("ORDINE DI VENDITA") ||
+    ts === "TRASFERITO"
+  )
+    return { index: 2, isError: false };
+  if (ts === "IN ATTESA DI APPROVAZIONE" || ts === "TRANSFER ERROR")
+    return { index: 1, isError: ts === "TRANSFER ERROR" };
+  return { index: 0, isError: false };
+}
+
 function TabPanoramica({ order, token }: { order: Order; token?: string }) {
   const [stateHistory, setStateHistory] = useState<
     Array<{
@@ -366,92 +385,365 @@ function TabPanoramica({ order, token }: { order: Order; token?: string }) {
     loadHistory();
   }, [order.id, token]);
 
-  const infoRows: Array<{ label: string; value: string | undefined }> = [
-    { label: "Numero Ordine", value: order.orderNumber },
-    { label: "ID Interno", value: order.id },
-    { label: "Data Ordine", value: formatDate(order.orderDate || order.date) },
-    { label: "Data Consegna", value: formatDate(order.deliveryDate) },
-    { label: "Tipo Ordine", value: order.orderType },
-    { label: "Stato", value: order.status },
-    { label: "Stato Dettagliato", value: order.state },
-    { label: "Stato Documento", value: order.documentState },
-    { label: "ID Profilo Cliente", value: order.customerProfileId },
-    { label: "Indirizzo Consegna", value: order.deliveryAddress },
-    { label: "Indirizzo Spedizione", value: order.shippingAddress },
-    { label: "Termini Consegna", value: order.deliveryTerms },
-  ];
+  const stepLabels = ["Bozza", "Inviato", "Confermato", "Fatturato"];
+  const { index: activeStep, isError } = getStepInfo(order);
+
+  const cardStyle: React.CSSProperties = {
+    backgroundColor: "#fff",
+    border: "1px solid #e8e8e8",
+    borderRadius: "12px",
+    padding: "16px",
+    marginBottom: "16px",
+  };
+
+  const cardTitleStyle: React.CSSProperties = {
+    fontSize: "13px",
+    fontWeight: 600,
+    color: "#888",
+    textTransform: "uppercase" as const,
+    letterSpacing: "0.5px",
+    marginBottom: "12px",
+  };
+
+  const fieldLabelStyle: React.CSSProperties = {
+    fontSize: "12px",
+    color: "#888",
+    marginBottom: "2px",
+  };
+
+  const fieldValueStyle: React.CSSProperties = {
+    fontSize: "14px",
+    color: "#333",
+    fontWeight: 500,
+  };
 
   return (
     <div style={{ padding: "16px" }}>
-      {/* Informazioni Ordine - Tabella compatta */}
-      <div style={{ marginBottom: "24px" }}>
-        <h3
+      {/* Progress Stepper */}
+      <div style={{ ...cardStyle, padding: "20px 16px" }}>
+        <div
           style={{
-            fontSize: "16px",
-            fontWeight: 600,
-            marginBottom: "12px",
-            color: "#333",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            position: "relative",
           }}
         >
-          Informazioni Ordine
-        </h3>
-        <table
-          style={{
-            width: "100%",
-            borderCollapse: "collapse",
-            fontSize: "14px",
-          }}
-        >
-          <tbody>
-            {infoRows
-              .filter((row) => row.value && row.value !== "N/A")
-              .map((row) => (
-                <tr
-                  key={row.label}
-                  style={{ borderBottom: "1px solid #f0f0f0" }}
+          {stepLabels.map((label, i) => {
+            const isCompleted = i < activeStep;
+            const isActive = i === activeStep;
+            const isFuture = i > activeStep;
+            const isErrorStep = isActive && isError;
+
+            let circleColor = "#e0e0e0";
+            let textColor = "#999";
+            if (isCompleted) {
+              circleColor = "#4CAF50";
+              textColor = "#4CAF50";
+            }
+            if (isActive && !isError) {
+              circleColor = "#1976d2";
+              textColor = "#1976d2";
+            }
+            if (isErrorStep) {
+              circleColor = "#F44336";
+              textColor = "#F44336";
+            }
+
+            return (
+              <div
+                key={label}
+                style={{
+                  display: "flex",
+                  flexDirection: "column",
+                  alignItems: "center",
+                  flex: 1,
+                  position: "relative",
+                  zIndex: 1,
+                }}
+              >
+                <div
+                  style={{
+                    width: "28px",
+                    height: "28px",
+                    borderRadius: "50%",
+                    backgroundColor: isFuture ? "#fff" : circleColor,
+                    border: isFuture
+                      ? "2px solid #e0e0e0"
+                      : `2px solid ${circleColor}`,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    color: isFuture ? "#ccc" : "#fff",
+                    fontSize: "12px",
+                    fontWeight: 700,
+                  }}
                 >
-                  <td
+                  {isErrorStep ? "!" : isCompleted ? "\u2713" : i + 1}
+                </div>
+                <span
+                  style={{
+                    fontSize: "11px",
+                    fontWeight: isActive ? 700 : 500,
+                    color: textColor,
+                    marginTop: "6px",
+                    textAlign: "center",
+                  }}
+                >
+                  {label}
+                </span>
+                {isErrorStep && (
+                  <span
                     style={{
-                      padding: "8px 12px",
-                      color: "#666",
-                      fontWeight: 500,
-                      width: "180px",
-                      verticalAlign: "top",
-                      whiteSpace: "nowrap",
+                      fontSize: "10px",
+                      color: "#F44336",
+                      marginTop: "2px",
                     }}
                   >
-                    {row.label}
-                  </td>
-                  <td
-                    style={{
-                      padding: "8px 12px",
-                      color: "#333",
-                      fontWeight: row.label === "Numero Ordine" ? 600 : 400,
-                      whiteSpace: row.label.includes("Indirizzo")
-                        ? "pre-wrap"
-                        : "normal",
-                    }}
-                  >
-                    {row.value}
-                  </td>
-                </tr>
-              ))}
-          </tbody>
-        </table>
+                    Transfer Error
+                  </span>
+                )}
+              </div>
+            );
+          })}
+          {/* Connector lines */}
+          <div
+            style={{
+              position: "absolute",
+              top: "14px",
+              left: "calc(12.5% + 14px)",
+              right: "calc(12.5% + 14px)",
+              height: "2px",
+              backgroundColor: "#e0e0e0",
+              zIndex: 0,
+            }}
+          />
+          {activeStep > 0 && (
+            <div
+              style={{
+                position: "absolute",
+                top: "14px",
+                left: "calc(12.5% + 14px)",
+                width: `${(activeStep / 3) * 75}%`,
+                height: "2px",
+                backgroundColor: isError ? "#F44336" : "#4CAF50",
+                zIndex: 0,
+              }}
+            />
+          )}
+        </div>
       </div>
 
-      {/* Badge Completi */}
-      <div style={{ marginBottom: "24px" }}>
-        <h3
+      {/* Dettagli Ordine + Importi (side by side on desktop) */}
+      <div
+        style={{
+          display: "flex",
+          gap: "16px",
+          flexWrap: "wrap",
+          marginBottom: "0",
+        }}
+      >
+        {/* Dettagli Ordine */}
+        <div style={{ ...cardStyle, flex: "1 1 280px", minWidth: "280px" }}>
+          <div style={cardTitleStyle}>Dettagli Ordine</div>
+          <div style={{ marginBottom: "10px" }}>
+            <div style={fieldLabelStyle}>Numero Ordine</div>
+            <div
+              style={{
+                ...fieldValueStyle,
+                fontWeight: 700,
+                fontSize: "16px",
+                cursor: "pointer",
+              }}
+              onClick={() => copyToClipboard(order.orderNumber || "")}
+              title="Clicca per copiare"
+            >
+              {order.orderNumber || "N/A"}
+            </div>
+          </div>
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "1fr 1fr",
+              gap: "10px",
+            }}
+          >
+            <div>
+              <div style={fieldLabelStyle}>Data Creazione</div>
+              <div style={fieldValueStyle}>
+                {formatDateTime(order.orderDate || order.date)}
+              </div>
+            </div>
+            <div>
+              <div style={fieldLabelStyle}>Data Consegna</div>
+              <div style={fieldValueStyle}>
+                {formatDate(order.deliveryDate)}
+              </div>
+            </div>
+            <div>
+              <div style={fieldLabelStyle}>Tipo</div>
+              <div style={fieldValueStyle}>{order.orderType || "N/A"}</div>
+            </div>
+            <div>
+              <div style={fieldLabelStyle}>Origine</div>
+              <div style={fieldValueStyle}>{order.salesOrigin || "N/A"}</div>
+            </div>
+          </div>
+        </div>
+
+        {/* Importi */}
+        <div style={{ ...cardStyle, flex: "1 1 200px", minWidth: "200px" }}>
+          <div style={cardTitleStyle}>Importi</div>
+          <div style={{ marginBottom: "10px" }}>
+            <div style={fieldLabelStyle}>Lordo</div>
+            <div style={{ ...fieldValueStyle, fontSize: "16px" }}>
+              {order.grossAmount || "N/A"}
+            </div>
+          </div>
+          <div style={{ marginBottom: "10px" }}>
+            <div style={fieldLabelStyle}>Totale</div>
+            <div
+              style={{ ...fieldValueStyle, fontSize: "18px", fontWeight: 700 }}
+            >
+              {order.total || "N/A"}
+            </div>
+          </div>
+          {order.discountPercent && (
+            <div style={{ marginBottom: "10px" }}>
+              <div style={fieldLabelStyle}>Sconto</div>
+              <div style={fieldValueStyle}>{order.discountPercent}</div>
+            </div>
+          )}
+          <div style={{ display: "flex", gap: "12px", marginTop: "8px" }}>
+            {order.isQuote && (
+              <span
+                style={{
+                  fontSize: "12px",
+                  padding: "2px 8px",
+                  borderRadius: "4px",
+                  backgroundColor: "#E3F2FD",
+                  color: "#1565C0",
+                  fontWeight: 600,
+                }}
+              >
+                Preventivo
+              </span>
+            )}
+            {order.isGiftOrder && (
+              <span
+                style={{
+                  fontSize: "12px",
+                  padding: "2px 8px",
+                  borderRadius: "4px",
+                  backgroundColor: "#FFF3E0",
+                  color: "#E65100",
+                  fontWeight: 600,
+                }}
+              >
+                Omaggio
+              </span>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Cliente & Consegna */}
+      <div style={cardStyle}>
+        <div style={cardTitleStyle}>Cliente & Consegna</div>
+        <div
           style={{
-            fontSize: "16px",
-            fontWeight: 600,
-            marginBottom: "12px",
-            color: "#333",
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))",
+            gap: "10px",
           }}
         >
-          Badge
-        </h3>
+          <div>
+            <div style={fieldLabelStyle}>Profilo</div>
+            <div style={fieldValueStyle}>
+              {order.customerProfileId || "N/A"}
+            </div>
+          </div>
+          <div>
+            <div style={fieldLabelStyle}>Cliente</div>
+            <div style={fieldValueStyle}>{order.customerName}</div>
+          </div>
+          {order.deliveryName && (
+            <div style={{ gridColumn: "1 / -1" }}>
+              <div style={fieldLabelStyle}>Nome Consegna</div>
+              <div style={fieldValueStyle}>{order.deliveryName}</div>
+            </div>
+          )}
+          {order.deliveryAddress && (
+            <div style={{ gridColumn: "1 / -1" }}>
+              <div style={fieldLabelStyle}>Indirizzo</div>
+              <div style={{ ...fieldValueStyle, whiteSpace: "pre-wrap" }}>
+                {order.deliveryAddress}
+              </div>
+            </div>
+          )}
+          {order.customerReference && (
+            <div>
+              <div style={fieldLabelStyle}>Rif. Cliente</div>
+              <div style={fieldValueStyle}>{order.customerReference}</div>
+            </div>
+          )}
+          {order.remainingSalesFinancial && (
+            <div>
+              <div style={fieldLabelStyle}>Residuo Finanziario</div>
+              <div style={fieldValueStyle}>{order.remainingSalesFinancial}</div>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Stato & Trasferimento */}
+      <div style={cardStyle}>
+        <div style={cardTitleStyle}>Stato & Trasferimento</div>
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))",
+            gap: "10px",
+          }}
+        >
+          <div>
+            <div style={fieldLabelStyle}>Vendite</div>
+            <div style={fieldValueStyle}>{order.state || order.status}</div>
+          </div>
+          <div>
+            <div style={fieldLabelStyle}>Documento</div>
+            <div style={fieldValueStyle}>{order.documentState || "—"}</div>
+          </div>
+          <div>
+            <div style={fieldLabelStyle}>Tipo Ordine</div>
+            <div style={fieldValueStyle}>{order.orderType || "—"}</div>
+          </div>
+          <div>
+            <div style={fieldLabelStyle}>Trasferimento</div>
+            <div style={fieldValueStyle}>{order.transferStatus || "—"}</div>
+          </div>
+          {order.transferDate && (
+            <div>
+              <div style={fieldLabelStyle}>Data Trasferimento</div>
+              <div style={fieldValueStyle}>
+                {formatDate(order.transferDate)}
+              </div>
+            </div>
+          )}
+          {order.completionDate && (
+            <div>
+              <div style={fieldLabelStyle}>Completamento</div>
+              <div style={fieldValueStyle}>
+                {formatDate(order.completionDate)}
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Badge */}
+      <div style={{ ...cardStyle, paddingBottom: "12px" }}>
+        <div style={cardTitleStyle}>Badge</div>
         <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
           <StatusBadge
             status={order.status}
@@ -481,17 +773,8 @@ function TabPanoramica({ order, token }: { order: Order; token?: string }) {
 
       {/* Cronologia */}
       {stateHistory.length > 0 && (
-        <div>
-          <h3
-            style={{
-              fontSize: "16px",
-              fontWeight: 600,
-              marginBottom: "12px",
-              color: "#333",
-            }}
-          >
-            Cronologia
-          </h3>
+        <div style={cardStyle}>
+          <div style={cardTitleStyle}>Cronologia</div>
           <div style={{ position: "relative", paddingLeft: "24px" }}>
             <div
               style={{

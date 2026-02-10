@@ -5153,6 +5153,7 @@ app.get(
             deliveryDate: order.deliveryDate,
             total: order.totalAmount || "N/A",
             salesOrigin: order.salesOrigin || undefined,
+            discountPercent: order.discountPercent || undefined,
             lineDiscount: order.discountPercent || undefined,
             endDiscount: undefined, // Not in current scraping
             shippingAddress: order.deliveryAddress,
@@ -5163,7 +5164,21 @@ app.get(
             transferredToAccountingOffice:
               order.transferStatus === "Sì" ||
               order.transferStatus === "Trasferito",
+            transferStatus: order.transferStatus || undefined,
+            transferDate: order.transferDate || undefined,
+            completionDate: order.completionDate || undefined,
+            deliveryName: order.deliveryName || undefined,
             deliveryAddress: order.deliveryAddress,
+            grossAmount: order.grossAmount || undefined,
+            remainingSalesFinancial: order.remainingSalesFinancial || undefined,
+            customerReference: order.customerReference || undefined,
+            deliveryCompletedDate: order.deliveryCompletedDate || undefined,
+            isQuote:
+              order.isQuote === "Sì" || order.isQuote === "Yes" ? true : false,
+            isGiftOrder:
+              order.isGiftOrder === "Sì" || order.isGiftOrder === "Yes"
+                ? true
+                : false,
 
             // DDT nested object (already nested from storedOrderToOrder)
             ddt: order.ddt,

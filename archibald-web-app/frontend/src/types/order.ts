@@ -90,7 +90,16 @@ export interface Order {
   state?: string;
   documentState?: string;
   transferredToAccountingOffice?: boolean;
+  transferStatus?: string;
+  transferDate?: string;
+  completionDate?: string;
+  deliveryName?: string;
   deliveryAddress?: string;
+  grossAmount?: string;
+  remainingSalesFinancial?: string;
+  customerReference?: string;
+  isQuote?: boolean;
+  isGiftOrder?: boolean;
 
   // Index signature for compatibility with orderGrouping
   [key: string]: unknown;

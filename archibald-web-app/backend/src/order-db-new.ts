@@ -25,6 +25,8 @@ export interface OrderRecord {
   discountPercent: string | null;
   grossAmount: string | null;
   totalAmount: string | null;
+  isQuote?: string | null;
+  isGiftOrder?: string | null;
   lastSync: number;
 
   // Core DDT fields (stored directly in orders table)
@@ -167,6 +169,8 @@ export class OrderDatabaseNew {
         discount_percent TEXT,
         gross_amount TEXT,
         total_amount TEXT,
+        is_quote TEXT,
+        is_gift_order TEXT,
         hash TEXT NOT NULL,
         last_sync INTEGER NOT NULL,
         created_at TEXT NOT NULL,
@@ -327,6 +331,9 @@ export class OrderDatabaseNew {
       { name: "current_state", type: "TEXT" },
       { name: "sent_to_milano_at", type: "TEXT" },
       { name: "archibald_order_id", type: "TEXT" },
+      // Quote/Gift order fields
+      { name: "is_quote", type: "TEXT" },
+      { name: "is_gift_order", type: "TEXT" },
       // VAT/Totals fields (for article sync)
       { name: "total_vat_amount", type: "TEXT" },
       { name: "total_with_vat", type: "TEXT" },
@@ -501,8 +508,8 @@ export class OrderDatabaseNew {
           remaining_sales_financial, customer_reference, sales_status,
           order_type, document_status, sales_origin, transfer_status,
           transfer_date, completion_date, discount_percent, gross_amount,
-          total_amount, hash, last_sync, created_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          total_amount, is_quote, is_gift_order, hash, last_sync, created_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `,
         )
         .run(
@@ -527,6 +534,8 @@ export class OrderDatabaseNew {
           order.discountPercent,
           order.grossAmount,
           order.totalAmount,
+          order.isQuote || null,
+          order.isGiftOrder || null,
           hash,
           now,
           new Date().toISOString(),
@@ -555,7 +564,8 @@ export class OrderDatabaseNew {
         remaining_sales_financial = ?, customer_reference = ?, sales_status = ?,
         order_type = ?, document_status = ?, sales_origin = ?, transfer_status = ?,
         transfer_date = ?, completion_date = ?, discount_percent = ?,
-        gross_amount = ?, total_amount = ?, hash = ?, last_sync = ?
+        gross_amount = ?, total_amount = ?, is_quote = ?, is_gift_order = ?,
+        hash = ?, last_sync = ?
       WHERE user_id = ? AND id = ?
     `,
       )
@@ -579,6 +589,8 @@ export class OrderDatabaseNew {
         order.discountPercent,
         order.grossAmount,
         order.totalAmount,
+        order.isQuote || null,
+        order.isGiftOrder || null,
         hash,
         now,
         userId,
@@ -707,6 +719,8 @@ export class OrderDatabaseNew {
       discountPercent: row.discount_percent,
       grossAmount: row.gross_amount,
       totalAmount: row.total_amount,
+      isQuote: row.is_quote || null,
+      isGiftOrder: row.is_gift_order || null,
       lastSync: row.last_sync,
       // DDT fields
       ddtNumber: row.ddt_number,
@@ -1252,6 +1266,8 @@ export class OrderDatabaseNew {
       discountPercent: row.discount_percent,
       grossAmount: row.gross_amount,
       totalAmount: row.total_amount,
+      isQuote: row.is_quote || null,
+      isGiftOrder: row.is_gift_order || null,
       lastSync: row.last_sync,
       // DDT fields
       ddtNumber: row.ddt_number,
@@ -1337,6 +1353,8 @@ export class OrderDatabaseNew {
       discountPercent: row.discount_percent,
       grossAmount: row.gross_amount,
       totalAmount: row.total_amount,
+      isQuote: row.is_quote || null,
+      isGiftOrder: row.is_gift_order || null,
       lastSync: row.last_sync,
       // DDT fields
       ddtNumber: row.ddt_number,
