@@ -1945,11 +1945,11 @@ export function OrderCardNew({
     totalVatAmount?: number;
     totalWithVat?: number;
   }>(() => {
-    const totalVatAmount = (order as any).totalVatAmount
-      ? parseFloat((order as any).totalVatAmount)
+    const totalVatAmount = order.totalVatAmount
+      ? parseFloat(order.totalVatAmount)
       : undefined;
-    const totalWithVat = (order as any).totalWithVat
-      ? parseFloat((order as any).totalWithVat)
+    const totalWithVat = order.totalWithVat
+      ? parseFloat(order.totalWithVat)
       : undefined;
     return { totalVatAmount, totalWithVat };
   });
@@ -2079,8 +2079,8 @@ export function OrderCardNew({
               {(() => {
                 const totalWithVat =
                   articlesTotals.totalWithVat ??
-                  ((order as any).totalWithVat
-                    ? parseFloat((order as any).totalWithVat)
+                  (order.totalWithVat
+                    ? parseFloat(order.totalWithVat)
                     : undefined);
 
                 if (totalWithVat && totalWithVat > 0) {
