@@ -51,6 +51,7 @@ export default defineConfig({
         clientsClaim: true,
         // Add build timestamp to service worker for cache invalidation
         navigationPreload: true,
+        navigateFallbackDenylist: [/^\/api\//],
         runtimeCaching: [
           // Network-only strategy for API calls - no caching to avoid 304 issues
           {
