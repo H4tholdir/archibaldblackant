@@ -5185,6 +5185,11 @@ app.get(
             invoicePaymentTermsId: order.invoicePaymentTermsId,
             invoicePurchaseOrder: order.invoicePurchaseOrder,
             invoiceClosed: order.invoiceClosed,
+            invoiceDaysPastDue: order.invoiceDaysPastDue,
+            invoiceSettledAmount: order.invoiceSettledAmount,
+            invoiceLastPaymentId: order.invoiceLastPaymentId,
+            invoiceLastSettlementDate: order.invoiceLastSettlementDate,
+            invoiceClosedDate: order.invoiceClosedDate,
 
             // Metadata (10 columns)
             botUserId: order.botUserId,

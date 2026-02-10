@@ -301,8 +301,14 @@ export class InvoiceSyncService extends EventEmitter {
           invoicePaymentTermsId: parsedInvoice.payment_term_id || null,
           invoicePurchaseOrder: parsedInvoice.purchase_order || null,
           invoiceClosed: parsedInvoice.closed
-            ? parsedInvoice.closed === "Sì" || parsedInvoice.closed === "1"
+            ? parsedInvoice.closed.trim() !== "" &&
+              parsedInvoice.closed.toLowerCase() !== "no"
             : null,
+          invoiceDaysPastDue: parsedInvoice.days_past_due || null,
+          invoiceSettledAmount: parsedInvoice.amount || null,
+          invoiceLastPaymentId: parsedInvoice.last_payment_id || null,
+          invoiceLastSettlementDate: parsedInvoice.last_settlement_date || null,
+          invoiceClosedDate: parsedInvoice.closed || null,
         });
         updated++;
       } catch (error) {

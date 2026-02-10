@@ -33,6 +33,7 @@ export interface ParsedInvoice {
   settled: string | null;
   amount: string | null;
   last_payment_id: string | null;
+  last_settlement_date: string | null;
 
   // Page 7/7: Order matching
   closed: string | null;

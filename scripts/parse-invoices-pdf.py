@@ -41,10 +41,11 @@ class ParsedInvoice:
     payment_term_id: Optional[str]
     days_past_due: Optional[str]
 
-    # Page 6/7: LIQUIDA, IMPORTO MST, IDENTIFICATIVO ULTIMO PAGAMENTO: DATA DI ULTIMA LIQUIDAZIONE (3 columns)
+    # Page 6/7: LIQUIDA, IMPORTO MST, IDENTIFICATIVO ULTIMO PAGAMENTO: DATA DI ULTIMA LIQUIDAZIONE (4 columns)
     settled: Optional[str]
     amount: Optional[str]
     last_payment_id: Optional[str]
+    last_settlement_date: Optional[str]
 
     # Page 7/7: CHIUSO, IMPORTO RIMANENTE MST, ID VENDITE (3 columns)
     closed: Optional[str]
@@ -169,10 +170,12 @@ def parse_invoices_pdf(pdf_path: str):
                     payment_term_id = get_column_value(tables[4], row_idx, "ID TERMINE DI PAGAMENTO")
                     days_past_due = get_column_value(tables[4], row_idx, "OLTRE I GIORNI DI SCADENZA")
 
-                    # Page 6/7: LIQUIDA, IMPORTO MST, IDENTIFICATIVO ULTIMO PAGAMENTO: DATA DI ULTIMA LIQUIDAZIONE (3 columns)
+                    # Page 6/7: LIQUIDA, IMPORTO MST, IDENTIFICATIVO ULTIMO PAGAMENTO, DATA DI ULTIMA LIQUIDAZIONE (4 columns)
                     settled = get_column_value(tables[5], row_idx, "LIQUIDA")
                     amount = get_column_value(tables[5], row_idx, "IMPORTO MST")
                     last_payment_id = get_column_value(tables[5], row_idx, "IDENTIFICATIVO ULTIMO PAGAMENTO")
+                    last_settlement_date_raw = get_column_value(tables[5], row_idx, "DATA DI ULTIMA LIQUIDAZIONE")
+                    last_settlement_date = parse_italian_date(last_settlement_date_raw)
 
                     # Page 7/7: CHIUSO, IMPORTO RIMANENTE MST, ID VENDITE (3 columns)
                     closed = get_column_value(tables[6], row_idx, "CHIUSO")
@@ -200,6 +203,7 @@ def parse_invoices_pdf(pdf_path: str):
                         settled=settled,
                         amount=amount,
                         last_payment_id=last_payment_id,
+                        last_settlement_date=last_settlement_date,
                         closed=closed,
                         remaining_amount=remaining_amount,
                         order_number=order_number

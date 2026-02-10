@@ -114,6 +114,11 @@ export interface Order {
   invoicePaymentTermsId?: string | null;
   invoicePurchaseOrder?: string | null;
   invoiceClosed?: boolean | null;
+  invoiceDaysPastDue?: string | null;
+  invoiceSettledAmount?: string | null;
+  invoiceLastPaymentId?: string | null;
+  invoiceLastSettlementDate?: string | null;
+  invoiceClosedDate?: string | null;
 
   // Current state tracking
   currentState?: string | null;
@@ -1023,6 +1028,11 @@ export class OrderHistoryService {
       invoicePaymentTermsId: stored.invoicePaymentTermsId,
       invoicePurchaseOrder: stored.invoicePurchaseOrder,
       invoiceClosed: stored.invoiceClosed,
+      invoiceDaysPastDue: stored.invoiceDaysPastDue,
+      invoiceSettledAmount: stored.invoiceSettledAmount,
+      invoiceLastPaymentId: stored.invoiceLastPaymentId,
+      invoiceLastSettlementDate: stored.invoiceLastSettlementDate,
+      invoiceClosedDate: stored.invoiceClosedDate,
 
       // Current state tracking
       currentState: stored.currentState,

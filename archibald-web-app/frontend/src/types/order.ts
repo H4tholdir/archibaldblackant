@@ -134,6 +134,11 @@ export interface Order {
   invoicePaymentTermsId?: string;
   invoicePurchaseOrder?: string;
   invoiceClosed?: boolean;
+  invoiceDaysPastDue?: string;
+  invoiceSettledAmount?: string;
+  invoiceLastPaymentId?: string;
+  invoiceLastSettlementDate?: string;
+  invoiceClosedDate?: string;
 
   // Current state tracking
   currentState?: string;

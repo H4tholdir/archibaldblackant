@@ -60,6 +60,11 @@ export interface OrderRecord {
   invoicePaymentTermsId?: string | null;
   invoicePurchaseOrder?: string | null;
   invoiceClosed?: boolean | null;
+  invoiceDaysPastDue?: string | null;
+  invoiceSettledAmount?: string | null;
+  invoiceLastPaymentId?: string | null;
+  invoiceLastSettlementDate?: string | null;
+  invoiceClosedDate?: string | null;
 
   // State tracking fields
   currentState?: string | null;
@@ -188,6 +193,11 @@ export class OrderDatabaseNew {
         invoice_payment_terms_id TEXT,
         invoice_purchase_order TEXT,
         invoice_closed INTEGER,
+        invoice_days_past_due TEXT,
+        invoice_settled_amount TEXT,
+        invoice_last_payment_id TEXT,
+        invoice_last_settlement_date TEXT,
+        invoice_closed_date TEXT,
         current_state TEXT,
         sent_to_milano_at TEXT,
         archibald_order_id TEXT
@@ -294,6 +304,12 @@ export class OrderDatabaseNew {
       { name: "invoice_payment_terms_id", type: "TEXT" },
       { name: "invoice_purchase_order", type: "TEXT" },
       { name: "invoice_closed", type: "INTEGER" },
+      // Additional invoice payment fields
+      { name: "invoice_days_past_due", type: "TEXT" },
+      { name: "invoice_settled_amount", type: "TEXT" },
+      { name: "invoice_last_payment_id", type: "TEXT" },
+      { name: "invoice_last_settlement_date", type: "TEXT" },
+      { name: "invoice_closed_date", type: "TEXT" },
       // State tracking fields (may be missing)
       { name: "current_state", type: "TEXT" },
       { name: "sent_to_milano_at", type: "TEXT" },
@@ -709,6 +725,11 @@ export class OrderDatabaseNew {
       invoicePaymentTermsId: row.invoice_payment_terms_id,
       invoicePurchaseOrder: row.invoice_purchase_order,
       invoiceClosed: row.invoice_closed ? true : false,
+      invoiceDaysPastDue: row.invoice_days_past_due,
+      invoiceSettledAmount: row.invoice_settled_amount,
+      invoiceLastPaymentId: row.invoice_last_payment_id,
+      invoiceLastSettlementDate: row.invoice_last_settlement_date,
+      invoiceClosedDate: row.invoice_closed_date,
       // State fields
       currentState: row.current_state,
       sentToMilanoAt: row.sent_to_milano_at,
@@ -1245,6 +1266,11 @@ export class OrderDatabaseNew {
       invoicePaymentTermsId: row.invoice_payment_terms_id,
       invoicePurchaseOrder: row.invoice_purchase_order,
       invoiceClosed: row.invoice_closed ? true : false,
+      invoiceDaysPastDue: row.invoice_days_past_due,
+      invoiceSettledAmount: row.invoice_settled_amount,
+      invoiceLastPaymentId: row.invoice_last_payment_id,
+      invoiceLastSettlementDate: row.invoice_last_settlement_date,
+      invoiceClosedDate: row.invoice_closed_date,
       // State fields
       currentState: row.current_state,
       sentToMilanoAt: row.sent_to_milano_at,
@@ -1321,6 +1347,11 @@ export class OrderDatabaseNew {
       invoicePaymentTermsId: row.invoice_payment_terms_id,
       invoicePurchaseOrder: row.invoice_purchase_order,
       invoiceClosed: row.invoice_closed ? true : false,
+      invoiceDaysPastDue: row.invoice_days_past_due,
+      invoiceSettledAmount: row.invoice_settled_amount,
+      invoiceLastPaymentId: row.invoice_last_payment_id,
+      invoiceLastSettlementDate: row.invoice_last_settlement_date,
+      invoiceClosedDate: row.invoice_closed_date,
       // State fields
       currentState: row.current_state,
       sentToMilanoAt: row.sent_to_milano_at,
@@ -1431,6 +1462,11 @@ export class OrderDatabaseNew {
       invoicePaymentTermsId?: string | null;
       invoicePurchaseOrder?: string | null;
       invoiceClosed?: boolean | null;
+      invoiceDaysPastDue?: string | null;
+      invoiceSettledAmount?: string | null;
+      invoiceLastPaymentId?: string | null;
+      invoiceLastSettlementDate?: string | null;
+      invoiceClosedDate?: string | null;
     },
   ): void {
     const now = Math.floor(Date.now() / 1000);
@@ -1453,6 +1489,11 @@ export class OrderDatabaseNew {
         invoice_payment_terms_id = ?,
         invoice_purchase_order = ?,
         invoice_closed = ?,
+        invoice_days_past_due = ?,
+        invoice_settled_amount = ?,
+        invoice_last_payment_id = ?,
+        invoice_last_settlement_date = ?,
+        invoice_closed_date = ?,
         last_sync = ?
       WHERE user_id = ? AND order_number = ?
     `,
@@ -1472,6 +1513,11 @@ export class OrderDatabaseNew {
         invoiceData.invoicePaymentTermsId || null,
         invoiceData.invoicePurchaseOrder || null,
         invoiceData.invoiceClosed ? 1 : 0,
+        invoiceData.invoiceDaysPastDue || null,
+        invoiceData.invoiceSettledAmount || null,
+        invoiceData.invoiceLastPaymentId || null,
+        invoiceData.invoiceLastSettlementDate || null,
+        invoiceData.invoiceClosedDate || null,
         now,
         userId,
         orderId,

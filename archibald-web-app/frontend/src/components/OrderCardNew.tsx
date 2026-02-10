@@ -1626,6 +1626,95 @@ function TabFinanziario({ order, token }: { order: Order; token?: string }) {
           </div>
         )}
 
+        {/* Stato Pagamento */}
+        {order.invoiceNumber &&
+          (order.invoiceDaysPastDue ||
+            order.invoiceSettledAmount ||
+            order.invoiceLastPaymentId ||
+            order.invoiceLastSettlementDate ||
+            order.invoiceClosedDate) && (
+            <div style={{ marginTop: "16px", marginBottom: "16px" }}>
+              <h4
+                style={{
+                  fontSize: "14px",
+                  fontWeight: 600,
+                  marginBottom: "8px",
+                  color: "#555",
+                }}
+              >
+                Stato Pagamento
+              </h4>
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "repeat(2, 1fr)",
+                  gap: "12px",
+                }}
+              >
+                {order.invoiceDaysPastDue && (
+                  <div
+                    style={{
+                      padding: "8px 12px",
+                      backgroundColor:
+                        parseInt(order.invoiceDaysPastDue) > 0
+                          ? "#ffebee"
+                          : "#f5f5f5",
+                      borderRadius: "6px",
+                      border: `1px solid ${parseInt(order.invoiceDaysPastDue) > 0 ? "#ffcdd2" : "#e0e0e0"}`,
+                    }}
+                  >
+                    <div
+                      style={{
+                        fontSize: "11px",
+                        color: "#888",
+                        marginBottom: "2px",
+                      }}
+                    >
+                      Giorni oltre scadenza
+                    </div>
+                    <div
+                      style={{
+                        fontSize: "14px",
+                        fontWeight: 600,
+                        color:
+                          parseInt(order.invoiceDaysPastDue) > 0
+                            ? "#c62828"
+                            : "#333",
+                      }}
+                    >
+                      {order.invoiceDaysPastDue}
+                    </div>
+                  </div>
+                )}
+                {order.invoiceSettledAmount && (
+                  <InfoField
+                    label="Importo liquidato"
+                    value={`€${order.invoiceSettledAmount}`}
+                  />
+                )}
+                {order.invoiceLastPaymentId && (
+                  <InfoField
+                    label="Ultimo pagamento"
+                    value={order.invoiceLastPaymentId}
+                  />
+                )}
+                {order.invoiceLastSettlementDate && (
+                  <InfoField
+                    label="Data liquidazione"
+                    value={formatDate(order.invoiceLastSettlementDate)}
+                  />
+                )}
+                {order.invoiceClosedDate &&
+                  order.invoiceClosedDate.toLowerCase() !== "no" && (
+                    <InfoField
+                      label="Data chiusura"
+                      value={formatDate(order.invoiceClosedDate)}
+                    />
+                  )}
+              </div>
+            </div>
+          )}
+
         <button
           onClick={handleDownloadInvoice}
           disabled={invoiceProgress.active || !order.invoiceNumber}
