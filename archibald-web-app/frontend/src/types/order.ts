@@ -56,6 +56,10 @@ export interface DDTInfo {
   deliveryMethod?: string;
   deliveryCity?: string;
   attentionTo?: string;
+  deliveryAddress?: string;
+  ddtTotal?: string;
+  customerReference?: string;
+  description?: string;
   // Tracking fields (also nested in DDT)
   trackingNumber?: string;
   trackingUrl?: string;

@@ -1092,151 +1092,18 @@ function TabLogistica({ order, token }: { order: Order; token?: string }) {
     );
   };
 
+  const hasDestinatario =
+    ddt?.ddtDeliveryName ||
+    ddt?.deliveryAddress ||
+    ddt?.deliveryCity ||
+    ddt?.attentionTo;
+
+  const hasDettagliSpedizione =
+    ddt?.deliveryTerms || ddt?.deliveryMethod || order.deliveryCompletedDate;
+
   return (
     <div style={{ padding: "16px" }}>
-      {/* Documento Trasporto (DDT) */}
-      {ddt && (
-        <div style={{ marginBottom: "24px" }}>
-          <h3
-            style={{
-              fontSize: "16px",
-              fontWeight: 600,
-              marginBottom: "12px",
-              color: "#333",
-            }}
-          >
-            Documento di Trasporto (DDT)
-          </h3>
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(2, 1fr)",
-              gap: "12px",
-            }}
-          >
-            <InfoField label="Numero DDT" value={ddt.ddtNumber} bold />
-            <InfoField label="ID DDT" value={ddt.ddtId} small />
-            <InfoField
-              label="Data Consegna DDT"
-              value={formatDate(ddt.ddtDeliveryDate)}
-            />
-            <InfoField label="ID Ordine Vendita" value={ddt.orderId} />
-            <InfoField label="Conto Cliente" value={ddt.ddtCustomerAccount} />
-            <InfoField label="Nome Venditore" value={ddt.ddtSalesName} />
-            <InfoField label="Nome Consegna" value={ddt.ddtDeliveryName} />
-            <InfoField label="Termini Consegna" value={order.deliveryTerms} />
-            <InfoField label="Città Consegna" value={order.deliveryCity} />
-            <InfoField label="All'attenzione di" value={order.attentionTo} />
-          </div>
-
-          {/* DDT PDF Download Button */}
-          <div style={{ marginTop: "16px" }}>
-            <button
-              onClick={handleDownloadDDT}
-              disabled={ddtProgress.active || !ddt.trackingNumber}
-              style={{
-                width: "100%",
-                padding: "12px",
-                backgroundColor:
-                  ddtProgress.active || !ddt.trackingNumber
-                    ? "#ccc"
-                    : "#4caf50",
-                color: "#fff",
-                border: "none",
-                borderRadius: "8px",
-                fontSize: "14px",
-                fontWeight: 600,
-                cursor:
-                  ddtProgress.active || !ddt.trackingNumber
-                    ? "not-allowed"
-                    : "pointer",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                gap: "8px",
-                transition: "background-color 0.2s",
-              }}
-              onMouseEnter={(e) => {
-                if (!ddtProgress.active && ddt.trackingNumber) {
-                  e.currentTarget.style.backgroundColor = "#388e3c";
-                }
-              }}
-              onMouseLeave={(e) => {
-                if (!ddtProgress.active && ddt.trackingNumber) {
-                  e.currentTarget.style.backgroundColor = "#4caf50";
-                }
-              }}
-            >
-              {ddtProgress.active ? (
-                <>
-                  <span>⏳</span>
-                  <span>{ddtProgress.stage || "Download in corso..."}</span>
-                </>
-              ) : !ddt.trackingNumber ? (
-                <>
-                  <span>🔒</span>
-                  <span>Download disponibile dopo attivazione tracking</span>
-                </>
-              ) : (
-                <>
-                  <span>📄</span>
-                  <span>Scarica PDF DDT</span>
-                </>
-              )}
-            </button>
-            {ddtProgress.active && (
-              <ProgressBar
-                percent={ddtProgress.percent}
-                stage={ddtProgress.stage}
-                color="#4caf50"
-              />
-            )}
-            {ddtError && (
-              <div
-                style={{
-                  marginTop: "8px",
-                  padding: "8px",
-                  backgroundColor: "#ffebee",
-                  borderRadius: "4px",
-                  fontSize: "12px",
-                  color: "#c62828",
-                }}
-              >
-                {ddtError}
-              </div>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* Informazioni Cliente (da DDT) */}
-      {ddt && (
-        <div style={{ marginBottom: "24px" }}>
-          <h3
-            style={{
-              fontSize: "16px",
-              fontWeight: 600,
-              marginBottom: "12px",
-              color: "#333",
-            }}
-          >
-            Informazioni Cliente
-          </h3>
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(2, 1fr)",
-              gap: "12px",
-            }}
-          >
-            <InfoField label="Conto Cliente" value={ddt.ddtCustomerAccount} />
-            <InfoField label="Nome Vendite" value={ddt.ddtSalesName} />
-            <InfoField label="Nome Consegna" value={ddt.ddtDeliveryName} bold />
-          </div>
-        </div>
-      )}
-
-      {/* Tracking */}
+      {/* 1. Tracking Spedizione (in cima - azione più frequente) */}
       {tracking.trackingNumber && (
         <div style={{ marginBottom: "24px" }}>
           <h3
@@ -1331,7 +1198,46 @@ function TabLogistica({ order, token }: { order: Order; token?: string }) {
         </div>
       )}
 
-      {/* Dettagli Consegna */}
+      {/* 2. Destinatario (dove va?) */}
+      {ddt && hasDestinatario && (
+        <div style={{ marginBottom: "24px" }}>
+          <h3
+            style={{
+              fontSize: "16px",
+              fontWeight: 600,
+              marginBottom: "12px",
+              color: "#333",
+            }}
+          >
+            Destinatario
+          </h3>
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(2, 1fr)",
+              gap: "12px",
+            }}
+          >
+            <InfoField label="Nome Consegna" value={ddt.ddtDeliveryName} bold />
+            {ddt.attentionTo && (
+              <InfoField label="All'attenzione di" value={ddt.attentionTo} />
+            )}
+            {ddt.deliveryAddress && (
+              <div style={{ gridColumn: "1 / -1" }}>
+                <InfoField
+                  label="Indirizzo Consegna"
+                  value={ddt.deliveryAddress}
+                />
+              </div>
+            )}
+            {ddt.deliveryCity && (
+              <InfoField label="Città Consegna" value={ddt.deliveryCity} />
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* 3. Documento di Trasporto (riferimenti documentali) */}
       {ddt && (
         <div style={{ marginBottom: "24px" }}>
           <h3
@@ -1342,7 +1248,7 @@ function TabLogistica({ order, token }: { order: Order; token?: string }) {
               color: "#333",
             }}
           >
-            Dettagli Consegna
+            Documento di Trasporto
           </h3>
           <div
             style={{
@@ -1351,9 +1257,172 @@ function TabLogistica({ order, token }: { order: Order; token?: string }) {
               gap: "12px",
             }}
           >
-            <InfoField label="Termini Consegna" value={ddt.deliveryTerms} />
-            <InfoField label="Modalità Consegna" value={ddt.deliveryMethod} />
-            <InfoField label="Città Consegna" value={ddt.deliveryCity} />
+            {ddt.ddtCustomerAccount && (
+              <div
+                style={{
+                  gridColumn: "1 / -1",
+                  padding: "10px 12px",
+                  backgroundColor: "#e3f2fd",
+                  borderRadius: "6px",
+                  border: "1px solid #bbdefb",
+                }}
+              >
+                <div
+                  style={{
+                    fontSize: "11px",
+                    color: "#1565c0",
+                    marginBottom: "2px",
+                    fontWeight: 600,
+                  }}
+                >
+                  Conto Ordine
+                </div>
+                <div
+                  style={{
+                    fontSize: "15px",
+                    fontWeight: 700,
+                    color: "#0d47a1",
+                    fontFamily: "monospace",
+                  }}
+                >
+                  {ddt.ddtCustomerAccount}
+                </div>
+              </div>
+            )}
+            <InfoField label="Numero DDT" value={ddt.ddtNumber} bold />
+            <InfoField
+              label="Data Consegna"
+              value={formatDate(ddt.ddtDeliveryDate)}
+            />
+            <InfoField label="ID Ordine Vendita" value={ddt.orderId} />
+            <InfoField label="ID DDT" value={ddt.ddtId} small />
+            <InfoField label="Nome Vendite" value={ddt.ddtSalesName} />
+            {ddt.ddtTotal && (
+              <InfoField label="Totale DDT" value={ddt.ddtTotal} />
+            )}
+            {ddt.customerReference && (
+              <InfoField
+                label="Riferimento Cliente"
+                value={ddt.customerReference}
+              />
+            )}
+            {ddt.description && (
+              <InfoField label="Descrizione" value={ddt.description} />
+            )}
+          </div>
+
+          {/* DDT PDF Download Button */}
+          <div style={{ marginTop: "16px" }}>
+            <button
+              onClick={handleDownloadDDT}
+              disabled={ddtProgress.active || !ddt.trackingNumber}
+              style={{
+                width: "100%",
+                padding: "12px",
+                backgroundColor:
+                  ddtProgress.active || !ddt.trackingNumber
+                    ? "#ccc"
+                    : "#4caf50",
+                color: "#fff",
+                border: "none",
+                borderRadius: "8px",
+                fontSize: "14px",
+                fontWeight: 600,
+                cursor:
+                  ddtProgress.active || !ddt.trackingNumber
+                    ? "not-allowed"
+                    : "pointer",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: "8px",
+                transition: "background-color 0.2s",
+              }}
+              onMouseEnter={(e) => {
+                if (!ddtProgress.active && ddt.trackingNumber) {
+                  e.currentTarget.style.backgroundColor = "#388e3c";
+                }
+              }}
+              onMouseLeave={(e) => {
+                if (!ddtProgress.active && ddt.trackingNumber) {
+                  e.currentTarget.style.backgroundColor = "#4caf50";
+                }
+              }}
+            >
+              {ddtProgress.active ? (
+                <>
+                  <span>⏳</span>
+                  <span>{ddtProgress.stage || "Download in corso..."}</span>
+                </>
+              ) : !ddt.trackingNumber ? (
+                <>
+                  <span>🔒</span>
+                  <span>Download disponibile dopo attivazione tracking</span>
+                </>
+              ) : (
+                <>
+                  <span>📄</span>
+                  <span>Scarica PDF DDT</span>
+                </>
+              )}
+            </button>
+            {ddtProgress.active && (
+              <ProgressBar
+                percent={ddtProgress.percent}
+                stage={ddtProgress.stage}
+                color="#4caf50"
+              />
+            )}
+            {ddtError && (
+              <div
+                style={{
+                  marginTop: "8px",
+                  padding: "8px",
+                  backgroundColor: "#ffebee",
+                  borderRadius: "4px",
+                  fontSize: "12px",
+                  color: "#c62828",
+                }}
+              >
+                {ddtError}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* 4. Dettagli Spedizione */}
+      {ddt && hasDettagliSpedizione && (
+        <div style={{ marginBottom: "24px" }}>
+          <h3
+            style={{
+              fontSize: "16px",
+              fontWeight: 600,
+              marginBottom: "12px",
+              color: "#333",
+            }}
+          >
+            Dettagli Spedizione
+          </h3>
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(2, 1fr)",
+              gap: "12px",
+            }}
+          >
+            {ddt.deliveryMethod && (
+              <InfoField label="Modalità Consegna" value={ddt.deliveryMethod} />
+            )}
+            {ddt.deliveryTerms && (
+              <InfoField label="Termini Consegna" value={ddt.deliveryTerms} />
+            )}
+            {order.deliveryCompletedDate && (
+              <InfoField
+                label="Consegna Completata"
+                value={formatDate(order.deliveryCompletedDate)}
+              />
+            )}
           </div>
         </div>
       )}

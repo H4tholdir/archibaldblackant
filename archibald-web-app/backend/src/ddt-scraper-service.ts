@@ -17,6 +17,11 @@ export interface DDTData {
   deliveryTerms?: string; // Col 8: Termini di consegna
   deliveryMethod?: string; // Col 9: Modalità di consegna (e.g., "FedEx", "UPS Italia")
   deliveryCity?: string; // Col 10: Città di consegna
+  deliveryAddress?: string; // 2nd NOME DI CONSEGNA column (delivery address)
+  ddtTotal?: string; // TOTALE
+  customerReference?: string; // RIFERIMENTO CLIENTE
+  description?: string; // DESCRIZIONE
+  attentionTo?: string; // ALL'ATTENZIONE DI
 
   // Computed fields
   trackingUrl?: string; // Full courier tracking URL (computed from tracking)
@@ -149,7 +154,7 @@ export class DDTScraperService {
       headers.forEach((header, index) => {
         const text = header.textContent?.trim().toUpperCase() || "";
 
-        // Map all 11 DDT columns based on TABLE-ANALYSIS.md
+        // Map DDT columns based on header text
         if (
           text.includes("ID") &&
           !text.includes("VENDITA") &&
@@ -182,7 +187,12 @@ export class DDTScraperService {
           text.includes("NOME DI CONSEGNA") ||
           text.includes("NOME CONSEGNA")
         ) {
-          columnMap.deliveryName = index;
+          // Handle duplicate column: first = name, second = address
+          if (columnMap.deliveryName === undefined) {
+            columnMap.deliveryName = index;
+          } else {
+            columnMap.deliveryAddress = index;
+          }
         } else if (
           text.includes("TRACCIABILITÀ") ||
           text.includes("NUMERO DI TRACCIABILITÀ")
@@ -203,6 +213,20 @@ export class DDTScraperService {
           text.includes("CITTA")
         ) {
           columnMap.deliveryCity = index;
+        } else if (text === "TOTALE") {
+          columnMap.ddtTotal = index;
+        } else if (
+          text.includes("RIFERIMENTO CLIENTE") ||
+          text.includes("RIFERIMENTO")
+        ) {
+          columnMap.customerReference = index;
+        } else if (text.includes("DESCRIZIONE")) {
+          columnMap.description = index;
+        } else if (
+          text.includes("ALL'ATTENZIONE DI") ||
+          text.includes("ATTENZIONE DI")
+        ) {
+          columnMap.attentionTo = index;
         }
       });
 
@@ -301,6 +325,26 @@ export class DDTScraperService {
             columnMap.deliveryCity !== undefined
               ? cells[columnMap.deliveryCity]?.textContent?.trim()
               : undefined,
+          deliveryAddress:
+            columnMap.deliveryAddress !== undefined
+              ? cells[columnMap.deliveryAddress]?.textContent?.trim()
+              : undefined,
+          ddtTotal:
+            columnMap.ddtTotal !== undefined
+              ? cells[columnMap.ddtTotal]?.textContent?.trim()
+              : undefined,
+          customerReference:
+            columnMap.customerReference !== undefined
+              ? cells[columnMap.customerReference]?.textContent?.trim()
+              : undefined,
+          description:
+            columnMap.description !== undefined
+              ? cells[columnMap.description]?.textContent?.trim()
+              : undefined,
+          attentionTo:
+            columnMap.attentionTo !== undefined
+              ? cells[columnMap.attentionTo]?.textContent?.trim()
+              : undefined,
         });
       }
 
@@ -368,6 +412,11 @@ export class DDTScraperService {
           deliveryTerms: ddt.deliveryTerms,
           deliveryMethod: ddt.deliveryMethod,
           deliveryCity: ddt.deliveryCity,
+          attentionTo: ddt.attentionTo,
+          ddtDeliveryAddress: ddt.deliveryAddress,
+          ddtTotal: ddt.ddtTotal,
+          ddtCustomerReference: ddt.customerReference,
+          ddtDescription: ddt.description,
           trackingNumber: ddt.trackingNumber,
           trackingUrl: ddt.trackingUrl,
           trackingCourier: ddt.trackingCourier,

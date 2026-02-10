@@ -38,6 +38,10 @@ export interface OrderRecord {
   deliveryMethod?: string | null;
   deliveryCity?: string | null;
   attentionTo?: string | null;
+  ddtDeliveryAddress?: string | null;
+  ddtTotal?: string | null;
+  ddtCustomerReference?: string | null;
+  ddtDescription?: string | null;
 
   // Tracking fields (stored directly in orders table)
   trackingNumber?: string | null;
@@ -176,6 +180,10 @@ export class OrderDatabaseNew {
         delivery_method TEXT,
         delivery_city TEXT,
         attention_to TEXT,
+        ddt_delivery_address TEXT,
+        ddt_total TEXT,
+        ddt_customer_reference TEXT,
+        ddt_description TEXT,
         tracking_number TEXT,
         tracking_url TEXT,
         tracking_courier TEXT,
@@ -283,6 +291,11 @@ export class OrderDatabaseNew {
       { name: "delivery_method", type: "TEXT" },
       { name: "delivery_city", type: "TEXT" },
       { name: "attention_to", type: "TEXT" },
+      // Additional DDT fields
+      { name: "ddt_delivery_address", type: "TEXT" },
+      { name: "ddt_total", type: "TEXT" },
+      { name: "ddt_customer_reference", type: "TEXT" },
+      { name: "ddt_description", type: "TEXT" },
       // Tracking fields (may be missing)
       { name: "tracking_number", type: "TEXT" },
       { name: "tracking_url", type: "TEXT" },
@@ -706,6 +719,10 @@ export class OrderDatabaseNew {
       deliveryMethod: row.delivery_method,
       deliveryCity: row.delivery_city,
       attentionTo: row.attention_to,
+      ddtDeliveryAddress: row.ddt_delivery_address,
+      ddtTotal: row.ddt_total,
+      ddtCustomerReference: row.ddt_customer_reference,
+      ddtDescription: row.ddt_description,
       // Tracking fields
       trackingNumber: row.tracking_number,
       trackingUrl: row.tracking_url,
@@ -1247,6 +1264,10 @@ export class OrderDatabaseNew {
       deliveryMethod: row.delivery_method,
       deliveryCity: row.delivery_city,
       attentionTo: row.attention_to,
+      ddtDeliveryAddress: row.ddt_delivery_address,
+      ddtTotal: row.ddt_total,
+      ddtCustomerReference: row.ddt_customer_reference,
+      ddtDescription: row.ddt_description,
       // Tracking fields
       trackingNumber: row.tracking_number,
       trackingUrl: row.tracking_url,
@@ -1328,6 +1349,10 @@ export class OrderDatabaseNew {
       deliveryMethod: row.delivery_method,
       deliveryCity: row.delivery_city,
       attentionTo: row.attention_to,
+      ddtDeliveryAddress: row.ddt_delivery_address,
+      ddtTotal: row.ddt_total,
+      ddtCustomerReference: row.ddt_customer_reference,
+      ddtDescription: row.ddt_description,
       // Tracking fields
       trackingNumber: row.tracking_number,
       trackingUrl: row.tracking_url,
@@ -1386,6 +1411,10 @@ export class OrderDatabaseNew {
       deliveryMethod?: string | null;
       deliveryCity?: string | null;
       attentionTo?: string | null;
+      ddtDeliveryAddress?: string | null;
+      ddtTotal?: string | null;
+      ddtCustomerReference?: string | null;
+      ddtDescription?: string | null;
       trackingNumber?: string | null;
       trackingUrl?: string | null;
       trackingCourier?: string | null;
@@ -1407,6 +1436,10 @@ export class OrderDatabaseNew {
         delivery_method = ?,
         delivery_city = ?,
         attention_to = ?,
+        ddt_delivery_address = ?,
+        ddt_total = ?,
+        ddt_customer_reference = ?,
+        ddt_description = ?,
         tracking_number = ?,
         tracking_url = ?,
         tracking_courier = ?,
@@ -1425,6 +1458,10 @@ export class OrderDatabaseNew {
         ddtData.deliveryMethod || null,
         ddtData.deliveryCity || null,
         ddtData.attentionTo || null,
+        ddtData.ddtDeliveryAddress || null,
+        ddtData.ddtTotal || null,
+        ddtData.ddtCustomerReference || null,
+        ddtData.ddtDescription || null,
         ddtData.trackingNumber || null,
         ddtData.trackingUrl || null,
         ddtData.trackingCourier || null,

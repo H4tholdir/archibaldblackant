@@ -48,6 +48,11 @@ export interface DDTInfo {
   deliveryTerms?: string | null;
   deliveryMethod?: string | null;
   deliveryCity?: string | null;
+  deliveryAddress?: string | null;
+  ddtTotal?: string | null;
+  customerReference?: string | null;
+  description?: string | null;
+  attentionTo?: string | null;
   // Tracking fields (nested in DDT)
   trackingNumber?: string | null;
   trackingUrl?: string | null;
@@ -766,6 +771,11 @@ export class OrderHistoryService {
             deliveryCity: ddt?.deliveryCity || null,
             trackingUrl: ddt?.trackingUrl || null,
             trackingCourier: ddt?.trackingCourier || null,
+            attentionTo: ddt?.attentionTo || null,
+            ddtDeliveryAddress: ddt?.deliveryAddress || null,
+            ddtTotal: ddt?.ddtTotal || null,
+            ddtCustomerReference: ddt?.customerReference || null,
+            ddtDescription: ddt?.description || null,
 
             // Invoice fields
             invoiceNumber: null,
@@ -827,6 +837,11 @@ export class OrderHistoryService {
             deliveryCity: null,
             trackingUrl: null,
             trackingCourier: null,
+            attentionTo: null,
+            ddtDeliveryAddress: null,
+            ddtTotal: null,
+            ddtCustomerReference: null,
+            ddtDescription: null,
 
             // Invoice fields
             invoiceNumber: null,
@@ -976,6 +991,11 @@ export class OrderHistoryService {
           deliveryTerms: stored.deliveryTerms,
           deliveryMethod: stored.deliveryMethod,
           deliveryCity: stored.deliveryCity,
+          deliveryAddress: stored.ddtDeliveryAddress,
+          ddtTotal: stored.ddtTotal,
+          customerReference: stored.ddtCustomerReference,
+          description: stored.ddtDescription,
+          attentionTo: stored.attentionTo,
           // Include tracking fields in DDT object (user decision: remove duplicate tracking)
           trackingNumber: stored.trackingNumber,
           trackingUrl: stored.trackingUrl,
@@ -2194,11 +2214,15 @@ export class OrderHistoryService {
         const customerAccountId = cells[10]?.textContent?.trim() || "";
         const salesName = cells[11]?.textContent?.trim() || "";
         const deliveryName = cells[12]?.textContent?.trim() || "";
-        // cells[13-14, 16]: other data (address, etc.)
+        const deliveryAddress = cells[13]?.textContent?.trim() || undefined;
+        const ddtTotal = cells[14]?.textContent?.trim() || undefined;
         const deliveryTerms = cells[15]?.textContent?.trim() || undefined;
+        const ddtDescription = cells[16]?.textContent?.trim() || undefined;
         const trackingText = cells[17]?.textContent?.trim() || "";
         const deliveryCity = cells[18]?.textContent?.trim() || undefined;
         const deliveryMethod = cells[19]?.textContent?.trim() || "";
+        const attentionTo = cells[20]?.textContent?.trim() || undefined;
+        const customerReference = cells[21]?.textContent?.trim() || undefined;
 
         // Validation
         if (!ddtNumber || !ddtNumber.startsWith("DDT/")) {
@@ -2258,9 +2282,14 @@ export class OrderHistoryService {
           trackingNumber,
           trackingUrl,
           trackingCourier,
-          deliveryTerms, // cells[15] - may be empty
+          deliveryTerms,
           deliveryMethod,
-          deliveryCity, // cells[18] - may be empty
+          deliveryCity,
+          deliveryAddress,
+          ddtTotal,
+          customerReference,
+          description: ddtDescription,
+          attentionTo,
         });
       }
 
