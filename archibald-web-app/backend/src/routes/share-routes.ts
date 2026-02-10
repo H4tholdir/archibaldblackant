@@ -120,8 +120,14 @@ router.post(
  */
 router.get("/pdf/:id", (req: Request, res: Response) => {
   const { id } = req.params;
-  const meta = pdfStore.get(id);
   const filePath = path.join(SHARED_PDF_DIR, `${id}.pdf`);
+  let meta = pdfStore.get(id);
+
+  if (!meta && fs.existsSync(filePath)) {
+    const stat = fs.statSync(filePath);
+    meta = { createdAt: stat.mtimeMs, originalName: "preventivo.pdf" };
+    pdfStore.set(id, meta);
+  }
 
   if (!meta || Date.now() - meta.createdAt > config.share.pdfTtlMs) {
     if (meta) {
