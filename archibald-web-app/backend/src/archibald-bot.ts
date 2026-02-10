@@ -4461,31 +4461,22 @@ export class ArchibaldBot {
                     });
 
                     if (discInputId) {
-                      // Double-click to enter edit mode on the spin editor
-                      const discCoord = await this.page!.evaluate(
-                        (inputId: string) => {
-                          const inp = document.getElementById(
-                            inputId,
-                          ) as HTMLInputElement;
-                          if (!inp) return null;
-                          inp.scrollIntoView({ block: "center" });
-                          const r = inp.getBoundingClientRect();
-                          return {
-                            x: r.x + r.width / 2,
-                            y: r.y + r.height / 2,
-                          };
-                        },
-                        discInputId,
-                      );
-
-                      if (discCoord) {
-                        await this.page!.mouse.click(
-                          discCoord.x,
-                          discCoord.y,
-                          { clickCount: 2 },
+                      // Focus + double-click via JS (not mouse coordinates).
+                      // Mouse click at input coords can hit a saved row cell
+                      // (z-index overlap) — same issue as INVENTTABLE.
+                      await this.page!.evaluate((inputId: string) => {
+                        const inp = document.getElementById(
+                          inputId,
+                        ) as HTMLInputElement;
+                        if (!inp) return;
+                        inp.scrollIntoView({ block: "center" });
+                        inp.focus();
+                        inp.click();
+                        inp.dispatchEvent(
+                          new MouseEvent("dblclick", { bubbles: true }),
                         );
-                        await this.wait(300);
-                      }
+                      }, discInputId);
+                      await this.wait(300);
 
                       // Select all + paste discount value via insertText
                       // Use Control (not Meta) — bot runs on Linux VPS
