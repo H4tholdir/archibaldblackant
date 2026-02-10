@@ -1477,164 +1477,224 @@ function TabFinanziario({ order, token }: { order: Order; token?: string }) {
 
   return (
     <div style={{ padding: "16px" }}>
-      {/* Totali */}
-      <div style={{ marginBottom: "24px" }}>
-        <h3
-          style={{
-            fontSize: "16px",
-            fontWeight: 600,
-            marginBottom: "12px",
-            color: "#333",
-          }}
-        >
-          Totali
-        </h3>
+      {/* Riepilogo Importi */}
+      <div
+        style={{
+          display: "flex",
+          flexWrap: "wrap",
+          gap: "12px",
+          marginBottom: "20px",
+          alignItems: "stretch",
+        }}
+      >
         <div
           style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(2, 1fr)",
-            gap: "12px",
+            flex: "1 1 160px",
+            padding: "14px 16px",
+            backgroundColor: "#f8f9fa",
+            borderRadius: "10px",
+            border: "1px solid #e9ecef",
           }}
         >
           <div
             style={{
-              gridColumn: "1 / -1",
-              padding: "16px",
-              backgroundColor: "#f5f5f5",
-              borderRadius: "8px",
+              fontSize: "11px",
+              color: "#888",
+              marginBottom: "4px",
+              textTransform: "uppercase" as const,
+              letterSpacing: "0.5px",
+            }}
+          >
+            Totale Ordine
+          </div>
+          <div style={{ fontSize: "20px", fontWeight: 700, color: "#333" }}>
+            {order.total}
+          </div>
+          {order.totalWithVat && parseFloat(order.totalWithVat) > 0 && (
+            <div
+              style={{
+                fontSize: "13px",
+                color: "#2e7d32",
+                fontWeight: 600,
+                marginTop: "2px",
+              }}
+            >
+              € {parseFloat(order.totalWithVat).toFixed(2)} (con IVA)
+            </div>
+          )}
+          {(!order.totalWithVat || parseFloat(order.totalWithVat) === 0) && (
+            <div
+              style={{
+                fontSize: "11px",
+                color: "#aaa",
+                marginTop: "2px",
+                fontStyle: "italic",
+              }}
+            >
+              Sincronizza articoli per IVA
+            </div>
+          )}
+        </div>
+
+        {((order.discountPercent &&
+          order.discountPercent !== "0,00 %" &&
+          order.discountPercent !== "0%") ||
+          order.lineDiscount ||
+          order.endDiscount) && (
+          <div
+            style={{
+              flex: "1 1 160px",
+              padding: "14px 16px",
+              backgroundColor: "#f8f9fa",
+              borderRadius: "10px",
+              border: "1px solid #e9ecef",
             }}
           >
             <div
-              style={{ fontSize: "14px", color: "#666", marginBottom: "4px" }}
+              style={{
+                fontSize: "11px",
+                color: "#888",
+                marginBottom: "6px",
+                textTransform: "uppercase" as const,
+                letterSpacing: "0.5px",
+              }}
             >
-              Totale Ordine
+              Sconti
             </div>
-            <div style={{ fontSize: "24px", fontWeight: 700, color: "#333" }}>
-              {order.total}
-            </div>
-            {(order as any).totalWithVat &&
-              parseFloat((order as any).totalWithVat) > 0 && (
-                <div
-                  style={{
-                    fontSize: "16px",
-                    color: "#2e7d32",
-                    fontWeight: 600,
-                    marginTop: "4px",
-                  }}
-                >
-                  € {parseFloat((order as any).totalWithVat).toFixed(2)} (con
-                  IVA)
+            <div
+              style={{
+                display: "flex",
+                flexDirection: "column" as const,
+                gap: "3px",
+              }}
+            >
+              {order.discountPercent &&
+                order.discountPercent !== "0,00 %" &&
+                order.discountPercent !== "0%" && (
+                  <div style={{ fontSize: "13px", color: "#333" }}>
+                    <span style={{ color: "#888" }}>Globale:</span>{" "}
+                    {order.discountPercent}
+                  </div>
+                )}
+              {order.lineDiscount && (
+                <div style={{ fontSize: "13px", color: "#333" }}>
+                  <span style={{ color: "#888" }}>Riga:</span>{" "}
+                  {order.lineDiscount}
                 </div>
               )}
-            {(!(order as any).totalWithVat ||
-              parseFloat((order as any).totalWithVat) === 0) && (
-              <div
-                style={{
-                  fontSize: "12px",
-                  color: "#999",
-                  marginTop: "4px",
-                  fontStyle: "italic",
-                }}
-              >
-                Sincronizza articoli per vedere totale con IVA
-              </div>
-            )}
-          </div>
-          {order.discountPercent &&
-            order.discountPercent !== "0,00 %" &&
-            order.discountPercent !== "0%" && (
-              <InfoField
-                label="Sconto Globale Ordine"
-                value={order.discountPercent}
-              />
-            )}
-          {order.lineDiscount && (
-            <InfoField label="Sconto Riga Fattura" value={order.lineDiscount} />
-          )}
-          {order.endDiscount && (
-            <InfoField
-              label="Sconto Finale Fattura"
-              value={order.endDiscount}
-            />
-          )}
-        </div>
-      </div>
-
-      {/* Trasferimenti */}
-      <div style={{ marginBottom: "24px" }}>
-        <h3
-          style={{
-            fontSize: "16px",
-            fontWeight: 600,
-            marginBottom: "12px",
-            color: "#333",
-          }}
-        >
-          Trasferimenti
-        </h3>
-        <div
-          style={{
-            padding: "12px",
-            backgroundColor: order.transferredToAccountingOffice
-              ? "#e8f5e9"
-              : "#ffebee",
-            borderRadius: "8px",
-            border: `1px solid ${order.transferredToAccountingOffice ? "#a5d6a7" : "#ffcdd2"}`,
-          }}
-        >
-          <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-            <span style={{ fontSize: "20px" }}>
-              {order.transferredToAccountingOffice ? "✓" : "✗"}
-            </span>
-            <div>
-              <div style={{ fontSize: "14px", fontWeight: 600, color: "#333" }}>
-                Trasferito a Contabilità
-              </div>
-              <div style={{ fontSize: "12px", color: "#666" }}>
-                {order.transferredToAccountingOffice ? "Sì" : "No"}
-              </div>
+              {order.endDiscount && (
+                <div style={{ fontSize: "13px", color: "#333" }}>
+                  <span style={{ color: "#888" }}>Finale:</span>{" "}
+                  {order.endDiscount}
+                </div>
+              )}
             </div>
           </div>
+        )}
+
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: "6px",
+            padding: "8px 14px",
+            backgroundColor: order.transferredToAccountingOffice
+              ? "#e8f5e9"
+              : "#fff3e0",
+            borderRadius: "10px",
+            border: `1px solid ${order.transferredToAccountingOffice ? "#a5d6a7" : "#ffe0b2"}`,
+            alignSelf: "center",
+          }}
+        >
+          <span style={{ fontSize: "14px" }}>
+            {order.transferredToAccountingOffice ? "✓" : "⏳"}
+          </span>
+          <span
+            style={{
+              fontSize: "12px",
+              fontWeight: 600,
+              color: order.transferredToAccountingOffice
+                ? "#2e7d32"
+                : "#e65100",
+            }}
+          >
+            {order.transferredToAccountingOffice
+              ? "Contabilità"
+              : "Non trasferito"}
+          </span>
         </div>
       </div>
 
       {/* Fattura */}
-      <div style={{ marginBottom: "24px" }}>
-        <h3
+      {order.invoiceNumber ? (
+        <div
           style={{
-            fontSize: "16px",
-            fontWeight: 600,
-            marginBottom: "12px",
-            color: "#333",
+            border: "1px solid #e0e0e0",
+            borderRadius: "12px",
+            overflow: "hidden",
+            marginBottom: "16px",
           }}
         >
-          Fattura
-        </h3>
-
-        {/* Dettagli Fattura */}
-        {order.invoiceNumber && (
           <div
             style={{
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              padding: "14px 16px",
+              backgroundColor: "#f8f9fa",
+              borderBottom: "1px solid #e0e0e0",
+            }}
+          >
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "12px",
+                flexWrap: "wrap" as const,
+              }}
+            >
+              <span
+                style={{
+                  fontSize: "16px",
+                  fontWeight: 700,
+                  color: "#1565c0",
+                }}
+              >
+                {order.invoiceNumber}
+              </span>
+              <span style={{ fontSize: "13px", color: "#666" }}>
+                {formatDate(order.invoiceDate)}
+              </span>
+            </div>
+            <span
+              style={{
+                padding: "4px 12px",
+                borderRadius: "12px",
+                fontSize: "12px",
+                fontWeight: 600,
+                backgroundColor: order.invoiceClosed ? "#e8f5e9" : "#fff3e0",
+                color: order.invoiceClosed ? "#2e7d32" : "#e65100",
+                whiteSpace: "nowrap" as const,
+              }}
+            >
+              {order.invoiceClosed ? "Chiusa" : "Aperta"}
+            </span>
+          </div>
+
+          <div
+            style={{
+              padding: "16px",
               display: "grid",
-              gridTemplateColumns: "repeat(2, 1fr)",
-              gap: "12px",
-              marginBottom: "16px",
+              gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))",
+              gap: "14px",
             }}
           >
             <InfoField
-              label="Numero Fattura"
-              value={order.invoiceNumber}
-              bold
-            />
-            <InfoField
-              label="Data Fattura"
-              value={formatDate(order.invoiceDate)}
-            />
-            <InfoField
-              label="Importo Fattura"
+              label="Importo"
               value={
                 order.invoiceAmount ? `€${order.invoiceAmount}` : undefined
               }
+              bold
             />
             <InfoField
               label="Conto Cliente"
@@ -1681,80 +1741,98 @@ function TabFinanziario({ order, token }: { order: Order; token?: string }) {
               }
             />
             <InfoField
-              label="Scadenza"
-              value={formatDate(order.invoiceDueDate)}
-            />
-            <InfoField
               label="Ordine Acquisto"
               value={order.invoicePurchaseOrder}
             />
-            <InfoField
-              label="Stato"
-              value={order.invoiceClosed ? "Chiusa" : "Aperta"}
-            />
           </div>
-        )}
 
-        {/* Stato Pagamento */}
-        {order.invoiceNumber &&
-          (order.invoiceDaysPastDue ||
-            order.invoiceSettledAmount ||
+          {order.invoiceDueDate && (
+            <div
+              style={{
+                padding: "10px 16px",
+                backgroundColor: (() => {
+                  const days = order.invoiceDaysPastDue
+                    ? parseInt(order.invoiceDaysPastDue)
+                    : null;
+                  return days !== null && days <= 0 ? "#ffebee" : "#e8f5e9";
+                })(),
+                borderTop: "1px solid #e0e0e0",
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                flexWrap: "wrap" as const,
+                gap: "8px",
+              }}
+            >
+              <div style={{ fontSize: "13px", color: "#555" }}>
+                <span style={{ fontWeight: 600 }}>Scadenza:</span>{" "}
+                {formatDate(order.invoiceDueDate)}
+              </div>
+              {order.invoiceDaysPastDue && (
+                <div
+                  style={{
+                    fontSize: "13px",
+                    fontWeight: 600,
+                    color:
+                      parseInt(order.invoiceDaysPastDue) <= 0
+                        ? "#c62828"
+                        : "#2e7d32",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "6px",
+                  }}
+                >
+                  <span
+                    style={{
+                      width: "8px",
+                      height: "8px",
+                      borderRadius: "50%",
+                      backgroundColor:
+                        parseInt(order.invoiceDaysPastDue) <= 0
+                          ? "#c62828"
+                          : "#2e7d32",
+                      display: "inline-block",
+                    }}
+                  />
+                  {parseInt(order.invoiceDaysPastDue) <= 0
+                    ? `Scaduta da ${Math.abs(parseInt(order.invoiceDaysPastDue))} giorni`
+                    : `${order.invoiceDaysPastDue} giorni rimanenti`}
+                </div>
+              )}
+            </div>
+          )}
+
+          {(order.invoiceSettledAmount ||
             order.invoiceLastPaymentId ||
             order.invoiceLastSettlementDate ||
-            order.invoiceClosedDate) && (
-            <div style={{ marginTop: "16px", marginBottom: "16px" }}>
-              <h4
+            (order.invoiceClosedDate &&
+              order.invoiceClosedDate.toLowerCase() !== "no")) && (
+            <div
+              style={{
+                padding: "14px 16px",
+                borderTop: "1px solid #e0e0e0",
+                backgroundColor: "#fafafa",
+              }}
+            >
+              <div
                 style={{
-                  fontSize: "14px",
+                  fontSize: "11px",
+                  color: "#888",
+                  marginBottom: "10px",
+                  textTransform: "uppercase" as const,
+                  letterSpacing: "0.5px",
                   fontWeight: 600,
-                  marginBottom: "8px",
-                  color: "#555",
                 }}
               >
-                Stato Pagamento
-              </h4>
+                Pagamenti
+              </div>
               <div
                 style={{
                   display: "grid",
-                  gridTemplateColumns: "repeat(2, 1fr)",
+                  gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))",
                   gap: "12px",
                 }}
               >
-                {order.invoiceDaysPastDue && (
-                  <div
-                    style={{
-                      padding: "8px 12px",
-                      backgroundColor:
-                        parseInt(order.invoiceDaysPastDue) > 0
-                          ? "#ffebee"
-                          : "#f5f5f5",
-                      borderRadius: "6px",
-                      border: `1px solid ${parseInt(order.invoiceDaysPastDue) > 0 ? "#ffcdd2" : "#e0e0e0"}`,
-                    }}
-                  >
-                    <div
-                      style={{
-                        fontSize: "11px",
-                        color: "#888",
-                        marginBottom: "2px",
-                      }}
-                    >
-                      Giorni oltre scadenza
-                    </div>
-                    <div
-                      style={{
-                        fontSize: "14px",
-                        fontWeight: 600,
-                        color:
-                          parseInt(order.invoiceDaysPastDue) > 0
-                            ? "#c62828"
-                            : "#333",
-                      }}
-                    >
-                      {order.invoiceDaysPastDue}
-                    </div>
-                  </div>
-                )}
                 {order.invoiceSettledAmount && (
                   <InfoField
                     label="Importo liquidato"
@@ -1783,82 +1861,96 @@ function TabFinanziario({ order, token }: { order: Order; token?: string }) {
               </div>
             </div>
           )}
-
-        <button
-          onClick={handleDownloadInvoice}
-          disabled={invoiceProgress.active || !order.invoiceNumber}
+        </div>
+      ) : (
+        <div
           style={{
-            width: "100%",
-            padding: "12px",
-            backgroundColor:
-              invoiceProgress.active || !order.invoiceNumber
-                ? "#ccc"
-                : "#4caf50",
-            color: "#fff",
-            border: "none",
-            borderRadius: "8px",
+            padding: "20px",
+            textAlign: "center" as const,
+            color: "#999",
             fontSize: "14px",
-            fontWeight: 600,
-            cursor:
-              invoiceProgress.active || !order.invoiceNumber
-                ? "not-allowed"
-                : "pointer",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            gap: "8px",
-            transition: "background-color 0.2s",
-          }}
-          onMouseEnter={(e) => {
-            if (!invoiceProgress.active && order.invoiceNumber) {
-              e.currentTarget.style.backgroundColor = "#388e3c";
-            }
-          }}
-          onMouseLeave={(e) => {
-            if (!invoiceProgress.active && order.invoiceNumber) {
-              e.currentTarget.style.backgroundColor = "#4caf50";
-            }
+            backgroundColor: "#f5f5f5",
+            borderRadius: "12px",
+            marginBottom: "16px",
+            border: "1px solid #e9ecef",
           }}
         >
-          {invoiceProgress.active ? (
-            <>
-              <span>⏳</span>
-              <span>{invoiceProgress.stage || "Download in corso..."}</span>
-            </>
-          ) : !order.invoiceNumber ? (
-            <>
-              <span>📄</span>
-              <span>Nessuna fattura disponibile</span>
-            </>
-          ) : (
-            <>
-              <span>📄</span>
-              <span>Scarica Fattura {order.invoiceNumber}</span>
-            </>
-          )}
-        </button>
-        {invoiceProgress.active && (
-          <ProgressBar
-            percent={invoiceProgress.percent}
-            stage={invoiceProgress.stage}
-            color="#4caf50"
-          />
+          Nessuna fattura disponibile
+        </div>
+      )}
+
+      <button
+        onClick={handleDownloadInvoice}
+        disabled={invoiceProgress.active || !order.invoiceNumber}
+        style={{
+          width: "100%",
+          padding: "12px",
+          backgroundColor:
+            invoiceProgress.active || !order.invoiceNumber ? "#ccc" : "#4caf50",
+          color: "#fff",
+          border: "none",
+          borderRadius: "8px",
+          fontSize: "14px",
+          fontWeight: 600,
+          cursor:
+            invoiceProgress.active || !order.invoiceNumber
+              ? "not-allowed"
+              : "pointer",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          gap: "8px",
+          transition: "background-color 0.2s",
+        }}
+        onMouseEnter={(e) => {
+          if (!invoiceProgress.active && order.invoiceNumber) {
+            e.currentTarget.style.backgroundColor = "#388e3c";
+          }
+        }}
+        onMouseLeave={(e) => {
+          if (!invoiceProgress.active && order.invoiceNumber) {
+            e.currentTarget.style.backgroundColor = "#4caf50";
+          }
+        }}
+      >
+        {invoiceProgress.active ? (
+          <>
+            <span>⏳</span>
+            <span>{invoiceProgress.stage || "Download in corso..."}</span>
+          </>
+        ) : !order.invoiceNumber ? (
+          <>
+            <span>📄</span>
+            <span>Nessuna fattura disponibile</span>
+          </>
+        ) : (
+          <>
+            <span>📄</span>
+            <span>Scarica Fattura {order.invoiceNumber}</span>
+          </>
         )}
-        {invoiceError && (
-          <div
-            style={{
-              marginTop: "8px",
-              padding: "8px",
-              backgroundColor: "#ffebee",
-              borderRadius: "4px",
-              fontSize: "12px",
-              color: "#c62828",
-            }}
-          >
-            {invoiceError}
-          </div>
-        )}
-      </div>
+      </button>
+      {invoiceProgress.active && (
+        <ProgressBar
+          percent={invoiceProgress.percent}
+          stage={invoiceProgress.stage}
+          color="#4caf50"
+        />
+      )}
+      {invoiceError && (
+        <div
+          style={{
+            marginTop: "8px",
+            padding: "8px",
+            backgroundColor: "#ffebee",
+            borderRadius: "4px",
+            fontSize: "12px",
+            color: "#c62828",
+          }}
+        >
+          {invoiceError}
+        </div>
+      )}
     </div>
   );
 }
