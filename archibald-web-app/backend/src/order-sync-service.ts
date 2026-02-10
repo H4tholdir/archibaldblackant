@@ -10,6 +10,7 @@ import {
 import { OrderDatabaseNew } from "./order-db-new";
 import * as fs from "fs/promises";
 import { SyncStopError, isSyncStopError } from "./sync-stop";
+import { PendingRealtimeService } from "./pending-realtime.service";
 
 export interface OrderSyncProgress {
   status: "idle" | "downloading" | "parsing" | "saving" | "completed" | "error";
@@ -227,11 +228,13 @@ export class OrderSyncService extends EventEmitter {
         ordersInserted: number;
         ordersUpdated: number;
         ordersSkipped: number;
+        orderNumberChanges: Array<{ orderId: string; orderNumber: string }>;
       };
       try {
         saveResults = await this.saveOrders(userId, parsedOrders);
         logger.info("[OrderSyncService] Database save completed successfully", {
           ...saveResults,
+          orderNumberChanges: saveResults.orderNumberChanges.length,
           duration: Date.now() - startTime,
         });
         this.throwIfStopRequested("saving");
@@ -244,6 +247,28 @@ export class OrderSyncService extends EventEmitter {
           duration: Date.now() - startTime,
         });
         throw saveError;
+      }
+
+      // Broadcast order_number changes via WebSocket so frontends can update warehouse items
+      if (saveResults.orderNumberChanges.length > 0) {
+        try {
+          const pendingService = PendingRealtimeService.getInstance();
+          pendingService.emitOrderNumbersResolved(
+            userId,
+            saveResults.orderNumberChanges,
+          );
+          logger.info("[OrderSyncService] Broadcasted order number changes", {
+            count: saveResults.orderNumberChanges.length,
+          });
+        } catch (wsError) {
+          logger.warn(
+            "[OrderSyncService] Failed to broadcast order number changes",
+            {
+              error:
+                wsError instanceof Error ? wsError.message : String(wsError),
+            },
+          );
+        }
       }
 
       // Step 4: Cleanup PDF
@@ -398,6 +423,7 @@ export class OrderSyncService extends EventEmitter {
     ordersUpdated: number;
     ordersSkipped: number;
     ordersDeleted: number;
+    orderNumberChanges: Array<{ orderId: string; orderNumber: string }>;
   }> {
     logger.info("[OrderSyncService] saveOrders: starting", {
       userId,
@@ -407,6 +433,8 @@ export class OrderSyncService extends EventEmitter {
     let inserted = 0;
     let updated = 0;
     let skipped = 0;
+    const orderNumberChanges: Array<{ orderId: string; orderNumber: string }> =
+      [];
 
     // Step 1: Upsert all orders from PDF
     for (let i = 0; i < parsedOrders.length; i++) {
@@ -444,9 +472,16 @@ export class OrderSyncService extends EventEmitter {
 
         const result = this.orderDb.upsertOrder(userId, orderData);
 
-        if (result === "inserted") inserted++;
-        else if (result === "updated") updated++;
-        else if (result === "skipped") skipped++;
+        if (result.action === "inserted") inserted++;
+        else if (result.action === "updated") updated++;
+        else if (result.action === "skipped") skipped++;
+
+        if (result.orderNumberChanged) {
+          orderNumberChanges.push({
+            orderId: parsedOrder.id,
+            orderNumber: orderData.orderNumber,
+          });
+        }
 
         // Log progress every 100 orders
         if ((i + 1) % 100 === 0) {
@@ -500,6 +535,7 @@ export class OrderSyncService extends EventEmitter {
       ordersUpdated: updated,
       ordersSkipped: skipped,
       ordersDeleted: deleted,
+      orderNumberChanges,
     };
 
     logger.info("[OrderSyncService] saveOrders: completed", results);

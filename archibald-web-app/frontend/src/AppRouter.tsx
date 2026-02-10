@@ -17,7 +17,6 @@ import { OfflineSyncBanner } from "./components/OfflineSyncBanner";
 import { ToastContainer } from "./components/Toast";
 import { AdminPage } from "./pages/AdminPage";
 import { OrderHistory } from "./pages/OrderHistory";
-import { PendingOrdersView } from "./pages/PendingOrdersView";
 import { PendingOrdersPage } from "./pages/PendingOrdersPage";
 import { CustomerList } from "./pages/CustomerList";
 
@@ -282,28 +281,6 @@ function AppRouter() {
                 }
               />
             )}
-
-            {/* Pending Orders route */}
-            <Route
-              path="/pending"
-              element={
-                <div
-                  className="app"
-                  style={{ marginTop: isOffline ? "64px" : "0" }}
-                >
-                  <SyncBanner />
-                  <main className="app-main" style={{ padding: "0" }}>
-                    <PendingOrdersView />
-                  </main>
-                  <footer className="app-footer">
-                    <p>
-                      v1.0.0 • Formicanera by Francesco Formicola
-                      {/* TODO: Add live sync progress bar here */}
-                    </p>
-                  </footer>
-                </div>
-              }
-            />
 
             {/* Order History route */}
             <Route

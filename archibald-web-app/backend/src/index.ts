@@ -11,7 +11,6 @@ import { ArchibaldBot } from "./archibald-bot";
 import { PasswordCache } from "./password-cache";
 import { passwordEncryption } from "./services/password-encryption-service";
 import {
-  createOrderSchema,
   createUserSchema,
   updateWhitelistSchema,
   loginSchema,
@@ -4780,114 +4779,6 @@ app.post(
   },
 );
 
-// Create order endpoint (con queue system) - Protected with JWT authentication
-app.post(
-  "/api/orders/create",
-  authenticateJWT,
-  async (req: AuthRequest, res: Response<ApiResponse<{ jobId: string }>>) => {
-    // Track this operation for graceful shutdown
-    return operationTracker.track(async () => {
-      try {
-        // Extract user info from JWT
-        const userId = req.user!.userId;
-        const username = req.user!.username;
-
-        // Valida input
-        const orderData = createOrderSchema.parse(req.body) as OrderData;
-
-        logger.info("📥 API: Ricevuta richiesta creazione ordine", {
-          userId,
-          username,
-          customerName: orderData.customerName,
-          itemsCount: orderData.items.length,
-          items: orderData.items.map((item) => ({
-            name: item.productName || item.articleCode,
-            qty: item.quantity,
-          })),
-        });
-
-        // Validate package constraints for each item
-        const validationErrors: string[] = [];
-        for (const item of orderData.items) {
-          try {
-            const products = productDb.getProducts(item.articleCode);
-            const product = products.length > 0 ? products[0] : null;
-
-            if (product) {
-              const validation = productDb.validateQuantity(
-                product,
-                item.quantity,
-              );
-
-              if (!validation.valid) {
-                const errorMsg =
-                  `Quantity ${item.quantity} is invalid for article ${item.articleCode}` +
-                  (product.name ? ` (${product.name})` : "") +
-                  `: ${validation.errors.join(", ")}` +
-                  (validation.suggestions?.length
-                    ? ` Suggested quantities: ${validation.suggestions.join(", ")}`
-                    : "");
-                validationErrors.push(errorMsg);
-              }
-            }
-          } catch (error) {
-            logger.warn("Could not validate product constraints", {
-              articleCode: item.articleCode,
-              error,
-            });
-            // Continue even if product not found in DB - let bot handle it
-          }
-        }
-
-        // If validation errors exist, reject the order
-        if (validationErrors.length > 0) {
-          logger.warn("❌ API: Order rejected due to validation errors", {
-            errors: validationErrors,
-          });
-
-          res.status(400).json({
-            success: false,
-            error: validationErrors.join("; "),
-          });
-          return;
-        }
-
-        // Aggiungi alla coda con userId
-        const pendingOrderId = crypto.randomUUID();
-        const job = await queueManager.addOrder(
-          orderData,
-          userId,
-          pendingOrderId,
-        );
-
-        logger.info("✅ API: Ordine aggiunto alla coda con successo", {
-          jobId: job.id,
-          userId,
-          username,
-          itemsCount: orderData.items.length,
-        });
-
-        res.json({
-          success: true,
-          data: { jobId: job.id! },
-          message:
-            "Ordine aggiunto alla coda. Usa /api/orders/status/:jobId per verificare lo stato",
-        });
-      } catch (error) {
-        logger.error("Errore API /api/orders/create", { error });
-
-        const errorMessage =
-          error instanceof Error ? error.message : "Errore sconosciuto";
-
-        res.status(500).json({
-          success: false,
-          error: errorMessage,
-        });
-      }
-    });
-  },
-);
-
 // Get order status endpoint
 app.get(
   "/api/orders/status/:jobId",
@@ -5361,6 +5252,39 @@ app.get(
         success: false,
         error: "Failed to fetch order detail",
       });
+    }
+  },
+);
+
+// Resolve order numbers by Archibald IDs
+// Used by frontend to update warehouse items' orderNumber after order sync
+app.get(
+  "/api/orders/resolve-numbers",
+  authenticateJWT,
+  async (req: AuthRequest, res: Response<ApiResponse>) => {
+    const userId = req.user!.userId;
+    const idsParam = req.query.ids;
+
+    if (!idsParam || typeof idsParam !== "string") {
+      return res
+        .status(400)
+        .json({ success: false, error: "Query param 'ids' required" });
+    }
+
+    const ids = idsParam.split(",").filter(Boolean);
+    if (ids.length === 0 || ids.length > 100) {
+      return res.status(400).json({
+        success: false,
+        error: "Provide 1-100 comma-separated order IDs",
+      });
+    }
+
+    try {
+      const mappings = orderDb.getOrderNumbersByIds(userId, ids);
+      res.json({ success: true, data: mappings });
+    } catch (error) {
+      logger.error("Error resolving order numbers", { error });
+      res.status(500).json({ success: false, error: "Errore server" });
     }
   },
 );
@@ -6295,9 +6219,7 @@ app.get(
     if (!token) {
       return res.status(401).json({ success: false, error: "Token required" });
     }
-    const payload = await (
-      await import("./auth-utils")
-    ).verifyJWT(token);
+    const payload = await (await import("./auth-utils")).verifyJWT(token);
     if (!payload) {
       return res
         .status(401)
@@ -6876,7 +6798,9 @@ server.listen(config.server.port, async () => {
       runMigration029,
     } = require("./migrations/029-add-subclient-to-pending-orders");
     runMigration029();
-    logger.info("✅ Migration 029 completed (add sub-client fields to pending_orders)");
+    logger.info(
+      "✅ Migration 029 completed (add sub-client fields to pending_orders)",
+    );
   } catch (error) {
     logger.warn("⚠️  Migration 029 failed or already applied", { error });
   }

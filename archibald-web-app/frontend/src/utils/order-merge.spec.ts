@@ -217,4 +217,47 @@ describe("mergeFresisPendingOrders", () => {
 
     expect(result.items[0].price).toBe(15);
   });
+
+  test("aggregates warehouseSources across orders with same article", () => {
+    const source1 = { warehouseItemId: 1, boxName: "BOX1", quantity: 2 };
+    const source2 = { warehouseItemId: 2, boxName: "BOX2", quantity: 3 };
+
+    const order1 = makeOrder({
+      items: [
+        makeItem({
+          articleCode: "A1",
+          quantity: 5,
+          warehouseQuantity: 2,
+          warehouseSources: [source1],
+        }),
+      ],
+    });
+    const order2 = makeOrder({
+      items: [
+        makeItem({
+          articleCode: "A1",
+          quantity: 3,
+          warehouseQuantity: 3,
+          warehouseSources: [source2],
+        }),
+      ],
+    });
+
+    const result = mergeFresisPendingOrders([order1, order2], emptyMap);
+
+    expect(result.items[0].warehouseSources).toEqual([source1, source2]);
+  });
+
+  test("warehouseSources is undefined when no orders have sources", () => {
+    const order1 = makeOrder({
+      items: [makeItem({ articleCode: "A1", quantity: 5 })],
+    });
+    const order2 = makeOrder({
+      items: [makeItem({ articleCode: "A1", quantity: 3 })],
+    });
+
+    const result = mergeFresisPendingOrders([order1, order2], emptyMap);
+
+    expect(result.items[0].warehouseSources).toBeUndefined();
+  });
 });

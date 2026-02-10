@@ -10,6 +10,10 @@
 import { db } from "../db/schema";
 import type { PendingOrder, PendingOrderItem } from "../db/schema";
 import { getDeviceId } from "../utils/device-id";
+import {
+  markWarehouseItemsAsSold,
+  updateWarehouseOrderNumbers,
+} from "./warehouse-order-integration";
 
 /**
  * Pending order event payloads from backend
@@ -92,6 +96,11 @@ interface JobFailedPayload {
   pendingOrderId: string;
   error: string;
   failedAt: string;
+  timestamp: string;
+}
+
+interface OrderNumbersResolvedPayload {
+  mappings: Array<{ orderId: string; orderNumber: string }>;
   timestamp: string;
 }
 
@@ -187,18 +196,29 @@ export class PendingRealtimeService {
       // Convert backend items to frontend PendingOrderItem format
       // Items from sync push already have the full PendingOrderItem shape;
       // items from bot events use different field names (article/variantId).
-      const items = data.pendingOrder.items.map((item: Record<string, unknown>) => ({
-        articleCode: (item.articleCode as string) || (item.article as string) || "",
-        articleId: (item.articleId as string) || (item.variantId as string) || undefined,
-        productName: (item.productName as string) || undefined,
-        description: (item.description as string) || (item.productName as string) || undefined,
-        quantity: (item.quantity as number) || 0,
-        price: (item.price as number) || 0,
-        vat: (item.vat as number) || 0,
-        discount: (item.discount as number) || 0,
-        warehouseQuantity: (item.warehouseQuantity as number) || undefined,
-        warehouseSources: (item.warehouseSources as PendingOrderItem["warehouseSources"]) || undefined,
-      }));
+      const items = data.pendingOrder.items.map(
+        (item: Record<string, unknown>) => ({
+          articleCode:
+            (item.articleCode as string) || (item.article as string) || "",
+          articleId:
+            (item.articleId as string) ||
+            (item.variantId as string) ||
+            undefined,
+          productName: (item.productName as string) || undefined,
+          description:
+            (item.description as string) ||
+            (item.productName as string) ||
+            undefined,
+          quantity: (item.quantity as number) || 0,
+          price: (item.price as number) || 0,
+          vat: (item.vat as number) || 0,
+          discount: (item.discount as number) || 0,
+          warehouseQuantity: (item.warehouseQuantity as number) || undefined,
+          warehouseSources:
+            (item.warehouseSources as PendingOrderItem["warehouseSources"]) ||
+            undefined,
+        }),
+      );
 
       // Insert pending order into IndexedDB
       const pendingOrder: PendingOrder = {
@@ -281,18 +301,29 @@ export class PendingRealtimeService {
       // Convert backend items to frontend PendingOrderItem format
       // Items from sync push already have the full PendingOrderItem shape;
       // items from bot events use different field names (article/variantId).
-      const items = data.pendingOrder.items.map((item: Record<string, unknown>) => ({
-        articleCode: (item.articleCode as string) || (item.article as string) || "",
-        articleId: (item.articleId as string) || (item.variantId as string) || undefined,
-        productName: (item.productName as string) || undefined,
-        description: (item.description as string) || (item.productName as string) || undefined,
-        quantity: (item.quantity as number) || 0,
-        price: (item.price as number) || 0,
-        vat: (item.vat as number) || 0,
-        discount: (item.discount as number) || 0,
-        warehouseQuantity: (item.warehouseQuantity as number) || undefined,
-        warehouseSources: (item.warehouseSources as PendingOrderItem["warehouseSources"]) || undefined,
-      }));
+      const items = data.pendingOrder.items.map(
+        (item: Record<string, unknown>) => ({
+          articleCode:
+            (item.articleCode as string) || (item.article as string) || "",
+          articleId:
+            (item.articleId as string) ||
+            (item.variantId as string) ||
+            undefined,
+          productName: (item.productName as string) || undefined,
+          description:
+            (item.description as string) ||
+            (item.productName as string) ||
+            undefined,
+          quantity: (item.quantity as number) || 0,
+          price: (item.price as number) || 0,
+          vat: (item.vat as number) || 0,
+          discount: (item.discount as number) || 0,
+          warehouseQuantity: (item.warehouseQuantity as number) || undefined,
+          warehouseSources:
+            (item.warehouseSources as PendingOrderItem["warehouseSources"]) ||
+            undefined,
+        }),
+      );
 
       // Upsert pending order with serverUpdatedAt
       const pendingOrder: PendingOrder = {
@@ -575,6 +606,19 @@ export class PendingRealtimeService {
       // Auto-dismiss after 4 seconds
       setTimeout(async () => {
         try {
+          try {
+            await markWarehouseItemsAsSold(data.pendingOrderId, data.orderId, {
+              customerName: existing.customerName,
+              subClientName: existing.subClientName,
+              orderDate: existing.createdAt,
+            });
+          } catch (warehouseError) {
+            console.error(
+              "[PendingRealtime] Error marking warehouse items as sold:",
+              warehouseError,
+            );
+          }
+
           await db.pendingOrders.delete(data.pendingOrderId);
           console.log(
             `[PendingRealtime] Auto-dismissed ${data.pendingOrderId}`,
@@ -666,11 +710,36 @@ export class PendingRealtimeService {
       subscribe("JOB_FAILED", (payload) => this.handleJobFailed(payload)),
     );
 
+    unsubscribers.push(
+      subscribe("ORDER_NUMBERS_RESOLVED", (payload) =>
+        this.handleOrderNumbersResolved(payload),
+      ),
+    );
+
     console.log(
       "[PendingRealtime] WebSocket subscriptions initialized (with job events)",
     );
 
     // Return cleanup function
     return unsubscribers;
+  }
+
+  private async handleOrderNumbersResolved(payload: unknown): Promise<void> {
+    try {
+      const data = payload as OrderNumbersResolvedPayload;
+      if (!data.mappings || data.mappings.length === 0) return;
+
+      const updated = await updateWarehouseOrderNumbers(data.mappings);
+      if (updated > 0) {
+        console.log(
+          `[PendingRealtime] ORDER_NUMBERS_RESOLVED: updated ${updated} warehouse items`,
+        );
+      }
+    } catch (error) {
+      console.error(
+        "[PendingRealtime] Error handling ORDER_NUMBERS_RESOLVED:",
+        error,
+      );
+    }
   }
 }

@@ -5,6 +5,7 @@ import {
   reserveWarehouseItems,
   releaseWarehouseReservations,
   markWarehouseItemsAsSold,
+  returnSpecificWarehouseItems,
 } from "./warehouse-order-integration";
 import { getDeviceId } from "../utils/device-id";
 import { unifiedSyncService } from "./unified-sync-service";
@@ -77,6 +78,7 @@ export class OrderService {
         deviceId,
       });
 
+      const warehouseOrderId = `warehouse-${Date.now()}`;
       const tracking = {
         customerName: order.customerName,
         subClientName: order.subClientName,
@@ -91,12 +93,14 @@ export class OrderService {
         );
 
         try {
-          await reserveWarehouseItems(id, order.items, tracking);
-          await markWarehouseItemsAsSold(
-            id,
-            `warehouse-${Date.now()}`,
-            tracking,
-          );
+          await reserveWarehouseItems(id, order.items, {
+            ...tracking,
+            orderNumber: warehouseOrderId,
+          });
+          await markWarehouseItemsAsSold(id, warehouseOrderId, {
+            ...tracking,
+            orderNumber: warehouseOrderId,
+          });
           console.log(
             "[OrderService] ✅ Warehouse items marked as sold (warehouse-only)",
             { orderId: id },
@@ -238,7 +242,11 @@ export class OrderService {
    */
   async deletePendingOrder(id: string): Promise<void> {
     try {
-      // 🔧 FIX #1: Release warehouse reservations first
+      const order = await this.db
+        .table<PendingOrder, string>("pendingOrders")
+        .get(id);
+
+      // Release warehouse reservations (for pending/syncing/error orders)
       try {
         await releaseWarehouseReservations(id);
         console.log(
@@ -250,7 +258,27 @@ export class OrderService {
           "[OrderService] Failed to release warehouse reservations",
           warehouseError,
         );
-        // Continue with deletion even if warehouse cleanup fails
+      }
+
+      // Return sold warehouse items (for completed-warehouse orders)
+      if (order && order.status === "completed-warehouse") {
+        try {
+          const warehouseItemIds = order.items
+            .flatMap((item) => item.warehouseSources || [])
+            .map((source) => source.warehouseItemId);
+          if (warehouseItemIds.length > 0) {
+            await returnSpecificWarehouseItems(warehouseItemIds);
+            console.log(
+              "[OrderService] ✅ Warehouse sold items returned for order",
+              { orderId: id, itemCount: warehouseItemIds.length },
+            );
+          }
+        } catch (warehouseError) {
+          console.error(
+            "[OrderService] Failed to return sold warehouse items",
+            warehouseError,
+          );
+        }
       }
 
       // Perform direct deletion from IndexedDB

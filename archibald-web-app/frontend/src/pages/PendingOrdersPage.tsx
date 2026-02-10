@@ -9,6 +9,7 @@ import { usePendingSync } from "../hooks/usePendingSync";
 import { JobProgressBar } from "../components/JobProgressBar";
 import { isFresis } from "../utils/fresis-constants";
 import { mergeFresisPendingOrders } from "../utils/order-merge";
+import { transferWarehouseReservations } from "../services/warehouse-order-integration";
 import { db } from "../db/schema";
 import { fresisDiscountService } from "../services/fresis-discount.service";
 import { fresisHistoryService } from "../services/fresis-history.service";
@@ -311,7 +312,11 @@ export function PendingOrdersPage() {
       // Add merged order
       await db.pendingOrders.add(mergedOrder);
 
-      // Delete original orders
+      // Transfer warehouse reservations from original orders to merged order
+      const originalIds = selectedFresisOrders.map((o) => o.id!);
+      await transferWarehouseReservations(originalIds, mergedOrder.id);
+
+      // Delete original orders (releaseWarehouseReservations will be a no-op since items were transferred)
       for (const original of selectedFresisOrders) {
         await orderService.deletePendingOrder(original.id!);
       }

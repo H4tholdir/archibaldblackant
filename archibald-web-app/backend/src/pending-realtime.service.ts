@@ -13,7 +13,8 @@ export type PendingEventType =
   | "JOB_STARTED"
   | "JOB_PROGRESS"
   | "JOB_COMPLETED"
-  | "JOB_FAILED";
+  | "JOB_FAILED"
+  | "ORDER_NUMBERS_RESOLVED";
 
 /**
  * Pending order event payloads
@@ -96,6 +97,11 @@ export interface JobFailedPayload {
   pendingOrderId: string;
   error: string;
   failedAt: string;
+  timestamp: string;
+}
+
+export interface OrderNumbersResolvedPayload {
+  mappings: Array<{ orderId: string; orderNumber: string }>;
   timestamp: string;
 }
 
@@ -367,5 +373,25 @@ export class PendingRealtimeService {
     };
     this.wsService.broadcast(userId, event);
     logger.error("[PendingRealtime] JOB_FAILED", { userId, error });
+  }
+
+  public emitOrderNumbersResolved(
+    userId: string,
+    mappings: Array<{ orderId: string; orderNumber: string }>,
+  ): void {
+    const payload: OrderNumbersResolvedPayload = {
+      mappings,
+      timestamp: new Date().toISOString(),
+    };
+    const event: WebSocketMessage = {
+      type: "ORDER_NUMBERS_RESOLVED",
+      payload,
+      timestamp: new Date().toISOString(),
+    };
+    this.wsService.broadcast(userId, event);
+    logger.info("[PendingRealtime] ORDER_NUMBERS_RESOLVED", {
+      userId,
+      count: mappings.length,
+    });
   }
 }

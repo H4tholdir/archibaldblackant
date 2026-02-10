@@ -437,7 +437,10 @@ export class OrderDatabaseNew {
   upsertOrder(
     userId: string,
     order: Omit<OrderRecord, "userId" | "lastSync">,
-  ): "inserted" | "updated" | "skipped" {
+  ): {
+    action: "inserted" | "updated" | "skipped";
+    orderNumberChanged?: { from: string; to: string };
+  } {
     const now = Math.floor(Date.now() / 1000);
     const hash = this.computeHash(order);
 
@@ -452,6 +455,11 @@ export class OrderDatabaseNew {
       .get(userId, order.id) as
       | { hash: string; order_number: string }
       | undefined;
+
+    const orderNumberChanged =
+      existing && existing.order_number !== order.orderNumber
+        ? { from: existing.order_number, to: order.orderNumber }
+        : undefined;
 
     if (!existing) {
       // Insert new order
@@ -494,7 +502,7 @@ export class OrderDatabaseNew {
           now,
           new Date().toISOString(),
         );
-      return "inserted";
+      return { action: "inserted" };
     }
 
     // Check if changed
@@ -505,7 +513,7 @@ export class OrderDatabaseNew {
           `UPDATE orders SET last_sync = ?, order_number = ? WHERE user_id = ? AND id = ?`,
         )
         .run(now, order.orderNumber, userId, order.id);
-      return "skipped";
+      return { action: "skipped", orderNumberChanged };
     }
 
     // Update changed order (including order_number in case it changed from PENDING to ORD)
@@ -547,7 +555,21 @@ export class OrderDatabaseNew {
         userId,
         order.id,
       );
-    return "updated";
+    return { action: "updated", orderNumberChanged };
+  }
+
+  getOrderNumbersByIds(
+    userId: string,
+    orderIds: string[],
+  ): Array<{ id: string; orderNumber: string }> {
+    if (orderIds.length === 0) return [];
+    const placeholders = orderIds.map(() => "?").join(", ");
+    const rows = this.db
+      .prepare(
+        `SELECT id, order_number FROM orders WHERE user_id = ? AND id IN (${placeholders})`,
+      )
+      .all(userId, ...orderIds) as Array<{ id: string; order_number: string }>;
+    return rows.map((r) => ({ id: r.id, orderNumber: r.order_number }));
   }
 
   getTotalCount(): number {

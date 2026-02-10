@@ -4,6 +4,7 @@ export type TrackingInfo = {
   customerName?: string;
   subClientName?: string;
   orderDate?: string;
+  orderNumber?: string;
 };
 
 /**
@@ -85,7 +86,7 @@ export async function reserveWarehouseItems(
       customerName: tracking?.customerName,
       subClientName: tracking?.subClientName,
       orderDate: tracking?.orderDate || new Date().toISOString(),
-      orderNumber: orderId,
+      orderNumber: tracking?.orderNumber || orderId,
     });
 
     console.log("[Warehouse] Reserved", {
@@ -164,7 +165,7 @@ export async function markWarehouseItemsAsSold(
         customerName: tracking.customerName,
         subClientName: tracking.subClientName,
         orderDate: tracking.orderDate || new Date().toISOString(),
-        orderNumber: pendingOrderId,
+        orderNumber: tracking.orderNumber || archibaldOrderId,
       }),
     });
   }
@@ -172,6 +173,42 @@ export async function markWarehouseItemsAsSold(
   console.log("[Warehouse] ✅ Marked as sold", {
     archibaldOrderId,
     itemsSold: reservedItems.length,
+  });
+}
+
+/**
+ * Transfer warehouse reservations from multiple source orders to a destination order.
+ * Used when merging Fresis orders: moves reservations from original orders to merged order.
+ * After transfer, releasing reservations on original orders becomes a no-op.
+ */
+export async function transferWarehouseReservations(
+  fromOrderIds: string[],
+  toOrderId: string,
+): Promise<void> {
+  console.log("[Warehouse] Transferring reservations", {
+    fromOrderIds,
+    toOrderId,
+  });
+
+  let transferred = 0;
+
+  for (const fromId of fromOrderIds) {
+    const reservedItems = await db.warehouseItems
+      .filter((item) => item.reservedForOrder === `pending-${fromId}`)
+      .toArray();
+
+    for (const item of reservedItems) {
+      await db.warehouseItems.update(item.id!, {
+        reservedForOrder: `pending-${toOrderId}`,
+      });
+      transferred++;
+    }
+  }
+
+  console.log("[Warehouse] ✅ Transfer complete", {
+    fromOrderIds,
+    toOrderId,
+    itemsTransferred: transferred,
   });
 }
 
@@ -253,26 +290,6 @@ export async function returnSpecificWarehouseItems(
 }
 
 /**
- * Return warehouse items when modifying a pending order
- * Releases reservations and allows re-selection
- *
- * Call this when:
- * - User is editing a pending order (before submission)
- */
-export async function modifyPendingOrderWarehouse(
-  pendingOrderId: string,
-): Promise<void> {
-  console.log("[Warehouse] Modifying pending order warehouse items", {
-    pendingOrderId,
-  });
-
-  // Simply release the reservations - user will re-select items
-  await releaseWarehouseReservations(pendingOrderId);
-
-  console.log("[Warehouse] ✅ Released for modification", { pendingOrderId });
-}
-
-/**
  * Handle return/modification of items from a sent order
  * This is for orders that were already submitted to Archibald
  *
@@ -299,6 +316,91 @@ export async function handleOrderReturn(
   });
 
   return returnedItems;
+}
+
+/**
+ * Update orderNumber on warehouse items using resolved mappings.
+ * Called when backend resolves Archibald internal IDs (e.g. "72.768")
+ * to human-readable order numbers (e.g. "ORD/26002424").
+ */
+export async function updateWarehouseOrderNumbers(
+  mappings: Array<{ orderId: string; orderNumber: string }>,
+): Promise<number> {
+  let updated = 0;
+
+  for (const { orderId, orderNumber } of mappings) {
+    const items = await db.warehouseItems
+      .filter(
+        (item) =>
+          item.soldInOrder === orderId && item.orderNumber !== orderNumber,
+      )
+      .toArray();
+
+    for (const item of items) {
+      await db.warehouseItems.update(item.id!, { orderNumber });
+      updated++;
+    }
+  }
+
+  if (updated > 0) {
+    console.log("[Warehouse] Updated orderNumber on warehouse items", {
+      updated,
+      mappings: mappings.length,
+    });
+  }
+
+  return updated;
+}
+
+/**
+ * Resolve unresolved orderNumbers by calling backend API.
+ * Finds warehouse items where orderNumber doesn't start with "ORD/"
+ * and fetches the correct mapping from the backend.
+ */
+export async function resolveWarehouseOrderNumbers(): Promise<number> {
+  const soldItems = await db.warehouseItems
+    .filter(
+      (item) =>
+        !!item.soldInOrder &&
+        !!item.orderNumber &&
+        !item.orderNumber.startsWith("ORD/") &&
+        !item.orderNumber.startsWith("warehouse-"),
+    )
+    .toArray();
+
+  if (soldItems.length === 0) return 0;
+
+  const uniqueOrderIds = [
+    ...new Set(soldItems.map((item) => item.soldInOrder!)),
+  ];
+
+  const token = localStorage.getItem("archibald_jwt");
+  if (!token) return 0;
+
+  try {
+    const response = await fetch(
+      `/api/orders/resolve-numbers?ids=${encodeURIComponent(uniqueOrderIds.join(","))}`,
+      { headers: { Authorization: `Bearer ${token}` } },
+    );
+
+    if (!response.ok) return 0;
+
+    const { success, data } = await response.json();
+    if (!success || !data) return 0;
+
+    const resolved = (
+      data as Array<{ id: string; orderNumber: string }>
+    ).filter((m) => m.orderNumber.startsWith("ORD/"));
+
+    if (resolved.length === 0) return 0;
+
+    return updateWarehouseOrderNumbers(
+      resolved.map((m) => ({ orderId: m.id, orderNumber: m.orderNumber })),
+    );
+  } catch (error) {
+    console.error("[Warehouse] Failed to resolve order numbers:", error);
+    return 0;
+  }
 }
 
 /**

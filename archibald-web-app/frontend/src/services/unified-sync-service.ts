@@ -1,6 +1,7 @@
 import { db } from "../db/schema";
 import { fetchWithRetry } from "../utils/fetch-with-retry";
 import { fresisHistoryService } from "./fresis-history.service";
+import { resolveWarehouseOrderNumbers } from "./warehouse-order-integration";
 
 /**
  * UnifiedSyncService
@@ -128,10 +129,7 @@ export class UnifiedSyncService {
     this.isSyncing = true;
 
     try {
-      // Push pending orders
-      await this.pushPendingOrders();
-
-      // 5. Warehouse sync
+      // Warehouse sync
       await this.syncWarehouse();
 
       // Fresis history full sync (non-blocking)
@@ -163,177 +161,6 @@ export class UnifiedSyncService {
       console.log("[UnifiedSync] Pull all completed (warehouse only)");
     } catch (error) {
       console.error("[UnifiedSync] Pull all failed:", error);
-      throw error;
-    }
-  }
-
-  // ========== PENDING ORDERS ==========
-  // Phase 32: Pending orders sync handled by WebSocket real-time (removed from HTTP polling)
-  // Methods kept for reference until Phase 33 (tombstone removal)
-
-  // DEPRECATED: Pending orders sync now handled by PendingRealtimeService (Phase 32)
-  // @ts-expect-error - Method intentionally unused (Phase 32: WebSocket real-time sync)
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  private async syncPendingOrders(): Promise<void> {
-    // 🔧 FIX: Push BEFORE pull to avoid overwriting local changes
-    await this.pushPendingOrders();
-    await this.pullPendingOrders();
-  }
-
-  // DEPRECATED: Pending orders sync now handled by PendingRealtimeService (Phase 32)
-  // Kept for reference only
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  private async pullPendingOrders(): Promise<void> {
-    const token = localStorage.getItem("archibald_jwt");
-    if (!token) return;
-
-    try {
-      const response = await fetchWithRetry("/api/sync/pending-orders", {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-
-      if (!response.ok) {
-        throw new Error(`Pull pending orders failed: ${response.status}`);
-      }
-
-      const { success, orders } = await response.json();
-
-      if (!success) {
-        throw new Error("Pull pending orders unsuccessful");
-      }
-
-      // Merge with local (LWW)
-      for (const serverOrder of orders) {
-        const localOrder = await db.pendingOrders.get(serverOrder.id);
-
-        // 🔧 FIX: Protect local orders with pending changes
-        // If local has needsSync=true, don't overwrite (changes not yet pushed)
-        if (localOrder && localOrder.needsSync) {
-          console.log(
-            `[UnifiedSync] Skipping pull for pending order ${serverOrder.id} - local has pending changes`,
-          );
-          continue;
-        }
-
-        // Apply Last-Write-Wins for non-pending orders
-        if (
-          !localOrder ||
-          serverOrder.updatedAt > (localOrder.updatedAt || 0)
-        ) {
-          // Server is newer → update local
-          await db.pendingOrders.put({
-            id: serverOrder.id,
-            customerId: serverOrder.customerId,
-            customerName: serverOrder.customerName,
-            items: serverOrder.items,
-            discountPercent: serverOrder.discountPercent,
-            targetTotalWithVAT: serverOrder.targetTotalWithVAT,
-            createdAt: new Date(serverOrder.createdAt).toISOString(),
-            updatedAt: new Date(serverOrder.updatedAt).toISOString(),
-            status: serverOrder.status,
-            errorMessage: serverOrder.errorMessage,
-            retryCount: serverOrder.retryCount || 0,
-            deviceId: serverOrder.deviceId,
-            needsSync: false,
-            serverUpdatedAt: serverOrder.updatedAt,
-          });
-        }
-      }
-
-      // 🔧 DISABLED: Don't auto-delete pending orders that don't exist on server
-      // Pending orders should ONLY be deleted when:
-      // 1. User explicitly deletes them
-      // 2. They are sent to Archibald via bot
-      // The server may not return orders that have been processed, but they should
-      // remain in local storage until explicitly removed by user action
-
-      // NOTE: This means pending orders are LOCAL-FIRST and not auto-synced for deletion
-      // If multi-device deletion sync is needed, implement explicit "sentToArchibald" flag
-    } catch (error) {
-      console.error("[UnifiedSync] Pull pending orders failed:", error);
-      throw error;
-    }
-  }
-
-  // DEPRECATED: Pending orders sync now handled by PendingRealtimeService (Phase 32)
-  // Kept for reference only
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  private async pushPendingOrders(): Promise<void> {
-    const token = localStorage.getItem("archibald_jwt");
-    if (!token) return;
-
-    try {
-      console.log("[UnifiedSync] Pushing pending orders...");
-
-      // Get all orders and filter in JavaScript (needsSync is boolean, not indexable in Dexie)
-      const allOrders = await db.pendingOrders.toArray();
-      const localOrders = allOrders.filter((order) => order.needsSync === true);
-
-      console.log(
-        `[UnifiedSync] Found ${localOrders.length} pending orders to push`,
-      );
-
-      if (localOrders.length === 0) return;
-
-      // No tombstones with direct deletion - all orders are regular
-      const regularOrders = localOrders;
-
-      // Push regular orders (create/update)
-      if (regularOrders.length > 0) {
-        const response = await fetchWithRetry("/api/sync/pending-orders", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify({
-            orders: regularOrders.map((o) => ({
-              id: o.id,
-              customerId: o.customerId,
-              customerName: o.customerName,
-              items: o.items,
-              discountPercent: o.discountPercent,
-              targetTotalWithVAT: o.targetTotalWithVAT,
-              shippingCost: o.shippingCost || 0,
-              shippingTax: o.shippingTax || 0,
-              createdAt: new Date(o.createdAt).getTime(),
-              updatedAt: new Date(o.updatedAt).getTime(),
-              status: o.status,
-              errorMessage: o.errorMessage,
-              retryCount: o.retryCount,
-              deviceId: o.deviceId,
-              subClientCodice: o.subClientCodice || null,
-              subClientName: o.subClientName || null,
-              subClientData: o.subClientData || null,
-            })),
-          }),
-        });
-
-        if (!response.ok) {
-          throw new Error(`Push pending orders failed: ${response.status}`);
-        }
-
-        const { success, results } = await response.json();
-
-        if (!success) {
-          throw new Error("Push pending orders unsuccessful");
-        }
-
-        // Mark as synced (except skipped ones)
-        for (const result of results) {
-          if (result.action !== "skipped") {
-            await db.pendingOrders.update(result.id, { needsSync: false });
-          }
-        }
-
-        console.log(
-          `[UnifiedSync] Pushed ${regularOrders.length} pending orders`,
-        );
-      }
-
-      // Note: Direct deletion - no tombstones to push
-    } catch (error) {
-      console.error("[UnifiedSync] Push pending orders failed:", error);
       throw error;
     }
   }
@@ -378,10 +205,24 @@ export class UnifiedSyncService {
           soldInOrder: item.soldInOrder,
           uploadedAt: new Date(item.uploadedAt).toISOString(),
           deviceId: item.deviceId,
+          customerName: item.customerName,
+          subClientName: item.subClientName,
+          orderDate: item.orderDate,
+          orderNumber: item.orderNumber,
         });
       }
 
       console.log(`[UnifiedSync] Pulled ${items.length} warehouse items`);
+
+      // Resolve any unresolved orderNumbers (e.g. "72.768" → "ORD/26002424")
+      try {
+        await resolveWarehouseOrderNumbers();
+      } catch (resolveError) {
+        console.warn(
+          "[UnifiedSync] Order number resolve failed:",
+          resolveError,
+        );
+      }
     } catch (error) {
       console.error("[UnifiedSync] Pull warehouse items failed:", error);
       throw error;

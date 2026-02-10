@@ -16,7 +16,12 @@ export function mergeFresisPendingOrders(
 
   const itemMap = new Map<
     string,
-    { item: PendingOrderItem; totalQty: number; totalWarehouseQty: number }
+    {
+      item: PendingOrderItem;
+      totalQty: number;
+      totalWarehouseQty: number;
+      aggregatedSources: NonNullable<PendingOrderItem["warehouseSources"]>;
+    }
   >();
 
   for (const order of orders) {
@@ -27,18 +32,29 @@ export function mergeFresisPendingOrders(
       if (existing) {
         existing.totalQty += item.quantity;
         existing.totalWarehouseQty += item.warehouseQuantity ?? 0;
+        if (item.warehouseSources) {
+          existing.aggregatedSources.push(...item.warehouseSources);
+        }
       } else {
         itemMap.set(key, {
           item: { ...item },
           totalQty: item.quantity,
           totalWarehouseQty: item.warehouseQuantity ?? 0,
+          aggregatedSources: item.warehouseSources
+            ? [...item.warehouseSources]
+            : [],
         });
       }
     }
   }
 
   const mergedItems: PendingOrderItem[] = [];
-  for (const { item, totalQty, totalWarehouseQty } of itemMap.values()) {
+  for (const {
+    item,
+    totalQty,
+    totalWarehouseQty,
+    aggregatedSources,
+  } of itemMap.values()) {
     const lineDiscount =
       discountMap.get(item.articleId ?? "") ??
       discountMap.get(item.articleCode) ??
@@ -54,7 +70,8 @@ export function mergeFresisPendingOrders(
       vat: item.vat,
       discount: lineDiscount,
       warehouseQuantity: totalWarehouseQty > 0 ? totalWarehouseQty : undefined,
-      warehouseSources: undefined,
+      warehouseSources:
+        aggregatedSources.length > 0 ? aggregatedSources : undefined,
     });
   }
 

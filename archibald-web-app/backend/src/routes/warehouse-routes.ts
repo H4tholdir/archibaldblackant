@@ -1107,7 +1107,8 @@ router.put(
         .prepare(
           `
         SELECT id, user_id, article_code, description, quantity, box_name,
-               reserved_for_order, sold_in_order, uploaded_at, device_id
+               reserved_for_order, sold_in_order, uploaded_at, device_id,
+               customer_name, sub_client_name, order_date, order_number
         FROM warehouse_items
         WHERE id = ? AND user_id = ?
       `,
@@ -1135,6 +1136,10 @@ router.put(
             soldInOrder: updatedItem.sold_in_order,
             uploadedAt: updatedItem.uploaded_at,
             deviceId: updatedItem.device_id,
+            customerName: updatedItem.customer_name,
+            subClientName: updatedItem.sub_client_name,
+            orderDate: updatedItem.order_date,
+            orderNumber: updatedItem.order_number,
           },
         },
       });
