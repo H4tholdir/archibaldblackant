@@ -6569,7 +6569,15 @@ app.get(
 
       return res.json({
         success: true,
-        data: { articles },
+        data: {
+          articles,
+          totalVatAmount: order.totalVatAmount
+            ? parseFloat(order.totalVatAmount)
+            : undefined,
+          totalWithVat: order.totalWithVat
+            ? parseFloat(order.totalWithVat)
+            : undefined,
+        },
       });
     } catch (error) {
       logger.error("[API] Get articles failed", {

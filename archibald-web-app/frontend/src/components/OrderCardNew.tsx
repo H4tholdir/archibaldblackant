@@ -2085,15 +2085,16 @@ export function OrderCardNew({
 
                 if (totalWithVat && totalWithVat > 0) {
                   return (
-                    <span
+                    <div
                       style={{
-                        fontSize: "13px",
-                        color: "#666",
-                        marginLeft: "8px",
+                        fontSize: "14px",
+                        fontWeight: 600,
+                        color: "#1a7f37",
+                        marginTop: "2px",
                       }}
                     >
-                      (Totale IVA incl.: € {totalWithVat.toFixed(2)})
-                    </span>
+                      € {totalWithVat.toFixed(2)} (IVA incl.)
+                    </div>
                   );
                 }
                 return null;

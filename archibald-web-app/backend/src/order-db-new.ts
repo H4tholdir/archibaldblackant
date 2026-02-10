@@ -967,7 +967,7 @@ export class OrderDatabaseNew {
         `SELECT id, article_code, article_description, unit_price, line_amount, vat_percent
          FROM order_articles
          WHERE order_id = ?
-         AND (article_code = 'K3' OR article_description LIKE '%Spese di trasporto K3%')
+         AND (article_code = 'K3' OR article_code LIKE '%Spese di trasporto%K3%' OR article_description LIKE '%Spese di trasporto K3%')
          AND (vat_percent IS NULL OR vat_percent = 0)`,
       )
       .all(orderId) as Array<{
