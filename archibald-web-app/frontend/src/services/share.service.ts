@@ -104,8 +104,10 @@ class ShareService {
     message: string,
   ): Promise<void> {
     const file = new File([blob], fileName, { type: "application/pdf" });
+    const isMobile =
+      "ontouchstart" in window || navigator.maxTouchPoints > 0;
 
-    if (navigator.canShare?.({ files: [file] })) {
+    if (isMobile && navigator.canShare?.({ files: [file] })) {
       await navigator.share({
         text: message,
         files: [file],
