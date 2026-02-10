@@ -455,8 +455,11 @@ export class BrowserPool {
   }
 
   /**
-   * Validate if a cached context session is still active
-   * Tests by navigating to a protected page and checking for login redirect
+   * Validate if a cached context session is still active.
+   * Uses cookie-based validation via about:blank page to avoid
+   * visible error flash on Default.aspx ("Cannot find the 'Archibald' view").
+   * Server-side invalidation is handled by releaseContext(success: false)
+   * when the actual sync operation fails.
    */
   private async validateSession(
     context: BrowserContext,
@@ -465,25 +468,42 @@ export class BrowserPool {
     let page: Page | null = null;
     try {
       page = await context.newPage();
-      await page.setViewport({ width: 1280, height: 800 });
 
-      // Navigate to a protected page (main dashboard)
-      const testUrl = `${config.archibald.url}/Archibald/Default.aspx`;
-      await page.goto(testUrl, {
-        waitUntil: "domcontentloaded",
-        timeout: 10000,
-      });
+      const archibaldUrl = `${config.archibald.url}/Archibald/Default.aspx`;
+      const cookies = await page.cookies(archibaldUrl);
+      await page.close();
+      page = null;
 
-      // Check if we got redirected to login page
-      const finalUrl = page.url();
-      const isValid = !finalUrl.includes("Login.aspx");
-
-      logger.debug(
-        `[BrowserPool] Session validation for user ${userId}: ${isValid ? "VALID" : "INVALID"} (url: ${finalUrl})`,
+      const sessionCookies = cookies.filter(
+        (c: { name: string }) =>
+          c.name === ".ASPXAUTH" ||
+          c.name === "ASP.NET_SessionId" ||
+          c.name.startsWith(".AspNet"),
       );
 
-      await page.close();
-      return isValid;
+      if (sessionCookies.length === 0) {
+        logger.info(
+          `[BrowserPool] Session validation for user ${userId}: INVALID (no session cookies)`,
+        );
+        return false;
+      }
+
+      const now = Date.now() / 1000;
+      const hasExpired = sessionCookies.some(
+        (c: { expires: number }) => c.expires > 0 && c.expires < now,
+      );
+
+      if (hasExpired) {
+        logger.info(
+          `[BrowserPool] Session validation for user ${userId}: INVALID (cookies expired)`,
+        );
+        return false;
+      }
+
+      logger.debug(
+        `[BrowserPool] Session validation for user ${userId}: VALID (${sessionCookies.length} session cookies present)`,
+      );
+      return true;
     } catch (error) {
       logger.warn(
         `[BrowserPool] Session validation failed for user ${userId}`,
@@ -492,7 +512,6 @@ export class BrowserPool {
         },
       );
 
-      // Close page if still open
       if (page && !page.isClosed()) {
         await page.close().catch(() => {});
       }
