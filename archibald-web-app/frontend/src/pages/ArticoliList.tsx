@@ -5,6 +5,7 @@ import { getProducts, syncProducts, type Product } from "../api/products";
 import { ManualSyncBanner } from "../components/ManualSyncBanner";
 import { PriceSyncNotification } from "../components/PriceSyncNotification";
 import { PriceVariationsModal } from "../components/PriceVariationsModal";
+import { ProductVariationsModal } from "../components/ProductVariationsModal";
 
 interface ProductFilters {
   search: string;
@@ -37,6 +38,8 @@ export function ArticoliList() {
   const [syncResult, setSyncResult] = useState<any>(null);
   const [showNotification, setShowNotification] = useState(false);
   const [showPriceVariationsModal, setShowPriceVariationsModal] =
+    useState(false);
+  const [showProductVariationsModal, setShowProductVariationsModal] =
     useState(false);
 
   // Debounce search input (300ms)
@@ -516,7 +519,33 @@ export function ArticoliList() {
               e.currentTarget.style.color = "#ff9800";
             }}
           >
-            📊 Variazione Prezzi
+            Variazione Prezzi
+          </button>
+
+          {/* Product Variations button */}
+          <button
+            onClick={() => setShowProductVariationsModal(true)}
+            style={{
+              padding: "8px 16px",
+              fontSize: "14px",
+              fontWeight: 600,
+              border: "1px solid #7b1fa2",
+              borderRadius: "8px",
+              backgroundColor: "#fff",
+              color: "#7b1fa2",
+              cursor: "pointer",
+              transition: "all 0.2s",
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.backgroundColor = "#7b1fa2";
+              e.currentTarget.style.color = "#fff";
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.backgroundColor = "#fff";
+              e.currentTarget.style.color = "#7b1fa2";
+            }}
+          >
+            Variazioni Prodotti
           </button>
         </div>
       </div>
@@ -760,6 +789,12 @@ export function ArticoliList() {
       <PriceVariationsModal
         isOpen={showPriceVariationsModal}
         onClose={() => setShowPriceVariationsModal(false)}
+      />
+
+      {/* Product Variations Modal */}
+      <ProductVariationsModal
+        isOpen={showProductVariationsModal}
+        onClose={() => setShowProductVariationsModal(false)}
       />
     </div>
   );

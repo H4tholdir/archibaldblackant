@@ -91,6 +91,22 @@ export class PriceHistoryDatabase {
           ON price_history(syncDate DESC, percentageChange DESC);
       `);
 
+      // Migrate existing seconds timestamps to milliseconds
+      const sample = this.db
+        .prepare(
+          "SELECT syncDate FROM price_history WHERE syncDate > 0 LIMIT 1",
+        )
+        .get() as { syncDate: number } | undefined;
+      if (sample && sample.syncDate < 10_000_000_000) {
+        this.db.exec(`
+          UPDATE price_history SET syncDate = syncDate * 1000 WHERE syncDate > 0 AND syncDate < 10000000000;
+          UPDATE price_history SET createdAt = createdAt * 1000 WHERE createdAt > 0 AND createdAt < 10000000000;
+        `);
+        logger.info(
+          "[PriceHistoryDatabase] Migrated timestamps from seconds to milliseconds",
+        );
+      }
+
       logger.info("[PriceHistoryDatabase] Table and indexes verified/created");
     } catch (error) {
       logger.error("[PriceHistoryDatabase] Failed to ensure table exists", {
@@ -122,7 +138,7 @@ export class PriceHistoryDatabase {
     currency?: string;
     notes?: string;
   }): void {
-    const now = Math.floor(Date.now() / 1000);
+    const now = Date.now();
 
     // Calculate metrics
     const oldPrice = change.oldPrice ?? null;
@@ -224,8 +240,7 @@ export class PriceHistoryDatabase {
     daysBack: number = 30,
     limit: number = 100,
   ): PriceHistoryRecord[] {
-    const cutoffTimestamp =
-      Math.floor(Date.now() / 1000) - daysBack * 24 * 60 * 60;
+    const cutoffTimestamp = Date.now() - daysBack * 24 * 60 * 60 * 1000;
 
     return this.db
       .prepare(
@@ -243,8 +258,7 @@ export class PriceHistoryDatabase {
    * Get recent price increases (dashboard widget)
    */
   getRecentIncreases(daysBack: number = 30): PriceHistoryRecord[] {
-    const cutoffTimestamp =
-      Math.floor(Date.now() / 1000) - daysBack * 24 * 60 * 60;
+    const cutoffTimestamp = Date.now() - daysBack * 24 * 60 * 60 * 1000;
 
     return this.db
       .prepare(
@@ -261,8 +275,7 @@ export class PriceHistoryDatabase {
    * Get recent price decreases (dashboard widget)
    */
   getRecentDecreases(daysBack: number = 30): PriceHistoryRecord[] {
-    const cutoffTimestamp =
-      Math.floor(Date.now() / 1000) - daysBack * 24 * 60 * 60;
+    const cutoffTimestamp = Date.now() - daysBack * 24 * 60 * 60 * 1000;
 
     return this.db
       .prepare(
@@ -286,8 +299,7 @@ export class PriceHistoryDatabase {
     avgIncrease: number;
     avgDecrease: number;
   } {
-    const cutoffTimestamp =
-      Math.floor(Date.now() / 1000) - daysBack * 24 * 60 * 60;
+    const cutoffTimestamp = Date.now() - daysBack * 24 * 60 * 60 * 1000;
 
     const stats = this.db
       .prepare(
@@ -320,8 +332,7 @@ export class PriceHistoryDatabase {
    * Keeps full history but can archive old data if needed
    */
   archiveOldRecords(daysToKeep: number = 365): number {
-    const cutoffTimestamp =
-      Math.floor(Date.now() / 1000) - daysToKeep * 24 * 60 * 60;
+    const cutoffTimestamp = Date.now() - daysToKeep * 24 * 60 * 60 * 1000;
 
     const result = this.db
       .prepare("DELETE FROM price_history WHERE syncDate < ?")

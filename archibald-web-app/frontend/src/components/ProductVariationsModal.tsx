@@ -1,50 +1,48 @@
 import { useEffect, useState } from "react";
-import { PriceHistoryModal } from "./PriceHistoryModal";
+import { ProductHistoryModal } from "./ProductHistoryModal";
 
-interface PriceChange {
-  id: number;
+interface ProductVariation {
   productId: string;
-  productName: string;
-  variantId: string | null;
-  oldPrice: number | null;
-  newPrice: number;
-  percentageChange: number;
-  changeType: "increase" | "decrease" | "new";
-  syncDate: number;
+  productName: string | null;
+  changeType: "created" | "updated" | "deleted";
+  fieldsChanged: number;
+  changedAt: number;
+  syncSessionId: string;
 }
 
-interface PriceStats {
+interface Stats {
   totalChanges: number;
-  increases: number;
-  decreases: number;
-  newPrices: number;
+  created: number;
+  updated: number;
+  deleted: number;
 }
 
-interface PriceVariationsModalProps {
+interface ProductVariationsModalProps {
   isOpen: boolean;
   onClose: () => void;
 }
 
-export function PriceVariationsModal({
+export function ProductVariationsModal({
   isOpen,
   onClose,
-}: PriceVariationsModalProps) {
-  const [changes, setChanges] = useState<PriceChange[]>([]);
-  const [filteredChanges, setFilteredChanges] = useState<PriceChange[]>([]);
-  const [stats, setStats] = useState<PriceStats>({
+}: ProductVariationsModalProps) {
+  const [changes, setChanges] = useState<ProductVariation[]>([]);
+  const [filteredChanges, setFilteredChanges] = useState<ProductVariation[]>(
+    [],
+  );
+  const [stats, setStats] = useState<Stats>({
     totalChanges: 0,
-    increases: 0,
-    decreases: 0,
-    newPrices: 0,
+    created: 0,
+    updated: 0,
+    deleted: 0,
   });
   const [loading, setLoading] = useState(true);
-  const [filter, setFilter] = useState<"all" | "increases" | "decreases">(
-    "all",
-  );
-  const [sortBy, setSortBy] = useState<"percentage" | "date">("percentage");
-  const [selectedProduct, setSelectedProduct] = useState<PriceChange | null>(
-    null,
-  );
+  const [filter, setFilter] = useState<
+    "all" | "created" | "updated" | "deleted"
+  >("all");
+  const [sortBy, setSortBy] = useState<"date" | "name">("date");
+  const [selectedProduct, setSelectedProduct] =
+    useState<ProductVariation | null>(null);
 
   useEffect(() => {
     if (isOpen) {
@@ -59,7 +57,7 @@ export function PriceVariationsModal({
   const fetchRecentChanges = async () => {
     try {
       const token = localStorage.getItem("archibald_jwt");
-      const response = await fetch("/api/prices/history/recent/30", {
+      const response = await fetch("/api/products/variations/recent/30", {
         headers: { Authorization: `Bearer ${token}` },
       });
 
@@ -67,16 +65,11 @@ export function PriceVariationsModal({
       if (data.success) {
         setChanges(data.changes || []);
         setStats(
-          data.stats || {
-            totalChanges: 0,
-            increases: 0,
-            decreases: 0,
-            newPrices: 0,
-          },
+          data.stats || { totalChanges: 0, created: 0, updated: 0, deleted: 0 },
         );
       }
     } catch (error) {
-      console.error("Failed to fetch price changes:", error);
+      console.error("Failed to fetch product changes:", error);
     } finally {
       setLoading(false);
     }
@@ -85,20 +78,16 @@ export function PriceVariationsModal({
   const applyFilters = () => {
     let filtered = [...changes];
 
-    // Apply change type filter
-    if (filter === "increases") {
-      filtered = filtered.filter((c) => c.changeType === "increase");
-    } else if (filter === "decreases") {
-      filtered = filtered.filter((c) => c.changeType === "decrease");
+    if (filter !== "all") {
+      filtered = filtered.filter((c) => c.changeType === filter);
     }
 
-    // Apply sorting
-    if (sortBy === "percentage") {
-      filtered.sort(
-        (a, b) => Math.abs(b.percentageChange) - Math.abs(a.percentageChange),
-      );
+    if (sortBy === "date") {
+      filtered.sort((a, b) => b.changedAt - a.changedAt);
     } else {
-      filtered.sort((a, b) => b.syncDate - a.syncDate);
+      filtered.sort((a, b) =>
+        (a.productName || "").localeCompare(b.productName || ""),
+      );
     }
 
     setFilteredChanges(filtered);
@@ -108,20 +97,18 @@ export function PriceVariationsModal({
     return new Date(timestamp).toLocaleDateString("it-IT");
   };
 
-  const formatPrice = (price: number | null) => {
-    return price !== null ? `€${price.toFixed(2)}` : "N/A";
-  };
-
   const getChangeColor = (changeType: string) => {
-    if (changeType === "increase") return "#c62828"; // Red
-    if (changeType === "decrease") return "#2e7d32"; // Green
-    return "#666"; // Gray for new
+    if (changeType === "created") return "#1565c0";
+    if (changeType === "updated") return "#e65100";
+    if (changeType === "deleted") return "#c62828";
+    return "#666";
   };
 
-  const getChangeIcon = (changeType: string) => {
-    if (changeType === "increase") return "🔴";
-    if (changeType === "decrease") return "🟢";
-    return "🆕";
+  const getChangeBadge = (changeType: string) => {
+    if (changeType === "created") return { label: "Nuovo", bg: "#e3f2fd" };
+    if (changeType === "updated") return { label: "Modificato", bg: "#fff3e0" };
+    if (changeType === "deleted") return { label: "Eliminato", bg: "#ffebee" };
+    return { label: changeType, bg: "#f5f5f5" };
   };
 
   if (!isOpen) return null;
@@ -169,7 +156,7 @@ export function PriceVariationsModal({
               }}
             >
               <h1 style={{ margin: 0 }}>
-                📊 Variazioni Prezzi (Ultimi 30 giorni)
+                Variazioni Prodotti (Ultimi 30 giorni)
               </h1>
               <button
                 onClick={onClose}
@@ -188,56 +175,18 @@ export function PriceVariationsModal({
 
             {loading ? (
               <div style={{ padding: "20px", textAlign: "center" }}>
-                ⏳ Caricamento variazioni prezzi...
+                Caricamento variazioni prodotti...
               </div>
             ) : (
               <>
                 {/* Statistics Summary */}
                 <div
-                  style={{ display: "flex", gap: "20px", marginBottom: "20px" }}
+                  style={{
+                    display: "flex",
+                    gap: "20px",
+                    marginBottom: "20px",
+                  }}
                 >
-                  <div
-                    style={{
-                      padding: "15px",
-                      backgroundColor: "#ffebee",
-                      borderRadius: "8px",
-                      flex: 1,
-                    }}
-                  >
-                    <div
-                      style={{
-                        fontSize: "24px",
-                        fontWeight: "bold",
-                        color: "#c62828",
-                      }}
-                    >
-                      {stats.increases}
-                    </div>
-                    <div style={{ fontSize: "14px", color: "#666" }}>
-                      Aumenti
-                    </div>
-                  </div>
-                  <div
-                    style={{
-                      padding: "15px",
-                      backgroundColor: "#e8f5e9",
-                      borderRadius: "8px",
-                      flex: 1,
-                    }}
-                  >
-                    <div
-                      style={{
-                        fontSize: "24px",
-                        fontWeight: "bold",
-                        color: "#2e7d32",
-                      }}
-                    >
-                      {stats.decreases}
-                    </div>
-                    <div style={{ fontSize: "14px", color: "#666" }}>
-                      Diminuzioni
-                    </div>
-                  </div>
                   <div
                     style={{
                       padding: "15px",
@@ -253,10 +202,71 @@ export function PriceVariationsModal({
                         color: "#666",
                       }}
                     >
-                      {stats.newPrices}
+                      {stats.totalChanges}
                     </div>
                     <div style={{ fontSize: "14px", color: "#666" }}>
-                      Nuovi Prezzi
+                      Totale
+                    </div>
+                  </div>
+                  <div
+                    style={{
+                      padding: "15px",
+                      backgroundColor: "#e3f2fd",
+                      borderRadius: "8px",
+                      flex: 1,
+                    }}
+                  >
+                    <div
+                      style={{
+                        fontSize: "24px",
+                        fontWeight: "bold",
+                        color: "#1565c0",
+                      }}
+                    >
+                      {stats.created}
+                    </div>
+                    <div style={{ fontSize: "14px", color: "#666" }}>Nuovi</div>
+                  </div>
+                  <div
+                    style={{
+                      padding: "15px",
+                      backgroundColor: "#fff3e0",
+                      borderRadius: "8px",
+                      flex: 1,
+                    }}
+                  >
+                    <div
+                      style={{
+                        fontSize: "24px",
+                        fontWeight: "bold",
+                        color: "#e65100",
+                      }}
+                    >
+                      {stats.updated}
+                    </div>
+                    <div style={{ fontSize: "14px", color: "#666" }}>
+                      Modificati
+                    </div>
+                  </div>
+                  <div
+                    style={{
+                      padding: "15px",
+                      backgroundColor: "#ffebee",
+                      borderRadius: "8px",
+                      flex: 1,
+                    }}
+                  >
+                    <div
+                      style={{
+                        fontSize: "24px",
+                        fontWeight: "bold",
+                        color: "#c62828",
+                      }}
+                    >
+                      {stats.deleted}
+                    </div>
+                    <div style={{ fontSize: "14px", color: "#666" }}>
+                      Eliminati
                     </div>
                   </div>
                 </div>
@@ -279,8 +289,9 @@ export function PriceVariationsModal({
                       style={{ marginLeft: "10px", padding: "8px" }}
                     >
                       <option value="all">Tutti</option>
-                      <option value="increases">Solo Aumenti 🔴</option>
-                      <option value="decreases">Solo Diminuzioni 🟢</option>
+                      <option value="created">Nuovi</option>
+                      <option value="updated">Modificati</option>
+                      <option value="deleted">Eliminati</option>
                     </select>
                   </label>
 
@@ -291,13 +302,13 @@ export function PriceVariationsModal({
                       onChange={(e) => setSortBy(e.target.value as any)}
                       style={{ marginLeft: "10px", padding: "8px" }}
                     >
-                      <option value="percentage">% Variazione</option>
                       <option value="date">Data</option>
+                      <option value="name">Nome Prodotto</option>
                     </select>
                   </label>
                 </div>
 
-                {/* Price Changes Table */}
+                {/* Product Changes Table */}
                 <div style={{ overflowX: "auto" }}>
                   <table style={{ width: "100%", borderCollapse: "collapse" }}>
                     <thead>
@@ -306,16 +317,10 @@ export function PriceVariationsModal({
                           Articolo
                         </th>
                         <th style={{ padding: "12px", textAlign: "left" }}>
-                          Variante
+                          Tipo Modifica
                         </th>
-                        <th style={{ padding: "12px", textAlign: "right" }}>
-                          Prezzo Vecchio
-                        </th>
-                        <th style={{ padding: "12px", textAlign: "right" }}>
-                          Prezzo Nuovo
-                        </th>
-                        <th style={{ padding: "12px", textAlign: "right" }}>
-                          Variazione %
+                        <th style={{ padding: "12px", textAlign: "center" }}>
+                          Campi Modificati
                         </th>
                         <th style={{ padding: "12px", textAlign: "left" }}>
                           Data
@@ -326,47 +331,62 @@ export function PriceVariationsModal({
                       </tr>
                     </thead>
                     <tbody>
-                      {filteredChanges.map((change) => (
-                        <tr
-                          key={change.id}
-                          style={{ borderBottom: "1px solid #ddd" }}
-                        >
-                          <td style={{ padding: "12px" }}>
-                            {change.productName}
-                          </td>
-                          <td style={{ padding: "12px" }}>
-                            {change.variantId || "-"}
-                          </td>
-                          <td style={{ padding: "12px", textAlign: "right" }}>
-                            {formatPrice(change.oldPrice)}
-                          </td>
-                          <td style={{ padding: "12px", textAlign: "right" }}>
-                            {formatPrice(change.newPrice)}
-                          </td>
-                          <td
-                            style={{
-                              padding: "12px",
-                              textAlign: "right",
-                              color: getChangeColor(change.changeType),
-                              fontWeight: "bold",
-                            }}
+                      {filteredChanges.map((change, index) => {
+                        const badge = getChangeBadge(change.changeType);
+                        return (
+                          <tr
+                            key={`${change.productId}-${change.changedAt}-${index}`}
+                            style={{ borderBottom: "1px solid #ddd" }}
                           >
-                            {getChangeIcon(change.changeType)}{" "}
-                            {change.percentageChange.toFixed(2)}%
-                          </td>
-                          <td style={{ padding: "12px" }}>
-                            {formatDate(change.syncDate)}
-                          </td>
-                          <td style={{ padding: "12px", textAlign: "center" }}>
-                            <button
-                              onClick={() => setSelectedProduct(change)}
-                              style={{ padding: "5px 10px", cursor: "pointer" }}
+                            <td style={{ padding: "12px" }}>
+                              <div style={{ fontWeight: "bold" }}>
+                                {change.productName || change.productId}
+                              </div>
+                              <div style={{ fontSize: "12px", color: "#999" }}>
+                                {change.productId}
+                              </div>
+                            </td>
+                            <td style={{ padding: "12px" }}>
+                              <span
+                                style={{
+                                  display: "inline-block",
+                                  padding: "4px 10px",
+                                  borderRadius: "12px",
+                                  fontSize: "12px",
+                                  fontWeight: "bold",
+                                  backgroundColor: badge.bg,
+                                  color: getChangeColor(change.changeType),
+                                }}
+                              >
+                                {badge.label}
+                              </span>
+                            </td>
+                            <td
+                              style={{ padding: "12px", textAlign: "center" }}
                             >
-                              Storico
-                            </button>
-                          </td>
-                        </tr>
-                      ))}
+                              {change.changeType === "updated"
+                                ? change.fieldsChanged
+                                : "-"}
+                            </td>
+                            <td style={{ padding: "12px" }}>
+                              {formatDate(change.changedAt)}
+                            </td>
+                            <td
+                              style={{ padding: "12px", textAlign: "center" }}
+                            >
+                              <button
+                                onClick={() => setSelectedProduct(change)}
+                                style={{
+                                  padding: "5px 10px",
+                                  cursor: "pointer",
+                                }}
+                              >
+                                Storico
+                              </button>
+                            </td>
+                          </tr>
+                        );
+                      })}
                     </tbody>
                   </table>
 
@@ -388,11 +408,11 @@ export function PriceVariationsModal({
         </div>
       </div>
 
-      {/* Price History Modal */}
+      {/* Product History Modal */}
       {selectedProduct && (
-        <PriceHistoryModal
+        <ProductHistoryModal
           productId={selectedProduct.productId}
-          productName={selectedProduct.productName}
+          productName={selectedProduct.productName || selectedProduct.productId}
           onClose={() => setSelectedProduct(null)}
         />
       )}

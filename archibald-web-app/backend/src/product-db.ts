@@ -187,6 +187,14 @@ export class ProductDatabase {
       logger.warn("Migration already applied or failed:", error);
     }
 
+    // Migration: add deletedAt column for soft deletes
+    try {
+      this.db.exec(`ALTER TABLE products ADD COLUMN deletedAt INTEGER`);
+      logger.info("Added deletedAt column to products table");
+    } catch {
+      // Column already exists
+    }
+
     logger.info("Product database schema initialized");
   }
 
@@ -291,8 +299,8 @@ export class ProductDatabase {
     let unchanged = 0;
 
     const insertStmt = this.db.prepare(`
-      INSERT INTO products (id, name, description, groupCode, imageUrl, searchName, priceUnit, productGroupId, productGroupDescription, packageContent, minQty, multipleQty, maxQty, price, hash, lastSync)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO products (id, name, description, groupCode, imageUrl, searchName, priceUnit, productGroupId, productGroupDescription, packageContent, minQty, multipleQty, maxQty, price, hash, lastSync, deletedAt)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL)
       ON CONFLICT(id) DO UPDATE SET
         name = excluded.name,
         description = excluded.description,
@@ -308,8 +316,8 @@ export class ProductDatabase {
         maxQty = excluded.maxQty,
         price = excluded.price,
         hash = excluded.hash,
-        lastSync = excluded.lastSync
-      WHERE products.hash != excluded.hash
+        lastSync = excluded.lastSync,
+        deletedAt = NULL
     `);
 
     const checkStmt = this.db.prepare("SELECT * FROM products WHERE id = ?");
@@ -408,6 +416,39 @@ export class ProductDatabase {
                 );
               }
             }
+          } else if ((existing as any).deletedAt != null) {
+            // Product was soft-deleted but reappeared with same hash - restore it
+            insertStmt.run(
+              product.id,
+              product.name,
+              product.description,
+              product.groupCode,
+              null,
+              product.searchName,
+              product.priceUnit,
+              product.productGroupId,
+              product.productGroupDescription,
+              product.packageContent,
+              product.minQty,
+              product.multipleQty,
+              product.maxQty,
+              product.price,
+              hash,
+              now,
+            );
+            inserted++;
+
+            if (changeLogStmt && sessionId) {
+              changeLogStmt.run(
+                product.id,
+                "created",
+                null,
+                null,
+                null,
+                now,
+                sessionId,
+              );
+            }
           } else {
             unchanged++;
           }
@@ -497,6 +538,7 @@ export class ProductDatabase {
     const stmt = this.db.prepare(`
       SELECT id FROM products
       WHERE id NOT IN (${placeholders})
+        AND deletedAt IS NULL
     `);
 
     const deleted = stmt.all(...currentIds) as Array<{ id: string }>;
@@ -520,6 +562,36 @@ export class ProductDatabase {
   }
 
   /**
+   * Soft-delete prodotti: setta deletedAt e logga in product_changes
+   */
+  softDeleteProducts(ids: string[], syncSessionId: string): number {
+    if (ids.length === 0) return 0;
+
+    const now = Date.now();
+    const updateStmt = this.db.prepare(
+      `UPDATE products SET deletedAt = ? WHERE id = ?`,
+    );
+    const changeLogStmt = this.db.prepare(`
+      INSERT INTO product_changes (productId, changeType, fieldChanged, oldValue, newValue, changedAt, syncSessionId)
+      VALUES (?, 'deleted', NULL, NULL, NULL, ?, ?)
+    `);
+
+    const transaction = this.db.transaction((productIds: string[]) => {
+      let count = 0;
+      for (const id of productIds) {
+        const result = updateStmt.run(now, id);
+        if (result.changes > 0) {
+          changeLogStmt.run(id, now, syncSessionId);
+          count++;
+        }
+      }
+      return count;
+    });
+
+    return transaction(ids);
+  }
+
+  /**
    * Ottiene tutti i prodotti (con ricerca opzionale)
    * La ricerca rimuove punti e spazi per matching flessibile
    */
@@ -534,10 +606,11 @@ export class ProductDatabase {
       stmt = this.db.prepare(`
         SELECT id, name, description, groupCode, searchName, priceUnit, productGroupId, productGroupDescription, packageContent, minQty, multipleQty, maxQty, price, priceSource, priceUpdatedAt, vat, vatSource, vatUpdatedAt, hash, lastSync
         FROM products
-        WHERE REPLACE(REPLACE(REPLACE(LOWER(name), '.', ''), ' ', ''), '-', '') LIKE ?
+        WHERE deletedAt IS NULL
+          AND (REPLACE(REPLACE(REPLACE(LOWER(name), '.', ''), ' ', ''), '-', '') LIKE ?
            OR REPLACE(REPLACE(REPLACE(LOWER(id), '.', ''), ' ', ''), '-', '') LIKE ?
            OR REPLACE(REPLACE(REPLACE(LOWER(searchName), '.', ''), ' ', ''), '-', '') LIKE ?
-           OR REPLACE(REPLACE(REPLACE(LOWER(description), '.', ''), ' ', ''), '-', '') LIKE ?
+           OR REPLACE(REPLACE(REPLACE(LOWER(description), '.', ''), ' ', ''), '-', '') LIKE ?)
         ORDER BY name ASC
         LIMIT 100
       `);
@@ -547,6 +620,7 @@ export class ProductDatabase {
     stmt = this.db.prepare(`
       SELECT id, name, description, groupCode, searchName, priceUnit, productGroupId, productGroupDescription, packageContent, minQty, multipleQty, maxQty, price, priceSource, priceUpdatedAt, vat, vatSource, vatUpdatedAt, hash, lastSync
       FROM products
+      WHERE deletedAt IS NULL
       ORDER BY name ASC
     `);
     return stmt.all() as Product[];
@@ -557,7 +631,7 @@ export class ProductDatabase {
    */
   getProductCount(): number {
     const result = this.db
-      .prepare("SELECT COUNT(*) as count FROM products")
+      .prepare("SELECT COUNT(*) as count FROM products WHERE deletedAt IS NULL")
       .get() as { count: number };
     return result.count;
   }
@@ -567,7 +641,9 @@ export class ProductDatabase {
    */
   getProductsWithPrices(): number {
     const result = this.db
-      .prepare("SELECT COUNT(*) as count FROM products WHERE price IS NOT NULL")
+      .prepare(
+        "SELECT COUNT(*) as count FROM products WHERE price IS NOT NULL AND deletedAt IS NULL",
+      )
       .get() as { count: number };
     return result.count;
   }
@@ -589,7 +665,7 @@ export class ProductDatabase {
   getProductVariants(articleName: string): Product[] {
     const stmt = this.db.prepare(`
       SELECT * FROM products
-      WHERE name = ?
+      WHERE name = ? AND deletedAt IS NULL
       ORDER BY
         CAST(SUBSTR(packageContent, 1, INSTR(packageContent || ' ', ' ') - 1) AS INTEGER) DESC,
         packageContent DESC
@@ -615,11 +691,12 @@ export class ProductDatabase {
     let query = `
       SELECT DISTINCT name
       FROM products
+      WHERE deletedAt IS NULL
     `;
     const params: any[] = [];
 
     if (searchTerm) {
-      query += ` WHERE name LIKE ? OR id LIKE ? OR searchName LIKE ?`;
+      query += ` AND (name LIKE ? OR id LIKE ? OR searchName LIKE ?)`;
       const searchPattern = `%${searchTerm}%`;
       params.push(searchPattern, searchPattern, searchPattern);
     }
@@ -639,11 +716,12 @@ export class ProductDatabase {
     let query = `
       SELECT COUNT(DISTINCT name) as count
       FROM products
+      WHERE deletedAt IS NULL
     `;
     const params: any[] = [];
 
     if (searchTerm) {
-      query += ` WHERE name LIKE ? OR id LIKE ? OR searchName LIKE ?`;
+      query += ` AND (name LIKE ? OR id LIKE ? OR searchName LIKE ?)`;
       const searchPattern = `%${searchTerm}%`;
       params.push(searchPattern, searchPattern, searchPattern);
     }
@@ -776,6 +854,7 @@ export class ProductDatabase {
         `
       SELECT id, name, description, groupCode, searchName, priceUnit, productGroupId, productGroupDescription, packageContent, minQty, multipleQty, maxQty, price, priceSource, priceUpdatedAt, vat, vatSource, vatUpdatedAt, hash, lastSync
       FROM products
+      WHERE deletedAt IS NULL
       ORDER BY name ASC
     `,
       )
@@ -878,6 +957,7 @@ export class ProductDatabase {
     const stmt = this.db.prepare(`
       SELECT id, name, description, groupCode, searchName, priceUnit, productGroupId, productGroupDescription, packageContent, minQty, multipleQty, maxQty, price, vat, hash, lastSync
       FROM products
+      WHERE deletedAt IS NULL
       ORDER BY name ASC
     `);
     return stmt.all() as Product[];
@@ -905,7 +985,7 @@ export class ProductDatabase {
         maxQty,
         packageContent
       FROM products
-      WHERE multipleQty IS NOT NULL
+      WHERE multipleQty IS NOT NULL AND deletedAt IS NULL
       ORDER BY name, multipleQty DESC
     `);
 
@@ -930,7 +1010,7 @@ export class ProductDatabase {
         vat,
         datetime(lastSync / 1000, 'unixepoch') as lastSynced
       FROM products
-      WHERE price IS NOT NULL
+      WHERE price IS NOT NULL AND deletedAt IS NULL
       ORDER BY name
     `);
 
@@ -1260,10 +1340,7 @@ export class ProductDatabase {
    *
    * @returns true if updated, false if product not found
    */
-  updateProductVat(
-    productId: string,
-    vat: number,
-  ): boolean {
+  updateProductVat(productId: string, vat: number): boolean {
     const now = Math.floor(Date.now() / 1000);
 
     const result = this.db
@@ -1314,8 +1391,77 @@ export class ProductDatabase {
    */
   getProductsByName(productName: string): Product[] {
     return this.db
-      .prepare("SELECT * FROM products WHERE name = ? ORDER BY packageContent")
+      .prepare(
+        "SELECT * FROM products WHERE name = ? AND deletedAt IS NULL ORDER BY packageContent",
+      )
       .all(productName) as Product[];
+  }
+
+  /**
+   * Get recent product changes grouped by product+event for dashboard
+   */
+  getRecentProductChanges(
+    daysBack: number = 30,
+    limit: number = 200,
+  ): Array<{
+    productId: string;
+    productName: string | null;
+    changeType: string;
+    fieldsChanged: number;
+    changedAt: number;
+    syncSessionId: string;
+  }> {
+    const cutoff = Date.now() - daysBack * 24 * 60 * 60 * 1000;
+
+    const stmt = this.db.prepare(`
+      SELECT pc.productId, p.name as productName, pc.changeType,
+             COUNT(DISTINCT pc.fieldChanged) as fieldsChanged,
+             pc.changedAt, pc.syncSessionId
+      FROM product_changes pc
+      LEFT JOIN products p ON p.id = pc.productId
+      WHERE pc.changedAt >= ?
+      GROUP BY pc.productId, pc.changeType, pc.changedAt, pc.syncSessionId
+      ORDER BY pc.changedAt DESC
+      LIMIT ?
+    `);
+
+    return stmt.all(cutoff, limit) as Array<{
+      productId: string;
+      productName: string | null;
+      changeType: string;
+      fieldsChanged: number;
+      changedAt: number;
+      syncSessionId: string;
+    }>;
+  }
+
+  /**
+   * Get product change statistics for dashboard
+   */
+  getProductChangeStats(daysBack: number = 30): {
+    totalChanges: number;
+    created: number;
+    updated: number;
+    deleted: number;
+  } {
+    const cutoff = Date.now() - daysBack * 24 * 60 * 60 * 1000;
+
+    const stmt = this.db.prepare(`
+      SELECT
+        COUNT(DISTINCT productId || changeType || changedAt) as totalChanges,
+        COUNT(DISTINCT CASE WHEN changeType='created' THEN productId END) as created,
+        COUNT(DISTINCT CASE WHEN changeType='updated' THEN productId||changedAt END) as updated,
+        COUNT(DISTINCT CASE WHEN changeType='deleted' THEN productId END) as deleted
+      FROM product_changes WHERE changedAt >= ?
+    `);
+
+    const result = stmt.get(cutoff) as any;
+    return {
+      totalChanges: result.totalChanges || 0,
+      created: result.created || 0,
+      updated: result.updated || 0,
+      deleted: result.deleted || 0,
+    };
   }
 
   /**

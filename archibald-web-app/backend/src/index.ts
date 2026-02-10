@@ -47,7 +47,6 @@ import { PriceMatchingService } from "./price-matching-service";
 import {
   uploadExcelVat,
   getProductPriceHistory,
-  getRecentPriceChanges,
   getImportHistory,
   getUnmatchedProducts,
   updateProductVat,
@@ -3821,6 +3820,67 @@ app.post(
   },
 );
 
+// ==================== PRODUCT VARIATIONS ENDPOINTS ====================
+
+// Get recent product changes for dashboard
+app.get(
+  "/api/products/variations/recent/:days?",
+  authenticateJWT,
+  (req: AuthRequest, res) => {
+    try {
+      const days = parseInt(req.params.days || "30", 10) || 30;
+      const changes = productDb.getRecentProductChanges(days);
+      const stats = productDb.getProductChangeStats(days);
+
+      res.json({
+        success: true,
+        daysBack: days,
+        stats,
+        changes,
+      });
+    } catch (error) {
+      logger.error("Errore API /api/products/variations/recent", { error });
+      res.status(500).json({
+        success: false,
+        error:
+          error instanceof Error
+            ? error.message
+            : "Errore durante il recupero delle variazioni",
+      });
+    }
+  },
+);
+
+// Get product change history for a specific product
+app.get(
+  "/api/products/variations/product/:productId",
+  authenticateJWT,
+  (req: AuthRequest, res) => {
+    try {
+      const { productId } = req.params;
+      const history = productDb.getProductChangeHistory(productId);
+
+      res.json({
+        success: true,
+        productId,
+        historyCount: history.length,
+        history,
+      });
+    } catch (error) {
+      logger.error("Errore API /api/products/variations/product/:productId", {
+        error,
+      });
+      res.status(500).json({
+        success: false,
+        error:
+          error instanceof Error
+            ? error.message
+            : "Errore durante il recupero dello storico prodotto",
+      });
+    }
+  },
+);
+
 // Quick check endpoint - verifies if sync is needed (fast check)
 app.get(
   "/api/sync/quick-check",
@@ -4425,9 +4485,6 @@ app.get(
   authenticateJWT,
   getProductPriceHistory,
 );
-
-// Get recent price changes across all products
-app.get("/api/prices/history/recent", authenticateJWT, getRecentPriceChanges);
 
 // Get Excel import history
 app.get("/api/prices/imports", authenticateJWT, requireAdmin, getImportHistory);

@@ -26,7 +26,7 @@ export function PriceHistoryModal({ productId, productName, onClose }: Props) {
 
   const fetchHistory = async () => {
     try {
-      const token = localStorage.getItem("token");
+      const token = localStorage.getItem("archibald_jwt");
       const response = await fetch(`/api/prices/history/${productId}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
@@ -43,7 +43,7 @@ export function PriceHistoryModal({ productId, productName, onClose }: Props) {
   };
 
   const formatDate = (timestamp: number) => {
-    return new Date(timestamp * 1000).toLocaleDateString("it-IT", {
+    return new Date(timestamp).toLocaleDateString("it-IT", {
       year: "numeric",
       month: "short",
       day: "numeric",
@@ -72,7 +72,7 @@ export function PriceHistoryModal({ productId, productName, onClose }: Props) {
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
-        zIndex: 1000,
+        zIndex: 1001,
         padding: "20px",
       }}
       onClick={onClose}

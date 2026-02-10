@@ -23,6 +23,7 @@ export interface SyncResult {
   productsProcessed: number;
   newProducts: number;
   updatedProducts: number;
+  deletedProducts: number;
   duration: number;
 }
 
@@ -203,8 +204,8 @@ export class ProductSyncService extends EventEmitter {
       };
       progressCallback?.(this.currentProgress);
 
-      const { newProducts, updatedProducts } =
-        await this.applyDelta(parsedProducts);
+      const { newProducts, updatedProducts, deletedProducts } =
+        await this.applyDelta(parsedProducts, sessionId);
       this.throwIfStopRequested("update");
 
       // Stage 5: Cleanup
@@ -228,6 +229,7 @@ export class ProductSyncService extends EventEmitter {
         itemsProcessed: parsedProducts.length,
         itemsCreated: newProducts,
         itemsUpdated: updatedProducts,
+        itemsDeleted: deletedProducts,
       });
       this.db.completeSyncSession(sessionId, "completed");
 
@@ -235,6 +237,7 @@ export class ProductSyncService extends EventEmitter {
         productsProcessed: parsedProducts.length,
         newProducts,
         updatedProducts,
+        deletedProducts,
         durationMs: duration,
       });
 
@@ -243,6 +246,7 @@ export class ProductSyncService extends EventEmitter {
         productsProcessed: parsedProducts.length,
         newProducts,
         updatedProducts,
+        deletedProducts,
         duration,
       };
     } catch (error: any) {
@@ -283,7 +287,12 @@ export class ProductSyncService extends EventEmitter {
    */
   private async applyDelta(
     parsedProducts: ParsedProduct[],
-  ): Promise<{ newProducts: number; updatedProducts: number }> {
+    sessionId: string,
+  ): Promise<{
+    newProducts: number;
+    updatedProducts: number;
+    deletedProducts: number;
+  }> {
     let newProducts = 0;
     let updatedProducts = 0;
 
@@ -294,23 +303,31 @@ export class ProductSyncService extends EventEmitter {
       const existing = this.db.getProductById(productData.id);
 
       if (!existing) {
-        // New product
-        this.db.upsertProducts([productData]);
+        this.db.upsertProducts([productData], sessionId);
         newProducts++;
       } else if (existing.hash !== hash) {
-        // Changed product
-        this.db.upsertProducts([productData]);
+        this.db.upsertProducts([productData], sessionId);
         updatedProducts++;
       }
-      // else: unchanged, skip
+    }
+
+    // Detect deleted products (in DB but not in PDF)
+    // findDeletedProducts already filters for deletedAt IS NULL
+    const currentIds = parsedProducts.map((p) => p.id_articolo);
+    const deletedIds = this.db.findDeletedProducts(currentIds);
+
+    let deletedProducts = 0;
+    if (deletedIds.length > 0) {
+      deletedProducts = this.db.softDeleteProducts(deletedIds, sessionId);
     }
 
     logger.info("[ProductSyncService] Delta applied", {
       newProducts,
       updatedProducts,
+      deletedProducts,
     });
 
-    return { newProducts, updatedProducts };
+    return { newProducts, updatedProducts, deletedProducts };
   }
 
   /**

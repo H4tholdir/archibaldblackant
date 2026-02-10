@@ -13,9 +13,22 @@ interface PriceChange {
   syncDate: number;
 }
 
+interface PriceStats {
+  totalChanges: number;
+  increases: number;
+  decreases: number;
+  newPrices: number;
+}
+
 export function PriceVariationsPage() {
   const [changes, setChanges] = useState<PriceChange[]>([]);
   const [filteredChanges, setFilteredChanges] = useState<PriceChange[]>([]);
+  const [stats, setStats] = useState<PriceStats>({
+    totalChanges: 0,
+    increases: 0,
+    decreases: 0,
+    newPrices: 0,
+  });
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<"all" | "increases" | "decreases">(
     "all",
@@ -35,7 +48,7 @@ export function PriceVariationsPage() {
 
   const fetchRecentChanges = async () => {
     try {
-      const token = localStorage.getItem("token");
+      const token = localStorage.getItem("archibald_jwt");
       const response = await fetch("/api/prices/history/recent/30", {
         headers: { Authorization: `Bearer ${token}` },
       });
@@ -43,6 +56,14 @@ export function PriceVariationsPage() {
       const data = await response.json();
       if (data.success) {
         setChanges(data.changes || []);
+        setStats(
+          data.stats || {
+            totalChanges: 0,
+            increases: 0,
+            decreases: 0,
+            newPrices: 0,
+          },
+        );
       }
     } catch (error) {
       console.error("Failed to fetch price changes:", error);
@@ -74,7 +95,7 @@ export function PriceVariationsPage() {
   };
 
   const formatDate = (timestamp: number) => {
-    return new Date(timestamp * 1000).toLocaleDateString("it-IT");
+    return new Date(timestamp).toLocaleDateString("it-IT");
   };
 
   const formatPrice = (price: number | null) => {
@@ -115,9 +136,9 @@ export function PriceVariationsPage() {
           <div
             style={{ fontSize: "24px", fontWeight: "bold", color: "#c62828" }}
           >
-            {changes.filter((c) => c.changeType === "increase").length}
+            {stats.increases}
           </div>
-          <div style={{ fontSize: "14px", color: "#666" }}>Aumenti 🔴</div>
+          <div style={{ fontSize: "14px", color: "#666" }}>Aumenti</div>
         </div>
         <div
           style={{
@@ -129,9 +150,9 @@ export function PriceVariationsPage() {
           <div
             style={{ fontSize: "24px", fontWeight: "bold", color: "#2e7d32" }}
           >
-            {changes.filter((c) => c.changeType === "decrease").length}
+            {stats.decreases}
           </div>
-          <div style={{ fontSize: "14px", color: "#666" }}>Diminuzioni 🟢</div>
+          <div style={{ fontSize: "14px", color: "#666" }}>Diminuzioni</div>
         </div>
         <div
           style={{
@@ -141,9 +162,9 @@ export function PriceVariationsPage() {
           }}
         >
           <div style={{ fontSize: "24px", fontWeight: "bold", color: "#666" }}>
-            {changes.filter((c) => c.changeType === "new").length}
+            {stats.newPrices}
           </div>
-          <div style={{ fontSize: "14px", color: "#666" }}>Nuovi Prezzi 🆕</div>
+          <div style={{ fontSize: "14px", color: "#666" }}>Nuovi Prezzi</div>
         </div>
       </div>
 

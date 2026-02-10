@@ -24,6 +24,7 @@ import { ArticoliList } from "./pages/ArticoliList";
 import { Dashboard } from "./pages/Dashboard";
 import { ProfilePage } from "./pages/ProfilePage";
 import { PriceVariationsPage } from "./pages/PriceVariationsPage";
+import { ProductVariationsPage } from "./pages/ProductVariationsPage";
 import { FresisHistoryPage } from "./pages/FresisHistoryPage";
 import WarehouseManagementView from "./pages/WarehouseManagementView";
 import { DashboardNav } from "./components/DashboardNav";
@@ -409,6 +410,25 @@ function AppRouter() {
                       v1.0.0 • Formicanera by Francesco Formicola
                       {/* TODO: Add live sync progress bar here */}
                     </p>
+                  </footer>
+                </div>
+              }
+            />
+
+            {/* Product Variations route */}
+            <Route
+              path="/prodotti-variazioni"
+              element={
+                <div
+                  className="app"
+                  style={{ marginTop: isOffline ? "64px" : "0" }}
+                >
+                  <SyncBanner />
+                  <main className="app-main" style={{ padding: "0" }}>
+                    <ProductVariationsPage />
+                  </main>
+                  <footer className="app-footer">
+                    <p>v1.0.0 • Formicanera by Francesco Formicola</p>
                   </footer>
                 </div>
               }
