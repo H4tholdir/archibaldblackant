@@ -96,7 +96,7 @@ router.post(
 
       const protocol = req.headers["x-forwarded-proto"] || req.protocol;
       const host = req.headers["x-forwarded-host"] || req.get("host");
-      const url = `${protocol}://${host}/api/share/pdf/${id}`;
+      const url = `${protocol}://${host}/api/share/pdf/${id}.pdf`;
 
       logger.info("PDF uploaded for sharing", {
         id,
@@ -115,11 +115,11 @@ router.post(
 );
 
 /**
- * GET /pdf/:id
+ * GET /pdf/:id.pdf (or /pdf/:id for backward compat)
  * Serve a shared PDF (public, no auth required)
  */
 router.get("/pdf/:id", (req: Request, res: Response) => {
-  const { id } = req.params;
+  const id = req.params.id.replace(/\.pdf$/, "");
   const filePath = path.join(SHARED_PDF_DIR, `${id}.pdf`);
   let meta = pdfStore.get(id);
 
