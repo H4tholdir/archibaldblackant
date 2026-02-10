@@ -4461,53 +4461,107 @@ export class ArchibaldBot {
                     });
 
                     if (discInputId) {
-                      // Focus + double-click via JS (not mouse coordinates).
-                      // Mouse click at input coords can hit a saved row cell
-                      // (z-index overlap) — same issue as INVENTTABLE.
-                      await this.page!.evaluate((inputId: string) => {
-                        const inp = document.getElementById(
-                          inputId,
-                        ) as HTMLInputElement;
-                        if (!inp) return;
-                        inp.scrollIntoView({ block: "center" });
-                        inp.focus();
-                        inp.click();
-                        inp.dispatchEvent(
-                          new MouseEvent("dblclick", { bubbles: true }),
-                        );
-                      }, discInputId);
-                      await this.wait(300);
-
-                      // Select all + paste discount value via insertText
-                      // Use Control (not Meta) — bot runs on Linux VPS
-                      await this.page!.keyboard.down("Control");
-                      await this.page!.keyboard.press("a");
-                      await this.page!.keyboard.up("Control");
-                      await this.wait(50);
-
                       const discountStr = item.discount!.toString();
-                      await this.page!.evaluate((val: string) => {
-                        document.execCommand("insertText", false, val);
-                      }, discountStr);
-                      await this.wait(200);
+                      const MAX_DISCOUNT_ATTEMPTS = 3;
+                      let discountConfirmed = false;
 
-                      // Enter to confirm the value in the spin editor
-                      await this.page!.keyboard.press("Enter");
-                      await this.wait(500);
-
-                      const discAfter = await this.page!.evaluate(
-                        (inputId: string) =>
-                          (
-                            document.getElementById(
+                      for (
+                        let attempt = 1;
+                        attempt <= MAX_DISCOUNT_ATTEMPTS;
+                        attempt++
+                      ) {
+                        // Double-click to enter edit mode on the spin editor
+                        const discCoord = await this.page!.evaluate(
+                          (inputId: string) => {
+                            const inp = document.getElementById(
                               inputId,
-                            ) as HTMLInputElement
-                          )?.value || "",
-                        discInputId,
-                      );
+                            ) as HTMLInputElement;
+                            if (!inp) return null;
+                            inp.scrollIntoView({ block: "center" });
+                            const r = inp.getBoundingClientRect();
+                            return {
+                              x: r.x + r.width / 2,
+                              y: r.y + r.height / 2,
+                            };
+                          },
+                          discInputId,
+                        );
 
-                      logger.info(
-                        `✅ Discount set: ${item.discount}% (${discAfter})`,
-                      );
+                        if (discCoord) {
+                          await this.page!.mouse.click(
+                            discCoord.x,
+                            discCoord.y,
+                            { clickCount: 2 },
+                          );
+                          await this.wait(300);
+                        }
+
+                        // Select all + paste discount value via insertText
+                        // Use Control (not Meta) — bot runs on Linux VPS
+                        await this.page!.keyboard.down("Control");
+                        await this.page!.keyboard.press("a");
+                        await this.page!.keyboard.up("Control");
+                        await this.wait(50);
+
+                        await this.page!.evaluate((val: string) => {
+                          document.execCommand("insertText", false, val);
+                        }, discountStr);
+                        await this.wait(200);
+
+                        // Enter to confirm the value in the spin editor
+                        await this.page!.keyboard.press("Enter");
+
+                        // Smart wait: poll the input value until it reflects
+                        // the discount (SpinEdit formats e.g. "63,00 %").
+                        // This replaces a fixed wait and adapts to server speed.
+                        const confirmed = await this.page!
+                          .waitForFunction(
+                            (inputId: string, target: string) => {
+                              const inp = document.getElementById(
+                                inputId,
+                              ) as HTMLInputElement;
+                              if (!inp) return false;
+                              const val = inp.value
+                                .replace(/[^0-9.,]/g, "")
+                                .replace(",", ".");
+                              const num = parseFloat(val);
+                              return num === parseFloat(target);
+                            },
+                            { timeout: 3000 },
+                            discInputId,
+                            discountStr,
+                          )
+                          .then(() => true)
+                          .catch(() => false);
+
+                        const discAfter = await this.page!.evaluate(
+                          (inputId: string) =>
+                            (
+                              document.getElementById(
+                                inputId,
+                              ) as HTMLInputElement
+                            )?.value || "",
+                          discInputId,
+                        );
+
+                        if (confirmed) {
+                          logger.info(
+                            `✅ Discount set: ${item.discount}% (${discAfter}) [attempt ${attempt}]`,
+                          );
+                          discountConfirmed = true;
+                          break;
+                        }
+
+                        logger.warn(
+                          `⚠️ Discount attempt ${attempt}/${MAX_DISCOUNT_ATTEMPTS} failed: read "${discAfter}" instead of ${item.discount}%`,
+                        );
+                      }
+
+                      if (!discountConfirmed) {
+                        logger.error(
+                          `❌ Discount NOT set after ${MAX_DISCOUNT_ATTEMPTS} attempts for ${item.discount}%`,
+                        );
+                      }
                     } else {
                       logger.warn(
                         `⚠️ MANUALDISCOUNT input not found, discount not set`,
