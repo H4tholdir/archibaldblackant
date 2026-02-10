@@ -6286,6 +6286,144 @@ app.get(
   },
 );
 
+// Download PDF with SSE progress - GET /api/orders/:orderId/pdf-download?type=invoice|ddt&token=JWT
+// Uses query param token because EventSource does not support Authorization headers
+app.get(
+  "/api/orders/:orderId/pdf-download",
+  async (req: Request, res: Response) => {
+    const token = req.query.token as string;
+    if (!token) {
+      return res.status(401).json({ success: false, error: "Token required" });
+    }
+    const payload = await (
+      await import("./auth-utils")
+    ).verifyJWT(token);
+    if (!payload) {
+      return res
+        .status(401)
+        .json({ success: false, error: "Invalid or expired token" });
+    }
+    const userId = payload.userId;
+
+    const orderId = decodeURIComponent(req.params.orderId);
+    const type = req.query.type as string;
+
+    if (type !== "invoice" && type !== "ddt") {
+      return res
+        .status(400)
+        .json({ success: false, error: "type must be 'invoice' or 'ddt'" });
+    }
+
+    const orderDb = OrderDatabaseNew.getInstance();
+    const priorityManager = PriorityManager.getInstance();
+
+    // Find order
+    let order = orderDb.getOrderById(userId, orderId);
+    if (!order) {
+      const allOrders = orderDb.getOrdersByUser(userId);
+      order = allOrders.find((o) => o.orderNumber === orderId) || null;
+    }
+    if (!order) {
+      return res.status(404).json({ success: false, error: "Order not found" });
+    }
+
+    // Validate
+    if (type === "invoice" && !order.invoiceNumber) {
+      return res
+        .status(404)
+        .json({ success: false, error: "Invoice not available" });
+    }
+    if (type === "ddt") {
+      if (!order.ddtNumber) {
+        return res
+          .status(404)
+          .json({ success: false, error: "DDT not available" });
+      }
+      if (!order.trackingNumber) {
+        return res.status(400).json({
+          success: false,
+          error: "Tracking number required for DDT PDF",
+        });
+      }
+    }
+
+    // Setup SSE
+    res.setHeader("Content-Type", "text/event-stream");
+    res.setHeader("Cache-Control", "no-cache");
+    res.setHeader("Connection", "keep-alive");
+    res.setHeader("X-Accel-Buffering", "no");
+    res.flushHeaders();
+
+    const sendProgress = (stage: string, percent: number) => {
+      res.write(
+        `data: ${JSON.stringify({ type: "progress", stage, percent })}\n\n`,
+      );
+    };
+
+    let aborted = false;
+    req.on("close", () => {
+      aborted = true;
+    });
+
+    priorityManager.pause();
+
+    try {
+      let pdfBuffer: Buffer;
+
+      if (type === "invoice") {
+        const invoiceScraperService = new (
+          await import("./invoice-scraper-service")
+        ).InvoiceScraperService();
+        pdfBuffer = await invoiceScraperService.downloadInvoicePDF(
+          userId,
+          order,
+          (stage, percent) => {
+            if (!aborted) sendProgress(stage, percent);
+          },
+        );
+      } else {
+        const ddtScraperService = new DDTScraperService();
+        pdfBuffer = await ddtScraperService.downloadDDTPDF(
+          userId,
+          order,
+          (stage, percent) => {
+            if (!aborted) sendProgress(stage, percent);
+          },
+        );
+      }
+
+      if (aborted) return;
+
+      // Send PDF as base64 in the final event
+      const base64Pdf = pdfBuffer.toString("base64");
+      const filename =
+        type === "invoice"
+          ? `fattura-${order.invoiceNumber?.replace(/\//g, "-")}.pdf`
+          : `ddt-${order.ddtNumber?.replace(/\//g, "-")}.pdf`;
+
+      res.write(
+        `data: ${JSON.stringify({ type: "complete", percent: 100, filename, pdf: base64Pdf })}\n\n`,
+      );
+      res.end();
+    } catch (error) {
+      if (!aborted) {
+        const errorMessage =
+          error instanceof Error ? error.message : "Download failed";
+        res.write(
+          `data: ${JSON.stringify({ type: "error", error: errorMessage })}\n\n`,
+        );
+        res.end();
+      }
+      logger.error(`[PDF Download SSE] Failed for order ${orderId}`, {
+        error: error instanceof Error ? error.message : String(error),
+        type,
+      });
+    } finally {
+      priorityManager.resume();
+    }
+  },
+);
+
 // Sync order states - POST /api/orders/sync-states
 app.post(
   "/api/orders/sync-states",

@@ -416,7 +416,11 @@ export class DDTScraperService {
    * 5. Wait for PDF link generation
    * 6. Download PDF via Puppeteer CDP
    */
-  async downloadDDTPDF(userId: string, order: OrderRecord): Promise<Buffer> {
+  async downloadDDTPDF(
+    userId: string,
+    order: OrderRecord,
+    onProgress?: (stage: string, percent: number) => void,
+  ): Promise<Buffer> {
     logger.info(`[DDTScraper] Downloading DDT PDF for order ${order.id}`, {
       orderId: order.id,
       orderNumber: order.orderNumber,
@@ -435,12 +439,14 @@ export class DDTScraperService {
 
     try {
       // Acquire browser context
+      onProgress?.("Connessione al server Archibald...", 5);
       logger.info(`[DDTScraper] Acquiring browser context for user ${userId}`);
       context = await browserPool.acquireContext(userId);
       const page = await context.newPage();
 
       try {
         // Navigate to DDT page
+        onProgress?.("Navigazione alla pagina DDT...", 15);
         logger.info(`[DDTScraper] Navigating to DDT page: ${this.ddtPageUrl}`);
         await page.goto(this.ddtPageUrl, {
           waitUntil: "domcontentloaded",
@@ -452,6 +458,7 @@ export class DDTScraperService {
         await new Promise((resolve) => setTimeout(resolve, 2000));
 
         // Use search bar to filter for specific order
+        onProgress?.("Ricerca ordine in corso...", 30);
         logger.info(
           `[DDTScraper] Using search bar to filter for order ${order.orderNumber}`,
         );
@@ -574,6 +581,7 @@ export class DDTScraperService {
         await new Promise((resolve) => setTimeout(resolve, 1000));
 
         // Trigger PDF generation
+        onProgress?.("Generazione PDF in corso...", 55);
         logger.info('[DDTScraper] Clicking "Scarica PDF" button');
         await page.click('li[title="Scarica PDF"] a.dxm-content');
 
@@ -590,6 +598,7 @@ export class DDTScraperService {
         logger.info("[DDTScraper] PDF link appeared");
 
         // Setup Puppeteer download interception via CDP
+        onProgress?.("Download PDF dal server...", 75);
         const client = await (page.target() as any).createCDPSession();
         const tmpDir = "/tmp/archibald-ddt";
 
@@ -631,6 +640,7 @@ export class DDTScraperService {
         }
 
         const pdfPath = `${tmpDir}/${pdfFile}`;
+        onProgress?.("Lettura e preparazione file...", 90);
         logger.info(`[DDTScraper] Reading PDF from ${pdfPath}`);
 
         // Read PDF into Buffer

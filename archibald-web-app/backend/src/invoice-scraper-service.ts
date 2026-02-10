@@ -490,6 +490,7 @@ export class InvoiceScraperService {
   async downloadInvoicePDF(
     userId: string,
     order: OrderRecord,
+    onProgress?: (stage: string, percent: number) => void,
   ): Promise<Buffer> {
     logger.info(
       `[InvoiceScraper] Downloading invoice PDF for order ${order.orderNumber}`,
@@ -505,11 +506,13 @@ export class InvoiceScraperService {
 
     try {
       // Acquire browser context
+      onProgress?.("Connessione al server Archibald...", 5);
       context = await browserPool.acquireContext(userId);
       const page = await context.newPage();
 
       try {
         // Navigate to Invoice page
+        onProgress?.("Navigazione alla pagina fatture...", 15);
         logger.info("[InvoiceScraper] Navigating to Invoice page");
         await page.goto(this.invoicePageUrl, {
           waitUntil: "domcontentloaded",
@@ -519,53 +522,115 @@ export class InvoiceScraperService {
         // Wait for page to load
         await new Promise((resolve) => setTimeout(resolve, 3000));
 
-        // Step 1: Find search input field (it's already visible, no need to click a button)
+        // Step 1: Find search input field (flexible selector matching DDT pattern)
+        onProgress?.("Ricerca ordine in corso...", 30);
         logger.info(
           `[InvoiceScraper] Searching for order ${order.orderNumber}`,
         );
         const searchInputSelector =
-          "input#Vertical_SearchAC_Menu_ITCNT0_xaf_a1_Ed_I";
+          'input[id*="SearchAC"][id*="Ed_I"][type="text"]';
         await page.waitForSelector(searchInputSelector, { timeout: 10000 });
 
-        // Clear the placeholder text and paste order number (instant, not typing)
+        // Click on search field to focus it
         await page.click(searchInputSelector);
+        await new Promise((resolve) => setTimeout(resolve, 300));
+
+        // Paste order number with full DevExpress event triggering
+        logger.info(
+          `[InvoiceScraper] Pasting order number "${order.orderNumber}" into search field`,
+        );
         await page.evaluate(
           (selector, orderNumber) => {
             const input = document.querySelector(selector) as HTMLInputElement;
             if (input) {
+              input.value = "";
+              input.focus();
               input.value = orderNumber;
-              // Trigger input event to notify any listeners
               input.dispatchEvent(new Event("input", { bubbles: true }));
               input.dispatchEvent(new Event("change", { bubbles: true }));
+              input.dispatchEvent(
+                new KeyboardEvent("keyup", {
+                  bubbles: true,
+                  key: "Enter",
+                  keyCode: 13,
+                }),
+              );
             }
           },
           searchInputSelector,
           order.orderNumber,
         );
 
-        // Step 2: Click the search button (B1) to execute search
-        logger.info(
-          "[InvoiceScraper] Clicking search button to execute search",
-        );
-        const searchButtonSelector =
-          "td#Vertical_SearchAC_Menu_ITCNT0_xaf_a1_Ed_B1";
-        await page.click(searchButtonSelector);
+        // Small delay for DevExpress to process
+        await new Promise((resolve) => setTimeout(resolve, 300));
+
+        // Step 2: Trigger search by pressing Enter
+        logger.info("[InvoiceScraper] Triggering search with Enter key");
+        await page.keyboard.press("Enter");
 
         // Wait for search results
         logger.info("[InvoiceScraper] Waiting for search results");
         await new Promise((resolve) => setTimeout(resolve, 3000));
 
-        // Step 3: Click checkbox of first row
-        logger.info("[InvoiceScraper] Selecting first invoice row checkbox");
-        const checkboxSelector =
-          "span.dxWeb_edtCheckBoxUnchecked_XafTheme.dxICheckBox_XafTheme";
-        await page.waitForSelector(checkboxSelector, { timeout: 10000 });
-        await page.click(checkboxSelector);
+        // Step 3: Verify we have results and select first row
+        logger.info("[InvoiceScraper] Verifying filtered results");
+        const rowCount = await page.evaluate(() => {
+          const rows = document.querySelectorAll(
+            "tr.dxgvDataRow, tr.dxgvDataRow_XafTheme",
+          );
+          return rows.length;
+        });
+
+        logger.info(
+          `[InvoiceScraper] Found ${rowCount} row(s) after filtering`,
+        );
+
+        if (rowCount === 0) {
+          throw new Error(
+            `No invoice found for order ${order.orderNumber} after search`,
+          );
+        }
+
+        // Get row ID and click its checkbox (DevExpress command column pattern)
+        logger.info("[InvoiceScraper] Selecting first invoice row");
+        const rowId = await page.evaluate(() => {
+          const row = document.querySelector(
+            "tr.dxgvDataRow, tr.dxgvDataRow_XafTheme",
+          );
+          return row?.id || null;
+        });
+
+        if (!rowId) {
+          throw new Error(
+            `Could not find row ID for order ${order.orderNumber}`,
+          );
+        }
+
+        await page.evaluate((id) => {
+          const row = document.getElementById(id);
+          if (!row) throw new Error(`Row not found with id: ${id}`);
+          const checkboxTd = row.querySelector(
+            'td.dxgvCommandColumn_XafTheme[onclick*="Select"]',
+          ) as HTMLElement;
+          if (checkboxTd) {
+            checkboxTd.click();
+          } else {
+            const fallbackCheckbox = row.querySelector(
+              "span.dxWeb_edtCheckBoxUnchecked_XafTheme.dxICheckBox_XafTheme",
+            ) as HTMLElement;
+            if (fallbackCheckbox) {
+              fallbackCheckbox.click();
+            } else {
+              throw new Error(`Checkbox not found for row ${id}`);
+            }
+          }
+        }, rowId);
 
         // Wait for selection to register
         await new Promise((resolve) => setTimeout(resolve, 1000));
 
         // Step 4: Click "Scarica PDF" button
+        onProgress?.("Generazione PDF in corso...", 55);
         logger.info('[InvoiceScraper] Clicking "Scarica PDF" button');
         const downloadButtonSelector = 'li[title="Scarica PDF"] a.dxm-content';
         await page.waitForSelector(downloadButtonSelector, { timeout: 10000 });
@@ -577,6 +642,7 @@ export class InvoiceScraperService {
         await page.waitForSelector(pdfLinkSelector, { timeout: 30000 });
 
         // Step 6: Setup download interception and click PDF link
+        onProgress?.("Download PDF dal server...", 75);
         const client = await (page.target() as any).createCDPSession();
         const tmpDir = "/tmp/archibald-invoices";
 
@@ -605,6 +671,7 @@ export class InvoiceScraperService {
         }
 
         const pdfPath = `${tmpDir}/${pdfFile}`;
+        onProgress?.("Lettura e preparazione file...", 90);
         logger.info(`[InvoiceScraper] Reading PDF from ${pdfPath}`);
 
         // Read PDF into Buffer

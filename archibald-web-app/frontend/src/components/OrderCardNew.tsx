@@ -903,7 +903,11 @@ function TabArticoli({
 }
 
 function TabLogistica({ order, token }: { order: Order; token?: string }) {
-  const [isDownloadingDDT, setIsDownloadingDDT] = useState(false);
+  const [ddtProgress, setDdtProgress] = useState<{
+    active: boolean;
+    percent: number;
+    stage: string;
+  }>({ active: false, percent: 0, stage: "" });
   const [ddtError, setDdtError] = useState<string | null>(null);
 
   const ddt = order.ddt;
@@ -913,7 +917,7 @@ function TabLogistica({ order, token }: { order: Order; token?: string }) {
     trackingCourier: ddt?.trackingCourier,
   };
 
-  const handleDownloadDDT = async () => {
+  const handleDownloadDDT = () => {
     if (!token) {
       setDdtError("Token di autenticazione mancante");
       return;
@@ -926,41 +930,24 @@ function TabLogistica({ order, token }: { order: Order; token?: string }) {
       return;
     }
 
-    setIsDownloadingDDT(true);
+    setDdtProgress({ active: true, percent: 0, stage: "Avvio..." });
     setDdtError(null);
 
-    try {
-      // Use orderNumber (ORD/xxxxxxxx) instead of internal id for API call
-      const orderIdentifier = order.orderNumber || order.id;
-      // Encode the order identifier to handle slashes in ORD/xxxxxxxx format
-      const encodedId = encodeURIComponent(orderIdentifier);
-      const response = await fetchWithRetry(
-        `/api/orders/${encodedId}/ddt/download`,
-        {
-          headers: { Authorization: `Bearer ${token}` },
-        },
-      );
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || "Errore durante il download");
-      }
-
-      const blob = await response.blob();
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `ddt-${ddt.ddtNumber?.replace(/\//g, "-") || "documento"}.pdf`;
-      a.click();
-      window.URL.revokeObjectURL(url);
-    } catch (err) {
-      const errorMessage =
-        err instanceof Error ? err.message : "Errore sconosciuto";
-      setDdtError(errorMessage);
-      console.error("DDT download error:", err);
-    } finally {
-      setIsDownloadingDDT(false);
-    }
+    downloadPdfWithProgress(
+      order.orderNumber || order.id,
+      "ddt",
+      token,
+      (stage, percent) => setDdtProgress({ active: true, percent, stage }),
+      () =>
+        setTimeout(
+          () => setDdtProgress({ active: false, percent: 0, stage: "" }),
+          1500,
+        ),
+      (error) => {
+        setDdtError(error);
+        setDdtProgress({ active: false, percent: 0, stage: "" });
+      },
+    );
   };
 
   return (
@@ -1004,19 +991,19 @@ function TabLogistica({ order, token }: { order: Order; token?: string }) {
           <div style={{ marginTop: "16px" }}>
             <button
               onClick={handleDownloadDDT}
-              disabled={isDownloadingDDT || !ddt.trackingNumber}
+              disabled={ddtProgress.active || !ddt.trackingNumber}
               style={{
                 width: "100%",
                 padding: "12px",
                 backgroundColor:
-                  isDownloadingDDT || !ddt.trackingNumber ? "#ccc" : "#4caf50",
+                  ddtProgress.active || !ddt.trackingNumber ? "#ccc" : "#4caf50",
                 color: "#fff",
                 border: "none",
                 borderRadius: "8px",
                 fontSize: "14px",
                 fontWeight: 600,
                 cursor:
-                  isDownloadingDDT || !ddt.trackingNumber
+                  ddtProgress.active || !ddt.trackingNumber
                     ? "not-allowed"
                     : "pointer",
                 display: "flex",
@@ -1026,20 +1013,20 @@ function TabLogistica({ order, token }: { order: Order; token?: string }) {
                 transition: "background-color 0.2s",
               }}
               onMouseEnter={(e) => {
-                if (!isDownloadingDDT && ddt.trackingNumber) {
+                if (!ddtProgress.active && ddt.trackingNumber) {
                   e.currentTarget.style.backgroundColor = "#388e3c";
                 }
               }}
               onMouseLeave={(e) => {
-                if (!isDownloadingDDT && ddt.trackingNumber) {
+                if (!ddtProgress.active && ddt.trackingNumber) {
                   e.currentTarget.style.backgroundColor = "#4caf50";
                 }
               }}
             >
-              {isDownloadingDDT ? (
+              {ddtProgress.active ? (
                 <>
                   <span>⏳</span>
-                  <span>Download in corso...</span>
+                  <span>{ddtProgress.stage || "Download in corso..."}</span>
                 </>
               ) : !ddt.trackingNumber ? (
                 <>
@@ -1053,6 +1040,9 @@ function TabLogistica({ order, token }: { order: Order; token?: string }) {
                 </>
               )}
             </button>
+            {ddtProgress.active && (
+              <ProgressBar percent={ddtProgress.percent} stage={ddtProgress.stage} color="#4caf50" />
+            )}
             {ddtError && (
               <div
                 style={{
@@ -1230,10 +1220,14 @@ function TabLogistica({ order, token }: { order: Order; token?: string }) {
 }
 
 function TabFinanziario({ order, token }: { order: Order; token?: string }) {
-  const [isDownloadingInvoice, setIsDownloadingInvoice] = useState(false);
+  const [invoiceProgress, setInvoiceProgress] = useState<{
+    active: boolean;
+    percent: number;
+    stage: string;
+  }>({ active: false, percent: 0, stage: "" });
   const [invoiceError, setInvoiceError] = useState<string | null>(null);
 
-  const handleDownloadInvoice = async () => {
+  const handleDownloadInvoice = () => {
     if (!token) {
       setInvoiceError("Token di autenticazione mancante");
       return;
@@ -1244,39 +1238,25 @@ function TabFinanziario({ order, token }: { order: Order; token?: string }) {
       return;
     }
 
-    setIsDownloadingInvoice(true);
+    setInvoiceProgress({ active: true, percent: 0, stage: "Avvio..." });
     setInvoiceError(null);
 
-    try {
-      const orderIdentifier = order.orderNumber || order.id;
-      const encodedId = encodeURIComponent(orderIdentifier);
-      const response = await fetchWithRetry(
-        `/api/orders/${encodedId}/invoice/download`,
-        {
-          headers: { Authorization: `Bearer ${token}` },
-        },
-      );
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || "Errore durante il download");
-      }
-
-      const blob = await response.blob();
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `fattura-${order.invoiceNumber?.replace(/\//g, "-") || "documento"}.pdf`;
-      a.click();
-      window.URL.revokeObjectURL(url);
-    } catch (err) {
-      const errorMessage =
-        err instanceof Error ? err.message : "Errore sconosciuto";
-      setInvoiceError(errorMessage);
-      console.error("Invoice download error:", err);
-    } finally {
-      setIsDownloadingInvoice(false);
-    }
+    downloadPdfWithProgress(
+      order.orderNumber || order.id,
+      "invoice",
+      token,
+      (stage, percent) =>
+        setInvoiceProgress({ active: true, percent, stage }),
+      () =>
+        setTimeout(
+          () => setInvoiceProgress({ active: false, percent: 0, stage: "" }),
+          1500,
+        ),
+      (error) => {
+        setInvoiceError(error);
+        setInvoiceProgress({ active: false, percent: 0, stage: "" });
+      },
+    );
   };
 
   return (
@@ -1501,19 +1481,19 @@ function TabFinanziario({ order, token }: { order: Order; token?: string }) {
 
         <button
           onClick={handleDownloadInvoice}
-          disabled={isDownloadingInvoice || !order.invoiceNumber}
+          disabled={invoiceProgress.active || !order.invoiceNumber}
           style={{
             width: "100%",
             padding: "12px",
             backgroundColor:
-              isDownloadingInvoice || !order.invoiceNumber ? "#ccc" : "#4caf50",
+              invoiceProgress.active || !order.invoiceNumber ? "#ccc" : "#4caf50",
             color: "#fff",
             border: "none",
             borderRadius: "8px",
             fontSize: "14px",
             fontWeight: 600,
             cursor:
-              isDownloadingInvoice || !order.invoiceNumber
+              invoiceProgress.active || !order.invoiceNumber
                 ? "not-allowed"
                 : "pointer",
             display: "flex",
@@ -1523,20 +1503,20 @@ function TabFinanziario({ order, token }: { order: Order; token?: string }) {
             transition: "background-color 0.2s",
           }}
           onMouseEnter={(e) => {
-            if (!isDownloadingInvoice && order.invoiceNumber) {
+            if (!invoiceProgress.active && order.invoiceNumber) {
               e.currentTarget.style.backgroundColor = "#388e3c";
             }
           }}
           onMouseLeave={(e) => {
-            if (!isDownloadingInvoice && order.invoiceNumber) {
+            if (!invoiceProgress.active && order.invoiceNumber) {
               e.currentTarget.style.backgroundColor = "#4caf50";
             }
           }}
         >
-          {isDownloadingInvoice ? (
+          {invoiceProgress.active ? (
             <>
               <span>⏳</span>
-              <span>Download in corso...</span>
+              <span>{invoiceProgress.stage || "Download in corso..."}</span>
             </>
           ) : !order.invoiceNumber ? (
             <>
@@ -1550,6 +1530,9 @@ function TabFinanziario({ order, token }: { order: Order; token?: string }) {
             </>
           )}
         </button>
+        {invoiceProgress.active && (
+          <ProgressBar percent={invoiceProgress.percent} stage={invoiceProgress.stage} color="#4caf50" />
+        )}
         {invoiceError && (
           <div
             style={{
@@ -1870,6 +1853,107 @@ const tableCellStyle: React.CSSProperties = {
 };
 
 // ============================================================================
+// PDF DOWNLOAD WITH SSE PROGRESS
+// ============================================================================
+
+function downloadPdfWithProgress(
+  orderId: string,
+  type: "invoice" | "ddt",
+  token: string,
+  onProgress: (stage: string, percent: number) => void,
+  onComplete: () => void,
+  onError: (error: string) => void,
+): () => void {
+  const encodedId = encodeURIComponent(orderId);
+  const url = `/api/orders/${encodedId}/pdf-download?type=${type}&token=${encodeURIComponent(token)}`;
+
+  const eventSource = new EventSource(url);
+
+  eventSource.onmessage = (event) => {
+    try {
+      const data = JSON.parse(event.data);
+      if (data.type === "progress") {
+        onProgress(data.stage, data.percent);
+      } else if (data.type === "complete") {
+        onProgress("Download completato!", 100);
+        const byteCharacters = atob(data.pdf);
+        const byteNumbers = new Array(byteCharacters.length);
+        for (let i = 0; i < byteCharacters.length; i++) {
+          byteNumbers[i] = byteCharacters.charCodeAt(i);
+        }
+        const byteArray = new Uint8Array(byteNumbers);
+        const blob = new Blob([byteArray], { type: "application/pdf" });
+        const downloadUrl = window.URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = downloadUrl;
+        a.download = data.filename;
+        a.click();
+        window.URL.revokeObjectURL(downloadUrl);
+        eventSource.close();
+        onComplete();
+      } else if (data.type === "error") {
+        eventSource.close();
+        onError(data.error);
+      }
+    } catch {
+      eventSource.close();
+      onError("Errore durante il parsing della risposta");
+    }
+  };
+
+  eventSource.onerror = () => {
+    eventSource.close();
+    onError("Connessione persa durante il download");
+  };
+
+  return () => eventSource.close();
+}
+
+function ProgressBar({
+  percent,
+  stage,
+  color,
+}: {
+  percent: number;
+  stage: string;
+  color: string;
+}) {
+  return (
+    <div style={{ width: "100%", marginTop: "6px" }}>
+      <div
+        style={{
+          width: "100%",
+          height: "6px",
+          backgroundColor: "#e0e0e0",
+          borderRadius: "3px",
+          overflow: "hidden",
+        }}
+      >
+        <div
+          style={{
+            width: `${percent}%`,
+            height: "100%",
+            backgroundColor: color,
+            borderRadius: "3px",
+            transition: "width 0.4s ease",
+          }}
+        />
+      </div>
+      <div
+        style={{
+          fontSize: "10px",
+          color: "#666",
+          marginTop: "2px",
+          textAlign: "center",
+        }}
+      >
+        {stage}
+      </div>
+    </div>
+  );
+}
+
+// ============================================================================
 // MAIN COMPONENT
 // ============================================================================
 
@@ -1885,9 +1969,16 @@ export function OrderCardNew({
     "panoramica" | "articoli" | "logistica" | "finanziario" | "storico"
   >("panoramica");
 
-  const [isDownloadingDDTQuick, setIsDownloadingDDTQuick] = useState(false);
-  const [isDownloadingInvoiceQuick, setIsDownloadingInvoiceQuick] =
-    useState(false);
+  const [ddtQuickProgress, setDdtQuickProgress] = useState<{
+    active: boolean;
+    percent: number;
+    stage: string;
+  }>({ active: false, percent: 0, stage: "" });
+  const [invoiceQuickProgress, setInvoiceQuickProgress] = useState<{
+    active: boolean;
+    percent: number;
+    stage: string;
+  }>({ active: false, percent: 0, stage: "" });
 
   // Articles totals state (updated when articles are loaded/synced)
   // Initialize from order prop if available
@@ -2098,138 +2189,116 @@ export function OrderCardNew({
 
               {/* DDT Download Button */}
               {order.ddt?.ddtNumber && order.ddt?.trackingNumber && (
-                <button
-                  disabled={isDownloadingDDTQuick}
-                  onClick={async (e) => {
-                    e.stopPropagation();
-                    if (isDownloadingDDTQuick) return;
-                    setIsDownloadingDDTQuick(true);
-                    try {
-                      const orderIdentifier = order.orderNumber || order.id;
-                      const encodedId = encodeURIComponent(orderIdentifier);
-                      const response = await fetchWithRetry(
-                        `/api/orders/${encodedId}/ddt/download`,
-                        {
-                          headers: {
-                            Authorization: `Bearer ${token}`,
-                          },
+                <div style={{ display: "inline-flex", flexDirection: "column", minWidth: ddtQuickProgress.active ? "160px" : undefined }}>
+                  <button
+                    disabled={ddtQuickProgress.active}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (ddtQuickProgress.active || !token) return;
+                      setDdtQuickProgress({ active: true, percent: 0, stage: "Avvio..." });
+                      downloadPdfWithProgress(
+                        order.orderNumber || order.id,
+                        "ddt",
+                        token,
+                        (stage, percent) => setDdtQuickProgress({ active: true, percent, stage }),
+                        () => setTimeout(() => setDdtQuickProgress({ active: false, percent: 0, stage: "" }), 1500),
+                        (error) => {
+                          console.error("DDT download error:", error);
+                          setDdtQuickProgress({ active: false, percent: 0, stage: "" });
                         },
                       );
-                      if (response.ok) {
-                        const blob = await response.blob();
-                        const url = window.URL.createObjectURL(blob);
-                        const a = document.createElement("a");
-                        a.href = url;
-                        a.download = `DDT_${order.orderNumber || order.id}.pdf`;
-                        a.click();
-                        window.URL.revokeObjectURL(url);
+                    }}
+                    style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: "4px",
+                      padding: "6px 12px",
+                      fontSize: "12px",
+                      fontWeight: 600,
+                      backgroundColor: ddtQuickProgress.active ? "#e8f5e9" : "#fff",
+                      color: ddtQuickProgress.active ? "#81c784" : "#388e3c",
+                      border: `1px solid ${ddtQuickProgress.active ? "#81c784" : "#388e3c"}`,
+                      borderRadius: "6px",
+                      cursor: ddtQuickProgress.active ? "wait" : "pointer",
+                      transition: "all 0.2s",
+                      opacity: ddtQuickProgress.active ? 0.85 : 1,
+                    }}
+                    onMouseEnter={(e) => {
+                      if (!ddtQuickProgress.active) {
+                        e.currentTarget.style.backgroundColor = "#388e3c";
+                        e.currentTarget.style.color = "#fff";
                       }
-                    } catch (error) {
-                      console.error("Error downloading DDT:", error);
-                    } finally {
-                      setIsDownloadingDDTQuick(false);
-                    }
-                  }}
-                  style={{
-                    display: "inline-flex",
-                    alignItems: "center",
-                    gap: "4px",
-                    padding: "6px 12px",
-                    fontSize: "12px",
-                    fontWeight: 600,
-                    backgroundColor: isDownloadingDDTQuick ? "#e8f5e9" : "#fff",
-                    color: isDownloadingDDTQuick ? "#81c784" : "#388e3c",
-                    border: `1px solid ${isDownloadingDDTQuick ? "#81c784" : "#388e3c"}`,
-                    borderRadius: "6px",
-                    cursor: isDownloadingDDTQuick ? "wait" : "pointer",
-                    transition: "all 0.2s",
-                    opacity: isDownloadingDDTQuick ? 0.7 : 1,
-                  }}
-                  onMouseEnter={(e) => {
-                    if (!isDownloadingDDTQuick) {
-                      e.currentTarget.style.backgroundColor = "#388e3c";
-                      e.currentTarget.style.color = "#fff";
-                    }
-                  }}
-                  onMouseLeave={(e) => {
-                    if (!isDownloadingDDTQuick) {
-                      e.currentTarget.style.backgroundColor = "#fff";
-                      e.currentTarget.style.color = "#388e3c";
-                    }
-                  }}
-                >
-                  {isDownloadingDDTQuick ? "⏳ DDT..." : "📄 DDT"}
-                </button>
+                    }}
+                    onMouseLeave={(e) => {
+                      if (!ddtQuickProgress.active) {
+                        e.currentTarget.style.backgroundColor = "#fff";
+                        e.currentTarget.style.color = "#388e3c";
+                      }
+                    }}
+                  >
+                    {ddtQuickProgress.active ? "⏳ DDT..." : "📄 DDT"}
+                  </button>
+                  {ddtQuickProgress.active && (
+                    <ProgressBar percent={ddtQuickProgress.percent} stage={ddtQuickProgress.stage} color="#388e3c" />
+                  )}
+                </div>
               )}
 
               {/* Invoice Download Button */}
               {order.invoiceNumber && (
-                <button
-                  disabled={isDownloadingInvoiceQuick}
-                  onClick={async (e) => {
-                    e.stopPropagation();
-                    if (isDownloadingInvoiceQuick) return;
-                    setIsDownloadingInvoiceQuick(true);
-                    try {
-                      const orderIdentifier = order.orderNumber || order.id;
-                      const encodedId = encodeURIComponent(orderIdentifier);
-                      const response = await fetchWithRetry(
-                        `/api/orders/${encodedId}/invoice/download`,
-                        {
-                          headers: {
-                            Authorization: `Bearer ${token}`,
-                          },
+                <div style={{ display: "inline-flex", flexDirection: "column", minWidth: invoiceQuickProgress.active ? "160px" : undefined }}>
+                  <button
+                    disabled={invoiceQuickProgress.active}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (invoiceQuickProgress.active || !token) return;
+                      setInvoiceQuickProgress({ active: true, percent: 0, stage: "Avvio..." });
+                      downloadPdfWithProgress(
+                        order.orderNumber || order.id,
+                        "invoice",
+                        token,
+                        (stage, percent) => setInvoiceQuickProgress({ active: true, percent, stage }),
+                        () => setTimeout(() => setInvoiceQuickProgress({ active: false, percent: 0, stage: "" }), 1500),
+                        (error) => {
+                          console.error("Invoice download error:", error);
+                          setInvoiceQuickProgress({ active: false, percent: 0, stage: "" });
                         },
                       );
-                      if (response.ok) {
-                        const blob = await response.blob();
-                        const url = window.URL.createObjectURL(blob);
-                        const a = document.createElement("a");
-                        a.href = url;
-                        a.download = `Fattura_${order.invoiceNumber}.pdf`;
-                        a.click();
-                        window.URL.revokeObjectURL(url);
+                    }}
+                    style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: "4px",
+                      padding: "6px 12px",
+                      fontSize: "12px",
+                      fontWeight: 600,
+                      backgroundColor: invoiceQuickProgress.active ? "#f3e5f5" : "#fff",
+                      color: invoiceQuickProgress.active ? "#ba68c8" : "#7b1fa2",
+                      border: `1px solid ${invoiceQuickProgress.active ? "#ba68c8" : "#7b1fa2"}`,
+                      borderRadius: "6px",
+                      cursor: invoiceQuickProgress.active ? "wait" : "pointer",
+                      transition: "all 0.2s",
+                      opacity: invoiceQuickProgress.active ? 0.85 : 1,
+                    }}
+                    onMouseEnter={(e) => {
+                      if (!invoiceQuickProgress.active) {
+                        e.currentTarget.style.backgroundColor = "#7b1fa2";
+                        e.currentTarget.style.color = "#fff";
                       }
-                    } catch (error) {
-                      console.error("Error downloading invoice:", error);
-                    } finally {
-                      setIsDownloadingInvoiceQuick(false);
-                    }
-                  }}
-                  style={{
-                    display: "inline-flex",
-                    alignItems: "center",
-                    gap: "4px",
-                    padding: "6px 12px",
-                    fontSize: "12px",
-                    fontWeight: 600,
-                    backgroundColor: isDownloadingInvoiceQuick
-                      ? "#f3e5f5"
-                      : "#fff",
-                    color: isDownloadingInvoiceQuick ? "#ba68c8" : "#7b1fa2",
-                    border: `1px solid ${isDownloadingInvoiceQuick ? "#ba68c8" : "#7b1fa2"}`,
-                    borderRadius: "6px",
-                    cursor: isDownloadingInvoiceQuick ? "wait" : "pointer",
-                    transition: "all 0.2s",
-                    opacity: isDownloadingInvoiceQuick ? 0.7 : 1,
-                  }}
-                  onMouseEnter={(e) => {
-                    if (!isDownloadingInvoiceQuick) {
-                      e.currentTarget.style.backgroundColor = "#7b1fa2";
-                      e.currentTarget.style.color = "#fff";
-                    }
-                  }}
-                  onMouseLeave={(e) => {
-                    if (!isDownloadingInvoiceQuick) {
-                      e.currentTarget.style.backgroundColor = "#fff";
-                      e.currentTarget.style.color = "#7b1fa2";
-                    }
-                  }}
-                >
-                  {isDownloadingInvoiceQuick
-                    ? "⏳ Fattura..."
-                    : "📑 Fattura"}
-                </button>
+                    }}
+                    onMouseLeave={(e) => {
+                      if (!invoiceQuickProgress.active) {
+                        e.currentTarget.style.backgroundColor = "#fff";
+                        e.currentTarget.style.color = "#7b1fa2";
+                      }
+                    }}
+                  >
+                    {invoiceQuickProgress.active ? "⏳ Fattura..." : "📑 Fattura"}
+                  </button>
+                  {invoiceQuickProgress.active && (
+                    <ProgressBar percent={invoiceQuickProgress.percent} stage={invoiceQuickProgress.stage} color="#7b1fa2" />
+                  )}
+                </div>
               )}
             </div>
           </div>
