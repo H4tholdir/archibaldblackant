@@ -328,10 +328,62 @@ function LocationBadge({
 // TAB CONTENT COMPONENTS
 // ============================================================================
 
-function TabPanoramica({ order }: { order: Order }) {
+function TabPanoramica({ order, token }: { order: Order; token?: string }) {
+  const [stateHistory, setStateHistory] = useState<
+    Array<{
+      id: number;
+      orderId: string;
+      oldState: string | null;
+      newState: string;
+      actor: string;
+      notes: string | null;
+      confidence: string | null;
+      source: string | null;
+      timestamp: string;
+      createdAt: string;
+    }>
+  >([]);
+
+  useEffect(() => {
+    if (!token || !order.id) return;
+
+    const loadHistory = async () => {
+      try {
+        const response = await fetchWithRetry(
+          `/api/orders/${order.id}/state-history`,
+          { headers: { Authorization: `Bearer ${token}` } },
+        );
+        if (!response.ok) return;
+        const data = await response.json();
+        if (data.success && Array.isArray(data.data)) {
+          setStateHistory(data.data);
+        }
+      } catch {
+        // Fail silently
+      }
+    };
+
+    loadHistory();
+  }, [order.id, token]);
+
+  const infoRows: Array<{ label: string; value: string | undefined }> = [
+    { label: "Numero Ordine", value: order.orderNumber },
+    { label: "ID Interno", value: order.id },
+    { label: "Data Ordine", value: formatDate(order.orderDate || order.date) },
+    { label: "Data Consegna", value: formatDate(order.deliveryDate) },
+    { label: "Tipo Ordine", value: order.orderType },
+    { label: "Stato", value: order.status },
+    { label: "Stato Dettagliato", value: order.state },
+    { label: "Stato Documento", value: order.documentState },
+    { label: "ID Profilo Cliente", value: order.customerProfileId },
+    { label: "Indirizzo Consegna", value: order.deliveryAddress },
+    { label: "Indirizzo Spedizione", value: order.shippingAddress },
+    { label: "Termini Consegna", value: order.deliveryTerms },
+  ];
+
   return (
     <div style={{ padding: "16px" }}>
-      {/* Informazioni Ordine */}
+      {/* Informazioni Ordine - Tabella compatta */}
       <div style={{ marginBottom: "24px" }}>
         <h3
           style={{
@@ -343,90 +395,53 @@ function TabPanoramica({ order }: { order: Order }) {
         >
           Informazioni Ordine
         </h3>
-        <div
+        <table
           style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(2, 1fr)",
-            gap: "12px",
+            width: "100%",
+            borderCollapse: "collapse",
+            fontSize: "14px",
           }}
         >
-          <InfoField label="Numero Ordine" value={order.orderNumber} bold />
-          <InfoField label="ID Interno" value={order.id} small />
-          <InfoField
-            label="Data Ordine"
-            value={formatDate(order.orderDate || order.date)}
-          />
-          <InfoField
-            label="Data Consegna"
-            value={formatDate(order.deliveryDate)}
-          />
-          <InfoField label="Tipo Ordine" value={order.orderType} />
-          <InfoField label="Stato" value={order.status} />
-          <InfoField label="Stato Dettagliato" value={order.state} />
-          <InfoField label="Stato Documento" value={order.documentState} />
-        </div>
-      </div>
-
-      {/* Cliente e Agente */}
-      <div style={{ marginBottom: "24px" }}>
-        <h3
-          style={{
-            fontSize: "16px",
-            fontWeight: 600,
-            marginBottom: "12px",
-            color: "#333",
-          }}
-        >
-          Cliente e Agente
-        </h3>
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(2, 1fr)",
-            gap: "12px",
-          }}
-        >
-          <InfoField label="Cliente" value={order.customerName} bold />
-          <InfoField
-            label="ID Profilo Cliente"
-            value={order.customerProfileId}
-            small
-          />
-          <InfoField label="Agente" value={order.agentPersonName} />
-          <InfoField
-            label="Responsabile Vendite"
-            value={order.salesResponsible}
-          />
-        </div>
-      </div>
-
-      {/* Consegna */}
-      <div style={{ marginBottom: "24px" }}>
-        <h3
-          style={{
-            fontSize: "16px",
-            fontWeight: 600,
-            marginBottom: "12px",
-            color: "#333",
-          }}
-        >
-          Consegna
-        </h3>
-        <InfoField
-          label="Indirizzo Consegna"
-          value={order.deliveryAddress}
-          multiline
-        />
-        <InfoField
-          label="Indirizzo Spedizione"
-          value={order.shippingAddress}
-          multiline
-        />
-        <InfoField label="Termini Consegna" value={order.deliveryTerms} />
+          <tbody>
+            {infoRows
+              .filter((row) => row.value && row.value !== "N/A")
+              .map((row) => (
+                <tr
+                  key={row.label}
+                  style={{ borderBottom: "1px solid #f0f0f0" }}
+                >
+                  <td
+                    style={{
+                      padding: "8px 12px",
+                      color: "#666",
+                      fontWeight: 500,
+                      width: "180px",
+                      verticalAlign: "top",
+                      whiteSpace: "nowrap",
+                    }}
+                  >
+                    {row.label}
+                  </td>
+                  <td
+                    style={{
+                      padding: "8px 12px",
+                      color: "#333",
+                      fontWeight: row.label === "Numero Ordine" ? 600 : 400,
+                      whiteSpace: row.label.includes("Indirizzo")
+                        ? "pre-wrap"
+                        : "normal",
+                    }}
+                  >
+                    {row.value}
+                  </td>
+                </tr>
+              ))}
+          </tbody>
+        </table>
       </div>
 
       {/* Badge Completi */}
-      <div style={{ marginTop: "16px" }}>
+      <div style={{ marginBottom: "24px" }}>
         <h3
           style={{
             fontSize: "16px",
@@ -463,6 +478,133 @@ function TabPanoramica({ order }: { order: Order }) {
           />
         </div>
       </div>
+
+      {/* Cronologia */}
+      {stateHistory.length > 0 && (
+        <div>
+          <h3
+            style={{
+              fontSize: "16px",
+              fontWeight: 600,
+              marginBottom: "12px",
+              color: "#333",
+            }}
+          >
+            Cronologia
+          </h3>
+          <div style={{ position: "relative", paddingLeft: "24px" }}>
+            <div
+              style={{
+                position: "absolute",
+                left: "8px",
+                top: "0",
+                bottom: "0",
+                width: "2px",
+                backgroundColor: "#e0e0e0",
+              }}
+            />
+            {stateHistory.map((entry) => {
+              const isCreation = !entry.oldState;
+              const isComplete =
+                entry.newState.toLowerCase().includes("evaso") ||
+                entry.newState.toLowerCase().includes("fatturato");
+              const dotColor = isCreation
+                ? "#2196f3"
+                : isComplete
+                  ? "#4caf50"
+                  : "#ff9800";
+
+              return (
+                <div
+                  key={entry.id}
+                  style={{ position: "relative", marginBottom: "16px" }}
+                >
+                  <div
+                    style={{
+                      position: "absolute",
+                      left: "-20px",
+                      top: "4px",
+                      width: "12px",
+                      height: "12px",
+                      borderRadius: "50%",
+                      backgroundColor: dotColor,
+                      border: "2px solid #fff",
+                    }}
+                  />
+                  <div
+                    style={{
+                      padding: "12px",
+                      backgroundColor: "#f5f5f5",
+                      borderRadius: "8px",
+                    }}
+                  >
+                    <div
+                      style={{
+                        display: "flex",
+                        justifyContent: "space-between",
+                        marginBottom: "4px",
+                      }}
+                    >
+                      <span
+                        style={{
+                          fontSize: "14px",
+                          fontWeight: 600,
+                          color: "#333",
+                        }}
+                      >
+                        {entry.newState}
+                      </span>
+                      <span style={{ fontSize: "12px", color: "#666" }}>
+                        {formatDateTime(entry.timestamp)}
+                      </span>
+                    </div>
+                    {entry.oldState && (
+                      <div
+                        style={{
+                          fontSize: "12px",
+                          color: "#666",
+                          marginBottom: "4px",
+                        }}
+                      >
+                        {entry.oldState} → {entry.newState}
+                      </div>
+                    )}
+                    {entry.actor && (
+                      <div
+                        style={{
+                          fontSize: "12px",
+                          color: "#888",
+                          marginBottom: entry.notes ? "4px" : "0",
+                        }}
+                      >
+                        {entry.actor}
+                      </div>
+                    )}
+                    {entry.notes && (
+                      <div style={{ fontSize: "12px", color: "#999" }}>
+                        {entry.notes}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {stateHistory.length === 0 && token && (
+        <div
+          style={{
+            padding: "16px",
+            textAlign: "center",
+            color: "#999",
+            fontSize: "14px",
+          }}
+        >
+          Nessuna cronologia disponibile
+        </div>
+      )}
     </div>
   );
 }
@@ -996,7 +1138,9 @@ function TabLogistica({ order, token }: { order: Order; token?: string }) {
                 width: "100%",
                 padding: "12px",
                 backgroundColor:
-                  ddtProgress.active || !ddt.trackingNumber ? "#ccc" : "#4caf50",
+                  ddtProgress.active || !ddt.trackingNumber
+                    ? "#ccc"
+                    : "#4caf50",
                 color: "#fff",
                 border: "none",
                 borderRadius: "8px",
@@ -1041,7 +1185,11 @@ function TabLogistica({ order, token }: { order: Order; token?: string }) {
               )}
             </button>
             {ddtProgress.active && (
-              <ProgressBar percent={ddtProgress.percent} stage={ddtProgress.stage} color="#4caf50" />
+              <ProgressBar
+                percent={ddtProgress.percent}
+                stage={ddtProgress.stage}
+                color="#4caf50"
+              />
             )}
             {ddtError && (
               <div
@@ -1245,8 +1393,7 @@ function TabFinanziario({ order, token }: { order: Order; token?: string }) {
       order.orderNumber || order.id,
       "invoice",
       token,
-      (stage, percent) =>
-        setInvoiceProgress({ active: true, percent, stage }),
+      (stage, percent) => setInvoiceProgress({ active: true, percent, stage }),
       () =>
         setTimeout(
           () => setInvoiceProgress({ active: false, percent: 0, stage: "" }),
@@ -1486,7 +1633,9 @@ function TabFinanziario({ order, token }: { order: Order; token?: string }) {
             width: "100%",
             padding: "12px",
             backgroundColor:
-              invoiceProgress.active || !order.invoiceNumber ? "#ccc" : "#4caf50",
+              invoiceProgress.active || !order.invoiceNumber
+                ? "#ccc"
+                : "#4caf50",
             color: "#fff",
             border: "none",
             borderRadius: "8px",
@@ -1531,7 +1680,11 @@ function TabFinanziario({ order, token }: { order: Order; token?: string }) {
           )}
         </button>
         {invoiceProgress.active && (
-          <ProgressBar percent={invoiceProgress.percent} stage={invoiceProgress.stage} color="#4caf50" />
+          <ProgressBar
+            percent={invoiceProgress.percent}
+            stage={invoiceProgress.stage}
+            color="#4caf50"
+          />
         )}
         {invoiceError && (
           <div
@@ -1552,226 +1705,32 @@ function TabFinanziario({ order, token }: { order: Order; token?: string }) {
   );
 }
 
-function TabCronologia({ order }: { order: Order }) {
-  const timeline = order.stateTimeline || order.statusTimeline || [];
-  const documents = order.documents || [];
-
+function TabCronologia() {
   return (
     <div style={{ padding: "16px" }}>
-      {/* Timeline Stati */}
-      {timeline.length > 0 && (
-        <div style={{ marginBottom: "24px" }}>
-          <h3
-            style={{
-              fontSize: "16px",
-              fontWeight: 600,
-              marginBottom: "12px",
-              color: "#333",
-            }}
-          >
-            Timeline Stati
-          </h3>
-          <div style={{ position: "relative", paddingLeft: "24px" }}>
-            {/* Vertical line */}
-            <div
-              style={{
-                position: "absolute",
-                left: "8px",
-                top: "0",
-                bottom: "0",
-                width: "2px",
-                backgroundColor: "#e0e0e0",
-              }}
-            />
-            {timeline.map((update, index) => (
-              <div
-                key={index}
-                style={{ position: "relative", marginBottom: "16px" }}
-              >
-                {/* Dot */}
-                <div
-                  style={{
-                    position: "absolute",
-                    left: "-20px",
-                    top: "4px",
-                    width: "12px",
-                    height: "12px",
-                    borderRadius: "50%",
-                    backgroundColor: "#1976d2",
-                    border: "2px solid #fff",
-                  }}
-                />
-                <div
-                  style={{
-                    padding: "12px",
-                    backgroundColor: "#f5f5f5",
-                    borderRadius: "8px",
-                  }}
-                >
-                  <div
-                    style={{
-                      display: "flex",
-                      justifyContent: "space-between",
-                      marginBottom: "4px",
-                    }}
-                  >
-                    <span
-                      style={{
-                        fontSize: "14px",
-                        fontWeight: 600,
-                        color: "#333",
-                      }}
-                    >
-                      {update.status}
-                    </span>
-                    <span style={{ fontSize: "12px", color: "#666" }}>
-                      {formatDateTime(update.timestamp)}
-                    </span>
-                  </div>
-                  {update.user && (
-                    <div
-                      style={{
-                        fontSize: "12px",
-                        color: "#666",
-                        marginBottom: "4px",
-                      }}
-                    >
-                      👤 {update.user}
-                    </div>
-                  )}
-                  {update.note && (
-                    <div style={{ fontSize: "12px", color: "#999" }}>
-                      {update.note}
-                    </div>
-                  )}
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Documenti Allegati */}
-      {documents.length > 0 && (
-        <div style={{ marginBottom: "24px" }}>
-          <h3
-            style={{
-              fontSize: "16px",
-              fontWeight: 600,
-              marginBottom: "12px",
-              color: "#333",
-            }}
-          >
-            Documenti Allegati
-          </h3>
-          <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-            {documents.map((doc, index) => (
-              <a
-                key={index}
-                href={doc.url}
-                target="_blank"
-                rel="noopener noreferrer"
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  padding: "12px",
-                  backgroundColor: "#f5f5f5",
-                  borderRadius: "8px",
-                  textDecoration: "none",
-                  color: "#1976d2",
-                  transition: "background-color 0.2s",
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.backgroundColor = "#e3f2fd";
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.backgroundColor = "#f5f5f5";
-                }}
-              >
-                <span style={{ marginRight: "12px", fontSize: "24px" }}>
-                  📄
-                </span>
-                <div style={{ flex: 1 }}>
-                  <div style={{ fontSize: "14px", fontWeight: 600 }}>
-                    {doc.filename || doc.name}
-                  </div>
-                  <div style={{ fontSize: "12px", color: "#666" }}>
-                    {doc.type}
-                    {doc.uploadedAt && ` • ${formatDateTime(doc.uploadedAt)}`}
-                  </div>
-                </div>
-              </a>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Note Ordine */}
-      {(order.notes || order.customerNotes) && (
-        <div style={{ marginBottom: "24px" }}>
-          <h3
-            style={{
-              fontSize: "16px",
-              fontWeight: 600,
-              marginBottom: "12px",
-              color: "#333",
-            }}
-          >
-            Note
-          </h3>
-          <div
-            style={{
-              padding: "12px",
-              backgroundColor: "#fff9c4",
-              borderRadius: "8px",
-              border: "1px solid #fff59d",
-              fontSize: "14px",
-              color: "#333",
-              whiteSpace: "pre-wrap",
-            }}
-          >
-            {order.notes || order.customerNotes}
-          </div>
-        </div>
-      )}
-
-      {/* Metadata */}
-      <div style={{ marginBottom: "24px" }}>
-        <h3
-          style={{
-            fontSize: "16px",
-            fontWeight: 600,
-            marginBottom: "12px",
-            color: "#333",
-          }}
-        >
-          Metadata
-        </h3>
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(2, 1fr)",
-            gap: "12px",
-          }}
-        >
-          <InfoField label="Bot User ID" value={order.botUserId} small />
-          <InfoField label="Job ID" value={order.jobId} small />
-          <InfoField
-            label="Creato il"
-            value={formatDateTime(order.createdAt)}
-          />
-          <InfoField
-            label="Aggiornato il"
-            value={formatDateTime(order.lastUpdatedAt)}
-          />
-        </div>
+      <h3
+        style={{
+          fontSize: "16px",
+          fontWeight: 600,
+          marginBottom: "12px",
+          color: "#333",
+        }}
+      >
+        Ordini Collegati
+      </h3>
+      <div
+        style={{
+          padding: "24px",
+          textAlign: "center",
+          color: "#999",
+          fontSize: "14px",
+          backgroundColor: "#f5f5f5",
+          borderRadius: "8px",
+        }}
+      >
+        Funzionalita' in fase di sviluppo. Qui verranno mostrati gli ordini
+        collegati dallo storico Fresis e altre connessioni.
       </div>
-
-      {timeline.length === 0 && documents.length === 0 && !order.notes && (
-        <div style={{ padding: "16px", textAlign: "center", color: "#999" }}>
-          Nessuno storico disponibile
-        </div>
-      )}
     </div>
   );
 }
@@ -2009,7 +1968,7 @@ export function OrderCardNew({
     { id: "articoli" as const, label: "Articoli", icon: "📦" },
     { id: "logistica" as const, label: "Logistica", icon: "🚚" },
     { id: "finanziario" as const, label: "Finanziario", icon: "💰" },
-    { id: "storico" as const, label: "Cronologia", icon: "📜" },
+    { id: "storico" as const, label: "Ordini Collegati", icon: "🔗" },
   ];
 
   // Get order status styling (border + background colors)
@@ -2189,22 +2148,46 @@ export function OrderCardNew({
 
               {/* DDT Download Button */}
               {order.ddt?.ddtNumber && order.ddt?.trackingNumber && (
-                <div style={{ display: "inline-flex", flexDirection: "column", minWidth: ddtQuickProgress.active ? "160px" : undefined }}>
+                <div
+                  style={{
+                    display: "inline-flex",
+                    flexDirection: "column",
+                    minWidth: ddtQuickProgress.active ? "160px" : undefined,
+                  }}
+                >
                   <button
                     disabled={ddtQuickProgress.active}
                     onClick={(e) => {
                       e.stopPropagation();
                       if (ddtQuickProgress.active || !token) return;
-                      setDdtQuickProgress({ active: true, percent: 0, stage: "Avvio..." });
+                      setDdtQuickProgress({
+                        active: true,
+                        percent: 0,
+                        stage: "Avvio...",
+                      });
                       downloadPdfWithProgress(
                         order.orderNumber || order.id,
                         "ddt",
                         token,
-                        (stage, percent) => setDdtQuickProgress({ active: true, percent, stage }),
-                        () => setTimeout(() => setDdtQuickProgress({ active: false, percent: 0, stage: "" }), 1500),
+                        (stage, percent) =>
+                          setDdtQuickProgress({ active: true, percent, stage }),
+                        () =>
+                          setTimeout(
+                            () =>
+                              setDdtQuickProgress({
+                                active: false,
+                                percent: 0,
+                                stage: "",
+                              }),
+                            1500,
+                          ),
                         (error) => {
                           console.error("DDT download error:", error);
-                          setDdtQuickProgress({ active: false, percent: 0, stage: "" });
+                          setDdtQuickProgress({
+                            active: false,
+                            percent: 0,
+                            stage: "",
+                          });
                         },
                       );
                     }}
@@ -2215,7 +2198,9 @@ export function OrderCardNew({
                       padding: "6px 12px",
                       fontSize: "12px",
                       fontWeight: 600,
-                      backgroundColor: ddtQuickProgress.active ? "#e8f5e9" : "#fff",
+                      backgroundColor: ddtQuickProgress.active
+                        ? "#e8f5e9"
+                        : "#fff",
                       color: ddtQuickProgress.active ? "#81c784" : "#388e3c",
                       border: `1px solid ${ddtQuickProgress.active ? "#81c784" : "#388e3c"}`,
                       borderRadius: "6px",
@@ -2239,29 +2224,61 @@ export function OrderCardNew({
                     {ddtQuickProgress.active ? "⏳ DDT..." : "📄 DDT"}
                   </button>
                   {ddtQuickProgress.active && (
-                    <ProgressBar percent={ddtQuickProgress.percent} stage={ddtQuickProgress.stage} color="#388e3c" />
+                    <ProgressBar
+                      percent={ddtQuickProgress.percent}
+                      stage={ddtQuickProgress.stage}
+                      color="#388e3c"
+                    />
                   )}
                 </div>
               )}
 
               {/* Invoice Download Button */}
               {order.invoiceNumber && (
-                <div style={{ display: "inline-flex", flexDirection: "column", minWidth: invoiceQuickProgress.active ? "160px" : undefined }}>
+                <div
+                  style={{
+                    display: "inline-flex",
+                    flexDirection: "column",
+                    minWidth: invoiceQuickProgress.active ? "160px" : undefined,
+                  }}
+                >
                   <button
                     disabled={invoiceQuickProgress.active}
                     onClick={(e) => {
                       e.stopPropagation();
                       if (invoiceQuickProgress.active || !token) return;
-                      setInvoiceQuickProgress({ active: true, percent: 0, stage: "Avvio..." });
+                      setInvoiceQuickProgress({
+                        active: true,
+                        percent: 0,
+                        stage: "Avvio...",
+                      });
                       downloadPdfWithProgress(
                         order.orderNumber || order.id,
                         "invoice",
                         token,
-                        (stage, percent) => setInvoiceQuickProgress({ active: true, percent, stage }),
-                        () => setTimeout(() => setInvoiceQuickProgress({ active: false, percent: 0, stage: "" }), 1500),
+                        (stage, percent) =>
+                          setInvoiceQuickProgress({
+                            active: true,
+                            percent,
+                            stage,
+                          }),
+                        () =>
+                          setTimeout(
+                            () =>
+                              setInvoiceQuickProgress({
+                                active: false,
+                                percent: 0,
+                                stage: "",
+                              }),
+                            1500,
+                          ),
                         (error) => {
                           console.error("Invoice download error:", error);
-                          setInvoiceQuickProgress({ active: false, percent: 0, stage: "" });
+                          setInvoiceQuickProgress({
+                            active: false,
+                            percent: 0,
+                            stage: "",
+                          });
                         },
                       );
                     }}
@@ -2272,8 +2289,12 @@ export function OrderCardNew({
                       padding: "6px 12px",
                       fontSize: "12px",
                       fontWeight: 600,
-                      backgroundColor: invoiceQuickProgress.active ? "#f3e5f5" : "#fff",
-                      color: invoiceQuickProgress.active ? "#ba68c8" : "#7b1fa2",
+                      backgroundColor: invoiceQuickProgress.active
+                        ? "#f3e5f5"
+                        : "#fff",
+                      color: invoiceQuickProgress.active
+                        ? "#ba68c8"
+                        : "#7b1fa2",
                       border: `1px solid ${invoiceQuickProgress.active ? "#ba68c8" : "#7b1fa2"}`,
                       borderRadius: "6px",
                       cursor: invoiceQuickProgress.active ? "wait" : "pointer",
@@ -2293,10 +2314,16 @@ export function OrderCardNew({
                       }
                     }}
                   >
-                    {invoiceQuickProgress.active ? "⏳ Fattura..." : "📑 Fattura"}
+                    {invoiceQuickProgress.active
+                      ? "⏳ Fattura..."
+                      : "📑 Fattura"}
                   </button>
                   {invoiceQuickProgress.active && (
-                    <ProgressBar percent={invoiceQuickProgress.percent} stage={invoiceQuickProgress.stage} color="#7b1fa2" />
+                    <ProgressBar
+                      percent={invoiceQuickProgress.percent}
+                      stage={invoiceQuickProgress.stage}
+                      color="#7b1fa2"
+                    />
                   )}
                 </div>
               )}
@@ -2371,7 +2398,9 @@ export function OrderCardNew({
 
           {/* Tab Content */}
           <div style={{ minHeight: "300px" }}>
-            {activeTab === "panoramica" && <TabPanoramica order={order} />}
+            {activeTab === "panoramica" && (
+              <TabPanoramica order={order} token={token} />
+            )}
             {activeTab === "articoli" && (
               <TabArticoli
                 items={order.items}
@@ -2387,7 +2416,7 @@ export function OrderCardNew({
             {activeTab === "finanziario" && (
               <TabFinanziario order={order} token={token} />
             )}
-            {activeTab === "storico" && <TabCronologia order={order} />}
+            {activeTab === "storico" && <TabCronologia />}
           </div>
 
           {/* Order Actions - Always visible regardless of tab */}
