@@ -92,6 +92,15 @@ function isInvoicePaid(order: Order): boolean {
   return false;
 }
 
+function isLikelyDelivered(order: Order): boolean {
+  if (order.status !== "CONSEGNATO") return false;
+  if (order.invoiceNumber) return true;
+  const shippedDate = order.ddt?.ddtDeliveryDate || order.date;
+  const daysSinceShipped =
+    (Date.now() - new Date(shippedDate).getTime()) / 86_400_000;
+  return daysSinceShipped >= 6;
+}
+
 /**
  * Determines the order status category based on order fields
  *
@@ -120,25 +129,13 @@ export function getOrderStatus(order: Order): OrderStatusStyle {
     return ORDER_STATUS_STYLES.invoiced;
   }
 
-  // Priority 3: Consegnato (delivery completed with date)
-  if (order.deliveryCompletedDate) {
+  // Priority 3: Consegnato (likely delivered based on invoice or elapsed time)
+  if (isLikelyDelivered(order)) {
     return ORDER_STATUS_STYLES.delivered;
   }
 
-  // Priority 4: In transito (shipped, has tracking, not yet delivered)
-  const hasTracking =
-    order.tracking?.trackingNumber || order.ddt?.trackingNumber;
-  const isShipped =
-    order.status === "CONSEGNATO" ||
-    order.state === "CONSEGNATO" ||
-    order.orderType === "ORDINE DI VENDITA";
-
-  if (hasTracking && isShipped) {
-    return ORDER_STATUS_STYLES["in-transit"];
-  }
-
-  // Legacy fallback: If tracking exists, assume in transit
-  if (hasTracking) {
+  // Priority 4: In transito (status CONSEGNATO but not yet likely delivered)
+  if (order.status === "CONSEGNATO") {
     return ORDER_STATUS_STYLES["in-transit"];
   }
 

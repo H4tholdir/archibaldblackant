@@ -862,6 +862,24 @@ export class OrderDatabaseNew {
     }));
   }
 
+  getArticleSearchTexts(orderIds: string[]): Map<string, string> {
+    if (orderIds.length === 0) return new Map();
+    const placeholders = orderIds.map(() => "?").join(",");
+    const rows = this.db
+      .prepare(
+        `SELECT order_id, GROUP_CONCAT(article_code || ' ' || COALESCE(article_description, ''), ' | ') as search_text
+         FROM order_articles
+         WHERE order_id IN (${placeholders})
+         GROUP BY order_id`,
+      )
+      .all(...orderIds) as Array<{ order_id: string; search_text: string }>;
+    const map = new Map<string, string>();
+    for (const row of rows) {
+      map.set(row.order_id, row.search_text);
+    }
+    return map;
+  }
+
   deleteOrderArticles(orderId: string): void {
     const result = this.db
       .prepare("DELETE FROM order_articles WHERE order_id = ?")

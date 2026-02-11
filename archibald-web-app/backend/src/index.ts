@@ -5096,6 +5096,11 @@ app.get(
         const paginatedOrders = filteredOrders.slice(offset, offset + limit);
         const hasMore = filteredOrders.length > offset + limit;
 
+        // Fetch article search texts for paginated orders
+        const articleSearchTexts = orderDb.getArticleSearchTexts(
+          paginatedOrders.map((o) => o.id),
+        );
+
         // Map orders to frontend format - Order interface already has nested DDT from storedOrderToOrder()
         const ordersWithFrontendFields = paginatedOrders.map((order) => {
           return {
@@ -5182,6 +5187,9 @@ app.get(
             totalVatAmount: order.totalVatAmount,
             totalWithVat: order.totalWithVat,
             articlesSyncedAt: order.articlesSyncedAt,
+
+            // Article search text for global search
+            articleSearchText: articleSearchTexts.get(order.id) || undefined,
           };
         });
 

@@ -21,6 +21,7 @@ interface OrderFilters {
 type QuickFilterType =
   | "requiresAttention"
   | "editable"
+  | "backorder"
   | "inTransit"
   | "delivered"
   | "invoiced"
@@ -85,6 +86,7 @@ function matchesGlobalSearch(order: Order, query: string): boolean {
     order.transferDate,
     order.completionDate,
     order.deliveryCompletedDate,
+    order.articleSearchText,
   ];
 
   for (const val of topFields) {
@@ -175,6 +177,15 @@ function isOrderPaid(order: Order): boolean {
   return false;
 }
 
+function isLikelyDelivered(order: Order): boolean {
+  if (order.status !== "CONSEGNATO") return false;
+  if (order.invoiceNumber) return true;
+  const shippedDate = order.ddt?.ddtDeliveryDate || order.date;
+  const daysSinceShipped =
+    (Date.now() - new Date(shippedDate).getTime()) / 86_400_000;
+  return daysSinceShipped >= 6;
+}
+
 export function OrderHistory() {
   const { progress, reset: resetProgress } = useSyncProgress();
   const [orders, setOrders] = useState<Order[]>([]);
@@ -211,6 +222,9 @@ export function OrderHistory() {
 
   // Hide zero amount toggle
   const [hideZeroAmount, setHideZeroAmount] = useState(true);
+
+  // Backorder banner dismiss
+  const [backorderDismissed, setBackorderDismissed] = useState(false);
 
   // Scroll state
   const [showScrollToTop, setShowScrollToTop] = useState(false);
@@ -305,6 +319,7 @@ export function OrderHistory() {
       }
 
       setOrders(data.data.orders);
+      setBackorderDismissed(false);
     } catch (err) {
       console.error("Error fetching orders:", err);
       setError(err instanceof Error ? err.message : "Errore di rete. Riprova.");
@@ -543,16 +558,21 @@ export function OrderHistory() {
               order.orderType === "GIORNALE" && order.state === "MODIFICA";
             break;
 
+          case "backorder": {
+            const hoursElapsed =
+              (Date.now() - new Date(order.date).getTime()) / 3_600_000;
+            matches =
+              order.status === "ORDINE APERTO" && hoursElapsed > 36;
+            break;
+          }
+
           case "inTransit":
             matches =
-              (order.orderType === "ORDINE DI VENDITA" ||
-                order.status === "CONSEGNATO") &&
-              !!(order.tracking?.trackingNumber || order.ddt?.trackingNumber) &&
-              !order.deliveryCompletedDate;
+              order.status === "CONSEGNATO" && !isLikelyDelivered(order);
             break;
 
           case "delivered":
-            matches = !!order.deliveryCompletedDate;
+            matches = isLikelyDelivered(order);
             break;
 
           case "invoiced":
@@ -586,6 +606,12 @@ export function OrderHistory() {
 
   // Orders after hideZero, used for chip counts
   const ordersForCounts = result;
+
+  const backorderCount = ordersForCounts.filter((o) => {
+    const hoursElapsed =
+      (Date.now() - new Date(o.date).getTime()) / 3_600_000;
+    return o.status === "ORDINE APERTO" && hoursElapsed > 36;
+  }).length;
 
   result = applyQuickFilters(result);
   if (debouncedSearch) {
@@ -632,15 +658,23 @@ export function OrderHistory() {
       ).length,
     },
     {
+      id: "backorder",
+      label: "\u23f0 Possibile Backorder",
+      color: "#E65100",
+      bgColor: "#FFF3E0",
+      count: ordersForCounts.filter((o) => {
+        const hoursElapsed =
+          (Date.now() - new Date(o.date).getTime()) / 3_600_000;
+        return o.status === "ORDINE APERTO" && hoursElapsed > 36;
+      }).length,
+    },
+    {
       id: "inTransit",
       label: "\ud83d\ude9a In transito",
       color: "#2196F3",
       bgColor: "#E3F2FD",
       count: ordersForCounts.filter(
-        (o) =>
-          (o.orderType === "ORDINE DI VENDITA" || o.status === "CONSEGNATO") &&
-          (o.tracking?.trackingNumber || o.ddt?.trackingNumber) &&
-          !o.deliveryCompletedDate,
+        (o) => o.status === "CONSEGNATO" && !isLikelyDelivered(o),
       ).length,
     },
     {
@@ -648,7 +682,7 @@ export function OrderHistory() {
       label: "\ud83d\udce6 Consegnati",
       color: "#4CAF50",
       bgColor: "#E8F5E9",
-      count: ordersForCounts.filter((o) => !!o.deliveryCompletedDate).length,
+      count: ordersForCounts.filter((o) => isLikelyDelivered(o)).length,
     },
     {
       id: "invoiced",
@@ -1481,6 +1515,65 @@ export function OrderHistory() {
               }}
             >
               Cancella filtri
+            </button>
+          </div>
+        )}
+
+      {/* Backorder warning banner */}
+      {!loading &&
+        !error &&
+        backorderCount > 0 &&
+        !backorderDismissed && (
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "12px",
+              padding: "12px 16px",
+              marginBottom: "16px",
+              backgroundColor: "#FFF3E0",
+              border: "1px solid #FF9800",
+              borderRadius: "8px",
+            }}
+          >
+            <span style={{ fontSize: "20px" }}>{"\u23f0"}</span>
+            <span style={{ flex: 1, fontSize: "14px", color: "#E65100" }}>
+              <strong>{backorderCount}</strong>{" "}
+              {backorderCount === 1 ? "ordine" : "ordini"} in &quot;ORDINE
+              APERTO&quot; da oltre 36 ore — possibile backorder
+            </span>
+            <button
+              onClick={() => {
+                setFilters((prev) => ({
+                  ...prev,
+                  quickFilters: new Set(["backorder"]),
+                }));
+              }}
+              style={{
+                padding: "6px 12px",
+                fontSize: "13px",
+                fontWeight: 600,
+                backgroundColor: "#E65100",
+                color: "#fff",
+                border: "none",
+                borderRadius: "6px",
+                cursor: "pointer",
+              }}
+            >
+              Mostra
+            </button>
+            <button
+              onClick={() => setBackorderDismissed(true)}
+              style={{
+                background: "none",
+                border: "none",
+                cursor: "pointer",
+                fontSize: "18px",
+                color: "#999",
+                padding: "2px 6px",
+              }}
+            >
+              {"\u2715"}
             </button>
           </div>
         )}

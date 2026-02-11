@@ -153,6 +153,9 @@ export interface Order {
   invoiceLastSettlementDate?: string;
   invoiceClosedDate?: string;
 
+  // Article search text (concatenated codes + descriptions for global search)
+  articleSearchText?: string;
+
   // Current state tracking
   currentState?: string;
 }
