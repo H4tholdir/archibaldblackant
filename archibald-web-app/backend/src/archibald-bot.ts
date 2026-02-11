@@ -5644,6 +5644,300 @@ export class ArchibaldBot {
     );
   }
 
+  private deleteOrderFilterReady = false;
+
+  async deleteOrderFromArchibald(
+    archibaldOrderId: string,
+  ): Promise<{ success: boolean; message: string }> {
+    const normalizedId = archibaldOrderId.replace(/\./g, "");
+    logger.info(
+      `[deleteOrder] Deleting order ${archibaldOrderId} (normalized: ${normalizedId}) from Archibald...`,
+    );
+
+    if (!this.page) {
+      return { success: false, message: "Browser page not initialized" };
+    }
+
+    try {
+      // Step 1: Navigate to SALESTABLE_ListView_Agent (only if not already there)
+      const ordersUrl = `${config.archibald.url}/SALESTABLE_ListView_Agent/`;
+      if (!this.page.url().includes("SALESTABLE_ListView_Agent")) {
+        logger.debug("[deleteOrder] Navigating to orders list...");
+        await this.page.goto(ordersUrl, {
+          waitUntil: "domcontentloaded",
+          timeout: 30000,
+        });
+        await this.page.waitForFunction(
+          () => {
+            const elements = Array.from(
+              document.querySelectorAll("span, button, a"),
+            );
+            return elements.some(
+              (el) => el.textContent?.trim().toLowerCase() === "nuovo",
+            );
+          },
+          { timeout: 15000 },
+        );
+        await this.wait(500);
+        this.deleteOrderFilterReady = false;
+      }
+
+      // Step 2: Set filter to "Tutti gli ordini" (skip if already done)
+      if (!this.deleteOrderFilterReady) {
+        logger.debug("[deleteOrder] Setting filter to 'Tutti gli ordini'...");
+        await this.ensureOrdersFilterSetToAll(this.page);
+        await this.wait(500);
+        this.deleteOrderFilterReady = true;
+      }
+
+      // Step 3: Find the search input and paste the normalized ID
+      logger.debug(`[deleteOrder] Searching for order ${normalizedId}...`);
+
+      const searchSelector = "#Vertical_SearchAC_Menu_ITCNT0_xaf_a0_Ed_I";
+      const searchHandle = await this.page
+        .waitForSelector(searchSelector, { timeout: 5000, visible: true })
+        .catch(() => null);
+
+      if (!searchHandle) {
+        await this.page.screenshot({
+          path: `logs/delete-order-search-not-found-${Date.now()}.png`,
+          fullPage: true,
+        });
+        return {
+          success: false,
+          message: "Search input not found on orders list page",
+        };
+      }
+
+      // Record row count before search to detect change
+      const rowCountBefore = await this.page.evaluate(() => {
+        return document.querySelectorAll('tr[class*="dxgvDataRow"]').length;
+      });
+
+      await this.pasteText(searchHandle, normalizedId);
+      await this.page.keyboard.press("Enter");
+
+      // Wait for grid to update: either row count changes or loading panel disappears
+      await this.page.waitForFunction(
+        (prevCount: number) => {
+          // Check if loading panels are gone
+          const loadingPanels = Array.from(
+            document.querySelectorAll(
+              '[id*="LPV"], .dxlp, .dxlpLoadingPanel, [id*="Loading"]',
+            ),
+          );
+          const hasLoading = loadingPanels.some((el) => {
+            const style = window.getComputedStyle(el as HTMLElement);
+            return (
+              style.display !== "none" &&
+              style.visibility !== "hidden" &&
+              (el as HTMLElement).getBoundingClientRect().width > 0
+            );
+          });
+          if (hasLoading) return false;
+
+          // Grid has updated if row count changed or empty data row appeared
+          const currentCount = document.querySelectorAll(
+            'tr[class*="dxgvDataRow"]',
+          ).length;
+          const hasEmpty =
+            document.querySelector('tr[class*="dxgvEmptyData"]') !== null;
+          return currentCount !== prevCount || hasEmpty || currentCount <= 5;
+        },
+        { timeout: 15000, polling: 200 },
+        rowCountBefore,
+      ).catch(() => null);
+      await this.wait(300);
+
+      // Step 4: Check if any rows are visible after filtering
+      const rowCount = await this.page.evaluate(() => {
+        return document.querySelectorAll('tr[class*="dxgvDataRow"]').length;
+      });
+
+      if (rowCount === 0) {
+        logger.warn(
+          `[deleteOrder] No rows found after searching for ${normalizedId}`,
+        );
+        return {
+          success: false,
+          message: `Order ${archibaldOrderId} not found in Archibald`,
+        };
+      }
+
+      logger.debug(`[deleteOrder] Found ${rowCount} row(s) after search`);
+
+      // Step 5: Select the first row by clicking the command column cell
+      const rowSelected = await this.page.evaluate(() => {
+        const firstRow = document.querySelector('tr[class*="dxgvDataRow"]');
+        if (!firstRow) return false;
+
+        const commandCell = firstRow.querySelector(
+          "td.dxgvCommandColumn_XafTheme",
+        ) as HTMLElement | null;
+        if (commandCell) {
+          commandCell.click();
+          return true;
+        }
+
+        const firstCell = firstRow.querySelector("td") as HTMLElement | null;
+        if (firstCell) {
+          firstCell.click();
+          return true;
+        }
+
+        return false;
+      });
+
+      if (!rowSelected) {
+        return {
+          success: false,
+          message: "Could not select the order row",
+        };
+      }
+
+      // Wait for "Cancellare" button to become enabled (loses dxm-disabled class)
+      await this.page
+        .waitForFunction(
+          () => {
+            const btn = document.querySelector(
+              "#Vertical_mainMenu_Menu_DXI1_T",
+            );
+            return btn && !btn.classList.contains("dxm-disabled");
+          },
+          { timeout: 5000, polling: 100 },
+        )
+        .catch(() => null);
+      logger.debug("[deleteOrder] Row selected, delete button enabled");
+
+      // Step 6: Set up dialog handler BEFORE clicking delete
+      const dialogPromise = new Promise<boolean>((resolve) => {
+        let resolved = false;
+        const handler = (dialog: any) => {
+          if (resolved) return;
+          resolved = true;
+          logger.debug(
+            `[deleteOrder] Dialog appeared: ${dialog.type()} - ${dialog.message()}`,
+          );
+          dialog.accept();
+          resolve(true);
+        };
+        this.page!.once("dialog", handler);
+        setTimeout(() => {
+          if (!resolved) {
+            resolved = true;
+            this.page!.off("dialog", handler);
+            resolve(false);
+          }
+        }, 10000);
+      });
+
+      // Step 7: Click "Cancellare" button
+      logger.debug('[deleteOrder] Clicking "Cancellare" button...');
+      const deleteClicked = await this.page.evaluate(() => {
+        const deleteBtn = document.querySelector(
+          "#Vertical_mainMenu_Menu_DXI1_T",
+        ) as HTMLElement | null;
+        if (deleteBtn) {
+          deleteBtn.click();
+          return { clicked: true, strategy: "by-id" };
+        }
+
+        const menuLinks = Array.from(
+          document.querySelectorAll(
+            'a[id*="Vertical_mainMenu"], a[id*="mainMenu_Menu"]',
+          ),
+        );
+        for (const link of menuLinks) {
+          const text = link.textContent?.trim().toLowerCase();
+          if (text === "cancellare" || text === "elimina" || text === "delete") {
+            (link as HTMLElement).click();
+            return { clicked: true, strategy: "by-text" };
+          }
+        }
+
+        return { clicked: false, strategy: "none" };
+      });
+
+      if (!deleteClicked.clicked) {
+        return {
+          success: false,
+          message: '"Cancellare" button not found in menu',
+        };
+      }
+
+      // Step 8: Wait for dialog and handle it
+      const dialogHandled = await dialogPromise;
+      if (!dialogHandled) {
+        logger.warn("[deleteOrder] No confirmation dialog appeared");
+      }
+
+      // Step 9: Wait for grid to reflect deletion (rows disappear or empty state)
+      await this.page
+        .waitForFunction(
+          (prevCount: number) => {
+            const currentCount = document.querySelectorAll(
+              'tr[class*="dxgvDataRow"]',
+            ).length;
+            const hasEmpty =
+              document.querySelector('tr[class*="dxgvEmptyData"]') !== null;
+            return currentCount < prevCount || hasEmpty;
+          },
+          { timeout: 15000, polling: 200 },
+          rowCount,
+        )
+        .catch(() => null);
+      await this.wait(300);
+
+      // Step 10: Verify deletion
+      const remainingRows = await this.page.evaluate(() => {
+        return document.querySelectorAll('tr[class*="dxgvDataRow"]').length;
+      });
+
+      const emptyMessage = await this.page.evaluate(() => {
+        const emptyRow = document.querySelector('tr[class*="dxgvEmptyData"]');
+        return emptyRow ? emptyRow.textContent?.trim() : null;
+      });
+
+      if (remainingRows === 0 || emptyMessage) {
+        logger.info(
+          `[deleteOrder] Order ${archibaldOrderId} deleted successfully from Archibald`,
+        );
+        return {
+          success: true,
+          message: `Order ${archibaldOrderId} deleted from Archibald`,
+        };
+      }
+
+      logger.warn(
+        `[deleteOrder] ${remainingRows} rows still present after deletion attempt`,
+      );
+      return {
+        success: true,
+        message: `Delete command sent for order ${archibaldOrderId}. ${remainingRows} row(s) remain in grid (may be other orders).`,
+      };
+    } catch (error) {
+      const errorMsg =
+        error instanceof Error ? error.message : String(error);
+      logger.error(`[deleteOrder] Error deleting order ${archibaldOrderId}:`, {
+        error: errorMsg,
+      });
+
+      try {
+        await this.page!.screenshot({
+          path: `logs/delete-order-error-${normalizedId}-${Date.now()}.png`,
+          fullPage: true,
+        });
+      } catch {
+        // ignore screenshot errors
+      }
+
+      return {
+        success: false,
+        message: `Error deleting order: ${errorMsg}`,
+      };
+    }
+  }
+
   async close(): Promise<void> {
     // Genera e salva report automaticamente prima di chiudere
     try {

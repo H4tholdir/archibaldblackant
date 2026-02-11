@@ -113,6 +113,37 @@ class FresisHistoryService {
     await this.deleteFromServer(id);
   }
 
+  async deleteFromArchibald(
+    id: string,
+  ): Promise<{ success: boolean; message: string }> {
+    const token = this.getToken();
+    if (!token) {
+      return { success: false, message: "Non autenticato" };
+    }
+
+    const response = await fetch(
+      `/api/fresis-history/${id}/delete-from-archibald`,
+      {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+      },
+    );
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      return {
+        success: false,
+        message: data.error || "Errore durante la cancellazione",
+      };
+    }
+
+    // Also delete from local IndexedDB since server already deleted it
+    await db.fresisHistory.delete(id);
+
+    return { success: true, message: data.message };
+  }
+
   async getHistoryOrderById(
     id: string,
   ): Promise<FresisHistoryOrder | undefined> {

@@ -254,6 +254,112 @@ router.delete(
   },
 );
 
+router.post(
+  "/fresis-history/:id/delete-from-archibald",
+  authenticateJWT,
+  async (req: AuthRequest, res: Response) => {
+    const userId = req.user!.userId;
+    const { id } = req.params;
+
+    try {
+      const existing = usersDb
+        .prepare(
+          "SELECT id, archibald_order_id, archibald_order_number, current_state FROM fresis_history WHERE id = ? AND user_id = ?",
+        )
+        .get(id, userId) as any;
+
+      if (!existing) {
+        return res.status(404).json({
+          success: false,
+          error: "Record non trovato",
+        });
+      }
+
+      if (!existing.archibald_order_id) {
+        return res.status(400).json({
+          success: false,
+          error: "Ordine non ha un ID Archibald associato",
+        });
+      }
+
+      // Import bot dynamically to avoid circular deps
+      const { ArchibaldBot } = await import("../archibald-bot");
+
+      const bot = new ArchibaldBot(userId);
+      let botSuccess = false;
+
+      try {
+        await bot.initialize();
+
+        const result = await bot.deleteOrderFromArchibald(
+          existing.archibald_order_id,
+        );
+
+        if (!result.success) {
+          return res.status(500).json({
+            success: false,
+            error: result.message,
+          });
+        }
+
+        botSuccess = true;
+
+        // Delete local record
+        usersDb
+          .prepare(
+            "DELETE FROM fresis_history WHERE id = ? AND user_id = ?",
+          )
+          .run(id, userId);
+
+        // Emit WebSocket event
+        try {
+          const {
+            FresisHistoryRealtimeService,
+          } = require("../fresis-history-realtime.service");
+          const wsService = FresisHistoryRealtimeService.getInstance();
+          wsService.emitHistoryDeleted(userId, id);
+        } catch {
+          // WS not available, skip
+        }
+
+        logger.info("Order deleted from Archibald and local DB", {
+          userId,
+          id,
+          archibaldOrderId: existing.archibald_order_id,
+          botMessage: result.message,
+        });
+
+        res.json({
+          success: true,
+          message: result.message,
+        });
+      } finally {
+        // Always release the bot context
+        try {
+          if (!botSuccess) {
+            (bot as any).hasError = true;
+          }
+          await bot.close();
+        } catch (closeError) {
+          logger.error("Error closing bot after delete-from-archibald", {
+            closeError,
+          });
+        }
+      }
+    } catch (error) {
+      logger.error("Error deleting order from Archibald", {
+        error: error instanceof Error ? error.message : String(error),
+        userId,
+        id,
+      });
+      res.status(500).json({
+        success: false,
+        error: "Errore durante la cancellazione da Archibald",
+      });
+    }
+  },
+);
+
 router.get(
   "/fresis-history/search-orders",
   authenticateJWT,

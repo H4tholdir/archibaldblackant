@@ -122,6 +122,9 @@ export function FresisHistoryPage() {
   const [loading, setLoading] = useState(true);
   const [expandedOrderId, setExpandedOrderId] = useState<string | null>(null);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
+  const [deletingFromArchibald, setDeletingFromArchibald] = useState<
+    string | null
+  >(null);
   const [syncing, setSyncing] = useState(false);
   const [syncMessage, setSyncMessage] = useState<string | null>(null);
 
@@ -393,13 +396,36 @@ export function FresisHistoryPage() {
     }
   };
 
+  const isDraftInArchibald = (order: FresisHistoryOrder): boolean => {
+    if (!order.archibaldOrderId) return false;
+    if (order.currentState === "piazzato") return true;
+    // If it has an archibald number starting with ORD/ it was sent to Verona
+    const numbers = parseLinkedIds(order.archibaldOrderNumber);
+    const hasSentNumber = numbers.some((n) => n.startsWith("ORD/"));
+    return !hasSentNumber;
+  };
+
   const handleDelete = async (id: string) => {
+    const order = wsOrders.find((o) => o.id === id);
+    if (!order) return;
+
     try {
-      await fresisHistoryService.deleteHistoryOrder(id);
+      if (isDraftInArchibald(order)) {
+        setDeletingFromArchibald(id);
+        const result = await fresisHistoryService.deleteFromArchibald(id);
+        setDeletingFromArchibald(null);
+        if (!result.success) {
+          alert(`Errore cancellazione da Archibald: ${result.message}`);
+          return;
+        }
+      } else {
+        await fresisHistoryService.deleteHistoryOrder(id);
+      }
       setDeleteConfirmId(null);
       await wsRefetch();
     } catch (err) {
       console.error("[FresisHistoryPage] Delete failed:", err);
+      setDeletingFromArchibald(null);
     }
   };
 
@@ -2077,7 +2103,18 @@ export function FresisHistoryPage() {
                                       Segna Consegnato
                                     </button>
                                   )}
-                                {isDeleting ? (
+                                {deletingFromArchibald === order.id ? (
+                                  <span
+                                    style={{
+                                      padding: "6px 12px",
+                                      fontSize: "13px",
+                                      color: "#dc2626",
+                                      fontWeight: 500,
+                                    }}
+                                  >
+                                    Cancellazione da Archibald in corso...
+                                  </span>
+                                ) : isDeleting ? (
                                   <>
                                     <button
                                       onClick={() => handleDelete(order.id)}
@@ -2091,7 +2128,9 @@ export function FresisHistoryPage() {
                                         fontSize: "13px",
                                       }}
                                     >
-                                      Conferma Elimina
+                                      {isDraftInArchibald(order)
+                                        ? "Conferma Elimina da Archibald"
+                                        : "Conferma Elimina"}
                                     </button>
                                     <button
                                       onClick={() => setDeleteConfirmId(null)}
