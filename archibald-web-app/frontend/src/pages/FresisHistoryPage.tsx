@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import type {
   FresisHistoryOrder,
   PendingOrderItem,
@@ -18,6 +18,17 @@ import {
   OrderPickerModal,
   type SearchResult,
 } from "../components/OrderPickerModal";
+import {
+  type FresisTimePreset,
+  type UniqueSubClient,
+  getDateRangeForPreset,
+  filterByDateRange,
+  filterBySubClient,
+  matchesFresisGlobalSearch,
+  computeOrderTotals,
+  extractUniqueSubClients,
+  groupFresisOrdersByPeriod,
+} from "../utils/fresisHistoryFilters";
 
 const STATE_BADGE_CONFIG: Record<
   string,
@@ -71,17 +82,43 @@ type EditState = {
   subClientData: SubClient | null;
 };
 
+const VISIBLE_BATCH_SIZE = 50;
+
+const TIME_PRESETS: { id: FresisTimePreset; label: string }[] = [
+  { id: "today", label: "Oggi" },
+  { id: "thisWeek", label: "Questa sett." },
+  { id: "thisMonth", label: "Questo mese" },
+  { id: "last3Months", label: "Ultimi 3 mesi" },
+  { id: "thisYear", label: "Quest'anno" },
+  { id: "custom", label: "Personalizzato" },
+];
+
+const formatDateDisplay = (iso: string) => {
+  try {
+    return new Date(iso).toLocaleDateString("it-IT", {
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  } catch {
+    return iso;
+  }
+};
+
+const formatCurrency = (value: number) =>
+  value.toLocaleString("it-IT", {
+    style: "currency",
+    currency: "EUR",
+  });
+
 export function FresisHistoryPage() {
   const { historyOrders: wsOrders, refetch: wsRefetch } =
     useFresisHistorySync();
 
-  const [orders, setOrders] = useState<FresisHistoryOrder[]>([]);
-  const [searchQuery, setSearchQuery] = useState("");
-  const [expandedOrderId, setExpandedOrderId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
-  const [selectedMonth, setSelectedMonth] = useState<Date | null>(
-    () => new Date(new Date().getFullYear(), new Date().getMonth(), 1),
-  );
+  const [expandedOrderId, setExpandedOrderId] = useState<string | null>(null);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
   const [syncing, setSyncing] = useState(false);
   const [syncMessage, setSyncMessage] = useState<string | null>(null);
@@ -91,44 +128,233 @@ export function FresisHistoryPage() {
   const [showImportModal, setShowImportModal] = useState(false);
   const [linkingOrderId, setLinkingOrderId] = useState<string | null>(null);
 
-  const filterByMonth = useCallback(
-    (list: FresisHistoryOrder[]) => {
-      if (!selectedMonth) return list;
-      const year = selectedMonth.getFullYear();
-      const month = selectedMonth.getMonth();
-      return list.filter((o) => {
-        const d = new Date(o.createdAt);
-        return d.getFullYear() === year && d.getMonth() === month;
-      });
-    },
-    [selectedMonth],
-  );
+  // Filter state
+  const [activeTimePreset, setActiveTimePreset] =
+    useState<FresisTimePreset>(null);
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
+  const [globalSearch, setGlobalSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
 
-  const loadOrders = useCallback(async () => {
-    setLoading(true);
-    try {
-      if (searchQuery.trim()) {
-        const result = await fresisHistoryService.searchHistoryOrders(
-          searchQuery.trim(),
-        );
-        setOrders(filterByMonth(result));
-      } else {
-        setOrders(filterByMonth(wsOrders));
-      }
-    } catch (err) {
-      console.error("[FresisHistoryPage] Failed to load orders:", err);
-    } finally {
-      setLoading(false);
-    }
-  }, [searchQuery, wsOrders, filterByMonth]);
+  // Sub-client search state
+  const [subClientQuery, setSubClientQuery] = useState("");
+  const [selectedSubClient, setSelectedSubClient] =
+    useState<UniqueSubClient | null>(null);
+  const [showSubClientDropdown, setShowSubClientDropdown] = useState(false);
+  const [highlightedSubClientIndex, setHighlightedSubClientIndex] =
+    useState(-1);
+  const subClientDropdownRef = useRef<HTMLDivElement>(null);
 
+  // Infinite scroll
+  const [visibleCount, setVisibleCount] = useState(VISIBLE_BATCH_SIZE);
+  const sentinelRef = useRef<HTMLDivElement>(null);
+
+  // Scroll to top
+  const [showScrollToTop, setShowScrollToTop] = useState(false);
+
+  // Debounce global search (300ms)
   useEffect(() => {
     const timer = setTimeout(() => {
-      loadOrders();
+      setDebouncedSearch(globalSearch);
     }, 300);
     return () => clearTimeout(timer);
-  }, [loadOrders]);
+  }, [globalSearch]);
 
+  // Loading state from ws
+  useEffect(() => {
+    if (wsOrders.length > 0 || !loading) {
+      setLoading(false);
+    }
+  }, [wsOrders, loading]);
+
+  // Mark loaded after first ws event
+  useEffect(() => {
+    const timer = setTimeout(() => setLoading(false), 1500);
+    return () => clearTimeout(timer);
+  }, []);
+
+  // Scroll listener
+  useEffect(() => {
+    const handleScroll = () => {
+      setShowScrollToTop(window.scrollY > 400);
+    };
+    window.addEventListener("scroll", handleScroll, { passive: true });
+    return () => window.removeEventListener("scroll", handleScroll);
+  }, []);
+
+  // Click outside sub-client dropdown
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (
+        subClientDropdownRef.current &&
+        !subClientDropdownRef.current.contains(e.target as Node)
+      ) {
+        setShowSubClientDropdown(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  // Scroll highlighted sub-client into view
+  useEffect(() => {
+    if (highlightedSubClientIndex < 0) return;
+    const dropdown = subClientDropdownRef.current;
+    if (!dropdown) return;
+    const items = dropdown.querySelectorAll("[data-subclient-item]");
+    const item = items[highlightedSubClientIndex] as HTMLElement | undefined;
+    if (item) {
+      item.scrollIntoView({ block: "nearest" });
+    }
+  }, [highlightedSubClientIndex]);
+
+  // Extract unique sub-clients from all orders (memoized)
+  const uniqueSubClients = useMemo(
+    () => extractUniqueSubClients(wsOrders),
+    [wsOrders],
+  );
+
+  // Sub-client autocomplete results
+  const subClientResults = useMemo(() => {
+    if (subClientQuery.length < 2) return [];
+    const lower = subClientQuery.toLowerCase();
+    return uniqueSubClients.filter(
+      (sc) =>
+        sc.name.toLowerCase().includes(lower) ||
+        sc.codice.toLowerCase().includes(lower),
+    );
+  }, [subClientQuery, uniqueSubClients]);
+
+  // Filtering pipeline
+  const filteredOrders = useMemo(() => {
+    let result = wsOrders;
+
+    // 1. Filter by sub-client
+    if (selectedSubClient) {
+      result = filterBySubClient(result, selectedSubClient.codice);
+    }
+
+    // 2. Filter by date range
+    if (dateFrom || dateTo) {
+      result = filterByDateRange(result, dateFrom, dateTo);
+    }
+
+    // 3. Filter by global search
+    if (debouncedSearch) {
+      result = result.filter((o) =>
+        matchesFresisGlobalSearch(o, debouncedSearch),
+      );
+    }
+
+    return result;
+  }, [wsOrders, selectedSubClient, dateFrom, dateTo, debouncedSearch]);
+
+  // Reset visible count when filters change
+  useEffect(() => {
+    setVisibleCount(VISIBLE_BATCH_SIZE);
+  }, [selectedSubClient, dateFrom, dateTo, debouncedSearch]);
+
+  // Visible orders (infinite scroll slice)
+  const visibleOrders = useMemo(
+    () => filteredOrders.slice(0, visibleCount),
+    [filteredOrders, visibleCount],
+  );
+
+  // Grouped by period
+  const orderGroups = useMemo(
+    () => groupFresisOrdersByPeriod(visibleOrders),
+    [visibleOrders],
+  );
+
+  // IntersectionObserver for infinite scroll
+  useEffect(() => {
+    const sentinel = sentinelRef.current;
+    if (!sentinel) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting && visibleCount < filteredOrders.length) {
+          setVisibleCount((prev) =>
+            Math.min(prev + VISIBLE_BATCH_SIZE, filteredOrders.length),
+          );
+        }
+      },
+      { rootMargin: "200px" },
+    );
+    observer.observe(sentinel);
+    return () => observer.disconnect();
+  }, [visibleCount, filteredOrders.length]);
+
+  // Time preset handler
+  const handleTimePreset = (preset: FresisTimePreset) => {
+    setActiveTimePreset(preset);
+    const range = getDateRangeForPreset(preset);
+    if (range) {
+      setDateFrom(range.from);
+      setDateTo(range.to);
+    }
+  };
+
+  // Sub-client handlers
+  const handleSelectSubClient = (sc: UniqueSubClient) => {
+    setSelectedSubClient(sc);
+    setSubClientQuery(sc.name);
+    setShowSubClientDropdown(false);
+    setHighlightedSubClientIndex(-1);
+  };
+
+  const handleClearSubClient = () => {
+    setSelectedSubClient(null);
+    setSubClientQuery("");
+    setShowSubClientDropdown(false);
+    setHighlightedSubClientIndex(-1);
+  };
+
+  const handleSubClientKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (subClientResults.length === 0) return;
+    switch (e.key) {
+      case "ArrowDown":
+        e.preventDefault();
+        setHighlightedSubClientIndex((prev) =>
+          prev < subClientResults.length - 1 ? prev + 1 : prev,
+        );
+        break;
+      case "ArrowUp":
+        e.preventDefault();
+        setHighlightedSubClientIndex((prev) => (prev > 0 ? prev - 1 : 0));
+        break;
+      case "Enter":
+        e.preventDefault();
+        if (
+          highlightedSubClientIndex >= 0 &&
+          highlightedSubClientIndex < subClientResults.length
+        ) {
+          handleSelectSubClient(subClientResults[highlightedSubClientIndex]);
+        }
+        break;
+      case "Escape":
+        e.preventDefault();
+        setShowSubClientDropdown(false);
+        setHighlightedSubClientIndex(-1);
+        break;
+    }
+  };
+
+  const hasActiveFilters =
+    selectedSubClient !== null ||
+    dateFrom !== "" ||
+    dateTo !== "" ||
+    globalSearch !== "";
+
+  const handleClearFilters = () => {
+    handleClearSubClient();
+    setActiveTimePreset(null);
+    setDateFrom("");
+    setDateTo("");
+    setGlobalSearch("");
+  };
+
+  // --- Order actions ---
   const handleSyncLifecycles = async () => {
     setSyncing(true);
     setSyncMessage(null);
@@ -189,7 +415,6 @@ export function FresisHistoryPage() {
   const handleSaveEdit = async () => {
     if (!editState) return;
     if (editState.items.length === 0) return;
-
     const hasInvalidQty = editState.items.some(
       (item) => !item.quantity || item.quantity <= 0,
     );
@@ -273,1009 +498,1562 @@ export function FresisHistoryPage() {
     }
   };
 
-  const handleDownloadPDF = (order: FresisHistoryOrder) => {
+  const handleDownloadPDF = useCallback((order: FresisHistoryOrder) => {
     const pdfService = PDFExportService.getInstance();
     const doc = pdfService.generateOrderPDF(order);
     doc.save(
       `ordine-fresis-${order.subClientName || order.subClientCodice}-${order.createdAt.slice(0, 10)}.pdf`,
     );
-  };
-
-  const formatDate = (iso: string) => {
-    try {
-      return new Date(iso).toLocaleDateString("it-IT", {
-        day: "2-digit",
-        month: "2-digit",
-        year: "numeric",
-        hour: "2-digit",
-        minute: "2-digit",
-      });
-    } catch {
-      return iso;
-    }
-  };
-
-  const formatCurrency = (value: number) =>
-    value.toLocaleString("it-IT", {
-      style: "currency",
-      currency: "EUR",
-    });
+  }, []);
 
   const isEditingOrder = (orderId: string) => editState?.orderId === orderId;
 
   return (
-    <div style={{ maxWidth: "900px", margin: "0 auto", padding: "1rem" }}>
-      <h1 style={{ fontSize: "1.5rem", marginBottom: "1rem" }}>
-        Storico Fresis
-      </h1>
-
-      {/* Search bar */}
-      <div style={{ marginBottom: "1rem" }}>
-        <input
-          type="text"
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-          placeholder="Cerca per sotto-cliente, articolo, codice, data..."
-          style={{
-            width: "100%",
-            padding: "0.75rem",
-            fontSize: "1rem",
-            border: "1px solid #d1d5db",
-            borderRadius: "6px",
-            outline: "none",
-          }}
-        />
-      </div>
-
-      {/* Month filter */}
+    <div
+      style={{
+        maxWidth: "1200px",
+        margin: "0 auto",
+        padding: "24px",
+        backgroundColor: "#f5f5f5",
+        minHeight: "100vh",
+      }}
+    >
+      {/* Header */}
       <div
         style={{
+          marginBottom: "24px",
           display: "flex",
+          justifyContent: "space-between",
           alignItems: "center",
-          gap: "0.5rem",
-          marginBottom: "1rem",
-          fontSize: "0.9rem",
-        }}
-      >
-        <button
-          onClick={() => {
-            if (!selectedMonth) {
-              setSelectedMonth(
-                new Date(new Date().getFullYear(), new Date().getMonth(), 1),
-              );
-              return;
-            }
-            setSelectedMonth(
-              new Date(
-                selectedMonth.getFullYear(),
-                selectedMonth.getMonth() - 1,
-                1,
-              ),
-            );
-          }}
-          style={{
-            padding: "0.3rem 0.6rem",
-            background: "#f3f4f6",
-            border: "1px solid #d1d5db",
-            borderRadius: "4px",
-            cursor: "pointer",
-            fontSize: "1rem",
-            lineHeight: 1,
-          }}
-        >
-          &lt;
-        </button>
-        <span
-          style={{
-            minWidth: "140px",
-            textAlign: "center",
-            fontWeight: "600",
-          }}
-        >
-          {selectedMonth
-            ? selectedMonth.toLocaleDateString("it-IT", {
-                month: "long",
-                year: "numeric",
-              })
-            : "Tutti i mesi"}
-        </span>
-        <button
-          onClick={() => {
-            if (!selectedMonth) return;
-            setSelectedMonth(
-              new Date(
-                selectedMonth.getFullYear(),
-                selectedMonth.getMonth() + 1,
-                1,
-              ),
-            );
-          }}
-          disabled={!selectedMonth}
-          style={{
-            padding: "0.3rem 0.6rem",
-            background: "#f3f4f6",
-            border: "1px solid #d1d5db",
-            borderRadius: "4px",
-            cursor: selectedMonth ? "pointer" : "not-allowed",
-            fontSize: "1rem",
-            lineHeight: 1,
-          }}
-        >
-          &gt;
-        </button>
-        <button
-          onClick={() =>
-            setSelectedMonth(
-              selectedMonth
-                ? null
-                : new Date(new Date().getFullYear(), new Date().getMonth(), 1),
-            )
-          }
-          style={{
-            padding: "0.3rem 0.6rem",
-            background: selectedMonth ? "#e5e7eb" : "#3b82f6",
-            color: selectedMonth ? "#374151" : "white",
-            border: "1px solid #d1d5db",
-            borderRadius: "4px",
-            cursor: "pointer",
-            fontSize: "0.8rem",
-          }}
-        >
-          {selectedMonth ? "Tutti" : "Mese corrente"}
-        </button>
-      </div>
-
-      {/* Action buttons */}
-      <div
-        style={{
-          display: "flex",
-          gap: "0.5rem",
-          marginBottom: "1rem",
           flexWrap: "wrap",
-          alignItems: "center",
+          gap: "16px",
         }}
       >
-        <button
-          onClick={() => alert("Funzionalita' in arrivo")}
+        <div>
+          <h1
+            style={{
+              fontSize: "28px",
+              fontWeight: 700,
+              color: "#333",
+              marginBottom: "8px",
+            }}
+          >
+            Storico Fresis
+          </h1>
+          <p style={{ fontSize: "16px", color: "#666" }}>
+            Consulta lo storico ordini Fresis e il loro stato
+          </p>
+        </div>
+        <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+          <button
+            onClick={() => alert("Funzionalita' in arrivo")}
+            style={{
+              padding: "10px 16px",
+              fontSize: "14px",
+              fontWeight: 600,
+              backgroundColor: "#fff",
+              color: "#333",
+              border: "1px solid #ddd",
+              borderRadius: "8px",
+              cursor: "pointer",
+            }}
+          >
+            Report
+          </button>
+          <button
+            onClick={() => setShowImportModal(true)}
+            style={{
+              padding: "10px 16px",
+              fontSize: "14px",
+              fontWeight: 600,
+              backgroundColor: "#fff",
+              color: "#333",
+              border: "1px solid #ddd",
+              borderRadius: "8px",
+              cursor: "pointer",
+            }}
+          >
+            Importa da Arca
+          </button>
+          <button
+            onClick={handleSyncLifecycles}
+            disabled={syncing}
+            style={{
+              padding: "10px 16px",
+              fontSize: "14px",
+              fontWeight: 600,
+              backgroundColor: syncing ? "#93c5fd" : "#1976d2",
+              color: "#fff",
+              border: "none",
+              borderRadius: "8px",
+              cursor: syncing ? "default" : "pointer",
+            }}
+          >
+            {syncing ? "Aggiornamento..." : "Aggiorna Stati"}
+          </button>
+          {syncMessage && (
+            <span
+              style={{
+                fontSize: "13px",
+                color: "#666",
+                alignSelf: "center",
+              }}
+            >
+              {syncMessage}
+            </span>
+          )}
+        </div>
+      </div>
+
+      {/* Filter bar */}
+      <div
+        style={{
+          backgroundColor: "#fff",
+          borderRadius: "12px",
+          padding: "20px",
+          marginBottom: "24px",
+          boxShadow: "0 2px 8px rgba(0, 0, 0, 0.1)",
+        }}
+      >
+        {/* Row 1: Sub-client search + Global search */}
+        <div
           style={{
-            padding: "0.5rem 1rem",
-            background: "#e5e7eb",
-            border: "1px solid #d1d5db",
-            borderRadius: "6px",
-            cursor: "pointer",
-            fontSize: "0.875rem",
+            display: "flex",
+            gap: "16px",
+            marginBottom: "16px",
+            flexWrap: "wrap",
           }}
         >
-          Report
-        </button>
-        <button
-          onClick={() => setShowImportModal(true)}
-          style={{
-            padding: "0.5rem 1rem",
-            background: "#e5e7eb",
-            border: "1px solid #d1d5db",
-            borderRadius: "6px",
-            cursor: "pointer",
-            fontSize: "0.875rem",
-          }}
-        >
-          Importa da Arca
-        </button>
-        <button
-          onClick={handleSyncLifecycles}
-          disabled={syncing}
-          style={{
-            padding: "0.5rem 1rem",
-            background: syncing ? "#93c5fd" : "#3b82f6",
-            color: "white",
-            border: "none",
-            borderRadius: "6px",
-            cursor: syncing ? "default" : "pointer",
-            fontSize: "0.875rem",
-          }}
-        >
-          {syncing ? "Aggiornamento..." : "Aggiorna Stati"}
-        </button>
-        {syncMessage && (
-          <span style={{ fontSize: "0.8rem", color: "#6b7280" }}>
-            {syncMessage}
-          </span>
+          {/* Sub-client search */}
+          <div
+            ref={subClientDropdownRef}
+            style={{
+              flex: "1 1 45%",
+              minWidth: "250px",
+              position: "relative",
+            }}
+          >
+            <label
+              htmlFor="subclient-search"
+              style={{
+                display: "block",
+                fontSize: "14px",
+                fontWeight: 600,
+                color: "#333",
+                marginBottom: "8px",
+              }}
+            >
+              Sotto-cliente
+            </label>
+            {selectedSubClient ? (
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "8px",
+                  padding: "8px 12px",
+                  backgroundColor: "#E8F5E9",
+                  border: "1px solid #4CAF50",
+                  borderRadius: "8px",
+                }}
+              >
+                <span style={{ fontWeight: 600, color: "#2E7D32", flex: 1 }}>
+                  {selectedSubClient.name}
+                </span>
+                <span style={{ color: "#666", fontSize: "12px" }}>
+                  {selectedSubClient.codice}
+                </span>
+                <button
+                  onClick={handleClearSubClient}
+                  style={{
+                    background: "none",
+                    border: "none",
+                    cursor: "pointer",
+                    fontSize: "16px",
+                    color: "#666",
+                    padding: "2px 6px",
+                    borderRadius: "4px",
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.backgroundColor = "#C8E6C9";
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.backgroundColor = "transparent";
+                  }}
+                >
+                  {"\u2715"}
+                </button>
+              </div>
+            ) : (
+              <>
+                <input
+                  id="subclient-search"
+                  type="text"
+                  placeholder="Cerca sotto-cliente per nome o codice..."
+                  value={subClientQuery}
+                  onChange={(e) => {
+                    setSubClientQuery(e.target.value);
+                    setHighlightedSubClientIndex(-1);
+                    if (e.target.value.length >= 2) {
+                      setShowSubClientDropdown(true);
+                    } else {
+                      setShowSubClientDropdown(false);
+                    }
+                  }}
+                  onKeyDown={handleSubClientKeyDown}
+                  onFocus={() => {
+                    if (subClientResults.length > 0)
+                      setShowSubClientDropdown(true);
+                  }}
+                  autoComplete="off"
+                  style={{
+                    width: "100%",
+                    padding: "10px 12px",
+                    fontSize: "14px",
+                    border: "1px solid #ddd",
+                    borderRadius: "8px",
+                    outline: "none",
+                    boxSizing: "border-box",
+                  }}
+                />
+                {showSubClientDropdown && subClientResults.length > 0 && (
+                  <div
+                    style={{
+                      position: "absolute",
+                      top: "100%",
+                      left: 0,
+                      right: 0,
+                      zIndex: 1000,
+                      backgroundColor: "#fff",
+                      border: "1px solid #ddd",
+                      borderRadius: "8px",
+                      maxHeight: "300px",
+                      overflowY: "auto",
+                      boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
+                    }}
+                  >
+                    {subClientResults.map((sc, index) => (
+                      <div
+                        key={sc.codice}
+                        data-subclient-item
+                        onClick={() => handleSelectSubClient(sc)}
+                        onMouseEnter={() => setHighlightedSubClientIndex(index)}
+                        style={{
+                          padding: "10px 12px",
+                          cursor: "pointer",
+                          borderBottom:
+                            index < subClientResults.length - 1
+                              ? "1px solid #f3f4f6"
+                              : "none",
+                          backgroundColor:
+                            index === highlightedSubClientIndex
+                              ? "#E3F2FD"
+                              : "#fff",
+                          display: "flex",
+                          justifyContent: "space-between",
+                          alignItems: "baseline",
+                        }}
+                      >
+                        <strong style={{ fontSize: "14px" }}>{sc.name}</strong>
+                        <span
+                          style={{
+                            marginLeft: "8px",
+                            color: "#6b7280",
+                            fontSize: "12px",
+                            flexShrink: 0,
+                          }}
+                        >
+                          {sc.codice}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+
+          {/* Global search */}
+          <div style={{ flex: "1 1 45%", minWidth: "250px" }}>
+            <label
+              htmlFor="global-search"
+              style={{
+                display: "block",
+                fontSize: "14px",
+                fontWeight: 600,
+                color: "#333",
+                marginBottom: "8px",
+              }}
+            >
+              Ricerca globale
+            </label>
+            <input
+              id="global-search"
+              type="text"
+              placeholder="Cerca negli ordini filtrati..."
+              value={globalSearch}
+              onChange={(e) => setGlobalSearch(e.target.value)}
+              style={{
+                width: "100%",
+                padding: "10px 12px",
+                fontSize: "14px",
+                border: "1px solid #ddd",
+                borderRadius: "8px",
+                outline: "none",
+                boxSizing: "border-box",
+              }}
+              onFocus={(e) => {
+                e.currentTarget.style.borderColor = "#1976d2";
+              }}
+              onBlur={(e) => {
+                e.currentTarget.style.borderColor = "#ddd";
+              }}
+            />
+            <div
+              style={{
+                fontSize: "11px",
+                color: "#999",
+                marginTop: "4px",
+              }}
+            >
+              Cerca per sotto-cliente, articolo, codice, DDT, fattura...
+            </div>
+          </div>
+        </div>
+
+        {/* Row 2: Time presets */}
+        <div style={{ marginBottom: "12px" }}>
+          <label
+            style={{
+              display: "block",
+              fontSize: "14px",
+              fontWeight: 600,
+              color: "#333",
+              marginBottom: "8px",
+            }}
+          >
+            Periodo
+          </label>
+          <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+            {TIME_PRESETS.map((preset) => {
+              const isActive = activeTimePreset === preset.id;
+              return (
+                <button
+                  key={preset.id}
+                  onClick={() => handleTimePreset(preset.id)}
+                  style={{
+                    padding: "6px 14px",
+                    fontSize: "13px",
+                    fontWeight: 500,
+                    border: isActive ? "1px solid #1976d2" : "1px solid #ddd",
+                    borderRadius: "20px",
+                    backgroundColor: isActive ? "#E3F2FD" : "#fff",
+                    color: isActive ? "#1976d2" : "#666",
+                    cursor: "pointer",
+                    transition: "all 0.2s",
+                  }}
+                  onMouseEnter={(e) => {
+                    if (!isActive) {
+                      e.currentTarget.style.backgroundColor = "#f5f5f5";
+                    }
+                  }}
+                  onMouseLeave={(e) => {
+                    if (!isActive) {
+                      e.currentTarget.style.backgroundColor = "#fff";
+                    }
+                  }}
+                >
+                  {preset.label}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Row 3: Custom date inputs */}
+        {activeTimePreset === "custom" && (
+          <div
+            style={{
+              display: "flex",
+              gap: "16px",
+              marginBottom: "12px",
+              flexWrap: "wrap",
+            }}
+          >
+            <div style={{ flex: "1 1 200px", minWidth: "150px" }}>
+              <label
+                htmlFor="date-from"
+                style={{
+                  display: "block",
+                  fontSize: "13px",
+                  fontWeight: 600,
+                  color: "#333",
+                  marginBottom: "6px",
+                }}
+              >
+                Da
+              </label>
+              <input
+                id="date-from"
+                type="date"
+                value={dateFrom}
+                onChange={(e) => {
+                  setDateFrom(e.target.value);
+                  setActiveTimePreset("custom");
+                }}
+                style={{
+                  width: "100%",
+                  padding: "8px 12px",
+                  fontSize: "14px",
+                  border: "1px solid #ddd",
+                  borderRadius: "8px",
+                  outline: "none",
+                  boxSizing: "border-box",
+                }}
+              />
+            </div>
+            <div style={{ flex: "1 1 200px", minWidth: "150px" }}>
+              <label
+                htmlFor="date-to"
+                style={{
+                  display: "block",
+                  fontSize: "13px",
+                  fontWeight: 600,
+                  color: "#333",
+                  marginBottom: "6px",
+                }}
+              >
+                A
+              </label>
+              <input
+                id="date-to"
+                type="date"
+                value={dateTo}
+                onChange={(e) => {
+                  setDateTo(e.target.value);
+                  setActiveTimePreset("custom");
+                }}
+                style={{
+                  width: "100%",
+                  padding: "8px 12px",
+                  fontSize: "14px",
+                  border: "1px solid #ddd",
+                  borderRadius: "8px",
+                  outline: "none",
+                  boxSizing: "border-box",
+                }}
+              />
+            </div>
+          </div>
+        )}
+
+        {/* Clear filters */}
+        {hasActiveFilters && (
+          <div style={{ display: "flex", justifyContent: "flex-end" }}>
+            <button
+              onClick={handleClearFilters}
+              style={{
+                padding: "8px 16px",
+                fontSize: "14px",
+                fontWeight: 600,
+                border: "1px solid #f44336",
+                borderRadius: "8px",
+                backgroundColor: "#fff",
+                color: "#f44336",
+                cursor: "pointer",
+                transition: "all 0.2s",
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.backgroundColor = "#f44336";
+                e.currentTarget.style.color = "#fff";
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.backgroundColor = "#fff";
+                e.currentTarget.style.color = "#f44336";
+              }}
+            >
+              {"\u2715"} Cancella tutti i filtri
+            </button>
+          </div>
         )}
       </div>
 
+      {/* Loading state */}
       {loading && (
-        <div style={{ textAlign: "center", padding: "2rem", color: "#6b7280" }}>
-          Caricamento...
+        <div
+          style={{
+            textAlign: "center",
+            padding: "40px",
+            backgroundColor: "#fff",
+            borderRadius: "12px",
+            boxShadow: "0 2px 8px rgba(0, 0, 0, 0.1)",
+          }}
+        >
+          <div
+            style={{
+              fontSize: "48px",
+              marginBottom: "16px",
+              animation: "spin 1s linear infinite",
+            }}
+          >
+            {"\u23f3"}
+          </div>
+          <p style={{ fontSize: "16px", color: "#666" }}>
+            Caricamento ordini...
+          </p>
+          <style>
+            {`
+              @keyframes spin {
+                from { transform: rotate(0deg); }
+                to { transform: rotate(360deg); }
+              }
+            `}
+          </style>
         </div>
       )}
 
-      {!loading && orders.length === 0 && (
-        <div style={{ textAlign: "center", padding: "2rem", color: "#6b7280" }}>
-          {searchQuery
-            ? "Nessun risultato trovato"
-            : "Nessun ordine archiviato"}
+      {/* Empty state */}
+      {!loading && wsOrders.length === 0 && (
+        <div
+          style={{
+            textAlign: "center",
+            padding: "40px",
+            backgroundColor: "#fff",
+            borderRadius: "12px",
+            boxShadow: "0 2px 8px rgba(0, 0, 0, 0.1)",
+          }}
+        >
+          <div style={{ fontSize: "64px", marginBottom: "16px" }}>
+            {"\ud83d\udced"}
+          </div>
+          <p
+            style={{
+              fontSize: "18px",
+              fontWeight: 600,
+              color: "#333",
+              marginBottom: "8px",
+            }}
+          >
+            Nessun ordine archiviato
+          </p>
+          <p style={{ fontSize: "14px", color: "#666" }}>
+            Gli ordini compariranno qui quando saranno archiviati
+          </p>
+        </div>
+      )}
+
+      {/* No results after filtering */}
+      {!loading && wsOrders.length > 0 && filteredOrders.length === 0 && (
+        <div
+          style={{
+            textAlign: "center",
+            padding: "40px",
+            backgroundColor: "#fff",
+            borderRadius: "12px",
+            boxShadow: "0 2px 8px rgba(0, 0, 0, 0.1)",
+          }}
+        >
+          <div style={{ fontSize: "48px", marginBottom: "16px" }}>
+            {"\ud83d\udd0d"}
+          </div>
+          <p
+            style={{
+              fontSize: "16px",
+              fontWeight: 600,
+              color: "#333",
+              marginBottom: "8px",
+            }}
+          >
+            Nessun ordine corrisponde ai filtri
+          </p>
+          <p
+            style={{
+              fontSize: "14px",
+              color: "#666",
+              marginBottom: "16px",
+            }}
+          >
+            {wsOrders.length} ordini totali, nessuno corrisponde ai filtri
+            attivi
+          </p>
+          <button
+            onClick={handleClearFilters}
+            style={{
+              padding: "10px 20px",
+              fontSize: "14px",
+              fontWeight: 600,
+              backgroundColor: "#1976d2",
+              color: "#fff",
+              border: "none",
+              borderRadius: "8px",
+              cursor: "pointer",
+            }}
+          >
+            Cancella filtri
+          </button>
         </div>
       )}
 
       {/* Orders list */}
-      <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
-        {orders.map((order) => {
-          const isExpanded = expandedOrderId === order.id;
-          const editing = isEditingOrder(order.id);
-          const isDeleting = deleteConfirmId === order.id;
-          const displayItems = editing ? editState!.items : order.items;
-          const hasRowDiscounts = displayItems.some(
-            (item) => item.discount && item.discount > 0,
-          );
-          const totalItems = displayItems.reduce(
-            (sum, item) => sum + item.quantity,
-            0,
-          );
-          const totalGross = displayItems.reduce(
-            (sum, item) => sum + item.price * item.quantity,
-            0,
-          );
-          const badge = getStateBadge(order);
+      {!loading && filteredOrders.length > 0 && (
+        <div>
+          {/* Results summary */}
+          <div
+            style={{
+              fontSize: "13px",
+              color: "#888",
+              marginBottom: "12px",
+            }}
+          >
+            Visualizzati {visibleOrders.length} di {filteredOrders.length}{" "}
+            ordini
+            {filteredOrders.length !== wsOrders.length &&
+              ` (${wsOrders.length} totali)`}
+          </div>
 
-          return (
-            <div
-              key={order.id}
-              style={{
-                border: editing ? "2px solid #f59e0b" : "1px solid #f59e0b",
-                borderRadius: "8px",
-                overflow: "hidden",
-                background: editing ? "#fffef5" : "#fffbeb",
-              }}
-            >
-              {/* Header */}
-              <div
-                onClick={() =>
-                  !editing && setExpandedOrderId(isExpanded ? null : order.id)
-                }
+          {orderGroups.map((group) => (
+            <div key={group.period} style={{ marginBottom: "32px" }}>
+              <h2
                 style={{
-                  padding: "0.75rem 1rem",
-                  cursor: editing ? "default" : "pointer",
-                  display: "flex",
-                  justifyContent: "space-between",
-                  alignItems: "center",
+                  fontSize: "20px",
+                  fontWeight: 700,
+                  color: "#333",
+                  marginBottom: "16px",
+                  paddingLeft: "4px",
                 }}
               >
-                <div>
-                  <div
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: "0.5rem",
-                    }}
-                  >
-                    <span style={{ fontWeight: "600", fontSize: "1rem" }}>
-                      {editing ? editState!.subClientName : order.subClientName}
-                    </span>
-                    <span
+                {group.period}
+              </h2>
+
+              <div
+                style={{
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: "12px",
+                }}
+              >
+                {group.orders.map((order) => {
+                  const isExpanded = expandedOrderId === order.id;
+                  const editing = isEditingOrder(order.id);
+                  const isDeleting = deleteConfirmId === order.id;
+                  const displayItems = editing ? editState!.items : order.items;
+                  const discountPercent = editing
+                    ? editState!.discountPercent
+                    : (order.discountPercent ?? 0);
+                  const hasRowDiscounts = displayItems.some(
+                    (item) => item.discount && item.discount > 0,
+                  );
+                  const { totalItems, totalGross, totalNet } =
+                    computeOrderTotals(displayItems, 0);
+                  const badge = getStateBadge(order);
+
+                  const liveDocTotal =
+                    totalNet * (1 - discountPercent / 100) +
+                    (order.shippingCost ?? 0) +
+                    (order.shippingTax ?? 0);
+
+                  return (
+                    <div
+                      key={order.id}
                       style={{
-                        fontSize: "0.7rem",
-                        padding: "0.15rem 0.5rem",
-                        borderRadius: "9999px",
-                        background: badge.bg,
-                        color: badge.color,
-                        fontWeight: "500",
-                        whiteSpace: "nowrap",
+                        border: editing
+                          ? "2px solid #f59e0b"
+                          : "1px solid #e5e7eb",
+                        borderRadius: "12px",
+                        overflow: "hidden",
+                        background: "#fff",
+                        boxShadow: "0 1px 3px rgba(0,0,0,0.08)",
+                        contentVisibility: "auto",
                       }}
                     >
-                      {badge.label}
-                    </span>
-                    {editing && (
-                      <span
-                        style={{
-                          fontSize: "0.7rem",
-                          padding: "0.15rem 0.5rem",
-                          borderRadius: "9999px",
-                          background: "#fef3c7",
-                          color: "#92400e",
-                          fontWeight: "600",
-                        }}
-                      >
-                        In modifica
-                      </span>
-                    )}
-                  </div>
-                  <div
-                    style={{
-                      fontSize: "0.75rem",
-                      color: "#78350f",
-                    }}
-                  >
-                    Cod:{" "}
-                    {editing
-                      ? editState!.subClientCodice
-                      : order.subClientCodice}{" "}
-                    | {totalItems} articoli | {formatCurrency(totalGross)}
-                  </div>
-                  <div style={{ fontSize: "0.75rem", color: "#92400e" }}>
-                    {formatDate(order.createdAt)}
-                    {order.mergedAt &&
-                      ` | Unito: ${formatDate(order.mergedAt)}`}
-                  </div>
-                </div>
-                {!editing && (
-                  <div style={{ fontSize: "1.25rem", color: "#92400e" }}>
-                    {isExpanded ? "▲" : "▼"}
-                  </div>
-                )}
-              </div>
-
-              {/* Expanded details */}
-              {(isExpanded || editing) && (
-                <div
-                  style={{
-                    padding: "0.75rem 1rem",
-                    borderTop: "1px solid #fbbf24",
-                    background: "white",
-                  }}
-                >
-                  {/* Sub-client: editable in edit mode */}
-                  {editing ? (
-                    <div style={{ marginBottom: "0.75rem" }}>
-                      <SubClientSelector
-                        selectedSubClient={editState!.subClientData}
-                        onSelect={(sc: SubClient) => {
-                          setEditState({
-                            ...editState!,
-                            subClientCodice: sc.codice,
-                            subClientName: sc.ragioneSociale,
-                            subClientData: sc,
-                          });
-                        }}
-                        onClear={() => {
-                          setEditState({
-                            ...editState!,
-                            subClientCodice: "",
-                            subClientName: "",
-                            subClientData: null,
-                          });
-                        }}
-                      />
-                    </div>
-                  ) : (
-                    order.subClientData && (
+                      {/* Header */}
                       <div
+                        onClick={() =>
+                          !editing &&
+                          setExpandedOrderId(isExpanded ? null : order.id)
+                        }
                         style={{
-                          marginBottom: "0.75rem",
-                          padding: "0.5rem",
-                          background: "#fef3c7",
-                          borderRadius: "4px",
-                          fontSize: "0.8rem",
+                          padding: "12px 16px",
+                          cursor: editing ? "default" : "pointer",
+                          display: "flex",
+                          justifyContent: "space-between",
+                          alignItems: "center",
                         }}
                       >
-                        <strong>Sotto-cliente:</strong>{" "}
-                        {order.subClientData.ragioneSociale}
-                        {order.subClientData.supplRagioneSociale &&
-                          ` - ${order.subClientData.supplRagioneSociale}`}
-                        <br />
-                        {order.subClientData.indirizzo && (
-                          <>
-                            {order.subClientData.indirizzo}
-                            {order.subClientData.localita &&
-                              `, ${order.subClientData.localita}`}
-                            {order.subClientData.cap &&
-                              ` ${order.subClientData.cap}`}
-                            {order.subClientData.prov &&
-                              ` (${order.subClientData.prov})`}
-                            <br />
-                          </>
-                        )}
-                        {order.subClientData.partitaIva &&
-                          `P.IVA: ${order.subClientData.partitaIva}`}
-                        {order.subClientData.codFiscale &&
-                          ` | CF: ${order.subClientData.codFiscale}`}
-                      </div>
-                    )
-                  )}
-
-                  {/* Lifecycle section (hidden in edit mode) */}
-                  {!editing &&
-                    order.archibaldOrderId &&
-                    (() => {
-                      const linkedNumbers = parseLinkedIds(
-                        order.archibaldOrderNumber,
-                      );
-                      return (
-                        <div
-                          style={{
-                            marginBottom: "0.75rem",
-                            padding: "0.5rem",
-                            background: "#f0f9ff",
-                            borderRadius: "4px",
-                            border: "1px solid #bae6fd",
-                            fontSize: "0.8rem",
-                          }}
-                        >
+                        <div>
                           <div
                             style={{
-                              fontWeight: "600",
-                              marginBottom: "0.25rem",
+                              display: "flex",
+                              alignItems: "center",
+                              gap: "8px",
+                              flexWrap: "wrap",
                             }}
                           >
-                            {linkedNumbers.length > 1
-                              ? `Ordini Archibald (${linkedNumbers.length})`
-                              : "Ordine Archibald"}
-                          </div>
-                          <div>
-                            {linkedNumbers.map((num, i) => (
-                              <span key={i}>
-                                {i > 0 && ", "}
-                                N. {num}
-                              </span>
-                            ))}
-                            {order.currentState && (
+                            <span
+                              style={{
+                                fontWeight: 600,
+                                fontSize: "15px",
+                                color: "#333",
+                              }}
+                            >
+                              {editing
+                                ? editState!.subClientName
+                                : order.subClientName}
+                            </span>
+                            <span
+                              style={{
+                                fontSize: "11px",
+                                padding: "2px 8px",
+                                borderRadius: "9999px",
+                                background: badge.bg,
+                                color: badge.color,
+                                fontWeight: 500,
+                                whiteSpace: "nowrap",
+                              }}
+                            >
+                              {badge.label}
+                            </span>
+                            {editing && (
                               <span
                                 style={{
-                                  marginLeft: "0.5rem",
-                                  fontSize: "0.7rem",
-                                  padding: "0.1rem 0.4rem",
+                                  fontSize: "11px",
+                                  padding: "2px 8px",
                                   borderRadius: "9999px",
-                                  background: badge.bg,
-                                  color: badge.color,
-                                  fontWeight: "500",
+                                  background: "#fef3c7",
+                                  color: "#92400e",
+                                  fontWeight: 600,
                                 }}
                               >
-                                {badge.label}
+                                In modifica
                               </span>
                             )}
                           </div>
+                          <div
+                            style={{
+                              fontSize: "13px",
+                              color: "#666",
+                              marginTop: "4px",
+                            }}
+                          >
+                            Cod:{" "}
+                            {editing
+                              ? editState!.subClientCodice
+                              : order.subClientCodice}{" "}
+                            | {totalItems} articoli |{" "}
+                            {formatCurrency(
+                              hasRowDiscounts ? totalNet : totalGross,
+                            )}
+                          </div>
+                          <div
+                            style={{
+                              fontSize: "12px",
+                              color: "#999",
+                              marginTop: "2px",
+                            }}
+                          >
+                            {formatDateDisplay(order.createdAt)}
+                            {order.mergedAt &&
+                              ` | Unito: ${formatDateDisplay(order.mergedAt)}`}
+                          </div>
+                        </div>
+                        {!editing && (
+                          <div
+                            style={{
+                              fontSize: "18px",
+                              color: "#999",
+                              flexShrink: 0,
+                            }}
+                          >
+                            {isExpanded ? "\u25B2" : "\u25BC"}
+                          </div>
+                        )}
+                      </div>
 
-                          {order.ddtNumber && (
-                            <div style={{ marginTop: "0.35rem" }}>
-                              <strong>DDT:</strong> {order.ddtNumber}
-                              {order.ddtDeliveryDate &&
-                                ` | Consegna prevista: ${formatDate(order.ddtDeliveryDate)}`}
-                              {order.trackingNumber && (
-                                <div>
-                                  <strong>Tracking:</strong>{" "}
-                                  {order.trackingUrl ? (
-                                    <a
-                                      href={order.trackingUrl}
-                                      target="_blank"
-                                      rel="noopener noreferrer"
-                                      style={{ color: "#2563eb" }}
-                                    >
-                                      {order.trackingNumber}
-                                    </a>
-                                  ) : (
-                                    order.trackingNumber
+                      {/* Expanded details */}
+                      {(isExpanded || editing) && (
+                        <div
+                          style={{
+                            padding: "12px 16px",
+                            borderTop: "1px solid #e5e7eb",
+                          }}
+                        >
+                          {/* Sub-client: editable in edit mode */}
+                          {editing ? (
+                            <div style={{ marginBottom: "12px" }}>
+                              <SubClientSelector
+                                selectedSubClient={editState!.subClientData}
+                                onSelect={(sc: SubClient) => {
+                                  setEditState({
+                                    ...editState!,
+                                    subClientCodice: sc.codice,
+                                    subClientName: sc.ragioneSociale,
+                                    subClientData: sc,
+                                  });
+                                }}
+                                onClear={() => {
+                                  setEditState({
+                                    ...editState!,
+                                    subClientCodice: "",
+                                    subClientName: "",
+                                    subClientData: null,
+                                  });
+                                }}
+                              />
+                            </div>
+                          ) : (
+                            order.subClientData && (
+                              <div
+                                style={{
+                                  marginBottom: "12px",
+                                  padding: "8px 12px",
+                                  background: "#f9fafb",
+                                  borderRadius: "8px",
+                                  fontSize: "13px",
+                                  color: "#374151",
+                                }}
+                              >
+                                <strong>Sotto-cliente:</strong>{" "}
+                                {order.subClientData.ragioneSociale}
+                                {order.subClientData.supplRagioneSociale &&
+                                  ` - ${order.subClientData.supplRagioneSociale}`}
+                                <br />
+                                {order.subClientData.indirizzo && (
+                                  <>
+                                    {order.subClientData.indirizzo}
+                                    {order.subClientData.localita &&
+                                      `, ${order.subClientData.localita}`}
+                                    {order.subClientData.cap &&
+                                      ` ${order.subClientData.cap}`}
+                                    {order.subClientData.prov &&
+                                      ` (${order.subClientData.prov})`}
+                                    <br />
+                                  </>
+                                )}
+                                {order.subClientData.partitaIva &&
+                                  `P.IVA: ${order.subClientData.partitaIva}`}
+                                {order.subClientData.codFiscale &&
+                                  ` | CF: ${order.subClientData.codFiscale}`}
+                              </div>
+                            )
+                          )}
+
+                          {/* Lifecycle section */}
+                          {!editing &&
+                            order.archibaldOrderId &&
+                            (() => {
+                              const linkedNumbers = parseLinkedIds(
+                                order.archibaldOrderNumber,
+                              );
+                              return (
+                                <div
+                                  style={{
+                                    marginBottom: "12px",
+                                    padding: "8px 12px",
+                                    background: "#f0f9ff",
+                                    borderRadius: "8px",
+                                    border: "1px solid #bae6fd",
+                                    fontSize: "13px",
+                                  }}
+                                >
+                                  <div
+                                    style={{
+                                      fontWeight: 600,
+                                      marginBottom: "4px",
+                                    }}
+                                  >
+                                    {linkedNumbers.length > 1
+                                      ? `Ordini Archibald (${linkedNumbers.length})`
+                                      : "Ordine Archibald"}
+                                  </div>
+                                  <div>
+                                    {linkedNumbers.map((num, i) => (
+                                      <span key={i}>
+                                        {i > 0 && ", "}
+                                        N. {num}
+                                      </span>
+                                    ))}
+                                    {order.currentState && (
+                                      <span
+                                        style={{
+                                          marginLeft: "8px",
+                                          fontSize: "11px",
+                                          padding: "1px 6px",
+                                          borderRadius: "9999px",
+                                          background: badge.bg,
+                                          color: badge.color,
+                                          fontWeight: 500,
+                                        }}
+                                      >
+                                        {badge.label}
+                                      </span>
+                                    )}
+                                  </div>
+
+                                  {order.ddtNumber && (
+                                    <div style={{ marginTop: "6px" }}>
+                                      <strong>DDT:</strong> {order.ddtNumber}
+                                      {order.ddtDeliveryDate &&
+                                        ` | Consegna prevista: ${formatDateDisplay(order.ddtDeliveryDate)}`}
+                                      {order.trackingNumber && (
+                                        <div>
+                                          <strong>Tracking:</strong>{" "}
+                                          {order.trackingUrl ? (
+                                            <a
+                                              href={order.trackingUrl}
+                                              target="_blank"
+                                              rel="noopener noreferrer"
+                                              style={{
+                                                color: "#2563eb",
+                                              }}
+                                            >
+                                              {order.trackingNumber}
+                                            </a>
+                                          ) : (
+                                            order.trackingNumber
+                                          )}
+                                          {order.trackingCourier &&
+                                            ` (${order.trackingCourier})`}
+                                        </div>
+                                      )}
+                                    </div>
                                   )}
-                                  {order.trackingCourier &&
-                                    ` (${order.trackingCourier})`}
+
+                                  {order.invoiceNumber && (
+                                    <div style={{ marginTop: "6px" }}>
+                                      <strong>Fattura:</strong>{" "}
+                                      {order.invoiceNumber}
+                                      {order.invoiceDate &&
+                                        ` del ${formatDateDisplay(order.invoiceDate)}`}
+                                      {order.invoiceAmount &&
+                                        ` - ${order.invoiceAmount}`}
+                                    </div>
+                                  )}
+
+                                  {order.deliveryCompletedDate && (
+                                    <div
+                                      style={{
+                                        marginTop: "6px",
+                                        color: "#166534",
+                                      }}
+                                    >
+                                      Consegnato il{" "}
+                                      {formatDateDisplay(
+                                        order.deliveryCompletedDate,
+                                      )}
+                                    </div>
+                                  )}
                                 </div>
+                              );
+                            })()}
+
+                          {/* Items table */}
+                          <table
+                            style={{
+                              width: "100%",
+                              borderCollapse: "collapse",
+                              fontSize: "13px",
+                              marginBottom: "12px",
+                            }}
+                          >
+                            <thead>
+                              <tr
+                                style={{
+                                  borderBottom: "2px solid #e5e7eb",
+                                  textAlign: "left",
+                                }}
+                              >
+                                <th style={{ padding: "6px 4px" }}>Codice</th>
+                                <th style={{ padding: "6px 4px" }}>
+                                  Descrizione
+                                </th>
+                                <th
+                                  style={{
+                                    padding: "6px 4px",
+                                    textAlign: "right",
+                                  }}
+                                >
+                                  {"Qta'"}
+                                </th>
+                                <th
+                                  style={{
+                                    padding: "6px 4px",
+                                    textAlign: "right",
+                                  }}
+                                >
+                                  Prezzo
+                                </th>
+                                {hasRowDiscounts && (
+                                  <th
+                                    style={{
+                                      padding: "6px 4px",
+                                      textAlign: "right",
+                                    }}
+                                  >
+                                    Sc.%
+                                  </th>
+                                )}
+                                <th
+                                  style={{
+                                    padding: "6px 4px",
+                                    textAlign: "right",
+                                  }}
+                                >
+                                  Totale
+                                </th>
+                                {editing && (
+                                  <th
+                                    style={{
+                                      padding: "6px 4px",
+                                      textAlign: "center",
+                                      width: "40px",
+                                    }}
+                                  />
+                                )}
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {displayItems.map((item, idx) => (
+                                <tr
+                                  key={idx}
+                                  style={{
+                                    borderBottom: "1px solid #f3f4f6",
+                                  }}
+                                >
+                                  <td style={{ padding: "6px 4px" }}>
+                                    {item.productName || item.articleCode}
+                                  </td>
+                                  <td style={{ padding: "6px 4px" }}>
+                                    {item.description || "-"}
+                                  </td>
+                                  <td
+                                    style={{
+                                      padding: "6px 4px",
+                                      textAlign: "right",
+                                    }}
+                                  >
+                                    {editing ? (
+                                      <input
+                                        type="number"
+                                        value={item.quantity}
+                                        onChange={(e) =>
+                                          handleEditItemQty(
+                                            idx,
+                                            parseInt(e.target.value, 10) || 0,
+                                          )
+                                        }
+                                        min={1}
+                                        style={{
+                                          width: "60px",
+                                          padding: "4px",
+                                          textAlign: "right",
+                                          border: "1px solid #d1d5db",
+                                          borderRadius: "4px",
+                                          fontSize: "13px",
+                                        }}
+                                      />
+                                    ) : (
+                                      item.quantity
+                                    )}
+                                  </td>
+                                  <td
+                                    style={{
+                                      padding: "6px 4px",
+                                      textAlign: "right",
+                                    }}
+                                  >
+                                    {editing ? (
+                                      <input
+                                        type="number"
+                                        value={item.price}
+                                        onChange={(e) =>
+                                          handleEditItemPrice(
+                                            idx,
+                                            parseFloat(e.target.value) || 0,
+                                          )
+                                        }
+                                        min={0}
+                                        step={0.01}
+                                        style={{
+                                          width: "80px",
+                                          padding: "4px",
+                                          textAlign: "right",
+                                          border: "1px solid #d1d5db",
+                                          borderRadius: "4px",
+                                          fontSize: "13px",
+                                        }}
+                                      />
+                                    ) : (
+                                      formatCurrency(item.price)
+                                    )}
+                                  </td>
+                                  {hasRowDiscounts && (
+                                    <td
+                                      style={{
+                                        padding: "6px 4px",
+                                        textAlign: "right",
+                                        color: item.discount
+                                          ? "#dc2626"
+                                          : "#9ca3af",
+                                      }}
+                                    >
+                                      {item.discount
+                                        ? `${item.discount}%`
+                                        : "-"}
+                                    </td>
+                                  )}
+                                  <td
+                                    style={{
+                                      padding: "6px 4px",
+                                      textAlign: "right",
+                                    }}
+                                  >
+                                    {formatCurrency(
+                                      item.price *
+                                        item.quantity *
+                                        (1 - (item.discount || 0) / 100),
+                                    )}
+                                  </td>
+                                  {editing && (
+                                    <td
+                                      style={{
+                                        padding: "6px 4px",
+                                        textAlign: "center",
+                                      }}
+                                    >
+                                      <button
+                                        onClick={() => handleRemoveItem(idx)}
+                                        style={{
+                                          padding: "2px 6px",
+                                          background: "#fee2e2",
+                                          color: "#dc2626",
+                                          border: "1px solid #dc2626",
+                                          borderRadius: "4px",
+                                          cursor: "pointer",
+                                          fontSize: "12px",
+                                          fontWeight: "bold",
+                                        }}
+                                      >
+                                        X
+                                      </button>
+                                    </td>
+                                  )}
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+
+                          {/* Add item button (edit mode) */}
+                          {editing && !addingProduct && (
+                            <button
+                              onClick={() => setAddingProduct(true)}
+                              style={{
+                                padding: "6px 12px",
+                                background: "#f0fdf4",
+                                color: "#16a34a",
+                                border: "1px solid #86efac",
+                                borderRadius: "6px",
+                                cursor: "pointer",
+                                fontSize: "13px",
+                                marginBottom: "12px",
+                              }}
+                            >
+                              + Aggiungi articolo
+                            </button>
+                          )}
+
+                          {editing && addingProduct && (
+                            <div style={{ marginBottom: "12px" }}>
+                              <AddItemToHistory
+                                onAdd={handleAddItems}
+                                onCancel={() => setAddingProduct(false)}
+                                existingItems={editState!.items}
+                              />
+                            </div>
+                          )}
+
+                          {/* Discount */}
+                          {editing ? (
+                            <div
+                              style={{
+                                fontSize: "14px",
+                                fontWeight: 500,
+                                marginBottom: "8px",
+                                display: "flex",
+                                alignItems: "center",
+                                gap: "8px",
+                              }}
+                            >
+                              <span>Sconto globale:</span>
+                              <input
+                                type="number"
+                                value={editState!.discountPercent}
+                                onChange={(e) =>
+                                  setEditState({
+                                    ...editState!,
+                                    discountPercent: Math.min(
+                                      100,
+                                      Math.max(
+                                        0,
+                                        parseFloat(e.target.value) || 0,
+                                      ),
+                                    ),
+                                  })
+                                }
+                                min={0}
+                                max={100}
+                                step={1}
+                                style={{
+                                  width: "60px",
+                                  padding: "4px",
+                                  textAlign: "right",
+                                  border: "1px solid #d1d5db",
+                                  borderRadius: "4px",
+                                  fontSize: "14px",
+                                }}
+                              />
+                              <span>%</span>
+                            </div>
+                          ) : (
+                            order.discountPercent !== undefined &&
+                            order.discountPercent > 0 && (
+                              <div
+                                style={{
+                                  fontSize: "14px",
+                                  fontWeight: 500,
+                                  marginBottom: "8px",
+                                }}
+                              >
+                                Sconto globale: {order.discountPercent}%
+                              </div>
+                            )
+                          )}
+
+                          {/* Shipping & totals — always shown */}
+                          {(order.shippingCost ||
+                            order.shippingTax ||
+                            order.targetTotalWithVAT ||
+                            editing) && (
+                            <div
+                              style={{
+                                fontSize: "13px",
+                                color: "#374151",
+                                marginBottom: "8px",
+                                display: "flex",
+                                gap: "12px",
+                                flexWrap: "wrap",
+                              }}
+                            >
+                              {order.shippingCost !== undefined &&
+                                order.shippingCost > 0 && (
+                                  <span>
+                                    Spese: {formatCurrency(order.shippingCost)}
+                                  </span>
+                                )}
+                              {order.shippingTax !== undefined &&
+                                order.shippingTax > 0 && (
+                                  <span>
+                                    IVA: {formatCurrency(order.shippingTax)}
+                                  </span>
+                                )}
+                              <span style={{ fontWeight: 600 }}>
+                                Totale doc.:{" "}
+                                {formatCurrency(
+                                  editing
+                                    ? liveDocTotal
+                                    : (order.targetTotalWithVAT ??
+                                        liveDocTotal),
+                                )}
+                              </span>
+                            </div>
+                          )}
+
+                          {/* Notes */}
+                          {editing ? (
+                            <div style={{ marginBottom: "8px" }}>
+                              <textarea
+                                value={editState!.notes}
+                                onChange={(e) =>
+                                  setEditState({
+                                    ...editState!,
+                                    notes: e.target.value,
+                                  })
+                                }
+                                placeholder="Note..."
+                                rows={3}
+                                style={{
+                                  width: "100%",
+                                  padding: "8px",
+                                  border: "1px solid #d1d5db",
+                                  borderRadius: "6px",
+                                  fontSize: "14px",
+                                  resize: "vertical",
+                                  boxSizing: "border-box",
+                                }}
+                              />
+                            </div>
+                          ) : (
+                            order.notes && (
+                              <div
+                                style={{
+                                  fontSize: "14px",
+                                  color: "#374151",
+                                  marginBottom: "8px",
+                                  fontStyle: "italic",
+                                }}
+                              >
+                                Note: {order.notes}
+                              </div>
+                            )
+                          )}
+
+                          {/* Action buttons */}
+                          {editing ? (
+                            <div
+                              style={{
+                                display: "flex",
+                                gap: "8px",
+                                flexWrap: "wrap",
+                              }}
+                            >
+                              <button
+                                onClick={handleSaveEdit}
+                                disabled={editState!.items.length === 0}
+                                style={{
+                                  padding: "8px 16px",
+                                  background:
+                                    editState!.items.length === 0
+                                      ? "#9ca3af"
+                                      : "#16a34a",
+                                  color: "white",
+                                  border: "none",
+                                  borderRadius: "6px",
+                                  cursor:
+                                    editState!.items.length === 0
+                                      ? "not-allowed"
+                                      : "pointer",
+                                  fontSize: "14px",
+                                  fontWeight: 600,
+                                }}
+                              >
+                                Salva
+                              </button>
+                              <button
+                                onClick={handleCancelEdit}
+                                style={{
+                                  padding: "8px 16px",
+                                  background: "#e5e7eb",
+                                  border: "1px solid #d1d5db",
+                                  borderRadius: "6px",
+                                  cursor: "pointer",
+                                  fontSize: "14px",
+                                }}
+                              >
+                                Annulla
+                              </button>
+                            </div>
+                          ) : (
+                            <div
+                              style={{
+                                display: "flex",
+                                gap: "8px",
+                                flexWrap: "wrap",
+                              }}
+                            >
+                              <button
+                                onClick={() => handleDownloadPDF(order)}
+                                style={{
+                                  padding: "6px 12px",
+                                  background: "#2563eb",
+                                  color: "white",
+                                  border: "none",
+                                  borderRadius: "6px",
+                                  cursor: "pointer",
+                                  fontSize: "13px",
+                                }}
+                              >
+                                Scarica PDF
+                              </button>
+                              <button
+                                onClick={() => handleStartEdit(order)}
+                                style={{
+                                  padding: "6px 12px",
+                                  background: "#f59e0b",
+                                  color: "white",
+                                  border: "none",
+                                  borderRadius: "6px",
+                                  cursor: "pointer",
+                                  fontSize: "13px",
+                                }}
+                              >
+                                Modifica
+                              </button>
+                              <button
+                                onClick={() => setLinkingOrderId(order.id)}
+                                style={{
+                                  padding: "6px 12px",
+                                  background: order.archibaldOrderId
+                                    ? "#6366f1"
+                                    : "#7c3aed",
+                                  color: "white",
+                                  border: "none",
+                                  borderRadius: "6px",
+                                  cursor: "pointer",
+                                  fontSize: "13px",
+                                }}
+                              >
+                                {order.archibaldOrderId
+                                  ? "Modifica collegamento"
+                                  : "Collega ordine"}
+                              </button>
+                              {order.archibaldOrderId && (
+                                <button
+                                  onClick={() => {
+                                    if (
+                                      window.confirm(
+                                        "Sei sicuro di voler scollegare questo ordine?",
+                                      )
+                                    ) {
+                                      handleUnlinkOrder(order.id);
+                                    }
+                                  }}
+                                  style={{
+                                    padding: "6px 12px",
+                                    background: "#fef2f2",
+                                    color: "#dc2626",
+                                    border: "1px solid #fca5a5",
+                                    borderRadius: "6px",
+                                    cursor: "pointer",
+                                    fontSize: "13px",
+                                  }}
+                                >
+                                  Scollega
+                                </button>
+                              )}
+                              {order.currentState === "spedito" &&
+                                !order.deliveryCompletedDate && (
+                                  <button
+                                    onClick={() => handleMarkDelivered(order)}
+                                    style={{
+                                      padding: "6px 12px",
+                                      background: "#16a34a",
+                                      color: "white",
+                                      border: "none",
+                                      borderRadius: "6px",
+                                      cursor: "pointer",
+                                      fontSize: "13px",
+                                    }}
+                                  >
+                                    Segna Consegnato
+                                  </button>
+                                )}
+                              {isDeleting ? (
+                                <>
+                                  <button
+                                    onClick={() => handleDelete(order.id)}
+                                    style={{
+                                      padding: "6px 12px",
+                                      background: "#dc2626",
+                                      color: "white",
+                                      border: "none",
+                                      borderRadius: "6px",
+                                      cursor: "pointer",
+                                      fontSize: "13px",
+                                    }}
+                                  >
+                                    Conferma Elimina
+                                  </button>
+                                  <button
+                                    onClick={() => setDeleteConfirmId(null)}
+                                    style={{
+                                      padding: "6px 12px",
+                                      background: "#e5e7eb",
+                                      border: "1px solid #d1d5db",
+                                      borderRadius: "6px",
+                                      cursor: "pointer",
+                                      fontSize: "13px",
+                                    }}
+                                  >
+                                    Annulla
+                                  </button>
+                                </>
+                              ) : (
+                                <button
+                                  onClick={() => setDeleteConfirmId(order.id)}
+                                  style={{
+                                    padding: "6px 12px",
+                                    background: "#fee2e2",
+                                    color: "#dc2626",
+                                    border: "1px solid #dc2626",
+                                    borderRadius: "6px",
+                                    cursor: "pointer",
+                                    fontSize: "13px",
+                                  }}
+                                >
+                                  Elimina
+                                </button>
                               )}
                             </div>
                           )}
-
-                          {order.invoiceNumber && (
-                            <div style={{ marginTop: "0.35rem" }}>
-                              <strong>Fattura:</strong> {order.invoiceNumber}
-                              {order.invoiceDate &&
-                                ` del ${formatDate(order.invoiceDate)}`}
-                              {order.invoiceAmount &&
-                                ` - ${order.invoiceAmount}`}
-                            </div>
-                          )}
-
-                          {order.deliveryCompletedDate && (
-                            <div
-                              style={{ marginTop: "0.35rem", color: "#166534" }}
-                            >
-                              Consegnato il{" "}
-                              {formatDate(order.deliveryCompletedDate)}
-                            </div>
-                          )}
                         </div>
-                      );
-                    })()}
-
-                  {/* Items table */}
-                  <table
-                    style={{
-                      width: "100%",
-                      borderCollapse: "collapse",
-                      fontSize: "0.8rem",
-                      marginBottom: "0.75rem",
-                    }}
-                  >
-                    <thead>
-                      <tr
-                        style={{
-                          borderBottom: "2px solid #f59e0b",
-                          textAlign: "left",
-                        }}
-                      >
-                        <th style={{ padding: "0.3rem" }}>Codice</th>
-                        <th style={{ padding: "0.3rem" }}>Descrizione</th>
-                        <th style={{ padding: "0.3rem", textAlign: "right" }}>
-                          Qta'
-                        </th>
-                        <th style={{ padding: "0.3rem", textAlign: "right" }}>
-                          Prezzo
-                        </th>
-                        {hasRowDiscounts && (
-                          <th style={{ padding: "0.3rem", textAlign: "right" }}>
-                            Sc.%
-                          </th>
-                        )}
-                        <th style={{ padding: "0.3rem", textAlign: "right" }}>
-                          Totale
-                        </th>
-                        {editing && (
-                          <th
-                            style={{
-                              padding: "0.3rem",
-                              textAlign: "center",
-                              width: "40px",
-                            }}
-                          >
-                            {/* delete column */}
-                          </th>
-                        )}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {displayItems.map((item, idx) => (
-                        <tr
-                          key={idx}
-                          style={{
-                            borderBottom: "1px solid #e5e7eb",
-                          }}
-                        >
-                          <td style={{ padding: "0.3rem" }}>
-                            {item.productName || item.articleCode}
-                          </td>
-                          <td style={{ padding: "0.3rem" }}>
-                            {item.description || "-"}
-                          </td>
-                          <td style={{ padding: "0.3rem", textAlign: "right" }}>
-                            {editing ? (
-                              <input
-                                type="number"
-                                value={item.quantity}
-                                onChange={(e) =>
-                                  handleEditItemQty(
-                                    idx,
-                                    parseInt(e.target.value, 10) || 0,
-                                  )
-                                }
-                                min={1}
-                                style={{
-                                  width: "60px",
-                                  padding: "0.2rem",
-                                  textAlign: "right",
-                                  border: "1px solid #d1d5db",
-                                  borderRadius: "3px",
-                                  fontSize: "0.8rem",
-                                }}
-                              />
-                            ) : (
-                              item.quantity
-                            )}
-                          </td>
-                          <td style={{ padding: "0.3rem", textAlign: "right" }}>
-                            {editing ? (
-                              <input
-                                type="number"
-                                value={item.price}
-                                onChange={(e) =>
-                                  handleEditItemPrice(
-                                    idx,
-                                    parseFloat(e.target.value) || 0,
-                                  )
-                                }
-                                min={0}
-                                step={0.01}
-                                style={{
-                                  width: "80px",
-                                  padding: "0.2rem",
-                                  textAlign: "right",
-                                  border: "1px solid #d1d5db",
-                                  borderRadius: "3px",
-                                  fontSize: "0.8rem",
-                                }}
-                              />
-                            ) : (
-                              formatCurrency(item.price)
-                            )}
-                          </td>
-                          {hasRowDiscounts && (
-                            <td
-                              style={{
-                                padding: "0.3rem",
-                                textAlign: "right",
-                                color: item.discount ? "#dc2626" : "#9ca3af",
-                              }}
-                            >
-                              {item.discount ? `${item.discount}%` : "-"}
-                            </td>
-                          )}
-                          <td style={{ padding: "0.3rem", textAlign: "right" }}>
-                            {formatCurrency(
-                              item.price *
-                                item.quantity *
-                                (1 - (item.discount || 0) / 100),
-                            )}
-                          </td>
-                          {editing && (
-                            <td
-                              style={{ padding: "0.3rem", textAlign: "center" }}
-                            >
-                              <button
-                                onClick={() => handleRemoveItem(idx)}
-                                style={{
-                                  padding: "0.15rem 0.4rem",
-                                  background: "#fee2e2",
-                                  color: "#dc2626",
-                                  border: "1px solid #dc2626",
-                                  borderRadius: "3px",
-                                  cursor: "pointer",
-                                  fontSize: "0.75rem",
-                                  fontWeight: "bold",
-                                }}
-                              >
-                                X
-                              </button>
-                            </td>
-                          )}
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-
-                  {/* Add item button / component (edit mode only) */}
-                  {editing && !addingProduct && (
-                    <button
-                      onClick={() => setAddingProduct(true)}
-                      style={{
-                        padding: "0.4rem 0.75rem",
-                        background: "#f0fdf4",
-                        color: "#16a34a",
-                        border: "1px solid #86efac",
-                        borderRadius: "4px",
-                        cursor: "pointer",
-                        fontSize: "0.8rem",
-                        marginBottom: "0.75rem",
-                      }}
-                    >
-                      + Aggiungi articolo
-                    </button>
-                  )}
-
-                  {editing && addingProduct && (
-                    <div style={{ marginBottom: "0.75rem" }}>
-                      <AddItemToHistory
-                        onAdd={handleAddItems}
-                        onCancel={() => setAddingProduct(false)}
-                        existingItems={editState!.items}
-                      />
-                    </div>
-                  )}
-
-                  {/* Discount */}
-                  {editing ? (
-                    <div
-                      style={{
-                        fontSize: "0.85rem",
-                        fontWeight: "500",
-                        marginBottom: "0.5rem",
-                        display: "flex",
-                        alignItems: "center",
-                        gap: "0.5rem",
-                      }}
-                    >
-                      <span>Sconto globale:</span>
-                      <input
-                        type="number"
-                        value={editState!.discountPercent}
-                        onChange={(e) =>
-                          setEditState({
-                            ...editState!,
-                            discountPercent: Math.min(
-                              100,
-                              Math.max(0, parseFloat(e.target.value) || 0),
-                            ),
-                          })
-                        }
-                        min={0}
-                        max={100}
-                        step={1}
-                        style={{
-                          width: "60px",
-                          padding: "0.2rem",
-                          textAlign: "right",
-                          border: "1px solid #d1d5db",
-                          borderRadius: "3px",
-                          fontSize: "0.85rem",
-                        }}
-                      />
-                      <span>%</span>
-                    </div>
-                  ) : (
-                    order.discountPercent !== undefined &&
-                    order.discountPercent > 0 && (
-                      <div
-                        style={{
-                          fontSize: "0.85rem",
-                          fontWeight: "500",
-                          marginBottom: "0.5rem",
-                        }}
-                      >
-                        Sconto globale: {order.discountPercent}%
-                      </div>
-                    )
-                  )}
-
-                  {/* Shipping & totals (read-only) */}
-                  {!editing &&
-                    (order.shippingCost ||
-                      order.shippingTax ||
-                      order.targetTotalWithVAT) && (
-                      <div
-                        style={{
-                          fontSize: "0.8rem",
-                          color: "#374151",
-                          marginBottom: "0.5rem",
-                          display: "flex",
-                          gap: "1rem",
-                          flexWrap: "wrap",
-                        }}
-                      >
-                        {order.shippingCost !== undefined &&
-                          order.shippingCost > 0 && (
-                            <span>
-                              Spese: {formatCurrency(order.shippingCost)}
-                            </span>
-                          )}
-                        {order.shippingTax !== undefined &&
-                          order.shippingTax > 0 && (
-                            <span>
-                              IVA: {formatCurrency(order.shippingTax)}
-                            </span>
-                          )}
-                        {order.targetTotalWithVAT !== undefined &&
-                          order.targetTotalWithVAT > 0 && (
-                            <span style={{ fontWeight: "600" }}>
-                              Totale doc.:{" "}
-                              {formatCurrency(order.targetTotalWithVAT)}
-                            </span>
-                          )}
-                      </div>
-                    )}
-
-                  {/* Notes */}
-                  {editing ? (
-                    <div style={{ marginBottom: "0.5rem" }}>
-                      <textarea
-                        value={editState!.notes}
-                        onChange={(e) =>
-                          setEditState({ ...editState!, notes: e.target.value })
-                        }
-                        placeholder="Note..."
-                        rows={3}
-                        style={{
-                          width: "100%",
-                          padding: "0.5rem",
-                          border: "1px solid #d1d5db",
-                          borderRadius: "4px",
-                          fontSize: "0.85rem",
-                          resize: "vertical",
-                        }}
-                      />
-                    </div>
-                  ) : (
-                    order.notes && (
-                      <div
-                        style={{
-                          fontSize: "0.85rem",
-                          color: "#374151",
-                          marginBottom: "0.5rem",
-                          fontStyle: "italic",
-                        }}
-                      >
-                        Note: {order.notes}
-                      </div>
-                    )
-                  )}
-
-                  {/* Action buttons */}
-                  {editing ? (
-                    <div
-                      style={{
-                        display: "flex",
-                        gap: "0.5rem",
-                        flexWrap: "wrap",
-                      }}
-                    >
-                      <button
-                        onClick={handleSaveEdit}
-                        disabled={editState!.items.length === 0}
-                        style={{
-                          padding: "0.4rem 1rem",
-                          background:
-                            editState!.items.length === 0
-                              ? "#9ca3af"
-                              : "#16a34a",
-                          color: "white",
-                          border: "none",
-                          borderRadius: "4px",
-                          cursor:
-                            editState!.items.length === 0
-                              ? "not-allowed"
-                              : "pointer",
-                          fontSize: "0.85rem",
-                          fontWeight: "600",
-                        }}
-                      >
-                        Salva
-                      </button>
-                      <button
-                        onClick={handleCancelEdit}
-                        style={{
-                          padding: "0.4rem 1rem",
-                          background: "#e5e7eb",
-                          border: "1px solid #d1d5db",
-                          borderRadius: "4px",
-                          cursor: "pointer",
-                          fontSize: "0.85rem",
-                        }}
-                      >
-                        Annulla
-                      </button>
-                    </div>
-                  ) : (
-                    <div
-                      style={{
-                        display: "flex",
-                        gap: "0.5rem",
-                        flexWrap: "wrap",
-                      }}
-                    >
-                      <button
-                        onClick={() => handleDownloadPDF(order)}
-                        style={{
-                          padding: "0.4rem 0.75rem",
-                          background: "#2563eb",
-                          color: "white",
-                          border: "none",
-                          borderRadius: "4px",
-                          cursor: "pointer",
-                          fontSize: "0.8rem",
-                        }}
-                      >
-                        Scarica PDF
-                      </button>
-                      <button
-                        onClick={() => handleStartEdit(order)}
-                        style={{
-                          padding: "0.4rem 0.75rem",
-                          background: "#f59e0b",
-                          color: "white",
-                          border: "none",
-                          borderRadius: "4px",
-                          cursor: "pointer",
-                          fontSize: "0.8rem",
-                        }}
-                      >
-                        Modifica
-                      </button>
-                      <button
-                        onClick={() => setLinkingOrderId(order.id)}
-                        style={{
-                          padding: "0.4rem 0.75rem",
-                          background: order.archibaldOrderId
-                            ? "#6366f1"
-                            : "#7c3aed",
-                          color: "white",
-                          border: "none",
-                          borderRadius: "4px",
-                          cursor: "pointer",
-                          fontSize: "0.8rem",
-                        }}
-                      >
-                        {order.archibaldOrderId
-                          ? "Modifica collegamento"
-                          : "Collega ordine"}
-                      </button>
-                      {order.archibaldOrderId && (
-                        <button
-                          onClick={() => {
-                            if (
-                              window.confirm(
-                                "Sei sicuro di voler scollegare questo ordine?",
-                              )
-                            ) {
-                              handleUnlinkOrder(order.id);
-                            }
-                          }}
-                          style={{
-                            padding: "0.4rem 0.75rem",
-                            background: "#fef2f2",
-                            color: "#dc2626",
-                            border: "1px solid #fca5a5",
-                            borderRadius: "4px",
-                            cursor: "pointer",
-                            fontSize: "0.8rem",
-                          }}
-                        >
-                          Scollega
-                        </button>
-                      )}
-                      {order.currentState === "spedito" &&
-                        !order.deliveryCompletedDate && (
-                          <button
-                            onClick={() => handleMarkDelivered(order)}
-                            style={{
-                              padding: "0.4rem 0.75rem",
-                              background: "#16a34a",
-                              color: "white",
-                              border: "none",
-                              borderRadius: "4px",
-                              cursor: "pointer",
-                              fontSize: "0.8rem",
-                            }}
-                          >
-                            Segna Consegnato
-                          </button>
-                        )}
-                      {isDeleting ? (
-                        <>
-                          <button
-                            onClick={() => handleDelete(order.id)}
-                            style={{
-                              padding: "0.4rem 0.75rem",
-                              background: "#dc2626",
-                              color: "white",
-                              border: "none",
-                              borderRadius: "4px",
-                              cursor: "pointer",
-                              fontSize: "0.8rem",
-                            }}
-                          >
-                            Conferma Elimina
-                          </button>
-                          <button
-                            onClick={() => setDeleteConfirmId(null)}
-                            style={{
-                              padding: "0.4rem 0.75rem",
-                              background: "#e5e7eb",
-                              border: "1px solid #d1d5db",
-                              borderRadius: "4px",
-                              cursor: "pointer",
-                              fontSize: "0.8rem",
-                            }}
-                          >
-                            Annulla
-                          </button>
-                        </>
-                      ) : (
-                        <button
-                          onClick={() => setDeleteConfirmId(order.id)}
-                          style={{
-                            padding: "0.4rem 0.75rem",
-                            background: "#fee2e2",
-                            color: "#dc2626",
-                            border: "1px solid #dc2626",
-                            borderRadius: "4px",
-                            cursor: "pointer",
-                            fontSize: "0.8rem",
-                          }}
-                        >
-                          Elimina
-                        </button>
                       )}
                     </div>
-                  )}
-                </div>
-              )}
+                  );
+                })}
+              </div>
             </div>
-          );
-        })}
-      </div>
+          ))}
+
+          {/* Infinite scroll sentinel */}
+          {visibleCount < filteredOrders.length && (
+            <div
+              ref={sentinelRef}
+              style={{
+                textAlign: "center",
+                padding: "20px",
+                color: "#888",
+                fontSize: "14px",
+              }}
+            >
+              Caricamento altri ordini...
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Scroll to top */}
+      {showScrollToTop && (
+        <button
+          onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
+          style={{
+            position: "fixed",
+            bottom: "24px",
+            right: "24px",
+            width: "48px",
+            height: "48px",
+            borderRadius: "50%",
+            backgroundColor: "rgba(25, 118, 210, 0.8)",
+            color: "#fff",
+            border: "none",
+            cursor: "pointer",
+            fontSize: "20px",
+            fontWeight: 700,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            boxShadow: "0 2px 8px rgba(0,0,0,0.3)",
+            zIndex: 200,
+            transition: "background-color 0.2s",
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.backgroundColor = "rgba(25, 118, 210, 1)";
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.backgroundColor = "rgba(25, 118, 210, 0.8)";
+          }}
+        >
+          {"\u2191"}
+        </button>
+      )}
 
       {showImportModal && (
         <ArcaImportModal
@@ -1288,7 +2066,9 @@ export function FresisHistoryPage() {
 
       {linkingOrderId &&
         (() => {
-          const linkingOrder = orders.find((o) => o.id === linkingOrderId);
+          const linkingOrder = filteredOrders.find(
+            (o) => o.id === linkingOrderId,
+          );
           const existingIds = linkingOrder
             ? parseLinkedIds(linkingOrder.archibaldOrderId)
             : [];
