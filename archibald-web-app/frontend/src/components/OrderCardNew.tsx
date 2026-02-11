@@ -2,14 +2,14 @@
 import { useState, useEffect } from "react";
 import type { Order, OrderItem } from "../types/order";
 
-import { getOrderStatus } from "../utils/orderStatus";
+import { getOrderStatus, isNotSentToVerona } from "../utils/orderStatus";
 import { fetchWithRetry } from "../utils/fetch-with-retry";
 
 interface OrderCardProps {
   order: Order;
   expanded: boolean;
   onToggle: () => void;
-  onSendToMilano?: (orderId: string, customerName: string) => void;
+  onSendToVerona?: (orderId: string, customerName: string) => void;
   onEdit?: (orderId: string) => void;
   token?: string;
 }
@@ -2009,7 +2009,7 @@ export function OrderCardNew({
   order,
   expanded,
   onToggle,
-  onSendToMilano,
+  onSendToVerona,
   onEdit,
   token,
 }: OrderCardProps) {
@@ -2043,14 +2043,7 @@ export function OrderCardNew({
     return { totalVatAmount, totalWithVat };
   });
 
-  // Detect draft orders (created locally but not yet placed on Archibald)
-  const isCreato =
-    order.state?.toLowerCase() === "creato" ||
-    order.status.toLowerCase() === "bozza";
-
-  // Detect order state: "piazzato" orders don't have ORD/ number yet (but only if not a draft)
-  const isPiazzato =
-    !isCreato && (!order.orderNumber || order.orderNumber.trim() === "");
+  const canSendToVerona = isNotSentToVerona(order);
 
   const tabs = [
     { id: "panoramica" as const, label: "Panoramica", icon: "📊" },
@@ -2542,11 +2535,11 @@ export function OrderCardNew({
                   flexWrap: "wrap",
                 }}
               >
-                {(isCreato || isPiazzato) && (
+                {canSendToVerona && (
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
-                      console.log("TODO: Invia", order.id);
+                      onSendToVerona?.(order.id, order.customerName);
                     }}
                     style={{
                       display: "inline-flex",
@@ -2571,14 +2564,14 @@ export function OrderCardNew({
                       e.currentTarget.style.color = "#388e3c";
                     }}
                   >
-                    📤 Invia
+                    📤 Invia a Verona
                   </button>
                 )}
-                {isCreato && (
+                {canSendToVerona && (
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
-                      console.log("TODO: Modifica", order.id);
+                      onEdit?.(order.id);
                     }}
                     style={{
                       display: "inline-flex",
@@ -2606,7 +2599,7 @@ export function OrderCardNew({
                     ✏ Modifica
                   </button>
                 )}
-                {isCreato && (
+                {canSendToVerona && (
                   <button
                     onClick={(e) => {
                       e.stopPropagation();

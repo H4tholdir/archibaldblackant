@@ -267,7 +267,7 @@ export class OrderStateService {
     const labels: Record<OrderState, string> = {
       creato: "Creato",
       piazzato: "Piazzato su Archibald",
-      inviato_milano: "Inviato a Milano",
+      inviato_milano: "Inviato a Verona",
       modifica: "In modifica",
       trasferito: "Trasferito",
       transfer_error: "Errore trasferimento",

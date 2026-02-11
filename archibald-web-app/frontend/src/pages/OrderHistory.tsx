@@ -1,11 +1,16 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { OrderCardNew } from "../components/OrderCardNew";
-import { SendToMilanoModal } from "../components/SendToMilanoModal";
+import { SendToVeronaModal } from "../components/SendToVeronaModal";
 import { SyncProgressModal } from "../components/SyncProgressModal";
 import { OrderStatusLegend } from "../components/OrderStatusLegend";
 import { groupOrdersByPeriod } from "../utils/orderGrouping";
 import type { Order } from "../types/order";
-import { isOverdue } from "../utils/orderStatus";
+import {
+  isOverdue,
+  isLikelyDelivered,
+  isInTransit,
+  isNotSentToVerona,
+} from "../utils/orderStatus";
 import { useSyncProgress } from "../hooks/useSyncProgress";
 import { toastService } from "../services/toast.service";
 import { fetchWithRetry } from "../utils/fetch-with-retry";
@@ -179,15 +184,6 @@ function isOrderPaid(order: Order): boolean {
   return false;
 }
 
-function isLikelyDelivered(order: Order): boolean {
-  if (order.status?.toUpperCase() !== "CONSEGNATO") return false;
-  if (order.invoiceNumber) return true;
-  const shippedDate = order.ddt?.ddtDeliveryDate || order.date;
-  const daysSinceShipped =
-    (Date.now() - new Date(shippedDate).getTime()) / 86_400_000;
-  return daysSinceShipped >= 6;
-}
-
 export function OrderHistory() {
   const { progress, reset: resetProgress } = useSyncProgress();
   const [orders, setOrders] = useState<Order[]>([]);
@@ -206,7 +202,7 @@ export function OrderHistory() {
   const [modalOpen, setModalOpen] = useState(false);
   const [modalOrderId, setModalOrderId] = useState<string | null>(null);
   const [modalCustomerName, setModalCustomerName] = useState<string>("");
-  const [sendingToMilano, setSendingToMilano] = useState(false);
+  const [sendingToVerona, setSendingToVerona] = useState(false);
   const [legendOpen, setLegendOpen] = useState(false);
 
   // Customer autocomplete state
@@ -475,23 +471,23 @@ export function OrderHistory() {
     setHideZeroAmount(true);
   };
 
-  const handleSendToMilano = (orderId: string, customerName: string) => {
+  const handleSendToVerona = (orderId: string, customerName: string) => {
     setModalOrderId(orderId);
     setModalCustomerName(customerName);
     setModalOpen(true);
   };
 
-  const handleConfirmSendToMilano = async () => {
+  const handleConfirmSendToVerona = async () => {
     if (!modalOrderId) return;
 
-    setSendingToMilano(true);
+    setSendingToVerona(true);
     setError(null);
 
     try {
       const token = localStorage.getItem("archibald_jwt");
       if (!token) {
         setError("Non autenticato. Effettua il login.");
-        setSendingToMilano(false);
+        setSendingToVerona(false);
         return;
       }
 
@@ -516,7 +512,7 @@ export function OrderHistory() {
 
       const data = await response.json();
       if (!data.success) {
-        throw new Error(data.message || "Errore nell'invio a Milano");
+        throw new Error(data.message || "Errore nell'invio a Verona");
       }
 
       setModalOpen(false);
@@ -525,14 +521,14 @@ export function OrderHistory() {
 
       await fetchOrders();
 
-      toastService.success("Ordine inviato a Milano con successo!");
+      toastService.success("Ordine inviato a Verona con successo!");
     } catch (err) {
-      console.error("Error sending to Milano:", err);
+      console.error("Error sending to Verona:", err);
       setError(
-        err instanceof Error ? err.message : "Errore nell'invio a Milano",
+        err instanceof Error ? err.message : "Errore nell'invio a Verona",
       );
     } finally {
-      setSendingToMilano(false);
+      setSendingToVerona(false);
     }
   };
 
@@ -556,8 +552,7 @@ export function OrderHistory() {
             break;
 
           case "editable":
-            matches =
-              order.orderType === "GIORNALE" && order.state === "MODIFICA";
+            matches = isNotSentToVerona(order);
             break;
 
           case "backorder": {
@@ -570,9 +565,7 @@ export function OrderHistory() {
           }
 
           case "inTransit":
-            matches =
-              order.status?.toUpperCase() === "CONSEGNATO" &&
-              !isLikelyDelivered(order);
+            matches = isInTransit(order);
             break;
 
           case "delivered":
@@ -616,8 +609,7 @@ export function OrderHistory() {
   const ordersForCounts = result;
 
   const backorderCount = ordersForCounts.filter((o) => {
-    const hoursElapsed =
-      (Date.now() - new Date(o.date).getTime()) / 3_600_000;
+    const hoursElapsed = (Date.now() - new Date(o.date).getTime()) / 3_600_000;
     return o.status?.toUpperCase() === "ORDINE APERTO" && hoursElapsed > 36;
   }).length;
 
@@ -661,9 +653,7 @@ export function OrderHistory() {
       label: "\u270f\ufe0f Modificabili",
       color: "#757575",
       bgColor: "#F5F5F5",
-      count: ordersForCounts.filter(
-        (o) => o.orderType === "GIORNALE" && o.state === "MODIFICA",
-      ).length,
+      count: ordersForCounts.filter((o) => isNotSentToVerona(o)).length,
     },
     {
       id: "backorder",
@@ -681,10 +671,7 @@ export function OrderHistory() {
       label: "\ud83d\ude9a In transito",
       color: "#2196F3",
       bgColor: "#E3F2FD",
-      count: ordersForCounts.filter(
-        (o) =>
-          o.status?.toUpperCase() === "CONSEGNATO" && !isLikelyDelivered(o),
-      ).length,
+      count: ordersForCounts.filter((o) => isInTransit(o)).length,
     },
     {
       id: "delivered",
@@ -1536,63 +1523,60 @@ export function OrderHistory() {
         )}
 
       {/* Backorder warning banner */}
-      {!loading &&
-        !error &&
-        backorderCount > 0 &&
-        !backorderDismissed && (
-          <div
+      {!loading && !error && backorderCount > 0 && !backorderDismissed && (
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: "12px",
+            padding: "12px 16px",
+            marginBottom: "16px",
+            backgroundColor: "#FFF3E0",
+            border: "1px solid #FF9800",
+            borderRadius: "8px",
+          }}
+        >
+          <span style={{ fontSize: "20px" }}>{"\u23f0"}</span>
+          <span style={{ flex: 1, fontSize: "14px", color: "#E65100" }}>
+            <strong>{backorderCount}</strong>{" "}
+            {backorderCount === 1 ? "ordine" : "ordini"} in &quot;ORDINE
+            APERTO&quot; da oltre 36 ore — possibile backorder
+          </span>
+          <button
+            onClick={() => {
+              setFilters((prev) => ({
+                ...prev,
+                quickFilters: new Set(["backorder"]),
+              }));
+            }}
             style={{
-              display: "flex",
-              alignItems: "center",
-              gap: "12px",
-              padding: "12px 16px",
-              marginBottom: "16px",
-              backgroundColor: "#FFF3E0",
-              border: "1px solid #FF9800",
-              borderRadius: "8px",
+              padding: "6px 12px",
+              fontSize: "13px",
+              fontWeight: 600,
+              backgroundColor: "#E65100",
+              color: "#fff",
+              border: "none",
+              borderRadius: "6px",
+              cursor: "pointer",
             }}
           >
-            <span style={{ fontSize: "20px" }}>{"\u23f0"}</span>
-            <span style={{ flex: 1, fontSize: "14px", color: "#E65100" }}>
-              <strong>{backorderCount}</strong>{" "}
-              {backorderCount === 1 ? "ordine" : "ordini"} in &quot;ORDINE
-              APERTO&quot; da oltre 36 ore — possibile backorder
-            </span>
-            <button
-              onClick={() => {
-                setFilters((prev) => ({
-                  ...prev,
-                  quickFilters: new Set(["backorder"]),
-                }));
-              }}
-              style={{
-                padding: "6px 12px",
-                fontSize: "13px",
-                fontWeight: 600,
-                backgroundColor: "#E65100",
-                color: "#fff",
-                border: "none",
-                borderRadius: "6px",
-                cursor: "pointer",
-              }}
-            >
-              Mostra
-            </button>
-            <button
-              onClick={() => setBackorderDismissed(true)}
-              style={{
-                background: "none",
-                border: "none",
-                cursor: "pointer",
-                fontSize: "18px",
-                color: "#999",
-                padding: "2px 6px",
-              }}
-            >
-              {"\u2715"}
-            </button>
-          </div>
-        )}
+            Mostra
+          </button>
+          <button
+            onClick={() => setBackorderDismissed(true)}
+            style={{
+              background: "none",
+              border: "none",
+              cursor: "pointer",
+              fontSize: "18px",
+              color: "#999",
+              padding: "2px 6px",
+            }}
+          >
+            {"\u2715"}
+          </button>
+        </div>
+      )}
 
       {/* Timeline content */}
       {!loading && !error && filteredOrders.length > 0 && (
@@ -1634,7 +1618,7 @@ export function OrderHistory() {
                       order={order}
                       expanded={isExpanded}
                       onToggle={() => handleToggle(order.id)}
-                      onSendToMilano={handleSendToMilano}
+                      onSendToVerona={handleSendToVerona}
                       onEdit={handleEdit}
                       token={localStorage.getItem("archibald_jwt") || undefined}
                     />
@@ -1681,18 +1665,18 @@ export function OrderHistory() {
         </button>
       )}
 
-      {/* Send to Milano Modal */}
-      <SendToMilanoModal
+      {/* Send to Verona Modal */}
+      <SendToVeronaModal
         isOpen={modalOpen}
         onClose={() => {
           setModalOpen(false);
           setModalOrderId(null);
           setModalCustomerName("");
         }}
-        onConfirm={handleConfirmSendToMilano}
+        onConfirm={handleConfirmSendToVerona}
         orderId={modalOrderId || ""}
         customerName={modalCustomerName}
-        isLoading={sendingToMilano}
+        isLoading={sendingToVerona}
       />
 
       {/* Sync Progress Modal */}

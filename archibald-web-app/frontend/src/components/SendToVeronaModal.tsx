@@ -1,4 +1,4 @@
-export interface SendToMilanoModalProps {
+export interface SendToVeronaModalProps {
   isOpen: boolean;
   onClose: () => void;
   onConfirm: () => void;
@@ -7,14 +7,14 @@ export interface SendToMilanoModalProps {
   isLoading: boolean;
 }
 
-export function SendToMilanoModal({
+export function SendToVeronaModal({
   isOpen,
   onClose,
   onConfirm,
   orderId,
   customerName,
   isLoading,
-}: SendToMilanoModalProps) {
+}: SendToVeronaModalProps) {
   if (!isOpen) return null;
 
   const handleBackdropClick = (e: React.MouseEvent<HTMLDivElement>) => {
@@ -78,7 +78,7 @@ export function SendToMilanoModal({
               margin: 0,
             }}
           >
-            Invia Ordine a Milano
+            Invia Ordine a Verona
           </h2>
         </div>
 

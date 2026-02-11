@@ -31,15 +31,14 @@ const ORDER_STATUS_STYLES: Record<OrderStatusCategory, OrderStatusStyle> = {
   "on-archibald": {
     category: "on-archibald",
     label: "Su Archibald",
-    description:
-      "Ordine inviato da PWA ad Archibald, non ancora inviato a Milano",
+    description: "Ordine presente su Archibald, non ancora inviato a Verona",
     borderColor: "#757575", // Dark gray
     backgroundColor: "#F5F5F5", // Light gray
   },
   "pending-approval": {
     category: "pending-approval",
     label: "In attesa approvazione",
-    description: "Inviato a Milano, in attesa che operatore lo elabori",
+    description: "Inviato a Verona, in attesa che operatore lo elabori",
     borderColor: "#FFA726", // Orange
     backgroundColor: "#FFF3E0", // Peach
   },
@@ -100,13 +99,37 @@ function isInvoicePaid(order: Order): boolean {
   return false;
 }
 
-function isLikelyDelivered(order: Order): boolean {
-  if (order.status?.toUpperCase() !== "CONSEGNATO") return false;
+function hasTrackingData(order: Order): boolean {
+  return !!(
+    order.ddt?.trackingNumber?.trim() || order.tracking?.trackingNumber?.trim()
+  );
+}
+
+export function isLikelyDelivered(order: Order): boolean {
+  const isStatusConsegnato = order.status?.toUpperCase() === "CONSEGNATO";
+  if (!hasTrackingData(order) && !isStatusConsegnato) return false;
+
   if (order.invoiceNumber) return true;
+  if (order.deliveryCompletedDate) return true;
+
   const shippedDate = order.ddt?.ddtDeliveryDate || order.date;
   const daysSinceShipped =
     (Date.now() - new Date(shippedDate).getTime()) / 86_400_000;
-  return daysSinceShipped >= 6;
+  return daysSinceShipped >= 3;
+}
+
+export function isInTransit(order: Order): boolean {
+  return (
+    (hasTrackingData(order) || order.status?.toUpperCase() === "CONSEGNATO") &&
+    !isLikelyDelivered(order)
+  );
+}
+
+export function isNotSentToVerona(order: Order): boolean {
+  return (
+    (!order.orderNumber || order.orderNumber.startsWith("PENDING-")) &&
+    order.transferStatus?.toLowerCase() === "modifica"
+  );
 }
 
 export function isOverdue(order: Order): boolean {
@@ -121,66 +144,49 @@ export function isOverdue(order: Order): boolean {
 /**
  * Determines the order status category based on order fields
  *
- * Logic:
- * 1. Pagato (Paid) - Invoice exists and is fully paid
- * 2. Fatturato (Invoiced) - Invoice exists but not yet paid
- * 3. Consegnato (Delivered) - Delivery completed with date
- * 4. In transito (In Transit) - Shipped but not delivered
- * 5. Bloccato (Blocked) - Transfer errors
- * 6. In attesa (Pending) - Waiting for approval
- * 7. Su Archibald (On Archibald) - Default/fallback
+ * Priority:
+ * 1. Pagato - Invoice exists and is fully paid
+ * 2. Pagamento scaduto - Invoice overdue
+ * 3. Fatturato - Invoice exists but not yet paid
+ * 4. Consegnato - Delivered (tracking + 3+ days or invoice)
+ * 5. In transito - Has tracking/DDT but not yet delivered
+ * 6. Bloccato - Transfer errors
+ * 7. In attesa - Waiting for approval
+ * 8. Su Archibald - Default/fallback
  */
 export function getOrderStatus(order: Order): OrderStatusStyle {
-  // Priority 1: Pagato (invoice exists and paid)
   if (order.invoiceNumber && isInvoicePaid(order)) {
     return ORDER_STATUS_STYLES.paid;
   }
 
-  // Priority 2: Pagamento scaduto (invoice overdue)
   if (isOverdue(order)) {
     return ORDER_STATUS_STYLES.overdue;
   }
 
-  // Priority 3: Fatturato (has invoice, not yet paid)
   if (order.invoiceNumber && order.documentState === "FATTURA") {
     return ORDER_STATUS_STYLES.invoiced;
   }
 
-  // Legacy fallback: If invoice exists without full state info
   if (order.invoiceNumber) {
     return ORDER_STATUS_STYLES.invoiced;
   }
 
-  // Priority 3: Consegnato (likely delivered based on invoice or elapsed time)
   if (isLikelyDelivered(order)) {
     return ORDER_STATUS_STYLES.delivered;
   }
 
-  // Priority 4: In transito (status CONSEGNATO but not yet likely delivered)
-  if (order.status?.toUpperCase() === "CONSEGNATO") {
+  if (isInTransit(order)) {
     return ORDER_STATUS_STYLES["in-transit"];
   }
 
-  // Priority 5: Bloccato (transfer error)
   if (order.state === "TRANSFER ERROR") {
     return ORDER_STATUS_STYLES.blocked;
   }
 
-  // Priority 6: In attesa (pending approval)
   if (order.state === "IN ATTESA DI APPROVAZIONE") {
     return ORDER_STATUS_STYLES["pending-approval"];
   }
 
-  // Priority 7: Su Archibald (default/created locally)
-  if (
-    order.orderType === "GIORNALE" &&
-    order.state === "MODIFICA" &&
-    order.documentState === "NESSUNO"
-  ) {
-    return ORDER_STATUS_STYLES["on-archibald"];
-  }
-
-  // Legacy fallback: If no specific state, assume on Archibald
   return ORDER_STATUS_STYLES["on-archibald"];
 }
 

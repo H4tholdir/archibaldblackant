@@ -25,7 +25,7 @@ const STATE_BADGE_CONFIG: Record<
 > = {
   piazzato: { label: "Piazzato", bg: "#e5e7eb", color: "#374151" },
   inviato_milano: {
-    label: "Inviato a Milano",
+    label: "Inviato a Verona",
     bg: "#dbeafe",
     color: "#1e40af",
   },
@@ -404,7 +404,13 @@ export function FresisHistoryPage() {
           &gt;
         </button>
         <button
-          onClick={() => setSelectedMonth(selectedMonth ? null : new Date(new Date().getFullYear(), new Date().getMonth(), 1))}
+          onClick={() =>
+            setSelectedMonth(
+              selectedMonth
+                ? null
+                : new Date(new Date().getFullYear(), new Date().getMonth(), 1),
+            )
+          }
           style={{
             padding: "0.3rem 0.6rem",
             background: selectedMonth ? "#e5e7eb" : "#3b82f6",
@@ -667,95 +673,105 @@ export function FresisHistoryPage() {
                   )}
 
                   {/* Lifecycle section (hidden in edit mode) */}
-                  {!editing && order.archibaldOrderId && (() => {
-                    const linkedNumbers = parseLinkedIds(order.archibaldOrderNumber);
-                    return (
-                      <div
-                        style={{
-                          marginBottom: "0.75rem",
-                          padding: "0.5rem",
-                          background: "#f0f9ff",
-                          borderRadius: "4px",
-                          border: "1px solid #bae6fd",
-                          fontSize: "0.8rem",
-                        }}
-                      >
+                  {!editing &&
+                    order.archibaldOrderId &&
+                    (() => {
+                      const linkedNumbers = parseLinkedIds(
+                        order.archibaldOrderNumber,
+                      );
+                      return (
                         <div
-                          style={{ fontWeight: "600", marginBottom: "0.25rem" }}
+                          style={{
+                            marginBottom: "0.75rem",
+                            padding: "0.5rem",
+                            background: "#f0f9ff",
+                            borderRadius: "4px",
+                            border: "1px solid #bae6fd",
+                            fontSize: "0.8rem",
+                          }}
                         >
-                          {linkedNumbers.length > 1
-                            ? `Ordini Archibald (${linkedNumbers.length})`
-                            : "Ordine Archibald"}
-                        </div>
-                        <div>
-                          {linkedNumbers.map((num, i) => (
-                            <span key={i}>
-                              {i > 0 && ", "}
-                              N. {num}
-                            </span>
-                          ))}
-                          {order.currentState && (
-                            <span
-                              style={{
-                                marginLeft: "0.5rem",
-                                fontSize: "0.7rem",
-                                padding: "0.1rem 0.4rem",
-                                borderRadius: "9999px",
-                                background: badge.bg,
-                                color: badge.color,
-                                fontWeight: "500",
-                              }}
-                            >
-                              {badge.label}
-                            </span>
-                          )}
-                        </div>
-
-                        {order.ddtNumber && (
-                          <div style={{ marginTop: "0.35rem" }}>
-                            <strong>DDT:</strong> {order.ddtNumber}
-                            {order.ddtDeliveryDate &&
-                              ` | Consegna prevista: ${formatDate(order.ddtDeliveryDate)}`}
-                            {order.trackingNumber && (
-                              <div>
-                                <strong>Tracking:</strong>{" "}
-                                {order.trackingUrl ? (
-                                  <a
-                                    href={order.trackingUrl}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    style={{ color: "#2563eb" }}
-                                  >
-                                    {order.trackingNumber}
-                                  </a>
-                                ) : (
-                                  order.trackingNumber
-                                )}
-                                {order.trackingCourier &&
-                                  ` (${order.trackingCourier})`}
-                              </div>
+                          <div
+                            style={{
+                              fontWeight: "600",
+                              marginBottom: "0.25rem",
+                            }}
+                          >
+                            {linkedNumbers.length > 1
+                              ? `Ordini Archibald (${linkedNumbers.length})`
+                              : "Ordine Archibald"}
+                          </div>
+                          <div>
+                            {linkedNumbers.map((num, i) => (
+                              <span key={i}>
+                                {i > 0 && ", "}
+                                N. {num}
+                              </span>
+                            ))}
+                            {order.currentState && (
+                              <span
+                                style={{
+                                  marginLeft: "0.5rem",
+                                  fontSize: "0.7rem",
+                                  padding: "0.1rem 0.4rem",
+                                  borderRadius: "9999px",
+                                  background: badge.bg,
+                                  color: badge.color,
+                                  fontWeight: "500",
+                                }}
+                              >
+                                {badge.label}
+                              </span>
                             )}
                           </div>
-                        )}
 
-                        {order.invoiceNumber && (
-                          <div style={{ marginTop: "0.35rem" }}>
-                            <strong>Fattura:</strong> {order.invoiceNumber}
-                            {order.invoiceDate &&
-                              ` del ${formatDate(order.invoiceDate)}`}
-                            {order.invoiceAmount && ` - ${order.invoiceAmount}`}
-                          </div>
-                        )}
+                          {order.ddtNumber && (
+                            <div style={{ marginTop: "0.35rem" }}>
+                              <strong>DDT:</strong> {order.ddtNumber}
+                              {order.ddtDeliveryDate &&
+                                ` | Consegna prevista: ${formatDate(order.ddtDeliveryDate)}`}
+                              {order.trackingNumber && (
+                                <div>
+                                  <strong>Tracking:</strong>{" "}
+                                  {order.trackingUrl ? (
+                                    <a
+                                      href={order.trackingUrl}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      style={{ color: "#2563eb" }}
+                                    >
+                                      {order.trackingNumber}
+                                    </a>
+                                  ) : (
+                                    order.trackingNumber
+                                  )}
+                                  {order.trackingCourier &&
+                                    ` (${order.trackingCourier})`}
+                                </div>
+                              )}
+                            </div>
+                          )}
 
-                        {order.deliveryCompletedDate && (
-                          <div style={{ marginTop: "0.35rem", color: "#166534" }}>
-                            Consegnato il{" "}
-                            {formatDate(order.deliveryCompletedDate)}
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })()}
+                          {order.invoiceNumber && (
+                            <div style={{ marginTop: "0.35rem" }}>
+                              <strong>Fattura:</strong> {order.invoiceNumber}
+                              {order.invoiceDate &&
+                                ` del ${formatDate(order.invoiceDate)}`}
+                              {order.invoiceAmount &&
+                                ` - ${order.invoiceAmount}`}
+                            </div>
+                          )}
+
+                          {order.deliveryCompletedDate && (
+                            <div
+                              style={{ marginTop: "0.35rem", color: "#166534" }}
+                            >
+                              Consegnato il{" "}
+                              {formatDate(order.deliveryCompletedDate)}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })()}
 
                   {/* Items table */}
                   <table
@@ -996,7 +1012,9 @@ export function FresisHistoryPage() {
 
                   {/* Shipping & totals (read-only) */}
                   {!editing &&
-                    (order.shippingCost || order.shippingTax || order.targetTotalWithVAT) && (
+                    (order.shippingCost ||
+                      order.shippingTax ||
+                      order.targetTotalWithVAT) && (
                       <div
                         style={{
                           fontSize: "0.8rem",
@@ -1015,12 +1033,15 @@ export function FresisHistoryPage() {
                           )}
                         {order.shippingTax !== undefined &&
                           order.shippingTax > 0 && (
-                            <span>IVA: {formatCurrency(order.shippingTax)}</span>
+                            <span>
+                              IVA: {formatCurrency(order.shippingTax)}
+                            </span>
                           )}
                         {order.targetTotalWithVAT !== undefined &&
                           order.targetTotalWithVAT > 0 && (
                             <span style={{ fontWeight: "600" }}>
-                              Totale doc.: {formatCurrency(order.targetTotalWithVAT)}
+                              Totale doc.:{" "}
+                              {formatCurrency(order.targetTotalWithVAT)}
                             </span>
                           )}
                       </div>
@@ -1265,27 +1286,30 @@ export function FresisHistoryPage() {
         />
       )}
 
-      {linkingOrderId && (() => {
-        const linkingOrder = orders.find((o) => o.id === linkingOrderId);
-        const existingIds = linkingOrder
-          ? parseLinkedIds(linkingOrder.archibaldOrderId)
-          : [];
-        return (
-          <OrderPickerModal
-            onClose={() => setLinkingOrderId(null)}
-            initialSelection={existingIds.length > 0 ? existingIds : undefined}
-            onSelect={(selectedOrders: SearchResult[]) => {
-              handleLinkOrder(
-                linkingOrderId,
-                selectedOrders.map((o) => ({
-                  id: o.id,
-                  orderNumber: o.orderNumber,
-                })),
-              );
-            }}
-          />
-        );
-      })()}
+      {linkingOrderId &&
+        (() => {
+          const linkingOrder = orders.find((o) => o.id === linkingOrderId);
+          const existingIds = linkingOrder
+            ? parseLinkedIds(linkingOrder.archibaldOrderId)
+            : [];
+          return (
+            <OrderPickerModal
+              onClose={() => setLinkingOrderId(null)}
+              initialSelection={
+                existingIds.length > 0 ? existingIds : undefined
+              }
+              onSelect={(selectedOrders: SearchResult[]) => {
+                handleLinkOrder(
+                  linkingOrderId,
+                  selectedOrders.map((o) => ({
+                    id: o.id,
+                    orderNumber: o.orderNumber,
+                  })),
+                );
+              }}
+            />
+          );
+        })()}
     </div>
   );
 }

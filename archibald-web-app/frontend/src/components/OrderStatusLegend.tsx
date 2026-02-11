@@ -188,7 +188,7 @@ export function OrderStatusLegend({ isOpen, onClose }: OrderStatusLegendProps) {
               />
               <GlossaryItem
                 term="IN ATTESA DI APPROVAZIONE"
-                definition="Ricevuto da Milano, in coda per elaborazione"
+                definition="Ricevuto da Verona, in coda per elaborazione"
               />
               <GlossaryItem
                 term="TRANSFER ERROR"
@@ -204,7 +204,7 @@ export function OrderStatusLegend({ isOpen, onClose }: OrderStatusLegendProps) {
               />
               <GlossaryItem
                 term="TRASFERITO"
-                definition="Non più modificabile, gestito dal sistema Milano"
+                definition="Non più modificabile, gestito dal sistema Verona"
               />
               <GlossaryItem
                 term="FATTURATO"
@@ -252,7 +252,7 @@ export function OrderStatusLegend({ isOpen, onClose }: OrderStatusLegendProps) {
               <TimelineStep
                 number={3}
                 icon="📨"
-                title="Inviato a Milano"
+                title="Inviato a Verona"
                 description="IN ATTESA DI APPROVAZIONE"
               />
               <TimelineArrow />

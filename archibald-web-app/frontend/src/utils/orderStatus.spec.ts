@@ -71,11 +71,13 @@ describe("getOrderStatus", () => {
   });
 
   describe("in-transit status", () => {
-    test("returns in-transit when order has tracking and is shipped", () => {
+    test("returns in-transit when order has tracking and is recently shipped", () => {
+      const yesterday = new Date();
+      yesterday.setDate(yesterday.getDate() - 1);
       const order: Partial<Order> = {
         id: "transit-order",
         customerName: "Transit Customer",
-        date: "2026-01-22",
+        date: yesterday.toISOString().slice(0, 10),
         total: "900.00",
         status: "CONSEGNATO",
         orderType: "ORDINE DI VENDITA",
@@ -95,11 +97,13 @@ describe("getOrderStatus", () => {
       expect(result.backgroundColor).toBe("#E3F2FD");
     });
 
-    test("returns in-transit when tracking is in DDT field", () => {
+    test("returns in-transit when tracking is in DDT field (recent)", () => {
+      const yesterday = new Date();
+      yesterday.setDate(yesterday.getDate() - 1);
       const order: Partial<Order> = {
         id: "transit-order-ddt",
         customerName: "Transit DDT Customer",
-        date: "2026-01-23",
+        date: yesterday.toISOString().slice(0, 10),
         total: "600.00",
         status: "CONSEGNATO",
         ddt: {
@@ -114,11 +118,13 @@ describe("getOrderStatus", () => {
       expect(result.category).toBe("in-transit");
     });
 
-    test("returns in-transit for legacy orders with tracking only", () => {
+    test("returns in-transit for recent orders with tracking only", () => {
+      const yesterday = new Date();
+      yesterday.setDate(yesterday.getDate() - 1);
       const order: Partial<Order> = {
-        id: "legacy-tracking",
-        customerName: "Legacy Tracking",
-        date: "2025-11-15",
+        id: "recent-tracking",
+        customerName: "Recent Tracking",
+        date: yesterday.toISOString().slice(0, 10),
         total: "400.00",
         status: "Spedito",
         tracking: {
@@ -129,6 +135,23 @@ describe("getOrderStatus", () => {
       const result = getOrderStatus(order as Order);
 
       expect(result.category).toBe("in-transit");
+    });
+
+    test("returns delivered for old orders with tracking (3+ days)", () => {
+      const order: Partial<Order> = {
+        id: "old-tracking",
+        customerName: "Old Tracking",
+        date: "2025-11-15",
+        total: "400.00",
+        status: "Spedito",
+        tracking: {
+          trackingNumber: "LEG999",
+        },
+      };
+
+      const result = getOrderStatus(order as Order);
+
+      expect(result.category).toBe("delivered");
     });
   });
 
@@ -265,10 +288,10 @@ describe("getOrderStatus", () => {
 });
 
 describe("getAllStatusStyles", () => {
-  test("returns all 6 status styles", () => {
+  test("returns all 8 status styles", () => {
     const allStyles = getAllStatusStyles();
 
-    expect(allStyles).toHaveLength(6);
+    expect(allStyles).toHaveLength(8);
 
     const categories = allStyles.map((s) => s.category);
     expect(categories).toContain("on-archibald");
@@ -277,6 +300,8 @@ describe("getAllStatusStyles", () => {
     expect(categories).toContain("in-transit");
     expect(categories).toContain("delivered");
     expect(categories).toContain("invoiced");
+    expect(categories).toContain("overdue");
+    expect(categories).toContain("paid");
   });
 
   test("each status has required fields", () => {
@@ -301,6 +326,8 @@ describe("getStatusStyleByCategory", () => {
       "in-transit",
       "delivered",
       "invoiced",
+      "overdue",
+      "paid",
     ];
 
     categories.forEach((category) => {

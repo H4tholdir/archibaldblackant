@@ -442,7 +442,7 @@ export class OrderSyncService extends EventEmitter {
       const parsedOrder = parsedOrders[i];
 
       try {
-        // For orders without order_number (pending Milano processing),
+        // For orders without order_number (pending Verona processing),
         // use placeholder format "PENDING-{id}" to satisfy NOT NULL constraint
         const orderNumber =
           parsedOrder.order_number || `PENDING-${parsedOrder.id}`;

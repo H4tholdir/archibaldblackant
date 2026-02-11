@@ -1,11 +1,11 @@
 import { describe, test, expect, vi } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
-import { SendToMilanoModal } from "./SendToMilanoModal";
+import { SendToVeronaModal } from "./SendToVeronaModal";
 
-describe("SendToMilanoModal", () => {
+describe("SendToVeronaModal", () => {
   test("does not render when isOpen is false", () => {
     const { container } = render(
-      <SendToMilanoModal
+      <SendToVeronaModal
         isOpen={false}
         onClose={vi.fn()}
         onConfirm={vi.fn()}
@@ -20,7 +20,7 @@ describe("SendToMilanoModal", () => {
 
   test("renders modal with order info when open", () => {
     render(
-      <SendToMilanoModal
+      <SendToVeronaModal
         isOpen={true}
         onClose={vi.fn()}
         onConfirm={vi.fn()}
@@ -30,14 +30,14 @@ describe("SendToMilanoModal", () => {
       />,
     );
 
-    expect(screen.getByText("Invia Ordine a Milano")).toBeInTheDocument();
+    expect(screen.getByText("Invia Ordine a Verona")).toBeInTheDocument();
     expect(screen.getByText(/Test Customer/)).toBeInTheDocument();
     expect(screen.getByText(/ORD\/001/)).toBeInTheDocument();
   });
 
   test("displays warning message prominently", () => {
     render(
-      <SendToMilanoModal
+      <SendToVeronaModal
         isOpen={true}
         onClose={vi.fn()}
         onConfirm={vi.fn()}
@@ -58,7 +58,7 @@ describe("SendToMilanoModal", () => {
     const onConfirm = vi.fn();
 
     render(
-      <SendToMilanoModal
+      <SendToVeronaModal
         isOpen={true}
         onClose={vi.fn()}
         onConfirm={onConfirm}
@@ -78,7 +78,7 @@ describe("SendToMilanoModal", () => {
     const onClose = vi.fn();
 
     render(
-      <SendToMilanoModal
+      <SendToVeronaModal
         isOpen={true}
         onClose={onClose}
         onConfirm={vi.fn()}
@@ -96,7 +96,7 @@ describe("SendToMilanoModal", () => {
 
   test("disables buttons when loading", () => {
     render(
-      <SendToMilanoModal
+      <SendToVeronaModal
         isOpen={true}
         onClose={vi.fn()}
         onConfirm={vi.fn()}
@@ -107,8 +107,10 @@ describe("SendToMilanoModal", () => {
     );
 
     const buttons = screen.getAllByRole("button");
-    const cancelButton = buttons.find(btn => btn.textContent === "Annulla");
-    const confirmButton = buttons.find(btn => btn.textContent?.includes("Invio in corso"));
+    const cancelButton = buttons.find((btn) => btn.textContent === "Annulla");
+    const confirmButton = buttons.find((btn) =>
+      btn.textContent?.includes("Invio in corso"),
+    );
 
     expect(cancelButton).toBeDisabled();
     expect(confirmButton).toBeDisabled();
@@ -116,7 +118,7 @@ describe("SendToMilanoModal", () => {
 
   test("shows loading state on confirm button", () => {
     render(
-      <SendToMilanoModal
+      <SendToVeronaModal
         isOpen={true}
         onClose={vi.fn()}
         onConfirm={vi.fn()}
