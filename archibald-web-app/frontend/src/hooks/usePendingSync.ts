@@ -118,6 +118,15 @@ export function usePendingSync(): UsePendingSyncReturn {
             subClientData: serverOrder.subClientData || undefined,
             needsSync: false,
             serverUpdatedAt: serverOrder.updatedAt,
+            // Preserve local job fields so active cards don't lose progress
+            ...(localOrder?.jobId && {
+              jobId: localOrder.jobId,
+              jobStatus: localOrder.jobStatus,
+              jobStartedAt: localOrder.jobStartedAt,
+              jobOperation: localOrder.jobOperation,
+              jobProgress: localOrder.jobProgress,
+              jobError: localOrder.jobError,
+            }),
           } as PendingOrder);
         }
       }
@@ -190,15 +199,19 @@ export function usePendingSync(): UsePendingSyncReturn {
           if (!data.success) continue;
 
           const jobState = data.data?.status;
-          if (jobState === "failed" || jobState === "completed") {
+          if (
+            jobState === "failed" ||
+            jobState === "completed" ||
+            jobState === "not_found"
+          ) {
+            const isFailed = jobState === "failed" || jobState === "not_found";
             await db.pendingOrders.update(order.id, {
-              jobStatus: jobState,
+              jobStatus: isFailed ? "failed" : "completed",
               jobError: data.data?.error,
-              jobOperation:
-                jobState === "failed"
-                  ? "Errore durante elaborazione"
-                  : "Completato",
-              status: jobState === "failed" ? "error" : order.status,
+              jobOperation: isFailed
+                ? "Errore durante elaborazione"
+                : "Completato",
+              status: isFailed ? "error" : order.status,
               errorMessage: data.data?.error,
               updatedAt: new Date().toISOString(),
             });

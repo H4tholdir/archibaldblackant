@@ -1402,17 +1402,15 @@ export class ArchibaldBot {
       const w = window as any;
       if (!w.ASPxClientControl?.GetControlCollection) return "";
       let found = "";
-      w.ASPxClientControl.GetControlCollection().ForEachControl(
-        (c: any) => {
-          if (
-            c.name &&
-            c.name.includes("dviSALESLINEs") &&
-            typeof c.AddNewRow === "function"
-          ) {
-            found = c.name;
-          }
-        },
-      );
+      w.ASPxClientControl.GetControlCollection().ForEachControl((c: any) => {
+        if (
+          c.name &&
+          c.name.includes("dviSALESLINEs") &&
+          typeof c.AddNewRow === "function"
+        ) {
+          found = c.name;
+        }
+      });
       return found;
     });
 
@@ -1439,7 +1437,8 @@ export class ArchibaldBot {
       await this.page.waitForFunction(
         (name: string) => {
           const w = window as any;
-          const grid = w.ASPxClientControl?.GetControlCollection?.()?.GetByName?.(name);
+          const grid =
+            w.ASPxClientControl?.GetControlCollection?.()?.GetByName?.(name);
           return grid && !grid.InCallback();
         },
         { polling: 100, timeout },
@@ -1463,7 +1462,8 @@ export class ArchibaldBot {
 
     await this.page.evaluate((name: string) => {
       const w = window as any;
-      const grid = w.ASPxClientControl?.GetControlCollection?.()?.GetByName?.(name);
+      const grid =
+        w.ASPxClientControl?.GetControlCollection?.()?.GetByName?.(name);
       if (grid) grid.AddNewRow();
     }, gridName);
 
@@ -1482,7 +1482,8 @@ export class ArchibaldBot {
 
     await this.page.evaluate((name: string) => {
       const w = window as any;
-      const grid = w.ASPxClientControl?.GetControlCollection?.()?.GetByName?.(name);
+      const grid =
+        w.ASPxClientControl?.GetControlCollection?.()?.GetByName?.(name);
       if (grid) grid.UpdateEdit();
     }, gridName);
 
@@ -1502,7 +1503,8 @@ export class ArchibaldBot {
 
     return await this.page.evaluate((name: string) => {
       const w = window as any;
-      const grid = w.ASPxClientControl?.GetControlCollection?.()?.GetByName?.(name);
+      const grid =
+        w.ASPxClientControl?.GetControlCollection?.()?.GetByName?.(name);
       if (!grid) return { pageCount: 0, pageIndex: 0, visibleRows: 0 };
       return {
         pageCount: grid.GetPageCount?.() ?? 0,
@@ -1527,7 +1529,8 @@ export class ArchibaldBot {
       await this.page.evaluate(
         (name: string, lastPage: number) => {
           const w = window as any;
-          const grid = w.ASPxClientControl?.GetControlCollection?.()?.GetByName?.(name);
+          const grid =
+            w.ASPxClientControl?.GetControlCollection?.()?.GetByName?.(name);
           if (grid) grid.GotoPage(lastPage);
         },
         gridName,
@@ -1536,6 +1539,59 @@ export class ArchibaldBot {
 
       await this.waitForGridCallback(gridName);
       logger.debug("Navigated to last page");
+    }
+  }
+
+  private async getSavedArticleCount(): Promise<number> {
+    if (!this.page || !this.salesLinesGridName) return 0;
+    const gridName = this.salesLinesGridName;
+
+    return await this.page.evaluate((name: string) => {
+      const w = window as any;
+      const grid =
+        w.ASPxClientControl?.GetControlCollection?.()?.GetByName?.(name);
+      if (!grid) return 0;
+
+      const pageCount = grid.GetPageCount?.() ?? 1;
+      const visibleOnPage = grid.GetVisibleRowsOnPage?.() ?? 0;
+
+      if (pageCount <= 1) return visibleOnPage;
+
+      const pageSize = grid.GetSettingsPageSize?.() ?? grid.pageSize ?? 20;
+      return (pageCount - 1) * pageSize + visibleOnPage;
+    }, gridName);
+  }
+
+  private async cleanupStaleDropdowns(): Promise<void> {
+    if (!this.page) return;
+    try {
+      const removed = await this.page.evaluate(() => {
+        let count = 0;
+        document.querySelectorAll(".dxpcLite, .dxpc-content").forEach((el) => {
+          const htmlEl = el as HTMLElement;
+          if (
+            htmlEl.style.display !== "none" &&
+            !el.closest('tr[id*="editnew"]')
+          ) {
+            htmlEl.style.display = "none";
+            count++;
+          }
+        });
+        document.querySelectorAll('[id*="_DDD"]').forEach((el) => {
+          const htmlEl = el as HTMLElement;
+          const rect = htmlEl.getBoundingClientRect();
+          if (rect.width > 0 && rect.height > 0) {
+            htmlEl.style.display = "none";
+            count++;
+          }
+        });
+        return count;
+      });
+      if (removed > 0) {
+        logger.debug(`Cleaned up ${removed} stale dropdown/popup elements`);
+      }
+    } catch {
+      // Non-critical
     }
   }
 
@@ -2349,7 +2405,8 @@ export class ArchibaldBot {
           input.focus();
           input.click();
           const setter = Object.getOwnPropertyDescriptor(
-            HTMLInputElement.prototype, "value",
+            HTMLInputElement.prototype,
+            "value",
           )?.set;
           if (setter) setter.call(input, val);
           else input.value = val;
@@ -2371,7 +2428,8 @@ export class ArchibaldBot {
           input.focus();
           input.click();
           const setter = Object.getOwnPropertyDescriptor(
-            HTMLInputElement.prototype, "value",
+            HTMLInputElement.prototype,
+            "value",
           )?.set;
           if (setter) setter.call(input, val);
           else input.value = val;
@@ -2387,21 +2445,37 @@ export class ArchibaldBot {
       // Step 4: Click login button
       const fillResult = await this.page!.evaluate(() => {
         const buttons = Array.from(
-          document.querySelectorAll("button, input[type='submit'], a, div[role='button']"),
+          document.querySelectorAll(
+            "button, input[type='submit'], a, div[role='button']",
+          ),
         );
         const loginBtn = buttons.find((btn) => {
-          const text = (btn.textContent || "").toLowerCase().replace(/\s+/g, "");
+          const text = (btn.textContent || "")
+            .toLowerCase()
+            .replace(/\s+/g, "");
           const id = ((btn as HTMLElement).id || "").toLowerCase();
-          return text.includes("accedi") ||
+          return (
+            text.includes("accedi") ||
             text.includes("login") ||
             id.includes("login") ||
-            id.includes("logon");
+            id.includes("logon")
+          );
         });
         if (loginBtn) {
           (loginBtn as HTMLElement).click();
-          return { ok: true, error: null, buttonId: (loginBtn as HTMLElement).id, buttonText: loginBtn.textContent };
+          return {
+            ok: true,
+            error: null,
+            buttonId: (loginBtn as HTMLElement).id,
+            buttonText: loginBtn.textContent,
+          };
         }
-        return { ok: false, error: "login-button-not-found", buttonId: null, buttonText: null };
+        return {
+          ok: false,
+          error: "login-button-not-found",
+          buttonId: null,
+          buttonText: null,
+        };
       });
 
       if (!fillResult.ok) {
@@ -2461,15 +2535,22 @@ export class ArchibaldBot {
         }
       } else {
         const loginPageError = await this.page.evaluate(() => {
-          const errorEl = document.querySelector(".dxeErrorCell, .error, .validation-summary-errors, [class*='error']");
-          return errorEl?.textContent?.trim() || document.body?.innerText?.substring(0, 300);
+          const errorEl = document.querySelector(
+            ".dxeErrorCell, .error, .validation-summary-errors, [class*='error']",
+          );
+          return (
+            errorEl?.textContent?.trim() ||
+            document.body?.innerText?.substring(0, 300)
+          );
         });
         logger.error("Login fallito - pagina di login ancora visibile", {
           url: currentUrl,
           urlPath,
           pageContent: loginPageError,
         });
-        throw new Error(`Login fallito: ancora sulla pagina di login. ${loginPageError ? `Dettaglio: ${loginPageError.substring(0, 100)}` : ""}`);
+        throw new Error(
+          `Login fallito: ancora sulla pagina di login. ${loginPageError ? `Dettaglio: ${loginPageError.substring(0, 100)}` : ""}`,
+        );
       }
     } catch (error) {
       const errorMessage =
@@ -2847,7 +2928,11 @@ export class ArchibaldBot {
             for (const btnId of btnSelectors) {
               const btn = document.getElementById(btnId) as HTMLElement | null;
               if (btn && btn.offsetParent !== null) {
-                return { inputId: customerInput.id, baseId, btnSelector: `#${btnId}` };
+                return {
+                  inputId: customerInput.id,
+                  baseId,
+                  btnSelector: `#${btnId}`,
+                };
               }
             }
             return { inputId: customerInput.id, baseId, btnSelector: null };
@@ -2876,7 +2961,9 @@ export class ArchibaldBot {
           try {
             await this.page!.waitForFunction(
               (sel: string) => {
-                const input = document.querySelector(sel) as HTMLInputElement | null;
+                const input = document.querySelector(
+                  sel,
+                ) as HTMLInputElement | null;
                 return input && input.offsetParent !== null && !input.disabled;
               },
               { timeout: 3000, polling: 50 },
@@ -2943,9 +3030,7 @@ export class ArchibaldBot {
                       ) {
                         inCallback = true;
                       }
-                      if (
-                        typeof c?.GetGridView === "function"
-                      ) {
+                      if (typeof c?.GetGridView === "function") {
                         const gv = c.GetGridView();
                         if (
                           gv &&
@@ -3019,19 +3104,25 @@ export class ArchibaldBot {
                 ) ||
                 null;
               if (!container) {
-                return { clicked: false, reason: "no-container", rowsCount: 0, rows: [] as string[][] };
+                return {
+                  clicked: false,
+                  reason: "no-container",
+                  rowsCount: 0,
+                  rows: [] as string[][],
+                };
               }
 
               const rows = Array.from(
                 container.querySelectorAll('tr[class*="dxgvDataRow"]'),
-              ).filter(
-                (r) => (r as HTMLElement).offsetParent !== null,
-              );
+              ).filter((r) => (r as HTMLElement).offsetParent !== null);
 
               const rowData = rows.map((row) => {
                 const cells = Array.from(row.querySelectorAll("td"));
                 return cells.map(
-                  (c) => c.textContent?.trim() || c.getAttribute("title")?.trim() || "",
+                  (c) =>
+                    c.textContent?.trim() ||
+                    c.getAttribute("title")?.trim() ||
+                    "",
                 );
               });
 
@@ -3077,8 +3168,7 @@ export class ArchibaldBot {
 
               if (bestIndex >= 0) {
                 const row = rows[bestIndex];
-                const target =
-                  row.querySelector("td") || (row as HTMLElement);
+                const target = row.querySelector("td") || (row as HTMLElement);
                 (target as HTMLElement).scrollIntoView({ block: "center" });
                 (target as HTMLElement).click();
                 return {
@@ -3220,10 +3310,8 @@ export class ArchibaldBot {
           await this.page!.waitForFunction(
             () => {
               const w = window as any;
-              const col =
-                w.ASPxClientControl?.GetControlCollection?.();
-              if (!col || typeof col.ForEachControl !== "function")
-                return true;
+              const col = w.ASPxClientControl?.GetControlCollection?.();
+              if (!col || typeof col.ForEachControl !== "function") return true;
               let busy = false;
               col.ForEachControl((c: any) => {
                 try {
@@ -3296,9 +3384,7 @@ export class ArchibaldBot {
               currentValue: inputInfo.currentValue,
             });
 
-            if (
-              inputInfo.currentValue.trim().toUpperCase() === "N/A"
-            ) {
+            if (inputInfo.currentValue.trim().toUpperCase() === "N/A") {
               logger.info("⚡ Line discount already N/A, skipping");
             } else {
               await this.page!.evaluate((inputId) => {
@@ -3307,12 +3393,8 @@ export class ArchibaldBot {
                 ) as HTMLInputElement;
                 if (input) {
                   input.value = "N/A";
-                  input.dispatchEvent(
-                    new Event("input", { bubbles: true }),
-                  );
-                  input.dispatchEvent(
-                    new Event("change", { bubbles: true }),
-                  );
+                  input.dispatchEvent(new Event("input", { bubbles: true }));
+                  input.dispatchEvent(new Event("change", { bubbles: true }));
                 }
               }, inputInfo.id);
 
@@ -3322,8 +3404,7 @@ export class ArchibaldBot {
                 await this.page!.waitForFunction(
                   () => {
                     const w = window as any;
-                    const col =
-                      w.ASPxClientControl?.GetControlCollection?.();
+                    const col = w.ASPxClientControl?.GetControlCollection?.();
                     if (!col || typeof col.ForEachControl !== "function")
                       return true;
                     let busy = false;
@@ -3363,7 +3444,7 @@ export class ArchibaldBot {
       await this.runOp(
         "order.lineditems.click_new",
         async () => {
-          logger.debug('Adding new row in Linee di vendita...');
+          logger.debug("Adding new row in Linee di vendita...");
 
           // Strategy 0: DevExpress API (most reliable)
           let addNewDone = false;
@@ -3374,16 +3455,22 @@ export class ArchibaldBot {
                 logger.info("✅ AddNewRow via DevExpress API");
               }
             } catch (err) {
-              logger.warn("DevExpress API AddNewRow failed, falling back to DOM", {
-                error: err instanceof Error ? err.message : String(err),
-              });
+              logger.warn(
+                "DevExpress API AddNewRow failed, falling back to DOM",
+                {
+                  error: err instanceof Error ? err.message : String(err),
+                },
+              );
             }
           }
 
           // Fallback: DOM-based click
           if (!addNewDone) {
             logger.debug("Using DOM fallback for AddNew...");
-            await this.waitForDevExpressIdle({ timeout: 5000, label: "pre-addnew-idle" });
+            await this.waitForDevExpressIdle({
+              timeout: 5000,
+              label: "pre-addnew-idle",
+            });
 
             const gridCommandResult = await this.clickDevExpressGridCommand({
               command: "AddNew",
@@ -3397,7 +3484,9 @@ export class ArchibaldBot {
                 path: `logs/new-button-not-found-${Date.now()}.png`,
                 fullPage: true,
               });
-              throw new Error('Button "New" in line items not found (both API and DOM failed)');
+              throw new Error(
+                'Button "New" in line items not found (both API and DOM failed)',
+              );
             }
 
             logger.debug("AddNew clicked via DOM fallback", {
@@ -3440,9 +3529,7 @@ export class ArchibaldBot {
           });
 
           if (!articleInputAppeared) {
-            throw new Error(
-              'New row did not appear after AddNew',
-            );
+            throw new Error("New row did not appear after AddNew");
           }
 
           logger.info("✅ New line item row created and verified");
@@ -3557,625 +3644,468 @@ export class ArchibaldBot {
           "form.package",
         );
 
-        // 5.2: Search article dropdown (ULTRA-OPTIMIZED)
-        await this.runOp(
-          `order.item.${i}.search_article_dropdown`,
-          async () => {
-            const searchQuery = item.articleCode || "";
-            if (!searchQuery) {
-              throw new Error("Article code is required");
-            }
+        // Retry wrapper for UI steps (5.2 - 5.8)
+        // If a timeout occurs during article insertion, reload and resume
+        let articleRetries = 0;
+        const maxArticleRetries = 1;
 
-            // La riga edit è già stata verificata dallo step che ha cliccato "New" (prima del loop o nello STEP 5.8)
-            logger.debug("Starting article search");
-
-            // 2. Focus sul campo Nome Articolo (INVENTTABLE)
-            // Strategy 1: Coordinate click on INVENTTABLE cell in editnew row
-            // Strategy 2: DevExpress FocusEditor API
-            // Strategy 3: Tab fallback
-            {
-              let inventtableFocused = false;
-
-              // DevExpress renders inline editors as overlays outside the <tr>
-              // Search the entire page/grid container for the INVENTTABLE input
-              logger.debug(
-                `Article ${i + 1}: focusing INVENTTABLE editor`,
-              );
-
-              // Strategy 1: Focus INVENTTABLE input via JS (not mouse click).
-              // Mouse click at input coordinates can hit a saved row cell
-              // (z-index overlap) and open the "Linea di vendita" popup.
-              try {
-                const inventtableId = await this.page!.evaluate(() => {
-                  const inputs = Array.from(
-                    document.querySelectorAll(
-                      'input[id*="INVENTTABLE"][id$="_I"]',
-                    ),
-                  );
-                  for (const inp of inputs) {
-                    const el = inp as HTMLElement;
-                    if (el.offsetParent !== null && el.offsetWidth > 0) {
-                      return (inp as HTMLInputElement).id;
-                    }
-                  }
-                  return null;
-                });
-
-                if (inventtableId) {
-                  await this.page!.evaluate((inputId: string) => {
-                    const el = document.getElementById(
-                      inputId,
-                    ) as HTMLInputElement;
-                    if (el) {
-                      el.scrollIntoView({ block: "center" });
-                      el.focus();
-                      el.click();
-                    }
-                  }, inventtableId);
-                  await this.wait(200);
-
-                  inventtableFocused = await this.page!.evaluate(() => {
-                    const focused =
-                      document.activeElement as HTMLInputElement;
-                    return focused?.id?.includes("INVENTTABLE") || false;
-                  });
-
-                  if (inventtableFocused) {
-                    logger.debug(
-                      "✅ INVENTTABLE field focused via JS focus",
-                    );
-                  }
-                } else {
-                  logger.debug(
-                    "No visible INVENTTABLE input found on page",
-                  );
+        while (true) {
+          try {
+            // 5.2: Search article dropdown (ULTRA-OPTIMIZED)
+            await this.runOp(
+              `order.item.${i}.search_article_dropdown`,
+              async () => {
+                const searchQuery = item.articleCode || "";
+                if (!searchQuery) {
+                  throw new Error("Article code is required");
                 }
-              } catch (clickError) {
-                logger.warn("INVENTTABLE JS focus failed", {
-                  error:
-                    clickError instanceof Error
-                      ? clickError.message
-                      : String(clickError),
-                });
-              }
 
-              // Strategy 2: Click on the grid's "N/A" cell (NOME ARTICOLO column)
-              // to activate the editor if it wasn't visible before
-              if (!inventtableFocused) {
-                logger.debug(
-                  "Trying to click NOME ARTICOLO cell in grid",
-                );
-                try {
-                  const naCell = await this.page!.evaluate(() => {
-                    const row = document.querySelector(
-                      'tr[id*="editnew"]',
-                    );
-                    if (!row) return null;
-                    // Find cells containing "N/A" text or a dropdown
-                    const cells = Array.from(
-                      row.querySelectorAll("td"),
-                    );
-                    for (const cell of cells) {
-                      const text = cell.textContent?.trim() || "";
-                      if (
-                        text === "N/A" ||
-                        text.includes("N/A") ||
-                        cell.querySelector('[class*="dxeDropDown"]')
-                      ) {
-                        const rect = cell.getBoundingClientRect();
-                        if (rect.width > 0) {
-                          return {
-                            x: rect.x + rect.width / 2,
-                            y: rect.y + rect.height / 2,
-                          };
+                // La riga edit è già stata verificata dallo step che ha cliccato "New" (prima del loop o nello STEP 5.8)
+                logger.debug("Starting article search");
+
+                // 2. Focus sul campo Nome Articolo (INVENTTABLE)
+                // Strategy 1: Coordinate click on INVENTTABLE cell in editnew row
+                // Strategy 2: DevExpress FocusEditor API
+                // Strategy 3: Tab fallback
+                {
+                  let inventtableFocused = false;
+
+                  // DevExpress renders inline editors as overlays outside the <tr>
+                  // Search the entire page/grid container for the INVENTTABLE input
+                  logger.debug(`Article ${i + 1}: focusing INVENTTABLE editor`);
+
+                  // Strategy 1: Focus INVENTTABLE input via JS (not mouse click).
+                  // Mouse click at input coordinates can hit a saved row cell
+                  // (z-index overlap) and open the "Linea di vendita" popup.
+                  try {
+                    const inventtableId = await this.page!.evaluate(() => {
+                      const inputs = Array.from(
+                        document.querySelectorAll(
+                          'input[id*="INVENTTABLE"][id$="_I"]',
+                        ),
+                      );
+                      for (const inp of inputs) {
+                        const el = inp as HTMLElement;
+                        if (el.offsetParent !== null && el.offsetWidth > 0) {
+                          return (inp as HTMLInputElement).id;
                         }
                       }
-                    }
-                    return null;
-                  });
+                      return null;
+                    });
 
-                  if (naCell) {
-                    await this.page!.mouse.click(naCell.x, naCell.y);
-                    await this.wait(500);
+                    if (inventtableId) {
+                      await this.page!.evaluate((inputId: string) => {
+                        const el = document.getElementById(
+                          inputId,
+                        ) as HTMLInputElement;
+                        if (el) {
+                          el.scrollIntoView({ block: "center" });
+                          el.focus();
+                          el.click();
+                        }
+                      }, inventtableId);
+                      await this.wait(200);
 
-                    // After clicking the cell, the editor should appear
-                    // Check for INVENTTABLE input now
-                    inventtableFocused = await this.page!.evaluate(
-                      () => {
+                      inventtableFocused = await this.page!.evaluate(() => {
                         const focused =
                           document.activeElement as HTMLInputElement;
-                        return (
-                          focused?.id?.includes("INVENTTABLE") || false
-                        );
-                      },
-                    );
+                        return focused?.id?.includes("INVENTTABLE") || false;
+                      });
 
-                    if (inventtableFocused) {
+                      if (inventtableFocused) {
+                        logger.debug(
+                          "✅ INVENTTABLE field focused via JS focus",
+                        );
+                      }
+                    } else {
                       logger.debug(
-                        "✅ INVENTTABLE field focused after clicking N/A cell",
+                        "No visible INVENTTABLE input found on page",
                       );
                     }
+                  } catch (clickError) {
+                    logger.warn("INVENTTABLE JS focus failed", {
+                      error:
+                        clickError instanceof Error
+                          ? clickError.message
+                          : String(clickError),
+                    });
                   }
-                } catch (_e) {
-                  // ignore
-                }
-              }
 
-              // Strategy 3: Tab from "Nuovo" command button area
-              if (!inventtableFocused) {
-                const tabCount = i === 0 ? 3 : 4 * (i + 1);
-                logger.warn(
-                  `Falling back to Tab × ${tabCount} for article ${i + 1}`,
-                );
-                // First click on the grid toolbar area to position focus
-                try {
-                  await this.page!.evaluate(() => {
-                    const toolbar = document.querySelector(
-                      '[id*="dviSALESLINEs"] [class*="ToolBar"]',
-                    );
-                    if (toolbar) {
-                      (toolbar as HTMLElement).click();
-                    }
-                  });
-                  await this.wait(200);
-                } catch (_e) {
-                  // ignore
-                }
+                  // Strategy 2: Click on the grid's "N/A" cell (NOME ARTICOLO column)
+                  // to activate the editor if it wasn't visible before
+                  if (!inventtableFocused) {
+                    logger.debug("Trying to click NOME ARTICOLO cell in grid");
+                    try {
+                      const naCell = await this.page!.evaluate(() => {
+                        const row = document.querySelector('tr[id*="editnew"]');
+                        if (!row) return null;
+                        // Find cells containing "N/A" text or a dropdown
+                        const cells = Array.from(row.querySelectorAll("td"));
+                        for (const cell of cells) {
+                          const text = cell.textContent?.trim() || "";
+                          if (
+                            text === "N/A" ||
+                            text.includes("N/A") ||
+                            cell.querySelector('[class*="dxeDropDown"]')
+                          ) {
+                            const rect = cell.getBoundingClientRect();
+                            if (rect.width > 0) {
+                              return {
+                                x: rect.x + rect.width / 2,
+                                y: rect.y + rect.height / 2,
+                              };
+                            }
+                          }
+                        }
+                        return null;
+                      });
 
-                for (let t = 0; t < tabCount; t++) {
-                  await this.page!.keyboard.press("Tab");
-                }
-                await this.wait(100);
+                      if (naCell) {
+                        await this.page!.mouse.click(naCell.x, naCell.y);
+                        await this.wait(500);
 
-                inventtableFocused = await this.page!.evaluate(() => {
-                  const focused =
-                    document.activeElement as HTMLInputElement;
-                  return focused?.id?.includes("INVENTTABLE") || false;
-                });
-              }
+                        // After clicking the cell, the editor should appear
+                        // Check for INVENTTABLE input now
+                        inventtableFocused = await this.page!.evaluate(() => {
+                          const focused =
+                            document.activeElement as HTMLInputElement;
+                          return focused?.id?.includes("INVENTTABLE") || false;
+                        });
 
-              if (!inventtableFocused) {
-                // Log all INVENTTABLE inputs on the page for debugging
-                const debugInfo = await this.page!.evaluate(() => {
-                  const allInventtable = Array.from(
-                    document.querySelectorAll(
-                      'input[id*="INVENTTABLE"]',
-                    ),
-                  ).map((inp) => ({
-                    id: (inp as HTMLInputElement).id,
-                    visible: (inp as HTMLElement).offsetParent !== null,
-                    w: (inp as HTMLElement).offsetWidth,
-                    h: (inp as HTMLElement).offsetHeight,
-                  }));
-                  const focused =
-                    document.activeElement as HTMLInputElement;
-                  return {
-                    focusedId: focused?.id || "none",
-                    inventtableOnPage: allInventtable,
-                  };
-                });
-                logger.error(
-                  "INVENTTABLE focus failed - page debug",
-                  debugInfo,
-                );
-
-                await this.page!.screenshot({
-                  path: `logs/inventtable-focus-failed-${Date.now()}.png`,
-                  fullPage: true,
-                });
-                throw new Error(
-                  `INVENTTABLE field not focused. Article ${i + 1}. Debug: ${JSON.stringify(debugInfo)}`,
-                );
-              }
-            }
-
-            // 3. Leggi ID del campo focused (ora garantito)
-            const inputId = await this.page!.evaluate(() => {
-              const focused = document.activeElement as HTMLInputElement;
-              return focused?.id || null;
-            });
-
-            if (!inputId || !inputId.includes("INVENTTABLE")) {
-              await this.page!.screenshot({
-                path: `logs/wrong-field-focused-${Date.now()}.png`,
-                fullPage: true,
-              });
-              throw new Error(
-                `Wrong field focused. Expected INVENTTABLE, got: ${inputId}`,
-              );
-            }
-
-            const inventtableInputId = inputId;
-            const inventtableBaseId = inputId.endsWith("_I")
-              ? inputId.slice(0, -2)
-              : inputId;
-
-            // Salva per STEP 5.3
-            (item as any)._inventtableInputId = inventtableInputId;
-            (item as any)._inventtableBaseId = inventtableBaseId;
-
-            logger.debug("Focused on article field", {
-              inputId,
-              articleIndex: i,
-            });
-
-            // 4. Digita codice articolo (OTTIMIZZATO: paste tutti tranne ultimo + type ultimo)
-            // DevExpress IncrementalFiltering si attiva SOLO quando digiti, non quando incolli
-            // Quindi: incolla tutto tranne ultimo carattere, poi digita solo l'ultimo
-            logger.debug("Typing article code (optimized)...", {
-              code: searchQuery,
-            });
-
-            if (searchQuery.length > 1) {
-              // Paste tutto tranne l'ultimo carattere
-              const pastePart = searchQuery.slice(0, -1);
-              const typePart = searchQuery.slice(-1);
-
-              await this.page!.evaluate((text: string) => {
-                const input = document.activeElement as HTMLInputElement;
-                if (input && input.tagName === "INPUT") {
-                  input.value = text;
-                  // Trigger input event per DevExpress
-                  input.dispatchEvent(
-                    new Event("input", { bubbles: true, cancelable: true }),
-                  );
-                }
-              }, pastePart);
-
-              logger.debug("Pasted prefix, typing last char", {
-                pasted: pastePart,
-                toType: typePart,
-              });
-
-              // Type ultimo carattere per triggerare IncrementalFiltering
-              await this.page!.keyboard.type(typePart, { delay: 30 });
-            } else {
-              // Codice articolo troppo corto, digita tutto
-              await this.page!.keyboard.type(searchQuery, { delay: 30 });
-            }
-
-            logger.debug(
-              "Article code typed, waiting for IncrementalFiltering dropdown...",
-            );
-
-            // 5. Aspetta che DevExpress IncrementalFiltering apra il dropdown AUTOMATICAMENTE
-            // DevExpress rileva la digitazione e apre/filtra il dropdown DA SOLO
-            try {
-              // Aspetta che appaiano righe del dropdown (senza visible:true perché popup può essere fuori viewport)
-              await this.page!.waitForSelector('tr[id*="DXDataRow"]', {
-                timeout: 5000,
-              });
-
-              // Verifica manualmente la visibilità e conta risultati
-              const rowCount = await this.page!.evaluate(() => {
-                const rows = document.querySelectorAll('tr[id*="DXDataRow"]');
-                // Filtra solo righe effettivamente visibili nel dropdown popup
-                return Array.from(rows).filter((row) => {
-                  const rect = row.getBoundingClientRect();
-                  // Considera visibili anche righe fuori viewport (popup può essere scrollabile)
-                  return rect.width > 0 && rect.height > 0;
-                }).length;
-              });
-
-              logger.info(
-                `✅ Dropdown auto-opened by IncrementalFiltering with ${rowCount} result(s)`,
-                { articleCode: searchQuery },
-              );
-            } catch (error) {
-              // Timeout - analizziamo cosa c'è sulla pagina per debugging
-              const debugInfo = await this.page!.evaluate(() => {
-                // Cerca tutti i tipi di elementi che potrebbero essere il dropdown
-                const allTables = Array.from(
-                  document.querySelectorAll("table[id]"),
-                ).map((t) => ({
-                  id: t.id,
-                  visible: t.getBoundingClientRect().height > 0,
-                }));
-
-                const allTRsWithId = Array.from(
-                  document.querySelectorAll("tr[id]"),
-                ).map((tr) => ({
-                  id: tr.id,
-                  visible: tr.getBoundingClientRect().height > 0,
-                  text: tr.textContent?.substring(0, 100) || "",
-                }));
-
-                const allDivs = Array.from(
-                  document.querySelectorAll("div[id*='DX'], div[id*='Popup']"),
-                ).map((d) => ({
-                  id: d.id,
-                  visible: d.getBoundingClientRect().height > 0,
-                }));
-
-                return {
-                  tables: allTables.filter((t) => t.visible).slice(0, 10),
-                  trs: allTRsWithId.filter((tr) => tr.visible).slice(0, 10),
-                  divs: allDivs.filter((d) => d.visible).slice(0, 10),
-                };
-              });
-
-              logger.error("Dropdown selector debug info", {
-                searchQuery,
-                debugInfo,
-              });
-
-              await this.page!.screenshot({
-                path: `logs/article-dropdown-not-opened-${Date.now()}.png`,
-                fullPage: true,
-              });
-
-              throw new Error(
-                `Dropdown did not auto-open after typing "${searchQuery}". ` +
-                  `IncrementalFiltering should open dropdown automatically when typing. ` +
-                  `Check if: 1) article code exists in system, 2) IncrementalFilteringMode is enabled in DevExpress, 3) field was correctly focused. ` +
-                  `Debug: ${JSON.stringify(debugInfo, null, 2)}`,
-              );
-            }
-          },
-          "form.article",
-        );
-
-        // Targeted callback check (replaces slow waitForDevExpressIdle)
-        try {
-          await this.page!.waitForFunction(
-            () => {
-              const w = window as any;
-              const col = w.ASPxClientControl?.GetControlCollection?.();
-              if (!col || typeof col.ForEachControl !== "function") return true;
-              let busy = false;
-              col.ForEachControl((c: any) => {
-                try {
-                  if (c.InCallback?.()) busy = true;
-                } catch {}
-                try {
-                  const gv = c.GetGridView?.();
-                  if (gv?.InCallback?.()) busy = true;
-                } catch {}
-              });
-              return !busy;
-            },
-            { timeout: 5000, polling: 100 },
-          );
-        } catch {
-          // proceed
-        }
-        logger.debug("✓ Article dropdown callbacks settled");
-
-        // 5.3: Select article variant row (OPTIMIZED)
-        await this.runOp(
-          `order.item.${i}.select_article`,
-          async () => {
-            const selectedVariant = (item as any)._selectedVariant;
-            const inventtableInputId = (item as any)._inventtableInputId as
-              | string
-              | undefined;
-            const inventtableBaseId = (item as any)._inventtableBaseId as
-              | string
-              | undefined;
-
-            // Estrai suffix variante (ultimi 2 caratteri)
-            const variantSuffix = selectedVariant.id.substring(
-              selectedVariant.id.length - 2,
-            );
-
-            logger.debug(
-              `Selecting variant by suffix: ${variantSuffix} (from ${selectedVariant.id})`,
-            );
-
-            // Pagination support: loop attraverso pagine finché variante trovata
-            let rowSelected = false;
-            let currentPage = 1;
-            const maxPages = 10;
-            type VariantDomSelection = {
-              found?: boolean;
-              reason?: string;
-              rowIndex?: number;
-              rowsCount?: number;
-              contentIndex?: number;
-              packIndex?: number;
-              multipleIndex?: number;
-              contentValue?: string;
-              packValue?: string;
-              multipleValue?: string;
-              suffixCellIndex?: number;
-              suffixNeighborValue?: string;
-              rowText?: string;
-              containerId?: string;
-              rowId?: string;
-              headerTexts?: string[];
-              rowSamples?: string[];
-            };
-            let lastSelection: VariantDomSelection | null = null;
-            const weakReasons = new Set([
-              "package",
-              "multiple",
-              "suffix",
-              "single-row",
-            ]);
-
-            while (!rowSelected && currentPage <= maxPages) {
-              logger.debug(`Searching for variant on page ${currentPage}...`);
-
-              const snapshot = await this.page!.evaluate(() => {
-                const dropdownContainers = Array.from(
-                  document.querySelectorAll('[id*="_DDD"]'),
-                ).filter((node) => {
-                  const el = node as HTMLElement | null;
-                  if (!el) return false;
-                  const style = window.getComputedStyle(el);
-                  if (style.display === "none") return false;
-                  if (style.visibility === "hidden") return false;
-                  const rect = el.getBoundingClientRect();
-                  return rect.width > 0 && rect.height > 0;
-                });
-
-                let activeContainer =
-                  dropdownContainers.find((container) =>
-                    container.querySelector('tr[class*="dxgvDataRow"]'),
-                  ) || null;
-
-                if (!activeContainer) {
-                  const popupContainers = Array.from(
-                    document.querySelectorAll(
-                      ".dxpcLite, .dxpc-content, .dxpcMainDiv",
-                    ),
-                  ).filter((node) => {
-                    const el = node as HTMLElement | null;
-                    if (!el) return false;
-                    const style = window.getComputedStyle(el);
-                    if (style.display === "none") return false;
-                    if (style.visibility === "hidden") return false;
-                    const rect = el.getBoundingClientRect();
-                    return rect.width > 0 && rect.height > 0;
-                  });
-
-                  activeContainer =
-                    popupContainers.find((container) =>
-                      container.querySelector('tr[class*="dxgvDataRow"]'),
-                    ) || null;
-                }
-
-                const rowsRoot = activeContainer || document;
-                const headerTexts: string[] = [];
-                const headerTable = rowsRoot.querySelector(
-                  'table[id*="DXHeaderTable"]',
-                );
-                let headerRow: Element | null = null;
-
-                if (headerTable) {
-                  headerRow =
-                    headerTable.querySelector('tr[id*="DXHeadersRow"]') ||
-                    headerTable.querySelector("tr.dxgvHeaderRow") ||
-                    headerTable.querySelector('tr[class*="dxgvHeaderRow"]');
-                }
-
-                if (!headerRow) {
-                  headerRow =
-                    rowsRoot.querySelector("tr.dxgvHeaderRow") ||
-                    rowsRoot.querySelector('tr[class*="dxgvHeaderRow"]') ||
-                    rowsRoot.querySelector('tr[id*="DXHeadersRow"]');
-                }
-
-                if (headerRow) {
-                  const headerCells = Array.from(
-                    headerRow.querySelectorAll("td, th"),
-                  );
-                  for (const cell of headerCells) {
-                    const wrap = cell.querySelector(".dx-wrap");
-                    const text = (
-                      wrap?.textContent ||
-                      cell.textContent ||
-                      ""
-                    ).trim();
-                    headerTexts.push(text);
-                  }
-                }
-
-                const rows = Array.from(
-                  rowsRoot.querySelectorAll('tr[class*="dxgvDataRow"]'),
-                ).filter((row) => {
-                  const el = row as HTMLElement | null;
-                  if (!el) return false;
-                  const style = window.getComputedStyle(el);
-                  if (style.display === "none") return false;
-                  if (style.visibility === "hidden") return false;
-                  const rect = el.getBoundingClientRect();
-                  return rect.width > 0 && rect.height > 0;
-                });
-
-                const rowSnapshots = rows.map((row, index) => {
-                  const cells = Array.from(row.querySelectorAll("td"));
-                  const cellTexts = cells.map((cell) => {
-                    return cell.textContent?.trim() || ""; // Rimosso fallback title
-                  });
-
-                  return {
-                    index,
-                    cellTexts,
-                    rowId: row.getAttribute("id") || null,
-                  };
-                });
-
-                return {
-                  containerId: activeContainer
-                    ? (activeContainer as HTMLElement).id || null
-                    : null,
-                  headerTexts,
-                  rows: rowSnapshots,
-                  rowsCount: rows.length,
-                };
-              });
-
-              if (snapshot.rowsCount === 1) {
-                logger.info(
-                  `⚡ Scenario 1: single variant row - selecting immediately`,
-                );
-              } else if (snapshot.rowsCount > 1) {
-                logger.info(
-                  `🔍 Scenario 2: ${snapshot.rowsCount} variant rows - matching by suffix/package`,
-                );
-              }
-
-              const headerIndices = computeVariantHeaderIndices(
-                snapshot.headerTexts,
-              );
-              const candidates = buildVariantCandidates(
-                snapshot.rows,
-                headerIndices,
-                {
-                  variantId: selectedVariant.id,
-                  variantSuffix,
-                  packageContent: selectedVariant.packageContent,
-                  multipleQty: selectedVariant.multipleQty,
-                },
-              );
-              const { chosen, reason } = chooseBestVariantCandidate(candidates);
-
-              let selection: VariantDomSelection | null = null;
-
-              if (!chosen || !reason) {
-                selection = {
-                  found: false,
-                  rowsCount: snapshot.rowsCount,
-                  contentIndex: headerIndices.contentIndex,
-                  packIndex: headerIndices.packIndex,
-                  multipleIndex: headerIndices.multipleIndex,
-                  suffixCellIndex: -1,
-                  contentValue: "",
-                  packValue: "",
-                  multipleValue: "",
-                  suffixNeighborValue: "",
-                  headerTexts: snapshot.headerTexts,
-                  rowSamples: candidates
-                    .slice(0, 3)
-                    .map((entry) => entry.rowText),
-                  containerId: snapshot.containerId || "",
-                };
-              } else {
-                const keyboardState = await this.page!.evaluate(
-                  (containerId, inputId) => {
-                    let activeContainer: Element | null = null;
-
-                    if (containerId) {
-                      const byId = document.getElementById(containerId);
-                      if (byId) {
-                        const el = byId as HTMLElement;
-                        const style = window.getComputedStyle(el);
-                        const rect = el.getBoundingClientRect();
-                        const visible =
-                          style.display !== "none" &&
-                          style.visibility !== "hidden" &&
-                          rect.width > 0 &&
-                          rect.height > 0;
-                        if (visible) {
-                          activeContainer = byId;
+                        if (inventtableFocused) {
+                          logger.debug(
+                            "✅ INVENTTABLE field focused after clicking N/A cell",
+                          );
                         }
                       }
+                    } catch (_e) {
+                      // ignore
+                    }
+                  }
+
+                  // Strategy 3: Tab from "Nuovo" command button area
+                  if (!inventtableFocused) {
+                    const tabCount = i === 0 ? 3 : 4 * (i + 1);
+                    logger.warn(
+                      `Falling back to Tab × ${tabCount} for article ${i + 1}`,
+                    );
+                    // First click on the grid toolbar area to position focus
+                    try {
+                      await this.page!.evaluate(() => {
+                        const toolbar = document.querySelector(
+                          '[id*="dviSALESLINEs"] [class*="ToolBar"]',
+                        );
+                        if (toolbar) {
+                          (toolbar as HTMLElement).click();
+                        }
+                      });
+                      await this.wait(200);
+                    } catch (_e) {
+                      // ignore
                     }
 
+                    for (let t = 0; t < tabCount; t++) {
+                      await this.page!.keyboard.press("Tab");
+                    }
+                    await this.wait(100);
+
+                    inventtableFocused = await this.page!.evaluate(() => {
+                      const focused =
+                        document.activeElement as HTMLInputElement;
+                      return focused?.id?.includes("INVENTTABLE") || false;
+                    });
+                  }
+
+                  if (!inventtableFocused) {
+                    // Log all INVENTTABLE inputs on the page for debugging
+                    const debugInfo = await this.page!.evaluate(() => {
+                      const allInventtable = Array.from(
+                        document.querySelectorAll('input[id*="INVENTTABLE"]'),
+                      ).map((inp) => ({
+                        id: (inp as HTMLInputElement).id,
+                        visible: (inp as HTMLElement).offsetParent !== null,
+                        w: (inp as HTMLElement).offsetWidth,
+                        h: (inp as HTMLElement).offsetHeight,
+                      }));
+                      const focused =
+                        document.activeElement as HTMLInputElement;
+                      return {
+                        focusedId: focused?.id || "none",
+                        inventtableOnPage: allInventtable,
+                      };
+                    });
+                    logger.error(
+                      "INVENTTABLE focus failed - page debug",
+                      debugInfo,
+                    );
+
+                    await this.page!.screenshot({
+                      path: `logs/inventtable-focus-failed-${Date.now()}.png`,
+                      fullPage: true,
+                    });
+                    throw new Error(
+                      `INVENTTABLE field not focused. Article ${i + 1}. Debug: ${JSON.stringify(debugInfo)}`,
+                    );
+                  }
+                }
+
+                // 3. Leggi ID del campo focused (ora garantito)
+                const inputId = await this.page!.evaluate(() => {
+                  const focused = document.activeElement as HTMLInputElement;
+                  return focused?.id || null;
+                });
+
+                if (!inputId || !inputId.includes("INVENTTABLE")) {
+                  await this.page!.screenshot({
+                    path: `logs/wrong-field-focused-${Date.now()}.png`,
+                    fullPage: true,
+                  });
+                  throw new Error(
+                    `Wrong field focused. Expected INVENTTABLE, got: ${inputId}`,
+                  );
+                }
+
+                const inventtableInputId = inputId;
+                const inventtableBaseId = inputId.endsWith("_I")
+                  ? inputId.slice(0, -2)
+                  : inputId;
+
+                // Salva per STEP 5.3
+                (item as any)._inventtableInputId = inventtableInputId;
+                (item as any)._inventtableBaseId = inventtableBaseId;
+
+                logger.debug("Focused on article field", {
+                  inputId,
+                  articleIndex: i,
+                });
+
+                // 4. Digita codice articolo (OTTIMIZZATO: paste tutti tranne ultimo + type ultimo)
+                // DevExpress IncrementalFiltering si attiva SOLO quando digiti, non quando incolli
+                // Quindi: incolla tutto tranne ultimo carattere, poi digita solo l'ultimo
+                logger.debug("Typing article code (optimized)...", {
+                  code: searchQuery,
+                });
+
+                if (searchQuery.length > 1) {
+                  // Paste tutto tranne l'ultimo carattere
+                  const pastePart = searchQuery.slice(0, -1);
+                  const typePart = searchQuery.slice(-1);
+
+                  await this.page!.evaluate((text: string) => {
+                    const input = document.activeElement as HTMLInputElement;
+                    if (input && input.tagName === "INPUT") {
+                      input.value = text;
+                      // Trigger input event per DevExpress
+                      input.dispatchEvent(
+                        new Event("input", { bubbles: true, cancelable: true }),
+                      );
+                    }
+                  }, pastePart);
+
+                  logger.debug("Pasted prefix, typing last char", {
+                    pasted: pastePart,
+                    toType: typePart,
+                  });
+
+                  // Type ultimo carattere per triggerare IncrementalFiltering
+                  await this.page!.keyboard.type(typePart, { delay: 30 });
+                } else {
+                  // Codice articolo troppo corto, digita tutto
+                  await this.page!.keyboard.type(searchQuery, { delay: 30 });
+                }
+
+                logger.debug(
+                  "Article code typed, waiting for IncrementalFiltering dropdown...",
+                );
+
+                // 5. Aspetta che DevExpress IncrementalFiltering apra il dropdown AUTOMATICAMENTE
+                // DevExpress rileva la digitazione e apre/filtra il dropdown DA SOLO
+                try {
+                  // Aspetta che appaiano righe del dropdown (senza visible:true perché popup può essere fuori viewport)
+                  await this.page!.waitForSelector('tr[id*="DXDataRow"]', {
+                    timeout: 5000,
+                  });
+
+                  // Verifica manualmente la visibilità e conta risultati
+                  const rowCount = await this.page!.evaluate(() => {
+                    const rows = document.querySelectorAll(
+                      'tr[id*="DXDataRow"]',
+                    );
+                    // Filtra solo righe effettivamente visibili nel dropdown popup
+                    return Array.from(rows).filter((row) => {
+                      const rect = row.getBoundingClientRect();
+                      // Considera visibili anche righe fuori viewport (popup può essere scrollabile)
+                      return rect.width > 0 && rect.height > 0;
+                    }).length;
+                  });
+
+                  logger.info(
+                    `✅ Dropdown auto-opened by IncrementalFiltering with ${rowCount} result(s)`,
+                    { articleCode: searchQuery },
+                  );
+                } catch (error) {
+                  // Timeout - analizziamo cosa c'è sulla pagina per debugging
+                  const debugInfo = await this.page!.evaluate(() => {
+                    // Cerca tutti i tipi di elementi che potrebbero essere il dropdown
+                    const allTables = Array.from(
+                      document.querySelectorAll("table[id]"),
+                    ).map((t) => ({
+                      id: t.id,
+                      visible: t.getBoundingClientRect().height > 0,
+                    }));
+
+                    const allTRsWithId = Array.from(
+                      document.querySelectorAll("tr[id]"),
+                    ).map((tr) => ({
+                      id: tr.id,
+                      visible: tr.getBoundingClientRect().height > 0,
+                      text: tr.textContent?.substring(0, 100) || "",
+                    }));
+
+                    const allDivs = Array.from(
+                      document.querySelectorAll(
+                        "div[id*='DX'], div[id*='Popup']",
+                      ),
+                    ).map((d) => ({
+                      id: d.id,
+                      visible: d.getBoundingClientRect().height > 0,
+                    }));
+
+                    return {
+                      tables: allTables.filter((t) => t.visible).slice(0, 10),
+                      trs: allTRsWithId.filter((tr) => tr.visible).slice(0, 10),
+                      divs: allDivs.filter((d) => d.visible).slice(0, 10),
+                    };
+                  });
+
+                  logger.error("Dropdown selector debug info", {
+                    searchQuery,
+                    debugInfo,
+                  });
+
+                  await this.page!.screenshot({
+                    path: `logs/article-dropdown-not-opened-${Date.now()}.png`,
+                    fullPage: true,
+                  });
+
+                  throw new Error(
+                    `Dropdown did not auto-open after typing "${searchQuery}". ` +
+                      `IncrementalFiltering should open dropdown automatically when typing. ` +
+                      `Check if: 1) article code exists in system, 2) IncrementalFilteringMode is enabled in DevExpress, 3) field was correctly focused. ` +
+                      `Debug: ${JSON.stringify(debugInfo, null, 2)}`,
+                  );
+                }
+              },
+              "form.article",
+            );
+
+            // Targeted callback check (replaces slow waitForDevExpressIdle)
+            try {
+              await this.page!.waitForFunction(
+                () => {
+                  const w = window as any;
+                  const col = w.ASPxClientControl?.GetControlCollection?.();
+                  if (!col || typeof col.ForEachControl !== "function")
+                    return true;
+                  let busy = false;
+                  col.ForEachControl((c: any) => {
+                    try {
+                      if (c.InCallback?.()) busy = true;
+                    } catch {}
+                    try {
+                      const gv = c.GetGridView?.();
+                      if (gv?.InCallback?.()) busy = true;
+                    } catch {}
+                  });
+                  return !busy;
+                },
+                { timeout: 5000, polling: 100 },
+              );
+            } catch {
+              // proceed
+            }
+            logger.debug("✓ Article dropdown callbacks settled");
+
+            // 5.3: Select article variant row (OPTIMIZED)
+            await this.runOp(
+              `order.item.${i}.select_article`,
+              async () => {
+                const selectedVariant = (item as any)._selectedVariant;
+                const inventtableInputId = (item as any)._inventtableInputId as
+                  | string
+                  | undefined;
+                const inventtableBaseId = (item as any)._inventtableBaseId as
+                  | string
+                  | undefined;
+
+                // Estrai suffix variante (ultimi 2 caratteri)
+                const variantSuffix = selectedVariant.id.substring(
+                  selectedVariant.id.length - 2,
+                );
+
+                logger.debug(
+                  `Selecting variant by suffix: ${variantSuffix} (from ${selectedVariant.id})`,
+                );
+
+                // Pagination support: loop attraverso pagine finché variante trovata
+                let rowSelected = false;
+                let currentPage = 1;
+                const maxPages = 10;
+                type VariantDomSelection = {
+                  found?: boolean;
+                  reason?: string;
+                  rowIndex?: number;
+                  rowsCount?: number;
+                  contentIndex?: number;
+                  packIndex?: number;
+                  multipleIndex?: number;
+                  contentValue?: string;
+                  packValue?: string;
+                  multipleValue?: string;
+                  suffixCellIndex?: number;
+                  suffixNeighborValue?: string;
+                  rowText?: string;
+                  containerId?: string;
+                  rowId?: string;
+                  headerTexts?: string[];
+                  rowSamples?: string[];
+                };
+                let lastSelection: VariantDomSelection | null = null;
+                const weakReasons = new Set([
+                  "package",
+                  "multiple",
+                  "suffix",
+                  "single-row",
+                ]);
+
+                while (!rowSelected && currentPage <= maxPages) {
+                  logger.debug(
+                    `Searching for variant on page ${currentPage}...`,
+                  );
+
+                  const snapshot = await this.page!.evaluate(() => {
+                    const dropdownContainers = Array.from(
+                      document.querySelectorAll('[id*="_DDD"]'),
+                    ).filter((node) => {
+                      const el = node as HTMLElement | null;
+                      if (!el) return false;
+                      const style = window.getComputedStyle(el);
+                      if (style.display === "none") return false;
+                      if (style.visibility === "hidden") return false;
+                      const rect = el.getBoundingClientRect();
+                      return rect.width > 0 && rect.height > 0;
+                    });
+
+                    let activeContainer =
+                      dropdownContainers.find((container) =>
+                        container.querySelector('tr[class*="dxgvDataRow"]'),
+                      ) || null;
+
                     if (!activeContainer) {
-                      const dropdownContainers = Array.from(
-                        document.querySelectorAll('[id*="_DDD"]'),
+                      const popupContainers = Array.from(
+                        document.querySelectorAll(
+                          ".dxpcLite, .dxpc-content, .dxpcMainDiv",
+                        ),
                       ).filter((node) => {
                         const el = node as HTMLElement | null;
                         if (!el) return false;
@@ -4187,12 +4117,47 @@ export class ArchibaldBot {
                       });
 
                       activeContainer =
-                        dropdownContainers.find((container) =>
+                        popupContainers.find((container) =>
                           container.querySelector('tr[class*="dxgvDataRow"]'),
                         ) || null;
                     }
 
                     const rowsRoot = activeContainer || document;
+                    const headerTexts: string[] = [];
+                    const headerTable = rowsRoot.querySelector(
+                      'table[id*="DXHeaderTable"]',
+                    );
+                    let headerRow: Element | null = null;
+
+                    if (headerTable) {
+                      headerRow =
+                        headerTable.querySelector('tr[id*="DXHeadersRow"]') ||
+                        headerTable.querySelector("tr.dxgvHeaderRow") ||
+                        headerTable.querySelector('tr[class*="dxgvHeaderRow"]');
+                    }
+
+                    if (!headerRow) {
+                      headerRow =
+                        rowsRoot.querySelector("tr.dxgvHeaderRow") ||
+                        rowsRoot.querySelector('tr[class*="dxgvHeaderRow"]') ||
+                        rowsRoot.querySelector('tr[id*="DXHeadersRow"]');
+                    }
+
+                    if (headerRow) {
+                      const headerCells = Array.from(
+                        headerRow.querySelectorAll("td, th"),
+                      );
+                      for (const cell of headerCells) {
+                        const wrap = cell.querySelector(".dx-wrap");
+                        const text = (
+                          wrap?.textContent ||
+                          cell.textContent ||
+                          ""
+                        ).trim();
+                        headerTexts.push(text);
+                      }
+                    }
+
                     const rows = Array.from(
                       rowsRoot.querySelectorAll('tr[class*="dxgvDataRow"]'),
                     ).filter((row) => {
@@ -4205,676 +4170,902 @@ export class ArchibaldBot {
                       return rect.width > 0 && rect.height > 0;
                     });
 
-                    const focusedIndex = rows.findIndex((row) => {
-                      const cls = (row as HTMLElement).className || "";
-                      return (
-                        cls.includes("dxgvFocusedRow") ||
-                        cls.includes("dxgvSelectedRow")
-                      );
+                    const rowSnapshots = rows.map((row, index) => {
+                      const cells = Array.from(row.querySelectorAll("td"));
+                      const cellTexts = cells.map((cell) => {
+                        return cell.textContent?.trim() || ""; // Rimosso fallback title
+                      });
+
+                      return {
+                        index,
+                        cellTexts,
+                        rowId: row.getAttribute("id") || null,
+                      };
                     });
 
-                    if (inputId) {
-                      const input = document.getElementById(
-                        inputId,
-                      ) as HTMLInputElement | null;
-                      if (input) {
-                        const el = input as HTMLElement;
-                        const style = window.getComputedStyle(el);
-                        const rect = el.getBoundingClientRect();
-                        const visible =
-                          style.display !== "none" &&
-                          style.visibility !== "hidden" &&
-                          rect.width > 0 &&
-                          rect.height > 0;
-                        if (visible) {
-                          input.focus();
+                    return {
+                      containerId: activeContainer
+                        ? (activeContainer as HTMLElement).id || null
+                        : null,
+                      headerTexts,
+                      rows: rowSnapshots,
+                      rowsCount: rows.length,
+                    };
+                  });
+
+                  if (snapshot.rowsCount === 1) {
+                    logger.info(
+                      `⚡ Scenario 1: single variant row - selecting immediately`,
+                    );
+                  } else if (snapshot.rowsCount > 1) {
+                    logger.info(
+                      `🔍 Scenario 2: ${snapshot.rowsCount} variant rows - matching by suffix/package`,
+                    );
+                  }
+
+                  const headerIndices = computeVariantHeaderIndices(
+                    snapshot.headerTexts,
+                  );
+                  const candidates = buildVariantCandidates(
+                    snapshot.rows,
+                    headerIndices,
+                    {
+                      variantId: selectedVariant.id,
+                      variantSuffix,
+                      packageContent: selectedVariant.packageContent,
+                      multipleQty: selectedVariant.multipleQty,
+                    },
+                  );
+                  const { chosen, reason } =
+                    chooseBestVariantCandidate(candidates);
+
+                  let selection: VariantDomSelection | null = null;
+
+                  if (!chosen || !reason) {
+                    selection = {
+                      found: false,
+                      rowsCount: snapshot.rowsCount,
+                      contentIndex: headerIndices.contentIndex,
+                      packIndex: headerIndices.packIndex,
+                      multipleIndex: headerIndices.multipleIndex,
+                      suffixCellIndex: -1,
+                      contentValue: "",
+                      packValue: "",
+                      multipleValue: "",
+                      suffixNeighborValue: "",
+                      headerTexts: snapshot.headerTexts,
+                      rowSamples: candidates
+                        .slice(0, 3)
+                        .map((entry) => entry.rowText),
+                      containerId: snapshot.containerId || "",
+                    };
+                  } else {
+                    const keyboardState = await this.page!.evaluate(
+                      (containerId, inputId) => {
+                        let activeContainer: Element | null = null;
+
+                        if (containerId) {
+                          const byId = document.getElementById(containerId);
+                          if (byId) {
+                            const el = byId as HTMLElement;
+                            const style = window.getComputedStyle(el);
+                            const rect = el.getBoundingClientRect();
+                            const visible =
+                              style.display !== "none" &&
+                              style.visibility !== "hidden" &&
+                              rect.width > 0 &&
+                              rect.height > 0;
+                            if (visible) {
+                              activeContainer = byId;
+                            }
+                          }
+                        }
+
+                        if (!activeContainer) {
+                          const dropdownContainers = Array.from(
+                            document.querySelectorAll('[id*="_DDD"]'),
+                          ).filter((node) => {
+                            const el = node as HTMLElement | null;
+                            if (!el) return false;
+                            const style = window.getComputedStyle(el);
+                            if (style.display === "none") return false;
+                            if (style.visibility === "hidden") return false;
+                            const rect = el.getBoundingClientRect();
+                            return rect.width > 0 && rect.height > 0;
+                          });
+
+                          activeContainer =
+                            dropdownContainers.find((container) =>
+                              container.querySelector(
+                                'tr[class*="dxgvDataRow"]',
+                              ),
+                            ) || null;
+                        }
+
+                        const rowsRoot = activeContainer || document;
+                        const rows = Array.from(
+                          rowsRoot.querySelectorAll('tr[class*="dxgvDataRow"]'),
+                        ).filter((row) => {
+                          const el = row as HTMLElement | null;
+                          if (!el) return false;
+                          const style = window.getComputedStyle(el);
+                          if (style.display === "none") return false;
+                          if (style.visibility === "hidden") return false;
+                          const rect = el.getBoundingClientRect();
+                          return rect.width > 0 && rect.height > 0;
+                        });
+
+                        const focusedIndex = rows.findIndex((row) => {
+                          const cls = (row as HTMLElement).className || "";
+                          return (
+                            cls.includes("dxgvFocusedRow") ||
+                            cls.includes("dxgvSelectedRow")
+                          );
+                        });
+
+                        if (inputId) {
+                          const input = document.getElementById(
+                            inputId,
+                          ) as HTMLInputElement | null;
+                          if (input) {
+                            const el = input as HTMLElement;
+                            const style = window.getComputedStyle(el);
+                            const rect = el.getBoundingClientRect();
+                            const visible =
+                              style.display !== "none" &&
+                              style.visibility !== "hidden" &&
+                              rect.width > 0 &&
+                              rect.height > 0;
+                            if (visible) {
+                              input.focus();
+                            }
+                          }
+                        }
+
+                        return {
+                          rowsCount: rows.length,
+                          focusedIndex,
+                          containerId: activeContainer
+                            ? (activeContainer as HTMLElement).id || ""
+                            : "",
+                        };
+                      },
+                      snapshot.containerId,
+                      inventtableInputId || null,
+                    );
+
+                    const rowsCount =
+                      keyboardState.rowsCount ?? snapshot.rowsCount;
+                    const focusedIndex = keyboardState.focusedIndex ?? -1;
+                    const targetIndex = chosen.index;
+
+                    if (
+                      !rowsCount ||
+                      targetIndex < 0 ||
+                      targetIndex >= rowsCount
+                    ) {
+                      selection = {
+                        found: false,
+                        rowsCount,
+                        contentIndex: headerIndices.contentIndex,
+                        packIndex: headerIndices.packIndex,
+                        multipleIndex: headerIndices.multipleIndex,
+                        suffixCellIndex: chosen.suffixCellIndex,
+                        contentValue: chosen.contentValue,
+                        packValue: chosen.packValue,
+                        multipleValue: chosen.multipleValue,
+                        suffixNeighborValue: chosen.suffixNeighborValue,
+                        headerTexts: snapshot.headerTexts,
+                        rowSamples: candidates
+                          .slice(0, 3)
+                          .map((entry) => entry.rowText),
+                        containerId:
+                          keyboardState.containerId ||
+                          snapshot.containerId ||
+                          "",
+                      };
+                    } else {
+                      let delta =
+                        focusedIndex >= 0
+                          ? targetIndex - focusedIndex
+                          : targetIndex + 1;
+                      const direction: "ArrowDown" | "ArrowUp" =
+                        delta >= 0 ? "ArrowDown" : "ArrowUp";
+                      delta = Math.abs(delta);
+
+                      const maxSteps = Math.min(delta, rowsCount + 2);
+                      for (let step = 0; step < maxSteps; step++) {
+                        await this.page!.keyboard.press(direction);
+                        await this.wait(30); // Ridotto da 60ms
+                      }
+
+                      // Tab: seleziona variante e sposta focus al campo quantità
+                      await this.page!.keyboard.press("Tab");
+
+                      // CRITICAL: Attendere che DevExpress completi il callback di
+                      // processamento variante. Questo callback auto-compila la quantità
+                      // con il valore predefinito. Se scriviamo PRIMA che il callback
+                      // finisca, il callback sovrascrive il nostro valore.
+                      try {
+                        await this.page!.waitForFunction(
+                          () => {
+                            const w = window as any;
+                            const col =
+                              w.ASPxClientControl?.GetControlCollection?.();
+                            if (
+                              !col ||
+                              typeof col.ForEachControl !== "function"
+                            )
+                              return true;
+                            let busy = false;
+                            col.ForEachControl((c: any) => {
+                              try {
+                                if (c.InCallback?.()) busy = true;
+                              } catch {}
+                              try {
+                                const gv = c.GetGridView?.();
+                                if (gv?.InCallback?.()) busy = true;
+                              } catch {}
+                            });
+                            return !busy;
+                          },
+                          { timeout: 8000, polling: 100 },
+                        );
+                      } catch {
+                        // proceed
+                      }
+                      logger.debug("✓ Variant selection callbacks settled");
+
+                      // Ora leggiamo la quantità DOPO che il callback ha finito
+                      const targetQty = item.quantity;
+                      const qtyFormatted = targetQty
+                        .toString()
+                        .replace(".", ",");
+
+                      const currentQty = await this.page!.evaluate(() => {
+                        const focused =
+                          document.activeElement as HTMLInputElement;
+                        return {
+                          value: focused?.value || "",
+                          id: focused?.id || "",
+                          tag: focused?.tagName || "",
+                        };
+                      });
+
+                      logger.debug(
+                        "Quantity field state after variant callback",
+                        {
+                          currentValue: currentQty.value,
+                          fieldId: currentQty.id,
+                          fieldTag: currentQty.tag,
+                          targetQty,
+                        },
+                      );
+
+                      const qtyNum = Number.parseFloat(
+                        currentQty.value.replace(",", "."),
+                      );
+
+                      if (
+                        !Number.isFinite(qtyNum) ||
+                        Math.abs(qtyNum - targetQty) >= 0.01
+                      ) {
+                        logger.info(
+                          `Setting quantity: ${currentQty.value} → ${targetQty}`,
+                        );
+
+                        // Select all text via evaluate (robusto, non dipende da selezione preesistente)
+                        await this.page!.evaluate(() => {
+                          const input =
+                            document.activeElement as HTMLInputElement;
+                          if (input?.select) input.select();
+                        });
+
+                        // Type la quantità (sostituisce il testo selezionato)
+                        await this.page!.keyboard.type(qtyFormatted, {
+                          delay: 30,
+                        });
+
+                        // Attendere callback post-modifica quantità
+                        try {
+                          await this.page!.waitForFunction(
+                            () => {
+                              const w = window as any;
+                              const col =
+                                w.ASPxClientControl?.GetControlCollection?.();
+                              if (
+                                !col ||
+                                typeof col.ForEachControl !== "function"
+                              )
+                                return true;
+                              let busy = false;
+                              col.ForEachControl((c: any) => {
+                                try {
+                                  if (c.InCallback?.()) busy = true;
+                                } catch {}
+                              });
+                              return !busy;
+                            },
+                            { timeout: 5000, polling: 100 },
+                          );
+                        } catch {
+                          // proceed
+                        }
+
+                        // VERIFICA: rileggiamo il valore per confermare che è persistito
+                        const verifyQty = await this.page!.evaluate(() => {
+                          const input =
+                            document.activeElement as HTMLInputElement;
+                          return input?.value || "";
+                        });
+                        const verifyNum = Number.parseFloat(
+                          verifyQty.replace(",", "."),
+                        );
+
+                        if (Math.abs(verifyNum - targetQty) >= 0.01) {
+                          logger.warn(
+                            `⚠️ Quantity verification FAILED: expected ${targetQty}, got ${verifyQty}. Retrying...`,
+                          );
+
+                          // Retry: select all + retype
+                          await this.page!.evaluate(() => {
+                            const input =
+                              document.activeElement as HTMLInputElement;
+                            if (input?.select) input.select();
+                          });
+                          await this.page!.keyboard.type(qtyFormatted, {
+                            delay: 50,
+                          });
+                          await this.wait(300);
+
+                          // Seconda verifica
+                          const retryQty = await this.page!.evaluate(() => {
+                            const input =
+                              document.activeElement as HTMLInputElement;
+                            return input?.value || "";
+                          });
+                          logger.info(
+                            `Quantity after retry: ${retryQty} (target: ${targetQty})`,
+                          );
+                        } else {
+                          logger.info(
+                            `✅ Quantity verified: ${verifyQty} (target: ${targetQty})`,
+                          );
+                        }
+                      } else {
+                        logger.info(
+                          `⚡ Quantity already correct: ${currentQty.value} (target: ${targetQty})`,
+                        );
+                      }
+
+                      // Edit discount se presente (5.6 integrato)
+                      const hasDiscount =
+                        item.discount !== undefined && item.discount > 0;
+                      if (hasDiscount) {
+                        logger.debug(`Setting discount: ${item.discount}%`);
+
+                        // Find the visible MANUALDISCOUNT input (template editor)
+                        const discInputId = await this.page!.evaluate(() => {
+                          const inputs = Array.from(
+                            document.querySelectorAll('input[type="text"]'),
+                          ) as HTMLInputElement[];
+                          const d = inputs.find((inp) => {
+                            const id = inp.id.toLowerCase();
+                            return (
+                              id.includes("manualdiscount") &&
+                              id.includes("salesline") &&
+                              inp.offsetParent !== null
+                            );
+                          });
+                          return d?.id || null;
+                        });
+
+                        if (discInputId) {
+                          const discountStr = item.discount!.toString();
+                          const MAX_DISCOUNT_ATTEMPTS = 3;
+                          let discountConfirmed = false;
+
+                          for (
+                            let attempt = 1;
+                            attempt <= MAX_DISCOUNT_ATTEMPTS;
+                            attempt++
+                          ) {
+                            // Double-click to enter edit mode on the spin editor
+                            const discCoord = await this.page!.evaluate(
+                              (inputId: string) => {
+                                const inp = document.getElementById(
+                                  inputId,
+                                ) as HTMLInputElement;
+                                if (!inp) return null;
+                                inp.scrollIntoView({ block: "center" });
+                                const r = inp.getBoundingClientRect();
+                                return {
+                                  x: r.x + r.width / 2,
+                                  y: r.y + r.height / 2,
+                                };
+                              },
+                              discInputId,
+                            );
+
+                            if (discCoord) {
+                              await this.page!.mouse.click(
+                                discCoord.x,
+                                discCoord.y,
+                                { clickCount: 2 },
+                              );
+                              await this.wait(300);
+                            }
+
+                            // Select all + paste discount value via insertText
+                            // Use Control (not Meta) — bot runs on Linux VPS
+                            await this.page!.keyboard.down("Control");
+                            await this.page!.keyboard.press("a");
+                            await this.page!.keyboard.up("Control");
+                            await this.wait(50);
+
+                            await this.page!.evaluate((val: string) => {
+                              document.execCommand("insertText", false, val);
+                            }, discountStr);
+                            await this.wait(200);
+
+                            // Enter to confirm the value in the spin editor
+                            await this.page!.keyboard.press("Enter");
+
+                            // Smart wait: poll the input value until it reflects
+                            // the discount (SpinEdit formats e.g. "63,00 %").
+                            // This replaces a fixed wait and adapts to server speed.
+                            const confirmed = await this.page!.waitForFunction(
+                              (inputId: string, target: string) => {
+                                const inp = document.getElementById(
+                                  inputId,
+                                ) as HTMLInputElement;
+                                if (!inp) return false;
+                                const val = inp.value
+                                  .replace(/[^0-9.,]/g, "")
+                                  .replace(",", ".");
+                                const num = parseFloat(val);
+                                return num === parseFloat(target);
+                              },
+                              { timeout: 3000 },
+                              discInputId,
+                              discountStr,
+                            )
+                              .then(() => true)
+                              .catch(() => false);
+
+                            const discAfter = await this.page!.evaluate(
+                              (inputId: string) =>
+                                (
+                                  document.getElementById(
+                                    inputId,
+                                  ) as HTMLInputElement
+                                )?.value || "",
+                              discInputId,
+                            );
+
+                            if (confirmed) {
+                              logger.info(
+                                `✅ Discount set: ${item.discount}% (${discAfter}) [attempt ${attempt}]`,
+                              );
+                              discountConfirmed = true;
+                              break;
+                            }
+
+                            logger.warn(
+                              `⚠️ Discount attempt ${attempt}/${MAX_DISCOUNT_ATTEMPTS} failed: read "${discAfter}" instead of ${item.discount}%`,
+                            );
+                          }
+
+                          if (!discountConfirmed) {
+                            logger.error(
+                              `❌ Discount NOT set after ${MAX_DISCOUNT_ATTEMPTS} attempts for ${item.discount}%`,
+                            );
+                          }
+                        } else {
+                          logger.warn(
+                            `⚠️ MANUALDISCOUNT input not found, discount not set`,
+                          );
+                        }
+                      }
+
+                      // Save row via UpdateEdit
+                      // DOM click is primary strategy — it returns immediately
+                      // while the server processes the callback asynchronously.
+                      // The API approach (grid.UpdateEdit()) can block the JS
+                      // thread and freeze the page after several articles.
+                      logger.debug("Saving row via UpdateEdit...");
+
+                      let updateDone = false;
+
+                      // Strategy 0: DOM-based click (primary — non-blocking)
+                      const updateResult =
+                        await this.clickDevExpressGridCommand({
+                          command: "UpdateEdit",
+                          baseIdHint: "SALESLINEs",
+                          timeout: 7000,
+                          label: `item-${i}-update-integrated`,
+                        });
+
+                      if (updateResult.clicked) {
+                        logger.info("✅ UpdateEdit via DOM click");
+                        updateDone = true;
+                        // Wait for the grid to finish its server callback.
+                        // With slowMo reduced from 200→50ms, the bot fires
+                        // operations much faster; the ERP needs time to complete
+                        // UpdateEdit callbacks especially on paginated grids (20+ rows).
+                        if (this.salesLinesGridName) {
+                          await this.waitForGridCallback(
+                            this.salesLinesGridName,
+                            20000,
+                          );
+                        }
+                        await this.waitForDevExpressIdle({
+                          timeout: 4000,
+                          label: `item-${i}-row-saved`,
+                        });
+                      }
+
+                      // Fallback: DevExpress API
+                      if (!updateDone && this.salesLinesGridName) {
+                        try {
+                          updateDone = await this.gridUpdateEdit();
+                          if (updateDone) {
+                            logger.info(
+                              "✅ UpdateEdit via DevExpress API (fallback)",
+                            );
+                          }
+                        } catch (err) {
+                          logger.warn("UpdateEdit failed (both DOM and API)", {
+                            error:
+                              err instanceof Error ? err.message : String(err),
+                          });
+                        }
+                      }
+
+                      if (!updateDone) {
+                        await this.page!.screenshot({
+                          path: `logs/update-button-not-found-${Date.now()}.png`,
+                          fullPage: true,
+                        });
+                        throw new Error(
+                          'Button "Update" not found (both DOM and API failed)',
+                        );
+                      }
+
+                      await this.wait(200);
+
+                      selection = {
+                        found: true,
+                        reason,
+                        rowIndex: chosen.index,
+                        rowsCount,
+                        contentIndex: chosen.contentIndex,
+                        packIndex: chosen.packIndex,
+                        multipleIndex: chosen.multipleIndex,
+                        contentValue: chosen.contentValue,
+                        packValue: chosen.packValue,
+                        multipleValue: chosen.multipleValue,
+                        suffixCellIndex: chosen.suffixCellIndex,
+                        suffixNeighborValue: chosen.suffixNeighborValue,
+                        rowText: chosen.rowText,
+                        containerId:
+                          keyboardState.containerId ||
+                          snapshot.containerId ||
+                          "",
+                        rowId: chosen.rowId || "",
+                        headerTexts: snapshot.headerTexts,
+                        rowSamples: candidates
+                          .slice(0, 3)
+                          .map((entry) => entry.rowText),
+                      };
+                    }
+                  }
+
+                  lastSelection = selection || null;
+                  rowSelected = Boolean(selection?.found);
+
+                  if (selection?.found) {
+                    logger.info("✅ Variant row selected", {
+                      reason: selection.reason,
+                      rowIndex: selection.rowIndex,
+                      rowsCount: selection.rowsCount,
+                      contentValue: selection.contentValue,
+                      packValue: selection.packValue,
+                      multipleValue: selection.multipleValue,
+                      suffixNeighborValue: selection.suffixNeighborValue,
+                      variantSuffix,
+                      packageContent: selectedVariant.packageContent,
+                      multipleQty: selectedVariant.multipleQty,
+                    });
+
+                    if (selection.reason && weakReasons.has(selection.reason)) {
+                      logger.warn("⚠️ Variant match reason is weak", {
+                        reason: selection.reason,
+                        variantId: selectedVariant.id,
+                        variantSuffix,
+                        packageContent: selectedVariant.packageContent,
+                        multipleQty: selectedVariant.multipleQty,
+                      });
+                    }
+                  } else if (selection) {
+                    logger.warn("Variant row not found on current page", {
+                      rowsCount: selection.rowsCount,
+                      headerTexts: selection.headerTexts,
+                      rowSamples: selection.rowSamples,
+                      variantSuffix,
+                      packageContent: selectedVariant.packageContent,
+                      multipleQty: selectedVariant.multipleQty,
+                    });
+                  }
+
+                  if (rowSelected) {
+                    logger.info(`✅ Variant found on page ${currentPage}`);
+                    break;
+                  }
+
+                  // Cerca next page (strategie unificate)
+                  logger.debug(
+                    `Variant not found on page ${currentPage}, checking for next page...`,
+                  );
+
+                  const nextPageClicked = await this.page!.evaluate(() => {
+                    // Strategy 1: img alt="Next"
+                    const images = Array.from(document.querySelectorAll("img"));
+                    for (const img of images) {
+                      const alt = img.getAttribute("alt") || "";
+                      const className = img.className || "";
+
+                      if (alt === "Next" || className.includes("pNext")) {
+                        const parent = img.parentElement;
+                        if (parent && parent.offsetParent !== null) {
+                          const isDisabled =
+                            parent.className.includes("dxp-disabled");
+                          if (!isDisabled) {
+                            (parent as HTMLElement).click();
+                            return true;
+                          }
                         }
                       }
                     }
 
-                    return {
-                      rowsCount: rows.length,
-                      focusedIndex,
-                      containerId: activeContainer
-                        ? (activeContainer as HTMLElement).id || ""
-                        : "",
-                    };
-                  },
-                  snapshot.containerId,
-                  inventtableInputId || null,
-                );
+                    // Strategy 2: button onclick PBN
+                    const buttons = Array.from(
+                      document.querySelectorAll(
+                        "a.dxp-button, button.dxp-button",
+                      ),
+                    );
+                    for (const btn of buttons) {
+                      const onclick =
+                        (btn as HTMLElement).getAttribute("onclick") || "";
+                      const className = (btn as HTMLElement).className || "";
+                      const isNextButton =
+                        onclick.includes("'PBN'") || onclick.includes('"PBN"');
+                      const isDisabled = className.includes("dxp-disabled");
 
-                const rowsCount = keyboardState.rowsCount ?? snapshot.rowsCount;
-                const focusedIndex = keyboardState.focusedIndex ?? -1;
-                const targetIndex = chosen.index;
+                      if (
+                        isNextButton &&
+                        !isDisabled &&
+                        (btn as HTMLElement).offsetParent !== null
+                      ) {
+                        (btn as HTMLElement).click();
+                        return true;
+                      }
+                    }
 
-                if (!rowsCount || targetIndex < 0 || targetIndex >= rowsCount) {
-                  selection = {
-                    found: false,
-                    rowsCount,
-                    contentIndex: headerIndices.contentIndex,
-                    packIndex: headerIndices.packIndex,
-                    multipleIndex: headerIndices.multipleIndex,
-                    suffixCellIndex: chosen.suffixCellIndex,
-                    contentValue: chosen.contentValue,
-                    packValue: chosen.packValue,
-                    multipleValue: chosen.multipleValue,
-                    suffixNeighborValue: chosen.suffixNeighborValue,
-                    headerTexts: snapshot.headerTexts,
-                    rowSamples: candidates
-                      .slice(0, 3)
-                      .map((entry) => entry.rowText),
-                    containerId:
-                      keyboardState.containerId || snapshot.containerId || "",
-                  };
-                } else {
-                  let delta =
-                    focusedIndex >= 0
-                      ? targetIndex - focusedIndex
-                      : targetIndex + 1;
-                  const direction: "ArrowDown" | "ArrowUp" =
-                    delta >= 0 ? "ArrowDown" : "ArrowUp";
-                  delta = Math.abs(delta);
+                    return false;
+                  });
 
-                  const maxSteps = Math.min(delta, rowsCount + 2);
-                  for (let step = 0; step < maxSteps; step++) {
-                    await this.page!.keyboard.press(direction);
-                    await this.wait(30); // Ridotto da 60ms
+                  if (!nextPageClicked) {
+                    logger.debug("No next page available");
+                    break;
                   }
 
-                  // Tab: seleziona variante e sposta focus al campo quantità
-                  await this.page!.keyboard.press("Tab");
+                  // Aspetta caricamento nuova pagina
+                  await this.waitForDevExpressIdle({
+                    timeout: 3000, // Ridotto da 6000ms
+                    label: `item-${i}-variant-pagination-${currentPage + 1}`,
+                  });
+                  currentPage++;
+                }
 
-                  // CRITICAL: Attendere che DevExpress completi il callback di
-                  // processamento variante. Questo callback auto-compila la quantità
-                  // con il valore predefinito. Se scriviamo PRIMA che il callback
-                  // finisca, il callback sovrascrive il nostro valore.
+                if (!rowSelected) {
+                  await this.page!.screenshot({
+                    path: `logs/variant-not-found-${Date.now()}.png`,
+                    fullPage: true,
+                  });
+                  throw new Error(
+                    `Variant ${variantSuffix} (package=${selectedVariant.packageContent}) not found in dropdown after searching ${currentPage} page(s). ` +
+                      `Article: ${item.articleCode}, Full Variant ID: ${selectedVariant.id}`,
+                  );
+                }
+
+                // Popola metadata articolo
+                item.articleId = selectedVariant.id;
+                item.packageContent = selectedVariant.packageContent
+                  ? parseInt(selectedVariant.packageContent)
+                  : undefined;
+
+                logger.info(
+                  `✅ Article variant selected`,
+                  {
+                    variantId: selectedVariant.id,
+                    variantSuffix: variantSuffix,
+                    packageContent: selectedVariant.packageContent,
+                  },
+                  "form.article",
+                );
+              },
+              "form.article",
+            );
+
+            // Cleanup stale dropdowns between articles to prevent DOM bloat
+            await this.cleanupStaleDropdowns();
+
+            // 5.8: Add new row for next article (if not last)
+            if (i < itemsToOrder.length - 1) {
+              await this.runOp(
+                `order.item.${i}.click_new_for_next`,
+                async () => {
+                  logger.debug(`Adding new row for article ${i + 2}...`);
+
+                  // DOM click is primary strategy — it returns immediately
+                  // while the server processes the callback asynchronously.
+                  // The API approach (grid.AddNewRow()) can block the JS thread
+                  // and freeze the page after several articles.
+                  // See: successful 27-item orders before bcf4a05 refactoring.
+
+                  // Ensure edit row is closed before creating a new one
                   try {
                     await this.page!.waitForFunction(
                       () => {
-                        const w = window as any;
-                        const col =
-                          w.ASPxClientControl?.GetControlCollection?.();
-                        if (
-                          !col ||
-                          typeof col.ForEachControl !== "function"
-                        )
-                          return true;
-                        let busy = false;
-                        col.ForEachControl((c: any) => {
-                          try {
-                            if (c.InCallback?.()) busy = true;
-                          } catch {}
-                          try {
-                            const gv = c.GetGridView?.();
-                            if (gv?.InCallback?.()) busy = true;
-                          } catch {}
-                        });
-                        return !busy;
+                        const editRows = Array.from(
+                          document.querySelectorAll('tr[id*="editnew"]'),
+                        ).filter(
+                          (row) => (row as HTMLElement).offsetParent !== null,
+                        );
+                        return editRows.length === 0;
                       },
-                      { timeout: 8000, polling: 100 },
+                      { timeout: 3000 },
                     );
                   } catch {
-                    // proceed
-                  }
-                  logger.debug("✓ Variant selection callbacks settled");
-
-                  // Ora leggiamo la quantità DOPO che il callback ha finito
-                  const targetQty = item.quantity;
-                  const qtyFormatted = targetQty
-                    .toString()
-                    .replace(".", ",");
-
-                  const currentQty = await this.page!.evaluate(() => {
-                    const focused =
-                      document.activeElement as HTMLInputElement;
-                    return {
-                      value: focused?.value || "",
-                      id: focused?.id || "",
-                      tag: focused?.tagName || "",
-                    };
-                  });
-
-                  logger.debug("Quantity field state after variant callback", {
-                    currentValue: currentQty.value,
-                    fieldId: currentQty.id,
-                    fieldTag: currentQty.tag,
-                    targetQty,
-                  });
-
-                  const qtyNum = Number.parseFloat(
-                    currentQty.value.replace(",", "."),
-                  );
-
-                  if (
-                    !Number.isFinite(qtyNum) ||
-                    Math.abs(qtyNum - targetQty) >= 0.01
-                  ) {
-                    logger.info(
-                      `Setting quantity: ${currentQty.value} → ${targetQty}`,
-                    );
-
-                    // Select all text via evaluate (robusto, non dipende da selezione preesistente)
-                    await this.page!.evaluate(() => {
-                      const input =
-                        document.activeElement as HTMLInputElement;
-                      if (input?.select) input.select();
-                    });
-
-                    // Type la quantità (sostituisce il testo selezionato)
-                    await this.page!.keyboard.type(qtyFormatted, {
-                      delay: 30,
-                    });
-
-                    // Attendere callback post-modifica quantità
-                    try {
-                      await this.page!.waitForFunction(
-                        () => {
-                          const w = window as any;
-                          const col =
-                            w.ASPxClientControl?.GetControlCollection?.();
-                          if (
-                            !col ||
-                            typeof col.ForEachControl !== "function"
-                          )
-                            return true;
-                          let busy = false;
-                          col.ForEachControl((c: any) => {
-                            try {
-                              if (c.InCallback?.()) busy = true;
-                            } catch {}
-                          });
-                          return !busy;
-                        },
-                        { timeout: 5000, polling: 100 },
-                      );
-                    } catch {
-                      // proceed
-                    }
-
-                    // VERIFICA: rileggiamo il valore per confermare che è persistito
-                    const verifyQty = await this.page!.evaluate(() => {
-                      const input =
-                        document.activeElement as HTMLInputElement;
-                      return input?.value || "";
-                    });
-                    const verifyNum = Number.parseFloat(
-                      verifyQty.replace(",", "."),
-                    );
-
-                    if (Math.abs(verifyNum - targetQty) >= 0.01) {
-                      logger.warn(
-                        `⚠️ Quantity verification FAILED: expected ${targetQty}, got ${verifyQty}. Retrying...`,
-                      );
-
-                      // Retry: select all + retype
-                      await this.page!.evaluate(() => {
-                        const input =
-                          document.activeElement as HTMLInputElement;
-                        if (input?.select) input.select();
-                      });
-                      await this.page!.keyboard.type(qtyFormatted, {
-                        delay: 50,
-                      });
-                      await this.wait(300);
-
-                      // Seconda verifica
-                      const retryQty = await this.page!.evaluate(() => {
-                        const input =
-                          document.activeElement as HTMLInputElement;
-                        return input?.value || "";
-                      });
-                      logger.info(
-                        `Quantity after retry: ${retryQty} (target: ${targetQty})`,
-                      );
-                    } else {
-                      logger.info(
-                        `✅ Quantity verified: ${verifyQty} (target: ${targetQty})`,
-                      );
-                    }
-                  } else {
-                    logger.info(
-                      `⚡ Quantity already correct: ${currentQty.value} (target: ${targetQty})`,
+                    logger.warn(
+                      "Edit row still visible before AddNew; proceeding",
                     );
                   }
-
-                  // Edit discount se presente (5.6 integrato)
-                  const hasDiscount =
-                    item.discount !== undefined && item.discount > 0;
-                  if (hasDiscount) {
-                    logger.debug(`Setting discount: ${item.discount}%`);
-
-                    // Find the visible MANUALDISCOUNT input (template editor)
-                    const discInputId = await this.page!.evaluate(() => {
-                      const inputs = Array.from(
-                        document.querySelectorAll('input[type="text"]'),
-                      ) as HTMLInputElement[];
-                      const d = inputs.find((inp) => {
-                        const id = inp.id.toLowerCase();
-                        return (
-                          id.includes("manualdiscount") &&
-                          id.includes("salesline") &&
-                          inp.offsetParent !== null
-                        );
-                      });
-                      return d?.id || null;
-                    });
-
-                    if (discInputId) {
-                      const discountStr = item.discount!.toString();
-                      const MAX_DISCOUNT_ATTEMPTS = 3;
-                      let discountConfirmed = false;
-
-                      for (
-                        let attempt = 1;
-                        attempt <= MAX_DISCOUNT_ATTEMPTS;
-                        attempt++
-                      ) {
-                        // Double-click to enter edit mode on the spin editor
-                        const discCoord = await this.page!.evaluate(
-                          (inputId: string) => {
-                            const inp = document.getElementById(
-                              inputId,
-                            ) as HTMLInputElement;
-                            if (!inp) return null;
-                            inp.scrollIntoView({ block: "center" });
-                            const r = inp.getBoundingClientRect();
-                            return {
-                              x: r.x + r.width / 2,
-                              y: r.y + r.height / 2,
-                            };
-                          },
-                          discInputId,
-                        );
-
-                        if (discCoord) {
-                          await this.page!.mouse.click(
-                            discCoord.x,
-                            discCoord.y,
-                            { clickCount: 2 },
-                          );
-                          await this.wait(300);
-                        }
-
-                        // Select all + paste discount value via insertText
-                        // Use Control (not Meta) — bot runs on Linux VPS
-                        await this.page!.keyboard.down("Control");
-                        await this.page!.keyboard.press("a");
-                        await this.page!.keyboard.up("Control");
-                        await this.wait(50);
-
-                        await this.page!.evaluate((val: string) => {
-                          document.execCommand("insertText", false, val);
-                        }, discountStr);
-                        await this.wait(200);
-
-                        // Enter to confirm the value in the spin editor
-                        await this.page!.keyboard.press("Enter");
-
-                        // Smart wait: poll the input value until it reflects
-                        // the discount (SpinEdit formats e.g. "63,00 %").
-                        // This replaces a fixed wait and adapts to server speed.
-                        const confirmed = await this.page!
-                          .waitForFunction(
-                            (inputId: string, target: string) => {
-                              const inp = document.getElementById(
-                                inputId,
-                              ) as HTMLInputElement;
-                              if (!inp) return false;
-                              const val = inp.value
-                                .replace(/[^0-9.,]/g, "")
-                                .replace(",", ".");
-                              const num = parseFloat(val);
-                              return num === parseFloat(target);
-                            },
-                            { timeout: 3000 },
-                            discInputId,
-                            discountStr,
-                          )
-                          .then(() => true)
-                          .catch(() => false);
-
-                        const discAfter = await this.page!.evaluate(
-                          (inputId: string) =>
-                            (
-                              document.getElementById(
-                                inputId,
-                              ) as HTMLInputElement
-                            )?.value || "",
-                          discInputId,
-                        );
-
-                        if (confirmed) {
-                          logger.info(
-                            `✅ Discount set: ${item.discount}% (${discAfter}) [attempt ${attempt}]`,
-                          );
-                          discountConfirmed = true;
-                          break;
-                        }
-
-                        logger.warn(
-                          `⚠️ Discount attempt ${attempt}/${MAX_DISCOUNT_ATTEMPTS} failed: read "${discAfter}" instead of ${item.discount}%`,
-                        );
-                      }
-
-                      if (!discountConfirmed) {
-                        logger.error(
-                          `❌ Discount NOT set after ${MAX_DISCOUNT_ATTEMPTS} attempts for ${item.discount}%`,
-                        );
-                      }
-                    } else {
-                      logger.warn(
-                        `⚠️ MANUALDISCOUNT input not found, discount not set`,
-                      );
-                    }
-                  }
-
-                  // Save row via UpdateEdit
-                  // DOM click is primary strategy — it returns immediately
-                  // while the server processes the callback asynchronously.
-                  // The API approach (grid.UpdateEdit()) can block the JS
-                  // thread and freeze the page after several articles.
-                  logger.debug("Saving row via UpdateEdit...");
-
-                  let updateDone = false;
 
                   // Strategy 0: DOM-based click (primary — non-blocking)
-                  const updateResult = await this.clickDevExpressGridCommand({
-                    command: "UpdateEdit",
-                    baseIdHint: "SALESLINEs",
-                    timeout: 7000,
-                    label: `item-${i}-update-integrated`,
-                  });
-
-                  if (updateResult.clicked) {
-                    logger.info("✅ UpdateEdit via DOM click");
-                    updateDone = true;
-                    // Wait for the grid to finish its server callback.
-                    // With slowMo reduced from 200→50ms, the bot fires
-                    // operations much faster; the ERP needs time to complete
-                    // UpdateEdit callbacks especially on paginated grids (20+ rows).
-                    if (this.salesLinesGridName) {
-                      await this.waitForGridCallback(this.salesLinesGridName, 20000);
-                    }
-                    await this.waitForDevExpressIdle({
-                      timeout: 4000,
-                      label: `item-${i}-row-saved`,
+                  let addNewDone = false;
+                  const newCommandResult =
+                    await this.clickDevExpressGridCommand({
+                      command: "AddNew",
+                      baseIdHint: "SALESLINEs",
+                      timeout: 7000,
+                      label: `item-${i}-new-command`,
                     });
+
+                  if (newCommandResult.clicked) {
+                    addNewDone = true;
+                    logger.info(
+                      `✅ AddNewRow via DOM click for article ${i + 2}`,
+                    );
                   }
 
                   // Fallback: DevExpress API
-                  if (!updateDone && this.salesLinesGridName) {
+                  if (!addNewDone && this.salesLinesGridName) {
                     try {
-                      updateDone = await this.gridUpdateEdit();
-                      if (updateDone) {
-                        logger.info("✅ UpdateEdit via DevExpress API (fallback)");
+                      addNewDone = await this.gridAddNewRow();
+                      if (addNewDone) {
+                        logger.info(
+                          `✅ AddNewRow via API for article ${i + 2} (fallback)`,
+                        );
                       }
                     } catch (err) {
-                      logger.warn("UpdateEdit failed (both DOM and API)", {
+                      logger.warn("AddNewRow failed (both DOM and API)", {
                         error: err instanceof Error ? err.message : String(err),
                       });
                     }
                   }
 
-                  if (!updateDone) {
+                  if (!addNewDone) {
                     await this.page!.screenshot({
-                      path: `logs/update-button-not-found-${Date.now()}.png`,
+                      path: `logs/new-button-for-next-not-found-${Date.now()}.png`,
                       fullPage: true,
                     });
                     throw new Error(
-                      'Button "Update" not found (both DOM and API failed)',
+                      `AddNew failed for article ${i + 2} (both DOM and API failed)`,
                     );
                   }
 
-                  await this.wait(200);
+                  // Wait for new editable row to appear
+                  try {
+                    await this.page!.waitForFunction(
+                      () => {
+                        const editRows =
+                          document.querySelectorAll('tr[id*="editnew"]');
+                        return editRows.length > 0;
+                      },
+                      { timeout: 5000, polling: 100 },
+                    );
+                    logger.debug("✅ New editable row detected");
+                  } catch {
+                    logger.warn(
+                      "editnew row not detected after AddNew, proceeding",
+                    );
+                  }
 
-                  selection = {
-                    found: true,
-                    reason,
-                    rowIndex: chosen.index,
-                    rowsCount,
-                    contentIndex: chosen.contentIndex,
-                    packIndex: chosen.packIndex,
-                    multipleIndex: chosen.multipleIndex,
-                    contentValue: chosen.contentValue,
-                    packValue: chosen.packValue,
-                    multipleValue: chosen.multipleValue,
-                    suffixCellIndex: chosen.suffixCellIndex,
-                    suffixNeighborValue: chosen.suffixNeighborValue,
-                    rowText: chosen.rowText,
-                    containerId:
-                      keyboardState.containerId || snapshot.containerId || "",
-                    rowId: chosen.rowId || "",
-                    headerTexts: snapshot.headerTexts,
-                    rowSamples: candidates
-                      .slice(0, 3)
-                      .map((entry) => entry.rowText),
-                  };
-                }
-              }
-
-              lastSelection = selection || null;
-              rowSelected = Boolean(selection?.found);
-
-              if (selection?.found) {
-                logger.info("✅ Variant row selected", {
-                  reason: selection.reason,
-                  rowIndex: selection.rowIndex,
-                  rowsCount: selection.rowsCount,
-                  contentValue: selection.contentValue,
-                  packValue: selection.packValue,
-                  multipleValue: selection.multipleValue,
-                  suffixNeighborValue: selection.suffixNeighborValue,
-                  variantSuffix,
-                  packageContent: selectedVariant.packageContent,
-                  multipleQty: selectedVariant.multipleQty,
-                });
-
-                if (selection.reason && weakReasons.has(selection.reason)) {
-                  logger.warn("⚠️ Variant match reason is weak", {
-                    reason: selection.reason,
-                    variantId: selectedVariant.id,
-                    variantSuffix,
-                    packageContent: selectedVariant.packageContent,
-                    multipleQty: selectedVariant.multipleQty,
-                  });
-                }
-              } else if (selection) {
-                logger.warn("Variant row not found on current page", {
-                  rowsCount: selection.rowsCount,
-                  headerTexts: selection.headerTexts,
-                  rowSamples: selection.rowSamples,
-                  variantSuffix,
-                  packageContent: selectedVariant.packageContent,
-                  multipleQty: selectedVariant.multipleQty,
-                });
-              }
-
-              if (rowSelected) {
-                logger.info(`✅ Variant found on page ${currentPage}`);
-                break;
-              }
-
-              // Cerca next page (strategie unificate)
-              logger.debug(
-                `Variant not found on page ${currentPage}, checking for next page...`,
+                  logger.info(`✅ Ready for article ${i + 2}`);
+                },
+                "multi-article-navigation",
               );
-
-              const nextPageClicked = await this.page!.evaluate(() => {
-                // Strategy 1: img alt="Next"
-                const images = Array.from(document.querySelectorAll("img"));
-                for (const img of images) {
-                  const alt = img.getAttribute("alt") || "";
-                  const className = img.className || "";
-
-                  if (alt === "Next" || className.includes("pNext")) {
-                    const parent = img.parentElement;
-                    if (parent && parent.offsetParent !== null) {
-                      const isDisabled =
-                        parent.className.includes("dxp-disabled");
-                      if (!isDisabled) {
-                        (parent as HTMLElement).click();
-                        return true;
-                      }
-                    }
-                  }
-                }
-
-                // Strategy 2: button onclick PBN
-                const buttons = Array.from(
-                  document.querySelectorAll("a.dxp-button, button.dxp-button"),
-                );
-                for (const btn of buttons) {
-                  const onclick =
-                    (btn as HTMLElement).getAttribute("onclick") || "";
-                  const className = (btn as HTMLElement).className || "";
-                  const isNextButton =
-                    onclick.includes("'PBN'") || onclick.includes('"PBN"');
-                  const isDisabled = className.includes("dxp-disabled");
-
-                  if (
-                    isNextButton &&
-                    !isDisabled &&
-                    (btn as HTMLElement).offsetParent !== null
-                  ) {
-                    (btn as HTMLElement).click();
-                    return true;
-                  }
-                }
-
-                return false;
-              });
-
-              if (!nextPageClicked) {
-                logger.debug("No next page available");
-                break;
-              }
-
-              // Aspetta caricamento nuova pagina
-              await this.waitForDevExpressIdle({
-                timeout: 3000, // Ridotto da 6000ms
-                label: `item-${i}-variant-pagination-${currentPage + 1}`,
-              });
-              currentPage++;
             }
 
-            if (!rowSelected) {
+            break; // Article succeeded — exit retry loop
+          } catch (articleError) {
+            const isTimeout =
+              articleError instanceof Error &&
+              (articleError.message.toLowerCase().includes("timed out") ||
+                articleError.message.toLowerCase().includes("timeout"));
+
+            if (articleRetries >= maxArticleRetries || !isTimeout) {
+              throw articleError;
+            }
+
+            articleRetries++;
+            logger.warn(
+              `Article ${i + 1} timeout, retrying (${articleRetries}/${maxArticleRetries})...`,
+            );
+
+            try {
               await this.page!.screenshot({
-                path: `logs/variant-not-found-${Date.now()}.png`,
+                path: `logs/article-timeout-retry-${i}-${Date.now()}.png`,
                 fullPage: true,
               });
-              throw new Error(
-                `Variant ${variantSuffix} (package=${selectedVariant.packageContent}) not found in dropdown after searching ${currentPage} page(s). ` +
-                  `Article: ${item.articleCode}, Full Variant ID: ${selectedVariant.id}`,
-              );
+            } catch {
+              // Screenshot is best-effort
             }
 
-            // Popola metadata articolo
-            item.articleId = selectedVariant.id;
-            item.packageContent = selectedVariant.packageContent
-              ? parseInt(selectedVariant.packageContent)
-              : undefined;
+            await this.page!.reload({
+              waitUntil: "networkidle0",
+              timeout: 30000,
+            });
+            await this.waitForDevExpressIdle({
+              timeout: 10000,
+              label: "post-reload",
+            });
 
+            await this.discoverSalesLinesGrid();
+
+            const savedCount = await this.getSavedArticleCount();
             logger.info(
-              `✅ Article variant selected`,
-              {
-                variantId: selectedVariant.id,
-                variantSuffix: variantSuffix,
-                packageContent: selectedVariant.packageContent,
-              },
-              "form.article",
+              `After reload: ${savedCount} articles already in grid, expected ${i} or ${i + 1}`,
             );
-          },
-          "form.article",
-        );
 
-        // 5.8: Add new row for next article (if not last)
-        if (i < itemsToOrder.length - 1) {
-          await this.runOp(
-            `order.item.${i}.click_new_for_next`,
-            async () => {
-              logger.debug(`Adding new row for article ${i + 2}...`);
+            if (savedCount > i) {
+              logger.info(
+                `Article ${i + 1} was already saved, skipping to next`,
+              );
+              break; // Exit retry loop — for loop will advance to i+1
+            }
 
-              // DOM click is primary strategy — it returns immediately
-              // while the server processes the callback asynchronously.
-              // The API approach (grid.AddNewRow()) can block the JS thread
-              // and freeze the page after several articles.
-              // See: successful 27-item orders before bcf4a05 refactoring.
+            await this.gridGotoLastPage();
 
-              // Ensure edit row is closed before creating a new one
-              try {
-                await this.page!.waitForFunction(
-                  () => {
-                    const editRows = Array.from(
-                      document.querySelectorAll('tr[id*="editnew"]'),
-                    ).filter(
-                      (row) => (row as HTMLElement).offsetParent !== null,
-                    );
-                    return editRows.length === 0;
-                  },
-                  { timeout: 3000 },
-                );
-              } catch {
-                logger.warn("Edit row still visible before AddNew; proceeding");
-              }
-
-              // Strategy 0: DOM-based click (primary — non-blocking)
-              let addNewDone = false;
-              const newCommandResult = await this.clickDevExpressGridCommand({
+            if (this.salesLinesGridName) {
+              await this.gridAddNewRow();
+            } else {
+              const addResult = await this.clickDevExpressGridCommand({
                 command: "AddNew",
                 baseIdHint: "SALESLINEs",
                 timeout: 7000,
-                label: `item-${i}-new-command`,
+                label: `retry-addnew-${i}`,
               });
-
-              if (newCommandResult.clicked) {
-                addNewDone = true;
-                logger.info(`✅ AddNewRow via DOM click for article ${i + 2}`);
+              if (!addResult.clicked) {
+                throw new Error("AddNew failed after reload");
               }
-
-              // Fallback: DevExpress API
-              if (!addNewDone && this.salesLinesGridName) {
-                try {
-                  addNewDone = await this.gridAddNewRow();
-                  if (addNewDone) {
-                    logger.info(`✅ AddNewRow via API for article ${i + 2} (fallback)`);
-                  }
-                } catch (err) {
-                  logger.warn("AddNewRow failed (both DOM and API)", {
-                    error: err instanceof Error ? err.message : String(err),
-                  });
-                }
-              }
-
-              if (!addNewDone) {
-                await this.page!.screenshot({
-                  path: `logs/new-button-for-next-not-found-${Date.now()}.png`,
-                  fullPage: true,
-                });
-                throw new Error(
-                  `AddNew failed for article ${i + 2} (both DOM and API failed)`,
-                );
-              }
-
-              // Wait for new editable row to appear
-              try {
-                await this.page!.waitForFunction(
-                  () => {
-                    const editRows = document.querySelectorAll('tr[id*="editnew"]');
-                    return editRows.length > 0;
-                  },
-                  { timeout: 5000, polling: 100 },
-                );
-                logger.debug("✅ New editable row detected");
-              } catch {
-                logger.warn("editnew row not detected after AddNew, proceeding");
-              }
-
-              logger.info(`✅ Ready for article ${i + 2}`);
-            },
-            "multi-article-navigation",
-          );
-        }
+            }
+            await this.wait(500);
+            continue; // Retry the article
+          }
+        } // end while (retry loop)
       }
 
       await this.emitProgress("form.articles.complete");
@@ -4958,8 +5149,7 @@ export class ArchibaldBot {
               await this.page!.waitForFunction(
                 () => {
                   const w = window as any;
-                  const col =
-                    w.ASPxClientControl?.GetControlCollection?.();
+                  const col = w.ASPxClientControl?.GetControlCollection?.();
                   if (!col || typeof col.ForEachControl !== "function")
                     return true;
                   let busy = false;
@@ -4981,9 +5171,7 @@ export class ArchibaldBot {
             const discountInputInfo = await this.page!.evaluate(() => {
               // Cerca tutti gli input nel tab Prezzi e sconti
               const candidates = Array.from(
-                document.querySelectorAll(
-                  'input[type="text"][id*="_Edit_I"]',
-                ),
+                document.querySelectorAll('input[type="text"][id*="_Edit_I"]'),
               ) as HTMLInputElement[];
 
               // Filtra solo quelli visibili nel tab Prezzi e sconti
@@ -5020,9 +5208,7 @@ export class ArchibaldBot {
 
               // Fallback: cerca label "Applica sconto" e prendi l'input associato
               const labels = Array.from(
-                document.querySelectorAll(
-                  "td, span, label, div",
-                ),
+                document.querySelectorAll("td, span, label, div"),
               );
               for (const label of labels) {
                 const text = label.textContent?.trim() || "";
@@ -5031,8 +5217,7 @@ export class ArchibaldBot {
                   text.includes("APPLICA SCONTO")
                 ) {
                   // Cerca input vicino (sibling, parent, next element)
-                  const container =
-                    label.closest("tr") || label.parentElement;
+                  const container = label.closest("tr") || label.parentElement;
                   if (container) {
                     const nearInput = container.querySelector(
                       'input[type="text"]',
@@ -5097,12 +5282,8 @@ export class ArchibaldBot {
                 ) as HTMLInputElement;
                 if (input) {
                   input.value = val;
-                  input.dispatchEvent(
-                    new Event("input", { bubbles: true }),
-                  );
-                  input.dispatchEvent(
-                    new Event("change", { bubbles: true }),
-                  );
+                  input.dispatchEvent(new Event("input", { bubbles: true }));
+                  input.dispatchEvent(new Event("change", { bubbles: true }));
                 }
               },
               discountInputInfo.id,
@@ -5117,8 +5298,7 @@ export class ArchibaldBot {
               await this.page!.waitForFunction(
                 () => {
                   const w = window as any;
-                  const col =
-                    w.ASPxClientControl?.GetControlCollection?.();
+                  const col = w.ASPxClientControl?.GetControlCollection?.();
                   if (!col || typeof col.ForEachControl !== "function")
                     return true;
                   let busy = false;
@@ -5562,9 +5742,7 @@ export class ArchibaldBot {
         waitUntil: "domcontentloaded",
         timeout: 60000,
       });
-      logger.info(
-        `[ArchibaldBot] Navigated to ${filePrefix} page: ${pageUrl}`,
-      );
+      logger.info(`[ArchibaldBot] Navigated to ${filePrefix} page: ${pageUrl}`);
 
       await this.waitForDevExpressReadyOnPage(page);
 
@@ -5698,9 +5876,7 @@ export class ArchibaldBot {
           if (!button)
             return { success: false, error: "Button not found in DOM" };
 
-          button.dispatchEvent(
-            new MouseEvent("mousedown", { bubbles: true }),
-          );
+          button.dispatchEvent(new MouseEvent("mousedown", { bubbles: true }));
           button.dispatchEvent(new MouseEvent("mouseup", { bubbles: true }));
           button.dispatchEvent(new MouseEvent("click", { bubbles: true }));
           return { success: true };
@@ -5752,8 +5928,7 @@ export class ArchibaldBot {
   async downloadCustomersPDF(context: BrowserContext): Promise<string> {
     return this.downloadPDFExport({
       context,
-      pageUrl:
-        "https://4.231.124.90/Archibald/CUSTTABLE_ListView_Agent/",
+      pageUrl: "https://4.231.124.90/Archibald/CUSTTABLE_ListView_Agent/",
       buttonSelector: "#Vertical_mainMenu_Menu_DXI6_T",
       containerSelector: "#Vertical_mainMenu_Menu_DXI6_",
       expectedFileNames: ["Clienti.pdf", "Customers.pdf"],
@@ -5937,8 +6112,7 @@ export class ArchibaldBot {
   async downloadOrdersPDF(context: BrowserContext): Promise<string> {
     return this.downloadPDFExport({
       context,
-      pageUrl:
-        "https://4.231.124.90/Archibald/SALESTABLE_ListView_Agent/",
+      pageUrl: "https://4.231.124.90/Archibald/SALESTABLE_ListView_Agent/",
       buttonSelector: "#Vertical_mainMenu_Menu_DXI3_T",
       containerSelector: "#Vertical_mainMenu_Menu_DXI3_",
       expectedFileNames: [
@@ -5957,8 +6131,7 @@ export class ArchibaldBot {
   async downloadDDTPDF(context: BrowserContext): Promise<string> {
     return this.downloadPDFExport({
       context,
-      pageUrl:
-        "https://4.231.124.90/Archibald/CUSTPACKINGSLIPJOUR_ListView/",
+      pageUrl: "https://4.231.124.90/Archibald/CUSTPACKINGSLIPJOUR_ListView/",
       buttonSelector: "#Vertical_mainMenu_Menu_DXI3_T",
       containerSelector: "#Vertical_mainMenu_Menu_DXI3_",
       expectedFileNames: [
@@ -5973,8 +6146,7 @@ export class ArchibaldBot {
   async downloadInvoicesPDF(context: BrowserContext): Promise<string> {
     return this.downloadPDFExport({
       context,
-      pageUrl:
-        "https://4.231.124.90/Archibald/CUSTINVOICEJOUR_ListView/",
+      pageUrl: "https://4.231.124.90/Archibald/CUSTINVOICEJOUR_ListView/",
       buttonSelector: "#Vertical_mainMenu_Menu_DXI3_T",
       containerSelector: "#Vertical_mainMenu_Menu_DXI3_",
       expectedFileNames: [
@@ -5989,8 +6161,7 @@ export class ArchibaldBot {
   async downloadPricesPDF(context: BrowserContext): Promise<string> {
     return this.downloadPDFExport({
       context,
-      pageUrl:
-        "https://4.231.124.90/Archibald/PRICEDISCTABLE_ListView/",
+      pageUrl: "https://4.231.124.90/Archibald/PRICEDISCTABLE_ListView/",
       buttonSelector: "#Vertical_mainMenu_Menu_DXI3_T",
       containerSelector: "#Vertical_mainMenu_Menu_DXI3_",
       expectedFileNames: ["Tabella prezzi.pdf", "Price table.pdf"],
@@ -6037,17 +6208,14 @@ export class ArchibaldBot {
         downloadPath: "/tmp",
       });
 
-      const btnSelector =
-        'a[id*="xaf_dviSALESLINEs_ToolBar_Menu_DXI1_T"]';
+      const btnSelector = 'a[id*="xaf_dviSALESLINEs_ToolBar_Menu_DXI1_T"]';
       await page.waitForSelector(btnSelector, { timeout: 15000 });
       logger.info("[ArchibaldBot] PDF export button found");
 
       const downloadComplete = new Promise<void>((resolve, reject) => {
         const timeout = setTimeout(() => {
           clearInterval(checkFile);
-          reject(
-            new Error("PDF download timeout (120s exceeded)"),
-          );
+          reject(new Error("PDF download timeout (120s exceeded)"));
         }, 120000);
 
         const checkFile = setInterval(async () => {
@@ -6091,15 +6259,9 @@ export class ArchibaldBot {
       await page.evaluate((sel: string) => {
         const btn = document.querySelector(sel) as HTMLElement;
         if (btn) {
-          btn.dispatchEvent(
-            new MouseEvent("mousedown", { bubbles: true }),
-          );
-          btn.dispatchEvent(
-            new MouseEvent("mouseup", { bubbles: true }),
-          );
-          btn.dispatchEvent(
-            new MouseEvent("click", { bubbles: true }),
-          );
+          btn.dispatchEvent(new MouseEvent("mousedown", { bubbles: true }));
+          btn.dispatchEvent(new MouseEvent("mouseup", { bubbles: true }));
+          btn.dispatchEvent(new MouseEvent("click", { bubbles: true }));
         }
       }, btnSelector);
 
@@ -6233,7 +6395,10 @@ export class ArchibaldBot {
     }
 
     await this.page.keyboard.press("Tab");
-    await this.waitForDevExpressIdle({ timeout: 5000, label: `field-${result.id}` });
+    await this.waitForDevExpressIdle({
+      timeout: 5000,
+      label: `field-${result.id}`,
+    });
 
     logger.debug("setDevExpressField done", { id: result.id, value });
   }
@@ -6279,14 +6444,21 @@ export class ArchibaldBot {
     }
 
     await this.page.keyboard.press("Tab");
-    await this.waitForDevExpressIdle({ timeout: 5000, label: `combo-${inputId}` });
+    await this.waitForDevExpressIdle({
+      timeout: 5000,
+      label: `combo-${inputId}`,
+    });
 
     const actual = await this.page.evaluate((id: string) => {
       const input = document.getElementById(id) as HTMLInputElement;
       return input?.value || "";
     }, inputId);
 
-    logger.debug("setDevExpressComboBox done", { id: inputId, requested: value, actual });
+    logger.debug("setDevExpressComboBox done", {
+      id: inputId,
+      requested: value,
+      actual,
+    });
   }
 
   private async selectFromDevExpressLookup(
@@ -6296,7 +6468,10 @@ export class ArchibaldBot {
   ): Promise<void> {
     if (!this.page) throw new Error("Browser page is null");
 
-    logger.debug("selectFromDevExpressLookup", { pattern: buttonRegex.source, searchValue });
+    logger.debug("selectFromDevExpressLookup", {
+      pattern: buttonRegex.source,
+      searchValue,
+    });
 
     const buttonId = await this.page.evaluate((regex: string) => {
       const allEls = Array.from(
@@ -6321,17 +6496,23 @@ export class ArchibaldBot {
       await this.page.waitForFunction(
         () => {
           const dialogs = Array.from(
-            document.querySelectorAll('[id*="_DDD"], .dxpcLite, .dxpc-mainDiv, .dxpc-content, [id*="PopupControl"], [id*="_PW"], .dxpnlControl'),
+            document.querySelectorAll(
+              '[id*="_DDD"], .dxpcLite, .dxpc-mainDiv, .dxpc-content, [id*="PopupControl"], [id*="_PW"], .dxpnlControl',
+            ),
           ).filter((node) => {
             const el = node as HTMLElement;
-            return el.offsetParent !== null && el.getBoundingClientRect().width > 0;
+            return (
+              el.offsetParent !== null && el.getBoundingClientRect().width > 0
+            );
           });
           return dialogs.length > 0;
         },
         { timeout: 10000, polling: 100 },
       );
     } catch {
-      logger.warn("Lookup dialog not detected by waitForFunction, proceeding with fallback...");
+      logger.warn(
+        "Lookup dialog not detected by waitForFunction, proceeding with fallback...",
+      );
       await this.wait(2000);
     }
 
@@ -6339,10 +6520,14 @@ export class ArchibaldBot {
 
     // Check if the popup content is inside an iframe (DevExpress FindPopup pattern)
     const iframeInfo = await this.page.evaluate(() => {
-      const iframes = Array.from(document.querySelectorAll("iframe")).filter((f) => {
-        const el = f as HTMLElement;
-        return el.offsetParent !== null && f.src && f.src.includes("FindPopup");
-      });
+      const iframes = Array.from(document.querySelectorAll("iframe")).filter(
+        (f) => {
+          const el = f as HTMLElement;
+          return (
+            el.offsetParent !== null && f.src && f.src.includes("FindPopup")
+          );
+        },
+      );
       if (iframes.length > 0) {
         return { hasIframe: true, src: iframes[0].src, id: iframes[0].id };
       }
@@ -6352,7 +6537,11 @@ export class ArchibaldBot {
     logger.debug("Iframe check", iframeInfo);
 
     if (iframeInfo.hasIframe) {
-      await this.selectFromDevExpressLookupViaIframe(iframeInfo.id, searchValue, matchHint);
+      await this.selectFromDevExpressLookupViaIframe(
+        iframeInfo.id,
+        searchValue,
+        matchHint,
+      );
     } else {
       await this.selectFromDevExpressLookupDirect(searchValue, matchHint);
     }
@@ -6369,7 +6558,9 @@ export class ArchibaldBot {
 
     const searchInputId = await this.page.evaluate(() => {
       const dialogs = Array.from(
-        document.querySelectorAll('[id*="_DDD"], .dxpcLite, .dxpc-mainDiv, .dxpc-content, [id*="PopupControl"], [id*="_PW"], .dxpnlControl'),
+        document.querySelectorAll(
+          '[id*="_DDD"], .dxpcLite, .dxpc-mainDiv, .dxpc-content, [id*="PopupControl"], [id*="_PW"], .dxpnlControl',
+        ),
       ).filter((node) => {
         const el = node as HTMLElement;
         return el.offsetParent !== null && el.getBoundingClientRect().width > 0;
@@ -6424,13 +6615,20 @@ export class ArchibaldBot {
     try {
       await this.page.waitForFunction(
         () => {
-          const selectors = '[id*="_DDD"], .dxpcLite, .dxpc-mainDiv, .dxpc-content, [id*="PopupControl"], [id*="_PW"], .dxpnlControl';
-          const popups = Array.from(document.querySelectorAll(selectors)).filter((node) => {
+          const selectors =
+            '[id*="_DDD"], .dxpcLite, .dxpc-mainDiv, .dxpc-content, [id*="PopupControl"], [id*="_PW"], .dxpnlControl';
+          const popups = Array.from(
+            document.querySelectorAll(selectors),
+          ).filter((node) => {
             const el = node as HTMLElement;
-            return el.offsetParent !== null && el.getBoundingClientRect().width > 0;
+            return (
+              el.offsetParent !== null && el.getBoundingClientRect().width > 0
+            );
           });
           for (const popup of popups) {
-            const rows = popup.querySelectorAll('tr[class*="dxgvDataRow"], tr[class*="dxgvFocusedRow"]');
+            const rows = popup.querySelectorAll(
+              'tr[class*="dxgvDataRow"], tr[class*="dxgvFocusedRow"]',
+            );
             if (rows.length > 0) return true;
           }
           return false;
@@ -6444,22 +6642,29 @@ export class ArchibaldBot {
     await this.selectRowInLookupDialog(searchValue, matchHint);
 
     await this.wait(200);
-    await this.clickElementByText("OK", { exact: true, selectors: ["span", "button", "a", "td"] });
+    await this.clickElementByText("OK", {
+      exact: true,
+      selectors: ["span", "button", "a", "td"],
+    });
 
-    await this.page.waitForFunction(
-      () => {
-        const dialogs = Array.from(
-          document.querySelectorAll('[id*="_DDD"], .dxpcLite'),
-        ).filter((node) => {
-          const el = node as HTMLElement;
-          return el.offsetParent !== null && el.getBoundingClientRect().width > 0;
-        });
-        return dialogs.every((d) =>
-          d.querySelectorAll('tr[class*="dxgvDataRow"]').length === 0,
-        );
-      },
-      { timeout: 5000, polling: 100 },
-    ).catch(() => {});
+    await this.page
+      .waitForFunction(
+        () => {
+          const dialogs = Array.from(
+            document.querySelectorAll('[id*="_DDD"], .dxpcLite'),
+          ).filter((node) => {
+            const el = node as HTMLElement;
+            return (
+              el.offsetParent !== null && el.getBoundingClientRect().width > 0
+            );
+          });
+          return dialogs.every(
+            (d) => d.querySelectorAll('tr[class*="dxgvDataRow"]').length === 0,
+          );
+        },
+        { timeout: 5000, polling: 100 },
+      )
+      .catch(() => {});
   }
 
   private async selectFromDevExpressLookupViaIframe(
@@ -6471,7 +6676,9 @@ export class ArchibaldBot {
 
     const iframeHandle = await this.page.$(`#${iframeId}`);
     if (!iframeHandle) {
-      logger.warn("Iframe element not found by id, falling back to direct mode");
+      logger.warn(
+        "Iframe element not found by id, falling back to direct mode",
+      );
       return this.selectFromDevExpressLookupDirect(searchValue, matchHint);
     }
 
@@ -6488,7 +6695,10 @@ export class ArchibaldBot {
       await frame.waitForFunction(
         () => {
           const w = window as any;
-          return document.readyState === "complete" && !!w.ASPxClientControl?.GetControlCollection;
+          return (
+            document.readyState === "complete" &&
+            !!w.ASPxClientControl?.GetControlCollection
+          );
         },
         { timeout: 10000, polling: 200 },
       );
@@ -6500,13 +6710,16 @@ export class ArchibaldBot {
 
     // Find and focus the search input inside the iframe
     const searchFound = await frame.evaluate(() => {
-      const inputs = Array.from(document.querySelectorAll('input[type="text"]')).filter(
+      const inputs = Array.from(
+        document.querySelectorAll('input[type="text"]'),
+      ).filter(
         (i) => (i as HTMLElement).offsetParent !== null,
       ) as HTMLInputElement[];
 
-      const searchInput = inputs.find((i) =>
-        /_DXSE_I$/.test(i.id) || /_DXFREditorcol0_I$/.test(i.id),
-      ) || inputs[0];
+      const searchInput =
+        inputs.find(
+          (i) => /_DXSE_I$/.test(i.id) || /_DXFREditorcol0_I$/.test(i.id),
+        ) || inputs[0];
 
       if (!searchInput) return false;
 
@@ -6527,7 +6740,9 @@ export class ArchibaldBot {
     await this.wait(200);
     await this.page!.keyboard.press("Enter");
 
-    logger.debug("Search value entered in iframe via real keyboard, waiting for results...");
+    logger.debug(
+      "Search value entered in iframe via real keyboard, waiting for results...",
+    );
 
     // Wait for rows to appear inside the iframe
     try {
@@ -6538,11 +6753,15 @@ export class ArchibaldBot {
           if (col && typeof col.ForEachControl === "function") {
             let busy = false;
             col.ForEachControl((c: any) => {
-              try { if (c.InCallback?.()) busy = true; } catch {}
+              try {
+                if (c.InCallback?.()) busy = true;
+              } catch {}
             });
             if (busy) return false;
           }
-          const rows = document.querySelectorAll('tr[class*="dxgvDataRow"], tr[class*="dxgvFocusedRow"]');
+          const rows = document.querySelectorAll(
+            'tr[class*="dxgvDataRow"], tr[class*="dxgvFocusedRow"]',
+          );
           return rows.length > 0;
         },
         { timeout: 12000, polling: 150 },
@@ -6560,59 +6779,92 @@ export class ArchibaldBot {
     }
 
     // Select the matching row inside the iframe
-    const selectionResult = await frame.evaluate((query: string, hint?: string) => {
-      const rows = Array.from(
-        document.querySelectorAll('tr[class*="dxgvDataRow"]'),
-      ).filter((r) => (r as HTMLElement).offsetParent !== null);
+    const selectionResult = await frame.evaluate(
+      (query: string, hint?: string) => {
+        const rows = Array.from(
+          document.querySelectorAll('tr[class*="dxgvDataRow"]'),
+        ).filter((r) => (r as HTMLElement).offsetParent !== null);
 
-      const rowTexts = rows.slice(0, 10).map((r) => r.textContent?.trim().substring(0, 80) || "");
+        const rowTexts = rows
+          .slice(0, 10)
+          .map((r) => r.textContent?.trim().substring(0, 80) || "");
 
-      if (rows.length === 0) return { clicked: false, reason: "no-rows", rowCount: 0, rowTexts };
+        if (rows.length === 0)
+          return { clicked: false, reason: "no-rows", rowCount: 0, rowTexts };
 
-      if (rows.length === 1) {
-        const target = rows[0].querySelector("td") || (rows[0] as HTMLElement);
-        (target as HTMLElement).scrollIntoView({ block: "center" });
-        (target as HTMLElement).click();
-        return { clicked: true, reason: "single-row", rowCount: 1, rowTexts };
-      }
+        if (rows.length === 1) {
+          const target =
+            rows[0].querySelector("td") || (rows[0] as HTMLElement);
+          (target as HTMLElement).scrollIntoView({ block: "center" });
+          (target as HTMLElement).click();
+          return { clicked: true, reason: "single-row", rowCount: 1, rowTexts };
+        }
 
-      if (hint) {
-        const hintLower = hint.trim().toLowerCase();
+        if (hint) {
+          const hintLower = hint.trim().toLowerCase();
+          for (const row of rows) {
+            if (row.textContent?.toLowerCase().includes(hintLower)) {
+              const target = row.querySelector("td") || (row as HTMLElement);
+              (target as HTMLElement).scrollIntoView({ block: "center" });
+              (target as HTMLElement).click();
+              return {
+                clicked: true,
+                reason: "hint-match",
+                rowCount: rows.length,
+                rowTexts,
+                hint,
+              };
+            }
+          }
+        }
+
+        const queryLower = query.trim().toLowerCase();
         for (const row of rows) {
-          if (row.textContent?.toLowerCase().includes(hintLower)) {
+          const cells = Array.from(row.querySelectorAll("td"));
+          if (
+            cells.some(
+              (c) => c.textContent?.trim().toLowerCase() === queryLower,
+            )
+          ) {
+            const target = cells[0] || (row as HTMLElement);
+            (target as HTMLElement).scrollIntoView({ block: "center" });
+            (target as HTMLElement).click();
+            return {
+              clicked: true,
+              reason: "exact-match",
+              rowCount: rows.length,
+              rowTexts,
+            };
+          }
+        }
+
+        for (const row of rows) {
+          if (row.textContent?.toLowerCase().includes(queryLower)) {
             const target = row.querySelector("td") || (row as HTMLElement);
             (target as HTMLElement).scrollIntoView({ block: "center" });
             (target as HTMLElement).click();
-            return { clicked: true, reason: "hint-match", rowCount: rows.length, rowTexts, hint };
+            return {
+              clicked: true,
+              reason: "contains-match",
+              rowCount: rows.length,
+              rowTexts,
+            };
           }
         }
-      }
 
-      const queryLower = query.trim().toLowerCase();
-      for (const row of rows) {
-        const cells = Array.from(row.querySelectorAll("td"));
-        if (cells.some((c) => c.textContent?.trim().toLowerCase() === queryLower)) {
-          const target = cells[0] || (row as HTMLElement);
-          (target as HTMLElement).scrollIntoView({ block: "center" });
-          (target as HTMLElement).click();
-          return { clicked: true, reason: "exact-match", rowCount: rows.length, rowTexts };
-        }
-      }
-
-      for (const row of rows) {
-        if (row.textContent?.toLowerCase().includes(queryLower)) {
-          const target = row.querySelector("td") || (row as HTMLElement);
-          (target as HTMLElement).scrollIntoView({ block: "center" });
-          (target as HTMLElement).click();
-          return { clicked: true, reason: "contains-match", rowCount: rows.length, rowTexts };
-        }
-      }
-
-      const target = rows[0].querySelector("td") || (rows[0] as HTMLElement);
-      (target as HTMLElement).scrollIntoView({ block: "center" });
-      (target as HTMLElement).click();
-      return { clicked: true, reason: "fallback-first", rowCount: rows.length, rowTexts };
-    }, searchValue, matchHint);
+        const target = rows[0].querySelector("td") || (rows[0] as HTMLElement);
+        (target as HTMLElement).scrollIntoView({ block: "center" });
+        (target as HTMLElement).click();
+        return {
+          clicked: true,
+          reason: "fallback-first",
+          rowCount: rows.length,
+          rowTexts,
+        };
+      },
+      searchValue,
+      matchHint,
+    );
 
     logger.debug("Iframe row selection result", selectionResult);
 
@@ -6620,11 +6872,12 @@ export class ArchibaldBot {
 
     // Click OK — could be inside iframe or in main page
     let okClicked = await frame.evaluate(() => {
-      const okBtns = Array.from(document.querySelectorAll("span, button, a, td"))
-        .filter((el) => {
-          const h = el as HTMLElement;
-          return h.offsetParent !== null && h.textContent?.trim() === "OK";
-        });
+      const okBtns = Array.from(
+        document.querySelectorAll("span, button, a, td"),
+      ).filter((el) => {
+        const h = el as HTMLElement;
+        return h.offsetParent !== null && h.textContent?.trim() === "OK";
+      });
       if (okBtns.length > 0) {
         (okBtns[0] as HTMLElement).click();
         return true;
@@ -6633,17 +6886,27 @@ export class ArchibaldBot {
     });
 
     if (!okClicked) {
-      okClicked = await this.clickElementByText("OK", { exact: true, selectors: ["span", "button", "a", "td"] });
+      okClicked = await this.clickElementByText("OK", {
+        exact: true,
+        selectors: ["span", "button", "a", "td"],
+      });
     }
-    logger.debug("OK button clicked", { okClicked, context: okClicked ? "found" : "not-found" });
+    logger.debug("OK button clicked", {
+      okClicked,
+      context: okClicked ? "found" : "not-found",
+    });
 
     // Wait for popup to close in main page
     try {
       await this.page.waitForFunction(
         () => {
-          const iframes = Array.from(document.querySelectorAll("iframe")).filter((f) => {
+          const iframes = Array.from(
+            document.querySelectorAll("iframe"),
+          ).filter((f) => {
             const el = f as HTMLElement;
-            return el.offsetParent !== null && f.src && f.src.includes("FindPopup");
+            return (
+              el.offsetParent !== null && f.src && f.src.includes("FindPopup")
+            );
           });
           return iframes.length === 0;
         },
@@ -6656,78 +6919,124 @@ export class ArchibaldBot {
     }
   }
 
-  private async selectRowInLookupDialog(searchValue: string, matchHint?: string): Promise<void> {
+  private async selectRowInLookupDialog(
+    searchValue: string,
+    matchHint?: string,
+  ): Promise<void> {
     if (!this.page) return;
 
-    const selectionResult = await this.page.evaluate((query: string, hint?: string) => {
-      const dialogs = Array.from(
-        document.querySelectorAll('[id*="_DDD"], .dxpcLite, .dxpc-content, .dxpc-mainDiv, [id*="PopupControl"], [id*="_PW"], .dxpnlControl'),
-      ).filter((node) => {
-        const el = node as HTMLElement;
-        return el.offsetParent !== null && el.getBoundingClientRect().width > 0;
-      });
+    const selectionResult = await this.page.evaluate(
+      (query: string, hint?: string) => {
+        const dialogs = Array.from(
+          document.querySelectorAll(
+            '[id*="_DDD"], .dxpcLite, .dxpc-content, .dxpc-mainDiv, [id*="PopupControl"], [id*="_PW"], .dxpnlControl',
+          ),
+        ).filter((node) => {
+          const el = node as HTMLElement;
+          return (
+            el.offsetParent !== null && el.getBoundingClientRect().width > 0
+          );
+        });
 
-      let container: Element | null = null;
-      for (const d of dialogs) {
-        if (d.querySelector('tr[class*="dxgvDataRow"]')) {
-          container = d;
-          break;
+        let container: Element | null = null;
+        for (const d of dialogs) {
+          if (d.querySelector('tr[class*="dxgvDataRow"]')) {
+            container = d;
+            break;
+          }
         }
-      }
-      if (!container) return { clicked: false, reason: "no-container", rowCount: 0, rowTexts: [] as string[] };
+        if (!container)
+          return {
+            clicked: false,
+            reason: "no-container",
+            rowCount: 0,
+            rowTexts: [] as string[],
+          };
 
-      const rows = Array.from(
-        container.querySelectorAll('tr[class*="dxgvDataRow"]'),
-      ).filter((r) => (r as HTMLElement).offsetParent !== null);
+        const rows = Array.from(
+          container.querySelectorAll('tr[class*="dxgvDataRow"]'),
+        ).filter((r) => (r as HTMLElement).offsetParent !== null);
 
-      const rowTexts = rows.slice(0, 10).map((r) => r.textContent?.trim().substring(0, 80) || "");
+        const rowTexts = rows
+          .slice(0, 10)
+          .map((r) => r.textContent?.trim().substring(0, 80) || "");
 
-      if (rows.length === 0) return { clicked: false, reason: "no-rows", rowCount: 0, rowTexts };
+        if (rows.length === 0)
+          return { clicked: false, reason: "no-rows", rowCount: 0, rowTexts };
 
-      if (rows.length === 1) {
-        const target = rows[0].querySelector("td") || (rows[0] as HTMLElement);
-        (target as HTMLElement).scrollIntoView({ block: "center" });
-        (target as HTMLElement).click();
-        return { clicked: true, reason: "single-row", rowCount: 1, rowTexts };
-      }
+        if (rows.length === 1) {
+          const target =
+            rows[0].querySelector("td") || (rows[0] as HTMLElement);
+          (target as HTMLElement).scrollIntoView({ block: "center" });
+          (target as HTMLElement).click();
+          return { clicked: true, reason: "single-row", rowCount: 1, rowTexts };
+        }
 
-      if (hint) {
-        const hintLower = hint.trim().toLowerCase();
+        if (hint) {
+          const hintLower = hint.trim().toLowerCase();
+          for (const row of rows) {
+            if (row.textContent?.toLowerCase().includes(hintLower)) {
+              const target = row.querySelector("td") || (row as HTMLElement);
+              (target as HTMLElement).scrollIntoView({ block: "center" });
+              (target as HTMLElement).click();
+              return {
+                clicked: true,
+                reason: "hint-match",
+                rowCount: rows.length,
+                rowTexts,
+                hint,
+              };
+            }
+          }
+        }
+
+        const queryLower = query.trim().toLowerCase();
         for (const row of rows) {
-          if (row.textContent?.toLowerCase().includes(hintLower)) {
+          const cells = Array.from(row.querySelectorAll("td"));
+          if (
+            cells.some(
+              (c) => c.textContent?.trim().toLowerCase() === queryLower,
+            )
+          ) {
+            const target = cells[0] || (row as HTMLElement);
+            (target as HTMLElement).scrollIntoView({ block: "center" });
+            (target as HTMLElement).click();
+            return {
+              clicked: true,
+              reason: "exact-match",
+              rowCount: rows.length,
+              rowTexts,
+            };
+          }
+        }
+
+        for (const row of rows) {
+          if (row.textContent?.toLowerCase().includes(queryLower)) {
             const target = row.querySelector("td") || (row as HTMLElement);
             (target as HTMLElement).scrollIntoView({ block: "center" });
             (target as HTMLElement).click();
-            return { clicked: true, reason: "hint-match", rowCount: rows.length, rowTexts, hint };
+            return {
+              clicked: true,
+              reason: "contains-match",
+              rowCount: rows.length,
+              rowTexts,
+            };
           }
         }
-      }
 
-      const queryLower = query.trim().toLowerCase();
-      for (const row of rows) {
-        const cells = Array.from(row.querySelectorAll("td"));
-        if (cells.some((c) => c.textContent?.trim().toLowerCase() === queryLower)) {
-          const target = cells[0] || (row as HTMLElement);
-          (target as HTMLElement).scrollIntoView({ block: "center" });
-          (target as HTMLElement).click();
-          return { clicked: true, reason: "exact-match", rowCount: rows.length, rowTexts };
-        }
-      }
-
-      for (const row of rows) {
-        if (row.textContent?.toLowerCase().includes(queryLower)) {
-          const target = row.querySelector("td") || (row as HTMLElement);
-          (target as HTMLElement).scrollIntoView({ block: "center" });
-          (target as HTMLElement).click();
-          return { clicked: true, reason: "contains-match", rowCount: rows.length, rowTexts };
-        }
-      }
-
-      const target = rows[0].querySelector("td") || (rows[0] as HTMLElement);
-      (target as HTMLElement).scrollIntoView({ block: "center" });
-      (target as HTMLElement).click();
-      return { clicked: true, reason: "fallback-first", rowCount: rows.length, rowTexts };
-    }, searchValue, matchHint);
+        const target = rows[0].querySelector("td") || (rows[0] as HTMLElement);
+        (target as HTMLElement).scrollIntoView({ block: "center" });
+        (target as HTMLElement).click();
+        return {
+          clicked: true,
+          reason: "fallback-first",
+          rowCount: rows.length,
+          rowTexts,
+        };
+      },
+      searchValue,
+      matchHint,
+    );
 
     logger.debug("Row selection result", selectionResult);
   }
@@ -6744,21 +7053,26 @@ export class ArchibaldBot {
         const elText = el.textContent?.trim() || "";
         if (elText.includes(text)) {
           const clickTarget = el.tagName === "A" ? el : el.parentElement;
-          if (clickTarget && (clickTarget as HTMLElement).offsetParent !== null) {
+          if (
+            clickTarget &&
+            (clickTarget as HTMLElement).offsetParent !== null
+          ) {
             (clickTarget as HTMLElement).click();
             return true;
           }
         }
       }
 
-      const tabs = Array.from(
-        document.querySelectorAll('li[id*="_pg_AT"]'),
-      );
+      const tabs = Array.from(document.querySelectorAll('li[id*="_pg_AT"]'));
       for (const tab of tabs) {
         const link = tab.querySelector("a.dxtc-link");
         const span = tab.querySelector("span.dx-vam");
         const tabLabel = span?.textContent?.trim() || "";
-        if (tabLabel.includes(text) && link && (link as HTMLElement).offsetParent !== null) {
+        if (
+          tabLabel.includes(text) &&
+          link &&
+          (link as HTMLElement).offsetParent !== null
+        ) {
           (link as HTMLElement).click();
           return true;
         }
@@ -6781,7 +7095,9 @@ export class ArchibaldBot {
           if (!col || typeof col.ForEachControl !== "function") return true;
           let busy = false;
           col.ForEachControl((c: any) => {
-            try { if (c.InCallback?.()) busy = true; } catch {}
+            try {
+              if (c.InCallback?.()) busy = true;
+            } catch {}
           });
           return !busy;
         },
@@ -6798,17 +7114,22 @@ export class ArchibaldBot {
     logger.info("Saving customer (Salva e chiudi)");
 
     const saveAttempt = async (): Promise<boolean> => {
-      const directSaveClicked = await this.clickElementByText("Salva e chiudi", {
-        exact: true,
-        selectors: ["a", "span", "div", "li"],
-      });
+      const directSaveClicked = await this.clickElementByText(
+        "Salva e chiudi",
+        {
+          exact: true,
+          selectors: ["a", "span", "div", "li"],
+        },
+      );
 
       if (directSaveClicked) {
         logger.info('Clicked "Salva e chiudi" directly');
         return true;
       }
 
-      logger.debug('Direct "Salva e chiudi" not found, trying "Salvare" dropdown...');
+      logger.debug(
+        'Direct "Salva e chiudi" not found, trying "Salvare" dropdown...',
+      );
 
       const dropdownOpened = await this.page!.evaluate(() => {
         const allElements = Array.from(
@@ -6832,9 +7153,7 @@ export class ArchibaldBot {
           return true;
         }
 
-        const arrow = parent.querySelector(
-          'img[id*="_B-1"], img[alt*="down"]',
-        );
+        const arrow = parent.querySelector('img[id*="_B-1"], img[alt*="down"]');
         if (arrow) {
           (arrow as HTMLElement).click();
           return true;
@@ -6846,8 +7165,13 @@ export class ArchibaldBot {
 
       if (!dropdownOpened) {
         const byId = await this.page!.evaluate(() => {
-          const el = document.querySelector("#Vertical_mainMenu_Menu_DXI1i1_T") as HTMLElement;
-          if (el) { el.click(); return true; }
+          const el = document.querySelector(
+            "#Vertical_mainMenu_Menu_DXI1i1_T",
+          ) as HTMLElement;
+          if (el) {
+            el.click();
+            return true;
+          }
           return false;
         });
         return byId;
@@ -6890,7 +7214,9 @@ export class ArchibaldBot {
       }
 
       // Try "Ignore warnings" button/link in DevExpress popup
-      const allClickable = Array.from(document.querySelectorAll("a, span, button, div, td"));
+      const allClickable = Array.from(
+        document.querySelectorAll("a, span, button, div, td"),
+      );
       for (const el of allClickable) {
         const text = (el as HTMLElement).textContent?.trim();
         if (text === "Ignore warnings" || text === "Ignora avvisi") {
@@ -6903,7 +7229,9 @@ export class ArchibaldBot {
     });
 
     if (warningFound) {
-      logger.info("Warning acknowledged via " + warningFound + ", saving again");
+      logger.info(
+        "Warning acknowledged via " + warningFound + ", saving again",
+      );
       await this.waitForDevExpressIdle({ timeout: 3000, label: "warning-ack" });
 
       // After clicking "Ignore warnings" button, the form may auto-save
@@ -6915,12 +7243,17 @@ export class ArchibaldBot {
       if (!alreadyClosed) {
         const savedAgain = await saveAttempt();
         if (!savedAgain) {
-          logger.warn("Second save attempt failed, trying direct click fallback");
+          logger.warn(
+            "Second save attempt failed, trying direct click fallback",
+          );
           await this.clickElementByText("Salva e chiudi", {
             selectors: ["a", "span", "button", "li"],
           });
         }
-        await this.waitForDevExpressIdle({ timeout: 8000, label: "save-customer-2" });
+        await this.waitForDevExpressIdle({
+          timeout: 8000,
+          label: "save-customer-2",
+        });
       }
     }
 
@@ -6942,7 +7275,9 @@ export class ArchibaldBot {
 
       const lateWarning = await this.page.evaluate(() => {
         // Try checkbox (any ErrorInfo variant)
-        const checkboxes = Array.from(document.querySelectorAll('input[id*="ErrorInfo"]'));
+        const checkboxes = Array.from(
+          document.querySelectorAll('input[id*="ErrorInfo"]'),
+        );
         for (const cb of checkboxes) {
           const input = cb as HTMLInputElement;
           if (input.type === "checkbox" && !input.checked) {
@@ -6972,8 +7307,13 @@ export class ArchibaldBot {
       });
 
       if (lateWarning) {
-        logger.info("Late warning acknowledged via " + lateWarning + ", saving again");
-        await this.waitForDevExpressIdle({ timeout: 3000, label: "late-warning-ack" });
+        logger.info(
+          "Late warning acknowledged via " + lateWarning + ", saving again",
+        );
+        await this.waitForDevExpressIdle({
+          timeout: 3000,
+          label: "late-warning-ack",
+        });
 
         const alreadyClosed = await this.page.evaluate(
           () => !window.location.href.includes("DetailView"),
@@ -6986,7 +7326,10 @@ export class ArchibaldBot {
               selectors: ["a", "span", "button", "li"],
             });
           }
-          await this.waitForDevExpressIdle({ timeout: 8000, label: "save-customer-3" });
+          await this.waitForDevExpressIdle({
+            timeout: 8000,
+            label: "save-customer-3",
+          });
         }
 
         // Final form-closed check
@@ -7010,26 +7353,35 @@ export class ArchibaldBot {
           const text = row?.textContent?.trim();
           if (text) errorTexts.push(text);
         });
-        document.querySelectorAll(".dxpc-content, .dxpc-contentWrapper").forEach((el) => {
-          const htmlEl = el as HTMLElement;
-          if (htmlEl.offsetParent !== null && htmlEl.textContent?.trim()) {
-            errorTexts.push(htmlEl.textContent.trim());
-          }
-        });
-        document.querySelectorAll('[role="alert"], [role="alertdialog"], .dxeErrorCell').forEach((el) => {
-          const htmlEl = el as HTMLElement;
-          if (htmlEl.offsetParent !== null && htmlEl.textContent?.trim()) {
-            errorTexts.push(htmlEl.textContent.trim());
-          }
-        });
+        document
+          .querySelectorAll(".dxpc-content, .dxpc-contentWrapper")
+          .forEach((el) => {
+            const htmlEl = el as HTMLElement;
+            if (htmlEl.offsetParent !== null && htmlEl.textContent?.trim()) {
+              errorTexts.push(htmlEl.textContent.trim());
+            }
+          });
+        document
+          .querySelectorAll(
+            '[role="alert"], [role="alertdialog"], .dxeErrorCell',
+          )
+          .forEach((el) => {
+            const htmlEl = el as HTMLElement;
+            if (htmlEl.offsetParent !== null && htmlEl.textContent?.trim()) {
+              errorTexts.push(htmlEl.textContent.trim());
+            }
+          });
         return errorTexts;
       });
 
-      const errorDetail = pageErrors.length > 0
-        ? pageErrors.join("; ").substring(0, 500)
-        : "errore di validazione non rilevato";
+      const errorDetail =
+        pageErrors.length > 0
+          ? pageErrors.join("; ").substring(0, 500)
+          : "errore di validazione non rilevato";
 
-      logger.error("Save failed: form did not close after save", { pageErrors });
+      logger.error("Save failed: form did not close after save", {
+        pageErrors,
+      });
 
       throw new Error(
         `Salvataggio fallito: il form non si è chiuso. Dettaglio: ${errorDetail}`,
@@ -7052,37 +7404,38 @@ export class ArchibaldBot {
     });
 
     await this.openCustomerTab("Indirizzo alt");
-    await this.waitForDevExpressIdle({ timeout: 5000, label: "tab-indirizzo-alt" });
+    await this.waitForDevExpressIdle({
+      timeout: 5000,
+      label: "tab-indirizzo-alt",
+    });
 
     const altGridName = await this.page.evaluate(() => {
       const w = window as any;
       if (!w.ASPxClientControl?.GetControlCollection) return "";
       let found = "";
-      w.ASPxClientControl.GetControlCollection().ForEachControl(
-        (c: any) => {
-          if (typeof c?.GetGridView === "function") {
-            const gv = c.GetGridView?.();
-            const name = gv?.GetName?.() || c.GetName?.() || "";
-            if (
-              name.includes("LOGISTICS") ||
-              name.includes("Address") ||
-              name.includes("address")
-            ) {
-              found = c.GetName?.() || "";
-            }
-          }
-          const cName = c?.name || c?.GetName?.() || "";
+      w.ASPxClientControl.GetControlCollection().ForEachControl((c: any) => {
+        if (typeof c?.GetGridView === "function") {
+          const gv = c.GetGridView?.();
+          const name = gv?.GetName?.() || c.GetName?.() || "";
           if (
-            cName.includes("LOGISTICS") ||
-            cName.includes("Address") ||
-            cName.includes("address")
+            name.includes("LOGISTICS") ||
+            name.includes("Address") ||
+            name.includes("address")
           ) {
-            if (typeof c?.AddNewRow === "function") {
-              found = cName;
-            }
+            found = c.GetName?.() || "";
           }
-        },
-      );
+        }
+        const cName = c?.name || c?.GetName?.() || "";
+        if (
+          cName.includes("LOGISTICS") ||
+          cName.includes("Address") ||
+          cName.includes("address")
+        ) {
+          if (typeof c?.AddNewRow === "function") {
+            found = cName;
+          }
+        }
+      });
       return found;
     });
 
@@ -7091,7 +7444,8 @@ export class ArchibaldBot {
     if (altGridName) {
       await this.page.evaluate((name: string) => {
         const w = window as any;
-        const grid = w.ASPxClientControl?.GetControlCollection?.()?.GetByName?.(name);
+        const grid =
+          w.ASPxClientControl?.GetControlCollection?.()?.GetByName?.(name);
         if (grid) grid.AddNewRow();
       }, altGridName);
     } else {
@@ -7100,7 +7454,9 @@ export class ArchibaldBot {
           document.querySelectorAll('a[data-args*="AddNew"]'),
         ).filter((node) => {
           const el = node as HTMLElement;
-          return el.offsetParent !== null && el.getBoundingClientRect().width > 0;
+          return (
+            el.offsetParent !== null && el.getBoundingClientRect().width > 0
+          );
         }) as HTMLElement[];
         if (candidates.length > 0) {
           candidates[0].click();
@@ -7113,7 +7469,10 @@ export class ArchibaldBot {
       }
     }
 
-    await this.waitForDevExpressIdle({ timeout: 8000, label: "address-addnew" });
+    await this.waitForDevExpressIdle({
+      timeout: 8000,
+      label: "address-addnew",
+    });
     logger.debug("New row added to address grid");
 
     const tipoSet = await this.page.evaluate(() => {
@@ -7125,14 +7484,19 @@ export class ArchibaldBot {
 
       const tipoInput = inputs.find((i) => {
         const id = i.id.toLowerCase();
-        return id.includes("type") || id.includes("tipo") || id.includes("addresstype");
+        return (
+          id.includes("type") ||
+          id.includes("tipo") ||
+          id.includes("addresstype")
+        );
       });
 
       if (tipoInput) {
         tipoInput.focus();
         tipoInput.click();
         const setter = Object.getOwnPropertyDescriptor(
-          HTMLInputElement.prototype, "value",
+          HTMLInputElement.prototype,
+          "value",
         )?.set;
         if (setter) setter.call(tipoInput, "Consegna");
         else tipoInput.value = "Consegna";
@@ -7147,7 +7511,8 @@ export class ArchibaldBot {
           inp.focus();
           inp.click();
           const setter = Object.getOwnPropertyDescriptor(
-            HTMLInputElement.prototype, "value",
+            HTMLInputElement.prototype,
+            "value",
           )?.set;
           if (setter) setter.call(inp, "Consegna");
           else inp.value = "Consegna";
@@ -7191,9 +7556,14 @@ export class ArchibaldBot {
 
       // The focused/active input should be VIA after the two Tabs
       const activeEl = document.activeElement as HTMLInputElement;
-      if (activeEl && activeEl.tagName === "INPUT" && editingRow.contains(activeEl)) {
+      if (
+        activeEl &&
+        activeEl.tagName === "INPUT" &&
+        editingRow.contains(activeEl)
+      ) {
         const setter = Object.getOwnPropertyDescriptor(
-          HTMLInputElement.prototype, "value",
+          HTMLInputElement.prototype,
+          "value",
         )?.set;
         if (setter) setter.call(activeEl, street);
         else activeEl.value = street;
@@ -7214,7 +7584,9 @@ export class ArchibaldBot {
 
     await this.page.keyboard.press("Tab");
     await this.waitForDevExpressIdle({ timeout: 3000, label: "street-set" });
-    logger.debug("Delivery street set, cursor should be on INDIRIZZO LOGISTICO CODICE POSTALE");
+    logger.debug(
+      "Delivery street set, cursor should be on INDIRIZZO LOGISTICO CODICE POSTALE",
+    );
 
     // CAP column is a lookup field — find the B0 (find) button in the editing row and use it
     logger.debug("Setting INDIRIZZO LOGISTICO CODICE POSTALE via lookup");
@@ -7222,16 +7594,22 @@ export class ArchibaldBot {
     const findBtnId = await this.page.evaluate(() => {
       const editingRow = document.querySelector('tr[class*="dxgvEditingRow"]');
       if (editingRow) {
-        const btns = Array.from(editingRow.querySelectorAll('td, img, button, a, div'))
-          .filter((el) => /LOGISTICSADDRESSZIPCODE.*_B0$|_find_Edit_B0$/.test(el.id));
+        const btns = Array.from(
+          editingRow.querySelectorAll("td, img, button, a, div"),
+        ).filter((el) =>
+          /LOGISTICSADDRESSZIPCODE.*_B0$|_find_Edit_B0$/.test(el.id),
+        );
         if (btns.length > 0) return btns[0].id;
       }
       // Fallback: search all visible B0 buttons near LOGISTICSADDRESSZIPCODE
-      const allBtns = Array.from(document.querySelectorAll('td, img, button, a, div'))
-        .filter((el) => {
-          const h = el as HTMLElement;
-          return h.offsetParent !== null && /LOGISTICSADDRESSZIPCODE.*_B0$/.test(el.id);
-        });
+      const allBtns = Array.from(
+        document.querySelectorAll("td, img, button, a, div"),
+      ).filter((el) => {
+        const h = el as HTMLElement;
+        return (
+          h.offsetParent !== null && /LOGISTICSADDRESSZIPCODE.*_B0$/.test(el.id)
+        );
+      });
       return allBtns.length > 0 ? allBtns[allBtns.length - 1].id : null;
     });
 
@@ -7244,11 +7622,16 @@ export class ArchibaldBot {
       );
     } else {
       // Fallback: try direct input if find button not found
-      logger.warn("CAP find button not found in editing row, trying direct input");
+      logger.warn(
+        "CAP find button not found in editing row, trying direct input",
+      );
       const activeEl = document.activeElement as HTMLInputElement | null;
       await this.page.keyboard.type(deliveryPostalCode, { delay: 20 });
       await this.page.keyboard.press("Tab");
-      await this.waitForDevExpressIdle({ timeout: 3000, label: "cap-set-direct" });
+      await this.waitForDevExpressIdle({
+        timeout: 3000,
+        label: "cap-set-direct",
+      });
     }
 
     logger.debug("Delivery postal code set, confirming row with UpdateEdit");
@@ -7256,7 +7639,8 @@ export class ArchibaldBot {
     if (altGridName) {
       await this.page.evaluate((name: string) => {
         const w = window as any;
-        const grid = w.ASPxClientControl?.GetControlCollection?.()?.GetByName?.(name);
+        const grid =
+          w.ASPxClientControl?.GetControlCollection?.()?.GetByName?.(name);
         if (grid) grid.UpdateEdit();
       }, altGridName);
     } else {
@@ -7265,7 +7649,9 @@ export class ArchibaldBot {
           document.querySelectorAll('a[data-args*="UpdateEdit"]'),
         ).filter((node) => {
           const el = node as HTMLElement;
-          return el.offsetParent !== null && el.getBoundingClientRect().width > 0;
+          return (
+            el.offsetParent !== null && el.getBoundingClientRect().width > 0
+          );
         }) as HTMLElement[];
         if (candidates.length > 0) {
           candidates[0].click();
@@ -7279,7 +7665,10 @@ export class ArchibaldBot {
       }
     }
 
-    await this.waitForDevExpressIdle({ timeout: 8000, label: "address-update-edit" });
+    await this.waitForDevExpressIdle({
+      timeout: 8000,
+      label: "address-update-edit",
+    });
     logger.info("Delivery address row confirmed");
   }
 
@@ -7327,7 +7716,10 @@ export class ArchibaldBot {
     }
 
     if (customerData.vatNumber) {
-      await this.setDevExpressField(/xaf_dviVATNUM_Edit_I$/, customerData.vatNumber);
+      await this.setDevExpressField(
+        /xaf_dviVATNUM_Edit_I$/,
+        customerData.vatNumber,
+      );
     }
 
     if (customerData.paymentTerms) {
@@ -7338,15 +7730,24 @@ export class ArchibaldBot {
     }
 
     if (customerData.pec) {
-      await this.setDevExpressField(/xaf_dviLEGALEMAIL_Edit_I$/, customerData.pec);
+      await this.setDevExpressField(
+        /xaf_dviLEGALEMAIL_Edit_I$/,
+        customerData.pec,
+      );
     }
 
     if (customerData.sdi) {
-      await this.setDevExpressField(/xaf_dviLEGALAUTHORITY_Edit_I$/, customerData.sdi);
+      await this.setDevExpressField(
+        /xaf_dviLEGALAUTHORITY_Edit_I$/,
+        customerData.sdi,
+      );
     }
 
     if (customerData.street) {
-      await this.setDevExpressField(/xaf_dviSTREET_Edit_I$/, customerData.street);
+      await this.setDevExpressField(
+        /xaf_dviSTREET_Edit_I$/,
+        customerData.street,
+      );
     }
 
     await this.emitProgress("customer.field");
@@ -7415,7 +7816,10 @@ export class ArchibaldBot {
   private async getCustomerProfileId(): Promise<string> {
     if (!this.page) throw new Error("Browser page is null");
 
-    await this.waitForDevExpressIdle({ timeout: 5000, label: "get-profile-id" });
+    await this.waitForDevExpressIdle({
+      timeout: 5000,
+      label: "get-profile-id",
+    });
 
     const profileId = await this.page.evaluate(() => {
       const inputs = Array.from(document.querySelectorAll("input"));
@@ -7439,12 +7843,15 @@ export class ArchibaldBot {
   private async updateCustomerName(newName: string): Promise<void> {
     if (!this.page) throw new Error("Browser page is null");
 
-    logger.info("updateCustomerName: clearing NOME DI RICERCA and setting NOME", { newName });
+    logger.info(
+      "updateCustomerName: clearing NOME DI RICERCA and setting NOME",
+      { newName },
+    );
 
     const searchNameCleared = await this.page.evaluate(() => {
       const inputs = Array.from(document.querySelectorAll("input"));
-      const searchNameInput = inputs.find(
-        (i) => /SEARCHNAME.*_Edit_I$|NAMEALIAS.*_Edit_I$/.test(i.id),
+      const searchNameInput = inputs.find((i) =>
+        /SEARCHNAME.*_Edit_I$|NAMEALIAS.*_Edit_I$/.test(i.id),
       ) as HTMLInputElement | null;
 
       if (!searchNameInput) {
@@ -7467,7 +7874,11 @@ export class ArchibaldBot {
             else candidate.value = "";
             candidate.dispatchEvent(new Event("input", { bubbles: true }));
             candidate.dispatchEvent(new Event("change", { bubbles: true }));
-            return { cleared: true, id: candidate.id, method: "fallback-next-input" };
+            return {
+              cleared: true,
+              id: candidate.id,
+              method: "fallback-next-input",
+            };
           }
         }
         return { cleared: false, id: "", method: "not-found" };
@@ -7489,10 +7900,15 @@ export class ArchibaldBot {
 
     if (searchNameCleared.cleared) {
       await this.page.keyboard.press("Tab");
-      await this.waitForDevExpressIdle({ timeout: 5000, label: "clear-searchname" });
+      await this.waitForDevExpressIdle({
+        timeout: 5000,
+        label: "clear-searchname",
+      });
       logger.debug("NOME DI RICERCA cleared", searchNameCleared);
     } else {
-      logger.warn("NOME DI RICERCA field not found, proceeding without clearing");
+      logger.warn(
+        "NOME DI RICERCA field not found, proceeding without clearing",
+      );
     }
 
     await this.setDevExpressField(/xaf_dviNAME_Edit_I$/, newName + ".");
@@ -7500,7 +7916,10 @@ export class ArchibaldBot {
       (document.activeElement as HTMLElement)?.blur();
       document.body.click();
     });
-    await this.waitForDevExpressIdle({ timeout: 5000, label: "name-blur-autoupdate" });
+    await this.waitForDevExpressIdle({
+      timeout: 5000,
+      label: "name-blur-autoupdate",
+    });
 
     await this.setDevExpressField(/xaf_dviNAME_Edit_I$/, newName);
 
@@ -7515,8 +7934,14 @@ export class ArchibaldBot {
     if (!this.page) throw new Error("Browser page is null");
 
     const searchName = originalName || customerData.name;
-    const fallbackName = searchName !== customerData.name ? customerData.name : null;
-    logger.info("Updating customer", { customerProfile, searchName, fallbackName, newName: customerData.name });
+    const fallbackName =
+      searchName !== customerData.name ? customerData.name : null;
+    logger.info("Updating customer", {
+      customerProfile,
+      searchName,
+      fallbackName,
+      newName: customerData.name,
+    });
 
     await this.page.goto(`${config.archibald.url}/CUSTTABLE_ListView_Agent/`, {
       waitUntil: "networkidle2",
@@ -7531,36 +7956,45 @@ export class ArchibaldBot {
 
     await this.emitProgress("customer.navigation");
 
-    const searchAndFindCustomer = async (nameToSearch: string): Promise<{ found: boolean; reason: string; rowCount: number; rowNames?: string[] }> => {
+    const searchAndFindCustomer = async (
+      nameToSearch: string,
+    ): Promise<{
+      found: boolean;
+      reason: string;
+      rowCount: number;
+      rowNames?: string[];
+    }> => {
       // Fill search field
-      const fieldId = await this.page!.evaluate(
-        (name: string) => {
-          const inputs = Array.from(document.querySelectorAll("input"));
-          const searchInput = inputs.find((i) =>
-            /SearchAC.*Ed_I$/.test(i.id),
-          ) as HTMLInputElement | null;
-          if (!searchInput) return null;
+      const fieldId = await this.page!.evaluate((name: string) => {
+        const inputs = Array.from(document.querySelectorAll("input"));
+        const searchInput = inputs.find((i) =>
+          /SearchAC.*Ed_I$/.test(i.id),
+        ) as HTMLInputElement | null;
+        if (!searchInput) return null;
 
-          searchInput.scrollIntoView({ block: "center" });
-          searchInput.focus();
-          searchInput.click();
-          const setter = Object.getOwnPropertyDescriptor(
-            HTMLInputElement.prototype, "value",
-          )?.set;
-          if (setter) setter.call(searchInput, name);
-          else searchInput.value = name;
-          searchInput.dispatchEvent(new Event("input", { bubbles: true }));
-          searchInput.dispatchEvent(new Event("change", { bubbles: true }));
-          return searchInput.id;
-        },
-        nameToSearch,
-      );
+        searchInput.scrollIntoView({ block: "center" });
+        searchInput.focus();
+        searchInput.click();
+        const setter = Object.getOwnPropertyDescriptor(
+          HTMLInputElement.prototype,
+          "value",
+        )?.set;
+        if (setter) setter.call(searchInput, name);
+        else searchInput.value = name;
+        searchInput.dispatchEvent(new Event("input", { bubbles: true }));
+        searchInput.dispatchEvent(new Event("change", { bubbles: true }));
+        return searchInput.id;
+      }, nameToSearch);
 
       if (!fieldId) throw new Error("Search input not found");
 
       // Try clicking the search/find button if present, otherwise press Enter
       const searchBtnClicked = await this.page!.evaluate(() => {
-        const btns = Array.from(document.querySelectorAll('img[id*="Search"], td[id*="Search"][id*="_B0"], div[id*="Search"][id*="_B"]'));
+        const btns = Array.from(
+          document.querySelectorAll(
+            'img[id*="Search"], td[id*="Search"][id*="_B0"], div[id*="Search"][id*="_B"]',
+          ),
+        );
         for (const btn of btns) {
           if ((btn as HTMLElement).offsetParent !== null) {
             (btn as HTMLElement).click();
@@ -7575,70 +8009,97 @@ export class ArchibaldBot {
       }
 
       await this.wait(1000);
-      await this.waitForDevExpressIdle({ timeout: 15000, label: "customer-search" });
+      await this.waitForDevExpressIdle({
+        timeout: 15000,
+        label: "customer-search",
+      });
       await this.wait(500);
 
-      logger.info("Customer search completed", { nameToSearch, searchBtnClicked });
+      logger.info("Customer search completed", {
+        nameToSearch,
+        searchBtnClicked,
+      });
 
       // Find exact match in filtered results and click Edit
-      const result = await this.page!.evaluate(
-        (targetName: string) => {
-          const nameLower = targetName.trim().toLowerCase();
-          const rows = Array.from(
-            document.querySelectorAll('tr[class*="dxgvDataRow"]'),
-          ).filter((r) => (r as HTMLElement).offsetParent !== null);
+      const result = await this.page!.evaluate((targetName: string) => {
+        const nameLower = targetName.trim().toLowerCase();
+        const rows = Array.from(
+          document.querySelectorAll('tr[class*="dxgvDataRow"]'),
+        ).filter((r) => (r as HTMLElement).offsetParent !== null);
 
-          if (rows.length === 0) return { found: false, reason: "no-rows", rowCount: 0 };
+        if (rows.length === 0)
+          return { found: false, reason: "no-rows", rowCount: 0 };
 
-          const getCellTexts = (row: Element): string[] => {
-            return Array.from(row.querySelectorAll("td")).map((c) => {
+        const getCellTexts = (row: Element): string[] => {
+          return Array.from(row.querySelectorAll("td"))
+            .map((c) => {
               const clone = c.cloneNode(true) as HTMLElement;
-              clone.querySelectorAll("script, style").forEach((s) => s.remove());
-              return (clone.innerText || clone.textContent || "").replace(/\s+/g, " ").trim().toLowerCase();
-            }).filter(Boolean);
-          };
+              clone
+                .querySelectorAll("script, style")
+                .forEach((s) => s.remove());
+              return (clone.innerText || clone.textContent || "")
+                .replace(/\s+/g, " ")
+                .trim()
+                .toLowerCase();
+            })
+            .filter(Boolean);
+        };
 
-          for (const row of rows) {
-            const cellTexts = getCellTexts(row);
-            if (cellTexts.some((t) => t === nameLower)) {
-              const editBtn = row.querySelector('img[title="Modifica"], a[data-args*="Edit"]');
-              if (editBtn) {
-                const target = editBtn.tagName === "IMG"
+        for (const row of rows) {
+          const cellTexts = getCellTexts(row);
+          if (cellTexts.some((t) => t === nameLower)) {
+            const editBtn = row.querySelector(
+              'img[title="Modifica"], a[data-args*="Edit"]',
+            );
+            if (editBtn) {
+              const target =
+                editBtn.tagName === "IMG"
                   ? editBtn.closest("a") || editBtn
                   : editBtn;
-                (target as HTMLElement).click();
-                return { found: true, reason: "exact-match", rowCount: rows.length };
-              }
+              (target as HTMLElement).click();
+              return {
+                found: true,
+                reason: "exact-match",
+                rowCount: rows.length,
+              };
             }
           }
+        }
 
-          for (const row of rows) {
-            const cellTexts = getCellTexts(row);
-            if (cellTexts.some((t) => t.includes(nameLower))) {
-              const editBtn = row.querySelector('img[title="Modifica"], a[data-args*="Edit"]');
-              if (editBtn) {
-                const target = editBtn.tagName === "IMG"
+        for (const row of rows) {
+          const cellTexts = getCellTexts(row);
+          if (cellTexts.some((t) => t.includes(nameLower))) {
+            const editBtn = row.querySelector(
+              'img[title="Modifica"], a[data-args*="Edit"]',
+            );
+            if (editBtn) {
+              const target =
+                editBtn.tagName === "IMG"
                   ? editBtn.closest("a") || editBtn
                   : editBtn;
-                (target as HTMLElement).click();
-                return { found: true, reason: "contains-match", rowCount: rows.length };
-              }
+              (target as HTMLElement).click();
+              return {
+                found: true,
+                reason: "contains-match",
+                rowCount: rows.length,
+              };
             }
           }
+        }
 
-          const sampleTexts = rows.slice(0, 5).map((r) =>
-            getCellTexts(r).filter((t) => t.length > 0 && t.length < 100).join(" | "),
-          );
+        const sampleTexts = rows.slice(0, 5).map((r) =>
+          getCellTexts(r)
+            .filter((t) => t.length > 0 && t.length < 100)
+            .join(" | "),
+        );
 
-          return {
-            found: false,
-            reason: "no-match",
-            rowCount: rows.length,
-            rowNames: sampleTexts,
-          };
-        },
-        nameToSearch,
-      );
+        return {
+          found: false,
+          reason: "no-match",
+          rowCount: rows.length,
+          rowNames: sampleTexts,
+        };
+      }, nameToSearch);
 
       return result;
     };
@@ -7649,11 +8110,16 @@ export class ArchibaldBot {
 
     // Fallback 1: if not found and we have an alternative name, retry with new name
     if (!editResult.found && fallbackName) {
-      logger.info("Primary search failed, retrying with new name", { fallbackName });
-      await this.page.goto(`${config.archibald.url}/CUSTTABLE_ListView_Agent/`, {
-        waitUntil: "networkidle2",
-        timeout: 60000,
+      logger.info("Primary search failed, retrying with new name", {
+        fallbackName,
       });
+      await this.page.goto(
+        `${config.archibald.url}/CUSTTABLE_ListView_Agent/`,
+        {
+          waitUntil: "networkidle2",
+          timeout: 60000,
+        },
+      );
       await this.waitForDevExpressReady({ timeout: 10000 });
       editResult = await searchAndFindCustomer(fallbackName);
       logger.info("Customer edit selection (fallback name)", editResult);
@@ -7661,11 +8127,16 @@ export class ArchibaldBot {
 
     // Fallback 2: search by customerProfile code
     if (!editResult.found) {
-      logger.info("Name searches failed, retrying with customerProfile", { customerProfile });
-      await this.page.goto(`${config.archibald.url}/CUSTTABLE_ListView_Agent/`, {
-        waitUntil: "networkidle2",
-        timeout: 60000,
+      logger.info("Name searches failed, retrying with customerProfile", {
+        customerProfile,
       });
+      await this.page.goto(
+        `${config.archibald.url}/CUSTTABLE_ListView_Agent/`,
+        {
+          waitUntil: "networkidle2",
+          timeout: 60000,
+        },
+      );
       await this.waitForDevExpressReady({ timeout: 10000 });
       editResult = await searchAndFindCustomer(customerProfile);
       logger.info("Customer edit selection (fallback profile)", editResult);
@@ -7674,7 +8145,9 @@ export class ArchibaldBot {
     await this.emitProgress("customer.search");
 
     if (!editResult.found) {
-      throw new Error(`Cliente "${searchName}"${fallbackName ? `, "${fallbackName}"` : ""} e profilo "${customerProfile}" non trovato nei risultati (${editResult.reason}, ${editResult.rowCount} righe)`);
+      throw new Error(
+        `Cliente "${searchName}"${fallbackName ? `, "${fallbackName}"` : ""} e profilo "${customerProfile}" non trovato nei risultati (${editResult.reason}, ${editResult.rowCount} righe)`,
+      );
     }
 
     await this.page.waitForFunction(
@@ -7699,7 +8172,10 @@ export class ArchibaldBot {
     }
 
     if (customerData.vatNumber) {
-      await this.setDevExpressField(/xaf_dviVATNUM_Edit_I$/, customerData.vatNumber);
+      await this.setDevExpressField(
+        /xaf_dviVATNUM_Edit_I$/,
+        customerData.vatNumber,
+      );
     }
 
     if (customerData.paymentTerms) {
@@ -7710,15 +8186,24 @@ export class ArchibaldBot {
     }
 
     if (customerData.pec) {
-      await this.setDevExpressField(/xaf_dviLEGALEMAIL_Edit_I$/, customerData.pec);
+      await this.setDevExpressField(
+        /xaf_dviLEGALEMAIL_Edit_I$/,
+        customerData.pec,
+      );
     }
 
     if (customerData.sdi) {
-      await this.setDevExpressField(/xaf_dviLEGALAUTHORITY_Edit_I$/, customerData.sdi);
+      await this.setDevExpressField(
+        /xaf_dviLEGALAUTHORITY_Edit_I$/,
+        customerData.sdi,
+      );
     }
 
     if (customerData.street) {
-      await this.setDevExpressField(/xaf_dviSTREET_Edit_I$/, customerData.street);
+      await this.setDevExpressField(
+        /xaf_dviSTREET_Edit_I$/,
+        customerData.street,
+      );
     }
 
     await this.emitProgress("customer.field");

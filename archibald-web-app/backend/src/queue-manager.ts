@@ -17,9 +17,7 @@ import { getProgressMilestone } from "./job-progress-mapper";
 import Database from "better-sqlite3";
 import path from "path";
 
-const ordersDb = new Database(
-  path.join(__dirname, "../data/orders-new.db"),
-);
+const ordersDb = new Database(path.join(__dirname, "../data/orders-new.db"));
 
 /**
  * Job data per la coda ordini
@@ -544,6 +542,24 @@ export class QueueManager {
           "order_creation",
         );
 
+        // Persist failure in SQLite so frontend can recover on refresh
+        try {
+          ordersDb
+            .prepare(
+              "UPDATE pending_orders SET status = ?, error_message = ?, updated_at = ? WHERE id = ?",
+            )
+            .run(
+              "error",
+              error instanceof Error ? error.message : String(error),
+              Date.now(),
+              pendingOrderId,
+            );
+        } catch (dbErr) {
+          logger.error("Failed to update pending order status", {
+            error: dbErr,
+          });
+        }
+
         logger.error("Errore durante creazione ordine", {
           error,
           jobId: job.id,
@@ -811,11 +827,7 @@ export class QueueManager {
       }
 
       if (state === "active") {
-        await job.moveToFailed(
-          new Error("Cancelled by admin"),
-          "0",
-          false,
-        );
+        await job.moveToFailed(new Error("Cancelled by admin"), "0", false);
       } else {
         await job.remove();
       }
