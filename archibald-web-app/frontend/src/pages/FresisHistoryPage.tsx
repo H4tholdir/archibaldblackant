@@ -1729,43 +1729,49 @@ export function FresisHistoryPage() {
                           )}
 
                           {/* Shipping & totals — always shown */}
-                          {(order.shippingCost ||
-                            order.shippingTax ||
-                            order.targetTotalWithVAT ||
-                            editing) && (
-                            <div
-                              style={{
-                                fontSize: "13px",
-                                color: "#374151",
-                                marginBottom: "8px",
-                                display: "flex",
-                                gap: "12px",
-                                flexWrap: "wrap",
-                              }}
-                            >
-                              {order.shippingCost !== undefined &&
-                                order.shippingCost > 0 && (
-                                  <span>
-                                    Spese: {formatCurrency(order.shippingCost)}
-                                  </span>
-                                )}
-                              {order.shippingTax !== undefined &&
-                                order.shippingTax > 0 && (
-                                  <span>
-                                    IVA: {formatCurrency(order.shippingTax)}
-                                  </span>
-                                )}
-                              <span style={{ fontWeight: 600 }}>
-                                Totale doc.:{" "}
-                                {formatCurrency(
-                                  editing
-                                    ? liveDocTotal
-                                    : (order.targetTotalWithVAT ??
-                                        liveDocTotal),
-                                )}
-                              </span>
-                            </div>
-                          )}
+                          <div
+                            style={{
+                              fontSize: "13px",
+                              color: "#374151",
+                              marginBottom: "8px",
+                              display: "flex",
+                              gap: "12px",
+                              flexWrap: "wrap",
+                              alignItems: "baseline",
+                            }}
+                          >
+                            {order.shippingCost !== undefined &&
+                              order.shippingCost > 0 && (
+                                <span>
+                                  Spese: {formatCurrency(order.shippingCost)}
+                                </span>
+                              )}
+                            {order.shippingTax !== undefined &&
+                              order.shippingTax > 0 && (
+                                <span>
+                                  IVA: {formatCurrency(order.shippingTax)}
+                                </span>
+                              )}
+                            <span style={{ fontWeight: 600 }}>
+                              Totale: {formatCurrency(liveDocTotal)}
+                            </span>
+                            {!editing &&
+                              order.targetTotalWithVAT !== undefined &&
+                              order.targetTotalWithVAT > 0 &&
+                              Math.abs(
+                                order.targetTotalWithVAT - liveDocTotal,
+                              ) > 0.01 && (
+                                <span
+                                  style={{
+                                    fontSize: "12px",
+                                    color: "#9ca3af",
+                                  }}
+                                >
+                                  (Arca:{" "}
+                                  {formatCurrency(order.targetTotalWithVAT)})
+                                </span>
+                              )}
+                          </div>
 
                           {/* Notes */}
                           {editing ? (
