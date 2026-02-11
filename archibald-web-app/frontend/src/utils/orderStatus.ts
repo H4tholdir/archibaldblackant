@@ -94,9 +94,7 @@ export function getOrderStatus(order: Order): OrderStatusStyle {
   }
 
   // Priority 2: Consegnato (delivery completed with date)
-  // Note: deliveryCompletedDate field will be added in Task #9
-  // For now, we check if there's a documented delivery completion
-  if ((order as any).deliveryCompletedDate) {
+  if (order.deliveryCompletedDate) {
     return ORDER_STATUS_STYLES.delivered;
   }
 

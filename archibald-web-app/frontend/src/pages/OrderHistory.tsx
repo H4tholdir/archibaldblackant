@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { OrderCardNew } from "../components/OrderCardNew";
 import { SendToMilanoModal } from "../components/SendToMilanoModal";
 import { SyncProgressModal } from "../components/SyncProgressModal";
@@ -8,21 +8,31 @@ import type { Order } from "../types/order";
 import { useSyncProgress } from "../hooks/useSyncProgress";
 import { toastService } from "../services/toast.service";
 import { fetchWithRetry } from "../utils/fetch-with-retry";
+import { customerService } from "../services/customers.service";
+import type { Customer } from "../db/schema";
 
 interface OrderFilters {
-  customer: string;
   dateFrom: string;
   dateTo: string;
-  status: string;
   quickFilters: Set<QuickFilterType>;
-  search: string; // Global search term
+  search: string;
 }
 
 type QuickFilterType =
   | "requiresAttention"
   | "editable"
   | "inTransit"
+  | "delivered"
   | "invoiced";
+
+type TimePreset =
+  | "today"
+  | "thisWeek"
+  | "thisMonth"
+  | "last3Months"
+  | "thisYear"
+  | "custom"
+  | null;
 
 interface OrderHistoryResponse {
   success: boolean;
@@ -33,6 +43,124 @@ interface OrderHistoryResponse {
   };
 }
 
+function getMonday(d: Date): Date {
+  const date = new Date(d);
+  const day = date.getDay();
+  const diff = date.getDate() - day + (day === 0 ? -6 : 1);
+  date.setDate(diff);
+  return date;
+}
+
+function formatDate(d: Date): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
+function matchesGlobalSearch(order: Order, query: string): boolean {
+  const lower = query.toLowerCase();
+
+  const topFields: (string | undefined | null)[] = [
+    order.orderNumber,
+    order.customerName,
+    order.customerProfileId,
+    order.orderDate,
+    order.date,
+    order.deliveryDate,
+    order.orderType,
+    order.salesOrigin,
+    order.total,
+    order.grossAmount,
+    order.discountPercent,
+    order.deliveryName,
+    order.deliveryAddress,
+    order.customerReference,
+    order.remainingSalesFinancial,
+    order.state,
+    order.status,
+    order.documentState,
+    order.transferStatus,
+    order.transferDate,
+    order.completionDate,
+    order.deliveryCompletedDate,
+  ];
+
+  for (const val of topFields) {
+    if (val && String(val).toLowerCase().includes(lower)) return true;
+  }
+
+  if (order.ddt) {
+    const ddtFields: (string | undefined | null)[] = [
+      order.ddt.trackingNumber,
+      order.ddt.trackingCourier,
+      order.ddt.ddtNumber,
+      order.ddt.ddtDeliveryDate,
+      order.ddt.ddtCustomerAccount,
+      order.ddt.orderId,
+      order.ddt.ddtSalesName,
+      order.ddt.ddtDeliveryName,
+      order.ddt.deliveryMethod,
+      order.ddt.deliveryTerms,
+      order.ddt.deliveryCity,
+      order.ddt.attentionTo,
+      order.ddt.deliveryAddress,
+      order.ddt.ddtTotal,
+      order.ddt.customerReference,
+      order.ddt.description,
+    ];
+    for (const val of ddtFields) {
+      if (val && String(val).toLowerCase().includes(lower)) return true;
+    }
+  }
+
+  if (order.tracking) {
+    if (
+      order.tracking.trackingNumber &&
+      order.tracking.trackingNumber.toLowerCase().includes(lower)
+    )
+      return true;
+    if (
+      order.tracking.trackingCourier &&
+      order.tracking.trackingCourier.toLowerCase().includes(lower)
+    )
+      return true;
+  }
+
+  const invoiceFields: (string | undefined | null)[] = [
+    order.invoiceNumber,
+    order.invoiceDate,
+    order.invoiceAmount,
+    order.invoiceCustomerAccount,
+    order.invoiceBillingName,
+    order.invoiceRemainingAmount,
+    order.invoiceTaxAmount,
+    order.invoiceLineDiscount,
+    order.invoiceTotalDiscount,
+    order.invoicePurchaseOrder,
+    order.invoiceDueDate,
+    order.invoiceSettledAmount,
+    order.invoiceLastPaymentId,
+    order.invoiceLastSettlementDate,
+  ];
+  for (const val of invoiceFields) {
+    if (val && String(val).toLowerCase().includes(lower)) return true;
+  }
+
+  if (order.items) {
+    for (const item of order.items) {
+      if (item.article && item.article.toLowerCase().includes(lower))
+        return true;
+      if (item.productName && item.productName.toLowerCase().includes(lower))
+        return true;
+      if (item.description && item.description.toLowerCase().includes(lower))
+        return true;
+    }
+  }
+
+  return false;
+}
+
 export function OrderHistory() {
   const { progress, reset: resetProgress } = useSyncProgress();
   const [orders, setOrders] = useState<Order[]>([]);
@@ -40,14 +168,11 @@ export function OrderHistory() {
   const [error, setError] = useState<string | null>(null);
   const [expandedOrderId, setExpandedOrderId] = useState<string | null>(null);
   const [filters, setFilters] = useState<OrderFilters>({
-    customer: "",
     dateFrom: "",
     dateTo: "",
-    status: "",
     quickFilters: new Set(),
     search: "",
   });
-  const [debouncedCustomer, setDebouncedCustomer] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [syncModalOpen, setSyncModalOpen] = useState(false);
   const [syncType] = useState<"sync" | "reset">("sync");
@@ -57,25 +182,82 @@ export function OrderHistory() {
   const [sendingToMilano, setSendingToMilano] = useState(false);
   const [legendOpen, setLegendOpen] = useState(false);
 
-  // Debounce customer search input (300ms)
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      setDebouncedCustomer(filters.customer);
-    }, 300);
+  // Customer autocomplete state
+  const [customerSearchQuery, setCustomerSearchQuery] = useState("");
+  const [customerResults, setCustomerResults] = useState<Customer[]>([]);
+  const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(
+    null,
+  );
+  const [searchingCustomer, setSearchingCustomer] = useState(false);
+  const [highlightedCustomerIndex, setHighlightedCustomerIndex] = useState(-1);
+  const [showCustomerDropdown, setShowCustomerDropdown] = useState(false);
 
-    return () => clearTimeout(timer);
-  }, [filters.customer]);
+  // Time presets
+  const [activeTimePreset, setActiveTimePreset] = useState<TimePreset>(null);
+
+  // Hide zero amount toggle
+  const [hideZeroAmount, setHideZeroAmount] = useState(true);
+
+  // Scroll state
+  const [filterBarVisible, setFilterBarVisible] = useState(true);
+  const [showScrollToTop, setShowScrollToTop] = useState(false);
+
+  // Refs
+  const customerDropdownRef = useRef<HTMLDivElement>(null);
+  const lastScrollY = useRef(0);
+  const filterBarRef = useRef<HTMLDivElement>(null);
 
   // Debounce global search input (300ms)
   useEffect(() => {
     const timer = setTimeout(() => {
       setDebouncedSearch(filters.search);
     }, 300);
-
     return () => clearTimeout(timer);
   }, [filters.search]);
 
-  // Fetch orders on mount and when filters change
+  // Scroll listener for filter bar collapse + scroll-to-top
+  useEffect(() => {
+    const handleScroll = () => {
+      const currentY = window.scrollY;
+      if (currentY > lastScrollY.current && currentY > 200) {
+        setFilterBarVisible(false);
+      } else if (currentY < lastScrollY.current) {
+        setFilterBarVisible(true);
+      }
+      setShowScrollToTop(currentY > 400);
+      lastScrollY.current = currentY;
+    };
+    window.addEventListener("scroll", handleScroll, { passive: true });
+    return () => window.removeEventListener("scroll", handleScroll);
+  }, []);
+
+  // Click outside customer dropdown
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (
+        customerDropdownRef.current &&
+        !customerDropdownRef.current.contains(e.target as Node)
+      ) {
+        setShowCustomerDropdown(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  // Scroll highlighted customer into view
+  useEffect(() => {
+    if (highlightedCustomerIndex < 0) return;
+    const dropdown = customerDropdownRef.current;
+    if (!dropdown) return;
+    const items = dropdown.querySelectorAll("[data-customer-item]");
+    const item = items[highlightedCustomerIndex] as HTMLElement | undefined;
+    if (item) {
+      item.scrollIntoView({ block: "nearest" });
+    }
+  }, [highlightedCustomerIndex]);
+
+  // Fetch orders
   const fetchOrders = useCallback(async () => {
     setLoading(true);
     setError(null);
@@ -88,13 +270,11 @@ export function OrderHistory() {
         return;
       }
 
-      // Build query params
       const params = new URLSearchParams();
-      if (debouncedCustomer) params.append("customer", debouncedCustomer);
-      if (debouncedSearch) params.append("search", debouncedSearch);
+      if (selectedCustomer?.name)
+        params.append("customer", selectedCustomer.name);
       if (filters.dateFrom) params.append("dateFrom", filters.dateFrom);
       if (filters.dateTo) params.append("dateTo", filters.dateTo);
-      if (filters.status) params.append("status", filters.status);
       params.append("limit", "100");
 
       const response = await fetchWithRetry(
@@ -127,38 +307,151 @@ export function OrderHistory() {
     } finally {
       setLoading(false);
     }
-  }, [
-    debouncedCustomer,
-    debouncedSearch,
-    filters.dateFrom,
-    filters.dateTo,
-    filters.status,
-  ]);
+  }, [selectedCustomer, filters.dateFrom, filters.dateTo]);
 
   useEffect(() => {
     fetchOrders();
   }, [fetchOrders]);
 
-  // Fetch order detail and state history when expanding
-  const handleToggle = (orderId: string) => {
-    if (expandedOrderId === orderId) {
-      // Collapse
-      setExpandedOrderId(null);
-    } else {
-      // Expand - all data already available from /api/orders/history
-      setExpandedOrderId(orderId);
+  // Customer search handler
+  const handleCustomerSearch = async (query: string) => {
+    setCustomerSearchQuery(query);
+    setHighlightedCustomerIndex(-1);
+    if (query.length < 2) {
+      setCustomerResults([]);
+      setShowCustomerDropdown(false);
+      return;
+    }
+
+    setSearchingCustomer(true);
+    setShowCustomerDropdown(true);
+    try {
+      const results = await customerService.searchCustomers(query);
+      setCustomerResults(results.slice(0, 10));
+    } catch (error) {
+      console.error("Customer search failed:", error);
+    } finally {
+      setSearchingCustomer(false);
     }
   };
 
+  const handleSelectCustomer = (customer: Customer) => {
+    setSelectedCustomer(customer);
+    setCustomerSearchQuery(customer.name);
+    setCustomerResults([]);
+    setShowCustomerDropdown(false);
+    setHighlightedCustomerIndex(-1);
+  };
+
+  const handleClearCustomer = () => {
+    setSelectedCustomer(null);
+    setCustomerSearchQuery("");
+    setCustomerResults([]);
+    setShowCustomerDropdown(false);
+    setHighlightedCustomerIndex(-1);
+  };
+
+  const handleCustomerKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (customerResults.length === 0) return;
+    switch (e.key) {
+      case "ArrowDown":
+        e.preventDefault();
+        setHighlightedCustomerIndex((prev) =>
+          prev < customerResults.length - 1 ? prev + 1 : prev,
+        );
+        break;
+      case "ArrowUp":
+        e.preventDefault();
+        setHighlightedCustomerIndex((prev) => (prev > 0 ? prev - 1 : 0));
+        break;
+      case "Enter":
+        e.preventDefault();
+        if (
+          highlightedCustomerIndex >= 0 &&
+          highlightedCustomerIndex < customerResults.length
+        ) {
+          handleSelectCustomer(customerResults[highlightedCustomerIndex]);
+        }
+        break;
+      case "Escape":
+        e.preventDefault();
+        setShowCustomerDropdown(false);
+        setHighlightedCustomerIndex(-1);
+        break;
+    }
+  };
+
+  // Time preset handler
+  const handleTimePreset = (preset: TimePreset) => {
+    setActiveTimePreset(preset);
+    const today = new Date();
+
+    switch (preset) {
+      case "today":
+        setFilters((prev) => ({
+          ...prev,
+          dateFrom: formatDate(today),
+          dateTo: formatDate(today),
+        }));
+        break;
+      case "thisWeek": {
+        const monday = getMonday(today);
+        setFilters((prev) => ({
+          ...prev,
+          dateFrom: formatDate(monday),
+          dateTo: formatDate(today),
+        }));
+        break;
+      }
+      case "thisMonth":
+        setFilters((prev) => ({
+          ...prev,
+          dateFrom: formatDate(
+            new Date(today.getFullYear(), today.getMonth(), 1),
+          ),
+          dateTo: formatDate(today),
+        }));
+        break;
+      case "last3Months": {
+        const threeMonthsAgo = new Date(today);
+        threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3);
+        setFilters((prev) => ({
+          ...prev,
+          dateFrom: formatDate(threeMonthsAgo),
+          dateTo: formatDate(today),
+        }));
+        break;
+      }
+      case "thisYear":
+        setFilters((prev) => ({
+          ...prev,
+          dateFrom: formatDate(new Date(today.getFullYear(), 0, 1)),
+          dateTo: formatDate(today),
+        }));
+        break;
+      case "custom":
+        break;
+      default:
+        break;
+    }
+  };
+
+  // Toggle order expansion
+  const handleToggle = (orderId: string) => {
+    setExpandedOrderId(expandedOrderId === orderId ? null : orderId);
+  };
+
+  // Clear all filters
   const handleClearFilters = () => {
     setFilters({
-      customer: "",
       dateFrom: "",
       dateTo: "",
-      status: "",
       quickFilters: new Set(),
       search: "",
     });
+    handleClearCustomer();
+    setActiveTimePreset(null);
+    setHideZeroAmount(true);
   };
 
   const handleSendToMilano = (orderId: string, customerName: string) => {
@@ -205,15 +498,12 @@ export function OrderHistory() {
         throw new Error(data.message || "Errore nell'invio a Milano");
       }
 
-      // Close modal
       setModalOpen(false);
       setModalOrderId(null);
       setModalCustomerName("");
 
-      // Reload orders to reflect new state
       await fetchOrders();
 
-      // Show success message
       toastService.success("Ordine inviato a Milano con successo!");
     } catch (err) {
       console.error("Error sending to Milano:", err);
@@ -226,34 +516,30 @@ export function OrderHistory() {
   };
 
   const handleEdit = (orderId: string) => {
-    // Navigate to OrderForm with orderId to edit
     window.location.href = `/order?orderId=${orderId}`;
   };
 
   // Apply quick filters client-side
-  const applyQuickFilters = (orders: Order[]): Order[] => {
-    if (filters.quickFilters.size === 0) return orders;
+  const applyQuickFilters = (ordersToFilter: Order[]): Order[] => {
+    if (filters.quickFilters.size === 0) return ordersToFilter;
 
-    return orders.filter((order) => {
+    return ordersToFilter.filter((order) => {
       for (const filterType of filters.quickFilters) {
         let matches = false;
 
         switch (filterType) {
           case "requiresAttention":
-            // IN ATTESA DI APPROVAZIONE or TRANSFER ERROR
             matches =
               order.state === "IN ATTESA DI APPROVAZIONE" ||
               order.state === "TRANSFER ERROR";
             break;
 
           case "editable":
-            // GIORNALE + MODIFICA
             matches =
               order.orderType === "GIORNALE" && order.state === "MODIFICA";
             break;
 
           case "inTransit":
-            // ORDINE DI VENDITA + CONSEGNATO + TRASFERITO without deliveryCompletedDate
             matches =
               (order.orderType === "ORDINE DI VENDITA" ||
                 order.status === "CONSEGNATO") &&
@@ -261,36 +547,118 @@ export function OrderHistory() {
               !order.deliveryCompletedDate;
             break;
 
+          case "delivered":
+            matches = !!order.deliveryCompletedDate;
+            break;
+
           case "invoiced":
-            // With invoice number
             matches = !!order.invoiceNumber;
             break;
         }
 
-        if (!matches) return false; // AND logic: all filters must match
+        if (!matches) return false;
       }
 
       return true;
     });
   };
 
-  const filteredOrders = applyQuickFilters(orders);
+  // Filtering pipeline: hideZeroAmount → quick filters → global search
+  let result = orders;
+  if (hideZeroAmount) {
+    result = result.filter((o) => {
+      const t = parseFloat(
+        String(o.total)
+          .replace(/[^\d.,-]/g, "")
+          .replace(",", "."),
+      );
+      return isNaN(t) || t !== 0;
+    });
+  }
+
+  // Orders after hideZero, used for chip counts
+  const ordersForCounts = result;
+
+  result = applyQuickFilters(result);
+  if (debouncedSearch) {
+    result = result.filter((o) => matchesGlobalSearch(o, debouncedSearch));
+  }
+  const filteredOrders = result;
 
   const hasActiveFilters =
-    filters.customer ||
-    filters.dateFrom ||
-    filters.dateTo ||
-    filters.status ||
+    selectedCustomer !== null ||
+    filters.dateFrom !== "" ||
+    filters.dateTo !== "" ||
     filters.quickFilters.size > 0 ||
-    filters.search;
+    filters.search !== "" ||
+    !hideZeroAmount;
 
-  // Group orders by period
   const orderGroups = groupOrdersByPeriod(filteredOrders);
 
-  // Get merged order data (base order as-is since we removed orderDetails state)
-  const getMergedOrder = (order: Order): Order => {
-    return order;
-  };
+  // Quick filter definitions
+  const quickFilterDefs: {
+    id: QuickFilterType;
+    label: string;
+    color: string;
+    bgColor: string;
+    count: number;
+  }[] = [
+    {
+      id: "requiresAttention",
+      label: "\u26a0\ufe0f Richiede attenzione",
+      color: "#F44336",
+      bgColor: "#FFEBEE",
+      count: ordersForCounts.filter(
+        (o) =>
+          o.state === "IN ATTESA DI APPROVAZIONE" ||
+          o.state === "TRANSFER ERROR",
+      ).length,
+    },
+    {
+      id: "editable",
+      label: "\u270f\ufe0f Modificabili",
+      color: "#757575",
+      bgColor: "#F5F5F5",
+      count: ordersForCounts.filter(
+        (o) => o.orderType === "GIORNALE" && o.state === "MODIFICA",
+      ).length,
+    },
+    {
+      id: "inTransit",
+      label: "\ud83d\ude9a In transito",
+      color: "#2196F3",
+      bgColor: "#E3F2FD",
+      count: ordersForCounts.filter(
+        (o) =>
+          (o.orderType === "ORDINE DI VENDITA" || o.status === "CONSEGNATO") &&
+          (o.tracking?.trackingNumber || o.ddt?.trackingNumber) &&
+          !o.deliveryCompletedDate,
+      ).length,
+    },
+    {
+      id: "delivered",
+      label: "\ud83d\udce6 Consegnati",
+      color: "#4CAF50",
+      bgColor: "#E8F5E9",
+      count: ordersForCounts.filter((o) => !!o.deliveryCompletedDate).length,
+    },
+    {
+      id: "invoiced",
+      label: "\ud83d\udcd1 Fatturati",
+      color: "#9C27B0",
+      bgColor: "#F3E5F5",
+      count: ordersForCounts.filter((o) => !!o.invoiceNumber).length,
+    },
+  ];
+
+  const timePresets: { id: TimePreset; label: string }[] = [
+    { id: "today", label: "Oggi" },
+    { id: "thisWeek", label: "Questa sett." },
+    { id: "thisMonth", label: "Questo mese" },
+    { id: "last3Months", label: "Ultimi 3 mesi" },
+    { id: "thisYear", label: "Quest'anno" },
+    { id: "custom", label: "Personalizzato" },
+  ];
 
   return (
     <div
@@ -322,7 +690,7 @@ export function OrderHistory() {
               marginBottom: "8px",
             }}
           >
-            📦 Ordini
+            {"\ud83d\udce6"} Ordini
           </h1>
           <p style={{ fontSize: "16px", color: "#666" }}>
             Consulta lo storico dei tuoi ordini e il loro stato
@@ -353,30 +721,254 @@ export function OrderHistory() {
             e.currentTarget.style.color = "#1976d2";
           }}
         >
-          ℹ️ Leggi gli stati
+          {"\u2139\ufe0f"} Leggi gli stati
         </button>
       </div>
 
-      {/* Filters */}
+      {/* Filter bar */}
       <div
+        ref={filterBarRef}
         style={{
           backgroundColor: "#fff",
           borderRadius: "12px",
           padding: "20px",
           marginBottom: "24px",
           boxShadow: "0 2px 8px rgba(0, 0, 0, 0.1)",
+          position: "sticky",
+          top: 0,
+          zIndex: 100,
+          transform: filterBarVisible ? "translateY(0)" : "translateY(-110%)",
+          opacity: filterBarVisible ? 1 : 0,
+          transition: "transform 0.3s ease, opacity 0.3s ease",
         }}
       >
+        {/* Row 1: Customer search + Global search */}
         <div
           style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))",
+            display: "flex",
             gap: "16px",
             marginBottom: "16px",
+            flexWrap: "wrap",
           }}
         >
+          {/* Customer search */}
+          <div
+            ref={customerDropdownRef}
+            style={{ flex: "1 1 45%", minWidth: "250px", position: "relative" }}
+          >
+            <label
+              htmlFor="customer-search"
+              style={{
+                display: "block",
+                fontSize: "14px",
+                fontWeight: 600,
+                color: "#333",
+                marginBottom: "8px",
+              }}
+            >
+              {"\ud83d\udc64"} Cliente
+            </label>
+            {selectedCustomer ? (
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "8px",
+                  padding: "8px 12px",
+                  backgroundColor: "#E8F5E9",
+                  border: "1px solid #4CAF50",
+                  borderRadius: "8px",
+                }}
+              >
+                <span style={{ fontWeight: 600, color: "#2E7D32", flex: 1 }}>
+                  {selectedCustomer.name}
+                </span>
+                {selectedCustomer.code && (
+                  <span style={{ color: "#666", fontSize: "12px" }}>
+                    {selectedCustomer.code}
+                  </span>
+                )}
+                <button
+                  onClick={handleClearCustomer}
+                  style={{
+                    background: "none",
+                    border: "none",
+                    cursor: "pointer",
+                    fontSize: "16px",
+                    color: "#666",
+                    padding: "2px 6px",
+                    borderRadius: "4px",
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.backgroundColor = "#C8E6C9";
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.backgroundColor = "transparent";
+                  }}
+                >
+                  {"\u2715"}
+                </button>
+              </div>
+            ) : (
+              <>
+                <input
+                  id="customer-search"
+                  type="text"
+                  placeholder="Cerca cliente per nome, P.IVA, citta\u0300, CAP..."
+                  value={customerSearchQuery}
+                  onChange={(e) => handleCustomerSearch(e.target.value)}
+                  onKeyDown={handleCustomerKeyDown}
+                  onFocus={() => {
+                    if (customerResults.length > 0)
+                      setShowCustomerDropdown(true);
+                  }}
+                  autoComplete="off"
+                  style={{
+                    width: "100%",
+                    padding: "10px 12px",
+                    fontSize: "14px",
+                    border: "1px solid #ddd",
+                    borderRadius: "8px",
+                    outline: "none",
+                    transition: "border-color 0.2s",
+                    boxSizing: "border-box",
+                  }}
+                />
+                {searchingCustomer && (
+                  <div
+                    style={{
+                      fontSize: "12px",
+                      color: "#999",
+                      marginTop: "4px",
+                    }}
+                  >
+                    Ricerca...
+                  </div>
+                )}
+                {showCustomerDropdown && customerResults.length > 0 && (
+                  <div
+                    style={{
+                      position: "absolute",
+                      top: "100%",
+                      left: 0,
+                      right: 0,
+                      zIndex: 1000,
+                      backgroundColor: "#fff",
+                      border: "1px solid #ddd",
+                      borderRadius: "8px",
+                      maxHeight: "300px",
+                      overflowY: "auto",
+                      boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
+                    }}
+                  >
+                    {customerResults.map((customer, index) => (
+                      <div
+                        key={customer.id}
+                        data-customer-item
+                        onClick={() => handleSelectCustomer(customer)}
+                        onMouseEnter={() => setHighlightedCustomerIndex(index)}
+                        style={{
+                          padding: "10px 12px",
+                          cursor: "pointer",
+                          borderBottom:
+                            index < customerResults.length - 1
+                              ? "1px solid #f3f4f6"
+                              : "none",
+                          backgroundColor:
+                            index === highlightedCustomerIndex
+                              ? "#E3F2FD"
+                              : "#fff",
+                          transition: "background-color 0.1s",
+                        }}
+                      >
+                        <div
+                          style={{
+                            display: "flex",
+                            justifyContent: "space-between",
+                            alignItems: "baseline",
+                          }}
+                        >
+                          <strong style={{ fontSize: "14px" }}>
+                            {customer.name}
+                          </strong>
+                          {customer.code && (
+                            <span
+                              style={{
+                                marginLeft: "8px",
+                                color: "#6b7280",
+                                fontSize: "12px",
+                                flexShrink: 0,
+                              }}
+                            >
+                              {customer.code}
+                            </span>
+                          )}
+                        </div>
+                        <div
+                          style={{
+                            fontSize: "12px",
+                            color: "#6b7280",
+                            marginTop: "2px",
+                          }}
+                        >
+                          {customer.taxCode && (
+                            <span
+                              style={{
+                                fontWeight: 600,
+                                color: "#374151",
+                              }}
+                            >
+                              P.IVA: {customer.taxCode}
+                            </span>
+                          )}
+                          {(customer.address ||
+                            customer.cap ||
+                            customer.city) && (
+                            <span
+                              style={{
+                                marginLeft: customer.taxCode ? "8px" : 0,
+                              }}
+                            >
+                              {[
+                                customer.address,
+                                customer.cap,
+                                customer.city &&
+                                  `${customer.city}${customer.province ? ` (${customer.province})` : ""}`,
+                              ]
+                                .filter(Boolean)
+                                .join(", ")}
+                            </span>
+                          )}
+                          {customer.lastOrderDate &&
+                            customer.lastOrderDate >
+                              new Date(
+                                Date.now() - 30 * 24 * 60 * 60 * 1000,
+                              ).toISOString() && (
+                              <span
+                                style={{
+                                  marginLeft: "8px",
+                                  background: "#dcfce7",
+                                  color: "#166534",
+                                  padding: "1px 6px",
+                                  borderRadius: "4px",
+                                  fontSize: "11px",
+                                  fontWeight: 500,
+                                }}
+                              >
+                                Ordine recente
+                              </span>
+                            )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+
           {/* Global search */}
-          <div>
+          <div style={{ flex: "1 1 45%", minWidth: "250px" }}>
             <label
               htmlFor="global-search"
               style={{
@@ -387,12 +979,12 @@ export function OrderHistory() {
                 marginBottom: "8px",
               }}
             >
-              🔍 Ricerca globale
+              {"\ud83d\udd0d"} Ricerca globale
             </label>
             <input
               id="global-search"
               type="text"
-              placeholder="Cerca ordini, clienti, articoli, tracking..."
+              placeholder="Cerca in tutti i campi: tracking, DDT, fatture, articoli..."
               value={filters.search}
               onChange={(e) =>
                 setFilters((prev) => ({ ...prev, search: e.target.value }))
@@ -405,6 +997,7 @@ export function OrderHistory() {
                 borderRadius: "8px",
                 outline: "none",
                 transition: "border-color 0.2s",
+                boxSizing: "border-box",
               }}
               onFocus={(e) => {
                 e.currentTarget.style.borderColor = "#1976d2";
@@ -420,91 +1013,145 @@ export function OrderHistory() {
                 marginTop: "4px",
               }}
             >
-              Cerca in: ORD/numero, cliente, importi, tracking, DDT, fattura
+              Filtra negli ordini caricati
             </div>
-          </div>
-
-          {/* Date from */}
-          <div>
-            <label
-              htmlFor="date-from"
-              style={{
-                display: "block",
-                fontSize: "14px",
-                fontWeight: 600,
-                color: "#333",
-                marginBottom: "8px",
-              }}
-            >
-              Da
-            </label>
-            <input
-              id="date-from"
-              type="date"
-              value={filters.dateFrom}
-              onChange={(e) =>
-                setFilters((prev) => ({ ...prev, dateFrom: e.target.value }))
-              }
-              style={{
-                width: "100%",
-                padding: "10px 12px",
-                fontSize: "14px",
-                border: "1px solid #ddd",
-                borderRadius: "8px",
-                outline: "none",
-                transition: "border-color 0.2s",
-              }}
-              onFocus={(e) => {
-                e.currentTarget.style.borderColor = "#1976d2";
-              }}
-              onBlur={(e) => {
-                e.currentTarget.style.borderColor = "#ddd";
-              }}
-            />
-          </div>
-
-          {/* Date to */}
-          <div>
-            <label
-              htmlFor="date-to"
-              style={{
-                display: "block",
-                fontSize: "14px",
-                fontWeight: 600,
-                color: "#333",
-                marginBottom: "8px",
-              }}
-            >
-              A
-            </label>
-            <input
-              id="date-to"
-              type="date"
-              value={filters.dateTo}
-              onChange={(e) =>
-                setFilters((prev) => ({ ...prev, dateTo: e.target.value }))
-              }
-              style={{
-                width: "100%",
-                padding: "10px 12px",
-                fontSize: "14px",
-                border: "1px solid #ddd",
-                borderRadius: "8px",
-                outline: "none",
-                transition: "border-color 0.2s",
-              }}
-              onFocus={(e) => {
-                e.currentTarget.style.borderColor = "#1976d2";
-              }}
-              onBlur={(e) => {
-                e.currentTarget.style.borderColor = "#ddd";
-              }}
-            />
           </div>
         </div>
 
-        {/* Quick filter chips */}
-        <div style={{ marginBottom: "16px" }}>
+        {/* Row 2: Time presets */}
+        <div style={{ marginBottom: "12px" }}>
+          <label
+            style={{
+              display: "block",
+              fontSize: "14px",
+              fontWeight: 600,
+              color: "#333",
+              marginBottom: "8px",
+            }}
+          >
+            Periodo
+          </label>
+          <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+            {timePresets.map((preset) => {
+              const isActive = activeTimePreset === preset.id;
+              return (
+                <button
+                  key={preset.id}
+                  onClick={() => handleTimePreset(preset.id)}
+                  style={{
+                    padding: "6px 14px",
+                    fontSize: "13px",
+                    fontWeight: 500,
+                    border: isActive ? "1px solid #1976d2" : "1px solid #ddd",
+                    borderRadius: "20px",
+                    backgroundColor: isActive ? "#E3F2FD" : "#fff",
+                    color: isActive ? "#1976d2" : "#666",
+                    cursor: "pointer",
+                    transition: "all 0.2s",
+                  }}
+                  onMouseEnter={(e) => {
+                    if (!isActive) {
+                      e.currentTarget.style.backgroundColor = "#f5f5f5";
+                    }
+                  }}
+                  onMouseLeave={(e) => {
+                    if (!isActive) {
+                      e.currentTarget.style.backgroundColor = "#fff";
+                    }
+                  }}
+                >
+                  {preset.label}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Row 3: Custom date inputs (only if preset === "custom") */}
+        {activeTimePreset === "custom" && (
+          <div
+            style={{
+              display: "flex",
+              gap: "16px",
+              marginBottom: "12px",
+              flexWrap: "wrap",
+            }}
+          >
+            <div style={{ flex: "1 1 200px", minWidth: "150px" }}>
+              <label
+                htmlFor="date-from"
+                style={{
+                  display: "block",
+                  fontSize: "13px",
+                  fontWeight: 600,
+                  color: "#333",
+                  marginBottom: "6px",
+                }}
+              >
+                Da
+              </label>
+              <input
+                id="date-from"
+                type="date"
+                value={filters.dateFrom}
+                onChange={(e) => {
+                  setFilters((prev) => ({
+                    ...prev,
+                    dateFrom: e.target.value,
+                  }));
+                  setActiveTimePreset("custom");
+                }}
+                style={{
+                  width: "100%",
+                  padding: "8px 12px",
+                  fontSize: "14px",
+                  border: "1px solid #ddd",
+                  borderRadius: "8px",
+                  outline: "none",
+                  boxSizing: "border-box",
+                }}
+              />
+            </div>
+            <div style={{ flex: "1 1 200px", minWidth: "150px" }}>
+              <label
+                htmlFor="date-to"
+                style={{
+                  display: "block",
+                  fontSize: "13px",
+                  fontWeight: 600,
+                  color: "#333",
+                  marginBottom: "6px",
+                }}
+              >
+                A
+              </label>
+              <input
+                id="date-to"
+                type="date"
+                value={filters.dateTo}
+                onChange={(e) => {
+                  setFilters((prev) => ({
+                    ...prev,
+                    dateTo: e.target.value,
+                  }));
+                  setActiveTimePreset("custom");
+                }}
+                style={{
+                  width: "100%",
+                  padding: "8px 12px",
+                  fontSize: "14px",
+                  border: "1px solid #ddd",
+                  borderRadius: "8px",
+                  outline: "none",
+                  boxSizing: "border-box",
+                }}
+              />
+            </div>
+          </div>
+        )}
+
+        {/* Row 4: Quick filter chips */}
+        <div style={{ marginBottom: "12px" }}>
           <label
             style={{
               display: "block",
@@ -517,48 +1164,7 @@ export function OrderHistory() {
             Filtri veloci
           </label>
           <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
-            {[
-              {
-                id: "requiresAttention" as QuickFilterType,
-                label: "⚠️ Richiede attenzione",
-                color: "#F44336",
-                bgColor: "#FFEBEE",
-                count: orders.filter(
-                  (o) =>
-                    o.state === "IN ATTESA DI APPROVAZIONE" ||
-                    o.state === "TRANSFER ERROR",
-                ).length,
-              },
-              {
-                id: "editable" as QuickFilterType,
-                label: "✏️ Modificabili",
-                color: "#757575",
-                bgColor: "#F5F5F5",
-                count: orders.filter(
-                  (o) => o.orderType === "GIORNALE" && o.state === "MODIFICA",
-                ).length,
-              },
-              {
-                id: "inTransit" as QuickFilterType,
-                label: "🚚 In transito",
-                color: "#2196F3",
-                bgColor: "#E3F2FD",
-                count: orders.filter(
-                  (o) =>
-                    (o.orderType === "ORDINE DI VENDITA" ||
-                      o.status === "CONSEGNATO") &&
-                    (o.tracking?.trackingNumber || o.ddt?.trackingNumber) &&
-                    !o.deliveryCompletedDate,
-                ).length,
-              },
-              {
-                id: "invoiced" as QuickFilterType,
-                label: "📑 Fatturati",
-                color: "#9C27B0",
-                bgColor: "#F3E5F5",
-                count: orders.filter((o) => !!o.invoiceNumber).length,
-              },
-            ].map((quickFilter) => {
+            {quickFilterDefs.map((quickFilter) => {
               const isActive = filters.quickFilters.has(quickFilter.id);
               return (
                 <button
@@ -605,8 +1211,65 @@ export function OrderHistory() {
           </div>
         </div>
 
-        {/* Action buttons */}
-        <div style={{ display: "flex", gap: "12px" }}>
+        {/* Row 5: Hide zero toggle + Clear filters */}
+        <div
+          style={{
+            display: "flex",
+            gap: "16px",
+            alignItems: "center",
+            flexWrap: "wrap",
+          }}
+        >
+          {/* Hide zero amount toggle */}
+          <div
+            onClick={() => setHideZeroAmount(!hideZeroAmount)}
+            role="switch"
+            aria-checked={hideZeroAmount}
+            tabIndex={0}
+            onKeyDown={(e) => {
+              if (e.key === " " || e.key === "Enter") {
+                e.preventDefault();
+                setHideZeroAmount(!hideZeroAmount);
+              }
+            }}
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "8px",
+              cursor: "pointer",
+              fontSize: "14px",
+              color: "#555",
+              userSelect: "none",
+            }}
+          >
+            <div
+              style={{
+                width: "40px",
+                height: "22px",
+                borderRadius: "11px",
+                backgroundColor: hideZeroAmount ? "#1976d2" : "#ccc",
+                position: "relative",
+                transition: "background-color 0.2s",
+                flexShrink: 0,
+              }}
+            >
+              <div
+                style={{
+                  width: "18px",
+                  height: "18px",
+                  borderRadius: "50%",
+                  backgroundColor: "#fff",
+                  position: "absolute",
+                  top: "2px",
+                  left: hideZeroAmount ? "20px" : "2px",
+                  transition: "left 0.2s",
+                  boxShadow: "0 1px 3px rgba(0,0,0,0.2)",
+                }}
+              />
+            </div>
+            <span>{"Nascondi importo 0 \u20ac"}</span>
+          </div>
+
           {/* Clear filters button */}
           {hasActiveFilters && (
             <button
@@ -621,6 +1284,7 @@ export function OrderHistory() {
                 color: "#f44336",
                 cursor: "pointer",
                 transition: "all 0.2s",
+                marginLeft: "auto",
               }}
               onMouseEnter={(e) => {
                 e.currentTarget.style.backgroundColor = "#f44336";
@@ -631,7 +1295,7 @@ export function OrderHistory() {
                 e.currentTarget.style.color = "#f44336";
               }}
             >
-              ✕ Cancella filtri
+              {"\u2715"} Cancella tutti i filtri
             </button>
           )}
         </div>
@@ -655,7 +1319,7 @@ export function OrderHistory() {
               animation: "spin 1s linear infinite",
             }}
           >
-            ⏳
+            {"\u23f3"}
           </div>
           <p style={{ fontSize: "16px", color: "#666" }}>
             Caricamento ordini...
@@ -689,7 +1353,7 @@ export function OrderHistory() {
               marginBottom: "16px",
             }}
           >
-            ⚠️
+            {"\u26a0\ufe0f"}
           </div>
           <p
             style={{
@@ -739,7 +1403,9 @@ export function OrderHistory() {
             boxShadow: "0 2px 8px rgba(0, 0, 0, 0.1)",
           }}
         >
-          <div style={{ fontSize: "64px", marginBottom: "16px" }}>📭</div>
+          <div style={{ fontSize: "64px", marginBottom: "16px" }}>
+            {"\ud83d\udced"}
+          </div>
           <p
             style={{
               fontSize: "18px",
@@ -758,12 +1424,75 @@ export function OrderHistory() {
         </div>
       )}
 
+      {/* No results after filtering (orders loaded but all filtered out) */}
+      {!loading &&
+        !error &&
+        orders.length > 0 &&
+        filteredOrders.length === 0 && (
+          <div
+            style={{
+              textAlign: "center",
+              padding: "40px",
+              backgroundColor: "#fff",
+              borderRadius: "12px",
+              boxShadow: "0 2px 8px rgba(0, 0, 0, 0.1)",
+            }}
+          >
+            <div style={{ fontSize: "48px", marginBottom: "16px" }}>
+              {"\ud83d\udd0d"}
+            </div>
+            <p
+              style={{
+                fontSize: "16px",
+                fontWeight: 600,
+                color: "#333",
+                marginBottom: "8px",
+              }}
+            >
+              Nessun ordine corrisponde ai filtri
+            </p>
+            <p
+              style={{ fontSize: "14px", color: "#666", marginBottom: "16px" }}
+            >
+              {orders.length} ordini caricati, nessuno corrisponde ai filtri
+              attivi
+            </p>
+            <button
+              onClick={handleClearFilters}
+              style={{
+                padding: "10px 20px",
+                fontSize: "14px",
+                fontWeight: 600,
+                backgroundColor: "#1976d2",
+                color: "#fff",
+                border: "none",
+                borderRadius: "8px",
+                cursor: "pointer",
+              }}
+            >
+              Cancella filtri
+            </button>
+          </div>
+        )}
+
       {/* Timeline content */}
-      {!loading && !error && orders.length > 0 && (
+      {!loading && !error && filteredOrders.length > 0 && (
         <div>
+          {/* Results summary */}
+          <div
+            style={{
+              fontSize: "13px",
+              color: "#888",
+              marginBottom: "12px",
+            }}
+          >
+            {filteredOrders.length === orders.length
+              ? `${orders.length} ordini`
+              : `${filteredOrders.length} di ${orders.length} ordini`}
+          </div>
+
           {orderGroups.map((group) => (
             <div key={group.period} style={{ marginBottom: "32px" }}>
-              {/* Period header */}
               <h2
                 style={{
                   fontSize: "20px",
@@ -776,16 +1505,14 @@ export function OrderHistory() {
                 {group.period}
               </h2>
 
-              {/* Orders in this period */}
               <div>
                 {group.orders.map((order) => {
-                  const mergedOrder = getMergedOrder(order);
                   const isExpanded = expandedOrderId === order.id;
 
                   return (
                     <OrderCardNew
                       key={order.id}
-                      order={mergedOrder}
+                      order={order}
                       expanded={isExpanded}
                       onToggle={() => handleToggle(order.id)}
                       onSendToMilano={handleSendToMilano}
@@ -798,6 +1525,41 @@ export function OrderHistory() {
             </div>
           ))}
         </div>
+      )}
+
+      {/* Scroll to top button */}
+      {showScrollToTop && (
+        <button
+          onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
+          style={{
+            position: "fixed",
+            bottom: "24px",
+            right: "24px",
+            width: "48px",
+            height: "48px",
+            borderRadius: "50%",
+            backgroundColor: "rgba(25, 118, 210, 0.8)",
+            color: "#fff",
+            border: "none",
+            cursor: "pointer",
+            fontSize: "20px",
+            fontWeight: 700,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            boxShadow: "0 2px 8px rgba(0,0,0,0.3)",
+            zIndex: 200,
+            transition: "background-color 0.2s",
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.backgroundColor = "rgba(25, 118, 210, 1)";
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.backgroundColor = "rgba(25, 118, 210, 0.8)";
+          }}
+        >
+          {"\u2191"}
+        </button>
       )}
 
       {/* Send to Milano Modal */}
