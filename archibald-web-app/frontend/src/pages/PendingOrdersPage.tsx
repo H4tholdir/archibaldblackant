@@ -30,6 +30,7 @@ export function PendingOrdersPage() {
   const {
     pendingOrders: orders,
     isSyncing: loading,
+    staleJobIds,
     refetch,
   } = usePendingSync();
 
@@ -796,6 +797,7 @@ export function PendingOrdersPage() {
             ["started", "processing"].includes(order.jobStatus);
           const isJobCompleted = order.jobStatus === "completed";
           const isJobFailed = order.jobStatus === "failed";
+          const isStale = staleJobIds.has(order.id!);
 
           const isWarehouseOrder = order.status === "completed-warehouse";
           const cardOpacity = isJobActive || isJobCompleted ? 0.6 : 1;
@@ -1353,6 +1355,21 @@ export function PendingOrdersPage() {
                     status={order.jobStatus || "idle"}
                     error={isJobFailed ? order.jobError : undefined}
                   />
+                  {isStale && !isJobFailed && (
+                    <div
+                      style={{
+                        marginTop: "0.5rem",
+                        padding: "0.5rem 0.75rem",
+                        backgroundColor: "#fffbeb",
+                        border: "1px solid #f59e0b",
+                        borderRadius: "6px",
+                        fontSize: isMobile ? "0.8125rem" : "0.875rem",
+                        color: "#92400e",
+                      }}
+                    >
+                      Verifica stato in corso...
+                    </div>
+                  )}
                   {isJobFailed && (
                     <button
                       onClick={() => handleRetryOrder(order.id!)}

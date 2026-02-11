@@ -250,71 +250,80 @@ export class QueueManager {
       const startTime = Date.now();
       const { orderData, userId, username, pendingOrderId } = job.data;
 
-      // Acquisisci il lock per ordini con priorità assoluta (blocca sync)
-      if (this.onOrderStart) {
-        let acquired = false;
-        let attempts = 0;
-        const maxAttempts = 20; // 20 tentativi = 20 secondi (ridotto da 60)
-        let forceStopTriggered = false;
-
-        while (!acquired && attempts < maxAttempts) {
-          acquired = this.onOrderStart();
-
-          if (!acquired) {
-            // Dopo 10 tentativi (10 secondi), trigger force-stop
-            if (attempts === 10 && !forceStopTriggered) {
-              logger.warn(
-                `⚠️ JOB ORDINE: 10 secondi di attesa, attivo FORCE-STOP su tutti i sync...`,
-              );
-              // Import and call forceStopAllSyncs from index.ts
-              try {
-                const { forceStopAllSyncs } = await import("./index");
-                if (forceStopAllSyncs) {
-                  await forceStopAllSyncs();
-                  forceStopTriggered = true;
-                  logger.info(
-                    `✅ JOB ORDINE: FORCE-STOP completato, riprovo acquisizione lock...`,
-                  );
-                }
-              } catch (error) {
-                logger.error(`❌ JOB ORDINE: Errore durante FORCE-STOP`, {
-                  error,
-                });
-              }
-            }
-
-            logger.info(
-              `⏳ JOB ORDINE: Attendo rilascio lock... (tentativo ${attempts + 1}/${maxAttempts})${attempts >= 10 ? " [FORCE-STOP attivo]" : ""}`,
-            );
-            await new Promise((resolve) => setTimeout(resolve, 1000));
-            attempts++;
-          }
-        }
-
-        if (!acquired) {
-          throw new Error(
-            `Impossibile acquisire il lock per creare l'ordine dopo ${maxAttempts} secondi. Un'operazione di sync potrebbe essere bloccata.`,
-          );
-        }
-
-        logger.info(`🔒 JOB ORDINE: Lock acquisito dopo ${attempts} tentativi`);
-      }
-
-      logger.info(`📋 QUEUE: INIZIO processamento ordine`, {
-        jobId: job.id,
-        userId,
-        username,
-        customerName: orderData.customerName,
-        itemsCount: orderData.items.length,
-        items: orderData.items.map((item) => ({
-          name: item.productName || item.articleCode,
-          qty: item.quantity,
-        })),
-      });
-
       let bot: any = null;
 
       try {
+        // Acquisisci il lock per ordini con priorità assoluta (blocca sync)
+        if (this.onOrderStart) {
+          let acquired = false;
+          let attempts = 0;
+          const maxAttemptsPhase1 = 10; // Fase 1: 10 tentativi (0-10s)
+          const maxAttemptsPhase2 = 15; // Fase 2-3: attesa force-stop (10-15s)
+          const maxAttemptsTotal = 25; // Fase 4: retry post-nuclear (15-25s)
+          let forceStopTriggered = false;
+
+          while (!acquired && attempts < maxAttemptsTotal) {
+            acquired = this.onOrderStart();
+
+            if (!acquired) {
+              // Fase 2: Dopo 10 tentativi (10 secondi), trigger force-stop nucleare
+              if (attempts === maxAttemptsPhase1 && !forceStopTriggered) {
+                logger.warn(
+                  `⚠️ JOB ORDINE: 10 secondi di attesa, attivo FORCE-STOP NUCLEARE su tutti i sync...`,
+                );
+                try {
+                  const { forceStopAllSyncs } = await import("./index");
+                  if (forceStopAllSyncs) {
+                    await forceStopAllSyncs();
+                    forceStopTriggered = true;
+                    logger.info(
+                      `✅ JOB ORDINE: FORCE-STOP NUCLEARE completato, riprovo acquisizione lock...`,
+                    );
+                  }
+                } catch (error) {
+                  logger.error(`❌ JOB ORDINE: Errore durante FORCE-STOP`, {
+                    error,
+                  });
+                }
+              }
+
+              const phase =
+                attempts < maxAttemptsPhase1
+                  ? "PRE-FORCE"
+                  : attempts < maxAttemptsPhase2
+                    ? "FORCE-STOP-WAIT"
+                    : "POST-NUCLEAR";
+
+              logger.info(
+                `⏳ JOB ORDINE: Attendo rilascio lock... (tentativo ${attempts + 1}/${maxAttemptsTotal}) [${phase}]`,
+              );
+              await new Promise((resolve) => setTimeout(resolve, 1000));
+              attempts++;
+            }
+          }
+
+          if (!acquired) {
+            throw new Error(
+              `Impossibile acquisire il lock per creare l'ordine dopo ${maxAttemptsTotal} secondi. Un'operazione di sync potrebbe essere bloccata.`,
+            );
+          }
+
+          logger.info(
+            `🔒 JOB ORDINE: Lock acquisito dopo ${attempts} tentativi`,
+          );
+        }
+
+        logger.info(`📋 QUEUE: INIZIO processamento ordine`, {
+          jobId: job.id,
+          userId,
+          username,
+          customerName: orderData.customerName,
+          itemsCount: orderData.items.length,
+          items: orderData.items.map((item) => ({
+            name: item.productName || item.articleCode,
+            qty: item.quantity,
+          })),
+        });
         // Pulizia browser zombie prima di crearne uno nuovo
         await this.cleanupZombieBrowsers();
 

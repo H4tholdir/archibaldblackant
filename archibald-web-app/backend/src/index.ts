@@ -159,9 +159,15 @@ function releaseSyncLock() {
 }
 
 export async function forceStopAllSyncs(): Promise<void> {
-  logger.info("🛑 FORCE-STOP: Arresto forzato di tutti i servizi di sync...");
+  logger.info(
+    "🛑 FORCE-STOP NUCLEARE: Arresto forzato di tutti i servizi di sync...",
+  );
 
-  // Request stop on all services
+  // Step 1: Fermare auto-sync scheduler per evitare nuovi sync durante force-stop
+  syncOrchestrator.stopAutoSync();
+  logger.info("🛑 FORCE-STOP: Auto-sync scheduler fermato");
+
+  // Step 2: Request stop on all services
   syncService.requestStop();
   productSyncService.requestStop();
   priceSyncService.requestStop();
@@ -202,6 +208,9 @@ export async function forceStopAllSyncs(): Promise<void> {
       logger.info(
         "✅ FORCE-STOP: Tutti i servizi si sono fermati correttamente",
       );
+      // Riavvia auto-sync scheduler
+      syncOrchestrator.startStaggeredAutoSync();
+      logger.info("🔄 FORCE-STOP: Auto-sync scheduler riavviato");
       return;
     }
 
@@ -209,105 +218,55 @@ export async function forceStopAllSyncs(): Promise<void> {
     elapsed += checkInterval;
   }
 
-  // After 5 seconds, force reset phantom states
+  // After 5 seconds, NUCLEAR reset: force reset ALL internal flags
   logger.warn(
-    "⚠️ FORCE-STOP: Timeout raggiunto, reset forzato stati fantasma...",
+    "⚠️ FORCE-STOP NUCLEARE: Timeout raggiunto, reset forzato TOTALE...",
   );
 
-  const customerProgress = syncService.getProgress();
-  const productProgress = productSyncService.getProgress();
-  const priceProgress = priceSyncService.getProgress();
-  const orderProgress = orderSyncService.getProgress();
-  const ddtProgress = ddtSyncService.getProgress();
-  const invoiceProgress = invoiceSyncService.getProgress();
+  // Nuclear reset: reset ALL internal flags for EVERY service (not just currentProgress)
+  const allServices = [
+    { name: "clienti", service: syncService },
+    { name: "prodotti", service: productSyncService },
+    { name: "prezzi", service: priceSyncService },
+    { name: "ordini", service: orderSyncService },
+    { name: "DDT", service: ddtSyncService },
+    { name: "fatture", service: invoiceSyncService },
+  ];
 
-  // Force reset each stuck service
-  if (customerProgress.status === "syncing") {
+  for (const { name, service } of allServices) {
     logger.error(
-      "🔨 FORCE-RESET: Stato fantasma rilevato in sync clienti, reset forzato",
+      `🔨 FORCE-RESET NUCLEARE: Reset totale servizio ${name}`,
     );
-    (syncService as any).currentProgress = {
-      status: "idle",
-      currentPage: 0,
-      totalPages: 0,
-      processedCount: 0,
-    };
+    (service as any).syncInProgress = false;
+    (service as any).paused = false;
+    (service as any).stopRequested = false;
+    (service as any).currentProgress = { status: "idle" };
   }
 
-  if (productProgress.status === "syncing") {
-    logger.error(
-      "🔨 FORCE-RESET: Stato fantasma rilevato in sync prodotti, reset forzato",
-    );
-    (productSyncService as any).currentProgress = {
-      status: "idle",
-      currentPage: 0,
-      totalPages: 0,
-      processedCount: 0,
-    };
-  }
-
-  const priceIsActive =
-    priceProgress.status === "downloading" ||
-    priceProgress.status === "parsing" ||
-    priceProgress.status === "saving";
-  if (priceIsActive) {
-    logger.error(
-      `🔨 FORCE-RESET: Stato fantasma rilevato in sync prezzi (${priceProgress.status}), reset forzato`,
-    );
-    (priceSyncService as any).currentProgress = { status: "idle" };
-  }
-
-  const orderIsActive =
-    orderProgress.status === "downloading" ||
-    orderProgress.status === "parsing" ||
-    orderProgress.status === "saving";
-  if (orderIsActive) {
-    logger.error(
-      `🔨 FORCE-RESET: Stato fantasma rilevato in sync ordini (${orderProgress.status}), reset forzato`,
-    );
-    (orderSyncService as any).currentProgress = { status: "idle" };
-  }
-
-  const ddtIsActive =
-    ddtProgress.status === "downloading" ||
-    ddtProgress.status === "parsing" ||
-    ddtProgress.status === "saving";
-  if (ddtIsActive) {
-    logger.error(
-      `🔨 FORCE-RESET: Stato fantasma rilevato in sync DDT (${ddtProgress.status}), reset forzato`,
-    );
-    (ddtSyncService as any).currentProgress = { status: "idle" };
-  }
-
-  const invoiceIsActive =
-    invoiceProgress.status === "downloading" ||
-    invoiceProgress.status === "parsing" ||
-    invoiceProgress.status === "saving";
-  if (invoiceIsActive) {
-    logger.error(
-      `🔨 FORCE-RESET: Stato fantasma rilevato in sync fatture (${invoiceProgress.status}), reset forzato`,
-    );
-    (invoiceSyncService as any).currentProgress = { status: "idle" };
-  }
-
-  // Reset orchestrator's currentSync (the main blocker for acquireOrderLock)
+  // Reset orchestrator completamente
   const orchStatus = syncOrchestrator.getStatus();
   if (orchStatus.currentSync) {
     logger.error(
       `🔨 FORCE-RESET: Orchestrator currentSync bloccato su "${orchStatus.currentSync}", reset forzato`,
     );
-    (syncOrchestrator as any).currentSync = null;
   }
+  (syncOrchestrator as any).currentSync = null;
+  (syncOrchestrator as any).queue = [];
+  logger.info("🔨 FORCE-RESET: Orchestrator queue svuotata");
 
-  // Reset global lock if held by a sync operation (not by an order)
-  if (activeOperation && activeOperation !== "order") {
+  // Reset global lock (anche se "order" — potrebbe essere un job morto precedente)
+  if (activeOperation) {
     logger.error(
-      `🔨 FORCE-RESET: Lock globale bloccato su "${activeOperation}", reset forzato`,
+      `🔨 FORCE-RESET: activeOperation "${activeOperation}" → null`,
     );
     activeOperation = null;
   }
 
-  logger.info("✅ FORCE-RESET: Reset stati fantasma completato");
+  logger.info("✅ FORCE-RESET NUCLEARE: Reset totale completato");
+
+  // Riavvia auto-sync scheduler alla fine
+  syncOrchestrator.startStaggeredAutoSync();
+  logger.info("🔄 FORCE-STOP: Auto-sync scheduler riavviato");
 }
 
 function acquireOrderLock(): boolean {
