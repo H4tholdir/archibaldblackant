@@ -3788,7 +3788,7 @@ app.get(
   (req: AuthRequest, res) => {
     try {
       const days = parseInt(req.params.days || "30", 10) || 30;
-      const changes = productDb.getRecentProductChanges(days);
+      const changes = productDb.getRecentProductChanges(days, 1000);
       const stats = productDb.getProductChangeStats(days);
 
       res.json({
@@ -4556,7 +4556,7 @@ app.get(
       const days = parseInt(req.params.days || "30");
       const historyDb = PriceHistoryDatabase.getInstance();
 
-      const recentChanges = historyDb.getRecentChanges(days);
+      const recentChanges = historyDb.getRecentChanges(days, 1000);
       const stats = historyDb.getRecentStats(days);
 
       res.json({

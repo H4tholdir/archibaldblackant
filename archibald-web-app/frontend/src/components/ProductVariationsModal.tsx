@@ -57,9 +57,17 @@ export function ProductVariationsModal({
   const fetchRecentChanges = async () => {
     try {
       const token = localStorage.getItem("archibald_jwt");
-      const response = await fetch("/api/products/variations/recent/30", {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const now = new Date();
+      const startOfYear = new Date(now.getFullYear(), 0, 1);
+      const daysSinceStartOfYear = Math.ceil(
+        (now.getTime() - startOfYear.getTime()) / (1000 * 60 * 60 * 24),
+      );
+      const response = await fetch(
+        `/api/products/variations/recent/${daysSinceStartOfYear}`,
+        {
+          headers: { Authorization: `Bearer ${token}` },
+        },
+      );
 
       const data = await response.json();
       if (data.success) {
@@ -156,7 +164,7 @@ export function ProductVariationsModal({
               }}
             >
               <h1 style={{ margin: 0 }}>
-                Variazioni Prodotti (Ultimi 30 giorni)
+                Variazioni Prodotti (Da inizio anno)
               </h1>
               <button
                 onClick={onClose}

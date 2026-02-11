@@ -7,19 +7,18 @@ import { ProductVariationsModal } from "../components/ProductVariationsModal";
 
 interface ProductFilters {
   search: string;
-  groupCode: string;
 }
 
 export function ArticoliList() {
   const [products, setProducts] = useState<Product[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [modalProduct, setModalProduct] = useState<Product | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [filters, setFilters] = useState<ProductFilters>({
     search: "",
-    groupCode: "",
   });
+  const [hasSearched, setHasSearched] = useState(false);
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [totalCount, setTotalCount] = useState(0);
   const [returnedCount, setReturnedCount] = useState(0);
@@ -41,10 +40,21 @@ export function ArticoliList() {
     return () => clearTimeout(timer);
   }, [filters.search]);
 
-  // Fetch products on mount and when filters change
+  // Fetch products when search changes (not on mount)
   const fetchProducts = useCallback(async () => {
+    if (!debouncedSearch) {
+      setProducts([]);
+      setTotalCount(0);
+      setReturnedCount(0);
+      setLimited(false);
+      setVariantCounts({});
+      setLoading(false);
+      return;
+    }
+
     setLoading(true);
     setError(null);
+    setHasSearched(true);
 
     try {
       const token = localStorage.getItem("archibald_jwt");
@@ -65,20 +75,13 @@ export function ArticoliList() {
         throw new Error("Errore nel caricamento dei prodotti");
       }
 
-      // Filter by groupCode if needed (client-side filtering)
-      let filteredProducts = response.data.products;
-      if (filters.groupCode) {
-        filteredProducts = filteredProducts.filter(
-          (p) => p.groupCode === filters.groupCode,
-        );
-      }
+      const filteredProducts = response.data.products;
 
       setProducts(filteredProducts);
       setTotalCount(response.data.totalCount);
       setReturnedCount(response.data.returnedCount);
       setLimited(response.data.limited);
 
-      // Build variant counts map from products
       const counts: Record<string, number> = {};
       filteredProducts.forEach((p) => {
         if (p.name) {
@@ -99,7 +102,7 @@ export function ArticoliList() {
     } finally {
       setLoading(false);
     }
-  }, [debouncedSearch, filters.groupCode]);
+  }, [debouncedSearch]);
 
   useEffect(() => {
     fetchProducts();
@@ -116,18 +119,11 @@ export function ArticoliList() {
   };
 
   const handleClearFilters = () => {
-    setFilters({
-      search: "",
-      groupCode: "",
-    });
+    setFilters({ search: "" });
+    setHasSearched(false);
   };
 
-  const hasActiveFilters = filters.search || filters.groupCode;
-
-  // Extract unique group codes for filter dropdown
-  const uniqueGroupCodes = Array.from(
-    new Set(products.map((p) => p.groupCode).filter(Boolean)),
-  ).sort();
+  const hasActiveFilters = filters.search;
 
   return (
     <div
@@ -230,54 +226,6 @@ export function ArticoliList() {
             />
           </div>
 
-          {/* Group Code Filter */}
-          {uniqueGroupCodes.length > 0 && (
-            <div>
-              <label
-                htmlFor="group-filter"
-                style={{
-                  display: "block",
-                  fontSize: "14px",
-                  fontWeight: 600,
-                  color: "#333",
-                  marginBottom: "8px",
-                }}
-              >
-                Filtra per gruppo
-              </label>
-              <select
-                id="group-filter"
-                value={filters.groupCode}
-                onChange={(e) =>
-                  setFilters((prev) => ({ ...prev, groupCode: e.target.value }))
-                }
-                style={{
-                  width: "100%",
-                  padding: "10px 12px",
-                  fontSize: "14px",
-                  border: "1px solid #ddd",
-                  borderRadius: "8px",
-                  outline: "none",
-                  backgroundColor: "#fff",
-                  cursor: "pointer",
-                  transition: "border-color 0.2s",
-                }}
-                onFocus={(e) => {
-                  e.currentTarget.style.borderColor = "#1976d2";
-                }}
-                onBlur={(e) => {
-                  e.currentTarget.style.borderColor = "#ddd";
-                }}
-              >
-                <option value="">Tutti i gruppi</option>
-                {uniqueGroupCodes.map((code) => (
-                  <option key={code} value={code}>
-                    {code}
-                  </option>
-                ))}
-              </select>
-            </div>
-          )}
         </div>
 
         {/* Action buttons */}
@@ -466,7 +414,9 @@ export function ArticoliList() {
             boxShadow: "0 2px 8px rgba(0, 0, 0, 0.1)",
           }}
         >
-          <div style={{ fontSize: "64px", marginBottom: "16px" }}>📦</div>
+          <div style={{ fontSize: "64px", marginBottom: "16px" }}>
+            {hasSearched ? "📦" : "🔍"}
+          </div>
           <p
             style={{
               fontSize: "18px",
@@ -475,12 +425,14 @@ export function ArticoliList() {
               marginBottom: "8px",
             }}
           >
-            Nessun prodotto trovato
+            {hasSearched
+              ? "Nessun prodotto trovato"
+              : "Cerca un prodotto"}
           </p>
           <p style={{ fontSize: "14px", color: "#666" }}>
-            {hasActiveFilters
+            {hasSearched
               ? "Prova a modificare i filtri di ricerca"
-              : "Nessun prodotto nel database"}
+              : "Usa il campo di ricerca per trovare articoli per nome, codice o descrizione"}
           </p>
         </div>
       )}
