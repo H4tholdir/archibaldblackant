@@ -9,7 +9,8 @@ export type OrderStatusCategory =
   | "blocked"
   | "in-transit"
   | "delivered"
-  | "invoiced";
+  | "invoiced"
+  | "paid";
 
 /**
  * Visual styling for order status
@@ -65,25 +66,51 @@ const ORDER_STATUS_STYLES: Record<OrderStatusCategory, OrderStatusStyle> = {
   invoiced: {
     category: "invoiced",
     label: "Fatturato",
-    description: "Fattura emessa e disponibile",
+    description: "Fattura emessa, in attesa di pagamento",
     borderColor: "#9C27B0", // Purple
     backgroundColor: "#F3E5F5", // Lavender
   },
+  paid: {
+    category: "paid",
+    label: "Pagato",
+    description: "Fattura saldata, ordine completato",
+    borderColor: "#2E7D32", // Dark green
+    backgroundColor: "#E8F5E9", // Light green
+  },
 };
+
+function parseItalianAmount(value: string): number {
+  return parseFloat(value.replace(/\./g, "").replace(",", "."));
+}
+
+function isInvoicePaid(order: Order): boolean {
+  if (order.invoiceClosed === true) return true;
+  if (order.invoiceRemainingAmount) {
+    const remaining = parseItalianAmount(order.invoiceRemainingAmount);
+    return !isNaN(remaining) && remaining <= 0;
+  }
+  return false;
+}
 
 /**
  * Determines the order status category based on order fields
  *
  * Logic:
- * 1. Fatturato (Invoiced) - Priority: Check if invoice exists
- * 2. Consegnato (Delivered) - Check if delivery completed
- * 3. In transito (In Transit) - Check if shipped but not delivered
- * 4. Bloccato (Blocked) - Check for transfer errors
- * 5. In attesa (Pending) - Check if waiting for approval
- * 6. Su Archibald (On Archibald) - Default/fallback
+ * 1. Pagato (Paid) - Invoice exists and is fully paid
+ * 2. Fatturato (Invoiced) - Invoice exists but not yet paid
+ * 3. Consegnato (Delivered) - Delivery completed with date
+ * 4. In transito (In Transit) - Shipped but not delivered
+ * 5. Bloccato (Blocked) - Transfer errors
+ * 6. In attesa (Pending) - Waiting for approval
+ * 7. Su Archibald (On Archibald) - Default/fallback
  */
 export function getOrderStatus(order: Order): OrderStatusStyle {
-  // Priority 1: Fatturato (has invoice)
+  // Priority 1: Pagato (invoice exists and paid)
+  if (order.invoiceNumber && isInvoicePaid(order)) {
+    return ORDER_STATUS_STYLES.paid;
+  }
+
+  // Priority 2: Fatturato (has invoice, not yet paid)
   if (order.invoiceNumber && order.documentState === "FATTURA") {
     return ORDER_STATUS_STYLES.invoiced;
   }
@@ -93,12 +120,12 @@ export function getOrderStatus(order: Order): OrderStatusStyle {
     return ORDER_STATUS_STYLES.invoiced;
   }
 
-  // Priority 2: Consegnato (delivery completed with date)
+  // Priority 3: Consegnato (delivery completed with date)
   if (order.deliveryCompletedDate) {
     return ORDER_STATUS_STYLES.delivered;
   }
 
-  // Priority 3: In transito (shipped, has tracking, not yet delivered)
+  // Priority 4: In transito (shipped, has tracking, not yet delivered)
   const hasTracking =
     order.tracking?.trackingNumber || order.ddt?.trackingNumber;
   const isShipped =
@@ -115,18 +142,17 @@ export function getOrderStatus(order: Order): OrderStatusStyle {
     return ORDER_STATUS_STYLES["in-transit"];
   }
 
-  // Priority 4: Bloccato (transfer error)
+  // Priority 5: Bloccato (transfer error)
   if (order.state === "TRANSFER ERROR") {
     return ORDER_STATUS_STYLES.blocked;
   }
 
-  // Priority 5: In attesa (pending approval)
+  // Priority 6: In attesa (pending approval)
   if (order.state === "IN ATTESA DI APPROVAZIONE") {
     return ORDER_STATUS_STYLES["pending-approval"];
   }
 
-  // Priority 6: Su Archibald (default/created locally)
-  // orderType = "GIORNALE" + state = "MODIFICA" + documentState = "NESSUNO"
+  // Priority 7: Su Archibald (default/created locally)
   if (
     order.orderType === "GIORNALE" &&
     order.state === "MODIFICA" &&

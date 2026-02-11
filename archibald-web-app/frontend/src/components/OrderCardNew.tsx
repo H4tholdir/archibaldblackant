@@ -61,7 +61,6 @@ function formatDateTime(dateString: string | undefined): string {
   }
 }
 
-
 function getCourierLogo(courier: string | undefined): string {
   if (!courier) return "📦";
   const courierLower = courier.toLowerCase();
@@ -457,9 +456,6 @@ function TabPanoramica({ order }: { order: Order }) {
           )}
         </div>
       </div>
-
-
-
     </div>
   );
 }
@@ -990,9 +986,7 @@ function TabLogistica({ order, token }: { order: Order; token?: string }) {
             marginBottom: "16px",
           }}
         >
-          <div
-            style={{ display: "flex", alignItems: "center", gap: "10px" }}
-          >
+          <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
             <span style={{ fontSize: "22px" }}>
               {getCourierLogo(tracking.trackingCourier)}
             </span>
@@ -1009,9 +1003,7 @@ function TabLogistica({ order, token }: { order: Order; token?: string }) {
               {tracking.trackingNumber}
             </span>
             <button
-              onClick={() =>
-                copyToClipboard(tracking.trackingNumber || "")
-              }
+              onClick={() => copyToClipboard(tracking.trackingNumber || "")}
               style={{
                 padding: "2px 8px",
                 fontSize: "12px",
@@ -1055,17 +1047,14 @@ function TabLogistica({ order, token }: { order: Order; token?: string }) {
 
       {/* 2. Destinatario + Dettagli Spedizione — side-by-side */}
       {ddt && (hasDestinatario || hasDettagliSpedizione) && (
-        <div
-          style={{ display: "flex", gap: "16px", flexWrap: "wrap" }}
-        >
+        <div style={{ display: "flex", gap: "16px", flexWrap: "wrap" }}>
           {hasDestinatario && (
             <div style={{ ...cardStyle, flex: "1 1 280px", minWidth: "280px" }}>
               <div style={cardTitleStyle}>Destinatario</div>
               <div
                 style={{
                   display: "grid",
-                  gridTemplateColumns:
-                    "repeat(auto-fill, minmax(180px, 1fr))",
+                  gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))",
                   gap: "12px",
                 }}
               >
@@ -1089,10 +1078,7 @@ function TabLogistica({ order, token }: { order: Order; token?: string }) {
                   </div>
                 )}
                 {ddt.deliveryCity && (
-                  <InfoField
-                    label="Città Consegna"
-                    value={ddt.deliveryCity}
-                  />
+                  <InfoField label="Città Consegna" value={ddt.deliveryCity} />
                 )}
               </div>
             </div>
@@ -1104,8 +1090,7 @@ function TabLogistica({ order, token }: { order: Order; token?: string }) {
               <div
                 style={{
                   display: "grid",
-                  gridTemplateColumns:
-                    "repeat(auto-fill, minmax(180px, 1fr))",
+                  gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))",
                   gap: "12px",
                 }}
               >
@@ -1174,8 +1159,7 @@ function TabLogistica({ order, token }: { order: Order; token?: string }) {
           <div
             style={{
               display: "grid",
-              gridTemplateColumns:
-                "repeat(auto-fill, minmax(160px, 1fr))",
+              gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))",
               gap: "12px",
             }}
           >
@@ -2172,7 +2156,14 @@ export function OrderCardNew({
 
             {/* Total Amount + Lordo/Sconto inline */}
             <div style={{ marginBottom: "4px" }}>
-              <div style={{ display: "flex", alignItems: "baseline", gap: "10px", flexWrap: "wrap" }}>
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "baseline",
+                  gap: "10px",
+                  flexWrap: "wrap",
+                }}
+              >
                 <span
                   style={{
                     fontSize: "16px",
@@ -2193,79 +2184,107 @@ export function OrderCardNew({
                   </span>
                 )}
               </div>
-              {(() => {
-                const totalWithVat =
-                  articlesTotals.totalWithVat ??
-                  (order.totalWithVat
-                    ? parseFloat(order.totalWithVat)
-                    : undefined);
+              {!order.invoiceNumber &&
+                (() => {
+                  const totalWithVat =
+                    articlesTotals.totalWithVat ??
+                    (order.totalWithVat
+                      ? parseFloat(order.totalWithVat)
+                      : undefined);
 
-                if (totalWithVat && totalWithVat > 0) {
-                  return (
-                    <div
-                      style={{
-                        fontSize: "14px",
-                        fontWeight: 600,
-                        color: "#1a7f37",
-                        marginTop: "2px",
-                      }}
-                    >
-                      € {totalWithVat.toFixed(2)} (IVA incl.)
-                    </div>
-                  );
-                }
-                return null;
-              })()}
+                  if (totalWithVat && totalWithVat > 0) {
+                    return (
+                      <div
+                        style={{
+                          fontSize: "14px",
+                          fontWeight: 600,
+                          color: "#1a7f37",
+                          marginTop: "2px",
+                        }}
+                      >
+                        € {totalWithVat.toFixed(2)} (IVA incl.)
+                      </div>
+                    );
+                  }
+                  return null;
+                })()}
             </div>
 
             {/* Invoice Balance Row */}
-            {order.invoiceNumber && (() => {
-              const remaining = parseFloat((order.invoiceRemainingAmount || "0").replace(",", "."));
-              const isPaid = order.invoiceClosed === true || remaining <= 0;
-              const daysPastDue = order.invoiceDaysPastDue ? parseInt(order.invoiceDaysPastDue, 10) : null;
+            {order.invoiceNumber &&
+              (() => {
+                const remaining = parseFloat(
+                  (order.invoiceRemainingAmount || "0")
+                    .replace(/\./g, "")
+                    .replace(",", "."),
+                );
+                const isPaid = order.invoiceClosed === true || remaining <= 0;
+                const daysPastDue = order.invoiceDaysPastDue
+                  ? parseInt(order.invoiceDaysPastDue, 10)
+                  : null;
 
-              return (
-                <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap", marginBottom: "8px" }}>
-                  {isPaid ? (
-                    <span style={{
-                      fontSize: "12px",
-                      fontWeight: 600,
-                      padding: "3px 10px",
-                      borderRadius: "6px",
-                      backgroundColor: "#e8f5e9",
-                      color: "#2e7d32",
-                    }}>
-                      Pagata
-                    </span>
-                  ) : (
-                    <span style={{
-                      fontSize: "12px",
-                      fontWeight: 600,
-                      padding: "3px 10px",
-                      borderRadius: "6px",
-                      backgroundColor: "#fff3e0",
-                      color: "#e65100",
-                    }}>
-                      Saldo: € {remaining.toFixed(2)}
-                    </span>
-                  )}
-                  {order.invoiceDueDate && (
-                    <span style={{ fontSize: "12px", color: "#666" }}>
-                      Scad: {formatDate(order.invoiceDueDate)}
-                    </span>
-                  )}
-                  {daysPastDue !== null && daysPastDue !== 0 && (
-                    <span style={{
-                      fontSize: "12px",
-                      fontWeight: 600,
-                      color: daysPastDue < 0 ? "#d32f2f" : "#2e7d32",
-                    }}>
-                      {daysPastDue < 0 ? `${Math.abs(daysPastDue)} gg scaduta` : `${daysPastDue} giorni`}
-                    </span>
-                  )}
-                </div>
-              );
-            })()}
+                return (
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "8px",
+                      flexWrap: "wrap",
+                      marginBottom: "8px",
+                    }}
+                  >
+                    {isPaid ? (
+                      <span
+                        style={{
+                          fontSize: "12px",
+                          fontWeight: 600,
+                          padding: "3px 10px",
+                          borderRadius: "6px",
+                          backgroundColor: "#e8f5e9",
+                          color: "#2e7d32",
+                        }}
+                      >
+                        Pagata
+                      </span>
+                    ) : (
+                      <span
+                        style={{
+                          fontSize: "12px",
+                          fontWeight: 600,
+                          padding: "3px 10px",
+                          borderRadius: "6px",
+                          backgroundColor: "#fff3e0",
+                          color: "#e65100",
+                        }}
+                      >
+                        Saldo: €{" "}
+                        {remaining.toLocaleString("it-IT", {
+                          minimumFractionDigits: 2,
+                          maximumFractionDigits: 2,
+                        })}
+                      </span>
+                    )}
+                    {order.invoiceDueDate && (
+                      <span style={{ fontSize: "12px", color: "#666" }}>
+                        Scad: {formatDate(order.invoiceDueDate)}
+                      </span>
+                    )}
+                    {daysPastDue !== null && daysPastDue !== 0 && (
+                      <span
+                        style={{
+                          fontSize: "12px",
+                          fontWeight: 600,
+                          color: daysPastDue < 0 ? "#d32f2f" : "#2e7d32",
+                        }}
+                      >
+                        {daysPastDue < 0
+                          ? `${Math.abs(daysPastDue)} gg scaduta`
+                          : `${daysPastDue} giorni`}
+                      </span>
+                    )}
+                  </div>
+                );
+              })()}
 
             {/* Buttons Row: Download (left) + Actions (right) */}
             <div
@@ -2279,7 +2298,14 @@ export function OrderCardNew({
               onClick={(e) => e.stopPropagation()}
             >
               {/* Left: Download Buttons */}
-              <div style={{ display: "flex", gap: "8px", alignItems: "center", flexWrap: "wrap" }}>
+              <div
+                style={{
+                  display: "flex",
+                  gap: "8px",
+                  alignItems: "center",
+                  flexWrap: "wrap",
+                }}
+              >
                 {/* Tracking Button */}
                 {(order.tracking?.trackingUrl || order.ddt?.trackingUrl) && (
                   <button
@@ -2340,7 +2366,11 @@ export function OrderCardNew({
                           "ddt",
                           token,
                           (stage, percent) =>
-                            setDdtQuickProgress({ active: true, percent, stage }),
+                            setDdtQuickProgress({
+                              active: true,
+                              percent,
+                              stage,
+                            }),
                           () =>
                             setTimeout(
                               () =>
@@ -2409,7 +2439,9 @@ export function OrderCardNew({
                     style={{
                       display: "inline-flex",
                       flexDirection: "column",
-                      minWidth: invoiceQuickProgress.active ? "160px" : undefined,
+                      minWidth: invoiceQuickProgress.active
+                        ? "160px"
+                        : undefined,
                     }}
                   >
                     <button
@@ -2467,7 +2499,9 @@ export function OrderCardNew({
                           : "#7b1fa2",
                         border: `1px solid ${invoiceQuickProgress.active ? "#ba68c8" : "#7b1fa2"}`,
                         borderRadius: "6px",
-                        cursor: invoiceQuickProgress.active ? "wait" : "pointer",
+                        cursor: invoiceQuickProgress.active
+                          ? "wait"
+                          : "pointer",
                         transition: "all 0.2s",
                         opacity: invoiceQuickProgress.active ? 0.85 : 1,
                       }}
@@ -2500,7 +2534,14 @@ export function OrderCardNew({
               </div>
 
               {/* Right: Action Buttons (placeholder) */}
-              <div style={{ display: "flex", gap: "8px", alignItems: "center", flexWrap: "wrap" }}>
+              <div
+                style={{
+                  display: "flex",
+                  gap: "8px",
+                  alignItems: "center",
+                  flexWrap: "wrap",
+                }}
+              >
                 {(isCreato || isPiazzato) && (
                   <button
                     onClick={(e) => {
@@ -2669,9 +2710,7 @@ export function OrderCardNew({
 
           {/* Tab Content */}
           <div style={{ minHeight: "300px" }}>
-            {activeTab === "panoramica" && (
-              <TabPanoramica order={order} />
-            )}
+            {activeTab === "panoramica" && <TabPanoramica order={order} />}
             {activeTab === "articoli" && (
               <TabArticoli
                 items={order.items}
@@ -2689,7 +2728,6 @@ export function OrderCardNew({
             )}
             {activeTab === "storico" && <TabCronologia />}
           </div>
-
         </div>
       )}
     </div>

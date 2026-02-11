@@ -23,7 +23,8 @@ type QuickFilterType =
   | "editable"
   | "inTransit"
   | "delivered"
-  | "invoiced";
+  | "invoiced"
+  | "paid";
 
 type TimePreset =
   | "today"
@@ -161,6 +162,19 @@ function matchesGlobalSearch(order: Order, query: string): boolean {
   return false;
 }
 
+function parseItalianAmount(value: string): number {
+  return parseFloat(value.replace(/\./g, "").replace(",", "."));
+}
+
+function isOrderPaid(order: Order): boolean {
+  if (order.invoiceClosed === true) return true;
+  if (order.invoiceRemainingAmount) {
+    const remaining = parseItalianAmount(order.invoiceRemainingAmount);
+    return !isNaN(remaining) && remaining <= 0;
+  }
+  return false;
+}
+
 export function OrderHistory() {
   const { progress, reset: resetProgress } = useSyncProgress();
   const [orders, setOrders] = useState<Order[]>([]);
@@ -199,13 +213,10 @@ export function OrderHistory() {
   const [hideZeroAmount, setHideZeroAmount] = useState(true);
 
   // Scroll state
-  const [filterBarVisible, setFilterBarVisible] = useState(true);
   const [showScrollToTop, setShowScrollToTop] = useState(false);
 
   // Refs
   const customerDropdownRef = useRef<HTMLDivElement>(null);
-  const lastScrollY = useRef(0);
-  const filterBarRef = useRef<HTMLDivElement>(null);
 
   // Debounce global search input (300ms)
   useEffect(() => {
@@ -215,17 +226,10 @@ export function OrderHistory() {
     return () => clearTimeout(timer);
   }, [filters.search]);
 
-  // Scroll listener for filter bar collapse + scroll-to-top
+  // Scroll listener for scroll-to-top button
   useEffect(() => {
     const handleScroll = () => {
-      const currentY = window.scrollY;
-      if (currentY > lastScrollY.current && currentY > 200) {
-        setFilterBarVisible(false);
-      } else if (currentY < lastScrollY.current) {
-        setFilterBarVisible(true);
-      }
-      setShowScrollToTop(currentY > 400);
-      lastScrollY.current = currentY;
+      setShowScrollToTop(window.scrollY > 400);
     };
     window.addEventListener("scroll", handleScroll, { passive: true });
     return () => window.removeEventListener("scroll", handleScroll);
@@ -519,7 +523,7 @@ export function OrderHistory() {
     window.location.href = `/order?orderId=${orderId}`;
   };
 
-  // Apply quick filters client-side
+  // Apply quick filters client-side (OR logic: order matches if ANY selected filter matches)
   const applyQuickFilters = (ordersToFilter: Order[]): Order[] => {
     if (filters.quickFilters.size === 0) return ordersToFilter;
 
@@ -552,14 +556,18 @@ export function OrderHistory() {
             break;
 
           case "invoiced":
-            matches = !!order.invoiceNumber;
+            matches = !!order.invoiceNumber && !isOrderPaid(order);
+            break;
+
+          case "paid":
+            matches = !!order.invoiceNumber && isOrderPaid(order);
             break;
         }
 
-        if (!matches) return false;
+        if (matches) return true;
       }
 
-      return true;
+      return false;
     });
   };
 
@@ -647,7 +655,16 @@ export function OrderHistory() {
       label: "\ud83d\udcd1 Fatturati",
       color: "#9C27B0",
       bgColor: "#F3E5F5",
-      count: ordersForCounts.filter((o) => !!o.invoiceNumber).length,
+      count: ordersForCounts.filter((o) => !!o.invoiceNumber && !isOrderPaid(o))
+        .length,
+    },
+    {
+      id: "paid",
+      label: "\u2705 Pagati",
+      color: "#2E7D32",
+      bgColor: "#E8F5E9",
+      count: ordersForCounts.filter((o) => !!o.invoiceNumber && isOrderPaid(o))
+        .length,
     },
   ];
 
@@ -727,19 +744,12 @@ export function OrderHistory() {
 
       {/* Filter bar */}
       <div
-        ref={filterBarRef}
         style={{
           backgroundColor: "#fff",
           borderRadius: "12px",
           padding: "20px",
           marginBottom: "24px",
           boxShadow: "0 2px 8px rgba(0, 0, 0, 0.1)",
-          position: "sticky",
-          top: 0,
-          zIndex: 100,
-          transform: filterBarVisible ? "translateY(0)" : "translateY(-110%)",
-          opacity: filterBarVisible ? 1 : 0,
-          transition: "transform 0.3s ease, opacity 0.3s ease",
         }}
       >
         {/* Row 1: Customer search + Global search */}
