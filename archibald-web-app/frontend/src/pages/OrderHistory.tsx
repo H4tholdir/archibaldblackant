@@ -5,6 +5,7 @@ import { SyncProgressModal } from "../components/SyncProgressModal";
 import { OrderStatusLegend } from "../components/OrderStatusLegend";
 import { groupOrdersByPeriod } from "../utils/orderGrouping";
 import type { Order } from "../types/order";
+import { isOverdue } from "../utils/orderStatus";
 import { useSyncProgress } from "../hooks/useSyncProgress";
 import { toastService } from "../services/toast.service";
 import { fetchWithRetry } from "../utils/fetch-with-retry";
@@ -25,6 +26,7 @@ type QuickFilterType =
   | "inTransit"
   | "delivered"
   | "invoiced"
+  | "overdue"
   | "paid";
 
 type TimePreset =
@@ -584,6 +586,10 @@ export function OrderHistory() {
           case "paid":
             matches = !!order.invoiceNumber && isOrderPaid(order);
             break;
+
+          case "overdue":
+            matches = isOverdue(order);
+            break;
         }
 
         if (matches) return true;
@@ -702,6 +708,13 @@ export function OrderHistory() {
       bgColor: "#E8F5E9",
       count: ordersForCounts.filter((o) => !!o.invoiceNumber && isOrderPaid(o))
         .length,
+    },
+    {
+      id: "overdue",
+      label: "\ud83d\udd34 Scaduti",
+      color: "#B71C1C",
+      bgColor: "#FFCDD2",
+      count: ordersForCounts.filter((o) => isOverdue(o)).length,
     },
   ];
 

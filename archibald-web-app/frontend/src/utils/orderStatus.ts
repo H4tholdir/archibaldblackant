@@ -10,6 +10,7 @@ export type OrderStatusCategory =
   | "in-transit"
   | "delivered"
   | "invoiced"
+  | "overdue"
   | "paid";
 
 /**
@@ -70,6 +71,13 @@ const ORDER_STATUS_STYLES: Record<OrderStatusCategory, OrderStatusStyle> = {
     borderColor: "#9C27B0", // Purple
     backgroundColor: "#F3E5F5", // Lavender
   },
+  overdue: {
+    category: "overdue",
+    label: "Pagamento scaduto",
+    description: "Fattura con pagamento scaduto e importo residuo",
+    borderColor: "#B71C1C", // Dark red
+    backgroundColor: "#FFCDD2", // Light red pastel
+  },
   paid: {
     category: "paid",
     label: "Pagato",
@@ -93,12 +101,21 @@ function isInvoicePaid(order: Order): boolean {
 }
 
 function isLikelyDelivered(order: Order): boolean {
-  if (order.status !== "CONSEGNATO") return false;
+  if (order.status?.toUpperCase() !== "CONSEGNATO") return false;
   if (order.invoiceNumber) return true;
   const shippedDate = order.ddt?.ddtDeliveryDate || order.date;
   const daysSinceShipped =
     (Date.now() - new Date(shippedDate).getTime()) / 86_400_000;
   return daysSinceShipped >= 6;
+}
+
+export function isOverdue(order: Order): boolean {
+  if (!order.invoiceNumber) return false;
+  if (isInvoicePaid(order)) return false;
+  if (!order.invoiceDueDate) return false;
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  return new Date(order.invoiceDueDate) < today;
 }
 
 /**
@@ -119,7 +136,12 @@ export function getOrderStatus(order: Order): OrderStatusStyle {
     return ORDER_STATUS_STYLES.paid;
   }
 
-  // Priority 2: Fatturato (has invoice, not yet paid)
+  // Priority 2: Pagamento scaduto (invoice overdue)
+  if (isOverdue(order)) {
+    return ORDER_STATUS_STYLES.overdue;
+  }
+
+  // Priority 3: Fatturato (has invoice, not yet paid)
   if (order.invoiceNumber && order.documentState === "FATTURA") {
     return ORDER_STATUS_STYLES.invoiced;
   }
@@ -135,7 +157,7 @@ export function getOrderStatus(order: Order): OrderStatusStyle {
   }
 
   // Priority 4: In transito (status CONSEGNATO but not yet likely delivered)
-  if (order.status === "CONSEGNATO") {
+  if (order.status?.toUpperCase() === "CONSEGNATO") {
     return ORDER_STATUS_STYLES["in-transit"];
   }
 
