@@ -1,7 +1,7 @@
 // @ts-nocheck - Contains legacy code with articleCode
 import { useState, useEffect } from "react";
 import type { Order, OrderItem } from "../types/order";
-import { OrderActions } from "./OrderActions";
+
 import { getOrderStatus } from "../utils/orderStatus";
 import { fetchWithRetry } from "../utils/fetch-with-retry";
 
@@ -61,24 +61,6 @@ function formatDateTime(dateString: string | undefined): string {
   }
 }
 
-function getStatusColor(status: string | undefined): string {
-  if (!status) return "#9e9e9e";
-  const statusLower = status.toLowerCase();
-  if (statusLower.includes("evaso")) return "#4caf50"; // Green
-  if (statusLower.includes("spedito")) return "#9c27b0"; // Purple
-  if (statusLower.includes("lavorazione")) return "#2196f3"; // Blue
-  if (statusLower.includes("confermato")) return "#ff9800"; // Orange
-  return "#9e9e9e"; // Gray default
-}
-
-function getDocumentStateColor(state: string | undefined): string {
-  if (!state) return "#9e9e9e";
-  const stateLower = state.toLowerCase();
-  if (stateLower.includes("completo")) return "#4caf50"; // Green
-  if (stateLower.includes("parziale")) return "#ff9800"; // Orange
-  if (stateLower.includes("mancante")) return "#f44336"; // Red
-  return "#9e9e9e"; // Gray default
-}
 
 function getCourierLogo(courier: string | undefined): string {
   if (!courier) return "📦";
@@ -94,234 +76,6 @@ function getCourierLogo(courier: string | undefined): string {
 
 function copyToClipboard(text: string) {
   navigator.clipboard.writeText(text);
-}
-
-// ============================================================================
-// BADGE COMPONENTS
-// ============================================================================
-
-function StatusBadge({
-  status,
-  state,
-  lastUpdatedAt,
-}: {
-  status: string;
-  state?: string;
-  lastUpdatedAt?: string;
-}) {
-  const backgroundColor = getStatusColor(status);
-
-  return (
-    <span
-      style={{
-        display: "inline-flex",
-        alignItems: "center",
-        padding: "6px 12px",
-        borderRadius: "16px",
-        backgroundColor,
-        color: "#fff",
-        fontSize: "12px",
-        fontWeight: 600,
-        textTransform: "capitalize",
-        cursor: state || lastUpdatedAt ? "help" : "default",
-      }}
-      title={`${state || ""}\n${lastUpdatedAt ? `Aggiornato: ${formatDateTime(lastUpdatedAt)}` : ""}`}
-    >
-      {status}
-    </span>
-  );
-}
-
-function OrderTypeBadge({ orderType }: { orderType?: string }) {
-  if (!orderType) return null;
-
-  return (
-    <span
-      style={{
-        display: "inline-flex",
-        alignItems: "center",
-        padding: "6px 12px",
-        borderRadius: "16px",
-        backgroundColor: "#e8eaf6",
-        color: "#3f51b5",
-        fontSize: "12px",
-        fontWeight: 600,
-        border: "1px solid #c5cae9",
-      }}
-    >
-      📋 {orderType}
-    </span>
-  );
-}
-
-function DocumentStateBadge({ documentState }: { documentState?: string }) {
-  if (!documentState) return null;
-
-  const backgroundColor = getDocumentStateColor(documentState);
-
-  return (
-    <span
-      style={{
-        display: "inline-flex",
-        alignItems: "center",
-        padding: "6px 12px",
-        borderRadius: "16px",
-        backgroundColor,
-        color: "#fff",
-        fontSize: "12px",
-        fontWeight: 600,
-      }}
-    >
-      📄 {documentState}
-    </span>
-  );
-}
-
-function TransferBadge({ transferred }: { transferred?: boolean }) {
-  if (!transferred) return null;
-
-  return (
-    <span
-      style={{
-        display: "inline-flex",
-        alignItems: "center",
-        padding: "6px 12px",
-        borderRadius: "16px",
-        backgroundColor: "#e8f5e9",
-        color: "#2e7d32",
-        fontSize: "12px",
-        fontWeight: 600,
-        border: "1px solid #a5d6a7",
-      }}
-    >
-      ✓ Trasferito
-    </span>
-  );
-}
-
-function TrackingBadge({
-  trackingNumber,
-  trackingUrl,
-  trackingCourier,
-}: {
-  trackingNumber?: string;
-  trackingUrl?: string;
-  trackingCourier?: string;
-}) {
-  if (!trackingNumber) return null;
-
-  const handleClick = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    if (trackingUrl) {
-      window.open(trackingUrl, "_blank");
-    }
-  };
-
-  return (
-    <span
-      onClick={handleClick}
-      style={{
-        display: "inline-flex",
-        alignItems: "center",
-        gap: "4px",
-        padding: "6px 12px",
-        borderRadius: "16px",
-        backgroundColor: "#e3f2fd",
-        color: "#1976d2",
-        fontSize: "12px",
-        fontWeight: 600,
-        border: "1px solid #bbdefb",
-        cursor: trackingUrl ? "pointer" : "default",
-        transition: "all 0.2s",
-      }}
-      onMouseEnter={(e) => {
-        if (trackingUrl) {
-          e.currentTarget.style.backgroundColor = "#bbdefb";
-        }
-      }}
-      onMouseLeave={(e) => {
-        e.currentTarget.style.backgroundColor = "#e3f2fd";
-      }}
-      title={trackingUrl ? "Clicca per tracciare" : trackingNumber}
-    >
-      {getCourierLogo(trackingCourier)} {trackingNumber.substring(0, 15)}
-      {trackingNumber.length > 15 && "..."}
-    </span>
-  );
-}
-
-function OriginBadge({ salesOrigin }: { salesOrigin?: string }) {
-  if (!salesOrigin) return null;
-
-  return (
-    <span
-      style={{
-        display: "inline-flex",
-        alignItems: "center",
-        padding: "6px 12px",
-        borderRadius: "16px",
-        backgroundColor: "#fff3e0",
-        color: "#e65100",
-        fontSize: "12px",
-        fontWeight: 600,
-        border: "1px solid #ffe0b2",
-      }}
-    >
-      🌍 {salesOrigin}
-    </span>
-  );
-}
-
-function DeliveryMethodBadge({ deliveryMethod }: { deliveryMethod?: string }) {
-  if (!deliveryMethod) return null;
-
-  return (
-    <span
-      style={{
-        display: "inline-flex",
-        alignItems: "center",
-        padding: "6px 12px",
-        borderRadius: "16px",
-        backgroundColor: "#f3e5f5",
-        color: "#6a1b9a",
-        fontSize: "12px",
-        fontWeight: 600,
-        border: "1px solid #e1bee7",
-      }}
-    >
-      🚚 {deliveryMethod}
-    </span>
-  );
-}
-
-function LocationBadge({
-  deliveryCity,
-  shippingAddress,
-}: {
-  deliveryCity?: string;
-  shippingAddress?: string;
-}) {
-  if (!deliveryCity && !shippingAddress) return null;
-
-  return (
-    <span
-      style={{
-        display: "inline-flex",
-        alignItems: "center",
-        padding: "6px 12px",
-        borderRadius: "16px",
-        backgroundColor: "#fce4ec",
-        color: "#c2185b",
-        fontSize: "12px",
-        fontWeight: 600,
-        border: "1px solid #f8bbd0",
-        cursor: shippingAddress ? "help" : "default",
-      }}
-      title={shippingAddress || undefined}
-    >
-      📍 {deliveryCity || "N/A"}
-    </span>
-  );
 }
 
 // ============================================================================
@@ -347,44 +101,7 @@ function getStepInfo(order: Order): { index: number; isError: boolean } {
   return { index: 0, isError: false };
 }
 
-function TabPanoramica({ order, token }: { order: Order; token?: string }) {
-  const [stateHistory, setStateHistory] = useState<
-    Array<{
-      id: number;
-      orderId: string;
-      oldState: string | null;
-      newState: string;
-      actor: string;
-      notes: string | null;
-      confidence: string | null;
-      source: string | null;
-      timestamp: string;
-      createdAt: string;
-    }>
-  >([]);
-
-  useEffect(() => {
-    if (!token || !order.id) return;
-
-    const loadHistory = async () => {
-      try {
-        const response = await fetchWithRetry(
-          `/api/orders/${order.id}/state-history`,
-          { headers: { Authorization: `Bearer ${token}` } },
-        );
-        if (!response.ok) return;
-        const data = await response.json();
-        if (data.success && Array.isArray(data.data)) {
-          setStateHistory(data.data);
-        }
-      } catch {
-        // Fail silently
-      }
-    };
-
-    loadHistory();
-  }, [order.id, token]);
-
+function TabPanoramica({ order }: { order: Order }) {
   const stepLabels = ["Bozza", "Inviato", "Confermato", "Fatturato"];
   const { index: activeStep, isError } = getStepInfo(order);
 
@@ -741,153 +458,8 @@ function TabPanoramica({ order, token }: { order: Order; token?: string }) {
         </div>
       </div>
 
-      {/* Badge */}
-      <div style={{ ...cardStyle, paddingBottom: "12px" }}>
-        <div style={cardTitleStyle}>Badge</div>
-        <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
-          <StatusBadge
-            status={order.status}
-            state={order.state}
-            lastUpdatedAt={order.lastUpdatedAt}
-          />
-          <OrderTypeBadge orderType={order.orderType} />
-          <DocumentStateBadge documentState={order.documentState} />
-          <TransferBadge transferred={order.transferredToAccountingOffice} />
-          <TrackingBadge
-            trackingNumber={
-              order.tracking?.trackingNumber || order.ddt?.trackingNumber
-            }
-            trackingUrl={order.tracking?.trackingUrl || order.ddt?.trackingUrl}
-            trackingCourier={
-              order.tracking?.trackingCourier || order.ddt?.trackingCourier
-            }
-          />
-          <OriginBadge salesOrigin={order.salesOrigin} />
-          <DeliveryMethodBadge deliveryMethod={order.ddt?.deliveryMethod} />
-          <LocationBadge
-            deliveryCity={order.ddt?.deliveryCity}
-            shippingAddress={order.shippingAddress}
-          />
-        </div>
-      </div>
 
-      {/* Cronologia */}
-      {stateHistory.length > 0 && (
-        <div style={cardStyle}>
-          <div style={cardTitleStyle}>Cronologia</div>
-          <div style={{ position: "relative", paddingLeft: "24px" }}>
-            <div
-              style={{
-                position: "absolute",
-                left: "8px",
-                top: "0",
-                bottom: "0",
-                width: "2px",
-                backgroundColor: "#e0e0e0",
-              }}
-            />
-            {stateHistory.map((entry) => {
-              const isCreation = !entry.oldState;
-              const isComplete =
-                entry.newState.toLowerCase().includes("evaso") ||
-                entry.newState.toLowerCase().includes("fatturato");
-              const dotColor = isCreation
-                ? "#2196f3"
-                : isComplete
-                  ? "#4caf50"
-                  : "#ff9800";
 
-              return (
-                <div
-                  key={entry.id}
-                  style={{ position: "relative", marginBottom: "16px" }}
-                >
-                  <div
-                    style={{
-                      position: "absolute",
-                      left: "-20px",
-                      top: "4px",
-                      width: "12px",
-                      height: "12px",
-                      borderRadius: "50%",
-                      backgroundColor: dotColor,
-                      border: "2px solid #fff",
-                    }}
-                  />
-                  <div
-                    style={{
-                      padding: "12px",
-                      backgroundColor: "#f5f5f5",
-                      borderRadius: "8px",
-                    }}
-                  >
-                    <div
-                      style={{
-                        display: "flex",
-                        justifyContent: "space-between",
-                        marginBottom: "4px",
-                      }}
-                    >
-                      <span
-                        style={{
-                          fontSize: "14px",
-                          fontWeight: 600,
-                          color: "#333",
-                        }}
-                      >
-                        {entry.newState}
-                      </span>
-                      <span style={{ fontSize: "12px", color: "#666" }}>
-                        {formatDateTime(entry.timestamp)}
-                      </span>
-                    </div>
-                    {entry.oldState && (
-                      <div
-                        style={{
-                          fontSize: "12px",
-                          color: "#666",
-                          marginBottom: "4px",
-                        }}
-                      >
-                        {entry.oldState} → {entry.newState}
-                      </div>
-                    )}
-                    {entry.actor && (
-                      <div
-                        style={{
-                          fontSize: "12px",
-                          color: "#888",
-                          marginBottom: entry.notes ? "4px" : "0",
-                        }}
-                      >
-                        {entry.actor}
-                      </div>
-                    )}
-                    {entry.notes && (
-                      <div style={{ fontSize: "12px", color: "#999" }}>
-                        {entry.notes}
-                      </div>
-                    )}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      )}
-
-      {stateHistory.length === 0 && token && (
-        <div
-          style={{
-            padding: "16px",
-            textAlign: "center",
-            color: "#999",
-            fontSize: "14px",
-          }}
-        >
-          Nessuna cronologia disponibile
-        </div>
-      )}
     </div>
   );
 }
@@ -1384,194 +956,229 @@ function TabLogistica({ order, token }: { order: Order; token?: string }) {
   const hasDettagliSpedizione =
     ddt?.deliveryTerms || ddt?.deliveryMethod || order.deliveryCompletedDate;
 
+  const cardStyle: React.CSSProperties = {
+    backgroundColor: "#fff",
+    border: "1px solid #e8e8e8",
+    borderRadius: "12px",
+    padding: "16px",
+    marginBottom: "16px",
+  };
+  const cardTitleStyle: React.CSSProperties = {
+    fontSize: "13px",
+    fontWeight: 600,
+    color: "#888",
+    textTransform: "uppercase",
+    letterSpacing: "0.5px",
+    marginBottom: "12px",
+  };
+
   return (
     <div style={{ padding: "16px" }}>
-      {/* 1. Tracking Spedizione (in cima - azione più frequente) */}
+      {/* 1. Tracking — barra compatta orizzontale */}
       {tracking.trackingNumber && (
-        <div style={{ marginBottom: "24px" }}>
-          <h3
-            style={{
-              fontSize: "16px",
-              fontWeight: 600,
-              marginBottom: "12px",
-              color: "#333",
-            }}
-          >
-            Tracking Spedizione
-          </h3>
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            flexWrap: "wrap",
+            gap: "12px",
+            padding: "12px 16px",
+            backgroundColor: "#e3f2fd",
+            border: "1px solid #bbdefb",
+            borderRadius: "10px",
+            marginBottom: "16px",
+          }}
+        >
           <div
-            style={{
-              padding: "16px",
-              backgroundColor: "#e3f2fd",
-              borderRadius: "8px",
-              border: "1px solid #bbdefb",
-            }}
+            style={{ display: "flex", alignItems: "center", gap: "10px" }}
           >
+            <span style={{ fontSize: "22px" }}>
+              {getCourierLogo(tracking.trackingCourier)}
+            </span>
+            <span style={{ fontSize: "14px", fontWeight: 600, color: "#333" }}>
+              {tracking.trackingCourier?.toUpperCase() || "Corriere"}
+            </span>
+            <span
+              style={{
+                fontSize: "14px",
+                color: "#666",
+                fontFamily: "monospace",
+              }}
+            >
+              {tracking.trackingNumber}
+            </span>
+            <button
+              onClick={() =>
+                copyToClipboard(tracking.trackingNumber || "")
+              }
+              style={{
+                padding: "2px 8px",
+                fontSize: "12px",
+                border: "none",
+                backgroundColor: "#1976d2",
+                color: "#fff",
+                borderRadius: "4px",
+                cursor: "pointer",
+              }}
+            >
+              Copia
+            </button>
+          </div>
+          {tracking.trackingUrl && (
+            <button
+              onClick={() => window.open(tracking.trackingUrl, "_blank")}
+              style={{
+                padding: "8px 20px",
+                backgroundColor: "#1976d2",
+                color: "#fff",
+                border: "none",
+                borderRadius: "8px",
+                fontSize: "13px",
+                fontWeight: 600,
+                cursor: "pointer",
+                transition: "background-color 0.2s",
+                whiteSpace: "nowrap",
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.backgroundColor = "#1565c0";
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.backgroundColor = "#1976d2";
+              }}
+            >
+              🔗 Traccia Spedizione
+            </button>
+          )}
+        </div>
+      )}
+
+      {/* 2. Destinatario + Dettagli Spedizione — side-by-side */}
+      {ddt && (hasDestinatario || hasDettagliSpedizione) && (
+        <div
+          style={{ display: "flex", gap: "16px", flexWrap: "wrap" }}
+        >
+          {hasDestinatario && (
+            <div style={{ ...cardStyle, flex: "1 1 280px", minWidth: "280px" }}>
+              <div style={cardTitleStyle}>Destinatario</div>
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns:
+                    "repeat(auto-fill, minmax(180px, 1fr))",
+                  gap: "12px",
+                }}
+              >
+                <InfoField
+                  label="Nome Consegna"
+                  value={ddt.ddtDeliveryName}
+                  bold
+                />
+                {ddt.attentionTo && (
+                  <InfoField
+                    label="All'attenzione di"
+                    value={ddt.attentionTo}
+                  />
+                )}
+                {ddt.deliveryAddress && (
+                  <div style={{ gridColumn: "1 / -1" }}>
+                    <InfoField
+                      label="Indirizzo Consegna"
+                      value={ddt.deliveryAddress}
+                    />
+                  </div>
+                )}
+                {ddt.deliveryCity && (
+                  <InfoField
+                    label="Città Consegna"
+                    value={ddt.deliveryCity}
+                  />
+                )}
+              </div>
+            </div>
+          )}
+
+          {hasDettagliSpedizione && (
+            <div style={{ ...cardStyle, flex: "1 1 240px", minWidth: "240px" }}>
+              <div style={cardTitleStyle}>Dettagli Spedizione</div>
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns:
+                    "repeat(auto-fill, minmax(180px, 1fr))",
+                  gap: "12px",
+                }}
+              >
+                {ddt.deliveryMethod && (
+                  <InfoField
+                    label="Modalità Consegna"
+                    value={ddt.deliveryMethod}
+                  />
+                )}
+                {ddt.deliveryTerms && (
+                  <InfoField
+                    label="Termini Consegna"
+                    value={ddt.deliveryTerms}
+                  />
+                )}
+                {order.deliveryCompletedDate && (
+                  <InfoField
+                    label="Consegna Completata"
+                    value={formatDate(order.deliveryCompletedDate)}
+                  />
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* 3. Documento di Trasporto — card full-width con griglia auto-fill */}
+      {ddt && (
+        <div style={cardStyle}>
+          <div style={cardTitleStyle}>Documento di Trasporto</div>
+
+          {ddt.ddtCustomerAccount && (
             <div
               style={{
-                display: "flex",
-                alignItems: "center",
-                gap: "12px",
+                padding: "10px 12px",
+                backgroundColor: "#e3f2fd",
+                borderRadius: "6px",
+                border: "1px solid #bbdefb",
                 marginBottom: "12px",
               }}
             >
-              <span style={{ fontSize: "32px" }}>
-                {getCourierLogo(tracking.trackingCourier)}
-              </span>
-              <div>
-                <div
-                  style={{ fontSize: "14px", fontWeight: 600, color: "#333" }}
-                >
-                  {tracking.trackingCourier?.toUpperCase() || "Corriere"}
-                </div>
-                <div
-                  style={{
-                    fontSize: "14px",
-                    color: "#666",
-                    fontFamily: "monospace",
-                  }}
-                >
-                  {tracking.trackingNumber}
-                  <button
-                    onClick={() =>
-                      copyToClipboard(tracking.trackingNumber || "")
-                    }
-                    style={{
-                      marginLeft: "8px",
-                      padding: "2px 8px",
-                      fontSize: "12px",
-                      border: "none",
-                      backgroundColor: "#1976d2",
-                      color: "#fff",
-                      borderRadius: "4px",
-                      cursor: "pointer",
-                    }}
-                  >
-                    Copia
-                  </button>
-                </div>
-              </div>
-            </div>
-            {tracking.trackingUrl && (
-              <button
-                onClick={() => window.open(tracking.trackingUrl, "_blank")}
-                style={{
-                  width: "100%",
-                  padding: "12px",
-                  backgroundColor: "#1976d2",
-                  color: "#fff",
-                  border: "none",
-                  borderRadius: "8px",
-                  fontSize: "14px",
-                  fontWeight: 600,
-                  cursor: "pointer",
-                  transition: "background-color 0.2s",
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.backgroundColor = "#1565c0";
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.backgroundColor = "#1976d2";
-                }}
-              >
-                🔗 Traccia Spedizione
-              </button>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* 2. Destinatario (dove va?) */}
-      {ddt && hasDestinatario && (
-        <div style={{ marginBottom: "24px" }}>
-          <h3
-            style={{
-              fontSize: "16px",
-              fontWeight: 600,
-              marginBottom: "12px",
-              color: "#333",
-            }}
-          >
-            Destinatario
-          </h3>
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(2, 1fr)",
-              gap: "12px",
-            }}
-          >
-            <InfoField label="Nome Consegna" value={ddt.ddtDeliveryName} bold />
-            {ddt.attentionTo && (
-              <InfoField label="All'attenzione di" value={ddt.attentionTo} />
-            )}
-            {ddt.deliveryAddress && (
-              <div style={{ gridColumn: "1 / -1" }}>
-                <InfoField
-                  label="Indirizzo Consegna"
-                  value={ddt.deliveryAddress}
-                />
-              </div>
-            )}
-            {ddt.deliveryCity && (
-              <InfoField label="Città Consegna" value={ddt.deliveryCity} />
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* 3. Documento di Trasporto (riferimenti documentali) */}
-      {ddt && (
-        <div style={{ marginBottom: "24px" }}>
-          <h3
-            style={{
-              fontSize: "16px",
-              fontWeight: 600,
-              marginBottom: "12px",
-              color: "#333",
-            }}
-          >
-            Documento di Trasporto
-          </h3>
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(2, 1fr)",
-              gap: "12px",
-            }}
-          >
-            {ddt.ddtCustomerAccount && (
               <div
                 style={{
-                  gridColumn: "1 / -1",
-                  padding: "10px 12px",
-                  backgroundColor: "#e3f2fd",
-                  borderRadius: "6px",
-                  border: "1px solid #bbdefb",
+                  fontSize: "11px",
+                  color: "#1565c0",
+                  marginBottom: "2px",
+                  fontWeight: 600,
                 }}
               >
-                <div
-                  style={{
-                    fontSize: "11px",
-                    color: "#1565c0",
-                    marginBottom: "2px",
-                    fontWeight: 600,
-                  }}
-                >
-                  Conto Ordine
-                </div>
-                <div
-                  style={{
-                    fontSize: "15px",
-                    fontWeight: 700,
-                    color: "#0d47a1",
-                    fontFamily: "monospace",
-                  }}
-                >
-                  {ddt.ddtCustomerAccount}
-                </div>
+                Conto Ordine
               </div>
-            )}
+              <div
+                style={{
+                  fontSize: "15px",
+                  fontWeight: 700,
+                  color: "#0d47a1",
+                  fontFamily: "monospace",
+                }}
+              >
+                {ddt.ddtCustomerAccount}
+              </div>
+            </div>
+          )}
+
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns:
+                "repeat(auto-fill, minmax(160px, 1fr))",
+              gap: "12px",
+            }}
+          >
             <InfoField label="Numero DDT" value={ddt.ddtNumber} bold />
             <InfoField
               label="Data Consegna"
@@ -1595,11 +1202,12 @@ function TabLogistica({ order, token }: { order: Order; token?: string }) {
           </div>
 
           {/* DDT PDF Download Button */}
-          <div style={{ marginTop: "16px" }}>
+          <div style={{ marginTop: "16px", textAlign: "center" }}>
             <button
               onClick={handleDownloadDDT}
               disabled={ddtProgress.active || !ddt.trackingNumber}
               style={{
+                maxWidth: "300px",
                 width: "100%",
                 padding: "12px",
                 backgroundColor:
@@ -1615,7 +1223,7 @@ function TabLogistica({ order, token }: { order: Order; token?: string }) {
                   ddtProgress.active || !ddt.trackingNumber
                     ? "not-allowed"
                     : "pointer",
-                display: "flex",
+                display: "inline-flex",
                 alignItems: "center",
                 justifyContent: "center",
                 gap: "8px",
@@ -1669,42 +1277,6 @@ function TabLogistica({ order, token }: { order: Order; token?: string }) {
               >
                 {ddtError}
               </div>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* 4. Dettagli Spedizione */}
-      {ddt && hasDettagliSpedizione && (
-        <div style={{ marginBottom: "24px" }}>
-          <h3
-            style={{
-              fontSize: "16px",
-              fontWeight: 600,
-              marginBottom: "12px",
-              color: "#333",
-            }}
-          >
-            Dettagli Spedizione
-          </h3>
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(2, 1fr)",
-              gap: "12px",
-            }}
-          >
-            {ddt.deliveryMethod && (
-              <InfoField label="Modalità Consegna" value={ddt.deliveryMethod} />
-            )}
-            {ddt.deliveryTerms && (
-              <InfoField label="Termini Consegna" value={ddt.deliveryTerms} />
-            )}
-            {order.deliveryCompletedDate && (
-              <InfoField
-                label="Consegna Completata"
-                value={formatDate(order.deliveryCompletedDate)}
-              />
             )}
           </div>
         </div>
@@ -2598,17 +2170,29 @@ export function OrderCardNew({
               {formatDate(order.orderDate || order.date)}
             </div>
 
-            {/* Total Amount */}
-            <div style={{ marginBottom: "8px" }}>
-              <span
-                style={{
-                  fontSize: "16px",
-                  fontWeight: 600,
-                  color: "#333",
-                }}
-              >
-                {order.total}
-              </span>
+            {/* Total Amount + Lordo/Sconto inline */}
+            <div style={{ marginBottom: "4px" }}>
+              <div style={{ display: "flex", alignItems: "baseline", gap: "10px", flexWrap: "wrap" }}>
+                <span
+                  style={{
+                    fontSize: "16px",
+                    fontWeight: 600,
+                    color: "#333",
+                  }}
+                >
+                  {order.total}
+                </span>
+                {order.grossAmount && (
+                  <span style={{ fontSize: "13px", color: "#666" }}>
+                    Lordo: {order.grossAmount}
+                  </span>
+                )}
+                {order.discountPercent && (
+                  <span style={{ fontSize: "13px", color: "#e65100" }}>
+                    Sconto: {order.discountPercent}
+                  </span>
+                )}
+              </div>
               {(() => {
                 const totalWithVat =
                   articlesTotals.totalWithVat ??
@@ -2634,96 +2218,76 @@ export function OrderCardNew({
               })()}
             </div>
 
-            {/* Action Buttons */}
+            {/* Invoice Balance Row */}
+            {order.invoiceNumber && (() => {
+              const remaining = parseFloat((order.invoiceRemainingAmount || "0").replace(",", "."));
+              const isPaid = order.invoiceClosed === true || remaining <= 0;
+              const daysPastDue = order.invoiceDaysPastDue ? parseInt(order.invoiceDaysPastDue, 10) : null;
+
+              return (
+                <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap", marginBottom: "8px" }}>
+                  {isPaid ? (
+                    <span style={{
+                      fontSize: "12px",
+                      fontWeight: 600,
+                      padding: "3px 10px",
+                      borderRadius: "6px",
+                      backgroundColor: "#e8f5e9",
+                      color: "#2e7d32",
+                    }}>
+                      Pagata
+                    </span>
+                  ) : (
+                    <span style={{
+                      fontSize: "12px",
+                      fontWeight: 600,
+                      padding: "3px 10px",
+                      borderRadius: "6px",
+                      backgroundColor: "#fff3e0",
+                      color: "#e65100",
+                    }}>
+                      Saldo: € {remaining.toFixed(2)}
+                    </span>
+                  )}
+                  {order.invoiceDueDate && (
+                    <span style={{ fontSize: "12px", color: "#666" }}>
+                      Scad: {formatDate(order.invoiceDueDate)}
+                    </span>
+                  )}
+                  {daysPastDue !== null && daysPastDue !== 0 && (
+                    <span style={{
+                      fontSize: "12px",
+                      fontWeight: 600,
+                      color: daysPastDue < 0 ? "#d32f2f" : "#2e7d32",
+                    }}>
+                      {daysPastDue < 0 ? `${Math.abs(daysPastDue)} gg scaduta` : `${daysPastDue} giorni`}
+                    </span>
+                  )}
+                </div>
+              );
+            })()}
+
+            {/* Buttons Row: Download (left) + Actions (right) */}
             <div
               style={{
                 display: "flex",
-                gap: "8px",
+                justifyContent: "space-between",
                 alignItems: "center",
                 flexWrap: "wrap",
+                gap: "8px",
               }}
               onClick={(e) => e.stopPropagation()}
             >
-              {/* Tracking Button */}
-              {(order.tracking?.trackingUrl || order.ddt?.trackingUrl) && (
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    const url =
-                      order.tracking?.trackingUrl || order.ddt?.trackingUrl;
-                    if (url) window.open(url, "_blank");
-                  }}
-                  style={{
-                    display: "inline-flex",
-                    alignItems: "center",
-                    gap: "4px",
-                    padding: "6px 12px",
-                    fontSize: "12px",
-                    fontWeight: 600,
-                    backgroundColor: "#fff",
-                    color: "#1976d2",
-                    border: "1px solid #1976d2",
-                    borderRadius: "6px",
-                    cursor: "pointer",
-                    transition: "all 0.2s",
-                  }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.backgroundColor = "#1976d2";
-                    e.currentTarget.style.color = "#fff";
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.backgroundColor = "#fff";
-                    e.currentTarget.style.color = "#1976d2";
-                  }}
-                >
-                  🚚 Tracking
-                </button>
-              )}
-
-              {/* DDT Download Button */}
-              {order.ddt?.ddtNumber && order.ddt?.trackingNumber && (
-                <div
-                  style={{
-                    display: "inline-flex",
-                    flexDirection: "column",
-                    minWidth: ddtQuickProgress.active ? "160px" : undefined,
-                  }}
-                >
+              {/* Left: Download Buttons */}
+              <div style={{ display: "flex", gap: "8px", alignItems: "center", flexWrap: "wrap" }}>
+                {/* Tracking Button */}
+                {(order.tracking?.trackingUrl || order.ddt?.trackingUrl) && (
                   <button
-                    disabled={ddtQuickProgress.active}
                     onClick={(e) => {
                       e.stopPropagation();
-                      if (ddtQuickProgress.active || !token) return;
-                      setDdtQuickProgress({
-                        active: true,
-                        percent: 0,
-                        stage: "Avvio...",
-                      });
-                      downloadPdfWithProgress(
-                        order.orderNumber || order.id,
-                        "ddt",
-                        token,
-                        (stage, percent) =>
-                          setDdtQuickProgress({ active: true, percent, stage }),
-                        () =>
-                          setTimeout(
-                            () =>
-                              setDdtQuickProgress({
-                                active: false,
-                                percent: 0,
-                                stage: "",
-                              }),
-                            1500,
-                          ),
-                        (error) => {
-                          console.error("DDT download error:", error);
-                          setDdtQuickProgress({
-                            active: false,
-                            percent: 0,
-                            stage: "",
-                          });
-                        },
-                      );
+                      const url =
+                        order.tracking?.trackingUrl || order.ddt?.trackingUrl;
+                      if (url) window.open(url, "_blank");
                     }}
                     style={{
                       display: "inline-flex",
@@ -2732,89 +2296,216 @@ export function OrderCardNew({
                       padding: "6px 12px",
                       fontSize: "12px",
                       fontWeight: 600,
-                      backgroundColor: ddtQuickProgress.active
-                        ? "#e8f5e9"
-                        : "#fff",
-                      color: ddtQuickProgress.active ? "#81c784" : "#388e3c",
-                      border: `1px solid ${ddtQuickProgress.active ? "#81c784" : "#388e3c"}`,
+                      backgroundColor: "#fff",
+                      color: "#1976d2",
+                      border: "1px solid #1976d2",
                       borderRadius: "6px",
-                      cursor: ddtQuickProgress.active ? "wait" : "pointer",
+                      cursor: "pointer",
                       transition: "all 0.2s",
-                      opacity: ddtQuickProgress.active ? 0.85 : 1,
                     }}
                     onMouseEnter={(e) => {
-                      if (!ddtQuickProgress.active) {
-                        e.currentTarget.style.backgroundColor = "#388e3c";
-                        e.currentTarget.style.color = "#fff";
-                      }
+                      e.currentTarget.style.backgroundColor = "#1976d2";
+                      e.currentTarget.style.color = "#fff";
                     }}
                     onMouseLeave={(e) => {
-                      if (!ddtQuickProgress.active) {
-                        e.currentTarget.style.backgroundColor = "#fff";
-                        e.currentTarget.style.color = "#388e3c";
-                      }
+                      e.currentTarget.style.backgroundColor = "#fff";
+                      e.currentTarget.style.color = "#1976d2";
                     }}
                   >
-                    {ddtQuickProgress.active ? "⏳ DDT..." : "📄 DDT"}
+                    🚚 Tracking
                   </button>
-                  {ddtQuickProgress.active && (
-                    <ProgressBar
-                      percent={ddtQuickProgress.percent}
-                      stage={ddtQuickProgress.stage}
-                      color="#388e3c"
-                    />
-                  )}
-                </div>
-              )}
+                )}
 
-              {/* Invoice Download Button */}
-              {order.invoiceNumber && (
-                <div
-                  style={{
-                    display: "inline-flex",
-                    flexDirection: "column",
-                    minWidth: invoiceQuickProgress.active ? "160px" : undefined,
-                  }}
-                >
+                {/* DDT Download Button */}
+                {order.ddt?.ddtNumber && order.ddt?.trackingNumber && (
+                  <div
+                    style={{
+                      display: "inline-flex",
+                      flexDirection: "column",
+                      minWidth: ddtQuickProgress.active ? "160px" : undefined,
+                    }}
+                  >
+                    <button
+                      disabled={ddtQuickProgress.active}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        if (ddtQuickProgress.active || !token) return;
+                        setDdtQuickProgress({
+                          active: true,
+                          percent: 0,
+                          stage: "Avvio...",
+                        });
+                        downloadPdfWithProgress(
+                          order.orderNumber || order.id,
+                          "ddt",
+                          token,
+                          (stage, percent) =>
+                            setDdtQuickProgress({ active: true, percent, stage }),
+                          () =>
+                            setTimeout(
+                              () =>
+                                setDdtQuickProgress({
+                                  active: false,
+                                  percent: 0,
+                                  stage: "",
+                                }),
+                              1500,
+                            ),
+                          (error) => {
+                            console.error("DDT download error:", error);
+                            setDdtQuickProgress({
+                              active: false,
+                              percent: 0,
+                              stage: "",
+                            });
+                          },
+                        );
+                      }}
+                      style={{
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: "4px",
+                        padding: "6px 12px",
+                        fontSize: "12px",
+                        fontWeight: 600,
+                        backgroundColor: ddtQuickProgress.active
+                          ? "#e8f5e9"
+                          : "#fff",
+                        color: ddtQuickProgress.active ? "#81c784" : "#388e3c",
+                        border: `1px solid ${ddtQuickProgress.active ? "#81c784" : "#388e3c"}`,
+                        borderRadius: "6px",
+                        cursor: ddtQuickProgress.active ? "wait" : "pointer",
+                        transition: "all 0.2s",
+                        opacity: ddtQuickProgress.active ? 0.85 : 1,
+                      }}
+                      onMouseEnter={(e) => {
+                        if (!ddtQuickProgress.active) {
+                          e.currentTarget.style.backgroundColor = "#388e3c";
+                          e.currentTarget.style.color = "#fff";
+                        }
+                      }}
+                      onMouseLeave={(e) => {
+                        if (!ddtQuickProgress.active) {
+                          e.currentTarget.style.backgroundColor = "#fff";
+                          e.currentTarget.style.color = "#388e3c";
+                        }
+                      }}
+                    >
+                      {ddtQuickProgress.active ? "⏳ DDT..." : "📄 DDT"}
+                    </button>
+                    {ddtQuickProgress.active && (
+                      <ProgressBar
+                        percent={ddtQuickProgress.percent}
+                        stage={ddtQuickProgress.stage}
+                        color="#388e3c"
+                      />
+                    )}
+                  </div>
+                )}
+
+                {/* Invoice Download Button */}
+                {order.invoiceNumber && (
+                  <div
+                    style={{
+                      display: "inline-flex",
+                      flexDirection: "column",
+                      minWidth: invoiceQuickProgress.active ? "160px" : undefined,
+                    }}
+                  >
+                    <button
+                      disabled={invoiceQuickProgress.active}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        if (invoiceQuickProgress.active || !token) return;
+                        setInvoiceQuickProgress({
+                          active: true,
+                          percent: 0,
+                          stage: "Avvio...",
+                        });
+                        downloadPdfWithProgress(
+                          order.orderNumber || order.id,
+                          "invoice",
+                          token,
+                          (stage, percent) =>
+                            setInvoiceQuickProgress({
+                              active: true,
+                              percent,
+                              stage,
+                            }),
+                          () =>
+                            setTimeout(
+                              () =>
+                                setInvoiceQuickProgress({
+                                  active: false,
+                                  percent: 0,
+                                  stage: "",
+                                }),
+                              1500,
+                            ),
+                          (error) => {
+                            console.error("Invoice download error:", error);
+                            setInvoiceQuickProgress({
+                              active: false,
+                              percent: 0,
+                              stage: "",
+                            });
+                          },
+                        );
+                      }}
+                      style={{
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: "4px",
+                        padding: "6px 12px",
+                        fontSize: "12px",
+                        fontWeight: 600,
+                        backgroundColor: invoiceQuickProgress.active
+                          ? "#f3e5f5"
+                          : "#fff",
+                        color: invoiceQuickProgress.active
+                          ? "#ba68c8"
+                          : "#7b1fa2",
+                        border: `1px solid ${invoiceQuickProgress.active ? "#ba68c8" : "#7b1fa2"}`,
+                        borderRadius: "6px",
+                        cursor: invoiceQuickProgress.active ? "wait" : "pointer",
+                        transition: "all 0.2s",
+                        opacity: invoiceQuickProgress.active ? 0.85 : 1,
+                      }}
+                      onMouseEnter={(e) => {
+                        if (!invoiceQuickProgress.active) {
+                          e.currentTarget.style.backgroundColor = "#7b1fa2";
+                          e.currentTarget.style.color = "#fff";
+                        }
+                      }}
+                      onMouseLeave={(e) => {
+                        if (!invoiceQuickProgress.active) {
+                          e.currentTarget.style.backgroundColor = "#fff";
+                          e.currentTarget.style.color = "#7b1fa2";
+                        }
+                      }}
+                    >
+                      {invoiceQuickProgress.active
+                        ? "⏳ Fattura..."
+                        : "📑 Fattura"}
+                    </button>
+                    {invoiceQuickProgress.active && (
+                      <ProgressBar
+                        percent={invoiceQuickProgress.percent}
+                        stage={invoiceQuickProgress.stage}
+                        color="#7b1fa2"
+                      />
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {/* Right: Action Buttons (placeholder) */}
+              <div style={{ display: "flex", gap: "8px", alignItems: "center", flexWrap: "wrap" }}>
+                {(isCreato || isPiazzato) && (
                   <button
-                    disabled={invoiceQuickProgress.active}
                     onClick={(e) => {
                       e.stopPropagation();
-                      if (invoiceQuickProgress.active || !token) return;
-                      setInvoiceQuickProgress({
-                        active: true,
-                        percent: 0,
-                        stage: "Avvio...",
-                      });
-                      downloadPdfWithProgress(
-                        order.orderNumber || order.id,
-                        "invoice",
-                        token,
-                        (stage, percent) =>
-                          setInvoiceQuickProgress({
-                            active: true,
-                            percent,
-                            stage,
-                          }),
-                        () =>
-                          setTimeout(
-                            () =>
-                              setInvoiceQuickProgress({
-                                active: false,
-                                percent: 0,
-                                stage: "",
-                              }),
-                            1500,
-                          ),
-                        (error) => {
-                          console.error("Invoice download error:", error);
-                          setInvoiceQuickProgress({
-                            active: false,
-                            percent: 0,
-                            stage: "",
-                          });
-                        },
-                      );
+                      console.log("TODO: Invia", order.id);
                     }}
                     style={{
                       display: "inline-flex",
@@ -2823,44 +2514,90 @@ export function OrderCardNew({
                       padding: "6px 12px",
                       fontSize: "12px",
                       fontWeight: 600,
-                      backgroundColor: invoiceQuickProgress.active
-                        ? "#f3e5f5"
-                        : "#fff",
-                      color: invoiceQuickProgress.active
-                        ? "#ba68c8"
-                        : "#7b1fa2",
-                      border: `1px solid ${invoiceQuickProgress.active ? "#ba68c8" : "#7b1fa2"}`,
+                      backgroundColor: "#fff",
+                      color: "#388e3c",
+                      border: "1px solid #388e3c",
                       borderRadius: "6px",
-                      cursor: invoiceQuickProgress.active ? "wait" : "pointer",
+                      cursor: "pointer",
                       transition: "all 0.2s",
-                      opacity: invoiceQuickProgress.active ? 0.85 : 1,
                     }}
                     onMouseEnter={(e) => {
-                      if (!invoiceQuickProgress.active) {
-                        e.currentTarget.style.backgroundColor = "#7b1fa2";
-                        e.currentTarget.style.color = "#fff";
-                      }
+                      e.currentTarget.style.backgroundColor = "#388e3c";
+                      e.currentTarget.style.color = "#fff";
                     }}
                     onMouseLeave={(e) => {
-                      if (!invoiceQuickProgress.active) {
-                        e.currentTarget.style.backgroundColor = "#fff";
-                        e.currentTarget.style.color = "#7b1fa2";
-                      }
+                      e.currentTarget.style.backgroundColor = "#fff";
+                      e.currentTarget.style.color = "#388e3c";
                     }}
                   >
-                    {invoiceQuickProgress.active
-                      ? "⏳ Fattura..."
-                      : "📑 Fattura"}
+                    📤 Invia
                   </button>
-                  {invoiceQuickProgress.active && (
-                    <ProgressBar
-                      percent={invoiceQuickProgress.percent}
-                      stage={invoiceQuickProgress.stage}
-                      color="#7b1fa2"
-                    />
-                  )}
-                </div>
-              )}
+                )}
+                {isCreato && (
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      console.log("TODO: Modifica", order.id);
+                    }}
+                    style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: "4px",
+                      padding: "6px 12px",
+                      fontSize: "12px",
+                      fontWeight: 600,
+                      backgroundColor: "#fff",
+                      color: "#1976d2",
+                      border: "1px solid #1976d2",
+                      borderRadius: "6px",
+                      cursor: "pointer",
+                      transition: "all 0.2s",
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.backgroundColor = "#1976d2";
+                      e.currentTarget.style.color = "#fff";
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.backgroundColor = "#fff";
+                      e.currentTarget.style.color = "#1976d2";
+                    }}
+                  >
+                    ✏ Modifica
+                  </button>
+                )}
+                {isCreato && (
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      console.log("TODO: Elimina", order.id);
+                    }}
+                    style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: "4px",
+                      padding: "6px 12px",
+                      fontSize: "12px",
+                      fontWeight: 600,
+                      backgroundColor: "#fff",
+                      color: "#d32f2f",
+                      border: "1px solid #d32f2f",
+                      borderRadius: "6px",
+                      cursor: "pointer",
+                      transition: "all 0.2s",
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.backgroundColor = "#d32f2f";
+                      e.currentTarget.style.color = "#fff";
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.backgroundColor = "#fff";
+                      e.currentTarget.style.color = "#d32f2f";
+                    }}
+                  >
+                    🗑 Elimina
+                  </button>
+                )}
+              </div>
             </div>
           </div>
         </div>
@@ -2933,7 +2670,7 @@ export function OrderCardNew({
           {/* Tab Content */}
           <div style={{ minHeight: "300px" }}>
             {activeTab === "panoramica" && (
-              <TabPanoramica order={order} token={token} />
+              <TabPanoramica order={order} />
             )}
             {activeTab === "articoli" && (
               <TabArticoli
@@ -2953,24 +2690,6 @@ export function OrderCardNew({
             {activeTab === "storico" && <TabCronologia />}
           </div>
 
-          {/* Order Actions - Always visible regardless of tab */}
-          {(onSendToMilano || onEdit) && (
-            <div style={{ padding: "0 16px 16px 16px" }}>
-              <OrderActions
-                orderId={order.id}
-                currentState={
-                  isPiazzato
-                    ? "piazzato"
-                    : order.state?.toLowerCase() || order.status.toLowerCase()
-                }
-                archibaldOrderId={order.orderNumber}
-                onSendToMilano={() =>
-                  onSendToMilano?.(order.id, order.customerName)
-                }
-                onEdit={() => onEdit?.(order.id)}
-              />
-            </div>
-          )}
         </div>
       )}
     </div>
