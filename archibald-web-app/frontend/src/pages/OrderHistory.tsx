@@ -178,7 +178,7 @@ function isOrderPaid(order: Order): boolean {
 }
 
 function isLikelyDelivered(order: Order): boolean {
-  if (order.status !== "CONSEGNATO") return false;
+  if (order.status?.toUpperCase() !== "CONSEGNATO") return false;
   if (order.invoiceNumber) return true;
   const shippedDate = order.ddt?.ddtDeliveryDate || order.date;
   const daysSinceShipped =
@@ -562,13 +562,15 @@ export function OrderHistory() {
             const hoursElapsed =
               (Date.now() - new Date(order.date).getTime()) / 3_600_000;
             matches =
-              order.status === "ORDINE APERTO" && hoursElapsed > 36;
+              order.status?.toUpperCase() === "ORDINE APERTO" &&
+              hoursElapsed > 36;
             break;
           }
 
           case "inTransit":
             matches =
-              order.status === "CONSEGNATO" && !isLikelyDelivered(order);
+              order.status?.toUpperCase() === "CONSEGNATO" &&
+              !isLikelyDelivered(order);
             break;
 
           case "delivered":
@@ -610,7 +612,7 @@ export function OrderHistory() {
   const backorderCount = ordersForCounts.filter((o) => {
     const hoursElapsed =
       (Date.now() - new Date(o.date).getTime()) / 3_600_000;
-    return o.status === "ORDINE APERTO" && hoursElapsed > 36;
+    return o.status?.toUpperCase() === "ORDINE APERTO" && hoursElapsed > 36;
   }).length;
 
   result = applyQuickFilters(result);
@@ -665,7 +667,7 @@ export function OrderHistory() {
       count: ordersForCounts.filter((o) => {
         const hoursElapsed =
           (Date.now() - new Date(o.date).getTime()) / 3_600_000;
-        return o.status === "ORDINE APERTO" && hoursElapsed > 36;
+        return o.status?.toUpperCase() === "ORDINE APERTO" && hoursElapsed > 36;
       }).length,
     },
     {
@@ -674,7 +676,8 @@ export function OrderHistory() {
       color: "#2196F3",
       bgColor: "#E3F2FD",
       count: ordersForCounts.filter(
-        (o) => o.status === "CONSEGNATO" && !isLikelyDelivered(o),
+        (o) =>
+          o.status?.toUpperCase() === "CONSEGNATO" && !isLikelyDelivered(o),
       ).length,
     },
     {
