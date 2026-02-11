@@ -16,6 +16,11 @@ import { SubClientSelector } from "../components/new-order-form/SubClientSelecto
 import { AddItemToHistory } from "../components/new-order-form/AddItemToHistory";
 import { useFresisHistorySync } from "../hooks/useFresisHistorySync";
 import { ArcaImportModal } from "../components/ArcaImportModal";
+import { JobProgressBar } from "../components/JobProgressBar";
+import {
+  FresisHistoryRealtimeService,
+  type DeleteProgressState,
+} from "../services/fresis-history-realtime.service";
 import {
   OrderPickerModal,
   type SearchResult,
@@ -127,6 +132,22 @@ export function FresisHistoryPage() {
   >(null);
   const [syncing, setSyncing] = useState(false);
   const [syncMessage, setSyncMessage] = useState<string | null>(null);
+  const [deleteProgress, setDeleteProgress] =
+    useState<DeleteProgressState | null>(null);
+
+  useEffect(() => {
+    if (!deletingFromArchibald) return;
+    const realtimeService = FresisHistoryRealtimeService.getInstance();
+    const unsubscribe = realtimeService.onDeleteProgress(() => {
+      const progress = realtimeService.getDeleteProgress(deletingFromArchibald);
+      if (progress) setDeleteProgress({ ...progress });
+    });
+    return () => {
+      unsubscribe();
+      realtimeService.clearDeleteProgress(deletingFromArchibald);
+      setDeleteProgress(null);
+    };
+  }, [deletingFromArchibald]);
 
   const [editState, setEditState] = useState<EditState | null>(null);
   const [addingProduct, setAddingProduct] = useState(false);
@@ -2104,16 +2125,16 @@ export function FresisHistoryPage() {
                                     </button>
                                   )}
                                 {deletingFromArchibald === order.id ? (
-                                  <span
-                                    style={{
-                                      padding: "6px 12px",
-                                      fontSize: "13px",
-                                      color: "#dc2626",
-                                      fontWeight: 500,
-                                    }}
-                                  >
-                                    Cancellazione da Archibald in corso...
-                                  </span>
+                                  <div style={{ width: "100%" }}>
+                                    <JobProgressBar
+                                      progress={deleteProgress?.progress ?? 0}
+                                      operation={
+                                        deleteProgress?.operation ??
+                                        "Avvio cancellazione..."
+                                      }
+                                      status="processing"
+                                    />
+                                  </div>
                                 ) : isDeleting ? (
                                   <>
                                     <button

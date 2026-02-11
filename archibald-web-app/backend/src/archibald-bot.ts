@@ -5663,6 +5663,7 @@ export class ArchibaldBot {
       const ordersUrl = `${config.archibald.url}/SALESTABLE_ListView_Agent/`;
       if (!this.page.url().includes("SALESTABLE_ListView_Agent")) {
         logger.debug("[deleteOrder] Navigating to orders list...");
+        await this.emitProgress("delete.navigation");
         await this.page.goto(ordersUrl, {
           waitUntil: "domcontentloaded",
           timeout: 30000,
@@ -5685,6 +5686,7 @@ export class ArchibaldBot {
       // Step 2: Set filter to "Tutti gli ordini" (skip if already done)
       if (!this.deleteOrderFilterReady) {
         logger.debug("[deleteOrder] Setting filter to 'Tutti gli ordini'...");
+        await this.emitProgress("delete.filter");
         await this.ensureOrdersFilterSetToAll(this.page);
         await this.wait(500);
         this.deleteOrderFilterReady = true;
@@ -5692,6 +5694,7 @@ export class ArchibaldBot {
 
       // Step 3: Find the search input and paste the normalized ID
       logger.debug(`[deleteOrder] Searching for order ${normalizedId}...`);
+      await this.emitProgress("delete.search");
 
       const searchSelector = "#Vertical_SearchAC_Menu_ITCNT0_xaf_a0_Ed_I";
       const searchHandle = await this.page
@@ -5767,6 +5770,7 @@ export class ArchibaldBot {
       logger.debug(`[deleteOrder] Found ${rowCount} row(s) after search`);
 
       // Step 5: Select the first row by clicking the command column cell
+      await this.emitProgress("delete.select");
       const rowSelected = await this.page.evaluate(() => {
         const firstRow = document.querySelector('tr[class*="dxgvDataRow"]');
         if (!firstRow) return false;
@@ -5833,6 +5837,7 @@ export class ArchibaldBot {
 
       // Step 7: Click "Cancellare" button
       logger.debug('[deleteOrder] Clicking "Cancellare" button...');
+      await this.emitProgress("delete.confirm");
       const deleteClicked = await this.page.evaluate(() => {
         const deleteBtn = document.querySelector(
           "#Vertical_mainMenu_Menu_DXI1_T",
@@ -5889,6 +5894,7 @@ export class ArchibaldBot {
       await this.wait(300);
 
       // Step 10: Verify deletion
+      await this.emitProgress("delete.verify");
       const remainingRows = await this.page.evaluate(() => {
         return document.querySelectorAll('tr[class*="dxgvDataRow"]').length;
       });
@@ -5902,6 +5908,7 @@ export class ArchibaldBot {
         logger.info(
           `[deleteOrder] Order ${archibaldOrderId} deleted successfully from Archibald`,
         );
+        await this.emitProgress("delete.complete");
         return {
           success: true,
           message: `Order ${archibaldOrderId} deleted from Archibald`,
@@ -5911,6 +5918,7 @@ export class ArchibaldBot {
       logger.warn(
         `[deleteOrder] ${remainingRows} rows still present after deletion attempt`,
       );
+      await this.emitProgress("delete.complete");
       return {
         success: true,
         message: `Delete command sent for order ${archibaldOrderId}. ${remainingRows} row(s) remain in grid (may be other orders).`,

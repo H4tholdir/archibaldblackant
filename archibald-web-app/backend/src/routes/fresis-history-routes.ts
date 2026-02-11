@@ -284,9 +284,28 @@ router.post(
 
       // Import bot dynamically to avoid circular deps
       const { ArchibaldBot } = await import("../archibald-bot");
+      const { getDeleteProgressMilestone } = await import(
+        "../job-progress-mapper"
+      );
 
       const bot = new ArchibaldBot(userId);
       let botSuccess = false;
+
+      // Set up progress callback to emit WS events
+      let wsService: any;
+      try {
+        const mod = require("../fresis-history-realtime.service");
+        wsService = mod.FresisHistoryRealtimeService.getInstance();
+      } catch {
+        // WS not available
+      }
+
+      bot.setProgressCallback(async (category: string) => {
+        if (!wsService) return;
+        const milestone = getDeleteProgressMilestone(category);
+        if (!milestone) return;
+        wsService.emitDeleteProgress(userId, id, milestone.progress, milestone.label);
+      });
 
       try {
         await bot.initialize();

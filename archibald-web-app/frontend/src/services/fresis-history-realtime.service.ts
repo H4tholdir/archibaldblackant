@@ -9,14 +9,28 @@ interface HistoryEventPayload {
   deleted?: boolean;
 }
 
+interface DeleteProgressPayload {
+  recordId: string;
+  progress: number;
+  operation: string;
+  timestamp: string;
+}
+
 interface BulkImportedPayload {
   count: number;
   timestamp: string;
 }
 
+export interface DeleteProgressState {
+  progress: number;
+  operation: string;
+}
+
 export class FresisHistoryRealtimeService {
   private static instance: FresisHistoryRealtimeService;
   private updateHandlers: Set<UpdateHandler> = new Set();
+  private deleteProgressHandlers: Set<UpdateHandler> = new Set();
+  private _deleteProgressMap: Map<string, DeleteProgressState> = new Map();
 
   private constructor() {}
 
@@ -102,6 +116,50 @@ export class FresisHistoryRealtimeService {
     }
   }
 
+  public getDeleteProgress(recordId: string): DeleteProgressState | undefined {
+    return this._deleteProgressMap.get(recordId);
+  }
+
+  public clearDeleteProgress(recordId: string): void {
+    this._deleteProgressMap.delete(recordId);
+  }
+
+  public onDeleteProgress(handler: UpdateHandler): () => void {
+    this.deleteProgressHandlers.add(handler);
+    return () => {
+      this.deleteProgressHandlers.delete(handler);
+    };
+  }
+
+  private notifyDeleteProgress(): void {
+    this.deleteProgressHandlers.forEach((handler) => {
+      try {
+        handler();
+      } catch (error) {
+        console.error(
+          "[FresisHistoryRealtime] Error in delete progress handler:",
+          error,
+        );
+      }
+    });
+  }
+
+  public handleDeleteProgress(payload: unknown): void {
+    try {
+      const data = payload as DeleteProgressPayload;
+      this._deleteProgressMap.set(data.recordId, {
+        progress: data.progress,
+        operation: data.operation,
+      });
+      this.notifyDeleteProgress();
+    } catch (error) {
+      console.error(
+        "[FresisHistoryRealtime] Error handling FRESIS_HISTORY_DELETE_PROGRESS:",
+        error,
+      );
+    }
+  }
+
   public async handleBulkImported(payload: unknown): Promise<void> {
     try {
       const data = payload as BulkImportedPayload;
@@ -142,6 +200,11 @@ export class FresisHistoryRealtimeService {
     unsubscribers.push(
       subscribe("FRESIS_HISTORY_DELETED", (payload) =>
         this.handleHistoryDeleted(payload),
+      ),
+    );
+    unsubscribers.push(
+      subscribe("FRESIS_HISTORY_DELETE_PROGRESS", (payload) =>
+        this.handleDeleteProgress(payload),
       ),
     );
     unsubscribers.push(

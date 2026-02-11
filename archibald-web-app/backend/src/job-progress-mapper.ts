@@ -63,6 +63,22 @@ export function formatProgressLabel(
   return formatted;
 }
 
+const DELETE_ORDER_MILESTONES: Record<string, { progress: number; label: string }> = {
+  "delete.navigation": { progress: 15, label: "Navigazione lista ordini" },
+  "delete.filter": { progress: 25, label: "Impostazione filtro" },
+  "delete.search": { progress: 45, label: "Ricerca ordine" },
+  "delete.select": { progress: 60, label: "Selezione ordine" },
+  "delete.confirm": { progress: 80, label: "Conferma cancellazione" },
+  "delete.verify": { progress: 95, label: "Verifica cancellazione" },
+  "delete.complete": { progress: 100, label: "Ordine cancellato" },
+};
+
+export function getDeleteProgressMilestone(
+  category: string,
+): { progress: number; label: string } | null {
+  return DELETE_ORDER_MILESTONES[category] ?? null;
+}
+
 const CUSTOMER_PROGRESS_MILESTONES: Record<string, { progress: number; label: string }> = {
   "customer.navigation": { progress: 15, label: "Navigazione alla lista clienti" },
   "customer.search": { progress: 30, label: "Ricerca cliente" },
