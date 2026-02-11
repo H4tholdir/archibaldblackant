@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from "react";
+import { useSearchMatches } from "../hooks/useSearchMatches";
 import { OrderCardNew } from "../components/OrderCardNew";
 import { SendToVeronaModal } from "../components/SendToVeronaModal";
 import { SyncProgressModal } from "../components/SyncProgressModal";
@@ -229,6 +230,11 @@ export function OrderHistory() {
 
   // Refs
   const customerDropdownRef = useRef<HTMLDivElement>(null);
+  const resultsContainerRef = useRef<HTMLDivElement>(null);
+  const { currentIndex, totalMatches, goNext, goPrev } = useSearchMatches(
+    resultsContainerRef,
+    debouncedSearch,
+  );
 
   // Debounce global search input (300ms)
   useEffect(() => {
@@ -1594,39 +1600,108 @@ export function OrderHistory() {
               : `${filteredOrders.length} di ${orders.length} ordini`}
           </div>
 
-          {orderGroups.map((group) => (
-            <div key={group.period} style={{ marginBottom: "32px" }}>
-              <h2
+          {/* Search navigation bar */}
+          {debouncedSearch && totalMatches > 0 && (
+            <div
+              style={{
+                position: "sticky",
+                top: 0,
+                zIndex: 100,
+                display: "flex",
+                alignItems: "center",
+                gap: "12px",
+                padding: "8px 16px",
+                backgroundColor: "#fff",
+                border: "1px solid #e5e7eb",
+                borderRadius: "8px",
+                marginBottom: "12px",
+                boxShadow: "0 2px 4px rgba(0,0,0,0.1)",
+              }}
+            >
+              <button
+                onClick={goPrev}
                 style={{
-                  fontSize: "20px",
-                  fontWeight: 700,
-                  color: "#333",
-                  marginBottom: "16px",
-                  paddingLeft: "4px",
+                  padding: "4px 10px",
+                  fontSize: "14px",
+                  border: "1px solid #d1d5db",
+                  borderRadius: "6px",
+                  backgroundColor: "#fff",
+                  cursor: "pointer",
                 }}
               >
-                {group.period}
-              </h2>
-
-              <div>
-                {group.orders.map((order) => {
-                  const isExpanded = expandedOrderId === order.id;
-
-                  return (
-                    <OrderCardNew
-                      key={order.id}
-                      order={order}
-                      expanded={isExpanded}
-                      onToggle={() => handleToggle(order.id)}
-                      onSendToVerona={handleSendToVerona}
-                      onEdit={handleEdit}
-                      token={localStorage.getItem("archibald_jwt") || undefined}
-                    />
-                  );
-                })}
-              </div>
+                {"\u25C0"}
+              </button>
+              <span
+                style={{ fontSize: "13px", fontWeight: 500, color: "#333" }}
+              >
+                Risultato {currentIndex + 1} di {totalMatches}
+              </span>
+              <button
+                onClick={goNext}
+                style={{
+                  padding: "4px 10px",
+                  fontSize: "14px",
+                  border: "1px solid #d1d5db",
+                  borderRadius: "6px",
+                  backgroundColor: "#fff",
+                  cursor: "pointer",
+                }}
+              >
+                {"\u25B6"}
+              </button>
+              <span
+                style={{
+                  fontSize: "12px",
+                  color: "#888",
+                  borderLeft: "1px solid #e5e7eb",
+                  paddingLeft: "12px",
+                }}
+              >
+                &quot;{debouncedSearch}&quot; in {filteredOrders.length} ordini
+              </span>
             </div>
-          ))}
+          )}
+
+          <div ref={resultsContainerRef}>
+            {orderGroups.map((group) => (
+              <div key={group.period} style={{ marginBottom: "32px" }}>
+                <h2
+                  style={{
+                    fontSize: "20px",
+                    fontWeight: 700,
+                    color: "#333",
+                    marginBottom: "16px",
+                    paddingLeft: "4px",
+                  }}
+                >
+                  {group.period}
+                </h2>
+
+                <div>
+                  {group.orders.map((order) => {
+                    const isExpanded = debouncedSearch
+                      ? true
+                      : expandedOrderId === order.id;
+
+                    return (
+                      <OrderCardNew
+                        key={order.id}
+                        order={order}
+                        expanded={isExpanded}
+                        onToggle={() => handleToggle(order.id)}
+                        onSendToVerona={handleSendToVerona}
+                        onEdit={handleEdit}
+                        token={
+                          localStorage.getItem("archibald_jwt") || undefined
+                        }
+                        searchQuery={debouncedSearch}
+                      />
+                    );
+                  })}
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
       )}
 

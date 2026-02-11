@@ -4,6 +4,7 @@ import type { Order, OrderItem } from "../types/order";
 
 import { getOrderStatus, isNotSentToVerona } from "../utils/orderStatus";
 import { fetchWithRetry } from "../utils/fetch-with-retry";
+import { HighlightText } from "./HighlightText";
 
 interface OrderCardProps {
   order: Order;
@@ -12,6 +13,7 @@ interface OrderCardProps {
   onSendToVerona?: (orderId: string, customerName: string) => void;
   onEdit?: (orderId: string) => void;
   token?: string;
+  searchQuery?: string;
 }
 
 // ============================================================================
@@ -100,7 +102,13 @@ function getStepInfo(order: Order): { index: number; isError: boolean } {
   return { index: 0, isError: false };
 }
 
-function TabPanoramica({ order }: { order: Order }) {
+function TabPanoramica({
+  order,
+  searchQuery = "",
+}: {
+  order: Order;
+  searchQuery?: string;
+}) {
   const stepLabels = ["Bozza", "Inviato", "Confermato", "Fatturato"];
   const { index: activeStep, isError } = getStepInfo(order);
 
@@ -274,7 +282,10 @@ function TabPanoramica({ order }: { order: Order }) {
               onClick={() => copyToClipboard(order.orderNumber || "")}
               title="Clicca per copiare"
             >
-              {order.orderNumber || "N/A"}
+              <HighlightText
+                text={order.orderNumber || "N/A"}
+                query={searchQuery}
+              />
             </div>
           </div>
           <div
@@ -376,31 +387,46 @@ function TabPanoramica({ order }: { order: Order }) {
           <div>
             <div style={fieldLabelStyle}>Profilo</div>
             <div style={fieldValueStyle}>
-              {order.customerProfileId || "N/A"}
+              <HighlightText
+                text={order.customerProfileId || "N/A"}
+                query={searchQuery}
+              />
             </div>
           </div>
           <div>
             <div style={fieldLabelStyle}>Cliente</div>
-            <div style={fieldValueStyle}>{order.customerName}</div>
+            <div style={fieldValueStyle}>
+              <HighlightText text={order.customerName} query={searchQuery} />
+            </div>
           </div>
           {order.deliveryName && (
             <div style={{ gridColumn: "1 / -1" }}>
               <div style={fieldLabelStyle}>Nome Consegna</div>
-              <div style={fieldValueStyle}>{order.deliveryName}</div>
+              <div style={fieldValueStyle}>
+                <HighlightText text={order.deliveryName} query={searchQuery} />
+              </div>
             </div>
           )}
           {order.deliveryAddress && (
             <div style={{ gridColumn: "1 / -1" }}>
               <div style={fieldLabelStyle}>Indirizzo</div>
               <div style={{ ...fieldValueStyle, whiteSpace: "pre-wrap" }}>
-                {order.deliveryAddress}
+                <HighlightText
+                  text={order.deliveryAddress}
+                  query={searchQuery}
+                />
               </div>
             </div>
           )}
           {order.customerReference && (
             <div>
               <div style={fieldLabelStyle}>Rif. Cliente</div>
-              <div style={fieldValueStyle}>{order.customerReference}</div>
+              <div style={fieldValueStyle}>
+                <HighlightText
+                  text={order.customerReference}
+                  query={searchQuery}
+                />
+              </div>
             </div>
           )}
           {order.remainingSalesFinancial && (
@@ -424,19 +450,34 @@ function TabPanoramica({ order }: { order: Order }) {
         >
           <div>
             <div style={fieldLabelStyle}>Vendite</div>
-            <div style={fieldValueStyle}>{order.state || order.status}</div>
+            <div style={fieldValueStyle}>
+              <HighlightText
+                text={order.state || order.status || ""}
+                query={searchQuery}
+              />
+            </div>
           </div>
           <div>
             <div style={fieldLabelStyle}>Documento</div>
-            <div style={fieldValueStyle}>{order.documentState || "—"}</div>
+            <div style={fieldValueStyle}>
+              <HighlightText
+                text={order.documentState || "\u2014"}
+                query={searchQuery}
+              />
+            </div>
           </div>
           <div>
             <div style={fieldLabelStyle}>Tipo Ordine</div>
-            <div style={fieldValueStyle}>{order.orderType || "—"}</div>
+            <div style={fieldValueStyle}>{order.orderType || "\u2014"}</div>
           </div>
           <div>
             <div style={fieldLabelStyle}>Trasferimento</div>
-            <div style={fieldValueStyle}>{order.transferStatus || "—"}</div>
+            <div style={fieldValueStyle}>
+              <HighlightText
+                text={order.transferStatus || "\u2014"}
+                query={searchQuery}
+              />
+            </div>
           </div>
           {order.transferDate && (
             <div>
@@ -466,6 +507,7 @@ function TabArticoli({
   archibaldOrderId,
   token,
   onTotalsUpdate,
+  searchQuery = "",
 }: {
   items?: OrderItem[];
   orderId: string;
@@ -475,6 +517,7 @@ function TabArticoli({
     totalVatAmount?: number;
     totalWithVat?: number;
   }) => void;
+  searchQuery?: string;
 }) {
   const [articles, setArticles] = useState(items || []);
   const [loading, setLoading] = useState(false);
@@ -728,14 +771,24 @@ function TabArticoli({
               return (
                 <tr key={index} style={{ borderBottom: "1px solid #e0e0e0" }}>
                   <td style={tableCellStyle}>
-                    <div style={{ fontWeight: 600 }}>{item.articleCode}</div>
+                    <div style={{ fontWeight: 600 }}>
+                      <HighlightText
+                        text={item.articleCode || ""}
+                        query={searchQuery}
+                      />
+                    </div>
                     {item.productName && (
                       <div style={{ fontSize: "12px", color: "#666" }}>
-                        {item.productName}
+                        <HighlightText
+                          text={item.productName}
+                          query={searchQuery}
+                        />
                       </div>
                     )}
                   </td>
-                  <td style={tableCellStyle}>{description}</td>
+                  <td style={tableCellStyle}>
+                    <HighlightText text={description} query={searchQuery} />
+                  </td>
                   <td style={tableCellStyle}>{item.quantity}</td>
                   <td style={tableCellStyle}>€ {unitPrice.toFixed(2)}</td>
                   <td style={tableCellStyle}>
@@ -895,7 +948,15 @@ function TabArticoli({
   );
 }
 
-function TabLogistica({ order, token }: { order: Order; token?: string }) {
+function TabLogistica({
+  order,
+  token,
+  searchQuery = "",
+}: {
+  order: Order;
+  token?: string;
+  searchQuery?: string;
+}) {
   const [ddtProgress, setDdtProgress] = useState<{
     active: boolean;
     percent: number;
@@ -1000,7 +1061,10 @@ function TabLogistica({ order, token }: { order: Order; token?: string }) {
                 fontFamily: "monospace",
               }}
             >
-              {tracking.trackingNumber}
+              <HighlightText
+                text={tracking.trackingNumber || ""}
+                query={searchQuery}
+              />
             </span>
             <button
               onClick={() => copyToClipboard(tracking.trackingNumber || "")}
@@ -1062,11 +1126,13 @@ function TabLogistica({ order, token }: { order: Order; token?: string }) {
                   label="Nome Consegna"
                   value={ddt.ddtDeliveryName}
                   bold
+                  searchQuery={searchQuery}
                 />
                 {ddt.attentionTo && (
                   <InfoField
                     label="All'attenzione di"
                     value={ddt.attentionTo}
+                    searchQuery={searchQuery}
                   />
                 )}
                 {ddt.deliveryAddress && (
@@ -1074,11 +1140,16 @@ function TabLogistica({ order, token }: { order: Order; token?: string }) {
                     <InfoField
                       label="Indirizzo Consegna"
                       value={ddt.deliveryAddress}
+                      searchQuery={searchQuery}
                     />
                   </div>
                 )}
                 {ddt.deliveryCity && (
-                  <InfoField label="Città Consegna" value={ddt.deliveryCity} />
+                  <InfoField
+                    label="Città Consegna"
+                    value={ddt.deliveryCity}
+                    searchQuery={searchQuery}
+                  />
                 )}
               </div>
             </div>
@@ -1151,7 +1222,10 @@ function TabLogistica({ order, token }: { order: Order; token?: string }) {
                   fontFamily: "monospace",
                 }}
               >
-                {ddt.ddtCustomerAccount}
+                <HighlightText
+                  text={ddt.ddtCustomerAccount}
+                  query={searchQuery}
+                />
               </div>
             </div>
           )}
@@ -1163,14 +1237,23 @@ function TabLogistica({ order, token }: { order: Order; token?: string }) {
               gap: "12px",
             }}
           >
-            <InfoField label="Numero DDT" value={ddt.ddtNumber} bold />
+            <InfoField
+              label="Numero DDT"
+              value={ddt.ddtNumber}
+              bold
+              searchQuery={searchQuery}
+            />
             <InfoField
               label="Data Consegna"
               value={formatDate(ddt.ddtDeliveryDate)}
             />
             <InfoField label="ID Ordine Vendita" value={ddt.orderId} />
             <InfoField label="ID DDT" value={ddt.ddtId} small />
-            <InfoField label="Nome Vendite" value={ddt.ddtSalesName} />
+            <InfoField
+              label="Nome Vendite"
+              value={ddt.ddtSalesName}
+              searchQuery={searchQuery}
+            />
             {ddt.ddtTotal && (
               <InfoField label="Totale DDT" value={ddt.ddtTotal} />
             )}
@@ -1178,10 +1261,15 @@ function TabLogistica({ order, token }: { order: Order; token?: string }) {
               <InfoField
                 label="Riferimento Cliente"
                 value={ddt.customerReference}
+                searchQuery={searchQuery}
               />
             )}
             {ddt.description && (
-              <InfoField label="Descrizione" value={ddt.description} />
+              <InfoField
+                label="Descrizione"
+                value={ddt.description}
+                searchQuery={searchQuery}
+              />
             )}
           </div>
 
@@ -1275,7 +1363,15 @@ function TabLogistica({ order, token }: { order: Order; token?: string }) {
   );
 }
 
-function TabFinanziario({ order, token }: { order: Order; token?: string }) {
+function TabFinanziario({
+  order,
+  token,
+  searchQuery = "",
+}: {
+  order: Order;
+  token?: string;
+  searchQuery?: string;
+}) {
   const [invoiceProgress, setInvoiceProgress] = useState<{
     active: boolean;
     percent: number;
@@ -1499,7 +1595,10 @@ function TabFinanziario({ order, token }: { order: Order; token?: string }) {
                   color: "#1565c0",
                 }}
               >
-                {order.invoiceNumber}
+                <HighlightText
+                  text={order.invoiceNumber || ""}
+                  query={searchQuery}
+                />
               </span>
               <span style={{ fontSize: "13px", color: "#666" }}>
                 {formatDate(order.invoiceDate)}
@@ -1531,17 +1630,20 @@ function TabFinanziario({ order, token }: { order: Order; token?: string }) {
             <InfoField
               label="Importo"
               value={
-                order.invoiceAmount ? `€${order.invoiceAmount}` : undefined
+                order.invoiceAmount ? `\u20ac${order.invoiceAmount}` : undefined
               }
               bold
+              searchQuery={searchQuery}
             />
             <InfoField
               label="Conto Cliente"
               value={order.invoiceCustomerAccount}
+              searchQuery={searchQuery}
             />
             <InfoField
               label="Nome Fatturazione"
               value={order.invoiceBillingName}
+              searchQuery={searchQuery}
             />
             <InfoField
               label="Quantità"
@@ -1835,6 +1937,7 @@ function InfoField({
   small,
   copyable,
   multiline,
+  searchQuery = "",
 }: {
   label: string;
   value?: string;
@@ -1842,6 +1945,7 @@ function InfoField({
   small?: boolean;
   copyable?: boolean;
   multiline?: boolean;
+  searchQuery?: string;
 }) {
   if (!value) return null;
 
@@ -1863,7 +1967,7 @@ function InfoField({
           textOverflow: multiline ? "clip" : "ellipsis",
         }}
       >
-        {value}
+        <HighlightText text={value} query={searchQuery} />
         {copyable && (
           <button
             onClick={() => copyToClipboard(value)}
@@ -2012,6 +2116,7 @@ export function OrderCardNew({
   onSendToVerona,
   onEdit,
   token,
+  searchQuery = "",
 }: OrderCardProps) {
   const [activeTab, setActiveTab] = useState<
     "panoramica" | "articoli" | "logistica" | "finanziario" | "storico"
@@ -2112,7 +2217,7 @@ export function OrderCardNew({
                   color: "#333",
                 }}
               >
-                {order.customerName}
+                <HighlightText text={order.customerName} query={searchQuery} />
               </div>
               <span
                 style={{
@@ -2140,8 +2245,13 @@ export function OrderCardNew({
             >
               {order.orderNumber ? (
                 <>
-                  <span style={{ fontWeight: 600 }}>{order.orderNumber}</span>
-                  {" • "}
+                  <span style={{ fontWeight: 600 }}>
+                    <HighlightText
+                      text={order.orderNumber}
+                      query={searchQuery}
+                    />
+                  </span>
+                  {" \u2022 "}
                 </>
               ) : null}
               {formatDate(order.orderDate || order.date)}
@@ -2164,11 +2274,15 @@ export function OrderCardNew({
                     color: "#333",
                   }}
                 >
-                  {order.total}
+                  <HighlightText text={order.total || ""} query={searchQuery} />
                 </span>
                 {order.grossAmount && (
                   <span style={{ fontSize: "13px", color: "#666" }}>
-                    Lordo: {order.grossAmount}
+                    Lordo:{" "}
+                    <HighlightText
+                      text={order.grossAmount}
+                      query={searchQuery}
+                    />
                   </span>
                 )}
                 {order.discountPercent && (
@@ -2703,7 +2817,9 @@ export function OrderCardNew({
 
           {/* Tab Content */}
           <div style={{ minHeight: "300px" }}>
-            {activeTab === "panoramica" && <TabPanoramica order={order} />}
+            {activeTab === "panoramica" && (
+              <TabPanoramica order={order} searchQuery={searchQuery} />
+            )}
             {activeTab === "articoli" && (
               <TabArticoli
                 items={order.items}
@@ -2711,13 +2827,22 @@ export function OrderCardNew({
                 archibaldOrderId={order.id}
                 token={token}
                 onTotalsUpdate={setArticlesTotals}
+                searchQuery={searchQuery}
               />
             )}
             {activeTab === "logistica" && (
-              <TabLogistica order={order} token={token} />
+              <TabLogistica
+                order={order}
+                token={token}
+                searchQuery={searchQuery}
+              />
             )}
             {activeTab === "finanziario" && (
-              <TabFinanziario order={order} token={token} />
+              <TabFinanziario
+                order={order}
+                token={token}
+                searchQuery={searchQuery}
+              />
             )}
             {activeTab === "storico" && <TabCronologia />}
           </div>

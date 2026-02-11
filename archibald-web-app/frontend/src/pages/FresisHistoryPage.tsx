@@ -1,4 +1,6 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from "react";
+import { HighlightText } from "../components/HighlightText";
+import { useSearchMatches } from "../hooks/useSearchMatches";
 import type {
   FresisHistoryOrder,
   PendingOrderItem,
@@ -151,6 +153,13 @@ export function FresisHistoryPage() {
 
   // Scroll to top
   const [showScrollToTop, setShowScrollToTop] = useState(false);
+
+  // Search highlight navigation
+  const resultsContainerRef = useRef<HTMLDivElement>(null);
+  const { currentIndex, totalMatches, goNext, goPrev } = useSearchMatches(
+    resultsContainerRef,
+    debouncedSearch,
+  );
 
   // Debounce global search (300ms)
   useEffect(() => {
@@ -1111,903 +1120,1020 @@ export function FresisHistoryPage() {
               ` (${wsOrders.length} totali)`}
           </div>
 
-          {orderGroups.map((group) => (
-            <div key={group.period} style={{ marginBottom: "32px" }}>
-              <h2
+          {/* Search navigation bar */}
+          {debouncedSearch && totalMatches > 0 && (
+            <div
+              style={{
+                position: "sticky",
+                top: 0,
+                zIndex: 100,
+                display: "flex",
+                alignItems: "center",
+                gap: "12px",
+                padding: "8px 16px",
+                backgroundColor: "#fff",
+                border: "1px solid #e5e7eb",
+                borderRadius: "8px",
+                marginBottom: "12px",
+                boxShadow: "0 2px 4px rgba(0,0,0,0.1)",
+              }}
+            >
+              <button
+                onClick={goPrev}
                 style={{
-                  fontSize: "20px",
-                  fontWeight: 700,
-                  color: "#333",
-                  marginBottom: "16px",
-                  paddingLeft: "4px",
+                  padding: "4px 10px",
+                  fontSize: "14px",
+                  border: "1px solid #d1d5db",
+                  borderRadius: "6px",
+                  backgroundColor: "#fff",
+                  cursor: "pointer",
                 }}
               >
-                {group.period}
-              </h2>
-
-              <div
+                {"\u25C0"}
+              </button>
+              <span
+                style={{ fontSize: "13px", fontWeight: 500, color: "#333" }}
+              >
+                Risultato {currentIndex + 1} di {totalMatches}
+              </span>
+              <button
+                onClick={goNext}
                 style={{
-                  display: "flex",
-                  flexDirection: "column",
-                  gap: "12px",
+                  padding: "4px 10px",
+                  fontSize: "14px",
+                  border: "1px solid #d1d5db",
+                  borderRadius: "6px",
+                  backgroundColor: "#fff",
+                  cursor: "pointer",
                 }}
               >
-                {group.orders.map((order) => {
-                  const isExpanded = expandedOrderId === order.id;
-                  const editing = isEditingOrder(order.id);
-                  const isDeleting = deleteConfirmId === order.id;
-                  const displayItems = editing ? editState!.items : order.items;
-                  const discountPercent = editing
-                    ? editState!.discountPercent
-                    : (order.discountPercent ?? 0);
-                  const hasRowDiscounts = displayItems.some(
-                    (item) => item.discount && item.discount > 0,
-                  );
-                  const { totalItems, totalGross, totalNet } =
-                    computeOrderTotals(displayItems, 0);
-                  const badge = getStateBadge(order);
+                {"\u25B6"}
+              </button>
+              <span
+                style={{
+                  fontSize: "12px",
+                  color: "#888",
+                  borderLeft: "1px solid #e5e7eb",
+                  paddingLeft: "12px",
+                }}
+              >
+                &quot;{debouncedSearch}&quot; in {filteredOrders.length} ordini
+              </span>
+            </div>
+          )}
 
-                  const liveDocTotal =
-                    totalNet * (1 - discountPercent / 100) +
-                    (order.shippingCost ?? 0) +
-                    (order.shippingTax ?? 0);
+          <div ref={resultsContainerRef}>
+            {orderGroups.map((group) => (
+              <div key={group.period} style={{ marginBottom: "32px" }}>
+                <h2
+                  style={{
+                    fontSize: "20px",
+                    fontWeight: 700,
+                    color: "#333",
+                    marginBottom: "16px",
+                    paddingLeft: "4px",
+                  }}
+                >
+                  {group.period}
+                </h2>
 
-                  return (
-                    <div
-                      key={order.id}
-                      style={{
-                        border: editing
-                          ? "2px solid #f59e0b"
-                          : "1px solid #e5e7eb",
-                        borderRadius: "12px",
-                        overflow: "hidden",
-                        background: "#fff",
-                        boxShadow: "0 1px 3px rgba(0,0,0,0.08)",
-                        contentVisibility: "auto",
-                      }}
-                    >
-                      {/* Header */}
+                <div
+                  style={{
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: "12px",
+                  }}
+                >
+                  {group.orders.map((order) => {
+                    const isExpanded = debouncedSearch
+                      ? true
+                      : expandedOrderId === order.id;
+                    const editing = isEditingOrder(order.id);
+                    const isDeleting = deleteConfirmId === order.id;
+                    const displayItems = editing
+                      ? editState!.items
+                      : order.items;
+                    const discountPercent = editing
+                      ? editState!.discountPercent
+                      : (order.discountPercent ?? 0);
+                    const hasRowDiscounts = displayItems.some(
+                      (item) => item.discount && item.discount > 0,
+                    );
+                    const { totalItems, totalGross, totalNet } =
+                      computeOrderTotals(displayItems, 0);
+                    const badge = getStateBadge(order);
+
+                    const liveDocTotal =
+                      totalNet * (1 - discountPercent / 100) +
+                      (order.shippingCost ?? 0) +
+                      (order.shippingTax ?? 0);
+
+                    return (
                       <div
-                        onClick={() =>
-                          !editing &&
-                          setExpandedOrderId(isExpanded ? null : order.id)
-                        }
+                        key={order.id}
                         style={{
-                          padding: "12px 16px",
-                          cursor: editing ? "default" : "pointer",
-                          display: "flex",
-                          justifyContent: "space-between",
-                          alignItems: "center",
+                          border: editing
+                            ? "2px solid #f59e0b"
+                            : "1px solid #e5e7eb",
+                          borderRadius: "12px",
+                          overflow: "hidden",
+                          background: "#fff",
+                          boxShadow: "0 1px 3px rgba(0,0,0,0.08)",
+                          contentVisibility: "auto",
                         }}
                       >
-                        <div>
-                          <div
-                            style={{
-                              display: "flex",
-                              alignItems: "center",
-                              gap: "8px",
-                              flexWrap: "wrap",
-                            }}
-                          >
-                            <span
+                        {/* Header */}
+                        <div
+                          onClick={() =>
+                            !editing &&
+                            !debouncedSearch &&
+                            setExpandedOrderId(isExpanded ? null : order.id)
+                          }
+                          style={{
+                            padding: "12px 16px",
+                            cursor: editing ? "default" : "pointer",
+                            display: "flex",
+                            justifyContent: "space-between",
+                            alignItems: "center",
+                          }}
+                        >
+                          <div>
+                            <div
                               style={{
-                                fontWeight: 600,
-                                fontSize: "15px",
-                                color: "#333",
+                                display: "flex",
+                                alignItems: "center",
+                                gap: "8px",
+                                flexWrap: "wrap",
                               }}
                             >
-                              {editing
-                                ? editState!.subClientName
-                                : order.subClientName}
-                            </span>
-                            <span
-                              style={{
-                                fontSize: "11px",
-                                padding: "2px 8px",
-                                borderRadius: "9999px",
-                                background: badge.bg,
-                                color: badge.color,
-                                fontWeight: 500,
-                                whiteSpace: "nowrap",
-                              }}
-                            >
-                              {badge.label}
-                            </span>
-                            {editing && (
+                              <span
+                                style={{
+                                  fontWeight: 600,
+                                  fontSize: "15px",
+                                  color: "#333",
+                                }}
+                              >
+                                <HighlightText
+                                  text={
+                                    editing
+                                      ? editState!.subClientName
+                                      : order.subClientName
+                                  }
+                                  query={debouncedSearch}
+                                />
+                              </span>
                               <span
                                 style={{
                                   fontSize: "11px",
                                   padding: "2px 8px",
                                   borderRadius: "9999px",
-                                  background: "#fef3c7",
-                                  color: "#92400e",
-                                  fontWeight: 600,
+                                  background: badge.bg,
+                                  color: badge.color,
+                                  fontWeight: 500,
+                                  whiteSpace: "nowrap",
                                 }}
                               >
-                                In modifica
+                                {badge.label}
                               </span>
-                            )}
-                          </div>
-                          <div
-                            style={{
-                              fontSize: "13px",
-                              color: "#666",
-                              marginTop: "4px",
-                            }}
-                          >
-                            Cod:{" "}
-                            {editing
-                              ? editState!.subClientCodice
-                              : order.subClientCodice}{" "}
-                            | {totalItems} articoli |{" "}
-                            {formatCurrency(
-                              hasRowDiscounts ? totalNet : totalGross,
-                            )}
-                          </div>
-                          <div
-                            style={{
-                              fontSize: "12px",
-                              color: "#999",
-                              marginTop: "2px",
-                            }}
-                          >
-                            {formatDateDisplay(order.createdAt)}
-                            {order.mergedAt &&
-                              ` | Unito: ${formatDateDisplay(order.mergedAt)}`}
-                          </div>
-                        </div>
-                        {!editing && (
-                          <div
-                            style={{
-                              fontSize: "18px",
-                              color: "#999",
-                              flexShrink: 0,
-                            }}
-                          >
-                            {isExpanded ? "\u25B2" : "\u25BC"}
-                          </div>
-                        )}
-                      </div>
-
-                      {/* Expanded details */}
-                      {(isExpanded || editing) && (
-                        <div
-                          style={{
-                            padding: "12px 16px",
-                            borderTop: "1px solid #e5e7eb",
-                          }}
-                        >
-                          {/* Sub-client: editable in edit mode */}
-                          {editing ? (
-                            <div style={{ marginBottom: "12px" }}>
-                              <SubClientSelector
-                                selectedSubClient={editState!.subClientData}
-                                onSelect={(sc: SubClient) => {
-                                  setEditState({
-                                    ...editState!,
-                                    subClientCodice: sc.codice,
-                                    subClientName: sc.ragioneSociale,
-                                    subClientData: sc,
-                                  });
-                                }}
-                                onClear={() => {
-                                  setEditState({
-                                    ...editState!,
-                                    subClientCodice: "",
-                                    subClientName: "",
-                                    subClientData: null,
-                                  });
-                                }}
-                              />
+                              {editing && (
+                                <span
+                                  style={{
+                                    fontSize: "11px",
+                                    padding: "2px 8px",
+                                    borderRadius: "9999px",
+                                    background: "#fef3c7",
+                                    color: "#92400e",
+                                    fontWeight: 600,
+                                  }}
+                                >
+                                  In modifica
+                                </span>
+                              )}
                             </div>
-                          ) : (
-                            order.subClientData && (
-                              <div
-                                style={{
-                                  marginBottom: "12px",
-                                  padding: "8px 12px",
-                                  background: "#f9fafb",
-                                  borderRadius: "8px",
-                                  fontSize: "13px",
-                                  color: "#374151",
-                                }}
-                              >
-                                <strong>Sotto-cliente:</strong>{" "}
-                                {order.subClientData.ragioneSociale}
-                                {order.subClientData.supplRagioneSociale &&
-                                  ` - ${order.subClientData.supplRagioneSociale}`}
-                                <br />
-                                {order.subClientData.indirizzo && (
-                                  <>
-                                    {order.subClientData.indirizzo}
-                                    {order.subClientData.localita &&
-                                      `, ${order.subClientData.localita}`}
-                                    {order.subClientData.cap &&
-                                      ` ${order.subClientData.cap}`}
-                                    {order.subClientData.prov &&
-                                      ` (${order.subClientData.prov})`}
-                                    <br />
-                                  </>
-                                )}
-                                {order.subClientData.partitaIva &&
-                                  `P.IVA: ${order.subClientData.partitaIva}`}
-                                {order.subClientData.codFiscale &&
-                                  ` | CF: ${order.subClientData.codFiscale}`}
-                              </div>
-                            )
+                            <div
+                              style={{
+                                fontSize: "13px",
+                                color: "#666",
+                                marginTop: "4px",
+                              }}
+                            >
+                              Cod:{" "}
+                              <HighlightText
+                                text={
+                                  editing
+                                    ? editState!.subClientCodice
+                                    : order.subClientCodice
+                                }
+                                query={debouncedSearch}
+                              />{" "}
+                              | {totalItems} articoli |{" "}
+                              {formatCurrency(
+                                hasRowDiscounts ? totalNet : totalGross,
+                              )}
+                            </div>
+                            <div
+                              style={{
+                                fontSize: "12px",
+                                color: "#999",
+                                marginTop: "2px",
+                              }}
+                            >
+                              {formatDateDisplay(order.createdAt)}
+                              {order.mergedAt &&
+                                ` | Unito: ${formatDateDisplay(order.mergedAt)}`}
+                            </div>
+                          </div>
+                          {!editing && (
+                            <div
+                              style={{
+                                fontSize: "18px",
+                                color: "#999",
+                                flexShrink: 0,
+                              }}
+                            >
+                              {isExpanded ? "\u25B2" : "\u25BC"}
+                            </div>
                           )}
+                        </div>
 
-                          {/* Lifecycle section */}
-                          {!editing &&
-                            order.archibaldOrderId &&
-                            (() => {
-                              const linkedNumbers = parseLinkedIds(
-                                order.archibaldOrderNumber,
-                              );
-                              return (
+                        {/* Expanded details */}
+                        {(isExpanded || editing) && (
+                          <div
+                            style={{
+                              padding: "12px 16px",
+                              borderTop: "1px solid #e5e7eb",
+                            }}
+                          >
+                            {/* Sub-client: editable in edit mode */}
+                            {editing ? (
+                              <div style={{ marginBottom: "12px" }}>
+                                <SubClientSelector
+                                  selectedSubClient={editState!.subClientData}
+                                  onSelect={(sc: SubClient) => {
+                                    setEditState({
+                                      ...editState!,
+                                      subClientCodice: sc.codice,
+                                      subClientName: sc.ragioneSociale,
+                                      subClientData: sc,
+                                    });
+                                  }}
+                                  onClear={() => {
+                                    setEditState({
+                                      ...editState!,
+                                      subClientCodice: "",
+                                      subClientName: "",
+                                      subClientData: null,
+                                    });
+                                  }}
+                                />
+                              </div>
+                            ) : (
+                              order.subClientData && (
                                 <div
                                   style={{
                                     marginBottom: "12px",
                                     padding: "8px 12px",
-                                    background: "#f0f9ff",
+                                    background: "#f9fafb",
                                     borderRadius: "8px",
-                                    border: "1px solid #bae6fd",
                                     fontSize: "13px",
+                                    color: "#374151",
                                   }}
                                 >
+                                  <strong>Sotto-cliente:</strong>{" "}
+                                  {order.subClientData.ragioneSociale}
+                                  {order.subClientData.supplRagioneSociale &&
+                                    ` - ${order.subClientData.supplRagioneSociale}`}
+                                  <br />
+                                  {order.subClientData.indirizzo && (
+                                    <>
+                                      {order.subClientData.indirizzo}
+                                      {order.subClientData.localita &&
+                                        `, ${order.subClientData.localita}`}
+                                      {order.subClientData.cap &&
+                                        ` ${order.subClientData.cap}`}
+                                      {order.subClientData.prov &&
+                                        ` (${order.subClientData.prov})`}
+                                      <br />
+                                    </>
+                                  )}
+                                  {order.subClientData.partitaIva &&
+                                    `P.IVA: ${order.subClientData.partitaIva}`}
+                                  {order.subClientData.codFiscale &&
+                                    ` | CF: ${order.subClientData.codFiscale}`}
+                                </div>
+                              )
+                            )}
+
+                            {/* Lifecycle section */}
+                            {!editing &&
+                              order.archibaldOrderId &&
+                              (() => {
+                                const linkedNumbers = parseLinkedIds(
+                                  order.archibaldOrderNumber,
+                                );
+                                return (
                                   <div
                                     style={{
-                                      fontWeight: 600,
-                                      marginBottom: "4px",
+                                      marginBottom: "12px",
+                                      padding: "8px 12px",
+                                      background: "#f0f9ff",
+                                      borderRadius: "8px",
+                                      border: "1px solid #bae6fd",
+                                      fontSize: "13px",
                                     }}
                                   >
-                                    {linkedNumbers.length > 1
-                                      ? `Ordini Archibald (${linkedNumbers.length})`
-                                      : "Ordine Archibald"}
-                                  </div>
-                                  <div>
-                                    {linkedNumbers.map((num, i) => (
-                                      <span key={i}>
-                                        {i > 0 && ", "}
-                                        N. {num}
-                                      </span>
-                                    ))}
-                                    {order.currentState && (
-                                      <span
-                                        style={{
-                                          marginLeft: "8px",
-                                          fontSize: "11px",
-                                          padding: "1px 6px",
-                                          borderRadius: "9999px",
-                                          background: badge.bg,
-                                          color: badge.color,
-                                          fontWeight: 500,
-                                        }}
-                                      >
-                                        {badge.label}
-                                      </span>
-                                    )}
-                                  </div>
-
-                                  {order.ddtNumber && (
-                                    <div style={{ marginTop: "6px" }}>
-                                      <strong>DDT:</strong> {order.ddtNumber}
-                                      {order.ddtDeliveryDate &&
-                                        ` | Consegna prevista: ${formatDateDisplay(order.ddtDeliveryDate)}`}
-                                      {order.trackingNumber && (
-                                        <div>
-                                          <strong>Tracking:</strong>{" "}
-                                          {order.trackingUrl ? (
-                                            <a
-                                              href={order.trackingUrl}
-                                              target="_blank"
-                                              rel="noopener noreferrer"
-                                              style={{
-                                                color: "#2563eb",
-                                              }}
-                                            >
-                                              {order.trackingNumber}
-                                            </a>
-                                          ) : (
-                                            order.trackingNumber
-                                          )}
-                                          {order.trackingCourier &&
-                                            ` (${order.trackingCourier})`}
-                                        </div>
-                                      )}
-                                    </div>
-                                  )}
-
-                                  {order.invoiceNumber && (
-                                    <div style={{ marginTop: "6px" }}>
-                                      <strong>Fattura:</strong>{" "}
-                                      {order.invoiceNumber}
-                                      {order.invoiceDate &&
-                                        ` del ${formatDateDisplay(order.invoiceDate)}`}
-                                      {order.invoiceAmount &&
-                                        ` - ${order.invoiceAmount}`}
-                                    </div>
-                                  )}
-
-                                  {order.deliveryCompletedDate && (
                                     <div
                                       style={{
-                                        marginTop: "6px",
-                                        color: "#166534",
+                                        fontWeight: 600,
+                                        marginBottom: "4px",
                                       }}
                                     >
-                                      Consegnato il{" "}
-                                      {formatDateDisplay(
-                                        order.deliveryCompletedDate,
+                                      {linkedNumbers.length > 1
+                                        ? `Ordini Archibald (${linkedNumbers.length})`
+                                        : "Ordine Archibald"}
+                                    </div>
+                                    <div>
+                                      {linkedNumbers.map((num, i) => (
+                                        <span key={i}>
+                                          {i > 0 && ", "}
+                                          N.{" "}
+                                          <HighlightText
+                                            text={num}
+                                            query={debouncedSearch}
+                                          />
+                                        </span>
+                                      ))}
+                                      {order.currentState && (
+                                        <span
+                                          style={{
+                                            marginLeft: "8px",
+                                            fontSize: "11px",
+                                            padding: "1px 6px",
+                                            borderRadius: "9999px",
+                                            background: badge.bg,
+                                            color: badge.color,
+                                            fontWeight: 500,
+                                          }}
+                                        >
+                                          {badge.label}
+                                        </span>
                                       )}
                                     </div>
-                                  )}
-                                </div>
-                              );
-                            })()}
 
-                          {/* Items table */}
-                          <table
-                            style={{
-                              width: "100%",
-                              borderCollapse: "collapse",
-                              fontSize: "13px",
-                              marginBottom: "12px",
-                            }}
-                          >
-                            <thead>
-                              <tr
-                                style={{
-                                  borderBottom: "2px solid #e5e7eb",
-                                  textAlign: "left",
-                                }}
-                              >
-                                <th style={{ padding: "6px 4px" }}>Codice</th>
-                                <th style={{ padding: "6px 4px" }}>
-                                  Descrizione
-                                </th>
-                                <th
-                                  style={{
-                                    padding: "6px 4px",
-                                    textAlign: "right",
-                                  }}
-                                >
-                                  {"Qta'"}
-                                </th>
-                                <th
-                                  style={{
-                                    padding: "6px 4px",
-                                    textAlign: "right",
-                                  }}
-                                >
-                                  Prezzo
-                                </th>
-                                {hasRowDiscounts && (
-                                  <th
-                                    style={{
-                                      padding: "6px 4px",
-                                      textAlign: "right",
-                                    }}
-                                  >
-                                    Sc.%
-                                  </th>
-                                )}
-                                <th
-                                  style={{
-                                    padding: "6px 4px",
-                                    textAlign: "right",
-                                  }}
-                                >
-                                  Totale
-                                </th>
-                                {editing && (
-                                  <th
-                                    style={{
-                                      padding: "6px 4px",
-                                      textAlign: "center",
-                                      width: "40px",
-                                    }}
-                                  />
-                                )}
-                              </tr>
-                            </thead>
-                            <tbody>
-                              {displayItems.map((item, idx) => (
-                                <tr
-                                  key={idx}
-                                  style={{
-                                    borderBottom: "1px solid #f3f4f6",
-                                  }}
-                                >
-                                  <td style={{ padding: "6px 4px" }}>
-                                    {item.productName || item.articleCode}
-                                  </td>
-                                  <td style={{ padding: "6px 4px" }}>
-                                    {item.description || "-"}
-                                  </td>
-                                  <td
-                                    style={{
-                                      padding: "6px 4px",
-                                      textAlign: "right",
-                                    }}
-                                  >
-                                    {editing ? (
-                                      <input
-                                        type="number"
-                                        value={item.quantity}
-                                        onChange={(e) =>
-                                          handleEditItemQty(
-                                            idx,
-                                            parseInt(e.target.value, 10) || 0,
-                                          )
-                                        }
-                                        min={1}
-                                        style={{
-                                          width: "60px",
-                                          padding: "4px",
-                                          textAlign: "right",
-                                          border: "1px solid #d1d5db",
-                                          borderRadius: "4px",
-                                          fontSize: "13px",
-                                        }}
-                                      />
-                                    ) : (
-                                      item.quantity
+                                    {order.ddtNumber && (
+                                      <div style={{ marginTop: "6px" }}>
+                                        <strong>DDT:</strong>{" "}
+                                        <HighlightText
+                                          text={order.ddtNumber}
+                                          query={debouncedSearch}
+                                        />
+                                        {order.ddtDeliveryDate &&
+                                          ` | Consegna prevista: ${formatDateDisplay(order.ddtDeliveryDate)}`}
+                                        {order.trackingNumber && (
+                                          <div>
+                                            <strong>Tracking:</strong>{" "}
+                                            {order.trackingUrl ? (
+                                              <a
+                                                href={order.trackingUrl}
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                style={{
+                                                  color: "#2563eb",
+                                                }}
+                                              >
+                                                <HighlightText
+                                                  text={order.trackingNumber}
+                                                  query={debouncedSearch}
+                                                />
+                                              </a>
+                                            ) : (
+                                              <HighlightText
+                                                text={order.trackingNumber}
+                                                query={debouncedSearch}
+                                              />
+                                            )}
+                                            {order.trackingCourier &&
+                                              ` (${order.trackingCourier})`}
+                                          </div>
+                                        )}
+                                      </div>
                                     )}
-                                  </td>
-                                  <td
-                                    style={{
-                                      padding: "6px 4px",
-                                      textAlign: "right",
-                                    }}
-                                  >
-                                    {editing ? (
-                                      <input
-                                        type="number"
-                                        value={item.price}
-                                        onChange={(e) =>
-                                          handleEditItemPrice(
-                                            idx,
-                                            parseFloat(e.target.value) || 0,
-                                          )
-                                        }
-                                        min={0}
-                                        step={0.01}
-                                        style={{
-                                          width: "80px",
-                                          padding: "4px",
-                                          textAlign: "right",
-                                          border: "1px solid #d1d5db",
-                                          borderRadius: "4px",
-                                          fontSize: "13px",
-                                        }}
-                                      />
-                                    ) : (
-                                      formatCurrency(item.price)
+
+                                    {order.invoiceNumber && (
+                                      <div style={{ marginTop: "6px" }}>
+                                        <strong>Fattura:</strong>{" "}
+                                        <HighlightText
+                                          text={order.invoiceNumber}
+                                          query={debouncedSearch}
+                                        />
+                                        {order.invoiceDate &&
+                                          ` del ${formatDateDisplay(order.invoiceDate)}`}
+                                        {order.invoiceAmount && (
+                                          <>
+                                            {" - "}
+                                            <HighlightText
+                                              text={order.invoiceAmount}
+                                              query={debouncedSearch}
+                                            />
+                                          </>
+                                        )}
+                                      </div>
                                     )}
-                                  </td>
-                                  {hasRowDiscounts && (
-                                    <td
-                                      style={{
-                                        padding: "6px 4px",
-                                        textAlign: "right",
-                                        color: item.discount
-                                          ? "#dc2626"
-                                          : "#9ca3af",
-                                      }}
-                                    >
-                                      {item.discount
-                                        ? `${item.discount}%`
-                                        : "-"}
-                                    </td>
-                                  )}
-                                  <td
-                                    style={{
-                                      padding: "6px 4px",
-                                      textAlign: "right",
-                                    }}
-                                  >
-                                    {formatCurrency(
-                                      item.price *
-                                        item.quantity *
-                                        (1 - (item.discount || 0) / 100),
-                                    )}
-                                  </td>
-                                  {editing && (
-                                    <td
-                                      style={{
-                                        padding: "6px 4px",
-                                        textAlign: "center",
-                                      }}
-                                    >
-                                      <button
-                                        onClick={() => handleRemoveItem(idx)}
+
+                                    {order.deliveryCompletedDate && (
+                                      <div
                                         style={{
-                                          padding: "2px 6px",
-                                          background: "#fee2e2",
-                                          color: "#dc2626",
-                                          border: "1px solid #dc2626",
-                                          borderRadius: "4px",
-                                          cursor: "pointer",
-                                          fontSize: "12px",
-                                          fontWeight: "bold",
+                                          marginTop: "6px",
+                                          color: "#166534",
                                         }}
                                       >
-                                        X
-                                      </button>
-                                    </td>
-                                  )}
-                                </tr>
-                              ))}
-                            </tbody>
-                          </table>
+                                        Consegnato il{" "}
+                                        {formatDateDisplay(
+                                          order.deliveryCompletedDate,
+                                        )}
+                                      </div>
+                                    )}
+                                  </div>
+                                );
+                              })()}
 
-                          {/* Add item button (edit mode) */}
-                          {editing && !addingProduct && (
-                            <button
-                              onClick={() => setAddingProduct(true)}
+                            {/* Items table */}
+                            <table
                               style={{
-                                padding: "6px 12px",
-                                background: "#f0fdf4",
-                                color: "#16a34a",
-                                border: "1px solid #86efac",
-                                borderRadius: "6px",
-                                cursor: "pointer",
+                                width: "100%",
+                                borderCollapse: "collapse",
                                 fontSize: "13px",
                                 marginBottom: "12px",
                               }}
                             >
-                              + Aggiungi articolo
-                            </button>
-                          )}
+                              <thead>
+                                <tr
+                                  style={{
+                                    borderBottom: "2px solid #e5e7eb",
+                                    textAlign: "left",
+                                  }}
+                                >
+                                  <th style={{ padding: "6px 4px" }}>Codice</th>
+                                  <th style={{ padding: "6px 4px" }}>
+                                    Descrizione
+                                  </th>
+                                  <th
+                                    style={{
+                                      padding: "6px 4px",
+                                      textAlign: "right",
+                                    }}
+                                  >
+                                    {"Qta'"}
+                                  </th>
+                                  <th
+                                    style={{
+                                      padding: "6px 4px",
+                                      textAlign: "right",
+                                    }}
+                                  >
+                                    Prezzo
+                                  </th>
+                                  {hasRowDiscounts && (
+                                    <th
+                                      style={{
+                                        padding: "6px 4px",
+                                        textAlign: "right",
+                                      }}
+                                    >
+                                      Sc.%
+                                    </th>
+                                  )}
+                                  <th
+                                    style={{
+                                      padding: "6px 4px",
+                                      textAlign: "right",
+                                    }}
+                                  >
+                                    Totale
+                                  </th>
+                                  {editing && (
+                                    <th
+                                      style={{
+                                        padding: "6px 4px",
+                                        textAlign: "center",
+                                        width: "40px",
+                                      }}
+                                    />
+                                  )}
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {displayItems.map((item, idx) => (
+                                  <tr
+                                    key={idx}
+                                    style={{
+                                      borderBottom: "1px solid #f3f4f6",
+                                    }}
+                                  >
+                                    <td style={{ padding: "6px 4px" }}>
+                                      <HighlightText
+                                        text={
+                                          item.productName ||
+                                          item.articleCode ||
+                                          ""
+                                        }
+                                        query={debouncedSearch}
+                                      />
+                                    </td>
+                                    <td style={{ padding: "6px 4px" }}>
+                                      <HighlightText
+                                        text={item.description || "-"}
+                                        query={debouncedSearch}
+                                      />
+                                    </td>
+                                    <td
+                                      style={{
+                                        padding: "6px 4px",
+                                        textAlign: "right",
+                                      }}
+                                    >
+                                      {editing ? (
+                                        <input
+                                          type="number"
+                                          value={item.quantity}
+                                          onChange={(e) =>
+                                            handleEditItemQty(
+                                              idx,
+                                              parseInt(e.target.value, 10) || 0,
+                                            )
+                                          }
+                                          min={1}
+                                          style={{
+                                            width: "60px",
+                                            padding: "4px",
+                                            textAlign: "right",
+                                            border: "1px solid #d1d5db",
+                                            borderRadius: "4px",
+                                            fontSize: "13px",
+                                          }}
+                                        />
+                                      ) : (
+                                        item.quantity
+                                      )}
+                                    </td>
+                                    <td
+                                      style={{
+                                        padding: "6px 4px",
+                                        textAlign: "right",
+                                      }}
+                                    >
+                                      {editing ? (
+                                        <input
+                                          type="number"
+                                          value={item.price}
+                                          onChange={(e) =>
+                                            handleEditItemPrice(
+                                              idx,
+                                              parseFloat(e.target.value) || 0,
+                                            )
+                                          }
+                                          min={0}
+                                          step={0.01}
+                                          style={{
+                                            width: "80px",
+                                            padding: "4px",
+                                            textAlign: "right",
+                                            border: "1px solid #d1d5db",
+                                            borderRadius: "4px",
+                                            fontSize: "13px",
+                                          }}
+                                        />
+                                      ) : (
+                                        formatCurrency(item.price)
+                                      )}
+                                    </td>
+                                    {hasRowDiscounts && (
+                                      <td
+                                        style={{
+                                          padding: "6px 4px",
+                                          textAlign: "right",
+                                          color: item.discount
+                                            ? "#dc2626"
+                                            : "#9ca3af",
+                                        }}
+                                      >
+                                        {item.discount
+                                          ? `${item.discount}%`
+                                          : "-"}
+                                      </td>
+                                    )}
+                                    <td
+                                      style={{
+                                        padding: "6px 4px",
+                                        textAlign: "right",
+                                      }}
+                                    >
+                                      {formatCurrency(
+                                        item.price *
+                                          item.quantity *
+                                          (1 - (item.discount || 0) / 100),
+                                      )}
+                                    </td>
+                                    {editing && (
+                                      <td
+                                        style={{
+                                          padding: "6px 4px",
+                                          textAlign: "center",
+                                        }}
+                                      >
+                                        <button
+                                          onClick={() => handleRemoveItem(idx)}
+                                          style={{
+                                            padding: "2px 6px",
+                                            background: "#fee2e2",
+                                            color: "#dc2626",
+                                            border: "1px solid #dc2626",
+                                            borderRadius: "4px",
+                                            cursor: "pointer",
+                                            fontSize: "12px",
+                                            fontWeight: "bold",
+                                          }}
+                                        >
+                                          X
+                                        </button>
+                                      </td>
+                                    )}
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
 
-                          {editing && addingProduct && (
-                            <div style={{ marginBottom: "12px" }}>
-                              <AddItemToHistory
-                                onAdd={handleAddItems}
-                                onCancel={() => setAddingProduct(false)}
-                                existingItems={editState!.items}
-                              />
-                            </div>
-                          )}
-
-                          {/* Discount */}
-                          {editing ? (
-                            <div
-                              style={{
-                                fontSize: "14px",
-                                fontWeight: 500,
-                                marginBottom: "8px",
-                                display: "flex",
-                                alignItems: "center",
-                                gap: "8px",
-                              }}
-                            >
-                              <span>Sconto globale:</span>
-                              <input
-                                type="number"
-                                value={editState!.discountPercent}
-                                onChange={(e) =>
-                                  setEditState({
-                                    ...editState!,
-                                    discountPercent: Math.min(
-                                      100,
-                                      Math.max(
-                                        0,
-                                        parseFloat(e.target.value) || 0,
-                                      ),
-                                    ),
-                                  })
-                                }
-                                min={0}
-                                max={100}
-                                step={1}
+                            {/* Add item button (edit mode) */}
+                            {editing && !addingProduct && (
+                              <button
+                                onClick={() => setAddingProduct(true)}
                                 style={{
-                                  width: "60px",
-                                  padding: "4px",
-                                  textAlign: "right",
-                                  border: "1px solid #d1d5db",
-                                  borderRadius: "4px",
-                                  fontSize: "14px",
+                                  padding: "6px 12px",
+                                  background: "#f0fdf4",
+                                  color: "#16a34a",
+                                  border: "1px solid #86efac",
+                                  borderRadius: "6px",
+                                  cursor: "pointer",
+                                  fontSize: "13px",
+                                  marginBottom: "12px",
                                 }}
-                              />
-                              <span>%</span>
-                            </div>
-                          ) : (
-                            order.discountPercent !== undefined &&
-                            order.discountPercent > 0 && (
+                              >
+                                + Aggiungi articolo
+                              </button>
+                            )}
+
+                            {editing && addingProduct && (
+                              <div style={{ marginBottom: "12px" }}>
+                                <AddItemToHistory
+                                  onAdd={handleAddItems}
+                                  onCancel={() => setAddingProduct(false)}
+                                  existingItems={editState!.items}
+                                />
+                              </div>
+                            )}
+
+                            {/* Discount */}
+                            {editing ? (
                               <div
                                 style={{
                                   fontSize: "14px",
                                   fontWeight: 500,
                                   marginBottom: "8px",
+                                  display: "flex",
+                                  alignItems: "center",
+                                  gap: "8px",
                                 }}
                               >
-                                Sconto globale: {order.discountPercent}%
-                              </div>
-                            )
-                          )}
-
-                          {/* Shipping & totals — always shown */}
-                          <div
-                            style={{
-                              fontSize: "13px",
-                              color: "#374151",
-                              marginBottom: "8px",
-                              display: "flex",
-                              gap: "12px",
-                              flexWrap: "wrap",
-                              alignItems: "baseline",
-                            }}
-                          >
-                            {order.shippingCost !== undefined &&
-                              order.shippingCost > 0 && (
-                                <span>
-                                  Spese: {formatCurrency(order.shippingCost)}
-                                </span>
-                              )}
-                            {order.shippingTax !== undefined &&
-                              order.shippingTax > 0 && (
-                                <span>
-                                  IVA: {formatCurrency(order.shippingTax)}
-                                </span>
-                              )}
-                            <span style={{ fontWeight: 600 }}>
-                              Totale: {formatCurrency(liveDocTotal)}
-                            </span>
-                            {!editing &&
-                              order.targetTotalWithVAT !== undefined &&
-                              order.targetTotalWithVAT > 0 &&
-                              Math.abs(
-                                order.targetTotalWithVAT - liveDocTotal,
-                              ) > 0.01 && (
-                                <span
+                                <span>Sconto globale:</span>
+                                <input
+                                  type="number"
+                                  value={editState!.discountPercent}
+                                  onChange={(e) =>
+                                    setEditState({
+                                      ...editState!,
+                                      discountPercent: Math.min(
+                                        100,
+                                        Math.max(
+                                          0,
+                                          parseFloat(e.target.value) || 0,
+                                        ),
+                                      ),
+                                    })
+                                  }
+                                  min={0}
+                                  max={100}
+                                  step={1}
                                   style={{
-                                    fontSize: "12px",
-                                    color: "#9ca3af",
+                                    width: "60px",
+                                    padding: "4px",
+                                    textAlign: "right",
+                                    border: "1px solid #d1d5db",
+                                    borderRadius: "4px",
+                                    fontSize: "14px",
+                                  }}
+                                />
+                                <span>%</span>
+                              </div>
+                            ) : (
+                              order.discountPercent !== undefined &&
+                              order.discountPercent > 0 && (
+                                <div
+                                  style={{
+                                    fontSize: "14px",
+                                    fontWeight: 500,
+                                    marginBottom: "8px",
                                   }}
                                 >
-                                  (Arca:{" "}
-                                  {formatCurrency(order.targetTotalWithVAT)})
-                                </span>
-                              )}
-                          </div>
+                                  Sconto globale: {order.discountPercent}%
+                                </div>
+                              )
+                            )}
 
-                          {/* Notes */}
-                          {editing ? (
-                            <div style={{ marginBottom: "8px" }}>
-                              <textarea
-                                value={editState!.notes}
-                                onChange={(e) =>
-                                  setEditState({
-                                    ...editState!,
-                                    notes: e.target.value,
-                                  })
-                                }
-                                placeholder="Note..."
-                                rows={3}
-                                style={{
-                                  width: "100%",
-                                  padding: "8px",
-                                  border: "1px solid #d1d5db",
-                                  borderRadius: "6px",
-                                  fontSize: "14px",
-                                  resize: "vertical",
-                                  boxSizing: "border-box",
-                                }}
-                              />
+                            {/* Shipping & totals — always shown */}
+                            <div
+                              style={{
+                                fontSize: "13px",
+                                color: "#374151",
+                                marginBottom: "8px",
+                                display: "flex",
+                                gap: "12px",
+                                flexWrap: "wrap",
+                                alignItems: "baseline",
+                              }}
+                            >
+                              {order.shippingCost !== undefined &&
+                                order.shippingCost > 0 && (
+                                  <span>
+                                    Spese: {formatCurrency(order.shippingCost)}
+                                  </span>
+                                )}
+                              {order.shippingTax !== undefined &&
+                                order.shippingTax > 0 && (
+                                  <span>
+                                    IVA: {formatCurrency(order.shippingTax)}
+                                  </span>
+                                )}
+                              <span style={{ fontWeight: 600 }}>
+                                Totale: {formatCurrency(liveDocTotal)}
+                              </span>
+                              {!editing &&
+                                order.targetTotalWithVAT !== undefined &&
+                                order.targetTotalWithVAT > 0 &&
+                                Math.abs(
+                                  order.targetTotalWithVAT - liveDocTotal,
+                                ) > 0.01 && (
+                                  <span
+                                    style={{
+                                      fontSize: "12px",
+                                      color: "#9ca3af",
+                                    }}
+                                  >
+                                    (Arca:{" "}
+                                    {formatCurrency(order.targetTotalWithVAT)})
+                                  </span>
+                                )}
                             </div>
-                          ) : (
-                            order.notes && (
+
+                            {/* Notes */}
+                            {editing ? (
+                              <div style={{ marginBottom: "8px" }}>
+                                <textarea
+                                  value={editState!.notes}
+                                  onChange={(e) =>
+                                    setEditState({
+                                      ...editState!,
+                                      notes: e.target.value,
+                                    })
+                                  }
+                                  placeholder="Note..."
+                                  rows={3}
+                                  style={{
+                                    width: "100%",
+                                    padding: "8px",
+                                    border: "1px solid #d1d5db",
+                                    borderRadius: "6px",
+                                    fontSize: "14px",
+                                    resize: "vertical",
+                                    boxSizing: "border-box",
+                                  }}
+                                />
+                              </div>
+                            ) : (
+                              order.notes && (
+                                <div
+                                  style={{
+                                    fontSize: "14px",
+                                    color: "#374151",
+                                    marginBottom: "8px",
+                                    fontStyle: "italic",
+                                  }}
+                                >
+                                  Note:{" "}
+                                  <HighlightText
+                                    text={order.notes}
+                                    query={debouncedSearch}
+                                  />
+                                </div>
+                              )
+                            )}
+
+                            {/* Action buttons */}
+                            {editing ? (
                               <div
                                 style={{
-                                  fontSize: "14px",
-                                  color: "#374151",
-                                  marginBottom: "8px",
-                                  fontStyle: "italic",
+                                  display: "flex",
+                                  gap: "8px",
+                                  flexWrap: "wrap",
                                 }}
                               >
-                                Note: {order.notes}
-                              </div>
-                            )
-                          )}
-
-                          {/* Action buttons */}
-                          {editing ? (
-                            <div
-                              style={{
-                                display: "flex",
-                                gap: "8px",
-                                flexWrap: "wrap",
-                              }}
-                            >
-                              <button
-                                onClick={handleSaveEdit}
-                                disabled={editState!.items.length === 0}
-                                style={{
-                                  padding: "8px 16px",
-                                  background:
-                                    editState!.items.length === 0
-                                      ? "#9ca3af"
-                                      : "#16a34a",
-                                  color: "white",
-                                  border: "none",
-                                  borderRadius: "6px",
-                                  cursor:
-                                    editState!.items.length === 0
-                                      ? "not-allowed"
-                                      : "pointer",
-                                  fontSize: "14px",
-                                  fontWeight: 600,
-                                }}
-                              >
-                                Salva
-                              </button>
-                              <button
-                                onClick={handleCancelEdit}
-                                style={{
-                                  padding: "8px 16px",
-                                  background: "#e5e7eb",
-                                  border: "1px solid #d1d5db",
-                                  borderRadius: "6px",
-                                  cursor: "pointer",
-                                  fontSize: "14px",
-                                }}
-                              >
-                                Annulla
-                              </button>
-                            </div>
-                          ) : (
-                            <div
-                              style={{
-                                display: "flex",
-                                gap: "8px",
-                                flexWrap: "wrap",
-                              }}
-                            >
-                              <button
-                                onClick={() => handleDownloadPDF(order)}
-                                style={{
-                                  padding: "6px 12px",
-                                  background: "#2563eb",
-                                  color: "white",
-                                  border: "none",
-                                  borderRadius: "6px",
-                                  cursor: "pointer",
-                                  fontSize: "13px",
-                                }}
-                              >
-                                Scarica PDF
-                              </button>
-                              <button
-                                onClick={() => handleStartEdit(order)}
-                                style={{
-                                  padding: "6px 12px",
-                                  background: "#f59e0b",
-                                  color: "white",
-                                  border: "none",
-                                  borderRadius: "6px",
-                                  cursor: "pointer",
-                                  fontSize: "13px",
-                                }}
-                              >
-                                Modifica
-                              </button>
-                              <button
-                                onClick={() => setLinkingOrderId(order.id)}
-                                style={{
-                                  padding: "6px 12px",
-                                  background: order.archibaldOrderId
-                                    ? "#6366f1"
-                                    : "#7c3aed",
-                                  color: "white",
-                                  border: "none",
-                                  borderRadius: "6px",
-                                  cursor: "pointer",
-                                  fontSize: "13px",
-                                }}
-                              >
-                                {order.archibaldOrderId
-                                  ? "Modifica collegamento"
-                                  : "Collega ordine"}
-                              </button>
-                              {order.archibaldOrderId && (
                                 <button
-                                  onClick={() => {
-                                    if (
-                                      window.confirm(
-                                        "Sei sicuro di voler scollegare questo ordine?",
-                                      )
-                                    ) {
-                                      handleUnlinkOrder(order.id);
-                                    }
+                                  onClick={handleSaveEdit}
+                                  disabled={editState!.items.length === 0}
+                                  style={{
+                                    padding: "8px 16px",
+                                    background:
+                                      editState!.items.length === 0
+                                        ? "#9ca3af"
+                                        : "#16a34a",
+                                    color: "white",
+                                    border: "none",
+                                    borderRadius: "6px",
+                                    cursor:
+                                      editState!.items.length === 0
+                                        ? "not-allowed"
+                                        : "pointer",
+                                    fontSize: "14px",
+                                    fontWeight: 600,
                                   }}
+                                >
+                                  Salva
+                                </button>
+                                <button
+                                  onClick={handleCancelEdit}
+                                  style={{
+                                    padding: "8px 16px",
+                                    background: "#e5e7eb",
+                                    border: "1px solid #d1d5db",
+                                    borderRadius: "6px",
+                                    cursor: "pointer",
+                                    fontSize: "14px",
+                                  }}
+                                >
+                                  Annulla
+                                </button>
+                              </div>
+                            ) : (
+                              <div
+                                style={{
+                                  display: "flex",
+                                  gap: "8px",
+                                  flexWrap: "wrap",
+                                }}
+                              >
+                                <button
+                                  onClick={() => handleDownloadPDF(order)}
                                   style={{
                                     padding: "6px 12px",
-                                    background: "#fef2f2",
-                                    color: "#dc2626",
-                                    border: "1px solid #fca5a5",
+                                    background: "#2563eb",
+                                    color: "white",
+                                    border: "none",
                                     borderRadius: "6px",
                                     cursor: "pointer",
                                     fontSize: "13px",
                                   }}
                                 >
-                                  Scollega
+                                  Scarica PDF
                                 </button>
-                              )}
-                              {order.currentState === "spedito" &&
-                                !order.deliveryCompletedDate && (
+                                <button
+                                  onClick={() => handleStartEdit(order)}
+                                  style={{
+                                    padding: "6px 12px",
+                                    background: "#f59e0b",
+                                    color: "white",
+                                    border: "none",
+                                    borderRadius: "6px",
+                                    cursor: "pointer",
+                                    fontSize: "13px",
+                                  }}
+                                >
+                                  Modifica
+                                </button>
+                                <button
+                                  onClick={() => setLinkingOrderId(order.id)}
+                                  style={{
+                                    padding: "6px 12px",
+                                    background: order.archibaldOrderId
+                                      ? "#6366f1"
+                                      : "#7c3aed",
+                                    color: "white",
+                                    border: "none",
+                                    borderRadius: "6px",
+                                    cursor: "pointer",
+                                    fontSize: "13px",
+                                  }}
+                                >
+                                  {order.archibaldOrderId
+                                    ? "Modifica collegamento"
+                                    : "Collega ordine"}
+                                </button>
+                                {order.archibaldOrderId && (
                                   <button
-                                    onClick={() => handleMarkDelivered(order)}
+                                    onClick={() => {
+                                      if (
+                                        window.confirm(
+                                          "Sei sicuro di voler scollegare questo ordine?",
+                                        )
+                                      ) {
+                                        handleUnlinkOrder(order.id);
+                                      }
+                                    }}
                                     style={{
                                       padding: "6px 12px",
-                                      background: "#16a34a",
-                                      color: "white",
-                                      border: "none",
+                                      background: "#fef2f2",
+                                      color: "#dc2626",
+                                      border: "1px solid #fca5a5",
                                       borderRadius: "6px",
                                       cursor: "pointer",
                                       fontSize: "13px",
                                     }}
                                   >
-                                    Segna Consegnato
+                                    Scollega
                                   </button>
                                 )}
-                              {isDeleting ? (
-                                <>
+                                {order.currentState === "spedito" &&
+                                  !order.deliveryCompletedDate && (
+                                    <button
+                                      onClick={() => handleMarkDelivered(order)}
+                                      style={{
+                                        padding: "6px 12px",
+                                        background: "#16a34a",
+                                        color: "white",
+                                        border: "none",
+                                        borderRadius: "6px",
+                                        cursor: "pointer",
+                                        fontSize: "13px",
+                                      }}
+                                    >
+                                      Segna Consegnato
+                                    </button>
+                                  )}
+                                {isDeleting ? (
+                                  <>
+                                    <button
+                                      onClick={() => handleDelete(order.id)}
+                                      style={{
+                                        padding: "6px 12px",
+                                        background: "#dc2626",
+                                        color: "white",
+                                        border: "none",
+                                        borderRadius: "6px",
+                                        cursor: "pointer",
+                                        fontSize: "13px",
+                                      }}
+                                    >
+                                      Conferma Elimina
+                                    </button>
+                                    <button
+                                      onClick={() => setDeleteConfirmId(null)}
+                                      style={{
+                                        padding: "6px 12px",
+                                        background: "#e5e7eb",
+                                        border: "1px solid #d1d5db",
+                                        borderRadius: "6px",
+                                        cursor: "pointer",
+                                        fontSize: "13px",
+                                      }}
+                                    >
+                                      Annulla
+                                    </button>
+                                  </>
+                                ) : (
                                   <button
-                                    onClick={() => handleDelete(order.id)}
+                                    onClick={() => setDeleteConfirmId(order.id)}
                                     style={{
                                       padding: "6px 12px",
-                                      background: "#dc2626",
-                                      color: "white",
-                                      border: "none",
+                                      background: "#fee2e2",
+                                      color: "#dc2626",
+                                      border: "1px solid #dc2626",
                                       borderRadius: "6px",
                                       cursor: "pointer",
                                       fontSize: "13px",
                                     }}
                                   >
-                                    Conferma Elimina
+                                    Elimina
                                   </button>
-                                  <button
-                                    onClick={() => setDeleteConfirmId(null)}
-                                    style={{
-                                      padding: "6px 12px",
-                                      background: "#e5e7eb",
-                                      border: "1px solid #d1d5db",
-                                      borderRadius: "6px",
-                                      cursor: "pointer",
-                                      fontSize: "13px",
-                                    }}
-                                  >
-                                    Annulla
-                                  </button>
-                                </>
-                              ) : (
-                                <button
-                                  onClick={() => setDeleteConfirmId(order.id)}
-                                  style={{
-                                    padding: "6px 12px",
-                                    background: "#fee2e2",
-                                    color: "#dc2626",
-                                    border: "1px solid #dc2626",
-                                    borderRadius: "6px",
-                                    cursor: "pointer",
-                                    fontSize: "13px",
-                                  }}
-                                >
-                                  Elimina
-                                </button>
-                              )}
-                            </div>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
-            </div>
-          ))}
+            ))}
+          </div>
 
           {/* Infinite scroll sentinel */}
           {visibleCount < filteredOrders.length && (
