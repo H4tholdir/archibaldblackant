@@ -8,18 +8,29 @@ import {
   ParsedOrder,
 } from "./pdf-parser-orders-service";
 import { OrderDatabaseNew } from "./order-db-new";
+import { OrderArticlesSyncService } from "./order-articles-sync-service";
 import * as fs from "fs/promises";
 import { SyncStopError, isSyncStopError } from "./sync-stop";
 import { PendingRealtimeService } from "./pending-realtime.service";
 
 export interface OrderSyncProgress {
-  status: "idle" | "downloading" | "parsing" | "saving" | "completed" | "error";
+  status:
+    | "idle"
+    | "downloading"
+    | "parsing"
+    | "saving"
+    | "syncing-articles"
+    | "completed"
+    | "error";
   message: string;
   ordersProcessed: number;
   ordersInserted: number;
   ordersUpdated: number;
   ordersSkipped: number;
   ordersDeleted: number;
+  articlesSyncedForOrders?: number;
+  articlesSyncTotalOrders?: number;
+  articlesSyncErrors?: number;
   error?: string;
 }
 
@@ -43,11 +54,14 @@ export class OrderSyncService extends EventEmitter {
     ordersDeleted: 0,
   };
 
+  private articlesSyncService: OrderArticlesSyncService;
+
   private constructor() {
     super();
     this.browserPool = BrowserPool.getInstance();
     this.pdfParser = PDFParserOrdersService.getInstance();
     this.orderDb = OrderDatabaseNew.getInstance();
+    this.articlesSyncService = OrderArticlesSyncService.getInstance();
   }
 
   static getInstance(): OrderSyncService {
@@ -162,7 +176,7 @@ export class OrderSyncService extends EventEmitter {
       logger.info("[OrderSyncService] Progress updated: downloading");
 
       // Step 1: Download PDF via bot
-      logger.info("[OrderSyncService] Step 1/4: Starting PDF download...");
+      logger.info("[OrderSyncService] Step 1/5: Starting PDF download...");
       let pdfPath: string;
       try {
         pdfPath = await this.downloadOrdersPDF(userId);
@@ -185,7 +199,7 @@ export class OrderSyncService extends EventEmitter {
       }
 
       // Step 2: Parse PDF
-      logger.info("[OrderSyncService] Step 2/4: Starting PDF parsing...");
+      logger.info("[OrderSyncService] Step 2/5: Starting PDF parsing...");
       this.progress = {
         ...this.progress,
         status: "parsing",
@@ -215,7 +229,7 @@ export class OrderSyncService extends EventEmitter {
       }
 
       // Step 3: Save with delta detection
-      logger.info("[OrderSyncService] Step 3/4: Starting database save...");
+      logger.info("[OrderSyncService] Step 3/5: Starting database save...");
       this.progress = {
         ...this.progress,
         status: "saving",
@@ -229,6 +243,7 @@ export class OrderSyncService extends EventEmitter {
         ordersUpdated: number;
         ordersSkipped: number;
         orderNumberChanges: Array<{ orderId: string; orderNumber: string }>;
+        insertedOrderIds: string[];
       };
       try {
         saveResults = await this.saveOrders(userId, parsedOrders);
@@ -272,20 +287,92 @@ export class OrderSyncService extends EventEmitter {
       }
 
       // Step 4: Cleanup PDF
-      logger.info("[OrderSyncService] Step 4/4: Cleaning up PDF...");
+      logger.info("[OrderSyncService] Step 4/5: Cleaning up PDF...");
       await fs.unlink(pdfPath).catch((err) => {
         logger.warn(`[OrderSyncService] Failed to delete PDF ${pdfPath}`, {
           error: err instanceof Error ? err.message : String(err),
         });
       });
 
+      // Step 5: Sync articles for newly inserted orders
+      let articlesSynced = 0;
+      let articlesSyncErrors = 0;
+      if (saveResults.insertedOrderIds.length > 0) {
+        const totalNewOrders = saveResults.insertedOrderIds.length;
+        logger.info(
+          `[OrderSyncService] Step 5/5: Syncing articles for ${totalNewOrders} new orders...`,
+        );
+
+        this.progress = {
+          ...this.progress,
+          status: "syncing-articles",
+          message: `Sync articoli per ${totalNewOrders} nuovi ordini (0/${totalNewOrders})...`,
+          articlesSyncedForOrders: 0,
+          articlesSyncTotalOrders: totalNewOrders,
+          articlesSyncErrors: 0,
+        };
+        this.emit("progress", this.progress);
+
+        for (const orderId of saveResults.insertedOrderIds) {
+          this.throwIfStopRequested("syncing-articles");
+
+          try {
+            logger.info(
+              `[OrderSyncService] Syncing articles for order ${orderId} (${articlesSynced + 1}/${totalNewOrders})`,
+            );
+
+            await this.articlesSyncService.syncOrderArticles(userId, orderId);
+            articlesSynced++;
+
+            logger.info(
+              `[OrderSyncService] Articles synced for order ${orderId}`,
+            );
+          } catch (articleError) {
+            articlesSyncErrors++;
+            logger.error(
+              `[OrderSyncService] Failed to sync articles for order ${orderId}`,
+              {
+                error:
+                  articleError instanceof Error
+                    ? articleError.message
+                    : String(articleError),
+                stack:
+                  articleError instanceof Error
+                    ? articleError.stack
+                    : undefined,
+              },
+            );
+          }
+
+          this.progress = {
+            ...this.progress,
+            message: `Sync articoli per ${totalNewOrders} nuovi ordini (${articlesSynced + articlesSyncErrors}/${totalNewOrders})...`,
+            articlesSyncedForOrders: articlesSynced,
+            articlesSyncErrors,
+          };
+          this.emit("progress", this.progress);
+        }
+
+        logger.info("[OrderSyncService] Articles sync completed", {
+          articlesSynced,
+          articlesSyncErrors,
+          totalNewOrders,
+        });
+      }
+
       // Complete
       const duration = Math.floor((Date.now() - startTime) / 1000);
+      const articlesSummary =
+        saveResults.insertedOrderIds.length > 0
+          ? ` | Articoli: ${articlesSynced}/${saveResults.insertedOrderIds.length} ordini`
+          : "";
       this.progress = {
         ...this.progress,
         status: "completed",
-        message: `✓ Sync completato in ${duration}s`,
+        message: `✓ Sync completato in ${duration}s${articlesSummary}`,
         ...saveResults,
+        articlesSyncedForOrders: articlesSynced,
+        articlesSyncErrors,
       };
       this.emit("progress", this.progress);
 
@@ -293,6 +380,8 @@ export class OrderSyncService extends EventEmitter {
         duration,
         durationMs: Date.now() - startTime,
         ...saveResults,
+        articlesSynced,
+        articlesSyncErrors,
       });
     } catch (error) {
       const duration = Math.floor((Date.now() - startTime) / 1000);
@@ -424,6 +513,7 @@ export class OrderSyncService extends EventEmitter {
     ordersSkipped: number;
     ordersDeleted: number;
     orderNumberChanges: Array<{ orderId: string; orderNumber: string }>;
+    insertedOrderIds: string[];
   }> {
     logger.info("[OrderSyncService] saveOrders: starting", {
       userId,
@@ -433,6 +523,7 @@ export class OrderSyncService extends EventEmitter {
     let inserted = 0;
     let updated = 0;
     let skipped = 0;
+    const insertedOrderIds: string[] = [];
     const orderNumberChanges: Array<{ orderId: string; orderNumber: string }> =
       [];
 
@@ -472,8 +563,10 @@ export class OrderSyncService extends EventEmitter {
 
         const result = this.orderDb.upsertOrder(userId, orderData);
 
-        if (result.action === "inserted") inserted++;
-        else if (result.action === "updated") updated++;
+        if (result.action === "inserted") {
+          inserted++;
+          insertedOrderIds.push(parsedOrder.id);
+        } else if (result.action === "updated") updated++;
         else if (result.action === "skipped") skipped++;
 
         if (result.orderNumberChanged) {
@@ -536,6 +629,7 @@ export class OrderSyncService extends EventEmitter {
       ordersSkipped: skipped,
       ordersDeleted: deleted,
       orderNumberChanges,
+      insertedOrderIds,
     };
 
     logger.info("[OrderSyncService] saveOrders: completed", results);
