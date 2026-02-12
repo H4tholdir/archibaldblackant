@@ -5022,7 +5022,7 @@ app.get(
       }
 
       // Pause sync services to avoid conflicts
-      priorityManager.pause();
+      await priorityManager.pause();
 
       try {
         // Fetch order list from DB only (no automatic sync)
@@ -5259,7 +5259,7 @@ app.get(
       );
 
       // Pause sync services to avoid conflicts
-      priorityManager.pause();
+      await priorityManager.pause();
 
       try {
         // Fetch order detail from Archibald (OrderHistoryService handles ArchibaldBot internally)
@@ -5377,7 +5377,7 @@ app.post(
           });
 
           // Pause sync services to avoid conflicts
-          priorityManager.pause();
+          await priorityManager.pause();
 
           try {
             // Clear existing cached orders
@@ -5517,7 +5517,7 @@ app.post(
           });
 
           // Pause sync services to avoid conflicts
-          priorityManager.pause();
+          await priorityManager.pause();
 
           try {
             // Clear ALL orders from database
@@ -5678,7 +5678,7 @@ app.post(
       }
 
       // Pause background services to avoid conflicts
-      priorityManager.pause();
+      await priorityManager.pause();
       logger.info(
         `[SendToMilano] Background services paused for order ${orderId}`,
       );
@@ -5774,7 +5774,7 @@ app.post(
       logger.info(`[DDT Sync] Starting DDT sync for user ${userId}`);
 
       // Pause background services to prevent bot conflicts
-      priorityManager.pause();
+      await priorityManager.pause();
 
       try {
         // Scrape DDT data from Archibald
@@ -5834,7 +5834,7 @@ app.post(
       logger.info(`[Invoice Sync] Starting invoice sync for user ${userId}`);
 
       // Pause background services to prevent bot conflicts
-      priorityManager.pause();
+      await priorityManager.pause();
 
       try {
         // Scrape invoice data from Archibald
@@ -5895,7 +5895,7 @@ app.post(
       );
 
       // Pause background services to prevent bot conflicts
-      priorityManager.pause();
+      await priorityManager.pause();
 
       try {
         // Use OrderSyncService (PDF-based sync)
@@ -5946,7 +5946,7 @@ app.post(
       logger.info(`[DDT Sync] Starting PDF-based DDT sync for user ${userId}`);
 
       // Pause background services to prevent bot conflicts
-      priorityManager.pause();
+      await priorityManager.pause();
 
       try {
         // Use DDTSyncService (PDF-based sync)
@@ -5999,7 +5999,7 @@ app.post(
       );
 
       // Pause background services to prevent bot conflicts
-      priorityManager.pause();
+      await priorityManager.pause();
 
       try {
         // Use InvoiceSyncService (PDF-based sync)
@@ -6090,7 +6090,7 @@ app.get(
       }
 
       // Pause background services
-      priorityManager.pause();
+      await priorityManager.pause();
 
       try {
         // Download invoice PDF
@@ -6214,7 +6214,7 @@ app.get(
       }
 
       // Pause background services
-      priorityManager.pause();
+      await priorityManager.pause();
 
       try {
         // Download DDT PDF
@@ -6337,7 +6337,7 @@ app.get(
       aborted = true;
     });
 
-    priorityManager.pause();
+    await priorityManager.pause();
 
     try {
       let pdfBuffer: Buffer;
