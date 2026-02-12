@@ -553,7 +553,7 @@ function computeModifications(
       ) {
         mods.push({
           type: "update",
-          rowIndex: i + 1,
+          rowIndex: i,
           articleCode: edit.articleCode,
           quantity: edit.quantity,
           discount: edit.discountPercent,
@@ -575,7 +575,7 @@ function computeModifications(
   for (let i = editItems.length; i < maxOriginal; i++) {
     mods.push({
       type: "delete",
-      rowIndex: i + 1,
+      rowIndex: i,
       articleCode: originalItems[i].articleCode,
       oldQuantity: originalItems[i].quantity,
     });
