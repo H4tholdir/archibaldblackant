@@ -65,8 +65,8 @@ describe("getOrderStatus", () => {
 
       expect(result.category).toBe("delivered");
       expect(result.label).toBe("Consegnato");
-      expect(result.borderColor).toBe("#00695C");
-      expect(result.backgroundColor).toBe("#B2DFDB");
+      expect(result.borderColor).toBe("#0277BD");
+      expect(result.backgroundColor).toBe("#B3E5FC");
     });
   });
 
@@ -216,8 +216,8 @@ describe("getOrderStatus", () => {
 
       expect(result.category).toBe("in-processing");
       expect(result.label).toBe("In lavorazione");
-      expect(result.borderColor).toBe("#0277BD");
-      expect(result.backgroundColor).toBe("#B3E5FC");
+      expect(result.borderColor).toBe("#5D4037");
+      expect(result.backgroundColor).toBe("#D7CCC8");
     });
 
     test("does not return in-processing for PENDING orders", () => {
@@ -410,10 +410,10 @@ describe("getStatusStyleByCategory", () => {
     expect(style.backgroundColor).toBe("#FFCDD2");
   });
 
-  test("in-processing returns light blue colors", () => {
+  test("in-processing returns brown colors", () => {
     const style = getStatusStyleByCategory("in-processing");
 
-    expect(style.borderColor).toBe("#0277BD");
-    expect(style.backgroundColor).toBe("#B3E5FC");
+    expect(style.borderColor).toBe("#5D4037");
+    expect(style.backgroundColor).toBe("#D7CCC8");
   });
 });

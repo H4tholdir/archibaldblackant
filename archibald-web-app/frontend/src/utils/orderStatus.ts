@@ -48,8 +48,8 @@ const ORDER_STATUS_STYLES: Record<OrderStatusCategory, OrderStatusStyle> = {
     label: "In lavorazione",
     description:
       "Accettato da Verona, in attesa di entrare nel flusso di spedizione",
-    borderColor: "#0277BD",
-    backgroundColor: "#B3E5FC",
+    borderColor: "#5D4037",
+    backgroundColor: "#D7CCC8",
   },
   blocked: {
     category: "blocked",
@@ -69,8 +69,8 @@ const ORDER_STATUS_STYLES: Record<OrderStatusCategory, OrderStatusStyle> = {
     category: "delivered",
     label: "Consegnato",
     description: "Consegna confermata con data/ora",
-    borderColor: "#00695C",
-    backgroundColor: "#B2DFDB",
+    borderColor: "#0277BD",
+    backgroundColor: "#B3E5FC",
   },
   invoiced: {
     category: "invoiced",
