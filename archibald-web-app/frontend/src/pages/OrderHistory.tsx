@@ -328,7 +328,7 @@ export function OrderHistory() {
       const params = new URLSearchParams();
       if (selectedCustomer?.name)
         params.append("customer", selectedCustomer.name);
-      if (filters.dateFrom) params.append("dateFrom", filters.dateFrom);
+      params.append("dateFrom", filters.dateFrom || "2026-01-01");
       if (filters.dateTo) params.append("dateTo", filters.dateTo);
       params.append("limit", "10000");
 
