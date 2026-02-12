@@ -234,7 +234,6 @@ export function OrderHistory() {
 
   // Scroll state
   const [showScrollToTop, setShowScrollToTop] = useState(false);
-  const [filterPanelHidden, setFilterPanelHidden] = useState(false);
 
   // Infinite scroll state
   const [visibleCount, setVisibleCount] = useState(30);
@@ -278,12 +277,10 @@ export function OrderHistory() {
     return () => clearTimeout(timer);
   }, [filters.search]);
 
-  // Scroll listener for scroll-to-top button + filter panel visibility
+  // Scroll listener for scroll-to-top button
   useEffect(() => {
     const handleScroll = () => {
-      const scrollY = window.scrollY;
-      setShowScrollToTop(scrollY > 400);
-      setFilterPanelHidden(scrollY > 50);
+      setShowScrollToTop(window.scrollY > 400);
     };
     window.addEventListener("scroll", handleScroll, { passive: true });
     return () => window.removeEventListener("scroll", handleScroll);
@@ -852,22 +849,14 @@ export function OrderHistory() {
         </button>
       </div>
 
-      {/* Filter bar - fade in/out on scroll */}
+      {/* Filter bar */}
       <div
         style={{
           backgroundColor: "#fff",
           borderRadius: "12px",
-          padding: filterPanelHidden ? "0 20px" : "20px",
-          marginBottom: filterPanelHidden ? "0px" : "24px",
-          boxShadow: filterPanelHidden
-            ? "none"
-            : "0 2px 8px rgba(0, 0, 0, 0.1)",
-          opacity: filterPanelHidden ? 0 : 1,
-          maxHeight: filterPanelHidden ? "0px" : "800px",
-          overflow: "hidden",
-          pointerEvents: filterPanelHidden ? "none" : "auto",
-          transition:
-            "opacity 0.3s ease, max-height 0.3s ease, padding 0.3s ease, margin-bottom 0.3s ease, box-shadow 0.3s ease",
+          padding: "20px",
+          marginBottom: "24px",
+          boxShadow: "0 2px 8px rgba(0, 0, 0, 0.1)",
         }}
       >
         {/* Row 1: Customer search + Global search */}
