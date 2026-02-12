@@ -26,11 +26,18 @@ export interface DeleteProgressState {
   operation: string;
 }
 
+export interface EditProgressState {
+  progress: number;
+  operation: string;
+}
+
 export class FresisHistoryRealtimeService {
   private static instance: FresisHistoryRealtimeService;
   private updateHandlers: Set<UpdateHandler> = new Set();
   private deleteProgressHandlers: Set<UpdateHandler> = new Set();
   private _deleteProgressMap: Map<string, DeleteProgressState> = new Map();
+  private editProgressHandlers: Set<UpdateHandler> = new Set();
+  private _editProgressMap: Map<string, EditProgressState> = new Map();
 
   private constructor() {}
 
@@ -160,6 +167,50 @@ export class FresisHistoryRealtimeService {
     }
   }
 
+  public getEditProgress(recordId: string): EditProgressState | undefined {
+    return this._editProgressMap.get(recordId);
+  }
+
+  public clearEditProgress(recordId: string): void {
+    this._editProgressMap.delete(recordId);
+  }
+
+  public onEditProgress(handler: UpdateHandler): () => void {
+    this.editProgressHandlers.add(handler);
+    return () => {
+      this.editProgressHandlers.delete(handler);
+    };
+  }
+
+  private notifyEditProgress(): void {
+    this.editProgressHandlers.forEach((handler) => {
+      try {
+        handler();
+      } catch (error) {
+        console.error(
+          "[FresisHistoryRealtime] Error in edit progress handler:",
+          error,
+        );
+      }
+    });
+  }
+
+  public handleEditProgress(payload: unknown): void {
+    try {
+      const data = payload as DeleteProgressPayload;
+      this._editProgressMap.set(data.recordId, {
+        progress: data.progress,
+        operation: data.operation,
+      });
+      this.notifyEditProgress();
+    } catch (error) {
+      console.error(
+        "[FresisHistoryRealtime] Error handling FRESIS_HISTORY_EDIT_PROGRESS:",
+        error,
+      );
+    }
+  }
+
   public async handleBulkImported(payload: unknown): Promise<void> {
     try {
       const data = payload as BulkImportedPayload;
@@ -205,6 +256,11 @@ export class FresisHistoryRealtimeService {
     unsubscribers.push(
       subscribe("FRESIS_HISTORY_DELETE_PROGRESS", (payload) =>
         this.handleDeleteProgress(payload),
+      ),
+    );
+    unsubscribers.push(
+      subscribe("FRESIS_HISTORY_EDIT_PROGRESS", (payload) =>
+        this.handleEditProgress(payload),
       ),
     );
     unsubscribers.push(

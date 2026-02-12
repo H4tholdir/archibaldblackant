@@ -588,4 +588,139 @@ router.post(
   },
 );
 
+router.post(
+  "/fresis-history/:id/edit-in-archibald",
+  authenticateJWT,
+  async (req: AuthRequest, res: Response) => {
+    const userId = req.user!.userId;
+    const { id } = req.params;
+
+    try {
+      const existing = usersDb
+        .prepare(
+          "SELECT id, archibald_order_id, archibald_order_number, current_state, items FROM fresis_history WHERE id = ? AND user_id = ?",
+        )
+        .get(id, userId) as any;
+
+      if (!existing) {
+        return res.status(404).json({
+          success: false,
+          error: "Record non trovato",
+        });
+      }
+
+      if (!existing.archibald_order_id) {
+        return res.status(400).json({
+          success: false,
+          error: "Ordine non ha un ID Archibald associato",
+        });
+      }
+
+      const { modifications, updatedItems } = req.body;
+
+      if (!Array.isArray(modifications) || modifications.length === 0) {
+        return res.status(400).json({
+          success: false,
+          error: "modifications deve essere un array non vuoto",
+        });
+      }
+
+      const { ArchibaldBot } = await import("../archibald-bot");
+      const { getEditProgressMilestone } = await import(
+        "../job-progress-mapper"
+      );
+
+      const bot = new ArchibaldBot(userId);
+      let botSuccess = false;
+
+      let wsService: any;
+      try {
+        const mod = require("../fresis-history-realtime.service");
+        wsService = mod.FresisHistoryRealtimeService.getInstance();
+      } catch {
+        // WS not available
+      }
+
+      bot.setProgressCallback(async (category: string, metadata?: Record<string, any>) => {
+        if (!wsService) return;
+        const milestone = getEditProgressMilestone(category, metadata);
+        if (!milestone) return;
+        wsService.emitEditProgress(userId, id, milestone.progress, milestone.label);
+      });
+
+      try {
+        await bot.initialize();
+
+        const result = await bot.editOrderInArchibald(
+          existing.archibald_order_id,
+          modifications,
+        );
+
+        if (!result.success) {
+          return res.status(500).json({
+            success: false,
+            error: result.message,
+          });
+        }
+
+        botSuccess = true;
+
+        // Update local items in DB
+        if (updatedItems) {
+          usersDb
+            .prepare(
+              "UPDATE fresis_history SET items = ?, updated_at = ? WHERE id = ? AND user_id = ?",
+            )
+            .run(JSON.stringify(updatedItems), new Date().toISOString(), id, userId);
+        }
+
+        // Emit WebSocket event
+        try {
+          const {
+            FresisHistoryRealtimeService,
+          } = require("../fresis-history-realtime.service");
+          const ws = FresisHistoryRealtimeService.getInstance();
+          ws.emitHistoryUpdated(userId, id);
+        } catch {
+          // WS not available
+        }
+
+        logger.info("Order edited in Archibald", {
+          userId,
+          id,
+          archibaldOrderId: existing.archibald_order_id,
+          modificationsCount: modifications.length,
+          botMessage: result.message,
+        });
+
+        res.json({
+          success: true,
+          message: result.message,
+        });
+      } finally {
+        try {
+          if (!botSuccess) {
+            (bot as any).hasError = true;
+          }
+          await bot.close();
+        } catch (closeError) {
+          logger.error("Error closing bot after edit-in-archibald", {
+            closeError,
+          });
+        }
+      }
+    } catch (error) {
+      logger.error("Error editing order in Archibald", {
+        error: error instanceof Error ? error.message : String(error),
+        userId,
+        id,
+      });
+      res.status(500).json({
+        success: false,
+        error: "Errore durante la modifica su Archibald",
+      });
+    }
+  },
+);
+
 export default router;

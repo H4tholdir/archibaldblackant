@@ -95,6 +95,40 @@ export function getCustomerProgressMilestone(
   return CUSTOMER_PROGRESS_MILESTONES[category] ?? null;
 }
 
+const EDIT_ORDER_MILESTONES: Record<string, { progress: number; label: string }> = {
+  "edit.navigation": { progress: 10, label: "Navigazione lista ordini" },
+  "edit.filter": { progress: 15, label: "Impostazione filtro" },
+  "edit.search": { progress: 25, label: "Ricerca ordine" },
+  "edit.open": { progress: 35, label: "Apertura ordine in modifica" },
+  "edit.modify": { progress: 50, label: "Modifica riga {current} di {total}" },
+  "edit.save": { progress: 90, label: "Salvataggio ordine" },
+  "edit.complete": { progress: 100, label: "Ordine modificato con successo" },
+};
+
+export function getEditProgressMilestone(
+  category: string,
+  metadata?: Record<string, any>,
+): { progress: number; label: string } | null {
+  const milestone = EDIT_ORDER_MILESTONES[category];
+  if (!milestone) return null;
+
+  let progress = milestone.progress;
+  let label = milestone.label;
+
+  if (category === "edit.modify" && metadata) {
+    const { current, total } = metadata;
+    if (current !== undefined && total !== undefined && total > 0) {
+      const startPercent = 35;
+      const endPercent = 85;
+      const range = endPercent - startPercent;
+      progress = Math.round(startPercent + range * (current / total));
+      label = formatProgressLabel(label, metadata);
+    }
+  }
+
+  return { progress, label };
+}
+
 export function getProgressMilestone(
   operationCategory: string,
   metadata?: Record<string, any>,

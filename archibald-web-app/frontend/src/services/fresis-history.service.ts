@@ -144,6 +144,44 @@ class FresisHistoryService {
     return { success: true, message: data.message };
   }
 
+  async editInArchibald(
+    id: string,
+    modifications: Array<
+      | { type: "update"; rowIndex: number; articleCode: string; quantity: number; discount?: number }
+      | { type: "add"; articleCode: string; quantity: number; discount?: number }
+      | { type: "delete"; rowIndex: number }
+    >,
+    updatedItems: any[],
+  ): Promise<{ success: boolean; message: string }> {
+    const token = this.getToken();
+    if (!token) {
+      return { success: false, message: "Non autenticato" };
+    }
+
+    const response = await fetch(
+      `/api/fresis-history/${id}/edit-in-archibald`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ modifications, updatedItems }),
+      },
+    );
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      return {
+        success: false,
+        message: data.error || "Errore durante la modifica",
+      };
+    }
+
+    return { success: true, message: data.message };
+  }
+
   async getHistoryOrderById(
     id: string,
   ): Promise<FresisHistoryOrder | undefined> {

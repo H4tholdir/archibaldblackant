@@ -7,6 +7,7 @@ export type FresisHistoryEventType =
   | "FRESIS_HISTORY_UPDATED"
   | "FRESIS_HISTORY_DELETED"
   | "FRESIS_HISTORY_DELETE_PROGRESS"
+  | "FRESIS_HISTORY_EDIT_PROGRESS"
   | "FRESIS_HISTORY_BULK_IMPORTED";
 
 export class FresisHistoryRealtimeService {
@@ -123,6 +124,33 @@ export class FresisHistoryRealtimeService {
     } catch (error) {
       logger.error(
         "[FresisHistoryRealtime] Failed to emit FRESIS_HISTORY_DELETE_PROGRESS",
+        { userId, recordId, error },
+      );
+    }
+  }
+
+  public emitEditProgress(
+    userId: string,
+    recordId: string,
+    progress: number,
+    operation: string,
+  ): void {
+    try {
+      const event: WebSocketMessage = {
+        type: "FRESIS_HISTORY_EDIT_PROGRESS",
+        payload: {
+          recordId,
+          progress,
+          operation,
+          timestamp: new Date().toISOString(),
+        },
+        timestamp: new Date().toISOString(),
+      };
+
+      this.wsService.broadcast(userId, event);
+    } catch (error) {
+      logger.error(
+        "[FresisHistoryRealtime] Failed to emit FRESIS_HISTORY_EDIT_PROGRESS",
         { userId, recordId, error },
       );
     }
