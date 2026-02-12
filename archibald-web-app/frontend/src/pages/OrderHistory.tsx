@@ -333,7 +333,7 @@ export function OrderHistory() {
         params.append("customer", selectedCustomer.name);
       if (filters.dateFrom) params.append("dateFrom", filters.dateFrom);
       if (filters.dateTo) params.append("dateTo", filters.dateTo);
-      params.append("limit", "100");
+      params.append("limit", "10000");
 
       const response = await fetchWithRetry(
         `/api/orders/history?${params.toString()}`,

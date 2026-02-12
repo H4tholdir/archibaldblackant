@@ -5022,76 +5022,51 @@ app.get(
       }
 
       {
-        // Fetch order list from DB only (no automatic sync)
-        // Sync is triggered only via force-sync endpoint
+        // Fetch order list from DB with filters delegated to SQL
         const result = await orderHistoryService.getOrderList(userId, {
-          limit: limit + offset, // Fetch extra for post-filtering
+          limit,
           offset: 0,
-          skipSync: true, // Don't auto-sync, only return from cache
+          filters: {
+            customer,
+            dateFrom,
+            dateTo,
+          },
+          skipSync: true,
         });
 
-        // Apply filters in-memory
+        // Apply status filters in-memory (complex logic not expressible in SQL)
         let filteredOrders = result.orders;
-
-        if (customer) {
-          const customerLower = customer.toLowerCase();
-          filteredOrders = filteredOrders.filter((order) =>
-            order.customerName.toLowerCase().includes(customerLower),
-          );
-        }
-
-        if (dateFrom) {
-          const fromDate = new Date(dateFrom);
-          filteredOrders = filteredOrders.filter((order) => {
-            const orderDate = new Date(order.creationDate);
-            return orderDate >= fromDate;
-          });
-        }
-
-        if (dateTo) {
-          const toDate = new Date(dateTo);
-          toDate.setHours(23, 59, 59, 999); // End of day
-          filteredOrders = filteredOrders.filter((order) => {
-            const orderDate = new Date(order.creationDate);
-            return orderDate <= toDate;
-          });
-        }
 
         if (status) {
           const statusLower = status.toLowerCase();
 
           if (statusLower === "spediti") {
-            // Filter orders that have tracking number (DDT shipped)
             filteredOrders = filteredOrders.filter(
               (order) =>
                 order.ddt?.trackingNumber != null &&
                 order.ddt.trackingNumber.trim() !== "",
             );
           } else if (statusLower === "consegnati") {
-            // Filter orders that are completed or have status "Consegnato"
             filteredOrders = filteredOrders.filter(
               (order) =>
                 order.completionDate != null ||
                 order.status.toLowerCase().includes("consegnato"),
             );
           } else if (statusLower === "fatturati") {
-            // Filter orders that have invoice data in invoice_number column
             filteredOrders = filteredOrders.filter((order) => {
               return (
                 order.invoiceNumber != null && order.invoiceNumber.trim() !== ""
               );
             });
           } else {
-            // Original status filter for backward compatibility
             filteredOrders = filteredOrders.filter(
               (order) => order.status.toLowerCase() === statusLower,
             );
           }
         }
 
-        // Apply pagination to filtered results
-        const paginatedOrders = filteredOrders.slice(offset, offset + limit);
-        const hasMore = filteredOrders.length > offset + limit;
+        const paginatedOrders = filteredOrders;
+        const hasMore = false;
 
         // Fetch article search texts for paginated orders
         const articleSearchTexts = orderDb.getArticleSearchTexts(
@@ -5191,7 +5166,7 @@ app.get(
         });
 
         logger.info(
-          `[OrderHistory] Fetched ${result.orders.length} orders, filtered to ${filteredOrders.length}, returning ${paginatedOrders.length}`,
+          `[OrderHistory] Fetched ${result.orders.length} orders from DB (total: ${result.total}), returning ${filteredOrders.length} after status filter`,
           { userId },
         );
 
