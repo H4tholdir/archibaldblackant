@@ -5,12 +5,18 @@ import type {
   FresisHistoryOrder,
   PendingOrderItem,
   SubClient,
+  Product,
 } from "../db/schema";
+import { db } from "../db/schema";
 import {
   fresisHistoryService,
   parseLinkedIds,
   serializeLinkedIds,
 } from "../services/fresis-history.service";
+import { productService } from "../services/products.service";
+import { priceService } from "../services/prices.service";
+import { CachePopulationService } from "../services/cache-population";
+import { normalizeVatRate } from "../utils/vat-utils";
 import { PDFExportService } from "../services/pdf-export.service";
 import { SubClientSelector } from "../components/new-order-form/SubClientSelector";
 import { AddItemToHistory } from "../components/new-order-form/AddItemToHistory";
@@ -20,6 +26,7 @@ import { JobProgressBar } from "../components/JobProgressBar";
 import {
   FresisHistoryRealtimeService,
   type DeleteProgressState,
+  type EditProgressState,
 } from "../services/fresis-history-realtime.service";
 import {
   OrderPickerModal,
@@ -134,6 +141,12 @@ export function FresisHistoryPage() {
   const [syncMessage, setSyncMessage] = useState<string | null>(null);
   const [deleteProgress, setDeleteProgress] =
     useState<DeleteProgressState | null>(null);
+  const [editingInArchibald, setEditingInArchibald] = useState<string | null>(
+    null,
+  );
+  const [editProgress, setEditProgress] = useState<EditProgressState | null>(
+    null,
+  );
 
   useEffect(() => {
     if (!deletingFromArchibald) return;
@@ -149,10 +162,65 @@ export function FresisHistoryPage() {
     };
   }, [deletingFromArchibald]);
 
+  useEffect(() => {
+    if (!editingInArchibald) return;
+    const realtimeService = FresisHistoryRealtimeService.getInstance();
+    const unsubscribe = realtimeService.onEditProgress(() => {
+      const progress = realtimeService.getEditProgress(editingInArchibald);
+      if (progress) setEditProgress({ ...progress });
+    });
+    return () => {
+      unsubscribe();
+      realtimeService.clearEditProgress(editingInArchibald);
+      setEditProgress(null);
+    };
+  }, [editingInArchibald]);
+
   const [editState, setEditState] = useState<EditState | null>(null);
   const [addingProduct, setAddingProduct] = useState(false);
   const [showImportModal, setShowImportModal] = useState(false);
   const [linkingOrderId, setLinkingOrderId] = useState<string | null>(null);
+
+  // Inline article editing
+  const [editingArticleIdx, setEditingArticleIdx] = useState<number | null>(
+    null,
+  );
+  const [articleSearch, setArticleSearch] = useState("");
+  const [articleResults, setArticleResults] = useState<Product[]>([]);
+  const [searchingArticle, setSearchingArticle] = useState(false);
+  const [highlightedArticleIdx, setHighlightedArticleIdx] = useState(-1);
+  const articleDropdownRef = useRef<HTMLDivElement>(null);
+
+  // Qty packaging validation
+  const [qtyValidation, setQtyValidation] = useState<
+    Map<number, string | null>
+  >(new Map());
+
+  // Product sync check
+  const [syncingProducts, setSyncingProducts] = useState(false);
+  const [syncProgress, setSyncProgress] = useState("");
+
+  // Confirm modal
+  const [confirmModal, setConfirmModal] = useState<{
+    orderId: string;
+    modifications: Array<
+      | {
+          type: "update";
+          rowIndex: number;
+          articleCode: string;
+          quantity: number;
+          discount?: number;
+        }
+      | {
+          type: "add";
+          articleCode: string;
+          quantity: number;
+          discount?: number;
+        }
+      | { type: "delete"; rowIndex: number }
+    >;
+    originalItems: PendingOrderItem[];
+  } | null>(null);
 
   // Filter state
   const [activeTimePreset, setActiveTimePreset] =
@@ -240,6 +308,67 @@ export function FresisHistoryPage() {
       item.scrollIntoView({ block: "nearest" });
     }
   }, [highlightedSubClientIndex]);
+
+  // Article search debounce
+  useEffect(() => {
+    if (editingArticleIdx === null) return;
+    if (articleSearch.length < 2) {
+      setArticleResults([]);
+      return;
+    }
+
+    setSearchingArticle(true);
+    const timer = setTimeout(async () => {
+      try {
+        const results = await productService.searchProducts(articleSearch, 50);
+        const seen = new Set<string>();
+        const deduped: Product[] = [];
+        for (const r of results) {
+          if (!seen.has(r.name)) {
+            seen.add(r.name);
+            deduped.push(r);
+          }
+          if (deduped.length >= 10) break;
+        }
+        setArticleResults(deduped);
+        setHighlightedArticleIdx(-1);
+      } catch {
+        setArticleResults([]);
+      } finally {
+        setSearchingArticle(false);
+      }
+    }, 300);
+
+    return () => clearTimeout(timer);
+  }, [articleSearch, editingArticleIdx]);
+
+  // Click outside article dropdown
+  useEffect(() => {
+    if (editingArticleIdx === null) return;
+    const handleClickOutside = (e: MouseEvent) => {
+      if (
+        articleDropdownRef.current &&
+        !articleDropdownRef.current.contains(e.target as Node)
+      ) {
+        setEditingArticleIdx(null);
+        setArticleResults([]);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [editingArticleIdx]);
+
+  // Scroll highlighted article into view
+  useEffect(() => {
+    if (highlightedArticleIdx < 0) return;
+    const dropdown = articleDropdownRef.current;
+    if (!dropdown) return;
+    const items = dropdown.querySelectorAll("[data-article-item]");
+    const item = items[highlightedArticleIdx] as HTMLElement | undefined;
+    if (item) {
+      item.scrollIntoView({ block: "nearest" });
+    }
+  }, [highlightedArticleIdx]);
 
   // Extract unique sub-clients from all orders (memoized)
   const uniqueSubClients = useMemo(
@@ -450,7 +579,33 @@ export function FresisHistoryPage() {
     }
   };
 
-  const handleStartEdit = (order: FresisHistoryOrder) => {
+  const handleStartEdit = async (order: FresisHistoryOrder) => {
+    // Check product cache
+    const productCount = await db.products.count();
+    if (productCount === 0) {
+      setSyncingProducts(true);
+      setSyncProgress("Sincronizzazione prodotti in corso...");
+      try {
+        const jwt = localStorage.getItem("jwt") || "";
+        const syncResult =
+          await CachePopulationService.getInstance().populateCache(jwt, (p) => {
+            setSyncProgress(p.message);
+          });
+        if (!syncResult.success) {
+          alert(
+            `Sincronizzazione prodotti fallita: ${syncResult.error || "errore sconosciuto"}. La ricerca articoli potrebbe non funzionare.`,
+          );
+        }
+      } catch (err) {
+        console.error("[FresisHistoryPage] Product sync failed:", err);
+        alert(
+          "Sincronizzazione prodotti fallita. La ricerca articoli potrebbe non funzionare.",
+        );
+      } finally {
+        setSyncingProducts(false);
+      }
+    }
+
     setEditState({
       orderId: order.id,
       items: order.items.map((item) => ({ ...item })),
@@ -461,11 +616,95 @@ export function FresisHistoryPage() {
       subClientData: order.subClientData ?? null,
     });
     setAddingProduct(false);
+    setQtyValidation(new Map());
+    setExpandedOrderId(order.id);
+
+    setTimeout(() => {
+      document
+        .getElementById(`order-${order.id}`)
+        ?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 100);
   };
 
   const handleCancelEdit = () => {
     setEditState(null);
     setAddingProduct(false);
+    setEditingArticleIdx(null);
+    setArticleResults([]);
+    setQtyValidation(new Map());
+  };
+
+  const computeOrderModifications = (
+    originalItems: PendingOrderItem[],
+    editedItems: PendingOrderItem[],
+  ): Array<
+    | {
+        type: "update";
+        rowIndex: number;
+        articleCode: string;
+        quantity: number;
+        discount?: number;
+      }
+    | { type: "add"; articleCode: string; quantity: number; discount?: number }
+    | { type: "delete"; rowIndex: number }
+  > => {
+    const mods: Array<
+      | {
+          type: "update";
+          rowIndex: number;
+          articleCode: string;
+          quantity: number;
+          discount?: number;
+        }
+      | {
+          type: "add";
+          articleCode: string;
+          quantity: number;
+          discount?: number;
+        }
+      | { type: "delete"; rowIndex: number }
+    > = [];
+
+    const maxOriginal = originalItems.length;
+
+    // Check existing rows for updates
+    for (let i = 0; i < Math.min(maxOriginal, editedItems.length); i++) {
+      const orig = originalItems[i];
+      const edited = editedItems[i];
+      if (
+        orig.articleCode !== edited.articleCode ||
+        orig.quantity !== edited.quantity ||
+        (orig.discount ?? 0) !== (edited.discount ?? 0)
+      ) {
+        mods.push({
+          type: "update",
+          rowIndex: i,
+          articleCode: edited.articleCode,
+          quantity: edited.quantity,
+          discount: edited.discount,
+        });
+      }
+    }
+
+    // New rows (added items)
+    for (let i = maxOriginal; i < editedItems.length; i++) {
+      mods.push({
+        type: "add",
+        articleCode: editedItems[i].articleCode,
+        quantity: editedItems[i].quantity,
+        discount: editedItems[i].discount,
+      });
+    }
+
+    // Deleted rows (original rows beyond edited length)
+    for (let i = editedItems.length; i < maxOriginal; i++) {
+      mods.push({
+        type: "delete",
+        rowIndex: i,
+      });
+    }
+
+    return mods;
   };
 
   const handleSaveEdit = async () => {
@@ -476,7 +715,72 @@ export function FresisHistoryPage() {
     );
     if (hasInvalidQty) return;
 
+    const order = wsOrders.find((o) => o.id === editState.orderId);
+
     try {
+      // If this is a draft in Archibald, show confirm modal first
+      if (order && isDraftInArchibald(order)) {
+        const modifications = computeOrderModifications(
+          order.items,
+          editState.items,
+        );
+
+        if (modifications.length > 0) {
+          setConfirmModal({
+            orderId: editState.orderId,
+            modifications,
+            originalItems: order.items,
+          });
+          return;
+        } else {
+          // Only local changes (notes, subclient, etc.)
+          await fresisHistoryService.updateHistoryOrder(editState.orderId, {
+            items: editState.items,
+            discountPercent: editState.discountPercent,
+            notes: editState.notes || undefined,
+            subClientCodice: editState.subClientCodice,
+            subClientName: editState.subClientName,
+            subClientData: editState.subClientData ?? undefined,
+          });
+        }
+      } else {
+        await fresisHistoryService.updateHistoryOrder(editState.orderId, {
+          items: editState.items,
+          discountPercent: editState.discountPercent,
+          notes: editState.notes || undefined,
+          subClientCodice: editState.subClientCodice,
+          subClientName: editState.subClientName,
+          subClientData: editState.subClientData ?? undefined,
+        });
+      }
+      setEditState(null);
+      setAddingProduct(false);
+      setQtyValidation(new Map());
+      await wsRefetch();
+    } catch (err) {
+      console.error("[FresisHistoryPage] Save edit failed:", err);
+      setEditingInArchibald(null);
+    }
+  };
+
+  const handleConfirmEdit = async () => {
+    if (!confirmModal || !editState) return;
+    setConfirmModal(null);
+    setEditingInArchibald(editState.orderId);
+
+    try {
+      const result = await fresisHistoryService.editInArchibald(
+        editState.orderId,
+        confirmModal.modifications,
+        editState.items,
+      );
+      setEditingInArchibald(null);
+
+      if (!result.success) {
+        alert(`Errore modifica su Archibald: ${result.message}`);
+        return;
+      }
+
       await fresisHistoryService.updateHistoryOrder(editState.orderId, {
         items: editState.items,
         discountPercent: editState.discountPercent,
@@ -487,9 +791,11 @@ export function FresisHistoryPage() {
       });
       setEditState(null);
       setAddingProduct(false);
+      setQtyValidation(new Map());
       await wsRefetch();
     } catch (err) {
-      console.error("[FresisHistoryPage] Save edit failed:", err);
+      console.error("[FresisHistoryPage] Confirm edit failed:", err);
+      setEditingInArchibald(null);
     }
   };
 
@@ -498,6 +804,11 @@ export function FresisHistoryPage() {
     const newItems = [...editState.items];
     newItems[idx] = { ...newItems[idx], quantity: qty };
     setEditState({ ...editState, items: newItems });
+    // Debounced packaging validation
+    const productName = newItems[idx].productName || "";
+    if (productName && qty > 0) {
+      validateQtyPackaging(idx, qty, productName);
+    }
   };
 
   const handleEditItemPrice = (idx: number, price: number) => {
@@ -511,7 +822,98 @@ export function FresisHistoryPage() {
     if (!editState) return;
     const newItems = editState.items.filter((_, i) => i !== idx);
     setEditState({ ...editState, items: newItems });
+    // Re-index validation map after removal
+    setQtyValidation((prev) => {
+      const next = new Map<number, string | null>();
+      for (const [key, val] of prev) {
+        if (key < idx) next.set(key, val);
+        else if (key > idx) next.set(key - 1, val);
+      }
+      return next;
+    });
   };
+
+  const handleEditItemDiscount = (idx: number, discount: number) => {
+    if (!editState) return;
+    const clamped = Math.min(100, Math.max(0, discount));
+    const newItems = [...editState.items];
+    newItems[idx] = { ...newItems[idx], discount: clamped };
+    setEditState({ ...editState, items: newItems });
+  };
+
+  const handleEditItemArticle = async (idx: number, product: Product) => {
+    if (!editState) return;
+    const item = editState.items[idx];
+
+    // Find optimal variant for current quantity
+    const packagingResult = await productService.calculateOptimalPackaging(
+      product.name,
+      item.quantity,
+    );
+
+    let variantId = product.id;
+    if (
+      packagingResult.success &&
+      packagingResult.breakdown &&
+      packagingResult.breakdown.length > 0
+    ) {
+      variantId = packagingResult.breakdown[0].variant.variantId || product.id;
+    }
+
+    // Load price and VAT for the variant
+    const priceData = await priceService.getPriceAndVat(variantId);
+    const newPrice = priceData?.price ?? item.price;
+    const newVat = normalizeVatRate(priceData?.vat);
+
+    const newItems = [...editState.items];
+    newItems[idx] = {
+      ...newItems[idx],
+      articleCode: variantId,
+      articleId: variantId,
+      productName: product.name,
+      description: product.description || "",
+      price: newPrice,
+      vat: newVat,
+    };
+    setEditState({ ...editState, items: newItems });
+
+    // Close dropdown
+    setEditingArticleIdx(null);
+    setArticleSearch("");
+    setArticleResults([]);
+
+    // Re-validate packaging for this idx
+    validateQtyPackaging(idx, item.quantity, product.name);
+  };
+
+  const validateQtyPackaging = useCallback(
+    async (idx: number, qty: number, productName: string) => {
+      if (!qty || qty <= 0 || !productName) return;
+      try {
+        const result = await productService.calculateOptimalPackaging(
+          productName,
+          qty,
+        );
+        setQtyValidation((prev) => {
+          const next = new Map(prev);
+          next.set(
+            idx,
+            result.success
+              ? null
+              : (result.error ?? "Confezionamento non valido"),
+          );
+          return next;
+        });
+      } catch {
+        setQtyValidation((prev) => {
+          const next = new Map(prev);
+          next.set(idx, null);
+          return next;
+        });
+      }
+    },
+    [],
+  );
 
   const handleAddItems = (newItems: PendingOrderItem[]) => {
     if (!editState) return;
@@ -1278,6 +1680,7 @@ export function FresisHistoryPage() {
                     return (
                       <div
                         key={order.id}
+                        id={`order-${order.id}`}
                         style={{
                           border: editing
                             ? "2px solid #f59e0b"
@@ -1640,7 +2043,7 @@ export function FresisHistoryPage() {
                                   >
                                     Prezzo
                                   </th>
-                                  {hasRowDiscounts && (
+                                  {(editing || hasRowDiscounts) && (
                                     <th
                                       style={{
                                         padding: "6px 4px",
@@ -1677,15 +2080,184 @@ export function FresisHistoryPage() {
                                       borderBottom: "1px solid #f3f4f6",
                                     }}
                                   >
-                                    <td style={{ padding: "6px 4px" }}>
-                                      <HighlightText
-                                        text={
-                                          item.productName ||
-                                          item.articleCode ||
-                                          ""
-                                        }
-                                        query={debouncedSearch}
-                                      />
+                                    <td
+                                      style={{
+                                        padding: "6px 4px",
+                                        position: "relative",
+                                      }}
+                                    >
+                                      {editing && editingArticleIdx === idx ? (
+                                        <div
+                                          ref={articleDropdownRef}
+                                          style={{ position: "relative" }}
+                                        >
+                                          <input
+                                            type="text"
+                                            value={articleSearch}
+                                            onChange={(e) =>
+                                              setArticleSearch(e.target.value)
+                                            }
+                                            onKeyDown={(e) => {
+                                              if (e.key === "ArrowDown") {
+                                                e.preventDefault();
+                                                setHighlightedArticleIdx(
+                                                  (prev) =>
+                                                    Math.min(
+                                                      prev + 1,
+                                                      articleResults.length - 1,
+                                                    ),
+                                                );
+                                              } else if (e.key === "ArrowUp") {
+                                                e.preventDefault();
+                                                setHighlightedArticleIdx(
+                                                  (prev) =>
+                                                    Math.max(prev - 1, 0),
+                                                );
+                                              } else if (
+                                                e.key === "Enter" &&
+                                                highlightedArticleIdx >= 0
+                                              ) {
+                                                e.preventDefault();
+                                                handleEditItemArticle(
+                                                  idx,
+                                                  articleResults[
+                                                    highlightedArticleIdx
+                                                  ],
+                                                );
+                                              } else if (e.key === "Escape") {
+                                                setEditingArticleIdx(null);
+                                                setArticleResults([]);
+                                              }
+                                            }}
+                                            autoFocus
+                                            style={{
+                                              width: "100%",
+                                              padding: "4px",
+                                              border: "1px solid #3b82f6",
+                                              borderRadius: "4px",
+                                              fontSize: "13px",
+                                              boxSizing: "border-box",
+                                            }}
+                                            placeholder="Cerca articolo..."
+                                          />
+                                          {(articleResults.length > 0 ||
+                                            searchingArticle) && (
+                                            <div
+                                              style={{
+                                                position: "absolute",
+                                                top: "100%",
+                                                left: 0,
+                                                right: 0,
+                                                background: "white",
+                                                border: "1px solid #d1d5db",
+                                                borderRadius: "6px",
+                                                boxShadow:
+                                                  "0 4px 12px rgba(0,0,0,0.15)",
+                                                zIndex: 1000,
+                                                maxHeight: "200px",
+                                                overflowY: "auto",
+                                              }}
+                                            >
+                                              {searchingArticle && (
+                                                <div
+                                                  style={{
+                                                    padding: "8px",
+                                                    color: "#9ca3af",
+                                                    fontSize: "12px",
+                                                  }}
+                                                >
+                                                  Ricerca...
+                                                </div>
+                                              )}
+                                              {articleResults.map(
+                                                (product, pIdx) => (
+                                                  <div
+                                                    key={product.id}
+                                                    data-article-item
+                                                    onClick={() =>
+                                                      handleEditItemArticle(
+                                                        idx,
+                                                        product,
+                                                      )
+                                                    }
+                                                    style={{
+                                                      padding: "6px 8px",
+                                                      cursor: "pointer",
+                                                      fontSize: "12px",
+                                                      background:
+                                                        pIdx ===
+                                                        highlightedArticleIdx
+                                                          ? "#eff6ff"
+                                                          : "white",
+                                                      borderBottom:
+                                                        pIdx <
+                                                        articleResults.length -
+                                                          1
+                                                          ? "1px solid #f3f4f6"
+                                                          : "none",
+                                                    }}
+                                                    onMouseEnter={() =>
+                                                      setHighlightedArticleIdx(
+                                                        pIdx,
+                                                      )
+                                                    }
+                                                  >
+                                                    <div
+                                                      style={{
+                                                        fontWeight: 500,
+                                                      }}
+                                                    >
+                                                      {product.name}
+                                                    </div>
+                                                    {product.description && (
+                                                      <div
+                                                        style={{
+                                                          color: "#6b7280",
+                                                          fontSize: "11px",
+                                                        }}
+                                                      >
+                                                        {product.description}
+                                                      </div>
+                                                    )}
+                                                  </div>
+                                                ),
+                                              )}
+                                            </div>
+                                          )}
+                                        </div>
+                                      ) : editing ? (
+                                        <span
+                                          onClick={() => {
+                                            setEditingArticleIdx(idx);
+                                            setArticleSearch(
+                                              item.productName ||
+                                                item.articleCode ||
+                                                "",
+                                            );
+                                            setArticleResults([]);
+                                            setHighlightedArticleIdx(-1);
+                                          }}
+                                          style={{
+                                            cursor: "pointer",
+                                            borderBottom: "1px dashed #3b82f6",
+                                            color: "#1d4ed8",
+                                          }}
+                                          title="Clicca per cambiare articolo"
+                                        >
+                                          {item.productName ||
+                                            item.articleCode ||
+                                            "-"}
+                                        </span>
+                                      ) : (
+                                        <HighlightText
+                                          text={
+                                            item.productName ||
+                                            item.articleCode ||
+                                            ""
+                                          }
+                                          query={debouncedSearch}
+                                        />
+                                      )}
                                     </td>
                                     <td style={{ padding: "6px 4px" }}>
                                       <HighlightText
@@ -1700,25 +2272,43 @@ export function FresisHistoryPage() {
                                       }}
                                     >
                                       {editing ? (
-                                        <input
-                                          type="number"
-                                          value={item.quantity}
-                                          onChange={(e) =>
-                                            handleEditItemQty(
-                                              idx,
-                                              parseInt(e.target.value, 10) || 0,
-                                            )
-                                          }
-                                          min={1}
-                                          style={{
-                                            width: "60px",
-                                            padding: "4px",
-                                            textAlign: "right",
-                                            border: "1px solid #d1d5db",
-                                            borderRadius: "4px",
-                                            fontSize: "13px",
-                                          }}
-                                        />
+                                        <div>
+                                          <input
+                                            type="number"
+                                            value={item.quantity}
+                                            onChange={(e) =>
+                                              handleEditItemQty(
+                                                idx,
+                                                parseInt(e.target.value, 10) ||
+                                                  0,
+                                              )
+                                            }
+                                            min={1}
+                                            style={{
+                                              width: "60px",
+                                              padding: "4px",
+                                              textAlign: "right",
+                                              border: `1px solid ${qtyValidation.get(idx) ? "#dc2626" : "#d1d5db"}`,
+                                              borderRadius: "4px",
+                                              fontSize: "13px",
+                                            }}
+                                            title={
+                                              qtyValidation.get(idx) ||
+                                              undefined
+                                            }
+                                          />
+                                          {qtyValidation.get(idx) && (
+                                            <div
+                                              style={{
+                                                fontSize: "10px",
+                                                color: "#dc2626",
+                                                marginTop: "2px",
+                                              }}
+                                            >
+                                              {qtyValidation.get(idx)}
+                                            </div>
+                                          )}
+                                        </div>
                                       ) : (
                                         item.quantity
                                       )}
@@ -1754,7 +2344,7 @@ export function FresisHistoryPage() {
                                         formatCurrency(item.price)
                                       )}
                                     </td>
-                                    {hasRowDiscounts && (
+                                    {(editing || hasRowDiscounts) && (
                                       <td
                                         style={{
                                           padding: "6px 4px",
@@ -1764,9 +2354,33 @@ export function FresisHistoryPage() {
                                             : "#9ca3af",
                                         }}
                                       >
-                                        {item.discount
-                                          ? `${item.discount}%`
-                                          : "-"}
+                                        {editing ? (
+                                          <input
+                                            type="number"
+                                            value={item.discount || 0}
+                                            onChange={(e) =>
+                                              handleEditItemDiscount(
+                                                idx,
+                                                parseFloat(e.target.value) || 0,
+                                              )
+                                            }
+                                            min={0}
+                                            max={100}
+                                            step={0.01}
+                                            style={{
+                                              width: "55px",
+                                              padding: "4px",
+                                              textAlign: "right",
+                                              border: "1px solid #d1d5db",
+                                              borderRadius: "4px",
+                                              fontSize: "13px",
+                                            }}
+                                          />
+                                        ) : item.discount ? (
+                                          `${item.discount}%`
+                                        ) : (
+                                          "-"
+                                        )}
                                       </td>
                                     )}
                                     <td
@@ -1985,7 +2599,18 @@ export function FresisHistoryPage() {
                             )}
 
                             {/* Action buttons */}
-                            {editing ? (
+                            {editing && editingInArchibald === order.id ? (
+                              <div style={{ width: "100%" }}>
+                                <JobProgressBar
+                                  progress={editProgress?.progress ?? 0}
+                                  operation={
+                                    editProgress?.operation ??
+                                    "Avvio modifica su Archibald..."
+                                  }
+                                  status="processing"
+                                />
+                              </div>
+                            ) : editing ? (
                               <div
                                 style={{
                                   display: "flex",
@@ -2013,7 +2638,9 @@ export function FresisHistoryPage() {
                                     fontWeight: 600,
                                   }}
                                 >
-                                  Salva
+                                  {isDraftInArchibald(order)
+                                    ? "Salva su Archibald"
+                                    : "Salva"}
                                 </button>
                                 <button
                                   onClick={handleCancelEdit}
@@ -2282,6 +2909,235 @@ export function FresisHistoryPage() {
             />
           );
         })()}
+
+      {/* Sync products overlay */}
+      {syncingProducts && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(0,0,0,0.5)",
+            zIndex: 9998,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+          }}
+        >
+          <div
+            style={{
+              background: "white",
+              borderRadius: "12px",
+              padding: "24px",
+              maxWidth: "400px",
+              width: "90%",
+              textAlign: "center",
+            }}
+          >
+            <div
+              style={{
+                fontSize: "16px",
+                fontWeight: 600,
+                marginBottom: "12px",
+              }}
+            >
+              Sincronizzazione prodotti
+            </div>
+            <div
+              style={{
+                fontSize: "14px",
+                color: "#6b7280",
+                marginBottom: "16px",
+              }}
+            >
+              {syncProgress}
+            </div>
+            <div
+              style={{
+                width: "40px",
+                height: "40px",
+                border: "3px solid #e5e7eb",
+                borderTop: "3px solid #3b82f6",
+                borderRadius: "50%",
+                animation: "spin 1s linear infinite",
+                margin: "0 auto",
+              }}
+            />
+          </div>
+        </div>
+      )}
+
+      {/* Confirm edit modal */}
+      {confirmModal && editState && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(0,0,0,0.5)",
+            zIndex: 9999,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+          }}
+        >
+          <div
+            style={{
+              background: "white",
+              borderRadius: "12px",
+              padding: "24px",
+              maxWidth: "500px",
+              width: "90%",
+              maxHeight: "80vh",
+              overflowY: "auto",
+            }}
+          >
+            <h3
+              style={{ margin: "0 0 16px", fontSize: "18px", fontWeight: 600 }}
+            >
+              Conferma modifiche su Archibald
+            </h3>
+            <div style={{ fontSize: "13px", marginBottom: "16px" }}>
+              {confirmModal.modifications.filter((m) => m.type === "update")
+                .length > 0 && (
+                <div style={{ marginBottom: "8px" }}>
+                  <div style={{ fontWeight: 600, marginBottom: "4px" }}>
+                    Modifiche:
+                  </div>
+                  {confirmModal.modifications
+                    .filter(
+                      (m): m is Extract<typeof m, { type: "update" }> =>
+                        m.type === "update",
+                    )
+                    .map((m, i) => {
+                      const orig = confirmModal.originalItems[m.rowIndex];
+                      return (
+                        <div
+                          key={i}
+                          style={{ padding: "2px 0", color: "#92400e" }}
+                        >
+                          Riga {m.rowIndex + 1}:
+                          {orig && orig.articleCode !== m.articleCode && (
+                            <>
+                              {" "}
+                              articolo {orig.articleCode} → {m.articleCode}
+                            </>
+                          )}
+                          {orig && orig.quantity !== m.quantity && (
+                            <>
+                              {" "}
+                              qty {orig.quantity} → {m.quantity}
+                            </>
+                          )}
+                          {orig &&
+                            (orig.discount ?? 0) !== (m.discount ?? 0) && (
+                              <>
+                                {" "}
+                                sc. {orig.discount ?? 0}% → {m.discount ?? 0}%
+                              </>
+                            )}
+                        </div>
+                      );
+                    })}
+                </div>
+              )}
+              {confirmModal.modifications.filter((m) => m.type === "add")
+                .length > 0 && (
+                <div style={{ marginBottom: "8px" }}>
+                  <div
+                    style={{
+                      fontWeight: 600,
+                      marginBottom: "4px",
+                      color: "#16a34a",
+                    }}
+                  >
+                    Nuove righe:
+                  </div>
+                  {confirmModal.modifications
+                    .filter(
+                      (m): m is Extract<typeof m, { type: "add" }> =>
+                        m.type === "add",
+                    )
+                    .map((m, i) => (
+                      <div
+                        key={i}
+                        style={{ padding: "2px 0", color: "#16a34a" }}
+                      >
+                        {m.articleCode} - qty {m.quantity}
+                        {m.discount ? ` (sc. ${m.discount}%)` : ""}
+                      </div>
+                    ))}
+                </div>
+              )}
+              {confirmModal.modifications.filter((m) => m.type === "delete")
+                .length > 0 && (
+                <div style={{ marginBottom: "8px" }}>
+                  <div
+                    style={{
+                      fontWeight: 600,
+                      marginBottom: "4px",
+                      color: "#dc2626",
+                    }}
+                  >
+                    Righe da eliminare:
+                  </div>
+                  {confirmModal.modifications
+                    .filter(
+                      (m): m is Extract<typeof m, { type: "delete" }> =>
+                        m.type === "delete",
+                    )
+                    .map((m, i) => {
+                      const orig = confirmModal.originalItems[m.rowIndex];
+                      return (
+                        <div
+                          key={i}
+                          style={{ padding: "2px 0", color: "#dc2626" }}
+                        >
+                          Riga {m.rowIndex + 1}:{" "}
+                          {orig?.productName || orig?.articleCode || "?"}
+                        </div>
+                      );
+                    })}
+                </div>
+              )}
+            </div>
+            <div
+              style={{
+                display: "flex",
+                gap: "8px",
+                justifyContent: "flex-end",
+              }}
+            >
+              <button
+                onClick={() => setConfirmModal(null)}
+                style={{
+                  padding: "8px 16px",
+                  background: "#e5e7eb",
+                  border: "1px solid #d1d5db",
+                  borderRadius: "6px",
+                  cursor: "pointer",
+                  fontSize: "14px",
+                }}
+              >
+                Torna alla modifica
+              </button>
+              <button
+                onClick={handleConfirmEdit}
+                style={{
+                  padding: "8px 16px",
+                  background: "#16a34a",
+                  color: "white",
+                  border: "none",
+                  borderRadius: "6px",
+                  cursor: "pointer",
+                  fontSize: "14px",
+                  fontWeight: 600,
+                }}
+              >
+                Conferma e invia
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
