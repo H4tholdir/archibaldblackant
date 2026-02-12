@@ -320,22 +320,6 @@ export function OrderHistory() {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  // Infinite scroll: re-create observer after each batch so it fires again
-  useEffect(() => {
-    const sentinel = sentinelRef.current;
-    if (!sentinel || !hasMoreOrders) return;
-    const observer = new IntersectionObserver(
-      (entries) => {
-        if (entries[0].isIntersecting) {
-          setVisibleCount((prev) => prev + 30);
-        }
-      },
-      { rootMargin: "200px" },
-    );
-    observer.observe(sentinel);
-    return () => observer.disconnect();
-  }, [visibleCount, hasMoreOrders]);
-
   // Scroll highlighted customer into view
   useEffect(() => {
     if (highlightedCustomerIndex < 0) return;
@@ -718,6 +702,22 @@ export function OrderHistory() {
   const visibleOrders = filteredOrders.slice(0, visibleCount);
   const hasMoreOrders = visibleCount < filteredOrders.length;
   const orderGroups = groupOrdersByPeriod(visibleOrders);
+
+  // Infinite scroll: re-create observer after each batch so it fires again
+  useEffect(() => {
+    const sentinel = sentinelRef.current;
+    if (!sentinel || !hasMoreOrders) return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting) {
+          setVisibleCount((prev) => prev + 30);
+        }
+      },
+      { rootMargin: "200px" },
+    );
+    observer.observe(sentinel);
+    return () => observer.disconnect();
+  }, [visibleCount, hasMoreOrders]);
 
   // Quick filter definitions
   const quickFilterDefs: {
