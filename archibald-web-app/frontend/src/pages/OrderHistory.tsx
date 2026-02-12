@@ -234,7 +234,7 @@ export function OrderHistory() {
 
   // Scroll state
   const [showScrollToTop, setShowScrollToTop] = useState(false);
-  const [collapseRatio, setCollapseRatio] = useState(0);
+  const [filterPanelHidden, setFilterPanelHidden] = useState(false);
 
   // Infinite scroll state
   const [visibleCount, setVisibleCount] = useState(30);
@@ -242,8 +242,6 @@ export function OrderHistory() {
   // Refs
   const customerDropdownRef = useRef<HTMLDivElement>(null);
   const resultsContainerRef = useRef<HTMLDivElement>(null);
-  const collapsibleRef = useRef<HTMLDivElement>(null);
-  const collapsibleHeightRef = useRef(0);
   const sentinelRef = useRef<HTMLDivElement>(null);
   const { currentIndex, totalMatches, goNext, goPrev } = useSearchMatches(
     resultsContainerRef,
@@ -280,30 +278,15 @@ export function OrderHistory() {
     return () => clearTimeout(timer);
   }, [filters.search]);
 
-  // Measure collapsible height once after first render
+  // Scroll listener for scroll-to-top button + filter panel visibility
   useEffect(() => {
-    if (collapsibleRef.current && collapsibleHeightRef.current === 0) {
-      collapsibleHeightRef.current = collapsibleRef.current.scrollHeight;
-    }
-  });
-
-  // Scroll listener for scroll-to-top button + collapsible panel
-  useEffect(() => {
-    let rafId = 0;
     const handleScroll = () => {
-      cancelAnimationFrame(rafId);
-      rafId = requestAnimationFrame(() => {
-        const scrollY = window.scrollY;
-        setShowScrollToTop(scrollY > 400);
-        const threshold = collapsibleHeightRef.current || 250;
-        setCollapseRatio(Math.min(1, Math.max(0, scrollY / threshold)));
-      });
+      const scrollY = window.scrollY;
+      setShowScrollToTop(scrollY > 400);
+      setFilterPanelHidden(scrollY > 50);
     };
     window.addEventListener("scroll", handleScroll, { passive: true });
-    return () => {
-      window.removeEventListener("scroll", handleScroll);
-      cancelAnimationFrame(rafId);
-    };
+    return () => window.removeEventListener("scroll", handleScroll);
   }, []);
 
   // Click outside customer dropdown
@@ -869,25 +852,30 @@ export function OrderHistory() {
         </button>
       </div>
 
-      {/* Filter bar - sticky + collapsible */}
+      {/* Filter bar - fade in/out on scroll */}
       <div
         style={{
-          position: "sticky",
-          top: 0,
-          zIndex: 50,
           backgroundColor: "#fff",
           borderRadius: "12px",
-          padding: "20px",
-          marginBottom: "24px",
-          boxShadow: "0 2px 8px rgba(0, 0, 0, 0.1)",
+          padding: filterPanelHidden ? "0 20px" : "20px",
+          marginBottom: filterPanelHidden ? "0px" : "24px",
+          boxShadow: filterPanelHidden
+            ? "none"
+            : "0 2px 8px rgba(0, 0, 0, 0.1)",
+          opacity: filterPanelHidden ? 0 : 1,
+          maxHeight: filterPanelHidden ? "0px" : "800px",
+          overflow: "hidden",
+          pointerEvents: filterPanelHidden ? "none" : "auto",
+          transition:
+            "opacity 0.3s ease, max-height 0.3s ease, padding 0.3s ease, margin-bottom 0.3s ease, box-shadow 0.3s ease",
         }}
       >
-        {/* Row 1: Customer search + Global search - always visible */}
+        {/* Row 1: Customer search + Global search */}
         <div
           style={{
             display: "flex",
             gap: "16px",
-            marginBottom: collapseRatio < 1 ? "16px" : "0px",
+            marginBottom: "16px",
             flexWrap: "wrap",
           }}
         >
@@ -1158,302 +1146,287 @@ export function OrderHistory() {
           </div>
         </div>
 
-        {/* Collapsible section: Row 2-5 */}
-        <div
-          ref={collapsibleRef}
-          style={{
-            overflow: "hidden",
-            maxHeight:
-              collapsibleHeightRef.current > 0
-                ? `${(1 - collapseRatio) * collapsibleHeightRef.current}px`
-                : undefined,
-            opacity: 1 - collapseRatio,
-            pointerEvents: collapseRatio === 1 ? "none" : "auto",
-          }}
-        >
-          {/* Row 2: Time presets */}
-          <div style={{ marginBottom: "12px" }}>
-            <label
-              style={{
-                display: "block",
-                fontSize: "14px",
-                fontWeight: 600,
-                color: "#333",
-                marginBottom: "8px",
-              }}
-            >
-              Periodo
-            </label>
-            <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
-              {timePresets.map((preset) => {
-                const isActive = activeTimePreset === preset.id;
-                return (
-                  <button
-                    key={preset.id}
-                    onClick={() => handleTimePreset(preset.id)}
-                    style={{
-                      padding: "6px 14px",
-                      fontSize: "13px",
-                      fontWeight: 500,
-                      border: isActive ? "1px solid #1976d2" : "1px solid #ddd",
-                      borderRadius: "20px",
-                      backgroundColor: isActive ? "#E3F2FD" : "#fff",
-                      color: isActive ? "#1976d2" : "#666",
-                      cursor: "pointer",
-                      transition: "all 0.2s",
-                    }}
-                    onMouseEnter={(e) => {
-                      if (!isActive) {
-                        e.currentTarget.style.backgroundColor = "#f5f5f5";
-                      }
-                    }}
-                    onMouseLeave={(e) => {
-                      if (!isActive) {
-                        e.currentTarget.style.backgroundColor = "#fff";
-                      }
-                    }}
-                  >
-                    {preset.label}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-
-          {/* Row 3: Custom date inputs (only if preset === "custom") */}
-          {activeTimePreset === "custom" && (
-            <div
-              style={{
-                display: "flex",
-                gap: "16px",
-                marginBottom: "12px",
-                flexWrap: "wrap",
-              }}
-            >
-              <div style={{ flex: "1 1 200px", minWidth: "150px" }}>
-                <label
-                  htmlFor="date-from"
+        {/* Row 2: Time presets */}
+        <div style={{ marginBottom: "12px" }}>
+          <label
+            style={{
+              display: "block",
+              fontSize: "14px",
+              fontWeight: 600,
+              color: "#333",
+              marginBottom: "8px",
+            }}
+          >
+            Periodo
+          </label>
+          <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+            {timePresets.map((preset) => {
+              const isActive = activeTimePreset === preset.id;
+              return (
+                <button
+                  key={preset.id}
+                  onClick={() => handleTimePreset(preset.id)}
                   style={{
-                    display: "block",
+                    padding: "6px 14px",
                     fontSize: "13px",
-                    fontWeight: 600,
-                    color: "#333",
-                    marginBottom: "6px",
+                    fontWeight: 500,
+                    border: isActive ? "1px solid #1976d2" : "1px solid #ddd",
+                    borderRadius: "20px",
+                    backgroundColor: isActive ? "#E3F2FD" : "#fff",
+                    color: isActive ? "#1976d2" : "#666",
+                    cursor: "pointer",
+                    transition: "all 0.2s",
+                  }}
+                  onMouseEnter={(e) => {
+                    if (!isActive) {
+                      e.currentTarget.style.backgroundColor = "#f5f5f5";
+                    }
+                  }}
+                  onMouseLeave={(e) => {
+                    if (!isActive) {
+                      e.currentTarget.style.backgroundColor = "#fff";
+                    }
                   }}
                 >
-                  Da
-                </label>
-                <input
-                  id="date-from"
-                  type="date"
-                  value={filters.dateFrom}
-                  onChange={(e) => {
-                    setFilters((prev) => ({
-                      ...prev,
-                      dateFrom: e.target.value,
-                    }));
-                    setActiveTimePreset("custom");
-                  }}
-                  style={{
-                    width: "100%",
-                    padding: "8px 12px",
-                    fontSize: "14px",
-                    border: "1px solid #ddd",
-                    borderRadius: "8px",
-                    outline: "none",
-                    boxSizing: "border-box",
-                  }}
-                />
-              </div>
-              <div style={{ flex: "1 1 200px", minWidth: "150px" }}>
-                <label
-                  htmlFor="date-to"
-                  style={{
-                    display: "block",
-                    fontSize: "13px",
-                    fontWeight: 600,
-                    color: "#333",
-                    marginBottom: "6px",
-                  }}
-                >
-                  A
-                </label>
-                <input
-                  id="date-to"
-                  type="date"
-                  value={filters.dateTo}
-                  onChange={(e) => {
-                    setFilters((prev) => ({
-                      ...prev,
-                      dateTo: e.target.value,
-                    }));
-                    setActiveTimePreset("custom");
-                  }}
-                  style={{
-                    width: "100%",
-                    padding: "8px 12px",
-                    fontSize: "14px",
-                    border: "1px solid #ddd",
-                    borderRadius: "8px",
-                    outline: "none",
-                    boxSizing: "border-box",
-                  }}
-                />
-              </div>
-            </div>
-          )}
-
-          {/* Row 4: Quick filter chips */}
-          <div style={{ marginBottom: "12px" }}>
-            <label
-              style={{
-                display: "block",
-                fontSize: "14px",
-                fontWeight: 600,
-                color: "#333",
-                marginBottom: "8px",
-              }}
-            >
-              Filtri veloci
-            </label>
-            <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
-              {quickFilterDefs.map((quickFilter) => {
-                const isActive = filters.quickFilters.has(quickFilter.id);
-                return (
-                  <button
-                    key={quickFilter.id}
-                    onClick={() => {
-                      setFilters((prev) => {
-                        const newQuickFilters = new Set(prev.quickFilters);
-                        if (isActive) {
-                          newQuickFilters.delete(quickFilter.id);
-                        } else {
-                          newQuickFilters.add(quickFilter.id);
-                        }
-                        return { ...prev, quickFilters: newQuickFilters };
-                      });
-                    }}
-                    style={{
-                      padding: "8px 16px",
-                      fontSize: "14px",
-                      fontWeight: 600,
-                      border: isActive
-                        ? `2px solid ${quickFilter.color}`
-                        : "1px solid #ddd",
-                      borderRadius: "20px",
-                      backgroundColor: isActive ? quickFilter.bgColor : "#fff",
-                      color: isActive ? quickFilter.color : "#666",
-                      cursor: "pointer",
-                      transition: "all 0.2s",
-                    }}
-                    onMouseEnter={(e) => {
-                      if (!isActive) {
-                        e.currentTarget.style.backgroundColor = "#f5f5f5";
-                      }
-                    }}
-                    onMouseLeave={(e) => {
-                      if (!isActive) {
-                        e.currentTarget.style.backgroundColor = "#fff";
-                      }
-                    }}
-                  >
-                    {quickFilter.label} ({quickFilter.count})
-                  </button>
-                );
-              })}
-            </div>
+                  {preset.label}
+                </button>
+              );
+            })}
           </div>
+        </div>
 
-          {/* Row 5: Hide zero toggle + Clear filters */}
+        {/* Row 3: Custom date inputs (only if preset === "custom") */}
+        {activeTimePreset === "custom" && (
           <div
             style={{
               display: "flex",
               gap: "16px",
-              alignItems: "center",
+              marginBottom: "12px",
               flexWrap: "wrap",
             }}
           >
-            {/* Hide zero amount toggle */}
+            <div style={{ flex: "1 1 200px", minWidth: "150px" }}>
+              <label
+                htmlFor="date-from"
+                style={{
+                  display: "block",
+                  fontSize: "13px",
+                  fontWeight: 600,
+                  color: "#333",
+                  marginBottom: "6px",
+                }}
+              >
+                Da
+              </label>
+              <input
+                id="date-from"
+                type="date"
+                value={filters.dateFrom}
+                onChange={(e) => {
+                  setFilters((prev) => ({
+                    ...prev,
+                    dateFrom: e.target.value,
+                  }));
+                  setActiveTimePreset("custom");
+                }}
+                style={{
+                  width: "100%",
+                  padding: "8px 12px",
+                  fontSize: "14px",
+                  border: "1px solid #ddd",
+                  borderRadius: "8px",
+                  outline: "none",
+                  boxSizing: "border-box",
+                }}
+              />
+            </div>
+            <div style={{ flex: "1 1 200px", minWidth: "150px" }}>
+              <label
+                htmlFor="date-to"
+                style={{
+                  display: "block",
+                  fontSize: "13px",
+                  fontWeight: 600,
+                  color: "#333",
+                  marginBottom: "6px",
+                }}
+              >
+                A
+              </label>
+              <input
+                id="date-to"
+                type="date"
+                value={filters.dateTo}
+                onChange={(e) => {
+                  setFilters((prev) => ({
+                    ...prev,
+                    dateTo: e.target.value,
+                  }));
+                  setActiveTimePreset("custom");
+                }}
+                style={{
+                  width: "100%",
+                  padding: "8px 12px",
+                  fontSize: "14px",
+                  border: "1px solid #ddd",
+                  borderRadius: "8px",
+                  outline: "none",
+                  boxSizing: "border-box",
+                }}
+              />
+            </div>
+          </div>
+        )}
+
+        {/* Row 4: Quick filter chips */}
+        <div style={{ marginBottom: "12px" }}>
+          <label
+            style={{
+              display: "block",
+              fontSize: "14px",
+              fontWeight: 600,
+              color: "#333",
+              marginBottom: "8px",
+            }}
+          >
+            Filtri veloci
+          </label>
+          <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+            {quickFilterDefs.map((quickFilter) => {
+              const isActive = filters.quickFilters.has(quickFilter.id);
+              return (
+                <button
+                  key={quickFilter.id}
+                  onClick={() => {
+                    setFilters((prev) => {
+                      const newQuickFilters = new Set(prev.quickFilters);
+                      if (isActive) {
+                        newQuickFilters.delete(quickFilter.id);
+                      } else {
+                        newQuickFilters.add(quickFilter.id);
+                      }
+                      return { ...prev, quickFilters: newQuickFilters };
+                    });
+                  }}
+                  style={{
+                    padding: "8px 16px",
+                    fontSize: "14px",
+                    fontWeight: 600,
+                    border: isActive
+                      ? `2px solid ${quickFilter.color}`
+                      : "1px solid #ddd",
+                    borderRadius: "20px",
+                    backgroundColor: isActive ? quickFilter.bgColor : "#fff",
+                    color: isActive ? quickFilter.color : "#666",
+                    cursor: "pointer",
+                    transition: "all 0.2s",
+                  }}
+                  onMouseEnter={(e) => {
+                    if (!isActive) {
+                      e.currentTarget.style.backgroundColor = "#f5f5f5";
+                    }
+                  }}
+                  onMouseLeave={(e) => {
+                    if (!isActive) {
+                      e.currentTarget.style.backgroundColor = "#fff";
+                    }
+                  }}
+                >
+                  {quickFilter.label} ({quickFilter.count})
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Row 5: Hide zero toggle + Clear filters */}
+        <div
+          style={{
+            display: "flex",
+            gap: "16px",
+            alignItems: "center",
+            flexWrap: "wrap",
+          }}
+        >
+          {/* Hide zero amount toggle */}
+          <div
+            onClick={() => setHideZeroAmount(!hideZeroAmount)}
+            role="switch"
+            aria-checked={hideZeroAmount}
+            tabIndex={0}
+            onKeyDown={(e) => {
+              if (e.key === " " || e.key === "Enter") {
+                e.preventDefault();
+                setHideZeroAmount(!hideZeroAmount);
+              }
+            }}
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "8px",
+              cursor: "pointer",
+              fontSize: "14px",
+              color: "#555",
+              userSelect: "none",
+            }}
+          >
             <div
-              onClick={() => setHideZeroAmount(!hideZeroAmount)}
-              role="switch"
-              aria-checked={hideZeroAmount}
-              tabIndex={0}
-              onKeyDown={(e) => {
-                if (e.key === " " || e.key === "Enter") {
-                  e.preventDefault();
-                  setHideZeroAmount(!hideZeroAmount);
-                }
-              }}
               style={{
-                display: "flex",
-                alignItems: "center",
-                gap: "8px",
-                cursor: "pointer",
-                fontSize: "14px",
-                color: "#555",
-                userSelect: "none",
+                width: "40px",
+                height: "22px",
+                borderRadius: "11px",
+                backgroundColor: hideZeroAmount ? "#1976d2" : "#ccc",
+                position: "relative",
+                transition: "background-color 0.2s",
+                flexShrink: 0,
               }}
             >
               <div
                 style={{
-                  width: "40px",
-                  height: "22px",
-                  borderRadius: "11px",
-                  backgroundColor: hideZeroAmount ? "#1976d2" : "#ccc",
-                  position: "relative",
-                  transition: "background-color 0.2s",
-                  flexShrink: 0,
-                }}
-              >
-                <div
-                  style={{
-                    width: "18px",
-                    height: "18px",
-                    borderRadius: "50%",
-                    backgroundColor: "#fff",
-                    position: "absolute",
-                    top: "2px",
-                    left: hideZeroAmount ? "20px" : "2px",
-                    transition: "left 0.2s",
-                    boxShadow: "0 1px 3px rgba(0,0,0,0.2)",
-                  }}
-                />
-              </div>
-              <span>{"Nascondi importo 0 \u20ac"}</span>
-            </div>
-
-            {/* Clear filters button */}
-            {hasActiveFilters && (
-              <button
-                onClick={handleClearFilters}
-                style={{
-                  padding: "8px 16px",
-                  fontSize: "14px",
-                  fontWeight: 600,
-                  border: "1px solid #f44336",
-                  borderRadius: "8px",
+                  width: "18px",
+                  height: "18px",
+                  borderRadius: "50%",
                   backgroundColor: "#fff",
-                  color: "#f44336",
-                  cursor: "pointer",
-                  transition: "all 0.2s",
-                  marginLeft: "auto",
+                  position: "absolute",
+                  top: "2px",
+                  left: hideZeroAmount ? "20px" : "2px",
+                  transition: "left 0.2s",
+                  boxShadow: "0 1px 3px rgba(0,0,0,0.2)",
                 }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.backgroundColor = "#f44336";
-                  e.currentTarget.style.color = "#fff";
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.backgroundColor = "#fff";
-                  e.currentTarget.style.color = "#f44336";
-                }}
-              >
-                {"\u2715"} Cancella tutti i filtri
-              </button>
-            )}
+              />
+            </div>
+            <span>{"Nascondi importo 0 \u20ac"}</span>
           </div>
+
+          {/* Clear filters button */}
+          {hasActiveFilters && (
+            <button
+              onClick={handleClearFilters}
+              style={{
+                padding: "8px 16px",
+                fontSize: "14px",
+                fontWeight: 600,
+                border: "1px solid #f44336",
+                borderRadius: "8px",
+                backgroundColor: "#fff",
+                color: "#f44336",
+                cursor: "pointer",
+                transition: "all 0.2s",
+                marginLeft: "auto",
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.backgroundColor = "#f44336";
+                e.currentTarget.style.color = "#fff";
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.backgroundColor = "#fff";
+                e.currentTarget.style.color = "#f44336";
+              }}
+            >
+              {"\u2715"} Cancella tutti i filtri
+            </button>
+          )}
         </div>
-        {/* end collapsible section */}
       </div>
 
       {/* Loading state */}
