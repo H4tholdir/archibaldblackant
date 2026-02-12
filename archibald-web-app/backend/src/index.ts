@@ -5021,10 +5021,7 @@ app.get(
         });
       }
 
-      // Pause sync services to avoid conflicts
-      await priorityManager.pause();
-
-      try {
+      {
         // Fetch order list from DB only (no automatic sync)
         // Sync is triggered only via force-sync endpoint
         const result = await orderHistoryService.getOrderList(userId, {
@@ -5206,9 +5203,6 @@ app.get(
             hasMore,
           },
         });
-      } finally {
-        // Always resume services
-        priorityManager.resume();
       }
     } catch (error) {
       logger.error("[OrderHistory] Error fetching order history", {
