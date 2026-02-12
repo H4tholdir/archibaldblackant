@@ -817,8 +817,10 @@ function TabArticoli({
       );
 
       let variantId = product.id;
+      let variantArticle = product.article;
       if (packaging.success && packaging.breakdown && packaging.breakdown.length > 0) {
         variantId = packaging.breakdown[0].variant.variantId || product.id;
+        variantArticle = packaging.breakdown[0].variant.variantId || product.article;
       }
 
       const priceData = await priceService.getPriceAndVat(variantId);
@@ -828,7 +830,7 @@ function TabArticoli({
       const newItems = [...editItems];
       newItems[idx] = recalcLineAmounts({
         ...newItems[idx],
-        articleCode: product.article,
+        articleCode: variantArticle,
         productName: product.name,
         unitPrice,
         vatPercent,
@@ -918,6 +920,23 @@ function TabArticoli({
                 `Quantita' suggerita: ${packaging.suggestedQuantity}`,
               ),
             );
+          }
+          if (packaging.breakdown && packaging.breakdown.length > 0) {
+            const bestVariant = packaging.breakdown[0].variant;
+            const currentArticle = newItems[idx].articleCode;
+            if (bestVariant.variantId && bestVariant.variantId !== currentArticle) {
+              const priceData = await priceService.getPriceAndVat(bestVariant.variantId);
+              setEditItems((prev) => {
+                const updated = [...prev];
+                updated[idx] = recalcLineAmounts({
+                  ...updated[idx],
+                  articleCode: bestVariant.variantId,
+                  unitPrice: priceData?.price ?? updated[idx].unitPrice,
+                  vatPercent: normalizeVatRate(priceData?.vat ?? updated[idx].vatPercent),
+                });
+                return updated;
+              });
+            }
           }
         } else {
           setQtyValidation((prev) =>
@@ -1282,6 +1301,16 @@ function TabArticoli({
     const displayItems = editItems.length > 0 ? editItems : [];
     return (
       <div style={{ padding: "16px" }}>
+        <style>{`
+          .edit-table input[type="number"]::-webkit-outer-spin-button,
+          .edit-table input[type="number"]::-webkit-inner-spin-button {
+            -webkit-appearance: none;
+            margin: 0;
+          }
+          .edit-table input[type="number"] {
+            -moz-appearance: textfield;
+          }
+        `}</style>
         {/* Edit mode header */}
         <div
           style={{
@@ -1348,7 +1377,7 @@ function TabArticoli({
         )}
 
         {/* Edit table */}
-        <div style={{ overflowX: "auto" }}>
+        <div className="edit-table" style={{ position: "relative" }}>
           <table style={{ width: "100%", borderCollapse: "collapse" }}>
             <thead>
               <tr style={{ backgroundColor: "#f5f5f5" }}>
