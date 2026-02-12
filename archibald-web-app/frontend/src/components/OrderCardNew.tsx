@@ -984,10 +984,12 @@ function TabArticoli({
 
   const handleConfirmEdit = async () => {
     if (!confirmModal || !token) return;
+    const modifications = confirmModal;
+    setConfirmModal(null);
     setSubmittingEdit(true);
 
     try {
-      const response = await fetchWithRetry(
+      const response = await fetch(
         `/api/orders/${orderId}/edit-in-archibald`,
         {
           method: "POST",
@@ -996,7 +998,7 @@ function TabArticoli({
             "Content-Type": "application/json",
           },
           body: JSON.stringify({
-            modifications: confirmModal,
+            modifications,
             updatedItems: editItems,
           }),
         },
@@ -1006,21 +1008,16 @@ function TabArticoli({
       if (!result.success) {
         setError(result.error || "Errore durante la modifica");
         setSubmittingEdit(false);
-        setConfirmModal(null);
         return;
       }
 
-      // WebSocket ORDER_EDIT_COMPLETE will trigger onEditDone
-      // But as fallback, if no WS, close after response
       setTimeout(() => {
         setSubmittingEdit(false);
-        setConfirmModal(null);
         onEditDone?.();
       }, 2000);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Errore di rete");
       setSubmittingEdit(false);
-      setConfirmModal(null);
     }
   };
 
