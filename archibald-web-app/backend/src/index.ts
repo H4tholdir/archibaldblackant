@@ -6587,6 +6587,140 @@ app.get(
   },
 );
 
+// Edit order in Archibald ERP - POST /api/orders/:orderId/edit-in-archibald
+app.post(
+  "/api/orders/:orderId/edit-in-archibald",
+  authenticateJWT,
+  async (req: AuthRequest, res: Response) => {
+    const userId = req.user?.userId;
+    if (!userId) {
+      return res.status(401).json({ success: false, error: "Unauthorized" });
+    }
+
+    const { orderId } = req.params;
+
+    try {
+      const orderDbInstance = OrderDatabaseNew.getInstance();
+      const order = orderDbInstance.getOrderById(userId, orderId);
+
+      if (!order) {
+        return res.status(404).json({
+          success: false,
+          error: "Ordine non trovato",
+        });
+      }
+
+      const { modifications, updatedItems } = req.body;
+
+      if (!Array.isArray(modifications) || modifications.length === 0) {
+        return res.status(400).json({
+          success: false,
+          error: "modifications deve essere un array non vuoto",
+        });
+      }
+
+      const { getEditProgressMilestone } = await import(
+        "./job-progress-mapper"
+      );
+
+      const bot = new ArchibaldBot(userId);
+      let botSuccess = false;
+
+      let wsService: any;
+      try {
+        const mod = require("./fresis-history-realtime.service");
+        wsService = mod.FresisHistoryRealtimeService.getInstance();
+      } catch {
+        // WS not available
+      }
+
+      bot.setProgressCallback(async (category: string, metadata?: Record<string, any>) => {
+        if (!wsService) return;
+        const milestone = getEditProgressMilestone(category, metadata);
+        if (!milestone) return;
+        wsService.emitOrderEditProgress(userId, orderId, milestone.progress, milestone.label);
+      });
+
+      try {
+        await bot.initialize();
+
+        const result = await bot.editOrderInArchibald(
+          orderId,
+          modifications,
+        );
+
+        if (!result.success) {
+          return res.status(500).json({
+            success: false,
+            error: result.message,
+          });
+        }
+
+        botSuccess = true;
+
+        // Update local articles in DB
+        if (updatedItems && Array.isArray(updatedItems)) {
+          orderDbInstance.deleteOrderArticles(orderId);
+          if (updatedItems.length > 0) {
+            orderDbInstance.saveOrderArticlesWithVat(
+              updatedItems.map((item: any) => ({
+                orderId,
+                articleCode: item.articleCode || "",
+                articleDescription: item.productName || item.articleDescription || "",
+                quantity: item.quantity || 0,
+                unitPrice: item.unitPrice || 0,
+                discountPercent: item.discountPercent || 0,
+                lineAmount: item.lineAmount || 0,
+                vatPercent: item.vatPercent || 0,
+                vatAmount: item.vatAmount || 0,
+                lineTotalWithVat: item.lineTotalWithVat || 0,
+              })),
+            );
+          }
+        }
+
+        // Emit WebSocket complete event
+        if (wsService) {
+          wsService.emitOrderEditComplete(userId, orderId);
+        }
+
+        logger.info("Order edited in Archibald", {
+          userId,
+          orderId,
+          modificationsCount: modifications.length,
+          botMessage: result.message,
+        });
+
+        res.json({
+          success: true,
+          message: result.message,
+        });
+      } finally {
+        try {
+          if (!botSuccess) {
+            (bot as any).hasError = true;
+          }
+          await bot.close();
+        } catch (closeError) {
+          logger.error("Error closing bot after edit-in-archibald", {
+            closeError,
+          });
+        }
+      }
+    } catch (error) {
+      logger.error("Error editing order in Archibald", {
+        error: error instanceof Error ? error.message : String(error),
+        userId,
+        orderId,
+      });
+      res.status(500).json({
+        success: false,
+        error: "Errore durante la modifica su Archibald",
+      });
+    }
+  },
+);
+
 // Get lifecycle summary for multiple orders - GET /api/orders/lifecycle-summary
 app.get(
   "/api/orders/lifecycle-summary",

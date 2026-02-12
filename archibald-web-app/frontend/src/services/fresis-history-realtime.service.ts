@@ -38,6 +38,8 @@ export class FresisHistoryRealtimeService {
   private _deleteProgressMap: Map<string, DeleteProgressState> = new Map();
   private editProgressHandlers: Set<UpdateHandler> = new Set();
   private _editProgressMap: Map<string, EditProgressState> = new Map();
+  private orderEditProgressHandlers: Set<UpdateHandler> = new Set();
+  private _orderEditProgressMap: Map<string, EditProgressState> = new Map();
 
   private constructor() {}
 
@@ -211,6 +213,63 @@ export class FresisHistoryRealtimeService {
     }
   }
 
+  public getOrderEditProgress(orderId: string): EditProgressState | undefined {
+    return this._orderEditProgressMap.get(orderId);
+  }
+
+  public clearOrderEditProgress(orderId: string): void {
+    this._orderEditProgressMap.delete(orderId);
+  }
+
+  public onOrderEditProgress(handler: UpdateHandler): () => void {
+    this.orderEditProgressHandlers.add(handler);
+    return () => {
+      this.orderEditProgressHandlers.delete(handler);
+    };
+  }
+
+  private notifyOrderEditProgress(): void {
+    this.orderEditProgressHandlers.forEach((handler) => {
+      try {
+        handler();
+      } catch (error) {
+        console.error(
+          "[FresisHistoryRealtime] Error in order edit progress handler:",
+          error,
+        );
+      }
+    });
+  }
+
+  public handleOrderEditProgress(payload: unknown): void {
+    try {
+      const data = payload as DeleteProgressPayload;
+      this._orderEditProgressMap.set(data.recordId, {
+        progress: data.progress,
+        operation: data.operation,
+      });
+      this.notifyOrderEditProgress();
+    } catch (error) {
+      console.error(
+        "[FresisHistoryRealtime] Error handling ORDER_EDIT_PROGRESS:",
+        error,
+      );
+    }
+  }
+
+  public handleOrderEditComplete(payload: unknown): void {
+    try {
+      const data = payload as HistoryEventPayload;
+      this._orderEditProgressMap.delete(data.recordId);
+      this.notifyOrderEditProgress();
+    } catch (error) {
+      console.error(
+        "[FresisHistoryRealtime] Error handling ORDER_EDIT_COMPLETE:",
+        error,
+      );
+    }
+  }
+
   public async handleBulkImported(payload: unknown): Promise<void> {
     try {
       const data = payload as BulkImportedPayload;
@@ -266,6 +325,16 @@ export class FresisHistoryRealtimeService {
     unsubscribers.push(
       subscribe("FRESIS_HISTORY_BULK_IMPORTED", (payload) =>
         this.handleBulkImported(payload),
+      ),
+    );
+    unsubscribers.push(
+      subscribe("ORDER_EDIT_PROGRESS", (payload) =>
+        this.handleOrderEditProgress(payload),
+      ),
+    );
+    unsubscribers.push(
+      subscribe("ORDER_EDIT_COMPLETE", (payload) =>
+        this.handleOrderEditComplete(payload),
       ),
     );
 

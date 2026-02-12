@@ -538,8 +538,11 @@ export function OrderHistory() {
     }
   };
 
+  const [editingOrderId, setEditingOrderId] = useState<string | null>(null);
+
   const handleEdit = (orderId: string) => {
-    window.location.href = `/order?orderId=${orderId}`;
+    setEditingOrderId(orderId);
+    setExpandedOrderId(orderId);
   };
 
   // Apply quick filters client-side (OR logic: order matches if ANY selected filter matches)
@@ -1695,6 +1698,11 @@ export function OrderHistory() {
                           localStorage.getItem("archibald_jwt") || undefined
                         }
                         searchQuery={debouncedSearch}
+                        editing={editingOrderId === order.id}
+                        onEditDone={() => {
+                          setEditingOrderId(null);
+                          fetchOrders();
+                        }}
                       />
                     );
                   })}

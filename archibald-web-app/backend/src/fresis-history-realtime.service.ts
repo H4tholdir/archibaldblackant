@@ -8,7 +8,9 @@ export type FresisHistoryEventType =
   | "FRESIS_HISTORY_DELETED"
   | "FRESIS_HISTORY_DELETE_PROGRESS"
   | "FRESIS_HISTORY_EDIT_PROGRESS"
-  | "FRESIS_HISTORY_BULK_IMPORTED";
+  | "FRESIS_HISTORY_BULK_IMPORTED"
+  | "ORDER_EDIT_PROGRESS"
+  | "ORDER_EDIT_COMPLETE";
 
 export class FresisHistoryRealtimeService {
   private static instance: FresisHistoryRealtimeService;
@@ -152,6 +154,58 @@ export class FresisHistoryRealtimeService {
       logger.error(
         "[FresisHistoryRealtime] Failed to emit FRESIS_HISTORY_EDIT_PROGRESS",
         { userId, recordId, error },
+      );
+    }
+  }
+
+  public emitOrderEditProgress(
+    userId: string,
+    orderId: string,
+    progress: number,
+    operation: string,
+  ): void {
+    try {
+      const event: WebSocketMessage = {
+        type: "ORDER_EDIT_PROGRESS",
+        payload: {
+          recordId: orderId,
+          progress,
+          operation,
+          timestamp: new Date().toISOString(),
+        },
+        timestamp: new Date().toISOString(),
+      };
+
+      this.wsService.broadcast(userId, event);
+    } catch (error) {
+      logger.error(
+        "[FresisHistoryRealtime] Failed to emit ORDER_EDIT_PROGRESS",
+        { userId, orderId, error },
+      );
+    }
+  }
+
+  public emitOrderEditComplete(userId: string, orderId: string): void {
+    try {
+      const event: WebSocketMessage = {
+        type: "ORDER_EDIT_COMPLETE",
+        payload: {
+          recordId: orderId,
+          timestamp: new Date().toISOString(),
+        },
+        timestamp: new Date().toISOString(),
+      };
+
+      this.wsService.broadcast(userId, event);
+
+      logger.debug("[FresisHistoryRealtime] ORDER_EDIT_COMPLETE broadcast", {
+        userId,
+        orderId,
+      });
+    } catch (error) {
+      logger.error(
+        "[FresisHistoryRealtime] Failed to emit ORDER_EDIT_COMPLETE",
+        { userId, orderId, error },
       );
     }
   }

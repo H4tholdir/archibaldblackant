@@ -1,10 +1,17 @@
 // @ts-nocheck - Contains legacy code with articleCode
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import type { Order, OrderItem } from "../types/order";
 
 import { getOrderStatus, isNotSentToVerona } from "../utils/orderStatus";
 import { fetchWithRetry } from "../utils/fetch-with-retry";
 import { HighlightText } from "./HighlightText";
+import { productService } from "../services/products.service";
+import type { ProductWithDetails } from "../services/products.service";
+import { priceService } from "../services/prices.service";
+import { db } from "../db/schema";
+import { CachePopulationService } from "../services/cache-population";
+import { normalizeVatRate } from "../utils/vat-utils";
+import { useWebSocketContext } from "../contexts/WebSocketContext";
 
 interface OrderCardProps {
   order: Order;
@@ -14,6 +21,8 @@ interface OrderCardProps {
   onEdit?: (orderId: string) => void;
   token?: string;
   searchQuery?: string;
+  editing?: boolean;
+  onEditDone?: () => void;
 }
 
 // ============================================================================
@@ -501,6 +510,88 @@ function TabPanoramica({
   );
 }
 
+interface EditItem {
+  articleCode: string;
+  productName: string;
+  quantity: number;
+  unitPrice: number;
+  discountPercent: number;
+  vatPercent: number;
+  vatAmount: number;
+  lineAmount: number;
+  lineTotalWithVat: number;
+  articleDescription: string;
+}
+
+interface EditModification {
+  type: "update" | "add" | "delete";
+  rowIndex?: number;
+  articleCode?: string;
+  quantity?: number;
+  discount?: number;
+  oldArticleCode?: string;
+  oldQuantity?: number;
+  oldDiscount?: number;
+}
+
+function computeModifications(
+  originalItems: EditItem[],
+  editItems: EditItem[],
+): EditModification[] {
+  const mods: EditModification[] = [];
+
+  const maxOriginal = originalItems.length;
+
+  for (let i = 0; i < editItems.length; i++) {
+    if (i < maxOriginal) {
+      const orig = originalItems[i];
+      const edit = editItems[i];
+      if (
+        orig.articleCode !== edit.articleCode ||
+        orig.quantity !== edit.quantity ||
+        orig.discountPercent !== edit.discountPercent
+      ) {
+        mods.push({
+          type: "update",
+          rowIndex: i + 1,
+          articleCode: edit.articleCode,
+          quantity: edit.quantity,
+          discount: edit.discountPercent,
+          oldArticleCode: orig.articleCode,
+          oldQuantity: orig.quantity,
+          oldDiscount: orig.discountPercent,
+        });
+      }
+    } else {
+      mods.push({
+        type: "add",
+        articleCode: editItems[i].articleCode,
+        quantity: editItems[i].quantity,
+        discount: editItems[i].discountPercent,
+      });
+    }
+  }
+
+  for (let i = editItems.length; i < maxOriginal; i++) {
+    mods.push({
+      type: "delete",
+      rowIndex: i + 1,
+      articleCode: originalItems[i].articleCode,
+      oldQuantity: originalItems[i].quantity,
+    });
+  }
+
+  return mods;
+}
+
+function recalcLineAmounts(item: EditItem): EditItem {
+  const baseAmount = item.unitPrice * item.quantity;
+  const lineAmount = baseAmount * (1 - item.discountPercent / 100);
+  const vatAmount = lineAmount * (item.vatPercent / 100);
+  const lineTotalWithVat = lineAmount + vatAmount;
+  return { ...item, lineAmount, vatAmount, lineTotalWithVat };
+}
+
 function TabArticoli({
   items,
   orderId,
@@ -508,6 +599,9 @@ function TabArticoli({
   token,
   onTotalsUpdate,
   searchQuery = "",
+  editing = false,
+  onEditDone,
+  editProgress,
 }: {
   items?: OrderItem[];
   orderId: string;
@@ -518,11 +612,30 @@ function TabArticoli({
     totalWithVat?: number;
   }) => void;
   searchQuery?: string;
+  editing?: boolean;
+  onEditDone?: () => void;
+  editProgress?: { progress: number; operation: string } | null;
 }) {
   const [articles, setArticles] = useState(items || []);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+
+  // Edit mode state
+  const [editItems, setEditItems] = useState<EditItem[]>([]);
+  const [originalItems, setOriginalItems] = useState<EditItem[]>([]);
+  const [editingArticleIdx, setEditingArticleIdx] = useState<number | null>(null);
+  const [articleSearch, setArticleSearch] = useState("");
+  const [articleResults, setArticleResults] = useState<ProductWithDetails[]>([]);
+  const [highlightedArticleIdx, setHighlightedArticleIdx] = useState(-1);
+  const [qtyValidation, setQtyValidation] = useState<Map<number, string | null>>(new Map());
+  const [confirmModal, setConfirmModal] = useState<EditModification[] | null>(null);
+  const [submittingEdit, setSubmittingEdit] = useState(false);
+  const [syncingProducts, setSyncingProducts] = useState(false);
+  const [syncProductsMsg, setSyncProductsMsg] = useState("");
+  const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const qtyTimeoutRef = useRef<Map<number, NodeJS.Timeout>>(new Map());
+  const dropdownRef = useRef<HTMLDivElement>(null);
 
   // Load existing articles from database on mount
   useEffect(() => {
@@ -543,7 +656,6 @@ function TabArticoli({
         if (data.success && data.data.articles.length > 0) {
           setArticles(data.data.articles);
 
-          // Update totals in parent component
           if (
             onTotalsUpdate &&
             data.data.totalVatAmount &&
@@ -556,13 +668,318 @@ function TabArticoli({
           }
         }
       } catch (err) {
-        // Silently fail - user can manually sync if needed
         console.log("No existing articles found");
       }
     };
 
     loadArticles();
   }, [orderId, token, onTotalsUpdate]);
+
+  // Initialize edit items when entering edit mode
+  useEffect(() => {
+    if (!editing) {
+      setEditItems([]);
+      setOriginalItems([]);
+      setEditingArticleIdx(null);
+      setConfirmModal(null);
+      setSubmittingEdit(false);
+      return;
+    }
+
+    (async () => {
+      const count = await db.products.count();
+      if (count === 0) {
+        setSyncingProducts(true);
+        const jwt = localStorage.getItem("archibald_jwt") || "";
+        await CachePopulationService.getInstance().populateCache(jwt, (p) => {
+          setSyncProductsMsg(p.message);
+        });
+        setSyncingProducts(false);
+      }
+
+      const mapped: EditItem[] = articles.map((item: any) => ({
+        articleCode: item.articleCode || "",
+        productName: item.productName || "",
+        quantity: item.quantity || 0,
+        unitPrice: item.unitPrice ?? item.price ?? 0,
+        discountPercent: item.discountPercent ?? item.discount ?? 0,
+        vatPercent: item.vatPercent ?? 0,
+        vatAmount: item.vatAmount ?? 0,
+        lineAmount: item.lineAmount ?? 0,
+        lineTotalWithVat: item.lineTotalWithVat ?? 0,
+        articleDescription: item.articleDescription ?? item.description ?? "",
+      }));
+      setEditItems(mapped);
+      setOriginalItems(mapped.map((m) => ({ ...m })));
+    })();
+  }, [editing, articles]);
+
+  // Click outside article dropdown
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (
+        dropdownRef.current &&
+        !dropdownRef.current.contains(e.target as Node)
+      ) {
+        setEditingArticleIdx(null);
+        setArticleSearch("");
+        setArticleResults([]);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  // Debounced article search
+  const handleArticleSearchChange = useCallback(
+    (idx: number, query: string) => {
+      setArticleSearch(query);
+      setEditingArticleIdx(idx);
+      setHighlightedArticleIdx(-1);
+
+      if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current);
+
+      if (query.length < 2) {
+        setArticleResults([]);
+        return;
+      }
+
+      searchTimeoutRef.current = setTimeout(async () => {
+        const results = await productService.searchProducts(query, 10);
+        const seen = new Set<string>();
+        const deduped = results.filter((r) => {
+          if (seen.has(r.name)) return false;
+          seen.add(r.name);
+          return true;
+        });
+        setArticleResults(deduped.slice(0, 10));
+      }, 300);
+    },
+    [],
+  );
+
+  const handleSelectArticle = useCallback(
+    async (idx: number, product: ProductWithDetails) => {
+      const currentQty = editItems[idx]?.quantity || 1;
+      const packaging = await productService.calculateOptimalPackaging(
+        product.name,
+        currentQty,
+      );
+
+      let variantId = product.id;
+      if (packaging.success && packaging.breakdown && packaging.breakdown.length > 0) {
+        variantId = packaging.breakdown[0].variant.variantId || product.id;
+      }
+
+      const priceData = await priceService.getPriceAndVat(variantId);
+      const unitPrice = priceData?.price ?? product.price ?? 0;
+      const vatPercent = normalizeVatRate(priceData?.vat ?? product.vat);
+
+      const newItems = [...editItems];
+      newItems[idx] = recalcLineAmounts({
+        ...newItems[idx],
+        articleCode: product.article,
+        productName: product.name,
+        unitPrice,
+        vatPercent,
+        articleDescription: product.description || product.name,
+        quantity: packaging.suggestedQuantity ?? currentQty,
+        discountPercent: newItems[idx]?.discountPercent ?? 0,
+        vatAmount: 0,
+        lineAmount: 0,
+        lineTotalWithVat: 0,
+      });
+      setEditItems(newItems);
+      setEditingArticleIdx(null);
+      setArticleSearch("");
+      setArticleResults([]);
+    },
+    [editItems],
+  );
+
+  const handleArticleKeyDown = useCallback(
+    (e: React.KeyboardEvent, idx: number) => {
+      if (articleResults.length === 0) return;
+      switch (e.key) {
+        case "ArrowDown":
+          e.preventDefault();
+          setHighlightedArticleIdx((prev) =>
+            prev < articleResults.length - 1 ? prev + 1 : prev,
+          );
+          break;
+        case "ArrowUp":
+          e.preventDefault();
+          setHighlightedArticleIdx((prev) => (prev > 0 ? prev - 1 : 0));
+          break;
+        case "Enter":
+          e.preventDefault();
+          if (highlightedArticleIdx >= 0 && highlightedArticleIdx < articleResults.length) {
+            handleSelectArticle(idx, articleResults[highlightedArticleIdx]);
+          }
+          break;
+        case "Escape":
+          e.preventDefault();
+          setEditingArticleIdx(null);
+          setArticleSearch("");
+          setArticleResults([]);
+          break;
+      }
+    },
+    [articleResults, highlightedArticleIdx, handleSelectArticle],
+  );
+
+  const handleQtyChange = useCallback(
+    (idx: number, qty: number) => {
+      const newItems = [...editItems];
+      newItems[idx] = recalcLineAmounts({ ...newItems[idx], quantity: qty });
+      setEditItems(newItems);
+
+      const existing = qtyTimeoutRef.current.get(idx);
+      if (existing) clearTimeout(existing);
+
+      const timeout = setTimeout(async () => {
+        if (qty <= 0) {
+          setQtyValidation((prev) => new Map(prev).set(idx, "Quantita' deve essere > 0"));
+          return;
+        }
+        const item = newItems[idx];
+        if (!item.productName) {
+          setQtyValidation((prev) => {
+            const m = new Map(prev);
+            m.delete(idx);
+            return m;
+          });
+          return;
+        }
+        const packaging = await productService.calculateOptimalPackaging(
+          item.productName,
+          qty,
+        );
+        if (packaging.success) {
+          setQtyValidation((prev) => {
+            const m = new Map(prev);
+            m.delete(idx);
+            return m;
+          });
+          if (packaging.suggestedQuantity && packaging.suggestedQuantity !== qty) {
+            setQtyValidation((prev) =>
+              new Map(prev).set(
+                idx,
+                `Quantita' suggerita: ${packaging.suggestedQuantity}`,
+              ),
+            );
+          }
+        } else {
+          setQtyValidation((prev) =>
+            new Map(prev).set(idx, packaging.error || "Quantita' non valida per il packaging"),
+          );
+        }
+      }, 500);
+      qtyTimeoutRef.current.set(idx, timeout);
+    },
+    [editItems],
+  );
+
+  const handleDiscountChange = useCallback(
+    (idx: number, discount: number) => {
+      const clamped = Math.min(100, Math.max(0, discount));
+      const newItems = [...editItems];
+      newItems[idx] = recalcLineAmounts({ ...newItems[idx], discountPercent: clamped });
+      setEditItems(newItems);
+    },
+    [editItems],
+  );
+
+  const handleRemoveEditItem = useCallback(
+    (idx: number) => {
+      setEditItems((prev) => prev.filter((_, i) => i !== idx));
+      setQtyValidation((prev) => {
+        const m = new Map<number, string | null>();
+        prev.forEach((v, k) => {
+          if (k < idx) m.set(k, v);
+          else if (k > idx) m.set(k - 1, v);
+        });
+        return m;
+      });
+    },
+    [],
+  );
+
+  const handleAddEditItem = useCallback(() => {
+    setEditItems((prev) => [
+      ...prev,
+      {
+        articleCode: "",
+        productName: "",
+        quantity: 1,
+        unitPrice: 0,
+        discountPercent: 0,
+        vatPercent: 22,
+        vatAmount: 0,
+        lineAmount: 0,
+        lineTotalWithVat: 0,
+        articleDescription: "",
+      },
+    ]);
+  }, []);
+
+  const handleSaveClick = () => {
+    const mods = computeModifications(originalItems, editItems);
+    if (mods.length === 0) {
+      onEditDone?.();
+      return;
+    }
+    setConfirmModal(mods);
+  };
+
+  const handleConfirmEdit = async () => {
+    if (!confirmModal || !token) return;
+    setSubmittingEdit(true);
+
+    try {
+      const response = await fetchWithRetry(
+        `/api/orders/${orderId}/edit-in-archibald`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            modifications: confirmModal,
+            updatedItems: editItems,
+          }),
+        },
+      );
+
+      const result = await response.json();
+      if (!result.success) {
+        setError(result.error || "Errore durante la modifica");
+        setSubmittingEdit(false);
+        setConfirmModal(null);
+        return;
+      }
+
+      // WebSocket ORDER_EDIT_COMPLETE will trigger onEditDone
+      // But as fallback, if no WS, close after response
+      setTimeout(() => {
+        setSubmittingEdit(false);
+        setConfirmModal(null);
+        onEditDone?.();
+      }, 2000);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Errore di rete");
+      setSubmittingEdit(false);
+      setConfirmModal(null);
+    }
+  };
+
+  const handleCancelEdit = () => {
+    setEditItems(originalItems.map((m) => ({ ...m })));
+    setConfirmModal(null);
+    setQtyValidation(new Map());
+    onEditDone?.();
+  };
 
   const handleSyncArticles = async () => {
     if (!token) {
@@ -597,10 +1014,9 @@ function TabArticoli({
       setArticles(result.data.articles);
       const totalVat = result.data.totalVatAmount ?? 0;
       setSuccess(
-        `✅ Sincronizzati ${result.data.articles.length} articoli. Totale IVA: €${totalVat.toFixed(2)}`,
+        `Sincronizzati ${result.data.articles.length} articoli. Totale IVA: ${totalVat.toFixed(2)}`,
       );
 
-      // Update totals in parent component
       if (
         onTotalsUpdate &&
         result.data.totalVatAmount &&
@@ -612,7 +1028,6 @@ function TabArticoli({
         });
       }
 
-      // Hide success message after 5 seconds
       setTimeout(() => setSuccess(null), 5000);
     } catch (err) {
       const errorMessage =
@@ -624,6 +1039,469 @@ function TabArticoli({
     }
   };
 
+  // Syncing products overlay
+  if (editing && syncingProducts) {
+    return (
+      <div style={{ padding: "32px", textAlign: "center" }}>
+        <div
+          style={{
+            fontSize: "48px",
+            marginBottom: "16px",
+            animation: "spin 1s linear infinite",
+          }}
+        >
+          {"⏳"}
+        </div>
+        <p style={{ fontSize: "16px", color: "#666", marginBottom: "8px" }}>
+          Sincronizzazione catalogo prodotti...
+        </p>
+        <p style={{ fontSize: "13px", color: "#999" }}>{syncProductsMsg}</p>
+        <style>
+          {`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}
+        </style>
+      </div>
+    );
+  }
+
+  // Confirm modal
+  if (confirmModal && !submittingEdit) {
+    const updates = confirmModal.filter((m) => m.type === "update");
+    const adds = confirmModal.filter((m) => m.type === "add");
+    const deletes = confirmModal.filter((m) => m.type === "delete");
+
+    return (
+      <div style={{ padding: "16px" }}>
+        <div
+          style={{
+            backgroundColor: "#fff",
+            border: "1px solid #e0e0e0",
+            borderRadius: "12px",
+            padding: "24px",
+          }}
+        >
+          <h3 style={{ fontSize: "18px", fontWeight: 700, marginBottom: "16px", color: "#333" }}>
+            Conferma modifiche
+          </h3>
+
+          {updates.length > 0 && (
+            <div style={{ marginBottom: "16px" }}>
+              <div style={{ fontSize: "14px", fontWeight: 600, color: "#1976d2", marginBottom: "8px" }}>
+                Modifiche ({updates.length})
+              </div>
+              {updates.map((m, i) => (
+                <div
+                  key={i}
+                  style={{
+                    fontSize: "13px",
+                    color: "#555",
+                    padding: "4px 0",
+                    borderBottom: "1px solid #f0f0f0",
+                  }}
+                >
+                  Riga {m.rowIndex}: {m.oldArticleCode} {"→"} {m.articleCode}
+                  {m.oldQuantity !== m.quantity && `, Qty: ${m.oldQuantity} → ${m.quantity}`}
+                  {m.oldDiscount !== m.discount && `, Sconto: ${m.oldDiscount}% → ${m.discount}%`}
+                </div>
+              ))}
+            </div>
+          )}
+
+          {adds.length > 0 && (
+            <div style={{ marginBottom: "16px" }}>
+              <div style={{ fontSize: "14px", fontWeight: 600, color: "#388e3c", marginBottom: "8px" }}>
+                Aggiunte ({adds.length})
+              </div>
+              {adds.map((m, i) => (
+                <div
+                  key={i}
+                  style={{
+                    fontSize: "13px",
+                    color: "#555",
+                    padding: "4px 0",
+                    borderBottom: "1px solid #f0f0f0",
+                  }}
+                >
+                  + {m.articleCode}, Qty: {m.quantity}
+                  {m.discount ? `, Sconto: ${m.discount}%` : ""}
+                </div>
+              ))}
+            </div>
+          )}
+
+          {deletes.length > 0 && (
+            <div style={{ marginBottom: "16px" }}>
+              <div style={{ fontSize: "14px", fontWeight: 600, color: "#d32f2f", marginBottom: "8px" }}>
+                Eliminazioni ({deletes.length})
+              </div>
+              {deletes.map((m, i) => (
+                <div
+                  key={i}
+                  style={{
+                    fontSize: "13px",
+                    color: "#555",
+                    padding: "4px 0",
+                    borderBottom: "1px solid #f0f0f0",
+                  }}
+                >
+                  - Riga {m.rowIndex}: {m.articleCode} (Qty: {m.oldQuantity})
+                </div>
+              ))}
+            </div>
+          )}
+
+          <div style={{ display: "flex", gap: "12px", justifyContent: "flex-end", marginTop: "20px" }}>
+            <button
+              onClick={() => setConfirmModal(null)}
+              style={{
+                padding: "10px 20px",
+                fontSize: "14px",
+                fontWeight: 600,
+                backgroundColor: "#fff",
+                color: "#666",
+                border: "1px solid #ddd",
+                borderRadius: "8px",
+                cursor: "pointer",
+              }}
+            >
+              Torna alla modifica
+            </button>
+            <button
+              onClick={handleConfirmEdit}
+              style={{
+                padding: "10px 20px",
+                fontSize: "14px",
+                fontWeight: 600,
+                backgroundColor: "#1976d2",
+                color: "#fff",
+                border: "none",
+                borderRadius: "8px",
+                cursor: "pointer",
+              }}
+            >
+              Conferma e invia
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Submitting state with progress
+  if (submittingEdit) {
+    return (
+      <div style={{ padding: "32px", textAlign: "center" }}>
+        <div style={{ fontSize: "48px", marginBottom: "16px" }}>{"⏳"}</div>
+        <p style={{ fontSize: "16px", color: "#666", marginBottom: "8px" }}>
+          Modifica in corso su Archibald...
+        </p>
+        {editProgress && (
+          <div style={{ maxWidth: "400px", margin: "0 auto" }}>
+            <ProgressBar
+              percent={editProgress.progress}
+              stage={editProgress.operation}
+              color="#1976d2"
+            />
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // EDIT MODE RENDERING
+  if (editing && editItems.length >= 0) {
+    const displayItems = editItems.length > 0 ? editItems : [];
+    return (
+      <div style={{ padding: "16px" }}>
+        {/* Edit mode header */}
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            marginBottom: "16px",
+          }}
+        >
+          <div style={{ fontSize: "16px", fontWeight: 700, color: "#1976d2" }}>
+            Modalita' modifica
+          </div>
+          <div style={{ display: "flex", gap: "8px" }}>
+            <button
+              onClick={handleCancelEdit}
+              style={{
+                padding: "8px 16px",
+                fontSize: "13px",
+                fontWeight: 600,
+                backgroundColor: "#fff",
+                color: "#666",
+                border: "1px solid #ddd",
+                borderRadius: "6px",
+                cursor: "pointer",
+              }}
+            >
+              Annulla
+            </button>
+            <button
+              onClick={handleSaveClick}
+              disabled={editItems.some((item) => !item.articleCode || item.quantity <= 0)}
+              style={{
+                padding: "8px 16px",
+                fontSize: "13px",
+                fontWeight: 600,
+                backgroundColor: editItems.some((item) => !item.articleCode || item.quantity <= 0)
+                  ? "#ccc"
+                  : "#1976d2",
+                color: "#fff",
+                border: "none",
+                borderRadius: "6px",
+                cursor: editItems.some((item) => !item.articleCode || item.quantity <= 0)
+                  ? "not-allowed"
+                  : "pointer",
+              }}
+            >
+              Salva modifiche
+            </button>
+          </div>
+        </div>
+
+        {error && (
+          <div
+            style={{
+              marginBottom: "16px",
+              padding: "12px",
+              backgroundColor: "#ffebee",
+              color: "#c62828",
+              borderRadius: "4px",
+            }}
+          >
+            {error}
+          </div>
+        )}
+
+        {/* Edit table */}
+        <div style={{ overflowX: "auto" }}>
+          <table style={{ width: "100%", borderCollapse: "collapse" }}>
+            <thead>
+              <tr style={{ backgroundColor: "#f5f5f5" }}>
+                <th style={tableHeaderStyle}>Codice Articolo</th>
+                <th style={tableHeaderStyle}>Descrizione</th>
+                <th style={{ ...tableHeaderStyle, width: "100px" }}>Quantita'</th>
+                <th style={tableHeaderStyle}>Prezzo Unit.</th>
+                <th style={{ ...tableHeaderStyle, width: "90px" }}>Sconto %</th>
+                <th style={tableHeaderStyle}>Imponibile</th>
+                <th style={tableHeaderStyle}>IVA %</th>
+                <th style={{ ...tableHeaderStyle, width: "50px" }}></th>
+              </tr>
+            </thead>
+            <tbody>
+              {displayItems.map((item, idx) => {
+                const isSearching = editingArticleIdx === idx;
+                const qtyError = qtyValidation.get(idx);
+
+                return (
+                  <tr
+                    key={idx}
+                    style={{
+                      borderBottom: "1px solid #e0e0e0",
+                      backgroundColor: idx % 2 === 0 ? "#fff" : "#fafafa",
+                    }}
+                  >
+                    {/* Article Code - searchable */}
+                    <td style={{ ...tableCellStyle, position: "relative", minWidth: "200px" }}>
+                      <div ref={isSearching ? dropdownRef : undefined} style={{ position: "relative" }}>
+                        <input
+                          type="text"
+                          value={isSearching ? articleSearch : item.articleCode}
+                          onChange={(e) => handleArticleSearchChange(idx, e.target.value)}
+                          onFocus={() => {
+                            setEditingArticleIdx(idx);
+                            setArticleSearch(item.articleCode);
+                          }}
+                          onKeyDown={(e) => handleArticleKeyDown(e, idx)}
+                          placeholder="Cerca articolo..."
+                          style={{
+                            width: "100%",
+                            padding: "6px 8px",
+                            fontSize: "13px",
+                            border: "1px solid #ddd",
+                            borderRadius: "4px",
+                            outline: "none",
+                            boxSizing: "border-box",
+                          }}
+                        />
+                        {item.productName && !isSearching && (
+                          <div style={{ fontSize: "11px", color: "#666", marginTop: "2px" }}>
+                            {item.productName}
+                          </div>
+                        )}
+                        {/* Dropdown */}
+                        {isSearching && articleResults.length > 0 && (
+                          <div
+                            style={{
+                              position: "absolute",
+                              top: "100%",
+                              left: 0,
+                              right: 0,
+                              zIndex: 1000,
+                              backgroundColor: "#fff",
+                              border: "1px solid #ddd",
+                              borderRadius: "4px",
+                              maxHeight: "250px",
+                              overflowY: "auto",
+                              boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
+                            }}
+                          >
+                            {articleResults.map((product, pIdx) => (
+                              <div
+                                key={product.id}
+                                onClick={() => handleSelectArticle(idx, product)}
+                                onMouseEnter={() => setHighlightedArticleIdx(pIdx)}
+                                style={{
+                                  padding: "8px 10px",
+                                  cursor: "pointer",
+                                  borderBottom:
+                                    pIdx < articleResults.length - 1
+                                      ? "1px solid #f3f4f6"
+                                      : "none",
+                                  backgroundColor:
+                                    pIdx === highlightedArticleIdx ? "#E3F2FD" : "#fff",
+                                }}
+                              >
+                                <div style={{ fontWeight: 600, fontSize: "13px" }}>
+                                  {product.article}
+                                </div>
+                                <div style={{ fontSize: "11px", color: "#666" }}>
+                                  {product.name}
+                                  {product.price != null && ` - € ${product.price.toFixed(2)}`}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </td>
+
+                    {/* Description */}
+                    <td style={tableCellStyle}>
+                      <span style={{ fontSize: "13px", color: "#555" }}>
+                        {item.articleDescription || item.productName}
+                      </span>
+                    </td>
+
+                    {/* Quantity */}
+                    <td style={tableCellStyle}>
+                      <input
+                        type="number"
+                        min="1"
+                        value={item.quantity}
+                        onChange={(e) => handleQtyChange(idx, parseInt(e.target.value) || 0)}
+                        style={{
+                          width: "80px",
+                          padding: "6px 8px",
+                          fontSize: "13px",
+                          border: `1px solid ${qtyError ? "#d32f2f" : "#ddd"}`,
+                          borderRadius: "4px",
+                          outline: "none",
+                          boxSizing: "border-box",
+                        }}
+                      />
+                      {qtyError && (
+                        <div style={{ fontSize: "10px", color: "#d32f2f", marginTop: "2px" }}>
+                          {qtyError}
+                        </div>
+                      )}
+                    </td>
+
+                    {/* Unit Price */}
+                    <td style={tableCellStyle}>
+                      <span style={{ fontSize: "13px" }}>
+                        {item.unitPrice > 0 ? `€ ${item.unitPrice.toFixed(2)}` : "-"}
+                      </span>
+                    </td>
+
+                    {/* Discount */}
+                    <td style={tableCellStyle}>
+                      <input
+                        type="number"
+                        min="0"
+                        max="100"
+                        step="0.01"
+                        value={item.discountPercent}
+                        onChange={(e) =>
+                          handleDiscountChange(idx, parseFloat(e.target.value) || 0)
+                        }
+                        style={{
+                          width: "70px",
+                          padding: "6px 8px",
+                          fontSize: "13px",
+                          border: "1px solid #ddd",
+                          borderRadius: "4px",
+                          outline: "none",
+                          boxSizing: "border-box",
+                        }}
+                      />
+                    </td>
+
+                    {/* Line Amount */}
+                    <td style={tableCellStyle}>
+                      <span style={{ fontSize: "13px" }}>
+                        {item.lineAmount > 0 ? `€ ${item.lineAmount.toFixed(2)}` : "-"}
+                      </span>
+                    </td>
+
+                    {/* VAT % */}
+                    <td style={tableCellStyle}>
+                      <span style={{ fontSize: "13px" }}>{item.vatPercent}%</span>
+                    </td>
+
+                    {/* Remove button */}
+                    <td style={tableCellStyle}>
+                      <button
+                        onClick={() => handleRemoveEditItem(idx)}
+                        style={{
+                          padding: "4px 8px",
+                          fontSize: "14px",
+                          border: "none",
+                          backgroundColor: "transparent",
+                          color: "#d32f2f",
+                          cursor: "pointer",
+                          borderRadius: "4px",
+                        }}
+                        title="Rimuovi riga"
+                      >
+                        {"✕"}
+                      </button>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+
+        {/* Add row button */}
+        <div style={{ marginTop: "12px" }}>
+          <button
+            onClick={handleAddEditItem}
+            style={{
+              padding: "8px 16px",
+              fontSize: "13px",
+              fontWeight: 600,
+              backgroundColor: "#fff",
+              color: "#1976d2",
+              border: "1px dashed #1976d2",
+              borderRadius: "6px",
+              cursor: "pointer",
+              width: "100%",
+            }}
+          >
+            + Aggiungi articolo
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // NORMAL VIEW MODE
   if (articles.length === 0) {
     return (
       <div style={{ padding: "16px" }}>
@@ -660,7 +1538,7 @@ function TabArticoli({
                 fontWeight: 600,
               }}
             >
-              {loading ? "⏳ Sincronizzazione..." : "🔄 Aggiorna Articoli"}
+              {loading ? "Sincronizzazione..." : "Aggiorna Articoli"}
             </button>
             {error && (
               <div
@@ -700,7 +1578,7 @@ function TabArticoli({
               fontWeight: 600,
             }}
           >
-            {loading ? "⏳ Sincronizzazione..." : "🔄 Aggiorna Articoli"}
+            {loading ? "Sincronizzazione..." : "Aggiorna Articoli"}
           </button>
         </div>
       )}
@@ -743,18 +1621,17 @@ function TabArticoli({
             <tr style={{ backgroundColor: "#f5f5f5" }}>
               <th style={tableHeaderStyle}>Codice Articolo</th>
               <th style={tableHeaderStyle}>Descrizione</th>
-              <th style={tableHeaderStyle}>Quantità</th>
+              <th style={tableHeaderStyle}>Quantita'</th>
               <th style={tableHeaderStyle}>Prezzo Unitario</th>
               <th style={tableHeaderStyle}>Sconto</th>
               <th style={tableHeaderStyle}>Imponibile</th>
               <th style={tableHeaderStyle}>IVA %</th>
-              <th style={tableHeaderStyle}>IVA €</th>
+              <th style={tableHeaderStyle}>IVA</th>
               <th style={tableHeaderStyle}>Totale + IVA</th>
             </tr>
           </thead>
           <tbody>
             {articles.map((item, index) => {
-              // Backend returns: unitPrice, discountPercent, lineAmount, articleDescription, vatPercent, vatAmount, lineTotalWithVat
               const unitPrice = (item as any).unitPrice ?? item.price ?? 0;
               const discount =
                 (item as any).discountPercent ?? item.discount ?? 0;
@@ -821,7 +1698,6 @@ function TabArticoli({
           );
           const totalDiscountAmount = subtotalBeforeDiscount - totalImponibile;
 
-          // Check if all articles have the same discount (global discount)
           const uniqueDiscounts = new Set(
             articles.map((item) => (item as any).discountPercent ?? 0),
           );
@@ -2117,10 +2993,48 @@ export function OrderCardNew({
   onEdit,
   token,
   searchQuery = "",
+  editing = false,
+  onEditDone,
 }: OrderCardProps) {
   const [activeTab, setActiveTab] = useState<
     "panoramica" | "articoli" | "logistica" | "finanziario" | "storico"
   >("panoramica");
+
+  const [editProgress, setEditProgress] = useState<{
+    progress: number;
+    operation: string;
+  } | null>(null);
+
+  // Force articoli tab when entering edit mode
+  useEffect(() => {
+    if (editing) {
+      setActiveTab("articoli");
+    }
+  }, [editing]);
+
+  // WebSocket subscriptions for edit progress
+  const { subscribe } = useWebSocketContext();
+  useEffect(() => {
+    if (!editing) return;
+    const unsub1 = subscribe("ORDER_EDIT_PROGRESS", (payload: any) => {
+      if (payload.recordId === order.id) {
+        setEditProgress({
+          progress: payload.progress,
+          operation: payload.operation,
+        });
+      }
+    });
+    const unsub2 = subscribe("ORDER_EDIT_COMPLETE", (payload: any) => {
+      if (payload.recordId === order.id) {
+        setEditProgress(null);
+        onEditDone?.();
+      }
+    });
+    return () => {
+      unsub1();
+      unsub2();
+    };
+  }, [editing, order.id, subscribe, onEditDone]);
 
   const [ddtQuickProgress, setDdtQuickProgress] = useState<{
     active: boolean;
@@ -2821,14 +3735,28 @@ export function OrderCardNew({
               <TabPanoramica order={order} searchQuery={searchQuery} />
             )}
             {activeTab === "articoli" && (
-              <TabArticoli
-                items={order.items}
-                orderId={order.id}
-                archibaldOrderId={order.id}
-                token={token}
-                onTotalsUpdate={setArticlesTotals}
-                searchQuery={searchQuery}
-              />
+              <>
+                {editProgress && (
+                  <div style={{ padding: "16px 16px 0" }}>
+                    <ProgressBar
+                      percent={editProgress.progress}
+                      stage={editProgress.operation}
+                      color="#1976d2"
+                    />
+                  </div>
+                )}
+                <TabArticoli
+                  items={order.items}
+                  orderId={order.id}
+                  archibaldOrderId={order.id}
+                  token={token}
+                  onTotalsUpdate={setArticlesTotals}
+                  searchQuery={searchQuery}
+                  editing={editing}
+                  onEditDone={onEditDone}
+                  editProgress={editProgress}
+                />
+              </>
             )}
             {activeTab === "logistica" && (
               <TabLogistica
