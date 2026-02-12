@@ -3144,10 +3144,12 @@ export function OrderCardNew({
     progress: number;
     operation: string;
   } | null>(null);
+  const deleteHandledRef = useRef(false);
 
   // WebSocket subscriptions for delete progress
   useEffect(() => {
     if (!deletingOrder) return;
+    deleteHandledRef.current = false;
     const unsub1 = subscribe("ORDER_DELETE_PROGRESS", (payload: any) => {
       if (payload.recordId === order.id) {
         setDeleteProgress({
@@ -3157,7 +3159,8 @@ export function OrderCardNew({
       }
     });
     const unsub2 = subscribe("ORDER_DELETE_COMPLETE", (payload: any) => {
-      if (payload.recordId === order.id) {
+      if (payload.recordId === order.id && !deleteHandledRef.current) {
+        deleteHandledRef.current = true;
         setDeleteProgress(null);
         setDeletingOrder(false);
         onDeleteDone?.();
@@ -3192,10 +3195,13 @@ export function OrderCardNew({
         throw new Error(data.error || `Errore ${response.status}`);
       }
 
-      // If WebSocket doesn't fire ORDER_DELETE_COMPLETE, handle via HTTP response
-      setDeleteProgress(null);
-      setDeletingOrder(false);
-      onDeleteDone?.();
+      // Fallback: if WebSocket ORDER_DELETE_COMPLETE already handled, skip
+      if (!deleteHandledRef.current) {
+        deleteHandledRef.current = true;
+        setDeleteProgress(null);
+        setDeletingOrder(false);
+        onDeleteDone?.();
+      }
     } catch (err) {
       console.error("Delete order failed:", err);
       setDeleteProgress(null);
@@ -3765,7 +3771,7 @@ export function OrderCardNew({
                     📤 Invia a Verona
                   </button>
                 )}
-                {canSendToVerona && (
+                {canSendToVerona && !editing && !deletingOrder && (
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
@@ -3797,7 +3803,7 @@ export function OrderCardNew({
                     ✏ Modifica
                   </button>
                 )}
-                {canSendToVerona && (
+                {canSendToVerona && !editing && (
                   <button
                     disabled={deletingOrder}
                     onClick={(e) => {
@@ -3811,20 +3817,25 @@ export function OrderCardNew({
                       padding: "6px 12px",
                       fontSize: "12px",
                       fontWeight: 600,
-                      backgroundColor: "#fff",
+                      backgroundColor: deletingOrder ? "#ffcdd2" : "#fff",
                       color: "#d32f2f",
                       border: "1px solid #d32f2f",
                       borderRadius: "6px",
-                      cursor: "pointer",
+                      cursor: deletingOrder ? "not-allowed" : "pointer",
+                      opacity: deletingOrder ? 0.6 : 1,
                       transition: "all 0.2s",
                     }}
                     onMouseEnter={(e) => {
-                      e.currentTarget.style.backgroundColor = "#d32f2f";
-                      e.currentTarget.style.color = "#fff";
+                      if (!deletingOrder) {
+                        e.currentTarget.style.backgroundColor = "#d32f2f";
+                        e.currentTarget.style.color = "#fff";
+                      }
                     }}
                     onMouseLeave={(e) => {
-                      e.currentTarget.style.backgroundColor = "#fff";
-                      e.currentTarget.style.color = "#d32f2f";
+                      if (!deletingOrder) {
+                        e.currentTarget.style.backgroundColor = "#fff";
+                        e.currentTarget.style.color = "#d32f2f";
+                      }
                     }}
                   >
                     🗑 Elimina

@@ -245,7 +245,6 @@ export function OrderHistory() {
   const collapsibleRef = useRef<HTMLDivElement>(null);
   const collapsibleHeightRef = useRef(0);
   const sentinelRef = useRef<HTMLDivElement>(null);
-  const sentinelObserverRef = useRef<IntersectionObserver | null>(null);
   const { currentIndex, totalMatches, goNext, goPrev } = useSearchMatches(
     resultsContainerRef,
     debouncedSearch,
@@ -321,26 +320,21 @@ export function OrderHistory() {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  // Infinite scroll: callback ref so observer attaches when sentinel mounts
-  const sentinelCallbackRef = useCallback((node: HTMLDivElement | null) => {
-    if (sentinelObserverRef.current) {
-      sentinelObserverRef.current.disconnect();
-      sentinelObserverRef.current = null;
-    }
-    if (node) {
-      sentinelRef.current = node;
-      const observer = new IntersectionObserver(
-        (entries) => {
-          if (entries[0].isIntersecting) {
-            setVisibleCount((prev) => prev + 30);
-          }
-        },
-        { rootMargin: "200px" },
-      );
-      observer.observe(node);
-      sentinelObserverRef.current = observer;
-    }
-  }, []);
+  // Infinite scroll: re-create observer after each batch so it fires again
+  useEffect(() => {
+    const sentinel = sentinelRef.current;
+    if (!sentinel || !hasMoreOrders) return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting) {
+          setVisibleCount((prev) => prev + 30);
+        }
+      },
+      { rootMargin: "200px" },
+    );
+    observer.observe(sentinel);
+    return () => observer.disconnect();
+  }, [visibleCount, hasMoreOrders]);
 
   // Scroll highlighted customer into view
   useEffect(() => {
@@ -1819,14 +1813,7 @@ export function OrderHistory() {
           </div>
 
           {/* Infinite scroll sentinel */}
-          {hasMoreOrders && (
-            <div
-              ref={sentinelCallbackRef}
-              style={{
-                height: "1px",
-              }}
-            />
-          )}
+          <div ref={sentinelRef} style={{ height: "1px" }} />
         </div>
       )}
 
