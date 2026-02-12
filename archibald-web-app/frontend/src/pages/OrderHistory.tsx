@@ -1795,6 +1795,7 @@ export function OrderHistory() {
                           setEditingOrderId(null);
                           fetchOrders();
                         }}
+                        onDeleteDone={fetchOrders}
                       />
                     );
                   })}

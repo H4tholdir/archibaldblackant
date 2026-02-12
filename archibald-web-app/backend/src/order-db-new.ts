@@ -880,6 +880,21 @@ export class OrderDatabaseNew {
     return map;
   }
 
+  deleteOrderById(userId: string, orderId: string): void {
+    this.db
+      .prepare("DELETE FROM order_state_history WHERE order_id = ?")
+      .run(orderId);
+    this.db
+      .prepare("DELETE FROM order_articles WHERE order_id = ?")
+      .run(orderId);
+    const result = this.db
+      .prepare("DELETE FROM orders WHERE id = ? AND user_id = ?")
+      .run(orderId, userId);
+    logger.info(
+      `[OrderDatabaseNew] Deleted order ${orderId} (${result.changes} rows)`,
+    );
+  }
+
   deleteOrderArticles(orderId: string): void {
     const result = this.db
       .prepare("DELETE FROM order_articles WHERE order_id = ?")

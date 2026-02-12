@@ -6756,6 +6756,114 @@ app.post(
   },
 );
 
+// Delete order from Archibald ERP - POST /api/orders/:orderId/delete-from-archibald
+app.post(
+  "/api/orders/:orderId/delete-from-archibald",
+  authenticateJWT,
+  async (req: AuthRequest, res: Response) => {
+    const userId = req.user?.userId;
+    if (!userId) {
+      return res.status(401).json({ success: false, error: "Unauthorized" });
+    }
+
+    const { orderId } = req.params;
+
+    try {
+      const orderDbInstance = OrderDatabaseNew.getInstance();
+      const order = orderDbInstance.getOrderById(userId, orderId);
+
+      if (!order) {
+        return res.status(404).json({
+          success: false,
+          error: "Ordine non trovato",
+        });
+      }
+
+      const { getDeleteProgressMilestone } = await import(
+        "./job-progress-mapper"
+      );
+
+      const bot = new ArchibaldBot(userId);
+      let botSuccess = false;
+
+      let wsService: any;
+      try {
+        const mod = require("./fresis-history-realtime.service");
+        wsService = mod.FresisHistoryRealtimeService.getInstance();
+      } catch {
+        // WS not available
+      }
+
+      bot.setProgressCallback(async (category: string) => {
+        if (!wsService) return;
+        const milestone = getDeleteProgressMilestone(category);
+        if (!milestone) return;
+        wsService.emitOrderDeleteProgress(
+          userId,
+          orderId,
+          milestone.progress,
+          milestone.label,
+        );
+      });
+
+      try {
+        await bot.initialize();
+
+        const result = await bot.deleteOrderFromArchibald(orderId);
+
+        if (!result.success) {
+          return res.status(500).json({
+            success: false,
+            error: result.message,
+          });
+        }
+
+        botSuccess = true;
+
+        // Delete local order and its child records
+        orderDbInstance.deleteOrderById(userId, orderId);
+
+        // Emit WebSocket complete event
+        if (wsService) {
+          wsService.emitOrderDeleteComplete(userId, orderId);
+        }
+
+        logger.info("Order deleted from Archibald", {
+          userId,
+          orderId,
+          botMessage: result.message,
+        });
+
+        res.json({
+          success: true,
+          message: result.message,
+        });
+      } finally {
+        try {
+          if (!botSuccess) {
+            (bot as any).hasError = true;
+          }
+          await bot.close();
+        } catch (closeError) {
+          logger.error("Error closing bot after delete-from-archibald", {
+            closeError,
+          });
+        }
+      }
+    } catch (error) {
+      logger.error("Error deleting order from Archibald", {
+        error: error instanceof Error ? error.message : String(error),
+        userId,
+        orderId,
+      });
+      res.status(500).json({
+        success: false,
+        error: "Errore durante la cancellazione da Archibald",
+      });
+    }
+  },
+);
+
 // Get lifecycle summary for multiple orders - GET /api/orders/lifecycle-summary
 app.get(
   "/api/orders/lifecycle-summary",

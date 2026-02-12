@@ -19,6 +19,7 @@ interface OrderCardProps {
   onToggle: () => void;
   onSendToVerona?: (orderId: string, customerName: string) => void;
   onEdit?: (orderId: string) => void;
+  onDeleteDone?: () => void;
   token?: string;
   searchQuery?: string;
   editing?: boolean;
@@ -3090,6 +3091,7 @@ export function OrderCardNew({
   onToggle,
   onSendToVerona,
   onEdit,
+  onDeleteDone,
   token,
   searchQuery = "",
   editing = false,
@@ -3134,6 +3136,75 @@ export function OrderCardNew({
       unsub2();
     };
   }, [editing, order.id, subscribe, onEditDone]);
+
+  // Delete state
+  const [deleteConfirm, setDeleteConfirm] = useState(false);
+  const [deletingOrder, setDeletingOrder] = useState(false);
+  const [deleteProgress, setDeleteProgress] = useState<{
+    progress: number;
+    operation: string;
+  } | null>(null);
+
+  // WebSocket subscriptions for delete progress
+  useEffect(() => {
+    if (!deletingOrder) return;
+    const unsub1 = subscribe("ORDER_DELETE_PROGRESS", (payload: any) => {
+      if (payload.recordId === order.id) {
+        setDeleteProgress({
+          progress: payload.progress,
+          operation: payload.operation,
+        });
+      }
+    });
+    const unsub2 = subscribe("ORDER_DELETE_COMPLETE", (payload: any) => {
+      if (payload.recordId === order.id) {
+        setDeleteProgress(null);
+        setDeletingOrder(false);
+        onDeleteDone?.();
+      }
+    });
+    return () => {
+      unsub1();
+      unsub2();
+    };
+  }, [deletingOrder, order.id, subscribe, onDeleteDone]);
+
+  const handleDeleteOrder = async () => {
+    setDeleteConfirm(false);
+    setDeletingOrder(true);
+    setDeleteProgress({ progress: 5, operation: "Avvio eliminazione..." });
+
+    try {
+      const jwt = token || localStorage.getItem("archibald_jwt") || "";
+      const response = await fetch(
+        `/api/orders/${order.id}/delete-from-archibald`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${jwt}`,
+            "Content-Type": "application/json",
+          },
+        },
+      );
+
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}));
+        throw new Error(data.error || `Errore ${response.status}`);
+      }
+
+      // If WebSocket doesn't fire ORDER_DELETE_COMPLETE, handle via HTTP response
+      setDeleteProgress(null);
+      setDeletingOrder(false);
+      onDeleteDone?.();
+    } catch (err) {
+      console.error("Delete order failed:", err);
+      setDeleteProgress(null);
+      setDeletingOrder(false);
+      alert(
+        `Errore durante l'eliminazione: ${err instanceof Error ? err.message : "Errore sconosciuto"}`,
+      );
+    }
+  };
 
   const [ddtQuickProgress, setDdtQuickProgress] = useState<{
     active: boolean;
@@ -3728,9 +3799,10 @@ export function OrderCardNew({
                 )}
                 {canSendToVerona && (
                   <button
+                    disabled={deletingOrder}
                     onClick={(e) => {
                       e.stopPropagation();
-                      console.log("TODO: Elimina", order.id);
+                      setDeleteConfirm(true);
                     }}
                     style={{
                       display: "inline-flex",
@@ -3762,6 +3834,127 @@ export function OrderCardNew({
             </div>
           </div>
         </div>
+
+        {/* Delete progress bar */}
+        {deletingOrder && deleteProgress && (
+          <div style={{ marginTop: "12px" }}>
+            <div
+              style={{
+                fontSize: "12px",
+                color: "#d32f2f",
+                marginBottom: "4px",
+                fontWeight: 600,
+              }}
+            >
+              {deleteProgress.operation}
+            </div>
+            <div
+              style={{
+                height: "6px",
+                backgroundColor: "#ffcdd2",
+                borderRadius: "3px",
+                overflow: "hidden",
+              }}
+            >
+              <div
+                style={{
+                  height: "100%",
+                  width: `${deleteProgress.progress}%`,
+                  backgroundColor: "#d32f2f",
+                  borderRadius: "3px",
+                  transition: "width 0.3s ease",
+                }}
+              />
+            </div>
+          </div>
+        )}
+
+        {/* Delete confirm modal */}
+        {deleteConfirm && (
+          <div
+            style={{
+              position: "fixed",
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              backgroundColor: "rgba(0,0,0,0.5)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              zIndex: 2000,
+            }}
+            onClick={() => setDeleteConfirm(false)}
+          >
+            <div
+              style={{
+                backgroundColor: "#fff",
+                borderRadius: "12px",
+                padding: "24px",
+                maxWidth: "400px",
+                width: "90%",
+                boxShadow: "0 8px 32px rgba(0,0,0,0.2)",
+              }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <h3 style={{ margin: "0 0 12px", color: "#d32f2f" }}>
+                Conferma eliminazione
+              </h3>
+              <p style={{ margin: "0 0 8px", color: "#333" }}>
+                Vuoi eliminare l'ordine{" "}
+                <strong>{order.orderNumber || order.id}</strong> da Archibald?
+              </p>
+              <p
+                style={{
+                  margin: "0 0 20px",
+                  color: "#666",
+                  fontSize: "13px",
+                }}
+              >
+                L'ordine verra' cancellato sia dal sistema locale che da
+                Archibald ERP. Questa azione non e' reversibile.
+              </p>
+              <div
+                style={{
+                  display: "flex",
+                  gap: "8px",
+                  justifyContent: "flex-end",
+                }}
+              >
+                <button
+                  onClick={() => setDeleteConfirm(false)}
+                  style={{
+                    padding: "8px 16px",
+                    fontSize: "13px",
+                    fontWeight: 600,
+                    backgroundColor: "#fff",
+                    color: "#666",
+                    border: "1px solid #ddd",
+                    borderRadius: "6px",
+                    cursor: "pointer",
+                  }}
+                >
+                  Annulla
+                </button>
+                <button
+                  onClick={handleDeleteOrder}
+                  style={{
+                    padding: "8px 16px",
+                    fontSize: "13px",
+                    fontWeight: 600,
+                    backgroundColor: "#d32f2f",
+                    color: "#fff",
+                    border: "none",
+                    borderRadius: "6px",
+                    cursor: "pointer",
+                  }}
+                >
+                  Elimina definitivamente
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Expand/collapse icon */}
         <div

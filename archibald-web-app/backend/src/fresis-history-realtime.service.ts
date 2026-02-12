@@ -11,6 +11,8 @@ export type FresisHistoryEventType =
   | "FRESIS_HISTORY_BULK_IMPORTED"
   | "ORDER_EDIT_PROGRESS"
   | "ORDER_EDIT_COMPLETE"
+  | "ORDER_DELETE_PROGRESS"
+  | "ORDER_DELETE_COMPLETE"
   | "ORDER_SEND_TO_VERONA_PROGRESS";
 
 export class FresisHistoryRealtimeService {
@@ -206,6 +208,58 @@ export class FresisHistoryRealtimeService {
     } catch (error) {
       logger.error(
         "[FresisHistoryRealtime] Failed to emit ORDER_EDIT_COMPLETE",
+        { userId, orderId, error },
+      );
+    }
+  }
+
+  public emitOrderDeleteProgress(
+    userId: string,
+    orderId: string,
+    progress: number,
+    operation: string,
+  ): void {
+    try {
+      const event: WebSocketMessage = {
+        type: "ORDER_DELETE_PROGRESS",
+        payload: {
+          recordId: orderId,
+          progress,
+          operation,
+          timestamp: new Date().toISOString(),
+        },
+        timestamp: new Date().toISOString(),
+      };
+
+      this.wsService.broadcast(userId, event);
+    } catch (error) {
+      logger.error(
+        "[FresisHistoryRealtime] Failed to emit ORDER_DELETE_PROGRESS",
+        { userId, orderId, error },
+      );
+    }
+  }
+
+  public emitOrderDeleteComplete(userId: string, orderId: string): void {
+    try {
+      const event: WebSocketMessage = {
+        type: "ORDER_DELETE_COMPLETE",
+        payload: {
+          recordId: orderId,
+          timestamp: new Date().toISOString(),
+        },
+        timestamp: new Date().toISOString(),
+      };
+
+      this.wsService.broadcast(userId, event);
+
+      logger.debug("[FresisHistoryRealtime] ORDER_DELETE_COMPLETE broadcast", {
+        userId,
+        orderId,
+      });
+    } catch (error) {
+      logger.error(
+        "[FresisHistoryRealtime] Failed to emit ORDER_DELETE_COMPLETE",
         { userId, orderId, error },
       );
     }

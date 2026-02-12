@@ -45,6 +45,8 @@ export class FresisHistoryRealtimeService {
   private _editProgressMap: Map<string, EditProgressState> = new Map();
   private orderEditProgressHandlers: Set<UpdateHandler> = new Set();
   private _orderEditProgressMap: Map<string, EditProgressState> = new Map();
+  private orderDeleteProgressHandlers: Set<UpdateHandler> = new Set();
+  private _orderDeleteProgressMap: Map<string, DeleteProgressState> = new Map();
   private sendToVeronaProgressHandlers: Set<UpdateHandler> = new Set();
   private _sendToVeronaProgressMap: Map<string, SendToVeronaProgressState> =
     new Map();
@@ -278,6 +280,65 @@ export class FresisHistoryRealtimeService {
     }
   }
 
+  public getOrderDeleteProgress(
+    orderId: string,
+  ): DeleteProgressState | undefined {
+    return this._orderDeleteProgressMap.get(orderId);
+  }
+
+  public clearOrderDeleteProgress(orderId: string): void {
+    this._orderDeleteProgressMap.delete(orderId);
+  }
+
+  public onOrderDeleteProgress(handler: UpdateHandler): () => void {
+    this.orderDeleteProgressHandlers.add(handler);
+    return () => {
+      this.orderDeleteProgressHandlers.delete(handler);
+    };
+  }
+
+  private notifyOrderDeleteProgress(): void {
+    this.orderDeleteProgressHandlers.forEach((handler) => {
+      try {
+        handler();
+      } catch (error) {
+        console.error(
+          "[FresisHistoryRealtime] Error in order delete progress handler:",
+          error,
+        );
+      }
+    });
+  }
+
+  public handleOrderDeleteProgress(payload: unknown): void {
+    try {
+      const data = payload as DeleteProgressPayload;
+      this._orderDeleteProgressMap.set(data.recordId, {
+        progress: data.progress,
+        operation: data.operation,
+      });
+      this.notifyOrderDeleteProgress();
+    } catch (error) {
+      console.error(
+        "[FresisHistoryRealtime] Error handling ORDER_DELETE_PROGRESS:",
+        error,
+      );
+    }
+  }
+
+  public handleOrderDeleteComplete(payload: unknown): void {
+    try {
+      const data = payload as HistoryEventPayload;
+      this._orderDeleteProgressMap.delete(data.recordId);
+      this.notifyOrderDeleteProgress();
+    } catch (error) {
+      console.error(
+        "[FresisHistoryRealtime] Error handling ORDER_DELETE_COMPLETE:",
+        error,
+      );
+    }
+  }
+
   public getSendToVeronaProgress(
     orderId: string,
   ): SendToVeronaProgressState | undefined {
@@ -389,6 +450,16 @@ export class FresisHistoryRealtimeService {
     unsubscribers.push(
       subscribe("ORDER_EDIT_COMPLETE", (payload) =>
         this.handleOrderEditComplete(payload),
+      ),
+    );
+    unsubscribers.push(
+      subscribe("ORDER_DELETE_PROGRESS", (payload) =>
+        this.handleOrderDeleteProgress(payload),
+      ),
+    );
+    unsubscribers.push(
+      subscribe("ORDER_DELETE_COMPLETE", (payload) =>
+        this.handleOrderDeleteComplete(payload),
       ),
     );
     unsubscribers.push(
