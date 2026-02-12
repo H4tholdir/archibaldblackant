@@ -6579,6 +6579,7 @@ export class ArchibaldBot {
     // Step 2: Focus INVENTTABLE input
     let inventtableFocused = false;
 
+    // Strategy 1: Find visible INVENTTABLE input and focus via JS
     const inventtableId = await this.page.evaluate(() => {
       const inputs = Array.from(
         document.querySelectorAll('input[id*="INVENTTABLE"][id$="_I"]'),
@@ -6601,23 +6602,41 @@ export class ArchibaldBot {
           el.click();
         }
       }, inventtableId);
-      await this.wait(200);
+      await this.wait(300);
 
       inventtableFocused = await this.page.evaluate(() => {
         const focused = document.activeElement as HTMLInputElement;
         return focused?.id?.includes("INVENTTABLE") || false;
       });
+      if (inventtableFocused) {
+        logger.debug("[editOrder] INVENTTABLE focused via JS focus (Strategy 1)");
+      }
     }
 
+    // Strategy 2: Click on the article cell in the editing row (N/A for new rows, or existing article text)
     if (!inventtableFocused) {
-      // Try clicking N/A cell or dropdown cell in edit row
-      const naCell = await this.page.evaluate(() => {
-        const row = document.querySelector('tr[id*="editnew"], tr[id*="DXEditingRow"]');
+      const articleCell = await this.page.evaluate((gridName: string | null) => {
+        let container: Element | Document = document;
+        if (gridName) {
+          const gridEl = document.getElementById(gridName) || document.querySelector(`[id*="${gridName}"]`);
+          if (gridEl) container = gridEl;
+        }
+        const row = container.querySelector('tr[id*="editnew"], tr[id*="DXEditingRow"]');
         if (!row) return null;
         const cells = Array.from(row.querySelectorAll("td"));
         for (const cell of cells) {
           const text = cell.textContent?.trim() || "";
-          if (text === "N/A" || text.includes("N/A") || cell.querySelector('[class*="dxeDropDown"]')) {
+          if (text === "N/A" || text.includes("N/A") || cell.querySelector('[class*="dxeDropDown"]') || cell.querySelector('input[id*="INVENTTABLE"]')) {
+            const rect = cell.getBoundingClientRect();
+            if (rect.width > 0) {
+              return { x: rect.x + rect.width / 2, y: rect.y + rect.height / 2 };
+            }
+          }
+        }
+        // Fallback: click the first cell that contains an input or has a dropdown editor
+        for (const cell of cells) {
+          const hasInput = cell.querySelector('input') || cell.querySelector('[class*="dxeEditArea"]');
+          if (hasInput) {
             const rect = cell.getBoundingClientRect();
             if (rect.width > 0) {
               return { x: rect.x + rect.width / 2, y: rect.y + rect.height / 2 };
@@ -6625,24 +6644,142 @@ export class ArchibaldBot {
           }
         }
         return null;
-      });
+      }, this.salesLinesGridName);
 
-      if (naCell) {
-        await this.page.mouse.click(naCell.x, naCell.y);
+      if (articleCell) {
+        await this.page.mouse.click(articleCell.x, articleCell.y);
         await this.wait(500);
+
         inventtableFocused = await this.page.evaluate(() => {
           const focused = document.activeElement as HTMLInputElement;
           return focused?.id?.includes("INVENTTABLE") || false;
         });
+
+        if (!inventtableFocused) {
+          // After clicking, the INVENTTABLE input might now be visible but not focused
+          const newInventtableId = await this.page.evaluate(() => {
+            const inputs = Array.from(
+              document.querySelectorAll('input[id*="INVENTTABLE"][id$="_I"]'),
+            );
+            for (const inp of inputs) {
+              const el = inp as HTMLElement;
+              if (el.offsetParent !== null && el.offsetWidth > 0) {
+                return (inp as HTMLInputElement).id;
+              }
+            }
+            return null;
+          });
+          if (newInventtableId) {
+            await this.page.evaluate((inputId: string) => {
+              const el = document.getElementById(inputId) as HTMLInputElement;
+              if (el) { el.focus(); el.click(); }
+            }, newInventtableId);
+            await this.wait(200);
+            inventtableFocused = await this.page.evaluate(() => {
+              const focused = document.activeElement as HTMLInputElement;
+              return focused?.id?.includes("INVENTTABLE") || false;
+            });
+          }
+        }
+
+        if (inventtableFocused) {
+          logger.debug("[editOrder] INVENTTABLE focused after clicking cell (Strategy 2)");
+        }
+      }
+    }
+
+    // Strategy 3: DevExpress FocusEditor API
+    if (!inventtableFocused && this.salesLinesGridName) {
+      try {
+        await this.page.evaluate((gridName: string) => {
+          const w = window as any;
+          const grid = w.ASPxClientControl?.GetControlCollection?.()?.GetByName?.(gridName);
+          if (!grid) return;
+          // Try focusing each column editor until we find INVENTTABLE
+          for (let col = 0; col < 10; col++) {
+            try {
+              const editor = grid.GetEditor?.(col);
+              if (editor) {
+                const mainEl = editor.GetMainElement?.();
+                const inputEl = editor.GetInputElement?.();
+                const id = mainEl?.id || inputEl?.id || "";
+                if (id.includes("INVENTTABLE")) {
+                  editor.Focus?.();
+                  if (inputEl) { inputEl.focus(); inputEl.click(); }
+                  break;
+                }
+              }
+            } catch (_) { /* skip column */ }
+          }
+        }, this.salesLinesGridName);
+        await this.wait(300);
+
+        inventtableFocused = await this.page.evaluate(() => {
+          const focused = document.activeElement as HTMLInputElement;
+          return focused?.id?.includes("INVENTTABLE") || false;
+        });
+
+        if (inventtableFocused) {
+          logger.debug("[editOrder] INVENTTABLE focused via DevExpress API (Strategy 3)");
+        }
+      } catch (_e) {
+        // ignore
+      }
+    }
+
+    // Strategy 4: Tab navigation fallback
+    if (!inventtableFocused) {
+      logger.warn("[editOrder] Falling back to Tab navigation for INVENTTABLE (Strategy 4)");
+      try {
+        // Click on the grid toolbar area first
+        await this.page.evaluate(() => {
+          const toolbar = document.querySelector('[id*="dviSALESLINEs"] [class*="ToolBar"]');
+          if (toolbar) (toolbar as HTMLElement).click();
+        });
+        await this.wait(200);
+
+        for (let t = 0; t < 6; t++) {
+          await this.page.keyboard.press("Tab");
+          await this.wait(100);
+          inventtableFocused = await this.page.evaluate(() => {
+            const focused = document.activeElement as HTMLInputElement;
+            return focused?.id?.includes("INVENTTABLE") || false;
+          });
+          if (inventtableFocused) {
+            logger.debug(`[editOrder] INVENTTABLE focused after ${t + 1} Tab presses (Strategy 4)`);
+            break;
+          }
+        }
+      } catch (_e) {
+        // ignore
       }
     }
 
     if (!inventtableFocused) {
+      const debugInfo = await this.page.evaluate(() => {
+        const allInventtable = Array.from(
+          document.querySelectorAll('input[id*="INVENTTABLE"]'),
+        ).map((inp) => ({
+          id: (inp as HTMLInputElement).id,
+          visible: (inp as HTMLElement).offsetParent !== null,
+          w: (inp as HTMLElement).offsetWidth,
+          h: (inp as HTMLElement).offsetHeight,
+        }));
+        const editRow = document.querySelector('tr[id*="DXEditingRow"], tr[id*="editnew"]');
+        return {
+          inventtableInputs: allInventtable,
+          editRowExists: !!editRow,
+          editRowId: editRow?.id || null,
+          activeElementTag: document.activeElement?.tagName,
+          activeElementId: (document.activeElement as HTMLElement)?.id,
+        };
+      });
+      logger.error("[editOrder] INVENTTABLE focus failed - debug", debugInfo);
       await this.page.screenshot({
         path: `logs/edit-inventtable-focus-failed-${Date.now()}.png`,
         fullPage: true,
       });
-      throw new Error("INVENTTABLE field not focused for article edit");
+      throw new Error(`INVENTTABLE field not focused for article edit. Debug: ${JSON.stringify(debugInfo)}`);
     }
 
     // Step 3: Type article code (optimized: paste all except last char, then type last)
