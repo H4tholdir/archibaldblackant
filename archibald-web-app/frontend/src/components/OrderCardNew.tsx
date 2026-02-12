@@ -633,6 +633,7 @@ function TabArticoli({
   const [submittingEdit, setSubmittingEdit] = useState(false);
   const [syncingProducts, setSyncingProducts] = useState(false);
   const [syncProductsMsg, setSyncProductsMsg] = useState("");
+  const [syncingArticles, setSyncingArticles] = useState(false);
   const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const qtyTimeoutRef = useRef<Map<number, NodeJS.Timeout>>(new Map());
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -683,21 +684,68 @@ function TabArticoli({
       setEditingArticleIdx(null);
       setConfirmModal(null);
       setSubmittingEdit(false);
+      setSyncingArticles(false);
       return;
     }
 
+    let cancelled = false;
+
     (async () => {
+      // 1. Sync articles from server first
+      setSyncingArticles(true);
+      let freshArticles = articles;
+
+      if (token && orderId) {
+        try {
+          const syncResponse = await fetchWithRetry(
+            `/api/orders/${orderId}/sync-articles`,
+            {
+              method: "POST",
+              headers: {
+                Authorization: `Bearer ${token}`,
+                "Content-Type": "application/json",
+              },
+            },
+          );
+
+          if (syncResponse.ok) {
+            const syncResult = await syncResponse.json();
+            if (syncResult.success && syncResult.data.articles.length > 0) {
+              freshArticles = syncResult.data.articles;
+              if (!cancelled) {
+                setArticles(freshArticles);
+                if (onTotalsUpdate && syncResult.data.totalVatAmount && syncResult.data.totalWithVat) {
+                  onTotalsUpdate({
+                    totalVatAmount: syncResult.data.totalVatAmount,
+                    totalWithVat: syncResult.data.totalWithVat,
+                  });
+                }
+              }
+            }
+          }
+        } catch (err) {
+          console.warn("[TabArticoli] Sync articles before edit failed:", err);
+        }
+      }
+
+      if (cancelled) return;
+      setSyncingArticles(false);
+
+      // 2. Sync product cache if empty
       const count = await db.products.count();
       if (count === 0) {
         setSyncingProducts(true);
         const jwt = localStorage.getItem("archibald_jwt") || "";
         await CachePopulationService.getInstance().populateCache(jwt, (p) => {
-          setSyncProductsMsg(p.message);
+          if (!cancelled) setSyncProductsMsg(p.message);
         });
-        setSyncingProducts(false);
+        if (!cancelled) setSyncingProducts(false);
       }
 
-      const mapped: EditItem[] = articles.map((item: any) => ({
+      if (cancelled) return;
+
+      // 3. Initialize edit items from fresh articles
+      const mapped: EditItem[] = freshArticles.map((item: any) => ({
         articleCode: item.articleCode || "",
         productName: item.productName || "",
         quantity: item.quantity || 0,
@@ -712,7 +760,9 @@ function TabArticoli({
       setEditItems(mapped);
       setOriginalItems(mapped.map((m) => ({ ...m })));
     })();
-  }, [editing, articles]);
+
+    return () => { cancelled = true; };
+  }, [editing]);
 
   // Click outside article dropdown
   useEffect(() => {
@@ -1038,6 +1088,29 @@ function TabArticoli({
       setLoading(false);
     }
   };
+
+  // Syncing articles overlay
+  if (editing && syncingArticles) {
+    return (
+      <div style={{ padding: "32px", textAlign: "center" }}>
+        <div
+          style={{
+            fontSize: "48px",
+            marginBottom: "16px",
+            animation: "spin 1s linear infinite",
+          }}
+        >
+          {"⏳"}
+        </div>
+        <p style={{ fontSize: "16px", color: "#666", marginBottom: "8px" }}>
+          Sincronizzazione articoli da Archibald...
+        </p>
+        <style>
+          {`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}
+        </style>
+      </div>
+    );
+  }
 
   // Syncing products overlay
   if (editing && syncingProducts) {
