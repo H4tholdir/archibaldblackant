@@ -6,6 +6,7 @@ import type { Order } from "../types/order";
 export type OrderStatusCategory =
   | "on-archibald"
   | "pending-approval"
+  | "in-processing"
   | "blocked"
   | "in-transit"
   | "delivered"
@@ -41,6 +42,14 @@ const ORDER_STATUS_STYLES: Record<OrderStatusCategory, OrderStatusStyle> = {
     description: "Inviato a Verona, in attesa che operatore lo elabori",
     borderColor: "#F57F17",
     backgroundColor: "#FFF9C4",
+  },
+  "in-processing": {
+    category: "in-processing",
+    label: "In lavorazione",
+    description:
+      "Accettato da Verona, in attesa di entrare nel flusso di spedizione",
+    borderColor: "#0277BD",
+    backgroundColor: "#B3E5FC",
   },
   blocked: {
     category: "blocked",
@@ -81,8 +90,8 @@ const ORDER_STATUS_STYLES: Record<OrderStatusCategory, OrderStatusStyle> = {
     category: "paid",
     label: "Pagato",
     description: "Fattura saldata, ordine completato",
-    borderColor: "#1B5E20",
-    backgroundColor: "#C8E6C9",
+    borderColor: "#2E7D32",
+    backgroundColor: "#E8F5E9",
   },
 };
 
@@ -152,7 +161,8 @@ export function isOverdue(order: Order): boolean {
  * 5. In transito - Has tracking/DDT but not yet delivered
  * 6. Bloccato - Transfer errors
  * 7. In attesa - Waiting for approval
- * 8. Su Archibald - Default/fallback
+ * 8. In lavorazione - Accepted by Verona (ORD/ + Trasferito), not yet shipped
+ * 9. Su Archibald - Default/fallback
  */
 export function getOrderStatus(order: Order): OrderStatusStyle {
   if (order.invoiceNumber && isInvoicePaid(order)) {
@@ -185,6 +195,13 @@ export function getOrderStatus(order: Order): OrderStatusStyle {
 
   if (order.state === "IN ATTESA DI APPROVAZIONE") {
     return ORDER_STATUS_STYLES["pending-approval"];
+  }
+
+  if (
+    order.orderNumber?.startsWith("ORD/") &&
+    order.transferStatus?.toLowerCase() === "trasferito"
+  ) {
+    return ORDER_STATUS_STYLES["in-processing"];
   }
 
   return ORDER_STATUS_STYLES["on-archibald"];

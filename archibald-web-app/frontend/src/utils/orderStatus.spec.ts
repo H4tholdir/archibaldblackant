@@ -198,6 +198,45 @@ describe("getOrderStatus", () => {
     });
   });
 
+  describe("in-processing status", () => {
+    test("returns in-processing for transferred ORD/ order without tracking", () => {
+      const order: Partial<Order> = {
+        id: "processing-order",
+        customerName: "Processing Customer",
+        date: "2026-02-12",
+        total: "899.01",
+        status: "Ordine aperto",
+        orderNumber: "ORD/26002615",
+        orderType: "Ordine di vendita",
+        transferStatus: "Trasferito",
+        documentState: "Nessuno",
+      };
+
+      const result = getOrderStatus(order as Order);
+
+      expect(result.category).toBe("in-processing");
+      expect(result.label).toBe("In lavorazione");
+      expect(result.borderColor).toBe("#0277BD");
+      expect(result.backgroundColor).toBe("#B3E5FC");
+    });
+
+    test("does not return in-processing for PENDING orders", () => {
+      const order: Partial<Order> = {
+        id: "pending-local",
+        customerName: "Pending Local",
+        date: "2026-02-12",
+        total: "100.00",
+        status: "Ordine aperto",
+        orderNumber: "PENDING-72.938",
+        transferStatus: "Modifica",
+      };
+
+      const result = getOrderStatus(order as Order);
+
+      expect(result.category).toBe("on-archibald");
+    });
+  });
+
   describe("on-archibald status", () => {
     test("returns on-archibald when order is created locally", () => {
       const order: Partial<Order> = {
@@ -284,18 +323,35 @@ describe("getOrderStatus", () => {
 
       expect(result.category).toBe("blocked");
     });
+
+    test("in-processing takes priority over on-archibald for ORD/ orders", () => {
+      const order: Partial<Order> = {
+        id: "priority-test-4",
+        customerName: "Priority Customer 4",
+        date: "2026-02-12",
+        total: "500.00",
+        status: "Ordine aperto",
+        orderNumber: "ORD/26002613",
+        transferStatus: "Trasferito",
+      };
+
+      const result = getOrderStatus(order as Order);
+
+      expect(result.category).toBe("in-processing");
+    });
   });
 });
 
 describe("getAllStatusStyles", () => {
-  test("returns all 8 status styles", () => {
+  test("returns all 9 status styles", () => {
     const allStyles = getAllStatusStyles();
 
-    expect(allStyles).toHaveLength(8);
+    expect(allStyles).toHaveLength(9);
 
     const categories = allStyles.map((s) => s.category);
     expect(categories).toContain("on-archibald");
     expect(categories).toContain("pending-approval");
+    expect(categories).toContain("in-processing");
     expect(categories).toContain("blocked");
     expect(categories).toContain("in-transit");
     expect(categories).toContain("delivered");
@@ -322,6 +378,7 @@ describe("getStatusStyleByCategory", () => {
     const categories: OrderStatusCategory[] = [
       "on-archibald",
       "pending-approval",
+      "in-processing",
       "blocked",
       "in-transit",
       "delivered",
@@ -351,5 +408,12 @@ describe("getStatusStyleByCategory", () => {
 
     expect(style.borderColor).toBe("#C62828");
     expect(style.backgroundColor).toBe("#FFCDD2");
+  });
+
+  test("in-processing returns light blue colors", () => {
+    const style = getStatusStyleByCategory("in-processing");
+
+    expect(style.borderColor).toBe("#0277BD");
+    expect(style.backgroundColor).toBe("#B3E5FC");
   });
 });
