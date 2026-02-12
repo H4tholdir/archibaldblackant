@@ -24,8 +24,8 @@ describe("getOrderStatus", () => {
 
       expect(result.category).toBe("invoiced");
       expect(result.label).toBe("Fatturato");
-      expect(result.borderColor).toBe("#9C27B0");
-      expect(result.backgroundColor).toBe("#F3E5F5");
+      expect(result.borderColor).toBe("#4527A0");
+      expect(result.backgroundColor).toBe("#D1C4E9");
     });
 
     test("returns invoiced for legacy orders with only invoice number", () => {
@@ -65,8 +65,8 @@ describe("getOrderStatus", () => {
 
       expect(result.category).toBe("delivered");
       expect(result.label).toBe("Consegnato");
-      expect(result.borderColor).toBe("#4CAF50");
-      expect(result.backgroundColor).toBe("#E8F5E9");
+      expect(result.borderColor).toBe("#00695C");
+      expect(result.backgroundColor).toBe("#B2DFDB");
     });
   });
 
@@ -93,8 +93,8 @@ describe("getOrderStatus", () => {
 
       expect(result.category).toBe("in-transit");
       expect(result.label).toBe("In transito");
-      expect(result.borderColor).toBe("#2196F3");
-      expect(result.backgroundColor).toBe("#E3F2FD");
+      expect(result.borderColor).toBe("#1565C0");
+      expect(result.backgroundColor).toBe("#BBDEFB");
     });
 
     test("returns in-transit when tracking is in DDT field (recent)", () => {
@@ -171,8 +171,8 @@ describe("getOrderStatus", () => {
 
       expect(result.category).toBe("blocked");
       expect(result.label).toBe("Richiede intervento");
-      expect(result.borderColor).toBe("#F44336");
-      expect(result.backgroundColor).toBe("#FFEBEE");
+      expect(result.borderColor).toBe("#C62828");
+      expect(result.backgroundColor).toBe("#FFCDD2");
     });
   });
 
@@ -193,8 +193,8 @@ describe("getOrderStatus", () => {
 
       expect(result.category).toBe("pending-approval");
       expect(result.label).toBe("In attesa approvazione");
-      expect(result.borderColor).toBe("#FFA726");
-      expect(result.backgroundColor).toBe("#FFF3E0");
+      expect(result.borderColor).toBe("#F57F17");
+      expect(result.backgroundColor).toBe("#FFF9C4");
     });
   });
 
@@ -215,8 +215,8 @@ describe("getOrderStatus", () => {
 
       expect(result.category).toBe("on-archibald");
       expect(result.label).toBe("Su Archibald");
-      expect(result.borderColor).toBe("#757575");
-      expect(result.backgroundColor).toBe("#F5F5F5");
+      expect(result.borderColor).toBe("#546E7A");
+      expect(result.backgroundColor).toBe("#ECEFF1");
     });
 
     test("returns on-archibald as fallback for unknown states", () => {
@@ -339,17 +339,17 @@ describe("getStatusStyleByCategory", () => {
     });
   });
 
-  test("invoiced returns purple colors", () => {
+  test("invoiced returns deep purple colors", () => {
     const style = getStatusStyleByCategory("invoiced");
 
-    expect(style.borderColor).toBe("#9C27B0");
-    expect(style.backgroundColor).toBe("#F3E5F5");
+    expect(style.borderColor).toBe("#4527A0");
+    expect(style.backgroundColor).toBe("#D1C4E9");
   });
 
   test("blocked returns red colors", () => {
     const style = getStatusStyleByCategory("blocked");
 
-    expect(style.borderColor).toBe("#F44336");
-    expect(style.backgroundColor).toBe("#FFEBEE");
+    expect(style.borderColor).toBe("#C62828");
+    expect(style.backgroundColor).toBe("#FFCDD2");
   });
 });

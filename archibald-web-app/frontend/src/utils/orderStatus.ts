@@ -32,57 +32,57 @@ const ORDER_STATUS_STYLES: Record<OrderStatusCategory, OrderStatusStyle> = {
     category: "on-archibald",
     label: "Su Archibald",
     description: "Ordine presente su Archibald, non ancora inviato a Verona",
-    borderColor: "#757575", // Dark gray
-    backgroundColor: "#F5F5F5", // Light gray
+    borderColor: "#546E7A",
+    backgroundColor: "#ECEFF1",
   },
   "pending-approval": {
     category: "pending-approval",
     label: "In attesa approvazione",
     description: "Inviato a Verona, in attesa che operatore lo elabori",
-    borderColor: "#FFA726", // Orange
-    backgroundColor: "#FFF3E0", // Peach
+    borderColor: "#F57F17",
+    backgroundColor: "#FFF9C4",
   },
   blocked: {
     category: "blocked",
     label: "Richiede intervento",
     description: "Bloccato per anagrafica o pagamenti",
-    borderColor: "#F44336", // Red
-    backgroundColor: "#FFEBEE", // Light pink
+    borderColor: "#C62828",
+    backgroundColor: "#FFCDD2",
   },
   "in-transit": {
     category: "in-transit",
     label: "In transito",
     description: "Affidato a corriere, tracking disponibile",
-    borderColor: "#2196F3", // Blue
-    backgroundColor: "#E3F2FD", // Light blue
+    borderColor: "#1565C0",
+    backgroundColor: "#BBDEFB",
   },
   delivered: {
     category: "delivered",
     label: "Consegnato",
     description: "Consegna confermata con data/ora",
-    borderColor: "#4CAF50", // Green
-    backgroundColor: "#E8F5E9", // Light green
+    borderColor: "#00695C",
+    backgroundColor: "#B2DFDB",
   },
   invoiced: {
     category: "invoiced",
     label: "Fatturato",
     description: "Fattura emessa, in attesa di pagamento",
-    borderColor: "#9C27B0", // Purple
-    backgroundColor: "#F3E5F5", // Lavender
+    borderColor: "#4527A0",
+    backgroundColor: "#D1C4E9",
   },
   overdue: {
     category: "overdue",
     label: "Pagamento scaduto",
     description: "Fattura con pagamento scaduto e importo residuo",
-    borderColor: "#B71C1C", // Dark red
-    backgroundColor: "#FFCDD2", // Light red pastel
+    borderColor: "#E65100",
+    backgroundColor: "#FFE0B2",
   },
   paid: {
     category: "paid",
     label: "Pagato",
     description: "Fattura saldata, ordine completato",
-    borderColor: "#2E7D32", // Dark green
-    backgroundColor: "#E8F5E9", // Light green
+    borderColor: "#1B5E20",
+    backgroundColor: "#C8E6C9",
   },
 };
 
