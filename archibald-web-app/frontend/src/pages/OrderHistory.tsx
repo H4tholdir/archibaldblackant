@@ -234,10 +234,16 @@ export function OrderHistory() {
 
   // Scroll state
   const [showScrollToTop, setShowScrollToTop] = useState(false);
+  const [collapseRatio, setCollapseRatio] = useState(0);
+
+  // Infinite scroll state
+  const [visibleCount, setVisibleCount] = useState(30);
 
   // Refs
   const customerDropdownRef = useRef<HTMLDivElement>(null);
   const resultsContainerRef = useRef<HTMLDivElement>(null);
+  const collapsibleRef = useRef<HTMLDivElement>(null);
+  const sentinelRef = useRef<HTMLDivElement>(null);
   const { currentIndex, totalMatches, goNext, goPrev } = useSearchMatches(
     resultsContainerRef,
     debouncedSearch,
@@ -273,13 +279,23 @@ export function OrderHistory() {
     return () => clearTimeout(timer);
   }, [filters.search]);
 
-  // Scroll listener for scroll-to-top button
+  // Scroll listener for scroll-to-top button + collapsible panel
   useEffect(() => {
+    let rafId = 0;
     const handleScroll = () => {
-      setShowScrollToTop(window.scrollY > 400);
+      cancelAnimationFrame(rafId);
+      rafId = requestAnimationFrame(() => {
+        const scrollY = window.scrollY;
+        setShowScrollToTop(scrollY > 400);
+        const collapsibleHeight = collapsibleRef.current?.scrollHeight ?? 250;
+        setCollapseRatio(Math.min(1, Math.max(0, scrollY / collapsibleHeight)));
+      });
     };
     window.addEventListener("scroll", handleScroll, { passive: true });
-    return () => window.removeEventListener("scroll", handleScroll);
+    return () => {
+      window.removeEventListener("scroll", handleScroll);
+      cancelAnimationFrame(rafId);
+    };
   }, []);
 
   // Click outside customer dropdown
@@ -294,6 +310,22 @@ export function OrderHistory() {
     };
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  // Infinite scroll observer
+  useEffect(() => {
+    const sentinel = sentinelRef.current;
+    if (!sentinel) return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting) {
+          setVisibleCount((prev) => prev + 30);
+        }
+      },
+      { rootMargin: "200px" },
+    );
+    observer.observe(sentinel);
+    return () => observer.disconnect();
   }, []);
 
   // Scroll highlighted customer into view
@@ -630,6 +662,16 @@ export function OrderHistory() {
     });
   };
 
+  // Reset visibleCount when filters change
+  const filterKey = `${selectedCustomer?.id ?? ""}_${filters.dateFrom}_${filters.dateTo}_${[...filters.quickFilters].sort().join(",")}_${debouncedSearch}_${hideZeroAmount}`;
+  const prevFilterKeyRef = useRef(filterKey);
+  if (prevFilterKeyRef.current !== filterKey) {
+    prevFilterKeyRef.current = filterKey;
+    if (visibleCount !== 30) {
+      setVisibleCount(30);
+    }
+  }
+
   // Filtering pipeline: hideZeroAmount → quick filters → global search
   let result = orders;
   if (hideZeroAmount) {
@@ -665,7 +707,9 @@ export function OrderHistory() {
     filters.search !== "" ||
     !hideZeroAmount;
 
-  const orderGroups = groupOrdersByPeriod(filteredOrders);
+  const visibleOrders = filteredOrders.slice(0, visibleCount);
+  const hasMoreOrders = visibleCount < filteredOrders.length;
+  const orderGroups = groupOrdersByPeriod(visibleOrders);
 
   // Quick filter definitions
   const quickFilterDefs: {
@@ -817,9 +861,12 @@ export function OrderHistory() {
         </button>
       </div>
 
-      {/* Filter bar */}
+      {/* Filter bar - sticky + collapsible */}
       <div
         style={{
+          position: "sticky",
+          top: 0,
+          zIndex: 50,
           backgroundColor: "#fff",
           borderRadius: "12px",
           padding: "20px",
@@ -827,12 +874,12 @@ export function OrderHistory() {
           boxShadow: "0 2px 8px rgba(0, 0, 0, 0.1)",
         }}
       >
-        {/* Row 1: Customer search + Global search */}
+        {/* Row 1: Customer search + Global search - always visible */}
         <div
           style={{
             display: "flex",
             gap: "16px",
-            marginBottom: "16px",
+            marginBottom: collapseRatio < 1 ? "16px" : "0px",
             flexWrap: "wrap",
           }}
         >
@@ -1103,287 +1150,302 @@ export function OrderHistory() {
           </div>
         </div>
 
-        {/* Row 2: Time presets */}
-        <div style={{ marginBottom: "12px" }}>
-          <label
-            style={{
-              display: "block",
-              fontSize: "14px",
-              fontWeight: 600,
-              color: "#333",
-              marginBottom: "8px",
-            }}
-          >
-            Periodo
-          </label>
-          <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
-            {timePresets.map((preset) => {
-              const isActive = activeTimePreset === preset.id;
-              return (
-                <button
-                  key={preset.id}
-                  onClick={() => handleTimePreset(preset.id)}
+        {/* Collapsible section: Row 2-5 */}
+        <div
+          ref={collapsibleRef}
+          style={{
+            overflow: "hidden",
+            maxHeight: `${(1 - collapseRatio) * (collapsibleRef.current?.scrollHeight ?? 500)}px`,
+            opacity: 1 - collapseRatio,
+            willChange:
+              collapseRatio > 0 && collapseRatio < 1
+                ? "max-height, opacity"
+                : "auto",
+          }}
+        >
+          {/* Row 2: Time presets */}
+          <div style={{ marginBottom: "12px" }}>
+            <label
+              style={{
+                display: "block",
+                fontSize: "14px",
+                fontWeight: 600,
+                color: "#333",
+                marginBottom: "8px",
+              }}
+            >
+              Periodo
+            </label>
+            <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+              {timePresets.map((preset) => {
+                const isActive = activeTimePreset === preset.id;
+                return (
+                  <button
+                    key={preset.id}
+                    onClick={() => handleTimePreset(preset.id)}
+                    style={{
+                      padding: "6px 14px",
+                      fontSize: "13px",
+                      fontWeight: 500,
+                      border: isActive ? "1px solid #1976d2" : "1px solid #ddd",
+                      borderRadius: "20px",
+                      backgroundColor: isActive ? "#E3F2FD" : "#fff",
+                      color: isActive ? "#1976d2" : "#666",
+                      cursor: "pointer",
+                      transition: "all 0.2s",
+                    }}
+                    onMouseEnter={(e) => {
+                      if (!isActive) {
+                        e.currentTarget.style.backgroundColor = "#f5f5f5";
+                      }
+                    }}
+                    onMouseLeave={(e) => {
+                      if (!isActive) {
+                        e.currentTarget.style.backgroundColor = "#fff";
+                      }
+                    }}
+                  >
+                    {preset.label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Row 3: Custom date inputs (only if preset === "custom") */}
+          {activeTimePreset === "custom" && (
+            <div
+              style={{
+                display: "flex",
+                gap: "16px",
+                marginBottom: "12px",
+                flexWrap: "wrap",
+              }}
+            >
+              <div style={{ flex: "1 1 200px", minWidth: "150px" }}>
+                <label
+                  htmlFor="date-from"
                   style={{
-                    padding: "6px 14px",
+                    display: "block",
                     fontSize: "13px",
-                    fontWeight: 500,
-                    border: isActive ? "1px solid #1976d2" : "1px solid #ddd",
-                    borderRadius: "20px",
-                    backgroundColor: isActive ? "#E3F2FD" : "#fff",
-                    color: isActive ? "#1976d2" : "#666",
-                    cursor: "pointer",
-                    transition: "all 0.2s",
-                  }}
-                  onMouseEnter={(e) => {
-                    if (!isActive) {
-                      e.currentTarget.style.backgroundColor = "#f5f5f5";
-                    }
-                  }}
-                  onMouseLeave={(e) => {
-                    if (!isActive) {
-                      e.currentTarget.style.backgroundColor = "#fff";
-                    }
+                    fontWeight: 600,
+                    color: "#333",
+                    marginBottom: "6px",
                   }}
                 >
-                  {preset.label}
-                </button>
-              );
-            })}
-          </div>
-        </div>
+                  Da
+                </label>
+                <input
+                  id="date-from"
+                  type="date"
+                  value={filters.dateFrom}
+                  onChange={(e) => {
+                    setFilters((prev) => ({
+                      ...prev,
+                      dateFrom: e.target.value,
+                    }));
+                    setActiveTimePreset("custom");
+                  }}
+                  style={{
+                    width: "100%",
+                    padding: "8px 12px",
+                    fontSize: "14px",
+                    border: "1px solid #ddd",
+                    borderRadius: "8px",
+                    outline: "none",
+                    boxSizing: "border-box",
+                  }}
+                />
+              </div>
+              <div style={{ flex: "1 1 200px", minWidth: "150px" }}>
+                <label
+                  htmlFor="date-to"
+                  style={{
+                    display: "block",
+                    fontSize: "13px",
+                    fontWeight: 600,
+                    color: "#333",
+                    marginBottom: "6px",
+                  }}
+                >
+                  A
+                </label>
+                <input
+                  id="date-to"
+                  type="date"
+                  value={filters.dateTo}
+                  onChange={(e) => {
+                    setFilters((prev) => ({
+                      ...prev,
+                      dateTo: e.target.value,
+                    }));
+                    setActiveTimePreset("custom");
+                  }}
+                  style={{
+                    width: "100%",
+                    padding: "8px 12px",
+                    fontSize: "14px",
+                    border: "1px solid #ddd",
+                    borderRadius: "8px",
+                    outline: "none",
+                    boxSizing: "border-box",
+                  }}
+                />
+              </div>
+            </div>
+          )}
 
-        {/* Row 3: Custom date inputs (only if preset === "custom") */}
-        {activeTimePreset === "custom" && (
+          {/* Row 4: Quick filter chips */}
+          <div style={{ marginBottom: "12px" }}>
+            <label
+              style={{
+                display: "block",
+                fontSize: "14px",
+                fontWeight: 600,
+                color: "#333",
+                marginBottom: "8px",
+              }}
+            >
+              Filtri veloci
+            </label>
+            <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+              {quickFilterDefs.map((quickFilter) => {
+                const isActive = filters.quickFilters.has(quickFilter.id);
+                return (
+                  <button
+                    key={quickFilter.id}
+                    onClick={() => {
+                      setFilters((prev) => {
+                        const newQuickFilters = new Set(prev.quickFilters);
+                        if (isActive) {
+                          newQuickFilters.delete(quickFilter.id);
+                        } else {
+                          newQuickFilters.add(quickFilter.id);
+                        }
+                        return { ...prev, quickFilters: newQuickFilters };
+                      });
+                    }}
+                    style={{
+                      padding: "8px 16px",
+                      fontSize: "14px",
+                      fontWeight: 600,
+                      border: isActive
+                        ? `2px solid ${quickFilter.color}`
+                        : "1px solid #ddd",
+                      borderRadius: "20px",
+                      backgroundColor: isActive ? quickFilter.bgColor : "#fff",
+                      color: isActive ? quickFilter.color : "#666",
+                      cursor: "pointer",
+                      transition: "all 0.2s",
+                    }}
+                    onMouseEnter={(e) => {
+                      if (!isActive) {
+                        e.currentTarget.style.backgroundColor = "#f5f5f5";
+                      }
+                    }}
+                    onMouseLeave={(e) => {
+                      if (!isActive) {
+                        e.currentTarget.style.backgroundColor = "#fff";
+                      }
+                    }}
+                  >
+                    {quickFilter.label} ({quickFilter.count})
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Row 5: Hide zero toggle + Clear filters */}
           <div
             style={{
               display: "flex",
               gap: "16px",
-              marginBottom: "12px",
+              alignItems: "center",
               flexWrap: "wrap",
             }}
           >
-            <div style={{ flex: "1 1 200px", minWidth: "150px" }}>
-              <label
-                htmlFor="date-from"
-                style={{
-                  display: "block",
-                  fontSize: "13px",
-                  fontWeight: 600,
-                  color: "#333",
-                  marginBottom: "6px",
-                }}
-              >
-                Da
-              </label>
-              <input
-                id="date-from"
-                type="date"
-                value={filters.dateFrom}
-                onChange={(e) => {
-                  setFilters((prev) => ({
-                    ...prev,
-                    dateFrom: e.target.value,
-                  }));
-                  setActiveTimePreset("custom");
-                }}
-                style={{
-                  width: "100%",
-                  padding: "8px 12px",
-                  fontSize: "14px",
-                  border: "1px solid #ddd",
-                  borderRadius: "8px",
-                  outline: "none",
-                  boxSizing: "border-box",
-                }}
-              />
-            </div>
-            <div style={{ flex: "1 1 200px", minWidth: "150px" }}>
-              <label
-                htmlFor="date-to"
-                style={{
-                  display: "block",
-                  fontSize: "13px",
-                  fontWeight: 600,
-                  color: "#333",
-                  marginBottom: "6px",
-                }}
-              >
-                A
-              </label>
-              <input
-                id="date-to"
-                type="date"
-                value={filters.dateTo}
-                onChange={(e) => {
-                  setFilters((prev) => ({
-                    ...prev,
-                    dateTo: e.target.value,
-                  }));
-                  setActiveTimePreset("custom");
-                }}
-                style={{
-                  width: "100%",
-                  padding: "8px 12px",
-                  fontSize: "14px",
-                  border: "1px solid #ddd",
-                  borderRadius: "8px",
-                  outline: "none",
-                  boxSizing: "border-box",
-                }}
-              />
-            </div>
-          </div>
-        )}
-
-        {/* Row 4: Quick filter chips */}
-        <div style={{ marginBottom: "12px" }}>
-          <label
-            style={{
-              display: "block",
-              fontSize: "14px",
-              fontWeight: 600,
-              color: "#333",
-              marginBottom: "8px",
-            }}
-          >
-            Filtri veloci
-          </label>
-          <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
-            {quickFilterDefs.map((quickFilter) => {
-              const isActive = filters.quickFilters.has(quickFilter.id);
-              return (
-                <button
-                  key={quickFilter.id}
-                  onClick={() => {
-                    setFilters((prev) => {
-                      const newQuickFilters = new Set(prev.quickFilters);
-                      if (isActive) {
-                        newQuickFilters.delete(quickFilter.id);
-                      } else {
-                        newQuickFilters.add(quickFilter.id);
-                      }
-                      return { ...prev, quickFilters: newQuickFilters };
-                    });
-                  }}
-                  style={{
-                    padding: "8px 16px",
-                    fontSize: "14px",
-                    fontWeight: 600,
-                    border: isActive
-                      ? `2px solid ${quickFilter.color}`
-                      : "1px solid #ddd",
-                    borderRadius: "20px",
-                    backgroundColor: isActive ? quickFilter.bgColor : "#fff",
-                    color: isActive ? quickFilter.color : "#666",
-                    cursor: "pointer",
-                    transition: "all 0.2s",
-                  }}
-                  onMouseEnter={(e) => {
-                    if (!isActive) {
-                      e.currentTarget.style.backgroundColor = "#f5f5f5";
-                    }
-                  }}
-                  onMouseLeave={(e) => {
-                    if (!isActive) {
-                      e.currentTarget.style.backgroundColor = "#fff";
-                    }
-                  }}
-                >
-                  {quickFilter.label} ({quickFilter.count})
-                </button>
-              );
-            })}
-          </div>
-        </div>
-
-        {/* Row 5: Hide zero toggle + Clear filters */}
-        <div
-          style={{
-            display: "flex",
-            gap: "16px",
-            alignItems: "center",
-            flexWrap: "wrap",
-          }}
-        >
-          {/* Hide zero amount toggle */}
-          <div
-            onClick={() => setHideZeroAmount(!hideZeroAmount)}
-            role="switch"
-            aria-checked={hideZeroAmount}
-            tabIndex={0}
-            onKeyDown={(e) => {
-              if (e.key === " " || e.key === "Enter") {
-                e.preventDefault();
-                setHideZeroAmount(!hideZeroAmount);
-              }
-            }}
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: "8px",
-              cursor: "pointer",
-              fontSize: "14px",
-              color: "#555",
-              userSelect: "none",
-            }}
-          >
+            {/* Hide zero amount toggle */}
             <div
+              onClick={() => setHideZeroAmount(!hideZeroAmount)}
+              role="switch"
+              aria-checked={hideZeroAmount}
+              tabIndex={0}
+              onKeyDown={(e) => {
+                if (e.key === " " || e.key === "Enter") {
+                  e.preventDefault();
+                  setHideZeroAmount(!hideZeroAmount);
+                }
+              }}
               style={{
-                width: "40px",
-                height: "22px",
-                borderRadius: "11px",
-                backgroundColor: hideZeroAmount ? "#1976d2" : "#ccc",
-                position: "relative",
-                transition: "background-color 0.2s",
-                flexShrink: 0,
+                display: "flex",
+                alignItems: "center",
+                gap: "8px",
+                cursor: "pointer",
+                fontSize: "14px",
+                color: "#555",
+                userSelect: "none",
               }}
             >
               <div
                 style={{
-                  width: "18px",
-                  height: "18px",
-                  borderRadius: "50%",
-                  backgroundColor: "#fff",
-                  position: "absolute",
-                  top: "2px",
-                  left: hideZeroAmount ? "20px" : "2px",
-                  transition: "left 0.2s",
-                  boxShadow: "0 1px 3px rgba(0,0,0,0.2)",
+                  width: "40px",
+                  height: "22px",
+                  borderRadius: "11px",
+                  backgroundColor: hideZeroAmount ? "#1976d2" : "#ccc",
+                  position: "relative",
+                  transition: "background-color 0.2s",
+                  flexShrink: 0,
                 }}
-              />
+              >
+                <div
+                  style={{
+                    width: "18px",
+                    height: "18px",
+                    borderRadius: "50%",
+                    backgroundColor: "#fff",
+                    position: "absolute",
+                    top: "2px",
+                    left: hideZeroAmount ? "20px" : "2px",
+                    transition: "left 0.2s",
+                    boxShadow: "0 1px 3px rgba(0,0,0,0.2)",
+                  }}
+                />
+              </div>
+              <span>{"Nascondi importo 0 \u20ac"}</span>
             </div>
-            <span>{"Nascondi importo 0 \u20ac"}</span>
-          </div>
 
-          {/* Clear filters button */}
-          {hasActiveFilters && (
-            <button
-              onClick={handleClearFilters}
-              style={{
-                padding: "8px 16px",
-                fontSize: "14px",
-                fontWeight: 600,
-                border: "1px solid #f44336",
-                borderRadius: "8px",
-                backgroundColor: "#fff",
-                color: "#f44336",
-                cursor: "pointer",
-                transition: "all 0.2s",
-                marginLeft: "auto",
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.backgroundColor = "#f44336";
-                e.currentTarget.style.color = "#fff";
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.backgroundColor = "#fff";
-                e.currentTarget.style.color = "#f44336";
-              }}
-            >
-              {"\u2715"} Cancella tutti i filtri
-            </button>
-          )}
+            {/* Clear filters button */}
+            {hasActiveFilters && (
+              <button
+                onClick={handleClearFilters}
+                style={{
+                  padding: "8px 16px",
+                  fontSize: "14px",
+                  fontWeight: 600,
+                  border: "1px solid #f44336",
+                  borderRadius: "8px",
+                  backgroundColor: "#fff",
+                  color: "#f44336",
+                  cursor: "pointer",
+                  transition: "all 0.2s",
+                  marginLeft: "auto",
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.backgroundColor = "#f44336";
+                  e.currentTarget.style.color = "#fff";
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.backgroundColor = "#fff";
+                  e.currentTarget.style.color = "#f44336";
+                }}
+              >
+                {"\u2715"} Cancella tutti i filtri
+              </button>
+            )}
+          </div>
         </div>
+        {/* end collapsible section */}
       </div>
 
       {/* Loading state */}
@@ -1630,6 +1692,7 @@ export function OrderHistory() {
             {filteredOrders.length === orders.length
               ? `${orders.length} ordini`
               : `${filteredOrders.length} di ${orders.length} ordini`}
+            {hasMoreOrders && ` (${visibleCount} visualizzati)`}
           </div>
 
           {/* Search navigation bar */}
@@ -1739,6 +1802,21 @@ export function OrderHistory() {
               </div>
             ))}
           </div>
+
+          {/* Infinite scroll sentinel */}
+          <div ref={sentinelRef} style={{ height: "1px" }} />
+          {hasMoreOrders && (
+            <div
+              style={{
+                textAlign: "center",
+                padding: "20px",
+                color: "#888",
+                fontSize: "14px",
+              }}
+            >
+              Caricamento altri ordini...
+            </div>
+          )}
         </div>
       )}
 
