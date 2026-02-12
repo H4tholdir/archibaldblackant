@@ -6129,7 +6129,56 @@ export class ArchibaldBot {
       );
 
       await this.discoverSalesLinesGrid();
-      logger.info("[editOrder] Detail view loaded, grid discovered");
+      logger.info("[editOrder] Detail view loaded, grid discovered", {
+        salesLinesGridName: this.salesLinesGridName,
+      });
+
+      // Wait for the SALESLINES grid to have data rows (it may load asynchronously)
+      if (this.salesLinesGridName) {
+        await this.page.waitForFunction(
+          (gridName: string) => {
+            const gridEl = document.getElementById(gridName) ||
+              document.querySelector(`[id*="${gridName}"]`);
+            if (!gridEl) return false;
+            const dataRows = gridEl.querySelectorAll('tr[class*="dxgvDataRow"]');
+            return dataRows.length > 0;
+          },
+          { timeout: 15000, polling: 300 },
+          this.salesLinesGridName,
+        ).catch(() => null);
+
+        // Scroll the SALESLINES grid into view
+        await this.page.evaluate((gridName: string) => {
+          const gridEl = document.getElementById(gridName) ||
+            document.querySelector(`[id*="${gridName}"]`);
+          if (gridEl) gridEl.scrollIntoView({ block: "center" });
+        }, this.salesLinesGridName);
+        await this.wait(500);
+      } else {
+        // Retry discovery after a longer wait
+        await this.wait(2000);
+        await this.discoverSalesLinesGrid();
+        logger.info("[editOrder] Retry grid discovery", {
+          salesLinesGridName: this.salesLinesGridName,
+        });
+      }
+
+      // Log grid state before processing
+      const gridDebug = await this.page.evaluate((gridName: string | null) => {
+        let container: Element | Document = document;
+        if (gridName) {
+          const gridEl = document.getElementById(gridName) || document.querySelector(`[id*="${gridName}"]`);
+          if (gridEl) container = gridEl;
+        }
+        const dataRows = Array.from(container.querySelectorAll('tr[class*="dxgvDataRow"]'));
+        return {
+          gridName,
+          gridFound: gridName ? !!(document.getElementById(gridName) || document.querySelector(`[id*="${gridName}"]`)) : false,
+          dataRowCount: dataRows.length,
+          rowTexts: dataRows.slice(0, 5).map((r) => r.textContent?.substring(0, 100)),
+        };
+      }, this.salesLinesGridName);
+      logger.info("[editOrder] Grid state", gridDebug);
 
       // Sort modifications: updates first (stable indices), then adds, then deletes (highest index first)
       const updates = modifications.filter((m) => m.type === "update") as Array<{
@@ -6173,6 +6222,9 @@ export class ArchibaldBot {
             const targetRow = dataRows[rowIdx];
             if (!targetRow) return false;
 
+            // Scroll target row into view
+            targetRow.scrollIntoView({ block: "center" });
+
             // Look for StartEdit link: a[data-args*="StartEdit"]
             const startEditLink = targetRow.querySelector('a[data-args*="StartEdit"]') as HTMLElement | null;
             if (startEditLink) {
@@ -6180,11 +6232,18 @@ export class ArchibaldBot {
               return true;
             }
 
-            // Look for edit icon: img[title="Edit"] or img[alt="Edit"]
-            const editImg = targetRow.querySelector('img[title="Edit"], img[alt="Edit"]') as HTMLElement | null;
+            // Look for edit icon: img[title="Edit"] or img[alt="Edit"] or img[title="Modifica"]
+            const editImg = targetRow.querySelector('img[title="Edit"], img[alt="Edit"], img[title="Modifica"]') as HTMLElement | null;
             if (editImg) {
               (editImg.parentElement || editImg).click();
               return true;
+            }
+
+            // Look for command column with any clickable element
+            const commandCell = targetRow.querySelector('td.dxgvCommandColumn_XafTheme, td[class*="CommandColumn"]') as HTMLElement | null;
+            if (commandCell) {
+              const link = commandCell.querySelector('a, img') as HTMLElement | null;
+              if (link) { link.click(); return true; }
             }
 
             return false;
@@ -6193,8 +6252,11 @@ export class ArchibaldBot {
           this.salesLinesGridName,
         );
 
-        // Strategy 2: DevExpress API fallback
+        logger.debug(`[editOrder] StartEdit Strategy 1 (DOM click): ${editStarted}`);
+
+        // Strategy 2: DevExpress API StartEditRow
         if (!editStarted && this.salesLinesGridName) {
+          logger.debug("[editOrder] Trying StartEdit Strategy 2 (DevExpress API)");
           await this.page.evaluate(
             (gridName: string, rowIdx: number) => {
               const w = window as any;
@@ -6210,22 +6272,97 @@ export class ArchibaldBot {
         if (editStarted && this.salesLinesGridName) {
           await this.waitForGridCallback(this.salesLinesGridName);
         }
-        await this.wait(500);
+        await this.wait(800);
 
-        // Wait for edit row to appear (scoped to SALESLINES grid to avoid matching dropdown headers)
-        await this.page.waitForFunction(
-          (gridName: string | null) => {
+        // Wait for edit row to appear (scoped to SALESLINES grid)
+        let editRowAppeared = false;
+        try {
+          await this.page.waitForFunction(
+            (gridName: string | null) => {
+              let container: Element | Document = document;
+              if (gridName) {
+                const el = document.getElementById(gridName);
+                if (el) container = el;
+              }
+              const editRows = container.querySelectorAll('tr[id*="DXEditingRow"]');
+              return editRows.length > 0;
+            },
+            { timeout: 5000, polling: 100 },
+            this.salesLinesGridName,
+          );
+          editRowAppeared = true;
+        } catch {
+          logger.warn("[editOrder] DXEditingRow not found after first attempt, retrying...");
+        }
+
+        // Retry: double-click the row to enter edit mode
+        if (!editRowAppeared) {
+          const rowClicked = await this.page.evaluate(
+            (rowIdx: number, gridName: string | null) => {
+              let container: Element | Document = document;
+              if (gridName) {
+                const gridEl = document.getElementById(gridName) || document.querySelector(`[id*="${gridName}"]`);
+                if (gridEl) container = gridEl;
+              }
+              const dataRows = Array.from(container.querySelectorAll('tr[class*="dxgvDataRow"]'));
+              const targetRow = dataRows[rowIdx];
+              if (!targetRow) return null;
+              const firstCell = targetRow.querySelector("td:nth-child(2)") as HTMLElement | null;
+              if (firstCell) {
+                const rect = firstCell.getBoundingClientRect();
+                return { x: rect.x + rect.width / 2, y: rect.y + rect.height / 2 };
+              }
+              return null;
+            },
+            mod.rowIndex,
+            this.salesLinesGridName,
+          );
+
+          if (rowClicked) {
+            await this.page.mouse.click(rowClicked.x, rowClicked.y, { clickCount: 2 });
+            await this.wait(1000);
+
+            try {
+              await this.page.waitForFunction(
+                (gridName: string | null) => {
+                  let container: Element | Document = document;
+                  if (gridName) {
+                    const el = document.getElementById(gridName);
+                    if (el) container = el;
+                  }
+                  return container.querySelectorAll('tr[id*="DXEditingRow"]').length > 0;
+                },
+                { timeout: 5000, polling: 100 },
+                this.salesLinesGridName,
+              );
+              editRowAppeared = true;
+              logger.debug("[editOrder] DXEditingRow appeared after double-click retry");
+            } catch {
+              logger.warn("[editOrder] DXEditingRow still not found after double-click");
+            }
+          }
+        }
+
+        if (!editRowAppeared) {
+          const debugState = await this.page.evaluate((gridName: string | null) => {
             let container: Element | Document = document;
             if (gridName) {
-              const el = document.getElementById(gridName);
-              if (el) container = el;
+              const gridEl = document.getElementById(gridName) || document.querySelector(`[id*="${gridName}"]`);
+              if (gridEl) container = gridEl;
             }
-            const editRows = container.querySelectorAll('tr[id*="DXEditingRow"]');
-            return editRows.length > 0;
-          },
-          { timeout: 5000, polling: 100 },
-          this.salesLinesGridName,
-        ).catch(() => null);
+            return {
+              dataRows: container.querySelectorAll('tr[class*="dxgvDataRow"]').length,
+              editRows: container.querySelectorAll('tr[id*="DXEditingRow"]').length,
+              editNewRows: container.querySelectorAll('tr[id*="editnew"]').length,
+              allTrs: container.querySelectorAll("tr").length,
+              activeElementId: (document.activeElement as HTMLElement)?.id,
+              url: window.location.href,
+            };
+          }, this.salesLinesGridName);
+          logger.error("[editOrder] Failed to enter edit mode for row", { rowIndex: mod.rowIndex, ...debugState });
+          await this.page.screenshot({ path: `logs/edit-startrow-failed-${Date.now()}.png`, fullPage: true });
+          throw new Error(`Failed to start editing row ${mod.rowIndex}. Grid state: ${JSON.stringify(debugState)}`);
+        }
 
         // Focus INVENTTABLE and type article code
         await this.focusAndTypeArticle(mod.articleCode, mod.quantity);
