@@ -243,7 +243,9 @@ export function OrderHistory() {
   const customerDropdownRef = useRef<HTMLDivElement>(null);
   const resultsContainerRef = useRef<HTMLDivElement>(null);
   const collapsibleRef = useRef<HTMLDivElement>(null);
+  const collapsibleHeightRef = useRef(0);
   const sentinelRef = useRef<HTMLDivElement>(null);
+  const sentinelObserverRef = useRef<IntersectionObserver | null>(null);
   const { currentIndex, totalMatches, goNext, goPrev } = useSearchMatches(
     resultsContainerRef,
     debouncedSearch,
@@ -279,6 +281,13 @@ export function OrderHistory() {
     return () => clearTimeout(timer);
   }, [filters.search]);
 
+  // Measure collapsible height once after first render
+  useEffect(() => {
+    if (collapsibleRef.current && collapsibleHeightRef.current === 0) {
+      collapsibleHeightRef.current = collapsibleRef.current.scrollHeight;
+    }
+  });
+
   // Scroll listener for scroll-to-top button + collapsible panel
   useEffect(() => {
     let rafId = 0;
@@ -287,8 +296,8 @@ export function OrderHistory() {
       rafId = requestAnimationFrame(() => {
         const scrollY = window.scrollY;
         setShowScrollToTop(scrollY > 400);
-        const collapsibleHeight = collapsibleRef.current?.scrollHeight ?? 250;
-        setCollapseRatio(Math.min(1, Math.max(0, scrollY / collapsibleHeight)));
+        const threshold = collapsibleHeightRef.current || 250;
+        setCollapseRatio(Math.min(1, Math.max(0, scrollY / threshold)));
       });
     };
     window.addEventListener("scroll", handleScroll, { passive: true });
@@ -312,20 +321,25 @@ export function OrderHistory() {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  // Infinite scroll observer
-  useEffect(() => {
-    const sentinel = sentinelRef.current;
-    if (!sentinel) return;
-    const observer = new IntersectionObserver(
-      (entries) => {
-        if (entries[0].isIntersecting) {
-          setVisibleCount((prev) => prev + 30);
-        }
-      },
-      { rootMargin: "200px" },
-    );
-    observer.observe(sentinel);
-    return () => observer.disconnect();
+  // Infinite scroll: callback ref so observer attaches when sentinel mounts
+  const sentinelCallbackRef = useCallback((node: HTMLDivElement | null) => {
+    if (sentinelObserverRef.current) {
+      sentinelObserverRef.current.disconnect();
+      sentinelObserverRef.current = null;
+    }
+    if (node) {
+      sentinelRef.current = node;
+      const observer = new IntersectionObserver(
+        (entries) => {
+          if (entries[0].isIntersecting) {
+            setVisibleCount((prev) => prev + 30);
+          }
+        },
+        { rootMargin: "200px" },
+      );
+      observer.observe(node);
+      sentinelObserverRef.current = observer;
+    }
   }, []);
 
   // Scroll highlighted customer into view
@@ -1155,12 +1169,12 @@ export function OrderHistory() {
           ref={collapsibleRef}
           style={{
             overflow: "hidden",
-            maxHeight: `${(1 - collapseRatio) * (collapsibleRef.current?.scrollHeight ?? 500)}px`,
+            maxHeight:
+              collapsibleHeightRef.current > 0
+                ? `${(1 - collapseRatio) * collapsibleHeightRef.current}px`
+                : undefined,
             opacity: 1 - collapseRatio,
-            willChange:
-              collapseRatio > 0 && collapseRatio < 1
-                ? "max-height, opacity"
-                : "auto",
+            pointerEvents: collapseRatio === 1 ? "none" : "auto",
           }}
         >
           {/* Row 2: Time presets */}
@@ -1805,18 +1819,13 @@ export function OrderHistory() {
           </div>
 
           {/* Infinite scroll sentinel */}
-          <div ref={sentinelRef} style={{ height: "1px" }} />
           {hasMoreOrders && (
             <div
+              ref={sentinelCallbackRef}
               style={{
-                textAlign: "center",
-                padding: "20px",
-                color: "#888",
-                fontSize: "14px",
+                height: "1px",
               }}
-            >
-              Caricamento altri ordini...
-            </div>
+            />
           )}
         </div>
       )}
