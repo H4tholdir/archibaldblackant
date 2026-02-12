@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import type { PendingOrder } from "../db/schema";
 import { db } from "../db/schema";
+import { formatCurrency } from "../utils/format-currency";
 
 interface OrderConflictReviewProps {
   order: PendingOrder;
@@ -83,7 +84,10 @@ export function OrderConflictReview({
         setQueuedTotal(queued);
         setCurrentTotal(current);
       } catch (error) {
-        console.error("[OrderConflictReview] Error detecting conflicts:", error);
+        console.error(
+          "[OrderConflictReview] Error detecting conflicts:",
+          error,
+        );
       } finally {
         setLoading(false);
       }
@@ -124,9 +128,8 @@ export function OrderConflictReview({
   }
 
   const totalChanged = Math.abs(currentTotal - queuedTotal) > 0.01;
-  const percentChange = queuedTotal > 0
-    ? ((currentTotal - queuedTotal) / queuedTotal) * 100
-    : 0;
+  const percentChange =
+    queuedTotal > 0 ? ((currentTotal - queuedTotal) / queuedTotal) * 100 : 0;
 
   return (
     <div
@@ -160,12 +163,19 @@ export function OrderConflictReview({
           ⚠️ Revisione Ordine con Conflitti
         </h3>
 
-        <div style={{ marginBottom: "16px", paddingBottom: "16px", borderBottom: "1px solid #eee" }}>
+        <div
+          style={{
+            marginBottom: "16px",
+            paddingBottom: "16px",
+            borderBottom: "1px solid #eee",
+          }}
+        >
           <p style={{ margin: "4px 0", color: "#333", fontWeight: 600 }}>
             Cliente: {order.customerName}
           </p>
           <p style={{ margin: "4px 0", color: "#666", fontSize: "14px" }}>
-            {order.items.length} articoli • Creato il {new Date(order.createdAt).toLocaleDateString("it-IT")}
+            {order.items.length} articoli • Creato il{" "}
+            {new Date(order.createdAt).toLocaleDateString("it-IT")}
           </p>
         </div>
 
@@ -173,7 +183,9 @@ export function OrderConflictReview({
           <p style={{ color: "#666" }}>Nessun conflitto rilevato.</p>
         ) : (
           <>
-            <h4 style={{ marginTop: "16px", marginBottom: "8px", color: "#333" }}>
+            <h4
+              style={{ marginTop: "16px", marginBottom: "8px", color: "#333" }}
+            >
               Conflitti Rilevati:
             </h4>
             <div style={{ marginBottom: "16px" }}>
@@ -188,21 +200,38 @@ export function OrderConflictReview({
                     border: "1px solid #ffe0b2",
                   }}
                 >
-                  <p style={{ margin: "4px 0", fontWeight: 600, color: "#333" }}>
+                  <p
+                    style={{ margin: "4px 0", fontWeight: 600, color: "#333" }}
+                  >
                     {conflict.productName}
                   </p>
-                  <p style={{ margin: "4px 0", fontSize: "13px", color: "#666" }}>
+                  <p
+                    style={{ margin: "4px 0", fontSize: "13px", color: "#666" }}
+                  >
                     Codice: {conflict.articleCode}
                   </p>
 
                   {conflict.productNotFound && (
-                    <p style={{ margin: "8px 0 4px 0", color: "#d32f2f", fontSize: "14px" }}>
-                      ⚠️ <strong>Prodotto non disponibile</strong> nel catalogo attuale
+                    <p
+                      style={{
+                        margin: "8px 0 4px 0",
+                        color: "#d32f2f",
+                        fontSize: "14px",
+                      }}
+                    >
+                      ⚠️ <strong>Prodotto non disponibile</strong> nel catalogo
+                      attuale
                     </p>
                   )}
 
                   {conflict.nameChanged && (
-                    <p style={{ margin: "8px 0 4px 0", color: "#f57c00", fontSize: "14px" }}>
+                    <p
+                      style={{
+                        margin: "8px 0 4px 0",
+                        color: "#f57c00",
+                        fontSize: "14px",
+                      }}
+                    >
                       Nome cambiato:{" "}
                       <span style={{ textDecoration: "line-through" }}>
                         {conflict.productName}
@@ -214,17 +243,25 @@ export function OrderConflictReview({
                   {conflict.priceChanged && conflict.currentPrice !== null && (
                     <p style={{ margin: "8px 0 4px 0", fontSize: "14px" }}>
                       Prezzo:{" "}
-                      <span style={{ textDecoration: "line-through", color: "#999" }}>
-                        €{conflict.queuedPrice.toFixed(2)}
+                      <span
+                        style={{
+                          textDecoration: "line-through",
+                          color: "#999",
+                        }}
+                      >
+                        {formatCurrency(conflict.queuedPrice)}
                       </span>{" "}
                       →{" "}
                       <span
                         style={{
-                          color: conflict.currentPrice > conflict.queuedPrice ? "#d32f2f" : "#388e3c",
+                          color:
+                            conflict.currentPrice > conflict.queuedPrice
+                              ? "#d32f2f"
+                              : "#388e3c",
                           fontWeight: 600,
                         }}
                       >
-                        €{conflict.currentPrice.toFixed(2)}
+                        {formatCurrency(conflict.currentPrice)}
                       </span>
                     </p>
                   )}
@@ -241,13 +278,14 @@ export function OrderConflictReview({
               marginBottom: "16px",
               backgroundColor: percentChange > 0 ? "#ffebee" : "#e8f5e9",
               borderRadius: "4px",
-              border: percentChange > 0 ? "1px solid #ffcdd2" : "1px solid #c8e6c9",
+              border:
+                percentChange > 0 ? "1px solid #ffcdd2" : "1px solid #c8e6c9",
             }}
           >
             <p style={{ margin: "4px 0", fontSize: "14px", color: "#666" }}>
               Totale originale:{" "}
               <span style={{ textDecoration: "line-through" }}>
-                €{queuedTotal.toFixed(2)}
+                {formatCurrency(queuedTotal)}
               </span>
             </p>
             <p style={{ margin: "4px 0", fontSize: "16px", fontWeight: 600 }}>
@@ -257,20 +295,43 @@ export function OrderConflictReview({
                   color: percentChange > 0 ? "#d32f2f" : "#388e3c",
                 }}
               >
-                €{currentTotal.toFixed(2)}
+                {formatCurrency(currentTotal)}
               </span>{" "}
               <span style={{ fontSize: "14px", color: "#666" }}>
-                ({percentChange > 0 ? "+" : ""}{percentChange.toFixed(1)}%)
+                ({percentChange > 0 ? "+" : ""}
+                {percentChange.toFixed(1)}%)
               </span>
             </p>
           </div>
         )}
 
-        <div style={{ marginTop: "16px", padding: "12px", backgroundColor: "#f5f5f5", borderRadius: "4px" }}>
-          <p style={{ margin: "4px 0", fontSize: "14px", color: "#666", lineHeight: 1.5 }}>
-            <strong>Conferma modifiche:</strong> L'ordine verrà sincronizzato con i dati attuali del catalogo.
+        <div
+          style={{
+            marginTop: "16px",
+            padding: "12px",
+            backgroundColor: "#f5f5f5",
+            borderRadius: "4px",
+          }}
+        >
+          <p
+            style={{
+              margin: "4px 0",
+              fontSize: "14px",
+              color: "#666",
+              lineHeight: 1.5,
+            }}
+          >
+            <strong>Conferma modifiche:</strong> L'ordine verrà sincronizzato
+            con i dati attuali del catalogo.
           </p>
-          <p style={{ margin: "4px 0", fontSize: "14px", color: "#666", lineHeight: 1.5 }}>
+          <p
+            style={{
+              margin: "4px 0",
+              fontSize: "14px",
+              color: "#666",
+              lineHeight: 1.5,
+            }}
+          >
             <strong>Annulla:</strong> L'ordine non verrà sincronizzato.
           </p>
         </div>

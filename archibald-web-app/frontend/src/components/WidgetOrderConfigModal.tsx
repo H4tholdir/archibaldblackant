@@ -4,6 +4,7 @@ import type {
   WidgetOrdersResponse,
   OrderExclusionUpdate,
 } from "../types/widget";
+import { formatCurrency } from "../utils/format-currency";
 
 interface WidgetOrderConfigModalProps {
   isOpen: boolean;
@@ -118,15 +119,6 @@ export function WidgetOrderConfigModal({
     cleaned = cleaned.replace(",", ".");
     const parsed = parseFloat(cleaned);
     return isNaN(parsed) ? 0 : parsed;
-  };
-
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat("it-IT", {
-      style: "currency",
-      currency: "EUR",
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2,
-    }).format(amount);
   };
 
   const formatDate = (isoDate: string) => {

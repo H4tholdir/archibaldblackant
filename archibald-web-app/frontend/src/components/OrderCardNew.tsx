@@ -11,6 +11,7 @@ import { priceService } from "../services/prices.service";
 import { db } from "../db/schema";
 import { CachePopulationService } from "../services/cache-population";
 import { normalizeVatRate } from "../utils/vat-utils";
+import { formatCurrency } from "../utils/format-currency";
 import { useWebSocketContext } from "../contexts/WebSocketContext";
 
 interface OrderCardProps {
@@ -625,12 +626,20 @@ function TabArticoli({
   // Edit mode state
   const [editItems, setEditItems] = useState<EditItem[]>([]);
   const [originalItems, setOriginalItems] = useState<EditItem[]>([]);
-  const [editingArticleIdx, setEditingArticleIdx] = useState<number | null>(null);
+  const [editingArticleIdx, setEditingArticleIdx] = useState<number | null>(
+    null,
+  );
   const [articleSearch, setArticleSearch] = useState("");
-  const [articleResults, setArticleResults] = useState<ProductWithDetails[]>([]);
+  const [articleResults, setArticleResults] = useState<ProductWithDetails[]>(
+    [],
+  );
   const [highlightedArticleIdx, setHighlightedArticleIdx] = useState(-1);
-  const [qtyValidation, setQtyValidation] = useState<Map<number, string | null>>(new Map());
-  const [confirmModal, setConfirmModal] = useState<EditModification[] | null>(null);
+  const [qtyValidation, setQtyValidation] = useState<
+    Map<number, string | null>
+  >(new Map());
+  const [confirmModal, setConfirmModal] = useState<EditModification[] | null>(
+    null,
+  );
   const [submittingEdit, setSubmittingEdit] = useState(false);
   const [syncingProducts, setSyncingProducts] = useState(false);
   const [syncProductsMsg, setSyncProductsMsg] = useState("");
@@ -715,7 +724,11 @@ function TabArticoli({
               freshArticles = syncResult.data.articles;
               if (!cancelled) {
                 setArticles(freshArticles);
-                if (onTotalsUpdate && syncResult.data.totalVatAmount && syncResult.data.totalWithVat) {
+                if (
+                  onTotalsUpdate &&
+                  syncResult.data.totalVatAmount &&
+                  syncResult.data.totalWithVat
+                ) {
                   onTotalsUpdate({
                     totalVatAmount: syncResult.data.totalVatAmount,
                     totalWithVat: syncResult.data.totalWithVat,
@@ -762,7 +775,9 @@ function TabArticoli({
       setOriginalItems(mapped.map((m) => ({ ...m })));
     })();
 
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, [editing]);
 
   // Click outside article dropdown
@@ -819,9 +834,14 @@ function TabArticoli({
 
       let variantId = product.id;
       let variantArticle = product.article;
-      if (packaging.success && packaging.breakdown && packaging.breakdown.length > 0) {
+      if (
+        packaging.success &&
+        packaging.breakdown &&
+        packaging.breakdown.length > 0
+      ) {
         variantId = packaging.breakdown[0].variant.variantId || product.id;
-        variantArticle = packaging.breakdown[0].variant.variantId || product.article;
+        variantArticle =
+          packaging.breakdown[0].variant.variantId || product.article;
       }
 
       const priceData = await priceService.getPriceAndVat(variantId);
@@ -866,7 +886,10 @@ function TabArticoli({
           break;
         case "Enter":
           e.preventDefault();
-          if (highlightedArticleIdx >= 0 && highlightedArticleIdx < articleResults.length) {
+          if (
+            highlightedArticleIdx >= 0 &&
+            highlightedArticleIdx < articleResults.length
+          ) {
             handleSelectArticle(idx, articleResults[highlightedArticleIdx]);
           }
           break;
@@ -892,7 +915,9 @@ function TabArticoli({
 
       const timeout = setTimeout(async () => {
         if (qty <= 0) {
-          setQtyValidation((prev) => new Map(prev).set(idx, "Quantita' deve essere > 0"));
+          setQtyValidation((prev) =>
+            new Map(prev).set(idx, "Quantita' deve essere > 0"),
+          );
           return;
         }
         const item = newItems[idx];
@@ -914,7 +939,10 @@ function TabArticoli({
             m.delete(idx);
             return m;
           });
-          if (packaging.suggestedQuantity && packaging.suggestedQuantity !== qty) {
+          if (
+            packaging.suggestedQuantity &&
+            packaging.suggestedQuantity !== qty
+          ) {
             setQtyValidation((prev) =>
               new Map(prev).set(
                 idx,
@@ -925,15 +953,22 @@ function TabArticoli({
           if (packaging.breakdown && packaging.breakdown.length > 0) {
             const bestVariant = packaging.breakdown[0].variant;
             const currentArticle = newItems[idx].articleCode;
-            if (bestVariant.variantId && bestVariant.variantId !== currentArticle) {
-              const priceData = await priceService.getPriceAndVat(bestVariant.variantId);
+            if (
+              bestVariant.variantId &&
+              bestVariant.variantId !== currentArticle
+            ) {
+              const priceData = await priceService.getPriceAndVat(
+                bestVariant.variantId,
+              );
               setEditItems((prev) => {
                 const updated = [...prev];
                 updated[idx] = recalcLineAmounts({
                   ...updated[idx],
                   articleCode: bestVariant.variantId,
                   unitPrice: priceData?.price ?? updated[idx].unitPrice,
-                  vatPercent: normalizeVatRate(priceData?.vat ?? updated[idx].vatPercent),
+                  vatPercent: normalizeVatRate(
+                    priceData?.vat ?? updated[idx].vatPercent,
+                  ),
                 });
                 return updated;
               });
@@ -941,7 +976,10 @@ function TabArticoli({
           }
         } else {
           setQtyValidation((prev) =>
-            new Map(prev).set(idx, packaging.error || "Quantita' non valida per il packaging"),
+            new Map(prev).set(
+              idx,
+              packaging.error || "Quantita' non valida per il packaging",
+            ),
           );
         }
       }, 500);
@@ -954,26 +992,26 @@ function TabArticoli({
     (idx: number, discount: number) => {
       const clamped = Math.min(100, Math.max(0, discount));
       const newItems = [...editItems];
-      newItems[idx] = recalcLineAmounts({ ...newItems[idx], discountPercent: clamped });
+      newItems[idx] = recalcLineAmounts({
+        ...newItems[idx],
+        discountPercent: clamped,
+      });
       setEditItems(newItems);
     },
     [editItems],
   );
 
-  const handleRemoveEditItem = useCallback(
-    (idx: number) => {
-      setEditItems((prev) => prev.filter((_, i) => i !== idx));
-      setQtyValidation((prev) => {
-        const m = new Map<number, string | null>();
-        prev.forEach((v, k) => {
-          if (k < idx) m.set(k, v);
-          else if (k > idx) m.set(k - 1, v);
-        });
-        return m;
+  const handleRemoveEditItem = useCallback((idx: number) => {
+    setEditItems((prev) => prev.filter((_, i) => i !== idx));
+    setQtyValidation((prev) => {
+      const m = new Map<number, string | null>();
+      prev.forEach((v, k) => {
+        if (k < idx) m.set(k, v);
+        else if (k > idx) m.set(k - 1, v);
       });
-    },
-    [],
-  );
+      return m;
+    });
+  }, []);
 
   const handleAddEditItem = useCallback(() => {
     setEditItems((prev) => [
@@ -1009,20 +1047,17 @@ function TabArticoli({
     setSubmittingEdit(true);
 
     try {
-      const response = await fetch(
-        `/api/orders/${orderId}/edit-in-archibald`,
-        {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${token}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            modifications,
-            updatedItems: editItems,
-          }),
+      const response = await fetch(`/api/orders/${orderId}/edit-in-archibald`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
         },
-      );
+        body: JSON.stringify({
+          modifications,
+          updatedItems: editItems,
+        }),
+      });
 
       const result = await response.json();
       if (!result.success) {
@@ -1169,13 +1204,27 @@ function TabArticoli({
             padding: "24px",
           }}
         >
-          <h3 style={{ fontSize: "18px", fontWeight: 700, marginBottom: "16px", color: "#333" }}>
+          <h3
+            style={{
+              fontSize: "18px",
+              fontWeight: 700,
+              marginBottom: "16px",
+              color: "#333",
+            }}
+          >
             Conferma modifiche
           </h3>
 
           {updates.length > 0 && (
             <div style={{ marginBottom: "16px" }}>
-              <div style={{ fontSize: "14px", fontWeight: 600, color: "#1976d2", marginBottom: "8px" }}>
+              <div
+                style={{
+                  fontSize: "14px",
+                  fontWeight: 600,
+                  color: "#1976d2",
+                  marginBottom: "8px",
+                }}
+              >
                 Modifiche ({updates.length})
               </div>
               {updates.map((m, i) => (
@@ -1189,8 +1238,10 @@ function TabArticoli({
                   }}
                 >
                   Riga {m.rowIndex}: {m.oldArticleCode} {"→"} {m.articleCode}
-                  {m.oldQuantity !== m.quantity && `, Qty: ${m.oldQuantity} → ${m.quantity}`}
-                  {m.oldDiscount !== m.discount && `, Sconto: ${m.oldDiscount}% → ${m.discount}%`}
+                  {m.oldQuantity !== m.quantity &&
+                    `, Qty: ${m.oldQuantity} → ${m.quantity}`}
+                  {m.oldDiscount !== m.discount &&
+                    `, Sconto: ${m.oldDiscount}% → ${m.discount}%`}
                 </div>
               ))}
             </div>
@@ -1198,7 +1249,14 @@ function TabArticoli({
 
           {adds.length > 0 && (
             <div style={{ marginBottom: "16px" }}>
-              <div style={{ fontSize: "14px", fontWeight: 600, color: "#388e3c", marginBottom: "8px" }}>
+              <div
+                style={{
+                  fontSize: "14px",
+                  fontWeight: 600,
+                  color: "#388e3c",
+                  marginBottom: "8px",
+                }}
+              >
                 Aggiunte ({adds.length})
               </div>
               {adds.map((m, i) => (
@@ -1220,7 +1278,14 @@ function TabArticoli({
 
           {deletes.length > 0 && (
             <div style={{ marginBottom: "16px" }}>
-              <div style={{ fontSize: "14px", fontWeight: 600, color: "#d32f2f", marginBottom: "8px" }}>
+              <div
+                style={{
+                  fontSize: "14px",
+                  fontWeight: 600,
+                  color: "#d32f2f",
+                  marginBottom: "8px",
+                }}
+              >
                 Eliminazioni ({deletes.length})
               </div>
               {deletes.map((m, i) => (
@@ -1239,7 +1304,14 @@ function TabArticoli({
             </div>
           )}
 
-          <div style={{ display: "flex", gap: "12px", justifyContent: "flex-end", marginTop: "20px" }}>
+          <div
+            style={{
+              display: "flex",
+              gap: "12px",
+              justifyContent: "flex-end",
+              marginTop: "20px",
+            }}
+          >
             <button
               onClick={() => setConfirmModal(null)}
               style={{
@@ -1342,18 +1414,24 @@ function TabArticoli({
             </button>
             <button
               onClick={handleSaveClick}
-              disabled={editItems.some((item) => !item.articleCode || item.quantity <= 0)}
+              disabled={editItems.some(
+                (item) => !item.articleCode || item.quantity <= 0,
+              )}
               style={{
                 padding: "8px 16px",
                 fontSize: "13px",
                 fontWeight: 600,
-                backgroundColor: editItems.some((item) => !item.articleCode || item.quantity <= 0)
+                backgroundColor: editItems.some(
+                  (item) => !item.articleCode || item.quantity <= 0,
+                )
                   ? "#ccc"
                   : "#1976d2",
                 color: "#fff",
                 border: "none",
                 borderRadius: "6px",
-                cursor: editItems.some((item) => !item.articleCode || item.quantity <= 0)
+                cursor: editItems.some(
+                  (item) => !item.articleCode || item.quantity <= 0,
+                )
                   ? "not-allowed"
                   : "pointer",
               }}
@@ -1384,7 +1462,9 @@ function TabArticoli({
               <tr style={{ backgroundColor: "#f5f5f5" }}>
                 <th style={tableHeaderStyle}>Codice Articolo</th>
                 <th style={tableHeaderStyle}>Descrizione</th>
-                <th style={{ ...tableHeaderStyle, width: "100px" }}>Quantita'</th>
+                <th style={{ ...tableHeaderStyle, width: "100px" }}>
+                  Quantita'
+                </th>
                 <th style={tableHeaderStyle}>Prezzo Unit.</th>
                 <th style={{ ...tableHeaderStyle, width: "90px" }}>Sconto %</th>
                 <th style={tableHeaderStyle}>Imponibile</th>
@@ -1406,12 +1486,23 @@ function TabArticoli({
                     }}
                   >
                     {/* Article Code - searchable */}
-                    <td style={{ ...tableCellStyle, position: "relative", minWidth: "200px" }}>
-                      <div ref={isSearching ? dropdownRef : undefined} style={{ position: "relative" }}>
+                    <td
+                      style={{
+                        ...tableCellStyle,
+                        position: "relative",
+                        minWidth: "200px",
+                      }}
+                    >
+                      <div
+                        ref={isSearching ? dropdownRef : undefined}
+                        style={{ position: "relative" }}
+                      >
                         <input
                           type="text"
                           value={isSearching ? articleSearch : item.articleCode}
-                          onChange={(e) => handleArticleSearchChange(idx, e.target.value)}
+                          onChange={(e) =>
+                            handleArticleSearchChange(idx, e.target.value)
+                          }
                           onFocus={() => {
                             setEditingArticleIdx(idx);
                             setArticleSearch(item.articleCode);
@@ -1429,7 +1520,13 @@ function TabArticoli({
                           }}
                         />
                         {item.productName && !isSearching && (
-                          <div style={{ fontSize: "11px", color: "#666", marginTop: "2px" }}>
+                          <div
+                            style={{
+                              fontSize: "11px",
+                              color: "#666",
+                              marginTop: "2px",
+                            }}
+                          >
                             {item.productName}
                           </div>
                         )}
@@ -1453,8 +1550,12 @@ function TabArticoli({
                             {articleResults.map((product, pIdx) => (
                               <div
                                 key={product.id}
-                                onClick={() => handleSelectArticle(idx, product)}
-                                onMouseEnter={() => setHighlightedArticleIdx(pIdx)}
+                                onClick={() =>
+                                  handleSelectArticle(idx, product)
+                                }
+                                onMouseEnter={() =>
+                                  setHighlightedArticleIdx(pIdx)
+                                }
                                 style={{
                                   padding: "8px 10px",
                                   cursor: "pointer",
@@ -1463,15 +1564,22 @@ function TabArticoli({
                                       ? "1px solid #f3f4f6"
                                       : "none",
                                   backgroundColor:
-                                    pIdx === highlightedArticleIdx ? "#E3F2FD" : "#fff",
+                                    pIdx === highlightedArticleIdx
+                                      ? "#E3F2FD"
+                                      : "#fff",
                                 }}
                               >
-                                <div style={{ fontWeight: 600, fontSize: "13px" }}>
+                                <div
+                                  style={{ fontWeight: 600, fontSize: "13px" }}
+                                >
                                   {product.article}
                                 </div>
-                                <div style={{ fontSize: "11px", color: "#666" }}>
+                                <div
+                                  style={{ fontSize: "11px", color: "#666" }}
+                                >
                                   {product.name}
-                                  {product.price != null && ` - € ${product.price.toFixed(2)}`}
+                                  {product.price != null &&
+                                    ` - ${formatCurrency(product.price)}`}
                                 </div>
                               </div>
                             ))}
@@ -1493,7 +1601,9 @@ function TabArticoli({
                         type="number"
                         min="1"
                         value={item.quantity}
-                        onChange={(e) => handleQtyChange(idx, parseInt(e.target.value) || 0)}
+                        onChange={(e) =>
+                          handleQtyChange(idx, parseInt(e.target.value) || 0)
+                        }
                         style={{
                           width: "80px",
                           padding: "6px 8px",
@@ -1505,7 +1615,13 @@ function TabArticoli({
                         }}
                       />
                       {qtyError && (
-                        <div style={{ fontSize: "10px", color: "#d32f2f", marginTop: "2px" }}>
+                        <div
+                          style={{
+                            fontSize: "10px",
+                            color: "#d32f2f",
+                            marginTop: "2px",
+                          }}
+                        >
                           {qtyError}
                         </div>
                       )}
@@ -1514,7 +1630,9 @@ function TabArticoli({
                     {/* Unit Price */}
                     <td style={tableCellStyle}>
                       <span style={{ fontSize: "13px" }}>
-                        {item.unitPrice > 0 ? `€ ${item.unitPrice.toFixed(2)}` : "-"}
+                        {item.unitPrice > 0
+                          ? formatCurrency(item.unitPrice)
+                          : "-"}
                       </span>
                     </td>
 
@@ -1527,7 +1645,10 @@ function TabArticoli({
                         step="0.01"
                         value={item.discountPercent}
                         onChange={(e) =>
-                          handleDiscountChange(idx, parseFloat(e.target.value) || 0)
+                          handleDiscountChange(
+                            idx,
+                            parseFloat(e.target.value) || 0,
+                          )
                         }
                         style={{
                           width: "70px",
@@ -1544,13 +1665,17 @@ function TabArticoli({
                     {/* Line Amount */}
                     <td style={tableCellStyle}>
                       <span style={{ fontSize: "13px" }}>
-                        {item.lineAmount > 0 ? `€ ${item.lineAmount.toFixed(2)}` : "-"}
+                        {item.lineAmount > 0
+                          ? formatCurrency(item.lineAmount)
+                          : "-"}
                       </span>
                     </td>
 
                     {/* VAT % */}
                     <td style={tableCellStyle}>
-                      <span style={{ fontSize: "13px" }}>{item.vatPercent}%</span>
+                      <span style={{ fontSize: "13px" }}>
+                        {item.vatPercent}%
+                      </span>
                     </td>
 
                     {/* Remove button */}
@@ -1767,15 +1892,15 @@ function TabArticoli({
                     <HighlightText text={description} query={searchQuery} />
                   </td>
                   <td style={tableCellStyle}>{item.quantity}</td>
-                  <td style={tableCellStyle}>€ {unitPrice.toFixed(2)}</td>
+                  <td style={tableCellStyle}>{formatCurrency(unitPrice)}</td>
                   <td style={tableCellStyle}>
                     {discount > 0 ? `${discount}%` : "-"}
                   </td>
-                  <td style={tableCellStyle}>€ {lineAmount.toFixed(2)}</td>
+                  <td style={tableCellStyle}>{formatCurrency(lineAmount)}</td>
                   <td style={tableCellStyle}>{vatPercent}%</td>
-                  <td style={tableCellStyle}>€ {vatAmount.toFixed(2)}</td>
+                  <td style={tableCellStyle}>{formatCurrency(vatAmount)}</td>
                   <td style={{ ...tableCellStyle, fontWeight: 600 }}>
-                    € {lineTotalWithVat.toFixed(2)}
+                    {formatCurrency(lineTotalWithVat)}
                   </td>
                 </tr>
               );
@@ -1834,7 +1959,7 @@ function TabArticoli({
                     >
                       <span style={{ fontWeight: 500 }}>Subtotale:</span>
                       <span style={{ fontWeight: 600 }}>
-                        € {subtotalBeforeDiscount.toFixed(2)}
+                        {formatCurrency(subtotalBeforeDiscount)}
                       </span>
                     </div>
                     <div
@@ -1852,7 +1977,7 @@ function TabArticoli({
                         :
                       </span>
                       <span style={{ fontWeight: 600, color: "#d32f2f" }}>
-                        - € {totalDiscountAmount.toFixed(2)}
+                        - {formatCurrency(totalDiscountAmount)}
                       </span>
                     </div>
                   </>
@@ -1866,7 +1991,7 @@ function TabArticoli({
                 >
                   <span style={{ fontWeight: 500 }}>Totale Imponibile:</span>
                   <span style={{ fontWeight: 600 }}>
-                    € {totalImponibile.toFixed(2)}
+                    {formatCurrency(totalImponibile)}
                   </span>
                 </div>
                 <div
@@ -1878,13 +2003,12 @@ function TabArticoli({
                 >
                   <span style={{ fontWeight: 500 }}>Totale IVA:</span>
                   <span style={{ fontWeight: 600 }}>
-                    €{" "}
-                    {articles
-                      .reduce(
+                    {formatCurrency(
+                      articles.reduce(
                         (sum, item) => sum + ((item as any).vatAmount ?? 0),
                         0,
-                      )
-                      .toFixed(2)}
+                      ),
+                    )}
                   </span>
                 </div>
                 <div
@@ -1906,14 +2030,13 @@ function TabArticoli({
                       color: "#2e7d32",
                     }}
                   >
-                    €{" "}
-                    {articles
-                      .reduce(
+                    {formatCurrency(
+                      articles.reduce(
                         (sum, item) =>
                           sum + ((item as any).lineTotalWithVat ?? 0),
                         0,
-                      )
-                      .toFixed(2)}
+                      ),
+                    )}
                   </span>
                 </div>
               </div>
@@ -2430,7 +2553,7 @@ function TabFinanziario({
                 marginTop: "2px",
               }}
             >
-              € {parseFloat(order.totalWithVat).toFixed(2)} (con IVA)
+              {formatCurrency(parseFloat(order.totalWithVat))} (con IVA)
             </div>
           )}
           {(!order.totalWithVat || parseFloat(order.totalWithVat) === 0) && (
@@ -3399,7 +3522,7 @@ export function OrderCardNew({
                           marginTop: "2px",
                         }}
                       >
-                        € {totalWithVat.toFixed(2)} (IVA incl.)
+                        {formatCurrency(totalWithVat)} (IVA incl.)
                       </div>
                     );
                   }

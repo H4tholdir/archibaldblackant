@@ -36,6 +36,7 @@ import {
   extractUniqueSubClients,
   groupFresisOrdersByPeriod,
 } from "../utils/fresisHistoryFilters";
+import { formatCurrency as formatCurrencyImported } from "../utils/format-currency";
 
 const STATE_BADGE_CONFIG: Record<
   string,
@@ -114,11 +115,7 @@ const formatDateDisplay = (iso: string) => {
   }
 };
 
-const formatCurrency = (value: number) =>
-  value.toLocaleString("it-IT", {
-    style: "currency",
-    currency: "EUR",
-  });
+const formatCurrency = (value: number) => formatCurrencyImported(value);
 
 export function FresisHistoryPage() {
   const { historyOrders: wsOrders, refetch: wsRefetch } =

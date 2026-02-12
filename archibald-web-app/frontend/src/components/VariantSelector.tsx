@@ -1,4 +1,5 @@
 import type { Product } from "../api/products";
+import { formatPriceFromString } from "../utils/format-currency";
 
 interface VariantSelectorProps {
   variants: Product[];
@@ -33,29 +34,7 @@ export function VariantSelector({
     return false;
   };
 
-  const formatCurrency = (
-    amount: number | string | null | undefined,
-  ): string => {
-    if (amount === null || amount === undefined) return "€ 0,00";
-
-    // If already a formatted string (e.g., "32,46 €"), return as-is
-    if (typeof amount === "string") {
-      if (amount.includes("€") || amount.includes(",")) {
-        return amount;
-      }
-      // Try to parse it as a number
-      const parsed = parseFloat(amount.replace(",", "."));
-      if (isNaN(parsed)) return "€ 0,00";
-      amount = parsed;
-    }
-
-    if (amount === 0) return "€ 0,00";
-
-    return new Intl.NumberFormat("it-IT", {
-      style: "currency",
-      currency: "EUR",
-    }).format(amount);
-  };
+  const formatCurrencyLocal = formatPriceFromString;
 
   return (
     <div style={{ marginBottom: "20px" }}>
@@ -182,7 +161,7 @@ export function VariantSelector({
                       color: isSelected ? "#1976d2" : "#333",
                     }}
                   >
-                    {formatCurrency(variant.price)}
+                    {formatCurrencyLocal(variant.price)}
                     {variant.vat !== undefined && variant.vat !== null && (
                       <span
                         style={{

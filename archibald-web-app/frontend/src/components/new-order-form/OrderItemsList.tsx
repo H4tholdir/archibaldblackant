@@ -1,5 +1,6 @@
-import { useState } from 'react';
-import type { OrderItem } from '../../types/order';
+import { useState } from "react";
+import type { OrderItem } from "../../types/order";
+import { formatCurrency } from "../../utils/format-currency";
 
 interface OrderItemsListProps {
   items: OrderItem[];
@@ -18,12 +19,12 @@ export function OrderItemsList({
     return (
       <div
         style={{
-          padding: '2rem',
-          textAlign: 'center',
-          color: '#6b7280',
-          backgroundColor: '#f9fafb',
-          borderRadius: '8px',
-          border: '1px dashed #d1d5db',
+          padding: "2rem",
+          textAlign: "center",
+          color: "#6b7280",
+          backgroundColor: "#f9fafb",
+          borderRadius: "8px",
+          border: "1px dashed #d1d5db",
         }}
       >
         Nessun articolo inserito. Aggiungi il primo articolo per iniziare.
@@ -32,12 +33,12 @@ export function OrderItemsList({
   }
 
   return (
-    <div style={{ width: '100%' }}>
+    <div style={{ width: "100%" }}>
       <h3
         style={{
-          fontSize: '1.125rem',
-          fontWeight: '600',
-          marginBottom: '1rem',
+          fontSize: "1.125rem",
+          fontWeight: "600",
+          marginBottom: "1rem",
         }}
       >
         Articoli ({items.length})
@@ -45,23 +46,23 @@ export function OrderItemsList({
 
       <div
         style={{
-          border: '1px solid #e5e7eb',
-          borderRadius: '8px',
-          overflow: 'hidden',
+          border: "1px solid #e5e7eb",
+          borderRadius: "8px",
+          overflow: "hidden",
         }}
       >
         {/* Table Header */}
         <div
           style={{
-            display: 'grid',
-            gridTemplateColumns: '2fr 1fr 1fr 1fr 1fr 100px',
-            gap: '1rem',
-            padding: '0.75rem 1rem',
-            backgroundColor: '#f9fafb',
-            borderBottom: '1px solid #e5e7eb',
-            fontWeight: '600',
-            fontSize: '0.875rem',
-            color: '#374151',
+            display: "grid",
+            gridTemplateColumns: "2fr 1fr 1fr 1fr 1fr 100px",
+            gap: "1rem",
+            padding: "0.75rem 1rem",
+            backgroundColor: "#f9fafb",
+            borderBottom: "1px solid #e5e7eb",
+            fontWeight: "600",
+            fontSize: "0.875rem",
+            color: "#374151",
           }}
         >
           <div>Articolo</div>
@@ -77,29 +78,29 @@ export function OrderItemsList({
           <div
             key={item.id}
             style={{
-              display: 'grid',
-              gridTemplateColumns: '2fr 1fr 1fr 1fr 1fr 100px',
-              gap: '1rem',
-              padding: '1rem',
-              borderBottom: '1px solid #e5e7eb',
-              backgroundColor: 'white',
+              display: "grid",
+              gridTemplateColumns: "2fr 1fr 1fr 1fr 1fr 100px",
+              gap: "1rem",
+              padding: "1rem",
+              borderBottom: "1px solid #e5e7eb",
+              backgroundColor: "white",
             }}
           >
             {/* Product Name & Description */}
             <div>
-              <div style={{ fontWeight: '500' }}>{item.productName}</div>
+              <div style={{ fontWeight: "500" }}>{item.productName}</div>
               {item.article && (
-                <div style={{ fontSize: '0.875rem', color: '#6b7280' }}>
+                <div style={{ fontSize: "0.875rem", color: "#6b7280" }}>
                   Codice: {item.article}
                 </div>
               )}
               {item.description && (
-                <div style={{ fontSize: '0.75rem', color: '#9ca3af' }}>
+                <div style={{ fontSize: "0.75rem", color: "#9ca3af" }}>
                   {item.description}
                 </div>
               )}
               {item.packageContent && (
-                <div style={{ fontSize: '0.75rem', color: '#9ca3af' }}>
+                <div style={{ fontSize: "0.75rem", color: "#9ca3af" }}>
                   Confezione: {item.packageContent}
                 </div>
               )}
@@ -109,35 +110,35 @@ export function OrderItemsList({
             <div>{item.quantity}</div>
 
             {/* Unit Price */}
-            <div>€{item.unitPrice.toFixed(2)}</div>
+            <div>{formatCurrency(item.unitPrice)}</div>
 
             {/* Discount */}
             <div>
               {item.discount > 0 ? (
-                <span style={{ color: '#dc2626' }}>
-                  {item.discount}%
-                </span>
+                <span style={{ color: "#dc2626" }}>{item.discount}%</span>
               ) : (
-                <span style={{ color: '#9ca3af' }}>—</span>
+                <span style={{ color: "#9ca3af" }}>—</span>
               )}
             </div>
 
             {/* Total */}
-            <div style={{ fontWeight: '600' }}>€{item.total.toFixed(2)}</div>
+            <div style={{ fontWeight: "600" }}>
+              {formatCurrency(item.total)}
+            </div>
 
             {/* Actions */}
-            <div style={{ display: 'flex', gap: '0.5rem' }}>
+            <div style={{ display: "flex", gap: "0.5rem" }}>
               <button
                 onClick={() => setEditingItemId(item.id)}
                 aria-label={`Modifica ${item.productName}`}
                 style={{
-                  padding: '0.25rem 0.5rem',
-                  fontSize: '0.875rem',
-                  backgroundColor: '#3b82f6',
-                  color: 'white',
-                  border: 'none',
-                  borderRadius: '4px',
-                  cursor: 'pointer',
+                  padding: "0.25rem 0.5rem",
+                  fontSize: "0.875rem",
+                  backgroundColor: "#3b82f6",
+                  color: "white",
+                  border: "none",
+                  borderRadius: "4px",
+                  cursor: "pointer",
                 }}
               >
                 ✏️
@@ -150,13 +151,13 @@ export function OrderItemsList({
                 }}
                 aria-label={`Elimina ${item.productName}`}
                 style={{
-                  padding: '0.25rem 0.5rem',
-                  fontSize: '0.875rem',
-                  backgroundColor: '#dc2626',
-                  color: 'white',
-                  border: 'none',
-                  borderRadius: '4px',
-                  cursor: 'pointer',
+                  padding: "0.25rem 0.5rem",
+                  fontSize: "0.875rem",
+                  backgroundColor: "#dc2626",
+                  color: "white",
+                  border: "none",
+                  borderRadius: "4px",
+                  cursor: "pointer",
                 }}
               >
                 🗑️
@@ -189,12 +190,14 @@ interface EditItemModalProps {
 
 function EditItemModal({ item, onSave, onCancel }: EditItemModalProps) {
   const [quantity, setQuantity] = useState(item.quantity);
-  const [discountValue, setDiscountValue] = useState(item.discountValue || item.discount || 0);
+  const [discountValue, setDiscountValue] = useState(
+    item.discountValue || item.discount || 0,
+  );
 
   const handleSave = () => {
     onSave({
       quantity,
-      discountType: 'percentage',
+      discountType: "percentage",
       discountValue,
     });
   };
@@ -202,35 +205,35 @@ function EditItemModal({ item, onSave, onCancel }: EditItemModalProps) {
   return (
     <div
       style={{
-        position: 'fixed',
+        position: "fixed",
         top: 0,
         left: 0,
         right: 0,
         bottom: 0,
-        backgroundColor: 'rgba(0, 0, 0, 0.5)',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
+        backgroundColor: "rgba(0, 0, 0, 0.5)",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
         zIndex: 2000,
       }}
       onClick={onCancel}
     >
       <div
         style={{
-          backgroundColor: 'white',
-          padding: '2rem',
-          borderRadius: '8px',
-          maxWidth: '500px',
-          width: '90%',
+          backgroundColor: "white",
+          padding: "2rem",
+          borderRadius: "8px",
+          maxWidth: "500px",
+          width: "90%",
         }}
         onClick={(e) => e.stopPropagation()}
       >
-        <h3 style={{ marginBottom: '1rem' }}>Modifica Articolo</h3>
+        <h3 style={{ marginBottom: "1rem" }}>Modifica Articolo</h3>
 
-        <div style={{ marginBottom: '1rem' }}>
+        <div style={{ marginBottom: "1rem" }}>
           <label
             htmlFor="edit-quantity"
-            style={{ display: 'block', marginBottom: '0.25rem' }}
+            style={{ display: "block", marginBottom: "0.25rem" }}
           >
             Quantità
           </label>
@@ -240,18 +243,18 @@ function EditItemModal({ item, onSave, onCancel }: EditItemModalProps) {
             value={quantity}
             onChange={(e) => setQuantity(parseInt(e.target.value, 10))}
             style={{
-              width: '100%',
-              padding: '0.5rem',
-              border: '1px solid #ccc',
-              borderRadius: '4px',
+              width: "100%",
+              padding: "0.5rem",
+              border: "1px solid #ccc",
+              borderRadius: "4px",
             }}
           />
         </div>
 
-        <div style={{ marginBottom: '1.5rem' }}>
+        <div style={{ marginBottom: "1.5rem" }}>
           <label
             htmlFor="edit-discount-value"
-            style={{ display: 'block', marginBottom: '0.25rem' }}
+            style={{ display: "block", marginBottom: "0.25rem" }}
           >
             Sconto (%)
           </label>
@@ -259,25 +262,31 @@ function EditItemModal({ item, onSave, onCancel }: EditItemModalProps) {
             id="edit-discount-value"
             type="number"
             value={discountValue}
-            onChange={(e) => setDiscountValue(parseFloat(e.target.value.replace(",", ".")) || 0)}
+            onChange={(e) =>
+              setDiscountValue(
+                parseFloat(e.target.value.replace(",", ".")) || 0,
+              )
+            }
             style={{
-              width: '100%',
-              padding: '0.5rem',
-              border: '1px solid #ccc',
-              borderRadius: '4px',
+              width: "100%",
+              padding: "0.5rem",
+              border: "1px solid #ccc",
+              borderRadius: "4px",
             }}
           />
         </div>
 
-        <div style={{ display: 'flex', gap: '1rem', justifyContent: 'flex-end' }}>
+        <div
+          style={{ display: "flex", gap: "1rem", justifyContent: "flex-end" }}
+        >
           <button
             onClick={onCancel}
             style={{
-              padding: '0.5rem 1rem',
-              backgroundColor: '#e5e7eb',
-              border: 'none',
-              borderRadius: '4px',
-              cursor: 'pointer',
+              padding: "0.5rem 1rem",
+              backgroundColor: "#e5e7eb",
+              border: "none",
+              borderRadius: "4px",
+              cursor: "pointer",
             }}
           >
             Annulla
@@ -285,12 +294,12 @@ function EditItemModal({ item, onSave, onCancel }: EditItemModalProps) {
           <button
             onClick={handleSave}
             style={{
-              padding: '0.5rem 1rem',
-              backgroundColor: '#3b82f6',
-              color: 'white',
-              border: 'none',
-              borderRadius: '4px',
-              cursor: 'pointer',
+              padding: "0.5rem 1rem",
+              backgroundColor: "#3b82f6",
+              color: "white",
+              border: "none",
+              borderRadius: "4px",
+              cursor: "pointer",
             }}
           >
             Salva

@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { formatCurrencyWithCurrency } from "../utils/format-currency";
 
 interface TargetData {
   yearlyTarget: number;
@@ -238,12 +239,8 @@ export function ProfilePage() {
     setValidationError("");
   };
 
-  const formatCurrency = (amount: number, currency: string) => {
-    return new Intl.NumberFormat("it-IT", {
-      style: "currency",
-      currency: currency,
-    }).format(amount);
-  };
+  const formatCurrency = (amount: number, currency: string) =>
+    formatCurrencyWithCurrency(amount, currency);
 
   const formatDate = (dateString?: string) => {
     if (!dateString) return "Non disponibile";

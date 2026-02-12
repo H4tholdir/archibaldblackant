@@ -1,3 +1,5 @@
+import { formatCurrency } from "../../utils/format-currency";
+
 interface OrderSummaryProps {
   itemsSubtotal: number;
   globalDiscount: number;
@@ -17,10 +19,6 @@ export function OrderSummary({
   vat,
   total,
 }: OrderSummaryProps) {
-  const formatCurrency = (amount: number) => {
-    return `€${amount.toFixed(2)}`;
-  };
-
   return (
     <div
       style={{
@@ -103,7 +101,7 @@ export function OrderSummary({
             <span style={{ color: "#6b7280" }}>
               Spese di trasporto K3
               <span style={{ fontSize: "0.875rem", marginLeft: "0.25rem" }}>
-                (€{shippingCost.toFixed(2)} + IVA)
+                ({formatCurrency(shippingCost)} + IVA)
               </span>
             </span>
             <span style={{ fontWeight: "500" }}>

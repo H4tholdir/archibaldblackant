@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import { formatPriceFromString } from "../utils/format-currency";
 
 export interface SearchResult {
   id: string;
@@ -56,9 +57,7 @@ function formatDate(iso: string): string {
 
 function formatCurrency(value: string | null): string {
   if (!value) return "";
-  const num = parseFloat(value);
-  if (isNaN(num)) return value;
-  return num.toLocaleString("it-IT", { style: "currency", currency: "EUR" });
+  return formatPriceFromString(value);
 }
 
 export function OrderPickerModal({
@@ -144,7 +143,8 @@ export function OrderPickerModal({
     }
   };
 
-  const allSelected = results.length > 0 && results.every((r) => selectedIds.has(r.id));
+  const allSelected =
+    results.length > 0 && results.every((r) => selectedIds.has(r.id));
 
   return (
     <div
@@ -172,12 +172,21 @@ export function OrderPickerModal({
         }}
         onClick={(e) => e.stopPropagation()}
       >
-        <h2 style={{ marginTop: 0, fontSize: "1.25rem", marginBottom: "0.5rem" }}>
+        <h2
+          style={{ marginTop: 0, fontSize: "1.25rem", marginBottom: "0.5rem" }}
+        >
           Collega ordine Archibald
         </h2>
 
-        <p style={{ fontSize: "0.85rem", color: "#6b7280", margin: "0 0 0.75rem" }}>
-          Cerca per numero ordine, cliente o destinatario. Seleziona uno o piu' ordini.
+        <p
+          style={{
+            fontSize: "0.85rem",
+            color: "#6b7280",
+            margin: "0 0 0.75rem",
+          }}
+        >
+          Cerca per numero ordine, cliente o destinatario. Seleziona uno o piu'
+          ordini.
         </p>
 
         <input

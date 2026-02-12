@@ -1,5 +1,6 @@
 import { ForecastData } from "../../types/dashboard";
 import { usePrivacy } from "../../contexts/PrivacyContext";
+import { formatCurrencyCompact } from "../../utils/format-currency";
 
 /**
  * Forecast Widget - Previsione Fine Mese Rinnovata
@@ -13,14 +14,7 @@ interface ForecastWidgetNewProps {
 export function ForecastWidgetNew({ data }: ForecastWidgetNewProps) {
   const { privacyEnabled, maskValue } = usePrivacy();
 
-  const formatCurrency = (amount: number): string => {
-    return new Intl.NumberFormat("it-IT", {
-      style: "currency",
-      currency: "EUR",
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0,
-    }).format(amount);
-  };
+  const formatCurrency = formatCurrencyCompact;
 
   // Calculate percentages for visual progress
   const currentPercentage =

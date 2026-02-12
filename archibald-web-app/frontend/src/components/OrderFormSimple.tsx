@@ -22,6 +22,7 @@ import { SubClientSelector } from "./new-order-form/SubClientSelector";
 import { isFresis, FRESIS_DEFAULT_DISCOUNT } from "../utils/fresis-constants";
 import { normalizeVatRate } from "../utils/vat-utils";
 import { fresisDiscountService } from "../services/fresis-discount.service";
+import { formatCurrency } from "../utils/format-currency";
 
 interface OrderItem {
   id: string;
@@ -1635,7 +1636,7 @@ export default function OrderFormSimple() {
     setShowMarkupPanel(false);
     setTargetTotal("");
     toastService.success(
-      `Maggiorazione di €${markupAmount.toFixed(2)} applicata su ${selectedItems.length} articol${selectedItems.length === 1 ? "o" : "i"}`,
+      `Maggiorazione di ${formatCurrency(markupAmount)} applicata su ${selectedItems.length} articol${selectedItems.length === 1 ? "o" : "i"}`,
     );
   };
 
@@ -2337,7 +2338,7 @@ export default function OrderFormSimple() {
                                   }}
                                 >
                                   {variant.price !== null
-                                    ? `€${variant.price.toFixed(2)}`
+                                    ? formatCurrency(variant.price)
                                     : "N/D"}
                                 </td>
                                 <td
@@ -2861,7 +2862,7 @@ export default function OrderFormSimple() {
                       {item.quantity}
                     </td>
                     <td style={{ padding: "0.75rem", textAlign: "right" }}>
-                      €{item.unitPrice.toFixed(2)}
+                      {formatCurrency(item.unitPrice)}
                     </td>
                     <td
                       style={{
@@ -2870,12 +2871,10 @@ export default function OrderFormSimple() {
                         color: item.discount > 0 ? "#dc2626" : "#9ca3af",
                       }}
                     >
-                      {item.discount > 0
-                        ? `${item.discount}%`
-                        : "—"}
+                      {item.discount > 0 ? `${item.discount}%` : "—"}
                     </td>
                     <td style={{ padding: "0.75rem", textAlign: "right" }}>
-                      €{item.subtotal.toFixed(2)}
+                      {formatCurrency(item.subtotal)}
                     </td>
                     <td
                       style={{
@@ -2888,7 +2887,8 @@ export default function OrderFormSimple() {
                         <span style={{ fontSize: "0.75rem", color: "#9ca3af" }}>
                           ({item.vatRate}%)
                         </span>
-                        <br />€{item.vat.toFixed(2)}
+                        <br />
+                        {formatCurrency(item.vat)}
                       </div>
                     </td>
                     <td
@@ -2898,7 +2898,7 @@ export default function OrderFormSimple() {
                         fontWeight: "600",
                       }}
                     >
-                      €{item.total.toFixed(2)}
+                      {formatCurrency(item.total)}
                     </td>
                     <td style={{ padding: "0.75rem", textAlign: "center" }}>
                       <button
@@ -3010,7 +3010,7 @@ export default function OrderFormSimple() {
                     <div style={{ textAlign: "right" }}>
                       <span style={{ color: "#6b7280" }}>Prezzo:</span>
                       <strong style={{ marginLeft: "0.25rem" }}>
-                        €{item.unitPrice.toFixed(2)}
+                        {formatCurrency(item.unitPrice)}
                       </strong>
                     </div>
                     <div>
@@ -3021,15 +3021,13 @@ export default function OrderFormSimple() {
                           color: item.discount > 0 ? "#dc2626" : "#9ca3af",
                         }}
                       >
-                        {item.discount > 0
-                          ? `${item.discount}%`
-                          : "—"}
+                        {item.discount > 0 ? `${item.discount}%` : "—"}
                       </strong>
                     </div>
                     <div style={{ textAlign: "right" }}>
                       <span style={{ color: "#6b7280" }}>Subtotale:</span>
                       <strong style={{ marginLeft: "0.25rem" }}>
-                        €{item.subtotal.toFixed(2)}
+                        {formatCurrency(item.subtotal)}
                       </strong>
                     </div>
                     <div>
@@ -3037,7 +3035,7 @@ export default function OrderFormSimple() {
                         IVA ({item.vatRate}%):
                       </span>
                       <strong style={{ marginLeft: "0.25rem" }}>
-                        €{item.vat.toFixed(2)}
+                        {formatCurrency(item.vat)}
                       </strong>
                     </div>
                     <div style={{ textAlign: "right" }}>
@@ -3051,7 +3049,7 @@ export default function OrderFormSimple() {
                           color: "#3b82f6",
                         }}
                       >
-                        €{item.total.toFixed(2)}
+                        {formatCurrency(item.total)}
                       </strong>
                     </div>
                   </div>
@@ -3210,7 +3208,7 @@ export default function OrderFormSimple() {
                   color: "#92400e",
                 }}
               >
-                Maggiorazione: +€{markupAmount.toFixed(2)}
+                Maggiorazione: +{formatCurrency(markupAmount)}
               </h4>
               <p
                 style={{
@@ -3294,7 +3292,7 @@ export default function OrderFormSimple() {
                       <span
                         style={{ fontWeight: "500", fontFamily: "monospace" }}
                       >
-                        €{item.subtotal.toFixed(2)}
+                        {formatCurrency(item.subtotal)}
                       </span>
                     </label>
                   ))}
@@ -3371,7 +3369,7 @@ export default function OrderFormSimple() {
               }}
             >
               <span>Subtotale articoli:</span>
-              <strong>€{totals.itemsSubtotal.toFixed(2)}</strong>
+              <strong>{formatCurrency(totals.itemsSubtotal)}</strong>
             </div>
             {totals.globalDiscAmount > 0 && (
               <div
@@ -3384,7 +3382,7 @@ export default function OrderFormSimple() {
                 }}
               >
                 <span>Sconto globale ({totals.globalDiscPercent}%):</span>
-                <strong>-€{totals.globalDiscAmount.toFixed(2)}</strong>
+                <strong>-{formatCurrency(totals.globalDiscAmount)}</strong>
               </div>
             )}
             <div
@@ -3398,7 +3396,7 @@ export default function OrderFormSimple() {
               }}
             >
               <span>Subtotale (senza IVA):</span>
-              <strong>€{totals.finalSubtotal.toFixed(2)}</strong>
+              <strong>{formatCurrency(totals.finalSubtotal)}</strong>
             </div>
             {totals.shippingCost > 0 && (
               <div
@@ -3413,11 +3411,11 @@ export default function OrderFormSimple() {
                 <span>
                   Spese di trasporto K3
                   <span style={{ fontSize: "0.75rem", marginLeft: "0.25rem" }}>
-                    (€{totals.shippingCost.toFixed(2)} + IVA)
+                    ({formatCurrency(totals.shippingCost)} + IVA)
                   </span>
                 </span>
                 <strong>
-                  €{(totals.shippingCost + totals.shippingTax).toFixed(2)}
+                  {formatCurrency(totals.shippingCost + totals.shippingTax)}
                 </strong>
               </div>
             )}
@@ -3431,7 +3429,7 @@ export default function OrderFormSimple() {
               }}
             >
               <span>IVA Totale:</span>
-              <strong>€{totals.finalVAT.toFixed(2)}</strong>
+              <strong>{formatCurrency(totals.finalVAT)}</strong>
             </div>
             <div
               style={{
@@ -3444,7 +3442,7 @@ export default function OrderFormSimple() {
             >
               <span style={{ fontWeight: "600" }}>TOTALE (con IVA):</span>
               <strong style={{ color: "#3b82f6" }}>
-                €{totals.finalTotal.toFixed(2)}
+                {formatCurrency(totals.finalTotal)}
               </strong>
             </div>
             {estimatedRevenue !== null && (
@@ -3461,7 +3459,7 @@ export default function OrderFormSimple() {
                 title={`Differenza tra prezzo cliente (sconto ${globalDiscountPercent || 0}%) e prezzo Fresis (sconto articolo o default ${FRESIS_DEFAULT_DISCOUNT}%)`}
               >
                 <span style={{ fontWeight: "500" }}>Ricavo stimato:</span>
-                <strong>€{estimatedRevenue.toFixed(2)}</strong>
+                <strong>{formatCurrency(estimatedRevenue)}</strong>
               </div>
             )}
           </div>
@@ -3826,7 +3824,7 @@ export default function OrderFormSimple() {
                         Qt: {item.quantity}
                       </span>
                       <span style={{ color: "#6b7280" }}>
-                        €{item.price.toFixed(2)}
+                        {formatCurrency(item.price)}
                       </span>
                       {item.discount ? (
                         <span style={{ color: "#dc2626" }}>

@@ -144,8 +144,8 @@ export class ExcelVatImporter {
             : "",
           conf: row[4] || 0,
           prezzoUnit:
-            idxPrezzoUnit >= 0 ? parseFloat(row[idxPrezzoUnit]) || 0 : 0,
-          prezzoConf: parseFloat(row[6]) || 0,
+            idxPrezzoUnit >= 0 ? this.parseExcelPrice(row[idxPrezzoUnit]) : 0,
+          prezzoConf: this.parseExcelPrice(row[6]),
           iva: parseFloat(row[idxIva]) || 0,
         });
       }
@@ -434,6 +434,16 @@ export class ExcelVatImporter {
   /**
    * Normalize string for matching (remove dots, spaces, dashes, lowercase)
    */
+  private parseExcelPrice(value: unknown): number {
+    if (typeof value === "number") return value;
+    if (typeof value !== "string" || !value) return 0;
+    const cleaned = value
+      .replace(/[^0-9.,\-]/g, "")
+      .replace(/\./g, "")
+      .replace(",", ".");
+    return parseFloat(cleaned) || 0;
+  }
+
   private normalizeString(str: string): string {
     return str
       .toLowerCase()

@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { formatCurrency } from "../../utils/format-currency";
 
 interface DiscountSystemProps {
   orderSubtotal: number;
@@ -127,8 +128,8 @@ export function DiscountSystem({
                 }}
               >
                 <div style={{ fontWeight: "600", marginBottom: "0.25rem" }}>
-                  Sconto calcolato: {calculatedDiscountPercent.toFixed(2)}% ( €
-                  {calculatedDiscountAmount.toFixed(2)})
+                  Sconto calcolato: {calculatedDiscountPercent.toFixed(2)}% ({" "}
+                  {formatCurrency(calculatedDiscountAmount)})
                 </div>
                 <div style={{ color: "#6b7280" }}>
                   Questo sconto globale porterà il totale al valore desiderato

@@ -48,12 +48,14 @@ export class PriceMatchingService {
    * Parse Italian price format to number
    * Converts "1.234,56 €" to 1234.56
    */
-  private parseItalianPrice(price: string | null): number | null {
+  parseItalianPrice(price: string | null): number | null {
     if (!price) return null;
 
-    // Remove € symbol and spaces, then replace comma with dot
-    const cleanPrice = price.replace(/[€\s]/g, "").replace(",", ".");
-    const parsed = parseFloat(cleanPrice);
+    const cleaned = price
+      .replace(/[^0-9.,\-]/g, "")
+      .replace(/\./g, "")
+      .replace(",", ".");
+    const parsed = parseFloat(cleaned);
 
     return !isNaN(parsed) && parsed >= 0 ? parsed : null;
   }

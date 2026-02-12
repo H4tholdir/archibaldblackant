@@ -1,6 +1,7 @@
 import { useState } from "react";
 import type { Product } from "../api/products";
 import { updateProductVat } from "../api/products";
+import { formatPriceFromString } from "../utils/format-currency";
 
 interface ProductCardProps {
   product: Product;
@@ -22,28 +23,7 @@ export function ProductCard({
   const [vatError, setVatError] = useState("");
   const [savedVat, setSavedVat] = useState<number | null>(null);
   // Utility functions
-  const formatCurrency = (amount: number | string | null | undefined): string => {
-    if (amount === null || amount === undefined) return "€ 0,00";
-
-    // If already a formatted string (e.g., "32,46 €"), return as-is
-    if (typeof amount === "string") {
-      // If it's a formatted price string, return it
-      if (amount.includes("€") || amount.includes(",")) {
-        return amount;
-      }
-      // Try to parse it as a number
-      const parsed = parseFloat(amount.replace(",", "."));
-      if (isNaN(parsed)) return "€ 0,00";
-      amount = parsed;
-    }
-
-    if (amount === 0) return "€ 0,00";
-
-    return new Intl.NumberFormat("it-IT", {
-      style: "currency",
-      currency: "EUR",
-    }).format(amount);
-  };
+  const formatCurrencyLocal = formatPriceFromString;
 
   const formatDate = (timestamp: number | null | undefined): string => {
     if (!timestamp) return "N/A";
@@ -344,13 +324,17 @@ export function ProductCard({
                 )}
                 {product.productGroupId && (
                   <div>
-                    <strong style={{ color: "#666" }}>ID gruppo prodotti:</strong>{" "}
+                    <strong style={{ color: "#666" }}>
+                      ID gruppo prodotti:
+                    </strong>{" "}
                     {product.productGroupId}
                   </div>
                 )}
                 {product.bulkArticleId && (
                   <div>
-                    <strong style={{ color: "#666" }}>ID blocco articolo:</strong>{" "}
+                    <strong style={{ color: "#666" }}>
+                      ID blocco articolo:
+                    </strong>{" "}
                     {product.bulkArticleId}
                   </div>
                 )}
@@ -362,7 +346,9 @@ export function ProductCard({
                 )}
                 {product.configurationId && (
                   <div>
-                    <strong style={{ color: "#666" }}>ID configurazione:</strong>{" "}
+                    <strong style={{ color: "#666" }}>
+                      ID configurazione:
+                    </strong>{" "}
                     {product.configurationId}
                   </div>
                 )}
@@ -413,7 +399,9 @@ export function ProductCard({
                 {product.multipleQty !== undefined &&
                   product.multipleQty !== null && (
                     <div>
-                      <strong style={{ color: "#666" }}>Qtà in multipli:</strong>{" "}
+                      <strong style={{ color: "#666" }}>
+                        Qtà in multipli:
+                      </strong>{" "}
                       {product.multipleQty}
                     </div>
                   )}
@@ -433,7 +421,9 @@ export function ProductCard({
                 )}
                 {product.defaultQty && (
                   <div>
-                    <strong style={{ color: "#666" }}>⭐ Qtà predefinita:</strong>{" "}
+                    <strong style={{ color: "#666" }}>
+                      ⭐ Qtà predefinita:
+                    </strong>{" "}
                     <span style={{ fontWeight: 600, color: "#1976d2" }}>
                       {product.defaultQty}
                     </span>
@@ -471,9 +461,11 @@ export function ProductCard({
             >
               <div>
                 <strong style={{ color: "#666" }}>Prezzo:</strong>{" "}
-                {formatCurrency(product.price)}{" "}
+                {formatCurrencyLocal(product.price)}{" "}
                 {product.priceCurrency && product.priceCurrency !== "EUR" && (
-                  <span style={{ color: "#999" }}>({product.priceCurrency})</span>
+                  <span style={{ color: "#999" }}>
+                    ({product.priceCurrency})
+                  </span>
                 )}
                 {product.priceSource && (
                   <span
@@ -524,9 +516,7 @@ export function ProductCard({
                         color: savedVat !== null ? "#f57c00" : "#2e7d32",
                       }}
                     >
-                      {savedVat !== null
-                        ? "manual"
-                        : product.vatSource}
+                      {savedVat !== null ? "manual" : product.vatSource}
                     </span>
                   )}
                 </div>
@@ -738,7 +728,9 @@ export function ProductCard({
                 )}
                 {product.orderableArticle && (
                   <div>
-                    <strong style={{ color: "#666" }}>Articolo ordinabile:</strong>{" "}
+                    <strong style={{ color: "#666" }}>
+                      Articolo ordinabile:
+                    </strong>{" "}
                     <span
                       style={{
                         color:

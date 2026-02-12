@@ -2,6 +2,7 @@ import { HeroStatusData } from "../../types/dashboard";
 import { usePrivacy } from "../../contexts/PrivacyContext";
 import { GaugeChart } from "../GaugeChart";
 import { useConfettiCelebration } from "../../hooks/useConfettiCelebration";
+import { formatCurrencyCompact } from "../../utils/format-currency";
 
 /**
  * Hero Status Widget - Gauge Semicircolare con Comparazioni
@@ -95,14 +96,7 @@ export function HeroStatusWidgetNew({ data }: HeroStatusWidgetNewProps) {
   });
 
   // Format currency
-  const formatCurrency = (amount: number): string => {
-    return new Intl.NumberFormat("it-IT", {
-      style: "currency",
-      currency: "EUR",
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0,
-    }).format(amount);
-  };
+  const formatCurrency = formatCurrencyCompact;
 
   // Format comparison delta
   const formatDelta = (

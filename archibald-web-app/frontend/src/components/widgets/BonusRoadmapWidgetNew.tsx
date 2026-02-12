@@ -1,6 +1,7 @@
 import { BonusRoadmapData } from "../../types/dashboard";
 import { usePrivacy } from "../../contexts/PrivacyContext";
 import { useConfettiCelebration } from "../../hooks/useConfettiCelebration";
+import { formatCurrencyCompact } from "../../utils/format-currency";
 
 /**
  * Bonus Roadmap Widget - Linea Temporale Intuitiva
@@ -39,14 +40,7 @@ export function BonusRoadmapWidgetNew({ data }: BonusRoadmapWidgetNewProps) {
     cooldownMs: 24 * 60 * 60 * 1000,
   });
 
-  const formatCurrency = (amount: number): string => {
-    return new Intl.NumberFormat("it-IT", {
-      style: "currency",
-      currency: "EUR",
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0,
-    }).format(amount);
-  };
+  const formatCurrency = formatCurrencyCompact;
 
   const formatShort = (amount: number): string => {
     if (amount >= 1000) {

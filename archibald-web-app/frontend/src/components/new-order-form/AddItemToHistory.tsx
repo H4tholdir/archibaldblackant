@@ -3,6 +3,7 @@ import {
   productService,
   type PackagingResult,
 } from "../../services/products.service";
+import { formatCurrency } from "../../utils/format-currency";
 import { priceService } from "../../services/prices.service";
 import { db } from "../../db/schema";
 import type { Product, PendingOrderItem } from "../../db/schema";
@@ -488,7 +489,7 @@ export function AddItemToHistory({
                 }}
               >
                 {v.packageContent || v.variantId}
-                {v.price !== null ? ` - ${v.price.toFixed(2)}` : ""}
+                {v.price !== null ? ` - ${formatCurrency(v.price)}` : ""}
               </span>
             ))}
           </div>

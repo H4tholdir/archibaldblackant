@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import type { Customer } from "../types/customer";
+import { formatCurrency } from "../utils/format-currency";
 
 interface CustomerCardProps {
   customer: Customer;
@@ -49,12 +50,9 @@ export function CustomerCard({
     return date.toLocaleDateString("it-IT");
   };
 
-  const formatCurrency = (amount: number | null): string => {
-    if (amount === null || amount === 0) return "\u20AC 0,00";
-    return new Intl.NumberFormat("it-IT", {
-      style: "currency",
-      currency: "EUR",
-    }).format(amount);
+  const formatAmount = (amount: number | null): string => {
+    if (amount === null) return formatCurrency(0);
+    return formatCurrency(amount);
   };
 
   const handleTouchStart = (e: React.TouchEvent) => {
@@ -747,7 +745,7 @@ export function CustomerCard({
                 </div>
                 <div>
                   <strong style={{ color: "#666" }}>Vendite precedenti:</strong>{" "}
-                  {formatCurrency(customer.previousSales1)}
+                  {formatAmount(customer.previousSales1)}
                 </div>
               </div>
             </div>

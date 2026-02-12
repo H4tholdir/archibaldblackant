@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { formatPrice } from "../utils/format-currency";
 
 interface PriceHistoryRecord {
   id: number;
@@ -48,10 +49,6 @@ export function PriceHistoryModal({ productId, productName, onClose }: Props) {
       month: "short",
       day: "numeric",
     });
-  };
-
-  const formatPrice = (price: number | null) => {
-    return price !== null ? `€${price.toFixed(2)}` : "N/A";
   };
 
   const getChangeColor = (changeType: string) => {

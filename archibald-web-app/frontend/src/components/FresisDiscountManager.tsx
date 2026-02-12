@@ -3,6 +3,7 @@ import { fresisDiscountService } from "../services/fresis-discount.service";
 import { toastService } from "../services/toast.service";
 import type { FresisArticleDiscount } from "../db/schema";
 import * as XLSX from "xlsx";
+import { formatCurrency } from "../utils/format-currency";
 
 export function FresisDiscountManager() {
   const [discounts, setDiscounts] = useState<FresisArticleDiscount[]>([]);
@@ -173,7 +174,7 @@ export function FresisDiscountManager() {
                     style={{ padding: "0.375rem 0.5rem", textAlign: "right" }}
                   >
                     {d.kpPriceUnit != null
-                      ? `€${d.kpPriceUnit.toFixed(2)}`
+                      ? formatCurrency(d.kpPriceUnit)
                       : "—"}
                   </td>
                 </tr>

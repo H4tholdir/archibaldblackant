@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { formatCurrencyCompactWithCurrency } from "../utils/format-currency";
 
 interface CommissionsWidgetProps {
   currentBudget: number;
@@ -43,7 +44,13 @@ export function CommissionsWidget(props: CommissionsWidgetProps) {
           boxShadow: "0 2px 8px rgba(0,0,0,0.1)",
         }}
       >
-        <div style={{ textAlign: "center", color: "#95a5a6", padding: "40px 20px" }}>
+        <div
+          style={{
+            textAlign: "center",
+            color: "#95a5a6",
+            padding: "40px 20px",
+          }}
+        >
           <p style={{ fontSize: "16px", marginBottom: "8px" }}>
             🔒 Dati provvigionali nascosti
           </p>
@@ -84,14 +91,8 @@ export function CommissionsWidget(props: CommissionsWidgetProps) {
   const settlement = totalCommissions - annualAdvance;
 
   // Currency formatter
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat("it-IT", {
-      style: "currency",
-      currency: currency,
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0,
-    }).format(amount);
-  };
+  const formatCurrency = (amount: number) =>
+    formatCurrencyCompactWithCurrency(amount, currency);
 
   // Color based on progress
   const getProgressColor = () => {
@@ -117,9 +118,23 @@ export function CommissionsWidget(props: CommissionsWidgetProps) {
       }}
     >
       {/* Header */}
-      <div style={{ display: "flex", alignItems: "center", marginBottom: "20px", gap: "8px" }}>
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          marginBottom: "20px",
+          gap: "8px",
+        }}
+      >
         <span style={{ fontSize: "24px" }}>💰</span>
-        <h3 style={{ margin: 0, fontSize: "20px", fontWeight: "600", color: "#2c3e50" }}>
+        <h3
+          style={{
+            margin: 0,
+            fontSize: "20px",
+            fontWeight: "600",
+            color: "#2c3e50",
+          }}
+        >
           Provvigioni & Premi
         </h3>
         <span
@@ -145,11 +160,26 @@ export function CommissionsWidget(props: CommissionsWidgetProps) {
           marginBottom: "16px",
         }}
       >
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
-          <span style={{ fontSize: "16px", fontWeight: "600", color: "#2c3e50" }}>
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            marginBottom: "12px",
+          }}
+        >
+          <span
+            style={{ fontSize: "16px", fontWeight: "600", color: "#2c3e50" }}
+          >
             🎁 Prossimo Bonus Progressivo
           </span>
-          <span style={{ fontSize: "18px", fontWeight: "bold", color: getProgressColor() }}>
+          <span
+            style={{
+              fontSize: "18px",
+              fontWeight: "bold",
+              color: getProgressColor(),
+            }}
+          >
             {formatCurrency(bonusAmount)}
           </span>
         </div>
@@ -176,16 +206,34 @@ export function CommissionsWidget(props: CommissionsWidgetProps) {
               justifyContent: "center",
             }}
           >
-            <span style={{ fontSize: "12px", fontWeight: "600", color: "#fff" }}>
+            <span
+              style={{ fontSize: "12px", fontWeight: "600", color: "#fff" }}
+            >
               {progressPercent.toFixed(0)}%
             </span>
           </div>
         </div>
 
         {/* Progress Labels */}
-        <div style={{ display: "flex", justifyContent: "space-between", fontSize: "12px", color: "#7f8c8d", marginBottom: "12px" }}>
-          <span>{formatCurrency(Math.floor(currentBudget / bonusInterval) * bonusInterval)}</span>
-          <span>{formatCurrency((Math.floor(currentBudget / bonusInterval) + 1) * bonusInterval)}</span>
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            fontSize: "12px",
+            color: "#7f8c8d",
+            marginBottom: "12px",
+          }}
+        >
+          <span>
+            {formatCurrency(
+              Math.floor(currentBudget / bonusInterval) * bonusInterval,
+            )}
+          </span>
+          <span>
+            {formatCurrency(
+              (Math.floor(currentBudget / bonusInterval) + 1) * bonusInterval,
+            )}
+          </span>
         </div>
 
         {/* Motivational Message */}
@@ -197,11 +245,19 @@ export function CommissionsWidget(props: CommissionsWidgetProps) {
             border: "1px solid #e0e0e0",
           }}
         >
-          <p style={{ margin: 0, fontSize: "14px", color: "#2c3e50", textAlign: "center" }}>
+          <p
+            style={{
+              margin: 0,
+              fontSize: "14px",
+              color: "#2c3e50",
+              textAlign: "center",
+            }}
+          >
             {progressPercent >= 90 ? (
               <>
                 <span style={{ fontSize: "16px", marginRight: "4px" }}>🔥</span>
-                <strong>Ci sei quasi!</strong> Mancano solo {formatCurrency(remaining)}
+                <strong>Ci sei quasi!</strong> Mancano solo{" "}
+                {formatCurrency(remaining)}
               </>
             ) : progressPercent >= 50 ? (
               <>
@@ -211,7 +267,8 @@ export function CommissionsWidget(props: CommissionsWidgetProps) {
             ) : (
               <>
                 <span style={{ fontSize: "16px", marginRight: "4px" }}>🎯</span>
-                Continua così! Mancano {formatCurrency(remaining)} al prossimo bonus.
+                Continua così! Mancano {formatCurrency(remaining)} al prossimo
+                bonus.
               </>
             )}
           </p>
@@ -219,7 +276,13 @@ export function CommissionsWidget(props: CommissionsWidgetProps) {
       </div>
 
       {/* === COLLAPSIBLE SECTION 1: Total Commissions Maturated === */}
-      <div style={{ marginBottom: "12px", borderTop: "1px solid #ecf0f1", paddingTop: "12px" }}>
+      <div
+        style={{
+          marginBottom: "12px",
+          borderTop: "1px solid #ecf0f1",
+          paddingTop: "12px",
+        }}
+      >
         <button
           onClick={() => setShowMaturated(!showMaturated)}
           style={{
@@ -249,21 +312,62 @@ export function CommissionsWidget(props: CommissionsWidgetProps) {
 
         {showMaturated && (
           <div style={{ paddingLeft: "12px", paddingTop: "8px" }}>
-            <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
-              <div style={{ display: "flex", justifyContent: "space-between", fontSize: "14px" }}>
-                <span style={{ color: "#7f8c8d" }}>Provvigioni Base ({(commissionRate * 100).toFixed(0)}%)</span>
-                <span style={{ color: "#2c3e50", fontWeight: "500" }}>{formatCurrency(baseCommission)}</span>
+            <div
+              style={{ display: "flex", flexDirection: "column", gap: "6px" }}
+            >
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  fontSize: "14px",
+                }}
+              >
+                <span style={{ color: "#7f8c8d" }}>
+                  Provvigioni Base ({(commissionRate * 100).toFixed(0)}%)
+                </span>
+                <span style={{ color: "#2c3e50", fontWeight: "500" }}>
+                  {formatCurrency(baseCommission)}
+                </span>
               </div>
-              <div style={{ display: "flex", justifyContent: "space-between", fontSize: "14px" }}>
-                <span style={{ color: "#7f8c8d" }}>Bonus Progressivi ({bonusCount}×{formatCurrency(bonusAmount)})</span>
-                <span style={{ color: "#2c3e50", fontWeight: "500" }}>{formatCurrency(totalBonuses)}</span>
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  fontSize: "14px",
+                }}
+              >
+                <span style={{ color: "#7f8c8d" }}>
+                  Bonus Progressivi ({bonusCount}×{formatCurrency(bonusAmount)})
+                </span>
+                <span style={{ color: "#2c3e50", fontWeight: "500" }}>
+                  {formatCurrency(totalBonuses)}
+                </span>
               </div>
-              <div style={{ display: "flex", justifyContent: "space-between", fontSize: "14px" }}>
-                <span style={{ color: "#7f8c8d" }}>Premi Extra-Budget ({extraTiers}×{formatCurrency(extraBudgetReward)})</span>
-                <span style={{ color: "#2c3e50", fontWeight: "500" }}>{formatCurrency(totalExtraRewards)}</span>
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  fontSize: "14px",
+                }}
+              >
+                <span style={{ color: "#7f8c8d" }}>
+                  Premi Extra-Budget ({extraTiers}×
+                  {formatCurrency(extraBudgetReward)})
+                </span>
+                <span style={{ color: "#2c3e50", fontWeight: "500" }}>
+                  {formatCurrency(totalExtraRewards)}
+                </span>
               </div>
             </div>
-            <div style={{ marginTop: "8px", paddingTop: "8px", borderTop: "1px solid #ecf0f1", fontSize: "12px", color: "#95a5a6" }}>
+            <div
+              style={{
+                marginTop: "8px",
+                paddingTop: "8px",
+                borderTop: "1px solid #ecf0f1",
+                fontSize: "12px",
+                color: "#95a5a6",
+              }}
+            >
               📊 Su {formatCurrency(currentBudget)} di fatturato
             </div>
           </div>
@@ -271,7 +375,13 @@ export function CommissionsWidget(props: CommissionsWidgetProps) {
       </div>
 
       {/* === COLLAPSIBLE SECTION 2: Extra-Budget Tiers === */}
-      <div style={{ marginBottom: "12px", borderTop: "1px solid #ecf0f1", paddingTop: "12px" }}>
+      <div
+        style={{
+          marginBottom: "12px",
+          borderTop: "1px solid #ecf0f1",
+          paddingTop: "12px",
+        }}
+      >
         <button
           onClick={() => setShowExtraBudget(!showExtraBudget)}
           style={{
@@ -303,10 +413,23 @@ export function CommissionsWidget(props: CommissionsWidgetProps) {
           <div style={{ paddingLeft: "12px", paddingTop: "8px" }}>
             {currentBudget >= yearlyTarget ? (
               <>
-                <p style={{ fontSize: "13px", color: "#27ae60", marginBottom: "12px" }}>
-                  Oltre il target: {formatCurrency(extraBudget)} (+{((extraBudget / yearlyTarget) * 100).toFixed(1)}%)
+                <p
+                  style={{
+                    fontSize: "13px",
+                    color: "#27ae60",
+                    marginBottom: "12px",
+                  }}
+                >
+                  Oltre il target: {formatCurrency(extraBudget)} (+
+                  {((extraBudget / yearlyTarget) * 100).toFixed(1)}%)
                 </p>
-                <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+                <div
+                  style={{
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: "8px",
+                  }}
+                >
                   {[1, 2, 3, 4].map((tier) => {
                     const tierThreshold = tier * extraBudgetInterval;
                     const tierReward = tier * extraBudgetReward;
@@ -321,7 +444,11 @@ export function CommissionsWidget(props: CommissionsWidgetProps) {
                           alignItems: "center",
                           gap: "8px",
                           padding: "8px",
-                          backgroundColor: reached ? "#d5f4e6" : active ? "#fff3cd" : "#f8f9fa",
+                          backgroundColor: reached
+                            ? "#d5f4e6"
+                            : active
+                              ? "#fff3cd"
+                              : "#f8f9fa",
                           borderRadius: "6px",
                           border: `1px solid ${reached ? "#27ae60" : active ? "#f39c12" : "#e0e0e0"}`,
                         }}
@@ -330,7 +457,13 @@ export function CommissionsWidget(props: CommissionsWidgetProps) {
                           {reached ? "✅" : active ? "🎯" : "⚪"}
                         </span>
                         <div style={{ flex: 1 }}>
-                          <div style={{ fontSize: "13px", fontWeight: "600", color: "#2c3e50" }}>
+                          <div
+                            style={{
+                              fontSize: "13px",
+                              fontWeight: "600",
+                              color: "#2c3e50",
+                            }}
+                          >
                             Tier {tier} → {formatCurrency(tierReward)}
                           </div>
                           <div style={{ fontSize: "11px", color: "#7f8c8d" }}>
@@ -338,7 +471,13 @@ export function CommissionsWidget(props: CommissionsWidgetProps) {
                           </div>
                         </div>
                         {reached && (
-                          <span style={{ fontSize: "12px", color: "#27ae60", fontWeight: "600" }}>
+                          <span
+                            style={{
+                              fontSize: "12px",
+                              color: "#27ae60",
+                              fontWeight: "600",
+                            }}
+                          >
                             RAGGIUNTO
                           </span>
                         )}
@@ -348,8 +487,11 @@ export function CommissionsWidget(props: CommissionsWidgetProps) {
                 </div>
               </>
             ) : (
-              <p style={{ fontSize: "13px", color: "#7f8c8d", margin: "8px 0" }}>
-                Raggiungi il target annuale di {formatCurrency(yearlyTarget)} per sbloccare i premi extra-budget
+              <p
+                style={{ fontSize: "13px", color: "#7f8c8d", margin: "8px 0" }}
+              >
+                Raggiungi il target annuale di {formatCurrency(yearlyTarget)}{" "}
+                per sbloccare i premi extra-budget
               </p>
             )}
           </div>
@@ -383,7 +525,8 @@ export function CommissionsWidget(props: CommissionsWidgetProps) {
                 fontWeight: "600",
               }}
             >
-              {settlement >= 0 ? "+" : ""}{formatCurrency(settlement)}
+              {settlement >= 0 ? "+" : ""}
+              {formatCurrency(settlement)}
             </span>
             <span style={{ fontSize: "12px", color: "#7f8c8d" }}>
               {showAdvance ? "▼" : "▶"}
@@ -393,13 +536,24 @@ export function CommissionsWidget(props: CommissionsWidgetProps) {
 
         {showAdvance && (
           <div style={{ paddingLeft: "12px", paddingTop: "8px" }}>
-            <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+            <div
+              style={{ display: "flex", flexDirection: "column", gap: "12px" }}
+            >
               {/* Advance Bar */}
               <div>
-                <div style={{ fontSize: "12px", color: "#7f8c8d", marginBottom: "4px" }}>
-                  Anticipo ricevuto finora (gen-{new Date().toLocaleString("it-IT", { month: "short" })}):
+                <div
+                  style={{
+                    fontSize: "12px",
+                    color: "#7f8c8d",
+                    marginBottom: "4px",
+                  }}
+                >
+                  Anticipo ricevuto finora (gen-
+                  {new Date().toLocaleString("it-IT", { month: "short" })}):
                 </div>
-                <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                <div
+                  style={{ display: "flex", alignItems: "center", gap: "8px" }}
+                >
                   <div
                     style={{
                       flex: 1,
@@ -418,7 +572,13 @@ export function CommissionsWidget(props: CommissionsWidgetProps) {
                       }}
                     />
                   </div>
-                  <span style={{ fontSize: "14px", fontWeight: "600", color: "#2c3e50" }}>
+                  <span
+                    style={{
+                      fontSize: "14px",
+                      fontWeight: "600",
+                      color: "#2c3e50",
+                    }}
+                  >
                     {formatCurrency(advanceReceivedSoFar)}
                   </span>
                 </div>
@@ -426,10 +586,18 @@ export function CommissionsWidget(props: CommissionsWidgetProps) {
 
               {/* Maturated Bar */}
               <div>
-                <div style={{ fontSize: "12px", color: "#7f8c8d", marginBottom: "4px" }}>
+                <div
+                  style={{
+                    fontSize: "12px",
+                    color: "#7f8c8d",
+                    marginBottom: "4px",
+                  }}
+                >
                   Provvigioni maturate (oggi):
                 </div>
-                <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                <div
+                  style={{ display: "flex", alignItems: "center", gap: "8px" }}
+                >
                   <div
                     style={{
                       flex: 1,
@@ -448,7 +616,13 @@ export function CommissionsWidget(props: CommissionsWidgetProps) {
                       }}
                     />
                   </div>
-                  <span style={{ fontSize: "14px", fontWeight: "600", color: "#27ae60" }}>
+                  <span
+                    style={{
+                      fontSize: "14px",
+                      fontWeight: "600",
+                      color: "#27ae60",
+                    }}
+                  >
                     {formatCurrency(totalCommissions)}
                   </span>
                 </div>
@@ -463,20 +637,42 @@ export function CommissionsWidget(props: CommissionsWidgetProps) {
                   border: `1px solid ${settlement >= 0 ? "#27ae60" : "#e74c3c"}`,
                 }}
               >
-                <div style={{ fontSize: "13px", color: "#7f8c8d", marginBottom: "4px" }}>
+                <div
+                  style={{
+                    fontSize: "13px",
+                    color: "#7f8c8d",
+                    marginBottom: "4px",
+                  }}
+                >
                   Conguaglio stimato fine anno:
                 </div>
-                <div style={{ fontSize: "18px", fontWeight: "bold", color: settlement >= 0 ? "#27ae60" : "#e74c3c" }}>
-                  {settlement >= 0 ? "+" : ""}{formatCurrency(settlement)} {settlement >= 0 ? "✅" : "⚠️"}
+                <div
+                  style={{
+                    fontSize: "18px",
+                    fontWeight: "bold",
+                    color: settlement >= 0 ? "#27ae60" : "#e74c3c",
+                  }}
+                >
+                  {settlement >= 0 ? "+" : ""}
+                  {formatCurrency(settlement)} {settlement >= 0 ? "✅" : "⚠️"}
                 </div>
-                <div style={{ fontSize: "11px", color: "#95a5a6", marginTop: "4px" }}>
+                <div
+                  style={{
+                    fontSize: "11px",
+                    color: "#95a5a6",
+                    marginTop: "4px",
+                  }}
+                >
                   {settlement >= 0 ? "A tuo favore" : "Da restituire"}
                 </div>
               </div>
 
               {/* Disclaimer */}
-              <div style={{ fontSize: "11px", color: "#95a5a6", marginTop: "4px" }}>
-                ⚠️ Ricorda: conguaglio finale a dicembre. Dati basati su proiezione attuale.
+              <div
+                style={{ fontSize: "11px", color: "#95a5a6", marginTop: "4px" }}
+              >
+                ⚠️ Ricorda: conguaglio finale a dicembre. Dati basati su
+                proiezione attuale.
               </div>
             </div>
           </div>

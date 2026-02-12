@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
+import { formatCurrencyCompactWithCurrency } from "../utils/format-currency";
 
 interface BudgetWidgetProps {
   currentBudget: number;
@@ -25,14 +26,8 @@ export function BudgetWidget({
   const [animatedBonusProgress, setAnimatedBonusProgress] = useState(0);
 
   // Format currency - MUST be declared before getHeroStatus() uses it
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat("it-IT", {
-      style: "currency",
-      currency: currency,
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0,
-    }).format(amount);
-  };
+  const formatCurrency = (amount: number) =>
+    formatCurrencyCompactWithCurrency(amount, currency);
 
   // Calculate monthly progress
   const monthlyProgress = Math.min((currentBudget / targetBudget) * 100, 100);

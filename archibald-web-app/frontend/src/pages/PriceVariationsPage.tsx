@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { PriceHistoryModal } from "../components/PriceHistoryModal";
+import { formatPrice } from "../utils/format-currency";
 
 interface PriceChange {
   id: number;
@@ -96,10 +97,6 @@ export function PriceVariationsPage() {
 
   const formatDate = (timestamp: number) => {
     return new Date(timestamp).toLocaleDateString("it-IT");
-  };
-
-  const formatPrice = (price: number | null) => {
-    return price !== null ? `€${price.toFixed(2)}` : "N/A";
   };
 
   const getChangeColor = (changeType: string) => {

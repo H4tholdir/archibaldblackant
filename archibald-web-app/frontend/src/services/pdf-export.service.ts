@@ -1,6 +1,7 @@
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import type { PendingOrderItem, SubClient } from "../db/schema";
+import { formatCurrency } from "../utils/format-currency";
 
 export type PDFOrderData = {
   id: string;
@@ -287,13 +288,11 @@ export class PDFExportService {
         return [
           `${item.productName || item.articleCode}\nCod: ${item.articleCode}${item.description ? `\n${item.description}` : ""}`,
           item.quantity.toString(),
-          `€${item.price.toFixed(2)}`,
-          item.discount && item.discount > 0
-            ? `${item.discount}%`
-            : "-",
-          `€${subtotal.toFixed(2)}`,
-          `${item.vat || 0}%\n€${vatAmount.toFixed(2)}`,
-          `€${total.toFixed(2)}`,
+          formatCurrency(item.price),
+          item.discount && item.discount > 0 ? `${item.discount}%` : "-",
+          formatCurrency(subtotal),
+          `${item.vat || 0}%\n${formatCurrency(vatAmount)}`,
+          formatCurrency(total),
         ];
       } catch (error) {
         console.error(
@@ -397,7 +396,7 @@ export class PDFExportService {
     // Subtotal
     doc.text("Subtotale (senza IVA):", summaryX + 3, currentY);
     doc.text(
-      `€${orderSubtotal.toFixed(2)}`,
+      formatCurrency(orderSubtotal),
       summaryX + summaryWidth - 3,
       currentY,
       {
@@ -415,7 +414,7 @@ export class PDFExportService {
         currentY,
       );
       doc.text(
-        `-€${globalDiscountAmount.toFixed(2)}`,
+        `-${formatCurrency(globalDiscountAmount)}`,
         summaryX + summaryWidth - 3,
         currentY,
         { align: "right" },
@@ -425,7 +424,7 @@ export class PDFExportService {
       currentY += 6;
       doc.text("Subtotale scontato:", summaryX + 3, currentY);
       doc.text(
-        `€${subtotalAfterGlobalDiscount.toFixed(2)}`,
+        formatCurrency(subtotalAfterGlobalDiscount),
         summaryX + summaryWidth - 3,
         currentY,
         { align: "right" },
@@ -437,7 +436,7 @@ export class PDFExportService {
       currentY += 6;
       doc.text("Spese di trasporto K3:", summaryX + 3, currentY);
       doc.text(
-        `€${shippingCosts.total.toFixed(2)}`,
+        formatCurrency(shippingCosts.total),
         summaryX + summaryWidth - 3,
         currentY,
         { align: "right" },
@@ -447,7 +446,7 @@ export class PDFExportService {
     // VAT
     currentY += 6;
     doc.text("IVA Totale:", summaryX + 3, currentY);
-    doc.text(`€${orderVAT.toFixed(2)}`, summaryX + summaryWidth - 3, currentY, {
+    doc.text(formatCurrency(orderVAT), summaryX + summaryWidth - 3, currentY, {
       align: "right",
     });
 
@@ -464,7 +463,7 @@ export class PDFExportService {
     doc.setTextColor(...primaryColor);
     doc.text("TOTALE (con IVA):", summaryX + 3, currentY);
     doc.text(
-      `€${orderTotal.toFixed(2)}`,
+      formatCurrency(orderTotal),
       summaryX + summaryWidth - 3,
       currentY,
       {

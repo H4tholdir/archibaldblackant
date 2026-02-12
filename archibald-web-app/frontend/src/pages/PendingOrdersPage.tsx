@@ -15,6 +15,7 @@ import { fresisDiscountService } from "../services/fresis-discount.service";
 import { fresisHistoryService } from "../services/fresis-history.service";
 import { shareService } from "../services/share.service";
 import { EmailShareDialog } from "../components/EmailShareDialog";
+import { formatCurrency } from "../utils/format-currency";
 
 function itemSubtotal(
   _order: PendingOrder,
@@ -1608,7 +1609,7 @@ export function PendingOrdersPage() {
                                   alignSelf: "center",
                                 }}
                               >
-                                €{item.price.toFixed(2)}
+                                {formatCurrency(item.price)}
                               </div>
 
                               {/* Discount */}
@@ -1635,7 +1636,7 @@ export function PendingOrdersPage() {
                                   fontWeight: "500",
                                 }}
                               >
-                                €{subtotal.toFixed(2)}
+                                {formatCurrency(subtotal)}
                               </div>
 
                               {/* VAT */}
@@ -1653,7 +1654,7 @@ export function PendingOrdersPage() {
                                 >
                                   ({item.vat}%)
                                 </div>
-                                <div>€{vatAmount.toFixed(2)}</div>
+                                <div>{formatCurrency(vatAmount)}</div>
                               </div>
 
                               {/* Total */}
@@ -1665,7 +1666,7 @@ export function PendingOrdersPage() {
                                   color: "#1e40af",
                                 }}
                               >
-                                €{total.toFixed(2)}
+                                {formatCurrency(total)}
                               </div>
                             </>
                           )}
@@ -1771,7 +1772,7 @@ export function PendingOrdersPage() {
                                     Prezzo Unit.
                                   </div>
                                   <div style={{ fontWeight: "500" }}>
-                                    €{item.price.toFixed(2)}
+                                    {formatCurrency(item.price)}
                                   </div>
                                 </div>
 
@@ -1817,7 +1818,7 @@ export function PendingOrdersPage() {
                                     Subtotale
                                   </div>
                                   <div style={{ fontWeight: "600" }}>
-                                    €{subtotal.toFixed(2)}
+                                    {formatCurrency(subtotal)}
                                   </div>
                                 </div>
 
@@ -1835,7 +1836,7 @@ export function PendingOrdersPage() {
                                     IVA ({item.vat}%)
                                   </div>
                                   <div style={{ fontWeight: "500" }}>
-                                    €{vatAmount.toFixed(2)}
+                                    {formatCurrency(vatAmount)}
                                   </div>
                                 </div>
 
@@ -1859,7 +1860,7 @@ export function PendingOrdersPage() {
                                       fontSize: "1rem",
                                     }}
                                   >
-                                    €{total.toFixed(2)}
+                                    {formatCurrency(total)}
                                   </div>
                                 </div>
                               </div>
@@ -1928,7 +1929,7 @@ export function PendingOrdersPage() {
                                 Subtotale (senza IVA):
                               </span>
                               <span style={{ fontWeight: "500" }}>
-                                €{orderSubtotal.toFixed(2)}
+                                {formatCurrency(orderSubtotal)}
                               </span>
                             </div>
 
@@ -1957,7 +1958,7 @@ export function PendingOrdersPage() {
                                         color: "#dc2626",
                                       }}
                                     >
-                                      -€{globalDiscountAmount.toFixed(2)}
+                                      -{formatCurrency(globalDiscountAmount)}
                                     </span>
                                   </div>
                                   <div
@@ -1974,7 +1975,9 @@ export function PendingOrdersPage() {
                                       Subtotale scontato:
                                     </span>
                                     <span style={{ fontWeight: "500" }}>
-                                      €{subtotalAfterGlobalDiscount.toFixed(2)}
+                                      {formatCurrency(
+                                        subtotalAfterGlobalDiscount,
+                                      )}
                                     </span>
                                   </div>
                                 </>
@@ -1998,7 +2001,7 @@ export function PendingOrdersPage() {
                                       marginLeft: "0.25rem",
                                     }}
                                   >
-                                    (€{shippingCost.toFixed(2)} + IVA)
+                                    ({formatCurrency(shippingCost)} + IVA)
                                   </span>
                                 </span>
                                 <span
@@ -2007,7 +2010,7 @@ export function PendingOrdersPage() {
                                     color: "#f59e0b",
                                   }}
                                 >
-                                  €{(shippingCost + shippingTax).toFixed(2)}
+                                  {formatCurrency(shippingCost + shippingTax)}
                                 </span>
                               </div>
                             )}
@@ -2024,7 +2027,7 @@ export function PendingOrdersPage() {
                                 IVA Totale:
                               </span>
                               <span style={{ fontWeight: "500" }}>
-                                €{orderVAT.toFixed(2)}
+                                {formatCurrency(orderVAT)}
                               </span>
                             </div>
                             <div
@@ -2044,7 +2047,7 @@ export function PendingOrdersPage() {
                               <span
                                 style={{ fontWeight: "700", color: "#1e40af" }}
                               >
-                                €{orderTotal.toFixed(2)}
+                                {formatCurrency(orderTotal)}
                               </span>
                             </div>
                           </>
