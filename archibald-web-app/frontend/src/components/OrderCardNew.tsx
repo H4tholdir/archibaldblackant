@@ -3806,15 +3806,6 @@ export function OrderCardNew({
             )}
             {activeTab === "articoli" && (
               <>
-                {editProgress && (
-                  <div style={{ padding: "16px 16px 0" }}>
-                    <ProgressBar
-                      percent={editProgress.progress}
-                      stage={editProgress.operation}
-                      color="#1976d2"
-                    />
-                  </div>
-                )}
                 <TabArticoli
                   items={order.items}
                   orderId={order.id}
