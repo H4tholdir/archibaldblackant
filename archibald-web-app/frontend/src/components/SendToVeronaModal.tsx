@@ -1,3 +1,5 @@
+import { JobProgressBar } from "./JobProgressBar";
+
 export interface SendToVeronaModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -5,6 +7,8 @@ export interface SendToVeronaModalProps {
   orderId: string;
   customerName: string;
   isLoading: boolean;
+  progress?: number;
+  progressOperation?: string;
 }
 
 export function SendToVeronaModal({
@@ -14,6 +18,8 @@ export function SendToVeronaModal({
   orderId,
   customerName,
   isLoading,
+  progress,
+  progressOperation,
 }: SendToVeronaModalProps) {
   if (!isOpen) return null;
 
@@ -173,6 +179,15 @@ export function SendToVeronaModal({
               </div>
             </div>
           </div>
+
+          {/* Progress Bar */}
+          {isLoading && (
+            <JobProgressBar
+              progress={progress ?? 0}
+              operation={progressOperation ?? "Avvio invio a Verona..."}
+              status="processing"
+            />
+          )}
 
           {/* Action Buttons */}
           <div

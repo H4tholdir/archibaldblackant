@@ -2449,18 +2449,23 @@ export class ArchibaldBot {
             "button, input[type='submit'], a, div[role='button']",
           ),
         );
-        const loginBtn = buttons.find((btn) => {
+        // Priority 1: match by text content (most reliable)
+        const byText = buttons.find((btn) => {
           const text = (btn.textContent || "")
             .toLowerCase()
             .replace(/\s+/g, "");
-          const id = ((btn as HTMLElement).id || "").toLowerCase();
-          return (
-            text.includes("accedi") ||
-            text.includes("login") ||
-            id.includes("login") ||
-            id.includes("logon")
-          );
+          return text.includes("accedi") || text === "login";
         });
+        // Priority 2: match by id (fallback, skip logo links)
+        const byId =
+          !byText &&
+          buttons.find((btn) => {
+            const el = btn as HTMLElement;
+            const id = (el.id || "").toLowerCase();
+            if (id.includes("logo")) return false;
+            return id.includes("login") || id.includes("logon");
+          });
+        const loginBtn = byText || byId || null;
         if (loginBtn) {
           (loginBtn as HTMLElement).click();
           return {
@@ -5942,6 +5947,381 @@ export class ArchibaldBot {
       return {
         success: false,
         message: `Error deleting order: ${errorMsg}`,
+      };
+    }
+  }
+
+  private sendToVeronaFilterReady = false;
+
+  async sendOrderToVerona(
+    archibaldOrderId: string,
+  ): Promise<{ success: boolean; message: string }> {
+    const normalizedId = archibaldOrderId.replace(/\./g, "");
+    logger.info(
+      `[sendToVerona] Sending order ${archibaldOrderId} (normalized: ${normalizedId}) to Verona...`,
+    );
+
+    if (!this.page) {
+      return { success: false, message: "Browser page not initialized" };
+    }
+
+    try {
+      // Step 1: Navigate to SALESTABLE_ListView_Agent (only if not already there)
+      const ordersUrl = `${config.archibald.url}/SALESTABLE_ListView_Agent/`;
+      if (!this.page.url().includes("SALESTABLE_ListView_Agent")) {
+        logger.debug("[sendToVerona] Navigating to orders list...");
+        await this.emitProgress("sendToVerona.navigation");
+        await this.page.goto(ordersUrl, {
+          waitUntil: "domcontentloaded",
+          timeout: 30000,
+        });
+        await this.page.waitForFunction(
+          () => {
+            const elements = Array.from(
+              document.querySelectorAll("span, button, a"),
+            );
+            return elements.some(
+              (el) => el.textContent?.trim().toLowerCase() === "nuovo",
+            );
+          },
+          { timeout: 15000 },
+        );
+        await this.wait(500);
+        this.sendToVeronaFilterReady = false;
+      }
+
+      // Step 2: Set filter to "Tutti gli ordini" (skip if already done)
+      if (!this.sendToVeronaFilterReady) {
+        logger.debug(
+          "[sendToVerona] Setting filter to 'Tutti gli ordini'...",
+        );
+        await this.emitProgress("sendToVerona.filter");
+        await this.ensureOrdersFilterSetToAll(this.page);
+        await this.wait(500);
+        this.sendToVeronaFilterReady = true;
+      }
+
+      // Step 3: Find the search input and paste the normalized ID
+      logger.debug(`[sendToVerona] Searching for order ${normalizedId}...`);
+      await this.emitProgress("sendToVerona.search");
+
+      const searchSelector = "#Vertical_SearchAC_Menu_ITCNT0_xaf_a0_Ed_I";
+      const searchHandle = await this.page
+        .waitForSelector(searchSelector, { timeout: 5000, visible: true })
+        .catch(() => null);
+
+      if (!searchHandle) {
+        await this.page.screenshot({
+          path: `logs/send-to-verona-search-not-found-${Date.now()}.png`,
+          fullPage: true,
+        });
+        return {
+          success: false,
+          message: "Search input not found on orders list page",
+        };
+      }
+
+      const rowCountBefore = await this.page.evaluate(() => {
+        return document.querySelectorAll('tr[class*="dxgvDataRow"]').length;
+      });
+
+      await this.pasteText(searchHandle, normalizedId);
+      await this.page.keyboard.press("Enter");
+
+      await this.page.waitForFunction(
+        (prevCount: number) => {
+          const loadingPanels = Array.from(
+            document.querySelectorAll(
+              '[id*="LPV"], .dxlp, .dxlpLoadingPanel, [id*="Loading"]',
+            ),
+          );
+          const hasLoading = loadingPanels.some((el) => {
+            const style = window.getComputedStyle(el as HTMLElement);
+            return (
+              style.display !== "none" &&
+              style.visibility !== "hidden" &&
+              (el as HTMLElement).getBoundingClientRect().width > 0
+            );
+          });
+          if (hasLoading) return false;
+
+          const currentCount = document.querySelectorAll(
+            'tr[class*="dxgvDataRow"]',
+          ).length;
+          const hasEmpty =
+            document.querySelector('tr[class*="dxgvEmptyData"]') !== null;
+          return currentCount !== prevCount || hasEmpty || currentCount <= 5;
+        },
+        { timeout: 15000, polling: 200 },
+        rowCountBefore,
+      ).catch(() => null);
+      await this.wait(300);
+
+      // Step 4: Check if any rows are visible after filtering
+      const rowCount = await this.page.evaluate(() => {
+        return document.querySelectorAll('tr[class*="dxgvDataRow"]').length;
+      });
+
+      if (rowCount === 0) {
+        logger.warn(
+          `[sendToVerona] No rows found after searching for ${normalizedId}`,
+        );
+        return {
+          success: false,
+          message: `Order ${archibaldOrderId} not found in Archibald`,
+        };
+      }
+
+      logger.debug(`[sendToVerona] Found ${rowCount} row(s) after search`);
+
+      // Step 5: Select the first row by clicking the command column cell
+      await this.emitProgress("sendToVerona.select");
+      const rowSelected = await this.page.evaluate(() => {
+        const firstRow = document.querySelector('tr[class*="dxgvDataRow"]');
+        if (!firstRow) return false;
+
+        const commandCell = firstRow.querySelector(
+          "td.dxgvCommandColumn_XafTheme",
+        ) as HTMLElement | null;
+        if (commandCell) {
+          commandCell.click();
+          return true;
+        }
+
+        const firstCell = firstRow.querySelector("td") as HTMLElement | null;
+        if (firstCell) {
+          firstCell.click();
+          return true;
+        }
+
+        return false;
+      });
+
+      if (!rowSelected) {
+        return {
+          success: false,
+          message: "Could not select the order row",
+        };
+      }
+
+      // Wait for "invia ordine/i" button (DXI4_T) to become enabled
+      await this.page
+        .waitForFunction(
+          () => {
+            const btn = document.querySelector(
+              "#Vertical_mainMenu_Menu_DXI4_T",
+            );
+            if (!btn) return false;
+            const li = document.querySelector(
+              "#Vertical_mainMenu_Menu_DXI4_",
+            );
+            return (
+              !btn.classList.contains("dxm-disabled") &&
+              (!li || !li.classList.contains("dxm-disabled"))
+            );
+          },
+          { timeout: 5000, polling: 100 },
+        )
+        .catch(() => null);
+      logger.debug(
+        '[sendToVerona] Row selected, "invia ordine/i" button enabled',
+      );
+
+      // Step 6: Set up dialog handler BEFORE clicking send
+      await this.emitProgress("sendToVerona.confirm");
+      const dialogPromise = new Promise<boolean>((resolve) => {
+        let resolved = false;
+        const handler = (dialog: any) => {
+          if (resolved) return;
+          resolved = true;
+          logger.debug(
+            `[sendToVerona] Dialog appeared: ${dialog.type()} - ${dialog.message()}`,
+          );
+          dialog.accept();
+          resolve(true);
+        };
+        this.page!.once("dialog", handler);
+        setTimeout(() => {
+          if (!resolved) {
+            resolved = true;
+            this.page!.off("dialog", handler);
+            resolve(false);
+          }
+        }, 10000);
+      });
+
+      // Step 7: Click "invia ordine/i" button
+      logger.debug('[sendToVerona] Clicking "invia ordine/i" button...');
+      const sendClicked = await this.page.evaluate(() => {
+        const sendBtn = document.querySelector(
+          "#Vertical_mainMenu_Menu_DXI4_T",
+        ) as HTMLElement | null;
+        if (sendBtn) {
+          sendBtn.click();
+          return { clicked: true, strategy: "by-id" };
+        }
+
+        const menuLinks = Array.from(
+          document.querySelectorAll(
+            'a[id*="Vertical_mainMenu"], a[id*="mainMenu_Menu"]',
+          ),
+        );
+        for (const link of menuLinks) {
+          const text = link.textContent?.trim().toLowerCase();
+          if (
+            text === "invia ordine/i" ||
+            text === "invia ordini" ||
+            text === "invia ordine"
+          ) {
+            (link as HTMLElement).click();
+            return { clicked: true, strategy: "by-text" };
+          }
+        }
+
+        return { clicked: false, strategy: "none" };
+      });
+
+      if (!sendClicked.clicked) {
+        return {
+          success: false,
+          message: '"Invia ordine/i" button not found in menu',
+        };
+      }
+
+      logger.debug(
+        `[sendToVerona] Send button clicked via ${sendClicked.strategy}`,
+      );
+
+      // Step 8: Wait for dialog and handle it
+      const dialogHandled = await dialogPromise;
+      if (dialogHandled) {
+        logger.debug("[sendToVerona] Browser dialog accepted");
+      } else {
+        logger.debug(
+          "[sendToVerona] No browser dialog appeared, checking for DevExpress popup...",
+        );
+        // Try DevExpress popup confirmation
+        const dxPopupHandled = await this.page.evaluate(() => {
+          const confirmSelectors = [
+            'div[id*="Confirm"] a[id*="btnOk"]',
+            'div[id*="Dialog"] a[id*="btnOk"]',
+            '[class*="dxpc"] a[id*="btnOk"]',
+            'div[id*="Confirm"] a[id*="btnYes"]',
+            'div[id*="Dialog"] a[id*="btnYes"]',
+            '[class*="dxpc"] button',
+          ];
+          for (const sel of confirmSelectors) {
+            const btn = document.querySelector(sel) as HTMLElement | null;
+            if (btn && btn.offsetParent !== null) {
+              btn.click();
+              return { handled: true, selector: sel };
+            }
+          }
+          return { handled: false, selector: "" };
+        });
+        if (dxPopupHandled.handled) {
+          logger.debug(
+            `[sendToVerona] DevExpress popup confirmed via ${dxPopupHandled.selector}`,
+          );
+        } else {
+          logger.warn(
+            "[sendToVerona] No confirmation dialog or popup appeared",
+          );
+        }
+      }
+
+      // Step 9: Wait for grid to reflect the change
+      await this.emitProgress("sendToVerona.verify");
+      await this.page
+        .waitForFunction(
+          (prevCount: number) => {
+            const loadingPanels = Array.from(
+              document.querySelectorAll(
+                '[id*="LPV"], .dxlp, .dxlpLoadingPanel, [id*="Loading"]',
+              ),
+            );
+            const hasLoading = loadingPanels.some((el) => {
+              const style = window.getComputedStyle(el as HTMLElement);
+              return (
+                style.display !== "none" &&
+                style.visibility !== "hidden" &&
+                (el as HTMLElement).getBoundingClientRect().width > 0
+              );
+            });
+            if (hasLoading) return false;
+
+            const currentCount = document.querySelectorAll(
+              'tr[class*="dxgvDataRow"]',
+            ).length;
+            const hasEmpty =
+              document.querySelector('tr[class*="dxgvEmptyData"]') !== null;
+            return currentCount < prevCount || hasEmpty;
+          },
+          { timeout: 15000, polling: 200 },
+          rowCount,
+        )
+        .catch(() => null);
+      await this.wait(500);
+
+      // Step 10: Screenshot for audit trail
+      try {
+        await this.page.screenshot({
+          path: `logs/send-to-verona-complete-${normalizedId}-${Date.now()}.png`,
+          fullPage: true,
+        });
+      } catch {
+        // ignore screenshot errors
+      }
+
+      // Step 11: Verify success
+      const remainingRows = await this.page.evaluate(() => {
+        return document.querySelectorAll('tr[class*="dxgvDataRow"]').length;
+      });
+
+      const emptyMessage = await this.page.evaluate(() => {
+        const emptyRow = document.querySelector('tr[class*="dxgvEmptyData"]');
+        return emptyRow ? emptyRow.textContent?.trim() : null;
+      });
+
+      if (remainingRows === 0 || emptyMessage) {
+        logger.info(
+          `[sendToVerona] Order ${archibaldOrderId} sent to Verona successfully (grid empty)`,
+        );
+        await this.emitProgress("sendToVerona.complete");
+        return {
+          success: true,
+          message: `Order ${archibaldOrderId} sent to Verona`,
+        };
+      }
+
+      logger.info(
+        `[sendToVerona] Send command executed for ${archibaldOrderId}. ${remainingRows} row(s) remain in grid.`,
+      );
+      await this.emitProgress("sendToVerona.complete");
+      return {
+        success: true,
+        message: `Send to Verona command sent for order ${archibaldOrderId}. ${remainingRows} row(s) remain in grid (may be other orders).`,
+      };
+    } catch (error) {
+      const errorMsg =
+        error instanceof Error ? error.message : String(error);
+      logger.error(
+        `[sendToVerona] Error sending order ${archibaldOrderId}:`,
+        { error: errorMsg },
+      );
+
+      try {
+        await this.page!.screenshot({
+          path: `logs/send-to-verona-error-${normalizedId}-${Date.now()}.png`,
+          fullPage: true,
+        });
+      } catch {
+        // ignore screenshot errors
+      }
+
+      return {
+        success: false,
+        message: `Error sending order to Verona: ${errorMsg}`,
       };
     }
   }

@@ -1,0 +1,1903 @@
+{
+  "timestamp": "2026-02-12T11:42:27.744Z",
+  "menuItems": [
+    {
+      "id": "Vertical_mainMenu_Menu_DXI0_",
+      "text": "NuovoNuovo",
+      "title": "Nuovo Ordini",
+      "className": "dxm-item dropDownNew dxm-noSubMenu dxm-noImage",
+      "disabled": false,
+      "role": "presentation",
+      "anchorId": "Vertical_mainMenu_Menu_DXI0_T",
+      "anchorClassName": "dxm-content dxm-hasText dx dxalink",
+      "offsetWidth": 78,
+      "offsetHeight": 38
+    },
+    {
+      "id": "Vertical_mainMenu_Menu_DXI1_IS",
+      "text": "",
+      "title": "",
+      "className": "dxm-separator",
+      "disabled": false,
+      "role": "presentation",
+      "anchorId": "",
+      "anchorClassName": "",
+      "offsetWidth": 24,
+      "offsetHeight": 38
+    },
+    {
+      "id": "Vertical_mainMenu_Menu_DXI1_",
+      "text": "Cancellare",
+      "title": "Cancellare\nRichiede almeno un oggetto selezionato",
+      "className": "dxm-item hasImage menuActionImageSVG dxm-noSubMenu dxm-disabled",
+      "disabled": true,
+      "role": "presentation",
+      "anchorId": "Vertical_mainMenu_Menu_DXI1_T",
+      "anchorClassName": "dxm-content dx dxalink dxm-disabled",
+      "offsetWidth": 38,
+      "offsetHeight": 38
+    },
+    {
+      "id": "Vertical_mainMenu_Menu_DXI2_II",
+      "text": "",
+      "title": "",
+      "className": "dxm-spacing",
+      "disabled": false,
+      "role": "presentation",
+      "anchorId": "",
+      "anchorClassName": "",
+      "offsetWidth": 6,
+      "offsetHeight": 38
+    },
+    {
+      "id": "Vertical_mainMenu_Menu_DXI2_",
+      "text": "Modifica",
+      "title": "Modifica\nRichiede la selezione di un unico oggetto",
+      "className": "dxm-item hasImage menuActionImageSVG dxm-noSubMenu dxm-disabled",
+      "disabled": true,
+      "role": "presentation",
+      "anchorId": "Vertical_mainMenu_Menu_DXI2_T",
+      "anchorClassName": "dxm-content dx dxalink dxm-disabled",
+      "offsetWidth": 38,
+      "offsetHeight": 38
+    },
+    {
+      "id": "Vertical_mainMenu_Menu_DXI3_II",
+      "text": "",
+      "title": "",
+      "className": "dxm-spacing",
+      "disabled": false,
+      "role": "presentation",
+      "anchorId": "",
+      "anchorClassName": "",
+      "offsetWidth": 6,
+      "offsetHeight": 38
+    },
+    {
+      "id": "Vertical_mainMenu_Menu_DXI3_",
+      "text": "copia ordinecopia ordine",
+      "title": "Clone the actual sales order to a new one only blocked items would be removed and the sales order would be recalculated!",
+      "className": "dxm-item dxm-noSubMenu dxm-noImage",
+      "disabled": false,
+      "role": "presentation",
+      "anchorId": "Vertical_mainMenu_Menu_DXI3_T",
+      "anchorClassName": "dxm-content dxm-hasText dx dxalink",
+      "offsetWidth": 105,
+      "offsetHeight": 38
+    },
+    {
+      "id": "Vertical_mainMenu_Menu_DXI4_II",
+      "text": "",
+      "title": "",
+      "className": "dxm-spacing",
+      "disabled": false,
+      "role": "presentation",
+      "anchorId": "",
+      "anchorClassName": "",
+      "offsetWidth": 6,
+      "offsetHeight": 38
+    },
+    {
+      "id": "Vertical_mainMenu_Menu_DXI4_",
+      "text": "invia ordine/iinvia ordine/i",
+      "title": "Changes the status of the selected orders from Processing to Transferred, these orders are then processed further for delivery!",
+      "className": "dxm-item dxm-noSubMenu dxm-noImage",
+      "disabled": false,
+      "role": "presentation",
+      "anchorId": "Vertical_mainMenu_Menu_DXI4_T",
+      "anchorClassName": "dxm-content dxm-hasText dx dxalink",
+      "offsetWidth": 110,
+      "offsetHeight": 38
+    },
+    {
+      "id": "Vertical_mainMenu_Menu_DXI5_IS",
+      "text": "",
+      "title": "",
+      "className": "dxm-separator",
+      "disabled": false,
+      "role": "presentation",
+      "anchorId": "",
+      "anchorClassName": "",
+      "offsetWidth": 24,
+      "offsetHeight": 38
+    },
+    {
+      "id": "Vertical_mainMenu_Menu_DXI5_",
+      "text": "Vista",
+      "title": "Vista",
+      "className": "dxm-item hasImage menuActionImageSVG dxm-noSubMenu",
+      "disabled": false,
+      "role": "presentation",
+      "anchorId": "Vertical_mainMenu_Menu_DXI5_T",
+      "anchorClassName": "dxm-content dx dxalink",
+      "offsetWidth": 38,
+      "offsetHeight": 38
+    },
+    {
+      "id": "Vertical_mainMenu_Menu_DXI9_II",
+      "text": "",
+      "title": "",
+      "className": "dxm-spacing dxm-amis",
+      "disabled": false,
+      "role": "presentation",
+      "anchorId": "",
+      "anchorClassName": "",
+      "offsetWidth": 6,
+      "offsetHeight": 38
+    },
+    {
+      "id": "Vertical_mainMenu_Menu_DXI9_",
+      "text": "Show hidden items",
+      "title": "",
+      "className": "dxm-item dxm-dropDownMode dxm-noImage dxm-ami",
+      "disabled": false,
+      "role": "presentation",
+      "anchorId": "Vertical_mainMenu_Menu_DXI9_T",
+      "anchorClassName": "dxm-content dxm-hasText dx dxalink",
+      "offsetWidth": 38,
+      "offsetHeight": 38
+    },
+    {
+      "id": "Vertical_mainMenu_Menu_DXI6_II",
+      "text": "",
+      "title": "",
+      "className": "dxm-separator dxm-amhe",
+      "disabled": false,
+      "role": "presentation",
+      "anchorId": "",
+      "anchorClassName": "",
+      "offsetWidth": 0,
+      "offsetHeight": 0
+    },
+    {
+      "id": "Vertical_mainMenu_Menu_DXI6_",
+      "text": "Ripristina impostazioni di visualizzazione",
+      "title": "Formatta tutte le impostazioni create per la vista Ordini.",
+      "className": "dxm-item hasImage menuActionImageSVG dxm-noSubMenu",
+      "disabled": false,
+      "role": "presentation",
+      "anchorId": "Vertical_mainMenu_Menu_DXI6_T",
+      "anchorClassName": "dxm-content dx dxalink",
+      "offsetWidth": 0,
+      "offsetHeight": 0
+    },
+    {
+      "id": "Vertical_mainMenu_Menu_DXI7_IS",
+      "text": "",
+      "title": "",
+      "className": "dxm-separator",
+      "disabled": false,
+      "role": "presentation",
+      "anchorId": "",
+      "anchorClassName": "",
+      "offsetWidth": 0,
+      "offsetHeight": 0
+    },
+    {
+      "id": "Vertical_mainMenu_Menu_DXI7_",
+      "text": "Esportare inEsportare in",
+      "title": "Esportare in PDF File",
+      "className": "dxm-item dropDownExport dxm-noSubMenu dxm-noImage",
+      "disabled": false,
+      "role": "presentation",
+      "anchorId": "Vertical_mainMenu_Menu_DXI7_T",
+      "anchorClassName": "dxm-content dxm-hasText dx dxalink",
+      "offsetWidth": 0,
+      "offsetHeight": 0
+    },
+    {
+      "id": "Vertical_mainMenu_Menu_DXI8_IS",
+      "text": "",
+      "title": "",
+      "className": "dxm-separator",
+      "disabled": false,
+      "role": "presentation",
+      "anchorId": "",
+      "anchorClassName": "",
+      "offsetWidth": 0,
+      "offsetHeight": 0
+    },
+    {
+      "id": "Vertical_mainMenu_Menu_DXI8_",
+      "text": "Loading…",
+      "title": "[QUOTE] = ##Enum#xafkidemovb.Module.CRMKI.SALESTABLE+EnumQuote,No# And [ID] > 0 And [DATAAREAID] = '930'",
+      "className": "dxm-item dxm-noSubMenu dxm-noImage dxm-tmpl",
+      "disabled": false,
+      "role": "presentation",
+      "anchorId": "",
+      "anchorClassName": "",
+      "offsetWidth": 0,
+      "offsetHeight": 0
+    }
+  ],
+  "searchBar": {
+    "found": true,
+    "id": "Vertical_SearchAC_Menu_ITCNT0_xaf_a0_Ed_I",
+    "name": "Vertical$SearchAC$Menu$ITCNT0$xaf_a0$Ed",
+    "type": "text",
+    "value": "Inserire testo di ricerca",
+    "placeholder": "",
+    "className": "dxeEditArea_XafTheme dxeEditAreaSys dxh0",
+    "offsetParent": true,
+    "parentId": ""
+  },
+  "filter": {
+    "found": true,
+    "currentValue": "Tutti gli ordini",
+    "isVisible": false,
+    "dropdownButtonFound": true
+  },
+  "gridAfterSearch": {
+    "rowCount": 1,
+    "hasEmptyData": false,
+    "emptyText": "",
+    "rows": [
+      {
+        "rowIndex": 0,
+        "className": "dxgvDataRow_XafTheme dxgvLVR",
+        "id": "Vertical_v2_48559881_LE_v2_DXDataRow0",
+        "cells": [
+          {
+            "cellIndex": 0,
+            "className": "dxgvCommandColumn_XafTheme dxgv dx-ac",
+            "text": "",
+            "isCommandColumn": true,
+            "hasCheckbox": true,
+            "innerHTML": "<span class=\"dxWeb_edtCheckBoxUnchecked_XafTheme dxICheckBox_XafTheme dxichSys dx-not-acc\" id=\"Vertical_v2_48559881_LE_v2_DXSelBtn0_D\"><span class=\"dxKBSW\"><input id=\"Vertical_v2_48559881_LE_v2_DXSelB"
+          },
+          {
+            "cellIndex": 1,
+            "className": "dxgvCommandColumn_XafTheme ActionCell dxgv dx-ac",
+            "text": "<!--\nASPx.AddDisabledItems('Vertical_v2_48559881_LE_v2_DXCBtn0',[[['dxbDisabled_XafTheme'],[''],['']",
+            "isCommandColumn": true,
+            "hasCheckbox": false,
+            "innerHTML": "<a class=\"dxbButton_XafTheme dxgvCommandColumnItem_XafTheme dxgv__cci dxbButtonSys\" data-args=\"[['CustomButton','Edit',0],1]\" data-isimage=\"true\" id=\"Vertical_v2_48559881_LE_v2_DXCBtn0\" href=\"javascri"
+          },
+          {
+            "cellIndex": 2,
+            "className": "dxgv dx-al",
+            "text": "72.972",
+            "isCommandColumn": false,
+            "hasCheckbox": false,
+            "innerHTML": "72.972"
+          },
+          {
+            "cellIndex": 3,
+            "className": "dxgv dx-al",
+            "text": "",
+            "isCommandColumn": false,
+            "hasCheckbox": false,
+            "innerHTML": "&nbsp;"
+          },
+          {
+            "cellIndex": 4,
+            "className": "dxgv dx-al",
+            "text": "1002305",
+            "isCommandColumn": false,
+            "hasCheckbox": false,
+            "innerHTML": "1002305"
+          },
+          {
+            "cellIndex": 5,
+            "className": "dxgv dx-al",
+            "text": "Dragonetti Antonio",
+            "isCommandColumn": false,
+            "hasCheckbox": false,
+            "innerHTML": "Dragonetti Antonio"
+          },
+          {
+            "cellIndex": 6,
+            "className": "dxgv dx-al",
+            "text": "Dragonetti Antonio",
+            "isCommandColumn": false,
+            "hasCheckbox": false,
+            "innerHTML": "Dragonetti Antonio"
+          },
+          {
+            "cellIndex": 7,
+            "className": "dxgv dx-al",
+            "text": "Via Annamaria Ortese 6\n85100 Potenza Pz",
+            "isCommandColumn": false,
+            "hasCheckbox": false,
+            "innerHTML": "Via Annamaria Ortese 6\n85100 Potenza Pz"
+          },
+          {
+            "cellIndex": 8,
+            "className": "dxgv dx-al",
+            "text": "12/02/2026 11:35:25",
+            "isCommandColumn": false,
+            "hasCheckbox": false,
+            "innerHTML": "12/02/2026 11:35:25"
+          },
+          {
+            "cellIndex": 9,
+            "className": "dxgv dx-al",
+            "text": "13/02/2026",
+            "isCommandColumn": false,
+            "hasCheckbox": false,
+            "innerHTML": "13/02/2026"
+          },
+          {
+            "cellIndex": 10,
+            "className": "dxgv dx-al",
+            "text": "",
+            "isCommandColumn": false,
+            "hasCheckbox": false,
+            "innerHTML": "&nbsp;"
+          },
+          {
+            "cellIndex": 11,
+            "className": "dxgv dx-al",
+            "text": "",
+            "isCommandColumn": false,
+            "hasCheckbox": false,
+            "innerHTML": "&nbsp;"
+          },
+          {
+            "cellIndex": 12,
+            "className": "dxgv dx-al",
+            "text": "Ordine aperto",
+            "isCommandColumn": false,
+            "hasCheckbox": false,
+            "innerHTML": "Ordine aperto"
+          },
+          {
+            "cellIndex": 13,
+            "className": "dxgv dx-al",
+            "text": "Giornale",
+            "isCommandColumn": false,
+            "hasCheckbox": false,
+            "innerHTML": "Giornale"
+          },
+          {
+            "cellIndex": 14,
+            "className": "dxgv dx-al",
+            "text": "Nessuno",
+            "isCommandColumn": false,
+            "hasCheckbox": false,
+            "innerHTML": "Nessuno"
+          },
+          {
+            "cellIndex": 15,
+            "className": "dxgv dx-al",
+            "text": "Agent",
+            "isCommandColumn": false,
+            "hasCheckbox": false,
+            "innerHTML": "Agent"
+          },
+          {
+            "cellIndex": 16,
+            "className": "dxgv dx-al",
+            "text": "Modifica",
+            "isCommandColumn": false,
+            "hasCheckbox": false,
+            "innerHTML": "Modifica"
+          },
+          {
+            "cellIndex": 17,
+            "className": "dxgv dx-al",
+            "text": "",
+            "isCommandColumn": false,
+            "hasCheckbox": false,
+            "innerHTML": "&nbsp;"
+          },
+          {
+            "cellIndex": 18,
+            "className": "dxgv dx-al",
+            "text": "",
+            "isCommandColumn": false,
+            "hasCheckbox": false,
+            "innerHTML": "&nbsp;"
+          },
+          {
+            "cellIndex": 19,
+            "className": "dxgv dx-al",
+            "text": "No",
+            "isCommandColumn": false,
+            "hasCheckbox": false,
+            "innerHTML": "No"
+          },
+          {
+            "cellIndex": 20,
+            "className": "dxgv dx-ar",
+            "text": "0,00 %",
+            "isCommandColumn": false,
+            "hasCheckbox": false,
+            "innerHTML": "0,00 %"
+          },
+          {
+            "cellIndex": 21,
+            "className": "dxgv dx-ar",
+            "text": "1.533,52 €",
+            "isCommandColumn": false,
+            "hasCheckbox": false,
+            "innerHTML": "1.533,52 €"
+          },
+          {
+            "cellIndex": 22,
+            "className": "dxgv dx-ar",
+            "text": "899,01 €",
+            "isCommandColumn": false,
+            "hasCheckbox": false,
+            "innerHTML": "899,01 €"
+          },
+          {
+            "cellIndex": 23,
+            "className": "dxgv dx-ac",
+            "text": "",
+            "isCommandColumn": false,
+            "hasCheckbox": true,
+            "innerHTML": "<span class=\"dxWeb_edtCheckBoxUnchecked_XafTheme dxICheckBox_XafTheme dxichSys dxICBReadonlyMarker dx-not-acc\"></span>"
+          }
+        ]
+      }
+    ]
+  },
+  "selectionResult": {
+    "selected": true,
+    "strategy": "commandColumn"
+  },
+  "menuItemsAfterSelection": [
+    {
+      "id": "Vertical_mainMenu_Menu_DXI0_",
+      "text": "NuovoNuovo",
+      "className": "dxm-item dropDownNew dxm-noSubMenu dxm-noImage",
+      "disabled": false,
+      "anchorId": "Vertical_mainMenu_Menu_DXI0_T",
+      "anchorClassName": "dxm-content dxm-hasText dx dxalink"
+    },
+    {
+      "id": "Vertical_mainMenu_Menu_DXI1_IS",
+      "text": "",
+      "className": "dxm-separator",
+      "disabled": false,
+      "anchorId": "",
+      "anchorClassName": ""
+    },
+    {
+      "id": "Vertical_mainMenu_Menu_DXI1_",
+      "text": "Cancellare",
+      "className": "dxm-item hasImage menuActionImageSVG dxm-noSubMenu",
+      "disabled": false,
+      "anchorId": "Vertical_mainMenu_Menu_DXI1_T",
+      "anchorClassName": "dxm-content dx dxalink"
+    },
+    {
+      "id": "Vertical_mainMenu_Menu_DXI2_II",
+      "text": "",
+      "className": "dxm-spacing",
+      "disabled": false,
+      "anchorId": "",
+      "anchorClassName": ""
+    },
+    {
+      "id": "Vertical_mainMenu_Menu_DXI2_",
+      "text": "Modifica",
+      "className": "dxm-item hasImage menuActionImageSVG dxm-noSubMenu",
+      "disabled": false,
+      "anchorId": "Vertical_mainMenu_Menu_DXI2_T",
+      "anchorClassName": "dxm-content dx dxalink"
+    },
+    {
+      "id": "Vertical_mainMenu_Menu_DXI3_II",
+      "text": "",
+      "className": "dxm-spacing",
+      "disabled": false,
+      "anchorId": "",
+      "anchorClassName": ""
+    },
+    {
+      "id": "Vertical_mainMenu_Menu_DXI3_",
+      "text": "copia ordinecopia ordine",
+      "className": "dxm-item dxm-noSubMenu dxm-noImage",
+      "disabled": false,
+      "anchorId": "Vertical_mainMenu_Menu_DXI3_T",
+      "anchorClassName": "dxm-content dxm-hasText dx dxalink"
+    },
+    {
+      "id": "Vertical_mainMenu_Menu_DXI4_II",
+      "text": "",
+      "className": "dxm-spacing",
+      "disabled": false,
+      "anchorId": "",
+      "anchorClassName": ""
+    },
+    {
+      "id": "Vertical_mainMenu_Menu_DXI4_",
+      "text": "invia ordine/iinvia ordine/i",
+      "className": "dxm-item dxm-noSubMenu dxm-noImage",
+      "disabled": false,
+      "anchorId": "Vertical_mainMenu_Menu_DXI4_T",
+      "anchorClassName": "dxm-content dxm-hasText dx dxalink"
+    },
+    {
+      "id": "Vertical_mainMenu_Menu_DXI5_IS",
+      "text": "",
+      "className": "dxm-separator",
+      "disabled": false,
+      "anchorId": "",
+      "anchorClassName": ""
+    },
+    {
+      "id": "Vertical_mainMenu_Menu_DXI5_",
+      "text": "Vista",
+      "className": "dxm-item hasImage menuActionImageSVG dxm-noSubMenu",
+      "disabled": false,
+      "anchorId": "Vertical_mainMenu_Menu_DXI5_T",
+      "anchorClassName": "dxm-content dx dxalink"
+    },
+    {
+      "id": "Vertical_mainMenu_Menu_DXI9_II",
+      "text": "",
+      "className": "dxm-spacing dxm-amis",
+      "disabled": false,
+      "anchorId": "",
+      "anchorClassName": ""
+    },
+    {
+      "id": "Vertical_mainMenu_Menu_DXI9_",
+      "text": "Show hidden items",
+      "className": "dxm-item dxm-dropDownMode dxm-noImage dxm-ami",
+      "disabled": false,
+      "anchorId": "Vertical_mainMenu_Menu_DXI9_T",
+      "anchorClassName": "dxm-content dxm-hasText dx dxalink"
+    },
+    {
+      "id": "Vertical_mainMenu_Menu_DXI6_II",
+      "text": "",
+      "className": "dxm-separator dxm-amhe",
+      "disabled": false,
+      "anchorId": "",
+      "anchorClassName": ""
+    },
+    {
+      "id": "Vertical_mainMenu_Menu_DXI6_",
+      "text": "Ripristina impostazioni di visualizzazione",
+      "className": "dxm-item hasImage menuActionImageSVG dxm-noSubMenu",
+      "disabled": false,
+      "anchorId": "Vertical_mainMenu_Menu_DXI6_T",
+      "anchorClassName": "dxm-content dx dxalink"
+    },
+    {
+      "id": "Vertical_mainMenu_Menu_DXI7_IS",
+      "text": "",
+      "className": "dxm-separator",
+      "disabled": false,
+      "anchorId": "",
+      "anchorClassName": ""
+    },
+    {
+      "id": "Vertical_mainMenu_Menu_DXI7_",
+      "text": "Esportare inEsportare in",
+      "className": "dxm-item dropDownExport dxm-noSubMenu dxm-noImage",
+      "disabled": false,
+      "anchorId": "Vertical_mainMenu_Menu_DXI7_T",
+      "anchorClassName": "dxm-content dxm-hasText dx dxalink"
+    },
+    {
+      "id": "Vertical_mainMenu_Menu_DXI8_IS",
+      "text": "",
+      "className": "dxm-separator",
+      "disabled": false,
+      "anchorId": "",
+      "anchorClassName": ""
+    },
+    {
+      "id": "Vertical_mainMenu_Menu_DXI8_",
+      "text": "Loading…",
+      "className": "dxm-item dxm-noSubMenu dxm-noImage dxm-tmpl",
+      "disabled": false,
+      "anchorId": "",
+      "anchorClassName": ""
+    }
+  ],
+  "dxi4Detail": {
+    "found": true,
+    "anchorId": "Vertical_mainMenu_Menu_DXI4_T",
+    "anchorText": "invia ordine/iinvia ordine/i",
+    "anchorClassName": "dxm-content dxm-hasText dx dxalink",
+    "anchorDisabled": false,
+    "liId": "Vertical_mainMenu_Menu_DXI4_",
+    "liClassName": "dxm-item dxm-noSubMenu dxm-noImage",
+    "liDisabled": false,
+    "anchorHref": "javascript:;",
+    "anchorOnclick": "",
+    "anchorTitle": "Changes the status of the selected orders from Processing to Transferred, these orders are then processed further for delivery!",
+    "computedDisplay": "block",
+    "computedVisibility": "visible",
+    "offsetWidth": 107,
+    "offsetHeight": 34,
+    "parentOffsetWidth": 110,
+    "parentOffsetHeight": 38
+  },
+  "confirmPatterns": [
+    {
+      "selector": "div[id*=\"Popup\"]",
+      "count": 2,
+      "elements": [
+        {
+          "id": "Vertical_UPPopupWindowControl",
+          "className": "",
+          "text": "<!--\nASPx.FillDocumentElementDXThemeCssClassName(\"XafTheme\");\nASPx.createControl(ASPxClientCallback,",
+          "visible": true,
+          "tagName": "DIV"
+        },
+        {
+          "id": "Vertical_PopupControlWrapper",
+          "className": "",
+          "text": "",
+          "visible": true,
+          "tagName": "DIV"
+        }
+      ]
+    },
+    {
+      "selector": "[class*=\"dxpc\"]",
+      "count": 79,
+      "elements": [
+        {
+          "id": "Vertical_mainMenu_Menu_ITCNT8_xaf_a1_Cb_DDD_PW-1",
+          "className": "dxpcDropDown_XafTheme dxpclW dxpc-ddSys dxdd-root",
+          "text": "<!--\nASPx.createControl(ASPxClientListBox,'Vertical_mainMenu_Menu_ITCNT8_xaf_a1_Cb_DDD_L','',{'uniqu",
+          "visible": false,
+          "tagName": "DIV"
+        },
+        {
+          "id": "",
+          "className": "dxpc-mainDiv dxdd-list dxpc-shadow",
+          "text": "<!--\nASPx.createControl(ASPxClientListBox,'Vertical_mainMenu_Menu_ITCNT8_xaf_a1_Cb_DDD_L','',{'uniqu",
+          "visible": true,
+          "tagName": "DIV"
+        },
+        {
+          "id": "",
+          "className": "dxpc-contentWrapper",
+          "text": "<!--\nASPx.createControl(ASPxClientListBox,'Vertical_mainMenu_Menu_ITCNT8_xaf_a1_Cb_DDD_L','',{'uniqu",
+          "visible": true,
+          "tagName": "DIV"
+        },
+        {
+          "id": "Vertical_mainMenu_Menu_ITCNT8_xaf_a1_Cb_DDD_PWC-1",
+          "className": "dxpc-content",
+          "text": "<!--\nASPx.createControl(ASPxClientListBox,'Vertical_mainMenu_Menu_ITCNT8_xaf_a1_Cb_DDD_L','',{'uniqu",
+          "visible": true,
+          "tagName": "DIV"
+        },
+        {
+          "id": "Vertical_v2_48559881_LE_v2_DXFREditorcol5_DDD_PW-1",
+          "className": "dxpcDropDown_XafTheme dxpclW dxpc-ddSys dxdd-root",
+          "text": "febbraio 2026lunmarmergiovensabdom052627282930311062345678079101112131415081617181920212209232425262",
+          "visible": false,
+          "tagName": "DIV"
+        }
+      ]
+    }
+  ],
+  "aspxControls": {
+    "error": null,
+    "controls": [
+      {
+        "name": "gvGlobalEventListener",
+        "type": "ret",
+        "methods": [
+          "InCallback"
+        ]
+      },
+      {
+        "name": "globalCallbackControl",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "PerformCallback"
+        ]
+      },
+      {
+        "name": "ctl03",
+        "type": "ret",
+        "methods": [
+          "InCallback"
+        ]
+      },
+      {
+        "name": "Vertical_SAC_Menu",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "GetItemByName",
+          "GetItem"
+        ]
+      },
+      {
+        "name": "Vertical_NC_NB_ITC0i0_TL",
+        "type": "ret",
+        "methods": [
+          "InCallback"
+        ]
+      },
+      {
+        "name": "Vertical_NC_NB",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "GetItemByName"
+        ]
+      },
+      {
+        "name": "Vertical_mainMenu_Menu_ITCNT8_xaf_a1_Cb_DDD_L",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "PerformCallback",
+          "SetValue",
+          "GetValue",
+          "GetItem"
+        ]
+      },
+      {
+        "name": "Vertical_mainMenu_Menu_ITCNT8_xaf_a1_Cb_DDD",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "PerformCallback"
+        ]
+      },
+      {
+        "name": "Vertical_mainMenu_Menu_ITCNT8_xaf_a1_Cb",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "PerformCallback",
+          "SetValue",
+          "GetValue",
+          "ShowDropDown",
+          "GetItem"
+        ]
+      },
+      {
+        "name": "Vertical_mainMenu_Menu",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "GetItemByName",
+          "GetItem"
+        ]
+      },
+      {
+        "name": "Vertical_SearchAC_Menu_ITCNT0_xaf_a0_Ed",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "SetValue",
+          "GetValue"
+        ]
+      },
+      {
+        "name": "Vertical_SearchAC_Menu",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "GetItemByName",
+          "GetItem"
+        ]
+      },
+      {
+        "name": "ASPxGlobalEvents",
+        "type": "ret",
+        "methods": [
+          "InCallback"
+        ]
+      },
+      {
+        "name": "ClientServerParams",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "PerformCallback"
+        ]
+      },
+      {
+        "name": "NotifyWindowCloseControl",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "PerformCallback"
+        ]
+      },
+      {
+        "name": "Vertical_v2_48559881_LE_v2_DXFREditorcol32",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "SetValue",
+          "GetValue"
+        ]
+      },
+      {
+        "name": "Vertical_v2_48559881_LE_v2_DXFREditorcol48",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "SetValue",
+          "GetValue"
+        ]
+      },
+      {
+        "name": "Vertical_v2_48559881_LE_v2_DXFREditorcol6",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "SetValue",
+          "GetValue"
+        ]
+      },
+      {
+        "name": "Vertical_v2_48559881_LE_v2_DXFREditorcol49",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "SetValue",
+          "GetValue"
+        ]
+      },
+      {
+        "name": "Vertical_v2_48559881_LE_v2_DXFREditorcol12",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "SetValue",
+          "GetValue"
+        ]
+      },
+      {
+        "name": "Vertical_v2_48559881_LE_v2_DXFREditorcol15",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "SetValue",
+          "GetValue"
+        ]
+      },
+      {
+        "name": "Vertical_v2_48559881_LE_v2_DXFREditorcol5_DDD_C",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "SetValue",
+          "GetValue"
+        ]
+      },
+      {
+        "name": "Vertical_v2_48559881_LE_v2_DXFREditorcol5_DDD",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "PerformCallback"
+        ]
+      },
+      {
+        "name": "Vertical_v2_48559881_LE_v2_DXFREditorcol5",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "SetValue",
+          "GetValue",
+          "ShowDropDown"
+        ]
+      },
+      {
+        "name": "Vertical_v2_48559881_LE_v2_DXFREditorcol11_DDD_C",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "SetValue",
+          "GetValue"
+        ]
+      },
+      {
+        "name": "Vertical_v2_48559881_LE_v2_DXFREditorcol11_DDD",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "PerformCallback"
+        ]
+      },
+      {
+        "name": "Vertical_v2_48559881_LE_v2_DXFREditorcol11",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "SetValue",
+          "GetValue",
+          "ShowDropDown"
+        ]
+      },
+      {
+        "name": "Vertical_v2_48559881_LE_v2_DXFREditorcol44",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "SetValue",
+          "GetValue"
+        ]
+      },
+      {
+        "name": "Vertical_v2_48559881_LE_v2_DXFREditorcol7",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "SetValue",
+          "GetValue"
+        ]
+      },
+      {
+        "name": "Vertical_v2_48559881_LE_v2_DXFREditorcol52_DDD_L",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "PerformCallback",
+          "SetValue",
+          "GetValue",
+          "GetItem"
+        ]
+      },
+      {
+        "name": "Vertical_v2_48559881_LE_v2_DXFREditorcol52_DDD",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "PerformCallback"
+        ]
+      },
+      {
+        "name": "Vertical_v2_48559881_LE_v2_DXFREditorcol52",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "PerformCallback",
+          "SetValue",
+          "GetValue",
+          "ShowDropDown",
+          "GetItem"
+        ]
+      },
+      {
+        "name": "Vertical_v2_48559881_LE_v2_DXFREditorcol53_DDD_L",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "PerformCallback",
+          "SetValue",
+          "GetValue",
+          "GetItem"
+        ]
+      },
+      {
+        "name": "Vertical_v2_48559881_LE_v2_DXFREditorcol53_DDD",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "PerformCallback"
+        ]
+      },
+      {
+        "name": "Vertical_v2_48559881_LE_v2_DXFREditorcol53",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "PerformCallback",
+          "SetValue",
+          "GetValue",
+          "ShowDropDown",
+          "GetItem"
+        ]
+      },
+      {
+        "name": "Vertical_v2_48559881_LE_v2_DXFREditorcol26_DDD_L",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "PerformCallback",
+          "SetValue",
+          "GetValue",
+          "GetItem"
+        ]
+      },
+      {
+        "name": "Vertical_v2_48559881_LE_v2_DXFREditorcol26_DDD",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "PerformCallback"
+        ]
+      },
+      {
+        "name": "Vertical_v2_48559881_LE_v2_DXFREditorcol26",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "PerformCallback",
+          "SetValue",
+          "GetValue",
+          "ShowDropDown",
+          "GetItem"
+        ]
+      },
+      {
+        "name": "Vertical_v2_48559881_LE_v2_DXFREditorcol50",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "SetValue",
+          "GetValue"
+        ]
+      },
+      {
+        "name": "Vertical_v2_48559881_LE_v2_DXFREditorcol59_DDD_L",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "PerformCallback",
+          "SetValue",
+          "GetValue",
+          "GetItem"
+        ]
+      },
+      {
+        "name": "Vertical_v2_48559881_LE_v2_DXFREditorcol59_DDD",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "PerformCallback"
+        ]
+      },
+      {
+        "name": "Vertical_v2_48559881_LE_v2_DXFREditorcol59",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "PerformCallback",
+          "SetValue",
+          "GetValue",
+          "ShowDropDown",
+          "GetItem"
+        ]
+      },
+      {
+        "name": "Vertical_v2_48559881_LE_v2_DXFREditorcol58_DDD_C",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "SetValue",
+          "GetValue"
+        ]
+      },
+      {
+        "name": "Vertical_v2_48559881_LE_v2_DXFREditorcol58_DDD",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "PerformCallback"
+        ]
+      },
+      {
+        "name": "Vertical_v2_48559881_LE_v2_DXFREditorcol58",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "SetValue",
+          "GetValue",
+          "ShowDropDown"
+        ]
+      },
+      {
+        "name": "Vertical_v2_48559881_LE_v2_DXFREditorcol3_DDD_C",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "SetValue",
+          "GetValue"
+        ]
+      },
+      {
+        "name": "Vertical_v2_48559881_LE_v2_DXFREditorcol3_DDD",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "PerformCallback"
+        ]
+      },
+      {
+        "name": "Vertical_v2_48559881_LE_v2_DXFREditorcol3",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "SetValue",
+          "GetValue",
+          "ShowDropDown"
+        ]
+      },
+      {
+        "name": "Vertical_v2_48559881_LE_v2_DXFREditorcol45_DDD_L",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "PerformCallback",
+          "SetValue",
+          "GetValue",
+          "GetItem"
+        ]
+      },
+      {
+        "name": "Vertical_v2_48559881_LE_v2_DXFREditorcol45_DDD",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "PerformCallback"
+        ]
+      },
+      {
+        "name": "Vertical_v2_48559881_LE_v2_DXFREditorcol45",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "PerformCallback",
+          "SetValue",
+          "GetValue",
+          "ShowDropDown",
+          "GetItem"
+        ]
+      },
+      {
+        "name": "Vertical_v2_48559881_LE_v2_DXFREditorcol36",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "SetValue",
+          "GetValue"
+        ]
+      },
+      {
+        "name": "Vertical_v2_48559881_LE_v2_DXFREditorcol31",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "SetValue",
+          "GetValue"
+        ]
+      },
+      {
+        "name": "Vertical_v2_48559881_LE_v2_DXFREditorcol0",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "SetValue",
+          "GetValue"
+        ]
+      },
+      {
+        "name": "Vertical_v2_48559881_LE_v2_DXFREditorcol54_DDD_L",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "PerformCallback",
+          "SetValue",
+          "GetValue",
+          "GetItem"
+        ]
+      },
+      {
+        "name": "Vertical_v2_48559881_LE_v2_DXFREditorcol54_DDD",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "PerformCallback"
+        ]
+      },
+      {
+        "name": "Vertical_v2_48559881_LE_v2_DXFREditorcol54",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "PerformCallback",
+          "SetValue",
+          "GetValue",
+          "ShowDropDown",
+          "GetItem"
+        ]
+      },
+      {
+        "name": "Vertical_v2_48559881_LE_v2_custwindow",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "PerformCallback"
+        ]
+      },
+      {
+        "name": "Vertical_v2_48559881_LE_v2_DXHFP_TPCFCm1_O",
+        "type": "ret",
+        "methods": [
+          "InCallback"
+        ]
+      },
+      {
+        "name": "Vertical_v2_48559881_LE_v2_DXHFP_TPCFCm1_C",
+        "type": "ret",
+        "methods": [
+          "InCallback"
+        ]
+      },
+      {
+        "name": "Vertical_v2_48559881_LE_v2_DXHFP",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "PerformCallback"
+        ]
+      },
+      {
+        "name": "Vertical_v2_48559881_LE_v2_DXFilterRowMenu",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "GetItemByName",
+          "GetItem"
+        ]
+      },
+      {
+        "name": "Vertical_v2_48559881_LE_v2_DXContextMenu_GroupPanel",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "GetItemByName",
+          "GetItem"
+        ]
+      },
+      {
+        "name": "Vertical_v2_48559881_LE_v2_DXContextMenu_Columns",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "GetItemByName",
+          "GetItem"
+        ]
+      },
+      {
+        "name": "Vertical_v2_48559881_LE_v2_DXContextMenu_Footer",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "GetItemByName",
+          "GetItem"
+        ]
+      },
+      {
+        "name": "Vertical_v2_48559881_LE_v2_DXCDWindow_DXCDPageControl",
+        "type": "ret",
+        "methods": [
+          "InCallback"
+        ]
+      },
+      {
+        "name": "Vertical_v2_48559881_LE_v2_DXCDWindow",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "PerformCallback"
+        ]
+      },
+      {
+        "name": "Vertical_v2_48559881_LE_v2_DXPagerBottom_PSP",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "GetItemByName",
+          "GetItem"
+        ]
+      },
+      {
+        "name": "Vertical_v2_48559881_LE_v2_DXPagerBottom",
+        "type": "ret",
+        "methods": [
+          "InCallback"
+        ]
+      },
+      {
+        "name": "Vertical_v2_48559881_LE_v2_DXFREditorcol1",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "SetValue",
+          "GetValue"
+        ]
+      },
+      {
+        "name": "Vertical_v2_48559881_LE_v2_DXFREditorcol2_DDD_L",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "PerformCallback",
+          "SetValue",
+          "GetValue",
+          "GetItem"
+        ]
+      },
+      {
+        "name": "Vertical_v2_48559881_LE_v2_DXFREditorcol2_DDD",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "PerformCallback"
+        ]
+      },
+      {
+        "name": "Vertical_v2_48559881_LE_v2_DXFREditorcol2",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "PerformCallback",
+          "SetValue",
+          "GetValue",
+          "ShowDropDown",
+          "GetItem"
+        ]
+      },
+      {
+        "name": "Vertical_v2_48559881_LE_v2_DXFREditorcol4",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "SetValue",
+          "GetValue"
+        ]
+      },
+      {
+        "name": "Vertical_v2_48559881_LE_v2_DXFREditorcol8",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "SetValue",
+          "GetValue"
+        ]
+      },
+      {
+        "name": "Vertical_v2_48559881_LE_v2_DXFREditorcol9",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "SetValue",
+          "GetValue"
+        ]
+      },
+      {
+        "name": "Vertical_v2_48559881_LE_v2_DXFREditorcol10",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "SetValue",
+          "GetValue"
+        ]
+      },
+      {
+        "name": "Vertical_v2_48559881_LE_v2_DXFREditorcol13",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "SetValue",
+          "GetValue"
+        ]
+      },
+      {
+        "name": "Vertical_v2_48559881_LE_v2_DXFREditorcol14",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "SetValue",
+          "GetValue"
+        ]
+      },
+      {
+        "name": "Vertical_v2_48559881_LE_v2_DXFREditorcol16",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "SetValue",
+          "GetValue"
+        ]
+      },
+      {
+        "name": "Vertical_v2_48559881_LE_v2_DXFREditorcol17",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "SetValue",
+          "GetValue"
+        ]
+      },
+      {
+        "name": "Vertical_v2_48559881_LE_v2_DXFREditorcol18",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "SetValue",
+          "GetValue"
+        ]
+      },
+      {
+        "name": "Vertical_v2_48559881_LE_v2_DXFREditorcol19",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "SetValue",
+          "GetValue"
+        ]
+      },
+      {
+        "name": "Vertical_v2_48559881_LE_v2_DXFREditorcol20",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "SetValue",
+          "GetValue"
+        ]
+      },
+      {
+        "name": "Vertical_v2_48559881_LE_v2_DXFREditorcol21",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "SetValue",
+          "GetValue"
+        ]
+      },
+      {
+        "name": "Vertical_v2_48559881_LE_v2_DXFREditorcol22",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "SetValue",
+          "GetValue"
+        ]
+      },
+      {
+        "name": "Vertical_v2_48559881_LE_v2_DXFREditorcol23",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "SetValue",
+          "GetValue"
+        ]
+      },
+      {
+        "name": "Vertical_v2_48559881_LE_v2_DXFREditorcol24",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "SetValue",
+          "GetValue"
+        ]
+      },
+      {
+        "name": "Vertical_v2_48559881_LE_v2_DXFREditorcol25",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "SetValue",
+          "GetValue"
+        ]
+      },
+      {
+        "name": "Vertical_v2_48559881_LE_v2_DXFREditorcol27",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "SetValue",
+          "GetValue"
+        ]
+      },
+      {
+        "name": "Vertical_v2_48559881_LE_v2_DXFREditorcol28",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "SetValue",
+          "GetValue"
+        ]
+      },
+      {
+        "name": "Vertical_v2_48559881_LE_v2_DXFREditorcol29",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "SetValue",
+          "GetValue"
+        ]
+      },
+      {
+        "name": "Vertical_v2_48559881_LE_v2_DXFREditorcol30",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "SetValue",
+          "GetValue"
+        ]
+      },
+      {
+        "name": "Vertical_v2_48559881_LE_v2_DXFREditorcol33_DDD_L",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "PerformCallback",
+          "SetValue",
+          "GetValue",
+          "GetItem"
+        ]
+      },
+      {
+        "name": "Vertical_v2_48559881_LE_v2_DXFREditorcol33_DDD",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "PerformCallback"
+        ]
+      },
+      {
+        "name": "Vertical_v2_48559881_LE_v2_DXFREditorcol33",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "PerformCallback",
+          "SetValue",
+          "GetValue",
+          "ShowDropDown",
+          "GetItem"
+        ]
+      },
+      {
+        "name": "Vertical_v2_48559881_LE_v2_DXFREditorcol34",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "SetValue",
+          "GetValue"
+        ]
+      },
+      {
+        "name": "Vertical_v2_48559881_LE_v2_DXFREditorcol35",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "SetValue",
+          "GetValue"
+        ]
+      },
+      {
+        "name": "Vertical_v2_48559881_LE_v2_DXFREditorcol37",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "SetValue",
+          "GetValue"
+        ]
+      },
+      {
+        "name": "Vertical_v2_48559881_LE_v2_DXFREditorcol38_DDD_C",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "SetValue",
+          "GetValue"
+        ]
+      },
+      {
+        "name": "Vertical_v2_48559881_LE_v2_DXFREditorcol38_DDD",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "PerformCallback"
+        ]
+      },
+      {
+        "name": "Vertical_v2_48559881_LE_v2_DXFREditorcol38",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "SetValue",
+          "GetValue",
+          "ShowDropDown"
+        ]
+      },
+      {
+        "name": "Vertical_v2_48559881_LE_v2_DXFREditorcol39",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "SetValue",
+          "GetValue"
+        ]
+      },
+      {
+        "name": "Vertical_v2_48559881_LE_v2_DXFREditorcol40",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "SetValue",
+          "GetValue"
+        ]
+      },
+      {
+        "name": "Vertical_v2_48559881_LE_v2_DXFREditorcol41",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "SetValue",
+          "GetValue"
+        ]
+      },
+      {
+        "name": "Vertical_v2_48559881_LE_v2_DXFREditorcol42",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "SetValue",
+          "GetValue"
+        ]
+      },
+      {
+        "name": "Vertical_v2_48559881_LE_v2_DXFREditorcol43",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "SetValue",
+          "GetValue"
+        ]
+      },
+      {
+        "name": "Vertical_v2_48559881_LE_v2_DXFREditorcol46",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "SetValue",
+          "GetValue"
+        ]
+      },
+      {
+        "name": "Vertical_v2_48559881_LE_v2_DXFREditorcol47",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "SetValue",
+          "GetValue"
+        ]
+      },
+      {
+        "name": "Vertical_v2_48559881_LE_v2_DXFREditorcol51",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "SetValue",
+          "GetValue"
+        ]
+      },
+      {
+        "name": "Vertical_v2_48559881_LE_v2_DXFREditorcol55",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "SetValue",
+          "GetValue"
+        ]
+      },
+      {
+        "name": "Vertical_v2_48559881_LE_v2_DXFREditorcol56",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "SetValue",
+          "GetValue"
+        ]
+      },
+      {
+        "name": "Vertical_v2_48559881_LE_v2_DXFREditorcol57",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "SetValue",
+          "GetValue"
+        ]
+      },
+      {
+        "name": "Vertical_v2_48559881_LE_v2_DXFREditorcol60",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "SetValue",
+          "GetValue"
+        ]
+      },
+      {
+        "name": "Vertical_v2_48559881_LE_v2_DXFREditorcol61",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "SetValue",
+          "GetValue"
+        ]
+      },
+      {
+        "name": "Vertical_v2_48559881_LE_v2_DXFREditorcol62",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "SetValue",
+          "GetValue"
+        ]
+      },
+      {
+        "name": "Vertical_v2_48559881_LE_v2",
+        "type": "ret",
+        "methods": [
+          "AddNewRow",
+          "UpdateEdit",
+          "CancelEdit",
+          "DeleteRow",
+          "GotoPage",
+          "GetPageCount",
+          "GetVisibleRowsOnPage",
+          "InCallback",
+          "IsEditing",
+          "Refresh",
+          "PerformCallback",
+          "StartEditRow",
+          "GetRowValues",
+          "GetItem",
+          "SelectRows",
+          "UnselectRows",
+          "GetSelectedRowCount",
+          "SelectAllRowsOnPage"
+        ]
+      },
+      {
+        "name": "Vertical_v2_48559881_LE_v2_DXCBtn0",
+        "type": "ret",
+        "methods": [
+          "InCallback"
+        ]
+      },
+      {
+        "name": "Vertical_v2_48559881_LE_v2_DXCDWindow_DXCBtn1",
+        "type": "ret",
+        "methods": [
+          "InCallback"
+        ]
+      },
+      {
+        "name": "Vertical_v2_48559881_LE_v2_DXCDWindow_DXCBtn2",
+        "type": "ret",
+        "methods": [
+          "InCallback"
+        ]
+      },
+      {
+        "name": "Vertical_PopupWindowCallback",
+        "type": "ret",
+        "methods": [
+          "InCallback",
+          "PerformCallback"
+        ]
+      }
+    ]
+  },
+  "allDxiAnchors": [
+    {
+      "id": "Vertical_mainMenu_Menu_DXI0_T",
+      "text": "NuovoNuovo",
+      "className": "dxm-content dxm-hasText dx dxalink",
+      "href": "javascript:;",
+      "onclick": "",
+      "disabled": false,
+      "parentId": "Vertical_mainMenu_Menu_DXI0_",
+      "parentDisabled": false
+    },
+    {
+      "id": "Vertical_mainMenu_Menu_DXI1_T",
+      "text": "Cancellare",
+      "className": "dxm-content dx dxalink",
+      "href": "javascript:;",
+      "onclick": "",
+      "disabled": false,
+      "parentId": "Vertical_mainMenu_Menu_DXI1_",
+      "parentDisabled": false
+    },
+    {
+      "id": "Vertical_mainMenu_Menu_DXI2_T",
+      "text": "Modifica",
+      "className": "dxm-content dx dxalink",
+      "href": "javascript:;",
+      "onclick": "",
+      "disabled": false,
+      "parentId": "Vertical_mainMenu_Menu_DXI2_",
+      "parentDisabled": false
+    },
+    {
+      "id": "Vertical_mainMenu_Menu_DXI3_T",
+      "text": "copia ordinecopia ordine",
+      "className": "dxm-content dxm-hasText dx dxalink",
+      "href": "javascript:;",
+      "onclick": "",
+      "disabled": false,
+      "parentId": "Vertical_mainMenu_Menu_DXI3_",
+      "parentDisabled": false
+    },
+    {
+      "id": "Vertical_mainMenu_Menu_DXI4_T",
+      "text": "invia ordine/iinvia ordine/i",
+      "className": "dxm-content dxm-hasText dx dxalink",
+      "href": "javascript:;",
+      "onclick": "",
+      "disabled": false,
+      "parentId": "Vertical_mainMenu_Menu_DXI4_",
+      "parentDisabled": false
+    },
+    {
+      "id": "Vertical_mainMenu_Menu_DXI5_T",
+      "text": "Vista",
+      "className": "dxm-content dx dxalink",
+      "href": "javascript:;",
+      "onclick": "",
+      "disabled": false,
+      "parentId": "Vertical_mainMenu_Menu_DXI5_",
+      "parentDisabled": false
+    },
+    {
+      "id": "Vertical_mainMenu_Menu_DXI9_T",
+      "text": "Show hidden items",
+      "className": "dxm-content dxm-hasText dx dxalink",
+      "href": "javascript:;",
+      "onclick": "",
+      "disabled": false,
+      "parentId": "Vertical_mainMenu_Menu_DXI9_",
+      "parentDisabled": false
+    },
+    {
+      "id": "Vertical_mainMenu_Menu_DXI6_T",
+      "text": "Ripristina impostazioni di visualizzazione",
+      "className": "dxm-content dx dxalink",
+      "href": "javascript:;",
+      "onclick": "",
+      "disabled": false,
+      "parentId": "Vertical_mainMenu_Menu_DXI6_",
+      "parentDisabled": false
+    },
+    {
+      "id": "Vertical_mainMenu_Menu_DXI7_T",
+      "text": "Esportare inEsportare in",
+      "className": "dxm-content dxm-hasText dx dxalink",
+      "href": "javascript:;",
+      "onclick": "",
+      "disabled": false,
+      "parentId": "Vertical_mainMenu_Menu_DXI7_",
+      "parentDisabled": false
+    }
+  ]
+}

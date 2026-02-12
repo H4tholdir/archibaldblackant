@@ -5677,6 +5677,13 @@ app.post(
         });
       }
 
+      if (!order.archibaldOrderId) {
+        return res.status(400).json({
+          success: false,
+          error: "Order does not have an Archibald order ID",
+        });
+      }
+
       // Pause background services to avoid conflicts
       await priorityManager.pause();
       logger.info(
@@ -5684,56 +5691,90 @@ app.post(
       );
 
       try {
-        // Call SendToMilanoService
-        const result = await sendToMilanoService.sendToMilano(orderId, userId);
+        const { ArchibaldBot } = await import("./archibald-bot");
+        const { getSendToVeronaProgressMilestone } = await import(
+          "./job-progress-mapper"
+        );
 
-        if (!result.success) {
-          // Return error without updating database
-          return res.status(500).json({
-            success: false,
-            error: result.error || "Failed to send order to Milano",
-          });
+        const bot = new ArchibaldBot(userId);
+
+        let wsService: any;
+        try {
+          const mod = require("./fresis-history-realtime.service");
+          wsService = mod.FresisHistoryRealtimeService.getInstance();
+        } catch {
+          // WS not available
         }
 
-        // Update database on success
-        const sentToMilanoAt = result.sentAt || new Date().toISOString();
-        orderDb.updateOrderMilanoState(
-          userId,
-          orderId,
-          "inviato_milano",
-          sentToMilanoAt,
-        );
-
-        // Insert audit log entry
-        orderDb.insertAuditLog(
-          userId,
-          "send_to_milano",
-          orderId,
-          JSON.stringify({
-            sentToMilanoAt,
-            message: result.message,
-          }),
-        );
-
-        logger.info(
-          `[SendToMilano] Order ${orderId} sent to Milano successfully`,
-          {
+        bot.setProgressCallback(async (category: string) => {
+          if (!wsService) return;
+          const milestone = getSendToVeronaProgressMilestone(category);
+          if (!milestone) return;
+          wsService.emitSendToVeronaProgress(
             userId,
             orderId,
-            sentToMilanoAt,
-          },
-        );
-
-        return res.json({
-          success: true,
-          message:
-            result.message || `Order ${orderId} sent to Milano successfully`,
-          data: {
-            orderId,
-            sentToMilanoAt,
-            currentState: "inviato_milano",
-          },
+            milestone.progress,
+            milestone.label,
+          );
         });
+
+        try {
+          await bot.initialize();
+
+          const result = await bot.sendOrderToVerona(order.archibaldOrderId);
+
+          if (!result.success) {
+            return res.status(500).json({
+              success: false,
+              error: result.message || "Failed to send order to Milano",
+            });
+          }
+
+          // Update database on success
+          const sentToMilanoAt = new Date().toISOString();
+          orderDb.updateOrderMilanoState(
+            userId,
+            orderId,
+            "inviato_milano",
+            sentToMilanoAt,
+          );
+
+          orderDb.insertAuditLog(
+            userId,
+            "send_to_milano",
+            orderId,
+            JSON.stringify({
+              sentToMilanoAt,
+              message: result.message,
+            }),
+          );
+
+          logger.info(
+            `[SendToMilano] Order ${orderId} sent to Milano successfully`,
+            {
+              userId,
+              orderId,
+              sentToMilanoAt,
+            },
+          );
+
+          return res.json({
+            success: true,
+            message:
+              result.message || `Order ${orderId} sent to Milano successfully`,
+            data: {
+              orderId,
+              sentToMilanoAt,
+              currentState: "inviato_milano",
+            },
+          });
+        } finally {
+          try {
+            await bot.close();
+          } catch {
+            // ignore close errors
+          }
+        }
       } finally {
         // Always resume background services
         priorityManager.resume();

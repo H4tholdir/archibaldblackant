@@ -16,6 +16,11 @@ import { useSyncProgress } from "../hooks/useSyncProgress";
 import { toastService } from "../services/toast.service";
 import { fetchWithRetry } from "../utils/fetch-with-retry";
 import { customerService } from "../services/customers.service";
+import { useWebSocketContext } from "../contexts/WebSocketContext";
+import {
+  FresisHistoryRealtimeService,
+  type SendToVeronaProgressState,
+} from "../services/fresis-history-realtime.service";
 import type { Customer } from "../db/schema";
 
 interface OrderFilters {
@@ -204,6 +209,8 @@ export function OrderHistory() {
   const [modalOrderId, setModalOrderId] = useState<string | null>(null);
   const [modalCustomerName, setModalCustomerName] = useState<string>("");
   const [sendingToVerona, setSendingToVerona] = useState(false);
+  const [sendToVeronaProgress, setSendToVeronaProgress] =
+    useState<SendToVeronaProgressState | null>(null);
   const [legendOpen, setLegendOpen] = useState(false);
 
   // Customer autocomplete state
@@ -235,6 +242,28 @@ export function OrderHistory() {
     resultsContainerRef,
     debouncedSearch,
   );
+
+  // WebSocket subscription for sendToVerona progress
+  const { subscribe } = useWebSocketContext();
+
+  useEffect(() => {
+    if (!sendingToVerona || !modalOrderId) return;
+    const realtimeService = FresisHistoryRealtimeService.getInstance();
+    const unsubscribeWs = subscribe(
+      "ORDER_SEND_TO_VERONA_PROGRESS",
+      (payload) => realtimeService.handleSendToVeronaProgress(payload),
+    );
+    const unsubscribeProgress = realtimeService.onSendToVeronaProgress(() => {
+      const p = realtimeService.getSendToVeronaProgress(modalOrderId);
+      if (p) setSendToVeronaProgress({ ...p });
+    });
+    return () => {
+      unsubscribeWs();
+      unsubscribeProgress();
+      realtimeService.clearSendToVeronaProgress(modalOrderId);
+      setSendToVeronaProgress(null);
+    };
+  }, [sendingToVerona, modalOrderId, subscribe]);
 
   // Debounce global search input (300ms)
   useEffect(() => {
@@ -1760,6 +1789,8 @@ export function OrderHistory() {
         orderId={modalOrderId || ""}
         customerName={modalCustomerName}
         isLoading={sendingToVerona}
+        progress={sendToVeronaProgress?.progress}
+        progressOperation={sendToVeronaProgress?.operation}
       />
 
       {/* Sync Progress Modal */}

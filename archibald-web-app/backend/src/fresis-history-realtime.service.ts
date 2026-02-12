@@ -10,7 +10,8 @@ export type FresisHistoryEventType =
   | "FRESIS_HISTORY_EDIT_PROGRESS"
   | "FRESIS_HISTORY_BULK_IMPORTED"
   | "ORDER_EDIT_PROGRESS"
-  | "ORDER_EDIT_COMPLETE";
+  | "ORDER_EDIT_COMPLETE"
+  | "ORDER_SEND_TO_VERONA_PROGRESS";
 
 export class FresisHistoryRealtimeService {
   private static instance: FresisHistoryRealtimeService;
@@ -205,6 +206,33 @@ export class FresisHistoryRealtimeService {
     } catch (error) {
       logger.error(
         "[FresisHistoryRealtime] Failed to emit ORDER_EDIT_COMPLETE",
+        { userId, orderId, error },
+      );
+    }
+  }
+
+  public emitSendToVeronaProgress(
+    userId: string,
+    orderId: string,
+    progress: number,
+    operation: string,
+  ): void {
+    try {
+      const event: WebSocketMessage = {
+        type: "ORDER_SEND_TO_VERONA_PROGRESS",
+        payload: {
+          recordId: orderId,
+          progress,
+          operation,
+          timestamp: new Date().toISOString(),
+        },
+        timestamp: new Date().toISOString(),
+      };
+
+      this.wsService.broadcast(userId, event);
+    } catch (error) {
+      logger.error(
+        "[FresisHistoryRealtime] Failed to emit ORDER_SEND_TO_VERONA_PROGRESS",
         { userId, orderId, error },
       );
     }

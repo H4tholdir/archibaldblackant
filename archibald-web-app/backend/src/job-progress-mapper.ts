@@ -129,6 +129,22 @@ export function getEditProgressMilestone(
   return { progress, label };
 }
 
+const SEND_TO_VERONA_MILESTONES: Record<string, { progress: number; label: string }> = {
+  "sendToVerona.navigation": { progress: 15, label: "Navigazione lista ordini" },
+  "sendToVerona.filter": { progress: 25, label: "Impostazione filtro" },
+  "sendToVerona.search": { progress: 45, label: "Ricerca ordine" },
+  "sendToVerona.select": { progress: 60, label: "Selezione ordine" },
+  "sendToVerona.confirm": { progress: 80, label: "Conferma invio" },
+  "sendToVerona.verify": { progress: 95, label: "Verifica invio" },
+  "sendToVerona.complete": { progress: 100, label: "Ordine inviato a Verona" },
+};
+
+export function getSendToVeronaProgressMilestone(
+  category: string,
+): { progress: number; label: string } | null {
+  return SEND_TO_VERONA_MILESTONES[category] ?? null;
+}
+
 export function getProgressMilestone(
   operationCategory: string,
   metadata?: Record<string, any>,
