@@ -209,6 +209,9 @@ export function OrderHistory() {
   const [modalOrderId, setModalOrderId] = useState<string | null>(null);
   const [modalCustomerName, setModalCustomerName] = useState<string>("");
   const [sendingToVerona, setSendingToVerona] = useState(false);
+  const [sentToVeronaIds, setSentToVeronaIds] = useState<Set<string>>(
+    new Set(),
+  );
   const [sendToVeronaProgress, setSendToVeronaProgress] =
     useState<SendToVeronaProgressState | null>(null);
   const [legendOpen, setLegendOpen] = useState(false);
@@ -559,6 +562,8 @@ export function OrderHistory() {
       if (!data.success) {
         throw new Error(data.message || "Errore nell'invio a Verona");
       }
+
+      setSentToVeronaIds((prev) => new Set(prev).add(modalOrderId));
 
       setModalOpen(false);
       setModalOrderId(null);
@@ -1772,6 +1777,7 @@ export function OrderHistory() {
                           fetchOrders();
                         }}
                         onDeleteDone={fetchOrders}
+                        justSentToVerona={sentToVeronaIds.has(order.id)}
                       />
                     );
                   })}

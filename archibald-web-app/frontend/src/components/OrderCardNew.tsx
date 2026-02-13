@@ -28,6 +28,7 @@ interface OrderCardProps {
   searchQuery?: string;
   editing?: boolean;
   onEditDone?: () => void;
+  justSentToVerona?: boolean;
 }
 
 // ============================================================================
@@ -3222,6 +3223,7 @@ export function OrderCardNew({
   searchQuery = "",
   editing = false,
   onEditDone,
+  justSentToVerona = false,
 }: OrderCardProps) {
   const [activeTab, setActiveTab] = useState<
     "panoramica" | "articoli" | "logistica" | "finanziario" | "storico"
@@ -3364,7 +3366,7 @@ export function OrderCardNew({
     return { totalVatAmount, totalWithVat };
   });
 
-  const canSendToVerona = isNotSentToVerona(order);
+  const canSendToVerona = isNotSentToVerona(order) && !justSentToVerona;
 
   const tabs = [
     { id: "panoramica" as const, label: "Panoramica", icon: "📊" },
