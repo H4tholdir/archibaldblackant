@@ -132,7 +132,7 @@ const invoiceSyncService = InvoiceSyncService.getInstance();
 const syncOrchestrator = SyncOrchestrator.getInstance();
 
 // Global lock per prevenire sync paralleli e conflitti con ordini
-type ActiveOperation = "customers" | "products" | "prices" | "order" | null;
+type ActiveOperation = "customers" | "products" | "prices" | "order" | "user-action" | null;
 let activeOperation: ActiveOperation = null;
 
 function acquireSyncLock(type: "customers" | "products" | "prices"): boolean {
@@ -152,9 +152,35 @@ function acquireSyncLock(type: "customers" | "products" | "prices"): boolean {
 }
 
 function releaseSyncLock() {
-  if (activeOperation && activeOperation !== "order") {
+  if (activeOperation === "customers" || activeOperation === "products" || activeOperation === "prices") {
     logger.info(`🔓 Lock rilasciato: ${activeOperation}`);
     activeOperation = null;
+  }
+}
+
+async function withUserActionLock<T>(
+  operationName: string,
+  fn: () => Promise<T>,
+): Promise<T> {
+  if (activeOperation === "order") {
+    throw new Error("Creazione ordine in corso, riprovare più tardi");
+  }
+  if (activeOperation === "user-action") {
+    throw new Error("Un'altra operazione utente è in corso, riprovare più tardi");
+  }
+
+  activeOperation = "user-action";
+  logger.info(`🔒 [UserAction] Lock acquisito: ${operationName}`);
+
+  try {
+    await priorityManager.pause();
+    return await fn();
+  } finally {
+    priorityManager.resume();
+    if (activeOperation === "user-action") {
+      activeOperation = null;
+      logger.info(`🔓 [UserAction] Lock rilasciato: ${operationName}`);
+    }
   }
 }
 
@@ -5647,13 +5673,7 @@ app.post(
         });
       }
 
-      // Pause background services to avoid conflicts
-      await priorityManager.pause();
-      logger.info(
-        `[SendToMilano] Background services paused for order ${orderId}`,
-      );
-
-      try {
+      return await withUserActionLock("send-to-milano", async () => {
         const { ArchibaldBot } = await import("./archibald-bot");
         const { getSendToVeronaProgressMilestone } = await import(
           "./job-progress-mapper"
@@ -5738,19 +5758,25 @@ app.post(
             // ignore close errors
           }
         }
-      } finally {
-        // Always resume background services
-        priorityManager.resume();
-        logger.info(
-          `[SendToMilano] Background services resumed after order ${orderId}`,
-        );
-      }
+      });
     } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      const isLockConflict =
+        errorMessage.includes("in corso") || errorMessage.includes("riprovare");
+
+      if (isLockConflict) {
+        logger.warn(`[SendToMilano] Lock conflict for order ${orderId}: ${errorMessage}`);
+        return res.status(409).json({
+          success: false,
+          error: errorMessage,
+        });
+      }
+
       logger.error("[SendToMilano] Unexpected error", {
         error,
         userId,
         orderId,
-        message: error instanceof Error ? error.message : String(error),
+        message: errorMessage,
       });
 
       return res.status(500).json({
@@ -6093,11 +6119,7 @@ app.get(
         });
       }
 
-      // Pause background services
-      await priorityManager.pause();
-
-      try {
-        // Download invoice PDF
+      return await withUserActionLock("invoice-download", async () => {
         const pdfBuffer = await invoiceScraperService.downloadInvoicePDF(
           userId,
           order,
@@ -6107,23 +6129,30 @@ app.get(
           `[Invoice Download] Successfully downloaded PDF for order ${orderId} (${pdfBuffer.length} bytes)`,
         );
 
-        // Set response headers
         res.setHeader("Content-Type", "application/pdf");
         res.setHeader(
           "Content-Disposition",
-          `attachment; filename="invoice-${order.invoiceNumber.replace(/\//g, "-")}.pdf"`,
+          `attachment; filename="invoice-${order.invoiceNumber!.replace(/\//g, "-")}.pdf"`,
         );
         res.setHeader("Content-Length", pdfBuffer.length);
 
-        // Stream PDF to response
         return res.send(pdfBuffer);
-      } finally {
-        // Always resume background services
-        priorityManager.resume();
-      }
+      });
     } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      const isLockConflict =
+        errorMessage.includes("in corso") || errorMessage.includes("riprovare");
+
+      if (isLockConflict) {
+        logger.warn(`[Invoice Download] Lock conflict for order ${orderId}: ${errorMessage}`);
+        return res.status(409).json({
+          success: false,
+          error: errorMessage,
+        });
+      }
+
       logger.error(`[Invoice Download] Failed for order ${orderId}`, {
-        error: error instanceof Error ? error.message : String(error),
+        error: errorMessage,
       });
 
       return res.status(500).json({
@@ -6217,40 +6246,42 @@ app.get(
         });
       }
 
-      // Pause background services
-      await priorityManager.pause();
-
-      try {
-        // Download DDT PDF
+      return await withUserActionLock("ddt-download", async () => {
         const pdfBuffer = await ddtScraperService.downloadDDTPDF(userId, order);
 
         logger.info(
           `[DDT Download] Successfully downloaded PDF for order ${orderId} (${pdfBuffer.length} bytes)`,
         );
 
-        // Set response headers
         res.setHeader("Content-Type", "application/pdf");
         res.setHeader(
           "Content-Disposition",
-          `attachment; filename="ddt-${order.ddtNumber.replace(/\//g, "-")}.pdf"`,
+          `attachment; filename="ddt-${order.ddtNumber!.replace(/\//g, "-")}.pdf"`,
         );
         res.setHeader("Content-Length", pdfBuffer.length);
 
-        // Stream PDF to response
         return res.send(pdfBuffer);
-      } finally {
-        // Always resume background services
-        priorityManager.resume();
-      }
+      });
     } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      const isLockConflict =
+        errorMessage.includes("in corso") || errorMessage.includes("riprovare");
+
+      if (isLockConflict) {
+        logger.warn(`[DDT Download] Lock conflict for order ${orderId}: ${errorMessage}`);
+        return res.status(409).json({
+          success: false,
+          error: errorMessage,
+        });
+      }
+
       logger.error(`[DDT Download] Failed for order ${orderId}`, {
-        error: error instanceof Error ? error.message : String(error),
+        error: errorMessage,
         stack: error instanceof Error ? error.stack : undefined,
         orderId,
         userId,
       });
 
-      // Return detailed error in development, generic in production
       const isDevelopment = process.env.NODE_ENV !== "production";
       return res.status(500).json({
         success: false,
@@ -6323,6 +6354,20 @@ app.get(
       }
     }
 
+    // Check lock before starting SSE (so we can return JSON 409)
+    if (activeOperation === "order") {
+      return res.status(409).json({
+        success: false,
+        error: "Creazione ordine in corso, riprovare più tardi",
+      });
+    }
+    if (activeOperation === "user-action") {
+      return res.status(409).json({
+        success: false,
+        error: "Un'altra operazione utente è in corso, riprovare più tardi",
+      });
+    }
+
     // Setup SSE
     res.setHeader("Content-Type", "text/event-stream");
     res.setHeader("Cache-Control", "no-cache");
@@ -6340,6 +6385,9 @@ app.get(
     req.on("close", () => {
       aborted = true;
     });
+
+    activeOperation = "user-action";
+    logger.info(`🔒 [UserAction] Lock acquisito: pdf-download-sse`);
 
     await priorityManager.pause();
 
@@ -6370,7 +6418,6 @@ app.get(
 
       if (aborted) return;
 
-      // Send PDF as base64 in the final event
       const base64Pdf = pdfBuffer.toString("base64");
       const filename =
         type === "invoice"
@@ -6396,6 +6443,10 @@ app.get(
       });
     } finally {
       priorityManager.resume();
+      if (activeOperation === "user-action") {
+        activeOperation = null;
+        logger.info(`🔓 [UserAction] Lock rilasciato: pdf-download-sse`);
+      }
     }
   },
 );
