@@ -9296,19 +9296,18 @@ export class ArchibaldBot {
 
     await this.waitForDevExpressIdle({ timeout: 8000, label: "save-customer" });
 
-    const warningFound = await this.page.evaluate(() => {
-      // Try checkbox first (id ending with _ErrorInfo_Ch_S)
+    // Find the "Ignore warnings" checkbox or button (detect first, click natively)
+    const warningSelector = await this.page.evaluate(() => {
+      // Try DevExpress ErrorInfo checkbox wrapper (the input is type="text", not "checkbox")
       const checkbox = document.querySelector(
         'input[id$="_ErrorInfo_Ch_S"]',
-      ) as HTMLInputElement | null;
+      ) as HTMLElement | null;
       if (checkbox) {
-        const wrapper = checkbox.closest('span[id$="_ErrorInfo_Ch_S_D"]');
-        if (wrapper) {
-          (wrapper as HTMLElement).click();
-        } else {
-          checkbox.click();
-        }
-        return "errorinfo-checkbox";
+        const wrapper = checkbox.closest(
+          'span[id$="_ErrorInfo_Ch_S_D"]',
+        ) as HTMLElement | null;
+        if (wrapper) return { selector: `#${wrapper.id}`, type: "errorinfo-checkbox" };
+        return { selector: `#${checkbox.id}`, type: "errorinfo-checkbox" };
       }
 
       // Try "Ignore warnings" button/link in DevExpress popup
@@ -9318,13 +9317,28 @@ export class ArchibaldBot {
       for (const el of allClickable) {
         const text = (el as HTMLElement).textContent?.trim();
         if (text === "Ignore warnings" || text === "Ignora avvisi") {
-          (el as HTMLElement).click();
-          return "ignore-warnings-button";
+          const htmlEl = el as HTMLElement;
+          if (htmlEl.id) return { selector: `#${htmlEl.id}`, type: "ignore-warnings-button" };
+          // Fallback: JS click for elements without id
+          htmlEl.click();
+          return { selector: null, type: "ignore-warnings-button-js" };
         }
       }
 
       return null;
     });
+
+    let warningFound: string | null = null;
+    if (warningSelector) {
+      if (warningSelector.selector) {
+        // Use Puppeteer native click for proper DevExpress event handling
+        await this.page.click(warningSelector.selector);
+        logger.info("Clicked warning element with native click", warningSelector);
+      } else {
+        logger.info("Clicked warning element with JS click", warningSelector);
+      }
+      warningFound = warningSelector.type;
+    }
 
     // Check for inline "Data Validation Error" with any checkbox on the page
     const hasValidationError = await this.page.evaluate(() => {
@@ -9376,23 +9390,37 @@ export class ArchibaldBot {
         checkboxes: allCheckboxes,
       });
 
-      const clickedCheckbox = await this.page.evaluate(() => {
-        const checkboxes = Array.from(
-          document.querySelectorAll('input[type="checkbox"]'),
-        ) as HTMLInputElement[];
-
-        for (const cb of checkboxes) {
-          if (!cb.checked && cb.offsetParent !== null) {
-            const wrapper = cb.closest("span") || cb.parentElement;
-            if (wrapper) {
-              (wrapper as HTMLElement).click();
-            } else {
-              cb.click();
-            }
-            return { id: cb.id, method: "input-checkbox" };
+      // Find any visible checkbox, return selector for native click
+      const checkboxToClick = await this.page.evaluate(() => {
+        // Try DevExpress ErrorInfo checkbox wrapper first
+        const errorCheckbox = document.querySelector(
+          'input[id$="_ErrorInfo_Ch_S"]',
+        ) as HTMLElement | null;
+        if (errorCheckbox) {
+          const wrapper = errorCheckbox.closest(
+            'span[id$="_ErrorInfo_Ch_S_D"]',
+          ) as HTMLElement | null;
+          if (wrapper && wrapper.offsetParent !== null) {
+            return { selector: `#${wrapper.id}`, id: wrapper.id, method: "errorinfo-wrapper" };
           }
         }
 
+        // Try standard HTML checkboxes
+        const checkboxes = Array.from(
+          document.querySelectorAll('input[type="checkbox"]'),
+        ) as HTMLInputElement[];
+        for (const cb of checkboxes) {
+          if (!cb.checked && cb.offsetParent !== null) {
+            if (cb.id) return { selector: `#${cb.id}`, id: cb.id, method: "input-checkbox" };
+            const wrapper = cb.closest("span") || cb.parentElement;
+            if (wrapper) {
+              (wrapper as HTMLElement).click();
+              return { selector: null, id: cb.id, method: "input-checkbox-js" };
+            }
+          }
+        }
+
+        // Try DevExpress checkbox spans
         const dxCheckboxes = Array.from(
           document.querySelectorAll(
             'span[class*="CheckBox"], span[class*="dxeCheck"], span[class*="dxWeb_edtCheckBox"]',
@@ -9400,14 +9428,18 @@ export class ArchibaldBot {
         );
         for (const el of dxCheckboxes) {
           const htmlEl = el as HTMLElement;
-          if (htmlEl.offsetParent !== null) {
-            htmlEl.click();
-            return { id: htmlEl.id, method: "dx-checkbox-span" };
+          if (htmlEl.offsetParent !== null && htmlEl.id) {
+            return { selector: `#${htmlEl.id}`, id: htmlEl.id, method: "dx-checkbox-span" };
           }
         }
 
         return null;
       });
+
+      const clickedCheckbox = checkboxToClick;
+      if (checkboxToClick?.selector) {
+        await this.page.click(checkboxToClick.selector);
+      }
 
       if (clickedCheckbox) {
         logger.info("Validation error checkbox clicked", clickedCheckbox);
@@ -9472,22 +9504,18 @@ export class ArchibaldBot {
       // Form still open — retry: the warning may have appeared late
       logger.info("Form still open after save, retrying warning check");
 
-      const lateWarning = await this.page.evaluate(() => {
-        // Try checkbox (any ErrorInfo variant)
-        const checkboxes = Array.from(
-          document.querySelectorAll('input[id*="ErrorInfo"]'),
-        );
-        for (const cb of checkboxes) {
-          const input = cb as HTMLInputElement;
-          if (input.type === "checkbox" && !input.checked) {
-            const wrapper = input.closest("span") || input.parentElement;
-            if (wrapper) {
-              (wrapper as HTMLElement).click();
-            } else {
-              input.click();
-            }
-            return "checkbox";
-          }
+      // Detect late checkbox/button, then click natively
+      const lateSelector = await this.page.evaluate(() => {
+        // Try DevExpress ErrorInfo checkbox wrapper
+        const checkbox = document.querySelector(
+          'input[id$="_ErrorInfo_Ch_S"]',
+        ) as HTMLElement | null;
+        if (checkbox) {
+          const wrapper = checkbox.closest(
+            'span[id$="_ErrorInfo_Ch_S_D"]',
+          ) as HTMLElement | null;
+          if (wrapper) return { selector: `#${wrapper.id}`, type: "checkbox" };
+          return { selector: `#${checkbox.id}`, type: "checkbox" };
         }
 
         // Try any clickable element with "Ignore warnings" / "Ignora avvisi"
@@ -9497,13 +9525,22 @@ export class ArchibaldBot {
           if (htmlEl.children.length > 0) continue;
           const text = htmlEl.textContent?.trim();
           if (text === "Ignore warnings" || text === "Ignora avvisi") {
+            if (htmlEl.id) return { selector: `#${htmlEl.id}`, type: "button" };
             htmlEl.click();
-            return "button";
+            return { selector: null, type: "button-js" };
           }
         }
 
         return null;
       });
+
+      let lateWarning: string | null = null;
+      if (lateSelector) {
+        if (lateSelector.selector) {
+          await this.page.click(lateSelector.selector);
+        }
+        lateWarning = lateSelector.type;
+      }
 
       if (lateWarning) {
         logger.info(
