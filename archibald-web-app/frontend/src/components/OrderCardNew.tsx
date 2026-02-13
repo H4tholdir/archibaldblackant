@@ -11,7 +11,10 @@ import { priceService } from "../services/prices.service";
 import { db } from "../db/schema";
 import { CachePopulationService } from "../services/cache-population";
 import { normalizeVatRate } from "../utils/vat-utils";
-import { formatCurrency } from "../utils/format-currency";
+import {
+  formatCurrency,
+  formatPriceFromString,
+} from "../utils/format-currency";
 import { useWebSocketContext } from "../contexts/WebSocketContext";
 
 interface OrderCardProps {
@@ -1116,7 +1119,7 @@ function TabArticoli({
       setArticles(result.data.articles);
       const totalVat = result.data.totalVatAmount ?? 0;
       setSuccess(
-        `Sincronizzati ${result.data.articles.length} articoli. Totale IVA: ${totalVat.toFixed(2)}`,
+        `Sincronizzati ${result.data.articles.length} articoli. Totale IVA: ${formatCurrency(totalVat)}`,
       );
 
       if (
@@ -2752,7 +2755,7 @@ function TabFinanziario({
               label="Importo Residuo"
               value={
                 order.invoiceRemainingAmount
-                  ? `€${order.invoiceRemainingAmount}`
+                  ? formatPriceFromString(order.invoiceRemainingAmount)
                   : undefined
               }
             />
@@ -2760,7 +2763,7 @@ function TabFinanziario({
               label="Importo Fiscale"
               value={
                 order.invoiceTaxAmount
-                  ? `€${order.invoiceTaxAmount}`
+                  ? formatPriceFromString(order.invoiceTaxAmount)
                   : undefined
               }
             />
@@ -2768,7 +2771,7 @@ function TabFinanziario({
               label="Sconto Linea"
               value={
                 order.invoiceLineDiscount
-                  ? `€${order.invoiceLineDiscount}`
+                  ? formatPriceFromString(order.invoiceLineDiscount)
                   : undefined
               }
             />
@@ -2776,7 +2779,7 @@ function TabFinanziario({
               label="Sconto Totale"
               value={
                 order.invoiceTotalDiscount
-                  ? `€${order.invoiceTotalDiscount}`
+                  ? formatPriceFromString(order.invoiceTotalDiscount)
                   : undefined
               }
             />
@@ -2876,7 +2879,7 @@ function TabFinanziario({
                 {order.invoiceSettledAmount && (
                   <InfoField
                     label="Importo liquidato"
-                    value={`€${order.invoiceSettledAmount}`}
+                    value={formatPriceFromString(order.invoiceSettledAmount)}
                   />
                 )}
                 {order.invoiceLastPaymentId && (
@@ -3577,11 +3580,7 @@ export function OrderCardNew({
                           color: "#e65100",
                         }}
                       >
-                        Saldo: €{" "}
-                        {remaining.toLocaleString("it-IT", {
-                          minimumFractionDigits: 2,
-                          maximumFractionDigits: 2,
-                        })}
+                        Saldo: {formatCurrency(remaining)}
                       </span>
                     )}
                     {order.invoiceDueDate && (

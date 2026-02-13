@@ -2411,7 +2411,9 @@ export default function OrderFormSimple() {
                             </span>
                             <span>
                               Prezzo:{" "}
-                              {articleHistory.lastPurchase.price.toFixed(2)}
+                              {formatCurrency(
+                                articleHistory.lastPurchase.price,
+                              )}
                             </span>
                             {articleHistory.lastPurchase.discount ? (
                               <span>
@@ -2420,22 +2422,22 @@ export default function OrderFormSimple() {
                             ) : null}
                             <span>IVA: {articleHistory.lastPurchase.vat}%</span>
                             <span style={{ color: "#1e40af" }}>
-                              Netto: €
+                              Netto:{" "}
                               {(() => {
                                 const p = articleHistory.lastPurchase;
                                 const netto =
                                   p.price - (p.price * (p.discount || 0)) / 100;
-                                return netto.toFixed(2);
+                                return formatCurrency(netto);
                               })()}
                             </span>
                             <span style={{ color: "#065f46" }}>
-                              Totale: €
+                              Totale:{" "}
                               {(() => {
                                 const p = articleHistory.lastPurchase;
                                 const netto =
                                   p.price - (p.price * (p.discount || 0)) / 100;
                                 const total = netto * (1 + p.vat / 100);
-                                return total.toFixed(2);
+                                return formatCurrency(total);
                               })()}
                             </span>
                           </div>
@@ -3833,22 +3835,22 @@ export default function OrderFormSimple() {
                       ) : null}
                       <span style={{ color: "#374151" }}>IVA {item.vat}%</span>
                       <span style={{ color: "#2563eb", fontWeight: "600" }}>
-                        Netto: €
+                        Netto:{" "}
                         {(() => {
                           const netto =
                             item.price -
                             (item.price * (item.discount || 0)) / 100;
-                          return netto.toFixed(2);
+                          return formatCurrency(netto);
                         })()}
                       </span>
                       <span style={{ color: "#059669", fontWeight: "700" }}>
-                        Totale: €
+                        Totale:{" "}
                         {(() => {
                           const netto =
                             item.price -
                             (item.price * (item.discount || 0)) / 100;
                           const total = netto * (1 + item.vat / 100);
-                          return total.toFixed(2);
+                          return formatCurrency(total);
                         })()}
                       </span>
                     </div>
