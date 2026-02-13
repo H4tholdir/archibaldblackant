@@ -6354,7 +6354,10 @@ app.get(
       }
     }
 
-    // Check lock before starting SSE (so we can return JSON 409)
+    // Check lock before starting SSE (so we can return JSON 409).
+    // NOTE: small race window between this check and lock acquisition at line below
+    // (setup headers, sendProgress fn, abort handler are in between). Safe in practice
+    // because Node.js is single-threaded and there's no await in the gap.
     if (activeOperation === "order") {
       return res.status(409).json({
         success: false,
