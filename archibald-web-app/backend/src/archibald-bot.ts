@@ -9444,13 +9444,31 @@ export class ArchibaldBot {
     }
 
     if (!formClosed) {
-      const pageErrors = await this.page.evaluate(() => {
+      const screenshotPath = `logs/customer-save-failed-${Date.now()}.png`;
+      try {
+        await this.page.screenshot({ path: screenshotPath, fullPage: true });
+        logger.info("Save-failure screenshot saved", { screenshotPath });
+      } catch {
+        logger.warn("Failed to save diagnostic screenshot");
+      }
+
+      const diagnostics = await this.page.evaluate(() => {
         const errorTexts: string[] = [];
+        const checkboxes: { id: string; checked: boolean; text: string }[] = [];
+        const popups: { id: string; visible: boolean; text: string }[] = [];
+
         document.querySelectorAll('input[id*="ErrorInfo"]').forEach((el) => {
+          const input = el as HTMLInputElement;
           const row = el.closest("tr") || el.parentElement;
-          const text = row?.textContent?.trim();
+          const text = row?.textContent?.trim() || "";
+          checkboxes.push({
+            id: input.id,
+            checked: input.checked,
+            text: text.substring(0, 300),
+          });
           if (text) errorTexts.push(text);
         });
+
         document
           .querySelectorAll(".dxpc-content, .dxpc-contentWrapper")
           .forEach((el) => {
@@ -9459,6 +9477,7 @@ export class ArchibaldBot {
               errorTexts.push(htmlEl.textContent.trim());
             }
           });
+
         document
           .querySelectorAll(
             '[role="alert"], [role="alertdialog"], .dxeErrorCell',
@@ -9469,17 +9488,65 @@ export class ArchibaldBot {
               errorTexts.push(htmlEl.textContent.trim());
             }
           });
-        return errorTexts;
+
+        document
+          .querySelectorAll(
+            ".dxeErrorFrameSys, .dxeEditError, .dxeValidationError, .dxpc-main",
+          )
+          .forEach((el) => {
+            const htmlEl = el as HTMLElement;
+            if (htmlEl.offsetParent !== null && htmlEl.textContent?.trim()) {
+              errorTexts.push(
+                `[${htmlEl.className.substring(0, 50)}] ${htmlEl.textContent.trim()}`,
+              );
+            }
+          });
+
+        document
+          .querySelectorAll(
+            'div[id*="Popup"], div[id*="popup"], div[id*="Dialog"], div[id*="dialog"]',
+          )
+          .forEach((el) => {
+            const htmlEl = el as HTMLElement;
+            const isVisible =
+              htmlEl.offsetParent !== null ||
+              htmlEl.style.display !== "none";
+            const text = htmlEl.textContent?.trim() || "";
+            if (text.length > 0 && text.length < 1000) {
+              popups.push({
+                id: htmlEl.id,
+                visible: isVisible,
+                text: text.substring(0, 500),
+              });
+              if (isVisible) errorTexts.push(text);
+            }
+          });
+
+        let visibleFormText = "";
+        const formArea =
+          document.querySelector(".dxflGroupBox, .xafContent, form") ||
+          document.body;
+        if (formArea) {
+          visibleFormText = (formArea as HTMLElement).innerText
+            .replace(/\n{3,}/g, "\n\n")
+            .substring(0, 2000);
+        }
+
+        return { errorTexts, checkboxes, popups, visibleFormText };
+      });
+
+      logger.error("Save failed: form did not close after save", {
+        screenshotPath,
+        errorTexts: diagnostics.errorTexts,
+        checkboxes: diagnostics.checkboxes,
+        popups: diagnostics.popups,
+        visibleFormText: diagnostics.visibleFormText.substring(0, 1000),
       });
 
       const errorDetail =
-        pageErrors.length > 0
-          ? pageErrors.join("; ").substring(0, 500)
-          : "errore di validazione non rilevato";
-
-      logger.error("Save failed: form did not close after save", {
-        pageErrors,
-      });
+        diagnostics.errorTexts.length > 0
+          ? diagnostics.errorTexts.join("; ").substring(0, 500)
+          : `errore di validazione non rilevato. Screenshot: ${screenshotPath}. Testo visibile: ${diagnostics.visibleFormText.substring(0, 300)}`;
 
       throw new Error(
         `Salvataggio fallito: il form non si è chiuso. Dettaglio: ${errorDetail}`,
