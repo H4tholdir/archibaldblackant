@@ -9308,7 +9308,7 @@ export class ArchibaldBot {
         } else {
           checkbox.click();
         }
-        return "checkbox";
+        return "errorinfo-checkbox";
       }
 
       // Try "Ignore warnings" button/link in DevExpress popup
@@ -9319,21 +9319,122 @@ export class ArchibaldBot {
         const text = (el as HTMLElement).textContent?.trim();
         if (text === "Ignore warnings" || text === "Ignora avvisi") {
           (el as HTMLElement).click();
-          return "button";
+          return "ignore-warnings-button";
         }
       }
 
       return null;
     });
 
-    if (warningFound) {
+    // Check for inline "Data Validation Error" with any checkbox on the page
+    const hasValidationError = await this.page.evaluate(() => {
+      const body = document.body.innerText || "";
+      return (
+        body.includes("Data Validation Error") ||
+        body.includes("non deve essere vuoto")
+      );
+    });
+
+    if (hasValidationError && !warningFound) {
+      logger.info(
+        "Inline validation error detected, searching for any checkbox to acknowledge",
+      );
+
+      const allCheckboxes = await this.page.evaluate(() => {
+        const results: {
+          tag: string;
+          id: string;
+          type: string;
+          checked: boolean;
+          className: string;
+          parentText: string;
+        }[] = [];
+
+        document
+          .querySelectorAll(
+            'input[type="checkbox"], span[class*="CheckBox"], span[class*="dxeCheck"], span[class*="dxWeb_edtCheckBox"]',
+          )
+          .forEach((el) => {
+            const htmlEl = el as HTMLElement;
+            const input = el.tagName === "INPUT" ? (el as HTMLInputElement) : null;
+            const parent = htmlEl.closest("tr") || htmlEl.parentElement;
+            results.push({
+              tag: el.tagName,
+              id: htmlEl.id || "",
+              type: input?.type || "",
+              checked: input?.checked ?? false,
+              className: htmlEl.className.substring(0, 100),
+              parentText: (parent?.textContent || "").substring(0, 200),
+            });
+          });
+
+        return results;
+      });
+
+      logger.info("All checkboxes found on page", {
+        count: allCheckboxes.length,
+        checkboxes: allCheckboxes,
+      });
+
+      const clickedCheckbox = await this.page.evaluate(() => {
+        const checkboxes = Array.from(
+          document.querySelectorAll('input[type="checkbox"]'),
+        ) as HTMLInputElement[];
+
+        for (const cb of checkboxes) {
+          if (!cb.checked && cb.offsetParent !== null) {
+            const wrapper = cb.closest("span") || cb.parentElement;
+            if (wrapper) {
+              (wrapper as HTMLElement).click();
+            } else {
+              cb.click();
+            }
+            return { id: cb.id, method: "input-checkbox" };
+          }
+        }
+
+        const dxCheckboxes = Array.from(
+          document.querySelectorAll(
+            'span[class*="CheckBox"], span[class*="dxeCheck"], span[class*="dxWeb_edtCheckBox"]',
+          ),
+        );
+        for (const el of dxCheckboxes) {
+          const htmlEl = el as HTMLElement;
+          if (htmlEl.offsetParent !== null) {
+            htmlEl.click();
+            return { id: htmlEl.id, method: "dx-checkbox-span" };
+          }
+        }
+
+        return null;
+      });
+
+      if (clickedCheckbox) {
+        logger.info("Validation error checkbox clicked", clickedCheckbox);
+        await this.waitForDevExpressIdle({
+          timeout: 3000,
+          label: "validation-checkbox-ack",
+        });
+
+        const savedAgain = await saveAttempt();
+        if (!savedAgain) {
+          await this.clickElementByText("Salva e chiudi", {
+            selectors: ["a", "span", "button", "li"],
+          });
+        }
+        await this.waitForDevExpressIdle({
+          timeout: 8000,
+          label: "save-customer-after-validation-ack",
+        });
+      } else {
+        logger.warn("Validation error detected but no checkbox found to click");
+      }
+    } else if (warningFound) {
       logger.info(
         "Warning acknowledged via " + warningFound + ", saving again",
       );
       await this.waitForDevExpressIdle({ timeout: 3000, label: "warning-ack" });
 
-      // After clicking "Ignore warnings" button, the form may auto-save
-      // Check if form already closed before attempting second save
       const alreadyClosed = await this.page.evaluate(
         () => !window.location.href.includes("DetailView"),
       );
