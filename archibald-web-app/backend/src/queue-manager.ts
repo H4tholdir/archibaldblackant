@@ -374,24 +374,24 @@ export class QueueManager {
         );
         logger.debug("[QueueManager] Priority lock released");
 
+        // Calculate total amount (subtotal with item discounts)
+        const grossAmount = orderData.items.reduce((sum, item) => {
+          const lineAmount =
+            item.price * item.quantity * (1 - (item.discount || 0) / 100);
+          return sum + lineAmount;
+        }, 0);
+
+        // Apply global discount if present
+        const totalAmount = orderData.discountPercent
+          ? grossAmount * (1 - orderData.discountPercent / 100)
+          : grossAmount;
+
         // If order is completely from warehouse, create order record manually
         const isWarehouseOnly = orderId.startsWith("warehouse-");
         if (isWarehouseOnly) {
           try {
             const { OrderDatabaseNew } = await import("./order-db-new");
             const orderDb = OrderDatabaseNew.getInstance();
-
-            // Calculate total amount (subtotal with item discounts)
-            const grossAmount = orderData.items.reduce((sum, item) => {
-              const lineAmount =
-                item.price * item.quantity * (1 - (item.discount || 0) / 100);
-              return sum + lineAmount;
-            }, 0);
-
-            // Apply global discount if present
-            const totalAmount = orderData.discountPercent
-              ? grossAmount * (1 - orderData.discountPercent / 100)
-              : grossAmount;
 
             // Create order record for warehouse-only order
             const orderRecord = {
@@ -431,6 +431,54 @@ export class QueueManager {
           } catch (err) {
             logger.error(
               `[QueueManager] Failed to create warehouse order record ${orderId}`,
+              {
+                error: err instanceof Error ? err.message : String(err),
+              },
+            );
+            // Don't fail the order creation
+          }
+        } else {
+          try {
+            const { OrderDatabaseNew } = await import("./order-db-new");
+            const orderDb = OrderDatabaseNew.getInstance();
+
+            const orderRecord = {
+              id: orderId,
+              orderNumber: `PENDING-${orderId}`,
+              customerProfileId: orderData.customerId,
+              customerName: orderData.customerName,
+              deliveryName: null,
+              deliveryAddress: null,
+              creationDate: new Date().toISOString(),
+              deliveryDate: null,
+              remainingSalesFinancial: null,
+              customerReference: null,
+              salesStatus: null,
+              orderType: "Giornale",
+              documentStatus: null,
+              salesOrigin: "Agent",
+              transferStatus: "Modifica",
+              transferDate: null,
+              completionDate: null,
+              discountPercent: orderData.discountPercent?.toString() || null,
+              grossAmount: grossAmount.toFixed(2),
+              totalAmount: totalAmount.toFixed(2),
+            };
+
+            orderDb.upsertOrder(userId, orderRecord);
+            logger.info(
+              `[QueueManager] Created immediate order record ${orderId}`,
+              {
+                customerName: orderData.customerName,
+                grossAmount: grossAmount.toFixed(2),
+                totalAmount: totalAmount.toFixed(2),
+                globalDiscount: orderData.discountPercent || 0,
+                itemsCount: orderData.items.length,
+              },
+            );
+          } catch (err) {
+            logger.error(
+              `[QueueManager] Failed to create immediate order record ${orderId}`,
               {
                 error: err instanceof Error ? err.message : String(err),
               },
