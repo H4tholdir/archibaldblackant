@@ -189,11 +189,17 @@ export function getOrderStatus(order: Order): OrderStatusStyle {
     return ORDER_STATUS_STYLES["in-transit"];
   }
 
-  if (order.state === "TRANSFER ERROR") {
+  if (
+    order.state === "TRANSFER ERROR" ||
+    order.transferStatus?.toUpperCase() === "TRANSFER ERROR"
+  ) {
     return ORDER_STATUS_STYLES.blocked;
   }
 
-  if (order.state === "IN ATTESA DI APPROVAZIONE") {
+  if (
+    order.state === "IN ATTESA DI APPROVAZIONE" ||
+    order.transferStatus?.toUpperCase() === "IN ATTESA DI APPROVAZIONE"
+  ) {
     return ORDER_STATUS_STYLES["pending-approval"];
   }
 

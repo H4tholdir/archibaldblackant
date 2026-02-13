@@ -174,10 +174,26 @@ describe("getOrderStatus", () => {
       expect(result.borderColor).toBe("#C62828");
       expect(result.backgroundColor).toBe("#FFCDD2");
     });
+
+    test("returns blocked when transferStatus is TRANSFER ERROR", () => {
+      const order: Partial<Order> = {
+        id: "blocked-transfer",
+        customerName: "Blocked Transfer Customer",
+        date: "2026-01-18",
+        total: "1200.00",
+        status: "ORDINE APERTO",
+        transferStatus: "Transfer Error",
+        orderType: "GIORNALE",
+      };
+
+      const result = getOrderStatus(order as Order);
+
+      expect(result.category).toBe("blocked");
+    });
   });
 
   describe("pending-approval status", () => {
-    test("returns pending-approval when order is waiting for approval", () => {
+    test("returns pending-approval when order has state IN ATTESA DI APPROVAZIONE", () => {
       const order: Partial<Order> = {
         id: "pending-order",
         customerName: "Pending Customer",
@@ -194,6 +210,26 @@ describe("getOrderStatus", () => {
       expect(result.category).toBe("pending-approval");
       expect(result.label).toBe("In attesa approvazione");
       expect(result.borderColor).toBe("#F57F17");
+      expect(result.backgroundColor).toBe("#FFF9C4");
+    });
+
+    test("returns pending-approval when transferStatus is In attesa di approvazione", () => {
+      const order: Partial<Order> = {
+        id: "pending-transfer",
+        customerName: "Pending Transfer Customer",
+        date: "2026-02-13",
+        total: "622.97",
+        status: "ORDINE APERTO",
+        orderNumber: "PENDING-73.039",
+        transferStatus: "In attesa di approvazione",
+        orderType: "GIORNALE",
+        documentState: "NESSUNO",
+      };
+
+      const result = getOrderStatus(order as Order);
+
+      expect(result.category).toBe("pending-approval");
+      expect(result.label).toBe("In attesa approvazione");
       expect(result.backgroundColor).toBe("#FFF9C4");
     });
   });
