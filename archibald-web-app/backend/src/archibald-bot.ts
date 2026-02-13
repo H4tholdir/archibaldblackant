@@ -3668,6 +3668,32 @@ export class ArchibaldBot {
                 // La riga edit è già stata verificata dallo step che ha cliccato "New" (prima del loop o nello STEP 5.8)
                 logger.debug("Starting article search");
 
+                // For articles after the first, ensure INVENTTABLE is in the DOM
+                // before attempting focus (DevExpress may still be rendering)
+                if (i > 0) {
+                  try {
+                    await this.page!.waitForFunction(
+                      () => {
+                        const inputs = Array.from(
+                          document.querySelectorAll(
+                            'input[id*="INVENTTABLE"][id$="_I"]',
+                          ),
+                        );
+                        return inputs.some(
+                          (inp) =>
+                            (inp as HTMLElement).offsetParent !== null &&
+                            (inp as HTMLElement).offsetWidth > 0,
+                        );
+                      },
+                      { timeout: 8000, polling: 300 },
+                    );
+                  } catch {
+                    logger.warn(
+                      `Article ${i + 1}: INVENTTABLE not visible after wait, proceeding with focus strategies`,
+                    );
+                  }
+                }
+
                 // 2. Focus sul campo Nome Articolo (INVENTTABLE)
                 // Strategy 1: Coordinate click on INVENTTABLE cell in editnew row
                 // Strategy 2: DevExpress FocusEditor API
@@ -4996,6 +5022,39 @@ export class ArchibaldBot {
                   } catch {
                     logger.warn(
                       "editnew row not detected after AddNew, proceeding",
+                    );
+                  }
+
+                  // Wait for DevExpress to finish rendering the editor
+                  // (mirrors the initial AddNew flow which also waits for idle)
+                  await this.waitForDevExpressIdle({
+                    timeout: 6000,
+                    label: `post-addnew-idle-${i}`,
+                  });
+
+                  // Wait for INVENTTABLE editor to be rendered in the new row
+                  try {
+                    await this.page!.waitForFunction(
+                      () => {
+                        const inputs = Array.from(
+                          document.querySelectorAll(
+                            'input[id*="INVENTTABLE"][id$="_I"]',
+                          ),
+                        );
+                        return inputs.some(
+                          (inp) =>
+                            (inp as HTMLElement).offsetParent !== null &&
+                            (inp as HTMLElement).offsetWidth > 0,
+                        );
+                      },
+                      { timeout: 5000, polling: 200 },
+                    );
+                    logger.debug(
+                      "✅ INVENTTABLE editor visible in new row",
+                    );
+                  } catch {
+                    logger.warn(
+                      "INVENTTABLE editor not yet visible after AddNew, will retry in focus step",
                     );
                   }
 
