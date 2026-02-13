@@ -72,7 +72,7 @@ def parse_page_pair(page_left, page_right, pair_idx: int):
 
     end1 = len(table1) - 1 if is_totals_row(table1[-1]) else len(table1)
     end2 = len(table2) - 1 if is_totals_row(table2[-1]) else len(table2)
-    max_rows = min(end1, end2)
+    max_rows = max(end1, end2)
 
     for row_idx in range(1, max_rows):
         try:
