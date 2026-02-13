@@ -32,13 +32,13 @@ class ParsedArticle:
 
 
 def parse_italian_decimal(value: str) -> Optional[float]:
-    """Parse Italian decimal: '16,25 €' → 16.25, '12,64 %' → 12.64"""
+    """Parse Italian decimal: '1.946,36 €' → 1946.36, '16,25 €' → 16.25"""
     if not value:
         return None
     # Remove € and % symbols and spaces
     value = value.replace('€', '').replace('%', '').strip()
-    # Replace comma with dot
-    value = value.replace(',', '.')
+    # Remove thousands separator (dot) before replacing decimal comma
+    value = value.replace('.', '').replace(',', '.')
     try:
         return float(value)
     except ValueError:
