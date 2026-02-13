@@ -4219,7 +4219,7 @@ export class ArchibaldBot {
                       variantSuffix,
                       packageContent: selectedVariant.packageContent,
                       multipleQty: selectedVariant.multipleQty,
-                      articleName: searchQuery,
+                      articleName: item.articleCode,
                     },
                   );
                   const { chosen, reason } =
