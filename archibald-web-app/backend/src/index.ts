@@ -5638,18 +5638,12 @@ app.post(
         });
       }
 
-      // Validate order state (must be "piazzato")
-      if (order.currentState !== "piazzato") {
+      // Validate order state (must not be in a post-send state)
+      const sendableStates = [null, "", "creato", "piazzato"];
+      if (!sendableStates.includes(order.currentState as string | null)) {
         return res.status(400).json({
           success: false,
-          error: `Order must be in "piazzato" state to send to Milano. Current state: ${order.currentState}`,
-        });
-      }
-
-      if (!order.archibaldOrderId) {
-        return res.status(400).json({
-          success: false,
-          error: "Order does not have an Archibald order ID",
+          error: `Ordine non inviabile nello stato attuale: ${order.currentState}`,
         });
       }
 
@@ -5690,7 +5684,7 @@ app.post(
         try {
           await bot.initialize();
 
-          const result = await bot.sendOrderToVerona(order.archibaldOrderId);
+          const result = await bot.sendOrderToVerona(order.id);
 
           if (!result.success) {
             return res.status(500).json({

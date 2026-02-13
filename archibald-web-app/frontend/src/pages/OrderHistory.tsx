@@ -347,7 +347,10 @@ export function OrderHistory() {
           localStorage.removeItem("archibald_jwt");
           return;
         }
-        throw new Error(`Errore ${response.status}: ${response.statusText}`);
+        const errorBody = await response.json().catch(() => null);
+        const errorMsg =
+          errorBody?.error || response.statusText || "Errore sconosciuto";
+        throw new Error(`Errore ${response.status}: ${errorMsg}`);
       }
 
       const data: OrderHistoryResponse = await response.json();
@@ -546,7 +549,10 @@ export function OrderHistory() {
           localStorage.removeItem("archibald_jwt");
           return;
         }
-        throw new Error(`Errore ${response.status}: ${response.statusText}`);
+        const errorBody = await response.json().catch(() => null);
+        const errorMsg =
+          errorBody?.error || response.statusText || "Errore sconosciuto";
+        throw new Error(`Errore ${response.status}: ${errorMsg}`);
       }
 
       const data = await response.json();
