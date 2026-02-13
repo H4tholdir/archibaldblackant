@@ -4219,6 +4219,7 @@ export class ArchibaldBot {
                       variantSuffix,
                       packageContent: selectedVariant.packageContent,
                       multipleQty: selectedVariant.multipleQty,
+                      articleName: searchQuery,
                     },
                   );
                   const { chosen, reason } =
@@ -7438,6 +7439,7 @@ export class ArchibaldBot {
         variantSuffix,
         packageContent: selectedVariant.packageContent,
         multipleQty: selectedVariant.multipleQty,
+        articleName: articleCode,
       });
       const { chosen, reason } = chooseBestVariantCandidate(candidates);
 

@@ -1,8 +1,12 @@
 export type VariantMatchReason =
   | "variant-id"
+  | "article+package+multiple"
+  | "article+package"
+  | "article+multiple"
   | "package+multiple+suffix"
   | "package+suffix"
   | "multiple+suffix"
+  | "article"
   | "package"
   | "multiple"
   | "suffix"
@@ -13,6 +17,7 @@ export interface VariantMatchInputs {
   variantSuffix: string;
   packageContent?: string | number | null;
   multipleQty?: string | number | null;
+  articleName?: string | null;
 }
 
 export interface VariantRowSnapshot {
@@ -30,6 +35,7 @@ export interface VariantHeaderIndices {
 export interface VariantCandidate extends VariantRowSnapshot {
   rowText: string;
   fullIdMatch: boolean;
+  articleNameMatch: boolean;
   suffixMatch: boolean;
   packageMatch: boolean;
   multipleMatch: boolean;
@@ -143,6 +149,77 @@ export function computeVariantHeaderIndices(
   return { contentIndex, packIndex, multipleIndex };
 }
 
+function detectDataColumnIndices(
+  rows: VariantRowSnapshot[],
+  articleName?: string | null,
+): VariantHeaderIndices & { articleNameIndex: number } {
+  let articleNameIndex = -1;
+  let packIndex = -1;
+  let contentIndex = -1;
+  let multipleIndex = -1;
+
+  if (rows.length === 0) {
+    return { contentIndex, packIndex, multipleIndex, articleNameIndex };
+  }
+
+  const kSuffixPattern = /^K\d+$/i;
+  for (const row of rows) {
+    for (let i = 0; i < row.cellTexts.length; i++) {
+      if (kSuffixPattern.test((row.cellTexts[i] || "").trim())) {
+        packIndex = i;
+        break;
+      }
+    }
+    if (packIndex >= 0) break;
+  }
+
+  if (packIndex >= 1) {
+    const candidate = (rows[0].cellTexts[packIndex - 1] || "").trim();
+    if (/^\d+$/.test(candidate)) {
+      contentIndex = packIndex - 1;
+    }
+  }
+
+  const decimalPattern = /^\d+[,.]?\d*$/;
+  for (let i = (rows[0]?.cellTexts.length || 0) - 1; i >= 0; i--) {
+    const text = (rows[0].cellTexts[i] || "").trim();
+    if (text.includes(",") && decimalPattern.test(text.replace(",", "."))) {
+      multipleIndex = i;
+      break;
+    }
+  }
+
+  if (articleName) {
+    const normalizedArticle = articleName.trim().toLowerCase();
+    for (const row of rows) {
+      for (let i = 0; i < row.cellTexts.length; i++) {
+        if (
+          (row.cellTexts[i] || "").trim().toLowerCase() === normalizedArticle
+        ) {
+          articleNameIndex = i;
+          break;
+        }
+      }
+      if (articleNameIndex >= 0) break;
+    }
+  }
+
+  if (articleNameIndex === -1) {
+    for (const row of rows) {
+      for (let i = 0; i < row.cellTexts.length; i++) {
+        const text = (row.cellTexts[i] || "").trim();
+        if (/^\w+\.\d+\.\d+/.test(text)) {
+          articleNameIndex = i;
+          break;
+        }
+      }
+      if (articleNameIndex >= 0) break;
+    }
+  }
+
+  return { contentIndex, packIndex, multipleIndex, articleNameIndex };
+}
+
 export function buildVariantCandidates(
   rows: VariantRowSnapshot[],
   headerIndices: VariantHeaderIndices,
@@ -158,6 +235,20 @@ export function buildVariantCandidates(
       ? suffixColumnHint - 1
       : null;
 
+  const dataIndices = detectDataColumnIndices(rows, inputs.articleName);
+  const effectiveContentIndex =
+    dataIndices.contentIndex >= 0
+      ? dataIndices.contentIndex
+      : headerIndices.contentIndex;
+  const effectiveMultipleIndex =
+    dataIndices.multipleIndex >= 0
+      ? dataIndices.multipleIndex
+      : headerIndices.multipleIndex;
+  const articleNameIndex = dataIndices.articleNameIndex;
+  const normalizedArticleName = inputs.articleName
+    ? inputs.articleName.trim().toLowerCase()
+    : null;
+
   return rows
     .map((row) => {
       const cellTexts = row.cellTexts.map((text) => text || "");
@@ -166,6 +257,14 @@ export function buildVariantCandidates(
       const fullIdMatch = variantIdText
         ? rowText.includes(variantIdText)
         : false;
+
+      const articleNameMatch =
+        normalizedArticleName !== null &&
+        articleNameIndex >= 0 &&
+        articleNameIndex < cellTexts.length
+          ? cellTexts[articleNameIndex].trim().toLowerCase() ===
+            normalizedArticleName
+          : false;
 
       let suffixMatch = false;
       let packageMatch = false;
@@ -230,11 +329,11 @@ export function buildVariantCandidates(
 
         if (
           !packageMatch &&
-          headerIndices.contentIndex >= 0 &&
-          headerIndices.contentIndex < cellTexts.length
+          effectiveContentIndex >= 0 &&
+          effectiveContentIndex < cellTexts.length
         ) {
           const contentNum = parseLocaleNumber(
-            cellTexts[headerIndices.contentIndex],
+            cellTexts[effectiveContentIndex],
           );
           packageMatch = numbersEqual(contentNum, packageNum);
         }
@@ -249,43 +348,48 @@ export function buildVariantCandidates(
 
       if (
         multipleNum !== null &&
-        headerIndices.multipleIndex >= 0 &&
-        headerIndices.multipleIndex < cellTexts.length
+        effectiveMultipleIndex >= 0 &&
+        effectiveMultipleIndex < cellTexts.length
       ) {
         const multipleValue = parseLocaleNumber(
-          cellTexts[headerIndices.multipleIndex],
+          cellTexts[effectiveMultipleIndex],
         );
         multipleMatch = numbersEqual(multipleValue, multipleNum);
       }
+
+      const effectivePackIndex =
+        dataIndices.packIndex >= 0
+          ? dataIndices.packIndex
+          : headerIndices.packIndex;
 
       return {
         ...row,
         cellTexts,
         rowText,
         fullIdMatch,
+        articleNameMatch,
         suffixMatch,
         packageMatch,
         multipleMatch,
         inputPackageNum: packageNum,
         inputMultipleNum: multipleNum,
         suffixCellIndex,
-        contentIndex: headerIndices.contentIndex,
-        packIndex: headerIndices.packIndex,
-        multipleIndex: headerIndices.multipleIndex,
+        contentIndex: effectiveContentIndex,
+        packIndex: effectivePackIndex,
+        multipleIndex: effectiveMultipleIndex,
         contentValue:
-          headerIndices.contentIndex >= 0 &&
-          headerIndices.contentIndex < cellTexts.length
-            ? cellTexts[headerIndices.contentIndex]
+          effectiveContentIndex >= 0 &&
+          effectiveContentIndex < cellTexts.length
+            ? cellTexts[effectiveContentIndex]
             : "",
         packValue:
-          headerIndices.packIndex >= 0 &&
-          headerIndices.packIndex < cellTexts.length
-            ? cellTexts[headerIndices.packIndex]
+          effectivePackIndex >= 0 && effectivePackIndex < cellTexts.length
+            ? cellTexts[effectivePackIndex]
             : "",
         multipleValue:
-          headerIndices.multipleIndex >= 0 &&
-          headerIndices.multipleIndex < cellTexts.length
-            ? cellTexts[headerIndices.multipleIndex]
+          effectiveMultipleIndex >= 0 &&
+          effectiveMultipleIndex < cellTexts.length
+            ? cellTexts[effectiveMultipleIndex]
             : "",
         suffixNeighborValue:
           suffixCellIndex > 0 ? cellTexts[suffixCellIndex - 1] : "",
@@ -295,9 +399,9 @@ export function buildVariantCandidates(
 }
 
 function scoreVariantCandidate(candidate: VariantCandidate): number {
-  // Weighted score: prefer exact/full id first, then strong multi-signal matches.
   let score = 0;
   if (candidate.fullIdMatch) score += 10_000;
+  if (candidate.articleNameMatch) score += 20_000;
   if (candidate.suffixMatch) score += 1_000;
   if (candidate.packageMatch) score += 600;
   if (candidate.multipleMatch) score += 400;
@@ -334,12 +438,14 @@ export function chooseBestVariantCandidate(
 
     // Deterministic tie-breakers: prefer stricter matches and stable ordering.
     const aStrict =
-      Number(a.fullIdMatch) * 8 +
+      Number(a.fullIdMatch) * 16 +
+      Number(a.articleNameMatch) * 8 +
       Number(a.suffixMatch) * 4 +
       Number(a.packageMatch) * 2 +
       Number(a.multipleMatch);
     const bStrict =
-      Number(b.fullIdMatch) * 8 +
+      Number(b.fullIdMatch) * 16 +
+      Number(b.articleNameMatch) * 8 +
       Number(b.suffixMatch) * 4 +
       Number(b.packageMatch) * 2 +
       Number(b.multipleMatch);
@@ -355,6 +461,16 @@ export function chooseBestVariantCandidate(
   if (chosen.fullIdMatch) {
     reason = "variant-id";
   } else if (
+    chosen.articleNameMatch &&
+    chosen.packageMatch &&
+    chosen.multipleMatch
+  ) {
+    reason = "article+package+multiple";
+  } else if (chosen.articleNameMatch && chosen.packageMatch) {
+    reason = "article+package";
+  } else if (chosen.articleNameMatch && chosen.multipleMatch) {
+    reason = "article+multiple";
+  } else if (
     chosen.suffixMatch &&
     chosen.packageMatch &&
     chosen.multipleMatch
@@ -364,6 +480,8 @@ export function chooseBestVariantCandidate(
     reason = "package+suffix";
   } else if (chosen.multipleMatch && chosen.suffixMatch) {
     reason = "multiple+suffix";
+  } else if (chosen.articleNameMatch) {
+    reason = "article";
   } else if (candidates.length === 1) {
     reason = "single-row";
   } else if (chosen.packageMatch) {
