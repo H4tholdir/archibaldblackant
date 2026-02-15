@@ -63,6 +63,7 @@ export interface PendingOrderItem {
   price: number;
   vat: number;
   discount?: number;
+  originalListPrice?: number; // Prezzo listino originale del sistema (prima di modifiche utente)
   // Warehouse info (if item is partially or fully from warehouse)
   warehouseQuantity?: number; // How many from warehouse (if 0 or undefined, order all)
   warehouseSources?: Array<{
@@ -83,6 +84,7 @@ export interface PendingOrder {
   targetTotalWithVAT?: number;
   shippingCost?: number; // Spese di trasporto K3 (imponibile)
   shippingTax?: number; // IVA spese (22%)
+  revenue?: number; // Ricavo stimato (Fresis)
   createdAt: string;
   updatedAt: string;
   status: "pending" | "syncing" | "error" | "completed-warehouse"; // 🔧 FIX #5: New status for warehouse-only orders
@@ -171,6 +173,7 @@ export interface FresisHistoryOrder {
   targetTotalWithVAT?: number;
   shippingCost?: number;
   shippingTax?: number;
+  revenue?: number; // Ricavo stimato (Fresis)
   mergedIntoOrderId?: string;
   mergedAt?: string;
   createdAt: string;

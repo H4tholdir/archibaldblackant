@@ -4821,6 +4821,29 @@ app.post(
   },
 );
 
+// Get last sale for an article (used by "Ultima Vendita" feature)
+app.get(
+  "/api/orders/last-sale/:articleCode",
+  authenticateJWT,
+  async (req: AuthRequest, res: Response<ApiResponse>) => {
+    try {
+      const { articleCode } = req.params;
+      const sale = orderDb.getLastSaleForArticle(articleCode);
+
+      res.json({
+        success: true,
+        data: sale ?? undefined,
+      });
+    } catch (error) {
+      logger.error("Errore API /api/orders/last-sale", { error });
+      res.status(500).json({
+        success: false,
+        error: error instanceof Error ? error.message : "Errore sconosciuto",
+      });
+    }
+  },
+);
+
 // Get order status endpoint
 app.get(
   "/api/orders/status/:jobId",
@@ -7161,6 +7184,18 @@ server.listen(config.server.port, async () => {
     );
   } catch (error) {
     logger.warn("⚠️  Migration 029 failed or already applied", { error });
+  }
+
+  try {
+    const {
+      runMigration030,
+    } = require("./migrations/030-add-revenue-to-fresis-history");
+    runMigration030();
+    logger.info(
+      "✅ Migration 030 completed (add revenue to fresis_history)",
+    );
+  } catch (error) {
+    logger.warn("⚠️  Migration 030 failed or already applied", { error });
   }
 
   // ========== AUTO-LOAD ENCRYPTED PASSWORDS (LAZY-LOAD) ==========

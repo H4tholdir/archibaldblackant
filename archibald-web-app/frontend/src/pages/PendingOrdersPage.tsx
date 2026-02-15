@@ -305,6 +305,18 @@ export function PendingOrdersPage() {
         parseFloat(mergeDiscount) || 0,
       );
 
+      // Calculate revenue for merged order
+      const mergedGlobalDiscount = mergedOrder.discountPercent || 0;
+      let mergedRevenue = 0;
+      for (const item of mergedOrder.items) {
+        const fresisDisc = discountMap.get(item.articleId ?? "") ?? discountMap.get(item.articleCode) ?? 0;
+        const originalPrice = item.originalListPrice ?? item.price;
+        const prezzoCliente = item.price * item.quantity * (1 - (item.discount || 0) / 100) * (1 - mergedGlobalDiscount / 100);
+        const costoFresis = originalPrice * item.quantity * (1 - fresisDisc / 100);
+        mergedRevenue += prezzoCliente - costoFresis;
+      }
+      mergedOrder.revenue = mergedRevenue;
+
       // Archive original orders to fresisHistory
       await fresisHistoryService.archiveOrders(
         selectedFresisOrders,

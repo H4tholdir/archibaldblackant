@@ -52,6 +52,7 @@ class FresisHistoryService {
         targetTotalWithVAT: order.targetTotalWithVAT,
         shippingCost: order.shippingCost,
         shippingTax: order.shippingTax,
+        revenue: order.revenue,
         mergedIntoOrderId: mergedOrderId,
         mergedAt: mergedOrderId ? now : undefined,
         createdAt: order.createdAt,

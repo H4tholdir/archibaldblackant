@@ -260,4 +260,35 @@ describe("mergeFresisPendingOrders", () => {
 
     expect(result.items[0].warehouseSources).toBeUndefined();
   });
+
+  test("preserves originalListPrice from first occurrence", () => {
+    const order1 = makeOrder({
+      items: [
+        makeItem({
+          articleCode: "A1",
+          articleId: "V1",
+          quantity: 5,
+          price: 12,
+          originalListPrice: 10,
+        }),
+      ],
+    });
+    const order2 = makeOrder({
+      items: [
+        makeItem({
+          articleCode: "A1",
+          articleId: "V1",
+          quantity: 3,
+          price: 12,
+          originalListPrice: 10,
+        }),
+      ],
+    });
+
+    const result = mergeFresisPendingOrders([order1, order2], emptyMap);
+
+    expect(result.items).toHaveLength(1);
+    expect(result.items[0].originalListPrice).toBe(10);
+    expect(result.items[0].quantity).toBe(8);
+  });
 });

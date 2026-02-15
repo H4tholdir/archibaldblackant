@@ -30,6 +30,7 @@ function rowToRecord(r: any) {
     targetTotalWithVAT: r.target_total_with_vat,
     shippingCost: r.shipping_cost,
     shippingTax: r.shipping_tax,
+    revenue: r.revenue,
     mergedIntoOrderId: r.merged_into_order_id,
     mergedAt: r.merged_at,
     createdAt: r.created_at,
@@ -93,7 +94,7 @@ router.post(
         INSERT OR REPLACE INTO fresis_history (
           id, user_id, original_pending_order_id, sub_client_codice, sub_client_name,
           sub_client_data, customer_id, customer_name, items, discount_percent,
-          target_total_with_vat, shipping_cost, shipping_tax, merged_into_order_id,
+          target_total_with_vat, shipping_cost, shipping_tax, revenue, merged_into_order_id,
           merged_at, created_at, updated_at, notes, archibald_order_id,
           archibald_order_number, current_state, state_updated_at, ddt_number,
           ddt_delivery_date, tracking_number, tracking_url, tracking_courier,
@@ -101,7 +102,7 @@ router.post(
         ) VALUES (
           ?, ?, ?, ?, ?,
           ?, ?, ?, ?, ?,
-          ?, ?, ?, ?,
+          ?, ?, ?, ?, ?,
           ?, ?, ?, ?, ?,
           ?, ?, ?, ?,
           ?, ?, ?, ?,
@@ -143,6 +144,7 @@ router.post(
             r.targetTotalWithVAT ?? null,
             r.shippingCost ?? null,
             r.shippingTax ?? null,
+            r.revenue ?? null,
             r.mergedIntoOrderId ?? null,
             r.mergedAt ?? null,
             r.createdAt,

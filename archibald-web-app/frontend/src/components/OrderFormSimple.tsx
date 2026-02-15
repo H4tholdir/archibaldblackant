@@ -38,6 +38,7 @@ interface OrderItem {
   subtotal: number; // Prezzo * quantità * (1 - sconto/100)
   vat: number; // Importo IVA calcolato
   total: number; // Subtotal + IVA
+  originalListPrice?: number; // Prezzo listino originale del sistema (prima di modifiche utente)
   // Warehouse integration (Phase 4)
   warehouseQuantity?: number; // How many from warehouse
   warehouseSources?: Array<{
@@ -94,6 +95,8 @@ export default function OrderFormSimple() {
   const [highlightedProductIndex, setHighlightedProductIndex] = useState(-1);
   const [quantity, setQuantity] = useState("");
   const [itemDiscount, setItemDiscount] = useState("");
+  const [listPrice, setListPrice] = useState("");
+  const [searchingLastSale, setSearchingLastSale] = useState(false);
 
   // Packaging preview state
   const [packagingPreview, setPackagingPreview] =
@@ -120,7 +123,6 @@ export default function OrderFormSimple() {
   // Step 3: Order items
   const [items, setItems] = useState<OrderItem[]>([]);
   const [globalDiscountPercent, setGlobalDiscountPercent] = useState("");
-  const [targetTotal, setTargetTotal] = useState("");
 
   // Ricavo stimato Fresis
   const [estimatedRevenue, setEstimatedRevenue] = useState<number | null>(null);
@@ -131,6 +133,36 @@ export default function OrderFormSimple() {
     Set<string>
   >(new Set());
   const [markupAmount, setMarkupAmount] = useState(0);
+
+  // Inline editing (Fresis+subclient)
+  const [editingCell, setEditingCell] = useState<{ itemId: string; field: string } | null>(null);
+  const [editingCellValue, setEditingCellValue] = useState("");
+
+  // Quantity edit modal (Fresis+subclient — with packaging validation)
+  const [quantityEditModal, setQuantityEditModal] = useState<{
+    productName: string;
+    description?: string;
+    itemIds: string[];
+    currentQty: number;
+    discount: number;
+    originalListPrice?: number;
+    unitPrice: number;
+    warehouseQuantity?: number;
+    warehouseSources?: OrderItem["warehouseSources"];
+  } | null>(null);
+  const [quantityEditValue, setQuantityEditValue] = useState("");
+  const [quantityEditPackaging, setQuantityEditPackaging] = useState<PackagingResult | null>(null);
+  const [quantityEditCalculating, setQuantityEditCalculating] = useState(false);
+
+  // Imponibile dialog (Fresis+subclient)
+  const [showImponibileDialog, setShowImponibileDialog] = useState(false);
+  const [imponibileTarget, setImponibileTarget] = useState("");
+  const [imponibileSelectedItems, setImponibileSelectedItems] = useState<Set<string>>(new Set());
+
+  // Totale dialog (Fresis+subclient)
+  const [showTotaleDialog, setShowTotaleDialog] = useState(false);
+  const [totaleTarget, setTotaleTarget] = useState("");
+  const [totaleSelectedItems, setTotaleSelectedItems] = useState<Set<string>>(new Set());
 
   // 🔧 FIX #2: Memoize excluded warehouse item IDs to prevent re-renders
   const excludedWarehouseItemIds = useMemo(
@@ -232,14 +264,17 @@ export default function OrderFormSimple() {
     const calculateRevenue = async () => {
       let totalRevenue = 0;
       for (const item of items) {
-        const clientPrice = item.unitPrice * (1 - discountPercent / 100);
         const fresisDiscount =
           await fresisDiscountService.getDiscountForArticle(
             item.productId,
             item.article,
           );
-        const fresisPrice = item.unitPrice * (1 - fresisDiscount / 100);
-        totalRevenue += (clientPrice - fresisPrice) * item.quantity;
+        const originalPrice = item.originalListPrice ?? item.unitPrice;
+        const prezzoCliente =
+          item.unitPrice * item.quantity * (1 - item.discount / 100) * (1 - discountPercent / 100);
+        const costoFresis =
+          originalPrice * item.quantity * (1 - fresisDiscount / 100);
+        totalRevenue += prezzoCliente - costoFresis;
       }
       setEstimatedRevenue(totalRevenue);
     };
@@ -344,6 +379,7 @@ export default function OrderFormSimple() {
   // Refs for focus management
   const productSearchInputRef = useRef<HTMLInputElement>(null);
   const quantityInputRef = useRef<HTMLInputElement>(null);
+  const listPriceInputRef = useRef<HTMLInputElement>(null);
   const discountInputRef = useRef<HTMLInputElement>(null);
   const productDropdownItemsRef = useRef<(HTMLDivElement | null)[]>([]);
 
@@ -461,6 +497,7 @@ export default function OrderFormSimple() {
               subtotal,
               vat: vatAmount,
               total: subtotal + vatAmount,
+              originalListPrice: item.originalListPrice,
               // Phase 4: Preserve warehouse data when loading order for editing
               warehouseQuantity: item.warehouseQuantity,
               warehouseSources: item.warehouseSources,
@@ -933,6 +970,14 @@ export default function OrderFormSimple() {
 
         setProductVariants(variantsWithDetails);
 
+        // Auto-populate listPrice for Fresis+subclient
+        if (isFresis(selectedCustomer) && selectedSubClient) {
+          const firstPrice = variantsWithDetails.find((v) => v.price !== null);
+          if (firstPrice?.price != null) {
+            setListPrice(firstPrice.price.toString());
+          }
+        }
+
         // Update selectedProduct to first variant with a price (for backward compatibility)
         const firstWithPrice = allVariants.find(
           (v) =>
@@ -1013,13 +1058,106 @@ export default function OrderFormSimple() {
     setCalculatingPackaging(false);
     setWarehouseSelection([]);
     setProductVariants([]);
+    setListPrice("");
 
     // Reset items
     setItems([]);
     setGlobalDiscountPercent("");
-    setTargetTotal("");
 
     toastService.success("Ordine resettato");
+  };
+
+  // === SEARCH LAST SALE (Fresis) ===
+  const handleSearchLastSale = async () => {
+    if (!selectedProduct) return;
+    setSearchingLastSale(true);
+
+    try {
+      const productCode = (selectedProduct.article || selectedProduct.name).toLowerCase();
+
+      // 1. Search in local fresisHistory (ALL sub-clients)
+      let localBestDate = "";
+      let localBestPrice: number | null = null;
+      let localBestDiscount: number | null = null;
+
+      const allOrders = await db.fresisHistory.toArray();
+      for (const order of allOrders) {
+        for (const item of order.items) {
+          const code = (item.articleCode || "").toLowerCase();
+          const name = (item.productName || "").toLowerCase();
+          if (code.includes(productCode) || name.includes(productCode) || productCode.includes(code)) {
+            const orderDate = order.createdAt || "";
+            if (orderDate > localBestDate) {
+              localBestDate = orderDate;
+              localBestPrice = item.price;
+              localBestDiscount = item.discount ?? 0;
+            }
+          }
+        }
+      }
+
+      // 2. Search in backend
+      let serverBestDate = "";
+      let serverBestPrice: number | null = null;
+      let serverBestDiscount: number | null = null;
+
+      try {
+        const token = localStorage.getItem("archibald_jwt");
+        if (token) {
+          const articleCode = encodeURIComponent(selectedProduct.article || selectedProduct.name);
+          const response = await fetch(`/api/orders/last-sale/${articleCode}`, {
+            headers: { Authorization: `Bearer ${token}` },
+          });
+          if (response.ok) {
+            const data = await response.json();
+            if (data.success && data.data) {
+              serverBestDate = data.data.creationDate || "";
+              serverBestPrice = data.data.unitPrice;
+              serverBestDiscount = data.data.discountPercent ?? 0;
+            }
+          }
+        }
+      } catch {
+        // Backend search failed, continue with local results
+      }
+
+      // 3. Compare and use most recent
+      let bestPrice: number | null = null;
+      let bestDiscount: number | null = null;
+
+      if (localBestDate && serverBestDate) {
+        if (localBestDate >= serverBestDate) {
+          bestPrice = localBestPrice;
+          bestDiscount = localBestDiscount;
+        } else {
+          bestPrice = serverBestPrice;
+          bestDiscount = serverBestDiscount;
+        }
+      } else if (localBestDate) {
+        bestPrice = localBestPrice;
+        bestDiscount = localBestDiscount;
+      } else if (serverBestDate) {
+        bestPrice = serverBestPrice;
+        bestDiscount = serverBestDiscount;
+      }
+
+      if (bestPrice !== null) {
+        setListPrice(bestPrice.toString());
+        if (bestDiscount !== null && bestDiscount > 0) {
+          setItemDiscount(bestDiscount.toString());
+        }
+        toastService.success(
+          `Ultima vendita trovata: ${formatCurrency(bestPrice)}${bestDiscount ? ` (sconto ${bestDiscount}%)` : ""}`,
+        );
+      } else {
+        toastService.warning("Nessuna vendita precedente trovata per questo articolo");
+      }
+    } catch (error) {
+      console.error("[OrderForm] Last sale search failed:", error);
+      toastService.error("Errore durante la ricerca ultima vendita");
+    } finally {
+      setSearchingLastSale(false);
+    }
   };
 
   // === ADD ITEM (WITH MULTIPLE LINES FOR VARIANTS) ===
@@ -1100,6 +1238,12 @@ export default function OrderFormSimple() {
     // Get discount percentage (applied to each line)
     const disc = parseFloat(itemDiscount.replace(",", ".")) || 0;
 
+    // Fresis+subclient: custom list price override
+    const isFresisSubclient = isFresis(selectedCustomer) && !!selectedSubClient;
+    const customListPrice = isFresisSubclient && listPrice
+      ? parseFloat(listPrice.replace(",", "."))
+      : null;
+
     const warehouseSources =
       warehouseQty > 0
         ? warehouseSelection.map((sel) => ({
@@ -1173,7 +1317,8 @@ export default function OrderFormSimple() {
       // The user may have selected more/less items from warehouse than initially requested
       const finalQty = warehouseQty;
 
-      const lineSubtotal = price * finalQty * (1 - disc / 100);
+      const effectivePrice = (customListPrice != null && !isNaN(customListPrice)) ? customListPrice : price;
+      const lineSubtotal = effectivePrice * finalQty * (1 - disc / 100);
       const lineVat = lineSubtotal * (vatRate / 100);
       const lineTotal = lineSubtotal + lineVat;
 
@@ -1187,12 +1332,13 @@ export default function OrderFormSimple() {
           ? `${selectedProduct.description || ""} (sostituito con ${finalArticleCode})`
           : selectedProduct.description || "",
         quantity: finalQty,
-        unitPrice: price,
+        unitPrice: effectivePrice,
         vatRate,
         discount: disc,
         subtotal: lineSubtotal,
         vat: lineVat,
         total: lineTotal,
+        originalListPrice: isFresisSubclient ? price : undefined,
         warehouseQuantity: warehouseQty,
         warehouseSources,
         productGroupKey: undefined,
@@ -1225,7 +1371,8 @@ export default function OrderFormSimple() {
         const variantProduct = await db.products.get(variantArticleCode);
         const vatRate = normalizeVatRate(variantProduct?.vat);
 
-        const lineSubtotal = price * pkg.totalPieces * (1 - disc / 100);
+        const effectivePrice = (customListPrice != null && !isNaN(customListPrice)) ? customListPrice : price;
+        const lineSubtotal = effectivePrice * pkg.totalPieces * (1 - disc / 100);
         const lineVat = lineSubtotal * (vatRate / 100);
         const lineTotal = lineSubtotal + lineVat;
 
@@ -1236,12 +1383,13 @@ export default function OrderFormSimple() {
           productName: selectedProduct.name,
           description: selectedProduct.description || "",
           quantity: pkg.totalPieces,
-          unitPrice: price,
+          unitPrice: effectivePrice,
           vatRate,
           discount: disc,
           subtotal: lineSubtotal,
           vat: lineVat,
           total: lineTotal,
+          originalListPrice: isFresisSubclient ? price : undefined,
           // 🔧 FIX #3: Add warehouse data only to first line
           warehouseQuantity: i === 0 ? warehouseQty : undefined,
           warehouseSources: i === 0 ? warehouseSources : undefined,
@@ -1263,14 +1411,6 @@ export default function OrderFormSimple() {
         const pkg = breakdown[i];
         const variantArticleCode = pkg.variant.variantId;
 
-        // DEBUG: Log variant details to understand the "0" issue
-        console.log("[OrderForm] Adding variant:", {
-          variantId: pkg.variant.variantId,
-          productId: pkg.variant.productId,
-          packageContent: pkg.variant.packageContent,
-          fullVariant: pkg.variant,
-        });
-
         // Get price and VAT for THIS SPECIFIC variant
         const price =
           await priceService.getPriceByArticleId(variantArticleCode);
@@ -1286,7 +1426,8 @@ export default function OrderFormSimple() {
         const variantProduct = await db.products.get(variantArticleCode);
         const vatRate = normalizeVatRate(variantProduct?.vat);
 
-        const lineSubtotal = price * pkg.totalPieces * (1 - disc / 100);
+        const effectivePrice = (customListPrice != null && !isNaN(customListPrice)) ? customListPrice : price;
+        const lineSubtotal = effectivePrice * pkg.totalPieces * (1 - disc / 100);
         const lineVat = lineSubtotal * (vatRate / 100);
         const lineTotal = lineSubtotal + lineVat;
 
@@ -1297,12 +1438,13 @@ export default function OrderFormSimple() {
           productName: selectedProduct.name,
           description: selectedProduct.description || "",
           quantity: pkg.totalPieces,
-          unitPrice: price,
+          unitPrice: effectivePrice,
           vatRate,
           discount: disc,
           subtotal: lineSubtotal,
           vat: lineVat,
           total: lineTotal,
+          originalListPrice: isFresisSubclient ? price : undefined,
           // 🔧 FIX #3: Add warehouse data only to first line (warehouse items apply to total quantity, not per variant)
           warehouseQuantity: i === 0 ? warehouseQty : undefined,
           warehouseSources: i === 0 ? warehouseSources : undefined,
@@ -1320,6 +1462,7 @@ export default function OrderFormSimple() {
     setProductSearch("");
     setQuantity("");
     setItemDiscount("");
+    setListPrice("");
     setPackagingPreview(null);
     setWarehouseSelection([]);
 
@@ -1375,6 +1518,317 @@ export default function OrderFormSimple() {
 
     // No warehouse data or no siblings to transfer to - just delete
     setItems(items.filter((item) => item.id !== id));
+  };
+
+  // === INLINE EDITING (Fresis+subclient) ===
+  const startInlineEdit = (itemId: string, field: string, currentValue: string) => {
+    setEditingCell({ itemId, field });
+    setEditingCellValue(currentValue);
+  };
+
+  const handleInlineSave = (itemId: string, field: string) => {
+    const value = parseFloat(editingCellValue.replace(",", "."));
+    if (isNaN(value) || value < 0) {
+      setEditingCell(null);
+      return;
+    }
+
+    setItems(
+      items.map((item) => {
+        if (item.id !== itemId) return item;
+
+        let updated = { ...item };
+        if (field === "unitPrice") {
+          updated.unitPrice = value;
+        } else if (field === "discount") {
+          updated.discount = value;
+        }
+
+        updated.subtotal = updated.unitPrice * updated.quantity * (1 - updated.discount / 100);
+        updated.vat = updated.subtotal * (updated.vatRate / 100);
+        updated.total = updated.subtotal + updated.vat;
+        return updated;
+      }),
+    );
+    setEditingCell(null);
+  };
+
+  const cancelInlineEdit = () => {
+    setEditingCell(null);
+  };
+
+  // === QUANTITY EDIT MODAL (with packaging validation) ===
+  const openQuantityEditModal = (item: OrderItem) => {
+    const groupItems = item.productGroupKey
+      ? items.filter((i) => i.productGroupKey === item.productGroupKey)
+      : [item];
+
+    const totalQty = groupItems.reduce((sum, i) => sum + i.quantity, 0);
+    const warehouseQty = groupItems.reduce((sum, i) => sum + (i.warehouseQuantity || 0), 0);
+    const warehouseSources = groupItems.flatMap((i) => i.warehouseSources || []);
+
+    setQuantityEditModal({
+      productName: item.productName,
+      description: item.description,
+      itemIds: groupItems.map((i) => i.id),
+      currentQty: totalQty,
+      discount: item.discount,
+      originalListPrice: item.originalListPrice,
+      unitPrice: item.unitPrice,
+      warehouseQuantity: warehouseQty > 0 ? warehouseQty : undefined,
+      warehouseSources: warehouseSources.length > 0 ? warehouseSources : undefined,
+    });
+    setQuantityEditValue(totalQty.toString());
+    setQuantityEditPackaging(null);
+  };
+
+  useEffect(() => {
+    if (!quantityEditModal) return;
+
+    const qty = parseInt(quantityEditValue, 10);
+    if (isNaN(qty) || qty <= 0) {
+      setQuantityEditPackaging(null);
+      return;
+    }
+
+    const timer = setTimeout(async () => {
+      setQuantityEditCalculating(true);
+      try {
+        const result = await productService.calculateOptimalPackaging(
+          quantityEditModal.productName,
+          qty,
+        );
+        setQuantityEditPackaging(result);
+      } catch {
+        setQuantityEditPackaging({
+          success: false,
+          error: "Errore nel calcolo del confezionamento",
+        });
+      } finally {
+        setQuantityEditCalculating(false);
+      }
+    }, 300);
+
+    return () => clearTimeout(timer);
+  }, [quantityEditValue, quantityEditModal]);
+
+  const handleQuantityEditConfirm = async () => {
+    if (!quantityEditModal || !quantityEditPackaging?.success) return;
+
+    const newQty = parseInt(quantityEditValue, 10);
+    if (isNaN(newQty) || newQty <= 0) return;
+
+    const { productName, description, itemIds, discount, originalListPrice, unitPrice, warehouseQuantity, warehouseSources } = quantityEditModal;
+    const breakdown = quantityEditPackaging.breakdown!;
+    const isFresisSubclient = isFresis(selectedCustomer) && !!selectedSubClient;
+
+    const newGroupKey = breakdown.length > 1
+      ? `${productName}-${Date.now()}`
+      : undefined;
+
+    const newItems: OrderItem[] = [];
+
+    for (let i = 0; i < breakdown.length; i++) {
+      const pkg = breakdown[i];
+      const variantArticleCode = pkg.variant.variantId;
+
+      const systemPrice = await priceService.getPriceByArticleId(variantArticleCode);
+      if (!systemPrice) {
+        toastService.error(`Prezzo non disponibile per ${variantArticleCode}`);
+        return;
+      }
+
+      const variantProduct = await db.products.get(variantArticleCode);
+      const vatRate = normalizeVatRate(variantProduct?.vat);
+
+      const effectivePrice = (originalListPrice != null) ? unitPrice : systemPrice;
+      const lineSubtotal = effectivePrice * pkg.totalPieces * (1 - discount / 100);
+      const lineVat = lineSubtotal * (vatRate / 100);
+
+      newItems.push({
+        id: crypto.randomUUID(),
+        productId: variantArticleCode,
+        article: variantArticleCode,
+        productName,
+        description,
+        quantity: pkg.totalPieces,
+        unitPrice: effectivePrice,
+        vatRate,
+        discount,
+        subtotal: lineSubtotal,
+        vat: lineVat,
+        total: lineSubtotal + lineVat,
+        originalListPrice: isFresisSubclient ? (originalListPrice ?? systemPrice) : undefined,
+        warehouseQuantity: i === 0 ? warehouseQuantity : undefined,
+        warehouseSources: i === 0 ? warehouseSources : undefined,
+        productGroupKey: newGroupKey,
+      });
+    }
+
+    setItems((prev) => {
+      const firstOldIndex = prev.findIndex((i) => itemIds.includes(i.id));
+      const withoutOld = prev.filter((i) => !itemIds.includes(i.id));
+      withoutOld.splice(Math.min(firstOldIndex, withoutOld.length), 0, ...newItems);
+      return withoutOld;
+    });
+
+    setQuantityEditModal(null);
+    toastService.success(`Quantità aggiornata a ${newQty} pezzi`);
+  };
+
+  // === IMPONIBILE DIALOG ===
+  const handleImponibileViaSconto = () => {
+    const target = parseFloat(imponibileTarget.replace(",", "."));
+    if (isNaN(target) || target < 0 || imponibileSelectedItems.size === 0) return;
+
+    const selectedSubtotal = items
+      .filter((i) => imponibileSelectedItems.has(i.id))
+      .reduce((sum, i) => sum + i.unitPrice * i.quantity, 0);
+    const unselectedSubtotal = items
+      .filter((i) => !imponibileSelectedItems.has(i.id))
+      .reduce((sum, i) => sum + i.subtotal, 0);
+
+    const targetForSelected = target - unselectedSubtotal;
+    if (targetForSelected < 0 || selectedSubtotal === 0) {
+      toastService.error("Impossibile raggiungere l'imponibile target");
+      setShowImponibileDialog(false);
+      return;
+    }
+
+    const scontoNecessario = (1 - targetForSelected / selectedSubtotal) * 100;
+    if (scontoNecessario < 0 || scontoNecessario > 100) {
+      toastService.error("Sconto calcolato non valido");
+      setShowImponibileDialog(false);
+      return;
+    }
+
+    setItems(
+      items.map((item) => {
+        if (!imponibileSelectedItems.has(item.id)) return item;
+        const newDiscount = Math.round(scontoNecessario * 100) / 100;
+        const newSubtotal = item.unitPrice * item.quantity * (1 - newDiscount / 100);
+        const newVat = newSubtotal * (item.vatRate / 100);
+        return { ...item, discount: newDiscount, subtotal: newSubtotal, vat: newVat, total: newSubtotal + newVat };
+      }),
+    );
+    setShowImponibileDialog(false);
+    toastService.success(`Sconto ${Math.round(scontoNecessario * 100) / 100}% applicato sugli articoli selezionati`);
+  };
+
+  const handleImponibileViaPrezzo = () => {
+    const target = parseFloat(imponibileTarget.replace(",", "."));
+    if (isNaN(target) || target < 0 || imponibileSelectedItems.size === 0) return;
+
+    const selectedItems = items.filter((i) => imponibileSelectedItems.has(i.id));
+    const unselectedSubtotal = items
+      .filter((i) => !imponibileSelectedItems.has(i.id))
+      .reduce((sum, i) => sum + i.subtotal, 0);
+
+    const targetForSelected = target - unselectedSubtotal;
+    const currentSelectedSubtotal = selectedItems.reduce((sum, i) => sum + i.subtotal, 0);
+
+    if (currentSelectedSubtotal === 0) {
+      setShowImponibileDialog(false);
+      return;
+    }
+
+    const ratio = targetForSelected / currentSelectedSubtotal;
+
+    setItems(
+      items.map((item) => {
+        if (!imponibileSelectedItems.has(item.id)) return item;
+        const newUnitPrice = Math.round(item.unitPrice * ratio * 100) / 100;
+        const newSubtotal = newUnitPrice * item.quantity * (1 - item.discount / 100);
+        const newVat = newSubtotal * (item.vatRate / 100);
+        return { ...item, unitPrice: newUnitPrice, subtotal: newSubtotal, vat: newVat, total: newSubtotal + newVat };
+      }),
+    );
+    setShowImponibileDialog(false);
+    toastService.success("Prezzi modificati per raggiungere l'imponibile target");
+  };
+
+  // === TOTALE DIALOG ===
+  const handleTotaleCalcola = () => {
+    const target = parseFloat(totaleTarget.replace(",", "."));
+    if (isNaN(target) || target <= 0 || totaleSelectedItems.size === 0) return;
+
+    const currentTotals = calculateTotals();
+
+    if (target > currentTotals.finalTotal) {
+      // Activate markup mode with pre-selected items
+      const diff = target - currentTotals.finalTotal;
+      setMarkupAmount(diff);
+      setMarkupArticleSelection(new Set(totaleSelectedItems));
+      setShowMarkupPanel(true);
+      setShowTotaleDialog(false);
+      return;
+    }
+
+    // Target < current: calculate per-item discount
+    const selectedItems = items.filter((i) => totaleSelectedItems.has(i.id));
+    const unselectedItems = items.filter((i) => !totaleSelectedItems.has(i.id));
+
+    // Calculate total of unselected items (after global discount + shipping + VAT)
+    const discountPercent = parseFloat(globalDiscountPercent.replace(",", ".")) || 0;
+    const unselectedSubtotal = unselectedItems.reduce((sum, i) => sum + i.subtotal, 0);
+    const unselectedSubtotalAfterGlobal = unselectedSubtotal * (1 - discountPercent / 100);
+    const unselectedVAT = unselectedItems.reduce(
+      (sum, i) => sum + i.subtotal * (1 - discountPercent / 100) * (i.vatRate / 100),
+      0,
+    );
+    const shippingCosts = calculateShippingCosts(currentTotals.finalSubtotal);
+    const fixedPortion = unselectedSubtotalAfterGlobal + unselectedVAT + shippingCosts.cost + shippingCosts.tax;
+
+    const targetForSelected = target - fixedPortion;
+    if (targetForSelected <= 0) {
+      toastService.error("Impossibile raggiungere il totale target con gli articoli selezionati");
+      setShowTotaleDialog(false);
+      return;
+    }
+
+    // Binary search for per-item discount
+    // Use unitPrice * quantity as base (NOT subtotal, which includes old discount)
+    // because finalDiscount replaces the existing discount entirely
+    let low = 0;
+    let high = 100;
+    let bestDiscount = 0;
+
+    for (let iter = 0; iter < 100; iter++) {
+      const mid = (low + high) / 2;
+      const testSubAfterGlobal = selectedItems.reduce(
+        (sum, i) => sum + i.unitPrice * i.quantity * (1 - mid / 100) * (1 - discountPercent / 100),
+        0,
+      );
+      const testVAT = selectedItems.reduce(
+        (sum, i) => sum + i.unitPrice * i.quantity * (1 - mid / 100) * (1 - discountPercent / 100) * (i.vatRate / 100),
+        0,
+      );
+      const testTotal = testSubAfterGlobal + testVAT + fixedPortion;
+
+      if (Math.abs(testTotal - target) < 0.01) {
+        bestDiscount = mid;
+        break;
+      }
+      if (testTotal > target) {
+        low = mid;
+      } else {
+        high = mid;
+      }
+      bestDiscount = mid;
+    }
+
+    const finalDiscount = Math.round(bestDiscount * 100) / 100;
+
+    setItems(
+      items.map((item) => {
+        if (!totaleSelectedItems.has(item.id)) return item;
+        const newSubtotal = item.unitPrice * item.quantity * (1 - finalDiscount / 100);
+        const newVat = newSubtotal * (item.vatRate / 100);
+        return { ...item, discount: finalDiscount, subtotal: newSubtotal, vat: newVat, total: newSubtotal + newVat };
+      }),
+    );
+    setShowTotaleDialog(false);
+    toastService.success(`Sconto ${finalDiscount}% applicato sugli articoli selezionati`);
   };
 
   const handleEditItem = (id: string) => {
@@ -1475,101 +1929,6 @@ export default function OrderFormSimple() {
     };
   };
 
-  const calculateGlobalDiscountForTarget = () => {
-    if (!targetTotal) return;
-
-    const target = parseFloat(targetTotal);
-    if (isNaN(target) || target <= 0) return;
-
-    const currentTotal = calculateTotals().finalTotal;
-
-    // If target > current total, activate markup mode (only with sub-client)
-    if (target > currentTotal) {
-      if (!isFresis(selectedCustomer) || !selectedSubClient) {
-        toastService.error(
-          "La maggiorazione prezzo è disponibile solo per ordini Fresis con sottocliente",
-        );
-        return;
-      }
-      const diff = target - currentTotal;
-      setMarkupAmount(diff);
-      setMarkupArticleSelection(new Set(items.map((i) => i.id)));
-      setShowMarkupPanel(true);
-      return;
-    }
-
-    const itemsSubtotal = items.reduce((sum, item) => sum + item.subtotal, 0);
-
-    // With mixed VAT rates AND shipping costs, we need to solve iteratively
-    // Target = FinalSubtotal + ShippingCost + FinalVAT (includes shipping tax)
-    // FinalSubtotal = ItemsSubtotal * (1 - DiscountPercent / 100)
-    // ShippingCost depends on FinalSubtotal (if < 200€)
-    // FinalVAT = ItemsVAT + ShippingTax
-    //
-    // Use binary search to find the discount percentage
-    let low = 0;
-    let high = 100;
-    let bestDiscount = 0;
-
-    for (let iteration = 0; iteration < 100; iteration++) {
-      const mid = (low + high) / 2;
-      const testSubtotal = itemsSubtotal * (1 - mid / 100);
-
-      // Calculate shipping based on subtotal after discount
-      const testShipping = calculateShippingCosts(testSubtotal);
-
-      // Calculate VAT including shipping tax
-      const testItemsVAT = items.reduce((sum, item) => {
-        const itemSubtotalAfterDiscount = item.subtotal * (1 - mid / 100);
-        return sum + itemSubtotalAfterDiscount * (item.vatRate / 100);
-      }, 0);
-      const testTotalVAT = testItemsVAT + testShipping.tax;
-
-      // Total includes items + shipping cost + total VAT
-      const testTotal = testSubtotal + testShipping.cost + testTotalVAT;
-
-      if (Math.abs(testTotal - target) < 0.001) {
-        bestDiscount = mid;
-        break;
-      }
-
-      if (testTotal > target) {
-        low = mid; // Need more discount
-      } else {
-        high = mid; // Need less discount
-      }
-
-      bestDiscount = mid;
-    }
-
-    // Round discount to 2 decimal places, ensuring total >= target (always round up)
-    const ceilDisc = Math.ceil(bestDiscount * 100) / 100;
-    const floorDisc = Math.floor(bestDiscount * 100) / 100;
-
-    const computeTotalForDiscount = (disc: number) => {
-      const sub = itemsSubtotal * (1 - disc / 100);
-      const ship = calculateShippingCosts(sub);
-      const vat = items.reduce((sum, item) => {
-        return sum + item.subtotal * (1 - disc / 100) * (item.vatRate / 100);
-      }, 0);
-      return roundUp(sub + ship.cost + vat + ship.tax);
-    };
-
-    // Prefer ceil (tighter fit), fall back to floor if ceil gives total < target
-    const finalDiscount =
-      computeTotalForDiscount(ceilDisc) >= target ? ceilDisc : floorDisc;
-
-    if (finalDiscount < 0 || finalDiscount > 100) {
-      toastService.error(
-        "Impossibile raggiungere il totale target con uno sconto valido",
-      );
-      return;
-    }
-
-    setGlobalDiscountPercent(finalDiscount.toFixed(2));
-    setTargetTotal("");
-  };
-
   const applyMarkup = () => {
     const selectedItems = items.filter((i) => markupArticleSelection.has(i.id));
     if (selectedItems.length === 0) {
@@ -1618,7 +1977,6 @@ export default function OrderFormSimple() {
 
     setItems(updatedItems);
     setShowMarkupPanel(false);
-    setTargetTotal("");
     toastService.success(
       `Maggiorazione di ${formatCurrency(markupAmount)} applicata su ${selectedItems.length} articol${selectedItems.length === 1 ? "o" : "i"}`,
     );
@@ -1665,6 +2023,7 @@ export default function OrderFormSimple() {
         price: item.unitPrice,
         vat: item.vatRate,
         discount: item.discount,
+        originalListPrice: item.originalListPrice,
         // Phase 4: Warehouse integration
         warehouseQuantity: item.warehouseQuantity,
         warehouseSources: item.warehouseSources,
@@ -1684,6 +2043,7 @@ export default function OrderFormSimple() {
         discountPercent:
           parseFloat(globalDiscountPercent.replace(",", ".")) || undefined,
         targetTotalWithVAT: totals.finalTotal,
+        revenue: estimatedRevenue ?? undefined,
         subClientCodice: selectedSubClient?.codice,
         subClientName: selectedSubClient?.ragioneSociale,
         subClientData: selectedSubClient ?? undefined,
@@ -2466,7 +2826,7 @@ export default function OrderFormSimple() {
                 <div
                   style={{
                     display: "grid",
-                    gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr",
+                    gridTemplateColumns: isMobile ? "1fr" : (isFresis(selectedCustomer) && selectedSubClient ? "1fr 1fr 1fr" : "1fr 1fr"),
                     gap: "1rem",
                     marginBottom: "1rem",
                   }}
@@ -2492,7 +2852,11 @@ export default function OrderFormSimple() {
                       onKeyDown={(e) => {
                         if (e.key === "Enter") {
                           e.preventDefault();
-                          discountInputRef.current?.focus();
+                          if (isFresis(selectedCustomer) && selectedSubClient) {
+                            listPriceInputRef.current?.focus();
+                          } else {
+                            discountInputRef.current?.focus();
+                          }
                         }
                       }}
                       style={{
@@ -2504,6 +2868,60 @@ export default function OrderFormSimple() {
                       }}
                     />
                   </div>
+
+                  {isFresis(selectedCustomer) && selectedSubClient && (
+                    <div>
+                      <label
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: "0.5rem",
+                          marginBottom: "0.5rem",
+                          fontWeight: "500",
+                          fontSize: isMobile ? "0.875rem" : "1rem",
+                        }}
+                      >
+                        Prezzo di listino
+                        <button
+                          onClick={handleSearchLastSale}
+                          disabled={searchingLastSale || !selectedProduct}
+                          style={{
+                            padding: "0.15rem 0.5rem",
+                            background: searchingLastSale ? "#d1d5db" : "#8b5cf6",
+                            color: "white",
+                            border: "none",
+                            borderRadius: "4px",
+                            cursor: searchingLastSale ? "not-allowed" : "pointer",
+                            fontSize: "0.75rem",
+                            fontWeight: "600",
+                          }}
+                        >
+                          {searchingLastSale ? "..." : "Ultima Vendita"}
+                        </button>
+                      </label>
+                      <input
+                        ref={listPriceInputRef}
+                        type="text"
+                        inputMode="decimal"
+                        value={listPrice}
+                        onChange={(e) => setListPrice(e.target.value)}
+                        onFocus={(e) => scrollFieldIntoView(e.target)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") {
+                            e.preventDefault();
+                            discountInputRef.current?.focus();
+                          }
+                        }}
+                        style={{
+                          width: "100%",
+                          padding: isMobile ? "0.875rem" : "0.75rem",
+                          fontSize: isMobile ? "16px" : "1rem",
+                          border: "1px solid #d1d5db",
+                          borderRadius: "4px",
+                        }}
+                      />
+                    </div>
+                  )}
 
                   <div>
                     <label
@@ -2845,20 +3263,72 @@ export default function OrderFormSimple() {
                         </div>
                       )}
                     </td>
-                    <td style={{ padding: "0.75rem", textAlign: "center" }}>
+                    <td
+                      style={{ padding: "0.75rem", textAlign: "center", cursor: isFresis(selectedCustomer) && selectedSubClient ? "pointer" : "default" }}
+                      onClick={() => {
+                        if (isFresis(selectedCustomer) && selectedSubClient) {
+                          openQuantityEditModal(item);
+                        }
+                      }}
+                    >
                       {item.quantity}
                     </td>
-                    <td style={{ padding: "0.75rem", textAlign: "right" }}>
-                      {formatCurrency(item.unitPrice)}
+                    <td
+                      style={{ padding: "0.75rem", textAlign: "right", cursor: isFresis(selectedCustomer) && selectedSubClient ? "pointer" : "default" }}
+                      onClick={() => {
+                        if (isFresis(selectedCustomer) && selectedSubClient) {
+                          startInlineEdit(item.id, "unitPrice", item.unitPrice.toString());
+                        }
+                      }}
+                    >
+                      {editingCell?.itemId === item.id && editingCell.field === "unitPrice" ? (
+                        <input
+                          autoFocus
+                          type="text"
+                          inputMode="decimal"
+                          value={editingCellValue}
+                          onChange={(e) => setEditingCellValue(e.target.value)}
+                          onBlur={() => handleInlineSave(item.id, "unitPrice")}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") (e.target as HTMLInputElement).blur();
+                            if (e.key === "Escape") cancelInlineEdit();
+                          }}
+                          style={{ width: "80px", textAlign: "right", padding: "0.25rem", border: "1px solid #3b82f6", borderRadius: "4px" }}
+                        />
+                      ) : (
+                        formatCurrency(item.unitPrice)
+                      )}
                     </td>
                     <td
                       style={{
                         padding: "0.75rem",
                         textAlign: "right",
                         color: item.discount > 0 ? "#dc2626" : "#9ca3af",
+                        cursor: isFresis(selectedCustomer) && selectedSubClient ? "pointer" : "default",
+                      }}
+                      onClick={() => {
+                        if (isFresis(selectedCustomer) && selectedSubClient) {
+                          startInlineEdit(item.id, "discount", item.discount.toString());
+                        }
                       }}
                     >
-                      {item.discount > 0 ? `${item.discount}%` : "—"}
+                      {editingCell?.itemId === item.id && editingCell.field === "discount" ? (
+                        <input
+                          autoFocus
+                          type="text"
+                          inputMode="decimal"
+                          value={editingCellValue}
+                          onChange={(e) => setEditingCellValue(e.target.value)}
+                          onBlur={() => handleInlineSave(item.id, "discount")}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") (e.target as HTMLInputElement).blur();
+                            if (e.key === "Escape") cancelInlineEdit();
+                          }}
+                          style={{ width: "60px", textAlign: "right", padding: "0.25rem", border: "1px solid #3b82f6", borderRadius: "4px" }}
+                        />
+                      ) : (
+                        item.discount > 0 ? `${item.discount}%` : "—"
+                      )}
                     </td>
                     <td style={{ padding: "0.75rem", textAlign: "right" }}>
                       {formatCurrency(item.subtotal)}
@@ -2888,20 +3358,22 @@ export default function OrderFormSimple() {
                       {formatCurrency(item.total)}
                     </td>
                     <td style={{ padding: "0.75rem", textAlign: "center" }}>
-                      <button
-                        onClick={() => handleEditItem(item.id)}
-                        style={{
-                          padding: "0.25rem 0.5rem",
-                          background: "#3b82f6",
-                          color: "white",
-                          border: "none",
-                          borderRadius: "4px",
-                          cursor: "pointer",
-                          marginRight: "0.25rem",
-                        }}
-                      >
-                        ✏️
-                      </button>
+                      {!(isFresis(selectedCustomer) && selectedSubClient) && (
+                        <button
+                          onClick={() => handleEditItem(item.id)}
+                          style={{
+                            padding: "0.25rem 0.5rem",
+                            background: "#3b82f6",
+                            color: "white",
+                            border: "none",
+                            borderRadius: "4px",
+                            cursor: "pointer",
+                            marginRight: "0.25rem",
+                          }}
+                        >
+                          ✏️
+                        </button>
+                      )}
                       <button
                         onClick={() => handleDeleteItem(item.id)}
                         style={{
@@ -2988,28 +3460,81 @@ export default function OrderFormSimple() {
                       fontSize: "0.875rem",
                     }}
                   >
-                    <div>
+                    <div
+                      onClick={() => {
+                        if (isFresis(selectedCustomer) && selectedSubClient) {
+                          openQuantityEditModal(item);
+                        }
+                      }}
+                      style={{ cursor: isFresis(selectedCustomer) && selectedSubClient ? "pointer" : "default" }}
+                    >
                       <span style={{ color: "#6b7280" }}>Quantità:</span>
                       <strong style={{ marginLeft: "0.25rem" }}>
                         {item.quantity}
                       </strong>
                     </div>
-                    <div style={{ textAlign: "right" }}>
+                    <div
+                      style={{ textAlign: "right", cursor: isFresis(selectedCustomer) && selectedSubClient ? "pointer" : "default" }}
+                      onClick={() => {
+                        if (isFresis(selectedCustomer) && selectedSubClient) {
+                          startInlineEdit(item.id, "unitPrice", item.unitPrice.toString());
+                        }
+                      }}
+                    >
                       <span style={{ color: "#6b7280" }}>Prezzo:</span>
-                      <strong style={{ marginLeft: "0.25rem" }}>
-                        {formatCurrency(item.unitPrice)}
-                      </strong>
+                      {editingCell?.itemId === item.id && editingCell.field === "unitPrice" ? (
+                        <input
+                          autoFocus
+                          type="text"
+                          inputMode="decimal"
+                          value={editingCellValue}
+                          onChange={(e) => setEditingCellValue(e.target.value)}
+                          onBlur={() => handleInlineSave(item.id, "unitPrice")}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") (e.target as HTMLInputElement).blur();
+                            if (e.key === "Escape") cancelInlineEdit();
+                          }}
+                          style={{ width: "80px", marginLeft: "0.25rem", padding: "0.25rem", border: "1px solid #3b82f6", borderRadius: "4px", textAlign: "right" }}
+                        />
+                      ) : (
+                        <strong style={{ marginLeft: "0.25rem" }}>
+                          {formatCurrency(item.unitPrice)}
+                        </strong>
+                      )}
                     </div>
-                    <div>
+                    <div
+                      onClick={() => {
+                        if (isFresis(selectedCustomer) && selectedSubClient) {
+                          startInlineEdit(item.id, "discount", item.discount.toString());
+                        }
+                      }}
+                      style={{ cursor: isFresis(selectedCustomer) && selectedSubClient ? "pointer" : "default" }}
+                    >
                       <span style={{ color: "#6b7280" }}>Sconto:</span>
-                      <strong
-                        style={{
-                          marginLeft: "0.25rem",
-                          color: item.discount > 0 ? "#dc2626" : "#9ca3af",
-                        }}
-                      >
-                        {item.discount > 0 ? `${item.discount}%` : "—"}
-                      </strong>
+                      {editingCell?.itemId === item.id && editingCell.field === "discount" ? (
+                        <input
+                          autoFocus
+                          type="text"
+                          inputMode="decimal"
+                          value={editingCellValue}
+                          onChange={(e) => setEditingCellValue(e.target.value)}
+                          onBlur={() => handleInlineSave(item.id, "discount")}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") (e.target as HTMLInputElement).blur();
+                            if (e.key === "Escape") cancelInlineEdit();
+                          }}
+                          style={{ width: "60px", marginLeft: "0.25rem", padding: "0.25rem", border: "1px solid #3b82f6", borderRadius: "4px" }}
+                        />
+                      ) : (
+                        <strong
+                          style={{
+                            marginLeft: "0.25rem",
+                            color: item.discount > 0 ? "#dc2626" : "#9ca3af",
+                          }}
+                        >
+                          {item.discount > 0 ? `${item.discount}%` : "—"}
+                        </strong>
+                      )}
                     </div>
                     <div style={{ textAlign: "right" }}>
                       <span style={{ color: "#6b7280" }}>Subtotale:</span>
@@ -3043,23 +3568,25 @@ export default function OrderFormSimple() {
 
                   {/* Action buttons */}
                   <div style={{ display: "flex", gap: "0.5rem" }}>
-                    <button
-                      onClick={() => handleEditItem(item.id)}
-                      style={{
-                        flex: 1,
-                        padding: "0.75rem",
-                        background: "#3b82f6",
-                        color: "white",
-                        border: "none",
-                        borderRadius: "6px",
-                        cursor: "pointer",
-                        fontWeight: "600",
-                        fontSize: "0.875rem",
-                        minHeight: "44px",
-                      }}
-                    >
-                      ✏️ Modifica
-                    </button>
+                    {!(isFresis(selectedCustomer) && selectedSubClient) && (
+                      <button
+                        onClick={() => handleEditItem(item.id)}
+                        style={{
+                          flex: 1,
+                          padding: "0.75rem",
+                          background: "#3b82f6",
+                          color: "white",
+                          border: "none",
+                          borderRadius: "6px",
+                          cursor: "pointer",
+                          fontWeight: "600",
+                          fontSize: "0.875rem",
+                          minHeight: "44px",
+                        }}
+                      >
+                        ✏️ Modifica
+                      </button>
+                    )}
                     <button
                       onClick={() => handleDeleteItem(item.id)}
                       style={{
@@ -3124,57 +3651,6 @@ export default function OrderFormSimple() {
               />
             </div>
 
-            <div>
-              <label
-                style={{
-                  display: "block",
-                  marginBottom: "0.5rem",
-                  fontWeight: "500",
-                  fontSize: isMobile ? "0.875rem" : "1rem",
-                }}
-              >
-                Inserisci totale desiderato (con IVA)
-              </label>
-              <div
-                style={{
-                  display: "flex",
-                  gap: "0.5rem",
-                  flexDirection: isMobile ? "column" : "row",
-                }}
-              >
-                <input
-                  type="text"
-                  inputMode="decimal"
-                  value={targetTotal}
-                  onFocus={(e) => scrollFieldIntoView(e.target)}
-                  onChange={(e) => setTargetTotal(e.target.value)}
-                  style={{
-                    flex: 1,
-                    padding: isMobile ? "0.875rem" : "0.75rem",
-                    fontSize: isMobile ? "16px" : "1rem",
-                    border: "1px solid #d1d5db",
-                    borderRadius: "4px",
-                  }}
-                />
-                <button
-                  onClick={calculateGlobalDiscountForTarget}
-                  disabled={!targetTotal}
-                  style={{
-                    padding: isMobile ? "0.875rem 1rem" : "0.75rem 1rem",
-                    background: targetTotal ? "#8b5cf6" : "#d1d5db",
-                    color: "white",
-                    border: "none",
-                    borderRadius: "4px",
-                    cursor: targetTotal ? "pointer" : "not-allowed",
-                    fontWeight: "600",
-                    fontSize: isMobile ? "16px" : "1rem",
-                    minHeight: isMobile ? "48px" : "auto",
-                  }}
-                >
-                  Calcola
-                </button>
-              </div>
-            </div>
           </div>
 
           {/* Markup Panel */}
@@ -3317,7 +3793,6 @@ export default function OrderFormSimple() {
                 <button
                   onClick={() => {
                     setShowMarkupPanel(false);
-                    setTargetTotal("");
                   }}
                   style={{
                     padding: isMobile ? "0.875rem" : "0.75rem 1rem",
@@ -3380,9 +3855,18 @@ export default function OrderFormSimple() {
                 paddingTop: "0.5rem",
                 borderTop: "1px solid #e5e7eb",
                 fontSize: isMobile ? "0.875rem" : "1rem",
+                cursor: isFresis(selectedCustomer) && selectedSubClient ? "pointer" : "default",
+                ...(isFresis(selectedCustomer) && selectedSubClient ? { borderRadius: "4px", padding: "0.5rem", margin: "-0.25rem 0 0.5rem 0", background: "#f0f9ff" } : {}),
+              }}
+              onClick={() => {
+                if (isFresis(selectedCustomer) && selectedSubClient) {
+                  setImponibileTarget(totals.finalSubtotal.toFixed(2));
+                  setImponibileSelectedItems(new Set(items.map((i) => i.id)));
+                  setShowImponibileDialog(true);
+                }
               }}
             >
-              <span>Subtotale (senza IVA):</span>
+              <span>Imponibile:{isFresis(selectedCustomer) && selectedSubClient ? " (clicca per modificare)" : ""}</span>
               <strong>{formatCurrency(totals.finalSubtotal)}</strong>
             </div>
             {totals.shippingCost > 0 && (
@@ -3425,9 +3909,18 @@ export default function OrderFormSimple() {
                 paddingTop: "0.5rem",
                 borderTop: "2px solid #3b82f6",
                 fontSize: isMobile ? "1.125rem" : "1.25rem",
+                cursor: isFresis(selectedCustomer) && selectedSubClient ? "pointer" : "default",
+                ...(isFresis(selectedCustomer) && selectedSubClient ? { borderRadius: "4px", padding: "0.5rem", background: "#eff6ff" } : {}),
+              }}
+              onClick={() => {
+                if (isFresis(selectedCustomer) && selectedSubClient) {
+                  setTotaleTarget(totals.finalTotal.toFixed(2));
+                  setTotaleSelectedItems(new Set(items.map((i) => i.id)));
+                  setShowTotaleDialog(true);
+                }
               }}
             >
-              <span style={{ fontWeight: "600" }}>TOTALE (con IVA):</span>
+              <span style={{ fontWeight: "600" }}>TOTALE (con IVA):{isFresis(selectedCustomer) && selectedSubClient ? " (clicca)" : ""}</span>
               <strong style={{ color: "#3b82f6" }}>
                 {formatCurrency(totals.finalTotal)}
               </strong>
@@ -3843,6 +4336,261 @@ export default function OrderFormSimple() {
                 </div>
               ))}
             </div>
+          </div>
+        </div>
+      )}
+      {/* QUANTITY EDIT MODAL */}
+      {quantityEditModal && (
+        <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, background: "rgba(0,0,0,0.5)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center", padding: "1rem" }}>
+          <div style={{ background: "white", borderRadius: "12px", padding: isMobile ? "1.25rem" : "1.5rem", maxWidth: "420px", width: "100%", maxHeight: "80vh", overflowY: "auto" }}>
+            <h3 style={{ margin: "0 0 1rem 0", fontSize: "1.125rem" }}>
+              Modifica Quantità
+            </h3>
+            <div style={{ marginBottom: "0.75rem", fontSize: "0.875rem", color: "#6b7280" }}>
+              {quantityEditModal.productName}
+              {quantityEditModal.itemIds.length > 1 && (
+                <span style={{ marginLeft: "0.5rem", color: "#8b5cf6", fontWeight: "600" }}>
+                  ({quantityEditModal.itemIds.length} varianti)
+                </span>
+              )}
+            </div>
+            <div style={{ marginBottom: "1rem" }}>
+              <label style={{ display: "block", marginBottom: "0.5rem", fontWeight: "500", fontSize: "0.875rem" }}>
+                Quantità totale (pezzi)
+              </label>
+              <input
+                autoFocus
+                type="text"
+                inputMode="numeric"
+                value={quantityEditValue}
+                onChange={(e) => setQuantityEditValue(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && quantityEditPackaging?.success) {
+                    handleQuantityEditConfirm();
+                  }
+                  if (e.key === "Escape") setQuantityEditModal(null);
+                }}
+                style={{ width: "100%", padding: "0.75rem", border: "1px solid #d1d5db", borderRadius: "4px", fontSize: "1rem" }}
+              />
+            </div>
+            {quantityEditCalculating && (
+              <div style={{ padding: "0.5rem", fontSize: "0.8125rem", color: "#6b7280" }}>
+                Calcolo confezionamento...
+              </div>
+            )}
+            {quantityEditPackaging && !quantityEditCalculating && (
+              <div style={{
+                padding: "0.75rem",
+                borderRadius: "6px",
+                marginBottom: "1rem",
+                fontSize: "0.8125rem",
+                background: quantityEditPackaging.success ? "#f0fdf4" : "#fef2f2",
+                border: `1px solid ${quantityEditPackaging.success ? "#bbf7d0" : "#fecaca"}`,
+                color: quantityEditPackaging.success ? "#166534" : "#991b1b",
+              }}>
+                {quantityEditPackaging.success ? (
+                  <>
+                    <div style={{ fontWeight: "600", marginBottom: "0.25rem" }}>
+                      Confezionamento valido ({quantityEditPackaging.totalPackages} conf.)
+                    </div>
+                    {quantityEditPackaging.breakdown?.map((pkg, idx) => (
+                      <div key={idx}>
+                        {pkg.packageCount}x {pkg.variant.packageContent || pkg.variant.variantId} = {pkg.totalPieces}pz
+                      </div>
+                    ))}
+                  </>
+                ) : (
+                  <>
+                    <div style={{ fontWeight: "600", marginBottom: "0.25rem" }}>
+                      Quantità non valida
+                    </div>
+                    <div>{quantityEditPackaging.error}</div>
+                    {quantityEditPackaging.suggestedQuantity && (
+                      <button
+                        onClick={() => setQuantityEditValue(quantityEditPackaging.suggestedQuantity!.toString())}
+                        style={{
+                          marginTop: "0.5rem",
+                          padding: "0.25rem 0.75rem",
+                          background: "#dc2626",
+                          color: "white",
+                          border: "none",
+                          borderRadius: "4px",
+                          cursor: "pointer",
+                          fontSize: "0.8125rem",
+                        }}
+                      >
+                        Usa {quantityEditPackaging.suggestedQuantity}pz
+                      </button>
+                    )}
+                  </>
+                )}
+              </div>
+            )}
+            <div style={{ display: "flex", gap: "0.5rem" }}>
+              <button
+                onClick={handleQuantityEditConfirm}
+                disabled={!quantityEditPackaging?.success || quantityEditCalculating}
+                style={{
+                  flex: 1,
+                  padding: "0.75rem",
+                  background: quantityEditPackaging?.success ? "#8b5cf6" : "#d1d5db",
+                  color: "white",
+                  border: "none",
+                  borderRadius: "6px",
+                  cursor: quantityEditPackaging?.success ? "pointer" : "not-allowed",
+                  fontWeight: "600",
+                  fontSize: "0.9375rem",
+                }}
+              >
+                Conferma
+              </button>
+              <button
+                onClick={() => setQuantityEditModal(null)}
+                style={{
+                  flex: 1,
+                  padding: "0.75rem",
+                  background: "transparent",
+                  color: "#6b7280",
+                  border: "1px solid #d1d5db",
+                  borderRadius: "6px",
+                  cursor: "pointer",
+                  fontSize: "0.9375rem",
+                }}
+              >
+                Annulla
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* IMPONIBILE DIALOG */}
+      {showImponibileDialog && (
+        <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, background: "rgba(0,0,0,0.5)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center", padding: "1rem" }}>
+          <div style={{ background: "white", borderRadius: "12px", padding: isMobile ? "1.25rem" : "1.5rem", maxWidth: "500px", width: "100%", maxHeight: "80vh", overflowY: "auto" }}>
+            <h3 style={{ margin: "0 0 1rem 0", fontSize: "1.125rem" }}>Modifica Imponibile</h3>
+            <div style={{ marginBottom: "1rem" }}>
+              <label style={{ display: "block", marginBottom: "0.5rem", fontWeight: "500", fontSize: "0.875rem" }}>Nuovo imponibile target</label>
+              <input
+                autoFocus
+                type="text"
+                inputMode="decimal"
+                value={imponibileTarget}
+                onChange={(e) => setImponibileTarget(e.target.value)}
+                style={{ width: "100%", padding: "0.75rem", border: "1px solid #d1d5db", borderRadius: "4px", fontSize: "1rem" }}
+              />
+            </div>
+            <div style={{ marginBottom: "1rem" }}>
+              <label style={{ display: "flex", alignItems: "center", gap: "0.5rem", cursor: "pointer", fontSize: "0.875rem", fontWeight: "600", marginBottom: "0.5rem" }}>
+                <input
+                  type="checkbox"
+                  checked={imponibileSelectedItems.size === items.length}
+                  onChange={(e) => setImponibileSelectedItems(e.target.checked ? new Set(items.map((i) => i.id)) : new Set())}
+                />
+                Seleziona tutti
+              </label>
+              <div style={{ maxHeight: "200px", overflowY: "auto", border: "1px solid #e5e7eb", borderRadius: "4px" }}>
+                {items.map((item) => (
+                  <label key={item.id} style={{ display: "flex", alignItems: "center", gap: "0.5rem", padding: "0.5rem 0.75rem", cursor: "pointer", fontSize: "0.8125rem", borderBottom: "1px solid #f3f4f6", background: imponibileSelectedItems.has(item.id) ? "#eff6ff" : "transparent" }}>
+                    <input
+                      type="checkbox"
+                      checked={imponibileSelectedItems.has(item.id)}
+                      onChange={(e) => {
+                        const next = new Set(imponibileSelectedItems);
+                        if (e.target.checked) next.add(item.id);
+                        else next.delete(item.id);
+                        setImponibileSelectedItems(next);
+                      }}
+                    />
+                    <span style={{ flex: 1 }}>{item.productName} (x{item.quantity})</span>
+                    <span style={{ fontFamily: "monospace" }}>{formatCurrency(item.subtotal)}</span>
+                  </label>
+                ))}
+              </div>
+            </div>
+            <div style={{ display: "flex", gap: "0.5rem", flexDirection: isMobile ? "column" : "row" }}>
+              <button
+                onClick={handleImponibileViaSconto}
+                disabled={imponibileSelectedItems.size === 0}
+                style={{ flex: 1, padding: "0.75rem", background: imponibileSelectedItems.size > 0 ? "#8b5cf6" : "#d1d5db", color: "white", border: "none", borderRadius: "6px", cursor: imponibileSelectedItems.size > 0 ? "pointer" : "not-allowed", fontWeight: "600", fontSize: "0.875rem" }}
+              >
+                Modifica tramite sconto
+              </button>
+              <button
+                onClick={handleImponibileViaPrezzo}
+                disabled={imponibileSelectedItems.size === 0}
+                style={{ flex: 1, padding: "0.75rem", background: imponibileSelectedItems.size > 0 ? "#3b82f6" : "#d1d5db", color: "white", border: "none", borderRadius: "6px", cursor: imponibileSelectedItems.size > 0 ? "pointer" : "not-allowed", fontWeight: "600", fontSize: "0.875rem" }}
+              >
+                Modifica prezzo listino
+              </button>
+            </div>
+            <button
+              onClick={() => setShowImponibileDialog(false)}
+              style={{ width: "100%", marginTop: "0.5rem", padding: "0.75rem", background: "transparent", color: "#6b7280", border: "1px solid #d1d5db", borderRadius: "6px", cursor: "pointer", fontSize: "0.875rem" }}
+            >
+              Annulla
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* TOTALE DIALOG */}
+      {showTotaleDialog && (
+        <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, background: "rgba(0,0,0,0.5)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center", padding: "1rem" }}>
+          <div style={{ background: "white", borderRadius: "12px", padding: isMobile ? "1.25rem" : "1.5rem", maxWidth: "500px", width: "100%", maxHeight: "80vh", overflowY: "auto" }}>
+            <h3 style={{ margin: "0 0 1rem 0", fontSize: "1.125rem" }}>Modifica Totale (con IVA)</h3>
+            <div style={{ marginBottom: "1rem" }}>
+              <label style={{ display: "block", marginBottom: "0.5rem", fontWeight: "500", fontSize: "0.875rem" }}>Nuovo totale desiderato (con IVA)</label>
+              <input
+                autoFocus
+                type="text"
+                inputMode="decimal"
+                value={totaleTarget}
+                onChange={(e) => setTotaleTarget(e.target.value)}
+                style={{ width: "100%", padding: "0.75rem", border: "1px solid #d1d5db", borderRadius: "4px", fontSize: "1rem" }}
+              />
+            </div>
+            <div style={{ marginBottom: "1rem" }}>
+              <label style={{ display: "flex", alignItems: "center", gap: "0.5rem", cursor: "pointer", fontSize: "0.875rem", fontWeight: "600", marginBottom: "0.5rem" }}>
+                <input
+                  type="checkbox"
+                  checked={totaleSelectedItems.size === items.length}
+                  onChange={(e) => setTotaleSelectedItems(e.target.checked ? new Set(items.map((i) => i.id)) : new Set())}
+                />
+                Seleziona tutti
+              </label>
+              <div style={{ maxHeight: "200px", overflowY: "auto", border: "1px solid #e5e7eb", borderRadius: "4px" }}>
+                {items.map((item) => (
+                  <label key={item.id} style={{ display: "flex", alignItems: "center", gap: "0.5rem", padding: "0.5rem 0.75rem", cursor: "pointer", fontSize: "0.8125rem", borderBottom: "1px solid #f3f4f6", background: totaleSelectedItems.has(item.id) ? "#eff6ff" : "transparent" }}>
+                    <input
+                      type="checkbox"
+                      checked={totaleSelectedItems.has(item.id)}
+                      onChange={(e) => {
+                        const next = new Set(totaleSelectedItems);
+                        if (e.target.checked) next.add(item.id);
+                        else next.delete(item.id);
+                        setTotaleSelectedItems(next);
+                      }}
+                    />
+                    <span style={{ flex: 1 }}>{item.productName} (x{item.quantity})</span>
+                    <span style={{ fontFamily: "monospace" }}>{formatCurrency(item.total)}</span>
+                  </label>
+                ))}
+              </div>
+            </div>
+            <button
+              onClick={handleTotaleCalcola}
+              disabled={totaleSelectedItems.size === 0}
+              style={{ width: "100%", padding: "0.75rem", background: totaleSelectedItems.size > 0 ? "#8b5cf6" : "#d1d5db", color: "white", border: "none", borderRadius: "6px", cursor: totaleSelectedItems.size > 0 ? "pointer" : "not-allowed", fontWeight: "600", fontSize: "0.9375rem" }}
+            >
+              Calcola
+            </button>
+            <button
+              onClick={() => setShowTotaleDialog(false)}
+              style={{ width: "100%", marginTop: "0.5rem", padding: "0.75rem", background: "transparent", color: "#6b7280", border: "1px solid #d1d5db", borderRadius: "6px", cursor: "pointer", fontSize: "0.875rem" }}
+            >
+              Annulla
+            </button>
           </div>
         </div>
       )}

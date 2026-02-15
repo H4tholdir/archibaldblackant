@@ -69,6 +69,7 @@ export function mergeFresisPendingOrders(
       price: item.price,
       vat: item.vat,
       discount: lineDiscount,
+      originalListPrice: item.originalListPrice,
       warehouseQuantity: totalWarehouseQty > 0 ? totalWarehouseQty : undefined,
       warehouseSources:
         aggregatedSources.length > 0 ? aggregatedSources : undefined,
