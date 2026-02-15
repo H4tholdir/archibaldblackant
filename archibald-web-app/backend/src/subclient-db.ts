@@ -183,7 +183,18 @@ export class SubClientDatabase {
   }
 
   searchSubClients(query: string): SubClient[] {
-    const searchTerm = `%${query}%`;
+    const words = query.split(/\s+/).filter(Boolean);
+    if (words.length === 0) return [];
+
+    const conditions = words.map(
+      () =>
+        `(codice LIKE ? OR ragione_sociale LIKE ? OR suppl_ragione_sociale LIKE ?)`,
+    );
+    const params = words.flatMap((w) => {
+      const term = `%${w}%`;
+      return [term, term, term];
+    });
+
     const stmt = this.db.prepare(`
       SELECT
         codice, ragione_sociale, suppl_ragione_sociale,
@@ -193,13 +204,11 @@ export class SubClientDatabase {
         pers_da_contattare, email_amministraz,
         created_at, updated_at
       FROM sub_clients
-      WHERE codice LIKE ?
-         OR ragione_sociale LIKE ?
-         OR suppl_ragione_sociale LIKE ?
+      WHERE ${conditions.join(" AND ")}
       ORDER BY ragione_sociale ASC
       LIMIT 50
     `);
-    const rows = stmt.all(searchTerm, searchTerm, searchTerm) as any[];
+    const rows = stmt.all(...params) as any[];
     return rows.map(this.mapRow);
   }
 

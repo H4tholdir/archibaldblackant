@@ -47,15 +47,15 @@ class SubClientService {
   async searchSubClients(query: string): Promise<SubClient[]> {
     if (!query || query.length === 0) return [];
 
-    const lowerQuery = query.toLowerCase();
+    const words = query.toLowerCase().split(/\s+/).filter(Boolean);
+    if (words.length === 0) return [];
 
     return db.subClients
-      .filter(
-        (sc) =>
-          sc.codice.toLowerCase().includes(lowerQuery) ||
-          sc.ragioneSociale.toLowerCase().includes(lowerQuery) ||
-          (sc.supplRagioneSociale?.toLowerCase().includes(lowerQuery) ?? false),
-      )
+      .filter((sc) => {
+        const searchable =
+          `${sc.codice} ${sc.ragioneSociale} ${sc.supplRagioneSociale ?? ""}`.toLowerCase();
+        return words.every((w) => searchable.includes(w));
+      })
       .limit(30)
       .toArray();
   }
