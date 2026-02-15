@@ -1,7 +1,14 @@
 import { describe, test, expect, beforeEach, afterEach, vi } from "vitest";
 import Dexie from "dexie";
 import { CustomerService } from "./customers.service";
+import { fetchWithRetry } from "../utils/fetch-with-retry";
 import type { Customer, CacheMetadata } from "../db/schema";
+
+vi.mock("../utils/fetch-with-retry", () => ({
+  fetchWithRetry: vi.fn(),
+}));
+
+const mockFetchWithRetry = vi.mocked(fetchWithRetry);
 
 // Test database with same schema as production
 class TestDatabase extends Dexie {
@@ -54,54 +61,44 @@ describe("CustomerService", () => {
   };
 
   beforeEach(async () => {
-    // Create fresh test database
+    mockFetchWithRetry.mockRejectedValue(new Error("Not configured"));
     testDb = new TestDatabase();
     service = new CustomerService(testDb);
     await testDb.open();
   });
 
   afterEach(async () => {
-    // Clean up test database
+    vi.restoreAllMocks();
     await testDb.delete();
   });
 
   describe("searchCustomers", () => {
     test("returns customers matching query from cache", async () => {
-      // Arrange: populate IndexedDB with test data
       await testDb.customers.bulkAdd([mockCustomer1, mockCustomer2]);
 
-      // Act
       const results = await service.searchCustomers("mario");
 
-      // Assert
       expect(results).toHaveLength(1);
       expect(results[0].name).toBe("Mario Rossi");
     });
 
     test("returns all customers when query is empty", async () => {
-      // Arrange
       await testDb.customers.bulkAdd([mockCustomer1, mockCustomer2]);
 
-      // Act
       const results = await service.searchCustomers("", 50);
 
-      // Assert
       expect(results).toHaveLength(2);
     });
 
     test("respects limit parameter", async () => {
-      // Arrange
       await testDb.customers.bulkAdd([mockCustomer1, mockCustomer2]);
 
-      // Act
       const results = await service.searchCustomers("", 1);
 
-      // Assert
       expect(results).toHaveLength(1);
     });
 
     test("falls back to API when cache empty", async () => {
-      // Arrange: empty cache, mock fetch
       const mockApiResponse = {
         success: true,
         data: {
@@ -110,39 +107,33 @@ describe("CustomerService", () => {
         },
       };
 
-      global.fetch = vi.fn().mockResolvedValue({
+      mockFetchWithRetry.mockResolvedValue({
         ok: true,
         json: async () => mockApiResponse,
       } as Response);
 
-      // Act
       const results = await service.searchCustomers("mario");
 
-      // Assert
       expect(results).toHaveLength(1);
       expect(results[0].name).toBe("Mario Rossi");
-      expect(global.fetch).toHaveBeenCalledWith("/api/customers?search=mario");
+      expect(mockFetchWithRetry).toHaveBeenCalledWith(
+        "/api/customers?search=mario",
+      );
     });
 
     test("returns empty array when API fails and cache empty", async () => {
-      // Arrange: empty cache, failing API
-      global.fetch = vi.fn().mockRejectedValue(new Error("Network error"));
+      mockFetchWithRetry.mockRejectedValue(new Error("Network error"));
 
-      // Act
       const results = await service.searchCustomers("mario");
 
-      // Assert
       expect(results).toEqual([]);
     });
 
     test("searches by customer code", async () => {
-      // Arrange
       await testDb.customers.bulkAdd([mockCustomer1, mockCustomer2]);
 
-      // Act
       const results = await service.searchCustomers("MR001");
 
-      // Assert
       expect(results).toHaveLength(1);
       expect(results[0].code).toBe("MR001");
     });
@@ -150,32 +141,24 @@ describe("CustomerService", () => {
 
   describe("getCustomerById", () => {
     test("returns single customer by ID", async () => {
-      // Arrange
       await testDb.customers.bulkAdd([mockCustomer1, mockCustomer2]);
 
-      // Act
       const result = await service.getCustomerById("C001");
 
-      // Assert
       expect(result).not.toBeNull();
       expect(result?.id).toBe("C001");
       expect(result?.name).toBe("Mario Rossi");
     });
 
     test("returns null when customer not found", async () => {
-      // Arrange: empty cache
-
-      // Act
       const result = await service.getCustomerById("NONEXISTENT");
 
-      // Assert
       expect(result).toBeNull();
     });
   });
 
   describe("syncCustomers", () => {
     test("fetches from API and populates IndexedDB", async () => {
-      // Arrange: mock API response
       const mockApiResponse = {
         success: true,
         data: {
@@ -189,38 +172,32 @@ describe("CustomerService", () => {
         },
       };
 
-      global.fetch = vi.fn().mockResolvedValue({
+      mockFetchWithRetry.mockResolvedValue({
         ok: true,
         json: async () => mockApiResponse,
       } as Response);
 
-      // Act
       await service.syncCustomers();
 
-      // Assert: verify IndexedDB populated
       const customers = await testDb.customers.toArray();
       expect(customers).toHaveLength(2);
       expect(customers.find((c) => c.id === "C001")).toBeDefined();
       expect(customers.find((c) => c.id === "C002")).toBeDefined();
 
-      // Assert: verify metadata updated
       const metadata = await testDb.cacheMetadata.get("customers");
       expect(metadata).toBeDefined();
       expect(metadata?.recordCount).toBe(2);
     });
 
     test("throws error when API fails during sync", async () => {
-      // Arrange: failing API
-      global.fetch = vi.fn().mockRejectedValue(new Error("Network error"));
+      mockFetchWithRetry.mockRejectedValue(new Error("Network error"));
 
-      // Act & Assert
       await expect(service.syncCustomers()).rejects.toThrow("Network error");
     });
   });
 
   describe("getCacheMetadata", () => {
     test("returns cache metadata for customers", async () => {
-      // Arrange: populate metadata
       const metadata: CacheMetadata = {
         key: "customers",
         lastSynced: "2025-01-23T10:00:00Z",
@@ -229,22 +206,16 @@ describe("CustomerService", () => {
       };
       await testDb.cacheMetadata.add(metadata);
 
-      // Act
       const result = await service.getCacheMetadata();
 
-      // Assert
       expect(result).not.toBeNull();
       expect(result?.key).toBe("customers");
       expect(result?.recordCount).toBe(1500);
     });
 
     test("returns null when no metadata exists", async () => {
-      // Arrange: empty metadata
-
-      // Act
       const result = await service.getCacheMetadata();
 
-      // Assert
       expect(result).toBeNull();
     });
   });

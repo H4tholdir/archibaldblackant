@@ -209,18 +209,24 @@ export interface WarehouseMetadata {
   boxesCount: number;
 }
 
+export interface SyncMetadata {
+  key: string;
+  lastSyncId: number;
+}
+
 export class ArchibaldDatabase extends Dexie {
-  customers!: Table<Customer, string>; // string = primary key type
+  customers!: Table<Customer, string>;
   products!: Table<Product, string>;
   productVariants!: Table<ProductVariant, number>;
   prices!: Table<Price, number>;
-  pendingOrders!: Table<PendingOrder, string>; // Changed to string (UUID)
+  pendingOrders!: Table<PendingOrder, string>;
   cacheMetadata!: Table<CacheMetadata, string>;
   warehouseItems!: Table<WarehouseItem, number>;
   warehouseMetadata!: Table<WarehouseMetadata, number>;
   subClients!: Table<SubClient, string>;
   fresisHistory!: Table<FresisHistoryOrder, string>;
   fresisDiscounts!: Table<FresisArticleDiscount, string>;
+  syncMetadata!: Table<SyncMetadata, string>;
 
   constructor() {
     super("ArchibaldOfflineDB");
@@ -730,6 +736,25 @@ export class ArchibaldDatabase extends Dexie {
       fresisHistory:
         "id, subClientCodice, customerName, createdAt, updatedAt, archibaldOrderId, mergedIntoOrderId",
       fresisDiscounts: "id, articleCode, discountPercent",
+    });
+
+    // Version 20: Add syncMetadata table for delta sync (syncId-based reconnection)
+    this.version(20).stores({
+      customers: "id, name, code, city, *hash",
+      products: "id, name, article, *hash",
+      productVariants: "++id, productId, variantId",
+      prices: "++id, articleId, articleName",
+      draftOrders: null,
+      pendingOrders: "id, status, createdAt, updatedAt, jobId",
+      cacheMetadata: "key, lastSynced",
+      warehouseItems:
+        "++id, articleCode, boxName, reservedForOrder, soldInOrder",
+      warehouseMetadata: "++id, uploadedAt",
+      subClients: "codice, ragioneSociale, supplRagioneSociale, partitaIva",
+      fresisHistory:
+        "id, subClientCodice, customerName, createdAt, updatedAt, archibaldOrderId, mergedIntoOrderId",
+      fresisDiscounts: "id, articleCode, discountPercent",
+      syncMetadata: "key",
     });
   }
 }

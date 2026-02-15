@@ -2,7 +2,10 @@
 import { describe, test, expect, vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { OrderItemsList } from './OrderItemsList';
+import { formatCurrency } from '../../utils/format-currency';
 import type { OrderItem } from '../../types/order';
+
+const fc = (amount: number) => formatCurrency(amount).replace(/\u00a0/g, ' ');
 
 const mockItems: OrderItem[] = [
   {
@@ -90,11 +93,11 @@ describe('OrderItemsList', () => {
       />
     );
 
-    expect(screen.getByText('€10.00')).toBeInTheDocument(); // Unit price
-    expect(screen.getByText('€61.00')).toBeInTheDocument(); // Total for item 1
-    expect(screen.getByText('€100.00')).toBeInTheDocument(); // Unit price
-    expect(screen.getByText('-€20.00')).toBeInTheDocument(); // Discount
-    expect(screen.getByText('€219.60')).toBeInTheDocument(); // Total for item 2
+    expect(screen.getByText(fc(10))).toBeInTheDocument();
+    expect(screen.getByText(fc(61))).toBeInTheDocument();
+    expect(screen.getByText(fc(100))).toBeInTheDocument();
+    expect(screen.getByText('20%')).toBeInTheDocument();
+    expect(screen.getByText(fc(219.6))).toBeInTheDocument();
   });
 
   test('shows inline discount if present', () => {
@@ -109,7 +112,7 @@ describe('OrderItemsList', () => {
       />
     );
 
-    expect(screen.getByText('-€20.00')).toBeInTheDocument();
+    expect(screen.getByText('20%')).toBeInTheDocument();
   });
 
   test('calls onDeleteItem when delete button clicked after confirmation', () => {

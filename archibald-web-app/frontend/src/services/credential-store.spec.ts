@@ -27,6 +27,8 @@ describe("CredentialStore", () => {
       // Verify database exists by trying to use it
       const hasCredentials = await newStore.hasCredentials("test-user");
       expect(hasCredentials).toBe(false);
+
+      newStore.close();
     });
   });
 

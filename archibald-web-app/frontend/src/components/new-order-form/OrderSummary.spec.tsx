@@ -2,6 +2,9 @@
 import { describe, test, expect } from "vitest";
 import { render, screen } from "@testing-library/react";
 import { OrderSummary } from "./OrderSummary";
+import { formatCurrency } from "../../utils/format-currency";
+
+const fc = (amount: number) => formatCurrency(amount).replace(/\u00a0/g, " ");
 
 describe("OrderSummary", () => {
   test("displays order totals with no discount", () => {
@@ -16,9 +19,9 @@ describe("OrderSummary", () => {
     );
 
     expect(screen.getByText("Riepilogo Ordine")).toBeInTheDocument();
-    expect(screen.getByText("€200.00")).toBeInTheDocument(); // Items subtotal
-    expect(screen.getByText("€44.00")).toBeInTheDocument(); // VAT
-    expect(screen.getByText("€244.00")).toBeInTheDocument(); // Total
+    expect(screen.getByText(fc(200))).toBeInTheDocument();
+    expect(screen.getByText(fc(44))).toBeInTheDocument();
+    expect(screen.getByText(fc(244))).toBeInTheDocument();
   });
 
   test("displays global discount when present", () => {
@@ -32,10 +35,10 @@ describe("OrderSummary", () => {
       />,
     );
 
-    expect(screen.getByText("-€20.00")).toBeInTheDocument(); // Global discount
-    expect(screen.getByText("€180.00")).toBeInTheDocument(); // Subtotal after discount
-    expect(screen.getByText("€39.60")).toBeInTheDocument(); // VAT
-    expect(screen.getByText("€219.60")).toBeInTheDocument(); // Total
+    expect(screen.getByText(`-${fc(20)}`)).toBeInTheDocument();
+    expect(screen.getByText(fc(180))).toBeInTheDocument();
+    expect(screen.getByText(fc(39.6))).toBeInTheDocument();
+    expect(screen.getByText(fc(219.6))).toBeInTheDocument();
   });
 
   test("displays all calculation fields correctly", () => {
@@ -67,11 +70,10 @@ describe("OrderSummary", () => {
       />,
     );
 
-    // Should round to 2 decimal places
-    expect(screen.getByText("€123.46")).toBeInTheDocument();
-    expect(screen.getByText("-€12.35")).toBeInTheDocument();
-    expect(screen.getByText("€111.11")).toBeInTheDocument();
-    expect(screen.getByText("€24.44")).toBeInTheDocument();
-    expect(screen.getByText("€135.55")).toBeInTheDocument();
+    expect(screen.getByText(fc(123.456))).toBeInTheDocument();
+    expect(screen.getByText(`-${fc(12.345)}`)).toBeInTheDocument();
+    expect(screen.getByText(fc(111.11))).toBeInTheDocument();
+    expect(screen.getByText(fc(24.44))).toBeInTheDocument();
+    expect(screen.getByText(fc(135.55))).toBeInTheDocument();
   });
 });

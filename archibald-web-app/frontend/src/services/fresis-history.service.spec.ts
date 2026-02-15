@@ -203,10 +203,11 @@ describe("syncOrderLifecycles", () => {
     const result = await fresisHistoryService.syncOrderLifecycles();
     expect(result).toBe(2);
 
-    // Verify only one API call was made (deduplication)
-    expect(fetchSpy).toHaveBeenCalledTimes(1);
-    const callUrl = fetchSpy.mock.calls[0][0] as string;
-    const idsInUrl = callUrl.split("ids=")[1]?.split(",");
+    // 1st call = lifecycle-summary (deduplicated), 2nd call = uploadToServer
+    expect(fetchSpy).toHaveBeenCalledTimes(2);
+    const firstCallUrl = fetchSpy.mock.calls[0][0] as string;
+    expect(firstCallUrl).toContain("lifecycle-summary");
+    const idsInUrl = firstCallUrl.split("ids=")[1]?.split(",");
     expect(idsInUrl).toEqual([sharedOrderId]);
 
     const record1 = await db.fresisHistory.get(id1);

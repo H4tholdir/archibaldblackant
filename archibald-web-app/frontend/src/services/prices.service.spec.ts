@@ -1,16 +1,16 @@
 import { describe, test, expect, beforeEach, afterEach, vi } from "vitest";
 import Dexie from "dexie";
 import { PriceService } from "./prices.service";
-import type { Price } from "../db/schema";
 
-// Test database with same schema as production
+// Test database matching current PriceService expectations
+// PriceService.getPriceByArticleId now reads from the products table (not prices)
 class TestDatabase extends Dexie {
-  prices!: Dexie.Table<Price, number>;
+  products!: Dexie.Table<{ id: string; name: string; price?: number; vat?: number }, string>;
 
   constructor() {
     super("TestPriceDB");
     this.version(1).stores({
-      prices: "++id, articleId, articleName",
+      products: "id, name",
     });
   }
 }
@@ -19,130 +19,93 @@ describe("PriceService", () => {
   let testDb: TestDatabase;
   let service: PriceService;
 
-  const mockPrice1: Price = {
-    articleId: "P001",
-    articleName: "Vite M6",
+  const mockProduct1 = {
+    id: "P001",
+    name: "Vite M6",
     price: 12.5,
-    lastSynced: "2025-01-23T10:00:00Z",
+    vat: 22,
   };
 
-  const mockPrice2: Price = {
-    articleId: "P002",
-    articleName: "Bullone M8",
+  const mockProduct2 = {
+    id: "P002",
+    name: "Bullone M8",
     price: 18.75,
-    lastSynced: "2025-01-23T10:00:00Z",
+    vat: 22,
   };
 
   beforeEach(async () => {
-    // Create fresh test database
     testDb = new TestDatabase();
     service = new PriceService(testDb);
     await testDb.open();
   });
 
   afterEach(async () => {
-    // Clean up test database
+    vi.restoreAllMocks();
     await testDb.delete();
   });
 
   describe("getPriceByArticleId", () => {
-    test("returns price from cache", async () => {
-      // Arrange
-      await testDb.prices.bulkAdd([mockPrice1, mockPrice2]);
+    test("returns price from products table", async () => {
+      await testDb.products.bulkAdd([mockProduct1, mockProduct2]);
 
-      // Act
       const price = await service.getPriceByArticleId("P001");
 
-      // Assert
       expect(price).toBe(12.5);
     });
 
-    test("returns null when price not found", async () => {
-      // Arrange: empty cache
-
-      // Act
+    test("returns null when product not found", async () => {
       const price = await service.getPriceByArticleId("NONEXISTENT");
 
-      // Assert
       expect(price).toBeNull();
     });
 
-    test("returns first price when multiple prices exist for same articleId", async () => {
-      // Arrange: duplicate prices (edge case)
-      await testDb.prices.bulkAdd([
-        { ...mockPrice1, id: 1 },
-        { ...mockPrice1, id: 2, price: 99.99 },
-      ]);
+    test("returns null when product has no price", async () => {
+      await testDb.products.add({ id: "NO_PRICE", name: "No price product" });
 
-      // Act
-      const price = await service.getPriceByArticleId("P001");
+      const price = await service.getPriceByArticleId("NO_PRICE");
 
-      // Assert: Should return first match
-      expect(price).toBe(12.5);
+      expect(price).toBeNull();
+    });
+  });
+
+  describe("getPriceAndVat", () => {
+    test("returns price and vat from products table", async () => {
+      await testDb.products.add(mockProduct1);
+
+      const result = await service.getPriceAndVat("P001");
+
+      expect(result).toEqual({ price: 12.5, vat: 22 });
+    });
+
+    test("returns null when product not found", async () => {
+      const result = await service.getPriceAndVat("NONEXISTENT");
+
+      expect(result).toBeNull();
+    });
+
+    test("defaults vat to 22 when not set", async () => {
+      await testDb.products.add({ id: "NO_VAT", name: "No VAT", price: 10 });
+
+      const result = await service.getPriceAndVat("NO_VAT");
+
+      expect(result).toEqual({ price: 10, vat: 22 });
+    });
+
+    test("returns null when product has no price", async () => {
+      await testDb.products.add({ id: "NO_PRICE", name: "No price" });
+
+      const result = await service.getPriceAndVat("NO_PRICE");
+
+      expect(result).toBeNull();
     });
   });
 
   describe("syncPrices", () => {
-    test("fetches from API and populates IndexedDB", async () => {
-      // Arrange: mock API response
-      const mockApiResponse = {
-        success: true,
-        data: {
-          prices: [mockPrice1, mockPrice2],
-        },
-      };
-
-      global.fetch = vi.fn().mockResolvedValue({
-        ok: true,
-        json: async () => mockApiResponse,
-      } as Response);
-
-      // Act
+    test("is a no-op (prices are now stored in products)", async () => {
       await service.syncPrices();
 
-      // Assert: verify IndexedDB populated
-      const prices = await testDb.prices.toArray();
-      expect(prices).toHaveLength(2);
-      expect(prices.find((p) => p.articleId === "P001")).toBeDefined();
-      expect(prices.find((p) => p.articleId === "P002")).toBeDefined();
-    });
-
-    test("throws error when API fails during sync", async () => {
-      // Arrange: failing API
-      global.fetch = vi.fn().mockRejectedValue(new Error("Network error"));
-
-      // Act & Assert
-      await expect(service.syncPrices()).rejects.toThrow("Network error");
-    });
-
-    test("clears existing prices before syncing", async () => {
-      // Arrange: pre-existing data
-      await testDb.prices.add({
-        articleId: "OLD",
-        articleName: "Old Product",
-        price: 999,
-        lastSynced: "2020-01-01T00:00:00Z",
-      });
-
-      const mockApiResponse = {
-        success: true,
-        data: {
-          prices: [mockPrice1],
-        },
-      };
-
-      global.fetch = vi.fn().mockResolvedValue({
-        ok: true,
-        json: async () => mockApiResponse,
-      } as Response);
-
-      // Act
-      await service.syncPrices();
-
-      // Assert: old data should be cleared
-      const prices = await testDb.prices.toArray();
-      expect(prices).toHaveLength(1);
-      expect(prices[0].articleId).toBe("P001");
+      // syncPrices does nothing - prices are synced with products
+      // Just verify it doesn't throw
     });
   });
 });

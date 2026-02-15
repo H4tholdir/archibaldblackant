@@ -11,7 +11,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { useWebSocketContext } from "../contexts/WebSocketContext";
 import { PendingRealtimeService } from "../services/pending-realtime.service";
 import { db } from "../db/schema";
-import type { PendingOrder } from "../db/schema";
+import type { PendingOrder, PendingOrderItem } from "../db/schema";
 import { fetchWithRetry } from "../utils/fetch-with-retry";
 
 export interface UsePendingSyncReturn {
@@ -79,6 +79,89 @@ export function usePendingSync(): UsePendingSyncReturn {
 
   const pullFromServer = useCallback(async () => {
     try {
+      // Try delta sync first
+      const syncMeta = await db.syncMetadata.get("pending");
+      const lastSyncId = syncMeta?.lastSyncId || 0;
+
+      if (lastSyncId > 0) {
+        const deltaResponse = await fetchWithRetry(
+          `/api/sync/pending-orders/delta?lastSyncId=${lastSyncId}`,
+        );
+
+        if (deltaResponse.ok) {
+          const deltaData = await deltaResponse.json();
+
+          if (!deltaData.resync && deltaData.success) {
+            // Apply delta actions
+            for (const action of deltaData.actions) {
+              if (action.action === "DELETE") {
+                await db.pendingOrders.delete(action.entityId);
+              } else if (
+                action.action === "INSERT" ||
+                action.action === "UPDATE"
+              ) {
+                const serverOrder = action.data;
+                if (!serverOrder) continue;
+
+                const localOrder = await db.pendingOrders.get(action.entityId);
+
+                await db.pendingOrders.put({
+                  id: serverOrder.id,
+                  customerId: serverOrder.customerId,
+                  customerName: serverOrder.customerName,
+                  items: serverOrder.items as PendingOrderItem[],
+                  discountPercent: serverOrder.discountPercent,
+                  targetTotalWithVAT: serverOrder.targetTotalWithVAT,
+                  shippingCost: serverOrder.shippingCost || 0,
+                  shippingTax: serverOrder.shippingTax || 0,
+                  createdAt: new Date(serverOrder.createdAt).toISOString(),
+                  updatedAt: new Date(serverOrder.updatedAt).toISOString(),
+                  status: serverOrder.status,
+                  errorMessage: serverOrder.errorMessage,
+                  retryCount: serverOrder.retryCount || 0,
+                  deviceId: serverOrder.deviceId,
+                  subClientCodice: serverOrder.subClientCodice || undefined,
+                  subClientName: serverOrder.subClientName || undefined,
+                  subClientData: serverOrder.subClientData || undefined,
+                  needsSync: false,
+                  serverUpdatedAt: action.createdAt,
+                  ...(localOrder?.jobId && {
+                    jobId: localOrder.jobId,
+                    jobStatus: localOrder.jobStatus,
+                    jobStartedAt: localOrder.jobStartedAt,
+                    jobOperation: localOrder.jobOperation,
+                    jobProgress: localOrder.jobProgress,
+                    jobError: localOrder.jobError,
+                  }),
+                } as PendingOrder);
+              }
+            }
+
+            // Update lastSyncId
+            if (deltaData.lastSyncId > lastSyncId) {
+              await db.syncMetadata.put({
+                key: "pending",
+                lastSyncId: deltaData.lastSyncId,
+              });
+            }
+
+            // If more pages, continue fetching
+            if (deltaData.hasMore) {
+              await pullFromServer();
+              return;
+            }
+
+            await loadPendingOrders();
+            console.log(
+              `[usePendingSync] Delta sync applied: ${deltaData.actions.length} actions`,
+            );
+            return;
+          }
+          // resync: true — fall through to full pull
+        }
+      }
+
+      // Full pull (initial sync or resync required)
       const response = await fetchWithRetry("/api/sync/pending-orders");
       if (!response.ok) return;
 
@@ -92,11 +175,13 @@ export function usePendingSync(): UsePendingSyncReturn {
 
         const localOrder = await db.pendingOrders.get(serverOrder.id);
 
-        if (localOrder?.needsSync) continue;
+        // needsSync guard removed: server is authoritative
+
+        const serverUpdatedAtMs = new Date(serverOrder.updatedAt).getTime();
 
         if (
           !localOrder ||
-          serverOrder.updatedAt > (localOrder.serverUpdatedAt || 0)
+          serverUpdatedAtMs > (localOrder.serverUpdatedAt || 0)
         ) {
           await db.pendingOrders.put({
             id: serverOrder.id,
@@ -117,8 +202,7 @@ export function usePendingSync(): UsePendingSyncReturn {
             subClientName: serverOrder.subClientName || undefined,
             subClientData: serverOrder.subClientData || undefined,
             needsSync: false,
-            serverUpdatedAt: serverOrder.updatedAt,
-            // Preserve local job fields so active cards don't lose progress
+            serverUpdatedAt: serverUpdatedAtMs,
             ...(localOrder?.jobId && {
               jobId: localOrder.jobId,
               jobStatus: localOrder.jobStatus,
@@ -131,9 +215,9 @@ export function usePendingSync(): UsePendingSyncReturn {
         }
       }
 
+      // Delete local orders that don't exist on server (server is authoritative)
       const localOrders = await db.pendingOrders.toArray();
       for (const localOrder of localOrders) {
-        if (localOrder.needsSync) continue;
         if (!serverIds.has(localOrder.id)) {
           await db.pendingOrders.delete(localOrder.id);
         }

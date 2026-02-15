@@ -7,7 +7,10 @@ import { BrowserPool } from "./browser-pool";
 import { logger } from "./logger";
 import * as fs from "fs";
 import * as crypto from "crypto";
+import * as path from "path";
+import Database from "better-sqlite3";
 import { SyncStopError, isSyncStopError } from "./sync-stop";
+import { WebSocketServerService } from "./websocket-server";
 
 export interface SyncProgress {
   stage: string;
@@ -245,7 +248,7 @@ export class CustomerSyncService extends EventEmitter {
         customersProcessed: parseResult.total_customers,
         newCustomers: deltaResult.inserted,
         updatedCustomers: deltaResult.updated,
-        deletedCustomers: 0, // MVP: no deletions yet
+        deletedCustomers: deltaResult.deleted,
         duration,
       };
 
@@ -255,7 +258,7 @@ export class CustomerSyncService extends EventEmitter {
         stage: "complete",
         current: 5,
         total: 5,
-        message: `Completato: ${result.newCustomers} nuovi, ${result.updatedCustomers} aggiornati`,
+        message: `Completato: ${result.newCustomers} nuovi, ${result.updatedCustomers} aggiornati, ${result.deletedCustomers} eliminati`,
         status: "completed" as const,
       };
       this.updateProgress(progress6);
@@ -301,6 +304,7 @@ export class CustomerSyncService extends EventEmitter {
     inserted: number;
     updated: number;
     skipped: number;
+    deleted: number;
   }> {
     // Convert ParsedCustomers to Customer objects with hashes
     const customersToUpsert = pdfCustomers.map((pdf) => {
@@ -315,11 +319,113 @@ export class CustomerSyncService extends EventEmitter {
       `[CustomerSync] Delta: ${result.inserted} inserted, ${result.updated} updated, ${result.unchanged} skipped`,
     );
 
+    // Phase: Delete customers removed from Archibald
+    let deletedCount = 0;
+
+    if (pdfCustomers.length === 0) {
+      logger.warn(
+        "[CustomerSync] PDF returned 0 customers — skipping deletion phase (possible parse error)",
+      );
+    } else {
+      const currentIds = pdfCustomers.map((c) => c.customer_profile);
+      const deletedIds = this.db.findDeletedCustomers(currentIds);
+
+      if (deletedIds.length > 0) {
+        const pendingWarnings = this.checkPendingOrdersForCustomers(deletedIds);
+        for (const warning of pendingWarnings) {
+          logger.warn(
+            `[CustomerSync] Cliente eliminato "${warning.customerName}" (${warning.customerId}) ha ${warning.pendingCount} ordini pendenti`,
+          );
+        }
+
+        deletedCount = this.db.deleteCustomers(deletedIds);
+        logger.info(
+          `[CustomerSync] Deleted ${deletedCount} customers no longer in Archibald: ${deletedIds.join(", ")}`,
+        );
+
+        try {
+          WebSocketServerService.getInstance().broadcastToAll({
+            type: "CUSTOMERS_DELETED",
+            payload: {
+              deletedIds,
+              count: deletedCount,
+              pendingWarnings,
+            },
+            timestamp: new Date().toISOString(),
+          });
+        } catch (wsError) {
+          logger.warn("[CustomerSync] Failed to broadcast CUSTOMERS_DELETED", {
+            error: wsError,
+          });
+        }
+      }
+    }
+
     return {
       inserted: result.inserted,
       updated: result.updated,
       skipped: result.unchanged,
+      deleted: deletedCount,
     };
+  }
+
+  private checkPendingOrdersForCustomers(
+    customerIds: string[],
+  ): Array<{
+    customerId: string;
+    customerName: string;
+    pendingCount: number;
+  }> {
+    const ordersDbPath = path.join(__dirname, "../data/orders-new.db");
+    const warnings: Array<{
+      customerId: string;
+      customerName: string;
+      pendingCount: number;
+    }> = [];
+
+    try {
+      if (!fs.existsSync(ordersDbPath)) {
+        logger.warn(
+          "[CustomerSync] orders-new.db not found, skipping pending orders check",
+        );
+        return warnings;
+      }
+
+      const ordersDb = new Database(ordersDbPath, { readonly: true });
+      try {
+        const placeholders = customerIds.map(() => "?").join(",");
+        const rows = ordersDb
+          .prepare(
+            `SELECT customer_id, customer_name, COUNT(*) as cnt
+             FROM pending_orders
+             WHERE customer_id IN (${placeholders})
+               AND status IN ('pending', 'error')
+             GROUP BY customer_id`,
+          )
+          .all(...customerIds) as Array<{
+          customer_id: string;
+          customer_name: string;
+          cnt: number;
+        }>;
+
+        for (const row of rows) {
+          warnings.push({
+            customerId: row.customer_id,
+            customerName: row.customer_name,
+            pendingCount: row.cnt,
+          });
+        }
+      } finally {
+        ordersDb.close();
+      }
+    } catch (error) {
+      logger.warn(
+        "[CustomerSync] Failed to check pending orders for deleted customers",
+        { error },
+      );
+    }
+
+    return warnings;
   }
 
   /**

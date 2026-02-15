@@ -9,5 +9,11 @@ export default defineConfig({
     setupFiles: "./src/test/setup.ts",
     testTimeout: 20000,
     hookTimeout: 20000,
+    exclude: ["e2e/**", "node_modules/**"],
+    poolOptions: {
+      forks: {
+        execArgv: ["--max-old-space-size=4096"],
+      },
+    },
   },
 });

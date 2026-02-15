@@ -8,7 +8,8 @@ import {
   returnSpecificWarehouseItems,
 } from "./warehouse-order-integration";
 import { getDeviceId } from "../utils/device-id";
-import { unifiedSyncService } from "./unified-sync-service";
+import { fetchWithRetry } from "../utils/fetch-with-retry";
+import { PendingRealtimeService } from "./pending-realtime.service";
 
 export class OrderService {
   private db: Dexie;
@@ -131,22 +132,17 @@ export class OrderService {
         }
       }
 
-      // Trigger immediate sync if online
-      console.log("[OrderService] Checking online status for sync", {
-        isOnline: navigator.onLine,
-      });
-
+      // Push order to server immediately if online
       if (navigator.onLine) {
-        console.log(
-          "[OrderService] 🔄 Triggering immediate sync for pending order",
-          { orderId: id },
-        );
-        unifiedSyncService.syncAll().catch((error) => {
-          console.error("[OrderService] Pending order sync failed:", error);
+        console.log("[OrderService] 🔄 Pushing pending order to server", {
+          orderId: id,
+        });
+        this.pushOrderToServer(id).catch((error) => {
+          console.error("[OrderService] Pending order push failed:", error);
         });
       } else {
         console.log(
-          "[OrderService] ⚠️ Offline - sync will happen when back online",
+          "[OrderService] ⚠️ Offline - order will be pushed when back online",
         );
       }
 
@@ -197,18 +193,19 @@ export class OrderService {
     errorMessage?: string,
   ): Promise<void> {
     try {
+      const now = new Date().toISOString();
       await this.db.table<PendingOrder, string>("pendingOrders").update(id, {
         status,
-        updatedAt: new Date().toISOString(),
+        updatedAt: now,
         needsSync: true,
         ...(errorMessage && { errorMessage }),
       });
 
-      // Trigger sync if online
+      // Push updated order to server if online
       if (navigator.onLine) {
-        unifiedSyncService.syncAll().catch((error) => {
+        this.pushOrderToServer(id).catch((error) => {
           console.error(
-            "[OrderService] Sync after status update failed:",
+            "[OrderService] Push after status update failed:",
             error,
           );
         });
@@ -233,6 +230,77 @@ export class OrderService {
     } catch (error) {
       console.error("[OrderService] Failed to get pending order by ID:", error);
       return undefined;
+    }
+  }
+
+  /**
+   * Push a single pending order to the server via POST /api/sync/pending-orders
+   * On success, marks the order as needsSync: false with serverUpdatedAt
+   */
+  private async pushOrderToServer(orderId: string): Promise<void> {
+    const order = await this.db
+      .table<PendingOrder, string>("pendingOrders")
+      .get(orderId);
+
+    if (!order) return;
+
+    const idempotencyKey = crypto.randomUUID();
+    PendingRealtimeService.getInstance().trackIdempotencyKey(idempotencyKey);
+
+    try {
+      const response = await fetchWithRetry("/api/sync/pending-orders", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          orders: [
+            {
+              id: order.id,
+              customerId: order.customerId,
+              customerName: order.customerName,
+              items: order.items,
+              status: order.status,
+              discountPercent: order.discountPercent,
+              targetTotalWithVAT: order.targetTotalWithVAT,
+              shippingCost: order.shippingCost || 0,
+              shippingTax: order.shippingTax || 0,
+              retryCount: order.retryCount,
+              errorMessage: order.errorMessage,
+              createdAt: order.createdAt,
+              updatedAt: order.updatedAt,
+              deviceId: order.deviceId,
+              subClientCodice: order.subClientCodice,
+              subClientName: order.subClientName,
+              subClientData: order.subClientData,
+              idempotencyKey,
+            },
+          ],
+        }),
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        const result = data.results?.[0];
+        const serverUpdatedAt = result?.serverUpdatedAt || Date.now();
+
+        await this.db
+          .table<PendingOrder, string>("pendingOrders")
+          .update(orderId, {
+            needsSync: false,
+            serverUpdatedAt,
+          });
+
+        console.log("[OrderService] ✅ Order pushed to server", {
+          orderId,
+          action: result?.action,
+        });
+      } else {
+        console.warn("[OrderService] Server push failed", {
+          orderId,
+          status: response.status,
+        });
+      }
+    } catch (error) {
+      console.error("[OrderService] Push to server error:", error);
     }
   }
 
@@ -288,38 +356,33 @@ export class OrderService {
 
       // Notify server to broadcast deletion to other devices
       if (navigator.onLine) {
-        const token = localStorage.getItem("archibald_jwt");
         const deviceId = getDeviceId();
+        const deleteIdempotencyKey = crypto.randomUUID();
+        PendingRealtimeService.getInstance().trackIdempotencyKey(
+          deleteIdempotencyKey,
+        );
 
-        if (token) {
-          try {
-            const response = await fetch(
-              `/api/sync/pending-orders/${id}?deviceId=${encodeURIComponent(deviceId)}`,
-              {
-                method: "DELETE",
-                headers: {
-                  Authorization: `Bearer ${token}`,
-                },
-              },
-            );
+        try {
+          const response = await fetchWithRetry(
+            `/api/sync/pending-orders/${id}?deviceId=${encodeURIComponent(deviceId)}&idempotencyKey=${encodeURIComponent(deleteIdempotencyKey)}`,
+            { method: "DELETE" },
+          );
 
-            if (response.ok) {
-              console.log(
-                "[OrderService] ✅ Server notified of deletion, broadcast sent",
-                { orderId: id },
-              );
-            } else {
-              console.warn(
-                "[OrderService] Failed to notify server of deletion",
-                { status: response.status },
-              );
-            }
-          } catch (error) {
-            console.error(
-              "[OrderService] Error notifying server of deletion:",
-              error,
+          if (response.ok) {
+            console.log(
+              "[OrderService] ✅ Server notified of deletion, broadcast sent",
+              { orderId: id },
             );
+          } else {
+            console.warn("[OrderService] Failed to notify server of deletion", {
+              status: response.status,
+            });
           }
+        } catch (error) {
+          console.error(
+            "[OrderService] Error notifying server of deletion:",
+            error,
+          );
         }
       }
     } catch (error) {

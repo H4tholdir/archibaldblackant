@@ -309,10 +309,18 @@ export function PendingOrdersPage() {
       const mergedGlobalDiscount = mergedOrder.discountPercent || 0;
       let mergedRevenue = 0;
       for (const item of mergedOrder.items) {
-        const fresisDisc = discountMap.get(item.articleId ?? "") ?? discountMap.get(item.articleCode) ?? 0;
+        const fresisDisc =
+          discountMap.get(item.articleId ?? "") ??
+          discountMap.get(item.articleCode) ??
+          0;
         const originalPrice = item.originalListPrice ?? item.price;
-        const prezzoCliente = item.price * item.quantity * (1 - (item.discount || 0) / 100) * (1 - mergedGlobalDiscount / 100);
-        const costoFresis = originalPrice * item.quantity * (1 - fresisDisc / 100);
+        const prezzoCliente =
+          item.price *
+          item.quantity *
+          (1 - (item.discount || 0) / 100) *
+          (1 - mergedGlobalDiscount / 100);
+        const costoFresis =
+          originalPrice * item.quantity * (1 - fresisDisc / 100);
         mergedRevenue += prezzoCliente - costoFresis;
       }
       mergedOrder.revenue = mergedRevenue;
@@ -323,16 +331,71 @@ export function PendingOrdersPage() {
         mergedOrder.id,
       );
 
-      // Add merged order
+      // Add merged order locally
       await db.pendingOrders.add(mergedOrder);
 
       // Transfer warehouse reservations from original orders to merged order
       const originalIds = selectedFresisOrders.map((o) => o.id!);
       await transferWarehouseReservations(originalIds, mergedOrder.id);
 
-      // Delete original orders (releaseWarehouseReservations will be a no-op since items were transferred)
+      // Delete original orders from server (releaseWarehouseReservations will be a no-op since items were transferred)
       for (const original of selectedFresisOrders) {
         await orderService.deletePendingOrder(original.id!);
+      }
+
+      // Push merged order to server
+      if (navigator.onLine) {
+        try {
+          const mergeIdempotencyKey = crypto.randomUUID();
+          const { PendingRealtimeService } =
+            await import("../services/pending-realtime.service");
+          PendingRealtimeService.getInstance().trackIdempotencyKey(
+            mergeIdempotencyKey,
+          );
+          const { fetchWithRetry } = await import("../utils/fetch-with-retry");
+
+          const pushResponse = await fetchWithRetry(
+            "/api/sync/pending-orders",
+            {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                orders: [
+                  {
+                    id: mergedOrder.id,
+                    customerId: mergedOrder.customerId,
+                    customerName: mergedOrder.customerName,
+                    items: mergedOrder.items,
+                    status: mergedOrder.status,
+                    discountPercent: mergedOrder.discountPercent,
+                    targetTotalWithVAT: mergedOrder.targetTotalWithVAT,
+                    shippingCost: mergedOrder.shippingCost || 0,
+                    shippingTax: mergedOrder.shippingTax || 0,
+                    retryCount: 0,
+                    createdAt: mergedOrder.createdAt,
+                    updatedAt: mergedOrder.updatedAt,
+                    deviceId: mergedOrder.deviceId,
+                    subClientCodice: mergedOrder.subClientCodice,
+                    subClientName: mergedOrder.subClientName,
+                    subClientData: mergedOrder.subClientData,
+                    idempotencyKey: mergeIdempotencyKey,
+                  },
+                ],
+              }),
+            },
+          );
+          if (pushResponse.ok) {
+            await db.pendingOrders.update(mergedOrder.id, {
+              needsSync: false,
+              serverUpdatedAt: Date.now(),
+            });
+          }
+        } catch (pushError) {
+          console.error(
+            "[PendingOrdersPage] Failed to push merged order:",
+            pushError,
+          );
+        }
       }
 
       await refetch();

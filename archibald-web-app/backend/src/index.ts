@@ -2161,8 +2161,9 @@ app.post(
           customersProcessed: result.customersProcessed,
           newCustomers: result.newCustomers,
           updatedCustomers: result.updatedCustomers,
+          deletedCustomers: result.deletedCustomers,
           duration: result.duration,
-          message: `Aggiornamento completato: ${result.newCustomers} nuovi, ${result.updatedCustomers} modificati`,
+          message: `Aggiornamento completato: ${result.newCustomers} nuovi, ${result.updatedCustomers} modificati, ${result.deletedCustomers} eliminati`,
         });
       } else {
         res.status(500).json({

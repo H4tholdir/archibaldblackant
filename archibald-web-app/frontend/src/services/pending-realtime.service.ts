@@ -44,6 +44,8 @@ interface PendingCreatedPayload {
   pendingOrder: PendingOrderPayload;
   timestamp: string;
   deviceId: string;
+  syncId?: number;
+  idempotencyKey?: string;
 }
 
 interface PendingUpdatedPayload {
@@ -51,6 +53,8 @@ interface PendingUpdatedPayload {
   pendingOrder: PendingOrderPayload;
   timestamp: string;
   deviceId: string;
+  syncId?: number;
+  idempotencyKey?: string;
 }
 
 interface PendingDeletedPayload {
@@ -58,6 +62,8 @@ interface PendingDeletedPayload {
   deleted: true;
   timestamp: string;
   deviceId: string;
+  syncId?: number;
+  idempotencyKey?: string;
 }
 
 interface PendingSubmittedPayload {
@@ -127,9 +133,41 @@ export class PendingRealtimeService {
   private updateHandlers: Set<PendingUpdateHandler> = new Set();
   private pendingProgressUpdates: Map<string, JobProgressPayload> = new Map();
   private progressFlushTimer: ReturnType<typeof setTimeout> | null = null;
+  private recentIdempotencyKeys: Set<string> = new Set();
 
   private constructor() {
     this.deviceId = getDeviceId();
+  }
+
+  private async updateLastSyncId(syncId: number | undefined): Promise<void> {
+    if (syncId === undefined) return;
+    try {
+      const current = await db.syncMetadata.get("pending");
+      if (!current || syncId > current.lastSyncId) {
+        await db.syncMetadata.put({ key: "pending", lastSyncId: syncId });
+      }
+    } catch {
+      // Non-critical: syncMetadata update failure won't break the app
+    }
+  }
+
+  private isOwnEcho(
+    deviceId: string | undefined,
+    idempotencyKey: string | undefined,
+  ): boolean {
+    // Check idempotencyKey first (most reliable, works across tabs)
+    if (idempotencyKey && this.recentIdempotencyKeys.has(idempotencyKey)) {
+      return true;
+    }
+    // Fall back to deviceId check
+    return deviceId === this.deviceId;
+  }
+
+  public trackIdempotencyKey(key: string): void {
+    this.recentIdempotencyKeys.add(key);
+    setTimeout(() => {
+      this.recentIdempotencyKeys.delete(key);
+    }, 60_000);
   }
 
   public static getInstance(): PendingRealtimeService {
@@ -169,14 +207,12 @@ export class PendingRealtimeService {
     try {
       const data = payload as PendingCreatedPayload;
 
-      // Filter own device to prevent echo
-      if (data.deviceId === this.deviceId) {
-        console.log(
-          `[PendingRealtime] Ignoring PENDING_CREATED echo from own device`,
-          {
-            pendingOrderId: data.pendingOrderId,
-          },
-        );
+      await this.updateLastSyncId(data.syncId);
+
+      if (this.isOwnEcho(data.deviceId, data.idempotencyKey)) {
+        console.log(`[PendingRealtime] Ignoring PENDING_CREATED echo`, {
+          pendingOrderId: data.pendingOrderId,
+        });
         return;
       }
 
@@ -268,14 +304,12 @@ export class PendingRealtimeService {
     try {
       const data = payload as PendingUpdatedPayload;
 
-      // Filter own device to prevent echo
-      if (data.deviceId === this.deviceId) {
-        console.log(
-          `[PendingRealtime] Ignoring PENDING_UPDATED echo from own device`,
-          {
-            pendingOrderId: data.pendingOrderId,
-          },
-        );
+      await this.updateLastSyncId(data.syncId);
+
+      if (this.isOwnEcho(data.deviceId, data.idempotencyKey)) {
+        console.log(`[PendingRealtime] Ignoring PENDING_UPDATED echo`, {
+          pendingOrderId: data.pendingOrderId,
+        });
         return;
       }
 
@@ -377,14 +411,12 @@ export class PendingRealtimeService {
     try {
       const data = payload as PendingDeletedPayload;
 
-      // Filter own device to prevent echo
-      if (data.deviceId === this.deviceId) {
-        console.log(
-          `[PendingRealtime] Ignoring PENDING_DELETED echo from own device`,
-          {
-            pendingOrderId: data.pendingOrderId,
-          },
-        );
+      await this.updateLastSyncId(data.syncId);
+
+      if (this.isOwnEcho(data.deviceId, data.idempotencyKey)) {
+        console.log(`[PendingRealtime] Ignoring PENDING_DELETED echo`, {
+          pendingOrderId: data.pendingOrderId,
+        });
         return;
       }
 

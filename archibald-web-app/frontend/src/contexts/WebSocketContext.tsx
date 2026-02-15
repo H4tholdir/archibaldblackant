@@ -41,6 +41,10 @@ const MAX_RECONNECT_DELAY = 30000; // 30 seconds
 const RECONNECT_MULTIPLIER = 2;
 const WATCHDOG_INTERVAL = 30000; // 30 seconds - check connection health
 
+// Application-level heartbeat
+const HEARTBEAT_INTERVAL = 30000; // 30 seconds
+const HEARTBEAT_TIMEOUT = 10000; // 10 seconds pong timeout
+
 // WebSocket endpoint (production: wss://formicanera.com/ws/realtime)
 const getWebSocketUrl = (): string => {
   const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
@@ -72,6 +76,9 @@ export function WebSocketProvider({ children }: WebSocketProviderProps) {
   );
   const isIntentionalCloseRef = useRef<boolean>(false);
   const lastEventTsRef = useRef<string | null>(null);
+  const lastSyncIdRef = useRef<number>(0);
+  const heartbeatIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const heartbeatTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   /**
    * Get JWT token from localStorage
@@ -143,17 +150,36 @@ export function WebSocketProvider({ children }: WebSocketProviderProps) {
    */
   const handleMessage = useCallback((event: MessageEvent) => {
     try {
-      const message = JSON.parse(event.data) as WebSocketEvent;
+      const data = event.data as string;
 
-      // 🔍 DEBUG: Log ALL incoming WebSocket messages
+      // Handle heartbeat pong
+      if (data === "pong") {
+        if (heartbeatTimeoutRef.current) {
+          clearTimeout(heartbeatTimeoutRef.current);
+          heartbeatTimeoutRef.current = null;
+        }
+        return;
+      }
+
+      const message = JSON.parse(data) as WebSocketEvent;
+
       console.log("[WebSocket] Received message:", {
         type: message.type,
-        payload: message.payload,
         timestamp: message.timestamp,
       });
 
       if (message.timestamp) {
         lastEventTsRef.current = message.timestamp;
+      }
+
+      // Track syncId from payload for delta sync
+      const payload = message.payload as Record<string, unknown> | null;
+      if (
+        payload &&
+        typeof payload.syncId === "number" &&
+        payload.syncId > lastSyncIdRef.current
+      ) {
+        lastSyncIdRef.current = payload.syncId;
       }
 
       const handlers = eventHandlersRef.current.get(message.type);
@@ -197,6 +223,33 @@ export function WebSocketProvider({ children }: WebSocketProviderProps) {
     });
   }, [send]);
 
+  const stopHeartbeat = useCallback(() => {
+    if (heartbeatIntervalRef.current) {
+      clearInterval(heartbeatIntervalRef.current);
+      heartbeatIntervalRef.current = null;
+    }
+    if (heartbeatTimeoutRef.current) {
+      clearTimeout(heartbeatTimeoutRef.current);
+      heartbeatTimeoutRef.current = null;
+    }
+  }, []);
+
+  const startHeartbeat = useCallback(
+    (ws: WebSocket) => {
+      stopHeartbeat();
+      heartbeatIntervalRef.current = setInterval(() => {
+        if (ws.readyState === WebSocket.OPEN) {
+          ws.send("ping");
+          heartbeatTimeoutRef.current = setTimeout(() => {
+            console.log("[WebSocket] Heartbeat timeout, forcing reconnect");
+            ws.close(4000, "Heartbeat timeout");
+          }, HEARTBEAT_TIMEOUT);
+        }
+      }, HEARTBEAT_INTERVAL);
+    },
+    [stopHeartbeat],
+  );
+
   /**
    * Connect to WebSocket server
    */
@@ -221,6 +274,9 @@ export function WebSocketProvider({ children }: WebSocketProviderProps) {
     if (lastEventTsRef.current) {
       url += `&lastEventTs=${encodeURIComponent(lastEventTsRef.current)}`;
     }
+    if (lastSyncIdRef.current > 0) {
+      url += `&lastSyncId=${lastSyncIdRef.current}`;
+    }
     const ws = new WebSocket(url);
     wsRef.current = ws;
 
@@ -228,6 +284,9 @@ export function WebSocketProvider({ children }: WebSocketProviderProps) {
       console.log("[WebSocket] Connected");
       setState("connected");
       reconnectDelayRef.current = INITIAL_RECONNECT_DELAY;
+
+      // Start application-level heartbeat
+      startHeartbeat(ws);
 
       // Replay queued operations
       replayQueue();
@@ -244,33 +303,37 @@ export function WebSocketProvider({ children }: WebSocketProviderProps) {
         `[WebSocket] Closed (code: ${event.code}, reason: ${event.reason})`,
       );
       wsRef.current = null;
+      stopHeartbeat();
 
       if (isIntentionalCloseRef.current) {
         setState("disconnected");
         return;
       }
 
-      // Auto-reconnect with exponential backoff
+      // Auto-reconnect with exponential backoff + jitter
       setState("reconnecting");
-      const delay = reconnectDelayRef.current;
+      const baseDelay = reconnectDelayRef.current;
+      const jitter = baseDelay * 0.5 * (Math.random() * 2 - 1);
+      const delay = Math.max(100, baseDelay + jitter);
 
-      console.log(`[WebSocket] Reconnecting in ${delay}ms...`);
+      console.log(`[WebSocket] Reconnecting in ${Math.round(delay)}ms...`);
 
       reconnectTimeoutRef.current = setTimeout(() => {
         reconnectDelayRef.current = Math.min(
-          delay * RECONNECT_MULTIPLIER,
+          baseDelay * RECONNECT_MULTIPLIER,
           MAX_RECONNECT_DELAY,
         );
         connect();
       }, delay);
     };
-  }, [getToken, handleMessage, replayQueue]);
+  }, [getToken, handleMessage, replayQueue, startHeartbeat, stopHeartbeat]);
 
   /**
    * Disconnect WebSocket
    */
   const disconnect = useCallback(() => {
     isIntentionalCloseRef.current = true;
+    stopHeartbeat();
 
     if (reconnectTimeoutRef.current) {
       clearTimeout(reconnectTimeoutRef.current);
@@ -283,7 +346,7 @@ export function WebSocketProvider({ children }: WebSocketProviderProps) {
     }
 
     setState("disconnected");
-  }, []);
+  }, [stopHeartbeat]);
 
   /**
    * Initialize connection on mount, cleanup on unmount

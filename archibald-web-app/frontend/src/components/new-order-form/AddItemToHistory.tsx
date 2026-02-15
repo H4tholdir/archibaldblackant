@@ -442,7 +442,7 @@ export function AddItemToHistory({
                   padding: "0.5rem",
                   cursor: "pointer",
                   backgroundColor:
-                    idx === highlightedIndex ? "#f3f4f6" : "white",
+                    idx === highlightedIndex ? "#bfdbfe" : "white",
                   borderBottom: "1px solid #e5e7eb",
                   fontSize: "0.85rem",
                 }}

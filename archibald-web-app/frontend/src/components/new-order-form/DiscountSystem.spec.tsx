@@ -3,8 +3,18 @@ import { describe, test, expect, vi } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 import { DiscountSystem } from "./DiscountSystem";
 
+vi.mock("../../hooks/useKeyboardScroll", () => ({
+  useKeyboardScroll: () => ({
+    keyboardHeight: 0,
+    keyboardOpen: false,
+    scrollFieldIntoView: vi.fn(),
+    keyboardPaddingStyle: {},
+    modalOverlayKeyboardStyle: {},
+  }),
+}));
+
 describe("DiscountSystem", () => {
-  test("renders with no discount initially", () => {
+  test("renders with header", () => {
     const onChange = vi.fn();
     const onReverseCalculate = vi.fn();
 
@@ -19,7 +29,7 @@ describe("DiscountSystem", () => {
     expect(screen.getByText("Sconto Globale")).toBeInTheDocument();
   });
 
-  test("allows switching between percentage and amount discount", () => {
+  test("renders percentage discount input in non-reverse mode", () => {
     const onChange = vi.fn();
     const onReverseCalculate = vi.fn();
 
@@ -31,13 +41,9 @@ describe("DiscountSystem", () => {
       />,
     );
 
-    const typeSelect = screen.getByLabelText("Tipo Sconto Globale");
-    fireEvent.change(typeSelect, { target: { value: "amount" } });
-
-    expect(onChange).toHaveBeenCalledWith({
-      discountType: "amount",
-      discountValue: 0,
-    });
+    const input = screen.getByLabelText("Sconto Globale (%)");
+    expect(input).toBeInTheDocument();
+    expect(input).toHaveAttribute("type", "number");
   });
 
   test("calls onChange when discount value changes", () => {
@@ -54,7 +60,7 @@ describe("DiscountSystem", () => {
       />,
     );
 
-    const valueInput = screen.getByLabelText("Valore Sconto");
+    const valueInput = screen.getByLabelText("Sconto Globale (%)");
     fireEvent.change(valueInput, { target: { value: "10" } });
 
     expect(onChange).toHaveBeenCalledWith({
@@ -76,7 +82,9 @@ describe("DiscountSystem", () => {
       />,
     );
 
-    expect(screen.getByText("Totale Desiderato (con IVA)")).toBeInTheDocument();
+    expect(
+      screen.getByText("Totale Desiderato (con IVA)"),
+    ).toBeInTheDocument();
   });
 
   test("calls onReverseCalculate when target total changes in reverse mode", () => {
@@ -113,7 +121,9 @@ describe("DiscountSystem", () => {
       />,
     );
 
-    expect(screen.getByText(/Sconto calcolato: 25.00%/)).toBeInTheDocument();
-    expect(screen.getByText(/€50.00/)).toBeInTheDocument();
+    expect(
+      screen.getByText(/Sconto calcolato: 25\.00%/),
+    ).toBeInTheDocument();
+    expect(screen.getByText(/50,00.*€/)).toBeInTheDocument();
   });
 });

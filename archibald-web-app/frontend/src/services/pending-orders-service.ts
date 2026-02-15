@@ -1,7 +1,9 @@
 import { db } from "../db/schema";
 import type { PendingOrder } from "../db/schema";
 import { releaseWarehouseReservations } from "./warehouse-order-integration";
-import { unifiedSyncService } from "./unified-sync-service";
+import { fetchWithRetry } from "../utils/fetch-with-retry";
+import { getDeviceId } from "../utils/device-id";
+import { PendingRealtimeService } from "./pending-realtime.service";
 
 // 🔧 FIX #4: Maximum retry attempts before auto-release
 const MAX_RETRY_ATTEMPTS = 3;
@@ -87,10 +89,19 @@ export class PendingOrdersService {
     // Backup to localStorage
     await this.backupToLocalStorage();
 
-    // Trigger sync to notify server about deletion
+    // Notify server about deletion
     if (navigator.onLine) {
-      unifiedSyncService.syncAll().catch((error) => {
-        console.error("[PendingOrders] Sync after delete failed:", error);
+      const deviceId = getDeviceId();
+      const idempotencyKey = crypto.randomUUID();
+      PendingRealtimeService.getInstance().trackIdempotencyKey(idempotencyKey);
+      fetchWithRetry(
+        `/api/sync/pending-orders/${orderId}?deviceId=${encodeURIComponent(deviceId)}&idempotencyKey=${encodeURIComponent(idempotencyKey)}`,
+        { method: "DELETE" },
+      ).catch((error) => {
+        console.error(
+          "[PendingOrders] Server delete notification failed:",
+          error,
+        );
       });
     }
 
@@ -105,24 +116,68 @@ export class PendingOrdersService {
     status: "pending" | "syncing" | "error",
     errorMessage?: string,
   ): Promise<void> {
+    const now = new Date().toISOString();
     await db.pendingOrders.update(orderId, {
       status,
       errorMessage,
-      updatedAt: new Date().toISOString(),
+      updatedAt: now,
       needsSync: true,
     });
 
     // Backup to localStorage
     await this.backupToLocalStorage();
 
-    // Trigger sync if online
+    // Push updated order to server if online
     if (navigator.onLine) {
-      unifiedSyncService.syncAll().catch((error) => {
-        console.error(
-          "[PendingOrders] Sync after status update failed:",
-          error,
+      const order = await db.pendingOrders.get(orderId);
+      if (order) {
+        const idempotencyKey = crypto.randomUUID();
+        PendingRealtimeService.getInstance().trackIdempotencyKey(
+          idempotencyKey,
         );
-      });
+        fetchWithRetry("/api/sync/pending-orders", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            orders: [
+              {
+                id: order.id,
+                customerId: order.customerId,
+                customerName: order.customerName,
+                items: order.items,
+                status: order.status,
+                discountPercent: order.discountPercent,
+                targetTotalWithVAT: order.targetTotalWithVAT,
+                shippingCost: order.shippingCost || 0,
+                shippingTax: order.shippingTax || 0,
+                retryCount: order.retryCount,
+                errorMessage: order.errorMessage,
+                createdAt: order.createdAt,
+                updatedAt: order.updatedAt,
+                deviceId: order.deviceId,
+                subClientCodice: order.subClientCodice,
+                subClientName: order.subClientName,
+                subClientData: order.subClientData,
+                idempotencyKey,
+              },
+            ],
+          }),
+        })
+          .then(async (response) => {
+            if (response.ok) {
+              await db.pendingOrders.update(orderId, {
+                needsSync: false,
+                serverUpdatedAt: Date.now(),
+              });
+            }
+          })
+          .catch((error) => {
+            console.error(
+              "[PendingOrders] Push after status update failed:",
+              error,
+            );
+          });
+      }
     }
   }
 

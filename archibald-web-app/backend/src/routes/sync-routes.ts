@@ -16,6 +16,56 @@ const usersDb = new Database(usersDbPath);
 // Real-time services for WebSocket broadcasts
 const pendingRealtimeService = PendingRealtimeService.getInstance();
 
+// Lazy-initialized prepared statement for change log
+// Must be lazy because the table is created by migration 031, which runs
+// after module imports are resolved. Eagerly calling ordersDb.prepare() at
+// import time would crash with "no such table: pending_change_log".
+let _insertChangeLog: Database.Statement<unknown[]> | null = null;
+function getInsertChangeLog() {
+  if (!_insertChangeLog) {
+    _insertChangeLog = ordersDb.prepare(`
+      INSERT INTO pending_change_log (user_id, entity_id, action, data, device_id, idempotency_key)
+      VALUES (?, ?, ?, ?, ?, ?)
+    `);
+  }
+  return _insertChangeLog;
+}
+
+const CHANGE_LOG_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
+
+function writeChangeLog(
+  userId: string,
+  entityId: string,
+  action: "INSERT" | "UPDATE" | "DELETE",
+  data: unknown | null,
+  deviceId: string | null,
+  idempotencyKey: string | null,
+): number {
+  const result = getInsertChangeLog().run(
+    userId,
+    entityId,
+    action,
+    data ? JSON.stringify(data) : null,
+    deviceId,
+    idempotencyKey,
+  );
+  return Number(result.lastInsertRowid);
+}
+
+// Cleanup old change log entries (called periodically)
+function cleanupChangeLog(): void {
+  const cutoff = Date.now() - CHANGE_LOG_MAX_AGE_MS;
+  const result = ordersDb
+    .prepare("DELETE FROM pending_change_log WHERE created_at < ?")
+    .run(cutoff);
+  if (result.changes > 0) {
+    logger.info(`[ChangeLog] Cleaned up ${result.changes} old entries`);
+  }
+}
+
+// Run cleanup every hour
+setInterval(cleanupChangeLog, 60 * 60 * 1000);
+
 // ========== PENDING ORDERS SYNC ==========
 
 /**
@@ -105,13 +155,34 @@ router.post(
 
       for (const order of orders) {
         try {
-          // Check if order exists
           const existing = ordersDb
             .prepare("SELECT * FROM pending_orders WHERE id = ?")
             .get(order.id) as any;
 
+          const idempotencyKey = order.idempotencyKey || null;
+
+          const orderPayload = {
+            id: order.id,
+            userId,
+            customerId: order.customerId,
+            customerName: order.customerName,
+            items: order.items,
+            status: order.status,
+            discountPercent: order.discountPercent,
+            targetTotalWithVAT: order.targetTotalWithVAT,
+            shippingCost: order.shippingCost ?? 0,
+            shippingTax: order.shippingTax ?? 0,
+            retryCount: order.retryCount ?? 0,
+            errorMessage: order.errorMessage,
+            createdAt: order.createdAt,
+            updatedAt: order.updatedAt,
+            deviceId: order.deviceId,
+            subClientCodice: order.subClientCodice ?? null,
+            subClientName: order.subClientName ?? null,
+            subClientData: order.subClientData ?? null,
+          };
+
           if (existing) {
-            // Conflict detection: Last-Write-Wins (LWW)
             if (existing.updated_at > order.updatedAt) {
               results.push({
                 id: order.id,
@@ -122,140 +193,144 @@ router.post(
               continue;
             }
 
-            // Update order
-            ordersDb
-              .prepare(
-                `
-              UPDATE pending_orders SET
-                customer_id = ?,
-                customer_name = ?,
-                items_json = ?,
-                status = ?,
-                discount_percent = ?,
-                target_total_with_vat = ?,
-                shipping_cost = ?,
-                shipping_tax = ?,
-                retry_count = ?,
-                error_message = ?,
-                updated_at = ?,
-                device_id = ?,
-                sub_client_codice = ?,
-                sub_client_name = ?,
-                sub_client_data_json = ?
-              WHERE id = ?
-            `,
-              )
-              .run(
-                order.customerId,
-                order.customerName,
-                JSON.stringify(order.items),
-                order.status,
-                order.discountPercent || null,
-                order.targetTotalWithVAT || null,
-                order.shippingCost || 0,
-                order.shippingTax || 0,
-                order.retryCount || 0,
-                order.errorMessage || null,
-                order.updatedAt,
-                order.deviceId,
-                order.subClientCodice || null,
-                order.subClientName || null,
-                order.subClientData
-                  ? JSON.stringify(order.subClientData)
-                  : null,
-                order.id,
-              );
+            // Wrap mutation + change log in a transaction for atomicity
+            const syncId = ordersDb.transaction(() => {
+              ordersDb
+                .prepare(
+                  `
+                UPDATE pending_orders SET
+                  customer_id = ?,
+                  customer_name = ?,
+                  items_json = ?,
+                  status = ?,
+                  discount_percent = ?,
+                  target_total_with_vat = ?,
+                  shipping_cost = ?,
+                  shipping_tax = ?,
+                  retry_count = ?,
+                  error_message = ?,
+                  updated_at = ?,
+                  device_id = ?,
+                  sub_client_codice = ?,
+                  sub_client_name = ?,
+                  sub_client_data_json = ?
+                WHERE id = ?
+              `,
+                )
+                .run(
+                  order.customerId,
+                  order.customerName,
+                  JSON.stringify(order.items),
+                  order.status,
+                  order.discountPercent ?? null,
+                  order.targetTotalWithVAT ?? null,
+                  order.shippingCost ?? 0,
+                  order.shippingTax ?? 0,
+                  order.retryCount ?? 0,
+                  order.errorMessage ?? null,
+                  order.updatedAt,
+                  order.deviceId,
+                  order.subClientCodice ?? null,
+                  order.subClientName ?? null,
+                  order.subClientData
+                    ? JSON.stringify(order.subClientData)
+                    : null,
+                  order.id,
+                );
 
-            results.push({ id: order.id, action: "updated" });
+              return writeChangeLog(
+                userId,
+                order.id,
+                "UPDATE",
+                orderPayload,
+                order.deviceId,
+                idempotencyKey,
+              );
+            })();
+
+            results.push({
+              id: order.id,
+              action: "updated",
+              syncId,
+              serverUpdatedAt: order.updatedAt,
+            });
             logger.debug("Pending order updated", {
               orderId: order.id,
               userId,
+              syncId,
             });
 
-            // WebSocket broadcast: PENDING_UPDATED (Phase 32)
-            pendingRealtimeService.emitPendingUpdated(userId, {
-              id: order.id,
+            pendingRealtimeService.emitPendingUpdated(
               userId,
-              customerId: order.customerId,
-              customerName: order.customerName,
-              items: order.items,
-              status: order.status,
-              discountPercent: order.discountPercent,
-              targetTotalWithVAT: order.targetTotalWithVAT,
-              shippingCost: order.shippingCost || 0,
-              shippingTax: order.shippingTax || 0,
-              retryCount: order.retryCount || 0,
-              errorMessage: order.errorMessage,
-              createdAt: order.createdAt,
-              updatedAt: order.updatedAt,
-              deviceId: order.deviceId,
-              subClientCodice: order.subClientCodice || null,
-              subClientName: order.subClientName || null,
-              subClientData: order.subClientData || null,
-            });
+              orderPayload,
+              syncId,
+              idempotencyKey,
+            );
           } else {
-            // Insert new order
-            ordersDb
-              .prepare(
-                `
-              INSERT INTO pending_orders (
-                id, user_id, customer_id, customer_name, items_json, status,
-                discount_percent, target_total_with_vat, shipping_cost, shipping_tax,
-                retry_count, error_message, created_at, updated_at, device_id,
-                sub_client_codice, sub_client_name, sub_client_data_json
-              ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            `,
-              )
-              .run(
-                order.id,
-                userId,
-                order.customerId,
-                order.customerName,
-                JSON.stringify(order.items),
-                order.status,
-                order.discountPercent || null,
-                order.targetTotalWithVAT || null,
-                order.shippingCost || 0,
-                order.shippingTax || 0,
-                order.retryCount || 0,
-                order.errorMessage || null,
-                order.createdAt,
-                order.updatedAt,
-                order.deviceId,
-                order.subClientCodice || null,
-                order.subClientName || null,
-                order.subClientData
-                  ? JSON.stringify(order.subClientData)
-                  : null,
-              );
+            // Wrap mutation + change log in a transaction for atomicity
+            const syncId = ordersDb.transaction(() => {
+              ordersDb
+                .prepare(
+                  `
+                INSERT INTO pending_orders (
+                  id, user_id, customer_id, customer_name, items_json, status,
+                  discount_percent, target_total_with_vat, shipping_cost, shipping_tax,
+                  retry_count, error_message, created_at, updated_at, device_id,
+                  sub_client_codice, sub_client_name, sub_client_data_json
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+              `,
+                )
+                .run(
+                  order.id,
+                  userId,
+                  order.customerId,
+                  order.customerName,
+                  JSON.stringify(order.items),
+                  order.status,
+                  order.discountPercent ?? null,
+                  order.targetTotalWithVAT ?? null,
+                  order.shippingCost ?? 0,
+                  order.shippingTax ?? 0,
+                  order.retryCount ?? 0,
+                  order.errorMessage ?? null,
+                  order.createdAt,
+                  order.updatedAt,
+                  order.deviceId,
+                  order.subClientCodice ?? null,
+                  order.subClientName ?? null,
+                  order.subClientData
+                    ? JSON.stringify(order.subClientData)
+                    : null,
+                );
 
-            results.push({ id: order.id, action: "created" });
+              return writeChangeLog(
+                userId,
+                order.id,
+                "INSERT",
+                orderPayload,
+                order.deviceId,
+                idempotencyKey,
+              );
+            })();
+
+            results.push({
+              id: order.id,
+              action: "created",
+              syncId,
+              serverUpdatedAt: order.updatedAt,
+            });
             logger.info("Pending order created", {
               orderId: order.id,
               userId,
+              syncId,
             });
 
-            // WebSocket broadcast: PENDING_CREATED (Phase 32)
-            pendingRealtimeService.emitPendingCreated(userId, {
-              id: order.id,
+            pendingRealtimeService.emitPendingCreated(
               userId,
-              customerId: order.customerId,
-              customerName: order.customerName,
-              items: order.items,
-              status: order.status,
-              discountPercent: order.discountPercent,
-              targetTotalWithVAT: order.targetTotalWithVAT,
-              shippingCost: order.shippingCost || 0,
-              shippingTax: order.shippingTax || 0,
-              retryCount: order.retryCount || 0,
-              errorMessage: order.errorMessage,
-              createdAt: order.createdAt,
-              updatedAt: order.updatedAt,
-              deviceId: order.deviceId,
-              subClientCodice: order.subClientCodice || null,
-              subClientName: order.subClientName || null,
-              subClientData: order.subClientData || null,
-            });
+              orderPayload,
+              syncId,
+              idempotencyKey,
+            );
           }
         } catch (orderError) {
           logger.error("Error syncing pending order", {
@@ -293,35 +368,145 @@ router.delete(
     try {
       const userId = req.user!.userId;
       const { id } = req.params;
-      const { deviceId } = req.query;
+      const { deviceId, idempotencyKey } = req.query;
 
-      const result = ordersDb
-        .prepare(
-          `
-        DELETE FROM pending_orders WHERE id = ? AND user_id = ?
-      `,
-        )
-        .run(id, userId);
+      // Wrap mutation + change log in a transaction for atomicity
+      const txResult = ordersDb.transaction(() => {
+        const result = ordersDb
+          .prepare(
+            `
+          DELETE FROM pending_orders WHERE id = ? AND user_id = ?
+        `,
+          )
+          .run(id, userId);
 
-      if (result.changes === 0) {
+        if (result.changes === 0) {
+          return { deleted: false, syncId: 0 };
+        }
+
+        const syncId = writeChangeLog(
+          userId,
+          id,
+          "DELETE",
+          null,
+          (deviceId as string) ?? null,
+          (idempotencyKey as string) ?? null,
+        );
+
+        return { deleted: true, syncId };
+      })();
+
+      if (!txResult.deleted) {
         return res.status(404).json({
           success: false,
           error: "Ordine non trovato",
         });
       }
 
-      logger.info("Pending order deleted", { orderId: id, userId });
+      const syncId = txResult.syncId;
 
-      // WebSocket broadcast: PENDING_DELETED (Phase 32)
+      logger.info("Pending order deleted", { orderId: id, userId, syncId });
+
       pendingRealtimeService.emitPendingDeleted(
         userId,
         id,
         (deviceId as string) || "unknown",
+        syncId,
+        (idempotencyKey as string) || undefined,
       );
 
-      res.json({ success: true });
+      res.json({ success: true, syncId });
     } catch (error) {
       logger.error("Error deleting pending order", { error });
+      res.status(500).json({ success: false, error: "Errore server" });
+    }
+  },
+);
+
+// ========== DELTA SYNC ENDPOINT ==========
+
+/**
+ * GET /api/sync/pending-orders/delta?lastSyncId=N
+ *
+ * Returns change log entries after the given syncId for catch-up on reconnection.
+ * If lastSyncId is too old (not in log), returns { resync: true } to trigger full pull.
+ */
+router.get(
+  "/pending-orders/delta",
+  authenticateJWT,
+  async (req: AuthRequest, res: Response) => {
+    try {
+      const userId = req.user!.userId;
+      const lastSyncIdParam = req.query.lastSyncId;
+
+      if (lastSyncIdParam === undefined || lastSyncIdParam === null) {
+        return res.json({ resync: true });
+      }
+
+      const lastSyncId = parseInt(lastSyncIdParam as string, 10);
+      if (isNaN(lastSyncId)) {
+        return res.status(400).json({
+          success: false,
+          error: "lastSyncId deve essere un numero",
+        });
+      }
+
+      // Check if lastSyncId is still in the log (not purged)
+      if (lastSyncId > 0) {
+        const exists = ordersDb
+          .prepare(
+            "SELECT 1 FROM pending_change_log WHERE sync_id = ? AND user_id = ?",
+          )
+          .get(lastSyncId, userId);
+
+        if (!exists) {
+          // lastSyncId was purged — client needs full resync
+          return res.json({ resync: true });
+        }
+      }
+
+      const DELTA_LIMIT = 500;
+      const actions = ordersDb
+        .prepare(
+          `SELECT sync_id, entity_id, action, data, device_id, idempotency_key, created_at
+           FROM pending_change_log
+           WHERE user_id = ? AND sync_id > ?
+           ORDER BY sync_id ASC
+           LIMIT ?`,
+        )
+        .all(userId, lastSyncId, DELTA_LIMIT + 1) as Array<{
+        sync_id: number;
+        entity_id: string;
+        action: string;
+        data: string | null;
+        device_id: string | null;
+        idempotency_key: string | null;
+        created_at: number;
+      }>;
+
+      const hasMore = actions.length > DELTA_LIMIT;
+      const limitedActions = hasMore ? actions.slice(0, DELTA_LIMIT) : actions;
+      const newLastSyncId =
+        limitedActions.length > 0
+          ? limitedActions[limitedActions.length - 1].sync_id
+          : lastSyncId;
+
+      res.json({
+        success: true,
+        actions: limitedActions.map((a) => ({
+          syncId: a.sync_id,
+          entityId: a.entity_id,
+          action: a.action,
+          data: a.data ? JSON.parse(a.data) : null,
+          deviceId: a.device_id,
+          idempotencyKey: a.idempotency_key,
+          createdAt: a.created_at,
+        })),
+        lastSyncId: newLastSyncId,
+        hasMore,
+      });
+    } catch (error) {
+      logger.error("Error fetching delta sync", { error });
       res.status(500).json({ success: false, error: "Errore server" });
     }
   },

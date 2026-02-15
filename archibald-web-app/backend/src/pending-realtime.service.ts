@@ -45,6 +45,8 @@ export interface PendingCreatedPayload {
   pendingOrder: PendingOrderPayload;
   timestamp: string;
   deviceId: string;
+  syncId?: number;
+  idempotencyKey?: string;
 }
 
 export interface PendingUpdatedPayload {
@@ -52,6 +54,8 @@ export interface PendingUpdatedPayload {
   pendingOrder: PendingOrderPayload;
   timestamp: string;
   deviceId: string;
+  syncId?: number;
+  idempotencyKey?: string;
 }
 
 export interface PendingDeletedPayload {
@@ -59,6 +63,8 @@ export interface PendingDeletedPayload {
   deleted: true;
   timestamp: string;
   deviceId: string;
+  syncId?: number;
+  idempotencyKey?: string;
 }
 
 export interface PendingSubmittedPayload {
@@ -132,6 +138,8 @@ export class PendingRealtimeService {
   public emitPendingCreated(
     userId: string,
     pendingOrder: PendingCreatedPayload["pendingOrder"],
+    syncId?: number,
+    idempotencyKey?: string | null,
   ): void {
     try {
       const payload: PendingCreatedPayload = {
@@ -139,6 +147,8 @@ export class PendingRealtimeService {
         pendingOrder,
         timestamp: new Date().toISOString(),
         deviceId: pendingOrder.deviceId,
+        syncId,
+        idempotencyKey: idempotencyKey || undefined,
       };
 
       const event: WebSocketMessage = {
@@ -153,6 +163,7 @@ export class PendingRealtimeService {
         userId,
         pendingOrderId: pendingOrder.id,
         deviceId: pendingOrder.deviceId,
+        syncId,
       });
     } catch (error) {
       logger.error("[PendingRealtime] Failed to emit PENDING_CREATED", {
@@ -169,6 +180,8 @@ export class PendingRealtimeService {
   public emitPendingUpdated(
     userId: string,
     pendingOrder: PendingUpdatedPayload["pendingOrder"],
+    syncId?: number,
+    idempotencyKey?: string | null,
   ): void {
     try {
       const payload: PendingUpdatedPayload = {
@@ -176,6 +189,8 @@ export class PendingRealtimeService {
         pendingOrder,
         timestamp: new Date().toISOString(),
         deviceId: pendingOrder.deviceId,
+        syncId,
+        idempotencyKey: idempotencyKey || undefined,
       };
 
       const event: WebSocketMessage = {
@@ -190,6 +205,7 @@ export class PendingRealtimeService {
         userId,
         pendingOrderId: pendingOrder.id,
         deviceId: pendingOrder.deviceId,
+        syncId,
       });
     } catch (error) {
       logger.error("[PendingRealtime] Failed to emit PENDING_UPDATED", {
@@ -207,6 +223,8 @@ export class PendingRealtimeService {
     userId: string,
     pendingOrderId: string,
     deviceId: string,
+    syncId?: number,
+    idempotencyKey?: string,
   ): void {
     try {
       const payload: PendingDeletedPayload = {
@@ -214,6 +232,8 @@ export class PendingRealtimeService {
         deleted: true,
         timestamp: new Date().toISOString(),
         deviceId,
+        syncId,
+        idempotencyKey,
       };
 
       const event: WebSocketMessage = {
@@ -228,6 +248,7 @@ export class PendingRealtimeService {
         userId,
         pendingOrderId,
         deviceId,
+        syncId,
       });
     } catch (error) {
       logger.error("[PendingRealtime] Failed to emit PENDING_DELETED", {

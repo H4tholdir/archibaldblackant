@@ -17,7 +17,10 @@ type BufferedEvent = {
 
 const EVENT_BUFFER_MAX_SIZE = 200;
 const EVENT_BUFFER_MAX_AGE_MS = 5 * 60 * 1000; // 5 minutes
-const TRANSIENT_EVENT_TYPES = new Set(["JOB_PROGRESS", "CUSTOMER_UPDATE_PROGRESS"]);
+const TRANSIENT_EVENT_TYPES = new Set([
+  "JOB_PROGRESS",
+  "CUSTOMER_UPDATE_PROGRESS",
+]);
 
 export class WebSocketServerService {
   private static instance: WebSocketServerService;
@@ -68,7 +71,10 @@ export class WebSocketServerService {
 
           // Replay buffered events if client provides lastEventTs
           if (request.url) {
-            const connUrl = new URL(request.url, `http://${request.headers.host}`);
+            const connUrl = new URL(
+              request.url,
+              `http://${request.headers.host}`,
+            );
             const lastEventTs = connUrl.searchParams.get("lastEventTs");
             if (lastEventTs) {
               this.replayEvents(userId, ws, lastEventTs);
@@ -85,9 +91,15 @@ export class WebSocketServerService {
             this.unregisterConnection(userId, ws);
           });
 
-          // Track messages received
-          ws.on("message", () => {
+          // Handle client messages (heartbeat + tracking)
+          ws.on("message", (data: Buffer | string) => {
             this.metrics.messagesReceived++;
+            const msg = typeof data === "string" ? data : data.toString();
+            if (msg === "ping") {
+              if (ws.readyState === ws.OPEN) {
+                ws.send("pong");
+              }
+            }
           });
 
           // Ping/pong heartbeat with latency tracking
@@ -238,7 +250,11 @@ export class WebSocketServerService {
   /**
    * Replay buffered events to a client that reconnected with lastEventTs
    */
-  private replayEvents(userId: string, ws: WebSocket, lastEventTs: string): void {
+  private replayEvents(
+    userId: string,
+    ws: WebSocket,
+    lastEventTs: string,
+  ): void {
     const buffer = this.eventBuffer.get(userId);
     if (!buffer || buffer.length === 0) return;
 
