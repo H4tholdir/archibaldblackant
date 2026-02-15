@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { formatCurrency } from "../../utils/format-currency";
+import { useKeyboardScroll } from "../../hooks/useKeyboardScroll";
 
 interface DiscountSystemProps {
   orderSubtotal: number;
@@ -25,6 +26,7 @@ export function DiscountSystem({
   onChange,
   onReverseCalculate,
 }: DiscountSystemProps) {
+  const { scrollFieldIntoView } = useKeyboardScroll();
   const [targetTotal, setTargetTotal] = useState<number>(0);
 
   const handleTargetTotalChange = (value: number) => {
@@ -74,6 +76,7 @@ export function DiscountSystem({
                   parseFloat(e.target.value.replace(",", ".")) || 0,
               })
             }
+            onFocus={(e) => scrollFieldIntoView(e.target as HTMLElement)}
             placeholder="0-100"
             style={{
               width: "100%",
@@ -106,6 +109,7 @@ export function DiscountSystem({
                   parseFloat(e.target.value.replace(",", ".")) || 0,
                 )
               }
+              onFocus={(e) => scrollFieldIntoView(e.target as HTMLElement)}
               placeholder="0,00"
               style={{
                 width: "100%",

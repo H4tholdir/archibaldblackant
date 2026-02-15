@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useKeyboardScroll } from "../hooks/useKeyboardScroll";
 
 interface LoginModalProps {
   onLogin: (
@@ -15,6 +16,8 @@ export function LoginModal({ onLogin, error, isLoading }: LoginModalProps) {
   const [password, setPassword] = useState("");
   const [rememberCredentials, setRememberCredentials] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const { scrollFieldIntoView, modalOverlayKeyboardStyle } =
+    useKeyboardScroll();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -22,7 +25,7 @@ export function LoginModal({ onLogin, error, isLoading }: LoginModalProps) {
   };
 
   return (
-    <div className="login-modal-overlay">
+    <div className="login-modal-overlay" style={modalOverlayKeyboardStyle}>
       <div className="login-modal">
         <img src="/logo.png" alt="Formicanera" className="login-modal-logo" />
         <h1>🐜 Formicanera</h1>
@@ -38,6 +41,7 @@ export function LoginModal({ onLogin, error, isLoading }: LoginModalProps) {
               type="text"
               value={username}
               onChange={(e) => setUsername(e.target.value)}
+              onFocus={(e) => scrollFieldIntoView(e.target as HTMLElement)}
               required
               autoFocus
               disabled={isLoading}
@@ -52,6 +56,7 @@ export function LoginModal({ onLogin, error, isLoading }: LoginModalProps) {
                 type={showPassword ? "text" : "password"}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
+                onFocus={(e) => scrollFieldIntoView(e.target as HTMLElement)}
                 required
                 disabled={isLoading}
               />

@@ -17,6 +17,7 @@ import {
 } from "./WarehouseMatchAccordion";
 import { releaseWarehouseReservations } from "../services/warehouse-order-integration";
 import { calculateShippingCosts, roundUp } from "../utils/order-calculations";
+import { useKeyboardScroll } from "../hooks/useKeyboardScroll";
 import type { SubClient } from "../db/schema";
 import { SubClientSelector } from "./new-order-form/SubClientSelector";
 import { isFresis, FRESIS_DEFAULT_DISCOUNT } from "../utils/fresis-constants";
@@ -62,6 +63,9 @@ export default function OrderFormSimple() {
     window.addEventListener("resize", handleResize);
     return () => window.removeEventListener("resize", handleResize);
   }, []);
+
+  const { keyboardHeight, scrollFieldIntoView, keyboardPaddingStyle } =
+    useKeyboardScroll();
 
   useEffect(() => {
     customerService.syncCustomers().catch((err) => {
@@ -161,45 +165,6 @@ export default function OrderFormSimple() {
     }
   }, []);
 
-  const scrollFieldIntoView = useCallback((element: HTMLElement | null) => {
-    if (!element) return;
-    const doScroll = () => {
-      const vv = window.visualViewport;
-      if (vv && vv.height < window.innerHeight * 0.85) {
-        const rect = element.getBoundingClientRect();
-        const visibleTop = vv.offsetTop;
-        const visibleHeight = vv.height;
-        const targetY = visibleTop + visibleHeight * 0.3;
-        const scrollBy = rect.top - targetY;
-        window.scrollBy({ top: scrollBy, behavior: "smooth" });
-      } else {
-        element.scrollIntoView({ behavior: "smooth", block: "center" });
-      }
-    };
-    setTimeout(doScroll, 150);
-    setTimeout(doScroll, 400);
-  }, []);
-
-  useEffect(() => {
-    const vv = window.visualViewport;
-    if (!vv) return;
-    const handleResize = () => {
-      const active = document.activeElement as HTMLElement | null;
-      if (
-        active &&
-        (active.tagName === "INPUT" || active.tagName === "TEXTAREA")
-      ) {
-        const rect = active.getBoundingClientRect();
-        const visibleTop = vv.offsetTop;
-        const visibleHeight = vv.height;
-        const targetY = visibleTop + visibleHeight * 0.3;
-        const scrollBy = rect.top - targetY;
-        window.scrollBy({ top: scrollBy, behavior: "smooth" });
-      }
-    };
-    vv.addEventListener("resize", handleResize);
-    return () => vv.removeEventListener("resize", handleResize);
-  }, []);
 
   // UI state
   const [submitting, setSubmitting] = useState(false);
@@ -381,6 +346,25 @@ export default function OrderFormSimple() {
   const quantityInputRef = useRef<HTMLInputElement>(null);
   const discountInputRef = useRef<HTMLInputElement>(null);
   const productDropdownItemsRef = useRef<(HTMLDivElement | null)[]>([]);
+
+  // Re-scroll when dropdown results appear while keyboard is open
+  const hadCustomerResults = useRef(false);
+  useEffect(() => {
+    const hasResults = customerResults.length > 0;
+    if (hasResults && !hadCustomerResults.current && keyboardHeight > 0) {
+      scrollFieldIntoView(customerSearchInputRef.current);
+    }
+    hadCustomerResults.current = hasResults;
+  }, [customerResults.length, keyboardHeight, scrollFieldIntoView]);
+
+  const hadProductResults = useRef(false);
+  useEffect(() => {
+    const hasResults = productResults.length > 0;
+    if (hasResults && !hadProductResults.current && keyboardHeight > 0) {
+      scrollFieldIntoView(productSearchInputRef.current);
+    }
+    hadProductResults.current = hasResults;
+  }, [productResults.length, keyboardHeight, scrollFieldIntoView]);
 
   // === LOAD ORDER FOR EDITING ===
   // Check if we're editing an existing order
@@ -1751,6 +1735,7 @@ export default function OrderFormSimple() {
         maxWidth: isMobile ? "100%" : "1000px",
         margin: "0 auto",
         padding: isMobile ? "1rem" : "2rem",
+        ...keyboardPaddingStyle,
         fontFamily: "system-ui",
       }}
     >

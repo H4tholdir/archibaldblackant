@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { customerService } from "../../services/customers.service";
+import { useKeyboardScroll } from "../../hooks/useKeyboardScroll";
 import type { Customer } from "../../db/schema";
 
 interface CustomerSelectorProps {
@@ -15,6 +16,7 @@ export function CustomerSelector({
   disabled = false,
   searchFn = customerService.searchCustomers.bind(customerService),
 }: CustomerSelectorProps) {
+  const { scrollFieldIntoView } = useKeyboardScroll();
   const [searchQuery, setSearchQuery] = useState("");
   const [results, setResults] = useState<Customer[]>([]);
   const [loading, setLoading] = useState(false);
@@ -162,6 +164,7 @@ export function CustomerSelector({
           value={searchQuery}
           onChange={handleInputChange}
           onKeyDown={handleKeyDown}
+          onFocus={(e) => scrollFieldIntoView(e.target as HTMLElement)}
           placeholder={placeholder}
           disabled={disabled}
           autoComplete="new-password"

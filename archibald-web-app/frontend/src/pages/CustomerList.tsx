@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import { CustomerCard } from "../components/CustomerCard";
 import { CustomerCreateModal } from "../components/CustomerCreateModal";
 import { customerService } from "../services/customers.service";
+import { useKeyboardScroll } from "../hooks/useKeyboardScroll";
 import type { Customer } from "../types/customer";
 
 interface CustomerFilters {
@@ -19,6 +20,7 @@ interface CustomerListResponse {
 }
 
 export function CustomerList() {
+  const { scrollFieldIntoView, keyboardPaddingStyle } = useKeyboardScroll();
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -198,6 +200,7 @@ export function CustomerList() {
         padding: "24px",
         backgroundColor: "#f5f5f5",
         minHeight: "100vh",
+        ...keyboardPaddingStyle,
       }}
     >
       {/* Header */}
@@ -268,6 +271,7 @@ export function CustomerList() {
               }}
               onFocus={(e) => {
                 e.currentTarget.style.borderColor = "#1976d2";
+                scrollFieldIntoView(e.target as HTMLElement);
               }}
               onBlur={(e) => {
                 e.currentTarget.style.borderColor = "#ddd";

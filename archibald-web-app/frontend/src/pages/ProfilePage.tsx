@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { formatCurrencyWithCurrency } from "../utils/format-currency";
+import { useKeyboardScroll } from "../hooks/useKeyboardScroll";
 
 interface TargetData {
   yearlyTarget: number;
@@ -21,6 +22,7 @@ interface Toast {
 }
 
 export function ProfilePage() {
+  const { scrollFieldIntoView, keyboardPaddingStyle } = useKeyboardScroll();
   // User info (from localStorage or auth context)
   const fullName = localStorage.getItem("archibald_fullName") || "Utente";
   const username = localStorage.getItem("archibald_username") || "";
@@ -276,7 +278,7 @@ export function ProfilePage() {
   }
 
   return (
-    <div style={styles.container}>
+    <div style={{ ...styles.container, ...keyboardPaddingStyle }}>
       {/* Toast notification */}
       {toast && (
         <div
@@ -357,6 +359,7 @@ export function ProfilePage() {
               type="number"
               value={editYearlyTarget}
               onChange={(e) => setEditYearlyTarget(e.target.value)}
+              onFocus={(e) => scrollFieldIntoView(e.target as HTMLElement)}
               style={styles.input}
               step="100"
             />
@@ -377,6 +380,7 @@ export function ProfilePage() {
             <select
               value={editCurrency}
               onChange={(e) => setEditCurrency(e.target.value)}
+              onFocus={(e) => scrollFieldIntoView(e.target as HTMLElement)}
               style={styles.input}
             >
               <option value="EUR">EUR (€)</option>
@@ -392,6 +396,7 @@ export function ProfilePage() {
               type="number"
               value={editCommissionRate}
               onChange={(e) => setEditCommissionRate(e.target.value)}
+              onFocus={(e) => scrollFieldIntoView(e.target as HTMLElement)}
               style={styles.input}
               step="0.5"
               min="0"
@@ -430,6 +435,7 @@ export function ProfilePage() {
                 type="number"
                 value={editBonusAmount}
                 onChange={(e) => setEditBonusAmount(e.target.value)}
+                onFocus={(e) => scrollFieldIntoView(e.target as HTMLElement)}
                 style={styles.input}
                 step="100"
               />
@@ -440,6 +446,7 @@ export function ProfilePage() {
                 type="number"
                 value={editBonusInterval}
                 onChange={(e) => setEditBonusInterval(e.target.value)}
+                onFocus={(e) => scrollFieldIntoView(e.target as HTMLElement)}
                 style={styles.input}
                 step="1000"
               />
@@ -460,6 +467,7 @@ export function ProfilePage() {
                 type="number"
                 value={editExtraBudgetReward}
                 onChange={(e) => setEditExtraBudgetReward(e.target.value)}
+                onFocus={(e) => scrollFieldIntoView(e.target as HTMLElement)}
                 style={styles.input}
                 step="100"
               />
@@ -470,6 +478,7 @@ export function ProfilePage() {
                 type="number"
                 value={editExtraBudgetInterval}
                 onChange={(e) => setEditExtraBudgetInterval(e.target.value)}
+                onFocus={(e) => scrollFieldIntoView(e.target as HTMLElement)}
                 style={styles.input}
                 step="1000"
               />
@@ -483,6 +492,7 @@ export function ProfilePage() {
               type="number"
               value={editMonthlyAdvance}
               onChange={(e) => setEditMonthlyAdvance(e.target.value)}
+              onFocus={(e) => scrollFieldIntoView(e.target as HTMLElement)}
               style={styles.input}
               step="100"
             />
@@ -512,6 +522,7 @@ export function ProfilePage() {
                 type="checkbox"
                 checked={editHideCommissions}
                 onChange={(e) => setEditHideCommissions(e.target.checked)}
+                onFocus={(e) => scrollFieldIntoView(e.target as HTMLElement)}
                 style={{ width: "20px", height: "20px", cursor: "pointer" }}
               />
               Nascondi dati provvigionali dai widget della dashboard

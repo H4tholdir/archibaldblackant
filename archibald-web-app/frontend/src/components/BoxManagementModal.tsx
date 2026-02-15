@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useKeyboardScroll } from "../hooks/useKeyboardScroll";
 import {
   getWarehouseBoxes,
   createWarehouseBox,
@@ -25,6 +26,11 @@ export function BoxManagementModal({
   const [editingBox, setEditingBox] = useState<string | null>(null);
   const [newBoxName, setNewBoxName] = useState("");
   const [editName, setEditName] = useState("");
+  const {
+    scrollFieldIntoView,
+    modalOverlayKeyboardStyle,
+    keyboardPaddingStyle,
+  } = useKeyboardScroll();
 
   useEffect(() => {
     if (isOpen && activeTab === "list") {
@@ -164,6 +170,7 @@ export function BoxManagementModal({
         justifyContent: "center",
         zIndex: 1000,
         padding: "16px",
+        ...modalOverlayKeyboardStyle,
       }}
       onClick={handleBackdropClick}
     >
@@ -253,6 +260,7 @@ export function BoxManagementModal({
             flex: 1,
             overflowY: "auto",
             padding: "24px",
+            ...keyboardPaddingStyle,
           }}
         >
           {activeTab === "list" && (
@@ -337,6 +345,11 @@ export function BoxManagementModal({
                                 value={editName}
                                 onChange={(e) => setEditName(e.target.value)}
                                 onBlur={() => handleRename(box.name)}
+                                onFocus={(e) =>
+                                  scrollFieldIntoView(
+                                    e.target as HTMLElement,
+                                  )
+                                }
                                 onKeyDown={(e) => {
                                   if (e.key === "Enter") handleRename(box.name);
                                   if (e.key === "Escape") setEditingBox(null);
@@ -453,6 +466,7 @@ export function BoxManagementModal({
                   type="text"
                   value={newBoxName}
                   onChange={(e) => setNewBoxName(e.target.value)}
+                  onFocus={(e) => scrollFieldIntoView(e.target as HTMLElement)}
                   placeholder="es: SCATOLO 1"
                   disabled={loading}
                   style={{

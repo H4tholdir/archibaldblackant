@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useKeyboardScroll } from "../hooks/useKeyboardScroll";
 import {
   addWarehouseItemManually,
   validateWarehouseItemCode,
@@ -26,6 +27,11 @@ export function AddItemManuallyModal({
   const [description, setDescription] = useState("");
   const [loading, setLoading] = useState(false);
   const [availableBoxes, setAvailableBoxes] = useState<string[]>([]);
+  const {
+    scrollFieldIntoView,
+    modalOverlayKeyboardStyle,
+    keyboardPaddingStyle,
+  } = useKeyboardScroll();
   const [validationState, setValidationState] = useState<{
     status: "idle" | "valid" | "warning" | "invalid";
     confidence: number;
@@ -277,6 +283,7 @@ export function AddItemManuallyModal({
         justifyContent: "center",
         zIndex: 1000,
         padding: "16px",
+        ...modalOverlayKeyboardStyle,
       }}
       onClick={handleBackdropClick}
     >
@@ -312,7 +319,7 @@ export function AddItemManuallyModal({
 
         {/* Body */}
         <form onSubmit={handleSubmit}>
-          <div style={{ padding: "24px" }}>
+          <div style={{ padding: "24px", ...keyboardPaddingStyle }}>
             {/* Article Code */}
             <div style={{ marginBottom: "20px" }}>
               <label
@@ -330,6 +337,7 @@ export function AddItemManuallyModal({
                 type="text"
                 value={articleCode}
                 onChange={(e) => setArticleCode(e.target.value)}
+                onFocus={(e) => scrollFieldIntoView(e.target as HTMLElement)}
                 placeholder="es: H129FSQ.104.023"
                 disabled={loading}
                 style={{
@@ -425,6 +433,7 @@ export function AddItemManuallyModal({
                 type="text"
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
+                onFocus={(e) => scrollFieldIntoView(e.target as HTMLElement)}
                 placeholder={
                   validationState.confidence >= 0.7
                     ? "Auto-compilato da database"
@@ -464,6 +473,7 @@ export function AddItemManuallyModal({
                 min="1"
                 value={quantity}
                 onChange={(e) => setQuantity(parseInt(e.target.value) || 1)}
+                onFocus={(e) => scrollFieldIntoView(e.target as HTMLElement)}
                 disabled={loading}
                 style={{
                   width: "100%",
@@ -492,6 +502,7 @@ export function AddItemManuallyModal({
               <select
                 value={selectedBox}
                 onChange={(e) => setSelectedBox(e.target.value)}
+                onFocus={(e) => scrollFieldIntoView(e.target as HTMLElement)}
                 disabled={loading}
                 style={{
                   width: "100%",

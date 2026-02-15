@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { productService } from "../../services/products.service";
+import { useKeyboardScroll } from "../../hooks/useKeyboardScroll";
 import type { Product } from "../../db/schema";
 
 interface ProductSelectorProps {
@@ -15,6 +16,7 @@ export function ProductSelector({
   disabled = false,
   searchFn = productService.searchProducts.bind(productService),
 }: ProductSelectorProps) {
+  const { scrollFieldIntoView } = useKeyboardScroll();
   const [searchQuery, setSearchQuery] = useState("");
   const [results, setResults] = useState<Product[]>([]);
   const [loading, setLoading] = useState(false);
@@ -160,6 +162,7 @@ export function ProductSelector({
           value={searchQuery}
           onChange={handleInputChange}
           onKeyDown={handleKeyDown}
+          onFocus={(e) => scrollFieldIntoView(e.target as HTMLElement)}
           placeholder={placeholder}
           disabled={disabled}
           autoComplete="new-password"

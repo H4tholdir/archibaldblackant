@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from "react";
+import { useKeyboardScroll } from "../hooks/useKeyboardScroll";
 import { customerService } from "../services/customers.service";
 import type { Customer } from "../types/customer";
 import { PAYMENT_TERMS } from "../data/payment-terms";
@@ -192,6 +193,11 @@ export function CustomerCreateModal({
   const [botError, setBotError] = useState<string | null>(null);
 
   const { subscribe } = useWebSocketContext();
+  const {
+    scrollFieldIntoView,
+    modalOverlayKeyboardStyle,
+    keyboardPaddingStyle,
+  } = useKeyboardScroll();
 
   const totalFieldsBefore = FIELDS_BEFORE_ADDRESS_QUESTION.length;
   const totalDeliveryFields = DELIVERY_ADDRESS_FIELDS.length;
@@ -733,6 +739,7 @@ export function CustomerCreateModal({
         justifyContent: "center",
         zIndex: 10000,
         backdropFilter: "blur(4px)",
+        ...modalOverlayKeyboardStyle,
       }}
     >
       <div
@@ -745,6 +752,7 @@ export function CustomerCreateModal({
           maxHeight: "90vh",
           overflowY: "auto",
           boxShadow: "0 20px 60px rgba(0, 0, 0, 0.3)",
+          ...keyboardPaddingStyle,
         }}
       >
         {/* Header */}
@@ -802,6 +810,7 @@ export function CustomerCreateModal({
                 handleFieldChange(currentField.key, e.target.value)
               }
               onKeyDown={handleKeyDown}
+              onFocus={(e) => scrollFieldIntoView(e.target as HTMLElement)}
               maxLength={currentField.maxLength}
               placeholder={
                 currentField.defaultValue
@@ -911,6 +920,7 @@ export function CustomerCreateModal({
                 setPaymentTermsHighlight(0);
               }}
               onKeyDown={handleKeyDown}
+              onFocus={(e) => scrollFieldIntoView(e.target as HTMLElement)}
               placeholder="Cerca per codice o descrizione..."
               style={{
                 width: "100%",

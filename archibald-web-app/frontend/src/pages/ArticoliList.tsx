@@ -4,12 +4,14 @@ import { ProductDetailModal } from "../components/ProductDetailModal";
 import { getProducts, type Product } from "../api/products";
 import { PriceVariationsModal } from "../components/PriceVariationsModal";
 import { ProductVariationsModal } from "../components/ProductVariationsModal";
+import { useKeyboardScroll } from "../hooks/useKeyboardScroll";
 
 interface ProductFilters {
   search: string;
 }
 
 export function ArticoliList() {
+  const { scrollFieldIntoView, keyboardPaddingStyle } = useKeyboardScroll();
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -133,6 +135,7 @@ export function ArticoliList() {
         padding: "24px",
         backgroundColor: "#f5f5f5",
         minHeight: "100vh",
+        ...keyboardPaddingStyle,
       }}
     >
       {/* Header */}
@@ -219,6 +222,7 @@ export function ArticoliList() {
               }}
               onFocus={(e) => {
                 e.currentTarget.style.borderColor = "#1976d2";
+                scrollFieldIntoView(e.target as HTMLElement);
               }}
               onBlur={(e) => {
                 e.currentTarget.style.borderColor = "#ddd";

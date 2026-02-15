@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { subClientService } from "../../services/subclient.service";
+import { useKeyboardScroll } from "../../hooks/useKeyboardScroll";
 import type { SubClient } from "../../db/schema";
 
 interface SubClientSelectorProps {
@@ -19,6 +20,7 @@ export function SubClientSelector({
   externalInputRef,
   onAfterSelect,
 }: SubClientSelectorProps) {
+  const { scrollFieldIntoView } = useKeyboardScroll();
   const [searchQuery, setSearchQuery] = useState("");
   const [results, setResults] = useState<SubClient[]>([]);
   const [loading, setLoading] = useState(false);
@@ -211,6 +213,7 @@ export function SubClientSelector({
           value={searchQuery}
           onChange={handleInputChange}
           onKeyDown={handleKeyDown}
+          onFocus={(e) => scrollFieldIntoView(e.target as HTMLElement)}
           placeholder="Cerca sotto-cliente per codice o nome..."
           disabled={disabled}
           autoComplete="off"

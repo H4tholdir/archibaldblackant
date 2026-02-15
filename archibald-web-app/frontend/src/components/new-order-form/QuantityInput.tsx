@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { productService } from '../../services/products.service';
+import { useKeyboardScroll } from '../../hooks/useKeyboardScroll';
 import type { PackagingResult } from '../../services/products.service';
 
 interface QuantityInputProps {
@@ -15,6 +16,7 @@ export function QuantityInput({
   onChange,
   disabled = false,
 }: QuantityInputProps) {
+  const { scrollFieldIntoView } = useKeyboardScroll();
   const [inputValue, setInputValue] = useState(value.toString());
   const [packaging, setPackaging] = useState<PackagingResult | null>(null);
   const [isCalculating, setIsCalculating] = useState(false);
@@ -99,6 +101,7 @@ export function QuantityInput({
           type="number"
           value={inputValue}
           onChange={handleChange}
+          onFocus={(e) => scrollFieldIntoView(e.target as HTMLElement)}
           disabled={disabled || isCalculating}
           min={1}
           aria-label="Quantità"

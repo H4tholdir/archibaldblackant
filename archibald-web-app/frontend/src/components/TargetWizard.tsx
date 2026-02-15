@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { formatCurrency } from "../utils/format-currency";
+import { useKeyboardScroll } from "../hooks/useKeyboardScroll";
 
 interface TargetWizardProps {
   isOpen: boolean;
@@ -31,6 +32,11 @@ export function TargetWizard({ isOpen, onComplete }: TargetWizardProps) {
   const [hideCommissions, setHideCommissions] = useState<boolean>(false);
 
   const [error, setError] = useState<string>("");
+  const {
+    scrollFieldIntoView,
+    modalOverlayKeyboardStyle,
+    keyboardPaddingStyle,
+  } = useKeyboardScroll();
 
   if (!isOpen) return null;
 
@@ -142,6 +148,7 @@ export function TargetWizard({ isOpen, onComplete }: TargetWizardProps) {
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
+        ...modalOverlayKeyboardStyle,
       }}
     >
       <div
@@ -154,6 +161,7 @@ export function TargetWizard({ isOpen, onComplete }: TargetWizardProps) {
           maxHeight: "90vh",
           overflowY: "auto",
           boxShadow: "0 10px 40px rgba(0,0,0,0.2)",
+          ...keyboardPaddingStyle,
         }}
       >
         {/* Step Indicator */}
@@ -292,9 +300,10 @@ export function TargetWizard({ isOpen, onComplete }: TargetWizardProps) {
                   transition: "border 0.2s",
                   boxSizing: "border-box",
                 }}
-                onFocus={(e) =>
-                  !error && (e.currentTarget.style.border = "2px solid #3498db")
-                }
+                onFocus={(e) => {
+                  !error && (e.currentTarget.style.border = "2px solid #3498db");
+                  scrollFieldIntoView(e.target as HTMLElement);
+                }}
                 onBlur={(e) =>
                   !error && (e.currentTarget.style.border = "2px solid #e0e0e0")
                 }
@@ -433,9 +442,10 @@ export function TargetWizard({ isOpen, onComplete }: TargetWizardProps) {
                   transition: "border 0.2s",
                   boxSizing: "border-box",
                 }}
-                onFocus={(e) =>
-                  !error && (e.currentTarget.style.border = "2px solid #3498db")
-                }
+                onFocus={(e) => {
+                  !error && (e.currentTarget.style.border = "2px solid #3498db");
+                  scrollFieldIntoView(e.target as HTMLElement);
+                }}
                 onBlur={(e) =>
                   !error && (e.currentTarget.style.border = "2px solid #e0e0e0")
                 }
@@ -575,9 +585,10 @@ export function TargetWizard({ isOpen, onComplete }: TargetWizardProps) {
                   transition: "border 0.2s",
                   boxSizing: "border-box",
                 }}
-                onFocus={(e) =>
-                  !error && (e.currentTarget.style.border = "2px solid #3498db")
-                }
+                onFocus={(e) => {
+                  !error && (e.currentTarget.style.border = "2px solid #3498db");
+                  scrollFieldIntoView(e.target as HTMLElement);
+                }}
                 onBlur={(e) =>
                   !error && (e.currentTarget.style.border = "2px solid #e0e0e0")
                 }
@@ -616,9 +627,10 @@ export function TargetWizard({ isOpen, onComplete }: TargetWizardProps) {
                   transition: "border 0.2s",
                   boxSizing: "border-box",
                 }}
-                onFocus={(e) =>
-                  !error && (e.currentTarget.style.border = "2px solid #3498db")
-                }
+                onFocus={(e) => {
+                  !error && (e.currentTarget.style.border = "2px solid #3498db");
+                  scrollFieldIntoView(e.target as HTMLElement);
+                }}
                 onBlur={(e) =>
                   !error && (e.currentTarget.style.border = "2px solid #e0e0e0")
                 }
@@ -755,9 +767,10 @@ export function TargetWizard({ isOpen, onComplete }: TargetWizardProps) {
                   transition: "border 0.2s",
                   boxSizing: "border-box",
                 }}
-                onFocus={(e) =>
-                  !error && (e.currentTarget.style.border = "2px solid #3498db")
-                }
+                onFocus={(e) => {
+                  !error && (e.currentTarget.style.border = "2px solid #3498db");
+                  scrollFieldIntoView(e.target as HTMLElement);
+                }}
                 onBlur={(e) =>
                   !error && (e.currentTarget.style.border = "2px solid #e0e0e0")
                 }
@@ -796,9 +809,10 @@ export function TargetWizard({ isOpen, onComplete }: TargetWizardProps) {
                   transition: "border 0.2s",
                   boxSizing: "border-box",
                 }}
-                onFocus={(e) =>
-                  !error && (e.currentTarget.style.border = "2px solid #3498db")
-                }
+                onFocus={(e) => {
+                  !error && (e.currentTarget.style.border = "2px solid #3498db");
+                  scrollFieldIntoView(e.target as HTMLElement);
+                }}
                 onBlur={(e) =>
                   !error && (e.currentTarget.style.border = "2px solid #e0e0e0")
                 }
@@ -944,9 +958,10 @@ export function TargetWizard({ isOpen, onComplete }: TargetWizardProps) {
                   transition: "border 0.2s",
                   boxSizing: "border-box",
                 }}
-                onFocus={(e) =>
-                  !error && (e.currentTarget.style.border = "2px solid #3498db")
-                }
+                onFocus={(e) => {
+                  !error && (e.currentTarget.style.border = "2px solid #3498db");
+                  scrollFieldIntoView(e.target as HTMLElement);
+                }}
                 onBlur={(e) =>
                   !error && (e.currentTarget.style.border = "2px solid #e0e0e0")
                 }

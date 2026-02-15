@@ -1,4 +1,5 @@
 import { useRef, KeyboardEvent } from "react";
+import { useKeyboardScroll } from "../hooks/useKeyboardScroll";
 
 interface PinInputProps {
   length?: number;
@@ -13,6 +14,7 @@ export function PinInput({
   onChange,
   autoFocus = false,
 }: PinInputProps) {
+  const { scrollFieldIntoView } = useKeyboardScroll();
   const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
 
   const handleChange = (index: number, digit: string) => {
@@ -60,6 +62,7 @@ export function PinInput({
           value={value[index] || ""}
           onChange={(e) => handleChange(index, e.target.value)}
           onKeyDown={(e) => handleKeyDown(index, e)}
+          onFocus={(e) => scrollFieldIntoView(e.target as HTMLElement)}
           autoFocus={autoFocus && index === 0}
           className="pin-digit"
         />

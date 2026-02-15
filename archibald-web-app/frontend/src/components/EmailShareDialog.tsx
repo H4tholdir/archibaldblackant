@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useKeyboardScroll } from "../hooks/useKeyboardScroll";
 
 type EmailShareDialogProps = {
   isOpen: boolean;
@@ -17,6 +18,11 @@ export function EmailShareDialog({
   customerName,
   isLoading,
 }: EmailShareDialogProps) {
+  const {
+    scrollFieldIntoView,
+    modalOverlayKeyboardStyle,
+    keyboardPaddingStyle,
+  } = useKeyboardScroll();
   const [to, setTo] = useState(defaultEmail);
   const [subject, setSubject] = useState(`Preventivo - ${customerName}`);
   const [body, setBody] = useState(
@@ -48,6 +54,7 @@ export function EmailShareDialog({
         alignItems: "center",
         justifyContent: "center",
         zIndex: 9999,
+        ...modalOverlayKeyboardStyle,
       }}
       onClick={onClose}
     >
@@ -59,6 +66,7 @@ export function EmailShareDialog({
           width: "90vw",
           maxWidth: "500px",
           boxShadow: "0 4px 20px rgba(0, 0, 0, 0.15)",
+          ...keyboardPaddingStyle,
         }}
         onClick={(e) => e.stopPropagation()}
       >
@@ -90,6 +98,7 @@ export function EmailShareDialog({
               type="email"
               value={to}
               onChange={(e) => setTo(e.target.value)}
+              onFocus={(e) => scrollFieldIntoView(e.target as HTMLElement)}
               placeholder="email@esempio.com"
               style={{
                 width: "100%",
@@ -118,6 +127,7 @@ export function EmailShareDialog({
               type="text"
               value={subject}
               onChange={(e) => setSubject(e.target.value)}
+              onFocus={(e) => scrollFieldIntoView(e.target as HTMLElement)}
               style={{
                 width: "100%",
                 padding: "10px 12px",
@@ -144,6 +154,7 @@ export function EmailShareDialog({
             <textarea
               value={body}
               onChange={(e) => setBody(e.target.value)}
+              onFocus={(e) => scrollFieldIntoView(e.target as HTMLElement)}
               rows={5}
               style={{
                 width: "100%",
