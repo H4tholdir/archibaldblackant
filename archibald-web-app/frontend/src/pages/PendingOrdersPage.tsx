@@ -331,6 +331,11 @@ export function PendingOrdersPage() {
         mergedOrder.id,
       );
 
+      // Re-assign existing history entries from old merged orders to new merged order
+      for (const order of selectedFresisOrders) {
+        await fresisHistoryService.reassignMergedOrderId(order.id!, mergedOrder.id);
+      }
+
       // Add merged order locally
       await db.pendingOrders.add(mergedOrder);
 

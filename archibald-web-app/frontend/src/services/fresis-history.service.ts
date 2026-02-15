@@ -183,6 +183,33 @@ class FresisHistoryService {
     return { success: true, message: data.message };
   }
 
+  async reassignMergedOrderId(
+    oldMergedId: string,
+    newMergedId: string,
+  ): Promise<number> {
+    const entries = await db.fresisHistory
+      .filter((r) => r.mergedIntoOrderId === oldMergedId)
+      .toArray();
+
+    if (entries.length === 0) return 0;
+
+    const now = new Date().toISOString();
+    for (const entry of entries) {
+      await db.fresisHistory.update(entry.id, {
+        mergedIntoOrderId: newMergedId,
+        updatedAt: now,
+      });
+    }
+
+    const updated = await db.fresisHistory.bulkGet(entries.map((e) => e.id));
+    const toUpload = updated.filter(Boolean) as FresisHistoryOrder[];
+    if (toUpload.length > 0) {
+      await this.uploadToServer(toUpload);
+    }
+
+    return entries.length;
+  }
+
   async getHistoryOrderById(
     id: string,
   ): Promise<FresisHistoryOrder | undefined> {
