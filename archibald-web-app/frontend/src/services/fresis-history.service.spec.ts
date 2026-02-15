@@ -1,7 +1,12 @@
 import { describe, test, expect, beforeEach, afterEach, vi } from "vitest";
 import { db } from "../db/schema";
-import type { FresisHistoryOrder, PendingOrderItem, SubClient } from "../db/schema";
+import type {
+  FresisHistoryOrder,
+  PendingOrderItem,
+  SubClient,
+} from "../db/schema";
 import { fresisHistoryService } from "./fresis-history.service";
+import { FRESIS_CUSTOMER_PROFILE } from "../utils/fresis-constants";
 
 const mockSubClient: SubClient = {
   codice: "SC001",
@@ -27,7 +32,7 @@ function createHistoryOrder(
     subClientCodice: "SC001",
     subClientName: "Test SRL",
     subClientData: mockSubClient,
-    customerId: "57.213",
+    customerId: FRESIS_CUSTOMER_PROFILE,
     customerName: "Fresis",
     items: mockItems,
     createdAt: "2025-06-01T10:00:00Z",
