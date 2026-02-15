@@ -8,6 +8,7 @@ import {
   computeOrderTotals,
   extractUniqueSubClients,
   groupFresisOrdersByPeriod,
+  normalizeSubClientCode,
 } from "./fresisHistoryFilters";
 
 function createFresisOrder(
@@ -155,6 +156,16 @@ describe("filterBySubClient", () => {
   test("returns empty for non-matching codice", () => {
     expect(filterBySubClient(orders, "SC999")).toEqual([]);
   });
+
+  test("matches orders with different code formats via normalization", () => {
+    const mixedOrders = [
+      createFresisOrder({ id: "a", subClientCodice: "194" }),
+      createFresisOrder({ id: "b", subClientCodice: "C00194" }),
+      createFresisOrder({ id: "c", subClientCodice: "SC002" }),
+    ];
+    const result = filterBySubClient(mixedOrders, "C00194");
+    expect(result.map((o) => o.id)).toEqual(["a", "b"]);
+  });
 });
 
 describe("matchesFresisGlobalSearch", () => {
@@ -279,6 +290,36 @@ describe("computeOrderTotals", () => {
   });
 });
 
+describe("normalizeSubClientCode", () => {
+  test("pads numeric code with C prefix and leading zeros", () => {
+    expect(normalizeSubClientCode("194")).toBe("C00194");
+  });
+
+  test("normalizes code already in Cxxxxx format", () => {
+    expect(normalizeSubClientCode("C00194")).toBe("C00194");
+  });
+
+  test("normalizes lowercase c prefix", () => {
+    expect(normalizeSubClientCode("c194")).toBe("C00194");
+  });
+
+  test("handles code with C prefix but short number", () => {
+    expect(normalizeSubClientCode("C5")).toBe("C00005");
+  });
+
+  test("returns non-numeric codes uppercased as-is", () => {
+    expect(normalizeSubClientCode("SC001")).toBe("SC001");
+  });
+
+  test("returns empty string for empty input", () => {
+    expect(normalizeSubClientCode("")).toBe("");
+  });
+
+  test("trims whitespace", () => {
+    expect(normalizeSubClientCode("  194  ")).toBe("C00194");
+  });
+});
+
 describe("extractUniqueSubClients", () => {
   test("extracts unique sub-clients sorted by name", () => {
     const orders = [
@@ -303,6 +344,16 @@ describe("extractUniqueSubClients", () => {
     ];
     expect(extractUniqueSubClients(orders)).toEqual([
       { codice: "X", name: "First" },
+    ]);
+  });
+
+  test("merges sub-clients with different code formats into normalized Cxxxxx", () => {
+    const orders = [
+      createFresisOrder({ subClientCodice: "194", subClientName: "Dr.MARCHESE EDOARDO" }),
+      createFresisOrder({ subClientCodice: "C00194", subClientName: "Dr.MARCHESE EDOARDO" }),
+    ];
+    expect(extractUniqueSubClients(orders)).toEqual([
+      { codice: "C00194", name: "Dr.MARCHESE EDOARDO" },
     ]);
   });
 });

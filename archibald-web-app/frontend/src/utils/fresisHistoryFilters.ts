@@ -25,6 +25,16 @@ export type UniqueSubClient = {
   name: string;
 };
 
+export function normalizeSubClientCode(code: string): string {
+  const trimmed = code.trim().toUpperCase();
+  if (!trimmed) return trimmed;
+  const numericPart = trimmed.startsWith("C") ? trimmed.slice(1) : trimmed;
+  if (/^\d+$/.test(numericPart)) {
+    return `C${numericPart.padStart(5, "0")}`;
+  }
+  return trimmed;
+}
+
 export type OrderTotals = {
   totalItems: number;
   totalGross: number;
@@ -98,7 +108,10 @@ export function filterBySubClient(
   codice: string,
 ): FresisHistoryOrder[] {
   if (!codice) return orders;
-  return orders.filter((o) => o.subClientCodice === codice);
+  const normalized = normalizeSubClientCode(codice);
+  return orders.filter(
+    (o) => normalizeSubClientCode(o.subClientCodice) === normalized,
+  );
 }
 
 export function matchesFresisGlobalSearch(
@@ -168,8 +181,10 @@ export function extractUniqueSubClients(
 ): UniqueSubClient[] {
   const map = new Map<string, string>();
   for (const order of orders) {
-    if (order.subClientCodice && !map.has(order.subClientCodice)) {
-      map.set(order.subClientCodice, order.subClientName);
+    if (!order.subClientCodice) continue;
+    const normalized = normalizeSubClientCode(order.subClientCodice);
+    if (!map.has(normalized)) {
+      map.set(normalized, order.subClientName);
     }
   }
   return Array.from(map.entries())

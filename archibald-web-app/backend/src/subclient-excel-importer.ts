@@ -45,6 +45,16 @@ function trimValue(value: unknown): string {
   return String(value).trim();
 }
 
+function normalizeSubClientCode(code: string): string {
+  const trimmed = code.trim().toUpperCase();
+  if (!trimmed) return trimmed;
+  const numericPart = trimmed.startsWith("C") ? trimmed.slice(1) : trimmed;
+  if (/^\d+$/.test(numericPart)) {
+    return `C${numericPart.padStart(5, "0")}`;
+  }
+  return trimmed;
+}
+
 export function importSubClientsFromExcel(
   filePath: string,
   subClientDb: SubClientDatabase,
@@ -116,7 +126,7 @@ export function importSubClientsFromExcel(
       if (!client.codice) continue;
 
       clients.push({
-        codice: client.codice,
+        codice: normalizeSubClientCode(client.codice),
         ragioneSociale: client.ragioneSociale || "",
         supplRagioneSociale: client.supplRagioneSociale || undefined,
         indirizzo: client.indirizzo || undefined,

@@ -131,6 +131,16 @@ function parseCascadeDiscount(sconti: string): number {
   return Math.round((1 - factor) * 10000) / 100;
 }
 
+function normalizeSubClientCode(code: string): string {
+  const trimmed = code.trim().toUpperCase();
+  if (!trimmed) return trimmed;
+  const numericPart = trimmed.startsWith("C") ? trimmed.slice(1) : trimmed;
+  if (/^\d+$/.test(numericPart)) {
+    return `C${numericPart.padStart(5, "0")}`;
+  }
+  return trimmed;
+}
+
 function formatDate(d: unknown): string | null {
   if (!d) return null;
   if (d instanceof Date) {
@@ -172,7 +182,7 @@ export async function parseArcaExport(
     const clientMap = new Map<string, ArcaClientData>();
 
     for (const row of cfRows) {
-      const codice = trimStr((row as any).CODICE);
+      const codice = normalizeSubClientCode(trimStr((row as any).CODICE));
       if (!codice) continue;
 
       clientMap.set(codice, {
@@ -249,7 +259,7 @@ export async function parseArcaExport(
       }
 
       const dtId = (row as any).ID as number;
-      const codicecf = trimStr((row as any).CODICECF);
+      const codicecf = normalizeSubClientCode(trimStr((row as any).CODICECF));
       const numerodoc = trimStr((row as any).NUMERODOC);
       const datadoc = (row as any).DATADOC;
       const totdoc = ((row as any).TOTDOC as number) || 0;
