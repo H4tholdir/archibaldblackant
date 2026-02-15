@@ -5109,6 +5109,30 @@ export class ArchibaldBot {
               logger.info(
                 `Article ${i + 1} was already saved, skipping to next`,
               );
+
+              // Create new editing row for the next article since
+              // step 5.8 (click_new_for_next) was not completed before the timeout
+              if (i < itemsToOrder.length - 1) {
+                await this.gridGotoLastPage();
+                if (this.salesLinesGridName) {
+                  await this.gridAddNewRow();
+                } else {
+                  const addResult = await this.clickDevExpressGridCommand({
+                    command: "AddNew",
+                    baseIdHint: "SALESLINEs",
+                    timeout: 7000,
+                    label: `skip-addnew-${i}`,
+                  });
+                  if (!addResult.clicked) {
+                    throw new Error("AddNew failed after skip");
+                  }
+                }
+                await this.waitForDevExpressIdle({
+                  timeout: 6000,
+                  label: `post-skip-addnew-idle-${i}`,
+                });
+              }
+
               break; // Exit retry loop — for loop will advance to i+1
             }
 
