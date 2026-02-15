@@ -4449,6 +4449,26 @@ app.get(
   },
 );
 
+app.delete(
+  "/api/subclients/:codice",
+  authenticateJWT,
+  async (req: Request, res: Response) => {
+    try {
+      const subClientDb = SubClientDatabase.getInstance();
+      const deleted = subClientDb.deleteSubClient(req.params.codice);
+      if (!deleted) {
+        return res
+          .status(404)
+          .json({ success: false, error: "SubClient not found" });
+      }
+      res.json({ success: true });
+    } catch (error: any) {
+      logger.error("Subclient delete error:", error);
+      res.status(500).json({ success: false, error: error.message });
+    }
+  },
+);
+
 // ============================================================================
 // PRICE MANAGEMENT ENDPOINTS
 // ============================================================================
@@ -7196,6 +7216,18 @@ server.listen(config.server.port, async () => {
     );
   } catch (error) {
     logger.warn("⚠️  Migration 030 failed or already applied", { error });
+  }
+
+  try {
+    const {
+      runMigration031,
+    } = require("./migrations/031-add-pending-change-log");
+    runMigration031();
+    logger.info(
+      "✅ Migration 031 completed (pending change log for delta sync)",
+    );
+  } catch (error) {
+    logger.warn("⚠️  Migration 031 failed or already applied", { error });
   }
 
   // ========== AUTO-LOAD ENCRYPTED PASSWORDS (LAZY-LOAD) ==========

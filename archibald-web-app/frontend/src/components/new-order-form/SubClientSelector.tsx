@@ -27,6 +27,12 @@ export function SubClientSelector({
   const [showDropdown, setShowDropdown] = useState(false);
   const [highlightedIndex, setHighlightedIndex] = useState(-1);
 
+  const [swipeX, setSwipeX] = useState<Record<string, number>>({});
+  const touchStartX = useRef(0);
+  const swipingCodice = useRef<string | null>(null);
+  const [confirmDeleteSubClient, setConfirmDeleteSubClient] =
+    useState<SubClient | null>(null);
+
   const inputRef = useRef<HTMLInputElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const debounceTimerRef = useRef<number | null>(null);
@@ -137,6 +143,42 @@ export function SubClientSelector({
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setSearchQuery(e.target.value);
+  };
+
+  const handleTouchStart = (codice: string, e: React.TouchEvent) => {
+    touchStartX.current = e.touches[0].clientX;
+    swipingCodice.current = codice;
+  };
+
+  const handleTouchMove = (codice: string, e: React.TouchEvent) => {
+    if (swipingCodice.current !== codice) return;
+    const diff = touchStartX.current - e.touches[0].clientX;
+    const clamped = Math.max(0, Math.min(diff, 120));
+    setSwipeX((prev) => ({ ...prev, [codice]: clamped }));
+  };
+
+  const handleTouchEnd = (sc: SubClient) => {
+    const codice = sc.codice;
+    if (swipingCodice.current !== codice) return;
+    const currentX = swipeX[codice] ?? 0;
+    if (currentX >= 80) {
+      setConfirmDeleteSubClient(sc);
+    }
+    setSwipeX((prev) => ({ ...prev, [codice]: 0 }));
+    swipingCodice.current = null;
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!confirmDeleteSubClient) return;
+    const codice = confirmDeleteSubClient.codice;
+    try {
+      await subClientService.deleteSubClient(codice);
+      setResults((prev) => prev.filter((sc) => sc.codice !== codice));
+    } catch (err) {
+      console.error("[SubClientSelector] Delete failed:", err);
+    } finally {
+      setConfirmDeleteSubClient(null);
+    }
   };
 
   if (selectedSubClient) {
@@ -253,33 +295,179 @@ export function SubClientSelector({
             zIndex: 1000,
           }}
         >
-          {results.map((sc, index) => (
-            <div
-              key={sc.codice}
-              role="option"
-              aria-selected={index === highlightedIndex}
-              onClick={(e) => {
-                e.stopPropagation();
-                e.preventDefault();
-                handleSelect(sc);
-              }}
-              style={{
-                padding: "0.75rem",
-                cursor: "pointer",
-                backgroundColor:
-                  index === highlightedIndex ? "#fef3c7" : "white",
-                borderBottom:
-                  index < results.length - 1 ? "1px solid #e5e7eb" : "none",
-              }}
-              onMouseEnter={() => setHighlightedIndex(index)}
-            >
-              <div style={{ fontWeight: "500" }}>{sc.ragioneSociale}</div>
-              <div style={{ fontSize: "0.75rem", color: "#6b7280" }}>
-                Cod: {sc.codice}
-                {sc.supplRagioneSociale && ` - ${sc.supplRagioneSociale}`}
+          {results.map((sc, index) => {
+            const currentSwipeX = swipeX[sc.codice] ?? 0;
+            return (
+              <div
+                key={sc.codice}
+                style={{
+                  position: "relative",
+                  overflow: "hidden",
+                  borderBottom:
+                    index < results.length - 1
+                      ? "1px solid #e5e7eb"
+                      : "none",
+                }}
+              >
+                {currentSwipeX >= 80 && (
+                  <div
+                    style={{
+                      position: "absolute",
+                      top: 0,
+                      right: 0,
+                      bottom: 0,
+                      width: "120px",
+                      backgroundColor: "#f44336",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      color: "#fff",
+                      fontWeight: 700,
+                      fontSize: "14px",
+                      zIndex: 1,
+                    }}
+                  >
+                    Elimina
+                  </div>
+                )}
+                <div
+                  role="option"
+                  aria-selected={index === highlightedIndex}
+                  onTouchStart={(e) => handleTouchStart(sc.codice, e)}
+                  onTouchMove={(e) => handleTouchMove(sc.codice, e)}
+                  onTouchEnd={() => handleTouchEnd(sc)}
+                  onClick={(e) => {
+                    if (currentSwipeX > 0) return;
+                    e.stopPropagation();
+                    e.preventDefault();
+                    handleSelect(sc);
+                  }}
+                  style={{
+                    padding: "0.75rem",
+                    cursor: "pointer",
+                    backgroundColor:
+                      index === highlightedIndex ? "#fde68a" : "white",
+                    position: "relative",
+                    zIndex: 2,
+                    transition:
+                      currentSwipeX === 0 ? "transform 0.3s ease" : "none",
+                    transform: `translateX(-${currentSwipeX}px)`,
+                  }}
+                  onMouseEnter={() => setHighlightedIndex(index)}
+                >
+                  <div style={{ fontWeight: "500" }}>{sc.ragioneSociale}</div>
+                  <div style={{ fontSize: "0.75rem", color: "#6b7280" }}>
+                    Cod: {sc.codice}
+                    {sc.supplRagioneSociale &&
+                      ` - ${sc.supplRagioneSociale}`}
+                  </div>
+                </div>
               </div>
+            );
+          })}
+        </div>
+      )}
+
+      {confirmDeleteSubClient && (
+        <div
+          onClick={() => setConfirmDeleteSubClient(null)}
+          style={{
+            position: "fixed",
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: "rgba(0, 0, 0, 0.5)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 2000,
+          }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              backgroundColor: "white",
+              borderRadius: "12px",
+              padding: "1.5rem",
+              maxWidth: "360px",
+              width: "90%",
+              boxShadow: "0 8px 24px rgba(0, 0, 0, 0.2)",
+            }}
+          >
+            <h3
+              style={{
+                margin: "0 0 1rem 0",
+                fontSize: "1.125rem",
+                color: "#92400e",
+              }}
+            >
+              Eliminare sotto-cliente?
+            </h3>
+            <p style={{ margin: "0 0 0.5rem 0", fontWeight: 500 }}>
+              {confirmDeleteSubClient.ragioneSociale}
+            </p>
+            <p
+              style={{
+                margin: "0 0 0.25rem 0",
+                fontSize: "0.875rem",
+                color: "#6b7280",
+              }}
+            >
+              Codice: {confirmDeleteSubClient.codice}
+            </p>
+            {confirmDeleteSubClient.supplRagioneSociale && (
+              <p
+                style={{
+                  margin: "0 0 1rem 0",
+                  fontSize: "0.875rem",
+                  color: "#6b7280",
+                }}
+              >
+                {confirmDeleteSubClient.supplRagioneSociale}
+              </p>
+            )}
+            <div
+              style={{
+                display: "flex",
+                gap: "0.75rem",
+                marginTop: "1.25rem",
+              }}
+            >
+              <button
+                onClick={() => setConfirmDeleteSubClient(null)}
+                style={{
+                  flex: 1,
+                  padding: "0.625rem",
+                  fontSize: "1rem",
+                  fontWeight: 600,
+                  backgroundColor: "white",
+                  color: "#374151",
+                  border: "1px solid #d1d5db",
+                  borderRadius: "8px",
+                  cursor: "pointer",
+                }}
+              >
+                Annulla
+              </button>
+              <button
+                onClick={handleConfirmDelete}
+                style={{
+                  flex: 1,
+                  padding: "0.625rem",
+                  fontSize: "1rem",
+                  fontWeight: 600,
+                  backgroundColor: "#f44336",
+                  color: "white",
+                  border: "none",
+                  borderRadius: "8px",
+                  cursor: "pointer",
+                }}
+              >
+                Elimina
+              </button>
             </div>
-          ))}
+          </div>
         </div>
       )}
     </div>

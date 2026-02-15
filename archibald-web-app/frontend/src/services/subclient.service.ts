@@ -60,6 +60,22 @@ class SubClientService {
       .toArray();
   }
 
+  async deleteSubClient(codice: string): Promise<void> {
+    const jwt = localStorage.getItem("archibald_jwt");
+    if (!jwt) throw new Error("Not authenticated");
+
+    const response = await fetch(`/api/subclients/${encodeURIComponent(codice)}`, {
+      method: "DELETE",
+      headers: { Authorization: `Bearer ${jwt}` },
+    });
+
+    if (!response.ok) {
+      throw new Error(`Failed to delete subclient: ${response.statusText}`);
+    }
+
+    await db.subClients.delete(codice);
+  }
+
   async getSubClientByCodice(codice: string): Promise<SubClient | undefined> {
     return db.subClients.get(codice);
   }
