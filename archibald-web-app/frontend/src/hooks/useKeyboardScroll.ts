@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, type CSSProperties } from "react";
+import { useSyncExternalStore, useCallback, type CSSProperties } from "react";
 
 function getScrollParent(element: HTMLElement): HTMLElement | null {
   let parent = element.parentElement;
@@ -15,7 +15,10 @@ function getScrollParent(element: HTMLElement): HTMLElement | null {
   return null;
 }
 
-function scrollElementIntoVisible(element: HTMLElement) {
+function scrollElementIntoVisible(
+  element: HTMLElement,
+  behavior: ScrollBehavior,
+) {
   const vv = window.visualViewport;
   if (!vv) return;
 
@@ -27,54 +30,91 @@ function scrollElementIntoVisible(element: HTMLElement) {
   const delta = rect.top - targetY;
 
   if (scrollParent) {
-    scrollParent.scrollBy({ top: delta, behavior: "smooth" });
+    scrollParent.scrollBy({ top: delta, behavior });
   } else {
-    window.scrollBy({ top: delta, behavior: "smooth" });
+    window.scrollBy({ top: delta, behavior });
   }
 }
 
-export function useKeyboardScroll() {
-  const [keyboardHeight, setKeyboardHeight] = useState(0);
+// --- Singleton keyboard monitor ---
 
-  useEffect(() => {
-    const vv = window.visualViewport;
-    if (!vv) return;
-    const handleResize = () => {
-      const kbHeight = window.innerHeight - vv.height;
-      setKeyboardHeight(kbHeight > 50 ? kbHeight : 0);
+let currentKeyboardHeight = 0;
+let previousVvHeight = 0;
+const listeners = new Set<() => void>();
+let debounceTimer: number | undefined;
+let initialized = false;
 
-      const active = document.activeElement as HTMLElement | null;
-      if (
-        active &&
-        (active.tagName === "INPUT" ||
-          active.tagName === "TEXTAREA" ||
-          active.tagName === "SELECT")
-      ) {
-        scrollElementIntoVisible(active);
+function notifyListeners() {
+  listeners.forEach((l) => l());
+}
+
+function initMonitor() {
+  if (initialized) return;
+  initialized = true;
+  const vv = window.visualViewport;
+  if (!vv) return;
+  previousVvHeight = vv.height;
+
+  vv.addEventListener("resize", () => {
+    clearTimeout(debounceTimer);
+    debounceTimer = window.setTimeout(() => {
+      const newHeight = window.innerHeight - vv.height;
+      const wasOpening = vv.height < previousVvHeight;
+      previousVvHeight = vv.height;
+      currentKeyboardHeight = newHeight > 50 ? newHeight : 0;
+      notifyListeners();
+
+      if (wasOpening && currentKeyboardHeight > 0) {
+        const active = document.activeElement as HTMLElement | null;
+        if (active && /^(INPUT|TEXTAREA|SELECT)$/.test(active.tagName)) {
+          scrollElementIntoVisible(active, "instant");
+        }
       }
-    };
-    vv.addEventListener("resize", handleResize);
-    return () => vv.removeEventListener("resize", handleResize);
-  }, []);
+    }, 120);
+  });
+}
+
+function subscribe(listener: () => void) {
+  initMonitor();
+  listeners.add(listener);
+  return () => {
+    listeners.delete(listener);
+  };
+}
+
+function getSnapshot() {
+  return currentKeyboardHeight;
+}
+
+function getServerSnapshot() {
+  return 0;
+}
+
+// --- Hook ---
+
+export function useKeyboardScroll() {
+  const keyboardHeight = useSyncExternalStore(
+    subscribe,
+    getSnapshot,
+    getServerSnapshot,
+  );
+
+  const keyboardOpen = keyboardHeight > 0;
 
   const scrollFieldIntoView = useCallback(
     (element: HTMLElement | null) => {
       if (!element) return;
-      const doScroll = () => {
-        const vv = window.visualViewport;
-        if (vv && vv.height < window.innerHeight * 0.85) {
-          scrollElementIntoVisible(element);
-        } else {
-          element.scrollIntoView({ behavior: "smooth", block: "center" });
-        }
-      };
-      setTimeout(doScroll, 150);
-      setTimeout(doScroll, 400);
-    },
-    [],
-  );
 
-  const keyboardOpen = keyboardHeight > 0;
+      if (keyboardOpen) {
+        scrollElementIntoVisible(element, "smooth");
+      } else {
+        setTimeout(() => {
+          scrollElementIntoVisible(element, "instant");
+        }, 300);
+      }
+    },
+    [keyboardOpen],
+  );
 
   const keyboardPaddingStyle: CSSProperties = keyboardOpen
     ? { paddingBottom: `${keyboardHeight + 32}px` }
