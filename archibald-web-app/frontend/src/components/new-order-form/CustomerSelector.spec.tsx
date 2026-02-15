@@ -61,16 +61,14 @@ describe("CustomerSelector", () => {
   });
 
   test("renders input with placeholder", async () => {
-
-    render(<CustomerSelector onSelect={vi.fn()} />);
+    render(<CustomerSelector onSelect={vi.fn()} searchFn={vi.fn().mockResolvedValue([])} />);
     expect(
       screen.getByPlaceholderText("Cerca cliente per nome..."),
     ).toBeInTheDocument();
   });
 
   test("renders label", async () => {
-
-    render(<CustomerSelector onSelect={vi.fn()} />);
+    render(<CustomerSelector onSelect={vi.fn()} searchFn={vi.fn().mockResolvedValue([])} />);
     expect(screen.getByLabelText("Cerca cliente")).toBeInTheDocument();
   });
 
@@ -290,8 +288,7 @@ describe("CustomerSelector", () => {
   });
 
   test("disabled state prevents input", async () => {
-
-    render(<CustomerSelector onSelect={vi.fn()} disabled={true} />);
+    render(<CustomerSelector onSelect={vi.fn()} disabled={true} searchFn={vi.fn().mockResolvedValue([])} />);
 
     const input = screen.getByPlaceholderText("Cerca cliente per nome...");
     expect(input).toBeDisabled();

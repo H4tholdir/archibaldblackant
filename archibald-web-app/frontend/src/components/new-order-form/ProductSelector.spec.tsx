@@ -1,6 +1,6 @@
 // @ts-nocheck
-import { describe, test, expect, vi, beforeEach } from "vitest";
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { describe, test, expect, vi, beforeAll, beforeEach } from "vitest";
+import { render, screen, fireEvent, waitFor, cleanup } from "@testing-library/react";
 import type { Product } from "../../db/schema";
 
 vi.mock("../../db/schema", () => ({
@@ -50,19 +50,21 @@ const mockProducts: Product[] = [
   },
 ];
 
-async function importProductSelector() {
-  const mod = await import("./ProductSelector");
-  return mod.ProductSelector;
-}
+let ProductSelector: any;
 
 describe("ProductSelector", () => {
+  beforeAll(async () => {
+    const mod = await import("./ProductSelector");
+    ProductSelector = mod.ProductSelector;
+  });
+
   beforeEach(() => {
     vi.clearAllMocks();
+    cleanup();
   });
 
   test("renders input with placeholder", async () => {
-    const ProductSelector = await importProductSelector();
-    render(<ProductSelector onSelect={vi.fn()} />);
+    render(<ProductSelector onSelect={vi.fn()} searchFn={vi.fn().mockResolvedValue([])} />);
     expect(
       screen.getByPlaceholderText(
         "Cerca prodotto per nome o codice articolo...",
@@ -71,14 +73,13 @@ describe("ProductSelector", () => {
   });
 
   test("renders label", async () => {
-    const ProductSelector = await importProductSelector();
-    render(<ProductSelector onSelect={vi.fn()} />);
+    render(<ProductSelector onSelect={vi.fn()} searchFn={vi.fn().mockResolvedValue([])} />);
     expect(screen.getByLabelText("Cerca prodotto")).toBeInTheDocument();
   });
 
   test("typing triggers debounced search after 300ms", async () => {
     const mockSearch = vi.fn().mockResolvedValue([mockProducts[0]]);
-    const ProductSelector = await importProductSelector();
+
 
     render(<ProductSelector onSelect={vi.fn()} searchFn={mockSearch} />);
 
@@ -97,7 +98,7 @@ describe("ProductSelector", () => {
 
   test("search by product name works", async () => {
     const mockSearch = vi.fn().mockResolvedValue([mockProducts[0]]);
-    const ProductSelector = await importProductSelector();
+
 
     render(<ProductSelector onSelect={vi.fn()} searchFn={mockSearch} />);
 
@@ -114,7 +115,7 @@ describe("ProductSelector", () => {
 
   test("search by article code works", async () => {
     const mockSearch = vi.fn().mockResolvedValue([mockProducts[0]]);
-    const ProductSelector = await importProductSelector();
+
 
     render(<ProductSelector onSelect={vi.fn()} searchFn={mockSearch} />);
 
@@ -131,7 +132,7 @@ describe("ProductSelector", () => {
 
   test("displays article code and description in dropdown", async () => {
     const mockSearch = vi.fn().mockResolvedValue(mockProducts);
-    const ProductSelector = await importProductSelector();
+
 
     render(<ProductSelector onSelect={vi.fn()} searchFn={mockSearch} />);
 
@@ -151,7 +152,7 @@ describe("ProductSelector", () => {
   test("clicking result selects product and closes dropdown", async () => {
     const onSelect = vi.fn();
     const mockSearch = vi.fn().mockResolvedValue([mockProducts[0]]);
-    const ProductSelector = await importProductSelector();
+
 
     render(<ProductSelector onSelect={onSelect} searchFn={mockSearch} />);
 
@@ -179,7 +180,7 @@ describe("ProductSelector", () => {
       .mockImplementation(
         () => new Promise((resolve) => setTimeout(() => resolve([]), 200)),
       );
-    const ProductSelector = await importProductSelector();
+
 
     render(<ProductSelector onSelect={vi.fn()} searchFn={mockSearch} />);
 
@@ -198,7 +199,7 @@ describe("ProductSelector", () => {
 
   test("shows error message on search failure", async () => {
     const mockSearch = vi.fn().mockRejectedValue(new Error("Network error"));
-    const ProductSelector = await importProductSelector();
+
 
     render(<ProductSelector onSelect={vi.fn()} searchFn={mockSearch} />);
 
@@ -220,7 +221,7 @@ describe("ProductSelector", () => {
 
   test("displays selected product confirmation", async () => {
     const mockSearch = vi.fn().mockResolvedValue([mockProducts[0]]);
-    const ProductSelector = await importProductSelector();
+
 
     render(<ProductSelector onSelect={vi.fn()} searchFn={mockSearch} />);
 
@@ -244,7 +245,7 @@ describe("ProductSelector", () => {
 
   test("escape key closes dropdown", async () => {
     const mockSearch = vi.fn().mockResolvedValue(mockProducts);
-    const ProductSelector = await importProductSelector();
+
 
     render(<ProductSelector onSelect={vi.fn()} searchFn={mockSearch} />);
 
@@ -266,7 +267,7 @@ describe("ProductSelector", () => {
 
   test("arrow keys navigate dropdown items", async () => {
     const mockSearch = vi.fn().mockResolvedValue(mockProducts);
-    const ProductSelector = await importProductSelector();
+
 
     render(<ProductSelector onSelect={vi.fn()} searchFn={mockSearch} />);
 
@@ -291,7 +292,7 @@ describe("ProductSelector", () => {
   test("Enter key selects highlighted item", async () => {
     const onSelect = vi.fn();
     const mockSearch = vi.fn().mockResolvedValue(mockProducts);
-    const ProductSelector = await importProductSelector();
+
 
     render(<ProductSelector onSelect={onSelect} searchFn={mockSearch} />);
 
@@ -312,8 +313,7 @@ describe("ProductSelector", () => {
   });
 
   test("disabled state prevents input", async () => {
-    const ProductSelector = await importProductSelector();
-    render(<ProductSelector onSelect={vi.fn()} disabled={true} />);
+    render(<ProductSelector onSelect={vi.fn()} disabled={true} searchFn={vi.fn().mockResolvedValue([])} />);
 
     const input = screen.getByPlaceholderText(
       "Cerca prodotto per nome o codice articolo...",
