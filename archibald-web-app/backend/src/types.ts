@@ -120,6 +120,32 @@ export interface ProfilingData {
   }>;
 }
 
+export type VatAddressInfo = {
+  companyName: string;
+  street: string;
+  postalCode: string;
+  city: string;
+  vatStatus: string;
+  internalId: string;
+};
+
+export type VatLookupResult = {
+  lastVatCheck: string;
+  vatValidated: string;
+  vatAddress: string;
+  parsed: VatAddressInfo;
+};
+
+export type InteractiveSessionState =
+  | "starting"
+  | "ready"
+  | "processing_vat"
+  | "vat_complete"
+  | "saving"
+  | "completed"
+  | "failed"
+  | "cancelled";
+
 /**
  * WebSocket message structure for real-time draft/pending operations
  */

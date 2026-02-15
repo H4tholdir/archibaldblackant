@@ -63,7 +63,10 @@ export function formatProgressLabel(
   return formatted;
 }
 
-const DELETE_ORDER_MILESTONES: Record<string, { progress: number; label: string }> = {
+const DELETE_ORDER_MILESTONES: Record<
+  string,
+  { progress: number; label: string }
+> = {
   "delete.navigation": { progress: 15, label: "Navigazione lista ordini" },
   "delete.filter": { progress: 25, label: "Impostazione filtro" },
   "delete.search": { progress: 45, label: "Ricerca ordine" },
@@ -79,8 +82,14 @@ export function getDeleteProgressMilestone(
   return DELETE_ORDER_MILESTONES[category] ?? null;
 }
 
-const CUSTOMER_PROGRESS_MILESTONES: Record<string, { progress: number; label: string }> = {
-  "customer.navigation": { progress: 15, label: "Navigazione alla lista clienti" },
+const CUSTOMER_PROGRESS_MILESTONES: Record<
+  string,
+  { progress: number; label: string }
+> = {
+  "customer.navigation": {
+    progress: 15,
+    label: "Navigazione alla lista clienti",
+  },
   "customer.search": { progress: 30, label: "Ricerca cliente" },
   "customer.edit_loaded": { progress: 40, label: "Scheda modifica aperta" },
   "customer.field": { progress: 60, label: "Aggiornamento campi" },
@@ -95,7 +104,37 @@ export function getCustomerProgressMilestone(
   return CUSTOMER_PROGRESS_MILESTONES[category] ?? null;
 }
 
-const EDIT_ORDER_MILESTONES: Record<string, { progress: number; label: string }> = {
+const INTERACTIVE_CUSTOMER_MILESTONES: Record<
+  string,
+  { progress: number; label: string }
+> = {
+  "interactive.starting": { progress: 10, label: "Avvio sessione bot" },
+  "interactive.navigating": {
+    progress: 25,
+    label: "Navigazione al form cliente",
+  },
+  "interactive.ready": { progress: 40, label: "Form pronto" },
+  "interactive.processing_vat": {
+    progress: 55,
+    label: "Verifica P.IVA in corso",
+  },
+  "interactive.vat_complete": { progress: 65, label: "P.IVA verificata" },
+  "interactive.saving_fields": { progress: 75, label: "Compilazione campi" },
+  "interactive.saving": { progress: 85, label: "Salvataggio in corso" },
+  "interactive.syncing": { progress: 95, label: "Sincronizzazione dati" },
+  "interactive.complete": { progress: 100, label: "Completato" },
+};
+
+export function getInteractiveCustomerProgressMilestone(
+  category: string,
+): { progress: number; label: string } | null {
+  return INTERACTIVE_CUSTOMER_MILESTONES[category] ?? null;
+}
+
+const EDIT_ORDER_MILESTONES: Record<
+  string,
+  { progress: number; label: string }
+> = {
   "edit.navigation": { progress: 10, label: "Navigazione lista ordini" },
   "edit.filter": { progress: 15, label: "Impostazione filtro" },
   "edit.search": { progress: 25, label: "Ricerca ordine" },
@@ -129,8 +168,14 @@ export function getEditProgressMilestone(
   return { progress, label };
 }
 
-const SEND_TO_VERONA_MILESTONES: Record<string, { progress: number; label: string }> = {
-  "sendToVerona.navigation": { progress: 15, label: "Navigazione lista ordini" },
+const SEND_TO_VERONA_MILESTONES: Record<
+  string,
+  { progress: number; label: string }
+> = {
+  "sendToVerona.navigation": {
+    progress: 15,
+    label: "Navigazione lista ordini",
+  },
   "sendToVerona.filter": { progress: 25, label: "Impostazione filtro" },
   "sendToVerona.search": { progress: 45, label: "Ricerca ordine" },
   "sendToVerona.select": { progress: 60, label: "Selezione ordine" },

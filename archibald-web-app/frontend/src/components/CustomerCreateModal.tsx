@@ -9,6 +9,22 @@ import { useWebSocketContext } from "../contexts/WebSocketContext";
 
 type ProcessingState = "idle" | "processing" | "completed" | "failed";
 
+type VatAddressInfo = {
+  companyName: string;
+  street: string;
+  postalCode: string;
+  city: string;
+  vatStatus: string;
+  internalId: string;
+};
+
+type VatLookupResult = {
+  lastVatCheck: string;
+  vatValidated: string;
+  vatAddress: string;
+  parsed: VatAddressInfo;
+};
+
 interface CustomerFormData {
   name: string;
   deliveryMode: string;
@@ -138,6 +154,9 @@ function customerToFormData(customer: Customer): CustomerFormData {
 }
 
 type StepType =
+  | { kind: "vat-input" }
+  | { kind: "vat-processing" }
+  | { kind: "vat-review" }
   | { kind: "field"; fieldIndex: number }
   | { kind: "address-question" }
   | { kind: "delivery-field"; fieldIndex: number }
@@ -192,6 +211,17 @@ export function CustomerCreateModal({
   const [progressLabel, setProgressLabel] = useState("");
   const [botError, setBotError] = useState<string | null>(null);
 
+  const [interactiveSessionId, setInteractiveSessionId] = useState<
+    string | null
+  >(null);
+  const interactiveSessionIdRef = useRef<string | null>(null);
+  const [botReady, setBotReady] = useState(false);
+  const [vatResult, setVatResult] = useState<VatLookupResult | null>(null);
+  const [earlyVatInput, setEarlyVatInput] = useState("");
+  const earlyVatInputRef = useRef("");
+  const [vatError, setVatError] = useState<string | null>(null);
+  const [changedFields, setChangedFields] = useState<Set<string>>(new Set());
+
   const { subscribe } = useWebSocketContext();
   const {
     scrollFieldIntoView,
@@ -208,8 +238,20 @@ export function CustomerCreateModal({
     (sameDeliveryAddress === false ? totalDeliveryFields : 0) +
     1;
 
+  useEffect(() => {
+    interactiveSessionIdRef.current = interactiveSessionId;
+  }, [interactiveSessionId]);
+
+  useEffect(() => {
+    earlyVatInputRef.current = earlyVatInput;
+  }, [earlyVatInput]);
+
   const currentStepNumber = (() => {
     switch (currentStep.kind) {
+      case "vat-input":
+      case "vat-processing":
+      case "vat-review":
+        return 0;
       case "field":
         return currentStep.fieldIndex + 1;
       case "address-question":
@@ -260,12 +302,39 @@ export function CustomerCreateModal({
       setProgress(0);
       setProgressLabel("");
       setBotError(null);
+      setInteractiveSessionId(null);
+      setBotReady(false);
+      setVatResult(null);
+      setEarlyVatInput("");
+      setVatError(null);
+      setChangedFields(new Set());
+
       if (editCustomer) {
         setFormData(customerToFormData(editCustomer));
+        setCurrentStep({ kind: "field", fieldIndex: 0 });
       } else {
         setFormData({ ...INITIAL_FORM });
+        setCurrentStep({ kind: "vat-input" });
+
+        customerService
+          .startInteractiveSession()
+          .then(({ sessionId }) => {
+            setInteractiveSessionId(sessionId);
+          })
+          .catch((err) => {
+            console.error(
+              "[CustomerCreateModal] Failed to start interactive session:",
+              err,
+            );
+            setCurrentStep({ kind: "field", fieldIndex: 0 });
+          });
       }
-      setCurrentStep({ kind: "field", fieldIndex: 0 });
+    } else {
+      if (interactiveSessionIdRef.current) {
+        customerService
+          .cancelInteractiveSession(interactiveSessionIdRef.current)
+          .catch(() => {});
+      }
     }
   }, [isOpen, editCustomer]);
 
@@ -345,6 +414,66 @@ export function CustomerCreateModal({
       if (pollInterval) clearInterval(pollInterval);
     };
   }, [taskId, subscribe, onSaved, onClose, editCustomer]);
+
+  useEffect(() => {
+    if (!interactiveSessionId) return;
+
+    const unsubs: Array<() => void> = [];
+
+    unsubs.push(
+      subscribe("CUSTOMER_INTERACTIVE_READY", (payload: any) => {
+        if (payload.sessionId !== interactiveSessionIdRef.current) return;
+        setBotReady(true);
+
+        const vatInput = earlyVatInputRef.current.trim();
+        if (vatInput.length > 0 && interactiveSessionIdRef.current) {
+          setCurrentStep({ kind: "vat-processing" });
+          customerService
+            .submitVatNumber(interactiveSessionIdRef.current, vatInput)
+            .catch((err) => {
+              setVatError(
+                err instanceof Error ? err.message : "Errore verifica P.IVA",
+              );
+              setCurrentStep({ kind: "vat-input" });
+            });
+        }
+      }),
+    );
+
+    unsubs.push(
+      subscribe("CUSTOMER_VAT_RESULT", (payload: any) => {
+        if (payload.sessionId !== interactiveSessionIdRef.current) return;
+        const result = payload.vatResult as VatLookupResult;
+        setVatResult(result);
+        setCurrentStep({ kind: "vat-review" });
+
+        if (result.parsed) {
+          setFormData((prev) => ({
+            ...prev,
+            vatNumber: earlyVatInputRef.current.trim() || prev.vatNumber,
+            name: result.parsed.companyName || prev.name,
+            street: result.parsed.street || prev.street,
+            postalCode: result.parsed.postalCode || prev.postalCode,
+            postalCodeCity: result.parsed.city || prev.postalCodeCity,
+          }));
+        }
+      }),
+    );
+
+    unsubs.push(
+      subscribe("CUSTOMER_INTERACTIVE_FAILED", (payload: any) => {
+        if (payload.sessionId !== interactiveSessionIdRef.current) return;
+        setVatError(payload.error || "Errore sessione interattiva");
+        setCurrentStep((prev) =>
+          prev.kind === "vat-processing" ? { kind: "vat-input" } : prev,
+        );
+      }),
+    );
+
+    return () => {
+      unsubs.forEach((u) => u());
+    };
+  }, [interactiveSessionId, subscribe]);
 
   if (!isOpen) return null;
 
@@ -660,6 +789,36 @@ export function CustomerCreateModal({
       }
       return next;
     });
+    if (isEditMode) {
+      setChangedFields((prev) => new Set(prev).add(key));
+    }
+  };
+
+  const handleSubmitVat = () => {
+    const vat = earlyVatInput.trim();
+    if (!vat || !interactiveSessionId) return;
+
+    setVatError(null);
+
+    if (botReady) {
+      setCurrentStep({ kind: "vat-processing" });
+      customerService
+        .submitVatNumber(interactiveSessionId, vat)
+        .catch((err) => {
+          setVatError(
+            err instanceof Error ? err.message : "Errore verifica P.IVA",
+          );
+          setCurrentStep({ kind: "vat-input" });
+        });
+    }
+  };
+
+  const handleSkipVat = () => {
+    setCurrentStep({ kind: "field", fieldIndex: 0 });
+  };
+
+  const handleVatReviewContinue = () => {
+    setCurrentStep({ kind: "field", fieldIndex: 0 });
   };
 
   const handleSave = async () => {
@@ -670,8 +829,18 @@ export function CustomerCreateModal({
       let resultTaskId: string | null = null;
 
       if (isEditMode) {
+        const payload =
+          changedFields.size > 0
+            ? { ...formData, changedFields: Array.from(changedFields) }
+            : formData;
         const result = await customerService.updateCustomer(
           editCustomer!.customerProfile,
+          payload,
+        );
+        resultTaskId = result.taskId;
+      } else if (interactiveSessionId) {
+        const result = await customerService.saveInteractiveCustomer(
+          interactiveSessionId,
           formData,
         );
         resultTaskId = result.taskId;
@@ -716,6 +885,9 @@ export function CustomerCreateModal({
     setCurrentStep({ kind: "field", fieldIndex: 0 });
   };
 
+  const isVatInput = currentStep.kind === "vat-input";
+  const isVatProcessing = currentStep.kind === "vat-processing";
+  const isVatReview = currentStep.kind === "vat-review";
   const isFieldStep =
     currentStep.kind === "field" || currentStep.kind === "delivery-field";
   const isAddressQuestion = currentStep.kind === "address-question";
@@ -724,6 +896,7 @@ export function CustomerCreateModal({
   const isFirstStep =
     currentStep.kind === "field" && currentStep.fieldIndex === 0;
   const isProcessing = processingState !== "idle";
+  const isInteractiveStep = isVatInput || isVatProcessing || isVatReview;
 
   return (
     <div
@@ -755,8 +928,35 @@ export function CustomerCreateModal({
           ...keyboardPaddingStyle,
         }}
       >
-        {/* Header */}
+        {/* Close button */}
         {!isProcessing && (
+          <div style={{ display: "flex", justifyContent: "flex-end" }}>
+            <button
+              onClick={onClose}
+              aria-label="Chiudi"
+              style={{
+                width: "44px",
+                height: "44px",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                background: "none",
+                border: "none",
+                cursor: "pointer",
+                fontSize: "24px",
+                color: "#999",
+                borderRadius: "50%",
+                marginTop: "-16px",
+                marginRight: "-16px",
+              }}
+            >
+              &#x2715;
+            </button>
+          </div>
+        )}
+
+        {/* Header */}
+        {!isProcessing && !isInteractiveStep && (
           <div style={{ marginBottom: "24px", textAlign: "center" }}>
             <h2
               style={{
@@ -781,6 +981,416 @@ export function CustomerCreateModal({
                 {editCustomer!.customerProfile}
               </p>
             )}
+          </div>
+        )}
+
+        {/* Spinner keyframes for interactive steps */}
+        {(isVatInput || isVatProcessing || isProcessing) && (
+          <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+        )}
+
+        {/* VAT Input step (interactive create) */}
+        {isVatInput && (
+          <div>
+            <div style={{ marginBottom: "24px", textAlign: "center" }}>
+              <h2
+                style={{
+                  fontSize: "24px",
+                  fontWeight: 700,
+                  color: "#333",
+                  marginBottom: "8px",
+                }}
+              >
+                Nuovo Cliente
+              </h2>
+              <p style={{ fontSize: "14px", color: "#999" }}>
+                Inserisci la Partita IVA per verificare i dati
+              </p>
+            </div>
+
+            {!botReady && (
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "8px",
+                  padding: "12px",
+                  backgroundColor: "#e3f2fd",
+                  borderRadius: "8px",
+                  marginBottom: "16px",
+                  fontSize: "14px",
+                  color: "#1976d2",
+                }}
+              >
+                <span
+                  style={{
+                    display: "inline-block",
+                    width: "16px",
+                    height: "16px",
+                    border: "2px solid #1976d2",
+                    borderTop: "2px solid transparent",
+                    borderRadius: "50%",
+                    animation: "spin 1s linear infinite",
+                  }}
+                />
+                Bot in avvio...
+              </div>
+            )}
+
+            {botReady && (
+              <div
+                style={{
+                  padding: "12px",
+                  backgroundColor: "#e8f5e9",
+                  borderRadius: "8px",
+                  marginBottom: "16px",
+                  fontSize: "14px",
+                  color: "#2e7d32",
+                }}
+              >
+                Bot pronto
+              </div>
+            )}
+
+            <label
+              style={{
+                display: "block",
+                fontSize: "16px",
+                fontWeight: 600,
+                color: "#333",
+                marginBottom: "12px",
+              }}
+            >
+              Partita IVA
+            </label>
+            <input
+              ref={inputRef}
+              type="text"
+              value={earlyVatInput}
+              onChange={(e) => setEarlyVatInput(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  if (earlyVatInput.trim().length > 0 && botReady) {
+                    handleSubmitVat();
+                  }
+                }
+              }}
+              onFocus={(e) => scrollFieldIntoView(e.target as HTMLElement)}
+              maxLength={11}
+              placeholder="es. 06104510653"
+              style={{
+                width: "100%",
+                padding: "14px 16px",
+                fontSize: "18px",
+                border: "2px solid #1976d2",
+                borderRadius: "12px",
+                outline: "none",
+                boxSizing: "border-box",
+              }}
+            />
+
+            {vatError && (
+              <div
+                style={{
+                  marginTop: "12px",
+                  padding: "12px",
+                  backgroundColor: "#ffebee",
+                  border: "1px solid #f44336",
+                  borderRadius: "8px",
+                  color: "#f44336",
+                  fontSize: "14px",
+                }}
+              >
+                {vatError}
+              </div>
+            )}
+
+            <div
+              style={{
+                display: "flex",
+                gap: "12px",
+                marginTop: "20px",
+              }}
+            >
+              <button
+                onClick={handleSkipVat}
+                style={{
+                  flex: 1,
+                  padding: "14px",
+                  fontSize: "16px",
+                  fontWeight: 700,
+                  backgroundColor: "#fff",
+                  color: "#666",
+                  border: "1px solid #ddd",
+                  borderRadius: "8px",
+                  cursor: "pointer",
+                }}
+              >
+                Salta
+              </button>
+              <button
+                onClick={handleSubmitVat}
+                disabled={earlyVatInput.trim().length === 0 || !botReady}
+                style={{
+                  flex: 1,
+                  padding: "14px",
+                  fontSize: "16px",
+                  fontWeight: 700,
+                  backgroundColor:
+                    earlyVatInput.trim().length === 0 || !botReady
+                      ? "#ccc"
+                      : "#1976d2",
+                  color: "#fff",
+                  border: "none",
+                  borderRadius: "8px",
+                  cursor:
+                    earlyVatInput.trim().length === 0 || !botReady
+                      ? "not-allowed"
+                      : "pointer",
+                }}
+              >
+                Verifica
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* VAT Processing step */}
+        {isVatProcessing && (
+          <div style={{ textAlign: "center" }}>
+            <div style={{ marginBottom: "24px" }}>
+              <h2
+                style={{
+                  fontSize: "24px",
+                  fontWeight: 700,
+                  color: "#333",
+                  marginBottom: "8px",
+                }}
+              >
+                Verifica P.IVA
+              </h2>
+              <p style={{ fontSize: "14px", color: "#999" }}>
+                Controllo in corso per {earlyVatInput}...
+              </p>
+            </div>
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "center",
+                marginBottom: "24px",
+              }}
+            >
+              <div
+                style={{
+                  width: "48px",
+                  height: "48px",
+                  border: "4px solid #e0e0e0",
+                  borderTop: "4px solid #1976d2",
+                  borderRadius: "50%",
+                  animation: "spin 1s linear infinite",
+                }}
+              />
+            </div>
+            <p style={{ fontSize: "14px", color: "#666" }}>
+              Il bot sta verificando la P.IVA su Archibald...
+            </p>
+          </div>
+        )}
+
+        {/* VAT Review step */}
+        {isVatReview && vatResult && (
+          <div>
+            <div style={{ marginBottom: "24px", textAlign: "center" }}>
+              <h2
+                style={{
+                  fontSize: "24px",
+                  fontWeight: 700,
+                  color: "#333",
+                  marginBottom: "8px",
+                }}
+              >
+                Risultato Verifica P.IVA
+              </h2>
+            </div>
+
+            <div
+              style={{
+                backgroundColor: "#f5f5f5",
+                borderRadius: "12px",
+                padding: "20px",
+                marginBottom: "20px",
+              }}
+            >
+              {vatResult.vatValidated && (
+                <div
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    padding: "8px 0",
+                    borderBottom: "1px solid #e0e0e0",
+                    fontSize: "14px",
+                  }}
+                >
+                  <span style={{ color: "#666", fontWeight: 600 }}>
+                    IVA Validata
+                  </span>
+                  <span
+                    style={{
+                      color: vatResult.vatValidated.toUpperCase().includes("SI")
+                        ? "#4caf50"
+                        : "#f44336",
+                      fontWeight: 700,
+                    }}
+                  >
+                    {vatResult.vatValidated}
+                  </span>
+                </div>
+              )}
+
+              {vatResult.lastVatCheck && (
+                <div
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    padding: "8px 0",
+                    borderBottom: "1px solid #e0e0e0",
+                    fontSize: "14px",
+                  }}
+                >
+                  <span style={{ color: "#666", fontWeight: 600 }}>
+                    Ultimo Controllo
+                  </span>
+                  <span style={{ color: "#333" }}>
+                    {vatResult.lastVatCheck}
+                  </span>
+                </div>
+              )}
+
+              {vatResult.parsed.companyName && (
+                <div
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    padding: "8px 0",
+                    borderBottom: "1px solid #e0e0e0",
+                    fontSize: "14px",
+                  }}
+                >
+                  <span style={{ color: "#666", fontWeight: 600 }}>
+                    Ragione Sociale
+                  </span>
+                  <span
+                    style={{
+                      color: "#333",
+                      maxWidth: "60%",
+                      textAlign: "right",
+                      wordBreak: "break-word",
+                    }}
+                  >
+                    {vatResult.parsed.companyName}
+                  </span>
+                </div>
+              )}
+
+              {vatResult.parsed.street && (
+                <div
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    padding: "8px 0",
+                    borderBottom: "1px solid #e0e0e0",
+                    fontSize: "14px",
+                  }}
+                >
+                  <span style={{ color: "#666", fontWeight: 600 }}>Via</span>
+                  <span
+                    style={{
+                      color: "#333",
+                      maxWidth: "60%",
+                      textAlign: "right",
+                      wordBreak: "break-word",
+                    }}
+                  >
+                    {vatResult.parsed.street}
+                  </span>
+                </div>
+              )}
+
+              {(vatResult.parsed.postalCode || vatResult.parsed.city) && (
+                <div
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    padding: "8px 0",
+                    borderBottom: "1px solid #e0e0e0",
+                    fontSize: "14px",
+                  }}
+                >
+                  <span style={{ color: "#666", fontWeight: 600 }}>
+                    CAP / Citta
+                  </span>
+                  <span style={{ color: "#333" }}>
+                    {[vatResult.parsed.postalCode, vatResult.parsed.city]
+                      .filter(Boolean)
+                      .join(" ")}
+                  </span>
+                </div>
+              )}
+
+              {vatResult.parsed.vatStatus && (
+                <div
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    padding: "8px 0",
+                    fontSize: "14px",
+                  }}
+                >
+                  <span style={{ color: "#666", fontWeight: 600 }}>Stato</span>
+                  <span
+                    style={{
+                      color: vatResult.parsed.vatStatus
+                        .toUpperCase()
+                        .includes("ATTIVA")
+                        ? "#4caf50"
+                        : "#ff9800",
+                      fontWeight: 700,
+                    }}
+                  >
+                    {vatResult.parsed.vatStatus}
+                  </span>
+                </div>
+              )}
+            </div>
+
+            <p
+              style={{
+                fontSize: "13px",
+                color: "#999",
+                textAlign: "center",
+                marginBottom: "16px",
+              }}
+            >
+              I dati trovati saranno usati per precompilare il form
+            </p>
+
+            <button
+              onClick={handleVatReviewContinue}
+              style={{
+                width: "100%",
+                padding: "14px",
+                fontSize: "16px",
+                fontWeight: 700,
+                backgroundColor: "#4caf50",
+                color: "#fff",
+                border: "none",
+                borderRadius: "8px",
+                cursor: "pointer",
+              }}
+            >
+              Continua
+            </button>
           </div>
         )}
 

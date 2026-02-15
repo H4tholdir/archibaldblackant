@@ -5049,9 +5049,7 @@ export class ArchibaldBot {
                       },
                       { timeout: 5000, polling: 200 },
                     );
-                    logger.debug(
-                      "✅ INVENTTABLE editor visible in new row",
-                    );
+                    logger.debug("✅ INVENTTABLE editor visible in new row");
                   } catch {
                     logger.warn(
                       "INVENTTABLE editor not yet visible after AddNew, will retry in focus step",
@@ -5810,35 +5808,37 @@ export class ArchibaldBot {
       await this.page.keyboard.press("Enter");
 
       // Wait for grid to update: either row count changes or loading panel disappears
-      await this.page.waitForFunction(
-        (prevCount: number) => {
-          // Check if loading panels are gone
-          const loadingPanels = Array.from(
-            document.querySelectorAll(
-              '[id*="LPV"], .dxlp, .dxlpLoadingPanel, [id*="Loading"]',
-            ),
-          );
-          const hasLoading = loadingPanels.some((el) => {
-            const style = window.getComputedStyle(el as HTMLElement);
-            return (
-              style.display !== "none" &&
-              style.visibility !== "hidden" &&
-              (el as HTMLElement).getBoundingClientRect().width > 0
+      await this.page
+        .waitForFunction(
+          (prevCount: number) => {
+            // Check if loading panels are gone
+            const loadingPanels = Array.from(
+              document.querySelectorAll(
+                '[id*="LPV"], .dxlp, .dxlpLoadingPanel, [id*="Loading"]',
+              ),
             );
-          });
-          if (hasLoading) return false;
+            const hasLoading = loadingPanels.some((el) => {
+              const style = window.getComputedStyle(el as HTMLElement);
+              return (
+                style.display !== "none" &&
+                style.visibility !== "hidden" &&
+                (el as HTMLElement).getBoundingClientRect().width > 0
+              );
+            });
+            if (hasLoading) return false;
 
-          // Grid has updated if row count changed or empty data row appeared
-          const currentCount = document.querySelectorAll(
-            'tr[class*="dxgvDataRow"]',
-          ).length;
-          const hasEmpty =
-            document.querySelector('tr[class*="dxgvEmptyData"]') !== null;
-          return currentCount !== prevCount || hasEmpty || currentCount <= 5;
-        },
-        { timeout: 15000, polling: 200 },
-        rowCountBefore,
-      ).catch(() => null);
+            // Grid has updated if row count changed or empty data row appeared
+            const currentCount = document.querySelectorAll(
+              'tr[class*="dxgvDataRow"]',
+            ).length;
+            const hasEmpty =
+              document.querySelector('tr[class*="dxgvEmptyData"]') !== null;
+            return currentCount !== prevCount || hasEmpty || currentCount <= 5;
+          },
+          { timeout: 15000, polling: 200 },
+          rowCountBefore,
+        )
+        .catch(() => null);
       await this.wait(300);
 
       // Step 4: Check if any rows are visible after filtering
@@ -5943,7 +5943,11 @@ export class ArchibaldBot {
         );
         for (const link of menuLinks) {
           const text = link.textContent?.trim().toLowerCase();
-          if (text === "cancellare" || text === "elimina" || text === "delete") {
+          if (
+            text === "cancellare" ||
+            text === "elimina" ||
+            text === "delete"
+          ) {
             (link as HTMLElement).click();
             return { clicked: true, strategy: "by-text" };
           }
@@ -6013,8 +6017,7 @@ export class ArchibaldBot {
         message: `Delete command sent for order ${archibaldOrderId}. ${remainingRows} row(s) remain in grid (may be other orders).`,
       };
     } catch (error) {
-      const errorMsg =
-        error instanceof Error ? error.message : String(error);
+      const errorMsg = error instanceof Error ? error.message : String(error);
       logger.error(`[deleteOrder] Error deleting order ${archibaldOrderId}:`, {
         error: errorMsg,
       });
@@ -6076,9 +6079,7 @@ export class ArchibaldBot {
 
       // Step 2: Set filter to "Tutti gli ordini" (skip if already done)
       if (!this.sendToVeronaFilterReady) {
-        logger.debug(
-          "[sendToVerona] Setting filter to 'Tutti gli ordini'...",
-        );
+        logger.debug("[sendToVerona] Setting filter to 'Tutti gli ordini'...");
         await this.emitProgress("sendToVerona.filter");
         await this.ensureOrdersFilterSetToAll(this.page);
         await this.wait(500);
@@ -6112,33 +6113,35 @@ export class ArchibaldBot {
       await this.pasteText(searchHandle, normalizedId);
       await this.page.keyboard.press("Enter");
 
-      await this.page.waitForFunction(
-        (prevCount: number) => {
-          const loadingPanels = Array.from(
-            document.querySelectorAll(
-              '[id*="LPV"], .dxlp, .dxlpLoadingPanel, [id*="Loading"]',
-            ),
-          );
-          const hasLoading = loadingPanels.some((el) => {
-            const style = window.getComputedStyle(el as HTMLElement);
-            return (
-              style.display !== "none" &&
-              style.visibility !== "hidden" &&
-              (el as HTMLElement).getBoundingClientRect().width > 0
+      await this.page
+        .waitForFunction(
+          (prevCount: number) => {
+            const loadingPanels = Array.from(
+              document.querySelectorAll(
+                '[id*="LPV"], .dxlp, .dxlpLoadingPanel, [id*="Loading"]',
+              ),
             );
-          });
-          if (hasLoading) return false;
+            const hasLoading = loadingPanels.some((el) => {
+              const style = window.getComputedStyle(el as HTMLElement);
+              return (
+                style.display !== "none" &&
+                style.visibility !== "hidden" &&
+                (el as HTMLElement).getBoundingClientRect().width > 0
+              );
+            });
+            if (hasLoading) return false;
 
-          const currentCount = document.querySelectorAll(
-            'tr[class*="dxgvDataRow"]',
-          ).length;
-          const hasEmpty =
-            document.querySelector('tr[class*="dxgvEmptyData"]') !== null;
-          return currentCount !== prevCount || hasEmpty || currentCount <= 5;
-        },
-        { timeout: 15000, polling: 200 },
-        rowCountBefore,
-      ).catch(() => null);
+            const currentCount = document.querySelectorAll(
+              'tr[class*="dxgvDataRow"]',
+            ).length;
+            const hasEmpty =
+              document.querySelector('tr[class*="dxgvEmptyData"]') !== null;
+            return currentCount !== prevCount || hasEmpty || currentCount <= 5;
+          },
+          { timeout: 15000, polling: 200 },
+          rowCountBefore,
+        )
+        .catch(() => null);
       await this.wait(300);
 
       // Step 4: Check if any rows are visible after filtering
@@ -6196,9 +6199,7 @@ export class ArchibaldBot {
               "#Vertical_mainMenu_Menu_DXI4_T",
             );
             if (!btn) return false;
-            const li = document.querySelector(
-              "#Vertical_mainMenu_Menu_DXI4_",
-            );
+            const li = document.querySelector("#Vertical_mainMenu_Menu_DXI4_");
             return (
               !btn.classList.contains("dxm-disabled") &&
               (!li || !li.classList.contains("dxm-disabled"))
@@ -6387,12 +6388,10 @@ export class ArchibaldBot {
         message: `Send to Verona command sent for order ${archibaldOrderId}. ${remainingRows} row(s) remain in grid (may be other orders).`,
       };
     } catch (error) {
-      const errorMsg =
-        error instanceof Error ? error.message : String(error);
-      logger.error(
-        `[sendToVerona] Error sending order ${archibaldOrderId}:`,
-        { error: errorMsg },
-      );
+      const errorMsg = error instanceof Error ? error.message : String(error);
+      logger.error(`[sendToVerona] Error sending order ${archibaldOrderId}:`, {
+        error: errorMsg,
+      });
 
       try {
         await this.page!.screenshot({
@@ -6415,8 +6414,19 @@ export class ArchibaldBot {
   async editOrderInArchibald(
     archibaldOrderId: string,
     modifications: Array<
-      | { type: "update"; rowIndex: number; articleCode: string; quantity: number; discount?: number }
-      | { type: "add"; articleCode: string; quantity: number; discount?: number }
+      | {
+          type: "update";
+          rowIndex: number;
+          articleCode: string;
+          quantity: number;
+          discount?: number;
+        }
+      | {
+          type: "add";
+          articleCode: string;
+          quantity: number;
+          discount?: number;
+        }
       | { type: "delete"; rowIndex: number }
     >,
   ): Promise<{ success: boolean; message: string }> {
@@ -6486,32 +6496,34 @@ export class ArchibaldBot {
       await this.pasteText(searchHandle, normalizedId);
       await this.page.keyboard.press("Enter");
 
-      await this.page.waitForFunction(
-        (prevCount: number) => {
-          const loadingPanels = Array.from(
-            document.querySelectorAll(
-              '[id*="LPV"], .dxlp, .dxlpLoadingPanel, [id*="Loading"]',
-            ),
-          );
-          const hasLoading = loadingPanels.some((el) => {
-            const style = window.getComputedStyle(el as HTMLElement);
-            return (
-              style.display !== "none" &&
-              style.visibility !== "hidden" &&
-              (el as HTMLElement).getBoundingClientRect().width > 0
+      await this.page
+        .waitForFunction(
+          (prevCount: number) => {
+            const loadingPanels = Array.from(
+              document.querySelectorAll(
+                '[id*="LPV"], .dxlp, .dxlpLoadingPanel, [id*="Loading"]',
+              ),
             );
-          });
-          if (hasLoading) return false;
-          const currentCount = document.querySelectorAll(
-            'tr[class*="dxgvDataRow"]',
-          ).length;
-          const hasEmpty =
-            document.querySelector('tr[class*="dxgvEmptyData"]') !== null;
-          return currentCount !== prevCount || hasEmpty || currentCount <= 5;
-        },
-        { timeout: 15000, polling: 200 },
-        rowCountBefore,
-      ).catch(() => null);
+            const hasLoading = loadingPanels.some((el) => {
+              const style = window.getComputedStyle(el as HTMLElement);
+              return (
+                style.display !== "none" &&
+                style.visibility !== "hidden" &&
+                (el as HTMLElement).getBoundingClientRect().width > 0
+              );
+            });
+            if (hasLoading) return false;
+            const currentCount = document.querySelectorAll(
+              'tr[class*="dxgvDataRow"]',
+            ).length;
+            const hasEmpty =
+              document.querySelector('tr[class*="dxgvEmptyData"]') !== null;
+            return currentCount !== prevCount || hasEmpty || currentCount <= 5;
+          },
+          { timeout: 15000, polling: 200 },
+          rowCountBefore,
+        )
+        .catch(() => null);
       await this.wait(300);
 
       const rowCount = await this.page.evaluate(() => {
@@ -6534,23 +6546,31 @@ export class ArchibaldBot {
         if (!firstRow) return false;
 
         // Strategy 1: a[data-args*="Edit"]
-        const editLink = firstRow.querySelector('a[data-args*="Edit"]') as HTMLElement | null;
+        const editLink = firstRow.querySelector(
+          'a[data-args*="Edit"]',
+        ) as HTMLElement | null;
         if (editLink) {
           editLink.click();
           return true;
         }
 
         // Strategy 2: img[title="Modifica"]
-        const editImg = firstRow.querySelector('img[title="Modifica"]') as HTMLElement | null;
+        const editImg = firstRow.querySelector(
+          'img[title="Modifica"]',
+        ) as HTMLElement | null;
         if (editImg) {
           editImg.click();
           return true;
         }
 
         // Strategy 3: command column edit icon
-        const commandCell = firstRow.querySelector("td.dxgvCommandColumn_XafTheme") as HTMLElement | null;
+        const commandCell = firstRow.querySelector(
+          "td.dxgvCommandColumn_XafTheme",
+        ) as HTMLElement | null;
         if (commandCell) {
-          const editIcon = commandCell.querySelector('a, img') as HTMLElement | null;
+          const editIcon = commandCell.querySelector(
+            "a, img",
+          ) as HTMLElement | null;
           if (editIcon) {
             editIcon.click();
             return true;
@@ -6599,21 +6619,27 @@ export class ArchibaldBot {
 
       // Wait for the SALESLINES grid to have data rows (it may load asynchronously)
       if (this.salesLinesGridName) {
-        await this.page.waitForFunction(
-          (gridName: string) => {
-            const gridEl = document.getElementById(gridName) ||
-              document.querySelector(`[id*="${gridName}"]`);
-            if (!gridEl) return false;
-            const dataRows = gridEl.querySelectorAll('tr[class*="dxgvDataRow"]');
-            return dataRows.length > 0;
-          },
-          { timeout: 15000, polling: 300 },
-          this.salesLinesGridName,
-        ).catch(() => null);
+        await this.page
+          .waitForFunction(
+            (gridName: string) => {
+              const gridEl =
+                document.getElementById(gridName) ||
+                document.querySelector(`[id*="${gridName}"]`);
+              if (!gridEl) return false;
+              const dataRows = gridEl.querySelectorAll(
+                'tr[class*="dxgvDataRow"]',
+              );
+              return dataRows.length > 0;
+            },
+            { timeout: 15000, polling: 300 },
+            this.salesLinesGridName,
+          )
+          .catch(() => null);
 
         // Scroll the SALESLINES grid into view
         await this.page.evaluate((gridName: string) => {
-          const gridEl = document.getElementById(gridName) ||
+          const gridEl =
+            document.getElementById(gridName) ||
             document.querySelector(`[id*="${gridName}"]`);
           if (gridEl) gridEl.scrollIntoView({ block: "center" });
         }, this.salesLinesGridName);
@@ -6631,30 +6657,51 @@ export class ArchibaldBot {
       const gridDebug = await this.page.evaluate((gridName: string | null) => {
         let container: Element | Document = document;
         if (gridName) {
-          const gridEl = document.getElementById(gridName) || document.querySelector(`[id*="${gridName}"]`);
+          const gridEl =
+            document.getElementById(gridName) ||
+            document.querySelector(`[id*="${gridName}"]`);
           if (gridEl) container = gridEl;
         }
-        const dataRows = Array.from(container.querySelectorAll('tr[class*="dxgvDataRow"]'));
+        const dataRows = Array.from(
+          container.querySelectorAll('tr[class*="dxgvDataRow"]'),
+        );
         return {
           gridName,
-          gridFound: gridName ? !!(document.getElementById(gridName) || document.querySelector(`[id*="${gridName}"]`)) : false,
+          gridFound: gridName
+            ? !!(
+                document.getElementById(gridName) ||
+                document.querySelector(`[id*="${gridName}"]`)
+              )
+            : false,
           dataRowCount: dataRows.length,
-          rowTexts: dataRows.slice(0, 5).map((r) => r.textContent?.substring(0, 100)),
+          rowTexts: dataRows
+            .slice(0, 5)
+            .map((r) => r.textContent?.substring(0, 100)),
         };
       }, this.salesLinesGridName);
       logger.info("[editOrder] Grid state", gridDebug);
 
       // Sort modifications: updates first (stable indices), then adds, then deletes (highest index first)
-      const updates = modifications.filter((m) => m.type === "update") as Array<{
-        type: "update"; rowIndex: number; articleCode: string; quantity: number; discount?: number;
+      const updates = modifications.filter(
+        (m) => m.type === "update",
+      ) as Array<{
+        type: "update";
+        rowIndex: number;
+        articleCode: string;
+        quantity: number;
+        discount?: number;
       }>;
       const adds = modifications.filter((m) => m.type === "add") as Array<{
-        type: "add"; articleCode: string; quantity: number; discount?: number;
+        type: "add";
+        articleCode: string;
+        quantity: number;
+        discount?: number;
       }>;
       const deletes = modifications
         .filter((m) => m.type === "delete")
         .sort((a, b) => (b as any).rowIndex - (a as any).rowIndex) as Array<{
-        type: "delete"; rowIndex: number;
+        type: "delete";
+        rowIndex: number;
       }>;
 
       const totalMods = updates.length + adds.length + deletes.length;
@@ -6667,7 +6714,9 @@ export class ArchibaldBot {
           current: completedMods,
           total: totalMods,
         });
-        logger.info(`[editOrder] Updating row ${mod.rowIndex}: ${mod.articleCode} qty=${mod.quantity}`);
+        logger.info(
+          `[editOrder] Updating row ${mod.rowIndex}: ${mod.articleCode} qty=${mod.quantity}`,
+        );
 
         // Start editing the row by clicking the StartEdit pencil button on the row
         let editStarted = false;
@@ -6678,11 +6727,14 @@ export class ArchibaldBot {
             // Scope query to SALESLINES grid container to avoid picking rows from other grids
             let container: Element | Document = document;
             if (gridName) {
-              const gridEl = document.getElementById(gridName) ||
+              const gridEl =
+                document.getElementById(gridName) ||
                 document.querySelector(`[id*="${gridName}"]`);
               if (gridEl) container = gridEl;
             }
-            const dataRows = Array.from(container.querySelectorAll('tr[class*="dxgvDataRow"]'));
+            const dataRows = Array.from(
+              container.querySelectorAll('tr[class*="dxgvDataRow"]'),
+            );
             const targetRow = dataRows[rowIdx];
             if (!targetRow) return false;
 
@@ -6690,24 +6742,35 @@ export class ArchibaldBot {
             targetRow.scrollIntoView({ block: "center" });
 
             // Look for StartEdit link: a[data-args*="StartEdit"]
-            const startEditLink = targetRow.querySelector('a[data-args*="StartEdit"]') as HTMLElement | null;
+            const startEditLink = targetRow.querySelector(
+              'a[data-args*="StartEdit"]',
+            ) as HTMLElement | null;
             if (startEditLink) {
               startEditLink.click();
               return true;
             }
 
             // Look for edit icon: img[title="Edit"] or img[alt="Edit"] or img[title="Modifica"]
-            const editImg = targetRow.querySelector('img[title="Edit"], img[alt="Edit"], img[title="Modifica"]') as HTMLElement | null;
+            const editImg = targetRow.querySelector(
+              'img[title="Edit"], img[alt="Edit"], img[title="Modifica"]',
+            ) as HTMLElement | null;
             if (editImg) {
               (editImg.parentElement || editImg).click();
               return true;
             }
 
             // Look for command column with any clickable element
-            const commandCell = targetRow.querySelector('td.dxgvCommandColumn_XafTheme, td[class*="CommandColumn"]') as HTMLElement | null;
+            const commandCell = targetRow.querySelector(
+              'td.dxgvCommandColumn_XafTheme, td[class*="CommandColumn"]',
+            ) as HTMLElement | null;
             if (commandCell) {
-              const link = commandCell.querySelector('a, img') as HTMLElement | null;
-              if (link) { link.click(); return true; }
+              const link = commandCell.querySelector(
+                "a, img",
+              ) as HTMLElement | null;
+              if (link) {
+                link.click();
+                return true;
+              }
             }
 
             return false;
@@ -6716,15 +6779,22 @@ export class ArchibaldBot {
           this.salesLinesGridName,
         );
 
-        logger.debug(`[editOrder] StartEdit Strategy 1 (DOM click): ${editStarted}`);
+        logger.debug(
+          `[editOrder] StartEdit Strategy 1 (DOM click): ${editStarted}`,
+        );
 
         // Strategy 2: DevExpress API StartEditRow
         if (!editStarted && this.salesLinesGridName) {
-          logger.debug("[editOrder] Trying StartEdit Strategy 2 (DevExpress API)");
+          logger.debug(
+            "[editOrder] Trying StartEdit Strategy 2 (DevExpress API)",
+          );
           await this.page.evaluate(
             (gridName: string, rowIdx: number) => {
               const w = window as any;
-              const grid = w.ASPxClientControl?.GetControlCollection?.()?.GetByName?.(gridName);
+              const grid =
+                w.ASPxClientControl?.GetControlCollection?.()?.GetByName?.(
+                  gridName,
+                );
               if (grid) grid.StartEditRow(rowIdx);
             },
             this.salesLinesGridName,
@@ -6748,7 +6818,9 @@ export class ArchibaldBot {
                 const el = document.getElementById(gridName);
                 if (el) container = el;
               }
-              const editRows = container.querySelectorAll('tr[id*="DXEditingRow"]');
+              const editRows = container.querySelectorAll(
+                'tr[id*="DXEditingRow"]',
+              );
               return editRows.length > 0;
             },
             { timeout: 5000, polling: 100 },
@@ -6756,7 +6828,9 @@ export class ArchibaldBot {
           );
           editRowAppeared = true;
         } catch {
-          logger.warn("[editOrder] DXEditingRow not found after first attempt, retrying...");
+          logger.warn(
+            "[editOrder] DXEditingRow not found after first attempt, retrying...",
+          );
         }
 
         // Retry: double-click the row to enter edit mode
@@ -6765,16 +6839,25 @@ export class ArchibaldBot {
             (rowIdx: number, gridName: string | null) => {
               let container: Element | Document = document;
               if (gridName) {
-                const gridEl = document.getElementById(gridName) || document.querySelector(`[id*="${gridName}"]`);
+                const gridEl =
+                  document.getElementById(gridName) ||
+                  document.querySelector(`[id*="${gridName}"]`);
                 if (gridEl) container = gridEl;
               }
-              const dataRows = Array.from(container.querySelectorAll('tr[class*="dxgvDataRow"]'));
+              const dataRows = Array.from(
+                container.querySelectorAll('tr[class*="dxgvDataRow"]'),
+              );
               const targetRow = dataRows[rowIdx];
               if (!targetRow) return null;
-              const firstCell = targetRow.querySelector("td:nth-child(2)") as HTMLElement | null;
+              const firstCell = targetRow.querySelector(
+                "td:nth-child(2)",
+              ) as HTMLElement | null;
               if (firstCell) {
                 const rect = firstCell.getBoundingClientRect();
-                return { x: rect.x + rect.width / 2, y: rect.y + rect.height / 2 };
+                return {
+                  x: rect.x + rect.width / 2,
+                  y: rect.y + rect.height / 2,
+                };
               }
               return null;
             },
@@ -6783,7 +6866,9 @@ export class ArchibaldBot {
           );
 
           if (rowClicked) {
-            await this.page.mouse.click(rowClicked.x, rowClicked.y, { clickCount: 2 });
+            await this.page.mouse.click(rowClicked.x, rowClicked.y, {
+              clickCount: 2,
+            });
             await this.wait(1000);
 
             try {
@@ -6794,38 +6879,61 @@ export class ArchibaldBot {
                     const el = document.getElementById(gridName);
                     if (el) container = el;
                   }
-                  return container.querySelectorAll('tr[id*="DXEditingRow"]').length > 0;
+                  return (
+                    container.querySelectorAll('tr[id*="DXEditingRow"]')
+                      .length > 0
+                  );
                 },
                 { timeout: 5000, polling: 100 },
                 this.salesLinesGridName,
               );
               editRowAppeared = true;
-              logger.debug("[editOrder] DXEditingRow appeared after double-click retry");
+              logger.debug(
+                "[editOrder] DXEditingRow appeared after double-click retry",
+              );
             } catch {
-              logger.warn("[editOrder] DXEditingRow still not found after double-click");
+              logger.warn(
+                "[editOrder] DXEditingRow still not found after double-click",
+              );
             }
           }
         }
 
         if (!editRowAppeared) {
-          const debugState = await this.page.evaluate((gridName: string | null) => {
-            let container: Element | Document = document;
-            if (gridName) {
-              const gridEl = document.getElementById(gridName) || document.querySelector(`[id*="${gridName}"]`);
-              if (gridEl) container = gridEl;
-            }
-            return {
-              dataRows: container.querySelectorAll('tr[class*="dxgvDataRow"]').length,
-              editRows: container.querySelectorAll('tr[id*="DXEditingRow"]').length,
-              editNewRows: container.querySelectorAll('tr[id*="editnew"]').length,
-              allTrs: container.querySelectorAll("tr").length,
-              activeElementId: (document.activeElement as HTMLElement)?.id,
-              url: window.location.href,
-            };
-          }, this.salesLinesGridName);
-          logger.error("[editOrder] Failed to enter edit mode for row", { rowIndex: mod.rowIndex, ...debugState });
-          await this.page.screenshot({ path: `logs/edit-startrow-failed-${Date.now()}.png`, fullPage: true });
-          throw new Error(`Failed to start editing row ${mod.rowIndex}. Grid state: ${JSON.stringify(debugState)}`);
+          const debugState = await this.page.evaluate(
+            (gridName: string | null) => {
+              let container: Element | Document = document;
+              if (gridName) {
+                const gridEl =
+                  document.getElementById(gridName) ||
+                  document.querySelector(`[id*="${gridName}"]`);
+                if (gridEl) container = gridEl;
+              }
+              return {
+                dataRows: container.querySelectorAll('tr[class*="dxgvDataRow"]')
+                  .length,
+                editRows: container.querySelectorAll('tr[id*="DXEditingRow"]')
+                  .length,
+                editNewRows:
+                  container.querySelectorAll('tr[id*="editnew"]').length,
+                allTrs: container.querySelectorAll("tr").length,
+                activeElementId: (document.activeElement as HTMLElement)?.id,
+                url: window.location.href,
+              };
+            },
+            this.salesLinesGridName,
+          );
+          logger.error("[editOrder] Failed to enter edit mode for row", {
+            rowIndex: mod.rowIndex,
+            ...debugState,
+          });
+          await this.page.screenshot({
+            path: `logs/edit-startrow-failed-${Date.now()}.png`,
+            fullPage: true,
+          });
+          throw new Error(
+            `Failed to start editing row ${mod.rowIndex}. Grid state: ${JSON.stringify(debugState)}`,
+          );
         }
 
         // Focus INVENTTABLE and type article code
@@ -6851,7 +6959,9 @@ export class ArchibaldBot {
           current: completedMods,
           total: totalMods,
         });
-        logger.info(`[editOrder] Adding article: ${mod.articleCode} qty=${mod.quantity}`);
+        logger.info(
+          `[editOrder] Adding article: ${mod.articleCode} qty=${mod.quantity}`,
+        );
 
         // Add new row
         let addNewDone = false;
@@ -6878,20 +6988,24 @@ export class ArchibaldBot {
         }
 
         // Wait for editable row (scoped to SALESLINES grid - tr[id*="editnew"] can match dropdown headers)
-        await this.page.waitForFunction(
-          (gridName: string | null) => {
-            let container: Element | Document = document;
-            if (gridName) {
-              const el = document.getElementById(gridName);
-              if (el) container = el;
-            }
-            // Look for DXEditingRow (the actual inline edit row) within the grid
-            const editRows = container.querySelectorAll('tr[id*="DXEditingRow"], tr[class*="dxgvInlineEditRow"]');
-            return editRows.length > 0;
-          },
-          { timeout: 5000, polling: 100 },
-          this.salesLinesGridName,
-        ).catch(() => null);
+        await this.page
+          .waitForFunction(
+            (gridName: string | null) => {
+              let container: Element | Document = document;
+              if (gridName) {
+                const el = document.getElementById(gridName);
+                if (el) container = el;
+              }
+              // Look for DXEditingRow (the actual inline edit row) within the grid
+              const editRows = container.querySelectorAll(
+                'tr[id*="DXEditingRow"], tr[class*="dxgvInlineEditRow"]',
+              );
+              return editRows.length > 0;
+            },
+            { timeout: 5000, polling: 100 },
+            this.salesLinesGridName,
+          )
+          .catch(() => null);
         await this.wait(300);
 
         // Focus INVENTTABLE and type article code
@@ -6923,7 +7037,9 @@ export class ArchibaldBot {
 
         // Count rows before delete to verify later
         const rowCountBefore = await this.page.evaluate(() => {
-          return document.querySelectorAll('tr[id*="dviSALESLINEs"][class*="dxgvDataRow"]').length;
+          return document.querySelectorAll(
+            'tr[id*="dviSALESLINEs"][class*="dxgvDataRow"]',
+          ).length;
         });
 
         // Step 1: Select the row checkbox via grid.SelectRowOnPage()
@@ -6931,7 +7047,10 @@ export class ArchibaldBot {
           await this.page.evaluate(
             (gridName: string, rowIdx: number) => {
               const w = window as any;
-              const grid = w.ASPxClientControl?.GetControlCollection?.()?.GetByName?.(gridName);
+              const grid =
+                w.ASPxClientControl?.GetControlCollection?.()?.GetByName?.(
+                  gridName,
+                );
               if (grid && typeof grid.SelectRowOnPage === "function") {
                 grid.SelectRowOnPage(rowIdx);
               }
@@ -6941,25 +7060,28 @@ export class ArchibaldBot {
           );
         } else {
           // Fallback: click the checkbox cell directly
-          await this.page.evaluate(
-            (rowIdx: number) => {
-              const rows = Array.from(
-                document.querySelectorAll('tr[id*="dviSALESLINEs"][class*="dxgvDataRow"]'),
-              );
-              const row = rows[rowIdx];
-              if (!row) return;
-              const checkbox = row.querySelector('td[class*="dxgvCommandColumn"] span[class*="dxICheckBox"]') as HTMLElement | null;
-              if (checkbox) checkbox.click();
-            },
-            mod.rowIndex,
-          );
+          await this.page.evaluate((rowIdx: number) => {
+            const rows = Array.from(
+              document.querySelectorAll(
+                'tr[id*="dviSALESLINEs"][class*="dxgvDataRow"]',
+              ),
+            );
+            const row = rows[rowIdx];
+            if (!row) return;
+            const checkbox = row.querySelector(
+              'td[class*="dxgvCommandColumn"] span[class*="dxICheckBox"]',
+            ) as HTMLElement | null;
+            if (checkbox) checkbox.click();
+          }, mod.rowIndex);
         }
 
         // Step 2: Wait for "Cancellare" toolbar button to become enabled
         await this.page
           .waitForFunction(
             () => {
-              const btn = document.querySelector('a[id*="dviSALESLINEs_ToolBar_Menu_DXI0"]');
+              const btn = document.querySelector(
+                'a[id*="dviSALESLINEs_ToolBar_Menu_DXI0"]',
+              );
               return btn && !btn.classList.contains("dxm-disabled");
             },
             { timeout: 5000, polling: 100 },
@@ -6971,16 +7093,22 @@ export class ArchibaldBot {
         let nativeDialogHandled = false;
         const dialogHandler = (dialog: any) => {
           nativeDialogHandled = true;
-          logger.debug(`[editOrder] Native delete dialog: ${dialog.type()} - ${dialog.message()}`);
+          logger.debug(
+            `[editOrder] Native delete dialog: ${dialog.type()} - ${dialog.message()}`,
+          );
           dialog.accept();
         };
         this.page.once("dialog", dialogHandler);
 
         await this.page.evaluate(() => {
-          const btn = document.querySelector('a[id*="dviSALESLINEs_ToolBar_Menu_DXI0"]') as HTMLElement | null;
+          const btn = document.querySelector(
+            'a[id*="dviSALESLINEs_ToolBar_Menu_DXI0"]',
+          ) as HTMLElement | null;
           if (btn) btn.click();
         });
-        logger.debug("[editOrder] Cancellare clicked, waiting for confirmation...");
+        logger.debug(
+          "[editOrder] Cancellare clicked, waiting for confirmation...",
+        );
 
         // Step 4: Poll for XAF/DevExpress confirmation popup and click OK
         // The popup may take time to appear (requires server callback round-trip)
@@ -6989,25 +7117,46 @@ export class ArchibaldBot {
             .waitForFunction(
               () => {
                 // Look for DevExpress popup controls that are visible
-                const popups = Array.from(document.querySelectorAll(
-                  '.dxpcLite_XafTheme, [class*="dxpc-mainDiv"], [id*="DXPEForm"], [id*="Confirmation"], [id*="PopupControl"]',
-                ));
+                const popups = Array.from(
+                  document.querySelectorAll(
+                    '.dxpcLite_XafTheme, [class*="dxpc-mainDiv"], [id*="DXPEForm"], [id*="Confirmation"], [id*="PopupControl"]',
+                  ),
+                );
                 for (const popup of popups) {
                   const style = window.getComputedStyle(popup);
-                  if (style.display !== "none" && style.visibility !== "hidden") {
-                    const buttons = Array.from(popup.querySelectorAll(
-                      'a, button, input[type="button"], .dxbButton_XafTheme, [class*="dxbButton"]',
-                    ));
+                  if (
+                    style.display !== "none" &&
+                    style.visibility !== "hidden"
+                  ) {
+                    const buttons = Array.from(
+                      popup.querySelectorAll(
+                        'a, button, input[type="button"], .dxbButton_XafTheme, [class*="dxbButton"]',
+                      ),
+                    );
                     for (const btn of buttons) {
-                      const text = (btn.textContent || (btn as HTMLInputElement).value || "").trim().toLowerCase();
-                      if (text === "ok" || text === "sì" || text === "yes" || text === "conferma" || text === "confirm") {
+                      const text = (
+                        btn.textContent ||
+                        (btn as HTMLInputElement).value ||
+                        ""
+                      )
+                        .trim()
+                        .toLowerCase();
+                      if (
+                        text === "ok" ||
+                        text === "sì" ||
+                        text === "yes" ||
+                        text === "conferma" ||
+                        text === "confirm"
+                      ) {
                         (btn as HTMLElement).click();
                         return true;
                       }
                     }
-                    const footerBtns = Array.from(popup.querySelectorAll(
-                      '[class*="Footer"] a, [class*="Footer"] button, [class*="dxpc-footer"] a',
-                    ));
+                    const footerBtns = Array.from(
+                      popup.querySelectorAll(
+                        '[class*="Footer"] a, [class*="Footer"] button, [class*="dxpc-footer"] a',
+                      ),
+                    );
                     for (const btn of footerBtns) {
                       (btn as HTMLElement).click();
                       return true;
@@ -7022,7 +7171,9 @@ export class ArchibaldBot {
             .catch(() => false);
 
           if (!popupHandled && !nativeDialogHandled) {
-            logger.warn("[editOrder] No confirmation dialog/popup detected for delete");
+            logger.warn(
+              "[editOrder] No confirmation dialog/popup detected for delete",
+            );
           }
         }
 
@@ -7047,7 +7198,9 @@ export class ArchibaldBot {
             rowCountBefore,
           )
           .catch(() => {
-            logger.warn(`[editOrder] Row count did not decrease after deleting row ${mod.rowIndex}`);
+            logger.warn(
+              `[editOrder] Row count did not decrease after deleting row ${mod.rowIndex}`,
+            );
           });
 
         await this.wait(500);
@@ -7057,17 +7210,23 @@ export class ArchibaldBot {
       // Step 6: Save and close via "Salvare" dropdown → "Salva e chiudi"
       // The dump confirmed "Salva e chiudi" is hidden inside the "Salvare" dropdown popup.
       // We must open the dropdown first, then click the sub-item.
-      logger.debug('[editOrder] Opening Salvare dropdown for "Salva e chiudi"...');
+      logger.debug(
+        '[editOrder] Opening Salvare dropdown for "Salva e chiudi"...',
+      );
       await this.emitProgress("edit.save");
 
       // Strategy 1: Open dropdown via popOut arrow, then click "Salva e chiudi" by ID pattern
       const saveClicked = await this.page.evaluate(() => {
         // Find the "Salvare" dropdown LI (class contains "dropDownSave")
-        const dropdownLi = document.querySelector('li[class*="dropDownSave"]') as HTMLElement | null;
+        const dropdownLi = document.querySelector(
+          'li[class*="dropDownSave"]',
+        ) as HTMLElement | null;
         if (!dropdownLi) return { step: "no-dropdown-li" };
 
         // Click the popOut arrow to open the dropdown
-        const popOut = dropdownLi.querySelector("div.dxm-popOut") as HTMLElement | null;
+        const popOut = dropdownLi.querySelector(
+          "div.dxm-popOut",
+        ) as HTMLElement | null;
         if (popOut) {
           popOut.click();
           return { step: "popout-clicked" };
@@ -7084,14 +7243,18 @@ export class ArchibaldBot {
       // Now click "Salva e chiudi" - it should be visible in the popup
       const salvaEChiudiClicked = await this.page.evaluate(() => {
         // Strategy 1: By ID pattern (dump confirmed: mainMenu_Menu_DXI1i1_T)
-        const byId = document.querySelector('a[id*="mainMenu_Menu_DXI1i1"]') as HTMLElement | null;
+        const byId = document.querySelector(
+          'a[id*="mainMenu_Menu_DXI1i1"]',
+        ) as HTMLElement | null;
         if (byId) {
           byId.click();
           return { clicked: true, strategy: "id-pattern" };
         }
 
         // Strategy 2: Search visible sub-items under dropDownSave popup
-        const popup = document.querySelector('div[id*="mainMenu_Menu_DXME1"]') as HTMLElement | null;
+        const popup = document.querySelector(
+          'div[id*="mainMenu_Menu_DXME1"]',
+        ) as HTMLElement | null;
         if (popup) {
           const links = Array.from(popup.querySelectorAll("a"));
           for (const link of links) {
@@ -7106,7 +7269,10 @@ export class ArchibaldBot {
         const allLinks = Array.from(document.querySelectorAll("a, span"));
         for (const el of allLinks) {
           const text = el.textContent?.trim() || "";
-          if (text === "Salva e chiudi" && (el as HTMLElement).offsetParent !== null) {
+          if (
+            text === "Salva e chiudi" &&
+            (el as HTMLElement).offsetParent !== null
+          ) {
             (el as HTMLElement).click();
             return { clicked: true, strategy: "visible-text" };
           }
@@ -7127,7 +7293,9 @@ export class ArchibaldBot {
           { timeout: 15000 },
         );
       } catch {
-        logger.warn("[editOrder] Did not navigate back to list after save, proceeding");
+        logger.warn(
+          "[editOrder] Did not navigate back to list after save, proceeding",
+        );
       }
 
       await this.emitProgress("edit.complete");
@@ -7138,7 +7306,9 @@ export class ArchibaldBot {
       };
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : String(error);
-      logger.error(`[editOrder] Error editing order ${archibaldOrderId}:`, { error: errorMsg });
+      logger.error(`[editOrder] Error editing order ${archibaldOrderId}:`, {
+        error: errorMsg,
+      });
 
       try {
         await this.page!.screenshot({
@@ -7156,7 +7326,10 @@ export class ArchibaldBot {
     }
   }
 
-  private async focusAndTypeArticle(articleCode: string, quantity: number): Promise<void> {
+  private async focusAndTypeArticle(
+    articleCode: string,
+    quantity: number,
+  ): Promise<void> {
     if (!this.page) throw new Error("Page not initialized");
 
     // Step 1: Look up the correct variant from the product database
@@ -7210,42 +7383,64 @@ export class ArchibaldBot {
         return focused?.id?.includes("INVENTTABLE") || false;
       });
       if (inventtableFocused) {
-        logger.debug("[editOrder] INVENTTABLE focused via JS focus (Strategy 1)");
+        logger.debug(
+          "[editOrder] INVENTTABLE focused via JS focus (Strategy 1)",
+        );
       }
     }
 
     // Strategy 2: Click on the article cell in the editing row (N/A for new rows, or existing article text)
     if (!inventtableFocused) {
-      const articleCell = await this.page.evaluate((gridName: string | null) => {
-        let container: Element | Document = document;
-        if (gridName) {
-          const gridEl = document.getElementById(gridName) || document.querySelector(`[id*="${gridName}"]`);
-          if (gridEl) container = gridEl;
-        }
-        const row = container.querySelector('tr[id*="editnew"], tr[id*="DXEditingRow"]');
-        if (!row) return null;
-        const cells = Array.from(row.querySelectorAll("td"));
-        for (const cell of cells) {
-          const text = cell.textContent?.trim() || "";
-          if (text === "N/A" || text.includes("N/A") || cell.querySelector('[class*="dxeDropDown"]') || cell.querySelector('input[id*="INVENTTABLE"]')) {
-            const rect = cell.getBoundingClientRect();
-            if (rect.width > 0) {
-              return { x: rect.x + rect.width / 2, y: rect.y + rect.height / 2 };
+      const articleCell = await this.page.evaluate(
+        (gridName: string | null) => {
+          let container: Element | Document = document;
+          if (gridName) {
+            const gridEl =
+              document.getElementById(gridName) ||
+              document.querySelector(`[id*="${gridName}"]`);
+            if (gridEl) container = gridEl;
+          }
+          const row = container.querySelector(
+            'tr[id*="editnew"], tr[id*="DXEditingRow"]',
+          );
+          if (!row) return null;
+          const cells = Array.from(row.querySelectorAll("td"));
+          for (const cell of cells) {
+            const text = cell.textContent?.trim() || "";
+            if (
+              text === "N/A" ||
+              text.includes("N/A") ||
+              cell.querySelector('[class*="dxeDropDown"]') ||
+              cell.querySelector('input[id*="INVENTTABLE"]')
+            ) {
+              const rect = cell.getBoundingClientRect();
+              if (rect.width > 0) {
+                return {
+                  x: rect.x + rect.width / 2,
+                  y: rect.y + rect.height / 2,
+                };
+              }
             }
           }
-        }
-        // Fallback: click the first cell that contains an input or has a dropdown editor
-        for (const cell of cells) {
-          const hasInput = cell.querySelector('input') || cell.querySelector('[class*="dxeEditArea"]');
-          if (hasInput) {
-            const rect = cell.getBoundingClientRect();
-            if (rect.width > 0) {
-              return { x: rect.x + rect.width / 2, y: rect.y + rect.height / 2 };
+          // Fallback: click the first cell that contains an input or has a dropdown editor
+          for (const cell of cells) {
+            const hasInput =
+              cell.querySelector("input") ||
+              cell.querySelector('[class*="dxeEditArea"]');
+            if (hasInput) {
+              const rect = cell.getBoundingClientRect();
+              if (rect.width > 0) {
+                return {
+                  x: rect.x + rect.width / 2,
+                  y: rect.y + rect.height / 2,
+                };
+              }
             }
           }
-        }
-        return null;
-      }, this.salesLinesGridName);
+          return null;
+        },
+        this.salesLinesGridName,
+      );
 
       if (articleCell) {
         await this.page.mouse.click(articleCell.x, articleCell.y);
@@ -7273,7 +7468,10 @@ export class ArchibaldBot {
           if (newInventtableId) {
             await this.page.evaluate((inputId: string) => {
               const el = document.getElementById(inputId) as HTMLInputElement;
-              if (el) { el.focus(); el.click(); }
+              if (el) {
+                el.focus();
+                el.click();
+              }
             }, newInventtableId);
             await this.wait(200);
             inventtableFocused = await this.page.evaluate(() => {
@@ -7284,7 +7482,9 @@ export class ArchibaldBot {
         }
 
         if (inventtableFocused) {
-          logger.debug("[editOrder] INVENTTABLE focused after clicking cell (Strategy 2)");
+          logger.debug(
+            "[editOrder] INVENTTABLE focused after clicking cell (Strategy 2)",
+          );
         }
       }
     }
@@ -7294,7 +7494,10 @@ export class ArchibaldBot {
       try {
         await this.page.evaluate((gridName: string) => {
           const w = window as any;
-          const grid = w.ASPxClientControl?.GetControlCollection?.()?.GetByName?.(gridName);
+          const grid =
+            w.ASPxClientControl?.GetControlCollection?.()?.GetByName?.(
+              gridName,
+            );
           if (!grid) return;
           // Try focusing each column editor until we find INVENTTABLE
           for (let col = 0; col < 10; col++) {
@@ -7306,11 +7509,16 @@ export class ArchibaldBot {
                 const id = mainEl?.id || inputEl?.id || "";
                 if (id.includes("INVENTTABLE")) {
                   editor.Focus?.();
-                  if (inputEl) { inputEl.focus(); inputEl.click(); }
+                  if (inputEl) {
+                    inputEl.focus();
+                    inputEl.click();
+                  }
                   break;
                 }
               }
-            } catch (_) { /* skip column */ }
+            } catch (_) {
+              /* skip column */
+            }
           }
         }, this.salesLinesGridName);
         await this.wait(300);
@@ -7321,7 +7529,9 @@ export class ArchibaldBot {
         });
 
         if (inventtableFocused) {
-          logger.debug("[editOrder] INVENTTABLE focused via DevExpress API (Strategy 3)");
+          logger.debug(
+            "[editOrder] INVENTTABLE focused via DevExpress API (Strategy 3)",
+          );
         }
       } catch (_e) {
         // ignore
@@ -7330,11 +7540,15 @@ export class ArchibaldBot {
 
     // Strategy 4: Tab navigation fallback
     if (!inventtableFocused) {
-      logger.warn("[editOrder] Falling back to Tab navigation for INVENTTABLE (Strategy 4)");
+      logger.warn(
+        "[editOrder] Falling back to Tab navigation for INVENTTABLE (Strategy 4)",
+      );
       try {
         // Click on the grid toolbar area first
         await this.page.evaluate(() => {
-          const toolbar = document.querySelector('[id*="dviSALESLINEs"] [class*="ToolBar"]');
+          const toolbar = document.querySelector(
+            '[id*="dviSALESLINEs"] [class*="ToolBar"]',
+          );
           if (toolbar) (toolbar as HTMLElement).click();
         });
         await this.wait(200);
@@ -7347,7 +7561,9 @@ export class ArchibaldBot {
             return focused?.id?.includes("INVENTTABLE") || false;
           });
           if (inventtableFocused) {
-            logger.debug(`[editOrder] INVENTTABLE focused after ${t + 1} Tab presses (Strategy 4)`);
+            logger.debug(
+              `[editOrder] INVENTTABLE focused after ${t + 1} Tab presses (Strategy 4)`,
+            );
             break;
           }
         }
@@ -7366,7 +7582,9 @@ export class ArchibaldBot {
           w: (inp as HTMLElement).offsetWidth,
           h: (inp as HTMLElement).offsetHeight,
         }));
-        const editRow = document.querySelector('tr[id*="DXEditingRow"], tr[id*="editnew"]');
+        const editRow = document.querySelector(
+          'tr[id*="DXEditingRow"], tr[id*="editnew"]',
+        );
         return {
           inventtableInputs: allInventtable,
           editRowExists: !!editRow,
@@ -7380,7 +7598,9 @@ export class ArchibaldBot {
         path: `logs/edit-inventtable-focus-failed-${Date.now()}.png`,
         fullPage: true,
       });
-      throw new Error(`INVENTTABLE field not focused for article edit. Debug: ${JSON.stringify(debugInfo)}`);
+      throw new Error(
+        `INVENTTABLE field not focused for article edit. Debug: ${JSON.stringify(debugInfo)}`,
+      );
     }
 
     // Step 3: Type article code (optimized: paste all except last char, then type last)
@@ -7392,7 +7612,9 @@ export class ArchibaldBot {
         const input = document.activeElement as HTMLInputElement;
         if (input && input.tagName === "INPUT") {
           input.value = text;
-          input.dispatchEvent(new Event("input", { bubbles: true, cancelable: true }));
+          input.dispatchEvent(
+            new Event("input", { bubbles: true, cancelable: true }),
+          );
         }
       }, pastePart);
 
@@ -7417,8 +7639,13 @@ export class ArchibaldBot {
           if (!col || typeof col.ForEachControl !== "function") return true;
           let busy = false;
           col.ForEachControl((c: any) => {
-            try { if (c.InCallback?.()) busy = true; } catch {}
-            try { const gv = c.GetGridView?.(); if (gv?.InCallback?.()) busy = true; } catch {}
+            try {
+              if (c.InCallback?.()) busy = true;
+            } catch {}
+            try {
+              const gv = c.GetGridView?.();
+              if (gv?.InCallback?.()) busy = true;
+            } catch {}
           });
           return !busy;
         },
@@ -7429,8 +7656,12 @@ export class ArchibaldBot {
     }
 
     // Step 5: Select correct variant using buildVariantCandidates + chooseBestVariantCandidate
-    const variantSuffix = selectedVariant.id.substring(selectedVariant.id.length - 2);
-    logger.debug(`[editOrder] Selecting variant by suffix: ${variantSuffix} (from ${selectedVariant.id})`);
+    const variantSuffix = selectedVariant.id.substring(
+      selectedVariant.id.length - 2,
+    );
+    logger.debug(
+      `[editOrder] Selecting variant by suffix: ${variantSuffix} (from ${selectedVariant.id})`,
+    );
 
     let rowSelected = false;
     let currentPage = 1;
@@ -7444,13 +7675,16 @@ export class ArchibaldBot {
         ).filter((node) => {
           const el = node as HTMLElement;
           const style = window.getComputedStyle(el);
-          if (style.display === "none" || style.visibility === "hidden") return false;
+          if (style.display === "none" || style.visibility === "hidden")
+            return false;
           const rect = el.getBoundingClientRect();
           return rect.width > 0 && rect.height > 0;
         });
 
         let activeContainer =
-          dropdownContainers.find((c) => c.querySelector('tr[class*="dxgvDataRow"]')) || null;
+          dropdownContainers.find((c) =>
+            c.querySelector('tr[class*="dxgvDataRow"]'),
+          ) || null;
 
         if (!activeContainer) {
           const popupContainers = Array.from(
@@ -7458,30 +7692,40 @@ export class ArchibaldBot {
           ).filter((node) => {
             const el = node as HTMLElement;
             const style = window.getComputedStyle(el);
-            if (style.display === "none" || style.visibility === "hidden") return false;
+            if (style.display === "none" || style.visibility === "hidden")
+              return false;
             const rect = el.getBoundingClientRect();
             return rect.width > 0 && rect.height > 0;
           });
-          activeContainer = popupContainers.find((c) => c.querySelector('tr[class*="dxgvDataRow"]')) || null;
+          activeContainer =
+            popupContainers.find((c) =>
+              c.querySelector('tr[class*="dxgvDataRow"]'),
+            ) || null;
         }
 
         const rowsRoot = activeContainer || document;
 
         const headerTexts: string[] = [];
-        const headerTable = rowsRoot.querySelector('table[id*="DXHeaderTable"]');
+        const headerTable = rowsRoot.querySelector(
+          'table[id*="DXHeaderTable"]',
+        );
         let headerRow: Element | null = null;
         if (headerTable) {
-          headerRow = headerTable.querySelector('tr[id*="DXHeadersRow"]') ||
+          headerRow =
+            headerTable.querySelector('tr[id*="DXHeadersRow"]') ||
             headerTable.querySelector("tr.dxgvHeaderRow");
         }
         if (!headerRow) {
-          headerRow = rowsRoot.querySelector("tr.dxgvHeaderRow") ||
+          headerRow =
+            rowsRoot.querySelector("tr.dxgvHeaderRow") ||
             rowsRoot.querySelector('tr[id*="DXHeadersRow"]');
         }
         if (headerRow) {
           Array.from(headerRow.querySelectorAll("td, th")).forEach((cell) => {
             const wrap = cell.querySelector(".dx-wrap");
-            headerTexts.push((wrap?.textContent || cell.textContent || "").trim());
+            headerTexts.push(
+              (wrap?.textContent || cell.textContent || "").trim(),
+            );
           });
         }
 
@@ -7490,7 +7734,8 @@ export class ArchibaldBot {
         ).filter((row) => {
           const el = row as HTMLElement;
           const style = window.getComputedStyle(el);
-          if (style.display === "none" || style.visibility === "hidden") return false;
+          if (style.display === "none" || style.visibility === "hidden")
+            return false;
           const rect = el.getBoundingClientRect();
           return rect.width > 0 && rect.height > 0;
         });
@@ -7505,7 +7750,9 @@ export class ArchibaldBot {
         });
 
         return {
-          containerId: activeContainer ? (activeContainer as HTMLElement).id || null : null,
+          containerId: activeContainer
+            ? (activeContainer as HTMLElement).id || null
+            : null,
           headerTexts,
           rows: rowSnapshots,
           rowsCount: rows.length,
@@ -7513,7 +7760,9 @@ export class ArchibaldBot {
       });
 
       if (snapshot.rowsCount === 0) {
-        throw new Error(`No variant rows found in dropdown for "${articleCode}"`);
+        throw new Error(
+          `No variant rows found in dropdown for "${articleCode}"`,
+        );
       }
 
       const headerIndices = computeVariantHeaderIndices(snapshot.headerTexts);
@@ -7536,30 +7785,49 @@ export class ArchibaldBot {
               if (byId) {
                 const style = window.getComputedStyle(byId);
                 const rect = byId.getBoundingClientRect();
-                if (style.display !== "none" && style.visibility !== "hidden" && rect.width > 0) {
+                if (
+                  style.display !== "none" &&
+                  style.visibility !== "hidden" &&
+                  rect.width > 0
+                ) {
                   activeContainer = byId;
                 }
               }
             }
             if (!activeContainer) {
-              const dds = Array.from(document.querySelectorAll('[id*="_DDD"]')).filter((node) => {
+              const dds = Array.from(
+                document.querySelectorAll('[id*="_DDD"]'),
+              ).filter((node) => {
                 const el = node as HTMLElement;
                 const s = window.getComputedStyle(el);
                 const r = el.getBoundingClientRect();
-                return s.display !== "none" && s.visibility !== "hidden" && r.width > 0;
+                return (
+                  s.display !== "none" &&
+                  s.visibility !== "hidden" &&
+                  r.width > 0
+                );
               });
-              activeContainer = dds.find((c) => c.querySelector('tr[class*="dxgvDataRow"]')) || null;
+              activeContainer =
+                dds.find((c) => c.querySelector('tr[class*="dxgvDataRow"]')) ||
+                null;
             }
             const rowsRoot = activeContainer || document;
-            const rows = Array.from(rowsRoot.querySelectorAll('tr[class*="dxgvDataRow"]')).filter((row) => {
+            const rows = Array.from(
+              rowsRoot.querySelectorAll('tr[class*="dxgvDataRow"]'),
+            ).filter((row) => {
               const el = row as HTMLElement;
               const s = window.getComputedStyle(el);
               const r = el.getBoundingClientRect();
-              return s.display !== "none" && s.visibility !== "hidden" && r.width > 0;
+              return (
+                s.display !== "none" && s.visibility !== "hidden" && r.width > 0
+              );
             });
             const focusedIndex = rows.findIndex((row) => {
               const cls = (row as HTMLElement).className || "";
-              return cls.includes("dxgvFocusedRow") || cls.includes("dxgvSelectedRow");
+              return (
+                cls.includes("dxgvFocusedRow") ||
+                cls.includes("dxgvSelectedRow")
+              );
             });
             return { rowsCount: rows.length, focusedIndex };
           },
@@ -7571,8 +7839,10 @@ export class ArchibaldBot {
         const targetIndex = chosen.index;
 
         if (targetIndex >= 0 && targetIndex < rowsCount) {
-          let delta = focusedIndex >= 0 ? targetIndex - focusedIndex : targetIndex + 1;
-          const direction: "ArrowDown" | "ArrowUp" = delta >= 0 ? "ArrowDown" : "ArrowUp";
+          let delta =
+            focusedIndex >= 0 ? targetIndex - focusedIndex : targetIndex + 1;
+          const direction: "ArrowDown" | "ArrowUp" =
+            delta >= 0 ? "ArrowDown" : "ArrowUp";
           delta = Math.abs(delta);
 
           const maxSteps = Math.min(delta, rowsCount + 2);
@@ -7585,7 +7855,9 @@ export class ArchibaldBot {
           await this.page.keyboard.press("Tab");
           rowSelected = true;
 
-          logger.info(`[editOrder] Variant selected: ${reason}, row ${targetIndex}/${rowsCount}`);
+          logger.info(
+            `[editOrder] Variant selected: ${reason}, row ${targetIndex}/${rowsCount}`,
+          );
         }
       }
 
@@ -7599,7 +7871,11 @@ export class ArchibaldBot {
           const className = img.className || "";
           if (alt === "Next" || className.includes("pNext")) {
             const parent = img.parentElement;
-            if (parent && parent.offsetParent !== null && !parent.className.includes("dxp-disabled")) {
+            if (
+              parent &&
+              parent.offsetParent !== null &&
+              !parent.className.includes("dxp-disabled")
+            ) {
               (parent as HTMLElement).click();
               return true;
             }
@@ -7610,7 +7886,10 @@ export class ArchibaldBot {
 
       if (!nextPageClicked) break;
 
-      await this.waitForDevExpressIdle({ timeout: 3000, label: "edit-variant-pagination" });
+      await this.waitForDevExpressIdle({
+        timeout: 3000,
+        label: "edit-variant-pagination",
+      });
       currentPage++;
     }
 
@@ -7633,8 +7912,13 @@ export class ArchibaldBot {
           if (!col || typeof col.ForEachControl !== "function") return true;
           let busy = false;
           col.ForEachControl((c: any) => {
-            try { if (c.InCallback?.()) busy = true; } catch {}
-            try { const gv = c.GetGridView?.(); if (gv?.InCallback?.()) busy = true; } catch {}
+            try {
+              if (c.InCallback?.()) busy = true;
+            } catch {}
+            try {
+              const gv = c.GetGridView?.();
+              if (gv?.InCallback?.()) busy = true;
+            } catch {}
           });
           return !busy;
         },
@@ -7643,7 +7927,9 @@ export class ArchibaldBot {
     } catch {
       // proceed
     }
-    logger.debug(`[editOrder] Article "${articleCode}" variant callbacks settled`);
+    logger.debug(
+      `[editOrder] Article "${articleCode}" variant callbacks settled`,
+    );
   }
 
   private async setEditRowQuantity(quantity: number): Promise<void> {
@@ -7659,7 +7945,9 @@ export class ArchibaldBot {
     const qtyNum = Number.parseFloat(currentQty.value.replace(",", "."));
 
     if (!Number.isFinite(qtyNum) || Math.abs(qtyNum - quantity) >= 0.01) {
-      logger.info(`[editOrder] Setting quantity: ${currentQty.value} → ${quantity}`);
+      logger.info(
+        `[editOrder] Setting quantity: ${currentQty.value} → ${quantity}`,
+      );
 
       await this.page.evaluate(() => {
         const input = document.activeElement as HTMLInputElement;
@@ -7677,7 +7965,9 @@ export class ArchibaldBot {
             if (!col || typeof col.ForEachControl !== "function") return true;
             let busy = false;
             col.ForEachControl((c: any) => {
-              try { if (c.InCallback?.()) busy = true; } catch {}
+              try {
+                if (c.InCallback?.()) busy = true;
+              } catch {}
             });
             return !busy;
           },
@@ -7695,7 +7985,9 @@ export class ArchibaldBot {
       const verifyNum = Number.parseFloat(verifyQty.replace(",", "."));
 
       if (Math.abs(verifyNum - quantity) >= 0.01) {
-        logger.warn(`[editOrder] Quantity verify failed: expected ${quantity}, got ${verifyQty}. Retrying...`);
+        logger.warn(
+          `[editOrder] Quantity verify failed: expected ${quantity}, got ${verifyQty}. Retrying...`,
+        );
         await this.page.evaluate(() => {
           const input = document.activeElement as HTMLInputElement;
           if (input?.select) input.select();
@@ -7727,7 +8019,9 @@ export class ArchibaldBot {
     });
 
     if (!discInputId) {
-      logger.warn("[editOrder] MANUALDISCOUNT input not found, discount not set");
+      logger.warn(
+        "[editOrder] MANUALDISCOUNT input not found, discount not set",
+      );
       return;
     }
 
@@ -7735,19 +8029,18 @@ export class ArchibaldBot {
     const MAX_ATTEMPTS = 3;
 
     for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
-      const discCoord = await this.page.evaluate(
-        (inputId: string) => {
-          const inp = document.getElementById(inputId) as HTMLInputElement;
-          if (!inp) return null;
-          inp.scrollIntoView({ block: "center" });
-          const r = inp.getBoundingClientRect();
-          return { x: r.x + r.width / 2, y: r.y + r.height / 2 };
-        },
-        discInputId,
-      );
+      const discCoord = await this.page.evaluate((inputId: string) => {
+        const inp = document.getElementById(inputId) as HTMLInputElement;
+        if (!inp) return null;
+        inp.scrollIntoView({ block: "center" });
+        const r = inp.getBoundingClientRect();
+        return { x: r.x + r.width / 2, y: r.y + r.height / 2 };
+      }, discInputId);
 
       if (discCoord) {
-        await this.page.mouse.click(discCoord.x, discCoord.y, { clickCount: 2 });
+        await this.page.mouse.click(discCoord.x, discCoord.y, {
+          clickCount: 2,
+        });
         await this.wait(300);
       }
 
@@ -7763,28 +8056,37 @@ export class ArchibaldBot {
 
       await this.page.keyboard.press("Enter");
 
-      const confirmed = await this.page.waitForFunction(
-        (inputId: string, target: string) => {
-          const inp = document.getElementById(inputId) as HTMLInputElement;
-          if (!inp) return false;
-          const val = inp.value.replace(/[^0-9.,]/g, "").replace(",", ".");
-          const num = parseFloat(val);
-          return num === parseFloat(target);
-        },
-        { timeout: 3000 },
-        discInputId,
-        discountStr,
-      ).then(() => true).catch(() => false);
+      const confirmed = await this.page
+        .waitForFunction(
+          (inputId: string, target: string) => {
+            const inp = document.getElementById(inputId) as HTMLInputElement;
+            if (!inp) return false;
+            const val = inp.value.replace(/[^0-9.,]/g, "").replace(",", ".");
+            const num = parseFloat(val);
+            return num === parseFloat(target);
+          },
+          { timeout: 3000 },
+          discInputId,
+          discountStr,
+        )
+        .then(() => true)
+        .catch(() => false);
 
       if (confirmed) {
-        logger.info(`[editOrder] Discount set: ${discount}% [attempt ${attempt}]`);
+        logger.info(
+          `[editOrder] Discount set: ${discount}% [attempt ${attempt}]`,
+        );
         return;
       }
 
-      logger.warn(`[editOrder] Discount attempt ${attempt}/${MAX_ATTEMPTS} failed`);
+      logger.warn(
+        `[editOrder] Discount attempt ${attempt}/${MAX_ATTEMPTS} failed`,
+      );
     }
 
-    logger.error(`[editOrder] Discount NOT set after ${MAX_ATTEMPTS} attempts for ${discount}%`);
+    logger.error(
+      `[editOrder] Discount NOT set after ${MAX_ATTEMPTS} attempts for ${discount}%`,
+    );
   }
 
   private async saveEditRow(): Promise<void> {
@@ -7805,7 +8107,10 @@ export class ArchibaldBot {
       if (this.salesLinesGridName) {
         await this.waitForGridCallback(this.salesLinesGridName, 20000);
       }
-      await this.waitForDevExpressIdle({ timeout: 4000, label: "edit-row-saved" });
+      await this.waitForDevExpressIdle({
+        timeout: 4000,
+        label: "edit-row-saved",
+      });
     }
 
     // Strategy 2: DevExpress API fallback
@@ -7820,7 +8125,9 @@ export class ArchibaldBot {
     }
 
     if (!updateDone) {
-      throw new Error("UpdateEdit failed for edit row (both DOM and API failed)");
+      throw new Error(
+        "UpdateEdit failed for edit row (both DOM and API failed)",
+      );
     }
 
     await this.wait(200);
@@ -9391,7 +9698,8 @@ export class ArchibaldBot {
         const wrapper = checkbox.closest(
           'span[id$="_ErrorInfo_Ch_S_D"]',
         ) as HTMLElement | null;
-        if (wrapper) return { selector: `#${wrapper.id}`, type: "errorinfo-checkbox" };
+        if (wrapper)
+          return { selector: `#${wrapper.id}`, type: "errorinfo-checkbox" };
         return { selector: `#${checkbox.id}`, type: "errorinfo-checkbox" };
       }
 
@@ -9403,7 +9711,11 @@ export class ArchibaldBot {
         const text = (el as HTMLElement).textContent?.trim();
         if (text === "Ignore warnings" || text === "Ignora avvisi") {
           const htmlEl = el as HTMLElement;
-          if (htmlEl.id) return { selector: `#${htmlEl.id}`, type: "ignore-warnings-button" };
+          if (htmlEl.id)
+            return {
+              selector: `#${htmlEl.id}`,
+              type: "ignore-warnings-button",
+            };
           // Fallback: JS click for elements without id
           htmlEl.click();
           return { selector: null, type: "ignore-warnings-button-js" };
@@ -9418,7 +9730,10 @@ export class ArchibaldBot {
       if (warningSelector.selector) {
         // Use Puppeteer native click for proper DevExpress event handling
         await this.page.click(warningSelector.selector);
-        logger.info("Clicked warning element with native click", warningSelector);
+        logger.info(
+          "Clicked warning element with native click",
+          warningSelector,
+        );
       } else {
         logger.info("Clicked warning element with JS click", warningSelector);
       }
@@ -9455,7 +9770,8 @@ export class ArchibaldBot {
           )
           .forEach((el) => {
             const htmlEl = el as HTMLElement;
-            const input = el.tagName === "INPUT" ? (el as HTMLInputElement) : null;
+            const input =
+              el.tagName === "INPUT" ? (el as HTMLInputElement) : null;
             const parent = htmlEl.closest("tr") || htmlEl.parentElement;
             results.push({
               tag: el.tagName,
@@ -9486,7 +9802,11 @@ export class ArchibaldBot {
             'span[id$="_ErrorInfo_Ch_S_D"]',
           ) as HTMLElement | null;
           if (wrapper && wrapper.offsetParent !== null) {
-            return { selector: `#${wrapper.id}`, id: wrapper.id, method: "errorinfo-wrapper" };
+            return {
+              selector: `#${wrapper.id}`,
+              id: wrapper.id,
+              method: "errorinfo-wrapper",
+            };
           }
         }
 
@@ -9496,7 +9816,12 @@ export class ArchibaldBot {
         ) as HTMLInputElement[];
         for (const cb of checkboxes) {
           if (!cb.checked && cb.offsetParent !== null) {
-            if (cb.id) return { selector: `#${cb.id}`, id: cb.id, method: "input-checkbox" };
+            if (cb.id)
+              return {
+                selector: `#${cb.id}`,
+                id: cb.id,
+                method: "input-checkbox",
+              };
             const wrapper = cb.closest("span") || cb.parentElement;
             if (wrapper) {
               (wrapper as HTMLElement).click();
@@ -9514,7 +9839,11 @@ export class ArchibaldBot {
         for (const el of dxCheckboxes) {
           const htmlEl = el as HTMLElement;
           if (htmlEl.offsetParent !== null && htmlEl.id) {
-            return { selector: `#${htmlEl.id}`, id: htmlEl.id, method: "dx-checkbox-span" };
+            return {
+              selector: `#${htmlEl.id}`,
+              id: htmlEl.id,
+              method: "dx-checkbox-span",
+            };
           }
         }
 
@@ -9732,8 +10061,7 @@ export class ArchibaldBot {
           .forEach((el) => {
             const htmlEl = el as HTMLElement;
             const isVisible =
-              htmlEl.offsetParent !== null ||
-              htmlEl.style.display !== "none";
+              htmlEl.offsetParent !== null || htmlEl.style.display !== "none";
             const text = htmlEl.textContent?.trim() || "";
             if (text.length > 0 && text.length < 1000) {
               popups.push({
@@ -10653,5 +10981,280 @@ export class ArchibaldBot {
     });
 
     await this.emitProgress("customer.complete");
+  }
+
+  // ─── Interactive Customer Creation (VAT auto-fill flow) ───────────
+
+  async navigateToNewCustomerForm(): Promise<void> {
+    if (!this.page) throw new Error("Browser page is null");
+
+    logger.info("Interactive: navigating to new customer form");
+
+    await this.page.goto(`${config.archibald.url}/CUSTTABLE_ListView_Agent/`, {
+      waitUntil: "networkidle2",
+      timeout: 60000,
+    });
+
+    await this.waitForDevExpressReady({ timeout: 10000 });
+
+    const nuovoClicked = await this.clickElementByText("Nuovo", {
+      selectors: ["a", "span", "button"],
+    });
+    if (!nuovoClicked) throw new Error("'Nuovo' button not found");
+
+    await this.page.waitForFunction(
+      (baseUrl: string) => !window.location.href.includes("ListView"),
+      { timeout: 15000, polling: 200 },
+      config.archibald.url,
+    );
+    await this.waitForDevExpressReady({ timeout: 10000 });
+
+    logger.info("Interactive: new customer form ready");
+  }
+
+  async submitVatAndReadAutofill(
+    vatNumber: string,
+  ): Promise<import("./types").VatLookupResult> {
+    if (!this.page) throw new Error("Browser page is null");
+
+    logger.info("Interactive: submitting VAT number", { vatNumber });
+
+    await this.setDevExpressField(/xaf_dviVATNUM_Edit_I$/, vatNumber);
+
+    await this.page.keyboard.press("Tab");
+
+    await this.waitForDevExpressIdle({ timeout: 20000, label: "vat-autofill" });
+
+    await this.wait(2000);
+
+    const rawFields = await this.page.evaluate(() => {
+      const getValue = (idPattern: RegExp): string => {
+        const inputs = Array.from(document.querySelectorAll("input, textarea"));
+        for (const el of inputs) {
+          if (idPattern.test((el as HTMLElement).id)) {
+            return (el as HTMLInputElement).value || "";
+          }
+        }
+
+        const w = window as any;
+        const collection = w.ASPxClientControl?.GetControlCollection?.();
+        if (!collection) return "";
+
+        let found = "";
+        collection.ForEachControl((c: any) => {
+          if (found) return;
+          const name = c.name || "";
+          if (idPattern.test(name)) {
+            try {
+              found = c.GetValue?.() || c.GetText?.() || "";
+            } catch {
+              /* ignore */
+            }
+          }
+        });
+        return found;
+      };
+
+      const captionCells = Array.from(
+        document.querySelectorAll(
+          "td.dxflCaption_DevEx, td.dxflCaptionCell_DevEx, .dxflCaption_DevEx",
+        ),
+      );
+
+      const fieldsByLabel: Record<string, string> = {};
+      for (const cell of captionCells) {
+        const labelText = (cell.textContent?.trim() || "").toLowerCase();
+        if (
+          labelText.includes("ultimo controllo") ||
+          labelText.includes("last vat") ||
+          labelText.includes("iva validata") ||
+          labelText.includes("vat valid") ||
+          labelText.includes("indirizzo iva") ||
+          labelText.includes("vat address") ||
+          labelText.includes("controllo iva")
+        ) {
+          const row = cell.closest("tr");
+          if (!row) continue;
+          const inputsInRow = Array.from(
+            row.querySelectorAll("input, textarea"),
+          ) as HTMLInputElement[];
+          const val = inputsInRow
+            .map((i) => i.value)
+            .filter((v) => v)
+            .join(" | ");
+          fieldsByLabel[cell.textContent?.trim() || ""] = val;
+        }
+      }
+
+      return {
+        vatNumber: getValue(/xaf_dviVATNUM_Edit_I$/),
+        fieldsByLabel,
+        allVatRelated: Array.from(document.querySelectorAll("input, textarea"))
+          .filter((el) => {
+            const id = (el as HTMLElement).id.toLowerCase();
+            return (
+              id.includes("vat") ||
+              id.includes("iva") ||
+              id.includes("check") ||
+              id.includes("valid") ||
+              id.includes("address")
+            );
+          })
+          .map((el) => ({
+            id: (el as HTMLElement).id,
+            value: (el as HTMLInputElement).value,
+          })),
+      };
+    });
+
+    logger.info("Interactive: raw VAT autofill fields", rawFields);
+
+    const { parseIndirizzoIva } = await import("./parse-indirizzo-iva");
+
+    const lastVatCheck =
+      rawFields.fieldsByLabel[
+        Object.keys(rawFields.fieldsByLabel).find((k) =>
+          k.toLowerCase().includes("ultimo controllo"),
+        ) || ""
+      ] || "";
+
+    const vatValidated =
+      rawFields.fieldsByLabel[
+        Object.keys(rawFields.fieldsByLabel).find(
+          (k) =>
+            k.toLowerCase().includes("iva validata") ||
+            k.toLowerCase().includes("vat valid"),
+        ) || ""
+      ] || "";
+
+    const vatAddress =
+      rawFields.fieldsByLabel[
+        Object.keys(rawFields.fieldsByLabel).find(
+          (k) =>
+            k.toLowerCase().includes("indirizzo iva") ||
+            k.toLowerCase().includes("vat address"),
+        ) || ""
+      ] || "";
+
+    const parsed = parseIndirizzoIva(vatAddress);
+
+    const result: import("./types").VatLookupResult = {
+      lastVatCheck,
+      vatValidated,
+      vatAddress,
+      parsed,
+    };
+
+    logger.info("Interactive: VAT lookup result", result);
+    return result;
+  }
+
+  async completeCustomerCreation(
+    customerData: import("./types").CustomerFormData,
+  ): Promise<string> {
+    if (!this.page) throw new Error("Browser page is null");
+
+    logger.info("Interactive: completing customer creation", {
+      name: customerData.name,
+    });
+
+    await this.setDevExpressField(/xaf_dviNAME_Edit_I$/, customerData.name);
+
+    if (customerData.deliveryMode) {
+      await this.setDevExpressComboBox(
+        /xaf_dviDLVMODE_Edit_dropdown_DD_I$/,
+        customerData.deliveryMode,
+      );
+    }
+
+    if (customerData.paymentTerms) {
+      await this.selectFromDevExpressLookup(
+        /xaf_dviPAYMTERMID_Edit_find_Edit_B0/,
+        customerData.paymentTerms,
+      );
+    }
+
+    if (customerData.pec) {
+      await this.setDevExpressField(
+        /xaf_dviLEGALEMAIL_Edit_I$/,
+        customerData.pec,
+      );
+    }
+
+    if (customerData.sdi) {
+      await this.setDevExpressField(
+        /xaf_dviLEGALAUTHORITY_Edit_I$/,
+        customerData.sdi,
+      );
+    }
+
+    if (customerData.street) {
+      await this.setDevExpressField(
+        /xaf_dviSTREET_Edit_I$/,
+        customerData.street,
+      );
+    }
+
+    await this.emitProgress("customer.field");
+
+    if (customerData.postalCode) {
+      await this.selectFromDevExpressLookup(
+        /xaf_dviLOGISTICSADDRESSZIPCODE_Edit_find_Edit_B0/,
+        customerData.postalCode,
+        customerData.postalCodeCity,
+      );
+    }
+
+    if (customerData.phone) {
+      await this.setDevExpressField(/xaf_dviPHONE_Edit_I$/, customerData.phone);
+    }
+
+    if (customerData.email) {
+      await this.setDevExpressField(/xaf_dviEMAIL_Edit_I$/, customerData.email);
+    }
+
+    await this.openCustomerTab("Prezzi e sconti");
+
+    try {
+      await this.page.waitForFunction(
+        () => {
+          const input = document.querySelector(
+            'input[id*="LINEDISC"][id$="_I"]',
+          ) as HTMLInputElement | null;
+          return input && input.offsetParent !== null;
+        },
+        { timeout: 10000, polling: 200 },
+      );
+    } catch {
+      logger.warn("LINEDISC not found after tab switch, retrying...");
+      await this.openCustomerTab("Prezzi e sconti");
+      await this.wait(1000);
+    }
+
+    await this.setDevExpressComboBox(
+      /xaf_dviLINEDISC_Edit_dropdown_DD_I$/,
+      customerData.lineDiscount || "N/A",
+    );
+
+    if (customerData.deliveryStreet && customerData.deliveryPostalCode) {
+      await this.fillDeliveryAddress(
+        customerData.deliveryStreet,
+        customerData.deliveryPostalCode,
+        customerData.deliveryPostalCodeCity,
+      );
+    }
+
+    await this.emitProgress("customer.save");
+    await this.saveAndCloseCustomer();
+
+    const customerProfileId = await this.getCustomerProfileId();
+    logger.info("Interactive: customer created successfully", {
+      customerProfileId,
+      name: customerData.name,
+    });
+
+    await this.emitProgress("customer.complete");
+
+    return customerProfileId;
   }
 }

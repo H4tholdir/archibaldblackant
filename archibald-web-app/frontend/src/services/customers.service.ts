@@ -375,6 +375,92 @@ export class CustomerService {
       throw new Error(`Retry failed: ${response.status}`);
     }
   }
+  async startInteractiveSession(): Promise<{ sessionId: string }> {
+    const response = await fetchWithRetry("/api/customers/interactive/start", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+    });
+
+    if (!response.ok) {
+      throw new Error(`Start session failed: ${response.status}`);
+    }
+
+    const data = await response.json();
+    return { sessionId: data.data?.sessionId || "" };
+  }
+
+  async submitVatNumber(sessionId: string, vatNumber: string): Promise<void> {
+    const response = await fetchWithRetry(
+      `/api/customers/interactive/${encodeURIComponent(sessionId)}/vat`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ vatNumber }),
+      },
+    );
+
+    if (!response.ok) {
+      throw new Error(`VAT submit failed: ${response.status}`);
+    }
+  }
+
+  async saveInteractiveCustomer(
+    sessionId: string,
+    formData: {
+      name: string;
+      vatNumber?: string;
+      pec?: string;
+      sdi?: string;
+      street?: string;
+      postalCode?: string;
+      phone?: string;
+      email?: string;
+      deliveryMode?: string;
+      paymentTerms?: string;
+      deliveryStreet?: string;
+      deliveryPostalCode?: string;
+      postalCodeCity?: string;
+      postalCodeCountry?: string;
+      deliveryPostalCodeCity?: string;
+      deliveryPostalCodeCountry?: string;
+    },
+  ): Promise<{ customer: Customer | null; taskId: string | null }> {
+    const response = await fetchWithRetry(
+      `/api/customers/interactive/${encodeURIComponent(sessionId)}/save`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(formData),
+      },
+    );
+
+    if (!response.ok) {
+      throw new Error(`Interactive save failed: ${response.status}`);
+    }
+
+    const data = await response.json();
+    const customer: Customer | undefined = data.data?.customer;
+    const taskId: string | undefined = data.data?.taskId;
+
+    if (customer && customer.id) {
+      const customersTable = this.db.table<Customer, string>("customers");
+      await customersTable.put(customer);
+    }
+
+    return { customer: customer ?? null, taskId: taskId ?? null };
+  }
+
+  async cancelInteractiveSession(sessionId: string): Promise<void> {
+    const response = await fetchWithRetry(
+      `/api/customers/interactive/${encodeURIComponent(sessionId)}`,
+      { method: "DELETE" },
+    );
+
+    if (!response.ok) {
+      throw new Error(`Cancel session failed: ${response.status}`);
+    }
+  }
+
   async uploadPhoto(customerProfile: string, file: File): Promise<void> {
     const compressed = await this.compressImage(file, 800, 0.7);
     const dataUri = await this.blobToDataUri(compressed);

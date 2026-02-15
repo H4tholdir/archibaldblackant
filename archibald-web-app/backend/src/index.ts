@@ -98,7 +98,11 @@ import { importSubClientsFromExcel } from "./subclient-excel-importer";
 import multerSubClients from "multer";
 import multerPhotos from "multer";
 import crypto from "crypto";
-import { getCustomerProgressMilestone } from "./job-progress-mapper";
+import {
+  getCustomerProgressMilestone,
+  getInteractiveCustomerProgressMilestone,
+} from "./job-progress-mapper";
+import { InteractiveSessionManager } from "./interactive-session";
 
 const app = express();
 const server = createServer(app);
@@ -132,7 +136,13 @@ const invoiceSyncService = InvoiceSyncService.getInstance();
 const syncOrchestrator = SyncOrchestrator.getInstance();
 
 // Global lock per prevenire sync paralleli e conflitti con ordini
-type ActiveOperation = "customers" | "products" | "prices" | "order" | "user-action" | null;
+type ActiveOperation =
+  | "customers"
+  | "products"
+  | "prices"
+  | "order"
+  | "user-action"
+  | null;
 let activeOperation: ActiveOperation = null;
 
 function acquireSyncLock(type: "customers" | "products" | "prices"): boolean {
@@ -152,7 +162,11 @@ function acquireSyncLock(type: "customers" | "products" | "prices"): boolean {
 }
 
 function releaseSyncLock() {
-  if (activeOperation === "customers" || activeOperation === "products" || activeOperation === "prices") {
+  if (
+    activeOperation === "customers" ||
+    activeOperation === "products" ||
+    activeOperation === "prices"
+  ) {
     logger.info(`🔓 Lock rilasciato: ${activeOperation}`);
     activeOperation = null;
   }
@@ -166,7 +180,9 @@ async function withUserActionLock<T>(
     throw new Error("Creazione ordine in corso, riprovare più tardi");
   }
   if (activeOperation === "user-action") {
-    throw new Error("Un'altra operazione utente è in corso, riprovare più tardi");
+    throw new Error(
+      "Un'altra operazione utente è in corso, riprovare più tardi",
+    );
   }
 
   activeOperation = "user-action";
@@ -260,9 +276,7 @@ export async function forceStopAllSyncs(): Promise<void> {
   ];
 
   for (const { name, service } of allServices) {
-    logger.error(
-      `🔨 FORCE-RESET NUCLEARE: Reset totale servizio ${name}`,
-    );
+    logger.error(`🔨 FORCE-RESET NUCLEARE: Reset totale servizio ${name}`);
     (service as any).syncInProgress = false;
     (service as any).paused = false;
     (service as any).stopRequested = false;
@@ -282,9 +296,7 @@ export async function forceStopAllSyncs(): Promise<void> {
 
   // Reset global lock (anche se "order" — potrebbe essere un job morto precedente)
   if (activeOperation) {
-    logger.error(
-      `🔨 FORCE-RESET: activeOperation "${activeOperation}" → null`,
-    );
+    logger.error(`🔨 FORCE-RESET: activeOperation "${activeOperation}" → null`);
     activeOperation = null;
   }
 
@@ -3185,6 +3197,391 @@ app.post(
   },
 );
 
+// ========== INTERACTIVE CUSTOMER CREATION ENDPOINTS ==========
+
+// Start interactive session (navigates bot to new customer form)
+app.post(
+  "/api/customers/interactive/start",
+  authenticateJWT,
+  async (req: AuthRequest, res: Response<ApiResponse>) => {
+    try {
+      const userId = req.user!.userId;
+      const sessionManager = InteractiveSessionManager.getInstance();
+
+      const existing = sessionManager.getActiveSessionForUser(userId);
+      if (existing) {
+        await sessionManager.removeBot(existing.sessionId);
+        sessionManager.destroySession(existing.sessionId);
+      }
+
+      const sessionId = sessionManager.createSession(userId);
+
+      res.json({
+        success: true,
+        data: { sessionId },
+        message: "Sessione interattiva avviata",
+      });
+
+      (async () => {
+        let bot: InstanceType<typeof ArchibaldBot> | null = null;
+        try {
+          sessionManager.updateState(sessionId, "starting");
+
+          WebSocketServerService.getInstance().broadcast(userId, {
+            type: "CUSTOMER_INTERACTIVE_PROGRESS",
+            payload: {
+              sessionId,
+              ...getInteractiveCustomerProgressMilestone(
+                "interactive.starting",
+              ),
+            },
+            timestamp: new Date().toISOString(),
+          });
+
+          bot = new ArchibaldBot(userId);
+          await bot.initialize();
+
+          WebSocketServerService.getInstance().broadcast(userId, {
+            type: "CUSTOMER_INTERACTIVE_PROGRESS",
+            payload: {
+              sessionId,
+              ...getInteractiveCustomerProgressMilestone(
+                "interactive.navigating",
+              ),
+            },
+            timestamp: new Date().toISOString(),
+          });
+
+          await bot.navigateToNewCustomerForm();
+
+          sessionManager.updateState(sessionId, "ready");
+          sessionManager.setBot(sessionId, bot);
+
+          WebSocketServerService.getInstance().broadcast(userId, {
+            type: "CUSTOMER_INTERACTIVE_READY",
+            payload: { sessionId },
+            timestamp: new Date().toISOString(),
+          });
+        } catch (error) {
+          if (bot) {
+            try {
+              await bot.close();
+            } catch {
+              /* ignore cleanup error */
+            }
+          }
+
+          sessionManager.setError(
+            sessionId,
+            error instanceof Error ? error.message : "Errore avvio sessione",
+          );
+
+          WebSocketServerService.getInstance().broadcast(userId, {
+            type: "CUSTOMER_INTERACTIVE_FAILED",
+            payload: {
+              sessionId,
+              error:
+                error instanceof Error ? error.message : "Errore sconosciuto",
+            },
+            timestamp: new Date().toISOString(),
+          });
+        }
+      })();
+    } catch (error) {
+      logger.error("Errore API POST /api/customers/interactive/start", {
+        error,
+      });
+      res.status(500).json({
+        success: false,
+        error:
+          error instanceof Error
+            ? error.message
+            : "Errore avvio sessione interattiva",
+      });
+    }
+  },
+);
+
+// Submit VAT number to interactive session
+app.post(
+  "/api/customers/interactive/:sessionId/vat",
+  authenticateJWT,
+  async (req: AuthRequest, res: Response<ApiResponse>) => {
+    try {
+      const userId = req.user!.userId;
+      const { sessionId } = req.params;
+      const { vatNumber } = req.body as { vatNumber: string };
+
+      if (!vatNumber || vatNumber.trim().length === 0) {
+        return res.status(400).json({
+          success: false,
+          error: "Partita IVA obbligatoria",
+        });
+      }
+
+      const sessionManager = InteractiveSessionManager.getInstance();
+      const session = sessionManager.getSession(sessionId, userId);
+
+      if (!session) {
+        return res.status(404).json({
+          success: false,
+          error: "Sessione non trovata",
+        });
+      }
+
+      if (session.state !== "ready") {
+        return res.status(409).json({
+          success: false,
+          error: `Sessione non pronta (stato: ${session.state})`,
+        });
+      }
+
+      sessionManager.updateState(sessionId, "processing_vat");
+
+      res.json({
+        success: true,
+        message: "Verifica P.IVA avviata",
+      });
+
+      (async () => {
+        try {
+          const bot = sessionManager.getBot(sessionId);
+
+          if (!bot) {
+            throw new Error("Bot non trovato per questa sessione");
+          }
+
+          WebSocketServerService.getInstance().broadcast(userId, {
+            type: "CUSTOMER_INTERACTIVE_PROGRESS",
+            payload: {
+              sessionId,
+              ...getInteractiveCustomerProgressMilestone(
+                "interactive.processing_vat",
+              ),
+            },
+            timestamp: new Date().toISOString(),
+          });
+
+          const vatResult = await bot.submitVatAndReadAutofill(vatNumber);
+
+          sessionManager.setVatResult(sessionId, vatResult);
+
+          WebSocketServerService.getInstance().broadcast(userId, {
+            type: "CUSTOMER_VAT_RESULT",
+            payload: { sessionId, vatResult },
+            timestamp: new Date().toISOString(),
+          });
+        } catch (error) {
+          sessionManager.setError(
+            sessionId,
+            error instanceof Error ? error.message : "Errore verifica P.IVA",
+          );
+
+          WebSocketServerService.getInstance().broadcast(userId, {
+            type: "CUSTOMER_INTERACTIVE_FAILED",
+            payload: {
+              sessionId,
+              error:
+                error instanceof Error ? error.message : "Errore sconosciuto",
+            },
+            timestamp: new Date().toISOString(),
+          });
+        }
+      })();
+    } catch (error) {
+      logger.error(
+        "Errore API POST /api/customers/interactive/:sessionId/vat",
+        { error },
+      );
+      res.status(500).json({
+        success: false,
+        error:
+          error instanceof Error
+            ? error.message
+            : "Errore durante la verifica P.IVA",
+      });
+    }
+  },
+);
+
+// Save interactive customer (complete creation with remaining fields)
+app.post(
+  "/api/customers/interactive/:sessionId/save",
+  authenticateJWT,
+  async (req: AuthRequest, res: Response<ApiResponse>) => {
+    try {
+      const userId = req.user!.userId;
+      const { sessionId } = req.params;
+      const customerData = req.body as import("./types").CustomerFormData;
+
+      if (!customerData.name || customerData.name.trim().length === 0) {
+        return res.status(400).json({
+          success: false,
+          error: "Il nome del cliente è obbligatorio",
+        });
+      }
+
+      const sessionManager = InteractiveSessionManager.getInstance();
+      const session = sessionManager.getSession(sessionId, userId);
+
+      if (!session) {
+        return res.status(404).json({
+          success: false,
+          error: "Sessione non trovata",
+        });
+      }
+
+      if (session.state !== "vat_complete" && session.state !== "ready") {
+        return res.status(409).json({
+          success: false,
+          error: `Sessione non pronta per il salvataggio (stato: ${session.state})`,
+        });
+      }
+
+      sessionManager.updateState(sessionId, "saving");
+
+      const tempProfile = `TEMP-${Date.now()}`;
+      const taskId = crypto.randomUUID();
+
+      const customer = customerDb.upsertSingleCustomer(
+        customerData,
+        tempProfile,
+        "pending",
+      );
+
+      res.json({
+        success: true,
+        data: {
+          customer: { ...customer, id: customer.customerProfile },
+          taskId,
+        },
+        message: "Salvataggio in corso...",
+      });
+
+      (async () => {
+        try {
+          const bot = sessionManager.getBot(sessionId);
+
+          if (!bot) {
+            throw new Error("Bot non trovato per questa sessione");
+          }
+
+          bot.setProgressCallback(async (category, metadata) => {
+            const milestone = getCustomerProgressMilestone(category);
+            if (milestone) {
+              WebSocketServerService.getInstance().broadcast(userId, {
+                type: "CUSTOMER_UPDATE_PROGRESS",
+                payload: {
+                  taskId,
+                  customerProfile: tempProfile,
+                  progress: milestone.progress,
+                  label: milestone.label,
+                  operation: "create",
+                },
+                timestamp: new Date().toISOString(),
+              });
+            }
+          });
+
+          const customerProfileId =
+            await bot.completeCustomerCreation(customerData);
+
+          await sessionManager.removeBot(sessionId);
+          sessionManager.updateState(sessionId, "completed");
+
+          customerDb.updateCustomerBotStatus(tempProfile, "placed");
+
+          syncOrchestrator
+            .smartCustomerSync()
+            .catch((err) =>
+              logger.error(
+                "Smart customer sync after interactive create failed",
+                { err },
+              ),
+            );
+
+          WebSocketServerService.getInstance().broadcast(userId, {
+            type: "CUSTOMER_UPDATE_COMPLETED",
+            payload: { taskId, customerProfile: customerProfileId },
+            timestamp: new Date().toISOString(),
+          });
+        } catch (error) {
+          customerDb.updateCustomerBotStatus(tempProfile, "failed");
+          sessionManager.setError(
+            sessionId,
+            error instanceof Error ? error.message : "Errore salvataggio",
+          );
+
+          await sessionManager.removeBot(sessionId);
+
+          WebSocketServerService.getInstance().broadcast(userId, {
+            type: "CUSTOMER_UPDATE_FAILED",
+            payload: {
+              taskId,
+              customerProfile: tempProfile,
+              error:
+                error instanceof Error ? error.message : "Errore sconosciuto",
+            },
+            timestamp: new Date().toISOString(),
+          });
+        }
+      })();
+    } catch (error) {
+      logger.error(
+        "Errore API POST /api/customers/interactive/:sessionId/save",
+        { error },
+      );
+      res.status(500).json({
+        success: false,
+        error:
+          error instanceof Error
+            ? error.message
+            : "Errore durante il salvataggio interattivo",
+      });
+    }
+  },
+);
+
+// Cancel interactive session
+app.delete(
+  "/api/customers/interactive/:sessionId",
+  authenticateJWT,
+  async (req: AuthRequest, res: Response<ApiResponse>) => {
+    try {
+      const userId = req.user!.userId;
+      const { sessionId } = req.params;
+      const sessionManager = InteractiveSessionManager.getInstance();
+      const session = sessionManager.getSession(sessionId, userId);
+
+      if (!session) {
+        return res.status(404).json({
+          success: false,
+          error: "Sessione non trovata",
+        });
+      }
+
+      await sessionManager.removeBot(sessionId);
+      sessionManager.destroySession(sessionId);
+
+      res.json({
+        success: true,
+        message: "Sessione annullata",
+      });
+    } catch (error) {
+      logger.error("Errore API DELETE /api/customers/interactive/:sessionId", {
+        error,
+      });
+      res.status(500).json({
+        success: false,
+        error:
+          error instanceof Error
+            ? error.message
+            : "Errore durante la cancellazione della sessione",
+      });
+    }
+  },
+);
+
 // ========== CUSTOMER PHOTO ENDPOINTS ==========
 
 const photoUpload = multerPhotos({
@@ -5719,9 +6116,8 @@ app.post(
 
       return await withUserActionLock("send-to-milano", async () => {
         const { ArchibaldBot } = await import("./archibald-bot");
-        const { getSendToVeronaProgressMilestone } = await import(
-          "./job-progress-mapper"
-        );
+        const { getSendToVeronaProgressMilestone } =
+          await import("./job-progress-mapper");
 
         const bot = new ArchibaldBot(userId);
 
@@ -5804,12 +6200,15 @@ app.post(
         }
       });
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
       const isLockConflict =
         errorMessage.includes("in corso") || errorMessage.includes("riprovare");
 
       if (isLockConflict) {
-        logger.warn(`[SendToMilano] Lock conflict for order ${orderId}: ${errorMessage}`);
+        logger.warn(
+          `[SendToMilano] Lock conflict for order ${orderId}: ${errorMessage}`,
+        );
         return res.status(409).json({
           success: false,
           error: errorMessage,
@@ -6183,12 +6582,15 @@ app.get(
         return res.send(pdfBuffer);
       });
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
       const isLockConflict =
         errorMessage.includes("in corso") || errorMessage.includes("riprovare");
 
       if (isLockConflict) {
-        logger.warn(`[Invoice Download] Lock conflict for order ${orderId}: ${errorMessage}`);
+        logger.warn(
+          `[Invoice Download] Lock conflict for order ${orderId}: ${errorMessage}`,
+        );
         return res.status(409).json({
           success: false,
           error: errorMessage,
@@ -6307,12 +6709,15 @@ app.get(
         return res.send(pdfBuffer);
       });
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
       const isLockConflict =
         errorMessage.includes("in corso") || errorMessage.includes("riprovare");
 
       if (isLockConflict) {
-        logger.warn(`[DDT Download] Lock conflict for order ${orderId}: ${errorMessage}`);
+        logger.warn(
+          `[DDT Download] Lock conflict for order ${orderId}: ${errorMessage}`,
+        );
         return res.status(409).json({
           success: false,
           error: errorMessage,
@@ -6721,9 +7126,8 @@ app.post(
         });
       }
 
-      const { getEditProgressMilestone } = await import(
-        "./job-progress-mapper"
-      );
+      const { getEditProgressMilestone } =
+        await import("./job-progress-mapper");
 
       const bot = new ArchibaldBot(userId);
       let botSuccess = false;
@@ -6736,20 +7140,24 @@ app.post(
         // WS not available
       }
 
-      bot.setProgressCallback(async (category: string, metadata?: Record<string, any>) => {
-        if (!wsService) return;
-        const milestone = getEditProgressMilestone(category, metadata);
-        if (!milestone) return;
-        wsService.emitOrderEditProgress(userId, orderId, milestone.progress, milestone.label);
-      });
+      bot.setProgressCallback(
+        async (category: string, metadata?: Record<string, any>) => {
+          if (!wsService) return;
+          const milestone = getEditProgressMilestone(category, metadata);
+          if (!milestone) return;
+          wsService.emitOrderEditProgress(
+            userId,
+            orderId,
+            milestone.progress,
+            milestone.label,
+          );
+        },
+      );
 
       try {
         await bot.initialize();
 
-        const result = await bot.editOrderInArchibald(
-          orderId,
-          modifications,
-        );
+        const result = await bot.editOrderInArchibald(orderId, modifications);
 
         if (!result.success) {
           return res.status(500).json({
@@ -6768,7 +7176,8 @@ app.post(
               updatedItems.map((item: any) => ({
                 orderId,
                 articleCode: item.articleCode || "",
-                articleDescription: item.productName || item.articleDescription || "",
+                articleDescription:
+                  item.productName || item.articleDescription || "",
                 quantity: item.quantity || 0,
                 unitPrice: item.unitPrice || 0,
                 discountPercent: item.discountPercent || 0,
@@ -6846,9 +7255,8 @@ app.post(
         });
       }
 
-      const { getDeleteProgressMilestone } = await import(
-        "./job-progress-mapper"
-      );
+      const { getDeleteProgressMilestone } =
+        await import("./job-progress-mapper");
 
       const bot = new ArchibaldBot(userId);
       let botSuccess = false;
@@ -7212,9 +7620,7 @@ server.listen(config.server.port, async () => {
       runMigration030,
     } = require("./migrations/030-add-revenue-to-fresis-history");
     runMigration030();
-    logger.info(
-      "✅ Migration 030 completed (add revenue to fresis_history)",
-    );
+    logger.info("✅ Migration 030 completed (add revenue to fresis_history)");
   } catch (error) {
     logger.warn("⚠️  Migration 030 failed or already applied", { error });
   }
