@@ -424,19 +424,6 @@ export function CustomerCreateModal({
       subscribe("CUSTOMER_INTERACTIVE_READY", (payload: any) => {
         if (payload.sessionId !== interactiveSessionIdRef.current) return;
         setBotReady(true);
-
-        const vatInput = earlyVatInputRef.current.trim();
-        if (vatInput.length > 0 && interactiveSessionIdRef.current) {
-          setCurrentStep({ kind: "vat-processing" });
-          customerService
-            .submitVatNumber(interactiveSessionIdRef.current, vatInput)
-            .catch((err) => {
-              setVatError(
-                err instanceof Error ? err.message : "Errore verifica P.IVA",
-              );
-              setCurrentStep({ kind: "vat-input" });
-            });
-        }
       }),
     );
 
