@@ -1962,10 +1962,23 @@ export default function OrderFormSimple() {
       return;
     }
 
+    // Round discount, but ensure imponibile never falls below target:
+    // try Math.round first, fall back to Math.floor (less discount = higher imponibile)
+    let newDiscount = Math.round(scontoNecessario * 100) / 100;
+
+    const computeImponibile = (disc: number) =>
+      items.reduce((sum, item) => {
+        if (!imponibileSelectedItems.has(item.id)) return sum + item.subtotal;
+        return sum + item.unitPrice * item.quantity * (1 - disc / 100);
+      }, 0);
+
+    if (computeImponibile(newDiscount) < target) {
+      newDiscount = Math.floor(scontoNecessario * 100) / 100;
+    }
+
     setItems(
       items.map((item) => {
         if (!imponibileSelectedItems.has(item.id)) return item;
-        const newDiscount = Math.round(scontoNecessario * 100) / 100;
         const newSubtotal =
           item.unitPrice * item.quantity * (1 - newDiscount / 100);
         const newVat = newSubtotal * (item.vatRate / 100);
@@ -1980,7 +1993,7 @@ export default function OrderFormSimple() {
     );
     setShowImponibileDialog(false);
     toastService.success(
-      `Sconto ${Math.round(scontoNecessario * 100) / 100}% applicato sugli articoli selezionati`,
+      `Sconto ${newDiscount}% applicato sugli articoli selezionati`,
     );
   };
 
@@ -2009,22 +2022,50 @@ export default function OrderFormSimple() {
 
     const ratio = targetForSelected / currentSelectedSubtotal;
 
-    setItems(
-      items.map((item) => {
-        if (!imponibileSelectedItems.has(item.id)) return item;
-        const newUnitPrice = Math.round(item.unitPrice * ratio * 100) / 100;
-        const newSubtotal =
-          newUnitPrice * item.quantity * (1 - item.discount / 100);
-        const newVat = newSubtotal * (item.vatRate / 100);
-        return {
-          ...item,
-          unitPrice: newUnitPrice,
-          subtotal: newSubtotal,
-          vat: newVat,
-          total: newSubtotal + newVat,
-        };
-      }),
-    );
+    const recalcItemPrice = (item: OrderItem, unitPrice: number) => {
+      const newSubtotal =
+        unitPrice * item.quantity * (1 - item.discount / 100);
+      const newVat = newSubtotal * (item.vatRate / 100);
+      return {
+        ...item,
+        unitPrice,
+        subtotal: newSubtotal,
+        vat: newVat,
+        total: newSubtotal + newVat,
+      };
+    };
+
+    let updatedItems = items.map((item) => {
+      if (!imponibileSelectedItems.has(item.id)) return item;
+      return recalcItemPrice(
+        item,
+        Math.round(item.unitPrice * ratio * 100) / 100,
+      );
+    });
+
+    // Correction: if imponibile < target, bump unit prices of selected items
+    // starting from lowest quantity (smallest impact per +0.01€)
+    const computeImponibile = (testItems: OrderItem[]) =>
+      testItems.reduce((sum, i) => sum + i.subtotal, 0);
+
+    let actualImponibile = computeImponibile(updatedItems);
+    if (actualImponibile < target) {
+      const sortedIndices = updatedItems
+        .map((item, idx) => ({ item, idx }))
+        .filter(({ item }) => imponibileSelectedItems.has(item.id))
+        .sort((a, b) => a.item.quantity - b.item.quantity);
+
+      for (const { idx } of sortedIndices) {
+        if (actualImponibile >= target) break;
+        const item = updatedItems[idx];
+        updatedItems = updatedItems.map((it, i) =>
+          i === idx ? recalcItemPrice(it, item.unitPrice + 0.01) : it,
+        );
+        actualImponibile = computeImponibile(updatedItems);
+      }
+    }
+
+    setItems(updatedItems);
     setShowImponibileDialog(false);
     toastService.success(
       "Prezzi modificati per raggiungere l'imponibile target",
@@ -2124,7 +2165,36 @@ export default function OrderFormSimple() {
       bestDiscount = mid;
     }
 
-    const finalDiscount = Math.round(bestDiscount * 100) / 100;
+    // Round discount, but ensure total never falls below target:
+    // try Math.round first, fall back to Math.floor (less discount = higher total)
+    let finalDiscount = Math.round(bestDiscount * 100) / 100;
+
+    const computeDiscountedTotal = (disc: number) => {
+      const testSub = selectedItems.reduce(
+        (sum, i) =>
+          sum +
+          i.unitPrice *
+            i.quantity *
+            (1 - disc / 100) *
+            (1 - discountPercent / 100),
+        0,
+      );
+      const testVAT = selectedItems.reduce(
+        (sum, i) =>
+          sum +
+          i.unitPrice *
+            i.quantity *
+            (1 - disc / 100) *
+            (1 - discountPercent / 100) *
+            (i.vatRate / 100),
+        0,
+      );
+      return testSub + testVAT + fixedPortion;
+    };
+
+    if (computeDiscountedTotal(finalDiscount) < target) {
+      finalDiscount = Math.floor(bestDiscount * 100) / 100;
+    }
 
     setItems(
       items.map((item) => {
@@ -2252,6 +2322,9 @@ export default function OrderFormSimple() {
       return;
     }
 
+    const currentTotals = calculateTotals();
+    const targetTotal = currentTotals.finalTotal + markupAmount;
+
     // markupAmount is the IVA-inclusive difference
     // We need to distribute the net (pre-VAT) amount proportionally across selected items
     // Approximate: scorporo IVA using weighted average VAT rate of selected items
@@ -2264,7 +2337,19 @@ export default function OrderFormSimple() {
       selectedSubtotal > 0 ? selectedVAT / selectedSubtotal : 0.22;
     const netMarkup = markupAmount / (1 + avgVatRate);
 
-    const updatedItems = items.map((item) => {
+    const recalcItem = (item: OrderItem, unitPrice: number) => {
+      const newSubtotal = unitPrice * item.quantity;
+      const newVat = newSubtotal * (item.vatRate / 100);
+      return {
+        ...item,
+        unitPrice,
+        subtotal: Math.round(newSubtotal * 100) / 100,
+        vat: Math.round(newVat * 100) / 100,
+        total: Math.round((newSubtotal + newVat) * 100) / 100,
+      };
+    };
+
+    let updatedItems = items.map((item) => {
       if (!markupArticleSelection.has(item.id)) return item;
 
       // Distribute proportionally to item subtotal weight
@@ -2278,18 +2363,42 @@ export default function OrderFormSimple() {
           ? item.unitPrice + itemMarkup / item.quantity
           : item.unitPrice;
 
-      const newSubtotal = newUnitPrice * item.quantity;
-      const newVat = newSubtotal * (item.vatRate / 100);
-      const newTotal = newSubtotal + newVat;
-
-      return {
-        ...item,
-        unitPrice: Math.round(newUnitPrice * 100) / 100,
-        subtotal: Math.round(newSubtotal * 100) / 100,
-        vat: Math.round(newVat * 100) / 100,
-        total: Math.round(newTotal * 100) / 100,
-      };
+      return recalcItem(item, Math.round(newUnitPrice * 100) / 100);
     });
+
+    // Compute total using same logic as calculateTotals
+    const computeTotal = (testItems: OrderItem[]) => {
+      const discPercent =
+        parseFloat(globalDiscountPercent.replace(",", ".")) || 0;
+      const sub = testItems.reduce((sum, i) => sum + i.subtotal, 0);
+      const finalSub = sub - (sub * discPercent) / 100;
+      const shipping = calculateShippingCosts(finalSub);
+      const vatAfterDisc = testItems.reduce(
+        (sum, i) =>
+          sum + i.subtotal * (1 - discPercent / 100) * (i.vatRate / 100),
+        0,
+      );
+      return roundUp(finalSub + shipping.cost + vatAfterDisc + shipping.tax);
+    };
+
+    // Correction: if total < target, bump unit prices of selected items
+    // starting from lowest quantity (smallest impact per +0.01€)
+    let actualTotal = computeTotal(updatedItems);
+    if (actualTotal < targetTotal) {
+      const sortedIndices = updatedItems
+        .map((item, idx) => ({ item, idx }))
+        .filter(({ item }) => markupArticleSelection.has(item.id))
+        .sort((a, b) => a.item.quantity - b.item.quantity);
+
+      for (const { idx } of sortedIndices) {
+        if (actualTotal >= targetTotal) break;
+        const item = updatedItems[idx];
+        updatedItems = updatedItems.map((it, i) =>
+          i === idx ? recalcItem(it, item.unitPrice + 0.01) : it,
+        );
+        actualTotal = computeTotal(updatedItems);
+      }
+    }
 
     setItems(updatedItems);
     setShowMarkupPanel(false);
