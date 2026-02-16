@@ -97,6 +97,17 @@ export default function OrderFormSimple() {
   const [itemDiscount, setItemDiscount] = useState("");
   const [listPrice, setListPrice] = useState("");
   const [searchingLastSale, setSearchingLastSale] = useState(false);
+  const [lastSalesModal, setLastSalesModal] = useState<
+    Array<{
+      unitPrice: number;
+      discountPercent: number;
+      quantity: number;
+      creationDate: string;
+      customerName: string;
+      source: "local" | "server";
+    }>
+  >([]);
+  const [lastSalesModalOpen, setLastSalesModalOpen] = useState(false);
 
   // Packaging preview state
   const [packagingPreview, setPackagingPreview] =
@@ -1139,11 +1150,18 @@ export default function OrderFormSimple() {
         selectedProduct.article || selectedProduct.name
       ).toLowerCase();
 
-      // 1. Search in local fresisHistory (ALL sub-clients)
-      let localBestDate = "";
-      let localBestPrice: number | null = null;
-      let localBestDiscount: number | null = null;
+      type SaleEntry = {
+        unitPrice: number;
+        discountPercent: number;
+        quantity: number;
+        creationDate: string;
+        customerName: string;
+        source: "local" | "server";
+      };
 
+      const allSales: SaleEntry[] = [];
+
+      // 1. Search in local fresisHistory (ALL sub-clients)
       const allOrders = await db.fresisHistory.toArray();
       for (const order of allOrders) {
         for (const item of order.items) {
@@ -1155,36 +1173,44 @@ export default function OrderFormSimple() {
             name.includes(productCode) ||
             (code && productCode.includes(code))
           ) {
-            const orderDate = order.createdAt || "";
-            if (orderDate > localBestDate) {
-              localBestDate = orderDate;
-              localBestPrice = item.price;
-              localBestDiscount = item.discount ?? 0;
-            }
+            allSales.push({
+              unitPrice: item.price,
+              discountPercent: item.discount ?? 0,
+              quantity: item.quantity,
+              creationDate: order.createdAt || "",
+              customerName: order.subClientName || order.customerName || "",
+              source: "local",
+            });
           }
         }
       }
 
-      // 2. Search in backend
-      let serverBestDate = "";
-      let serverBestPrice: number | null = null;
-      let serverBestDiscount: number | null = null;
-
+      // 2. Search in backend (last 5)
       try {
         const token = localStorage.getItem("archibald_jwt");
         if (token) {
           const articleCode = encodeURIComponent(
             selectedProduct.article || selectedProduct.name,
           );
-          const response = await fetch(`/api/orders/last-sale/${articleCode}`, {
-            headers: { Authorization: `Bearer ${token}` },
-          });
+          const response = await fetch(
+            `/api/orders/last-sales/${articleCode}`,
+            {
+              headers: { Authorization: `Bearer ${token}` },
+            },
+          );
           if (response.ok) {
             const data = await response.json();
-            if (data.success && data.data) {
-              serverBestDate = data.data.creationDate || "";
-              serverBestPrice = data.data.unitPrice;
-              serverBestDiscount = data.data.discountPercent ?? 0;
+            if (data.success && Array.isArray(data.data)) {
+              for (const sale of data.data) {
+                allSales.push({
+                  unitPrice: sale.unitPrice,
+                  discountPercent: sale.discountPercent ?? 0,
+                  quantity: sale.quantity,
+                  creationDate: sale.creationDate || "",
+                  customerName: sale.customerName || "",
+                  source: "server",
+                });
+              }
             }
           }
         }
@@ -1192,42 +1218,24 @@ export default function OrderFormSimple() {
         // Backend search failed, continue with local results
       }
 
-      // 3. Compare and use most recent
-      let bestPrice: number | null = null;
-      let bestDiscount: number | null = null;
+      // 3. Sort by date descending, deduplicate, take top 5
+      allSales.sort((a, b) => b.creationDate.localeCompare(a.creationDate));
+      const seen = new Set<string>();
+      const uniqueSales = allSales.filter((sale) => {
+        const key = `${sale.creationDate}|${sale.unitPrice}|${sale.customerName}`;
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      });
+      const top5 = uniqueSales.slice(0, 5);
 
-      if (localBestDate && serverBestDate) {
-        if (localBestDate >= serverBestDate) {
-          bestPrice = localBestPrice;
-          bestDiscount = localBestDiscount;
-        } else {
-          bestPrice = serverBestPrice;
-          bestDiscount = serverBestDiscount;
-        }
-      } else if (localBestDate) {
-        bestPrice = localBestPrice;
-        bestDiscount = localBestDiscount;
-      } else if (serverBestDate) {
-        bestPrice = serverBestPrice;
-        bestDiscount = serverBestDiscount;
-      }
-
-      if (bestPrice !== null && bestPrice > 0) {
-        setListPrice(bestPrice.toString());
-        if (bestDiscount !== null && bestDiscount > 0) {
-          setItemDiscount(bestDiscount.toString());
-        }
-        toastService.success(
-          `Ultima vendita trovata: ${formatCurrency(bestPrice)}${bestDiscount ? ` (sconto ${bestDiscount}%)` : ""}`,
-        );
-      } else if (bestPrice !== null && bestPrice === 0) {
-        toastService.warning(
-          "Ultima vendita trovata a 0,00 € — prezzo di listino mantenuto",
-        );
-      } else {
+      if (top5.length === 0) {
         toastService.warning(
           "Nessuna vendita precedente trovata per questo articolo",
         );
+      } else {
+        setLastSalesModal(top5);
+        setLastSalesModalOpen(true);
       }
     } catch (error) {
       console.error("[OrderForm] Last sale search failed:", error);
@@ -1235,6 +1243,20 @@ export default function OrderFormSimple() {
     } finally {
       setSearchingLastSale(false);
     }
+  };
+
+  const handleSelectLastSale = (sale: {
+    unitPrice: number;
+    discountPercent: number;
+  }) => {
+    setListPrice(sale.unitPrice.toString());
+    if (sale.discountPercent > 0) {
+      setItemDiscount(sale.discountPercent.toString());
+    }
+    setLastSalesModalOpen(false);
+    toastService.success(
+      `Prezzo applicato: ${formatCurrency(sale.unitPrice)}${sale.discountPercent ? ` (sconto ${sale.discountPercent}%)` : ""}`,
+    );
   };
 
   // === ADD ITEM (WITH MULTIPLE LINES FOR VARIANTS) ===
@@ -4981,6 +5003,152 @@ export default function OrderFormSimple() {
                 Annulla
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* LAST SALES MODAL */}
+      {lastSalesModalOpen && lastSalesModal.length > 0 && (
+        <div
+          style={{
+            position: "fixed",
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: "rgba(0,0,0,0.5)",
+            zIndex: 1000,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: "1rem",
+          }}
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setLastSalesModalOpen(false);
+          }}
+          onKeyDown={(e) => {
+            if (e.key === "Escape") setLastSalesModalOpen(false);
+          }}
+        >
+          <div
+            style={{
+              background: "white",
+              borderRadius: "12px",
+              padding: isMobile ? "1.25rem" : "1.5rem",
+              maxWidth: "550px",
+              width: "100%",
+              maxHeight: "80vh",
+              overflowY: "auto",
+            }}
+          >
+            <h3 style={{ margin: "0 0 1rem 0", fontSize: "1.125rem" }}>
+              Ultime Vendite
+            </h3>
+            <div
+              style={{
+                border: "1px solid #e5e7eb",
+                borderRadius: "6px",
+                overflow: "hidden",
+              }}
+            >
+              {lastSalesModal.map((sale, index) => (
+                <div
+                  key={`${sale.creationDate}-${sale.customerName}-${index}`}
+                  onClick={() => handleSelectLastSale(sale)}
+                  style={{
+                    padding: "0.75rem",
+                    cursor: "pointer",
+                    borderBottom:
+                      index < lastSalesModal.length - 1
+                        ? "1px solid #f3f4f6"
+                        : "none",
+                    transition: "background 0.15s",
+                  }}
+                  onMouseEnter={(e) => {
+                    (e.currentTarget as HTMLDivElement).style.background =
+                      "#f0f9ff";
+                  }}
+                  onMouseLeave={(e) => {
+                    (e.currentTarget as HTMLDivElement).style.background =
+                      "transparent";
+                  }}
+                >
+                  <div
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      alignItems: "center",
+                      marginBottom: "0.25rem",
+                    }}
+                  >
+                    <span style={{ fontWeight: "600", fontSize: "0.9375rem" }}>
+                      {formatCurrency(sale.unitPrice)}
+                    </span>
+                    {sale.discountPercent > 0 && (
+                      <span
+                        style={{
+                          background: "#fef3c7",
+                          color: "#92400e",
+                          padding: "0.125rem 0.5rem",
+                          borderRadius: "9999px",
+                          fontSize: "0.75rem",
+                          fontWeight: "600",
+                        }}
+                      >
+                        -{sale.discountPercent}%
+                      </span>
+                    )}
+                  </div>
+                  <div
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      fontSize: "0.8125rem",
+                      color: "#6b7280",
+                    }}
+                  >
+                    <span
+                      style={{
+                        overflow: "hidden",
+                        textOverflow: "ellipsis",
+                        whiteSpace: "nowrap",
+                        maxWidth: "60%",
+                      }}
+                    >
+                      {sale.customerName || "—"}
+                    </span>
+                    <span>
+                      {sale.creationDate
+                        ? new Date(sale.creationDate).toLocaleDateString(
+                            "it-IT",
+                            {
+                              day: "2-digit",
+                              month: "2-digit",
+                              year: "numeric",
+                            },
+                          )
+                        : "—"}
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <button
+              onClick={() => setLastSalesModalOpen(false)}
+              style={{
+                width: "100%",
+                marginTop: "0.75rem",
+                padding: "0.75rem",
+                background: "transparent",
+                color: "#6b7280",
+                border: "1px solid #d1d5db",
+                borderRadius: "6px",
+                cursor: "pointer",
+                fontSize: "0.9375rem",
+              }}
+            >
+              Annulla
+            </button>
           </div>
         </div>
       )}

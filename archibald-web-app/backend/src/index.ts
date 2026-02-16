@@ -5262,6 +5262,29 @@ app.get(
   },
 );
 
+// Get last 5 sales for an article (used by "Ultima Vendita" modal)
+app.get(
+  "/api/orders/last-sales/:articleCode",
+  authenticateJWT,
+  async (req: AuthRequest, res: Response<ApiResponse>) => {
+    try {
+      const { articleCode } = req.params;
+      const sales = orderDb.getLastSalesForArticle(articleCode);
+
+      res.json({
+        success: true,
+        data: sales,
+      });
+    } catch (error) {
+      logger.error("Errore API /api/orders/last-sales", { error });
+      res.status(500).json({
+        success: false,
+        error: error instanceof Error ? error.message : "Errore sconosciuto",
+      });
+    }
+  },
+);
+
 // Get order status endpoint
 app.get(
   "/api/orders/status/:jobId",

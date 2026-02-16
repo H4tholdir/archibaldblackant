@@ -2008,6 +2008,39 @@ export class OrderDatabaseNew {
     };
   }
 
+  getLastSalesForArticle(
+    articleCode: string,
+    limit = 5,
+  ): Array<{
+    articleCode: string;
+    unitPrice: number;
+    discountPercent: number;
+    quantity: number;
+    creationDate: string;
+    customerName: string;
+  }> {
+    const rows = this.db
+      .prepare(
+        `SELECT oa.article_code, oa.unit_price, oa.discount_percent, oa.quantity,
+                o.creation_date, o.customer_name
+         FROM order_articles oa
+         JOIN orders o ON o.id = oa.order_id
+         WHERE oa.article_code LIKE ?
+         ORDER BY o.creation_date DESC
+         LIMIT ?`,
+      )
+      .all(`%${articleCode}%`, limit) as any[];
+
+    return rows.map((row: any) => ({
+      articleCode: row.article_code,
+      unitPrice: parseFloat(row.unit_price) || 0,
+      discountPercent: parseFloat(row.discount_percent) || 0,
+      quantity: parseInt(row.quantity, 10) || 0,
+      creationDate: row.creation_date,
+      customerName: row.customer_name,
+    }));
+  }
+
   close(): void {
     this.db.close();
     logger.info("[OrderDatabaseNew] Database closed");
