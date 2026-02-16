@@ -1068,6 +1068,22 @@ export default function OrderFormSimple() {
   };
 
   // === SEARCH LAST SALE (Fresis) ===
+  const getOriginalListPrice = (): number | null => {
+    const firstPrice = productVariants.find((v) => v.price !== null);
+    return firstPrice?.price ?? null;
+  };
+
+  const handleListPriceBlur = () => {
+    const parsed = parseFloat((listPrice || "").replace(",", "."));
+    if (!listPrice.trim() || isNaN(parsed) || parsed === 0) {
+      const originalPrice = getOriginalListPrice();
+      if (originalPrice != null && originalPrice > 0) {
+        setListPrice(originalPrice.toString());
+        toastService.info(`Prezzo di listino ripristinato: ${formatCurrency(originalPrice)}`);
+      }
+    }
+  };
+
   const handleSearchLastSale = async () => {
     if (!selectedProduct) return;
     setSearchingLastSale(true);
@@ -1085,7 +1101,8 @@ export default function OrderFormSimple() {
         for (const item of order.items) {
           const code = (item.articleCode || "").toLowerCase();
           const name = (item.productName || "").toLowerCase();
-          if (code.includes(productCode) || name.includes(productCode) || productCode.includes(code)) {
+          if (!code && !name) continue;
+          if (code.includes(productCode) || name.includes(productCode) || (code && productCode.includes(code))) {
             const orderDate = order.createdAt || "";
             if (orderDate > localBestDate) {
               localBestDate = orderDate;
@@ -1141,7 +1158,7 @@ export default function OrderFormSimple() {
         bestDiscount = serverBestDiscount;
       }
 
-      if (bestPrice !== null) {
+      if (bestPrice !== null && bestPrice > 0) {
         setListPrice(bestPrice.toString());
         if (bestDiscount !== null && bestDiscount > 0) {
           setItemDiscount(bestDiscount.toString());
@@ -1149,6 +1166,8 @@ export default function OrderFormSimple() {
         toastService.success(
           `Ultima vendita trovata: ${formatCurrency(bestPrice)}${bestDiscount ? ` (sconto ${bestDiscount}%)` : ""}`,
         );
+      } else if (bestPrice !== null && bestPrice === 0) {
+        toastService.warning("Ultima vendita trovata a 0,00 € — prezzo di listino mantenuto");
       } else {
         toastService.warning("Nessuna vendita precedente trovata per questo articolo");
       }
@@ -2905,6 +2924,7 @@ export default function OrderFormSimple() {
                         inputMode="decimal"
                         value={listPrice}
                         onChange={(e) => setListPrice(e.target.value)}
+                        onBlur={handleListPriceBlur}
                         onFocus={(e) => scrollFieldIntoView(e.target)}
                         onKeyDown={(e) => {
                           if (e.key === "Enter") {
