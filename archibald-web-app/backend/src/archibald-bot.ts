@@ -10810,9 +10810,13 @@ export class ArchibaldBot {
   ): Promise<void> {
     if (!this.page) throw new Error("Browser page is null");
 
-    const searchName = originalName || customerData.name;
+    const sanitize = (s: string) =>
+      s.replace(/\n/g, " ").replace(/\s+/g, " ").trim();
+    const searchName = sanitize(originalName || customerData.name);
     const fallbackName =
-      searchName !== customerData.name ? customerData.name : null;
+      searchName !== sanitize(customerData.name)
+        ? sanitize(customerData.name)
+        : null;
     logger.info("Updating customer", {
       customerProfile,
       searchName,
