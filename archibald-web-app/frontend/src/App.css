@@ -1051,7 +1051,7 @@
 }
 
 .autocomplete-item:hover {
-  background-color: #bfdbfe;
+  background-color: rgba(102, 126, 234, 0.15);
 }
 
 .autocomplete-item-name {

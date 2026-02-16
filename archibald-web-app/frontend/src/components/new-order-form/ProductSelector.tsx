@@ -253,7 +253,9 @@ export function ProductSelector({
                 padding: "0.75rem",
                 cursor: "pointer",
                 backgroundColor:
-                  index === highlightedIndex ? "#bfdbfe" : "white",
+                  index === highlightedIndex
+                    ? "rgba(102, 126, 234, 0.15)"
+                    : "white",
                 borderBottom:
                   index < results.length - 1 ? "1px solid #e5e7eb" : "none",
               }}
