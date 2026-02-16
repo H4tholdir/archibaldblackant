@@ -8904,6 +8904,39 @@ export class ArchibaldBot {
     logger.debug("setDevExpressField done", { id: result.id, value });
   }
 
+  private async typeDevExpressField(
+    fieldRegex: RegExp,
+    value: string,
+  ): Promise<void> {
+    if (!this.page) throw new Error("Browser page is null");
+
+    const inputId = await this.page.evaluate((regex: string) => {
+      const inputs = Array.from(document.querySelectorAll("input"));
+      const input = inputs.find((i) =>
+        new RegExp(regex).test(i.id),
+      ) as HTMLInputElement | null;
+      if (!input) return null;
+      input.scrollIntoView({ block: "center" });
+      input.focus();
+      input.click();
+      input.value = "";
+      return input.id;
+    }, fieldRegex.source);
+
+    if (!inputId) {
+      throw new Error(`Input field not found: ${fieldRegex}`);
+    }
+
+    await this.page.type(`[id="${inputId}"]`, value, { delay: 20 });
+    await this.page.keyboard.press("Tab");
+    await this.waitForDevExpressIdle({
+      timeout: 5000,
+      label: `typed-${inputId}`,
+    });
+
+    logger.debug("typeDevExpressField done", { id: inputId, value });
+  }
+
   private async setDevExpressComboBox(
     fieldRegex: RegExp,
     value: string,
@@ -9065,6 +9098,10 @@ export class ArchibaldBot {
       hasIframe: iframeInfo.hasIframe,
       src: iframeInfo.src?.substring(0, 100),
       id: iframeInfo.id,
+      ...(!iframeInfo.hasIframe && {
+        visibleIframes: (iframeInfo as { visibleIframes?: unknown[] })
+          .visibleIframes,
+      }),
     });
 
     if (iframeInfo.hasIframe) {
@@ -9115,6 +9152,8 @@ export class ArchibaldBot {
       }
       return null;
     });
+
+    logger.info("Direct lookup search input", { searchInputId, searchValue });
 
     if (searchInputId) {
       await this.page.evaluate(
@@ -9167,7 +9206,39 @@ export class ArchibaldBot {
         { timeout: 12000, polling: 150 },
       );
     } catch {
-      logger.warn("Rows not detected in direct lookup dialog");
+      const popupDiag = await this.page.evaluate(() => {
+        const selectors =
+          '[id*="_DDD"], .dxpcLite, .dxpc-mainDiv, .dxpc-content, [id*="PopupControl"], [id*="_PW"], .dxpnlControl';
+        const popups = Array.from(document.querySelectorAll(selectors)).filter(
+          (node) => {
+            const el = node as HTMLElement;
+            return (
+              el.offsetParent !== null && el.getBoundingClientRect().width > 0
+            );
+          },
+        );
+        return popups.map((p) => ({
+          id: p.id,
+          tagName: p.tagName,
+          childIframes: Array.from(p.querySelectorAll("iframe")).map((f) => ({
+            id: f.id,
+            src: f.src?.substring(0, 200),
+          })),
+          inputs: Array.from(p.querySelectorAll("input"))
+            .filter((i) => (i as HTMLElement).offsetParent !== null)
+            .map((i) => ({
+              id: i.id,
+              type: (i as HTMLInputElement).type,
+              value: (i as HTMLInputElement).value?.substring(0, 50),
+            })),
+          rows: p.querySelectorAll('tr[class*="dxgvDataRow"]').length,
+          html: (p as HTMLElement).innerHTML?.substring(0, 500),
+        }));
+      });
+      logger.warn("Rows not detected in direct lookup dialog", {
+        searchValue,
+        popupDiag,
+      });
     }
 
     await this.selectRowInLookupDialog(searchValue, matchHint);
@@ -10552,7 +10623,7 @@ export class ArchibaldBot {
 
     const urlValue = customerData.url || "https://www.example.com/";
     try {
-      await this.setDevExpressField(/xaf_dviURL_Edit_I$/, urlValue);
+      await this.typeDevExpressField(/xaf_dviURL_Edit_I$/, urlValue);
     } catch {
       logger.warn(
         "URL field not found, dumping visible input IDs for diagnostics",
@@ -11042,7 +11113,7 @@ export class ArchibaldBot {
 
     if (customerData.url) {
       try {
-        await this.setDevExpressField(/xaf_dviURL_Edit_I$/, customerData.url);
+        await this.typeDevExpressField(/xaf_dviURL_Edit_I$/, customerData.url);
       } catch {
         logger.warn(
           "URL field not found (update), dumping visible input IDs",
@@ -11461,7 +11532,7 @@ export class ArchibaldBot {
 
     const interactiveUrl = customerData.url || "https://www.example.com/";
     try {
-      await this.setDevExpressField(/xaf_dviURL_Edit_I$/, interactiveUrl);
+      await this.typeDevExpressField(/xaf_dviURL_Edit_I$/, interactiveUrl);
     } catch {
       logger.warn(
         "URL field not found (interactive), dumping visible input IDs",
