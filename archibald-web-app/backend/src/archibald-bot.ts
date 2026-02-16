@@ -10495,12 +10495,12 @@ export class ArchibaldBot {
     if (mobileValue) {
       try {
         await this.setDevExpressField(
-          /xaf_dviCELLPHONE_Edit_I$/,
+          /xaf_dviCELLULARPHONE_Edit_I$/,
           mobileValue,
         );
       } catch {
         logger.warn(
-          "CELLPHONE field not found, dumping visible input IDs for diagnostics",
+          "CELLULARPHONE field not found, dumping visible input IDs for diagnostics",
         );
         await this.dumpVisibleInputIds();
       }
@@ -10975,12 +10975,12 @@ export class ArchibaldBot {
     if (customerData.mobile) {
       try {
         await this.setDevExpressField(
-          /xaf_dviCELLPHONE_Edit_I$/,
+          /xaf_dviCELLULARPHONE_Edit_I$/,
           customerData.mobile,
         );
       } catch {
         logger.warn(
-          "CELLPHONE field not found (update), dumping visible input IDs",
+          "CELLULARPHONE field not found (update), dumping visible input IDs",
         );
         await this.dumpVisibleInputIds();
       }
@@ -11384,12 +11384,12 @@ export class ArchibaldBot {
     if (interactiveMobile) {
       try {
         await this.setDevExpressField(
-          /xaf_dviCELLPHONE_Edit_I$/,
+          /xaf_dviCELLULARPHONE_Edit_I$/,
           interactiveMobile,
         );
       } catch {
         logger.warn(
-          "CELLPHONE field not found (interactive), dumping visible input IDs",
+          "CELLULARPHONE field not found (interactive), dumping visible input IDs",
         );
         await this.dumpVisibleInputIds();
       }
