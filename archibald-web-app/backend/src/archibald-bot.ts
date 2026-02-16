@@ -10526,7 +10526,7 @@ export class ArchibaldBot {
 
     logger.info("Customer form loaded, filling fields");
 
-    await this.setDevExpressField(/xaf_dviNAME_Edit_I$/, customerData.name);
+    await this.typeDevExpressField(/xaf_dviNAME_Edit_I$/, customerData.name);
 
     if (customerData.deliveryMode) {
       await this.setDevExpressComboBox(
@@ -10536,7 +10536,7 @@ export class ArchibaldBot {
     }
 
     if (customerData.vatNumber) {
-      await this.setDevExpressField(
+      await this.typeDevExpressField(
         /xaf_dviVATNUM_Edit_I$/,
         customerData.vatNumber,
       );
@@ -10550,21 +10550,21 @@ export class ArchibaldBot {
     }
 
     if (customerData.pec) {
-      await this.setDevExpressField(
+      await this.typeDevExpressField(
         /xaf_dviLEGALEMAIL_Edit_I$/,
         customerData.pec,
       );
     }
 
     if (customerData.sdi) {
-      await this.setDevExpressField(
+      await this.typeDevExpressField(
         /xaf_dviLEGALAUTHORITY_Edit_I$/,
         customerData.sdi,
       );
     }
 
     if (customerData.street) {
-      await this.setDevExpressField(
+      await this.typeDevExpressField(
         /xaf_dviSTREET_Edit_I$/,
         customerData.street,
       );
@@ -10591,13 +10591,13 @@ export class ArchibaldBot {
     }
 
     if (customerData.phone) {
-      await this.setDevExpressField(/xaf_dviPHONE_Edit_I$/, customerData.phone);
+      await this.typeDevExpressField(/xaf_dviPHONE_Edit_I$/, customerData.phone);
     }
 
     const mobileValue = customerData.mobile || customerData.phone || "";
     if (mobileValue) {
       try {
-        await this.setDevExpressField(
+        await this.typeDevExpressField(
           /xaf_dviCELLULARPHONE_Edit_I$/,
           mobileValue,
         );
@@ -10610,7 +10610,7 @@ export class ArchibaldBot {
     }
 
     if (customerData.email) {
-      await this.setDevExpressField(/xaf_dviEMAIL_Edit_I$/, customerData.email);
+      await this.typeDevExpressField(/xaf_dviEMAIL_Edit_I$/, customerData.email);
     }
 
     const urlValue = customerData.url || "https://www.example.com/";
@@ -10766,7 +10766,7 @@ export class ArchibaldBot {
       );
     }
 
-    await this.setDevExpressField(/xaf_dviNAME_Edit_I$/, newName + ".");
+    await this.typeDevExpressField(/xaf_dviNAME_Edit_I$/, newName + ".");
     await this.page.evaluate(() => {
       (document.activeElement as HTMLElement)?.blur();
       document.body.click();
@@ -10776,7 +10776,7 @@ export class ArchibaldBot {
       label: "name-blur-autoupdate",
     });
 
-    await this.setDevExpressField(/xaf_dviNAME_Edit_I$/, newName);
+    await this.typeDevExpressField(/xaf_dviNAME_Edit_I$/, newName);
 
     logger.info("updateCustomerName completed", { newName });
   }
@@ -11027,7 +11027,7 @@ export class ArchibaldBot {
     }
 
     if (customerData.vatNumber) {
-      await this.setDevExpressField(
+      await this.typeDevExpressField(
         /xaf_dviVATNUM_Edit_I$/,
         customerData.vatNumber,
       );
@@ -11041,21 +11041,21 @@ export class ArchibaldBot {
     }
 
     if (customerData.pec) {
-      await this.setDevExpressField(
+      await this.typeDevExpressField(
         /xaf_dviLEGALEMAIL_Edit_I$/,
         customerData.pec,
       );
     }
 
     if (customerData.sdi) {
-      await this.setDevExpressField(
+      await this.typeDevExpressField(
         /xaf_dviLEGALAUTHORITY_Edit_I$/,
         customerData.sdi,
       );
     }
 
     if (customerData.street) {
-      await this.setDevExpressField(
+      await this.typeDevExpressField(
         /xaf_dviSTREET_Edit_I$/,
         customerData.street,
       );
@@ -11082,12 +11082,12 @@ export class ArchibaldBot {
     }
 
     if (customerData.phone) {
-      await this.setDevExpressField(/xaf_dviPHONE_Edit_I$/, customerData.phone);
+      await this.typeDevExpressField(/xaf_dviPHONE_Edit_I$/, customerData.phone);
     }
 
     if (customerData.mobile) {
       try {
-        await this.setDevExpressField(
+        await this.typeDevExpressField(
           /xaf_dviCELLULARPHONE_Edit_I$/,
           customerData.mobile,
         );
@@ -11100,7 +11100,7 @@ export class ArchibaldBot {
     }
 
     if (customerData.email) {
-      await this.setDevExpressField(/xaf_dviEMAIL_Edit_I$/, customerData.email);
+      await this.typeDevExpressField(/xaf_dviEMAIL_Edit_I$/, customerData.email);
     }
 
     if (customerData.url) {
@@ -11442,7 +11442,7 @@ export class ArchibaldBot {
       name: customerData.name,
     });
 
-    await this.setDevExpressField(/xaf_dviNAME_Edit_I$/, customerData.name);
+    await this.typeDevExpressField(/xaf_dviNAME_Edit_I$/, customerData.name);
 
     if (customerData.deliveryMode) {
       await this.setDevExpressComboBox(
@@ -11459,21 +11459,21 @@ export class ArchibaldBot {
     }
 
     if (customerData.pec) {
-      await this.setDevExpressField(
+      await this.typeDevExpressField(
         /xaf_dviLEGALEMAIL_Edit_I$/,
         customerData.pec,
       );
     }
 
     if (customerData.sdi) {
-      await this.setDevExpressField(
+      await this.typeDevExpressField(
         /xaf_dviLEGALAUTHORITY_Edit_I$/,
         customerData.sdi,
       );
     }
 
     if (customerData.street) {
-      await this.setDevExpressField(
+      await this.typeDevExpressField(
         /xaf_dviSTREET_Edit_I$/,
         customerData.street,
       );
@@ -11500,13 +11500,13 @@ export class ArchibaldBot {
     }
 
     if (customerData.phone) {
-      await this.setDevExpressField(/xaf_dviPHONE_Edit_I$/, customerData.phone);
+      await this.typeDevExpressField(/xaf_dviPHONE_Edit_I$/, customerData.phone);
     }
 
     const interactiveMobile = customerData.mobile || customerData.phone || "";
     if (interactiveMobile) {
       try {
-        await this.setDevExpressField(
+        await this.typeDevExpressField(
           /xaf_dviCELLULARPHONE_Edit_I$/,
           interactiveMobile,
         );
@@ -11519,7 +11519,7 @@ export class ArchibaldBot {
     }
 
     if (customerData.email) {
-      await this.setDevExpressField(/xaf_dviEMAIL_Edit_I$/, customerData.email);
+      await this.typeDevExpressField(/xaf_dviEMAIL_Edit_I$/, customerData.email);
     }
 
     const interactiveUrl = customerData.url || "https://www.example.com/";
