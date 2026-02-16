@@ -18,7 +18,6 @@ export default defineConfig({
         theme_color: "#2c3e50",
         background_color: "#ffffff",
         display: "standalone",
-        orientation: "any",
         scope: "/",
         start_url: "/",
         categories: ["business", "productivity"],
