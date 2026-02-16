@@ -3012,10 +3012,13 @@ export class ArchibaldBot {
               );
             },
             searchSelector,
-            orderData.customerName,
+            orderData.customerName.substring(0, 50),
           );
 
-          logger.debug("✓ Customer name pasted and Enter triggered");
+          logger.debug("✓ Customer name pasted and Enter triggered", {
+            original: orderData.customerName,
+            truncated: orderData.customerName.substring(0, 50),
+          });
 
           // Phase 3: Wait for filtered rows to appear (callback-aware)
           await this.page!.waitForFunction(
@@ -3146,14 +3149,21 @@ export class ArchibaldBot {
                 };
               }
 
-              // Scenario 2: multiple rows - find exact match by name
+              // Scenario 2: multiple rows - find match by name
+              // Archibald ERP may truncate long customer names, so we check
+              // if either string starts with the other (handles truncation)
               const queryLower = customerName.trim().toLowerCase();
               let bestIndex = -1;
 
               for (let i = 0; i < rowData.length; i++) {
-                const hasExact = rowData[i].some(
-                  (text) => text.trim().toLowerCase() === queryLower,
-                );
+                const hasExact = rowData[i].some((text) => {
+                  const cellLower = text.trim().toLowerCase();
+                  return (
+                    cellLower === queryLower ||
+                    cellLower.startsWith(queryLower) ||
+                    queryLower.startsWith(cellLower)
+                  );
+                });
                 if (hasExact) {
                   bestIndex = i;
                   break;
@@ -3164,7 +3174,7 @@ export class ArchibaldBot {
               if (bestIndex === -1) {
                 for (let i = 0; i < rowData.length; i++) {
                   const combined = rowData[i].join(" ").toLowerCase();
-                  if (combined.includes(queryLower)) {
+                  if (combined.includes(queryLower) || queryLower.includes(combined)) {
                     bestIndex = i;
                     break;
                   }
