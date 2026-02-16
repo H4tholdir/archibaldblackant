@@ -37,6 +37,7 @@ export interface OrchestratorStatus {
   smartCustomerSyncActive: boolean;
   sessionCount: number;
   safetyTimeoutActive: boolean;
+  userActionActive: boolean;
 }
 
 /**
@@ -72,6 +73,9 @@ export class SyncOrchestrator extends EventEmitter {
   private sessionCount = 0;
   private safetyTimeout: NodeJS.Timeout | null = null;
   private readonly SAFETY_TIMEOUT_MS = 10 * 60 * 1000; // 10 minutes
+
+  // User action priority tracking
+  private userActionActive = false;
 
   // Auto-sync scheduling
   private autoSyncTimers: NodeJS.Timeout[] = [];
@@ -143,6 +147,15 @@ export class SyncOrchestrator extends EventEmitter {
     userId?: string,
   ): Promise<void> {
     const finalPriority = priority ?? this.getDefaultPriority(type);
+
+    // If user action is active (e.g. send-to-verona), queue all syncs
+    if (this.userActionActive) {
+      logger.info(
+        `[SyncOrchestrator] User action active, queueing ${type} sync`,
+      );
+      this.addToQueue(type, finalPriority, userId);
+      return;
+    }
 
     // If Smart Customer Sync is active, queue non-customer syncs
     if (this.smartCustomerSyncActive && type !== "customers") {
@@ -319,6 +332,14 @@ export class SyncOrchestrator extends EventEmitter {
       return;
     }
 
+    // If user action is active, don't process queue
+    if (this.userActionActive) {
+      logger.info(
+        "[SyncOrchestrator] User action active, not processing queue",
+      );
+      return;
+    }
+
     // If Smart Customer Sync is active, don't process queue
     if (this.smartCustomerSyncActive) {
       logger.info(
@@ -331,6 +352,49 @@ export class SyncOrchestrator extends EventEmitter {
     if (nextRequest) {
       await this.executeSync(nextRequest.type, nextRequest.userId);
     }
+  }
+
+  /**
+   * Signal that a user action (e.g. send-to-verona) is active.
+   * Blocks new syncs from starting and queue processing.
+   */
+  setUserActionActive(active: boolean): void {
+    this.userActionActive = active;
+    if (active) {
+      logger.info(
+        "[SyncOrchestrator] User action active, blocking new syncs and queue processing",
+      );
+    } else {
+      logger.info(
+        "[SyncOrchestrator] User action ended, resuming queue processing",
+      );
+      this.processQueue();
+    }
+  }
+
+  /**
+   * Wait for the currently executing sync to complete.
+   * Returns immediately if no sync is running.
+   */
+  async waitForCurrentSync(): Promise<void> {
+    if (this.currentSync === null) {
+      return;
+    }
+
+    logger.info(
+      `[SyncOrchestrator] Waiting for current sync (${this.currentSync}) to complete...`,
+    );
+
+    return new Promise((resolve) => {
+      const onComplete = () => {
+        this.off("sync-completed", onComplete);
+        this.off("sync-error", onComplete);
+        resolve();
+      };
+
+      this.on("sync-completed", onComplete);
+      this.on("sync-error", onComplete);
+    });
   }
 
   /**
@@ -408,26 +472,6 @@ export class SyncOrchestrator extends EventEmitter {
     }
   }
 
-  /**
-   * Wait for current sync to complete.
-   */
-  private waitForCurrentSync(): Promise<void> {
-    return new Promise((resolve) => {
-      if (this.currentSync === null) {
-        resolve();
-        return;
-      }
-
-      const onComplete = () => {
-        this.off("sync-completed", onComplete);
-        this.off("sync-error", onComplete);
-        resolve();
-      };
-
-      this.on("sync-completed", onComplete);
-      this.on("sync-error", onComplete);
-    });
-  }
 
   /**
    * Reset safety timeout: auto-resume syncs after 10 minutes of inactivity.
@@ -506,6 +550,7 @@ export class SyncOrchestrator extends EventEmitter {
       smartCustomerSyncActive: this.smartCustomerSyncActive,
       sessionCount: this.sessionCount,
       safetyTimeoutActive: this.safetyTimeout !== null,
+      userActionActive: this.userActionActive,
     };
   }
 

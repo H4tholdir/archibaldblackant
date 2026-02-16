@@ -185,14 +185,43 @@ async function withUserActionLock<T>(
     );
   }
 
+  // If a manual sync is running, force-release its lock (user action has priority)
+  if (
+    activeOperation === "customers" ||
+    activeOperation === "products" ||
+    activeOperation === "prices"
+  ) {
+    logger.info(
+      `[UserAction] Sync ${activeOperation} in corso, lo interrompo (user action ha priorità)`,
+    );
+    releaseSyncLock();
+  }
+
   activeOperation = "user-action";
   logger.info(`🔒 [UserAction] Lock acquisito: ${operationName}`);
 
+  // Notify orchestrator to block new syncs
+  syncOrchestrator.setUserActionActive(true);
+
   try {
+    // Pause all sync services
     await priorityManager.pause();
+
+    // If orchestrator has a sync running, wait for it to finish
+    // (services are paused, so it will complete soon)
+    const orchestratorStatus = syncOrchestrator.getStatus();
+    if (orchestratorStatus.currentSync) {
+      logger.info(
+        `[UserAction] Attendo completamento sync orchestrator: ${orchestratorStatus.currentSync}`,
+      );
+      await syncOrchestrator.waitForCurrentSync();
+      logger.info(`[UserAction] Sync orchestrator completato, proseguo`);
+    }
+
     return await fn();
   } finally {
     priorityManager.resume();
+    syncOrchestrator.setUserActionActive(false);
     if (activeOperation === "user-action") {
       activeOperation = null;
       logger.info(`🔓 [UserAction] Lock rilasciato: ${operationName}`);
@@ -294,10 +323,16 @@ export async function forceStopAllSyncs(): Promise<void> {
   (syncOrchestrator as any).queue = [];
   logger.info("🔨 FORCE-RESET: Orchestrator queue svuotata");
 
-  // Reset global lock (anche se "order" — potrebbe essere un job morto precedente)
-  if (activeOperation) {
-    logger.error(`🔨 FORCE-RESET: activeOperation "${activeOperation}" → null`);
+  // Reset global lock — but NEVER reset user-action (send-to-verona has priority)
+  if (activeOperation && activeOperation !== "user-action") {
+    logger.error(
+      `🔨 FORCE-RESET: activeOperation "${activeOperation}" → null`,
+    );
     activeOperation = null;
+  } else if (activeOperation === "user-action") {
+    logger.info(
+      `🔨 FORCE-RESET: activeOperation "user-action" PROTETTO (priorità superiore)`,
+    );
   }
 
   logger.info("✅ FORCE-RESET NUCLEARE: Reset totale completato");
@@ -6861,9 +6896,22 @@ app.get(
       aborted = true;
     });
 
+    // If a manual sync is running, force-release its lock (user action has priority)
+    if (
+      activeOperation === "customers" ||
+      activeOperation === "products" ||
+      activeOperation === "prices"
+    ) {
+      logger.info(
+        `[UserAction] Sync ${activeOperation} in corso, lo interrompo (pdf-download-sse ha priorità)`,
+      );
+      releaseSyncLock();
+    }
+
     activeOperation = "user-action";
     logger.info(`🔒 [UserAction] Lock acquisito: pdf-download-sse`);
 
+    syncOrchestrator.setUserActionActive(true);
     await priorityManager.pause();
 
     try {
@@ -6918,6 +6966,7 @@ app.get(
       });
     } finally {
       priorityManager.resume();
+      syncOrchestrator.setUserActionActive(false);
       if (activeOperation === "user-action") {
         activeOperation = null;
         logger.info(`🔓 [UserAction] Lock rilasciato: pdf-download-sse`);
