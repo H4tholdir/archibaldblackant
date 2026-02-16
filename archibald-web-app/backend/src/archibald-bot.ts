@@ -9021,21 +9021,51 @@ export class ArchibaldBot {
 
     // Check if the popup content is inside an iframe (DevExpress FindPopup pattern)
     const iframeInfo = await this.page.evaluate(() => {
-      const iframes = Array.from(document.querySelectorAll("iframe")).filter(
-        (f) => {
-          const el = f as HTMLElement;
-          return (
-            el.offsetParent !== null && f.src && f.src.includes("FindPopup")
-          );
-        },
+      const visibleIframes = Array.from(
+        document.querySelectorAll("iframe"),
+      ).filter((f) => {
+        const el = f as HTMLElement;
+        return el.offsetParent !== null && f.src;
+      });
+
+      // Prefer iframe with FindPopup in src, fall back to any visible iframe inside a popup
+      const findPopup = visibleIframes.find((f) =>
+        f.src.includes("FindPopup"),
       );
-      if (iframes.length > 0) {
-        return { hasIframe: true, src: iframes[0].src, id: iframes[0].id };
+      if (findPopup) {
+        return {
+          hasIframe: true,
+          src: findPopup.src,
+          id: findPopup.id,
+        };
       }
-      return { hasIframe: false, src: "", id: "" };
+
+      // Fall back: any visible iframe inside a DevExpress popup container
+      for (const f of visibleIframes) {
+        const parent = f.closest(
+          '[id*="_DDD"], .dxpcLite, .dxpc-mainDiv, [id*="PopupControl"], [id*="_PW"]',
+        );
+        if (parent) {
+          return { hasIframe: true, src: f.src, id: f.id };
+        }
+      }
+
+      return {
+        hasIframe: false,
+        src: "",
+        id: "",
+        visibleIframes: visibleIframes.map((f) => ({
+          id: f.id,
+          src: f.src.substring(0, 200),
+        })),
+      };
     });
 
-    logger.debug("Iframe check", iframeInfo);
+    logger.info("Lookup iframe check", {
+      hasIframe: iframeInfo.hasIframe,
+      src: iframeInfo.src?.substring(0, 100),
+      id: iframeInfo.id,
+    });
 
     if (iframeInfo.hasIframe) {
       await this.selectFromDevExpressLookupViaIframe(
