@@ -711,6 +711,9 @@ export default function OrderFormSimple() {
     setCustomerSearch(customer.name);
     setCustomerResults([]);
     setHighlightedCustomerIndex(-1);
+    if (isFresis(customer)) {
+      setGlobalDiscountPercent(String(FRESIS_DEFAULT_DISCOUNT));
+    }
     setTimeout(() => {
       if (isFresis(customer)) {
         subClientInputRef.current?.focus();
@@ -2779,6 +2782,7 @@ export default function OrderFormSimple() {
                 setSelectedCustomer(null);
                 setCustomerSearch("");
                 setSelectedSubClient(null);
+                setGlobalDiscountPercent("");
               }}
               style={{
                 padding: isMobile ? "0.75rem 1rem" : "0.5rem 1rem",
