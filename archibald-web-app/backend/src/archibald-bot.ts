@@ -11019,42 +11019,162 @@ export class ArchibaldBot {
 
     logger.info("Interactive: submitting VAT number", { vatNumber });
 
-    await this.setDevExpressField(/xaf_dviVATNUM_Edit_I$/, vatNumber);
+    // Set VAT field via DevExpress API so the control tracks the change
+    const vatSet = await this.page.evaluate((val: string) => {
+      const w = window as any;
+      const collection = w.ASPxClientControl?.GetControlCollection?.();
+      if (!collection) return { method: "none" };
 
-    await this.page.keyboard.press("Tab");
-
-    await this.waitForDevExpressIdle({ timeout: 20000, label: "vat-autofill" });
-
-    await this.wait(2000);
-
-    const rawFields = await this.page.evaluate(() => {
-      const getValue = (idPattern: RegExp): string => {
-        const inputs = Array.from(document.querySelectorAll("input, textarea"));
-        for (const el of inputs) {
-          if (idPattern.test((el as HTMLElement).id)) {
-            return (el as HTMLInputElement).value || "";
+      let controlName = "";
+      collection.ForEachControl((c: any) => {
+        if (controlName) return;
+        const name = c.name || "";
+        if (/VATNUM/i.test(name)) {
+          try {
+            c.SetValue(val);
+            controlName = name;
+          } catch {
+            /* ignore */
           }
         }
+      });
 
+      if (controlName) return { method: "devexpress-api", controlName };
+
+      // Fallback: set via DOM
+      const inputs = Array.from(document.querySelectorAll("input"));
+      const input = inputs.find((i) =>
+        /xaf_dviVATNUM_Edit_I$/.test(i.id),
+      ) as HTMLInputElement | null;
+      if (!input) return { method: "not-found" };
+
+      input.focus();
+      input.click();
+      const setter = Object.getOwnPropertyDescriptor(
+        HTMLInputElement.prototype,
+        "value",
+      )?.set;
+      if (setter) setter.call(input, val);
+      else input.value = val;
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+      input.dispatchEvent(new Event("change", { bubbles: true }));
+      return { method: "dom-fallback", inputId: input.id };
+    }, vatNumber);
+
+    logger.info("Interactive: VAT field set", vatSet);
+
+    // Single Tab to trigger DevExpress server-side lookup
+    await this.page.keyboard.press("Tab");
+
+    // Brief delay to let the callback start
+    await this.wait(500);
+
+    // Wait for DevExpress callbacks to complete
+    await this.waitForDevExpressIdle({
+      timeout: 20000,
+      label: "vat-autofill",
+    });
+
+    // Poll until VAT fields are populated (server can take seconds to respond)
+    const maxPollAttempts = 10;
+    const pollIntervalMs = 2000;
+
+    for (let attempt = 0; attempt < maxPollAttempts; attempt++) {
+      const hasData = await this.page.evaluate(() => {
         const w = window as any;
         const collection = w.ASPxClientControl?.GetControlCollection?.();
-        if (!collection) return "";
+        if (!collection) return false;
 
-        let found = "";
+        let foundValue = false;
         collection.ForEachControl((c: any) => {
-          if (found) return;
-          const name = c.name || "";
-          if (idPattern.test(name)) {
+          if (foundValue) return;
+          const name = (c.name || "").toLowerCase();
+          if (
+            name.includes("lastvatcheck") ||
+            name.includes("ultimocontrollo") ||
+            name.includes("vataddress") ||
+            name.includes("indirizzoiva")
+          ) {
             try {
-              found = c.GetValue?.() || c.GetText?.() || "";
+              const val = c.GetValue?.() || c.GetText?.() || "";
+              if (val) foundValue = true;
             } catch {
               /* ignore */
             }
           }
         });
-        return found;
-      };
+        if (foundValue) return true;
 
+        // Also check DOM for captions with populated values
+        const captionCells = Array.from(
+          document.querySelectorAll(
+            "td.dxflCaption_DevEx, td.dxflCaptionCell_DevEx, .dxflCaption_DevEx",
+          ),
+        );
+        for (const cell of captionCells) {
+          const label = (cell.textContent?.trim() || "").toLowerCase();
+          if (
+            label.includes("ultimo controllo") ||
+            label.includes("indirizzo iva")
+          ) {
+            const row = cell.closest("tr");
+            if (!row) continue;
+            const inputs = Array.from(
+              row.querySelectorAll("input, textarea"),
+            ) as HTMLInputElement[];
+            if (inputs.some((i) => i.value.trim().length > 0)) return true;
+          }
+        }
+        return false;
+      });
+
+      if (hasData) {
+        logger.info("Interactive: VAT data populated", {
+          attempt: attempt + 1,
+        });
+        break;
+      }
+
+      if (attempt < maxPollAttempts - 1) {
+        logger.info("Interactive: VAT data not yet populated, waiting...", {
+          attempt: attempt + 1,
+        });
+        await this.wait(pollIntervalMs);
+        // Re-check DevExpress idle in case a new callback fired
+        await this.waitForDevExpressIdle({
+          timeout: 5000,
+          label: "vat-autofill-poll",
+        });
+      }
+    }
+
+    // Read fields using both DevExpress API and DOM
+    const rawFields = await this.page.evaluate(() => {
+      const w = window as any;
+
+      // Read values via DevExpress control API
+      const dxValues: Record<string, string> = {};
+      const collection = w.ASPxClientControl?.GetControlCollection?.();
+      if (collection) {
+        collection.ForEachControl((c: any) => {
+          const name = c.name || "";
+          try {
+            const val =
+              typeof c.GetValue === "function"
+                ? String(c.GetValue() ?? "")
+                : "";
+            const text =
+              typeof c.GetText === "function" ? String(c.GetText() ?? "") : "";
+            if (val || text) {
+              dxValues[name] = val || text;
+            }
+          } catch {
+            /* ignore */
+          }
+        });
+      }
+
+      // Read values via DOM caption matching
       const captionCells = Array.from(
         document.querySelectorAll(
           "td.dxflCaption_DevEx, td.dxflCaptionCell_DevEx, .dxflCaption_DevEx",
@@ -11082,59 +11202,51 @@ export class ArchibaldBot {
             .map((i) => i.value)
             .filter((v) => v)
             .join(" | ");
-          fieldsByLabel[cell.textContent?.trim() || ""] = val;
+          if (val) {
+            fieldsByLabel[cell.textContent?.trim() || ""] = val;
+          }
         }
       }
 
-      return {
-        vatNumber: getValue(/xaf_dviVATNUM_Edit_I$/),
-        fieldsByLabel,
-        allVatRelated: Array.from(document.querySelectorAll("input, textarea"))
-          .filter((el) => {
-            const id = (el as HTMLElement).id.toLowerCase();
-            return (
-              id.includes("vat") ||
-              id.includes("iva") ||
-              id.includes("check") ||
-              id.includes("valid") ||
-              id.includes("address")
-            );
-          })
-          .map((el) => ({
-            id: (el as HTMLElement).id,
-            value: (el as HTMLInputElement).value,
-          })),
-      };
+      return { fieldsByLabel, dxValues };
     });
 
     logger.info("Interactive: raw VAT autofill fields", rawFields);
 
     const { parseIndirizzoIva } = await import("./parse-indirizzo-iva");
 
+    // Extract values: prefer DOM fieldsByLabel, fallback to DevExpress API values
+    const findByLabel = (
+      labels: Record<string, string>,
+      ...keywords: string[]
+    ): string => {
+      const key = Object.keys(labels).find((k) =>
+        keywords.some((kw) => k.toLowerCase().includes(kw)),
+      );
+      return key ? labels[key] : "";
+    };
+
+    const findByDxControl = (
+      dxVals: Record<string, string>,
+      ...keywords: string[]
+    ): string => {
+      const key = Object.keys(dxVals).find((name) =>
+        keywords.some((kw) => name.toLowerCase().includes(kw)),
+      );
+      return key ? dxVals[key] : "";
+    };
+
     const lastVatCheck =
-      rawFields.fieldsByLabel[
-        Object.keys(rawFields.fieldsByLabel).find((k) =>
-          k.toLowerCase().includes("ultimo controllo"),
-        ) || ""
-      ] || "";
+      findByLabel(rawFields.fieldsByLabel, "ultimo controllo") ||
+      findByDxControl(rawFields.dxValues, "lastvatcheck", "ultimocontrollo");
 
     const vatValidated =
-      rawFields.fieldsByLabel[
-        Object.keys(rawFields.fieldsByLabel).find(
-          (k) =>
-            k.toLowerCase().includes("iva validata") ||
-            k.toLowerCase().includes("vat valid"),
-        ) || ""
-      ] || "";
+      findByLabel(rawFields.fieldsByLabel, "iva validata", "vat valid") ||
+      findByDxControl(rawFields.dxValues, "vatvalid", "ivavalid");
 
     const vatAddress =
-      rawFields.fieldsByLabel[
-        Object.keys(rawFields.fieldsByLabel).find(
-          (k) =>
-            k.toLowerCase().includes("indirizzo iva") ||
-            k.toLowerCase().includes("vat address"),
-        ) || ""
-      ] || "";
+      findByLabel(rawFields.fieldsByLabel, "indirizzo iva", "vat address") ||
+      findByDxControl(rawFields.dxValues, "vataddress", "indirizzoiva");
 
     const parsed = parseIndirizzoIva(vatAddress);
 
