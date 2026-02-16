@@ -167,6 +167,63 @@ describe("CredentialStore", () => {
     });
   });
 
+  describe("addBiometricEncryption", () => {
+    const userId = "bio-user";
+    const username = "biouser";
+    const password = "biopass";
+    const pin = "1234";
+    const credentialId = "fake-credential-id-base64";
+
+    test("encrypts and stores biometric data on existing record", async () => {
+      await store.storeCredentials(userId, username, password, pin);
+      await store.addBiometricEncryption(userId, username, password, credentialId);
+
+      const hasBio = await store.hasBiometricCredential(userId);
+      expect(hasBio).toBe(true);
+    });
+
+    test("throws when record does not exist", async () => {
+      await expect(
+        store.addBiometricEncryption("nonexistent", username, password, credentialId),
+      ).rejects.toThrow("No credentials found for userId: nonexistent");
+    });
+
+    test("does not break PIN-based decryption", async () => {
+      await store.storeCredentials(userId, username, password, pin);
+      await store.addBiometricEncryption(userId, username, password, credentialId);
+
+      const creds = await store.getCredentials(userId, pin);
+      expect(creds).toEqual({ username, password });
+    });
+
+    test("biometric encrypted data can be decrypted with stored key", async () => {
+      await store.storeCredentials(userId, username, password, pin);
+      await store.addBiometricEncryption(userId, username, password, credentialId);
+
+      // Manually read back the stored record and decrypt using the saved key
+      // This simulates what getCredentialsWithBiometric does after WebAuthn passes
+      const storeAny = store as any;
+      const stored = await storeAny.getStoredCredential(userId);
+
+      const key = await crypto.subtle.importKey(
+        "raw",
+        stored.biometricKey,
+        { name: "AES-GCM", length: 256 },
+        false,
+        ["decrypt"],
+      );
+
+      const decrypted = await crypto.subtle.decrypt(
+        { name: "AES-GCM", iv: new Uint8Array(stored.biometricIv) },
+        key,
+        new Uint8Array(stored.biometricEncryptedData),
+      );
+
+      const parsed = JSON.parse(new TextDecoder().decode(decrypted));
+      expect(parsed).toEqual({ username, password });
+    });
+  });
+
   describe("security", () => {
     test("credentials cannot be decrypted with wrong PIN", async () => {
       const userId = "user-security";

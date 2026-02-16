@@ -153,6 +153,7 @@ export function useAuth() {
     pin: string,
     username: string,
     password: string,
+    biometricCredentialId?: string,
   ): Promise<void> => {
     if (!state.user) return;
 
@@ -165,6 +166,15 @@ export function useAuth() {
       password,
       pin,
     );
+
+    if (biometricCredentialId) {
+      await credentialStore.addBiometricEncryption(
+        state.user.id,
+        username,
+        password,
+        biometricCredentialId,
+      );
+    }
 
     setState((prev) => ({ ...prev, needsPinSetup: false }));
   };

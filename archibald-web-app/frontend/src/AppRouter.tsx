@@ -196,13 +196,14 @@ function AppRouter() {
       <PinSetupWizard
         userId={auth.user.id}
         username={auth.user.username}
-        onComplete={async (pin) => {
+        onComplete={async (pin, biometricCredentialId) => {
           await auth.completePinSetup(
             pin,
             tempCredentials.username,
             tempCredentials.password,
+            biometricCredentialId,
           );
-          setTempCredentials(null); // Clear from memory
+          setTempCredentials(null);
         }}
         onCancel={() => {
           auth.skipPinSetup();

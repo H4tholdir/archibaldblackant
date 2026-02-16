@@ -1,12 +1,11 @@
 import { useState, useEffect } from "react";
 import { PinInput } from "./PinInput";
 import { getBiometricAuth } from "../services/biometric-auth";
-import { getCredentialStore } from "../services/credential-store";
 
 interface PinSetupWizardProps {
   userId: string;
   username: string;
-  onComplete: (pin: string) => Promise<void>;
+  onComplete: (pin: string, biometricCredentialId?: string) => Promise<void>;
   onCancel: () => void;
 }
 
@@ -143,14 +142,8 @@ export function PinSetupWizard({
         throw new Error("Registrazione biometrica fallita");
       }
 
-      // Save credential ID to credential store
-      const credStore = getCredentialStore();
-      await credStore.initialize();
-      await credStore.storeBiometricCredential(userId, credentialId);
-
-      // Complete PIN setup
       setIsSubmitting(true);
-      await onComplete(pin);
+      await onComplete(pin, credentialId);
     } catch (err: any) {
       console.error("Biometric registration error:", err);
       setError(

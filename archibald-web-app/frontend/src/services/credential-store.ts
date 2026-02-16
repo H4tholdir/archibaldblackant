@@ -5,7 +5,10 @@ interface StoredCredential {
   salt: Uint8Array;
   createdAt: number;
   lastUsedAt: number;
-  biometricCredentialId?: string; // WebAuthn credential ID (optional)
+  biometricCredentialId?: string;
+  biometricEncryptedData?: ArrayBuffer;
+  biometricIv?: Uint8Array;
+  biometricKey?: ArrayBuffer;
 }
 
 interface DecryptedCredentials {
@@ -144,18 +147,40 @@ export class CredentialStore {
     }
   }
 
-  /**
-   * Store biometric credential ID after PIN setup
-   */
-  async storeBiometricCredential(
+  async addBiometricEncryption(
     userId: string,
+    username: string,
+    password: string,
     credentialId: string,
   ): Promise<void> {
     const stored = await this.getStoredCredential(userId);
-    if (stored) {
-      stored.biometricCredentialId = credentialId;
-      await this.putStoredCredential(stored);
+    if (!stored) {
+      throw new Error("No credentials found for userId: " + userId);
     }
+
+    const key = await crypto.subtle.generateKey(
+      { name: "AES-GCM", length: 256 },
+      true,
+      ["encrypt", "decrypt"],
+    );
+
+    const iv = crypto.getRandomValues(new Uint8Array(12));
+    const plaintext = JSON.stringify({ username, password });
+    const data = new TextEncoder().encode(plaintext);
+
+    const encryptedData = await crypto.subtle.encrypt(
+      { name: "AES-GCM", iv },
+      key,
+      data,
+    );
+
+    const exportedKey = await crypto.subtle.exportKey("raw", key);
+
+    stored.biometricCredentialId = credentialId;
+    stored.biometricEncryptedData = encryptedData;
+    stored.biometricIv = iv;
+    stored.biometricKey = exportedKey;
+    await this.putStoredCredential(stored);
   }
 
   /**
@@ -166,38 +191,41 @@ export class CredentialStore {
     return stored?.biometricCredentialId ? true : false;
   }
 
-  /**
-   * Get credentials using biometric authentication
-   * Returns decrypted credentials if biometric auth succeeds
-   */
   async getCredentialsWithBiometric(
     userId: string,
   ): Promise<DecryptedCredentials | null> {
     const stored = await this.getStoredCredential(userId);
-    if (!stored || !stored.biometricCredentialId) {
+    if (
+      !stored ||
+      !stored.biometricCredentialId ||
+      !stored.biometricEncryptedData ||
+      !stored.biometricKey
+    ) {
       return null;
     }
 
     try {
-      // Import BiometricAuth
       const { getBiometricAuth } = await import("./biometric-auth");
       const bioAuth = getBiometricAuth();
 
-      // Authenticate with biometric
-      const keyMaterial = await bioAuth.authenticate(
+      const authResult = await bioAuth.authenticate(
         userId,
         stored.biometricCredentialId,
       );
-      if (!keyMaterial) {
-        return null; // Biometric failed or cancelled
+      if (!authResult) {
+        return null;
       }
 
-      // Derive encryption key from biometric key material
-      const key = await this.deriveKeyFromBiometric(keyMaterial, stored.salt);
+      const key = await crypto.subtle.importKey(
+        "raw",
+        stored.biometricKey,
+        { name: "AES-GCM", length: 256 },
+        false,
+        ["decrypt"],
+      );
 
-      // Decrypt credentials - convert to Uint8Array to ensure proper BufferSource type
-      const encryptedData = new Uint8Array(stored.encryptedData);
-      const ivData = new Uint8Array(stored.iv);
+      const ivData = new Uint8Array(stored.biometricIv!);
+      const encryptedData = new Uint8Array(stored.biometricEncryptedData);
 
       const decryptedData = await crypto.subtle.decrypt(
         { name: "AES-GCM", iv: ivData },
@@ -205,11 +233,9 @@ export class CredentialStore {
         encryptedData,
       );
 
-      const decoder = new TextDecoder();
-      const plaintext = decoder.decode(decryptedData);
+      const plaintext = new TextDecoder().decode(decryptedData);
       const credentials: DecryptedCredentials = JSON.parse(plaintext);
 
-      // Update lastUsedAt
       await this.touchCredentials(userId);
 
       return credentials;
@@ -253,39 +279,6 @@ export class CredentialStore {
       keyMaterial,
       { name: "AES-GCM", length: 256 },
       false, // not extractable
-      ["encrypt", "decrypt"],
-    );
-
-    return key;
-  }
-
-  /**
-   * Derive encryption key from biometric key material (similar to PIN derivation)
-   */
-  private async deriveKeyFromBiometric(
-    keyMaterial: Uint8Array,
-    salt: Uint8Array,
-  ): Promise<CryptoKey> {
-    // Import raw key material
-    const importedKey = await crypto.subtle.importKey(
-      "raw",
-      keyMaterial as BufferSource,
-      "PBKDF2",
-      false,
-      ["deriveKey"],
-    );
-
-    // Derive AES-GCM key using PBKDF2
-    const key = await crypto.subtle.deriveKey(
-      {
-        name: "PBKDF2",
-        salt: salt as BufferSource,
-        iterations: this.pbkdf2Iterations,
-        hash: "SHA-256",
-      },
-      importedKey,
-      { name: "AES-GCM", length: 256 },
-      false,
       ["encrypt", "decrypt"],
     );
 
