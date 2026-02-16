@@ -208,7 +208,7 @@ class CustomerPDFParser:
         # PROFILO CLIENTE is optional (column 1) - rarely used
         # We don't store it separately for now as it's rarely populated
 
-        name = (row[2] or '').strip()
+        name = ' '.join((row[2] or '').split())
         vat_number = (row[3] or '').strip() if len(row) > 3 else None
 
         # Clean empty strings to None

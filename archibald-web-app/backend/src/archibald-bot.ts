@@ -2734,6 +2734,12 @@ export class ArchibaldBot {
     // Store slowdown config for use in wait calls
     this.slowdownConfig = slowdownConfig || {};
 
+    // Sanitize customer name: PDF sync may introduce newlines from line wraps
+    orderData.customerName = orderData.customerName
+      .replace(/\n/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+
     logger.info("🤖 BOT: INIZIO creazione ordine", {
       customerName: orderData.customerName,
       itemsCount: orderData.items.length,
