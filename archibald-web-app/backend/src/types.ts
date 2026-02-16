@@ -134,6 +134,8 @@ export type VatLookupResult = {
   vatValidated: string;
   vatAddress: string;
   parsed: VatAddressInfo;
+  pec: string;
+  sdi: string;
 };
 
 export type InteractiveSessionState =

@@ -11072,10 +11072,9 @@ export class ArchibaldBot {
           if (foundValue) return;
           const name = (c.name || "").toLowerCase();
           if (
-            name.includes("lastvatcheck") ||
-            name.includes("ultimocontrollo") ||
+            name.includes("vatlastcheck") ||
             name.includes("vataddress") ||
-            name.includes("indirizzoiva")
+            name.includes("legalemail")
           ) {
             try {
               const val = c.GetValue?.() || c.GetText?.() || "";
@@ -11218,17 +11217,32 @@ export class ArchibaldBot {
       return key ? dxVals[key] : "";
     };
 
-    const lastVatCheck =
+    const lastVatCheckRaw =
       findByLabel(rawFields.fieldsByLabel, "ultimo controllo") ||
-      findByDxControl(rawFields.dxValues, "lastvatcheck", "ultimocontrollo");
+      findByDxControl(rawFields.dxValues, "vatlastcheck");
 
+    // Format the date if it's a JS Date string (e.g. "Mon Feb 16 2026 11:39:34 GMT+0000")
+    let lastVatCheck = lastVatCheckRaw;
+    if (lastVatCheckRaw && lastVatCheckRaw.includes("GMT")) {
+      try {
+        const d = new Date(lastVatCheckRaw);
+        lastVatCheck = d.toLocaleString("it-IT", { timeZone: "Europe/Rome" });
+      } catch {
+        /* keep raw */
+      }
+    }
+
+    // DevExpress field has a typo: VATVALIED instead of VATVALID
     const vatValidated =
       findByLabel(rawFields.fieldsByLabel, "iva validata", "vat valid") ||
-      findByDxControl(rawFields.dxValues, "vatvalid", "ivavalid");
+      findByDxControl(rawFields.dxValues, "vatvalied");
 
     const vatAddress =
       findByLabel(rawFields.fieldsByLabel, "indirizzo iva", "vat address") ||
-      findByDxControl(rawFields.dxValues, "vataddress", "indirizzoiva");
+      findByDxControl(rawFields.dxValues, "vataddress");
+
+    const pec = findByDxControl(rawFields.dxValues, "legalemail");
+    const sdi = findByDxControl(rawFields.dxValues, "legalauthority");
 
     const parsed = parseIndirizzoIva(vatAddress);
 
@@ -11237,6 +11251,8 @@ export class ArchibaldBot {
       vatValidated,
       vatAddress,
       parsed,
+      pec,
+      sdi,
     };
 
     logger.info("Interactive: VAT lookup result", result);

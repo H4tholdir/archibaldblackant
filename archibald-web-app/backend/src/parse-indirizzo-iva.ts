@@ -1,5 +1,20 @@
 import type { VatAddressInfo } from "./types";
 
+function toTitleCase(text: string): string {
+  if (!text) return text;
+  return text
+    .toLowerCase()
+    .replace(/\b\w/g, (c) => c.toUpperCase())
+    .replace(/\bS\.R\.L\.?/g, "S.r.l.")
+    .replace(/\bS\.P\.A\.?/g, "S.p.a.")
+    .replace(/\bS\.N\.C\.?/g, "S.n.c.")
+    .replace(/\bS\.A\.S\.?/g, "S.a.s.")
+    .replace(/\bSrl\b/g, "S.r.l.")
+    .replace(/\bSpa\b/g, "S.p.a.")
+    .replace(/\bSnc\b/g, "S.n.c.")
+    .replace(/\bSas\b/g, "S.a.s.");
+}
+
 export function parseIndirizzoIva(raw: string): VatAddressInfo {
   const empty: VatAddressInfo = {
     companyName: "",
@@ -40,11 +55,11 @@ export function parseIndirizzoIva(raw: string): VatAddressInfo {
   }
 
   if (nonMetaLines.length >= 1) {
-    result.companyName = nonMetaLines[0];
+    result.companyName = toTitleCase(nonMetaLines[0]);
   }
 
   if (nonMetaLines.length >= 2) {
-    result.street = nonMetaLines[1];
+    result.street = toTitleCase(nonMetaLines[1]);
   }
 
   if (nonMetaLines.length >= 3) {
@@ -52,9 +67,9 @@ export function parseIndirizzoIva(raw: string): VatAddressInfo {
     const capMatch = capCityLine.match(/^(\d{5})\s+(.+)$/);
     if (capMatch) {
       result.postalCode = capMatch[1];
-      result.city = capMatch[2].trim();
+      result.city = toTitleCase(capMatch[2].trim());
     } else {
-      result.city = capCityLine;
+      result.city = toTitleCase(capCityLine);
     }
   }
 

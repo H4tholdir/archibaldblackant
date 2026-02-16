@@ -23,6 +23,8 @@ type VatLookupResult = {
   vatValidated: string;
   vatAddress: string;
   parsed: VatAddressInfo;
+  pec: string;
+  sdi: string;
 };
 
 interface CustomerFormData {
@@ -434,16 +436,16 @@ export function CustomerCreateModal({
         setVatResult(result);
         setCurrentStep({ kind: "vat-review" });
 
-        if (result.parsed) {
-          setFormData((prev) => ({
-            ...prev,
-            vatNumber: earlyVatInputRef.current.trim() || prev.vatNumber,
-            name: result.parsed.companyName || prev.name,
-            street: result.parsed.street || prev.street,
-            postalCode: result.parsed.postalCode || prev.postalCode,
-            postalCodeCity: result.parsed.city || prev.postalCodeCity,
-          }));
-        }
+        setFormData((prev) => ({
+          ...prev,
+          vatNumber: earlyVatInputRef.current.trim() || prev.vatNumber,
+          name: result.parsed?.companyName || prev.name,
+          street: result.parsed?.street || prev.street,
+          postalCode: result.parsed?.postalCode || prev.postalCode,
+          postalCodeCity: result.parsed?.city || prev.postalCodeCity,
+          pec: result.pec || prev.pec,
+          sdi: result.sdi || prev.sdi,
+        }));
       }),
     );
 
@@ -1201,6 +1203,27 @@ export function CustomerCreateModal({
               </h2>
             </div>
 
+            {vatResult.vatValidated &&
+              !vatResult.vatValidated.toUpperCase().includes("YES") &&
+              !vatResult.vatValidated.toUpperCase().includes("SI") && (
+                <div
+                  style={{
+                    padding: "12px 16px",
+                    backgroundColor: "#fff3e0",
+                    border: "1px solid #ff9800",
+                    borderRadius: "8px",
+                    marginBottom: "16px",
+                    fontSize: "14px",
+                    color: "#e65100",
+                    fontWeight: 600,
+                    textAlign: "center",
+                  }}
+                >
+                  P.IVA non valida — verifica di aver inserito il numero
+                  corretto
+                </div>
+              )}
+
             <div
               style={{
                 backgroundColor: "#f5f5f5",
@@ -1322,6 +1345,36 @@ export function CustomerCreateModal({
                       .filter(Boolean)
                       .join(" ")}
                   </span>
+                </div>
+              )}
+
+              {vatResult.pec && (
+                <div
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    padding: "8px 0",
+                    borderBottom: "1px solid #e0e0e0",
+                    fontSize: "14px",
+                  }}
+                >
+                  <span style={{ color: "#666", fontWeight: 600 }}>PEC</span>
+                  <span style={{ color: "#333" }}>{vatResult.pec}</span>
+                </div>
+              )}
+
+              {vatResult.sdi && (
+                <div
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    padding: "8px 0",
+                    borderBottom: "1px solid #e0e0e0",
+                    fontSize: "14px",
+                  }}
+                >
+                  <span style={{ color: "#666", fontWeight: 600 }}>SDI</span>
+                  <span style={{ color: "#333" }}>{vatResult.sdi}</span>
                 </div>
               )}
 
