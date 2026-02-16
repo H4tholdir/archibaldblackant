@@ -9052,56 +9052,48 @@ export class ArchibaldBot {
 
     logger.debug("Lookup dialog appeared");
 
-    // Check if the popup content is inside an iframe (DevExpress FindPopup pattern)
-    const iframeInfo = await this.page.evaluate(() => {
-      const visibleIframes = Array.from(
-        document.querySelectorAll("iframe"),
-      ).filter((f) => {
-        const el = f as HTMLElement;
-        return el.offsetParent !== null && f.src;
+    // Wait for an iframe to appear inside the popup (some lookups load iframe late)
+    let iframeInfo = { hasIframe: false, src: "", id: "" };
+    const iframeWaitStart = Date.now();
+    const iframeWaitTimeout = 5000;
+
+    while (Date.now() - iframeWaitStart < iframeWaitTimeout) {
+      iframeInfo = await this.page.evaluate(() => {
+        const visibleIframes = Array.from(
+          document.querySelectorAll("iframe"),
+        ).filter((f) => {
+          const el = f as HTMLElement;
+          return el.offsetParent !== null && f.src;
+        });
+
+        const findPopup = visibleIframes.find((f) =>
+          f.src.includes("FindPopup"),
+        );
+        if (findPopup) {
+          return { hasIframe: true, src: findPopup.src, id: findPopup.id };
+        }
+
+        for (const f of visibleIframes) {
+          const parent = f.closest(
+            '[id*="_DDD"], .dxpcLite, .dxpc-mainDiv, [id*="PopupControl"], [id*="_PW"]',
+          );
+          if (parent) {
+            return { hasIframe: true, src: f.src, id: f.id };
+          }
+        }
+
+        return { hasIframe: false, src: "", id: "" };
       });
 
-      // Prefer iframe with FindPopup in src, fall back to any visible iframe inside a popup
-      const findPopup = visibleIframes.find((f) =>
-        f.src.includes("FindPopup"),
-      );
-      if (findPopup) {
-        return {
-          hasIframe: true,
-          src: findPopup.src,
-          id: findPopup.id,
-        };
-      }
-
-      // Fall back: any visible iframe inside a DevExpress popup container
-      for (const f of visibleIframes) {
-        const parent = f.closest(
-          '[id*="_DDD"], .dxpcLite, .dxpc-mainDiv, [id*="PopupControl"], [id*="_PW"]',
-        );
-        if (parent) {
-          return { hasIframe: true, src: f.src, id: f.id };
-        }
-      }
-
-      return {
-        hasIframe: false,
-        src: "",
-        id: "",
-        visibleIframes: visibleIframes.map((f) => ({
-          id: f.id,
-          src: f.src.substring(0, 200),
-        })),
-      };
-    });
+      if (iframeInfo.hasIframe) break;
+      await this.wait(300);
+    }
 
     logger.info("Lookup iframe check", {
       hasIframe: iframeInfo.hasIframe,
       src: iframeInfo.src?.substring(0, 100),
       id: iframeInfo.id,
-      ...(!iframeInfo.hasIframe && {
-        visibleIframes: (iframeInfo as { visibleIframes?: unknown[] })
-          .visibleIframes,
-      }),
+      waitMs: Date.now() - iframeWaitStart,
     });
 
     if (iframeInfo.hasIframe) {
