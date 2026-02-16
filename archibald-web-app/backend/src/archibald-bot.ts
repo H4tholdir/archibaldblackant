@@ -10510,11 +10510,21 @@ export class ArchibaldBot {
     await this.emitProgress("customer.field");
 
     if (customerData.postalCode) {
-      await this.selectFromDevExpressLookup(
-        /xaf_dviLOGISTICSADDRESSZIPCODE_Edit_find_Edit_B0/,
-        customerData.postalCode,
-        customerData.postalCodeCity,
-      );
+      try {
+        await this.selectFromDevExpressLookup(
+          /xaf_dviLOGISTICSADDRESSZIPCODE_Edit_find_Edit_B0/,
+          customerData.postalCode,
+          customerData.postalCodeCity,
+        );
+      } catch (capErr) {
+        logger.warn("CAP lookup failed, dismissing any lingering dialog", {
+          error: String(capErr),
+        });
+        await this.page.keyboard.press("Escape");
+        await this.wait(500);
+        await this.page.keyboard.press("Escape");
+        await this.wait(300);
+      }
     }
 
     if (customerData.phone) {
@@ -10991,11 +11001,21 @@ export class ArchibaldBot {
     await this.emitProgress("customer.field");
 
     if (customerData.postalCode) {
-      await this.selectFromDevExpressLookup(
-        /xaf_dviLOGISTICSADDRESSZIPCODE_Edit_find_Edit_B0/,
-        customerData.postalCode,
-        customerData.postalCodeCity,
-      );
+      try {
+        await this.selectFromDevExpressLookup(
+          /xaf_dviLOGISTICSADDRESSZIPCODE_Edit_find_Edit_B0/,
+          customerData.postalCode,
+          customerData.postalCodeCity,
+        );
+      } catch (capErr) {
+        logger.warn("CAP lookup failed, dismissing any lingering dialog", {
+          error: String(capErr),
+        });
+        await this.page.keyboard.press("Escape");
+        await this.wait(500);
+        await this.page.keyboard.press("Escape");
+        await this.wait(300);
+      }
     }
 
     if (customerData.phone) {
@@ -11399,11 +11419,21 @@ export class ArchibaldBot {
     await this.emitProgress("customer.field");
 
     if (customerData.postalCode) {
-      await this.selectFromDevExpressLookup(
-        /xaf_dviLOGISTICSADDRESSZIPCODE_Edit_find_Edit_B0/,
-        customerData.postalCode,
-        customerData.postalCodeCity,
-      );
+      try {
+        await this.selectFromDevExpressLookup(
+          /xaf_dviLOGISTICSADDRESSZIPCODE_Edit_find_Edit_B0/,
+          customerData.postalCode,
+          customerData.postalCodeCity,
+        );
+      } catch (capErr) {
+        logger.warn("CAP lookup failed, dismissing any lingering dialog", {
+          error: String(capErr),
+        });
+        await this.page.keyboard.press("Escape");
+        await this.wait(500);
+        await this.page.keyboard.press("Escape");
+        await this.wait(300);
+      }
     }
 
     if (customerData.phone) {
