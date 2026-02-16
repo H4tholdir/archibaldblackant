@@ -307,8 +307,8 @@ describe("normalizeSubClientCode", () => {
     expect(normalizeSubClientCode("C5")).toBe("C00005");
   });
 
-  test("returns non-numeric codes uppercased as-is", () => {
-    expect(normalizeSubClientCode("SC001")).toBe("SC001");
+  test("prepends C to unknown non-numeric codes", () => {
+    expect(normalizeSubClientCode("SC001")).toBe("CSC001");
   });
 
   test("returns empty string for empty input", () => {
@@ -317,6 +317,31 @@ describe("normalizeSubClientCode", () => {
 
   test("trims whitespace", () => {
     expect(normalizeSubClientCode("  194  ")).toBe("C00194");
+  });
+
+  test("dot-prefixed codes get C prepended", () => {
+    expect(normalizeSubClientCode(".0001")).toBe("C.0001");
+    expect(normalizeSubClientCode(".0008")).toBe("C.0008");
+  });
+
+  test("dot-prefixed codes are idempotent", () => {
+    expect(normalizeSubClientCode("C.0001")).toBe("C.0001");
+  });
+
+  test("alphanumeric codes get padded with C prefix", () => {
+    expect(normalizeSubClientCode("23A")).toBe("C0023A");
+    expect(normalizeSubClientCode("50A")).toBe("C0050A");
+    expect(normalizeSubClientCode("50B")).toBe("C0050B");
+  });
+
+  test("alphanumeric codes are idempotent", () => {
+    expect(normalizeSubClientCode("C0023A")).toBe("C0023A");
+    expect(normalizeSubClientCode("C0050B")).toBe("C0050B");
+  });
+
+  test("pads five-digit numeric codes", () => {
+    expect(normalizeSubClientCode("0")).toBe("C00000");
+    expect(normalizeSubClientCode("99999")).toBe("C99999");
   });
 });
 
@@ -328,8 +353,8 @@ describe("extractUniqueSubClients", () => {
       createFresisOrder({ subClientCodice: "B", subClientName: "Zeta" }),
     ];
     expect(extractUniqueSubClients(orders)).toEqual([
-      { codice: "A", name: "Alpha" },
-      { codice: "B", name: "Zeta" },
+      { codice: "CA", name: "Alpha" },
+      { codice: "CB", name: "Zeta" },
     ]);
   });
 
@@ -343,7 +368,7 @@ describe("extractUniqueSubClients", () => {
       createFresisOrder({ subClientCodice: "X", subClientName: "Second" }),
     ];
     expect(extractUniqueSubClients(orders)).toEqual([
-      { codice: "X", name: "First" },
+      { codice: "CX", name: "First" },
     ]);
   });
 

@@ -45,14 +45,15 @@ function trimValue(value: unknown): string {
   return String(value).trim();
 }
 
-function normalizeSubClientCode(code: string): string {
+export function normalizeSubClientCode(code: string): string {
   const trimmed = code.trim().toUpperCase();
   if (!trimmed) return trimmed;
-  const numericPart = trimmed.startsWith("C") ? trimmed.slice(1) : trimmed;
-  if (/^\d+$/.test(numericPart)) {
-    return `C${numericPart.padStart(5, "0")}`;
-  }
-  return trimmed;
+  const withoutC = trimmed.startsWith("C") ? trimmed.slice(1) : trimmed;
+  if (withoutC.startsWith(".")) return `C${withoutC}`;
+  if (/^\d+$/.test(withoutC)) return `C${withoutC.padStart(5, "0")}`;
+  const match = withoutC.match(/^(\d+)([A-Z]+)$/);
+  if (match) return `C${match[1].padStart(5 - match[2].length, "0")}${match[2]}`;
+  return trimmed.startsWith("C") ? trimmed : `C${trimmed}`;
 }
 
 export function importSubClientsFromExcel(
