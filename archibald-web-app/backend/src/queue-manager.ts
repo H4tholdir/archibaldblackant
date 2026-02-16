@@ -659,10 +659,10 @@ export class QueueManager {
       {
         attempts: 1, // No automatic retries: failures are deterministic
         removeOnComplete: {
-          count: 100, // Mantieni gli ultimi 100 job completati
+          count: 40,
         },
         removeOnFail: {
-          count: 50, // Mantieni gli ultimi 50 job falliti
+          count: 10,
         },
       },
     );
@@ -961,6 +961,51 @@ export class QueueManager {
 
     // Apply limit
     return sortedJobs.slice(0, limit);
+  }
+
+  getRetentionConfig(): { keepCompleted: number; keepFailed: number } {
+    return { keepCompleted: 40, keepFailed: 10 };
+  }
+
+  async cleanupJobs(
+    keepCompleted: number = 40,
+    keepFailed: number = 10,
+  ): Promise<{ removedCompleted: number; removedFailed: number }> {
+    const [completedJobs, failedJobs] = await Promise.all([
+      this.queue.getCompleted(),
+      this.queue.getFailed(),
+    ]);
+
+    let removedCompleted = 0;
+    let removedFailed = 0;
+
+    if (completedJobs.length > keepCompleted) {
+      const sorted = completedJobs.sort(
+        (a, b) => (b.data.timestamp || 0) - (a.data.timestamp || 0),
+      );
+      const toRemove = sorted.slice(keepCompleted);
+      for (const job of toRemove) {
+        await job.remove();
+        removedCompleted++;
+      }
+    }
+
+    if (failedJobs.length > keepFailed) {
+      const sorted = failedJobs.sort(
+        (a, b) => (b.data.timestamp || 0) - (a.data.timestamp || 0),
+      );
+      const toRemove = sorted.slice(keepFailed);
+      for (const job of toRemove) {
+        await job.remove();
+        removedFailed++;
+      }
+    }
+
+    logger.info(
+      `[QueueManager] Cleanup: removed ${removedCompleted} completed, ${removedFailed} failed`,
+    );
+
+    return { removedCompleted, removedFailed };
   }
 
   /**

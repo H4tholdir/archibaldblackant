@@ -1,5 +1,5 @@
 import { useNavigate } from "react-router-dom";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo, Fragment } from "react";
 import "../styles/AdminPage.css";
 import SyncControlPanel from "../components/SyncControlPanel";
 import SyncMonitoringDashboard from "../components/SyncMonitoringDashboard";
@@ -19,11 +19,21 @@ interface Job {
   username: string;
   orderData: {
     customerName: string;
-    items: Array<{ articleCode: string; quantity: number }>;
+    items: Array<{
+      articleCode: string;
+      quantity: number;
+      description?: string;
+      productName?: string;
+    }>;
   };
   createdAt: number;
   result?: { orderId: string };
   error?: string;
+}
+
+interface RetentionConfig {
+  keepCompleted: number;
+  keepFailed: number;
 }
 
 export function AdminPage({ onLogout, userName }: AdminPageProps) {
@@ -38,11 +48,16 @@ export function AdminPage({ onLogout, userName }: AdminPageProps) {
   const [uploadResult, setUploadResult] = useState<any>(null);
   const [uploadingSubClients, setUploadingSubClients] = useState(false);
   const [subClientResult, setSubClientResult] = useState<any>(null);
+  const [expandedJobId, setExpandedJobId] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [cleaningUp, setCleaningUp] = useState(false);
+  const [retentionConfig, setRetentionConfig] =
+    useState<RetentionConfig | null>(null);
   const jobsPerPage = 20;
 
   useEffect(() => {
     loadJobs();
-    // Refresh jobs every 10 seconds
+    loadRetentionConfig();
     const interval = setInterval(loadJobs, 10000);
     return () => clearInterval(interval);
   }, [statusFilter]);
@@ -67,6 +82,72 @@ export function AdminPage({ onLogout, userName }: AdminPageProps) {
       setLoading(false);
     }
   };
+
+  const loadRetentionConfig = async () => {
+    try {
+      const jwt = localStorage.getItem("archibald_jwt");
+      if (!jwt) return;
+
+      const response = await fetch("/api/admin/jobs/retention", {
+        headers: { Authorization: `Bearer ${jwt}` },
+      });
+
+      const data = await response.json();
+      if (data.success) {
+        setRetentionConfig(data.data);
+      }
+    } catch (error) {
+      console.error("Error loading retention config:", error);
+    }
+  };
+
+  const handleCleanup = async () => {
+    if (!confirm("Rimuovere i job in eccesso rispetto alla retention?")) return;
+
+    const jwt = localStorage.getItem("archibald_jwt");
+    if (!jwt) return;
+
+    setCleaningUp(true);
+    try {
+      const response = await fetch("/api/admin/jobs/cleanup", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${jwt}` },
+      });
+
+      const data = await response.json();
+      if (data.success) {
+        const { removedCompleted, removedFailed } = data.data;
+        if (removedCompleted === 0 && removedFailed === 0) {
+          alert("Nessun job in eccesso da rimuovere.");
+        } else {
+          alert(
+            `Rimossi ${removedCompleted} completati e ${removedFailed} falliti.`,
+          );
+        }
+        loadJobs();
+      } else {
+        alert(`Errore cleanup: ${data.error}`);
+      }
+    } catch (error) {
+      console.error("Error cleaning up jobs:", error);
+      alert("Errore durante il cleanup");
+    } finally {
+      setCleaningUp(false);
+    }
+  };
+
+  const filteredJobs = useMemo(() => {
+    if (!searchQuery.trim()) return jobs;
+    const q = searchQuery.toLowerCase();
+    return jobs.filter(
+      (job) =>
+        job.jobId.toLowerCase().includes(q) ||
+        job.username.toLowerCase().includes(q) ||
+        job.orderData.customerName.toLowerCase().includes(q) ||
+        job.result?.orderId?.toLowerCase().includes(q) ||
+        job.error?.toLowerCase().includes(q),
+    );
+  }, [jobs, searchQuery]);
 
   const handleRetry = async (jobId: string) => {
     const jwt = localStorage.getItem("archibald_jwt");
@@ -278,11 +359,11 @@ export function AdminPage({ onLogout, userName }: AdminPageProps) {
     });
   };
 
-  // Pagination
+  // Pagination uses filteredJobs
   const indexOfLastJob = currentPage * jobsPerPage;
   const indexOfFirstJob = indexOfLastJob - jobsPerPage;
-  const currentJobs = jobs.slice(indexOfFirstJob, indexOfLastJob);
-  const totalPages = Math.ceil(jobs.length / jobsPerPage);
+  const currentJobs = filteredJobs.slice(indexOfFirstJob, indexOfLastJob);
+  const totalPages = Math.ceil(filteredJobs.length / jobsPerPage);
 
   return (
     <div className="admin-page">
@@ -555,11 +636,29 @@ export function AdminPage({ onLogout, userName }: AdminPageProps) {
               display: "flex",
               justifyContent: "space-between",
               alignItems: "center",
-              marginBottom: "16px",
+              marginBottom: "12px",
+              flexWrap: "wrap",
+              gap: "12px",
             }}
           >
-            <h2>📋 Jobs Queue</h2>
-            <div style={{ display: "flex", gap: "12px", alignItems: "center" }}>
+            <h2 style={{ margin: 0 }}>📋 Jobs Queue</h2>
+            <div style={{ display: "flex", gap: "8px", alignItems: "center", flexWrap: "wrap" }}>
+              <input
+                type="text"
+                placeholder="Cerca job, utente, cliente, ordine..."
+                value={searchQuery}
+                onChange={(e) => {
+                  setSearchQuery(e.target.value);
+                  setCurrentPage(1);
+                }}
+                style={{
+                  padding: "8px 12px",
+                  borderRadius: "6px",
+                  border: "1px solid #ddd",
+                  fontSize: "14px",
+                  minWidth: "240px",
+                }}
+              />
               <select
                 value={statusFilter}
                 onChange={(e) => {
@@ -573,27 +672,69 @@ export function AdminPage({ onLogout, userName }: AdminPageProps) {
                   fontSize: "14px",
                 }}
               >
-                <option value="all">All Jobs</option>
+                <option value="all">Tutti</option>
                 <option value="waiting">Waiting</option>
                 <option value="active">Active</option>
                 <option value="completed">Completed</option>
                 <option value="failed">Failed</option>
               </select>
               <button
+                onClick={handleCleanup}
+                className="btn btn-sm"
+                disabled={cleaningUp}
+                style={{
+                  backgroundColor: "#ff5722",
+                  color: "#fff",
+                  border: "none",
+                  padding: "8px 12px",
+                  borderRadius: "6px",
+                  cursor: cleaningUp ? "not-allowed" : "pointer",
+                  opacity: cleaningUp ? 0.6 : 1,
+                  fontSize: "13px",
+                }}
+              >
+                {cleaningUp ? "Pulizia..." : "Pulisci eccesso"}
+              </button>
+              <button
                 onClick={loadJobs}
                 className="btn btn-secondary btn-sm"
                 disabled={loading}
               >
-                🔄 Refresh
+                Refresh
               </button>
             </div>
           </div>
 
+          <div
+            style={{
+              display: "flex",
+              gap: "16px",
+              fontSize: "13px",
+              color: "#666",
+              marginBottom: "12px",
+              flexWrap: "wrap",
+            }}
+          >
+            <span>
+              Totale caricati: <strong>{jobs.length}</strong>
+            </span>
+            {searchQuery && (
+              <span>
+                Filtrati: <strong>{filteredJobs.length}</strong>
+              </span>
+            )}
+            {retentionConfig && (
+              <span>
+                Retention: max {retentionConfig.keepCompleted} completati, {retentionConfig.keepFailed} falliti
+              </span>
+            )}
+          </div>
+
           {loading ? (
-            <p>Loading jobs...</p>
-          ) : jobs.length === 0 ? (
+            <p>Caricamento job...</p>
+          ) : filteredJobs.length === 0 ? (
             <p style={{ color: "#666", textAlign: "center", padding: "2rem" }}>
-              No jobs found
+              {searchQuery ? "Nessun risultato per la ricerca" : "Nessun job trovato"}
             </p>
           ) : (
             <>
@@ -609,166 +750,158 @@ export function AdminPage({ onLogout, userName }: AdminPageProps) {
                     <tr
                       style={{ backgroundColor: "#f5f5f5", textAlign: "left" }}
                     >
-                      <th
-                        style={{
-                          padding: "12px",
-                          borderBottom: "2px solid #ddd",
-                        }}
-                      >
-                        Job ID
-                      </th>
-                      <th
-                        style={{
-                          padding: "12px",
-                          borderBottom: "2px solid #ddd",
-                        }}
-                      >
-                        User
-                      </th>
-                      <th
-                        style={{
-                          padding: "12px",
-                          borderBottom: "2px solid #ddd",
-                        }}
-                      >
-                        Customer
-                      </th>
-                      <th
-                        style={{
-                          padding: "12px",
-                          borderBottom: "2px solid #ddd",
-                        }}
-                      >
-                        Items
-                      </th>
-                      <th
-                        style={{
-                          padding: "12px",
-                          borderBottom: "2px solid #ddd",
-                        }}
-                      >
-                        Status
-                      </th>
-                      <th
-                        style={{
-                          padding: "12px",
-                          borderBottom: "2px solid #ddd",
-                        }}
-                      >
-                        Created
-                      </th>
-                      <th
-                        style={{
-                          padding: "12px",
-                          borderBottom: "2px solid #ddd",
-                        }}
-                      >
-                        Actions
-                      </th>
+                      <th style={{ padding: "10px 12px", borderBottom: "2px solid #ddd", width: "30px" }}></th>
+                      <th style={{ padding: "10px 12px", borderBottom: "2px solid #ddd" }}>Job ID</th>
+                      <th style={{ padding: "10px 12px", borderBottom: "2px solid #ddd" }}>User</th>
+                      <th style={{ padding: "10px 12px", borderBottom: "2px solid #ddd" }}>Cliente</th>
+                      <th style={{ padding: "10px 12px", borderBottom: "2px solid #ddd" }}>Status</th>
+                      <th style={{ padding: "10px 12px", borderBottom: "2px solid #ddd" }}>Order ID</th>
+                      <th style={{ padding: "10px 12px", borderBottom: "2px solid #ddd" }}>Data</th>
+                      <th style={{ padding: "10px 12px", borderBottom: "2px solid #ddd" }}>Azioni</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {currentJobs.map((job) => (
-                      <tr
-                        key={job.jobId}
-                        style={{ borderBottom: "1px solid #eee" }}
-                      >
-                        <td
-                          style={{
-                            padding: "12px",
-                            fontFamily: "monospace",
-                            fontSize: "12px",
-                          }}
-                        >
-                          {job.jobId.substring(0, 8)}...
-                        </td>
-                        <td style={{ padding: "12px" }}>{job.username}</td>
-                        <td style={{ padding: "12px" }}>
-                          {job.orderData.customerName}
-                        </td>
-                        <td style={{ padding: "12px" }}>
-                          {job.orderData.items.length}
-                        </td>
-                        <td style={{ padding: "12px" }}>
-                          {getStatusBadge(job.status)}
-                          {job.error && (
-                            <div
-                              title={job.error}
+                    {currentJobs.map((job) => {
+                      const isExpanded = expandedJobId === job.jobId;
+                      return (
+                        <Fragment key={job.jobId}>
+                          <tr
+                            onClick={() =>
+                              setExpandedJobId(isExpanded ? null : job.jobId)
+                            }
+                            style={{
+                              borderBottom: isExpanded ? "none" : "1px solid #eee",
+                              cursor: "pointer",
+                              backgroundColor: isExpanded ? "#f9f9f9" : "transparent",
+                            }}
+                          >
+                            <td style={{ padding: "10px 12px", fontSize: "12px" }}>
+                              {isExpanded ? "▼" : "▶"}
+                            </td>
+                            <td
                               style={{
-                                fontSize: "11px",
-                                color: "#f44336",
-                                marginTop: "4px",
-                                cursor: "help",
-                                maxWidth: "200px",
-                                overflow: "hidden",
-                                textOverflow: "ellipsis",
-                                whiteSpace: "nowrap",
+                                padding: "10px 12px",
+                                fontFamily: "monospace",
+                                fontSize: "12px",
                               }}
                             >
-                              {job.error}
-                            </div>
-                          )}
-                        </td>
-                        <td
-                          style={{
-                            padding: "12px",
-                            fontSize: "12px",
-                            color: "#666",
-                          }}
-                        >
-                          {formatDate(job.createdAt)}
-                        </td>
-                        <td style={{ padding: "12px" }}>
-                          {job.status === "failed" && (
-                            <button
-                              onClick={() => handleRetry(job.jobId)}
-                              disabled={retryingJobId === job.jobId}
-                              className="btn btn-sm"
+                              {job.jobId.substring(0, 12)}
+                            </td>
+                            <td style={{ padding: "10px 12px" }}>{job.username}</td>
+                            <td style={{ padding: "10px 12px" }}>
+                              {job.orderData.customerName}
+                            </td>
+                            <td style={{ padding: "10px 12px" }}>
+                              {getStatusBadge(job.status)}
+                            </td>
+                            <td
                               style={{
-                                backgroundColor: "#ff9800",
-                                color: "#fff",
-                                border: "none",
-                                padding: "6px 12px",
-                                borderRadius: "6px",
-                                cursor:
-                                  retryingJobId === job.jobId
-                                    ? "not-allowed"
-                                    : "pointer",
-                                opacity: retryingJobId === job.jobId ? 0.6 : 1,
+                                padding: "10px 12px",
+                                fontFamily: "monospace",
+                                fontSize: "12px",
+                                color: job.result?.orderId ? "#333" : "#ccc",
                               }}
                             >
-                              {retryingJobId === job.jobId ? "⏳" : "🔄 Retry"}
-                            </button>
-                          )}
-                          {(job.status === "active" || job.status === "waiting") && (
-                            <button
-                              onClick={() => handleCancel(job.jobId)}
-                              disabled={cancellingJobId === job.jobId}
-                              className="btn btn-sm"
+                              {job.result?.orderId || "-"}
+                            </td>
+                            <td
                               style={{
-                                backgroundColor: "#f44336",
-                                color: "#fff",
-                                border: "none",
-                                padding: "6px 12px",
-                                borderRadius: "6px",
-                                cursor:
-                                  cancellingJobId === job.jobId
-                                    ? "not-allowed"
-                                    : "pointer",
-                                opacity: cancellingJobId === job.jobId ? 0.6 : 1,
+                                padding: "10px 12px",
+                                fontSize: "12px",
+                                color: "#666",
                               }}
                             >
-                              {cancellingJobId === job.jobId ? "⏳" : "✕ Cancel"}
-                            </button>
+                              {formatDate(job.createdAt)}
+                            </td>
+                            <td style={{ padding: "10px 12px" }}>
+                              {job.status === "failed" && (
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleRetry(job.jobId);
+                                  }}
+                                  disabled={retryingJobId === job.jobId}
+                                  className="btn btn-sm"
+                                  style={{
+                                    backgroundColor: "#ff9800",
+                                    color: "#fff",
+                                    border: "none",
+                                    padding: "4px 10px",
+                                    borderRadius: "6px",
+                                    cursor:
+                                      retryingJobId === job.jobId
+                                        ? "not-allowed"
+                                        : "pointer",
+                                    opacity: retryingJobId === job.jobId ? 0.6 : 1,
+                                    fontSize: "12px",
+                                  }}
+                                >
+                                  {retryingJobId === job.jobId ? "..." : "Retry"}
+                                </button>
+                              )}
+                              {(job.status === "active" || job.status === "waiting") && (
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleCancel(job.jobId);
+                                  }}
+                                  disabled={cancellingJobId === job.jobId}
+                                  className="btn btn-sm"
+                                  style={{
+                                    backgroundColor: "#f44336",
+                                    color: "#fff",
+                                    border: "none",
+                                    padding: "4px 10px",
+                                    borderRadius: "6px",
+                                    cursor:
+                                      cancellingJobId === job.jobId
+                                        ? "not-allowed"
+                                        : "pointer",
+                                    opacity: cancellingJobId === job.jobId ? 0.6 : 1,
+                                    fontSize: "12px",
+                                  }}
+                                >
+                                  {cancellingJobId === job.jobId ? "..." : "Cancel"}
+                                </button>
+                              )}
+                            </td>
+                          </tr>
+                          {isExpanded && (
+                            <tr style={{ borderBottom: "1px solid #eee" }}>
+                              <td colSpan={8} style={{ padding: "0 12px 16px 44px", backgroundColor: "#f9f9f9" }}>
+                                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px", fontSize: "13px", marginTop: "4px" }}>
+                                  <div><strong>Job ID:</strong> <span style={{ fontFamily: "monospace" }}>{job.jobId}</span></div>
+                                  <div><strong>User ID:</strong> <span style={{ fontFamily: "monospace" }}>{job.userId}</span></div>
+                                </div>
+                                {job.orderData.items.length > 0 && (
+                                  <div style={{ marginTop: "8px" }}>
+                                    <strong style={{ fontSize: "13px" }}>Articoli ({job.orderData.items.length}):</strong>
+                                    <div style={{ marginTop: "4px", fontSize: "12px", fontFamily: "monospace", maxHeight: "120px", overflowY: "auto" }}>
+                                      {job.orderData.items.map((item, i) => (
+                                        <div key={i}>
+                                          {item.articleCode} x{item.quantity}
+                                          {item.description && ` - ${item.description}`}
+                                          {item.productName && ` (${item.productName})`}
+                                        </div>
+                                      ))}
+                                    </div>
+                                  </div>
+                                )}
+                                {job.error && (
+                                  <div style={{ marginTop: "8px", padding: "8px", backgroundColor: "#ffebee", borderRadius: "4px", fontSize: "12px", color: "#c62828", whiteSpace: "pre-wrap", wordBreak: "break-word" }}>
+                                    <strong>Errore:</strong> {job.error}
+                                  </div>
+                                )}
+                              </td>
+                            </tr>
                           )}
-                        </td>
-                      </tr>
-                    ))}
+                        </Fragment>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>
 
-              {/* Pagination */}
               {totalPages > 1 && (
                 <div
                   style={{
@@ -784,7 +917,7 @@ export function AdminPage({ onLogout, userName }: AdminPageProps) {
                     className="btn btn-secondary btn-sm"
                     style={{ opacity: currentPage === 1 ? 0.5 : 1 }}
                   >
-                    Previous
+                    Prec.
                   </button>
                   <span
                     style={{
@@ -793,7 +926,7 @@ export function AdminPage({ onLogout, userName }: AdminPageProps) {
                       color: "#666",
                     }}
                   >
-                    Page {currentPage} of {totalPages}
+                    Pagina {currentPage} di {totalPages}
                   </span>
                   <button
                     onClick={() =>
@@ -803,7 +936,7 @@ export function AdminPage({ onLogout, userName }: AdminPageProps) {
                     className="btn btn-secondary btn-sm"
                     style={{ opacity: currentPage === totalPages ? 0.5 : 1 }}
                   >
-                    Next
+                    Succ.
                   </button>
                 </div>
               )}

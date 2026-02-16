@@ -5502,6 +5502,48 @@ app.post(
   },
 );
 
+// Cleanup excess jobs (admin only)
+app.post(
+  "/api/admin/jobs/cleanup",
+  authenticateJWT,
+  requireAdmin,
+  async (req: AuthRequest, res: Response<ApiResponse>) => {
+    try {
+      logger.info(`[Admin] Cleanup jobs requested`, {
+        userId: req.user!.userId,
+      });
+
+      const result = await queueManager.cleanupJobs();
+
+      res.json({
+        success: true,
+        data: result,
+        message: `Removed ${result.removedCompleted} completed and ${result.removedFailed} failed jobs`,
+      });
+    } catch (error) {
+      logger.error("Error cleaning up jobs", { error });
+      res.status(500).json({
+        success: false,
+        error:
+          error instanceof Error ? error.message : "Error cleaning up jobs",
+      });
+    }
+  },
+);
+
+// Get retention config (admin only)
+app.get(
+  "/api/admin/jobs/retention",
+  authenticateJWT,
+  requireAdmin,
+  async (_req: AuthRequest, res: Response<ApiResponse>) => {
+    res.json({
+      success: true,
+      data: queueManager.getRetentionConfig(),
+    });
+  },
+);
+
 // ============================================================================
 // ORDER HISTORY ENDPOINTS (Phase 10)
 // ============================================================================
