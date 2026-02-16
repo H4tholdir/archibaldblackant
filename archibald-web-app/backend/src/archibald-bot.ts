@@ -8927,7 +8927,13 @@ export class ArchibaldBot {
       throw new Error(`Input field not found: ${fieldRegex}`);
     }
 
-    await this.page.type(`[id="${inputId}"]`, value, { delay: 20 });
+    await this.page.evaluate((id: string, text: string) => {
+      const input = document.getElementById(id) as HTMLInputElement;
+      if (!input) return;
+      input.focus();
+      input.select();
+      document.execCommand("insertText", false, text);
+    }, inputId, value);
     await this.page.keyboard.press("Tab");
     await this.waitForDevExpressIdle({
       timeout: 5000,
