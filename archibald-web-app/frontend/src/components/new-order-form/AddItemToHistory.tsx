@@ -12,6 +12,7 @@ import {
   type SelectedWarehouseMatch,
 } from "../WarehouseMatchAccordion";
 import { normalizeVatRate } from "../../utils/vat-utils";
+import { toastService } from "../../services/toast.service";
 
 interface AddItemToHistoryProps {
   onAdd: (items: PendingOrderItem[]) => void;
@@ -124,7 +125,7 @@ export function AddItemToHistory({
           productId: p.id,
           packageContent: p.packageContent || "",
           price: priceData?.price ?? null,
-          vat: normalizeVatRate(priceData?.vat),
+          vat: normalizeVatRate(priceData?.vat) ?? 0,
         });
       }
       setProductVariants(variants);
@@ -297,7 +298,13 @@ export function AddItemToHistory({
       }
 
       const variantProduct = await db.products.get(variantCode);
-      const vatRate = normalizeVatRate(variantProduct?.vat);
+      const rawVatRate = normalizeVatRate(variantProduct?.vat);
+      if (rawVatRate === null) {
+        toastService.warning(
+          `IVA non impostata per ${articleCode}. Vai in Articoli per impostarla. Usato 0%.`,
+        );
+      }
+      const vatRate = rawVatRate ?? 0;
 
       newItems.push({
         articleCode: variantCode,
@@ -322,7 +329,13 @@ export function AddItemToHistory({
           return;
         }
         const variantProduct = await db.products.get(variantArticleCode);
-        const vatRate = normalizeVatRate(variantProduct?.vat);
+        const rawVatRate = normalizeVatRate(variantProduct?.vat);
+        if (rawVatRate === null && i === 0) {
+          toastService.warning(
+            `IVA non impostata per ${selectedProduct.name}. Vai in Articoli per impostarla. Usato 0%.`,
+          );
+        }
+        const vatRate = rawVatRate ?? 0;
 
         newItems.push({
           articleCode: variantArticleCode,
@@ -338,6 +351,7 @@ export function AddItemToHistory({
       }
     } else {
       const breakdown = packagingPreview!.breakdown!;
+      let vatWarningShown = false;
       for (const pkg of breakdown) {
         const variantArticleCode = pkg.variant.variantId;
         const price =
@@ -347,7 +361,14 @@ export function AddItemToHistory({
           return;
         }
         const variantProduct = await db.products.get(variantArticleCode);
-        const vatRate = normalizeVatRate(variantProduct?.vat);
+        const rawVatRate = normalizeVatRate(variantProduct?.vat);
+        if (rawVatRate === null && !vatWarningShown) {
+          toastService.warning(
+            `IVA non impostata per ${selectedProduct.name}. Vai in Articoli per impostarla. Usato 0%.`,
+          );
+          vatWarningShown = true;
+        }
+        const vatRate = rawVatRate ?? 0;
 
         newItems.push({
           articleCode: variantArticleCode,

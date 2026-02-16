@@ -1732,7 +1732,7 @@ export function PendingOrdersPage() {
                                     color: "#6b7280",
                                   }}
                                 >
-                                  ({item.vat}%)
+                                  {item.vat === 0 ? <span style={{ color: "#dc2626", fontWeight: 600 }}>mancante</span> : `(${item.vat}%)`}
                                 </div>
                                 <div>{formatCurrency(vatAmount)}</div>
                               </div>
@@ -1913,7 +1913,7 @@ export function PendingOrdersPage() {
                                       marginBottom: "0.125rem",
                                     }}
                                   >
-                                    IVA ({item.vat}%)
+                                    {item.vat === 0 ? <span style={{ color: "#dc2626" }}>IVA: mancante</span> : `IVA (${item.vat}%)`}
                                   </div>
                                   <div style={{ fontWeight: "500" }}>
                                     {formatCurrency(vatAmount)}

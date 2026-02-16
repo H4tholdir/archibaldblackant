@@ -3747,6 +3747,25 @@ app.delete(
 
 // ========== PRODUCTS ENDPOINTS ==========
 
+// Get count of products without VAT
+app.get(
+  "/api/products/no-vat-count",
+  authenticateJWT,
+  (req: AuthRequest, res: Response) => {
+    try {
+      const db = ProductDatabase.getInstance();
+      const count = db.getProductsWithoutVatCount();
+      res.json({ success: true, data: { count } });
+    } catch (error) {
+      logger.error("Errore API /api/products/no-vat-count", { error });
+      res.status(500).json({
+        success: false,
+        error: "Errore durante il conteggio prodotti senza IVA",
+      });
+    }
+  },
+);
+
 // Get products endpoint (legge dal database locale)
 app.get("/api/products", (req: Request, res: Response<ApiResponse>) => {
   try {
@@ -3754,12 +3773,26 @@ app.get("/api/products", (req: Request, res: Response<ApiResponse>) => {
     const limitParam = req.query.limit as string | undefined;
     const limit = limitParam ? parseInt(limitParam, 10) : 100; // Default limit: 100
     const grouped = req.query.grouped === "true"; // NEW: grouped mode flag
+    const vatFilter = req.query.vatFilter as string | undefined;
 
-    logger.info("Richiesta lista prodotti", { searchQuery, limit, grouped });
+    logger.info("Richiesta lista prodotti", { searchQuery, limit, grouped, vatFilter });
 
     const db = ProductDatabase.getInstance();
 
-    if (grouped) {
+    if (vatFilter === "missing") {
+      const products = db.getProductsWithoutVat(limit);
+      const totalCount = db.getProductsWithoutVatCount();
+      res.json({
+        success: true,
+        data: {
+          products,
+          totalCount,
+          returnedCount: products.length,
+          limited: products.length >= limit,
+          grouped: false,
+        },
+      });
+    } else if (grouped) {
       // NEW: Grouped mode - return one product per article name
       const productNames = db.getAllProductNames(searchQuery, limit);
       const products = productNames

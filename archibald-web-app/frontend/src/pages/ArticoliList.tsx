@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { ProductCard } from "../components/ProductCard";
 import { ProductDetailModal } from "../components/ProductDetailModal";
-import { getProducts, type Product } from "../api/products";
+import { getProducts, getProductsWithoutVatCount, type Product } from "../api/products";
 import { PriceVariationsModal } from "../components/PriceVariationsModal";
 import { ProductVariationsModal } from "../components/ProductVariationsModal";
 import { useKeyboardScroll } from "../hooks/useKeyboardScroll";
@@ -32,6 +32,17 @@ export function ArticoliList() {
     useState(false);
   const [showProductVariationsModal, setShowProductVariationsModal] =
     useState(false);
+  const [noVatCount, setNoVatCount] = useState(0);
+  const [vatFilterActive, setVatFilterActive] = useState(false);
+
+  // Load no-vat count on mount
+  useEffect(() => {
+    const token = localStorage.getItem("archibald_jwt");
+    if (!token) return;
+    getProductsWithoutVatCount(token)
+      .then((result) => setNoVatCount(result.count))
+      .catch(() => {});
+  }, []);
 
   // Debounce search input (300ms)
   useEffect(() => {
@@ -44,7 +55,7 @@ export function ArticoliList() {
 
   // Fetch products when search changes (not on mount)
   const fetchProducts = useCallback(async () => {
-    if (!debouncedSearch) {
+    if (!debouncedSearch && !vatFilterActive) {
       setProducts([]);
       setTotalCount(0);
       setReturnedCount(0);
@@ -68,9 +79,10 @@ export function ArticoliList() {
 
       const response = await getProducts(
         token,
-        debouncedSearch,
+        vatFilterActive ? undefined : debouncedSearch,
         200,
-        true, // grouped=true
+        !vatFilterActive,
+        vatFilterActive ? "missing" : undefined,
       );
 
       if (!response.success) {
@@ -104,7 +116,7 @@ export function ArticoliList() {
     } finally {
       setLoading(false);
     }
-  }, [debouncedSearch]);
+  }, [debouncedSearch, vatFilterActive]);
 
   useEffect(() => {
     fetchProducts();
@@ -122,10 +134,19 @@ export function ArticoliList() {
 
   const handleClearFilters = () => {
     setFilters({ search: "" });
+    setVatFilterActive(false);
     setHasSearched(false);
   };
 
-  const hasActiveFilters = filters.search;
+  const handleToggleVatFilter = () => {
+    const next = !vatFilterActive;
+    setVatFilterActive(next);
+    if (next) {
+      setFilters({ search: "" });
+    }
+  };
+
+  const hasActiveFilters = filters.search || vatFilterActive;
 
   return (
     <div
@@ -170,6 +191,36 @@ export function ArticoliList() {
           </div>
         )}
       </div>
+
+      {/* No-VAT Banner */}
+      {noVatCount > 0 && !vatFilterActive && (
+        <div
+          onClick={handleToggleVatFilter}
+          style={{
+            backgroundColor: "#fff3e0",
+            border: "1px solid #ff9800",
+            borderRadius: "12px",
+            padding: "12px 20px",
+            marginBottom: "16px",
+            cursor: "pointer",
+            display: "flex",
+            alignItems: "center",
+            gap: "8px",
+            transition: "background-color 0.2s",
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.backgroundColor = "#ffe0b2";
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.backgroundColor = "#fff3e0";
+          }}
+        >
+          <span style={{ fontSize: "20px" }}>⚠️</span>
+          <span style={{ fontSize: "14px", color: "#e65100", fontWeight: 600 }}>
+            {noVatCount} articol{noVatCount !== 1 ? "i" : "o"} senza IVA nel database. Clicca per visualizzarl{noVatCount !== 1 ? "i" : "o"}.
+          </span>
+        </div>
+      )}
 
       {/* Filters */}
       <div
@@ -313,6 +364,38 @@ export function ArticoliList() {
           >
             Variazioni Prodotti
           </button>
+
+          {/* No-VAT filter button */}
+          {noVatCount > 0 && (
+            <button
+              onClick={handleToggleVatFilter}
+              style={{
+                padding: "8px 16px",
+                fontSize: "14px",
+                fontWeight: 600,
+                border: `1px solid ${vatFilterActive ? "#fff" : "#e65100"}`,
+                borderRadius: "8px",
+                backgroundColor: vatFilterActive ? "#e65100" : "#fff",
+                color: vatFilterActive ? "#fff" : "#e65100",
+                cursor: "pointer",
+                transition: "all 0.2s",
+              }}
+              onMouseEnter={(e) => {
+                if (!vatFilterActive) {
+                  e.currentTarget.style.backgroundColor = "#e65100";
+                  e.currentTarget.style.color = "#fff";
+                }
+              }}
+              onMouseLeave={(e) => {
+                if (!vatFilterActive) {
+                  e.currentTarget.style.backgroundColor = "#fff";
+                  e.currentTarget.style.color = "#e65100";
+                }
+              }}
+            >
+              Senza IVA ({noVatCount})
+            </button>
+          )}
         </div>
       </div>
 

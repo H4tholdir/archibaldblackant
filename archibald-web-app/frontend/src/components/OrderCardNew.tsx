@@ -850,7 +850,7 @@ function TabArticoli({
 
       const priceData = await priceService.getPriceAndVat(variantId);
       const unitPrice = priceData?.price ?? product.price ?? 0;
-      const vatPercent = normalizeVatRate(priceData?.vat ?? product.vat);
+      const vatPercent = normalizeVatRate(priceData?.vat ?? product.vat) ?? 0;
 
       const newItems = [...editItems];
       newItems[idx] = recalcLineAmounts({
@@ -972,7 +972,7 @@ function TabArticoli({
                   unitPrice: priceData?.price ?? updated[idx].unitPrice,
                   vatPercent: normalizeVatRate(
                     priceData?.vat ?? updated[idx].vatPercent,
-                  ),
+                  ) ?? 0,
                 });
                 return updated;
               });

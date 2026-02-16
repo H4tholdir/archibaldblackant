@@ -626,6 +626,26 @@ export class ProductDatabase {
     return stmt.all() as Product[];
   }
 
+  getProductsWithoutVatCount(): number {
+    const result = this.db
+      .prepare(
+        "SELECT COUNT(*) as count FROM products WHERE deletedAt IS NULL AND (vat IS NULL)",
+      )
+      .get() as { count: number };
+    return result.count;
+  }
+
+  getProductsWithoutVat(limit: number = 100): Product[] {
+    const stmt = this.db.prepare(`
+      SELECT id, name, description, groupCode, searchName, priceUnit, productGroupId, productGroupDescription, packageContent, minQty, multipleQty, maxQty, price, priceSource, priceUpdatedAt, vat, vatSource, vatUpdatedAt, hash, lastSync
+      FROM products
+      WHERE deletedAt IS NULL AND vat IS NULL
+      ORDER BY name ASC
+      LIMIT ?
+    `);
+    return stmt.all(limit) as Product[];
+  }
+
   /**
    * Conta totale prodotti
    */

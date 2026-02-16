@@ -143,7 +143,8 @@ export async function getProducts(
   token: string,
   searchQuery?: string,
   limit: number = 100,
-  grouped: boolean = false // NEW: optional grouping parameter
+  grouped: boolean = false,
+  vatFilter?: "missing",
 ): Promise<ProductsResponse> {
   const params = new URLSearchParams();
   if (searchQuery) params.append("search", searchQuery);
@@ -151,6 +152,10 @@ export async function getProducts(
 
   if (grouped) {
     params.append("grouped", "true");
+  }
+
+  if (vatFilter) {
+    params.append("vatFilter", vatFilter);
   }
 
   const response = await fetchWithRetry(`${API_BASE_URL}/api/products?${params}`, {
@@ -164,6 +169,23 @@ export async function getProducts(
   }
 
   return response.json();
+}
+
+export async function getProductsWithoutVatCount(
+  token: string,
+): Promise<{ count: number }> {
+  const response = await fetchWithRetry(`${API_BASE_URL}/api/products/no-vat-count`, {
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+
+  if (!response.ok) {
+    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+  }
+
+  const result = await response.json();
+  return result.data;
 }
 
 /**

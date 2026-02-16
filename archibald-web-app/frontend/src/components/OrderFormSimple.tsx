@@ -520,7 +520,8 @@ export default function OrderFormSimple() {
         // Convert order items to OrderItem format
         const loadedItems: OrderItem[] = await Promise.all(
           order.items.map(async (item) => {
-            const vatRate = normalizeVatRate(item.vat);
+            const rawVatRate = normalizeVatRate(item.vat);
+            const vatRate = rawVatRate ?? 0;
             const subtotal =
               item.price * item.quantity * (1 - (item.discount || 0) / 100);
             const vatAmount = subtotal * (vatRate / 100);
@@ -1001,7 +1002,7 @@ export default function OrderFormSimple() {
         for (const variant of allVariants) {
           const priceAndVat = await priceService.getPriceAndVat(variant.id);
           const price = priceAndVat?.price || null;
-          const vat = normalizeVatRate(priceAndVat?.vat);
+          const vat = normalizeVatRate(priceAndVat?.vat) ?? 0;
 
           variantsWithDetails.push({
             variantId: variant.id,
@@ -1412,9 +1413,14 @@ export default function OrderFormSimple() {
         return;
       }
 
-      // Get VAT rate
       const variantProduct = await db.products.get(variantCode);
-      const vatRate = normalizeVatRate(variantProduct?.vat);
+      const rawVatRate = normalizeVatRate(variantProduct?.vat);
+      if (rawVatRate === null) {
+        toastService.warning(
+          `IVA non impostata per ${selectedProduct.name}. Vai in Articoli per impostarla. Usato 0%.`,
+        );
+      }
+      const vatRate = rawVatRate ?? 0;
 
       // 🔧 FIX #4: Always use warehouseQty for warehouse-only items (not requestedQty)
       // The user may have selected more/less items from warehouse than initially requested
@@ -1473,9 +1479,14 @@ export default function OrderFormSimple() {
           return;
         }
 
-        // Get VAT rate
         const variantProduct = await db.products.get(variantArticleCode);
-        const vatRate = normalizeVatRate(variantProduct?.vat);
+        const rawVatRate = normalizeVatRate(variantProduct?.vat);
+        if (rawVatRate === null && i === 0) {
+          toastService.warning(
+            `IVA non impostata per ${selectedProduct.name}. Vai in Articoli per impostarla. Usato 0%.`,
+          );
+        }
+        const vatRate = rawVatRate ?? 0;
 
         const effectivePrice =
           customListPrice != null && !isNaN(customListPrice)
@@ -1532,9 +1543,14 @@ export default function OrderFormSimple() {
           return;
         }
 
-        // Get VAT rate for THIS SPECIFIC variant
         const variantProduct = await db.products.get(variantArticleCode);
-        const vatRate = normalizeVatRate(variantProduct?.vat);
+        const rawVatRate = normalizeVatRate(variantProduct?.vat);
+        if (rawVatRate === null && i === 0) {
+          toastService.warning(
+            `IVA non impostata per ${selectedProduct.name}. Vai in Articoli per impostarla. Usato 0%.`,
+          );
+        }
+        const vatRate = rawVatRate ?? 0;
 
         const effectivePrice =
           customListPrice != null && !isNaN(customListPrice)
@@ -1735,7 +1751,7 @@ export default function OrderFormSimple() {
         if (pv && pv.price > 0) {
           chosenVariant = v;
           variantPrice = pv.price;
-          variantVat = normalizeVatRate(pv.vat);
+          variantVat = normalizeVatRate(pv.vat) ?? 0;
           break;
         }
       }
@@ -1743,7 +1759,7 @@ export default function OrderFormSimple() {
       if (variantPrice === null) {
         const fallback = await priceService.getPriceAndVat(chosenVariant.id);
         variantPrice = fallback?.price ?? 0;
-        variantVat = normalizeVatRate(fallback?.vat);
+        variantVat = normalizeVatRate(fallback?.vat) ?? 0;
       }
 
       const { itemId, discount } = articleChangeModal;
@@ -1893,7 +1909,7 @@ export default function OrderFormSimple() {
       }
 
       const variantProduct = await db.products.get(variantArticleCode);
-      const vatRate = normalizeVatRate(variantProduct?.vat);
+      const vatRate = normalizeVatRate(variantProduct?.vat) ?? 0;
 
       const effectivePrice =
         originalListPrice != null ? unitPrice : systemPrice;
@@ -3839,8 +3855,8 @@ export default function OrderFormSimple() {
                       }}
                     >
                       <div>
-                        <span style={{ fontSize: "0.75rem", color: "#9ca3af" }}>
-                          ({item.vatRate}%)
+                        <span style={{ fontSize: "0.75rem", color: item.vatRate === 0 ? "#dc2626" : "#9ca3af" }}>
+                          {item.vatRate === 0 ? "mancante" : `(${item.vatRate}%)`}
                         </span>
                         <br />
                         {formatCurrency(item.vat)}
@@ -4099,8 +4115,8 @@ export default function OrderFormSimple() {
                       </strong>
                     </div>
                     <div>
-                      <span style={{ color: "#6b7280" }}>
-                        IVA ({item.vatRate}%):
+                      <span style={{ color: item.vatRate === 0 ? "#dc2626" : "#6b7280" }}>
+                        {item.vatRate === 0 ? "IVA: mancante" : `IVA (${item.vatRate}%):`}
                       </span>
                       <strong style={{ marginLeft: "0.25rem" }}>
                         {formatCurrency(item.vat)}
