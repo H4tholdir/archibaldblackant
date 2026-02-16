@@ -11019,51 +11019,33 @@ export class ArchibaldBot {
 
     logger.info("Interactive: submitting VAT number", { vatNumber });
 
-    // Set VAT field via DevExpress API so the control tracks the change
-    const vatSet = await this.page.evaluate((val: string) => {
-      const w = window as any;
-      const collection = w.ASPxClientControl?.GetControlCollection?.();
-      if (!collection) return { method: "none" };
-
-      let controlName = "";
-      collection.ForEachControl((c: any) => {
-        if (controlName) return;
-        const name = c.name || "";
-        if (/VATNUM/i.test(name)) {
-          try {
-            c.SetValue(val);
-            controlName = name;
-          } catch {
-            /* ignore */
-          }
-        }
-      });
-
-      if (controlName) return { method: "devexpress-api", controlName };
-
-      // Fallback: set via DOM
+    // Focus the VAT input field and type character by character
+    // DevExpress only triggers server-side callbacks on Tab/blur when it
+    // tracks the keystrokes internally, so programmatic SetValue() won't work.
+    const vatInputId = await this.page.evaluate(() => {
       const inputs = Array.from(document.querySelectorAll("input"));
       const input = inputs.find((i) =>
         /xaf_dviVATNUM_Edit_I$/.test(i.id),
       ) as HTMLInputElement | null;
-      if (!input) return { method: "not-found" };
-
+      if (!input) return null;
+      input.scrollIntoView({ block: "center" });
       input.focus();
       input.click();
-      const setter = Object.getOwnPropertyDescriptor(
-        HTMLInputElement.prototype,
-        "value",
-      )?.set;
-      if (setter) setter.call(input, val);
-      else input.value = val;
-      input.dispatchEvent(new Event("input", { bubbles: true }));
-      input.dispatchEvent(new Event("change", { bubbles: true }));
-      return { method: "dom-fallback", inputId: input.id };
-    }, vatNumber);
+      // Clear any existing value
+      input.value = "";
+      return input.id;
+    });
 
-    logger.info("Interactive: VAT field set", vatSet);
+    if (!vatInputId) {
+      throw new Error("VAT input field not found");
+    }
 
-    // Single Tab to trigger DevExpress server-side lookup
+    // Type the VAT number character by character so DevExpress tracks it
+    await this.page.type(`[id="${vatInputId}"]`, vatNumber, { delay: 30 });
+
+    logger.info("Interactive: VAT field typed", { vatNumber, vatInputId });
+
+    // Tab to leave the field and trigger the DevExpress server-side callback
     await this.page.keyboard.press("Tab");
 
     // Brief delay to let the callback start
