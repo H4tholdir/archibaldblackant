@@ -244,6 +244,7 @@ export class OrderSyncService extends EventEmitter {
         ordersSkipped: number;
         orderNumberChanges: Array<{ orderId: string; orderNumber: string }>;
         insertedOrderIds: string[];
+        updatedOrderIds: string[];
       };
       try {
         saveResults = await this.saveOrders(userId, parsedOrders);
@@ -294,31 +295,35 @@ export class OrderSyncService extends EventEmitter {
         });
       });
 
-      // Step 5: Sync articles for newly inserted orders
+      // Step 5: Sync articles for newly inserted and updated orders
       let articlesSynced = 0;
       let articlesSyncErrors = 0;
-      if (saveResults.insertedOrderIds.length > 0) {
-        const totalNewOrders = saveResults.insertedOrderIds.length;
+      const orderIdsToSyncArticles = [
+        ...saveResults.insertedOrderIds,
+        ...saveResults.updatedOrderIds,
+      ];
+      if (orderIdsToSyncArticles.length > 0) {
+        const totalOrders = orderIdsToSyncArticles.length;
         logger.info(
-          `[OrderSyncService] Step 5/5: Syncing articles for ${totalNewOrders} new orders...`,
+          `[OrderSyncService] Step 5/5: Syncing articles for ${totalOrders} orders (${saveResults.insertedOrderIds.length} new, ${saveResults.updatedOrderIds.length} updated)...`,
         );
 
         this.progress = {
           ...this.progress,
           status: "syncing-articles",
-          message: `Sync articoli per ${totalNewOrders} nuovi ordini (0/${totalNewOrders})...`,
+          message: `Sync articoli per ${totalOrders} ordini (0/${totalOrders})...`,
           articlesSyncedForOrders: 0,
-          articlesSyncTotalOrders: totalNewOrders,
+          articlesSyncTotalOrders: totalOrders,
           articlesSyncErrors: 0,
         };
         this.emit("progress", this.progress);
 
-        for (const orderId of saveResults.insertedOrderIds) {
+        for (const orderId of orderIdsToSyncArticles) {
           this.throwIfStopRequested("syncing-articles");
 
           try {
             logger.info(
-              `[OrderSyncService] Syncing articles for order ${orderId} (${articlesSynced + 1}/${totalNewOrders})`,
+              `[OrderSyncService] Syncing articles for order ${orderId} (${articlesSynced + 1}/${totalOrders})`,
             );
 
             await this.articlesSyncService.syncOrderArticles(userId, orderId);
@@ -346,7 +351,7 @@ export class OrderSyncService extends EventEmitter {
 
           this.progress = {
             ...this.progress,
-            message: `Sync articoli per ${totalNewOrders} nuovi ordini (${articlesSynced + articlesSyncErrors}/${totalNewOrders})...`,
+            message: `Sync articoli per ${totalOrders} ordini (${articlesSynced + articlesSyncErrors}/${totalOrders})...`,
             articlesSyncedForOrders: articlesSynced,
             articlesSyncErrors,
           };
@@ -356,15 +361,17 @@ export class OrderSyncService extends EventEmitter {
         logger.info("[OrderSyncService] Articles sync completed", {
           articlesSynced,
           articlesSyncErrors,
-          totalNewOrders,
+          totalOrders,
+          newOrders: saveResults.insertedOrderIds.length,
+          updatedOrders: saveResults.updatedOrderIds.length,
         });
       }
 
       // Complete
       const duration = Math.floor((Date.now() - startTime) / 1000);
       const articlesSummary =
-        saveResults.insertedOrderIds.length > 0
-          ? ` | Articoli: ${articlesSynced}/${saveResults.insertedOrderIds.length} ordini`
+        orderIdsToSyncArticles.length > 0
+          ? ` | Articoli: ${articlesSynced}/${orderIdsToSyncArticles.length} ordini`
           : "";
       this.progress = {
         ...this.progress,
@@ -514,6 +521,7 @@ export class OrderSyncService extends EventEmitter {
     ordersDeleted: number;
     orderNumberChanges: Array<{ orderId: string; orderNumber: string }>;
     insertedOrderIds: string[];
+    updatedOrderIds: string[];
   }> {
     logger.info("[OrderSyncService] saveOrders: starting", {
       userId,
@@ -524,6 +532,7 @@ export class OrderSyncService extends EventEmitter {
     let updated = 0;
     let skipped = 0;
     const insertedOrderIds: string[] = [];
+    const updatedOrderIds: string[] = [];
     const orderNumberChanges: Array<{ orderId: string; orderNumber: string }> =
       [];
 
@@ -566,8 +575,10 @@ export class OrderSyncService extends EventEmitter {
         if (result.action === "inserted") {
           inserted++;
           insertedOrderIds.push(parsedOrder.id);
-        } else if (result.action === "updated") updated++;
-        else if (result.action === "skipped") skipped++;
+        } else if (result.action === "updated") {
+          updated++;
+          updatedOrderIds.push(parsedOrder.id);
+        } else if (result.action === "skipped") skipped++;
 
         if (result.orderNumberChanged) {
           orderNumberChanges.push({
@@ -630,6 +641,7 @@ export class OrderSyncService extends EventEmitter {
       ordersDeleted: deleted,
       orderNumberChanges,
       insertedOrderIds,
+      updatedOrderIds,
     };
 
     logger.info("[OrderSyncService] saveOrders: completed", results);
