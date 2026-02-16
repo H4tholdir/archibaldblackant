@@ -33,6 +33,8 @@ export function SubClientSelector({
   const [confirmDeleteSubClient, setConfirmDeleteSubClient] =
     useState<SubClient | null>(null);
 
+  const [hoveredCodice, setHoveredCodice] = useState<string | null>(null);
+
   const inputRef = useRef<HTMLInputElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const debounceTimerRef = useRef<number | null>(null);
@@ -304,9 +306,7 @@ export function SubClientSelector({
                   position: "relative",
                   overflow: "hidden",
                   borderBottom:
-                    index < results.length - 1
-                      ? "1px solid #e5e7eb"
-                      : "none",
+                    index < results.length - 1 ? "1px solid #e5e7eb" : "none",
                 }}
               >
                 {currentSwipeX >= 80 && (
@@ -352,15 +352,47 @@ export function SubClientSelector({
                     transition:
                       currentSwipeX === 0 ? "transform 0.3s ease" : "none",
                     transform: `translateX(-${currentSwipeX}px)`,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
                   }}
-                  onMouseEnter={() => setHighlightedIndex(index)}
+                  onMouseEnter={() => {
+                    setHighlightedIndex(index);
+                    setHoveredCodice(sc.codice);
+                  }}
+                  onMouseLeave={() => setHoveredCodice(null)}
                 >
-                  <div style={{ fontWeight: "500" }}>{sc.ragioneSociale}</div>
-                  <div style={{ fontSize: "0.75rem", color: "#6b7280" }}>
-                    Cod: {sc.codice}
-                    {sc.supplRagioneSociale &&
-                      ` - ${sc.supplRagioneSociale}`}
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontWeight: "500" }}>{sc.ragioneSociale}</div>
+                    <div style={{ fontSize: "0.75rem", color: "#6b7280" }}>
+                      Cod: {sc.codice}
+                      {sc.supplRagioneSociale && ` - ${sc.supplRagioneSociale}`}
+                    </div>
                   </div>
+                  {hoveredCodice === sc.codice && (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        e.preventDefault();
+                        setConfirmDeleteSubClient(sc);
+                      }}
+                      style={{
+                        flexShrink: 0,
+                        marginLeft: "0.5rem",
+                        padding: "0.25rem 0.5rem",
+                        background: "#fee2e2",
+                        color: "#dc2626",
+                        border: "1px solid #fecaca",
+                        borderRadius: "4px",
+                        cursor: "pointer",
+                        fontSize: "0.75rem",
+                        fontWeight: "600",
+                        lineHeight: 1,
+                      }}
+                    >
+                      Elimina
+                    </button>
+                  )}
                 </div>
               </div>
             );
