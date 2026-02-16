@@ -174,6 +174,8 @@ export default function OrderFormSimple() {
     [],
   );
   const [articleChangeSearching, setArticleChangeSearching] = useState(false);
+  const [articleChangeSelectedIndex, setArticleChangeSelectedIndex] =
+    useState(-1);
 
   // Imponibile dialog (Fresis+subclient)
   const [showImponibileDialog, setShowImponibileDialog] = useState(false);
@@ -1678,6 +1680,7 @@ export default function OrderFormSimple() {
         }
       });
       setArticleChangeResults(Array.from(groupedByName.values()).slice(0, 10));
+      setArticleChangeSelectedIndex(-1);
     } catch (error) {
       console.error("Article change search failed:", error);
     } finally {
@@ -1718,7 +1721,8 @@ export default function OrderFormSimple() {
         variantVat = normalizeVatRate(fallback?.vat);
       }
 
-      const { itemId, quantity, discount } = articleChangeModal;
+      const { itemId, discount } = articleChangeModal;
+      const quantity = 0;
       const subtotal = variantPrice * quantity * (1 - discount / 100);
       const vat = subtotal * (variantVat / 100);
 
@@ -1734,6 +1738,7 @@ export default function OrderFormSimple() {
             unitPrice: variantPrice!,
             vatRate: variantVat,
             originalListPrice: variantPrice!,
+            quantity,
             subtotal,
             vat,
             total: subtotal + vat,
@@ -5034,6 +5039,24 @@ export default function OrderFormSimple() {
               onChange={(e) => handleArticleChangeSearch(e.target.value)}
               onKeyDown={(e) => {
                 if (e.key === "Escape") setArticleChangeModal(null);
+                if (e.key === "ArrowDown") {
+                  e.preventDefault();
+                  setArticleChangeSelectedIndex((prev) =>
+                    prev < articleChangeResults.length - 1 ? prev + 1 : prev,
+                  );
+                }
+                if (e.key === "ArrowUp") {
+                  e.preventDefault();
+                  setArticleChangeSelectedIndex((prev) =>
+                    prev > 0 ? prev - 1 : prev,
+                  );
+                }
+                if (e.key === "Enter" && articleChangeSelectedIndex >= 0) {
+                  e.preventDefault();
+                  handleArticleChangeConfirm(
+                    articleChangeResults[articleChangeSelectedIndex],
+                  );
+                }
               }}
               style={{
                 width: "100%",
@@ -5065,23 +5088,36 @@ export default function OrderFormSimple() {
                   borderRadius: "6px",
                 }}
               >
-                {articleChangeResults.map((product) => (
+                {articleChangeResults.map((product, index) => (
                   <div
                     key={product.id}
                     onClick={() => handleArticleChangeConfirm(product)}
+                    ref={(el) => {
+                      if (index === articleChangeSelectedIndex && el) {
+                        el.scrollIntoView({ block: "nearest" });
+                      }
+                    }}
                     style={{
                       padding: "0.75rem",
                       cursor: "pointer",
                       borderBottom: "1px solid #f3f4f6",
                       transition: "background 0.15s",
+                      background:
+                        index === articleChangeSelectedIndex
+                          ? "#dbeafe"
+                          : "transparent",
                     }}
                     onMouseEnter={(e) => {
-                      (e.currentTarget as HTMLDivElement).style.background =
-                        "#f0f9ff";
+                      if (index !== articleChangeSelectedIndex) {
+                        (e.currentTarget as HTMLDivElement).style.background =
+                          "#f0f9ff";
+                      }
                     }}
                     onMouseLeave={(e) => {
                       (e.currentTarget as HTMLDivElement).style.background =
-                        "transparent";
+                        index === articleChangeSelectedIndex
+                          ? "#dbeafe"
+                          : "transparent";
                     }}
                   >
                     <div style={{ fontWeight: "600", fontSize: "0.9375rem" }}>
