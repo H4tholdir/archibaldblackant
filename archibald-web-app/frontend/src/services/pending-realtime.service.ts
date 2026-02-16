@@ -12,6 +12,7 @@ import type { PendingOrder, PendingOrderItem } from "../db/schema";
 import { getDeviceId } from "../utils/device-id";
 import {
   markWarehouseItemsAsSold,
+  recoverCompletedWarehouseOrders,
   updateWarehouseOrderNumbers,
 } from "./warehouse-order-integration";
 
@@ -635,22 +636,22 @@ export class PendingRealtimeService {
 
       this.notifyUpdate();
 
-      // Auto-dismiss after 4 seconds
+      try {
+        await markWarehouseItemsAsSold(data.pendingOrderId, data.orderId, {
+          customerName: existing.customerName,
+          subClientName: existing.subClientName,
+          orderDate: existing.createdAt,
+        });
+      } catch (warehouseError) {
+        console.error(
+          "[PendingRealtime] Error marking warehouse items as sold:",
+          warehouseError,
+        );
+      }
+
+      // Auto-dismiss after 4 seconds (UX delay only)
       setTimeout(async () => {
         try {
-          try {
-            await markWarehouseItemsAsSold(data.pendingOrderId, data.orderId, {
-              customerName: existing.customerName,
-              subClientName: existing.subClientName,
-              orderDate: existing.createdAt,
-            });
-          } catch (warehouseError) {
-            console.error(
-              "[PendingRealtime] Error marking warehouse items as sold:",
-              warehouseError,
-            );
-          }
-
           await db.pendingOrders.delete(data.pendingOrderId);
           console.log(
             `[PendingRealtime] Auto-dismissed ${data.pendingOrderId}`,
@@ -752,7 +753,22 @@ export class PendingRealtimeService {
       "[PendingRealtime] WebSocket subscriptions initialized (with job events)",
     );
 
-    // Return cleanup function
+    recoverCompletedWarehouseOrders()
+      .then((count) => {
+        if (count > 0) {
+          console.log(
+            `[PendingRealtime] Recovered ${count} completed warehouse orders`,
+          );
+          this.notifyUpdate();
+        }
+      })
+      .catch((error) => {
+        console.error(
+          "[PendingRealtime] Error recovering warehouse orders:",
+          error,
+        );
+      });
+
     return unsubscribers;
   }
 

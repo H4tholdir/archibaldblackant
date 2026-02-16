@@ -404,6 +404,49 @@ export async function resolveWarehouseOrderNumbers(): Promise<number> {
 }
 
 /**
+ * Recover completed warehouse orders that were not finalized.
+ * Finds pending orders with jobStatus "completed" and a truthy jobOrderId,
+ * marks their warehouse items as sold, then deletes the pending order.
+ * Idempotent: if no reserved items exist, markWarehouseItemsAsSold is a no-op.
+ *
+ * @returns Number of recovered orders
+ */
+export async function recoverCompletedWarehouseOrders(): Promise<number> {
+  const completedOrders = await db.pendingOrders
+    .filter((order) => order.jobStatus === "completed" && !!order.jobOrderId)
+    .toArray();
+
+  if (completedOrders.length === 0) return 0;
+
+  let recovered = 0;
+
+  for (const order of completedOrders) {
+    try {
+      await markWarehouseItemsAsSold(order.id, order.jobOrderId!, {
+        customerName: order.customerName,
+        subClientName: order.subClientName,
+        orderDate: order.createdAt,
+      });
+    } catch (error) {
+      console.error(
+        "[Warehouse] Error marking items as sold during recovery:",
+        error,
+      );
+    }
+
+    await db.pendingOrders.delete(order.id);
+    recovered++;
+  }
+
+  console.log("[Warehouse] Recovery complete", {
+    recovered,
+    total: completedOrders.length,
+  });
+
+  return recovered;
+}
+
+/**
  * Get warehouse statistics for reporting
  */
 export async function getWarehouseStatistics() {
