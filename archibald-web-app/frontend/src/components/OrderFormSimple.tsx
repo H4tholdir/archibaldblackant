@@ -1772,6 +1772,21 @@ export default function OrderFormSimple() {
 
       setArticleChangeModal(null);
       toastService.success(`Articolo cambiato in ${product.name}`);
+
+      // Open quantity edit modal immediately for the new article
+      setQuantityEditModal({
+        productName: product.name,
+        description: chosenVariant.description || product.description,
+        itemIds: [itemId],
+        currentQty: 0,
+        discount,
+        originalListPrice: variantPrice!,
+        unitPrice: variantPrice!,
+        warehouseQuantity: undefined,
+        warehouseSources: undefined,
+      });
+      setQuantityEditValue("");
+      setQuantityEditPackaging(null);
     } catch (error) {
       console.error("Article change failed:", error);
       toastService.error("Errore durante il cambio articolo");
