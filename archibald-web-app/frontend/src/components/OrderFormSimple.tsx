@@ -126,6 +126,10 @@ export default function OrderFormSimple() {
 
   // Ricavo stimato Fresis
   const [estimatedRevenue, setEstimatedRevenue] = useState<number | null>(null);
+  const [revenueBreakdown, setRevenueBreakdown] = useState<{
+    totalPrezzoCliente: number;
+    totalCostoFresis: number;
+  } | null>(null);
 
   // Maggiorazione prezzo
   const [showMarkupPanel, setShowMarkupPanel] = useState(false);
@@ -135,7 +139,10 @@ export default function OrderFormSimple() {
   const [markupAmount, setMarkupAmount] = useState(0);
 
   // Inline editing (Fresis+subclient)
-  const [editingCell, setEditingCell] = useState<{ itemId: string; field: string } | null>(null);
+  const [editingCell, setEditingCell] = useState<{
+    itemId: string;
+    field: string;
+  } | null>(null);
   const [editingCellValue, setEditingCellValue] = useState("");
 
   // Quantity edit modal (Fresis+subclient — with packaging validation)
@@ -151,18 +158,45 @@ export default function OrderFormSimple() {
     warehouseSources?: OrderItem["warehouseSources"];
   } | null>(null);
   const [quantityEditValue, setQuantityEditValue] = useState("");
-  const [quantityEditPackaging, setQuantityEditPackaging] = useState<PackagingResult | null>(null);
+  const [quantityEditPackaging, setQuantityEditPackaging] =
+    useState<PackagingResult | null>(null);
   const [quantityEditCalculating, setQuantityEditCalculating] = useState(false);
+
+  // Article change modal (Fresis+subclient)
+  const [articleChangeModal, setArticleChangeModal] = useState<{
+    itemId: string;
+    currentProductName: string;
+    quantity: number;
+    discount: number;
+  } | null>(null);
+  const [articleChangeSearch, setArticleChangeSearch] = useState("");
+  const [articleChangeResults, setArticleChangeResults] = useState<Product[]>(
+    [],
+  );
+  const [articleChangeSearching, setArticleChangeSearching] = useState(false);
 
   // Imponibile dialog (Fresis+subclient)
   const [showImponibileDialog, setShowImponibileDialog] = useState(false);
   const [imponibileTarget, setImponibileTarget] = useState("");
-  const [imponibileSelectedItems, setImponibileSelectedItems] = useState<Set<string>>(new Set());
+  const [imponibileSelectedItems, setImponibileSelectedItems] = useState<
+    Set<string>
+  >(new Set());
 
   // Totale dialog (Fresis+subclient)
   const [showTotaleDialog, setShowTotaleDialog] = useState(false);
   const [totaleTarget, setTotaleTarget] = useState("");
-  const [totaleSelectedItems, setTotaleSelectedItems] = useState<Set<string>>(new Set());
+  const [totaleSelectedItems, setTotaleSelectedItems] = useState<Set<string>>(
+    new Set(),
+  );
+
+  const editableCellStyle =
+    isFresis(selectedCustomer) && selectedSubClient
+      ? {
+          border: "1px dashed #93c5fd",
+          borderRadius: "4px",
+          padding: "0.5rem 0.75rem",
+        }
+      : {};
 
   // 🔧 FIX #2: Memoize excluded warehouse item IDs to prevent re-renders
   const excludedWarehouseItemIds = useMemo(
@@ -196,7 +230,6 @@ export default function OrderFormSimple() {
       }, 100);
     }
   }, []);
-
 
   // UI state
   const [submitting, setSubmitting] = useState(false);
@@ -255,6 +288,7 @@ export default function OrderFormSimple() {
       items.length === 0
     ) {
       setEstimatedRevenue(null);
+      setRevenueBreakdown(null);
       return;
     }
 
@@ -263,6 +297,8 @@ export default function OrderFormSimple() {
 
     const calculateRevenue = async () => {
       let totalRevenue = 0;
+      let totalPrezzoCliente = 0;
+      let totalCostoFresis = 0;
       for (const item of items) {
         const fresisDiscount =
           await fresisDiscountService.getDiscountForArticle(
@@ -271,12 +307,18 @@ export default function OrderFormSimple() {
           );
         const originalPrice = item.originalListPrice ?? item.unitPrice;
         const prezzoCliente =
-          item.unitPrice * item.quantity * (1 - item.discount / 100) * (1 - discountPercent / 100);
+          item.unitPrice *
+          item.quantity *
+          (1 - item.discount / 100) *
+          (1 - discountPercent / 100);
         const costoFresis =
           originalPrice * item.quantity * (1 - fresisDiscount / 100);
+        totalPrezzoCliente += prezzoCliente;
+        totalCostoFresis += costoFresis;
         totalRevenue += prezzoCliente - costoFresis;
       }
       setEstimatedRevenue(totalRevenue);
+      setRevenueBreakdown({ totalPrezzoCliente, totalCostoFresis });
     };
 
     calculateRevenue();
@@ -1079,7 +1121,9 @@ export default function OrderFormSimple() {
       const originalPrice = getOriginalListPrice();
       if (originalPrice != null && originalPrice > 0) {
         setListPrice(originalPrice.toString());
-        toastService.info(`Prezzo di listino ripristinato: ${formatCurrency(originalPrice)}`);
+        toastService.info(
+          `Prezzo di listino ripristinato: ${formatCurrency(originalPrice)}`,
+        );
       }
     }
   };
@@ -1089,7 +1133,9 @@ export default function OrderFormSimple() {
     setSearchingLastSale(true);
 
     try {
-      const productCode = (selectedProduct.article || selectedProduct.name).toLowerCase();
+      const productCode = (
+        selectedProduct.article || selectedProduct.name
+      ).toLowerCase();
 
       // 1. Search in local fresisHistory (ALL sub-clients)
       let localBestDate = "";
@@ -1102,7 +1148,11 @@ export default function OrderFormSimple() {
           const code = (item.articleCode || "").toLowerCase();
           const name = (item.productName || "").toLowerCase();
           if (!code && !name) continue;
-          if (code.includes(productCode) || name.includes(productCode) || (code && productCode.includes(code))) {
+          if (
+            code.includes(productCode) ||
+            name.includes(productCode) ||
+            (code && productCode.includes(code))
+          ) {
             const orderDate = order.createdAt || "";
             if (orderDate > localBestDate) {
               localBestDate = orderDate;
@@ -1121,7 +1171,9 @@ export default function OrderFormSimple() {
       try {
         const token = localStorage.getItem("archibald_jwt");
         if (token) {
-          const articleCode = encodeURIComponent(selectedProduct.article || selectedProduct.name);
+          const articleCode = encodeURIComponent(
+            selectedProduct.article || selectedProduct.name,
+          );
           const response = await fetch(`/api/orders/last-sale/${articleCode}`, {
             headers: { Authorization: `Bearer ${token}` },
           });
@@ -1167,9 +1219,13 @@ export default function OrderFormSimple() {
           `Ultima vendita trovata: ${formatCurrency(bestPrice)}${bestDiscount ? ` (sconto ${bestDiscount}%)` : ""}`,
         );
       } else if (bestPrice !== null && bestPrice === 0) {
-        toastService.warning("Ultima vendita trovata a 0,00 € — prezzo di listino mantenuto");
+        toastService.warning(
+          "Ultima vendita trovata a 0,00 € — prezzo di listino mantenuto",
+        );
       } else {
-        toastService.warning("Nessuna vendita precedente trovata per questo articolo");
+        toastService.warning(
+          "Nessuna vendita precedente trovata per questo articolo",
+        );
       }
     } catch (error) {
       console.error("[OrderForm] Last sale search failed:", error);
@@ -1259,9 +1315,10 @@ export default function OrderFormSimple() {
 
     // Fresis+subclient: custom list price override
     const isFresisSubclient = isFresis(selectedCustomer) && !!selectedSubClient;
-    const customListPrice = isFresisSubclient && listPrice
-      ? parseFloat(listPrice.replace(",", "."))
-      : null;
+    const customListPrice =
+      isFresisSubclient && listPrice
+        ? parseFloat(listPrice.replace(",", "."))
+        : null;
 
     const warehouseSources =
       warehouseQty > 0
@@ -1336,7 +1393,10 @@ export default function OrderFormSimple() {
       // The user may have selected more/less items from warehouse than initially requested
       const finalQty = warehouseQty;
 
-      const effectivePrice = (customListPrice != null && !isNaN(customListPrice)) ? customListPrice : price;
+      const effectivePrice =
+        customListPrice != null && !isNaN(customListPrice)
+          ? customListPrice
+          : price;
       const lineSubtotal = effectivePrice * finalQty * (1 - disc / 100);
       const lineVat = lineSubtotal * (vatRate / 100);
       const lineTotal = lineSubtotal + lineVat;
@@ -1390,8 +1450,12 @@ export default function OrderFormSimple() {
         const variantProduct = await db.products.get(variantArticleCode);
         const vatRate = normalizeVatRate(variantProduct?.vat);
 
-        const effectivePrice = (customListPrice != null && !isNaN(customListPrice)) ? customListPrice : price;
-        const lineSubtotal = effectivePrice * pkg.totalPieces * (1 - disc / 100);
+        const effectivePrice =
+          customListPrice != null && !isNaN(customListPrice)
+            ? customListPrice
+            : price;
+        const lineSubtotal =
+          effectivePrice * pkg.totalPieces * (1 - disc / 100);
         const lineVat = lineSubtotal * (vatRate / 100);
         const lineTotal = lineSubtotal + lineVat;
 
@@ -1445,8 +1509,12 @@ export default function OrderFormSimple() {
         const variantProduct = await db.products.get(variantArticleCode);
         const vatRate = normalizeVatRate(variantProduct?.vat);
 
-        const effectivePrice = (customListPrice != null && !isNaN(customListPrice)) ? customListPrice : price;
-        const lineSubtotal = effectivePrice * pkg.totalPieces * (1 - disc / 100);
+        const effectivePrice =
+          customListPrice != null && !isNaN(customListPrice)
+            ? customListPrice
+            : price;
+        const lineSubtotal =
+          effectivePrice * pkg.totalPieces * (1 - disc / 100);
         const lineVat = lineSubtotal * (vatRate / 100);
         const lineTotal = lineSubtotal + lineVat;
 
@@ -1540,7 +1608,11 @@ export default function OrderFormSimple() {
   };
 
   // === INLINE EDITING (Fresis+subclient) ===
-  const startInlineEdit = (itemId: string, field: string, currentValue: string) => {
+  const startInlineEdit = (
+    itemId: string,
+    field: string,
+    currentValue: string,
+  ) => {
     setEditingCell({ itemId, field });
     setEditingCellValue(currentValue);
   };
@@ -1563,7 +1635,8 @@ export default function OrderFormSimple() {
           updated.discount = value;
         }
 
-        updated.subtotal = updated.unitPrice * updated.quantity * (1 - updated.discount / 100);
+        updated.subtotal =
+          updated.unitPrice * updated.quantity * (1 - updated.discount / 100);
         updated.vat = updated.subtotal * (updated.vatRate / 100);
         updated.total = updated.subtotal + updated.vat;
         return updated;
@@ -1576,6 +1649,108 @@ export default function OrderFormSimple() {
     setEditingCell(null);
   };
 
+  // === ARTICLE CHANGE MODAL (Fresis+subclient) ===
+  const openArticleChangeModal = (item: OrderItem) => {
+    setArticleChangeModal({
+      itemId: item.id,
+      currentProductName: item.productName,
+      quantity: item.quantity,
+      discount: item.discount,
+    });
+    setArticleChangeSearch("");
+    setArticleChangeResults([]);
+  };
+
+  const handleArticleChangeSearch = async (query: string) => {
+    setArticleChangeSearch(query);
+    if (query.length < 2) {
+      setArticleChangeResults([]);
+      return;
+    }
+
+    setArticleChangeSearching(true);
+    try {
+      const results = await productService.searchProducts(query);
+      const groupedByName = new Map<string, Product>();
+      results.forEach((product) => {
+        if (!groupedByName.has(product.name)) {
+          groupedByName.set(product.name, product);
+        }
+      });
+      setArticleChangeResults(Array.from(groupedByName.values()).slice(0, 10));
+    } catch (error) {
+      console.error("Article change search failed:", error);
+    } finally {
+      setArticleChangeSearching(false);
+    }
+  };
+
+  const handleArticleChangeConfirm = async (product: Product) => {
+    if (!articleChangeModal) return;
+
+    try {
+      const variants = await db.products
+        .where("name")
+        .equals(product.name)
+        .toArray();
+      if (variants.length === 0) {
+        toastService.error("Nessuna variante trovata");
+        return;
+      }
+
+      let chosenVariant = variants[0];
+      let variantPrice: number | null = null;
+      let variantVat = 0;
+
+      for (const v of variants) {
+        const pv = await priceService.getPriceAndVat(v.id);
+        if (pv && pv.price > 0) {
+          chosenVariant = v;
+          variantPrice = pv.price;
+          variantVat = normalizeVatRate(pv.vat);
+          break;
+        }
+      }
+
+      if (variantPrice === null) {
+        const fallback = await priceService.getPriceAndVat(chosenVariant.id);
+        variantPrice = fallback?.price ?? 0;
+        variantVat = normalizeVatRate(fallback?.vat);
+      }
+
+      const { itemId, quantity, discount } = articleChangeModal;
+      const subtotal = variantPrice * quantity * (1 - discount / 100);
+      const vat = subtotal * (variantVat / 100);
+
+      setItems((prev) =>
+        prev.map((item) => {
+          if (item.id !== itemId) return item;
+          return {
+            ...item,
+            productId: chosenVariant.id,
+            article: chosenVariant.id,
+            productName: product.name,
+            description: chosenVariant.description || product.description,
+            unitPrice: variantPrice!,
+            vatRate: variantVat,
+            originalListPrice: variantPrice!,
+            subtotal,
+            vat,
+            total: subtotal + vat,
+            warehouseQuantity: undefined,
+            warehouseSources: undefined,
+          };
+        }),
+      );
+
+      setArticleChangeModal(null);
+      toastService.success(`Articolo cambiato in ${product.name}`);
+    } catch (error) {
+      console.error("Article change failed:", error);
+      toastService.error("Errore durante il cambio articolo");
+    }
+  };
+
   // === QUANTITY EDIT MODAL (with packaging validation) ===
   const openQuantityEditModal = (item: OrderItem) => {
     const groupItems = item.productGroupKey
@@ -1583,8 +1758,13 @@ export default function OrderFormSimple() {
       : [item];
 
     const totalQty = groupItems.reduce((sum, i) => sum + i.quantity, 0);
-    const warehouseQty = groupItems.reduce((sum, i) => sum + (i.warehouseQuantity || 0), 0);
-    const warehouseSources = groupItems.flatMap((i) => i.warehouseSources || []);
+    const warehouseQty = groupItems.reduce(
+      (sum, i) => sum + (i.warehouseQuantity || 0),
+      0,
+    );
+    const warehouseSources = groupItems.flatMap(
+      (i) => i.warehouseSources || [],
+    );
 
     setQuantityEditModal({
       productName: item.productName,
@@ -1595,7 +1775,8 @@ export default function OrderFormSimple() {
       originalListPrice: item.originalListPrice,
       unitPrice: item.unitPrice,
       warehouseQuantity: warehouseQty > 0 ? warehouseQty : undefined,
-      warehouseSources: warehouseSources.length > 0 ? warehouseSources : undefined,
+      warehouseSources:
+        warehouseSources.length > 0 ? warehouseSources : undefined,
     });
     setQuantityEditValue(totalQty.toString());
     setQuantityEditPackaging(null);
@@ -1637,13 +1818,21 @@ export default function OrderFormSimple() {
     const newQty = parseInt(quantityEditValue, 10);
     if (isNaN(newQty) || newQty <= 0) return;
 
-    const { productName, description, itemIds, discount, originalListPrice, unitPrice, warehouseQuantity, warehouseSources } = quantityEditModal;
+    const {
+      productName,
+      description,
+      itemIds,
+      discount,
+      originalListPrice,
+      unitPrice,
+      warehouseQuantity,
+      warehouseSources,
+    } = quantityEditModal;
     const breakdown = quantityEditPackaging.breakdown!;
     const isFresisSubclient = isFresis(selectedCustomer) && !!selectedSubClient;
 
-    const newGroupKey = breakdown.length > 1
-      ? `${productName}-${Date.now()}`
-      : undefined;
+    const newGroupKey =
+      breakdown.length > 1 ? `${productName}-${Date.now()}` : undefined;
 
     const newItems: OrderItem[] = [];
 
@@ -1651,7 +1840,8 @@ export default function OrderFormSimple() {
       const pkg = breakdown[i];
       const variantArticleCode = pkg.variant.variantId;
 
-      const systemPrice = await priceService.getPriceByArticleId(variantArticleCode);
+      const systemPrice =
+        await priceService.getPriceByArticleId(variantArticleCode);
       if (!systemPrice) {
         toastService.error(`Prezzo non disponibile per ${variantArticleCode}`);
         return;
@@ -1660,8 +1850,10 @@ export default function OrderFormSimple() {
       const variantProduct = await db.products.get(variantArticleCode);
       const vatRate = normalizeVatRate(variantProduct?.vat);
 
-      const effectivePrice = (originalListPrice != null) ? unitPrice : systemPrice;
-      const lineSubtotal = effectivePrice * pkg.totalPieces * (1 - discount / 100);
+      const effectivePrice =
+        originalListPrice != null ? unitPrice : systemPrice;
+      const lineSubtotal =
+        effectivePrice * pkg.totalPieces * (1 - discount / 100);
       const lineVat = lineSubtotal * (vatRate / 100);
 
       newItems.push({
@@ -1677,7 +1869,9 @@ export default function OrderFormSimple() {
         subtotal: lineSubtotal,
         vat: lineVat,
         total: lineSubtotal + lineVat,
-        originalListPrice: isFresisSubclient ? (originalListPrice ?? systemPrice) : undefined,
+        originalListPrice: isFresisSubclient
+          ? (originalListPrice ?? systemPrice)
+          : undefined,
         warehouseQuantity: i === 0 ? warehouseQuantity : undefined,
         warehouseSources: i === 0 ? warehouseSources : undefined,
         productGroupKey: newGroupKey,
@@ -1687,7 +1881,11 @@ export default function OrderFormSimple() {
     setItems((prev) => {
       const firstOldIndex = prev.findIndex((i) => itemIds.includes(i.id));
       const withoutOld = prev.filter((i) => !itemIds.includes(i.id));
-      withoutOld.splice(Math.min(firstOldIndex, withoutOld.length), 0, ...newItems);
+      withoutOld.splice(
+        Math.min(firstOldIndex, withoutOld.length),
+        0,
+        ...newItems,
+      );
       return withoutOld;
     });
 
@@ -1698,7 +1896,8 @@ export default function OrderFormSimple() {
   // === IMPONIBILE DIALOG ===
   const handleImponibileViaSconto = () => {
     const target = parseFloat(imponibileTarget.replace(",", "."));
-    if (isNaN(target) || target < 0 || imponibileSelectedItems.size === 0) return;
+    if (isNaN(target) || target < 0 || imponibileSelectedItems.size === 0)
+      return;
 
     const selectedSubtotal = items
       .filter((i) => imponibileSelectedItems.has(i.id))
@@ -1725,26 +1924,41 @@ export default function OrderFormSimple() {
       items.map((item) => {
         if (!imponibileSelectedItems.has(item.id)) return item;
         const newDiscount = Math.round(scontoNecessario * 100) / 100;
-        const newSubtotal = item.unitPrice * item.quantity * (1 - newDiscount / 100);
+        const newSubtotal =
+          item.unitPrice * item.quantity * (1 - newDiscount / 100);
         const newVat = newSubtotal * (item.vatRate / 100);
-        return { ...item, discount: newDiscount, subtotal: newSubtotal, vat: newVat, total: newSubtotal + newVat };
+        return {
+          ...item,
+          discount: newDiscount,
+          subtotal: newSubtotal,
+          vat: newVat,
+          total: newSubtotal + newVat,
+        };
       }),
     );
     setShowImponibileDialog(false);
-    toastService.success(`Sconto ${Math.round(scontoNecessario * 100) / 100}% applicato sugli articoli selezionati`);
+    toastService.success(
+      `Sconto ${Math.round(scontoNecessario * 100) / 100}% applicato sugli articoli selezionati`,
+    );
   };
 
   const handleImponibileViaPrezzo = () => {
     const target = parseFloat(imponibileTarget.replace(",", "."));
-    if (isNaN(target) || target < 0 || imponibileSelectedItems.size === 0) return;
+    if (isNaN(target) || target < 0 || imponibileSelectedItems.size === 0)
+      return;
 
-    const selectedItems = items.filter((i) => imponibileSelectedItems.has(i.id));
+    const selectedItems = items.filter((i) =>
+      imponibileSelectedItems.has(i.id),
+    );
     const unselectedSubtotal = items
       .filter((i) => !imponibileSelectedItems.has(i.id))
       .reduce((sum, i) => sum + i.subtotal, 0);
 
     const targetForSelected = target - unselectedSubtotal;
-    const currentSelectedSubtotal = selectedItems.reduce((sum, i) => sum + i.subtotal, 0);
+    const currentSelectedSubtotal = selectedItems.reduce(
+      (sum, i) => sum + i.subtotal,
+      0,
+    );
 
     if (currentSelectedSubtotal === 0) {
       setShowImponibileDialog(false);
@@ -1757,13 +1971,22 @@ export default function OrderFormSimple() {
       items.map((item) => {
         if (!imponibileSelectedItems.has(item.id)) return item;
         const newUnitPrice = Math.round(item.unitPrice * ratio * 100) / 100;
-        const newSubtotal = newUnitPrice * item.quantity * (1 - item.discount / 100);
+        const newSubtotal =
+          newUnitPrice * item.quantity * (1 - item.discount / 100);
         const newVat = newSubtotal * (item.vatRate / 100);
-        return { ...item, unitPrice: newUnitPrice, subtotal: newSubtotal, vat: newVat, total: newSubtotal + newVat };
+        return {
+          ...item,
+          unitPrice: newUnitPrice,
+          subtotal: newSubtotal,
+          vat: newVat,
+          total: newSubtotal + newVat,
+        };
       }),
     );
     setShowImponibileDialog(false);
-    toastService.success("Prezzi modificati per raggiungere l'imponibile target");
+    toastService.success(
+      "Prezzi modificati per raggiungere l'imponibile target",
+    );
   };
 
   // === TOTALE DIALOG ===
@@ -1788,19 +2011,31 @@ export default function OrderFormSimple() {
     const unselectedItems = items.filter((i) => !totaleSelectedItems.has(i.id));
 
     // Calculate total of unselected items (after global discount + shipping + VAT)
-    const discountPercent = parseFloat(globalDiscountPercent.replace(",", ".")) || 0;
-    const unselectedSubtotal = unselectedItems.reduce((sum, i) => sum + i.subtotal, 0);
-    const unselectedSubtotalAfterGlobal = unselectedSubtotal * (1 - discountPercent / 100);
+    const discountPercent =
+      parseFloat(globalDiscountPercent.replace(",", ".")) || 0;
+    const unselectedSubtotal = unselectedItems.reduce(
+      (sum, i) => sum + i.subtotal,
+      0,
+    );
+    const unselectedSubtotalAfterGlobal =
+      unselectedSubtotal * (1 - discountPercent / 100);
     const unselectedVAT = unselectedItems.reduce(
-      (sum, i) => sum + i.subtotal * (1 - discountPercent / 100) * (i.vatRate / 100),
+      (sum, i) =>
+        sum + i.subtotal * (1 - discountPercent / 100) * (i.vatRate / 100),
       0,
     );
     const shippingCosts = calculateShippingCosts(currentTotals.finalSubtotal);
-    const fixedPortion = unselectedSubtotalAfterGlobal + unselectedVAT + shippingCosts.cost + shippingCosts.tax;
+    const fixedPortion =
+      unselectedSubtotalAfterGlobal +
+      unselectedVAT +
+      shippingCosts.cost +
+      shippingCosts.tax;
 
     const targetForSelected = target - fixedPortion;
     if (targetForSelected <= 0) {
-      toastService.error("Impossibile raggiungere il totale target con gli articoli selezionati");
+      toastService.error(
+        "Impossibile raggiungere il totale target con gli articoli selezionati",
+      );
       setShowTotaleDialog(false);
       return;
     }
@@ -1815,11 +2050,22 @@ export default function OrderFormSimple() {
     for (let iter = 0; iter < 100; iter++) {
       const mid = (low + high) / 2;
       const testSubAfterGlobal = selectedItems.reduce(
-        (sum, i) => sum + i.unitPrice * i.quantity * (1 - mid / 100) * (1 - discountPercent / 100),
+        (sum, i) =>
+          sum +
+          i.unitPrice *
+            i.quantity *
+            (1 - mid / 100) *
+            (1 - discountPercent / 100),
         0,
       );
       const testVAT = selectedItems.reduce(
-        (sum, i) => sum + i.unitPrice * i.quantity * (1 - mid / 100) * (1 - discountPercent / 100) * (i.vatRate / 100),
+        (sum, i) =>
+          sum +
+          i.unitPrice *
+            i.quantity *
+            (1 - mid / 100) *
+            (1 - discountPercent / 100) *
+            (i.vatRate / 100),
         0,
       );
       const testTotal = testSubAfterGlobal + testVAT + fixedPortion;
@@ -1841,13 +2087,22 @@ export default function OrderFormSimple() {
     setItems(
       items.map((item) => {
         if (!totaleSelectedItems.has(item.id)) return item;
-        const newSubtotal = item.unitPrice * item.quantity * (1 - finalDiscount / 100);
+        const newSubtotal =
+          item.unitPrice * item.quantity * (1 - finalDiscount / 100);
         const newVat = newSubtotal * (item.vatRate / 100);
-        return { ...item, discount: finalDiscount, subtotal: newSubtotal, vat: newVat, total: newSubtotal + newVat };
+        return {
+          ...item,
+          discount: finalDiscount,
+          subtotal: newSubtotal,
+          vat: newVat,
+          total: newSubtotal + newVat,
+        };
       }),
     );
     setShowTotaleDialog(false);
-    toastService.success(`Sconto ${finalDiscount}% applicato sugli articoli selezionati`);
+    toastService.success(
+      `Sconto ${finalDiscount}% applicato sugli articoli selezionati`,
+    );
   };
 
   const handleEditItem = (id: string) => {
@@ -2845,7 +3100,11 @@ export default function OrderFormSimple() {
                 <div
                   style={{
                     display: "grid",
-                    gridTemplateColumns: isMobile ? "1fr" : (isFresis(selectedCustomer) && selectedSubClient ? "1fr 1fr 1fr" : "1fr 1fr"),
+                    gridTemplateColumns: isMobile
+                      ? "1fr"
+                      : isFresis(selectedCustomer) && selectedSubClient
+                        ? "1fr 1fr 1fr"
+                        : "1fr 1fr",
                     gap: "1rem",
                     marginBottom: "1rem",
                   }}
@@ -2906,11 +3165,15 @@ export default function OrderFormSimple() {
                           disabled={searchingLastSale || !selectedProduct}
                           style={{
                             padding: "0.15rem 0.5rem",
-                            background: searchingLastSale ? "#d1d5db" : "#8b5cf6",
+                            background: searchingLastSale
+                              ? "#d1d5db"
+                              : "#8b5cf6",
                             color: "white",
                             border: "none",
                             borderRadius: "4px",
-                            cursor: searchingLastSale ? "not-allowed" : "pointer",
+                            cursor: searchingLastSale
+                              ? "not-allowed"
+                              : "pointer",
                             fontSize: "0.75rem",
                             fontWeight: "600",
                           }}
@@ -3248,7 +3511,21 @@ export default function OrderFormSimple() {
                     key={item.id}
                     style={{ borderBottom: "1px solid #f3f4f6" }}
                   >
-                    <td style={{ padding: "0.75rem" }}>
+                    <td
+                      style={{
+                        padding: "0.75rem",
+                        ...editableCellStyle,
+                        cursor:
+                          isFresis(selectedCustomer) && selectedSubClient
+                            ? "pointer"
+                            : "default",
+                      }}
+                      onClick={() => {
+                        if (isFresis(selectedCustomer) && selectedSubClient) {
+                          openArticleChangeModal(item);
+                        }
+                      }}
+                    >
                       <strong>{item.productName}</strong>
                       {item.description && (
                         <p
@@ -3284,7 +3561,15 @@ export default function OrderFormSimple() {
                       )}
                     </td>
                     <td
-                      style={{ padding: "0.75rem", textAlign: "center", cursor: isFresis(selectedCustomer) && selectedSubClient ? "pointer" : "default" }}
+                      style={{
+                        padding: "0.75rem",
+                        textAlign: "center",
+                        ...editableCellStyle,
+                        cursor:
+                          isFresis(selectedCustomer) && selectedSubClient
+                            ? "pointer"
+                            : "default",
+                      }}
                       onClick={() => {
                         if (isFresis(selectedCustomer) && selectedSubClient) {
                           openQuantityEditModal(item);
@@ -3294,14 +3579,27 @@ export default function OrderFormSimple() {
                       {item.quantity}
                     </td>
                     <td
-                      style={{ padding: "0.75rem", textAlign: "right", cursor: isFresis(selectedCustomer) && selectedSubClient ? "pointer" : "default" }}
+                      style={{
+                        padding: "0.75rem",
+                        textAlign: "right",
+                        ...editableCellStyle,
+                        cursor:
+                          isFresis(selectedCustomer) && selectedSubClient
+                            ? "pointer"
+                            : "default",
+                      }}
                       onClick={() => {
                         if (isFresis(selectedCustomer) && selectedSubClient) {
-                          startInlineEdit(item.id, "unitPrice", item.unitPrice.toString());
+                          startInlineEdit(
+                            item.id,
+                            "unitPrice",
+                            item.unitPrice.toString(),
+                          );
                         }
                       }}
                     >
-                      {editingCell?.itemId === item.id && editingCell.field === "unitPrice" ? (
+                      {editingCell?.itemId === item.id &&
+                      editingCell.field === "unitPrice" ? (
                         <input
                           autoFocus
                           type="text"
@@ -3310,10 +3608,17 @@ export default function OrderFormSimple() {
                           onChange={(e) => setEditingCellValue(e.target.value)}
                           onBlur={() => handleInlineSave(item.id, "unitPrice")}
                           onKeyDown={(e) => {
-                            if (e.key === "Enter") (e.target as HTMLInputElement).blur();
+                            if (e.key === "Enter")
+                              (e.target as HTMLInputElement).blur();
                             if (e.key === "Escape") cancelInlineEdit();
                           }}
-                          style={{ width: "80px", textAlign: "right", padding: "0.25rem", border: "1px solid #3b82f6", borderRadius: "4px" }}
+                          style={{
+                            width: "80px",
+                            textAlign: "right",
+                            padding: "0.25rem",
+                            border: "1px solid #3b82f6",
+                            borderRadius: "4px",
+                          }}
                         />
                       ) : (
                         formatCurrency(item.unitPrice)
@@ -3324,15 +3629,24 @@ export default function OrderFormSimple() {
                         padding: "0.75rem",
                         textAlign: "right",
                         color: item.discount > 0 ? "#dc2626" : "#9ca3af",
-                        cursor: isFresis(selectedCustomer) && selectedSubClient ? "pointer" : "default",
+                        ...editableCellStyle,
+                        cursor:
+                          isFresis(selectedCustomer) && selectedSubClient
+                            ? "pointer"
+                            : "default",
                       }}
                       onClick={() => {
                         if (isFresis(selectedCustomer) && selectedSubClient) {
-                          startInlineEdit(item.id, "discount", item.discount.toString());
+                          startInlineEdit(
+                            item.id,
+                            "discount",
+                            item.discount.toString(),
+                          );
                         }
                       }}
                     >
-                      {editingCell?.itemId === item.id && editingCell.field === "discount" ? (
+                      {editingCell?.itemId === item.id &&
+                      editingCell.field === "discount" ? (
                         <input
                           autoFocus
                           type="text"
@@ -3341,13 +3655,22 @@ export default function OrderFormSimple() {
                           onChange={(e) => setEditingCellValue(e.target.value)}
                           onBlur={() => handleInlineSave(item.id, "discount")}
                           onKeyDown={(e) => {
-                            if (e.key === "Enter") (e.target as HTMLInputElement).blur();
+                            if (e.key === "Enter")
+                              (e.target as HTMLInputElement).blur();
                             if (e.key === "Escape") cancelInlineEdit();
                           }}
-                          style={{ width: "60px", textAlign: "right", padding: "0.25rem", border: "1px solid #3b82f6", borderRadius: "4px" }}
+                          style={{
+                            width: "60px",
+                            textAlign: "right",
+                            padding: "0.25rem",
+                            border: "1px solid #3b82f6",
+                            borderRadius: "4px",
+                          }}
                         />
+                      ) : item.discount > 0 ? (
+                        `${item.discount}%`
                       ) : (
-                        item.discount > 0 ? `${item.discount}%` : "—"
+                        "—"
                       )}
                     </td>
                     <td style={{ padding: "0.75rem", textAlign: "right" }}>
@@ -3430,7 +3753,21 @@ export default function OrderFormSimple() {
                   }}
                 >
                   {/* Product Name */}
-                  <div style={{ marginBottom: "0.75rem" }}>
+                  <div
+                    style={{
+                      marginBottom: "0.75rem",
+                      ...editableCellStyle,
+                      cursor:
+                        isFresis(selectedCustomer) && selectedSubClient
+                          ? "pointer"
+                          : "default",
+                    }}
+                    onClick={() => {
+                      if (isFresis(selectedCustomer) && selectedSubClient) {
+                        openArticleChangeModal(item);
+                      }
+                    }}
+                  >
                     <strong style={{ fontSize: "1.125rem", display: "block" }}>
                       {item.productName}
                     </strong>
@@ -3486,7 +3823,13 @@ export default function OrderFormSimple() {
                           openQuantityEditModal(item);
                         }
                       }}
-                      style={{ cursor: isFresis(selectedCustomer) && selectedSubClient ? "pointer" : "default" }}
+                      style={{
+                        ...editableCellStyle,
+                        cursor:
+                          isFresis(selectedCustomer) && selectedSubClient
+                            ? "pointer"
+                            : "default",
+                      }}
                     >
                       <span style={{ color: "#6b7280" }}>Quantità:</span>
                       <strong style={{ marginLeft: "0.25rem" }}>
@@ -3494,15 +3837,27 @@ export default function OrderFormSimple() {
                       </strong>
                     </div>
                     <div
-                      style={{ textAlign: "right", cursor: isFresis(selectedCustomer) && selectedSubClient ? "pointer" : "default" }}
+                      style={{
+                        textAlign: "right",
+                        ...editableCellStyle,
+                        cursor:
+                          isFresis(selectedCustomer) && selectedSubClient
+                            ? "pointer"
+                            : "default",
+                      }}
                       onClick={() => {
                         if (isFresis(selectedCustomer) && selectedSubClient) {
-                          startInlineEdit(item.id, "unitPrice", item.unitPrice.toString());
+                          startInlineEdit(
+                            item.id,
+                            "unitPrice",
+                            item.unitPrice.toString(),
+                          );
                         }
                       }}
                     >
                       <span style={{ color: "#6b7280" }}>Prezzo:</span>
-                      {editingCell?.itemId === item.id && editingCell.field === "unitPrice" ? (
+                      {editingCell?.itemId === item.id &&
+                      editingCell.field === "unitPrice" ? (
                         <input
                           autoFocus
                           type="text"
@@ -3511,10 +3866,18 @@ export default function OrderFormSimple() {
                           onChange={(e) => setEditingCellValue(e.target.value)}
                           onBlur={() => handleInlineSave(item.id, "unitPrice")}
                           onKeyDown={(e) => {
-                            if (e.key === "Enter") (e.target as HTMLInputElement).blur();
+                            if (e.key === "Enter")
+                              (e.target as HTMLInputElement).blur();
                             if (e.key === "Escape") cancelInlineEdit();
                           }}
-                          style={{ width: "80px", marginLeft: "0.25rem", padding: "0.25rem", border: "1px solid #3b82f6", borderRadius: "4px", textAlign: "right" }}
+                          style={{
+                            width: "80px",
+                            marginLeft: "0.25rem",
+                            padding: "0.25rem",
+                            border: "1px solid #3b82f6",
+                            borderRadius: "4px",
+                            textAlign: "right",
+                          }}
                         />
                       ) : (
                         <strong style={{ marginLeft: "0.25rem" }}>
@@ -3525,13 +3888,24 @@ export default function OrderFormSimple() {
                     <div
                       onClick={() => {
                         if (isFresis(selectedCustomer) && selectedSubClient) {
-                          startInlineEdit(item.id, "discount", item.discount.toString());
+                          startInlineEdit(
+                            item.id,
+                            "discount",
+                            item.discount.toString(),
+                          );
                         }
                       }}
-                      style={{ cursor: isFresis(selectedCustomer) && selectedSubClient ? "pointer" : "default" }}
+                      style={{
+                        ...editableCellStyle,
+                        cursor:
+                          isFresis(selectedCustomer) && selectedSubClient
+                            ? "pointer"
+                            : "default",
+                      }}
                     >
                       <span style={{ color: "#6b7280" }}>Sconto:</span>
-                      {editingCell?.itemId === item.id && editingCell.field === "discount" ? (
+                      {editingCell?.itemId === item.id &&
+                      editingCell.field === "discount" ? (
                         <input
                           autoFocus
                           type="text"
@@ -3540,10 +3914,17 @@ export default function OrderFormSimple() {
                           onChange={(e) => setEditingCellValue(e.target.value)}
                           onBlur={() => handleInlineSave(item.id, "discount")}
                           onKeyDown={(e) => {
-                            if (e.key === "Enter") (e.target as HTMLInputElement).blur();
+                            if (e.key === "Enter")
+                              (e.target as HTMLInputElement).blur();
                             if (e.key === "Escape") cancelInlineEdit();
                           }}
-                          style={{ width: "60px", marginLeft: "0.25rem", padding: "0.25rem", border: "1px solid #3b82f6", borderRadius: "4px" }}
+                          style={{
+                            width: "60px",
+                            marginLeft: "0.25rem",
+                            padding: "0.25rem",
+                            border: "1px solid #3b82f6",
+                            borderRadius: "4px",
+                          }}
                         />
                       ) : (
                         <strong
@@ -3670,7 +4051,6 @@ export default function OrderFormSimple() {
                 }}
               />
             </div>
-
           </div>
 
           {/* Markup Panel */}
@@ -3875,8 +4255,18 @@ export default function OrderFormSimple() {
                 paddingTop: "0.5rem",
                 borderTop: "1px solid #e5e7eb",
                 fontSize: isMobile ? "0.875rem" : "1rem",
-                cursor: isFresis(selectedCustomer) && selectedSubClient ? "pointer" : "default",
-                ...(isFresis(selectedCustomer) && selectedSubClient ? { borderRadius: "4px", padding: "0.5rem", margin: "-0.25rem 0 0.5rem 0", background: "#f0f9ff" } : {}),
+                cursor:
+                  isFresis(selectedCustomer) && selectedSubClient
+                    ? "pointer"
+                    : "default",
+                ...(isFresis(selectedCustomer) && selectedSubClient
+                  ? {
+                      borderRadius: "4px",
+                      padding: "0.5rem",
+                      margin: "-0.25rem 0 0.5rem 0",
+                      background: "#f0f9ff",
+                    }
+                  : {}),
               }}
               onClick={() => {
                 if (isFresis(selectedCustomer) && selectedSubClient) {
@@ -3886,7 +4276,12 @@ export default function OrderFormSimple() {
                 }
               }}
             >
-              <span>Imponibile:{isFresis(selectedCustomer) && selectedSubClient ? " (clicca per modificare)" : ""}</span>
+              <span>
+                Imponibile:
+                {isFresis(selectedCustomer) && selectedSubClient
+                  ? " (clicca per modificare)"
+                  : ""}
+              </span>
               <strong>{formatCurrency(totals.finalSubtotal)}</strong>
             </div>
             {totals.shippingCost > 0 && (
@@ -3929,8 +4324,17 @@ export default function OrderFormSimple() {
                 paddingTop: "0.5rem",
                 borderTop: "2px solid #3b82f6",
                 fontSize: isMobile ? "1.125rem" : "1.25rem",
-                cursor: isFresis(selectedCustomer) && selectedSubClient ? "pointer" : "default",
-                ...(isFresis(selectedCustomer) && selectedSubClient ? { borderRadius: "4px", padding: "0.5rem", background: "#eff6ff" } : {}),
+                cursor:
+                  isFresis(selectedCustomer) && selectedSubClient
+                    ? "pointer"
+                    : "default",
+                ...(isFresis(selectedCustomer) && selectedSubClient
+                  ? {
+                      borderRadius: "4px",
+                      padding: "0.5rem",
+                      background: "#eff6ff",
+                    }
+                  : {}),
               }}
               onClick={() => {
                 if (isFresis(selectedCustomer) && selectedSubClient) {
@@ -3940,7 +4344,12 @@ export default function OrderFormSimple() {
                 }
               }}
             >
-              <span style={{ fontWeight: "600" }}>TOTALE (con IVA):{isFresis(selectedCustomer) && selectedSubClient ? " (clicca)" : ""}</span>
+              <span style={{ fontWeight: "600" }}>
+                TOTALE (con IVA):
+                {isFresis(selectedCustomer) && selectedSubClient
+                  ? " (clicca)"
+                  : ""}
+              </span>
               <strong style={{ color: "#3b82f6" }}>
                 {formatCurrency(totals.finalTotal)}
               </strong>
@@ -3960,6 +4369,21 @@ export default function OrderFormSimple() {
               >
                 <span style={{ fontWeight: "500" }}>Ricavo stimato:</span>
                 <strong>{formatCurrency(estimatedRevenue)}</strong>
+              </div>
+            )}
+            {revenueBreakdown && estimatedRevenue !== null && (
+              <div
+                style={{
+                  marginTop: "0.25rem",
+                  fontSize: "0.8rem",
+                  color: "#6b7280",
+                  textAlign: "right",
+                }}
+              >
+                Vendita cliente:{" "}
+                {formatCurrency(revenueBreakdown.totalPrezzoCliente)} − Costo
+                Fresis: {formatCurrency(revenueBreakdown.totalCostoFresis)} =
+                Ricavo: {formatCurrency(estimatedRevenue)}
               </div>
             )}
           </div>
@@ -4361,21 +4785,64 @@ export default function OrderFormSimple() {
       )}
       {/* QUANTITY EDIT MODAL */}
       {quantityEditModal && (
-        <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, background: "rgba(0,0,0,0.5)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center", padding: "1rem" }}>
-          <div style={{ background: "white", borderRadius: "12px", padding: isMobile ? "1.25rem" : "1.5rem", maxWidth: "420px", width: "100%", maxHeight: "80vh", overflowY: "auto" }}>
+        <div
+          style={{
+            position: "fixed",
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: "rgba(0,0,0,0.5)",
+            zIndex: 1000,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: "1rem",
+          }}
+        >
+          <div
+            style={{
+              background: "white",
+              borderRadius: "12px",
+              padding: isMobile ? "1.25rem" : "1.5rem",
+              maxWidth: "420px",
+              width: "100%",
+              maxHeight: "80vh",
+              overflowY: "auto",
+            }}
+          >
             <h3 style={{ margin: "0 0 1rem 0", fontSize: "1.125rem" }}>
               Modifica Quantità
             </h3>
-            <div style={{ marginBottom: "0.75rem", fontSize: "0.875rem", color: "#6b7280" }}>
+            <div
+              style={{
+                marginBottom: "0.75rem",
+                fontSize: "0.875rem",
+                color: "#6b7280",
+              }}
+            >
               {quantityEditModal.productName}
               {quantityEditModal.itemIds.length > 1 && (
-                <span style={{ marginLeft: "0.5rem", color: "#8b5cf6", fontWeight: "600" }}>
+                <span
+                  style={{
+                    marginLeft: "0.5rem",
+                    color: "#8b5cf6",
+                    fontWeight: "600",
+                  }}
+                >
                   ({quantityEditModal.itemIds.length} varianti)
                 </span>
               )}
             </div>
             <div style={{ marginBottom: "1rem" }}>
-              <label style={{ display: "block", marginBottom: "0.5rem", fontWeight: "500", fontSize: "0.875rem" }}>
+              <label
+                style={{
+                  display: "block",
+                  marginBottom: "0.5rem",
+                  fontWeight: "500",
+                  fontSize: "0.875rem",
+                }}
+              >
                 Quantità totale (pezzi)
               </label>
               <input
@@ -4390,32 +4857,51 @@ export default function OrderFormSimple() {
                   }
                   if (e.key === "Escape") setQuantityEditModal(null);
                 }}
-                style={{ width: "100%", padding: "0.75rem", border: "1px solid #d1d5db", borderRadius: "4px", fontSize: "1rem" }}
+                style={{
+                  width: "100%",
+                  padding: "0.75rem",
+                  border: "1px solid #d1d5db",
+                  borderRadius: "4px",
+                  fontSize: "1rem",
+                }}
               />
             </div>
             {quantityEditCalculating && (
-              <div style={{ padding: "0.5rem", fontSize: "0.8125rem", color: "#6b7280" }}>
+              <div
+                style={{
+                  padding: "0.5rem",
+                  fontSize: "0.8125rem",
+                  color: "#6b7280",
+                }}
+              >
                 Calcolo confezionamento...
               </div>
             )}
             {quantityEditPackaging && !quantityEditCalculating && (
-              <div style={{
-                padding: "0.75rem",
-                borderRadius: "6px",
-                marginBottom: "1rem",
-                fontSize: "0.8125rem",
-                background: quantityEditPackaging.success ? "#f0fdf4" : "#fef2f2",
-                border: `1px solid ${quantityEditPackaging.success ? "#bbf7d0" : "#fecaca"}`,
-                color: quantityEditPackaging.success ? "#166534" : "#991b1b",
-              }}>
+              <div
+                style={{
+                  padding: "0.75rem",
+                  borderRadius: "6px",
+                  marginBottom: "1rem",
+                  fontSize: "0.8125rem",
+                  background: quantityEditPackaging.success
+                    ? "#f0fdf4"
+                    : "#fef2f2",
+                  border: `1px solid ${quantityEditPackaging.success ? "#bbf7d0" : "#fecaca"}`,
+                  color: quantityEditPackaging.success ? "#166534" : "#991b1b",
+                }}
+              >
                 {quantityEditPackaging.success ? (
                   <>
                     <div style={{ fontWeight: "600", marginBottom: "0.25rem" }}>
-                      Confezionamento valido ({quantityEditPackaging.totalPackages} conf.)
+                      Confezionamento valido (
+                      {quantityEditPackaging.totalPackages} conf.)
                     </div>
                     {quantityEditPackaging.breakdown?.map((pkg, idx) => (
                       <div key={idx}>
-                        {pkg.packageCount}x {pkg.variant.packageContent || pkg.variant.variantId} = {pkg.totalPieces}pz
+                        {pkg.packageCount}x{" "}
+                        {pkg.variant.packageContent || pkg.variant.variantId} ={" "}
+                        {pkg.totalPieces}pz
                       </div>
                     ))}
                   </>
@@ -4427,7 +4913,11 @@ export default function OrderFormSimple() {
                     <div>{quantityEditPackaging.error}</div>
                     {quantityEditPackaging.suggestedQuantity && (
                       <button
-                        onClick={() => setQuantityEditValue(quantityEditPackaging.suggestedQuantity!.toString())}
+                        onClick={() =>
+                          setQuantityEditValue(
+                            quantityEditPackaging.suggestedQuantity!.toString(),
+                          )
+                        }
                         style={{
                           marginTop: "0.5rem",
                           padding: "0.25rem 0.75rem",
@@ -4449,15 +4939,21 @@ export default function OrderFormSimple() {
             <div style={{ display: "flex", gap: "0.5rem" }}>
               <button
                 onClick={handleQuantityEditConfirm}
-                disabled={!quantityEditPackaging?.success || quantityEditCalculating}
+                disabled={
+                  !quantityEditPackaging?.success || quantityEditCalculating
+                }
                 style={{
                   flex: 1,
                   padding: "0.75rem",
-                  background: quantityEditPackaging?.success ? "#8b5cf6" : "#d1d5db",
+                  background: quantityEditPackaging?.success
+                    ? "#8b5cf6"
+                    : "#d1d5db",
                   color: "white",
                   border: "none",
                   borderRadius: "6px",
-                  cursor: quantityEditPackaging?.success ? "pointer" : "not-allowed",
+                  cursor: quantityEditPackaging?.success
+                    ? "pointer"
+                    : "not-allowed",
                   fontWeight: "600",
                   fontSize: "0.9375rem",
                 }}
@@ -4484,34 +4980,277 @@ export default function OrderFormSimple() {
         </div>
       )}
 
+      {/* ARTICLE CHANGE MODAL */}
+      {articleChangeModal && (
+        <div
+          style={{
+            position: "fixed",
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: "rgba(0,0,0,0.5)",
+            zIndex: 1000,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: "1rem",
+          }}
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setArticleChangeModal(null);
+          }}
+          onKeyDown={(e) => {
+            if (e.key === "Escape") setArticleChangeModal(null);
+          }}
+        >
+          <div
+            style={{
+              background: "white",
+              borderRadius: "12px",
+              padding: isMobile ? "1.25rem" : "1.5rem",
+              maxWidth: "500px",
+              width: "100%",
+              maxHeight: "80vh",
+              overflowY: "auto",
+            }}
+          >
+            <h3 style={{ margin: "0 0 0.5rem 0", fontSize: "1.125rem" }}>
+              Cambia Articolo
+            </h3>
+            <div
+              style={{
+                marginBottom: "0.75rem",
+                fontSize: "0.875rem",
+                color: "#6b7280",
+              }}
+            >
+              Attuale: <strong>{articleChangeModal.currentProductName}</strong>
+            </div>
+            <input
+              autoFocus
+              type="text"
+              placeholder="Cerca nuovo articolo..."
+              value={articleChangeSearch}
+              onChange={(e) => handleArticleChangeSearch(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Escape") setArticleChangeModal(null);
+              }}
+              style={{
+                width: "100%",
+                padding: "0.75rem",
+                border: "1px solid #d1d5db",
+                borderRadius: "4px",
+                fontSize: "1rem",
+                marginBottom: "0.75rem",
+                boxSizing: "border-box",
+              }}
+            />
+            {articleChangeSearching && (
+              <div
+                style={{
+                  padding: "0.5rem",
+                  fontSize: "0.8125rem",
+                  color: "#6b7280",
+                }}
+              >
+                Ricerca...
+              </div>
+            )}
+            {articleChangeResults.length > 0 && (
+              <div
+                style={{
+                  maxHeight: "300px",
+                  overflowY: "auto",
+                  border: "1px solid #e5e7eb",
+                  borderRadius: "6px",
+                }}
+              >
+                {articleChangeResults.map((product) => (
+                  <div
+                    key={product.id}
+                    onClick={() => handleArticleChangeConfirm(product)}
+                    style={{
+                      padding: "0.75rem",
+                      cursor: "pointer",
+                      borderBottom: "1px solid #f3f4f6",
+                      transition: "background 0.15s",
+                    }}
+                    onMouseEnter={(e) => {
+                      (e.currentTarget as HTMLDivElement).style.background =
+                        "#f0f9ff";
+                    }}
+                    onMouseLeave={(e) => {
+                      (e.currentTarget as HTMLDivElement).style.background =
+                        "transparent";
+                    }}
+                  >
+                    <div style={{ fontWeight: "600", fontSize: "0.9375rem" }}>
+                      {product.name}
+                    </div>
+                    {product.description && (
+                      <div
+                        style={{
+                          fontSize: "0.8125rem",
+                          color: "#6b7280",
+                          marginTop: "0.125rem",
+                        }}
+                      >
+                        {product.description}
+                      </div>
+                    )}
+                    <div
+                      style={{
+                        fontSize: "0.75rem",
+                        color: "#9ca3af",
+                        marginTop: "0.125rem",
+                      }}
+                    >
+                      {product.id}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+            {articleChangeSearch.length >= 2 &&
+              !articleChangeSearching &&
+              articleChangeResults.length === 0 && (
+                <div
+                  style={{
+                    padding: "0.75rem",
+                    fontSize: "0.875rem",
+                    color: "#9ca3af",
+                    textAlign: "center",
+                  }}
+                >
+                  Nessun risultato
+                </div>
+              )}
+            <button
+              onClick={() => setArticleChangeModal(null)}
+              style={{
+                width: "100%",
+                marginTop: "0.75rem",
+                padding: "0.75rem",
+                background: "transparent",
+                color: "#6b7280",
+                border: "1px solid #d1d5db",
+                borderRadius: "6px",
+                cursor: "pointer",
+                fontSize: "0.9375rem",
+              }}
+            >
+              Annulla
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* IMPONIBILE DIALOG */}
       {showImponibileDialog && (
-        <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, background: "rgba(0,0,0,0.5)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center", padding: "1rem" }}>
-          <div style={{ background: "white", borderRadius: "12px", padding: isMobile ? "1.25rem" : "1.5rem", maxWidth: "500px", width: "100%", maxHeight: "80vh", overflowY: "auto" }}>
-            <h3 style={{ margin: "0 0 1rem 0", fontSize: "1.125rem" }}>Modifica Imponibile</h3>
+        <div
+          style={{
+            position: "fixed",
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: "rgba(0,0,0,0.5)",
+            zIndex: 1000,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: "1rem",
+          }}
+        >
+          <div
+            style={{
+              background: "white",
+              borderRadius: "12px",
+              padding: isMobile ? "1.25rem" : "1.5rem",
+              maxWidth: "500px",
+              width: "100%",
+              maxHeight: "80vh",
+              overflowY: "auto",
+            }}
+          >
+            <h3 style={{ margin: "0 0 1rem 0", fontSize: "1.125rem" }}>
+              Modifica Imponibile
+            </h3>
             <div style={{ marginBottom: "1rem" }}>
-              <label style={{ display: "block", marginBottom: "0.5rem", fontWeight: "500", fontSize: "0.875rem" }}>Nuovo imponibile target</label>
+              <label
+                style={{
+                  display: "block",
+                  marginBottom: "0.5rem",
+                  fontWeight: "500",
+                  fontSize: "0.875rem",
+                }}
+              >
+                Nuovo imponibile target
+              </label>
               <input
                 autoFocus
                 type="text"
                 inputMode="decimal"
                 value={imponibileTarget}
                 onChange={(e) => setImponibileTarget(e.target.value)}
-                style={{ width: "100%", padding: "0.75rem", border: "1px solid #d1d5db", borderRadius: "4px", fontSize: "1rem" }}
+                style={{
+                  width: "100%",
+                  padding: "0.75rem",
+                  border: "1px solid #d1d5db",
+                  borderRadius: "4px",
+                  fontSize: "1rem",
+                }}
               />
             </div>
             <div style={{ marginBottom: "1rem" }}>
-              <label style={{ display: "flex", alignItems: "center", gap: "0.5rem", cursor: "pointer", fontSize: "0.875rem", fontWeight: "600", marginBottom: "0.5rem" }}>
+              <label
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "0.5rem",
+                  cursor: "pointer",
+                  fontSize: "0.875rem",
+                  fontWeight: "600",
+                  marginBottom: "0.5rem",
+                }}
+              >
                 <input
                   type="checkbox"
                   checked={imponibileSelectedItems.size === items.length}
-                  onChange={(e) => setImponibileSelectedItems(e.target.checked ? new Set(items.map((i) => i.id)) : new Set())}
+                  onChange={(e) =>
+                    setImponibileSelectedItems(
+                      e.target.checked
+                        ? new Set(items.map((i) => i.id))
+                        : new Set(),
+                    )
+                  }
                 />
                 Seleziona tutti
               </label>
-              <div style={{ maxHeight: "200px", overflowY: "auto", border: "1px solid #e5e7eb", borderRadius: "4px" }}>
+              <div
+                style={{
+                  maxHeight: "200px",
+                  overflowY: "auto",
+                  border: "1px solid #e5e7eb",
+                  borderRadius: "4px",
+                }}
+              >
                 {items.map((item) => (
-                  <label key={item.id} style={{ display: "flex", alignItems: "center", gap: "0.5rem", padding: "0.5rem 0.75rem", cursor: "pointer", fontSize: "0.8125rem", borderBottom: "1px solid #f3f4f6", background: imponibileSelectedItems.has(item.id) ? "#eff6ff" : "transparent" }}>
+                  <label
+                    key={item.id}
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "0.5rem",
+                      padding: "0.5rem 0.75rem",
+                      cursor: "pointer",
+                      fontSize: "0.8125rem",
+                      borderBottom: "1px solid #f3f4f6",
+                      background: imponibileSelectedItems.has(item.id)
+                        ? "#eff6ff"
+                        : "transparent",
+                    }}
+                  >
                     <input
                       type="checkbox"
                       checked={imponibileSelectedItems.has(item.id)}
@@ -4522,31 +5261,79 @@ export default function OrderFormSimple() {
                         setImponibileSelectedItems(next);
                       }}
                     />
-                    <span style={{ flex: 1 }}>{item.productName} (x{item.quantity})</span>
-                    <span style={{ fontFamily: "monospace" }}>{formatCurrency(item.subtotal)}</span>
+                    <span style={{ flex: 1 }}>
+                      {item.productName} (x{item.quantity})
+                    </span>
+                    <span style={{ fontFamily: "monospace" }}>
+                      {formatCurrency(item.subtotal)}
+                    </span>
                   </label>
                 ))}
               </div>
             </div>
-            <div style={{ display: "flex", gap: "0.5rem", flexDirection: isMobile ? "column" : "row" }}>
+            <div
+              style={{
+                display: "flex",
+                gap: "0.5rem",
+                flexDirection: isMobile ? "column" : "row",
+              }}
+            >
               <button
                 onClick={handleImponibileViaSconto}
                 disabled={imponibileSelectedItems.size === 0}
-                style={{ flex: 1, padding: "0.75rem", background: imponibileSelectedItems.size > 0 ? "#8b5cf6" : "#d1d5db", color: "white", border: "none", borderRadius: "6px", cursor: imponibileSelectedItems.size > 0 ? "pointer" : "not-allowed", fontWeight: "600", fontSize: "0.875rem" }}
+                style={{
+                  flex: 1,
+                  padding: "0.75rem",
+                  background:
+                    imponibileSelectedItems.size > 0 ? "#8b5cf6" : "#d1d5db",
+                  color: "white",
+                  border: "none",
+                  borderRadius: "6px",
+                  cursor:
+                    imponibileSelectedItems.size > 0
+                      ? "pointer"
+                      : "not-allowed",
+                  fontWeight: "600",
+                  fontSize: "0.875rem",
+                }}
               >
                 Modifica tramite sconto
               </button>
               <button
                 onClick={handleImponibileViaPrezzo}
                 disabled={imponibileSelectedItems.size === 0}
-                style={{ flex: 1, padding: "0.75rem", background: imponibileSelectedItems.size > 0 ? "#3b82f6" : "#d1d5db", color: "white", border: "none", borderRadius: "6px", cursor: imponibileSelectedItems.size > 0 ? "pointer" : "not-allowed", fontWeight: "600", fontSize: "0.875rem" }}
+                style={{
+                  flex: 1,
+                  padding: "0.75rem",
+                  background:
+                    imponibileSelectedItems.size > 0 ? "#3b82f6" : "#d1d5db",
+                  color: "white",
+                  border: "none",
+                  borderRadius: "6px",
+                  cursor:
+                    imponibileSelectedItems.size > 0
+                      ? "pointer"
+                      : "not-allowed",
+                  fontWeight: "600",
+                  fontSize: "0.875rem",
+                }}
               >
                 Modifica prezzo listino
               </button>
             </div>
             <button
               onClick={() => setShowImponibileDialog(false)}
-              style={{ width: "100%", marginTop: "0.5rem", padding: "0.75rem", background: "transparent", color: "#6b7280", border: "1px solid #d1d5db", borderRadius: "6px", cursor: "pointer", fontSize: "0.875rem" }}
+              style={{
+                width: "100%",
+                marginTop: "0.5rem",
+                padding: "0.75rem",
+                background: "transparent",
+                color: "#6b7280",
+                border: "1px solid #d1d5db",
+                borderRadius: "6px",
+                cursor: "pointer",
+                fontSize: "0.875rem",
+              }}
             >
               Annulla
             </button>
@@ -4556,32 +5343,110 @@ export default function OrderFormSimple() {
 
       {/* TOTALE DIALOG */}
       {showTotaleDialog && (
-        <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, background: "rgba(0,0,0,0.5)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center", padding: "1rem" }}>
-          <div style={{ background: "white", borderRadius: "12px", padding: isMobile ? "1.25rem" : "1.5rem", maxWidth: "500px", width: "100%", maxHeight: "80vh", overflowY: "auto" }}>
-            <h3 style={{ margin: "0 0 1rem 0", fontSize: "1.125rem" }}>Modifica Totale (con IVA)</h3>
+        <div
+          style={{
+            position: "fixed",
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: "rgba(0,0,0,0.5)",
+            zIndex: 1000,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: "1rem",
+          }}
+        >
+          <div
+            style={{
+              background: "white",
+              borderRadius: "12px",
+              padding: isMobile ? "1.25rem" : "1.5rem",
+              maxWidth: "500px",
+              width: "100%",
+              maxHeight: "80vh",
+              overflowY: "auto",
+            }}
+          >
+            <h3 style={{ margin: "0 0 1rem 0", fontSize: "1.125rem" }}>
+              Modifica Totale (con IVA)
+            </h3>
             <div style={{ marginBottom: "1rem" }}>
-              <label style={{ display: "block", marginBottom: "0.5rem", fontWeight: "500", fontSize: "0.875rem" }}>Nuovo totale desiderato (con IVA)</label>
+              <label
+                style={{
+                  display: "block",
+                  marginBottom: "0.5rem",
+                  fontWeight: "500",
+                  fontSize: "0.875rem",
+                }}
+              >
+                Nuovo totale desiderato (con IVA)
+              </label>
               <input
                 autoFocus
                 type="text"
                 inputMode="decimal"
                 value={totaleTarget}
                 onChange={(e) => setTotaleTarget(e.target.value)}
-                style={{ width: "100%", padding: "0.75rem", border: "1px solid #d1d5db", borderRadius: "4px", fontSize: "1rem" }}
+                style={{
+                  width: "100%",
+                  padding: "0.75rem",
+                  border: "1px solid #d1d5db",
+                  borderRadius: "4px",
+                  fontSize: "1rem",
+                }}
               />
             </div>
             <div style={{ marginBottom: "1rem" }}>
-              <label style={{ display: "flex", alignItems: "center", gap: "0.5rem", cursor: "pointer", fontSize: "0.875rem", fontWeight: "600", marginBottom: "0.5rem" }}>
+              <label
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "0.5rem",
+                  cursor: "pointer",
+                  fontSize: "0.875rem",
+                  fontWeight: "600",
+                  marginBottom: "0.5rem",
+                }}
+              >
                 <input
                   type="checkbox"
                   checked={totaleSelectedItems.size === items.length}
-                  onChange={(e) => setTotaleSelectedItems(e.target.checked ? new Set(items.map((i) => i.id)) : new Set())}
+                  onChange={(e) =>
+                    setTotaleSelectedItems(
+                      e.target.checked
+                        ? new Set(items.map((i) => i.id))
+                        : new Set(),
+                    )
+                  }
                 />
                 Seleziona tutti
               </label>
-              <div style={{ maxHeight: "200px", overflowY: "auto", border: "1px solid #e5e7eb", borderRadius: "4px" }}>
+              <div
+                style={{
+                  maxHeight: "200px",
+                  overflowY: "auto",
+                  border: "1px solid #e5e7eb",
+                  borderRadius: "4px",
+                }}
+              >
                 {items.map((item) => (
-                  <label key={item.id} style={{ display: "flex", alignItems: "center", gap: "0.5rem", padding: "0.5rem 0.75rem", cursor: "pointer", fontSize: "0.8125rem", borderBottom: "1px solid #f3f4f6", background: totaleSelectedItems.has(item.id) ? "#eff6ff" : "transparent" }}>
+                  <label
+                    key={item.id}
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "0.5rem",
+                      padding: "0.5rem 0.75rem",
+                      cursor: "pointer",
+                      fontSize: "0.8125rem",
+                      borderBottom: "1px solid #f3f4f6",
+                      background: totaleSelectedItems.has(item.id)
+                        ? "#eff6ff"
+                        : "transparent",
+                    }}
+                  >
                     <input
                       type="checkbox"
                       checked={totaleSelectedItems.has(item.id)}
@@ -4592,8 +5457,12 @@ export default function OrderFormSimple() {
                         setTotaleSelectedItems(next);
                       }}
                     />
-                    <span style={{ flex: 1 }}>{item.productName} (x{item.quantity})</span>
-                    <span style={{ fontFamily: "monospace" }}>{formatCurrency(item.total)}</span>
+                    <span style={{ flex: 1 }}>
+                      {item.productName} (x{item.quantity})
+                    </span>
+                    <span style={{ fontFamily: "monospace" }}>
+                      {formatCurrency(item.total)}
+                    </span>
                   </label>
                 ))}
               </div>
@@ -4601,13 +5470,35 @@ export default function OrderFormSimple() {
             <button
               onClick={handleTotaleCalcola}
               disabled={totaleSelectedItems.size === 0}
-              style={{ width: "100%", padding: "0.75rem", background: totaleSelectedItems.size > 0 ? "#8b5cf6" : "#d1d5db", color: "white", border: "none", borderRadius: "6px", cursor: totaleSelectedItems.size > 0 ? "pointer" : "not-allowed", fontWeight: "600", fontSize: "0.9375rem" }}
+              style={{
+                width: "100%",
+                padding: "0.75rem",
+                background:
+                  totaleSelectedItems.size > 0 ? "#8b5cf6" : "#d1d5db",
+                color: "white",
+                border: "none",
+                borderRadius: "6px",
+                cursor:
+                  totaleSelectedItems.size > 0 ? "pointer" : "not-allowed",
+                fontWeight: "600",
+                fontSize: "0.9375rem",
+              }}
             >
               Calcola
             </button>
             <button
               onClick={() => setShowTotaleDialog(false)}
-              style={{ width: "100%", marginTop: "0.5rem", padding: "0.75rem", background: "transparent", color: "#6b7280", border: "1px solid #d1d5db", borderRadius: "6px", cursor: "pointer", fontSize: "0.875rem" }}
+              style={{
+                width: "100%",
+                marginTop: "0.5rem",
+                padding: "0.75rem",
+                background: "transparent",
+                color: "#6b7280",
+                border: "1px solid #d1d5db",
+                borderRadius: "6px",
+                cursor: "pointer",
+                fontSize: "0.875rem",
+              }}
             >
               Annulla
             </button>
