@@ -8844,6 +8844,17 @@ export class ArchibaldBot {
 
   // ─── DevExpress-aware Customer Helpers ────────────────────────────────
 
+  private async dumpVisibleInputIds(): Promise<void> {
+    if (!this.page) return;
+    const inputIds = await this.page.evaluate(() => {
+      return Array.from(document.querySelectorAll("input"))
+        .filter((i) => i.offsetParent !== null && i.id)
+        .map((i) => i.id)
+        .filter((id) => id.includes("xaf_dvi"));
+    });
+    logger.info("Visible DevExpress input IDs on page", { inputIds });
+  }
+
   private async setDevExpressField(
     fieldRegex: RegExp,
     value: string,
@@ -10480,8 +10491,33 @@ export class ArchibaldBot {
       await this.setDevExpressField(/xaf_dviPHONE_Edit_I$/, customerData.phone);
     }
 
+    const mobileValue = customerData.mobile || customerData.phone || "";
+    if (mobileValue) {
+      try {
+        await this.setDevExpressField(
+          /xaf_dviCELLPHONE_Edit_I$/,
+          mobileValue,
+        );
+      } catch {
+        logger.warn(
+          "CELLPHONE field not found, dumping visible input IDs for diagnostics",
+        );
+        await this.dumpVisibleInputIds();
+      }
+    }
+
     if (customerData.email) {
       await this.setDevExpressField(/xaf_dviEMAIL_Edit_I$/, customerData.email);
+    }
+
+    const urlValue = customerData.url || "https://www.example.com/";
+    try {
+      await this.setDevExpressField(/xaf_dviURL_Edit_I$/, urlValue);
+    } catch {
+      logger.warn(
+        "URL field not found, dumping visible input IDs for diagnostics",
+      );
+      await this.dumpVisibleInputIds();
     }
 
     await this.openCustomerTab("Prezzi e sconti");
@@ -10936,8 +10972,33 @@ export class ArchibaldBot {
       await this.setDevExpressField(/xaf_dviPHONE_Edit_I$/, customerData.phone);
     }
 
+    if (customerData.mobile) {
+      try {
+        await this.setDevExpressField(
+          /xaf_dviCELLPHONE_Edit_I$/,
+          customerData.mobile,
+        );
+      } catch {
+        logger.warn(
+          "CELLPHONE field not found (update), dumping visible input IDs",
+        );
+        await this.dumpVisibleInputIds();
+      }
+    }
+
     if (customerData.email) {
       await this.setDevExpressField(/xaf_dviEMAIL_Edit_I$/, customerData.email);
+    }
+
+    if (customerData.url) {
+      try {
+        await this.setDevExpressField(/xaf_dviURL_Edit_I$/, customerData.url);
+      } catch {
+        logger.warn(
+          "URL field not found (update), dumping visible input IDs",
+        );
+        await this.dumpVisibleInputIds();
+      }
     }
 
     if (customerData.lineDiscount) {
@@ -11319,8 +11380,33 @@ export class ArchibaldBot {
       await this.setDevExpressField(/xaf_dviPHONE_Edit_I$/, customerData.phone);
     }
 
+    const interactiveMobile = customerData.mobile || customerData.phone || "";
+    if (interactiveMobile) {
+      try {
+        await this.setDevExpressField(
+          /xaf_dviCELLPHONE_Edit_I$/,
+          interactiveMobile,
+        );
+      } catch {
+        logger.warn(
+          "CELLPHONE field not found (interactive), dumping visible input IDs",
+        );
+        await this.dumpVisibleInputIds();
+      }
+    }
+
     if (customerData.email) {
       await this.setDevExpressField(/xaf_dviEMAIL_Edit_I$/, customerData.email);
+    }
+
+    const interactiveUrl = customerData.url || "https://www.example.com/";
+    try {
+      await this.setDevExpressField(/xaf_dviURL_Edit_I$/, interactiveUrl);
+    } catch {
+      logger.warn(
+        "URL field not found (interactive), dumping visible input IDs",
+      );
+      await this.dumpVisibleInputIds();
     }
 
     await this.openCustomerTab("Prezzi e sconti");

@@ -37,7 +37,9 @@ interface CustomerFormData {
   street: string;
   postalCode: string;
   phone: string;
+  mobile: string;
   email: string;
+  url: string;
   deliveryStreet: string;
   deliveryPostalCode: string;
   postalCodeCity: string;
@@ -92,7 +94,9 @@ const FIELDS_BEFORE_ADDRESS_QUESTION: FieldDef[] = [
     fieldType: "cap",
   },
   { key: "phone", label: "Telefono", defaultValue: "+39", type: "tel" },
+  { key: "mobile", label: "Cellulare *", defaultValue: "+39", type: "tel" },
   { key: "email", label: "Email", defaultValue: "", type: "email" },
+  { key: "url", label: "Sito web *", defaultValue: "" },
 ];
 
 const DELIVERY_ADDRESS_FIELDS: FieldDef[] = [
@@ -121,7 +125,9 @@ const INITIAL_FORM: CustomerFormData = {
   street: "",
   postalCode: "",
   phone: "+39",
+  mobile: "+39",
   email: "",
+  url: "",
   deliveryStreet: "",
   deliveryPostalCode: "",
   postalCodeCity: "",
@@ -145,7 +151,13 @@ function customerToFormData(customer: Customer): CustomerFormData {
         ? customer.phone
         : `+39 ${customer.phone}`
       : "+39",
+    mobile: customer.mobile
+      ? customer.mobile.startsWith("+39")
+        ? customer.mobile
+        : `+39 ${customer.mobile}`
+      : "+39",
     email: customer.pec || "",
+    url: customer.url || "",
     deliveryStreet: "",
     deliveryPostalCode: "",
     postalCodeCity: "",
@@ -283,7 +295,10 @@ export function CustomerCreateModal({
       if (currentStep.kind === "field") {
         const fieldKey =
           FIELDS_BEFORE_ADDRESS_QUESTION[currentStep.fieldIndex]?.key;
-        if (fieldKey === "phone" && input.value.startsWith("+39")) {
+        if (
+          (fieldKey === "phone" || fieldKey === "mobile") &&
+          input.value.startsWith("+39")
+        ) {
           const pos = input.value.length;
           requestAnimationFrame(() => input.setSelectionRange(pos, pos));
         }
@@ -815,13 +830,24 @@ export function CustomerCreateModal({
     setError(null);
     setBotError(null);
     try {
+      const isEmptyPhone = !formData.phone || formData.phone.trim() === "+39";
+      const isEmptyMobile =
+        !formData.mobile || formData.mobile.trim() === "+39";
+
+      const dataToSend: CustomerFormData = {
+        ...formData,
+        phone: isEmptyPhone && !isEmptyMobile ? formData.mobile : formData.phone,
+        mobile: isEmptyMobile && !isEmptyPhone ? formData.phone : formData.mobile,
+        url: formData.url.trim() || "https://www.example.com/",
+      };
+
       let resultTaskId: string | null = null;
 
       if (isEditMode) {
         const payload =
           changedFields.size > 0
-            ? { ...formData, changedFields: Array.from(changedFields) }
-            : formData;
+            ? { ...dataToSend, changedFields: Array.from(changedFields) }
+            : dataToSend;
         const result = await customerService.updateCustomer(
           editCustomer!.customerProfile,
           payload,
@@ -830,11 +856,11 @@ export function CustomerCreateModal({
       } else if (interactiveSessionId) {
         const result = await customerService.saveInteractiveCustomer(
           interactiveSessionId,
-          formData,
+          dataToSend,
         );
         resultTaskId = result.taskId;
       } else {
-        const result = await customerService.createCustomer(formData);
+        const result = await customerService.createCustomer(dataToSend);
         resultTaskId = result.taskId;
       }
 

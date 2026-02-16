@@ -35,7 +35,9 @@ export interface CustomerFormData {
   street?: string;
   postalCode?: string;
   phone?: string;
+  mobile?: string;
   email?: string;
+  url?: string;
 
   // Optional fields - Dropdowns/Lookups
   deliveryMode?: "FedEx" | string; // Default: FedEx
