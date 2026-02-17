@@ -6107,9 +6107,22 @@ export class ArchibaldBot {
       await this.emitProgress("sendToVerona.search");
 
       const searchSelector = "#Vertical_SearchAC_Menu_ITCNT0_xaf_a0_Ed_I";
-      const searchHandle = await this.page
-        .waitForSelector(searchSelector, { timeout: 5000, visible: true })
+      let searchHandle = await this.page
+        .waitForSelector(searchSelector, { timeout: 15000, visible: true })
         .catch(() => null);
+
+      // Fallback: find search input by placeholder text
+      if (!searchHandle) {
+        logger.warn(
+          "[sendToVerona] Primary search selector not found, trying fallback by placeholder...",
+        );
+        searchHandle = await this.page
+          .waitForSelector(
+            'input[placeholder*="ricerca"], input[placeholder*="Ricerca"], input[placeholder*="search" i]',
+            { timeout: 5000, visible: true },
+          )
+          .catch(() => null);
+      }
 
       if (!searchHandle) {
         await this.page.screenshot({
@@ -8513,13 +8526,34 @@ export class ArchibaldBot {
         logger.info(
           "[ArchibaldBot] 'Show hidden items' clicked, waiting for menu...",
         );
-        await new Promise((resolve) => setTimeout(resolve, 500));
+        await new Promise((resolve) => setTimeout(resolve, 1000));
+      }
+
+      // If filter was not found at all, try clicking "Show hidden items" and waiting longer
+      if (
+        !filterVisibility.found &&
+        filterVisibility.hasShowHiddenButton
+      ) {
+        logger.info(
+          "[ArchibaldBot] Filter not found, trying 'Show hidden items' button...",
+        );
+
+        await page.evaluate(() => {
+          const showHiddenButton = document.querySelector(
+            "#Vertical_mainMenu_Menu_DXI9_T",
+          ) as HTMLElement;
+          if (showHiddenButton) {
+            showHiddenButton.click();
+          }
+        });
+
+        await new Promise((resolve) => setTimeout(resolve, 1500));
       }
 
       // Wait for the filter dropdown to be present (now it should be visible)
       await page.waitForSelector(
         'input[name="Vertical$mainMenu$Menu$ITCNT8$xaf_a1$Cb"]',
-        { timeout: 5000 },
+        { timeout: 10000 },
       );
 
       // Check current filter value
