@@ -431,12 +431,14 @@ function acquireOrderLock(): boolean {
 
   // No operations in progress, acquire the lock
   activeOperation = "order";
+  syncOrchestrator.setUserActionActive(true);
   logger.info(`🔒 JOB ORDINE: Lock acquisito con successo`);
   return true;
 }
 
 function releaseOrderLock() {
   if (activeOperation === "order") {
+    syncOrchestrator.setUserActionActive(false);
     logger.info(`🔓 Lock rilasciato: order`);
     activeOperation = null;
   }
