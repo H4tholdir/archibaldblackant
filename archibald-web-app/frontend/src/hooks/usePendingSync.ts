@@ -240,6 +240,20 @@ export function usePendingSync(): UsePendingSyncReturn {
    * Initialize WebSocket subscriptions and load initial data
    */
   useEffect(() => {
+    // Clean up orphaned completed orders left from previous sessions
+    (async () => {
+      try {
+        const allOrders = await db.pendingOrders.toArray();
+        for (const order of allOrders) {
+          if (order.jobStatus === "completed") {
+            await db.pendingOrders.delete(order.id);
+          }
+        }
+      } catch {
+        // Non-critical — will be cleaned up by server sync
+      }
+    })();
+
     // Load initial pending orders from IndexedDB, then sync from server
     loadPendingOrders().then(() => pullFromServer());
 
@@ -289,18 +303,32 @@ export function usePendingSync(): UsePendingSyncReturn {
             jobState === "not_found"
           ) {
             const isFailed = jobState === "failed" || jobState === "not_found";
+            const orderId = data.data?.result?.orderId;
             await db.pendingOrders.update(order.id, {
               jobStatus: isFailed ? "failed" : "completed",
+              jobProgress: isFailed ? order.jobProgress : 100,
               jobError: data.data?.error,
               jobOperation: isFailed
                 ? "Errore durante elaborazione"
-                : "Completato",
+                : "Ordine creato con successo",
+              ...(orderId && { jobOrderId: orderId }),
               status: isFailed ? "error" : order.status,
               errorMessage: data.data?.error,
               updatedAt: new Date().toISOString(),
             });
             newStaleIds.delete(order.id);
             loadPendingOrders();
+
+            if (!isFailed) {
+              setTimeout(async () => {
+                try {
+                  await db.pendingOrders.delete(order.id);
+                  loadPendingOrders();
+                } catch {
+                  // Ignore — order may have been removed already
+                }
+              }, 4000);
+            }
           }
         } catch {
           // Backend unreachable — keep as stale
