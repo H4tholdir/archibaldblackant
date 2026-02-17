@@ -8578,21 +8578,43 @@ export class ArchibaldBot {
 
       logger.info("[ArchibaldBot] Filter not set to 'Tutti gli ordini', changing filter...");
 
-      // Open the dropdown using resilient selector (button is sibling with _B-1 suffix)
-      const dropdownClicked = await page.evaluate((sel: string) => {
-        const input = document.querySelector(sel) as HTMLElement;
+      // Open the dropdown - derive button ID from input's name ($ -> _, append _B-1)
+      const dropdownClicked = await page.evaluate((sel: string, exactSel: string) => {
+        const input = (
+          document.querySelector(exactSel) ||
+          document.querySelector(sel)
+        ) as HTMLInputElement;
         if (!input) return false;
-        // The dropdown button is a sibling element with id ending in _B-1
-        const parent = input.closest("[id*='Cb']");
-        const button = parent
-          ? parent.querySelector("[id$='_B-1']") as HTMLElement
-          : document.querySelector("[id*='mainMenu'][id*='Cb_B-1']") as HTMLElement;
-        if (button) {
-          button.click();
+
+        // Strategy 1: Derive button ID from input name (Vertical$mainMenu$...Cb -> Vertical_mainMenu_..._Cb_B-1)
+        if (input.name) {
+          const buttonId = input.name.replace(/\$/g, "_") + "_B-1";
+          const button = document.getElementById(buttonId) as HTMLElement;
+          if (button) {
+            button.click();
+            return true;
+          }
+        }
+
+        // Strategy 2: Find button in nearest parent containing both input and button
+        const parent = input.closest("td, div");
+        if (parent) {
+          const button = parent.querySelector("[id$='_B-1']") as HTMLElement;
+          if (button) {
+            button.click();
+            return true;
+          }
+        }
+
+        // Strategy 3: Broad search for mainMenu combo button
+        const fallback = document.querySelector("[id*='mainMenu'][id*='Cb_B-1']") as HTMLElement;
+        if (fallback) {
+          fallback.click();
           return true;
         }
+
         return false;
-      }, FILTER_INPUT_SELECTOR);
+      }, FILTER_INPUT_SELECTOR, FILTER_INPUT_EXACT);
 
       if (!dropdownClicked) {
         logger.warn("[ArchibaldBot] Could not click filter dropdown, continuing anyway");
