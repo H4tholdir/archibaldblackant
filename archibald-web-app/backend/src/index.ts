@@ -50,6 +50,7 @@ import {
   getImportHistory,
   getUnmatchedProducts,
   updateProductVat,
+  updateProductPriceManual,
 } from "./price-endpoints";
 import { SyncCheckpointManager } from "./sync-checkpoint";
 import { SessionCleanupJob } from "./session-cleanup-job";
@@ -3754,6 +3755,25 @@ app.delete(
 
 // ========== PRODUCTS ENDPOINTS ==========
 
+// Get count of products with zero/null price
+app.get(
+  "/api/products/zero-price-count",
+  authenticateJWT,
+  (req: AuthRequest, res: Response) => {
+    try {
+      const db = ProductDatabase.getInstance();
+      const count = db.getProductsWithZeroPriceCount();
+      res.json({ success: true, data: { count } });
+    } catch (error) {
+      logger.error("Errore API /api/products/zero-price-count", { error });
+      res.status(500).json({
+        success: false,
+        error: "Errore durante il conteggio prodotti senza prezzo",
+      });
+    }
+  },
+);
+
 // Get count of products without VAT
 app.get(
   "/api/products/no-vat-count",
@@ -3781,12 +3801,26 @@ app.get("/api/products", (req: Request, res: Response<ApiResponse>) => {
     const limit = limitParam ? parseInt(limitParam, 10) : 100; // Default limit: 100
     const grouped = req.query.grouped === "true"; // NEW: grouped mode flag
     const vatFilter = req.query.vatFilter as string | undefined;
+    const priceFilter = req.query.priceFilter as string | undefined;
 
-    logger.info("Richiesta lista prodotti", { searchQuery, limit, grouped, vatFilter });
+    logger.info("Richiesta lista prodotti", { searchQuery, limit, grouped, vatFilter, priceFilter });
 
     const db = ProductDatabase.getInstance();
 
-    if (vatFilter === "missing") {
+    if (priceFilter === "zero") {
+      const products = db.getProductsWithZeroPrice(limit);
+      const totalCount = db.getProductsWithZeroPriceCount();
+      res.json({
+        success: true,
+        data: {
+          products,
+          totalCount,
+          returnedCount: products.length,
+          limited: products.length >= limit,
+          grouped: false,
+        },
+      });
+    } else if (vatFilter === "missing") {
       const products = db.getProductsWithoutVat(limit);
       const totalCount = db.getProductsWithoutVatCount();
       res.json({
@@ -4956,6 +4990,9 @@ app.post(
 
 // Manually update VAT for a product
 app.patch("/api/products/:productId/vat", authenticateJWT, updateProductVat);
+
+// Manually update price for a product
+app.patch("/api/products/:productId/price", authenticateJWT, updateProductPriceManual);
 
 // Get price change history for a specific product
 app.get(

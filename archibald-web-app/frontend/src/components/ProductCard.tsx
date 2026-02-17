@@ -1,6 +1,6 @@
 import { useState } from "react";
 import type { Product } from "../api/products";
-import { updateProductVat } from "../api/products";
+import { updateProductVat, updateProductPrice } from "../api/products";
 import { formatPriceFromString } from "../utils/format-currency";
 
 interface ProductCardProps {
@@ -22,6 +22,10 @@ export function ProductCard({
   const [savingVat, setSavingVat] = useState(false);
   const [vatError, setVatError] = useState("");
   const [savedVat, setSavedVat] = useState<number | null>(null);
+  const [priceInput, setPriceInput] = useState("");
+  const [savingPrice, setSavingPrice] = useState(false);
+  const [priceError, setPriceError] = useState("");
+  const [savedPrice, setSavedPrice] = useState<number | null>(null);
   // Utility functions
   const formatCurrencyLocal = formatPriceFromString;
 
@@ -50,27 +54,6 @@ export function ProductCard({
       return dateStr;
     }
   };
-
-  // Price badge logic
-  const getPriceBadge = () => {
-    if (product.price === null || product.price === undefined) {
-      return {
-        text: "⚠️ Prezzo non disponibile",
-        bgColor: "#ffebee",
-        color: "#c62828",
-      };
-    }
-    if (product.priceSource === "default") {
-      return {
-        text: "⚠️ Prezzo stimato",
-        bgColor: "#fff3e0",
-        color: "#f57c00",
-      };
-    }
-    return null;
-  };
-
-  const priceBadge = getPriceBadge();
 
   return (
     <div
@@ -459,46 +442,141 @@ export function ProductCard({
                 fontSize: "14px",
               }}
             >
-              <div>
-                <strong style={{ color: "#666" }}>Prezzo:</strong>{" "}
-                {formatCurrencyLocal(product.price)}{" "}
-                {product.priceCurrency && product.priceCurrency !== "EUR" && (
-                  <span style={{ color: "#999" }}>
-                    ({product.priceCurrency})
-                  </span>
-                )}
-                {product.priceSource && (
+              {savedPrice !== null ? (
+                <div>
+                  <strong style={{ color: "#666" }}>Prezzo:</strong>{" "}
+                  {formatCurrencyLocal(savedPrice)}{" "}
                   <span
                     style={{
                       marginLeft: "8px",
                       fontSize: "12px",
                       padding: "2px 6px",
                       borderRadius: "4px",
-                      backgroundColor:
-                        product.priceSource === "excel" ? "#e3f2fd" : "#fff3e0",
-                      color:
-                        product.priceSource === "excel" ? "#1976d2" : "#f57c00",
+                      backgroundColor: "#fff3e0",
+                      color: "#f57c00",
                     }}
                   >
-                    {product.priceSource === "excel" ? "Excel" : "Archibald"}
+                    manual
                   </span>
-                )}
-                {priceBadge && (
+                </div>
+              ) : (product.price === null || product.price === undefined || product.price === 0) ? (
+                <div>
+                  <strong style={{ color: "#666" }}>Prezzo:</strong>{" "}
+                  <span
+                    style={{
+                      color: "#c62828",
+                      fontSize: "13px",
+                      marginRight: "8px",
+                    }}
+                  >
+                    Non disponibile
+                  </span>
                   <div
                     style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: "6px",
                       marginTop: "4px",
-                      fontSize: "12px",
-                      padding: "4px 8px",
-                      borderRadius: "4px",
-                      backgroundColor: priceBadge.bgColor,
-                      color: priceBadge.color,
-                      display: "inline-block",
                     }}
                   >
-                    {priceBadge.text}
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      placeholder="es. 12.50"
+                      value={priceInput}
+                      onChange={(e) => {
+                        setPriceInput(e.target.value);
+                        setPriceError("");
+                      }}
+                      onClick={(e) => e.stopPropagation()}
+                      style={{
+                        width: "100px",
+                        padding: "4px 8px",
+                        fontSize: "14px",
+                        border: priceError
+                          ? "1px solid #c62828"
+                          : "1px solid #ccc",
+                        borderRadius: "4px",
+                        outline: "none",
+                      }}
+                    />
+                    <span style={{ fontSize: "14px", color: "#666" }}>EUR</span>
+                    <button
+                      disabled={savingPrice || !priceInput}
+                      onClick={async (e) => {
+                        e.stopPropagation();
+                        const parsed = parseFloat(priceInput);
+                        if (isNaN(parsed) || parsed < 0) {
+                          setPriceError("Valore non valido (>= 0)");
+                          return;
+                        }
+                        setSavingPrice(true);
+                        setPriceError("");
+                        try {
+                          const token =
+                            localStorage.getItem("archibald_jwt") || "";
+                          await updateProductPrice(token, product.id, parsed);
+                          setSavedPrice(parsed);
+                          setPriceInput("");
+                        } catch (err: any) {
+                          setPriceError(err.message || "Errore salvataggio");
+                        } finally {
+                          setSavingPrice(false);
+                        }
+                      }}
+                      style={{
+                        padding: "4px 12px",
+                        fontSize: "13px",
+                        backgroundColor: savingPrice ? "#bdbdbd" : "#1976d2",
+                        color: "#fff",
+                        border: "none",
+                        borderRadius: "4px",
+                        cursor: savingPrice ? "not-allowed" : "pointer",
+                      }}
+                    >
+                      {savingPrice ? "..." : "Salva"}
+                    </button>
                   </div>
-                )}
-              </div>
+                  {priceError && (
+                    <div
+                      style={{
+                        color: "#c62828",
+                        fontSize: "12px",
+                        marginTop: "4px",
+                      }}
+                    >
+                      {priceError}
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div>
+                  <strong style={{ color: "#666" }}>Prezzo:</strong>{" "}
+                  {formatCurrencyLocal(product.price)}{" "}
+                  {product.priceCurrency && product.priceCurrency !== "EUR" && (
+                    <span style={{ color: "#999" }}>
+                      ({product.priceCurrency})
+                    </span>
+                  )}
+                  {product.priceSource && (
+                    <span
+                      style={{
+                        marginLeft: "8px",
+                        fontSize: "12px",
+                        padding: "2px 6px",
+                        borderRadius: "4px",
+                        backgroundColor:
+                          product.priceSource === "excel" ? "#e3f2fd" : "#fff3e0",
+                        color:
+                          product.priceSource === "excel" ? "#1976d2" : "#f57c00",
+                      }}
+                    >
+                      {product.priceSource === "excel" ? "Excel" : product.priceSource === "manual" ? "manual" : "Archibald"}
+                    </span>
+                  )}
+                </div>
+              )}
               {(product.vat !== undefined && product.vat !== null) ||
               savedVat !== null ? (
                 <div>

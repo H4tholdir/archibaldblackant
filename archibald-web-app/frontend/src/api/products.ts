@@ -145,6 +145,7 @@ export async function getProducts(
   limit: number = 100,
   grouped: boolean = false,
   vatFilter?: "missing",
+  priceFilter?: "zero",
 ): Promise<ProductsResponse> {
   const params = new URLSearchParams();
   if (searchQuery) params.append("search", searchQuery);
@@ -156,6 +157,10 @@ export async function getProducts(
 
   if (vatFilter) {
     params.append("vatFilter", vatFilter);
+  }
+
+  if (priceFilter) {
+    params.append("priceFilter", priceFilter);
   }
 
   const response = await fetchWithRetry(`${API_BASE_URL}/api/products?${params}`, {
@@ -186,6 +191,48 @@ export async function getProductsWithoutVatCount(
 
   const result = await response.json();
   return result.data;
+}
+
+export async function getProductsWithZeroPriceCount(
+  token: string,
+): Promise<{ count: number }> {
+  const response = await fetchWithRetry(`${API_BASE_URL}/api/products/zero-price-count`, {
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+
+  if (!response.ok) {
+    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+  }
+
+  const result = await response.json();
+  return result.data;
+}
+
+export async function updateProductPrice(
+  token: string,
+  productId: string,
+  price: number,
+): Promise<{ success: boolean; data?: { productId: string; price: number; priceSource: string }; error?: string }> {
+  const response = await fetchWithRetry(
+    `${API_BASE_URL}/api/products/${encodeURIComponent(productId)}/price`,
+    {
+      method: "PATCH",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ price }),
+    },
+  );
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}));
+    throw new Error(errorData.error || `HTTP ${response.status}`);
+  }
+
+  return response.json();
 }
 
 /**

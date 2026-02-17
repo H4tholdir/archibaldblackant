@@ -55,7 +55,7 @@ export interface Product {
 
   // ========== PRICE FIELDS (keep existing) ==========
   price?: number;
-  priceSource?: "archibald" | "excel" | null;
+  priceSource?: "archibald" | "excel" | "manual" | null;
   priceUpdatedAt?: number;
   vat?: number;
   vatSource?: "archibald" | "excel" | "manual" | null;
@@ -633,6 +633,44 @@ export class ProductDatabase {
       )
       .get() as { count: number };
     return result.count;
+  }
+
+  getProductsWithZeroPriceCount(): number {
+    const result = this.db
+      .prepare(
+        "SELECT COUNT(*) as count FROM products WHERE deletedAt IS NULL AND (price IS NULL OR price = 0)",
+      )
+      .get() as { count: number };
+    return result.count;
+  }
+
+  getProductsWithZeroPrice(limit: number = 100): Product[] {
+    const stmt = this.db.prepare(`
+      SELECT id, name, description, groupCode, searchName, priceUnit, productGroupId, productGroupDescription, packageContent, minQty, multipleQty, maxQty, price, priceSource, priceUpdatedAt, vat, vatSource, vatUpdatedAt, hash, lastSync
+      FROM products
+      WHERE deletedAt IS NULL AND (price IS NULL OR price = 0)
+      ORDER BY name ASC
+      LIMIT ?
+    `);
+    return stmt.all(limit) as Product[];
+  }
+
+  updateProductPriceManual(productId: string, price: number): boolean {
+    const now = Math.floor(Date.now() / 1000);
+
+    const result = this.db
+      .prepare(
+        `
+      UPDATE products SET
+        price = ?,
+        priceSource = 'manual',
+        priceUpdatedAt = ?
+      WHERE id = ?
+    `,
+      )
+      .run(price, now, productId);
+
+    return result.changes > 0;
   }
 
   getProductsWithoutVat(limit: number = 100): Product[] {
@@ -1382,7 +1420,7 @@ export class ProductDatabase {
     productId: string,
     price: string | number,
     vat: number | null,
-    priceSource: "archibald" | "excel" | "prices-db",
+    priceSource: "archibald" | "excel" | "prices-db" | "manual",
     vatSource: "archibald" | "excel" | "manual" | null,
   ): boolean {
     const now = Math.floor(Date.now() / 1000);

@@ -236,6 +236,97 @@ export async function updateProductVat(
 }
 
 /**
+ * PATCH /api/products/:productId/price
+ * Manually set price for a product that has price = 0 or NULL
+ */
+export async function updateProductPriceManual(
+  req: AuthRequest,
+  res: Response<ApiResponse>,
+) {
+  try {
+    const { productId } = req.params;
+    const { price } = req.body;
+
+    if (price === undefined || price === null || typeof price !== "number") {
+      return res.status(400).json({
+        success: false,
+        error: "price must be a number",
+      });
+    }
+
+    if (price < 0) {
+      return res.status(400).json({
+        success: false,
+        error: "price must be >= 0",
+      });
+    }
+
+    const db = ProductDatabase.getInstance();
+    const product = db.getProductById(productId);
+
+    if (!product) {
+      return res.status(404).json({
+        success: false,
+        error: "Product not found",
+      });
+    }
+
+    const oldPrice = product.price ?? null;
+    const oldPriceSource = product.priceSource ?? null;
+
+    const updated = db.updateProductPriceManual(productId, price);
+
+    if (!updated) {
+      return res.status(500).json({
+        success: false,
+        error: "Failed to update price",
+      });
+    }
+
+    const auditHelper = new PriceAuditHelper(db["db"]);
+    auditHelper.logPriceChange({
+      productId,
+      oldPrice,
+      newPrice: price,
+      oldVat: product.vat ?? null,
+      newVat: product.vat ?? null,
+      oldPriceSource,
+      oldVatSource: product.vatSource ?? null,
+      newPriceSource: "manual",
+      newVatSource: product.vatSource ?? null,
+      source: "manual",
+    });
+
+    logger.info(
+      `✏️ Manual price update: product ${productId} price set to ${price} by ${req.user?.userId}`,
+    );
+
+    const wsService = WebSocketServerService.getInstance();
+    wsService.broadcastToAll({
+      type: "cache_invalidation",
+      payload: {
+        target: "products",
+        reason: "manual_price_update",
+        productId,
+      },
+      timestamp: new Date().toISOString(),
+    });
+
+    res.json({
+      success: true,
+      data: { productId, price, priceSource: "manual" },
+      message: `Prezzo aggiornato a ${price}`,
+    });
+  } catch (error: any) {
+    logger.error("Error updating product price:", error);
+    res.status(500).json({
+      success: false,
+      error: error.message || "Internal server error",
+    });
+  }
+}
+
+/**
  * GET /api/prices/:productId/history
  * Get price change history for a specific product
  */

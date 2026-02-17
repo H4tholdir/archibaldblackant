@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { ProductCard } from "../components/ProductCard";
 import { ProductDetailModal } from "../components/ProductDetailModal";
-import { getProducts, getProductsWithoutVatCount, type Product } from "../api/products";
+import { getProducts, getProductsWithoutVatCount, getProductsWithZeroPriceCount, type Product } from "../api/products";
 import { PriceVariationsModal } from "../components/PriceVariationsModal";
 import { ProductVariationsModal } from "../components/ProductVariationsModal";
 import { useKeyboardScroll } from "../hooks/useKeyboardScroll";
@@ -34,13 +34,18 @@ export function ArticoliList() {
     useState(false);
   const [noVatCount, setNoVatCount] = useState(0);
   const [vatFilterActive, setVatFilterActive] = useState(false);
+  const [zeroPriceCount, setZeroPriceCount] = useState(0);
+  const [priceFilterActive, setPriceFilterActive] = useState(false);
 
-  // Load no-vat count on mount
+  // Load no-vat count and zero-price count on mount
   useEffect(() => {
     const token = localStorage.getItem("archibald_jwt");
     if (!token) return;
     getProductsWithoutVatCount(token)
       .then((result) => setNoVatCount(result.count))
+      .catch(() => {});
+    getProductsWithZeroPriceCount(token)
+      .then((result) => setZeroPriceCount(result.count))
       .catch(() => {});
   }, []);
 
@@ -55,7 +60,7 @@ export function ArticoliList() {
 
   // Fetch products when search changes (not on mount)
   const fetchProducts = useCallback(async () => {
-    if (!debouncedSearch && !vatFilterActive) {
+    if (!debouncedSearch && !vatFilterActive && !priceFilterActive) {
       setProducts([]);
       setTotalCount(0);
       setReturnedCount(0);
@@ -77,12 +82,14 @@ export function ArticoliList() {
         return;
       }
 
+      const isFilterMode = vatFilterActive || priceFilterActive;
       const response = await getProducts(
         token,
-        vatFilterActive ? undefined : debouncedSearch,
+        isFilterMode ? undefined : debouncedSearch,
         200,
-        !vatFilterActive,
+        !isFilterMode,
         vatFilterActive ? "missing" : undefined,
+        priceFilterActive ? "zero" : undefined,
       );
 
       if (!response.success) {
@@ -116,7 +123,7 @@ export function ArticoliList() {
     } finally {
       setLoading(false);
     }
-  }, [debouncedSearch, vatFilterActive]);
+  }, [debouncedSearch, vatFilterActive, priceFilterActive]);
 
   useEffect(() => {
     fetchProducts();
@@ -135,6 +142,7 @@ export function ArticoliList() {
   const handleClearFilters = () => {
     setFilters({ search: "" });
     setVatFilterActive(false);
+    setPriceFilterActive(false);
     setHasSearched(false);
   };
 
@@ -143,10 +151,20 @@ export function ArticoliList() {
     setVatFilterActive(next);
     if (next) {
       setFilters({ search: "" });
+      setPriceFilterActive(false);
     }
   };
 
-  const hasActiveFilters = filters.search || vatFilterActive;
+  const handleTogglePriceFilter = () => {
+    const next = !priceFilterActive;
+    setPriceFilterActive(next);
+    if (next) {
+      setFilters({ search: "" });
+      setVatFilterActive(false);
+    }
+  };
+
+  const hasActiveFilters = filters.search || vatFilterActive || priceFilterActive;
 
   return (
     <div
@@ -191,6 +209,36 @@ export function ArticoliList() {
           </div>
         )}
       </div>
+
+      {/* Zero-Price Banner */}
+      {zeroPriceCount > 0 && !priceFilterActive && (
+        <div
+          onClick={handleTogglePriceFilter}
+          style={{
+            backgroundColor: "#fce4ec",
+            border: "1px solid #e57373",
+            borderRadius: "12px",
+            padding: "12px 20px",
+            marginBottom: "16px",
+            cursor: "pointer",
+            display: "flex",
+            alignItems: "center",
+            gap: "8px",
+            transition: "background-color 0.2s",
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.backgroundColor = "#ffcdd2";
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.backgroundColor = "#fce4ec";
+          }}
+        >
+          <span style={{ fontSize: "20px" }}>💰</span>
+          <span style={{ fontSize: "14px", color: "#c62828", fontWeight: 600 }}>
+            {zeroPriceCount} articol{zeroPriceCount !== 1 ? "i" : "o"} con prezzo a 0 o mancante. Clicca per visualizzarl{zeroPriceCount !== 1 ? "i" : "o"}.
+          </span>
+        </div>
+      )}
 
       {/* No-VAT Banner */}
       {noVatCount > 0 && !vatFilterActive && (
@@ -394,6 +442,38 @@ export function ArticoliList() {
               }}
             >
               Senza IVA ({noVatCount})
+            </button>
+          )}
+
+          {/* Zero-Price filter button */}
+          {zeroPriceCount > 0 && (
+            <button
+              onClick={handleTogglePriceFilter}
+              style={{
+                padding: "8px 16px",
+                fontSize: "14px",
+                fontWeight: 600,
+                border: `1px solid ${priceFilterActive ? "#fff" : "#c62828"}`,
+                borderRadius: "8px",
+                backgroundColor: priceFilterActive ? "#c62828" : "#fff",
+                color: priceFilterActive ? "#fff" : "#c62828",
+                cursor: "pointer",
+                transition: "all 0.2s",
+              }}
+              onMouseEnter={(e) => {
+                if (!priceFilterActive) {
+                  e.currentTarget.style.backgroundColor = "#c62828";
+                  e.currentTarget.style.color = "#fff";
+                }
+              }}
+              onMouseLeave={(e) => {
+                if (!priceFilterActive) {
+                  e.currentTarget.style.backgroundColor = "#fff";
+                  e.currentTarget.style.color = "#c62828";
+                }
+              }}
+            >
+              Prezzo = 0 ({zeroPriceCount})
             </button>
           )}
         </div>
