@@ -279,9 +279,11 @@ export async function forceStopAllSyncs(): Promise<void> {
       logger.info(
         "✅ FORCE-STOP: Tutti i servizi si sono fermati correttamente",
       );
-      // Riavvia auto-sync scheduler
-      syncOrchestrator.startStaggeredAutoSync();
-      logger.info("🔄 FORCE-STOP: Auto-sync scheduler riavviato");
+      // Delay auto-sync restart to allow order lock acquisition first
+      setTimeout(() => {
+        syncOrchestrator.startStaggeredAutoSync();
+        logger.info("🔄 FORCE-STOP: Auto-sync scheduler riavviato (dopo delay)");
+      }, 30_000);
       return;
     }
 
@@ -309,7 +311,10 @@ export async function forceStopAllSyncs(): Promise<void> {
     (service as any).syncInProgress = false;
     (service as any).paused = false;
     (service as any).stopRequested = false;
+    // CustomerSync and ProductSync use "currentProgress", while
+    // PriceSync, OrderSync, DDTSync, InvoiceSync use "progress"
     (service as any).currentProgress = { status: "idle" };
+    (service as any).progress = { status: "idle" };
   }
 
   // Reset orchestrator completamente
@@ -337,9 +342,11 @@ export async function forceStopAllSyncs(): Promise<void> {
 
   logger.info("✅ FORCE-RESET NUCLEARE: Reset totale completato");
 
-  // Riavvia auto-sync scheduler alla fine
-  syncOrchestrator.startStaggeredAutoSync();
-  logger.info("🔄 FORCE-STOP: Auto-sync scheduler riavviato");
+  // Delay auto-sync restart to allow order lock acquisition first
+  setTimeout(() => {
+    syncOrchestrator.startStaggeredAutoSync();
+    logger.info("🔄 FORCE-STOP: Auto-sync scheduler riavviato (dopo delay)");
+  }, 30_000);
 }
 
 function acquireOrderLock(): boolean {
