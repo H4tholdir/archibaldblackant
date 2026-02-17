@@ -8571,8 +8571,16 @@ export class ArchibaldBot {
 
       logger.info("[ArchibaldBot] Current filter value:", { currentFilterValue });
 
-      if (currentFilterValue === "Tutti gli ordini") {
-        logger.info("[ArchibaldBot] Filter already set to 'Tutti gli ordini', no action needed");
+      // DevExpress combo has two inputs: display ("Tutti gli ordini") and hidden value
+      // ("xaf_xaf_a0ListViewSalesTableOrdersAll"). Both indicate "all orders" filter.
+      const isAllOrders =
+        currentFilterValue === "Tutti gli ordini" ||
+        (currentFilterValue != null && currentFilterValue.endsWith("OrdersAll"));
+
+      if (isAllOrders) {
+        logger.info("[ArchibaldBot] Filter already set to all orders, no action needed", {
+          currentFilterValue,
+        });
         return;
       }
 
@@ -8664,12 +8672,16 @@ export class ArchibaldBot {
         return input ? input.value : null;
       }, FILTER_INPUT_SELECTOR, FILTER_INPUT_EXACT);
 
+      const newIsAllOrders =
+        newFilterValue === "Tutti gli ordini" ||
+        (newFilterValue != null && newFilterValue.endsWith("OrdersAll"));
+
       logger.info("[ArchibaldBot] Filter change verification:", {
         newFilterValue,
-        success: newFilterValue === "Tutti gli ordini",
+        success: newIsAllOrders,
       });
 
-      if (newFilterValue !== "Tutti gli ordini") {
+      if (!newIsAllOrders) {
         logger.warn("[ArchibaldBot] Filter change verification failed, but continuing anyway");
       }
     } catch (error) {
