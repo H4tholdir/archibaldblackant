@@ -6094,81 +6094,67 @@ export class ArchibaldBot {
       }
 
       // Step 2: Set filter to "Tutti gli ordini" (skip if already done)
+      // NOTE: The filter element IDs may change between Archibald versions.
+      // If the filter fails, we continue anyway - the grid typically shows all orders.
       if (!this.sendToVeronaFilterReady) {
         logger.debug("[sendToVerona] Setting filter to 'Tutti gli ordini'...");
         await this.emitProgress("sendToVerona.filter");
         await this.ensureOrdersFilterSetToAll(this.page);
-        await this.wait(500);
         this.sendToVeronaFilterReady = true;
       }
 
-      // Step 3: Find the search input and paste the normalized ID
+      // Step 3: Find the search input using resilient partial-ID selector
+      // Archibald's DevExpress generates dynamic IDs where parts like xaf_a0/xaf_a1 can change.
+      // Use partial match on stable ID fragments: "SearchAC" and "Ed_I".
       logger.debug(`[sendToVerona] Searching for order ${normalizedId}...`);
       await this.emitProgress("sendToVerona.search");
 
-      const searchSelector = "#Vertical_SearchAC_Menu_ITCNT0_xaf_a0_Ed_I";
-      let searchHandle = await this.page
-        .waitForSelector(searchSelector, { timeout: 15000, visible: true })
-        .catch(() => null);
+      let searchHandle = (await this.page
+        .waitForSelector('input[id*="SearchAC"][id*="Ed_I"]', {
+          timeout: 15000,
+          visible: true,
+        })
+        .catch(() => null)) as ElementHandle<HTMLInputElement> | null;
 
-      // Fallback: try without visible constraint (element might be "invisible" to Puppeteer but rendered)
+      // Fallback: try without visible constraint
       if (!searchHandle) {
         logger.warn(
-          "[sendToVerona] Primary search selector not found with visible:true, trying without visible constraint...",
+          "[sendToVerona] Search input not found with visible:true, trying without...",
         );
-        searchHandle = await this.page
-          .waitForSelector(searchSelector, { timeout: 3000 })
-          .catch(() => null);
+        searchHandle = (await this.page
+          .$('input[id*="SearchAC"][id*="Ed_I"]')
+          .catch(() => null)) as ElementHandle<HTMLInputElement> | null;
       }
 
-      // Fallback: search in all frames (DevExpress may use iframes)
+      // Fallback: exact legacy ID
       if (!searchHandle) {
         logger.warn(
-          "[sendToVerona] Search selector not found in main frame, checking all frames...",
+          "[sendToVerona] Partial match failed, trying exact legacy ID...",
         );
-        for (const frame of this.page.frames()) {
-          searchHandle = await frame
-            .waitForSelector(searchSelector, { timeout: 2000 })
-            .catch(() => null);
-          if (searchHandle) {
-            logger.info(
-              `[sendToVerona] Found search input in frame: ${frame.url()}`,
-            );
-            break;
-          }
-        }
-      }
-
-      // Fallback: find ANY text input with "ricerca" value
-      if (!searchHandle) {
-        logger.warn(
-          "[sendToVerona] Trying fallback: find input by value containing 'ricerca'...",
-        );
-        searchHandle = await this.page
-          .$('input[id*="Search"][id*="Ed_I"]')
-          .catch(() => null);
+        searchHandle = (await this.page
+          .$("#Vertical_SearchAC_Menu_ITCNT0_xaf_a0_Ed_I")
+          .catch(() => null)) as ElementHandle<HTMLInputElement> | null;
       }
 
       if (!searchHandle) {
-        // Diagnostic dump before failing
         const diag = await this.page.evaluate(() => {
-          const url = window.location.href;
-          const frames = Array.from(document.querySelectorAll("iframe")).map(
-            (f) => ({ id: f.id, src: f.src, name: f.name }),
-          );
-          const inputs = Array.from(document.querySelectorAll("input")).map(
-            (i) => ({
-              id: i.id.substring(0, 80),
-              name: i.name.substring(0, 80),
-              type: i.type,
-              value: i.value.substring(0, 50),
-              visible: i.offsetParent !== null,
-            }),
-          );
-          return { url, frameCount: frames.length, frames, inputCount: inputs.length, inputs: inputs.slice(0, 20) };
+          const inputs = Array.from(
+            document.querySelectorAll("input"),
+          ).map((i) => ({
+            id: i.id.substring(0, 80),
+            type: i.type,
+            value: i.value.substring(0, 50),
+          }));
+          return {
+            url: window.location.href,
+            inputCount: inputs.length,
+            inputs: inputs.slice(0, 15),
+          };
         });
-        logger.error("[sendToVerona] Diagnostic dump - page state when search not found:", diag);
-
+        logger.error(
+          "[sendToVerona] Search input not found after all attempts. Page state:",
+          diag,
+        );
         await this.page.screenshot({
           path: `logs/send-to-verona-search-not-found-${Date.now()}.png`,
           fullPage: true,
@@ -8517,154 +8503,144 @@ export class ArchibaldBot {
   private async ensureOrdersFilterSetToAll(page: Page): Promise<void> {
     logger.info("[ArchibaldBot] Checking orders filter setting...");
 
+    // Resilient selectors - DevExpress IDs can change between Archibald versions
+    const FILTER_INPUT_SELECTOR = 'input[name*="mainMenu"][name*="Cb"]';
+    const FILTER_INPUT_EXACT = 'input[name="Vertical$mainMenu$Menu$ITCNT8$xaf_a1$Cb"]';
+
     try {
-      // Check if filter is visible or hidden in responsive menu
-      const filterVisibility = await page.evaluate(() => {
-        const input = document.querySelector(
-          'input[name="Vertical$mainMenu$Menu$ITCNT8$xaf_a1$Cb"]',
-        ) as HTMLInputElement;
-        const showHiddenButton = document.querySelector(
-          "#Vertical_mainMenu_Menu_DXI9_T",
-        ) as HTMLElement;
+      const filterVisibility = await page.evaluate(
+        (sel: string, exactSel: string) => {
+          const input = (
+            document.querySelector(exactSel) ||
+            document.querySelector(sel)
+          ) as HTMLInputElement;
+          const showHiddenButton = document.querySelector(
+            "#Vertical_mainMenu_Menu_DXI9_T",
+          ) as HTMLElement;
 
-        if (!input) {
+          if (!input) {
+            return {
+              found: false,
+              isVisible: false,
+              hasShowHiddenButton: !!showHiddenButton,
+              currentValue: null as string | null,
+            };
+          }
+
           return {
-            found: false,
-            isVisible: false,
+            found: true,
+            isVisible: input.offsetParent !== null,
             hasShowHiddenButton: !!showHiddenButton,
+            currentValue: input.value,
           };
-        }
-
-        // Check if input is visible by checking offsetParent
-        const isVisible = input.offsetParent !== null;
-
-        return {
-          found: true,
-          isVisible,
-          hasShowHiddenButton: !!showHiddenButton,
-          currentValue: input.value,
-        };
-      });
+        },
+        FILTER_INPUT_SELECTOR,
+        FILTER_INPUT_EXACT,
+      );
 
       logger.info("[ArchibaldBot] Filter visibility check:", filterVisibility);
 
-      // If filter is hidden, click "Show hidden items" button first
-      if (
-        filterVisibility.found &&
-        !filterVisibility.isVisible &&
-        filterVisibility.hasShowHiddenButton
-      ) {
-        logger.info(
-          "[ArchibaldBot] Filter is hidden, clicking 'Show hidden items' button...",
-        );
+      if (!filterVisibility.found) {
+        if (filterVisibility.hasShowHiddenButton) {
+          logger.info("[ArchibaldBot] Filter not found, clicking 'Show hidden items'...");
+          await page.evaluate(() => {
+            const btn = document.querySelector("#Vertical_mainMenu_Menu_DXI9_T") as HTMLElement;
+            if (btn) btn.click();
+          });
+          await new Promise((resolve) => setTimeout(resolve, 1000));
+        }
 
-        await page.evaluate(() => {
-          const showHiddenButton = document.querySelector(
-            "#Vertical_mainMenu_Menu_DXI9_T",
-          ) as HTMLElement;
-          if (showHiddenButton) {
-            showHiddenButton.click();
-          }
-        });
+        const appeared = await page
+          .waitForSelector(FILTER_INPUT_SELECTOR, { timeout: 3000 })
+          .catch(() => null);
 
-        logger.info(
-          "[ArchibaldBot] 'Show hidden items' clicked, waiting for menu...",
-        );
-        await new Promise((resolve) => setTimeout(resolve, 1000));
+        if (!appeared) {
+          logger.warn("[ArchibaldBot] Filter input never appeared, continuing without filter");
+          return;
+        }
       }
 
-      // If filter was not found at all, try clicking "Show hidden items" and waiting longer
-      if (
-        !filterVisibility.found &&
-        filterVisibility.hasShowHiddenButton
-      ) {
-        logger.info(
-          "[ArchibaldBot] Filter not found, trying 'Show hidden items' button...",
-        );
-
-        await page.evaluate(() => {
-          const showHiddenButton = document.querySelector(
-            "#Vertical_mainMenu_Menu_DXI9_T",
-          ) as HTMLElement;
-          if (showHiddenButton) {
-            showHiddenButton.click();
-          }
-        });
-
-        await new Promise((resolve) => setTimeout(resolve, 1500));
-      }
-
-      // Wait for the filter dropdown to be present (now it should be visible)
-      await page.waitForSelector(
-        'input[name="Vertical$mainMenu$Menu$ITCNT8$xaf_a1$Cb"]',
-        { timeout: 10000 },
-      );
-
-      // Check current filter value
-      const currentFilterValue = await page.evaluate(() => {
-        const input = document.querySelector(
-          'input[name="Vertical$mainMenu$Menu$ITCNT8$xaf_a1$Cb"]',
+      // Read current filter value using resilient selector
+      const currentFilterValue = await page.evaluate((sel: string, exactSel: string) => {
+        const input = (
+          document.querySelector(exactSel) ||
+          document.querySelector(sel)
         ) as HTMLInputElement;
         return input ? input.value : null;
-      });
+      }, FILTER_INPUT_SELECTOR, FILTER_INPUT_EXACT);
 
-      logger.info("[ArchibaldBot] Current filter value:", {
-        currentFilterValue,
-      });
+      logger.info("[ArchibaldBot] Current filter value:", { currentFilterValue });
 
-      // If already set to "Tutti gli ordini", no action needed
       if (currentFilterValue === "Tutti gli ordini") {
-        logger.info(
-          "[ArchibaldBot] Filter already set to 'Tutti gli ordini', no action needed",
-        );
+        logger.info("[ArchibaldBot] Filter already set to 'Tutti gli ordini', no action needed");
         return;
       }
 
-      logger.info(
-        "[ArchibaldBot] Filter not set to 'Tutti gli ordini', changing filter...",
-      );
+      logger.info("[ArchibaldBot] Filter not set to 'Tutti gli ordini', changing filter...");
 
-      // Click the dropdown button to open the list
-      await page.evaluate(() => {
-        const dropdownButton = document.querySelector(
-          "#Vertical_mainMenu_Menu_ITCNT8_xaf_a1_Cb_B-1",
-        ) as HTMLElement;
-        if (dropdownButton) {
-          dropdownButton.click();
+      // Open the dropdown using resilient selector (button is sibling with _B-1 suffix)
+      const dropdownClicked = await page.evaluate((sel: string) => {
+        const input = document.querySelector(sel) as HTMLElement;
+        if (!input) return false;
+        // The dropdown button is a sibling element with id ending in _B-1
+        const parent = input.closest("[id*='Cb']");
+        const button = parent
+          ? parent.querySelector("[id$='_B-1']") as HTMLElement
+          : document.querySelector("[id*='mainMenu'][id*='Cb_B-1']") as HTMLElement;
+        if (button) {
+          button.click();
+          return true;
         }
-      });
+        return false;
+      }, FILTER_INPUT_SELECTOR);
+
+      if (!dropdownClicked) {
+        logger.warn("[ArchibaldBot] Could not click filter dropdown, continuing anyway");
+        return;
+      }
 
       logger.info("[ArchibaldBot] Dropdown opened, waiting for list...");
       await new Promise((resolve) => setTimeout(resolve, 500));
 
-      // Wait for the "Tutti gli ordini" option to appear
-      await page.waitForSelector(
-        "#Vertical_mainMenu_Menu_ITCNT8_xaf_a1_Cb_DDD_L_LBI0T0",
-        { timeout: 5000 },
-      );
-
-      // Click on "Tutti gli ordini" option
-      await page.evaluate(() => {
-        const allOrdersOption = document.querySelector(
+      // Find and click "Tutti gli ordini" in the dropdown by text content
+      const optionClicked = await page.evaluate(() => {
+        // Try exact ID first
+        const exactOption = document.querySelector(
           "#Vertical_mainMenu_Menu_ITCNT8_xaf_a1_Cb_DDD_L_LBI0T0",
         ) as HTMLElement;
-        if (allOrdersOption) {
-          allOrdersOption.click();
+        if (exactOption) {
+          exactOption.click();
+          return true;
         }
+        // Fallback: find by text in any visible dropdown list item
+        const listItems = Array.from(
+          document.querySelectorAll("[id*='Cb_DDD_L_LBI'] td, [class*='dxeListBoxItem']"),
+        );
+        for (const item of listItems) {
+          if ((item as HTMLElement).textContent?.trim() === "Tutti gli ordini") {
+            (item as HTMLElement).click();
+            return true;
+          }
+        }
+        return false;
       });
 
-      logger.info(
-        "[ArchibaldBot] 'Tutti gli ordini' option clicked, waiting for page update...",
-      );
+      if (!optionClicked) {
+        logger.warn("[ArchibaldBot] Could not find 'Tutti gli ordini' option, continuing anyway");
+        return;
+      }
+
+      logger.info("[ArchibaldBot] 'Tutti gli ordini' option clicked, waiting for page update...");
       await new Promise((resolve) => setTimeout(resolve, 1000));
 
-      // Verify the filter was changed
-      const newFilterValue = await page.evaluate(() => {
-        const input = document.querySelector(
-          'input[name="Vertical$mainMenu$Menu$ITCNT8$xaf_a1$Cb"]',
+      // Verify filter change
+      const newFilterValue = await page.evaluate((sel: string, exactSel: string) => {
+        const input = (
+          document.querySelector(exactSel) ||
+          document.querySelector(sel)
         ) as HTMLInputElement;
         return input ? input.value : null;
-      });
+      }, FILTER_INPUT_SELECTOR, FILTER_INPUT_EXACT);
 
       logger.info("[ArchibaldBot] Filter change verification:", {
         newFilterValue,
@@ -8672,19 +8648,14 @@ export class ArchibaldBot {
       });
 
       if (newFilterValue !== "Tutti gli ordini") {
-        logger.warn(
-          "[ArchibaldBot] Filter change verification failed, but continuing anyway",
-        );
+        logger.warn("[ArchibaldBot] Filter change verification failed, but continuing anyway");
       }
     } catch (error) {
       logger.error("[ArchibaldBot] Error while ensuring filter is set:", {
         error: error instanceof Error ? error.message : String(error),
         stack: error instanceof Error ? error.stack : undefined,
       });
-      // Don't throw - we'll try to continue with the current filter
-      logger.warn(
-        "[ArchibaldBot] Continuing with current filter despite error",
-      );
+      logger.warn("[ArchibaldBot] Continuing with current filter despite error");
     }
   }
 
