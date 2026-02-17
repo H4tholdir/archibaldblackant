@@ -346,6 +346,23 @@ export class PriceHistoryDatabase {
     return result.changes;
   }
 
+  getProductIdsWithPriceChanges(
+    productIds: string[],
+    sinceTimestamp: number,
+  ): Set<string> {
+    if (productIds.length === 0) return new Set();
+
+    const placeholders = productIds.map(() => "?").join(",");
+    const rows = this.db
+      .prepare(
+        `SELECT DISTINCT productId FROM price_history
+         WHERE productId IN (${placeholders}) AND syncDate >= ?`,
+      )
+      .all(...productIds, sinceTimestamp) as Array<{ productId: string }>;
+
+    return new Set(rows.map((r) => r.productId));
+  }
+
   /**
    * Close database connection
    */

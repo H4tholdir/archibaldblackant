@@ -7,16 +7,12 @@ interface ProductCardProps {
   product: Product;
   expanded: boolean;
   onToggle: () => void;
-  showVariantBadge?: boolean;
-  variantCount?: number;
 }
 
 export function ProductCard({
   product,
   expanded,
   onToggle,
-  showVariantBadge = false,
-  variantCount = 1,
 }: ProductCardProps) {
   const [vatInput, setVatInput] = useState("");
   const [savingVat, setSavingVat] = useState(false);
@@ -69,7 +65,7 @@ export function ProductCard({
       <div
         onClick={onToggle}
         style={{
-          padding: "20px",
+          padding: "16px 20px",
           cursor: "pointer",
           transition: "background-color 0.2s",
         }}
@@ -80,91 +76,39 @@ export function ProductCard({
           e.currentTarget.style.backgroundColor = "#fff";
         }}
       >
+        {/* Row 1: Name + badges + expand arrow */}
         <div
           style={{
             display: "flex",
             justifyContent: "space-between",
-            alignItems: "flex-start",
-            gap: "16px",
+            alignItems: "center",
+            gap: "8px",
+            marginBottom: "2px",
           }}
         >
-          {/* Product info */}
-          <div style={{ flex: 1 }}>
-            <div
-              style={{
-                fontSize: "18px",
-                fontWeight: 700,
-                color: "#333",
-                marginBottom: "4px",
-              }}
-            >
+          <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap", flex: 1 }}>
+            <span style={{ fontSize: "17px", fontWeight: 700, color: "#333" }}>
               {product.name}
-              {/* Variant badge */}
-              {showVariantBadge && variantCount > 1 && (
-                <span
-                  style={{
-                    marginLeft: "8px",
-                    fontSize: "12px",
-                    fontWeight: 600,
-                    padding: "4px 8px",
-                    borderRadius: "12px",
-                    backgroundColor: "#e3f2fd",
-                    color: "#1976d2",
-                  }}
-                >
-                  {variantCount} confezioni
-                </span>
-              )}
-            </div>
-            <div
-              style={{
-                fontSize: "14px",
-                color: "#666",
-                marginBottom: "8px",
-              }}
-            >
-              {product.description || "Nessuna descrizione"}
-            </div>
-            <div
-              style={{
-                display: "flex",
-                gap: "16px",
-                flexWrap: "wrap",
-                fontSize: "13px",
-                color: "#666",
-              }}
-            >
-              <span>
-                <strong>Codice:</strong> {product.id}
+            </span>
+            {product.hasPriceChange && (
+              <span style={{ fontSize: "11px", fontWeight: 600, padding: "2px 8px", borderRadius: "10px", backgroundColor: "#fff3e0", color: "#e65100", whiteSpace: "nowrap" }}>
+                {"📈"} Prezzo variato
               </span>
-              {product.groupCode && (
-                <span>
-                  <strong>Gruppo:</strong> {product.groupCode}
-                </span>
-              )}
-              {/* Show key characteristics in header */}
-              {product.figure && (
-                <span>
-                  <strong>Figura:</strong> {product.figure}
-                </span>
-              )}
-              {product.size && (
-                <span>
-                  <strong>Grandezza:</strong> {product.size}
-                </span>
-              )}
-              {product.packageContent && (
-                <span>
-                  <strong>Confezione:</strong> {product.packageContent}
-                </span>
-              )}
-            </div>
+            )}
+            {product.isNewThisYear && (
+              <span style={{ fontSize: "11px", fontWeight: 600, padding: "2px 8px", borderRadius: "10px", backgroundColor: "#e3f2fd", color: "#1565c0", whiteSpace: "nowrap" }}>
+                {"🆕"} Nuovo
+              </span>
+            )}
+            {product.hasFieldChanges && (
+              <span style={{ fontSize: "11px", fontWeight: 600, padding: "2px 8px", borderRadius: "10px", backgroundColor: "#f3e5f5", color: "#7b1fa2", whiteSpace: "nowrap" }}>
+                {"🔄"} Modificato
+              </span>
+            )}
           </div>
-
-          {/* Expand icon */}
           <div
             style={{
-              fontSize: "24px",
+              fontSize: "20px",
               color: "#1976d2",
               transition: "transform 0.3s",
               transform: expanded ? "rotate(180deg)" : "rotate(0deg)",
@@ -173,6 +117,54 @@ export function ProductCard({
           >
             ▼
           </div>
+        </div>
+
+        {/* Row 2: Description */}
+        <div style={{ fontSize: "13px", color: "#888", fontStyle: "italic", marginBottom: "6px" }}>
+          {product.description || "Nessuna descrizione"}
+        </div>
+
+        {/* Row 3: Price + VAT */}
+        <div style={{ fontSize: "14px", color: "#444", marginBottom: "4px", display: "flex", alignItems: "center", flexWrap: "wrap", gap: "4px" }}>
+          {(product.price === null || product.price === undefined || product.price === 0) ? (
+            <span style={{ color: "#c62828" }}>{"⚠️"} Prezzo non disponibile</span>
+          ) : (
+            <>
+              <span style={{ fontWeight: 600 }}>{formatCurrencyLocal(savedPrice ?? product.price)}</span>
+              {(savedPrice !== null || product.priceSource) && (
+                <span style={{ fontSize: "11px", padding: "1px 6px", borderRadius: "4px", backgroundColor: "#f5f5f5", color: "#888" }}>
+                  {savedPrice !== null ? "manual" : product.priceSource === "excel" ? "Excel" : product.priceSource === "manual" ? "manual" : "Archibald"}
+                </span>
+              )}
+            </>
+          )}
+          <span style={{ color: "#ccc", margin: "0 4px" }}>·</span>
+          {(product.vat !== undefined && product.vat !== null) || savedVat !== null ? (
+            <>
+              <span>IVA {savedVat ?? product.vat}%</span>
+              {(savedVat !== null || product.vatSource) && (
+                <span style={{ fontSize: "11px", padding: "1px 6px", borderRadius: "4px", backgroundColor: "#f5f5f5", color: "#888" }}>
+                  {savedVat !== null ? "manual" : product.vatSource}
+                </span>
+              )}
+            </>
+          ) : (
+            <span style={{ color: "#c62828" }}>IVA non disponibile</span>
+          )}
+        </div>
+
+        {/* Row 4: Package summary */}
+        <div style={{ fontSize: "13px", color: "#666" }}>
+          {"📦"}{" "}
+          {(() => {
+            const packages = product.variantPackages ?? (product.packageContent ? [product.packageContent] : []);
+            if (packages.length === 0) return "Singolo";
+            return packages.map((pkg: string) => {
+              const lower = pkg.toLowerCase();
+              if (lower === "1" || lower.startsWith("1 ")) return "Singolo";
+              return `Conf. ${pkg}`;
+            }).join(" · ");
+          })()}
         </div>
       </div>
 

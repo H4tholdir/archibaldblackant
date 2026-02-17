@@ -25,9 +25,6 @@ export function ArticoliList() {
   const [totalCount, setTotalCount] = useState(0);
   const [returnedCount, setReturnedCount] = useState(0);
   const [limited, setLimited] = useState(false);
-  const [variantCounts, setVariantCounts] = useState<Record<string, number>>(
-    {},
-  );
   const [showPriceVariationsModal, setShowPriceVariationsModal] =
     useState(false);
   const [showProductVariationsModal, setShowProductVariationsModal] =
@@ -65,7 +62,6 @@ export function ArticoliList() {
       setTotalCount(0);
       setReturnedCount(0);
       setLimited(false);
-      setVariantCounts({});
       setLoading(false);
       return;
     }
@@ -103,13 +99,6 @@ export function ArticoliList() {
       setReturnedCount(response.data.returnedCount);
       setLimited(response.data.limited);
 
-      const counts: Record<string, number> = {};
-      filteredProducts.forEach((p) => {
-        if (p.name) {
-          counts[p.name] = (counts[p.name] || 0) + 1;
-        }
-      });
-      setVariantCounts(counts);
     } catch (err) {
       console.error("Error fetching products:", err);
       if (err instanceof Error && err.message.includes("401")) {
@@ -631,8 +620,6 @@ export function ArticoliList() {
                 product={product}
                 expanded={false}
                 onToggle={() => handleCardClick(product)}
-                showVariantBadge={true}
-                variantCount={variantCounts[product.name] || 1}
               />
             ))}
           </div>

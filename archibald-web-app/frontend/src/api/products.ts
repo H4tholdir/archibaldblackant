@@ -58,6 +58,12 @@ export interface Product {
   stopped?: string; // FERMATO
   productId?: string;
 
+  // ========== ANNOTATIONS ==========
+  hasPriceChange?: boolean;
+  isNewThisYear?: boolean;
+  hasFieldChanges?: boolean;
+  variantPackages?: string[];
+
   // ========== SYSTEM ==========
   hash?: string;
   lastSync?: number;

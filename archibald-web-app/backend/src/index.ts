@@ -3806,6 +3806,24 @@ app.get("/api/products", (req: Request, res: Response<ApiResponse>) => {
     logger.info("Richiesta lista prodotti", { searchQuery, limit, grouped, vatFilter, priceFilter });
 
     const db = ProductDatabase.getInstance();
+    const priceHistDb = PriceHistoryDatabase.getInstance();
+    const yearStart = new Date(new Date().getFullYear(), 0, 1).getTime();
+
+    const enrichProducts = (products: any[]) => {
+      const ids = products.map((p) => p.id);
+      const annotations = db.getProductAnnotations(ids);
+      const priceChangeIds = priceHistDb.getProductIdsWithPriceChanges(ids, yearStart);
+      return products.map((p) => {
+        const ann = annotations.get(p.id);
+        return {
+          ...p,
+          hasPriceChange: priceChangeIds.has(p.id),
+          isNewThisYear: ann?.isNewThisYear ?? false,
+          hasFieldChanges: ann?.hasFieldChanges ?? false,
+          variantPackages: db.getVariantPackages(p.name),
+        };
+      });
+    };
 
     if (priceFilter === "zero") {
       const products = db.getProductsWithZeroPrice(limit);
@@ -3813,7 +3831,7 @@ app.get("/api/products", (req: Request, res: Response<ApiResponse>) => {
       res.json({
         success: true,
         data: {
-          products,
+          products: enrichProducts(products),
           totalCount,
           returnedCount: products.length,
           limited: products.length >= limit,
@@ -3826,7 +3844,7 @@ app.get("/api/products", (req: Request, res: Response<ApiResponse>) => {
       res.json({
         success: true,
         data: {
-          products,
+          products: enrichProducts(products),
           totalCount,
           returnedCount: products.length,
           limited: products.length >= limit,
@@ -3850,7 +3868,7 @@ app.get("/api/products", (req: Request, res: Response<ApiResponse>) => {
       res.json({
         success: true,
         data: {
-          products: products,
+          products: enrichProducts(products),
           totalCount: totalUniqueNames, // Total unique product names in DB
           returnedCount: returnedCount, // Number returned in this response
           limited: returnedCount >= limit, // Are we limiting results?
@@ -3870,7 +3888,7 @@ app.get("/api/products", (req: Request, res: Response<ApiResponse>) => {
       res.json({
         success: true,
         data: {
-          products,
+          products: enrichProducts(products),
           totalCount: productDb.getProductCount(),
           returnedCount: products.length,
           totalMatches, // Total matches before limit

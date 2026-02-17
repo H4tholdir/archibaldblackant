@@ -218,7 +218,6 @@ export function ProductDetailModal({
                 product={selectedVariant}
                 expanded={true}
                 onToggle={() => {}} // No-op since always expanded in modal
-                showVariantBadge={false} // Don't show badge in modal
               />
             )}
           </div>

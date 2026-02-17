@@ -1522,6 +1522,53 @@ export class ProductDatabase {
     };
   }
 
+  getProductAnnotations(productIds: string[]): Map<
+    string,
+    { isNewThisYear: boolean; hasFieldChanges: boolean }
+  > {
+    const result = new Map<
+      string,
+      { isNewThisYear: boolean; hasFieldChanges: boolean }
+    >();
+    if (productIds.length === 0) return result;
+
+    const yearStart = new Date(new Date().getFullYear(), 0, 1).getTime();
+    const placeholders = productIds.map(() => "?").join(",");
+
+    const rows = this.db
+      .prepare(
+        `SELECT DISTINCT productId, changeType FROM product_changes
+         WHERE productId IN (${placeholders}) AND changedAt >= ?`,
+      )
+      .all(...productIds, yearStart) as Array<{
+      productId: string;
+      changeType: string;
+    }>;
+
+    for (const row of rows) {
+      const existing = result.get(row.productId) ?? {
+        isNewThisYear: false,
+        hasFieldChanges: false,
+      };
+      if (row.changeType === "created") existing.isNewThisYear = true;
+      if (row.changeType === "updated") existing.hasFieldChanges = true;
+      result.set(row.productId, existing);
+    }
+
+    return result;
+  }
+
+  getVariantPackages(articleName: string): string[] {
+    const rows = this.db
+      .prepare(
+        `SELECT DISTINCT packageContent FROM products
+         WHERE name = ? AND deletedAt IS NULL AND packageContent IS NOT NULL`,
+      )
+      .all(articleName) as Array<{ packageContent: string }>;
+
+    return rows.map((r) => r.packageContent);
+  }
+
   /**
    * Chiude la connessione al database
    */
