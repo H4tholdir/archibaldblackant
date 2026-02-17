@@ -450,6 +450,17 @@ export class CustomerService {
     return { customer: customer ?? null, taskId: taskId ?? null };
   }
 
+  async heartbeat(sessionId: string): Promise<void> {
+    try {
+      await fetchWithRetry(
+        `/api/customers/interactive/${encodeURIComponent(sessionId)}/heartbeat`,
+        { method: "POST" },
+      );
+    } catch {
+      // fire-and-forget
+    }
+  }
+
   async cancelInteractiveSession(sessionId: string): Promise<void> {
     const response = await fetchWithRetry(
       `/api/customers/interactive/${encodeURIComponent(sessionId)}`,

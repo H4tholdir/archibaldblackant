@@ -52,6 +52,7 @@ function rowToRecord(r: any) {
     invoiceClosed: r.invoice_closed === 1 ? true : r.invoice_closed === 0 ? false : undefined,
     invoiceRemainingAmount: r.invoice_remaining_amount ?? undefined,
     invoiceDueDate: r.invoice_due_date ?? undefined,
+    arcaData: r.arca_data ?? undefined,
     source: r.source,
   };
 }
@@ -102,7 +103,7 @@ router.post(
           archibald_order_number, current_state, state_updated_at, ddt_number,
           ddt_delivery_date, tracking_number, tracking_url, tracking_courier,
           delivery_completed_date, invoice_number, invoice_date, invoice_amount,
-          invoice_closed, invoice_remaining_amount, invoice_due_date, source
+          invoice_closed, invoice_remaining_amount, invoice_due_date, arca_data, source
         ) VALUES (
           ?, ?, ?, ?, ?,
           ?, ?, ?, ?, ?,
@@ -111,7 +112,7 @@ router.post(
           ?, ?, ?, ?,
           ?, ?, ?, ?,
           ?, ?, ?, ?,
-          ?, ?, ?, ?
+          ?, ?, ?, ?, ?
         )
       `);
 
@@ -171,6 +172,7 @@ router.post(
             r.invoiceClosed != null ? (r.invoiceClosed ? 1 : 0) : null,
             r.invoiceRemainingAmount ?? null,
             r.invoiceDueDate ?? null,
+            r.arcaData ?? null,
             r.source ?? "app",
           );
 
@@ -535,7 +537,8 @@ router.post(
           merged_at, created_at, updated_at, notes, archibald_order_id,
           archibald_order_number, current_state, state_updated_at, ddt_number,
           ddt_delivery_date, tracking_number, tracking_url, tracking_courier,
-          delivery_completed_date, invoice_number, invoice_date, invoice_amount, source
+          delivery_completed_date, invoice_number, invoice_date, invoice_amount,
+          arca_data, revenue, source
         ) VALUES (
           ?, ?, ?, ?, ?,
           ?, ?, ?, ?, ?,
@@ -543,7 +546,8 @@ router.post(
           ?, ?, ?, ?, ?,
           ?, ?, ?, ?,
           ?, ?, ?, ?,
-          ?, ?, ?, ?, ?
+          ?, ?, ?, ?,
+          ?, ?, ?
         )
       `);
 
@@ -581,6 +585,8 @@ router.post(
             r.invoice_number,
             r.invoice_date,
             r.invoice_amount,
+            r.arca_data ?? null,
+            r.revenue ?? null,
             r.source,
           );
         }

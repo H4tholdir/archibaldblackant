@@ -122,6 +122,13 @@ class InteractiveSessionManager {
     }
   }
 
+  touchSession(sessionId: string, userId: string): boolean {
+    const session = this.sessions.get(sessionId);
+    if (!session || session.userId !== userId) return false;
+    session.updatedAt = Date.now();
+    return true;
+  }
+
   getActiveSessionForUser(userId: string): InteractiveSession | null {
     for (const session of this.sessions.values()) {
       if (

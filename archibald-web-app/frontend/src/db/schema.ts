@@ -199,6 +199,8 @@ export interface FresisHistoryOrder {
   invoiceRemainingAmount?: string;
   invoiceDueDate?: string;
 
+  arcaData?: string;
+
   source?: "app" | "arca_import";
 }
 
@@ -743,6 +745,25 @@ export class ArchibaldDatabase extends Dexie {
 
     // Version 20: Add syncMetadata table for delta sync (syncId-based reconnection)
     this.version(20).stores({
+      customers: "id, name, code, city, *hash",
+      products: "id, name, article, *hash",
+      productVariants: "++id, productId, variantId",
+      prices: "++id, articleId, articleName",
+      draftOrders: null,
+      pendingOrders: "id, status, createdAt, updatedAt, jobId",
+      cacheMetadata: "key, lastSynced",
+      warehouseItems:
+        "++id, articleCode, boxName, reservedForOrder, soldInOrder",
+      warehouseMetadata: "++id, uploadedAt",
+      subClients: "codice, ragioneSociale, supplRagioneSociale, partitaIva",
+      fresisHistory:
+        "id, subClientCodice, customerName, createdAt, updatedAt, archibaldOrderId, mergedIntoOrderId",
+      fresisDiscounts: "id, articleCode, discountPercent",
+      syncMetadata: "key",
+    });
+
+    // Version 21: Add arcaData field to fresisHistory (non-indexed, stores full Arca JSON blob)
+    this.version(21).stores({
       customers: "id, name, code, city, *hash",
       products: "id, name, article, *hash",
       productVariants: "++id, productId, variantId",

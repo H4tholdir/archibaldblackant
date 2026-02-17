@@ -435,6 +435,16 @@ export function CustomerCreateModal({
   useEffect(() => {
     if (!interactiveSessionId) return;
 
+    const timer = setInterval(() => {
+      customerService.heartbeat(interactiveSessionId);
+    }, 120_000);
+
+    return () => clearInterval(timer);
+  }, [interactiveSessionId]);
+
+  useEffect(() => {
+    if (!interactiveSessionId) return;
+
     const unsubs: Array<() => void> = [];
 
     unsubs.push(

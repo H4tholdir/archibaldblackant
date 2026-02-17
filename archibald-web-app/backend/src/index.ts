@@ -3447,6 +3447,27 @@ app.post(
   },
 );
 
+// Heartbeat to keep interactive session alive
+app.post(
+  "/api/customers/interactive/:sessionId/heartbeat",
+  authenticateJWT,
+  (req: AuthRequest, res: Response<ApiResponse>) => {
+    const userId = req.user!.userId;
+    const { sessionId } = req.params;
+    const sessionManager = InteractiveSessionManager.getInstance();
+    const touched = sessionManager.touchSession(sessionId, userId);
+
+    if (!touched) {
+      return res.status(404).json({
+        success: false,
+        error: "Sessione non trovata",
+      });
+    }
+
+    res.json({ success: true, message: "OK" });
+  },
+);
+
 // Save interactive customer (complete creation with remaining fields)
 app.post(
   "/api/customers/interactive/:sessionId/save",
@@ -3466,22 +3487,23 @@ app.post(
 
       const sessionManager = InteractiveSessionManager.getInstance();
       const session = sessionManager.getSession(sessionId, userId);
+      const existingBot = session ? sessionManager.getBot(sessionId) : null;
+      const useInteractiveBot = !!session && !!existingBot;
 
-      if (!session) {
-        return res.status(404).json({
-          success: false,
-          error: "Sessione non trovata",
-        });
-      }
-
-      if (session.state !== "vat_complete" && session.state !== "ready") {
+      if (
+        session &&
+        session.state !== "vat_complete" &&
+        session.state !== "ready"
+      ) {
         return res.status(409).json({
           success: false,
           error: `Sessione non pronta per il salvataggio (stato: ${session.state})`,
         });
       }
 
-      sessionManager.updateState(sessionId, "saving");
+      if (session) {
+        sessionManager.updateState(sessionId, "saving");
+      }
 
       const tempProfile = `TEMP-${Date.now()}`;
       const taskId = crypto.randomUUID();
@@ -3503,34 +3525,48 @@ app.post(
 
       (async () => {
         try {
-          const bot = sessionManager.getBot(sessionId);
+          const setProgressCallback = (bot: ArchibaldBot) => {
+            bot.setProgressCallback(async (category, metadata) => {
+              const milestone = getCustomerProgressMilestone(category);
+              if (milestone) {
+                WebSocketServerService.getInstance().broadcast(userId, {
+                  type: "CUSTOMER_UPDATE_PROGRESS",
+                  payload: {
+                    taskId,
+                    customerProfile: tempProfile,
+                    progress: milestone.progress,
+                    label: milestone.label,
+                    operation: "create",
+                  },
+                  timestamp: new Date().toISOString(),
+                });
+              }
+            });
+          };
 
-          if (!bot) {
-            throw new Error("Bot non trovato per questa sessione");
-          }
+          let customerProfileId: string;
 
-          bot.setProgressCallback(async (category, metadata) => {
-            const milestone = getCustomerProgressMilestone(category);
-            if (milestone) {
-              WebSocketServerService.getInstance().broadcast(userId, {
-                type: "CUSTOMER_UPDATE_PROGRESS",
-                payload: {
-                  taskId,
-                  customerProfile: tempProfile,
-                  progress: milestone.progress,
-                  label: milestone.label,
-                  operation: "create",
-                },
-                timestamp: new Date().toISOString(),
-              });
+          if (useInteractiveBot) {
+            setProgressCallback(existingBot);
+            customerProfileId =
+              await existingBot.completeCustomerCreation(customerData);
+            await sessionManager.removeBot(sessionId);
+            sessionManager.updateState(sessionId, "completed");
+          } else {
+            logger.info(
+              "Interactive session expired, falling back to fresh bot",
+              { sessionId },
+            );
+            const freshBot = new ArchibaldBot(userId);
+            await freshBot.initialize();
+            setProgressCallback(freshBot);
+            await freshBot.createCustomer(customerData);
+            await freshBot.close();
+            customerProfileId = tempProfile;
+            if (session) {
+              sessionManager.updateState(sessionId, "completed");
             }
-          });
-
-          const customerProfileId =
-            await bot.completeCustomerCreation(customerData);
-
-          await sessionManager.removeBot(sessionId);
-          sessionManager.updateState(sessionId, "completed");
+          }
 
           customerDb.updateCustomerBotStatus(tempProfile, "placed");
 
@@ -3550,10 +3586,12 @@ app.post(
           });
         } catch (error) {
           customerDb.updateCustomerBotStatus(tempProfile, "failed");
-          sessionManager.setError(
-            sessionId,
-            error instanceof Error ? error.message : "Errore salvataggio",
-          );
+          if (session) {
+            sessionManager.setError(
+              sessionId,
+              error instanceof Error ? error.message : "Errore salvataggio",
+            );
+          }
 
           await sessionManager.removeBot(sessionId);
 
@@ -7863,6 +7901,18 @@ server.listen(config.server.port, async () => {
     );
   } catch (error) {
     logger.warn("⚠️  Migration 032 failed or already applied", { error });
+  }
+
+  try {
+    const {
+      runMigration033,
+    } = require("./migrations/033-add-arca-data-to-fresis-history");
+    runMigration033();
+    logger.info(
+      "✅ Migration 033 completed (add arca_data to fresis_history)",
+    );
+  } catch (error) {
+    logger.warn("⚠️  Migration 033 failed or already applied", { error });
   }
 
   // ========== AUTO-LOAD ENCRYPTED PASSWORDS (LAZY-LOAD) ==========
