@@ -202,14 +202,24 @@ export default function OrderFormSimple() {
     new Set(),
   );
 
-  const editableCellStyle =
-    isFresis(selectedCustomer) && selectedSubClient
-      ? {
-          border: "1px dashed #93c5fd",
-          borderRadius: "4px",
-          padding: "0.5rem 0.75rem",
-        }
-      : {};
+  const canEditItems = !!selectedCustomer;
+  const canEditPrice = isFresis(selectedCustomer) && !!selectedSubClient;
+
+  const editableCellStyle = canEditItems
+    ? {
+        border: "1px dashed #93c5fd",
+        borderRadius: "4px",
+        padding: "0.5rem 0.75rem",
+      }
+    : {};
+
+  const editablePriceCellStyle = canEditPrice
+    ? {
+        border: "1px dashed #93c5fd",
+        borderRadius: "4px",
+        padding: "0.5rem 0.75rem",
+      }
+    : {};
 
   // 🔧 FIX #2: Memoize excluded warehouse item IDs to prevent re-renders
   const excludedWarehouseItemIds = useMemo(
@@ -2096,6 +2106,11 @@ export default function OrderFormSimple() {
     const currentTotals = calculateTotals();
 
     if (target > currentTotals.finalTotal) {
+      if (!canEditPrice) {
+        toastService.error("Per ordini diretti non è possibile aumentare il totale");
+        setShowTotaleDialog(false);
+        return;
+      }
       // Activate markup mode with pre-selected items
       const diff = target - currentTotals.finalTotal;
       setMarkupAmount(diff);
@@ -3278,7 +3293,7 @@ export default function OrderFormSimple() {
                     display: "grid",
                     gridTemplateColumns: isMobile
                       ? "1fr"
-                      : isFresis(selectedCustomer) && selectedSubClient
+                      : canEditPrice
                         ? "1fr 1fr 1fr"
                         : "1fr 1fr",
                     gap: "1rem",
@@ -3306,7 +3321,7 @@ export default function OrderFormSimple() {
                       onKeyDown={(e) => {
                         if (e.key === "Enter") {
                           e.preventDefault();
-                          if (isFresis(selectedCustomer) && selectedSubClient) {
+                          if (canEditPrice) {
                             listPriceInputRef.current?.focus();
                           } else {
                             discountInputRef.current?.focus();
@@ -3323,7 +3338,7 @@ export default function OrderFormSimple() {
                     />
                   </div>
 
-                  {isFresis(selectedCustomer) && selectedSubClient && (
+                  {canEditPrice && (
                     <div>
                       <label
                         style={{
@@ -3691,13 +3706,10 @@ export default function OrderFormSimple() {
                       style={{
                         padding: "0.75rem",
                         ...editableCellStyle,
-                        cursor:
-                          isFresis(selectedCustomer) && selectedSubClient
-                            ? "pointer"
-                            : "default",
+                        cursor: canEditItems ? "pointer" : "default",
                       }}
                       onClick={() => {
-                        if (isFresis(selectedCustomer) && selectedSubClient) {
+                        if (canEditItems) {
                           openArticleChangeModal(item);
                         }
                       }}
@@ -3741,13 +3753,10 @@ export default function OrderFormSimple() {
                         padding: "0.75rem",
                         textAlign: "center",
                         ...editableCellStyle,
-                        cursor:
-                          isFresis(selectedCustomer) && selectedSubClient
-                            ? "pointer"
-                            : "default",
+                        cursor: canEditItems ? "pointer" : "default",
                       }}
                       onClick={() => {
-                        if (isFresis(selectedCustomer) && selectedSubClient) {
+                        if (canEditItems) {
                           openQuantityEditModal(item);
                         }
                       }}
@@ -3758,14 +3767,11 @@ export default function OrderFormSimple() {
                       style={{
                         padding: "0.75rem",
                         textAlign: "right",
-                        ...editableCellStyle,
-                        cursor:
-                          isFresis(selectedCustomer) && selectedSubClient
-                            ? "pointer"
-                            : "default",
+                        ...editablePriceCellStyle,
+                        cursor: canEditPrice ? "pointer" : "default",
                       }}
                       onClick={() => {
-                        if (isFresis(selectedCustomer) && selectedSubClient) {
+                        if (canEditPrice) {
                           startInlineEdit(
                             item.id,
                             "unitPrice",
@@ -3806,13 +3812,10 @@ export default function OrderFormSimple() {
                         textAlign: "right",
                         color: item.discount > 0 ? "#dc2626" : "#9ca3af",
                         ...editableCellStyle,
-                        cursor:
-                          isFresis(selectedCustomer) && selectedSubClient
-                            ? "pointer"
-                            : "default",
+                        cursor: canEditItems ? "pointer" : "default",
                       }}
                       onClick={() => {
-                        if (isFresis(selectedCustomer) && selectedSubClient) {
+                        if (canEditItems) {
                           startInlineEdit(
                             item.id,
                             "discount",
@@ -3877,7 +3880,7 @@ export default function OrderFormSimple() {
                       {formatCurrency(item.total)}
                     </td>
                     <td style={{ padding: "0.75rem", textAlign: "center" }}>
-                      {!(isFresis(selectedCustomer) && selectedSubClient) && (
+                      {!canEditItems && (
                         <button
                           onClick={() => handleEditItem(item.id)}
                           style={{
@@ -3933,13 +3936,10 @@ export default function OrderFormSimple() {
                     style={{
                       marginBottom: "0.75rem",
                       ...editableCellStyle,
-                      cursor:
-                        isFresis(selectedCustomer) && selectedSubClient
-                          ? "pointer"
-                          : "default",
+                      cursor: canEditItems ? "pointer" : "default",
                     }}
                     onClick={() => {
-                      if (isFresis(selectedCustomer) && selectedSubClient) {
+                      if (canEditItems) {
                         openArticleChangeModal(item);
                       }
                     }}
@@ -3995,16 +3995,13 @@ export default function OrderFormSimple() {
                   >
                     <div
                       onClick={() => {
-                        if (isFresis(selectedCustomer) && selectedSubClient) {
+                        if (canEditItems) {
                           openQuantityEditModal(item);
                         }
                       }}
                       style={{
                         ...editableCellStyle,
-                        cursor:
-                          isFresis(selectedCustomer) && selectedSubClient
-                            ? "pointer"
-                            : "default",
+                        cursor: canEditItems ? "pointer" : "default",
                       }}
                     >
                       <span style={{ color: "#6b7280" }}>Quantità:</span>
@@ -4015,14 +4012,11 @@ export default function OrderFormSimple() {
                     <div
                       style={{
                         textAlign: "right",
-                        ...editableCellStyle,
-                        cursor:
-                          isFresis(selectedCustomer) && selectedSubClient
-                            ? "pointer"
-                            : "default",
+                        ...editablePriceCellStyle,
+                        cursor: canEditPrice ? "pointer" : "default",
                       }}
                       onClick={() => {
-                        if (isFresis(selectedCustomer) && selectedSubClient) {
+                        if (canEditPrice) {
                           startInlineEdit(
                             item.id,
                             "unitPrice",
@@ -4063,7 +4057,7 @@ export default function OrderFormSimple() {
                     </div>
                     <div
                       onClick={() => {
-                        if (isFresis(selectedCustomer) && selectedSubClient) {
+                        if (canEditItems) {
                           startInlineEdit(
                             item.id,
                             "discount",
@@ -4073,10 +4067,7 @@ export default function OrderFormSimple() {
                       }}
                       style={{
                         ...editableCellStyle,
-                        cursor:
-                          isFresis(selectedCustomer) && selectedSubClient
-                            ? "pointer"
-                            : "default",
+                        cursor: canEditItems ? "pointer" : "default",
                       }}
                     >
                       <span style={{ color: "#6b7280" }}>Sconto:</span>
@@ -4145,7 +4136,7 @@ export default function OrderFormSimple() {
 
                   {/* Action buttons */}
                   <div style={{ display: "flex", gap: "0.5rem" }}>
-                    {!(isFresis(selectedCustomer) && selectedSubClient) && (
+                    {!canEditItems && (
                       <button
                         onClick={() => handleEditItem(item.id)}
                         style={{
@@ -4431,11 +4422,8 @@ export default function OrderFormSimple() {
                 paddingTop: "0.5rem",
                 borderTop: "1px solid #e5e7eb",
                 fontSize: isMobile ? "0.875rem" : "1rem",
-                cursor:
-                  isFresis(selectedCustomer) && selectedSubClient
-                    ? "pointer"
-                    : "default",
-                ...(isFresis(selectedCustomer) && selectedSubClient
+                cursor: canEditItems ? "pointer" : "default",
+                ...(canEditItems
                   ? {
                       borderRadius: "4px",
                       padding: "0.5rem",
@@ -4445,7 +4433,7 @@ export default function OrderFormSimple() {
                   : {}),
               }}
               onClick={() => {
-                if (isFresis(selectedCustomer) && selectedSubClient) {
+                if (canEditItems) {
                   setImponibileTarget(totals.finalSubtotal.toFixed(2));
                   setImponibileSelectedItems(new Set(items.map((i) => i.id)));
                   setShowImponibileDialog(true);
@@ -4454,7 +4442,7 @@ export default function OrderFormSimple() {
             >
               <span>
                 Imponibile:
-                {isFresis(selectedCustomer) && selectedSubClient
+                {canEditItems
                   ? " (clicca per modificare)"
                   : ""}
               </span>
@@ -4500,11 +4488,8 @@ export default function OrderFormSimple() {
                 paddingTop: "0.5rem",
                 borderTop: "2px solid #3b82f6",
                 fontSize: isMobile ? "1.125rem" : "1.25rem",
-                cursor:
-                  isFresis(selectedCustomer) && selectedSubClient
-                    ? "pointer"
-                    : "default",
-                ...(isFresis(selectedCustomer) && selectedSubClient
+                cursor: canEditItems ? "pointer" : "default",
+                ...(canEditItems
                   ? {
                       borderRadius: "4px",
                       padding: "0.5rem",
@@ -4513,7 +4498,7 @@ export default function OrderFormSimple() {
                   : {}),
               }}
               onClick={() => {
-                if (isFresis(selectedCustomer) && selectedSubClient) {
+                if (canEditItems) {
                   setTotaleTarget(totals.finalTotal.toFixed(2));
                   setTotaleSelectedItems(new Set(items.map((i) => i.id)));
                   setShowTotaleDialog(true);
@@ -4522,7 +4507,7 @@ export default function OrderFormSimple() {
             >
               <span style={{ fontWeight: "600" }}>
                 TOTALE (con IVA):
-                {isFresis(selectedCustomer) && selectedSubClient
+                {canEditItems
                   ? " (clicca)"
                   : ""}
               </span>
@@ -5652,27 +5637,29 @@ export default function OrderFormSimple() {
               >
                 Modifica tramite sconto
               </button>
-              <button
-                onClick={handleImponibileViaPrezzo}
-                disabled={imponibileSelectedItems.size === 0}
-                style={{
-                  flex: 1,
-                  padding: "0.75rem",
-                  background:
-                    imponibileSelectedItems.size > 0 ? "#3b82f6" : "#d1d5db",
-                  color: "white",
-                  border: "none",
-                  borderRadius: "6px",
-                  cursor:
-                    imponibileSelectedItems.size > 0
-                      ? "pointer"
-                      : "not-allowed",
-                  fontWeight: "600",
-                  fontSize: "0.875rem",
-                }}
-              >
-                Modifica prezzo listino
-              </button>
+              {canEditPrice && (
+                <button
+                  onClick={handleImponibileViaPrezzo}
+                  disabled={imponibileSelectedItems.size === 0}
+                  style={{
+                    flex: 1,
+                    padding: "0.75rem",
+                    background:
+                      imponibileSelectedItems.size > 0 ? "#3b82f6" : "#d1d5db",
+                    color: "white",
+                    border: "none",
+                    borderRadius: "6px",
+                    cursor:
+                      imponibileSelectedItems.size > 0
+                        ? "pointer"
+                        : "not-allowed",
+                    fontWeight: "600",
+                    fontSize: "0.875rem",
+                  }}
+                >
+                  Modifica prezzo listino
+                </button>
+              )}
             </div>
             <button
               onClick={() => setShowImponibileDialog(false)}
