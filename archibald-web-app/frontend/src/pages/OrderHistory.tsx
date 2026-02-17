@@ -584,6 +584,7 @@ export function OrderHistory() {
             Authorization: `Bearer ${token}`,
           },
         },
+        { maxRetries: 0, totalTimeout: 120000 },
       );
 
       if (!response.ok) {

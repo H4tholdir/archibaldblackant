@@ -18,6 +18,7 @@ interface RetryOptions {
   initialDelay?: number;
   maxDelay?: number;
   backoffFactor?: number;
+  totalTimeout?: number;
 }
 
 interface RetryContext {
@@ -30,9 +31,8 @@ const DEFAULT_OPTIONS: Required<RetryOptions> = {
   initialDelay: 1000, // 1 second
   maxDelay: 10000, // 10 seconds
   backoffFactor: 2,
+  totalTimeout: 20000, // 20 seconds hard cap
 };
-
-const TOTAL_TIMEOUT = 20000; // 20 seconds hard cap
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -53,8 +53,8 @@ export async function fetchWithRetry(
   const startTime = Date.now();
 
   // Check total timeout
-  if (context.totalElapsed >= TOTAL_TIMEOUT) {
-    throw new Error('Request timeout: exceeded 20s total timeout');
+  if (context.totalElapsed >= opts.totalTimeout) {
+    throw new Error(`Request timeout: exceeded ${opts.totalTimeout / 1000}s total timeout`);
   }
 
   try {
@@ -108,7 +108,7 @@ export async function fetchWithRetry(
     // 4. Handle retryable errors (500, 502, 503, 504)
     const isRetryable = [500, 502, 503, 504].includes(response.status);
     const canRetry = context.attempt < opts.maxRetries;
-    const withinTimeout = context.totalElapsed < TOTAL_TIMEOUT;
+    const withinTimeout = context.totalElapsed < opts.totalTimeout;
 
     if (isRetryable && canRetry && withinTimeout) {
       const delay = Math.min(
@@ -140,7 +140,7 @@ export async function fetchWithRetry(
   } catch (error) {
     // Network error (fetch failed completely)
     const canRetry = context.attempt < opts.maxRetries;
-    const withinTimeout = context.totalElapsed < TOTAL_TIMEOUT;
+    const withinTimeout = context.totalElapsed < opts.totalTimeout;
 
     if (canRetry && withinTimeout) {
       const delay = Math.min(
