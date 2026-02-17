@@ -4,7 +4,9 @@ import {
   FRESIS_CUSTOMER_PROFILE_LEGACY,
   FRESIS_VAT_NUMBER,
   FRESIS_DEFAULT_DISCOUNT,
+  FRESIS_SUBCLIENT_CODE,
   isFresis,
+  isSubClientFresis,
 } from "./fresis-constants";
 
 describe("fresis-constants", () => {
@@ -38,6 +40,32 @@ describe("fresis-constants", () => {
     });
   });
 
+  describe("isSubClientFresis", () => {
+    test("returns true for sub-client with Fresis code 1000", () => {
+      expect(isSubClientFresis({ codice: "1000", ragioneSociale: "FRESIS" })).toBe(true);
+    });
+
+    test("returns true for sub-client with ragioneSociale FRESIS regardless of code", () => {
+      expect(isSubClientFresis({ codice: "9999", ragioneSociale: "FRESIS" })).toBe(true);
+    });
+
+    test("returns true for sub-client with ragioneSociale fresis lowercase", () => {
+      expect(isSubClientFresis({ codice: "9999", ragioneSociale: "fresis" })).toBe(true);
+    });
+
+    test("returns true for sub-client with code 1000 regardless of ragioneSociale", () => {
+      expect(isSubClientFresis({ codice: FRESIS_SUBCLIENT_CODE, ragioneSociale: "Altro Nome" })).toBe(true);
+    });
+
+    test("returns false for a different sub-client", () => {
+      expect(isSubClientFresis({ codice: "1196", ragioneSociale: "Dr. ROSARIO REALE" })).toBe(false);
+    });
+
+    test("returns false for null", () => {
+      expect(isSubClientFresis(null)).toBe(false);
+    });
+  });
+
   describe("constants", () => {
     test("FRESIS_CUSTOMER_PROFILE is 55.261", () => {
       expect(FRESIS_CUSTOMER_PROFILE).toBe("55.261");
@@ -49,6 +77,10 @@ describe("fresis-constants", () => {
 
     test("FRESIS_DEFAULT_DISCOUNT is 63", () => {
       expect(FRESIS_DEFAULT_DISCOUNT).toBe(63);
+    });
+
+    test("FRESIS_SUBCLIENT_CODE is 1000", () => {
+      expect(FRESIS_SUBCLIENT_CODE).toBe("1000");
     });
   });
 });

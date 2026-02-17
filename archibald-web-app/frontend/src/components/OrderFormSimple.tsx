@@ -20,7 +20,7 @@ import { calculateShippingCosts, roundUp } from "../utils/order-calculations";
 import { useKeyboardScroll } from "../hooks/useKeyboardScroll";
 import type { SubClient } from "../db/schema";
 import { SubClientSelector } from "./new-order-form/SubClientSelector";
-import { isFresis, FRESIS_DEFAULT_DISCOUNT } from "../utils/fresis-constants";
+import { isFresis, isSubClientFresis, FRESIS_DEFAULT_DISCOUNT } from "../utils/fresis-constants";
 import { normalizeVatRate } from "../utils/vat-utils";
 import { fresisDiscountService } from "../services/fresis-discount.service";
 import { formatCurrency } from "../utils/format-currency";
@@ -712,9 +712,6 @@ export default function OrderFormSimple() {
     setCustomerSearch(customer.name);
     setCustomerResults([]);
     setHighlightedCustomerIndex(-1);
-    if (isFresis(customer)) {
-      setGlobalDiscountPercent(String(FRESIS_DEFAULT_DISCOUNT));
-    }
     setTimeout(() => {
       if (isFresis(customer)) {
         subClientInputRef.current?.focus();
@@ -2820,8 +2817,16 @@ export default function OrderFormSimple() {
         {selectedCustomer && isFresis(selectedCustomer) && (
           <div style={{ marginTop: "0.75rem" }}>
             <SubClientSelector
-              onSelect={(sc) => setSelectedSubClient(sc)}
-              onClear={() => setSelectedSubClient(null)}
+              onSelect={(sc) => {
+                setSelectedSubClient(sc);
+                if (isSubClientFresis(sc)) {
+                  setGlobalDiscountPercent(String(FRESIS_DEFAULT_DISCOUNT));
+                }
+              }}
+              onClear={() => {
+                setSelectedSubClient(null);
+                setGlobalDiscountPercent("");
+              }}
               selectedSubClient={selectedSubClient}
               externalInputRef={subClientInputRef}
               onAfterSelect={() => productSearchInputRef.current?.focus()}

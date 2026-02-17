@@ -9,3 +9,11 @@ export const isFresis = (
   customer?.id === FRESIS_CUSTOMER_PROFILE ||
   customer?.id === FRESIS_CUSTOMER_PROFILE_LEGACY ||
   customer?.taxCode === FRESIS_VAT_NUMBER;
+
+export const FRESIS_SUBCLIENT_CODE = "1000";
+
+export const isSubClientFresis = (
+  subClient: { codice: string; ragioneSociale: string } | null,
+): boolean =>
+  subClient?.codice === FRESIS_SUBCLIENT_CODE ||
+  subClient?.ragioneSociale.toUpperCase() === "FRESIS";
