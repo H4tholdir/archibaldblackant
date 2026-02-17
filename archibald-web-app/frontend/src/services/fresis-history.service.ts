@@ -335,13 +335,13 @@ class FresisHistoryService {
 
     for (const record of unlinked) {
       const pending = pendingMap.get(record.mergedIntoOrderId!);
-      if (pending?.jobId) {
+      if (pending?.jobOrderId) {
         const token = this.getToken();
         if (!token) continue;
 
         try {
           const response = await fetch(
-            `/api/orders/lifecycle-summary?ids=${pending.jobId}`,
+            `/api/orders/lifecycle-summary?ids=${pending.jobOrderId}`,
             { headers: { Authorization: `Bearer ${token}` } },
           );
 
@@ -350,14 +350,42 @@ class FresisHistoryService {
           const json = await response.json();
           if (!json.success || !json.data) continue;
 
-          const lifecycle = json.data[pending.jobId];
+          const lifecycle = json.data[pending.jobOrderId];
           if (lifecycle) {
             await db.fresisHistory.update(record.id, {
-              archibaldOrderId: pending.jobId,
+              archibaldOrderId: pending.jobOrderId,
               archibaldOrderNumber: lifecycle.orderNumber ?? undefined,
               currentState: lifecycle.currentState ?? undefined,
               stateUpdatedAt: new Date().toISOString(),
               updatedAt: new Date().toISOString(),
+            });
+            linkedCount++;
+          }
+        } catch {
+          continue;
+        }
+      } else if (!pending) {
+        // PendingOrder no longer in IndexedDB (auto-deleted after 4s) — fetch from server
+        const token = this.getToken();
+        if (!token) continue;
+
+        try {
+          const response = await fetch(`/api/fresis-history/${record.id}`, {
+            headers: { Authorization: `Bearer ${token}` },
+          });
+          if (!response.ok) continue;
+
+          const json = await response.json();
+          if (!json.success || !json.record) continue;
+
+          const serverRecord = json.record as FresisHistoryOrder;
+          if (serverRecord.archibaldOrderId) {
+            await db.fresisHistory.update(record.id, {
+              archibaldOrderId: serverRecord.archibaldOrderId,
+              archibaldOrderNumber: serverRecord.archibaldOrderNumber,
+              currentState: serverRecord.currentState,
+              stateUpdatedAt: serverRecord.stateUpdatedAt,
+              updatedAt: serverRecord.updatedAt,
             });
             linkedCount++;
           }
@@ -385,7 +413,7 @@ class FresisHistoryService {
 
     const allRecords = await db.fresisHistory.toArray();
     const trackable = allRecords.filter(
-      (r) => r.archibaldOrderId && r.currentState !== "fatturato",
+      (r) => r.archibaldOrderId && r.currentState !== "pagato",
     );
 
     if (trackable.length === 0) return 0;
@@ -419,6 +447,8 @@ class FresisHistoryService {
       spedito: 5,
       consegnato: 6,
       fatturato: 7,
+      pagamento_scaduto: 8,
+      pagato: 9,
       transfer_error: -1,
     };
 
@@ -459,6 +489,9 @@ class FresisHistoryService {
         invoiceNumber: best.invoiceNumber ?? undefined,
         invoiceDate: best.invoiceDate ?? undefined,
         invoiceAmount: best.invoiceAmount ?? undefined,
+        invoiceClosed: best.invoiceClosed ?? undefined,
+        invoiceRemainingAmount: best.invoiceRemainingAmount ?? undefined,
+        invoiceDueDate: best.invoiceDueDate ?? undefined,
         updatedAt: now,
       });
       updatedCount++;

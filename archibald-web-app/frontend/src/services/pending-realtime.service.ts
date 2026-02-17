@@ -15,6 +15,7 @@ import {
   recoverCompletedWarehouseOrders,
   updateWarehouseOrderNumbers,
 } from "./warehouse-order-integration";
+import { fresisHistoryService } from "./fresis-history.service";
 
 /**
  * Pending order event payloads from backend
@@ -626,6 +627,15 @@ export class PendingRealtimeService {
           console.log(
             `[PendingRealtime] Updated ${historyRecords.length} fresisHistory records with archibaldOrderId=${data.orderId}`,
           );
+
+          // Upload updated records to server so other devices get the link
+          const updatedRecords = await db.fresisHistory
+            .where("mergedIntoOrderId")
+            .equals(data.pendingOrderId)
+            .toArray();
+          if (updatedRecords.length > 0) {
+            fresisHistoryService.uploadToServer(updatedRecords);
+          }
         }
       } catch (historyError) {
         console.error(

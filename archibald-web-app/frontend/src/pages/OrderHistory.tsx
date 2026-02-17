@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from "react";
+import { useSearchParams } from "react-router-dom";
 import { useSearchMatches } from "../hooks/useSearchMatches";
 import { OrderCardNew } from "../components/OrderCardNew";
 import { SendToVeronaModal } from "../components/SendToVeronaModal";
@@ -191,6 +192,9 @@ function isOrderPaid(order: Order): boolean {
 }
 
 export function OrderHistory() {
+  const [searchParams, setSearchParams] = useSearchParams();
+  const highlightOrderId = searchParams.get("highlight");
+  const [highlightFlash, setHighlightFlash] = useState<string | null>(null);
   const { progress, reset: resetProgress } = useSyncProgress();
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
@@ -374,6 +378,42 @@ export function OrderHistory() {
   useEffect(() => {
     fetchOrders();
   }, [fetchOrders]);
+
+  // Auto-expand and scroll to highlighted order from URL param
+  useEffect(() => {
+    if (!highlightOrderId || orders.length === 0) return;
+
+    const target = orders.find((o) => o.id === highlightOrderId);
+    if (!target) return;
+
+    setExpandedOrderId(target.id);
+    setHighlightFlash(target.id);
+
+    // Ensure the order is within the visible infinite-scroll window
+    const targetIndex = orders.indexOf(target);
+    if (targetIndex >= visibleCount) {
+      setVisibleCount(targetIndex + 5);
+    }
+
+    // Clean up highlight param from URL
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      next.delete("highlight");
+      return next;
+    }, { replace: true });
+
+    // Scroll to the order after render
+    setTimeout(() => {
+      document
+        .getElementById(`order-${target.id}`)
+        ?.scrollIntoView({ behavior: "smooth", block: "center" });
+    }, 300);
+
+    // Remove flash after animation
+    setTimeout(() => {
+      setHighlightFlash(null);
+    }, 2500);
+  }, [highlightOrderId, orders, setSearchParams, visibleCount]);
 
   // Customer search handler
   const handleCustomerSearch = async (query: string) => {
@@ -1758,27 +1798,42 @@ export function OrderHistory() {
                     const isExpanded = debouncedSearch
                       ? true
                       : expandedOrderId === order.id;
+                    const isHighlighted = highlightFlash === order.id;
 
                     return (
-                      <OrderCardNew
+                      <div
                         key={order.id}
-                        order={order}
-                        expanded={isExpanded}
-                        onToggle={() => handleToggle(order.id)}
-                        onSendToVerona={handleSendToVerona}
-                        onEdit={handleEdit}
-                        token={
-                          localStorage.getItem("archibald_jwt") || undefined
-                        }
-                        searchQuery={debouncedSearch}
-                        editing={editingOrderId === order.id}
-                        onEditDone={() => {
-                          setEditingOrderId(null);
-                          fetchOrders();
+                        id={`order-${order.id}`}
+                        style={{
+                          borderRadius: "12px",
+                          transition: "box-shadow 0.5s ease, outline 0.5s ease",
+                          ...(isHighlighted
+                            ? {
+                                outline: "3px solid #1565C0",
+                                boxShadow: "0 0 16px rgba(21, 101, 192, 0.35)",
+                              }
+                            : {}),
                         }}
-                        onDeleteDone={fetchOrders}
-                        justSentToVerona={sentToVeronaIds.has(order.id)}
-                      />
+                      >
+                        <OrderCardNew
+                          order={order}
+                          expanded={isExpanded}
+                          onToggle={() => handleToggle(order.id)}
+                          onSendToVerona={handleSendToVerona}
+                          onEdit={handleEdit}
+                          token={
+                            localStorage.getItem("archibald_jwt") || undefined
+                          }
+                          searchQuery={debouncedSearch}
+                          editing={editingOrderId === order.id}
+                          onEditDone={() => {
+                            setEditingOrderId(null);
+                            fetchOrders();
+                          }}
+                          onDeleteDone={fetchOrders}
+                          justSentToVerona={sentToVeronaIds.has(order.id)}
+                        />
+                      </div>
                     );
                   })}
                 </div>

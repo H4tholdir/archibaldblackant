@@ -27,7 +27,9 @@ export type OrderState =
   | "ordine_aperto"
   | "spedito"
   | "consegnato"
-  | "fatturato";
+  | "fatturato"
+  | "pagamento_scaduto"
+  | "pagato";
 
 /**
  * State detection result
@@ -55,8 +57,37 @@ export class OrderStateService {
   async detectOrderState(order: OrderRecord): Promise<StateDetectionResult> {
     logger.debug(`[OrderStateService] Detecting state for order ${order.id}`);
 
-    // Priority 1: Check if order has invoice (final state)
+    // Priority 1: Check if order has invoice — determine payment state
     if (order.invoiceNumber) {
+      const remainingAmount = order.invoiceRemainingAmount
+        ? parseFloat(order.invoiceRemainingAmount)
+        : null;
+      const isPaid =
+        order.invoiceClosed === true ||
+        (remainingAmount !== null && remainingAmount <= 0);
+
+      if (isPaid) {
+        return {
+          state: "pagato",
+          confidence: "high",
+          source: "database",
+          notes: `Invoice ${order.invoiceNumber} paid`,
+        };
+      }
+
+      if (order.invoiceDueDate) {
+        const dueDate = new Date(order.invoiceDueDate);
+        const now = new Date();
+        if (dueDate < now) {
+          return {
+            state: "pagamento_scaduto",
+            confidence: "high",
+            source: "database",
+            notes: `Invoice ${order.invoiceNumber} overdue since ${order.invoiceDueDate}`,
+          };
+        }
+      }
+
       return {
         state: "fatturato",
         confidence: "high",
@@ -145,15 +176,16 @@ export class OrderStateService {
         };
       }
 
+      // Archibald tag "CONSEGNATO" = handed to courier, NOT physical delivery
       if (
         statusLower.includes("consegnato") ||
         statusLower.includes("delivered")
       ) {
         return {
-          state: "consegnato",
+          state: "spedito",
           confidence: "high",
           source: "archibald",
-          notes: `Archibald status: ${order.salesStatus}`,
+          notes: `Archibald status: ${order.salesStatus} (tag = affidato a corriere)`,
         };
       }
 
@@ -241,6 +273,8 @@ export class OrderStateService {
       "spedito",
       "consegnato",
       "fatturato",
+      "pagamento_scaduto",
+      "pagato",
     ];
 
     const oldIndex = stateOrder.indexOf(oldState);
@@ -275,6 +309,8 @@ export class OrderStateService {
       spedito: "Spedito",
       consegnato: "Consegnato",
       fatturato: "Fatturato",
+      pagamento_scaduto: "Pagamento scaduto",
+      pagato: "Pagato",
     };
 
     return labels[state] || state;

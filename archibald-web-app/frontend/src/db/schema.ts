@@ -195,6 +195,9 @@ export interface FresisHistoryOrder {
   invoiceNumber?: string;
   invoiceDate?: string;
   invoiceAmount?: string;
+  invoiceClosed?: boolean;
+  invoiceRemainingAmount?: string;
+  invoiceDueDate?: string;
 
   source?: "app" | "arca_import";
 }

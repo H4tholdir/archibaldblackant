@@ -2,6 +2,7 @@ import { describe, test, expect, beforeEach, afterEach, vi } from "vitest";
 import { db } from "../db/schema";
 import type {
   FresisHistoryOrder,
+  PendingOrder,
   PendingOrderItem,
   SubClient,
 } from "../db/schema";
@@ -74,11 +75,11 @@ describe("syncOrderLifecycles", () => {
     expect(result).toBe(0);
   });
 
-  test("skips records with fatturato state", async () => {
+  test("skips records with pagato state", async () => {
     await db.fresisHistory.add(
       createHistoryOrder({
         archibaldOrderId: "ORD-123",
-        currentState: "fatturato",
+        currentState: "pagato",
       }),
     );
 
@@ -221,6 +222,56 @@ describe("syncOrderLifecycles", () => {
     expect(record2?.currentState).toBe("trasferito");
   });
 
+  test("propagates payment fields from lifecycle API", async () => {
+    const orderId = "ORD-PAY";
+    const historyId = crypto.randomUUID();
+    await db.fresisHistory.add(
+      createHistoryOrder({
+        id: historyId,
+        archibaldOrderId: orderId,
+        currentState: "fatturato",
+      }),
+    );
+
+    vi.spyOn(Storage.prototype, "getItem").mockReturnValue("test-jwt-token");
+
+    vi.spyOn(globalThis, "fetch").mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        success: true,
+        data: {
+          [orderId]: {
+            orderNumber: "ORD/20250701",
+            currentState: "pagamento_scaduto",
+            ddtNumber: "DDT-100",
+            ddtDeliveryDate: "2025-06-20",
+            trackingNumber: null,
+            trackingUrl: null,
+            trackingCourier: null,
+            deliveryCompletedDate: null,
+            invoiceNumber: "FT-2025-001",
+            invoiceDate: "2025-06-25",
+            invoiceAmount: "1500.00",
+            invoiceClosed: false,
+            invoiceRemainingAmount: "1500.00",
+            invoiceDueDate: "2025-07-25",
+            invoiceDaysPastDue: null,
+          },
+        },
+      }),
+    } as Response);
+
+    const result = await fresisHistoryService.syncOrderLifecycles();
+    expect(result).toBe(1);
+
+    const updated = await db.fresisHistory.get(historyId);
+    expect(updated?.currentState).toBe("pagamento_scaduto");
+    expect(updated?.invoiceNumber).toBe("FT-2025-001");
+    expect(updated?.invoiceClosed).toBe(false);
+    expect(updated?.invoiceRemainingAmount).toBe("1500.00");
+    expect(updated?.invoiceDueDate).toBe("2025-07-25");
+  });
+
   test("returns 0 when API response is not ok", async () => {
     await db.fresisHistory.add(
       createHistoryOrder({
@@ -238,5 +289,182 @@ describe("syncOrderLifecycles", () => {
 
     const result = await fresisHistoryService.syncOrderLifecycles();
     expect(result).toBe(0);
+  });
+});
+
+function createPendingOrder(
+  overrides: Partial<PendingOrder> = {},
+): PendingOrder {
+  return {
+    id: crypto.randomUUID(),
+    customerId: FRESIS_CUSTOMER_PROFILE,
+    customerName: "Fresis",
+    items: mockItems,
+    createdAt: "2025-06-01T10:00:00Z",
+    updatedAt: "2025-06-01T10:00:00Z",
+    status: "pending",
+    retryCount: 0,
+    deviceId: "test-device",
+    needsSync: false,
+    ...overrides,
+  };
+}
+
+describe("reconcileUnlinkedOrders", () => {
+  beforeEach(async () => {
+    await db.fresisHistory.clear();
+    await db.pendingOrders.clear();
+    vi.restoreAllMocks();
+  });
+
+  afterEach(async () => {
+    await db.fresisHistory.clear();
+    await db.pendingOrders.clear();
+  });
+
+  test("returns 0 when no unlinked records exist", async () => {
+    await db.fresisHistory.add(
+      createHistoryOrder({ archibaldOrderId: "ORD-LINKED" }),
+    );
+
+    const result = await fresisHistoryService.reconcileUnlinkedOrders();
+    expect(result).toBe(0);
+  });
+
+  test("links via jobOrderId when PendingOrder exists locally", async () => {
+    const pendingId = crypto.randomUUID();
+    const historyId = crypto.randomUUID();
+    const archibaldOrderId = "72.12345";
+
+    await db.pendingOrders.add(
+      createPendingOrder({
+        id: pendingId,
+        jobOrderId: archibaldOrderId,
+        jobStatus: "completed",
+      }),
+    );
+
+    await db.fresisHistory.add(
+      createHistoryOrder({
+        id: historyId,
+        mergedIntoOrderId: pendingId,
+        archibaldOrderId: undefined,
+      }),
+    );
+
+    vi.spyOn(Storage.prototype, "getItem").mockReturnValue("test-jwt-token");
+
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        success: true,
+        data: {
+          [archibaldOrderId]: {
+            orderNumber: "ORD/20250601",
+            currentState: "piazzato",
+          },
+        },
+      }),
+    } as Response);
+
+    const result = await fresisHistoryService.reconcileUnlinkedOrders();
+    expect(result).toBe(1);
+
+    const firstCallUrl = fetchSpy.mock.calls[0][0] as string;
+    expect(firstCallUrl).toContain(
+      `/api/orders/lifecycle-summary?ids=${archibaldOrderId}`,
+    );
+
+    const updated = await db.fresisHistory.get(historyId);
+    expect(updated?.archibaldOrderId).toBe(archibaldOrderId);
+    expect(updated?.archibaldOrderNumber).toBe("ORD/20250601");
+    expect(updated?.currentState).toBe("piazzato");
+  });
+
+  test("falls back to server fetch when PendingOrder not in IndexedDB", async () => {
+    const historyId = crypto.randomUUID();
+    const missingPendingId = "pending-deleted-after-4s";
+    const archibaldOrderId = "72.99999";
+
+    await db.fresisHistory.add(
+      createHistoryOrder({
+        id: historyId,
+        mergedIntoOrderId: missingPendingId,
+        archibaldOrderId: undefined,
+      }),
+    );
+
+    vi.spyOn(Storage.prototype, "getItem").mockReturnValue("test-jwt-token");
+
+    vi.spyOn(globalThis, "fetch").mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        success: true,
+        record: {
+          id: historyId,
+          archibaldOrderId,
+          archibaldOrderNumber: "ORD/FALLBACK",
+          currentState: "spedito",
+          stateUpdatedAt: "2025-06-15T10:00:00Z",
+          updatedAt: "2025-06-15T10:00:00Z",
+        },
+      }),
+    } as Response);
+
+    const result = await fresisHistoryService.reconcileUnlinkedOrders();
+    expect(result).toBe(1);
+
+    const updated = await db.fresisHistory.get(historyId);
+    expect(updated?.archibaldOrderId).toBe(archibaldOrderId);
+    expect(updated?.currentState).toBe("spedito");
+  });
+
+  test("skips server fallback when no token available", async () => {
+    const historyId = crypto.randomUUID();
+
+    await db.fresisHistory.add(
+      createHistoryOrder({
+        id: historyId,
+        mergedIntoOrderId: "pending-missing",
+        archibaldOrderId: undefined,
+      }),
+    );
+
+    vi.spyOn(Storage.prototype, "getItem").mockReturnValue(null);
+
+    const result = await fresisHistoryService.reconcileUnlinkedOrders();
+    expect(result).toBe(0);
+  });
+
+  test("skips record when server returns no archibaldOrderId", async () => {
+    const historyId = crypto.randomUUID();
+
+    await db.fresisHistory.add(
+      createHistoryOrder({
+        id: historyId,
+        mergedIntoOrderId: "pending-not-ready",
+        archibaldOrderId: undefined,
+      }),
+    );
+
+    vi.spyOn(Storage.prototype, "getItem").mockReturnValue("test-jwt-token");
+
+    vi.spyOn(globalThis, "fetch").mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        success: true,
+        record: {
+          id: historyId,
+          archibaldOrderId: null,
+          currentState: null,
+        },
+      }),
+    } as Response);
+
+    const result = await fresisHistoryService.reconcileUnlinkedOrders();
+    expect(result).toBe(0);
+
+    const unchanged = await db.fresisHistory.get(historyId);
+    expect(unchanged?.archibaldOrderId).toBeUndefined();
   });
 });

@@ -18,6 +18,7 @@ import Database from "better-sqlite3";
 import path from "path";
 
 const ordersDb = new Database(path.join(__dirname, "../data/orders-new.db"));
+const usersDb = new Database(path.join(__dirname, "../data/users.db"));
 
 /**
  * Job data per la coda ordini
@@ -541,6 +542,28 @@ export class QueueManager {
           orderId,
           duration,
         );
+
+        // Server-side reconciliation: link fresis_history records to archibaldOrderId
+        try {
+          const now = new Date().toISOString();
+          const updated = usersDb
+            .prepare(
+              `UPDATE fresis_history
+               SET archibald_order_id = ?, current_state = 'piazzato', state_updated_at = ?, updated_at = ?
+               WHERE user_id = ? AND merged_into_order_id = ? AND archibald_order_id IS NULL`,
+            )
+            .run(orderId, now, now, userId, pendingOrderId);
+          if (updated.changes > 0) {
+            logger.info(
+              `[QueueManager] Linked ${updated.changes} fresis_history records to archibaldOrderId=${orderId}`,
+            );
+          }
+        } catch (reconErr) {
+          logger.error(
+            `[QueueManager] Failed to reconcile fresis_history for ${pendingOrderId}`,
+            { error: reconErr instanceof Error ? reconErr.message : String(reconErr) },
+          );
+        }
 
         // Delete pending order from server DB so it won't be
         // re-pulled by the frontend sync (pullFromServer).

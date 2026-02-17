@@ -7544,6 +7544,10 @@ app.get(
           invoiceNumber: order.invoiceNumber ?? null,
           invoiceDate: order.invoiceDate ?? null,
           invoiceAmount: order.invoiceAmount ?? null,
+          invoiceClosed: order.invoiceClosed ?? null,
+          invoiceRemainingAmount: order.invoiceRemainingAmount ?? null,
+          invoiceDueDate: order.invoiceDueDate ?? null,
+          invoiceDaysPastDue: order.invoiceDaysPastDue ?? null,
         };
       }
 
@@ -7782,6 +7786,18 @@ server.listen(config.server.port, async () => {
     );
   } catch (error) {
     logger.warn("⚠️  Migration 031 failed or already applied", { error });
+  }
+
+  try {
+    const {
+      runMigration032,
+    } = require("./migrations/032-add-payment-fields-to-fresis-history");
+    runMigration032();
+    logger.info(
+      "✅ Migration 032 completed (add payment fields to fresis_history)",
+    );
+  } catch (error) {
+    logger.warn("⚠️  Migration 032 failed or already applied", { error });
   }
 
   // ========== AUTO-LOAD ENCRYPTED PASSWORDS (LAZY-LOAD) ==========

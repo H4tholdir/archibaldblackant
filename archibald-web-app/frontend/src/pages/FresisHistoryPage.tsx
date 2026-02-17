@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from "react";
+import { useNavigate } from "react-router-dom";
 import { HighlightText } from "../components/HighlightText";
 import { useSearchMatches } from "../hooks/useSearchMatches";
 import type {
@@ -42,23 +43,29 @@ const STATE_BADGE_CONFIG: Record<
   string,
   { label: string; bg: string; color: string }
 > = {
-  piazzato: { label: "Piazzato", bg: "#e5e7eb", color: "#374151" },
+  piazzato: { label: "Su Archibald", bg: "#ECEFF1", color: "#546E7A" },
   inviato_milano: {
-    label: "Inviato a Verona",
-    bg: "#dbeafe",
-    color: "#1e40af",
+    label: "In attesa approvazione",
+    bg: "#FFF9C4",
+    color: "#F57F17",
   },
-  trasferito: { label: "Trasferito", bg: "#d1fae5", color: "#065f46" },
+  ordine_aperto: { label: "In lavorazione", bg: "#D7CCC8", color: "#5D4037" },
+  trasferito: { label: "In lavorazione", bg: "#D7CCC8", color: "#5D4037" },
   transfer_error: {
-    label: "Errore Trasferimento",
-    bg: "#fee2e2",
-    color: "#991b1b",
+    label: "Richiede intervento",
+    bg: "#FFCDD2",
+    color: "#C62828",
   },
-  modifica: { label: "In Modifica", bg: "#fef3c7", color: "#92400e" },
-  ordine_aperto: { label: "Ordine Aperto", bg: "#ffedd5", color: "#9a3412" },
-  spedito: { label: "Spedito", bg: "#e0f2fe", color: "#0369a1" },
-  consegnato: { label: "Consegnato", bg: "#bbf7d0", color: "#166534" },
-  fatturato: { label: "Fatturato", bg: "#86efac", color: "#14532d" },
+  modifica: { label: "Richiede intervento", bg: "#FFCDD2", color: "#C62828" },
+  spedito: { label: "In transito", bg: "#BBDEFB", color: "#1565C0" },
+  consegnato: { label: "Consegnato", bg: "#B3E5FC", color: "#0277BD" },
+  fatturato: { label: "Fatturato", bg: "#D1C4E9", color: "#4527A0" },
+  pagamento_scaduto: {
+    label: "Pagamento scaduto",
+    bg: "#FFE0B2",
+    color: "#E65100",
+  },
+  pagato: { label: "Pagato", bg: "#E8F5E9", color: "#2E7D32" },
   importato_arca: {
     label: "Importato da Arca",
     bg: "#e9d5ff",
@@ -118,6 +125,7 @@ const formatDateDisplay = (iso: string) => {
 const formatCurrency = (value: number) => formatCurrencyImported(value);
 
 export function FresisHistoryPage() {
+  const navigate = useNavigate();
   const { historyOrders: wsOrders, refetch: wsRefetch } =
     useFresisHistorySync();
 
@@ -1597,6 +1605,31 @@ export function FresisHistoryPage() {
                                         )}
                                       </div>
                                     )}
+
+                                    <button
+                                      onClick={() => {
+                                        const firstId = parseLinkedIds(
+                                          order.archibaldOrderId,
+                                        )[0];
+                                        if (firstId)
+                                          navigate(
+                                            `/orders?highlight=${firstId}`,
+                                          );
+                                      }}
+                                      style={{
+                                        marginTop: "8px",
+                                        padding: "5px 12px",
+                                        fontSize: "12px",
+                                        fontWeight: 600,
+                                        color: "#1565C0",
+                                        background: "#E3F2FD",
+                                        border: "1px solid #90CAF9",
+                                        borderRadius: "6px",
+                                        cursor: "pointer",
+                                      }}
+                                    >
+                                      Vedi ordine madre
+                                    </button>
                                   </div>
                                 );
                               })()}

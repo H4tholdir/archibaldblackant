@@ -49,6 +49,9 @@ function rowToRecord(r: any) {
     invoiceNumber: r.invoice_number,
     invoiceDate: r.invoice_date,
     invoiceAmount: r.invoice_amount,
+    invoiceClosed: r.invoice_closed === 1 ? true : r.invoice_closed === 0 ? false : undefined,
+    invoiceRemainingAmount: r.invoice_remaining_amount ?? undefined,
+    invoiceDueDate: r.invoice_due_date ?? undefined,
     source: r.source,
   };
 }
@@ -98,7 +101,8 @@ router.post(
           merged_at, created_at, updated_at, notes, archibald_order_id,
           archibald_order_number, current_state, state_updated_at, ddt_number,
           ddt_delivery_date, tracking_number, tracking_url, tracking_courier,
-          delivery_completed_date, invoice_number, invoice_date, invoice_amount, source
+          delivery_completed_date, invoice_number, invoice_date, invoice_amount,
+          invoice_closed, invoice_remaining_amount, invoice_due_date, source
         ) VALUES (
           ?, ?, ?, ?, ?,
           ?, ?, ?, ?, ?,
@@ -106,7 +110,8 @@ router.post(
           ?, ?, ?, ?, ?,
           ?, ?, ?, ?,
           ?, ?, ?, ?,
-          ?, ?, ?, ?, ?
+          ?, ?, ?, ?,
+          ?, ?, ?, ?
         )
       `);
 
@@ -163,6 +168,9 @@ router.post(
             r.invoiceNumber ?? null,
             r.invoiceDate ?? null,
             r.invoiceAmount ?? null,
+            r.invoiceClosed != null ? (r.invoiceClosed ? 1 : 0) : null,
+            r.invoiceRemainingAmount ?? null,
+            r.invoiceDueDate ?? null,
             r.source ?? "app",
           );
 
@@ -207,6 +215,30 @@ router.post(
       });
     } catch (error) {
       logger.error("Error uploading fresis history", { error });
+      res.status(500).json({ success: false, error: "Errore server" });
+    }
+  },
+);
+
+router.get(
+  "/fresis-history/:id",
+  authenticateJWT,
+  (req: AuthRequest, res: Response) => {
+    try {
+      const userId = req.user!.userId;
+      const { id } = req.params;
+
+      const row = usersDb
+        .prepare("SELECT * FROM fresis_history WHERE id = ? AND user_id = ?")
+        .get(id, userId) as any;
+
+      if (!row) {
+        return res.status(404).json({ success: false, error: "Record non trovato" });
+      }
+
+      res.json({ success: true, record: rowToRecord(row) });
+    } catch (error) {
+      logger.error("Error fetching fresis history record", { error });
       res.status(500).json({ success: false, error: "Errore server" });
     }
   },
