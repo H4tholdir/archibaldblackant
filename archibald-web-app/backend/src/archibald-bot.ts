@@ -6111,20 +6111,64 @@ export class ArchibaldBot {
         .waitForSelector(searchSelector, { timeout: 15000, visible: true })
         .catch(() => null);
 
-      // Fallback: find search input by placeholder text
+      // Fallback: try without visible constraint (element might be "invisible" to Puppeteer but rendered)
       if (!searchHandle) {
         logger.warn(
-          "[sendToVerona] Primary search selector not found, trying fallback by placeholder...",
+          "[sendToVerona] Primary search selector not found with visible:true, trying without visible constraint...",
         );
         searchHandle = await this.page
-          .waitForSelector(
-            'input[placeholder*="ricerca"], input[placeholder*="Ricerca"], input[placeholder*="search" i]',
-            { timeout: 5000, visible: true },
-          )
+          .waitForSelector(searchSelector, { timeout: 3000 })
+          .catch(() => null);
+      }
+
+      // Fallback: search in all frames (DevExpress may use iframes)
+      if (!searchHandle) {
+        logger.warn(
+          "[sendToVerona] Search selector not found in main frame, checking all frames...",
+        );
+        for (const frame of this.page.frames()) {
+          searchHandle = await frame
+            .waitForSelector(searchSelector, { timeout: 2000 })
+            .catch(() => null);
+          if (searchHandle) {
+            logger.info(
+              `[sendToVerona] Found search input in frame: ${frame.url()}`,
+            );
+            break;
+          }
+        }
+      }
+
+      // Fallback: find ANY text input with "ricerca" value
+      if (!searchHandle) {
+        logger.warn(
+          "[sendToVerona] Trying fallback: find input by value containing 'ricerca'...",
+        );
+        searchHandle = await this.page
+          .$('input[id*="Search"][id*="Ed_I"]')
           .catch(() => null);
       }
 
       if (!searchHandle) {
+        // Diagnostic dump before failing
+        const diag = await this.page.evaluate(() => {
+          const url = window.location.href;
+          const frames = Array.from(document.querySelectorAll("iframe")).map(
+            (f) => ({ id: f.id, src: f.src, name: f.name }),
+          );
+          const inputs = Array.from(document.querySelectorAll("input")).map(
+            (i) => ({
+              id: i.id.substring(0, 80),
+              name: i.name.substring(0, 80),
+              type: i.type,
+              value: i.value.substring(0, 50),
+              visible: i.offsetParent !== null,
+            }),
+          );
+          return { url, frameCount: frames.length, frames, inputCount: inputs.length, inputs: inputs.slice(0, 20) };
+        });
+        logger.error("[sendToVerona] Diagnostic dump - page state when search not found:", diag);
+
         await this.page.screenshot({
           path: `logs/send-to-verona-search-not-found-${Date.now()}.png`,
           fullPage: true,
