@@ -26,6 +26,7 @@ import { ProfilePage } from "./pages/ProfilePage";
 import { PriceVariationsPage } from "./pages/PriceVariationsPage";
 import { ProductVariationsPage } from "./pages/ProductVariationsPage";
 import { FresisHistoryPage } from "./pages/FresisHistoryPage";
+import { RevenueReportPage } from "./pages/RevenueReportPage";
 import WarehouseManagementView from "./pages/WarehouseManagementView";
 import { DashboardNav } from "./components/DashboardNav";
 import { toastService } from "./services/toast.service";
@@ -490,6 +491,25 @@ function AppRouter() {
                   <SyncBanner />
                   <main className="app-main" style={{ padding: "0" }}>
                     <FresisHistoryPage />
+                  </main>
+                  <footer className="app-footer">
+                    <p>v1.0.0 • Formicanera by Francesco Formicola</p>
+                  </footer>
+                </div>
+              }
+            />
+
+            {/* Revenue Report route */}
+            <Route
+              path="/revenue-report"
+              element={
+                <div
+                  className="app"
+                  style={{ marginTop: isOffline ? "64px" : "0" }}
+                >
+                  <SyncBanner />
+                  <main className="app-main" style={{ padding: "0" }}>
+                    <RevenueReportPage />
                   </main>
                   <footer className="app-footer">
                     <p>v1.0.0 • Formicanera by Francesco Formicola</p>

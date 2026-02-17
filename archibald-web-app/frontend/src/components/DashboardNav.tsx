@@ -61,6 +61,7 @@ export function DashboardNav() {
     { path: "/products", label: "📦 Articoli" },
     { path: "/profile", label: "👤 Profilo" },
     { path: "/fresis-history", label: "📋 Storico Fresis" },
+    { path: "/revenue-report", label: "📊 Rapporto Ricavi" },
   ];
 
   // Add admin link if user is admin

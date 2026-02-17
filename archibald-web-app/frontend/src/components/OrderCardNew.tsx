@@ -3000,35 +3000,124 @@ function TabFinanziario({
   );
 }
 
-function TabCronologia() {
+function TabCronologia({ order, token }: { order: Order; token?: string }) {
+  const [childFTs, setChildFTs] = useState<any[]>([]);
+  const [ftLoading, setFtLoading] = useState(false);
+  const [ftError, setFtError] = useState<string | null>(null);
+
+  const isFresisOrder =
+    order.customerProfileId === "55.261" ||
+    order.customerProfileId === "57.213";
+
+  useEffect(() => {
+    if (!isFresisOrder || !token) return;
+    setFtLoading(true);
+    setFtError(null);
+    fetchWithRetry(
+      `/api/fresis-history/by-mother-order/${order.id}`,
+      { headers: { Authorization: `Bearer ${token}` } },
+    )
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.success) {
+          setChildFTs(data.records || []);
+        } else {
+          setFtError(data.error || "Errore sconosciuto");
+        }
+      })
+      .catch((err) => setFtError(err.message))
+      .finally(() => setFtLoading(false));
+  }, [isFresisOrder, order.id, token]);
+
+  if (!isFresisOrder) {
+    return (
+      <div style={{ padding: "16px", textAlign: "center", color: "#999", fontSize: "14px" }}>
+        Nessun ordine Fresis collegato.
+      </div>
+    );
+  }
+
   return (
     <div style={{ padding: "16px" }}>
-      <h3
-        style={{
-          fontSize: "16px",
-          fontWeight: 600,
-          marginBottom: "12px",
-          color: "#333",
-        }}
-      >
-        Ordini Collegati
-      </h3>
-      <div
-        style={{
-          padding: "24px",
-          textAlign: "center",
-          color: "#999",
-          fontSize: "14px",
-          backgroundColor: "#f5f5f5",
-          borderRadius: "8px",
-        }}
-      >
-        Funzionalita' in fase di sviluppo. Qui verranno mostrati gli ordini
-        collegati dallo storico Fresis e altre connessioni.
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
+        <h3 style={{ fontSize: "16px", fontWeight: 600, color: "#333", margin: 0 }}>
+          Ordini Collegati (FT Fresis)
+        </h3>
+        {childFTs.length > 0 && (
+          <a
+            href={`/fresis-history?motherOrderId=${order.id}`}
+            style={{ fontSize: "12px", color: "#1976d2", textDecoration: "none" }}
+          >
+            Vedi nello storico Fresis &rarr;
+          </a>
+        )}
       </div>
+      {ftLoading && (
+        <div style={{ textAlign: "center", padding: "16px", color: "#888" }}>
+          Caricamento...
+        </div>
+      )}
+      {ftError && (
+        <div style={{ padding: "8px", backgroundColor: "#ffebee", borderRadius: "4px", color: "#c62828", fontSize: "12px" }}>
+          {ftError}
+        </div>
+      )}
+      {!ftLoading && !ftError && childFTs.length === 0 && (
+        <div style={{ textAlign: "center", padding: "16px", color: "#999", fontSize: "14px", backgroundColor: "#f5f5f5", borderRadius: "8px" }}>
+          Nessuna FT collegata a questo ordine.
+        </div>
+      )}
+      {!ftLoading && childFTs.length > 0 && (
+        <div style={{ overflowX: "auto" }}>
+          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "12px" }}>
+            <thead>
+              <tr style={{ backgroundColor: "#f5f5f5", borderBottom: "2px solid #ddd" }}>
+                <th style={ftThStyle}>Sub-cliente</th>
+                <th style={ftThStyle}>N. FT</th>
+                <th style={ftThStyle}>Data</th>
+                <th style={{ ...ftThStyle, textAlign: "right" }}>Totale</th>
+                <th style={{ ...ftThStyle, textAlign: "right" }}>Ricavo</th>
+                <th style={ftThStyle}>Stato</th>
+              </tr>
+            </thead>
+            <tbody>
+              {childFTs.map((ft: any) => (
+                <tr key={ft.id} style={{ borderBottom: "1px solid #eee" }}>
+                  <td style={ftTdStyle}>{ft.subClientName || ft.subClientCodice}</td>
+                  <td style={ftTdStyle}>{ft.archibaldOrderNumber || "-"}</td>
+                  <td style={ftTdStyle}>{ft.createdAt ? new Date(ft.createdAt).toLocaleDateString("it-IT") : "-"}</td>
+                  <td style={{ ...ftTdStyle, textAlign: "right" }}>
+                    {ft.targetTotalWithVAT != null
+                      ? Number(ft.targetTotalWithVAT).toLocaleString("it-IT", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+                      : "-"}
+                  </td>
+                  <td style={{ ...ftTdStyle, textAlign: "right", color: ft.revenue >= 0 ? "#2e7d32" : "#c62828", fontWeight: 600 }}>
+                    {ft.revenue != null
+                      ? Number(ft.revenue).toLocaleString("it-IT", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+                      : "-"}
+                  </td>
+                  <td style={ftTdStyle}>{ft.currentState || "-"}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
     </div>
   );
 }
+
+const ftThStyle: React.CSSProperties = {
+  padding: "6px 8px",
+  textAlign: "left",
+  fontWeight: 600,
+  whiteSpace: "nowrap",
+};
+
+const ftTdStyle: React.CSSProperties = {
+  padding: "6px 8px",
+  whiteSpace: "nowrap",
+};
 
 // ============================================================================
 // HELPER COMPONENTS
@@ -4191,7 +4280,7 @@ export function OrderCardNew({
                 searchQuery={searchQuery}
               />
             )}
-            {activeTab === "storico" && <TabCronologia />}
+            {activeTab === "storico" && <TabCronologia order={order} token={token} />}
           </div>
         </div>
       )}

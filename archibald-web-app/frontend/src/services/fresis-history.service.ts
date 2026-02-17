@@ -1,5 +1,6 @@
 import { db } from "../db/schema";
 import type { FresisHistoryOrder, PendingOrder } from "../db/schema";
+import { generateArcaData } from "../utils/arca-document-generator";
 
 export function parseLinkedIds(value?: string): string[] {
   if (!value) return [];
@@ -31,14 +32,44 @@ class FresisHistoryService {
     return localStorage.getItem("archibald_jwt");
   }
 
+  private async fetchNextFtNumber(esercizio: string): Promise<number | null> {
+    try {
+      const token = this.getToken();
+      if (!token) return null;
+      const response = await fetch(
+        `/api/fresis-history/next-ft-number?esercizio=${esercizio}`,
+        { headers: { Authorization: `Bearer ${token}` } },
+      );
+      if (!response.ok) return null;
+      const data = await response.json();
+      return data.ftNumber ?? null;
+    } catch {
+      return null;
+    }
+  }
+
   async archiveOrders(
     orders: PendingOrder[],
     mergedOrderId?: string,
   ): Promise<FresisHistoryOrder[]> {
     const now = new Date().toISOString();
-    const historyOrders: FresisHistoryOrder[] = orders
-      .filter((o) => o.subClientCodice && o.subClientData)
-      .map((order) => ({
+    const esercizio = String(new Date().getFullYear());
+    const eligible = orders.filter((o) => o.subClientCodice && o.subClientData);
+
+    const historyOrders: FresisHistoryOrder[] = [];
+
+    for (const order of eligible) {
+      const ftNumber = await this.fetchNextFtNumber(esercizio);
+      let arcaDataStr: string | undefined;
+      let invoiceNumber: string | undefined;
+
+      if (ftNumber !== null) {
+        const arcaData = generateArcaData(order, ftNumber, esercizio);
+        arcaDataStr = JSON.stringify(arcaData);
+        invoiceNumber = `FT ${ftNumber}/${esercizio}`;
+      }
+
+      historyOrders.push({
         id: crypto.randomUUID(),
         originalPendingOrderId: order.id,
         subClientCodice: order.subClientCodice!,
@@ -57,8 +88,12 @@ class FresisHistoryService {
         mergedAt: mergedOrderId ? now : undefined,
         createdAt: order.createdAt,
         updatedAt: now,
+        arcaData: arcaDataStr,
+        invoiceNumber,
+        archibaldOrderNumber: invoiceNumber,
         source: "app" as const,
-      }));
+      });
+    }
 
     if (historyOrders.length > 0) {
       await db.fresisHistory.bulkAdd(historyOrders);
@@ -106,6 +141,63 @@ class FresisHistoryService {
     const updated = await db.fresisHistory.get(id);
     if (updated) {
       await this.uploadToServer([updated]);
+
+      // Post-link: fetch lifecycle state from the linked order
+      if (data.archibaldOrderId && updated.archibaldOrderId) {
+        await this.fetchAndApplyLifecycle(id, updated.archibaldOrderId);
+      }
+    }
+  }
+
+  private async fetchAndApplyLifecycle(
+    historyId: string,
+    archibaldOrderId: string,
+  ): Promise<void> {
+    try {
+      const token = this.getToken();
+      if (!token) return;
+
+      const linkedIds = parseLinkedIds(archibaldOrderId);
+      if (linkedIds.length === 0) return;
+
+      const response = await fetch(
+        `/api/orders/lifecycle-summary?ids=${linkedIds.join(",")}`,
+        { headers: { Authorization: `Bearer ${token}` } },
+      );
+      if (!response.ok) return;
+
+      const json = await response.json();
+      if (!json.success || !json.data) return;
+
+      const lifecycle = json.data[linkedIds[0]];
+      if (!lifecycle) return;
+
+      const now = new Date().toISOString();
+      await db.fresisHistory.update(historyId, {
+        archibaldOrderNumber: lifecycle.orderNumber ?? undefined,
+        currentState: lifecycle.currentState ?? undefined,
+        stateUpdatedAt: now,
+        ddtNumber: lifecycle.ddtNumber ?? undefined,
+        ddtDeliveryDate: lifecycle.ddtDeliveryDate ?? undefined,
+        trackingNumber: lifecycle.trackingNumber ?? undefined,
+        trackingUrl: lifecycle.trackingUrl ?? undefined,
+        trackingCourier: lifecycle.trackingCourier ?? undefined,
+        deliveryCompletedDate: lifecycle.deliveryCompletedDate ?? undefined,
+        invoiceNumber: lifecycle.invoiceNumber ?? undefined,
+        invoiceDate: lifecycle.invoiceDate ?? undefined,
+        invoiceAmount: lifecycle.invoiceAmount ?? undefined,
+        invoiceClosed: lifecycle.invoiceClosed ?? undefined,
+        invoiceRemainingAmount: lifecycle.invoiceRemainingAmount ?? undefined,
+        invoiceDueDate: lifecycle.invoiceDueDate ?? undefined,
+        updatedAt: now,
+      });
+
+      const refreshed = await db.fresisHistory.get(historyId);
+      if (refreshed) {
+        await this.uploadToServer([refreshed]);
+      }
+    } catch {
+      // Non-critical: lifecycle sync will catch up later
     }
   }
 

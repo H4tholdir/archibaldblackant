@@ -4289,7 +4289,7 @@ export class ArchibaldBot {
                     };
                   } else {
                     const keyboardState = await this.page!.evaluate(
-                      (containerId, inputId) => {
+                      (containerId: string | null) => {
                         let activeContainer: Element | null = null;
 
                         if (containerId) {
@@ -4351,25 +4351,6 @@ export class ArchibaldBot {
                           );
                         });
 
-                        if (inputId) {
-                          const input = document.getElementById(
-                            inputId,
-                          ) as HTMLInputElement | null;
-                          if (input) {
-                            const el = input as HTMLElement;
-                            const style = window.getComputedStyle(el);
-                            const rect = el.getBoundingClientRect();
-                            const visible =
-                              style.display !== "none" &&
-                              style.visibility !== "hidden" &&
-                              rect.width > 0 &&
-                              rect.height > 0;
-                            if (visible) {
-                              input.focus();
-                            }
-                          }
-                        }
-
                         return {
                           rowsCount: rows.length,
                           focusedIndex,
@@ -4379,7 +4360,6 @@ export class ArchibaldBot {
                         };
                       },
                       snapshot.containerId,
-                      inventtableInputId || null,
                     );
 
                     const rowsCount =
@@ -4413,18 +4393,93 @@ export class ArchibaldBot {
                           "",
                       };
                     } else {
-                      let delta =
-                        focusedIndex >= 0
-                          ? targetIndex - focusedIndex
-                          : targetIndex + 1;
-                      const direction: "ArrowDown" | "ArrowUp" =
-                        delta >= 0 ? "ArrowDown" : "ArrowUp";
-                      delta = Math.abs(delta);
+                      // Primary: click the target row directly in the
+                      // dropdown grid.  This bypasses keyboard navigation
+                      // which can fail when focus is stolen from the grid.
+                      const rowClicked = await this.page!.evaluate(
+                        (
+                          cId: string | null,
+                          targetIdx: number,
+                        ) => {
+                          let container: Element | null = null;
+                          if (cId) {
+                            const byId = document.getElementById(cId);
+                            if (
+                              byId &&
+                              byId.getBoundingClientRect().width > 0
+                            ) {
+                              container = byId;
+                            }
+                          }
+                          if (!container) {
+                            container =
+                              Array.from(
+                                document.querySelectorAll('[id*="_DDD"]'),
+                              ).find((c) => {
+                                const el = c as HTMLElement;
+                                return (
+                                  el.getBoundingClientRect().width > 0 &&
+                                  !!c.querySelector(
+                                    'tr[class*="dxgvDataRow"]',
+                                  )
+                                );
+                              }) || null;
+                          }
+                          const root = container || document;
+                          const rows = Array.from(
+                            root.querySelectorAll(
+                              'tr[class*="dxgvDataRow"]',
+                            ),
+                          ).filter((row) => {
+                            const el = row as HTMLElement;
+                            return (
+                              el.offsetParent !== null &&
+                              el.getBoundingClientRect().width > 0
+                            );
+                          });
+                          const target = rows[targetIdx] as
+                            | HTMLElement
+                            | undefined;
+                          if (target) {
+                            const cell = target.querySelector(
+                              "td",
+                            ) as HTMLElement | null;
+                            if (cell) {
+                              cell.click();
+                              return true;
+                            }
+                          }
+                          return false;
+                        },
+                        keyboardState.containerId ||
+                          snapshot.containerId ||
+                          null,
+                        targetIndex,
+                      );
 
-                      const maxSteps = Math.min(delta, rowsCount + 2);
-                      for (let step = 0; step < maxSteps; step++) {
-                        await this.page!.keyboard.press(direction);
-                        await this.wait(30); // Ridotto da 60ms
+                      if (rowClicked) {
+                        logger.info(
+                          `Variant row ${targetIndex}/${rowsCount} selected via DOM click (reason: ${reason})`,
+                        );
+                        await this.wait(200);
+                      } else {
+                        // Fallback: keyboard navigation
+                        logger.warn(
+                          `DOM click failed for row ${targetIndex}, falling back to ArrowDown`,
+                        );
+                        let delta =
+                          focusedIndex >= 0
+                            ? targetIndex - focusedIndex
+                            : targetIndex + 1;
+                        const direction: "ArrowDown" | "ArrowUp" =
+                          delta >= 0 ? "ArrowDown" : "ArrowUp";
+                        delta = Math.abs(delta);
+
+                        const maxSteps = Math.min(delta, rowsCount + 2);
+                        for (let step = 0; step < maxSteps; step++) {
+                          await this.page!.keyboard.press(direction);
+                          await this.wait(30);
+                        }
                       }
 
                       // Tab: seleziona variante e sposta focus al campo quantità
@@ -7898,16 +7953,75 @@ export class ArchibaldBot {
         const targetIndex = chosen.index;
 
         if (targetIndex >= 0 && targetIndex < rowsCount) {
-          let delta =
-            focusedIndex >= 0 ? targetIndex - focusedIndex : targetIndex + 1;
-          const direction: "ArrowDown" | "ArrowUp" =
-            delta >= 0 ? "ArrowDown" : "ArrowUp";
-          delta = Math.abs(delta);
+          // Primary: click the target row directly
+          const rowClicked = await this.page.evaluate(
+            (cId: string | null, targetIdx: number) => {
+              let container: Element | null = null;
+              if (cId) {
+                const byId = document.getElementById(cId);
+                if (byId && byId.getBoundingClientRect().width > 0) {
+                  container = byId;
+                }
+              }
+              if (!container) {
+                container =
+                  Array.from(
+                    document.querySelectorAll('[id*="_DDD"]'),
+                  ).find((c) => {
+                    const el = c as HTMLElement;
+                    return (
+                      el.getBoundingClientRect().width > 0 &&
+                      !!c.querySelector('tr[class*="dxgvDataRow"]')
+                    );
+                  }) || null;
+              }
+              const root = container || document;
+              const rows = Array.from(
+                root.querySelectorAll('tr[class*="dxgvDataRow"]'),
+              ).filter((row) => {
+                const el = row as HTMLElement;
+                return (
+                  el.offsetParent !== null &&
+                  el.getBoundingClientRect().width > 0
+                );
+              });
+              const target = rows[targetIdx] as HTMLElement | undefined;
+              if (target) {
+                const cell = target.querySelector("td") as HTMLElement | null;
+                if (cell) {
+                  cell.click();
+                  return true;
+                }
+              }
+              return false;
+            },
+            snapshot.containerId,
+            targetIndex,
+          );
 
-          const maxSteps = Math.min(delta, rowsCount + 2);
-          for (let step = 0; step < maxSteps; step++) {
-            await this.page.keyboard.press(direction);
-            await this.wait(30);
+          if (rowClicked) {
+            logger.info(
+              `[editOrder] Variant row ${targetIndex}/${rowsCount} selected via DOM click (reason: ${reason})`,
+            );
+            await this.wait(200);
+          } else {
+            // Fallback: keyboard navigation
+            logger.warn(
+              `[editOrder] DOM click failed for row ${targetIndex}, falling back to ArrowDown`,
+            );
+            let delta =
+              focusedIndex >= 0
+                ? targetIndex - focusedIndex
+                : targetIndex + 1;
+            const direction: "ArrowDown" | "ArrowUp" =
+              delta >= 0 ? "ArrowDown" : "ArrowUp";
+            delta = Math.abs(delta);
+
+            const maxSteps = Math.min(delta, rowsCount + 2);
+            for (let step = 0; step < maxSteps; step++) {
+              await this.page.keyboard.press(direction);
+              await this.wait(30);
+            }
           }
 
           // Tab to confirm variant selection and move to quantity field

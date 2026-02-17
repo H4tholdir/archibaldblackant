@@ -27,9 +27,11 @@
   "author": "Fresis Team",
   "license": "MIT",
   "dependencies": {
+    "@types/archiver": "^7.0.0",
     "@types/better-sqlite3": "^7.6.13",
     "@types/multer": "^2.0.0",
     "@types/ws": "^8.18.1",
+    "archiver": "^7.0.1",
     "better-sqlite3": "^12.5.0",
     "bullmq": "^5.66.4",
     "cors": "^2.8.5",

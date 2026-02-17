@@ -1,20 +1,13 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from "react";
-import { useNavigate } from "react-router-dom";
-import { HighlightText } from "../components/HighlightText";
-import { useSearchMatches } from "../hooks/useSearchMatches";
-import type {
-  FresisHistoryOrder,
-  PendingOrderItem,
-  SubClient,
-} from "../db/schema";
+import { useNavigate, useSearchParams } from "react-router-dom";
+import { useAuth } from "../hooks/useAuth";
+import type { FresisHistoryOrder } from "../db/schema";
 import {
   fresisHistoryService,
   parseLinkedIds,
   serializeLinkedIds,
 } from "../services/fresis-history.service";
 import { PDFExportService } from "../services/pdf-export.service";
-import { SubClientSelector } from "../components/new-order-form/SubClientSelector";
-import { AddItemToHistory } from "../components/new-order-form/AddItemToHistory";
 import { useFresisHistorySync } from "../hooks/useFresisHistorySync";
 import { ArcaImportModal } from "../components/ArcaImportModal";
 import { JobProgressBar } from "../components/JobProgressBar";
@@ -33,71 +26,12 @@ import {
   filterByDateRange,
   filterBySubClient,
   matchesFresisGlobalSearch,
-  computeOrderTotals,
   extractUniqueSubClients,
-  groupFresisOrdersByPeriod,
 } from "../utils/fresisHistoryFilters";
-import { formatCurrency as formatCurrencyImported } from "../utils/format-currency";
-
-const STATE_BADGE_CONFIG: Record<
-  string,
-  { label: string; bg: string; color: string }
-> = {
-  piazzato: { label: "Su Archibald", bg: "#ECEFF1", color: "#546E7A" },
-  inviato_milano: {
-    label: "In attesa approvazione",
-    bg: "#FFF9C4",
-    color: "#F57F17",
-  },
-  ordine_aperto: { label: "In lavorazione", bg: "#D7CCC8", color: "#5D4037" },
-  trasferito: { label: "In lavorazione", bg: "#D7CCC8", color: "#5D4037" },
-  transfer_error: {
-    label: "Richiede intervento",
-    bg: "#FFCDD2",
-    color: "#C62828",
-  },
-  modifica: { label: "Richiede intervento", bg: "#FFCDD2", color: "#C62828" },
-  spedito: { label: "In transito", bg: "#BBDEFB", color: "#1565C0" },
-  consegnato: { label: "Consegnato", bg: "#B3E5FC", color: "#0277BD" },
-  fatturato: { label: "Fatturato", bg: "#D1C4E9", color: "#4527A0" },
-  pagamento_scaduto: {
-    label: "Pagamento scaduto",
-    bg: "#FFE0B2",
-    color: "#E65100",
-  },
-  pagato: { label: "Pagato", bg: "#E8F5E9", color: "#2E7D32" },
-  importato_arca: {
-    label: "Importato da Arca",
-    bg: "#e9d5ff",
-    color: "#6b21a8",
-  },
-};
-
-function getStateBadge(order: FresisHistoryOrder): {
-  label: string;
-  bg: string;
-  color: string;
-} {
-  if (!order.archibaldOrderId) {
-    return { label: "In attesa", bg: "#f3f4f6", color: "#6b7280" };
-  }
-  const cfg = order.currentState
-    ? STATE_BADGE_CONFIG[order.currentState]
-    : undefined;
-  return cfg ?? { label: "In attesa", bg: "#f3f4f6", color: "#6b7280" };
-}
-
-type EditState = {
-  orderId: string;
-  items: PendingOrderItem[];
-  discountPercent: number;
-  notes: string;
-  subClientCodice: string;
-  subClientName: string;
-  subClientData: SubClient | null;
-};
-
-const VISIBLE_BATCH_SIZE = 50;
+import type { ArcaData } from "../types/arca-data";
+import { ArcaDocumentList } from "../components/arca/ArcaDocumentList";
+import { ArcaDocumentDetail } from "../components/arca/ArcaDocumentDetail";
+import { ARCA_FONT, ARCA_COLORS } from "../components/arca/arcaStyles";
 
 const TIME_PRESETS: { id: FresisTimePreset; label: string }[] = [
   { id: "today", label: "Oggi" },
@@ -108,56 +42,29 @@ const TIME_PRESETS: { id: FresisTimePreset; label: string }[] = [
   { id: "custom", label: "Personalizzato" },
 ];
 
-const formatDateDisplay = (iso: string) => {
-  try {
-    return new Date(iso).toLocaleDateString("it-IT", {
-      day: "2-digit",
-      month: "2-digit",
-      year: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
-    });
-  } catch {
-    return iso;
-  }
-};
-
-const formatCurrency = (value: number) => formatCurrencyImported(value);
-
 export function FresisHistoryPage() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const motherOrderFilter = searchParams.get("motherOrderId");
+  const auth = useAuth();
+
   const { historyOrders: wsOrders, refetch: wsRefetch } =
     useFresisHistorySync();
 
   const [loading, setLoading] = useState(true);
-  const [expandedOrderId, setExpandedOrderId] = useState<string | null>(null);
+  const [selectedOrder, setSelectedOrder] = useState<FresisHistoryOrder | null>(
+    null,
+  );
+  const [showImportModal, setShowImportModal] = useState(false);
+  const [linkingOrderId, setLinkingOrderId] = useState<string | null>(null);
+  const [syncing, setSyncing] = useState(false);
+  const [syncMessage, setSyncMessage] = useState<string | null>(null);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
   const [deletingFromArchibald, setDeletingFromArchibald] = useState<
     string | null
   >(null);
-  const [syncing, setSyncing] = useState(false);
-  const [syncMessage, setSyncMessage] = useState<string | null>(null);
   const [deleteProgress, setDeleteProgress] =
     useState<DeleteProgressState | null>(null);
-
-  useEffect(() => {
-    if (!deletingFromArchibald) return;
-    const realtimeService = FresisHistoryRealtimeService.getInstance();
-    const unsubscribe = realtimeService.onDeleteProgress(() => {
-      const progress = realtimeService.getDeleteProgress(deletingFromArchibald);
-      if (progress) setDeleteProgress({ ...progress });
-    });
-    return () => {
-      unsubscribe();
-      realtimeService.clearDeleteProgress(deletingFromArchibald);
-      setDeleteProgress(null);
-    };
-  }, [deletingFromArchibald]);
-
-  const [editState, setEditState] = useState<EditState | null>(null);
-  const [addingProduct, setAddingProduct] = useState(false);
-  const [showImportModal, setShowImportModal] = useState(false);
-  const [linkingOrderId, setLinkingOrderId] = useState<string | null>(null);
 
   // Filter state
   const [activeTimePreset, setActiveTimePreset] =
@@ -167,7 +74,7 @@ export function FresisHistoryPage() {
   const [globalSearch, setGlobalSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
 
-  // Sub-client search state
+  // Sub-client search
   const [subClientQuery, setSubClientQuery] = useState("");
   const [selectedSubClient, setSelectedSubClient] =
     useState<UniqueSubClient | null>(null);
@@ -176,48 +83,36 @@ export function FresisHistoryPage() {
     useState(-1);
   const subClientDropdownRef = useRef<HTMLDivElement>(null);
 
-  // Infinite scroll
-  const [visibleCount, setVisibleCount] = useState(VISIBLE_BATCH_SIZE);
-  const sentinelRef = useRef<HTMLDivElement>(null);
-
-  // Scroll to top
-  const [showScrollToTop, setShowScrollToTop] = useState(false);
-
-  // Search highlight navigation
-  const resultsContainerRef = useRef<HTMLDivElement>(null);
-  const { currentIndex, totalMatches, goNext, goPrev } = useSearchMatches(
-    resultsContainerRef,
-    debouncedSearch,
-  );
-
-  // Debounce global search (300ms)
+  // Delete progress listener
   useEffect(() => {
-    const timer = setTimeout(() => {
-      setDebouncedSearch(globalSearch);
-    }, 300);
+    if (!deletingFromArchibald) return;
+    const realtimeService = FresisHistoryRealtimeService.getInstance();
+    const unsubscribe = realtimeService.onDeleteProgress(() => {
+      const progress = realtimeService.getDeleteProgress(
+        deletingFromArchibald,
+      );
+      if (progress) setDeleteProgress({ ...progress });
+    });
+    return () => {
+      unsubscribe();
+      realtimeService.clearDeleteProgress(deletingFromArchibald);
+      setDeleteProgress(null);
+    };
+  }, [deletingFromArchibald]);
+
+  // Debounce global search
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedSearch(globalSearch), 300);
     return () => clearTimeout(timer);
   }, [globalSearch]);
 
-  // Loading state from ws
+  // Loading state
   useEffect(() => {
-    if (wsOrders.length > 0 || !loading) {
-      setLoading(false);
-    }
+    if (wsOrders.length > 0 || !loading) setLoading(false);
   }, [wsOrders, loading]);
-
-  // Mark loaded after first ws event
   useEffect(() => {
     const timer = setTimeout(() => setLoading(false), 1500);
     return () => clearTimeout(timer);
-  }, []);
-
-  // Scroll listener
-  useEffect(() => {
-    const handleScroll = () => {
-      setShowScrollToTop(window.scrollY > 400);
-    };
-    window.addEventListener("scroll", handleScroll, { passive: true });
-    return () => window.removeEventListener("scroll", handleScroll);
   }, []);
 
   // Click outside sub-client dropdown
@@ -241,18 +136,14 @@ export function FresisHistoryPage() {
     if (!dropdown) return;
     const items = dropdown.querySelectorAll("[data-subclient-item]");
     const item = items[highlightedSubClientIndex] as HTMLElement | undefined;
-    if (item) {
-      item.scrollIntoView({ block: "nearest" });
-    }
+    if (item) item.scrollIntoView({ block: "nearest" });
   }, [highlightedSubClientIndex]);
 
-  // Extract unique sub-clients from all orders (memoized)
   const uniqueSubClients = useMemo(
     () => extractUniqueSubClients(wsOrders),
     [wsOrders],
   );
 
-  // Sub-client autocomplete results
   const subClientResults = useMemo(() => {
     if (subClientQuery.length < 2) return [];
     const lower = subClientQuery.toLowerCase();
@@ -267,61 +158,37 @@ export function FresisHistoryPage() {
   const filteredOrders = useMemo(() => {
     let result = wsOrders;
 
-    // 1. Filter by sub-client
+    if (motherOrderFilter) {
+      result = result.filter(
+        (o) =>
+          o.mergedIntoOrderId === motherOrderFilter ||
+          o.archibaldOrderId === motherOrderFilter,
+      );
+    }
     if (selectedSubClient) {
       result = filterBySubClient(result, selectedSubClient.codice);
     }
-
-    // 2. Filter by date range
     if (dateFrom || dateTo) {
       result = filterByDateRange(result, dateFrom, dateTo);
     }
-
-    // 3. Filter by global search
     if (debouncedSearch) {
       result = result.filter((o) =>
         matchesFresisGlobalSearch(o, debouncedSearch),
       );
     }
-
     return result;
-  }, [wsOrders, selectedSubClient, dateFrom, dateTo, debouncedSearch]);
+  }, [wsOrders, motherOrderFilter, selectedSubClient, dateFrom, dateTo, debouncedSearch]);
 
-  // Reset visible count when filters change
+  // Keep selectedOrder in sync with data changes
   useEffect(() => {
-    setVisibleCount(VISIBLE_BATCH_SIZE);
-  }, [selectedSubClient, dateFrom, dateTo, debouncedSearch]);
-
-  // Visible orders (infinite scroll slice)
-  const visibleOrders = useMemo(
-    () => filteredOrders.slice(0, visibleCount),
-    [filteredOrders, visibleCount],
-  );
-
-  // Grouped by period
-  const orderGroups = useMemo(
-    () => groupFresisOrdersByPeriod(visibleOrders),
-    [visibleOrders],
-  );
-
-  // IntersectionObserver for infinite scroll
-  useEffect(() => {
-    const sentinel = sentinelRef.current;
-    if (!sentinel) return;
-
-    const observer = new IntersectionObserver(
-      (entries) => {
-        if (entries[0].isIntersecting && visibleCount < filteredOrders.length) {
-          setVisibleCount((prev) =>
-            Math.min(prev + VISIBLE_BATCH_SIZE, filteredOrders.length),
-          );
-        }
-      },
-      { rootMargin: "200px" },
-    );
-    observer.observe(sentinel);
-    return () => observer.disconnect();
-  }, [visibleCount, filteredOrders.length]);
+    if (!selectedOrder) return;
+    const updated = filteredOrders.find((o) => o.id === selectedOrder.id);
+    if (updated) {
+      setSelectedOrder(updated);
+    } else {
+      setSelectedOrder(null);
+    }
+  }, [filteredOrders, selectedOrder?.id]);
 
   // Time preset handler
   const handleTimePreset = (preset: FresisTimePreset) => {
@@ -348,7 +215,9 @@ export function FresisHistoryPage() {
     setHighlightedSubClientIndex(-1);
   };
 
-  const handleSubClientKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+  const handleSubClientKeyDown = (
+    e: React.KeyboardEvent<HTMLInputElement>,
+  ) => {
     if (subClientResults.length === 0) return;
     switch (e.key) {
       case "ArrowDown":
@@ -409,26 +278,11 @@ export function FresisHistoryPage() {
     }
   };
 
-  const handleMarkDelivered = async (order: FresisHistoryOrder) => {
-    try {
-      await fresisHistoryService.updateHistoryOrder(order.id, {
-        currentState: "consegnato",
-        deliveryCompletedDate: new Date().toISOString(),
-        stateUpdatedAt: new Date().toISOString(),
-      });
-      await wsRefetch();
-    } catch (err) {
-      console.error("[FresisHistoryPage] Mark delivered failed:", err);
-    }
-  };
-
   const isDraftInArchibald = (order: FresisHistoryOrder): boolean => {
     if (!order.archibaldOrderId) return false;
     if (order.currentState === "piazzato") return true;
-    // If it has an archibald number starting with ORD/ it was sent to Verona
     const numbers = parseLinkedIds(order.archibaldOrderNumber);
-    const hasSentNumber = numbers.some((n) => n.startsWith("ORD/"));
-    return !hasSentNumber;
+    return !numbers.some((n) => n.startsWith("ORD/"));
   };
 
   const handleDelete = async (id: string) => {
@@ -448,83 +302,12 @@ export function FresisHistoryPage() {
         await fresisHistoryService.deleteHistoryOrder(id);
       }
       setDeleteConfirmId(null);
+      setSelectedOrder(null);
       await wsRefetch();
     } catch (err) {
       console.error("[FresisHistoryPage] Delete failed:", err);
       setDeletingFromArchibald(null);
     }
-  };
-
-  const handleStartEdit = (order: FresisHistoryOrder) => {
-    setEditState({
-      orderId: order.id,
-      items: order.items.map((item) => ({ ...item })),
-      discountPercent: order.discountPercent ?? 0,
-      notes: order.notes ?? "",
-      subClientCodice: order.subClientCodice,
-      subClientName: order.subClientName,
-      subClientData: order.subClientData ?? null,
-    });
-    setAddingProduct(false);
-  };
-
-  const handleCancelEdit = () => {
-    setEditState(null);
-    setAddingProduct(false);
-  };
-
-  const handleSaveEdit = async () => {
-    if (!editState) return;
-    if (editState.items.length === 0) return;
-    const hasInvalidQty = editState.items.some(
-      (item) => !item.quantity || item.quantity <= 0,
-    );
-    if (hasInvalidQty) return;
-
-    try {
-      await fresisHistoryService.updateHistoryOrder(editState.orderId, {
-        items: editState.items,
-        discountPercent: editState.discountPercent,
-        notes: editState.notes || undefined,
-        subClientCodice: editState.subClientCodice,
-        subClientName: editState.subClientName,
-        subClientData: editState.subClientData ?? undefined,
-      });
-      setEditState(null);
-      setAddingProduct(false);
-      await wsRefetch();
-    } catch (err) {
-      console.error("[FresisHistoryPage] Save edit failed:", err);
-    }
-  };
-
-  const handleEditItemQty = (idx: number, qty: number) => {
-    if (!editState) return;
-    const newItems = [...editState.items];
-    newItems[idx] = { ...newItems[idx], quantity: qty };
-    setEditState({ ...editState, items: newItems });
-  };
-
-  const handleEditItemPrice = (idx: number, price: number) => {
-    if (!editState) return;
-    const newItems = [...editState.items];
-    newItems[idx] = { ...newItems[idx], price };
-    setEditState({ ...editState, items: newItems });
-  };
-
-  const handleRemoveItem = (idx: number) => {
-    if (!editState) return;
-    const newItems = editState.items.filter((_, i) => i !== idx);
-    setEditState({ ...editState, items: newItems });
-  };
-
-  const handleAddItems = (newItems: PendingOrderItem[]) => {
-    if (!editState) return;
-    setEditState({
-      ...editState,
-      items: [...editState.items, ...newItems],
-    });
-    setAddingProduct(false);
   };
 
   const handleLinkOrder = async (
@@ -546,6 +329,8 @@ export function FresisHistoryPage() {
   };
 
   const handleUnlinkOrder = async (historyId: string) => {
+    if (!window.confirm("Sei sicuro di voler scollegare questo ordine?"))
+      return;
     try {
       await fresisHistoryService.updateHistoryOrder(historyId, {
         archibaldOrderId: undefined,
@@ -567,232 +352,272 @@ export function FresisHistoryPage() {
     );
   }, []);
 
-  const isEditingOrder = (orderId: string) => editState?.orderId === orderId;
+  const handleSelectInList = useCallback((order: FresisHistoryOrder) => {
+    setSelectedOrder(order);
+    setDeleteConfirmId(null);
+  }, []);
+
+  const handleDoubleClickInList = useCallback(
+    (order: FresisHistoryOrder) => {
+      setSelectedOrder(order);
+      if (order.archibaldOrderId) {
+        const firstId = parseLinkedIds(order.archibaldOrderId)[0];
+        if (firstId) navigate(`/orders?highlight=${firstId}`);
+      }
+    },
+    [navigate],
+  );
+
+  const handleDeleteFromDetail = useCallback(
+    (id: string) => {
+      if (deleteConfirmId === id) {
+        handleDelete(id);
+      } else {
+        setDeleteConfirmId(id);
+      }
+    },
+    [deleteConfirmId],
+  );
+
+  const handleSaveArcaData = useCallback(
+    async (orderId: string, arcaData: ArcaData) => {
+      try {
+        const arcaDataStr = JSON.stringify(arcaData);
+        await fresisHistoryService.updateHistoryOrder(orderId, {
+          arcaData: arcaDataStr,
+          targetTotalWithVAT: arcaData.testata.TOTDOC,
+          shippingCost:
+            arcaData.testata.SPESETR +
+            arcaData.testata.SPESEIM +
+            arcaData.testata.SPESEVA,
+          notes: arcaData.testata.NOTE || undefined,
+        });
+        await wsRefetch();
+      } catch (err) {
+        console.error("[FresisHistoryPage] Save arca data failed:", err);
+      }
+    },
+    [wsRefetch],
+  );
+
+  const [exporting, setExporting] = useState(false);
+  const [showExportPanel, setShowExportPanel] = useState(false);
+  const [exportFrom, setExportFrom] = useState("");
+  const [exportTo, setExportTo] = useState("");
+
+  const handleExportArca = useCallback(async () => {
+    if (!auth.token) return;
+    setExporting(true);
+    try {
+      const params = new URLSearchParams();
+      if (exportFrom) params.set("from", exportFrom);
+      if (exportTo) params.set("to", exportTo);
+      const qs = params.toString();
+      const url = `/api/fresis-history/export-arca${qs ? `?${qs}` : ""}`;
+
+      const resp = await fetch(url, {
+        headers: { Authorization: `Bearer ${auth.token}` },
+      });
+
+      if (!resp.ok) {
+        const body = await resp.json().catch(() => null);
+        alert(body?.error || "Errore durante l'esportazione");
+        return;
+      }
+
+      const blob = await resp.blob();
+      const blobUrl = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = blobUrl;
+      const dateSuffix = exportFrom || exportTo ? `_${exportFrom || ""}_${exportTo || ""}` : "";
+      a.download = `export-arca${dateSuffix}.zip`;
+      a.click();
+      URL.revokeObjectURL(blobUrl);
+      setShowExportPanel(false);
+    } catch (err) {
+      console.error("[FresisHistoryPage] Export failed:", err);
+      alert("Errore durante l'esportazione");
+    } finally {
+      setExporting(false);
+    }
+  }, [auth.token, exportFrom, exportTo]);
+
+  // List height calculation
+  const listHeight = selectedOrder ? 320 : 600;
 
   return (
     <div
       style={{
         maxWidth: "1200px",
         margin: "0 auto",
-        padding: "24px",
+        padding: "16px",
         backgroundColor: "#f5f5f5",
         minHeight: "100vh",
+        ...ARCA_FONT,
       }}
     >
       {/* Header */}
       <div
         style={{
-          marginBottom: "24px",
+          marginBottom: "12px",
           display: "flex",
           justifyContent: "space-between",
           alignItems: "center",
           flexWrap: "wrap",
-          gap: "16px",
+          gap: "8px",
         }}
       >
         <div>
-          <h1
-            style={{
-              fontSize: "28px",
-              fontWeight: 700,
-              color: "#333",
-              marginBottom: "8px",
-            }}
-          >
+          <h1 style={{ fontSize: "20px", fontWeight: 700, color: "#333", margin: 0 }}>
             Storico Fresis
           </h1>
-          <p style={{ fontSize: "16px", color: "#666" }}>
-            Consulta lo storico ordini Fresis e il loro stato
-          </p>
+          <span style={{ fontSize: "12px", color: "#888" }}>
+            {filteredOrders.length} documenti
+            {filteredOrders.length !== wsOrders.length &&
+              ` di ${wsOrders.length}`}
+            {motherOrderFilter && " (filtro ordine madre)"}
+          </span>
         </div>
-        <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
-          <button
-            onClick={() => alert("Funzionalita' in arrivo")}
-            style={{
-              padding: "10px 16px",
-              fontSize: "14px",
-              fontWeight: 600,
-              backgroundColor: "#fff",
-              color: "#333",
-              border: "1px solid #ddd",
-              borderRadius: "8px",
-              cursor: "pointer",
-            }}
-          >
-            Report
-          </button>
-          <button
-            onClick={() => setShowImportModal(true)}
-            style={{
-              padding: "10px 16px",
-              fontSize: "14px",
-              fontWeight: 600,
-              backgroundColor: "#fff",
-              color: "#333",
-              border: "1px solid #ddd",
-              borderRadius: "8px",
-              cursor: "pointer",
-            }}
-          >
+        <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
+          <button onClick={() => setShowImportModal(true)} style={headerBtnStyle}>
             Importa da Arca
           </button>
           <button
             onClick={handleSyncLifecycles}
             disabled={syncing}
             style={{
-              padding: "10px 16px",
-              fontSize: "14px",
-              fontWeight: 600,
+              ...headerBtnStyle,
               backgroundColor: syncing ? "#93c5fd" : "#1976d2",
               color: "#fff",
               border: "none",
-              borderRadius: "8px",
-              cursor: syncing ? "default" : "pointer",
             }}
           >
             {syncing ? "Aggiornamento..." : "Aggiorna Stati"}
           </button>
+          <button
+            onClick={() => setShowExportPanel((v) => !v)}
+            style={{
+              ...headerBtnStyle,
+              backgroundColor: "#2e7d32",
+              color: "#fff",
+              border: "none",
+            }}
+          >
+            Esporta verso Arca
+          </button>
           {syncMessage && (
-            <span
-              style={{
-                fontSize: "13px",
-                color: "#666",
-                alignSelf: "center",
-              }}
-            >
+            <span style={{ fontSize: "11px", color: "#666", alignSelf: "center" }}>
               {syncMessage}
             </span>
           )}
         </div>
       </div>
 
+      {/* Export panel */}
+      {showExportPanel && (
+        <div
+          style={{
+            backgroundColor: "#fff",
+            borderRadius: "8px",
+            padding: "12px",
+            marginBottom: "12px",
+            boxShadow: "0 1px 4px rgba(0,0,0,0.08)",
+            border: "1px solid #2e7d32",
+            display: "flex",
+            gap: "12px",
+            alignItems: "flex-end",
+            flexWrap: "wrap",
+          }}
+        >
+          <div>
+            <label style={filterLabelStyle}>Da (opzionale)</label>
+            <input
+              type="date"
+              value={exportFrom}
+              onChange={(e) => setExportFrom(e.target.value)}
+              style={filterInputStyle}
+            />
+          </div>
+          <div>
+            <label style={filterLabelStyle}>A (opzionale)</label>
+            <input
+              type="date"
+              value={exportTo}
+              onChange={(e) => setExportTo(e.target.value)}
+              style={filterInputStyle}
+            />
+          </div>
+          <button
+            onClick={handleExportArca}
+            disabled={exporting}
+            style={{
+              ...headerBtnStyle,
+              backgroundColor: exporting ? "#81c784" : "#2e7d32",
+              color: "#fff",
+              border: "none",
+            }}
+          >
+            {exporting ? "Esportazione..." : "Scarica ZIP (DBF)"}
+          </button>
+          <button
+            onClick={() => setShowExportPanel(false)}
+            style={headerBtnStyle}
+          >
+            Chiudi
+          </button>
+        </div>
+      )}
+
       {/* Filter bar */}
       <div
         style={{
           backgroundColor: "#fff",
-          borderRadius: "12px",
-          padding: "20px",
-          marginBottom: "24px",
-          boxShadow: "0 2px 8px rgba(0, 0, 0, 0.1)",
+          borderRadius: "8px",
+          padding: "12px",
+          marginBottom: "12px",
+          boxShadow: "0 1px 4px rgba(0,0,0,0.08)",
         }}
       >
-        {/* Row 1: Sub-client search + Global search */}
-        <div
-          style={{
-            display: "flex",
-            gap: "16px",
-            marginBottom: "16px",
-            flexWrap: "wrap",
-          }}
-        >
+        {/* Row 1: Sub-client + Global search */}
+        <div style={{ display: "flex", gap: "12px", marginBottom: "8px", flexWrap: "wrap" }}>
           {/* Sub-client search */}
           <div
             ref={subClientDropdownRef}
-            style={{
-              flex: "1 1 45%",
-              minWidth: "250px",
-              position: "relative",
-            }}
+            style={{ flex: "1 1 45%", minWidth: "200px", position: "relative" }}
           >
-            <label
-              htmlFor="subclient-search"
-              style={{
-                display: "block",
-                fontSize: "14px",
-                fontWeight: 600,
-                color: "#333",
-                marginBottom: "8px",
-              }}
-            >
-              Sotto-cliente
-            </label>
+            <label style={filterLabelStyle}>Sotto-cliente</label>
             {selectedSubClient ? (
-              <div
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "8px",
-                  padding: "8px 12px",
-                  backgroundColor: "#E8F5E9",
-                  border: "1px solid #4CAF50",
-                  borderRadius: "8px",
-                }}
-              >
-                <span style={{ fontWeight: 600, color: "#2E7D32", flex: 1 }}>
+              <div style={selectedChipStyle}>
+                <span style={{ fontWeight: 600, color: "#2E7D32", flex: 1, fontSize: "12px" }}>
                   {selectedSubClient.name}
                 </span>
-                <span style={{ color: "#666", fontSize: "12px" }}>
+                <span style={{ color: "#666", fontSize: "10px" }}>
                   {selectedSubClient.codice}
                 </span>
-                <button
-                  onClick={handleClearSubClient}
-                  style={{
-                    background: "none",
-                    border: "none",
-                    cursor: "pointer",
-                    fontSize: "16px",
-                    color: "#666",
-                    padding: "2px 6px",
-                    borderRadius: "4px",
-                  }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.backgroundColor = "#C8E6C9";
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.backgroundColor = "transparent";
-                  }}
-                >
-                  {"\u2715"}
+                <button onClick={handleClearSubClient} style={chipCloseStyle}>
+                  X
                 </button>
               </div>
             ) : (
               <>
                 <input
-                  id="subclient-search"
                   type="text"
-                  placeholder="Cerca sotto-cliente per nome o codice..."
+                  placeholder="Cerca per nome o codice..."
                   value={subClientQuery}
                   onChange={(e) => {
                     setSubClientQuery(e.target.value);
                     setHighlightedSubClientIndex(-1);
-                    if (e.target.value.length >= 2) {
-                      setShowSubClientDropdown(true);
-                    } else {
-                      setShowSubClientDropdown(false);
-                    }
+                    setShowSubClientDropdown(e.target.value.length >= 2);
                   }}
                   onKeyDown={handleSubClientKeyDown}
                   onFocus={() => {
-                    if (subClientResults.length > 0)
-                      setShowSubClientDropdown(true);
+                    if (subClientResults.length > 0) setShowSubClientDropdown(true);
                   }}
                   autoComplete="off"
-                  style={{
-                    width: "100%",
-                    padding: "10px 12px",
-                    fontSize: "14px",
-                    border: "1px solid #ddd",
-                    borderRadius: "8px",
-                    outline: "none",
-                    boxSizing: "border-box",
-                  }}
+                  style={filterInputStyle}
                 />
                 {showSubClientDropdown && subClientResults.length > 0 && (
-                  <div
-                    style={{
-                      position: "absolute",
-                      top: "100%",
-                      left: 0,
-                      right: 0,
-                      zIndex: 1000,
-                      backgroundColor: "#fff",
-                      border: "1px solid #ddd",
-                      borderRadius: "8px",
-                      maxHeight: "300px",
-                      overflowY: "auto",
-                      boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
-                    }}
-                  >
+                  <div style={dropdownStyle}>
                     {subClientResults.map((sc, index) => (
                       <div
                         key={sc.codice}
@@ -800,7 +625,7 @@ export function FresisHistoryPage() {
                         onClick={() => handleSelectSubClient(sc)}
                         onMouseEnter={() => setHighlightedSubClientIndex(index)}
                         style={{
-                          padding: "10px 12px",
+                          padding: "6px 8px",
                           cursor: "pointer",
                           borderBottom:
                             index < subClientResults.length - 1
@@ -812,18 +637,11 @@ export function FresisHistoryPage() {
                               : "#fff",
                           display: "flex",
                           justifyContent: "space-between",
-                          alignItems: "baseline",
+                          fontSize: "12px",
                         }}
                       >
-                        <strong style={{ fontSize: "14px" }}>{sc.name}</strong>
-                        <span
-                          style={{
-                            marginLeft: "8px",
-                            color: "#6b7280",
-                            fontSize: "12px",
-                            flexShrink: 0,
-                          }}
-                        >
+                        <strong>{sc.name}</strong>
+                        <span style={{ color: "#999", fontSize: "10px" }}>
                           {sc.codice}
                         </span>
                       </div>
@@ -833,1450 +651,238 @@ export function FresisHistoryPage() {
               </>
             )}
           </div>
-
           {/* Global search */}
-          <div style={{ flex: "1 1 45%", minWidth: "250px" }}>
-            <label
-              htmlFor="global-search"
-              style={{
-                display: "block",
-                fontSize: "14px",
-                fontWeight: 600,
-                color: "#333",
-                marginBottom: "8px",
-              }}
-            >
-              Ricerca globale
-            </label>
+          <div style={{ flex: "1 1 45%", minWidth: "200px" }}>
+            <label style={filterLabelStyle}>Ricerca globale</label>
             <input
-              id="global-search"
               type="text"
-              placeholder="Cerca negli ordini filtrati..."
+              placeholder="Cerca articoli, codici, DDT, fatture..."
               value={globalSearch}
               onChange={(e) => setGlobalSearch(e.target.value)}
-              style={{
-                width: "100%",
-                padding: "10px 12px",
-                fontSize: "14px",
-                border: "1px solid #ddd",
-                borderRadius: "8px",
-                outline: "none",
-                boxSizing: "border-box",
-              }}
-              onFocus={(e) => {
-                e.currentTarget.style.borderColor = "#1976d2";
-              }}
-              onBlur={(e) => {
-                e.currentTarget.style.borderColor = "#ddd";
-              }}
+              style={filterInputStyle}
             />
-            <div
-              style={{
-                fontSize: "11px",
-                color: "#999",
-                marginTop: "4px",
-              }}
-            >
-              Cerca per sotto-cliente, articolo, codice, DDT, fattura...
-            </div>
           </div>
         </div>
 
         {/* Row 2: Time presets */}
-        <div style={{ marginBottom: "12px" }}>
-          <label
-            style={{
-              display: "block",
-              fontSize: "14px",
-              fontWeight: 600,
-              color: "#333",
-              marginBottom: "8px",
-            }}
-          >
-            Periodo
-          </label>
-          <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
-            {TIME_PRESETS.map((preset) => {
-              const isActive = activeTimePreset === preset.id;
-              return (
-                <button
-                  key={preset.id}
-                  onClick={() => handleTimePreset(preset.id)}
-                  style={{
-                    padding: "6px 14px",
-                    fontSize: "13px",
-                    fontWeight: 500,
-                    border: isActive ? "1px solid #1976d2" : "1px solid #ddd",
-                    borderRadius: "20px",
-                    backgroundColor: isActive ? "#E3F2FD" : "#fff",
-                    color: isActive ? "#1976d2" : "#666",
-                    cursor: "pointer",
-                    transition: "all 0.2s",
-                  }}
-                  onMouseEnter={(e) => {
-                    if (!isActive) {
-                      e.currentTarget.style.backgroundColor = "#f5f5f5";
-                    }
-                  }}
-                  onMouseLeave={(e) => {
-                    if (!isActive) {
-                      e.currentTarget.style.backgroundColor = "#fff";
-                    }
-                  }}
-                >
-                  {preset.label}
-                </button>
-              );
-            })}
-          </div>
-        </div>
-
-        {/* Row 3: Custom date inputs */}
-        {activeTimePreset === "custom" && (
-          <div
-            style={{
-              display: "flex",
-              gap: "16px",
-              marginBottom: "12px",
-              flexWrap: "wrap",
-            }}
-          >
-            <div style={{ flex: "1 1 200px", minWidth: "150px" }}>
-              <label
-                htmlFor="date-from"
+        <div style={{ display: "flex", gap: "4px", flexWrap: "wrap", marginBottom: "4px" }}>
+          {TIME_PRESETS.map((preset) => {
+            const isActive = activeTimePreset === preset.id;
+            return (
+              <button
+                key={preset.id}
+                onClick={() => handleTimePreset(preset.id)}
                 style={{
-                  display: "block",
-                  fontSize: "13px",
-                  fontWeight: 600,
-                  color: "#333",
-                  marginBottom: "6px",
+                  padding: "3px 10px",
+                  fontSize: "11px",
+                  fontWeight: isActive ? 600 : 400,
+                  border: isActive ? "1px solid #1976d2" : "1px solid #ddd",
+                  borderRadius: "12px",
+                  backgroundColor: isActive ? "#E3F2FD" : "#fff",
+                  color: isActive ? "#1976d2" : "#666",
+                  cursor: "pointer",
                 }}
               >
-                Da
-              </label>
+                {preset.label}
+              </button>
+            );
+          })}
+          {hasActiveFilters && (
+            <button onClick={handleClearFilters} style={clearFilterBtnStyle}>
+              X Azzera filtri
+            </button>
+          )}
+        </div>
+
+        {/* Custom date inputs */}
+        {activeTimePreset === "custom" && (
+          <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+            <div style={{ flex: "1 1 150px" }}>
+              <label style={filterLabelStyle}>Da</label>
               <input
-                id="date-from"
                 type="date"
                 value={dateFrom}
                 onChange={(e) => {
                   setDateFrom(e.target.value);
                   setActiveTimePreset("custom");
                 }}
-                style={{
-                  width: "100%",
-                  padding: "8px 12px",
-                  fontSize: "14px",
-                  border: "1px solid #ddd",
-                  borderRadius: "8px",
-                  outline: "none",
-                  boxSizing: "border-box",
-                }}
+                style={filterInputStyle}
               />
             </div>
-            <div style={{ flex: "1 1 200px", minWidth: "150px" }}>
-              <label
-                htmlFor="date-to"
-                style={{
-                  display: "block",
-                  fontSize: "13px",
-                  fontWeight: 600,
-                  color: "#333",
-                  marginBottom: "6px",
-                }}
-              >
-                A
-              </label>
+            <div style={{ flex: "1 1 150px" }}>
+              <label style={filterLabelStyle}>A</label>
               <input
-                id="date-to"
                 type="date"
                 value={dateTo}
                 onChange={(e) => {
                   setDateTo(e.target.value);
                   setActiveTimePreset("custom");
                 }}
-                style={{
-                  width: "100%",
-                  padding: "8px 12px",
-                  fontSize: "14px",
-                  border: "1px solid #ddd",
-                  borderRadius: "8px",
-                  outline: "none",
-                  boxSizing: "border-box",
-                }}
+                style={filterInputStyle}
               />
             </div>
           </div>
         )}
-
-        {/* Clear filters */}
-        {hasActiveFilters && (
-          <div style={{ display: "flex", justifyContent: "flex-end" }}>
-            <button
-              onClick={handleClearFilters}
-              style={{
-                padding: "8px 16px",
-                fontSize: "14px",
-                fontWeight: 600,
-                border: "1px solid #f44336",
-                borderRadius: "8px",
-                backgroundColor: "#fff",
-                color: "#f44336",
-                cursor: "pointer",
-                transition: "all 0.2s",
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.backgroundColor = "#f44336";
-                e.currentTarget.style.color = "#fff";
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.backgroundColor = "#fff";
-                e.currentTarget.style.color = "#f44336";
-              }}
-            >
-              {"\u2715"} Cancella tutti i filtri
-            </button>
-          </div>
-        )}
       </div>
 
-      {/* Loading state */}
+      {/* Loading */}
       {loading && (
-        <div
-          style={{
-            textAlign: "center",
-            padding: "40px",
-            backgroundColor: "#fff",
-            borderRadius: "12px",
-            boxShadow: "0 2px 8px rgba(0, 0, 0, 0.1)",
-          }}
-        >
-          <div
-            style={{
-              fontSize: "48px",
-              marginBottom: "16px",
-              animation: "spin 1s linear infinite",
-            }}
-          >
-            {"\u23f3"}
-          </div>
-          <p style={{ fontSize: "16px", color: "#666" }}>
-            Caricamento ordini...
-          </p>
-          <style>
-            {`
-              @keyframes spin {
-                from { transform: rotate(0deg); }
-                to { transform: rotate(360deg); }
-              }
-            `}
-          </style>
+        <div style={{ textAlign: "center", padding: "40px" }}>
+          <p style={{ fontSize: "14px", color: "#666" }}>Caricamento...</p>
         </div>
       )}
 
-      {/* Empty state */}
+      {/* Empty */}
       {!loading && wsOrders.length === 0 && (
-        <div
-          style={{
-            textAlign: "center",
-            padding: "40px",
-            backgroundColor: "#fff",
-            borderRadius: "12px",
-            boxShadow: "0 2px 8px rgba(0, 0, 0, 0.1)",
-          }}
-        >
-          <div style={{ fontSize: "64px", marginBottom: "16px" }}>
-            {"\ud83d\udced"}
-          </div>
-          <p
-            style={{
-              fontSize: "18px",
-              fontWeight: 600,
-              color: "#333",
-              marginBottom: "8px",
-            }}
-          >
+        <div style={{ textAlign: "center", padding: "40px", backgroundColor: "#fff", borderRadius: "8px" }}>
+          <p style={{ fontSize: "16px", fontWeight: 600, color: "#333" }}>
             Nessun ordine archiviato
           </p>
-          <p style={{ fontSize: "14px", color: "#666" }}>
-            Gli ordini compariranno qui quando saranno archiviati
-          </p>
         </div>
       )}
 
-      {/* No results after filtering */}
+      {/* No results */}
       {!loading && wsOrders.length > 0 && filteredOrders.length === 0 && (
-        <div
-          style={{
-            textAlign: "center",
-            padding: "40px",
-            backgroundColor: "#fff",
-            borderRadius: "12px",
-            boxShadow: "0 2px 8px rgba(0, 0, 0, 0.1)",
-          }}
-        >
-          <div style={{ fontSize: "48px", marginBottom: "16px" }}>
-            {"\ud83d\udd0d"}
-          </div>
-          <p
-            style={{
-              fontSize: "16px",
-              fontWeight: 600,
-              color: "#333",
-              marginBottom: "8px",
-            }}
-          >
-            Nessun ordine corrisponde ai filtri
+        <div style={{ textAlign: "center", padding: "24px", backgroundColor: "#fff", borderRadius: "8px" }}>
+          <p style={{ fontSize: "14px", color: "#333" }}>
+            Nessun ordine corrisponde ai filtri ({wsOrders.length} totali)
           </p>
-          <p
-            style={{
-              fontSize: "14px",
-              color: "#666",
-              marginBottom: "16px",
-            }}
-          >
-            {wsOrders.length} ordini totali, nessuno corrisponde ai filtri
-            attivi
-          </p>
-          <button
-            onClick={handleClearFilters}
-            style={{
-              padding: "10px 20px",
-              fontSize: "14px",
-              fontWeight: 600,
-              backgroundColor: "#1976d2",
-              color: "#fff",
-              border: "none",
-              borderRadius: "8px",
-              cursor: "pointer",
-            }}
-          >
+          <button onClick={handleClearFilters} style={{ ...headerBtnStyle, marginTop: "8px" }}>
             Cancella filtri
           </button>
         </div>
       )}
 
-      {/* Orders list */}
+      {/* Main content: List + Detail */}
       {!loading && filteredOrders.length > 0 && (
-        <div>
-          {/* Results summary */}
-          <div
-            style={{
-              fontSize: "13px",
-              color: "#888",
-              marginBottom: "12px",
-            }}
-          >
-            Visualizzati {visibleOrders.length} di {filteredOrders.length}{" "}
-            ordini
-            {filteredOrders.length !== wsOrders.length &&
-              ` (${wsOrders.length} totali)`}
-          </div>
+        <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+          {/* Document list */}
+          <ArcaDocumentList
+            orders={filteredOrders}
+            selectedId={selectedOrder?.id ?? null}
+            onSelect={handleSelectInList}
+            onDoubleClick={handleDoubleClickInList}
+            height={listHeight}
+          />
 
-          {/* Search navigation bar */}
-          {debouncedSearch && totalMatches > 0 && (
+          {/* Detail panel */}
+          {selectedOrder && (
             <div
               style={{
-                position: "sticky",
-                top: 0,
-                zIndex: 100,
-                display: "flex",
-                alignItems: "center",
-                gap: "12px",
-                padding: "8px 16px",
                 backgroundColor: "#fff",
-                border: "1px solid #e5e7eb",
-                borderRadius: "8px",
-                marginBottom: "12px",
-                boxShadow: "0 2px 4px rgba(0,0,0,0.1)",
+                border: `1px solid ${ARCA_COLORS.borderDark}`,
+                borderRadius: "2px",
+                overflow: "auto",
               }}
             >
-              <button
-                onClick={goPrev}
-                style={{
-                  padding: "4px 10px",
-                  fontSize: "14px",
-                  border: "1px solid #d1d5db",
-                  borderRadius: "6px",
-                  backgroundColor: "#fff",
-                  cursor: "pointer",
-                }}
-              >
-                {"\u25C0"}
-              </button>
-              <span
-                style={{ fontSize: "13px", fontWeight: 500, color: "#333" }}
-              >
-                Risultato {currentIndex + 1} di {totalMatches}
-              </span>
-              <button
-                onClick={goNext}
-                style={{
-                  padding: "4px 10px",
-                  fontSize: "14px",
-                  border: "1px solid #d1d5db",
-                  borderRadius: "6px",
-                  backgroundColor: "#fff",
-                  cursor: "pointer",
-                }}
-              >
-                {"\u25B6"}
-              </button>
-              <span
-                style={{
-                  fontSize: "12px",
-                  color: "#888",
-                  borderLeft: "1px solid #e5e7eb",
-                  paddingLeft: "12px",
-                }}
-              >
-                &quot;{debouncedSearch}&quot; in {filteredOrders.length} ordini
-              </span>
-            </div>
-          )}
-
-          <div ref={resultsContainerRef}>
-            {orderGroups.map((group) => (
-              <div key={group.period} style={{ marginBottom: "32px" }}>
-                <h2
-                  style={{
-                    fontSize: "20px",
-                    fontWeight: 700,
-                    color: "#333",
-                    marginBottom: "16px",
-                    paddingLeft: "4px",
-                  }}
-                >
-                  {group.period}
-                </h2>
-
+              {/* Delete confirmation bar */}
+              {deleteConfirmId === selectedOrder.id && (
                 <div
                   style={{
+                    padding: "6px 12px",
+                    backgroundColor: "#fee2e2",
+                    borderBottom: "1px solid #fca5a5",
                     display: "flex",
-                    flexDirection: "column",
-                    gap: "12px",
+                    alignItems: "center",
+                    gap: "8px",
+                    fontSize: "12px",
                   }}
                 >
-                  {group.orders.map((order) => {
-                    const isExpanded = debouncedSearch
-                      ? true
-                      : expandedOrderId === order.id;
-                    const editing = isEditingOrder(order.id);
-                    const isDeleting = deleteConfirmId === order.id;
-                    const displayItems = editing
-                      ? editState!.items
-                      : order.items;
-                    const discountPercent = editing
-                      ? editState!.discountPercent
-                      : (order.discountPercent ?? 0);
-                    const hasRowDiscounts = displayItems.some(
-                      (item) => item.discount && item.discount > 0,
-                    );
-                    const { totalItems, totalGross, totalNet } =
-                      computeOrderTotals(displayItems, 0);
-                    const badge = getStateBadge(order);
-
-                    const liveDocTotal =
-                      totalNet * (1 - discountPercent / 100) +
-                      (order.shippingCost ?? 0) +
-                      (order.shippingTax ?? 0);
-
-                    return (
-                      <div
-                        key={order.id}
-                        style={{
-                          border: editing
-                            ? "2px solid #f59e0b"
-                            : "1px solid #e5e7eb",
-                          borderRadius: "12px",
-                          overflow: "hidden",
-                          background: "#fff",
-                          boxShadow: "0 1px 3px rgba(0,0,0,0.08)",
-                          contentVisibility: "auto",
-                        }}
-                      >
-                        {/* Header */}
-                        <div
-                          onClick={() =>
-                            !editing &&
-                            !debouncedSearch &&
-                            setExpandedOrderId(isExpanded ? null : order.id)
-                          }
-                          style={{
-                            padding: "12px 16px",
-                            cursor: editing ? "default" : "pointer",
-                            display: "flex",
-                            justifyContent: "space-between",
-                            alignItems: "center",
-                          }}
-                        >
-                          <div>
-                            <div
-                              style={{
-                                display: "flex",
-                                alignItems: "center",
-                                gap: "8px",
-                                flexWrap: "wrap",
-                              }}
-                            >
-                              <span
-                                style={{
-                                  fontWeight: 600,
-                                  fontSize: "15px",
-                                  color: "#333",
-                                }}
-                              >
-                                <HighlightText
-                                  text={
-                                    editing
-                                      ? editState!.subClientName
-                                      : order.subClientName
-                                  }
-                                  query={debouncedSearch}
-                                />
-                              </span>
-                              <span
-                                style={{
-                                  fontSize: "11px",
-                                  padding: "2px 8px",
-                                  borderRadius: "9999px",
-                                  background: badge.bg,
-                                  color: badge.color,
-                                  fontWeight: 500,
-                                  whiteSpace: "nowrap",
-                                }}
-                              >
-                                {badge.label}
-                              </span>
-                              {editing && (
-                                <span
-                                  style={{
-                                    fontSize: "11px",
-                                    padding: "2px 8px",
-                                    borderRadius: "9999px",
-                                    background: "#fef3c7",
-                                    color: "#92400e",
-                                    fontWeight: 600,
-                                  }}
-                                >
-                                  In modifica
-                                </span>
-                              )}
-                            </div>
-                            <div
-                              style={{
-                                fontSize: "13px",
-                                color: "#666",
-                                marginTop: "4px",
-                              }}
-                            >
-                              Cod:{" "}
-                              <HighlightText
-                                text={
-                                  editing
-                                    ? editState!.subClientCodice
-                                    : order.subClientCodice
-                                }
-                                query={debouncedSearch}
-                              />{" "}
-                              | {totalItems} articoli |{" "}
-                              {formatCurrency(
-                                hasRowDiscounts ? totalNet : totalGross,
-                              )}
-                            </div>
-                            <div
-                              style={{
-                                fontSize: "12px",
-                                color: "#999",
-                                marginTop: "2px",
-                              }}
-                            >
-                              {formatDateDisplay(order.createdAt)}
-                              {order.mergedAt &&
-                                ` | Unito: ${formatDateDisplay(order.mergedAt)}`}
-                            </div>
-                          </div>
-                          {!editing && (
-                            <div
-                              style={{
-                                fontSize: "18px",
-                                color: "#999",
-                                flexShrink: 0,
-                              }}
-                            >
-                              {isExpanded ? "\u25B2" : "\u25BC"}
-                            </div>
-                          )}
-                        </div>
-
-                        {/* Expanded details */}
-                        {(isExpanded || editing) && (
-                          <div
-                            style={{
-                              padding: "12px 16px",
-                              borderTop: "1px solid #e5e7eb",
-                            }}
-                          >
-                            {/* Sub-client: editable in edit mode */}
-                            {editing ? (
-                              <div style={{ marginBottom: "12px" }}>
-                                <SubClientSelector
-                                  selectedSubClient={editState!.subClientData}
-                                  onSelect={(sc: SubClient) => {
-                                    setEditState({
-                                      ...editState!,
-                                      subClientCodice: sc.codice,
-                                      subClientName: sc.ragioneSociale,
-                                      subClientData: sc,
-                                    });
-                                  }}
-                                  onClear={() => {
-                                    setEditState({
-                                      ...editState!,
-                                      subClientCodice: "",
-                                      subClientName: "",
-                                      subClientData: null,
-                                    });
-                                  }}
-                                />
-                              </div>
-                            ) : (
-                              order.subClientData && (
-                                <div
-                                  style={{
-                                    marginBottom: "12px",
-                                    padding: "8px 12px",
-                                    background: "#f9fafb",
-                                    borderRadius: "8px",
-                                    fontSize: "13px",
-                                    color: "#374151",
-                                  }}
-                                >
-                                  <strong>Sotto-cliente:</strong>{" "}
-                                  {order.subClientData.ragioneSociale}
-                                  {order.subClientData.supplRagioneSociale &&
-                                    ` - ${order.subClientData.supplRagioneSociale}`}
-                                  <br />
-                                  {order.subClientData.indirizzo && (
-                                    <>
-                                      {order.subClientData.indirizzo}
-                                      {order.subClientData.localita &&
-                                        `, ${order.subClientData.localita}`}
-                                      {order.subClientData.cap &&
-                                        ` ${order.subClientData.cap}`}
-                                      {order.subClientData.prov &&
-                                        ` (${order.subClientData.prov})`}
-                                      <br />
-                                    </>
-                                  )}
-                                  {order.subClientData.partitaIva &&
-                                    `P.IVA: ${order.subClientData.partitaIva}`}
-                                  {order.subClientData.codFiscale &&
-                                    ` | CF: ${order.subClientData.codFiscale}`}
-                                </div>
-                              )
-                            )}
-
-                            {/* Lifecycle section */}
-                            {!editing &&
-                              order.archibaldOrderId &&
-                              (() => {
-                                const linkedNumbers = parseLinkedIds(
-                                  order.archibaldOrderNumber,
-                                );
-                                return (
-                                  <div
-                                    style={{
-                                      marginBottom: "12px",
-                                      padding: "8px 12px",
-                                      background: "#f0f9ff",
-                                      borderRadius: "8px",
-                                      border: "1px solid #bae6fd",
-                                      fontSize: "13px",
-                                    }}
-                                  >
-                                    <div
-                                      style={{
-                                        fontWeight: 600,
-                                        marginBottom: "4px",
-                                      }}
-                                    >
-                                      {linkedNumbers.length > 1
-                                        ? `Ordini Archibald (${linkedNumbers.length})`
-                                        : "Ordine Archibald"}
-                                    </div>
-                                    <div>
-                                      {linkedNumbers.map((num, i) => (
-                                        <span key={i}>
-                                          {i > 0 && ", "}
-                                          N.{" "}
-                                          <HighlightText
-                                            text={num}
-                                            query={debouncedSearch}
-                                          />
-                                        </span>
-                                      ))}
-                                      {order.currentState && (
-                                        <span
-                                          style={{
-                                            marginLeft: "8px",
-                                            fontSize: "11px",
-                                            padding: "1px 6px",
-                                            borderRadius: "9999px",
-                                            background: badge.bg,
-                                            color: badge.color,
-                                            fontWeight: 500,
-                                          }}
-                                        >
-                                          {badge.label}
-                                        </span>
-                                      )}
-                                    </div>
-
-                                    {order.ddtNumber && (
-                                      <div style={{ marginTop: "6px" }}>
-                                        <strong>DDT:</strong>{" "}
-                                        <HighlightText
-                                          text={order.ddtNumber}
-                                          query={debouncedSearch}
-                                        />
-                                        {order.ddtDeliveryDate &&
-                                          ` | Consegna prevista: ${formatDateDisplay(order.ddtDeliveryDate)}`}
-                                        {order.trackingNumber && (
-                                          <div>
-                                            <strong>Tracking:</strong>{" "}
-                                            {order.trackingUrl ? (
-                                              <a
-                                                href={order.trackingUrl}
-                                                target="_blank"
-                                                rel="noopener noreferrer"
-                                                style={{
-                                                  color: "#2563eb",
-                                                }}
-                                              >
-                                                <HighlightText
-                                                  text={order.trackingNumber}
-                                                  query={debouncedSearch}
-                                                />
-                                              </a>
-                                            ) : (
-                                              <HighlightText
-                                                text={order.trackingNumber}
-                                                query={debouncedSearch}
-                                              />
-                                            )}
-                                            {order.trackingCourier &&
-                                              ` (${order.trackingCourier})`}
-                                          </div>
-                                        )}
-                                      </div>
-                                    )}
-
-                                    {order.invoiceNumber && (
-                                      <div style={{ marginTop: "6px" }}>
-                                        <strong>Fattura:</strong>{" "}
-                                        <HighlightText
-                                          text={order.invoiceNumber}
-                                          query={debouncedSearch}
-                                        />
-                                        {order.invoiceDate &&
-                                          ` del ${formatDateDisplay(order.invoiceDate)}`}
-                                        {order.invoiceAmount && (
-                                          <>
-                                            {" - "}
-                                            <HighlightText
-                                              text={order.invoiceAmount}
-                                              query={debouncedSearch}
-                                            />
-                                          </>
-                                        )}
-                                      </div>
-                                    )}
-
-                                    {order.deliveryCompletedDate && (
-                                      <div
-                                        style={{
-                                          marginTop: "6px",
-                                          color: "#166534",
-                                        }}
-                                      >
-                                        Consegnato il{" "}
-                                        {formatDateDisplay(
-                                          order.deliveryCompletedDate,
-                                        )}
-                                      </div>
-                                    )}
-
-                                    <button
-                                      onClick={() => {
-                                        const firstId = parseLinkedIds(
-                                          order.archibaldOrderId,
-                                        )[0];
-                                        if (firstId)
-                                          navigate(
-                                            `/orders?highlight=${firstId}`,
-                                          );
-                                      }}
-                                      style={{
-                                        marginTop: "8px",
-                                        padding: "5px 12px",
-                                        fontSize: "12px",
-                                        fontWeight: 600,
-                                        color: "#1565C0",
-                                        background: "#E3F2FD",
-                                        border: "1px solid #90CAF9",
-                                        borderRadius: "6px",
-                                        cursor: "pointer",
-                                      }}
-                                    >
-                                      Vedi ordine madre
-                                    </button>
-                                  </div>
-                                );
-                              })()}
-
-                            {/* Items table */}
-                            <table
-                              style={{
-                                width: "100%",
-                                borderCollapse: "collapse",
-                                fontSize: "13px",
-                                marginBottom: "12px",
-                              }}
-                            >
-                              <thead>
-                                <tr
-                                  style={{
-                                    borderBottom: "2px solid #e5e7eb",
-                                    textAlign: "left",
-                                  }}
-                                >
-                                  <th style={{ padding: "6px 4px" }}>Codice</th>
-                                  <th style={{ padding: "6px 4px" }}>
-                                    Descrizione
-                                  </th>
-                                  <th
-                                    style={{
-                                      padding: "6px 4px",
-                                      textAlign: "right",
-                                    }}
-                                  >
-                                    {"Qta'"}
-                                  </th>
-                                  <th
-                                    style={{
-                                      padding: "6px 4px",
-                                      textAlign: "right",
-                                    }}
-                                  >
-                                    Prezzo
-                                  </th>
-                                  {hasRowDiscounts && (
-                                    <th
-                                      style={{
-                                        padding: "6px 4px",
-                                        textAlign: "right",
-                                      }}
-                                    >
-                                      Sc.%
-                                    </th>
-                                  )}
-                                  <th
-                                    style={{
-                                      padding: "6px 4px",
-                                      textAlign: "right",
-                                    }}
-                                  >
-                                    Totale
-                                  </th>
-                                  {editing && (
-                                    <th
-                                      style={{
-                                        padding: "6px 4px",
-                                        textAlign: "center",
-                                        width: "40px",
-                                      }}
-                                    />
-                                  )}
-                                </tr>
-                              </thead>
-                              <tbody>
-                                {displayItems.map((item, idx) => (
-                                  <tr
-                                    key={idx}
-                                    style={{
-                                      borderBottom: "1px solid #f3f4f6",
-                                    }}
-                                  >
-                                    <td style={{ padding: "6px 4px" }}>
-                                      <HighlightText
-                                        text={
-                                          item.productName ||
-                                          item.articleCode ||
-                                          ""
-                                        }
-                                        query={debouncedSearch}
-                                      />
-                                    </td>
-                                    <td style={{ padding: "6px 4px" }}>
-                                      <HighlightText
-                                        text={item.description || "-"}
-                                        query={debouncedSearch}
-                                      />
-                                    </td>
-                                    <td
-                                      style={{
-                                        padding: "6px 4px",
-                                        textAlign: "right",
-                                      }}
-                                    >
-                                      {editing ? (
-                                        <input
-                                          type="number"
-                                          value={item.quantity}
-                                          onChange={(e) =>
-                                            handleEditItemQty(
-                                              idx,
-                                              parseInt(e.target.value, 10) || 0,
-                                            )
-                                          }
-                                          min={1}
-                                          style={{
-                                            width: "60px",
-                                            padding: "4px",
-                                            textAlign: "right",
-                                            border: "1px solid #d1d5db",
-                                            borderRadius: "4px",
-                                            fontSize: "13px",
-                                          }}
-                                        />
-                                      ) : (
-                                        item.quantity
-                                      )}
-                                    </td>
-                                    <td
-                                      style={{
-                                        padding: "6px 4px",
-                                        textAlign: "right",
-                                      }}
-                                    >
-                                      {editing ? (
-                                        <input
-                                          type="number"
-                                          value={item.price}
-                                          onChange={(e) =>
-                                            handleEditItemPrice(
-                                              idx,
-                                              parseFloat(e.target.value) || 0,
-                                            )
-                                          }
-                                          min={0}
-                                          step={0.01}
-                                          style={{
-                                            width: "80px",
-                                            padding: "4px",
-                                            textAlign: "right",
-                                            border: "1px solid #d1d5db",
-                                            borderRadius: "4px",
-                                            fontSize: "13px",
-                                          }}
-                                        />
-                                      ) : (
-                                        formatCurrency(item.price)
-                                      )}
-                                    </td>
-                                    {hasRowDiscounts && (
-                                      <td
-                                        style={{
-                                          padding: "6px 4px",
-                                          textAlign: "right",
-                                          color: item.discount
-                                            ? "#dc2626"
-                                            : "#9ca3af",
-                                        }}
-                                      >
-                                        {item.discount
-                                          ? `${item.discount}%`
-                                          : "-"}
-                                      </td>
-                                    )}
-                                    <td
-                                      style={{
-                                        padding: "6px 4px",
-                                        textAlign: "right",
-                                      }}
-                                    >
-                                      {formatCurrency(
-                                        item.price *
-                                          item.quantity *
-                                          (1 - (item.discount || 0) / 100),
-                                      )}
-                                    </td>
-                                    {editing && (
-                                      <td
-                                        style={{
-                                          padding: "6px 4px",
-                                          textAlign: "center",
-                                        }}
-                                      >
-                                        <button
-                                          onClick={() => handleRemoveItem(idx)}
-                                          style={{
-                                            padding: "2px 6px",
-                                            background: "#fee2e2",
-                                            color: "#dc2626",
-                                            border: "1px solid #dc2626",
-                                            borderRadius: "4px",
-                                            cursor: "pointer",
-                                            fontSize: "12px",
-                                            fontWeight: "bold",
-                                          }}
-                                        >
-                                          X
-                                        </button>
-                                      </td>
-                                    )}
-                                  </tr>
-                                ))}
-                              </tbody>
-                            </table>
-
-                            {/* Add item button (edit mode) */}
-                            {editing && !addingProduct && (
-                              <button
-                                onClick={() => setAddingProduct(true)}
-                                style={{
-                                  padding: "6px 12px",
-                                  background: "#f0fdf4",
-                                  color: "#16a34a",
-                                  border: "1px solid #86efac",
-                                  borderRadius: "6px",
-                                  cursor: "pointer",
-                                  fontSize: "13px",
-                                  marginBottom: "12px",
-                                }}
-                              >
-                                + Aggiungi articolo
-                              </button>
-                            )}
-
-                            {editing && addingProduct && (
-                              <div style={{ marginBottom: "12px" }}>
-                                <AddItemToHistory
-                                  onAdd={handleAddItems}
-                                  onCancel={() => setAddingProduct(false)}
-                                  existingItems={editState!.items}
-                                />
-                              </div>
-                            )}
-
-                            {/* Discount */}
-                            {editing ? (
-                              <div
-                                style={{
-                                  fontSize: "14px",
-                                  fontWeight: 500,
-                                  marginBottom: "8px",
-                                  display: "flex",
-                                  alignItems: "center",
-                                  gap: "8px",
-                                }}
-                              >
-                                <span>Sconto globale:</span>
-                                <input
-                                  type="number"
-                                  value={editState!.discountPercent}
-                                  onChange={(e) =>
-                                    setEditState({
-                                      ...editState!,
-                                      discountPercent: Math.min(
-                                        100,
-                                        Math.max(
-                                          0,
-                                          parseFloat(e.target.value) || 0,
-                                        ),
-                                      ),
-                                    })
-                                  }
-                                  min={0}
-                                  max={100}
-                                  step={1}
-                                  style={{
-                                    width: "60px",
-                                    padding: "4px",
-                                    textAlign: "right",
-                                    border: "1px solid #d1d5db",
-                                    borderRadius: "4px",
-                                    fontSize: "14px",
-                                  }}
-                                />
-                                <span>%</span>
-                              </div>
-                            ) : (
-                              order.discountPercent !== undefined &&
-                              order.discountPercent > 0 && (
-                                <div
-                                  style={{
-                                    fontSize: "14px",
-                                    fontWeight: 500,
-                                    marginBottom: "8px",
-                                  }}
-                                >
-                                  Sconto globale: {order.discountPercent}%
-                                </div>
-                              )
-                            )}
-
-                            {/* Shipping & totals — always shown */}
-                            <div
-                              style={{
-                                fontSize: "13px",
-                                color: "#374151",
-                                marginBottom: "8px",
-                                display: "flex",
-                                gap: "12px",
-                                flexWrap: "wrap",
-                                alignItems: "baseline",
-                              }}
-                            >
-                              {order.shippingCost !== undefined &&
-                                order.shippingCost > 0 && (
-                                  <span>
-                                    Spese: {formatCurrency(order.shippingCost)}
-                                  </span>
-                                )}
-                              {order.shippingTax !== undefined &&
-                                order.shippingTax > 0 && (
-                                  <span>
-                                    IVA: {formatCurrency(order.shippingTax)}
-                                  </span>
-                                )}
-                              <span style={{ fontWeight: 600 }}>
-                                Totale: {formatCurrency(liveDocTotal)}
-                              </span>
-                              {!editing &&
-                                order.targetTotalWithVAT !== undefined &&
-                                order.targetTotalWithVAT > 0 &&
-                                Math.abs(
-                                  order.targetTotalWithVAT - liveDocTotal,
-                                ) > 0.01 && (
-                                  <span
-                                    style={{
-                                      fontSize: "12px",
-                                      color: "#9ca3af",
-                                    }}
-                                  >
-                                    (Arca:{" "}
-                                    {formatCurrency(order.targetTotalWithVAT)})
-                                  </span>
-                                )}
-                            </div>
-
-                            {/* Notes */}
-                            {editing ? (
-                              <div style={{ marginBottom: "8px" }}>
-                                <textarea
-                                  value={editState!.notes}
-                                  onChange={(e) =>
-                                    setEditState({
-                                      ...editState!,
-                                      notes: e.target.value,
-                                    })
-                                  }
-                                  placeholder="Note..."
-                                  rows={3}
-                                  style={{
-                                    width: "100%",
-                                    padding: "8px",
-                                    border: "1px solid #d1d5db",
-                                    borderRadius: "6px",
-                                    fontSize: "14px",
-                                    resize: "vertical",
-                                    boxSizing: "border-box",
-                                  }}
-                                />
-                              </div>
-                            ) : (
-                              order.notes && (
-                                <div
-                                  style={{
-                                    fontSize: "14px",
-                                    color: "#374151",
-                                    marginBottom: "8px",
-                                    fontStyle: "italic",
-                                  }}
-                                >
-                                  Note:{" "}
-                                  <HighlightText
-                                    text={order.notes}
-                                    query={debouncedSearch}
-                                  />
-                                </div>
-                              )
-                            )}
-
-                            {/* Action buttons */}
-                            {editing ? (
-                              <div
-                                style={{
-                                  display: "flex",
-                                  gap: "8px",
-                                  flexWrap: "wrap",
-                                }}
-                              >
-                                <button
-                                  onClick={handleSaveEdit}
-                                  disabled={editState!.items.length === 0}
-                                  style={{
-                                    padding: "8px 16px",
-                                    background:
-                                      editState!.items.length === 0
-                                        ? "#9ca3af"
-                                        : "#16a34a",
-                                    color: "white",
-                                    border: "none",
-                                    borderRadius: "6px",
-                                    cursor:
-                                      editState!.items.length === 0
-                                        ? "not-allowed"
-                                        : "pointer",
-                                    fontSize: "14px",
-                                    fontWeight: 600,
-                                  }}
-                                >
-                                  Salva
-                                </button>
-                                <button
-                                  onClick={handleCancelEdit}
-                                  style={{
-                                    padding: "8px 16px",
-                                    background: "#e5e7eb",
-                                    border: "1px solid #d1d5db",
-                                    borderRadius: "6px",
-                                    cursor: "pointer",
-                                    fontSize: "14px",
-                                  }}
-                                >
-                                  Annulla
-                                </button>
-                              </div>
-                            ) : (
-                              <div
-                                style={{
-                                  display: "flex",
-                                  gap: "8px",
-                                  flexWrap: "wrap",
-                                }}
-                              >
-                                <button
-                                  onClick={() => handleDownloadPDF(order)}
-                                  style={{
-                                    padding: "6px 12px",
-                                    background: "#2563eb",
-                                    color: "white",
-                                    border: "none",
-                                    borderRadius: "6px",
-                                    cursor: "pointer",
-                                    fontSize: "13px",
-                                  }}
-                                >
-                                  Scarica PDF
-                                </button>
-                                <button
-                                  onClick={() => handleStartEdit(order)}
-                                  style={{
-                                    padding: "6px 12px",
-                                    background: "#f59e0b",
-                                    color: "white",
-                                    border: "none",
-                                    borderRadius: "6px",
-                                    cursor: "pointer",
-                                    fontSize: "13px",
-                                  }}
-                                >
-                                  Modifica
-                                </button>
-                                <button
-                                  onClick={() => setLinkingOrderId(order.id)}
-                                  style={{
-                                    padding: "6px 12px",
-                                    background: order.archibaldOrderId
-                                      ? "#6366f1"
-                                      : "#7c3aed",
-                                    color: "white",
-                                    border: "none",
-                                    borderRadius: "6px",
-                                    cursor: "pointer",
-                                    fontSize: "13px",
-                                  }}
-                                >
-                                  {order.archibaldOrderId
-                                    ? "Modifica collegamento"
-                                    : "Collega ordine"}
-                                </button>
-                                {order.archibaldOrderId && (
-                                  <button
-                                    onClick={() => {
-                                      if (
-                                        window.confirm(
-                                          "Sei sicuro di voler scollegare questo ordine?",
-                                        )
-                                      ) {
-                                        handleUnlinkOrder(order.id);
-                                      }
-                                    }}
-                                    style={{
-                                      padding: "6px 12px",
-                                      background: "#fef2f2",
-                                      color: "#dc2626",
-                                      border: "1px solid #fca5a5",
-                                      borderRadius: "6px",
-                                      cursor: "pointer",
-                                      fontSize: "13px",
-                                    }}
-                                  >
-                                    Scollega
-                                  </button>
-                                )}
-                                {order.currentState === "spedito" &&
-                                  !order.deliveryCompletedDate && (
-                                    <button
-                                      onClick={() => handleMarkDelivered(order)}
-                                      style={{
-                                        padding: "6px 12px",
-                                        background: "#16a34a",
-                                        color: "white",
-                                        border: "none",
-                                        borderRadius: "6px",
-                                        cursor: "pointer",
-                                        fontSize: "13px",
-                                      }}
-                                    >
-                                      Segna Consegnato
-                                    </button>
-                                  )}
-                                {deletingFromArchibald === order.id ? (
-                                  <div style={{ width: "100%" }}>
-                                    <JobProgressBar
-                                      progress={deleteProgress?.progress ?? 0}
-                                      operation={
-                                        deleteProgress?.operation ??
-                                        "Avvio cancellazione..."
-                                      }
-                                      status="processing"
-                                    />
-                                  </div>
-                                ) : isDeleting ? (
-                                  <>
-                                    <button
-                                      onClick={() => handleDelete(order.id)}
-                                      style={{
-                                        padding: "6px 12px",
-                                        background: "#dc2626",
-                                        color: "white",
-                                        border: "none",
-                                        borderRadius: "6px",
-                                        cursor: "pointer",
-                                        fontSize: "13px",
-                                      }}
-                                    >
-                                      {isDraftInArchibald(order)
-                                        ? "Conferma Elimina da Archibald"
-                                        : "Conferma Elimina"}
-                                    </button>
-                                    <button
-                                      onClick={() => setDeleteConfirmId(null)}
-                                      style={{
-                                        padding: "6px 12px",
-                                        background: "#e5e7eb",
-                                        border: "1px solid #d1d5db",
-                                        borderRadius: "6px",
-                                        cursor: "pointer",
-                                        fontSize: "13px",
-                                      }}
-                                    >
-                                      Annulla
-                                    </button>
-                                  </>
-                                ) : (
-                                  <button
-                                    onClick={() => setDeleteConfirmId(order.id)}
-                                    style={{
-                                      padding: "6px 12px",
-                                      background: "#fee2e2",
-                                      color: "#dc2626",
-                                      border: "1px solid #dc2626",
-                                      borderRadius: "6px",
-                                      cursor: "pointer",
-                                      fontSize: "13px",
-                                    }}
-                                  >
-                                    Elimina
-                                  </button>
-                                )}
-                              </div>
-                            )}
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
+                  <span style={{ fontWeight: 600, color: "#c62828" }}>
+                    {isDraftInArchibald(selectedOrder)
+                      ? "Confermi eliminazione da Archibald?"
+                      : "Confermi eliminazione?"}
+                  </span>
+                  <button
+                    onClick={() => handleDelete(selectedOrder.id)}
+                    style={{ ...headerBtnStyle, backgroundColor: "#dc2626", color: "#fff", border: "none" }}
+                  >
+                    Conferma
+                  </button>
+                  <button
+                    onClick={() => setDeleteConfirmId(null)}
+                    style={headerBtnStyle}
+                  >
+                    Annulla
+                  </button>
                 </div>
-              </div>
-            ))}
-          </div>
+              )}
 
-          {/* Infinite scroll sentinel */}
-          {visibleCount < filteredOrders.length && (
-            <div
-              ref={sentinelRef}
-              style={{
-                textAlign: "center",
-                padding: "20px",
-                color: "#888",
-                fontSize: "14px",
-              }}
-            >
-              Caricamento altri ordini...
+              {/* Delete progress */}
+              {deletingFromArchibald === selectedOrder.id && (
+                <div style={{ padding: "6px 12px" }}>
+                  <JobProgressBar
+                    progress={deleteProgress?.progress ?? 0}
+                    operation={
+                      deleteProgress?.operation ?? "Avvio cancellazione..."
+                    }
+                    status="processing"
+                  />
+                </div>
+              )}
+
+              {/* PDF download button */}
+              <div
+                style={{
+                  display: "flex",
+                  gap: "4px",
+                  padding: "4px 8px",
+                  borderBottom: `1px solid ${ARCA_COLORS.borderLight}`,
+                  backgroundColor: ARCA_COLORS.windowBg,
+                  flexWrap: "wrap",
+                }}
+              >
+                <button
+                  onClick={() => handleDownloadPDF(selectedOrder)}
+                  style={toolbarBtnStyle}
+                >
+                  PDF
+                </button>
+                <button
+                  onClick={() => setLinkingOrderId(selectedOrder.id)}
+                  style={toolbarBtnStyle}
+                >
+                  {selectedOrder.archibaldOrderId
+                    ? "Mod. collegamento"
+                    : "Collega ordine"}
+                </button>
+                {selectedOrder.archibaldOrderId && (
+                  <>
+                    <button
+                      onClick={() => {
+                        const firstId = parseLinkedIds(
+                          selectedOrder.archibaldOrderId,
+                        )[0];
+                        if (firstId) navigate(`/orders?highlight=${firstId}`);
+                      }}
+                      style={toolbarBtnStyle}
+                    >
+                      Vedi ordine madre
+                    </button>
+                    <button
+                      onClick={() => handleUnlinkOrder(selectedOrder.id)}
+                      style={{ ...toolbarBtnStyle, color: "#c62828" }}
+                    >
+                      Scollega
+                    </button>
+                  </>
+                )}
+              </div>
+
+              <ArcaDocumentDetail
+                order={selectedOrder}
+                onClose={() => setSelectedOrder(null)}
+                onLink={(id) => setLinkingOrderId(id)}
+                onUnlink={(id) => handleUnlinkOrder(id)}
+                onDelete={handleDeleteFromDetail}
+                onSave={handleSaveArcaData}
+              />
             </div>
           )}
         </div>
       )}
 
-      {/* Scroll to top */}
-      {showScrollToTop && (
-        <button
-          onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
-          style={{
-            position: "fixed",
-            bottom: "24px",
-            right: "24px",
-            width: "48px",
-            height: "48px",
-            borderRadius: "50%",
-            backgroundColor: "rgba(25, 118, 210, 0.8)",
-            color: "#fff",
-            border: "none",
-            cursor: "pointer",
-            fontSize: "20px",
-            fontWeight: 700,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            boxShadow: "0 2px 8px rgba(0,0,0,0.3)",
-            zIndex: 200,
-            transition: "background-color 0.2s",
-          }}
-          onMouseEnter={(e) => {
-            e.currentTarget.style.backgroundColor = "rgba(25, 118, 210, 1)";
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.backgroundColor = "rgba(25, 118, 210, 0.8)";
-          }}
-        >
-          {"\u2191"}
-        </button>
-      )}
-
+      {/* Modals */}
       {showImportModal && (
         <ArcaImportModal
           onClose={() => setShowImportModal(false)}
@@ -2315,3 +921,87 @@ export function FresisHistoryPage() {
     </div>
   );
 }
+
+// --- Shared styles ---
+
+const headerBtnStyle: React.CSSProperties = {
+  padding: "6px 12px",
+  fontSize: "12px",
+  fontWeight: 600,
+  backgroundColor: "#fff",
+  color: "#333",
+  border: "1px solid #ddd",
+  borderRadius: "4px",
+  cursor: "pointer",
+};
+
+const filterLabelStyle: React.CSSProperties = {
+  display: "block",
+  fontSize: "11px",
+  fontWeight: 600,
+  color: "#333",
+  marginBottom: "3px",
+};
+
+const filterInputStyle: React.CSSProperties = {
+  width: "100%",
+  padding: "6px 8px",
+  fontSize: "12px",
+  border: "1px solid #ddd",
+  borderRadius: "4px",
+  outline: "none",
+  boxSizing: "border-box",
+};
+
+const selectedChipStyle: React.CSSProperties = {
+  display: "flex",
+  alignItems: "center",
+  gap: "6px",
+  padding: "4px 8px",
+  backgroundColor: "#E8F5E9",
+  border: "1px solid #4CAF50",
+  borderRadius: "4px",
+};
+
+const chipCloseStyle: React.CSSProperties = {
+  background: "none",
+  border: "none",
+  cursor: "pointer",
+  fontSize: "11px",
+  color: "#666",
+  padding: "1px 4px",
+};
+
+const dropdownStyle: React.CSSProperties = {
+  position: "absolute",
+  top: "100%",
+  left: 0,
+  right: 0,
+  zIndex: 1000,
+  backgroundColor: "#fff",
+  border: "1px solid #ddd",
+  borderRadius: "4px",
+  maxHeight: "250px",
+  overflowY: "auto",
+  boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
+};
+
+const clearFilterBtnStyle: React.CSSProperties = {
+  padding: "3px 10px",
+  fontSize: "11px",
+  fontWeight: 600,
+  border: "1px solid #f44336",
+  borderRadius: "12px",
+  backgroundColor: "#fff",
+  color: "#f44336",
+  cursor: "pointer",
+};
+
+const toolbarBtnStyle: React.CSSProperties = {
+  ...ARCA_FONT,
+  padding: "3px 8px",
+  border: "1px outset #D4D0C8",
+  backgroundColor: "#D4D0C8",
+  cursor: "pointer",
+  fontSize: "11px",
+};
