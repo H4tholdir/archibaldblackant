@@ -63,6 +63,8 @@ export interface Product {
   isNewThisYear?: boolean;
   hasFieldChanges?: boolean;
   variantPackages?: string[];
+  variantPriceMin?: number | null;
+  variantPriceMax?: number | null;
 
   // ========== SYSTEM ==========
   hash?: string;

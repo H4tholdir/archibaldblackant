@@ -3815,12 +3815,15 @@ app.get("/api/products", (req: Request, res: Response<ApiResponse>) => {
       const priceChangeIds = priceHistDb.getProductIdsWithPriceChanges(ids, yearStart);
       return products.map((p) => {
         const ann = annotations.get(p.id);
+        const priceRange = db.getVariantPriceRange(p.name);
         return {
           ...p,
           hasPriceChange: priceChangeIds.has(p.id),
           isNewThisYear: ann?.isNewThisYear ?? false,
           hasFieldChanges: ann?.hasFieldChanges ?? false,
           variantPackages: db.getVariantPackages(p.name),
+          variantPriceMin: priceRange.min,
+          variantPriceMax: priceRange.max,
         };
       });
     };

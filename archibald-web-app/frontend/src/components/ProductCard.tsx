@@ -126,18 +126,34 @@ export function ProductCard({
 
         {/* Row 3: Price + VAT */}
         <div style={{ fontSize: "14px", color: "#444", marginBottom: "4px", display: "flex", alignItems: "center", flexWrap: "wrap", gap: "4px" }}>
-          {(product.price === null || product.price === undefined || product.price === 0) ? (
-            <span style={{ color: "#c62828" }}>{"⚠️"} Prezzo non disponibile</span>
-          ) : (
-            <>
-              <span style={{ fontWeight: 600 }}>{formatCurrencyLocal(savedPrice ?? product.price)}</span>
-              {(savedPrice !== null || product.priceSource) && (
-                <span style={{ fontSize: "11px", padding: "1px 6px", borderRadius: "4px", backgroundColor: "#f5f5f5", color: "#888" }}>
-                  {savedPrice !== null ? "manual" : product.priceSource === "excel" ? "Excel" : product.priceSource === "manual" ? "manual" : "Archibald"}
-                </span>
-              )}
-            </>
-          )}
+          {(() => {
+            const pMin = product.variantPriceMin;
+            const pMax = product.variantPriceMax;
+            const hasRange = pMin != null && pMax != null && pMin !== pMax;
+            const displayPrice = savedPrice ?? product.price;
+
+            if (displayPrice === null || displayPrice === undefined || displayPrice === 0) {
+              if (hasRange) {
+                return <span style={{ fontWeight: 700, color: "#2e7d32" }}>{formatCurrencyLocal(pMin)} - {formatCurrencyLocal(pMax)}</span>;
+              }
+              return <span style={{ color: "#c62828" }}>{"⚠️"} Prezzo non disponibile</span>;
+            }
+
+            return (
+              <>
+                {hasRange ? (
+                  <span style={{ fontWeight: 700, color: "#2e7d32" }}>{formatCurrencyLocal(pMin)} - {formatCurrencyLocal(pMax)}</span>
+                ) : (
+                  <span style={{ fontWeight: 700, color: "#2e7d32" }}>{formatCurrencyLocal(displayPrice)}</span>
+                )}
+                {(savedPrice !== null || product.priceSource) && (
+                  <span style={{ fontSize: "11px", padding: "1px 6px", borderRadius: "4px", backgroundColor: "#f5f5f5", color: "#888" }}>
+                    {savedPrice !== null ? "manual" : product.priceSource === "excel" ? "Excel" : product.priceSource === "manual" ? "manual" : "Archibald"}
+                  </span>
+                )}
+              </>
+            );
+          })()}
           <span style={{ color: "#ccc", margin: "0 4px" }}>·</span>
           {(product.vat !== undefined && product.vat !== null) || savedVat !== null ? (
             <>
@@ -158,12 +174,8 @@ export function ProductCard({
           {"📦"}{" "}
           {(() => {
             const packages = product.variantPackages ?? (product.packageContent ? [product.packageContent] : []);
-            if (packages.length === 0) return "Singolo";
-            return packages.map((pkg: string) => {
-              const lower = pkg.toLowerCase();
-              if (lower === "1" || lower.startsWith("1 ")) return "Singolo";
-              return `Conf. ${pkg}`;
-            }).join(" · ");
+            if (packages.length === 0) return "Conf. 1";
+            return packages.map((pkg: string) => `Conf. ${pkg}`).join(" · ");
           })()}
         </div>
       </div>

@@ -1569,6 +1569,20 @@ export class ProductDatabase {
     return rows.map((r) => r.packageContent);
   }
 
+  getVariantPriceRange(articleName: string): {
+    min: number | null;
+    max: number | null;
+  } {
+    const row = this.db
+      .prepare(
+        `SELECT MIN(price) as min, MAX(price) as max FROM products
+         WHERE name = ? AND deletedAt IS NULL AND price IS NOT NULL AND price > 0`,
+      )
+      .get(articleName) as { min: number | null; max: number | null };
+
+    return { min: row?.min ?? null, max: row?.max ?? null };
+  }
+
   /**
    * Chiude la connessione al database
    */
