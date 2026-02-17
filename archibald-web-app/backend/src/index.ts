@@ -2885,6 +2885,14 @@ app.post(
 
       // Fire-and-forget: bot creates customer in Archibald via BrowserPool
       (async () => {
+        // Pause background syncs during bot operation
+        syncOrchestrator.setUserActionActive(true);
+        await priorityManager.pause();
+        const orchestratorStatus = syncOrchestrator.getStatus();
+        if (orchestratorStatus.currentSync) {
+          await syncOrchestrator.waitForCurrentSync();
+        }
+
         try {
           const bot = new ArchibaldBot(userId);
           await bot.initialize();
@@ -2944,6 +2952,9 @@ app.post(
             },
             timestamp: new Date().toISOString(),
           });
+        } finally {
+          priorityManager.resume();
+          syncOrchestrator.setUserActionActive(false);
         }
       })();
     } catch (error) {
@@ -2997,6 +3008,14 @@ app.put(
 
       // Fire-and-forget: bot updates customer in Archibald via BrowserPool
       (async () => {
+        // Pause background syncs during bot operation
+        syncOrchestrator.setUserActionActive(true);
+        await priorityManager.pause();
+        const orchestratorStatus = syncOrchestrator.getStatus();
+        if (orchestratorStatus.currentSync) {
+          await syncOrchestrator.waitForCurrentSync();
+        }
+
         try {
           const bot = new ArchibaldBot(userId);
           await bot.initialize();
@@ -3057,6 +3076,9 @@ app.put(
             },
             timestamp: new Date().toISOString(),
           });
+        } finally {
+          priorityManager.resume();
+          syncOrchestrator.setUserActionActive(false);
         }
       })();
     } catch (error) {
@@ -3253,8 +3275,15 @@ app.post(
 
       const existing = sessionManager.getActiveSessionForUser(userId);
       if (existing) {
+        const hadSyncsPaused = sessionManager.isSyncsPaused(
+          existing.sessionId,
+        );
         await sessionManager.removeBot(existing.sessionId);
         sessionManager.destroySession(existing.sessionId);
+        if (hadSyncsPaused) {
+          priorityManager.resume();
+          syncOrchestrator.setUserActionActive(false);
+        }
       }
 
       const sessionId = sessionManager.createSession(userId);
@@ -3269,6 +3298,15 @@ app.post(
         let bot: InstanceType<typeof ArchibaldBot> | null = null;
         try {
           sessionManager.updateState(sessionId, "starting");
+
+          // Pause background syncs for the entire interactive session
+          syncOrchestrator.setUserActionActive(true);
+          await priorityManager.pause();
+          const orchestratorStatus = syncOrchestrator.getStatus();
+          if (orchestratorStatus.currentSync) {
+            await syncOrchestrator.waitForCurrentSync();
+          }
+          sessionManager.markSyncsPaused(sessionId, true);
 
           WebSocketServerService.getInstance().broadcast(userId, {
             type: "CUSTOMER_INTERACTIVE_PROGRESS",
@@ -3312,6 +3350,13 @@ app.post(
             } catch {
               /* ignore cleanup error */
             }
+          }
+
+          // Resume syncs on failure
+          if (sessionManager.isSyncsPaused(sessionId)) {
+            sessionManager.markSyncsPaused(sessionId, false);
+            priorityManager.resume();
+            syncOrchestrator.setUserActionActive(false);
           }
 
           sessionManager.setError(
@@ -3523,7 +3568,19 @@ app.post(
         message: "Salvataggio in corso...",
       });
 
+      const sessionHadSyncsPaused = sessionManager.isSyncsPaused(sessionId);
+
       (async () => {
+        // For fallback (fresh bot), pause syncs for the duration of the bot operation
+        if (!useInteractiveBot) {
+          syncOrchestrator.setUserActionActive(true);
+          await priorityManager.pause();
+          const orchestratorStatus = syncOrchestrator.getStatus();
+          if (orchestratorStatus.currentSync) {
+            await syncOrchestrator.waitForCurrentSync();
+          }
+        }
+
         try {
           const setProgressCallback = (bot: ArchibaldBot) => {
             bot.setProgressCallback(async (category, metadata) => {
@@ -3605,6 +3662,18 @@ app.post(
             },
             timestamp: new Date().toISOString(),
           });
+        } finally {
+          // Resume syncs from interactive session's pause (if session had syncs paused)
+          if (sessionHadSyncsPaused) {
+            sessionManager.markSyncsPaused(sessionId, false);
+            priorityManager.resume();
+            syncOrchestrator.setUserActionActive(false);
+          }
+          // Resume syncs from fallback's own pause (if fallback path was taken)
+          if (!useInteractiveBot) {
+            priorityManager.resume();
+            syncOrchestrator.setUserActionActive(false);
+          }
         }
       })();
     } catch (error) {
@@ -3641,8 +3710,14 @@ app.delete(
         });
       }
 
+      const hadSyncsPaused = sessionManager.isSyncsPaused(sessionId);
       await sessionManager.removeBot(sessionId);
       sessionManager.destroySession(sessionId);
+
+      if (hadSyncsPaused) {
+        priorityManager.resume();
+        syncOrchestrator.setUserActionActive(false);
+      }
 
       res.json({
         success: true,
@@ -7726,6 +7801,18 @@ server.listen(config.server.port, async () => {
   // Registra i callback per gestire i lock ordini/sync
   queueManager.setOrderLockCallbacks(acquireOrderLock, releaseOrderLock);
   logger.info("✅ Lock callbacks registrati per ordini");
+
+  // Resume syncs when interactive sessions expire with syncs still paused
+  InteractiveSessionManager.getInstance().setOnSessionCleanup(
+    (sessionId, userId) => {
+      logger.info(
+        `[InteractiveSession] Expired session had syncs paused, resuming`,
+        { sessionId, userId },
+      );
+      priorityManager.resume();
+      syncOrchestrator.setUserActionActive(false);
+    },
+  );
 
   // Avvia il worker della coda
   try {

@@ -10,6 +10,7 @@ type InteractiveSession = {
   updatedAt: number;
   vatResult: VatLookupResult | null;
   error: string | null;
+  syncsPaused: boolean;
 };
 
 const SESSION_TIMEOUT_MS = 5 * 60 * 1000;
@@ -19,6 +20,9 @@ class InteractiveSessionManager {
   private sessions = new Map<string, InteractiveSession>();
   private bots = new Map<string, ArchibaldBot>();
   private cleanupTimer: ReturnType<typeof setInterval> | null = null;
+  private onSessionCleanupCallback:
+    | ((sessionId: string, userId: string) => void)
+    | null = null;
 
   private constructor() {
     this.cleanupTimer = setInterval(() => this.cleanupExpired(), 60_000);
@@ -43,6 +47,7 @@ class InteractiveSessionManager {
       updatedAt: now,
       vatResult: null,
       error: null,
+      syncsPaused: false,
     });
 
     logger.info("[InteractiveSession] Created", { sessionId, userId });
@@ -110,9 +115,14 @@ class InteractiveSessionManager {
     let cleaned = 0;
     for (const [id, session] of this.sessions) {
       if (now - session.updatedAt > SESSION_TIMEOUT_MS) {
+        const hadSyncsPaused = session.syncsPaused;
+        const { userId } = session;
         await this.removeBot(id);
         this.sessions.delete(id);
         cleaned++;
+        if (hadSyncsPaused && this.onSessionCleanupCallback) {
+          this.onSessionCleanupCallback(id, userId);
+        }
       }
     }
     if (cleaned > 0) {
@@ -120,6 +130,24 @@ class InteractiveSessionManager {
         cleaned,
       });
     }
+  }
+
+  setOnSessionCleanup(
+    callback: (sessionId: string, userId: string) => void,
+  ): void {
+    this.onSessionCleanupCallback = callback;
+  }
+
+  markSyncsPaused(sessionId: string, paused: boolean): void {
+    const session = this.sessions.get(sessionId);
+    if (session) {
+      session.syncsPaused = paused;
+    }
+  }
+
+  isSyncsPaused(sessionId: string): boolean {
+    const session = this.sessions.get(sessionId);
+    return session?.syncsPaused ?? false;
   }
 
   touchSession(sessionId: string, userId: string): boolean {

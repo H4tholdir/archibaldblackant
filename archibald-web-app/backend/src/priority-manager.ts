@@ -18,6 +18,7 @@ export class PriorityManager extends EventEmitter {
   private static instance: PriorityManager;
   private services: Map<string, PausableService> = new Map();
   private pausedServices: Set<string> = new Set();
+  private pauseCount = 0;
 
   private constructor() {
     super();
@@ -45,6 +46,14 @@ export class PriorityManager extends EventEmitter {
    * Pause all registered services
    */
   public async pause(): Promise<void> {
+    this.pauseCount++;
+    if (this.pauseCount > 1) {
+      logger.info(
+        `[PriorityManager] Already paused, incrementing count to ${this.pauseCount}`,
+      );
+      return;
+    }
+
     logger.info("[PriorityManager] Pausing all services...");
     const pausePromises: Promise<void>[] = [];
 
@@ -69,6 +78,19 @@ export class PriorityManager extends EventEmitter {
    * Resume all paused services
    */
   public resume(): void {
+    if (this.pauseCount <= 0) {
+      logger.warn("[PriorityManager] resume() called when not paused, ignoring");
+      return;
+    }
+
+    this.pauseCount--;
+    if (this.pauseCount > 0) {
+      logger.info(
+        `[PriorityManager] Still paused by other callers (count: ${this.pauseCount})`,
+      );
+      return;
+    }
+
     logger.info("[PriorityManager] Resuming all services...");
 
     this.services.forEach((service, name) => {

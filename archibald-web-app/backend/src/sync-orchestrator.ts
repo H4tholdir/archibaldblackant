@@ -74,8 +74,9 @@ export class SyncOrchestrator extends EventEmitter {
   private safetyTimeout: NodeJS.Timeout | null = null;
   private readonly SAFETY_TIMEOUT_MS = 10 * 60 * 1000; // 10 minutes
 
-  // User action priority tracking
+  // User action priority tracking (reference-counted)
   private userActionActive = false;
+  private userActionCount = 0;
 
   // Auto-sync scheduling
   private autoSyncTimers: NodeJS.Timeout[] = [];
@@ -359,16 +360,25 @@ export class SyncOrchestrator extends EventEmitter {
    * Blocks new syncs from starting and queue processing.
    */
   setUserActionActive(active: boolean): void {
-    this.userActionActive = active;
     if (active) {
+      this.userActionCount++;
+      this.userActionActive = true;
       logger.info(
-        "[SyncOrchestrator] User action active, blocking new syncs and queue processing",
+        `[SyncOrchestrator] User action active (count: ${this.userActionCount}), blocking new syncs and queue processing`,
       );
     } else {
-      logger.info(
-        "[SyncOrchestrator] User action ended, resuming queue processing",
-      );
-      this.processQueue();
+      if (this.userActionCount > 0) this.userActionCount--;
+      if (this.userActionCount === 0) {
+        this.userActionActive = false;
+        logger.info(
+          "[SyncOrchestrator] User action ended, resuming queue processing",
+        );
+        this.processQueue();
+      } else {
+        logger.info(
+          `[SyncOrchestrator] User action decremented (count: ${this.userActionCount}), still blocking`,
+        );
+      }
     }
   }
 
