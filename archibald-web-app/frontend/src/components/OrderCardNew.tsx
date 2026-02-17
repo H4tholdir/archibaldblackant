@@ -99,7 +99,7 @@ function copyToClipboard(text: string) {
 // ============================================================================
 
 function getStepInfo(order: Order): { index: number; isError: boolean } {
-  const ts = order.transferStatus?.toUpperCase() || "";
+  const ts = order.transferStatus?.toUpperCase().replace(/_/g, " ") || "";
   const ss = (order.state || order.status)?.toUpperCase() || "";
   const dt = order.documentState?.toUpperCase() || "";
   const ot = order.orderType?.toUpperCase() || "";
@@ -109,7 +109,8 @@ function getStepInfo(order: Order): { index: number; isError: boolean } {
   if (
     ss === "CONSEGNATO" ||
     ot.includes("ORDINE DI VENDITA") ||
-    ts === "TRASFERITO"
+    ts === "TRASFERITO" ||
+    ts === "COMPLETATO"
   )
     return { index: 2, isError: false };
   if (ts === "IN ATTESA DI APPROVAZIONE" || ts === "TRANSFER ERROR")

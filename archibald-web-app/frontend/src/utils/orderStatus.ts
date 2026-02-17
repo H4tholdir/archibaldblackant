@@ -189,23 +189,24 @@ export function getOrderStatus(order: Order): OrderStatusStyle {
     return ORDER_STATUS_STYLES["in-transit"];
   }
 
-  if (
-    order.state === "TRANSFER ERROR" ||
-    order.transferStatus?.toUpperCase() === "TRANSFER ERROR"
-  ) {
+  const tsNormalized =
+    order.transferStatus?.toUpperCase().replace(/_/g, " ") || "";
+
+  if (order.state === "TRANSFER ERROR" || tsNormalized === "TRANSFER ERROR") {
     return ORDER_STATUS_STYLES.blocked;
   }
 
   if (
     order.state === "IN ATTESA DI APPROVAZIONE" ||
-    order.transferStatus?.toUpperCase() === "IN ATTESA DI APPROVAZIONE"
+    tsNormalized === "IN ATTESA DI APPROVAZIONE"
   ) {
     return ORDER_STATUS_STYLES["pending-approval"];
   }
 
   if (
-    order.orderNumber?.startsWith("ORD/") &&
-    order.transferStatus?.toLowerCase() === "trasferito"
+    (order.orderNumber?.startsWith("ORD/") &&
+      order.transferStatus?.toLowerCase() === "trasferito") ||
+    tsNormalized === "COMPLETATO"
   ) {
     return ORDER_STATUS_STYLES["in-processing"];
   }

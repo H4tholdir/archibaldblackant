@@ -642,7 +642,10 @@ export function OrderHistory() {
           case "requiresAttention":
             matches =
               order.state === "IN ATTESA DI APPROVAZIONE" ||
-              order.state === "TRANSFER ERROR";
+              order.state === "TRANSFER ERROR" ||
+              order.transferStatus
+                ?.toUpperCase()
+                .replace(/_/g, " ") === "TRANSFER ERROR";
             break;
 
           case "editable":
@@ -767,7 +770,9 @@ export function OrderHistory() {
       count: ordersForCounts.filter(
         (o) =>
           o.state === "IN ATTESA DI APPROVAZIONE" ||
-          o.state === "TRANSFER ERROR",
+          o.state === "TRANSFER ERROR" ||
+          o.transferStatus?.toUpperCase().replace(/_/g, " ") ===
+            "TRANSFER ERROR",
       ).length,
     },
     {

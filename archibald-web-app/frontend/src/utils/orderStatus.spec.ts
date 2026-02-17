@@ -190,6 +190,23 @@ describe("getOrderStatus", () => {
 
       expect(result.category).toBe("blocked");
     });
+
+    test("returns blocked when transferStatus is Transfer_error (underscore from Archibald)", () => {
+      const order: Partial<Order> = {
+        id: "blocked-underscore",
+        customerName: "Blocked Underscore Customer",
+        date: "2026-02-16",
+        total: "435.65",
+        status: "ORDINE APERTO",
+        transferStatus: "Transfer_error",
+        orderType: "GIORNALE",
+      };
+
+      const result = getOrderStatus(order as Order);
+
+      expect(result.category).toBe("blocked");
+      expect(result.label).toBe("Richiede intervento");
+    });
   });
 
   describe("pending-approval status", () => {
@@ -254,6 +271,25 @@ describe("getOrderStatus", () => {
       expect(result.label).toBe("In lavorazione");
       expect(result.borderColor).toBe("#5D4037");
       expect(result.backgroundColor).toBe("#D7CCC8");
+    });
+
+    test("returns in-processing when transferStatus is Completato", () => {
+      const order: Partial<Order> = {
+        id: "completato-order",
+        customerName: "Fresis Soc Cooperativa",
+        date: "2026-02-16",
+        total: "747.76",
+        status: "Ordine aperto",
+        orderNumber: "PENDING-48.435",
+        transferStatus: "Completato",
+        orderType: "Giornale",
+        documentState: "Nessuno",
+      };
+
+      const result = getOrderStatus(order as Order);
+
+      expect(result.category).toBe("in-processing");
+      expect(result.label).toBe("In lavorazione");
     });
 
     test("does not return in-processing for PENDING orders", () => {
