@@ -231,7 +231,7 @@ export function ArcaDocumentList({
     <div
       style={{
         ...ARCA_FONT,
-        border: `1px solid ${ARCA_COLORS.borderDark}`,
+        border: `1px solid ${ARCA_COLORS.shapeBorder}`,
       }}
     >
       {/* Header */}

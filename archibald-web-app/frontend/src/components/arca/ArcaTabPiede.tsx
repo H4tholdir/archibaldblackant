@@ -16,7 +16,7 @@ type ArcaTabPiedeProps = {
 
 const tdStyle = {
   padding: "1px 3px",
-  borderBottom: `1px solid ${ARCA_COLORS.gridBorderSilver}`,
+  borderBottom: `1px solid ${ARCA_COLORS.shapeBorder}`,
   ...ARCA_FONT,
 };
 
@@ -52,7 +52,7 @@ export function ArcaTabPiede({ testata, editing, onFieldChange }: ArcaTabPiedePr
       {/* Vettori + Data/Ora/Num.Doc (Left) + Data Trasporto/Agenti/Provv (Right) */}
       <div style={{ display: "flex", gap: "2px", flexWrap: "wrap" }}>
         {/* Left: Vettori (Vettore1 W=254, V1Data W=89, V1Ora W=56) */}
-        <div style={{ flex: 1, minWidth: "260px", border: `1px solid ${ARCA_COLORS.gridBorderSilver}`, padding: "2px 4px" }}>
+        <div style={{ flex: 1, minWidth: "260px", border: `1px solid ${ARCA_COLORS.shapeBorder}`, padding: "2px 4px" }}>
           <div style={{ ...ARCA_FONT, fontWeight: "bold", fontSize: "7pt", marginBottom: "1px" }}>Vettore</div>
           <div style={{ display: "flex", gap: "2px", flexWrap: "wrap", marginBottom: "1px" }}>
             <ArcaInput label="n. 1" value={testata.VETTORE1} width="36px" />
@@ -67,7 +67,7 @@ export function ArcaTabPiede({ testata, editing, onFieldChange }: ArcaTabPiedePr
           <ArcaInput label="Num. Doc." value={`${testata.NUMERODOC}/`} width="60px" />
         </div>
         {/* Right: Data trasporto, Agenti, Provvigioni */}
-        <div style={{ minWidth: "150px", border: `1px solid ${ARCA_COLORS.gridBorderSilver}`, padding: "2px 4px" }}>
+        <div style={{ minWidth: "150px", border: `1px solid ${ARCA_COLORS.shapeBorder}`, padding: "2px 4px" }}>
           <div style={{ display: "flex", gap: "2px", flexWrap: "wrap", marginBottom: "1px" }}>
             <ArcaInput label="Data" value={formatArcaDate(testata.TRDATA)} width="62px" />
             <ArcaInput label="Ora" value={testata.TRORA} width="40px" />
@@ -86,7 +86,7 @@ export function ArcaTabPiede({ testata, editing, onFieldChange }: ArcaTabPiedePr
       {/* Spese table (Shape2: W=458, H=112) + Rit/Acconto/Abbuono (Right) */}
       <div style={{ display: "flex", gap: "2px", flexWrap: "wrap" }}>
         <div style={{ flex: 1, minWidth: "300px" }}>
-          <table style={{ ...ARCA_FONT, width: "100%", borderCollapse: "collapse", border: `1px solid ${ARCA_COLORS.borderDark}` }}>
+          <table style={{ ...ARCA_FONT, width: "100%", borderCollapse: "collapse", border: `1px solid ${ARCA_COLORS.shapeBorder}` }}>
             <tbody>
               <tr style={{ backgroundColor: ARCA_COLORS.windowBg }}>
                 <td style={{ ...tdStyle, width: "55px" }}></td>

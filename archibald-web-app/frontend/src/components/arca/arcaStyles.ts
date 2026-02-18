@@ -21,6 +21,7 @@ export const ARCA_COLORS = {
   labelColor: "#000000",
   borderLight: "#D4D0C8",
   borderDark: "#808080",
+  shapeBorder: "#A2A2A2",
   linkBlue: "#0000CC",
   readOnlySpecialBg: "#D0E0F0",
   expenseDescGreen: "#008000",
@@ -32,7 +33,7 @@ export const ARCA_COLORS = {
 export const ARCA_GRID = {
   elencoRowHeight: 18,
   elencoHeaderHeight: 22,
-  righeRowHeight: 15,
+  righeRowHeight: 14,
   righeHeaderHeight: 18,
   cellPadding: "1px 4px",
   headerPadding: "2px 6px",
@@ -104,8 +105,8 @@ export const arcaSunkenInput: CSSProperties = {
 
 export const arcaReadOnlyInput: CSSProperties = {
   ...arcaSunkenInput,
-  backgroundColor: "#F0F0F0",
-  color: "#333",
+  backgroundColor: "#C0C0C0",
+  color: "#000",
 };
 
 export const arcaHighlightInput: CSSProperties = {
@@ -137,7 +138,7 @@ export const arcaTab = (active: boolean): CSSProperties => ({
 export const arcaPanel: CSSProperties = {
   border: `1px solid ${ARCA_COLORS.tabBorder}`,
   backgroundColor: ARCA_COLORS.tabActive,
-  padding: "8px",
+  padding: "4px",
 };
 
 export const arcaComeConvenuto: CSSProperties = {
@@ -210,7 +211,7 @@ export function arcaGridCell(width: number, align: "left" | "right" | "center" =
 }
 
 export const arcaEtchedBorder: CSSProperties = {
-  border: `1px solid ${ARCA_COLORS.borderDark}`,
+  border: `1px solid ${ARCA_COLORS.shapeBorder}`,
   boxShadow: "inset 1px 1px 0 #fff",
   padding: "4px 6px",
   marginBottom: "2px",

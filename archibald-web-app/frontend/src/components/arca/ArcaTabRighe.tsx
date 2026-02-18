@@ -22,11 +22,11 @@ type ArcaTabRigheProps = {
 
 const RIGHE_COLUMNS = [
   { label: "N", width: 21 },
+  { label: "Codice", width: 100 },
   { label: "Descrizione Articolo", width: 228 },
   { label: "Quantita", width: 70 },
   { label: "Residuo", width: 68 },
   { label: "Prezzo Totale", width: 88 },
-  { label: "Codice", width: 100 },
   { label: "N", width: 17 },
 ];
 
@@ -39,7 +39,7 @@ export function ArcaTabRighe({ righe, editing, onRigaChange, onRemoveRiga, onAdd
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
       {/* Griglia righe */}
-      <div style={{ border: `1px solid ${ARCA_COLORS.borderDark}`, maxHeight: "200px", overflowY: "auto" }}>
+      <div style={{ border: `1px solid ${ARCA_COLORS.shapeBorder}`, maxHeight: "200px", overflowY: "auto" }}>
         {/* Header */}
         <div style={{ display: "flex", position: "sticky", top: 0, zIndex: 1 }}>
           {RIGHE_COLUMNS.map((col, colIdx) => (
@@ -70,13 +70,13 @@ export function ArcaTabRighe({ righe, editing, onRigaChange, onRemoveRiga, onAdd
             }}
           >
             <div style={arcaGridCell(21, "center")}>{riga.NUMERORIGA}</div>
+            <div style={arcaGridCell(100)}>{riga.CODICEARTI}</div>
             <div style={arcaGridCell(228)}>{riga.DESCRIZION}</div>
             <div style={arcaGridCell(70, "right")}>{riga.QUANTITA}</div>
             <div style={arcaGridCell(68, "right")}>{riga.QUANTITARE}</div>
             <div style={arcaGridCell(88, "right")}>
               {formatArcaCurrency(riga.PREZZOTOT)}
             </div>
-            <div style={arcaGridCell(100)}>{riga.CODICEARTI}</div>
             <div style={{ ...arcaGridCell(17, "center"), borderRight: "none" }}>{riga.NOTE ? "X" : ""}</div>
           </div>
         ))}
@@ -91,14 +91,16 @@ export function ArcaTabRighe({ righe, editing, onRigaChange, onRemoveRiga, onAdd
       {selectedRiga && (
         <div
           style={{
-            border: `1px solid ${ARCA_COLORS.borderDark}`,
+            border: `1px solid ${ARCA_COLORS.shapeBorder}`,
             padding: "4px 6px",
             backgroundColor: ARCA_COLORS.windowBg,
           }}
         >
           {/* Riga 1: Articolo, Descrizione, Data Con., U.M., Fatt conv. (Top=204) */}
           <div style={{ display: "flex", gap: "2px", flexWrap: "wrap", marginBottom: "2px" }}>
-            <ArcaInput labelAbove label="Articolo" value={selectedRiga.CODICEARTI} width="120px" />
+            <ArcaInput labelAbove label="Articolo" value={selectedRiga.CODICEARTI} width="120px"
+              style={{ fontFamily: "'Courier New', monospace" }}
+              labelStyle={{ backgroundColor: "#00FFFF" }} />
             <ArcaInput
               labelAbove
               label="Descrizione articolo"
@@ -127,6 +129,7 @@ export function ArcaTabRighe({ righe, editing, onRigaChange, onRemoveRiga, onAdd
                 onRigaChange?.(selectedIndex, { ...selectedRiga, QUANTITA: parseFloat(v) || 0 });
               } : undefined}
             />
+            <ArcaInput labelAbove label="Q.tà Resid." value={String(selectedRiga.QUANTITARE)} width="88px" align="right" />
             <ArcaInput
               labelAbove
               label="Prezzo Unitario"

@@ -238,7 +238,7 @@ export function ArcaDocumentDetail({
   const pagDesc = t.PAG === "0001" ? "COME CONVENUTO" : t.PAG;
 
   return (
-    <div style={{ ...ARCA_FONT }}>
+    <div style={{ ...ARCA_FONT, maxWidth: "632px" }}>
       {/* Top bar: Edit/Save/Cancel + Close */}
       <div style={{ display: "flex", justifyContent: "space-between", padding: "2px 4px", alignItems: "center" }}>
         <div style={{ display: "flex", gap: "4px" }}>
@@ -266,12 +266,12 @@ export function ArcaDocumentDetail({
       {/* Header fisso (3 righe) + pannello info cliente */}
       <div
         style={{
-          border: `1px solid ${ARCA_COLORS.borderDark}`,
+          border: `1px solid ${ARCA_COLORS.shapeBorder}`,
           backgroundColor: ARCA_COLORS.windowBg,
           padding: "4px 6px",
-          marginBottom: "4px",
+          marginBottom: "2px",
           display: "flex",
-          gap: "8px",
+          gap: "4px",
         }}
       >
         {/* Sinistra: campi documento */}
@@ -295,7 +295,7 @@ export function ArcaDocumentDetail({
               readOnly={!editing}
               onChange={editing ? (v) => handleTestaFieldChange("SCONTOCASS", v) : undefined}
             />
-            <ArcaInput label="Merce" value={formatArcaCurrency(t.TOTMERCE)} width="70px" align="right" highlight />
+            <ArcaInput label="Merce" value={formatArcaCurrency(t.TOTMERCE)} width="70px" align="right" highlight style={{ color: "#408080" }} />
           </div>
 
           {/* Riga 3: Cod. Pag., COME CONVENUTO, Sconto merce, Tot. Doc. (Top≈48) */}
@@ -331,7 +331,7 @@ export function ArcaDocumentDetail({
           style={{
             width: "176px",
             minHeight: "67px",
-            border: `1px solid ${ARCA_COLORS.borderDark}`,
+            border: `1px solid ${ARCA_COLORS.shapeBorder}`,
             backgroundColor: ARCA_COLORS.fieldBg,
             padding: "2px 4px",
             ...ARCA_FONT,
@@ -362,11 +362,11 @@ export function ArcaDocumentDetail({
       <div
         style={{
           display: "flex",
-          gap: "6px",
-          padding: "2px 6px",
-          backgroundColor: "#F5F5F5",
-          border: `1px solid ${ARCA_COLORS.borderLight}`,
-          marginBottom: "2px",
+          gap: "4px",
+          padding: "1px 4px",
+          backgroundColor: ARCA_COLORS.windowBg,
+          border: `1px solid ${ARCA_COLORS.shapeBorder}`,
+          marginBottom: "1px",
           flexWrap: "wrap",
         }}
       >

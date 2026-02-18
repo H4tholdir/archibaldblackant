@@ -81,7 +81,7 @@ export function ArcaTabTesta({ testata, destinazione }: ArcaTabTestaProps) {
       {/* Data Consegna (W=76) + Destinazione Diversa (W=227) + Commessa (W=180) */}
       <div style={{ display: "flex", gap: "2px", flexWrap: "wrap", alignItems: "center" }}>
         <ArcaInput label="Data Consegna" value={formatArcaDate(testata.DATACONSEG)} width="50px" />
-        <ArcaInput label="Destinazione Diversa" value={testata.DESTDIV} width="30px" />
+        <ArcaInput label="Destinazione Diversa" value={testata.DESTDIV} width="30px" labelStyle={{ backgroundColor: "#00FFFF" }} />
         <div style={{ flex: 1 }} />
         <ArcaInput label="Commessa" value={testata.COMMESSA} width="80px" />
       </div>

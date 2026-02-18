@@ -18,6 +18,7 @@ type ArcaInputProps = {
   width?: string | number;
   labelWidth?: string | number;
   style?: CSSProperties;
+  labelStyle?: CSSProperties;
   type?: "text" | "number";
   align?: "left" | "right" | "center";
 };
@@ -33,6 +34,7 @@ export function ArcaInput({
   width = "100%",
   labelWidth,
   style,
+  labelStyle: labelStyleOverride,
   type = "text",
   align = "left",
 }: ArcaInputProps) {
@@ -67,7 +69,7 @@ export function ArcaInput({
   if (labelAbove) {
     return (
       <div style={{ display: "flex", flexDirection: "column", gap: "1px" }}>
-        <span style={{ ...arcaLabel, fontSize: "10px", padding: "0 1px" }}>
+        <span style={{ ...arcaLabel, fontSize: "10px", padding: "0 1px", ...labelStyleOverride }}>
           {label}
         </span>
         <input
@@ -94,6 +96,7 @@ export function ArcaInput({
           ...arcaLabel,
           width: labelWidth,
           flexShrink: 0,
+          ...labelStyleOverride,
         }}
       >
         {label}
