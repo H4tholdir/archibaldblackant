@@ -47,17 +47,17 @@ class ParsedCustomer:
     last_order_date: Optional[str] = None  # DATA DELL'ULTIMO ORDINE
     # Page 4: Order Analytics
     actual_order_count: Optional[int] = None  # CONTEGGI DEGLI ORDINI EFFETTIVI
-    customer_type: Optional[str] = None  # TIPO DI CLIENTE
+    actual_sales: Optional[float] = None  # VENDITE ATTUALI (€)
     previous_order_count_1: Optional[int] = None  # CONTEGGIO DEGLI ORDINI PRECEDENTE
     # Page 5: Sales Analytics
     previous_sales_1: Optional[float] = None  # VENDITE PRECEDENTE
     previous_order_count_2: Optional[int] = None  # CONTEGGIO DEGLI ORDINI PRECEDENTE 2
     previous_sales_2: Optional[float] = None  # VENDITE PRECEDENTE
-    # Page 6: Business Info & Accounts
+    # Page 7: Business Info & Accounts
     description: Optional[str] = None  # DESCRIZIONE
     type: Optional[str] = None  # TYPE
     external_account_number: Optional[str] = None  # NUMERO DI CONTO ESTERNO
-    # Page 7: Internal Account
+    # Page 8: Internal Account
     our_account_number: Optional[str] = None  # IL NOSTRO NUMERO DI CONTO
 
     def to_dict(self) -> dict:
@@ -73,29 +73,52 @@ class CustomerPDFParser:
         if not self.pdf_path.exists():
             raise FileNotFoundError(f"PDF not found: {pdf_path}")
 
+    def _detect_cycle_size(self) -> int:
+        """Auto-detect cycle size by scanning for repeated 'ID' header in first column."""
+        with pdfplumber.open(self.pdf_path) as pdf:
+            id_header_pages = []
+            for page_idx, page in enumerate(pdf.pages):
+                tables = page.extract_tables()
+                if tables and len(tables[0]) > 0:
+                    header_row = tables[0][0]
+                    if header_row and len(header_row) > 0:
+                        first_col = (header_row[0] or '').strip().upper()
+                        if first_col == 'ID':
+                            id_header_pages.append(page_idx)
+                if len(id_header_pages) >= 2:
+                    break
+
+        if len(id_header_pages) >= 2:
+            return id_header_pages[1] - id_header_pages[0]
+
+        return 9
+
     def parse(self) -> List[ParsedCustomer]:
         """
         Parse PDF and return list of structured customers
 
-        Memory optimization: Re-opens PDF for each 8-page cycle to force garbage collection.
+        Memory optimization: Re-opens PDF for each cycle to force garbage collection.
         Reduces memory from ~GB to <100MB following pdfplumber best practices.
         """
         customers = []
 
+        cycle_size = self._detect_cycle_size()
+        print(f"Detected cycle size: {cycle_size} pages", file=sys.stderr)
+
         # First pass: get total pages
         with pdfplumber.open(self.pdf_path) as pdf:
             total_pages = len(pdf.pages)
-            cycles = total_pages // 8
+            cycles = total_pages // cycle_size
 
         # Process each cycle with fresh PDF instance (critical for memory!)
         for cycle in range(cycles):
-            base_idx = cycle * 8
+            base_idx = cycle * cycle_size
 
             # Re-open PDF for this cycle only - forces garbage collection
             with pdfplumber.open(self.pdf_path) as pdf:
                 # Extract tables for this cycle only (not all pages!)
                 cycle_tables = []
-                for offset in range(8):
+                for offset in range(cycle_size):
                     page_idx = base_idx + offset
                     if page_idx < total_pages:
                         page = pdf.pages[page_idx]
@@ -111,27 +134,35 @@ class CustomerPDFParser:
 
             # Parse this cycle and add customers
             # (PDF context closed here, memory freed before next cycle)
-            cycle_customers = self._parse_single_cycle(cycle_tables)
+            cycle_customers = self._parse_single_cycle(cycle_tables, cycle_size)
             customers.extend(cycle_customers)
 
         return customers
 
-    def _parse_single_cycle(self, cycle_tables: List[List[List[str]]]) -> List[ParsedCustomer]:
-        """Parse a single 8-page cycle and return customers"""
+    def _parse_single_cycle(self, cycle_tables: List[List[List[str]]], cycle_size: int) -> List[ParsedCustomer]:
+        """Parse a single N-page cycle and return customers"""
         customers = []
 
-        if len(cycle_tables) != 8:
+        if len(cycle_tables) != cycle_size:
             return customers
 
-        # Get data for all 8 pages (headers already skipped)
-        page0_data, page1_data, page2_data, page3_data = cycle_tables[0:4]
-        page4_data, page5_data, page6_data, page7_data = cycle_tables[4:8]
+        # Get data for all pages (headers already skipped)
+        page0_data = cycle_tables[0]
+        page1_data = cycle_tables[1]
+        page2_data = cycle_tables[2]
+        page3_data = cycle_tables[3]
+        page4_data = cycle_tables[4]
+        page5_data = cycle_tables[5]
+        page6_data = cycle_tables[6]
+        page7_data = cycle_tables[7]
+        page8_data = cycle_tables[8] if cycle_size >= 9 else []
 
         # All pages should have same number of rows
-        max_rows = max(
-            len(page0_data), len(page1_data), len(page2_data), len(page3_data),
-            len(page4_data), len(page5_data), len(page6_data), len(page7_data)
-        )
+        all_pages = [page0_data, page1_data, page2_data, page3_data,
+                     page4_data, page5_data, page6_data, page7_data]
+        if page8_data:
+            all_pages.append(page8_data)
+        max_rows = max(len(p) for p in all_pages)
 
         # Combine data row by row
         for row_idx in range(max_rows):
@@ -143,6 +174,7 @@ class CustomerPDFParser:
             page5 = page5_data[row_idx] if row_idx < len(page5_data) else []
             page6 = page6_data[row_idx] if row_idx < len(page6_data) else []
             page7 = page7_data[row_idx] if row_idx < len(page7_data) else []
+            page8 = page8_data[row_idx] if row_idx < len(page8_data) else []
 
             # Parse each page's columns
             ids_data = self._parse_page0(page0)
@@ -150,9 +182,10 @@ class CustomerPDFParser:
             address_data = self._parse_page2(page2)
             contact_data = self._parse_page3(page3)
             order_data = self._parse_page4(page4)
-            sales_data = self._parse_page5(page5)
-            business_data = self._parse_page6(page6)
-            account_data = self._parse_page7(page7)
+            sales1_data = self._parse_page5(page5)
+            sales2_data = self._parse_page6(page6)
+            business_data = self._parse_page7(page7)
+            account_data = self._parse_page8(page8)
 
             # Combine into customer object
             customer = ParsedCustomer(
@@ -171,13 +204,13 @@ class CustomerPDFParser:
                 mobile=contact_data.get('mobile'),
                 url=contact_data.get('url'),
                 attention_to=contact_data.get('attention_to'),
-                last_order_date=contact_data.get('last_order_date'),
+                last_order_date=order_data.get('last_order_date'),
                 actual_order_count=order_data.get('actual_order_count'),
-                customer_type=order_data.get('customer_type'),
-                previous_order_count_1=order_data.get('previous_order_count_1'),
-                previous_sales_1=sales_data.get('previous_sales_1'),
-                previous_order_count_2=sales_data.get('previous_order_count_2'),
-                previous_sales_2=sales_data.get('previous_sales_2'),
+                actual_sales=order_data.get('actual_sales'),
+                previous_order_count_1=sales1_data.get('previous_order_count_1'),
+                previous_sales_1=sales1_data.get('previous_sales_1'),
+                previous_order_count_2=sales2_data.get('previous_order_count_2'),
+                previous_sales_2=sales2_data.get('previous_sales_2'),
                 description=business_data.get('description'),
                 type=business_data.get('type'),
                 external_account_number=business_data.get('external_account_number'),
@@ -266,100 +299,98 @@ class CustomerPDFParser:
         }
 
     def _parse_page3(self, row: List[str]) -> Dict[str, Optional[str]]:
-        """Parse page 3: TELEFONO, CELLULARE, URL, ALL'ATTENZIONE DI, DATA DELL'ULTIMO ORDINE
-        Columns: [TELEFONO, CELLULARE, URL, ALL_ATTENZIONE_DI, DATA_ULTIMO_ORDINE]
+        """Parse page 3: TELEFONO, CELLULARE, URL, ALL'ATTENZIONE DI
+        Columns: [TELEFONO, CELLULARE, URL, ALL_ATTENZIONE_DI]
         """
         phone = (row[0] or '').strip() if len(row) > 0 else None
         mobile = (row[1] or '').strip() if len(row) > 1 else None
         url = (row[2] or '').strip() if len(row) > 2 else None
         attention_to = (row[3] or '').strip() if len(row) > 3 else None
-        last_order_date = (row[4] or '').strip() if len(row) > 4 else None
 
         # Clean empty strings to None
         phone = phone if phone else None
         mobile = mobile if mobile else None
         url = url if url else None
         attention_to = attention_to if attention_to else None
-        last_order_date = last_order_date if last_order_date else None
 
         return {
             'phone': phone,
             'mobile': mobile,
             'url': url,
-            'attention_to': attention_to,
-            'last_order_date': last_order_date
+            'attention_to': attention_to
         }
 
-    def _parse_page4(self, row: List[str]) -> Dict[str, Optional[int]]:
-        """Parse page 4: CONTEGGI DEGLI ORDINI EFFETTIVI, TIPO DI CLIENTE, CONTEGGIO DEGLI ORDINI PRECEDENTE
-        Columns: [ACTUAL_ORDER_COUNT, CUSTOMER_TYPE, PREVIOUS_ORDER_COUNT_1]
+    def _parse_page4(self, row: List[str]) -> Dict:
+        """Parse page 4: DATA ULTIMO ORDINE, CONTEGGI ORDINI EFFETTIVI, VENDITE ATTUALI (€)
+        Columns: [LAST_ORDER_DATE, ACTUAL_ORDER_COUNT, ACTUAL_SALES]
         """
+        last_order_date = None
         actual_order_count = None
-        customer_type = None
+        actual_sales = None
+
+        if len(row) > 0:
+            last_order_date = (row[0] or '').strip()
+            last_order_date = last_order_date if last_order_date else None
+
+        if len(row) > 1:
+            try:
+                actual_order_count = int((row[1] or '').strip())
+            except (ValueError, AttributeError):
+                pass
+
+        if len(row) > 2:
+            actual_sales = self._parse_currency(row[2])
+
+        return {
+            'last_order_date': last_order_date,
+            'actual_order_count': actual_order_count,
+            'actual_sales': actual_sales
+        }
+
+    def _parse_page5(self, row: List[str]) -> Dict:
+        """Parse page 5: CONTEGGIO ORDINI PRECEDENTE, VENDITE PRECEDENTE
+        Columns: [PREVIOUS_ORDER_COUNT_1, PREVIOUS_SALES_1]
+        """
         previous_order_count_1 = None
+        previous_sales_1 = None
 
         if len(row) > 0:
             try:
-                actual_order_count = int((row[0] or '').strip())
+                previous_order_count_1 = int((row[0] or '').strip())
             except (ValueError, AttributeError):
                 pass
 
         if len(row) > 1:
-            # Customer type is the middle column (but might be currency format)
-            customer_type_str = (row[1] or '').strip()
-            # If it's a currency, skip it (we don't have a field for it)
-            if '€' not in customer_type_str and customer_type_str:
-                customer_type = customer_type_str
-
-        if len(row) > 2:
-            try:
-                previous_order_count_1 = int((row[2] or '').strip())
-            except (ValueError, AttributeError):
-                pass
+            previous_sales_1 = self._parse_currency(row[1])
 
         return {
-            'actual_order_count': actual_order_count,
-            'customer_type': customer_type,
-            'previous_order_count_1': previous_order_count_1
+            'previous_order_count_1': previous_order_count_1,
+            'previous_sales_1': previous_sales_1
         }
 
-    def _parse_page5(self, row: List[str]) -> Dict[str, Optional[float]]:
-        """Parse page 5: VENDITE PRECEDENTE, CONTEGGIO DEGLI ORDINI PRECEDENTE 2, VENDITE PRECEDENTE
-        Columns: [PREVIOUS_SALES_1, PREVIOUS_ORDER_COUNT_2, PREVIOUS_SALES_2]
+    def _parse_page6(self, row: List[str]) -> Dict:
+        """Parse page 6: CONTEGGIO ORDINI PRECEDENTE 2, VENDITE PRECEDENTE 2
+        Columns: [PREVIOUS_ORDER_COUNT_2, PREVIOUS_SALES_2]
         """
-        previous_sales_1 = None
         previous_order_count_2 = None
         previous_sales_2 = None
 
         if len(row) > 0:
-            # Parse Italian currency format: "124.497,43 €" → 124497.43
-            sales_str = (row[0] or '').replace('€', '').replace('.', '').replace(',', '.').strip()
             try:
-                previous_sales_1 = float(sales_str)
+                previous_order_count_2 = int((row[0] or '').strip())
             except (ValueError, AttributeError):
                 pass
 
         if len(row) > 1:
-            try:
-                previous_order_count_2 = int((row[1] or '').strip())
-            except (ValueError, AttributeError):
-                pass
-
-        if len(row) > 2:
-            sales_str = (row[2] or '').replace('€', '').replace('.', '').replace(',', '.').strip()
-            try:
-                previous_sales_2 = float(sales_str)
-            except (ValueError, AttributeError):
-                pass
+            previous_sales_2 = self._parse_currency(row[1])
 
         return {
-            'previous_sales_1': previous_sales_1,
             'previous_order_count_2': previous_order_count_2,
             'previous_sales_2': previous_sales_2
         }
 
-    def _parse_page6(self, row: List[str]) -> Dict[str, Optional[str]]:
-        """Parse page 6: DESCRIZIONE, TYPE, NUMERO DI CONTO ESTERNO
+    def _parse_page7(self, row: List[str]) -> Dict[str, Optional[str]]:
+        """Parse page 7: DESCRIZIONE, TYPE, NUMERO DI CONTO ESTERNO
         Columns: [DESCRIZIONE, TYPE, EXTERNAL_ACCOUNT_NUMBER]
         """
         description = (row[0] or '').strip() if len(row) > 0 else None
@@ -377,8 +408,8 @@ class CustomerPDFParser:
             'external_account_number': external_account_number
         }
 
-    def _parse_page7(self, row: List[str]) -> Dict[str, Optional[str]]:
-        """Parse page 7: IL NOSTRO NUMERO DI CONTO
+    def _parse_page8(self, row: List[str]) -> Dict[str, Optional[str]]:
+        """Parse page 8: IL NOSTRO NUMERO DI CONTO
         Columns: [OUR_ACCOUNT_NUMBER]
         """
         our_account_number = (row[0] or '').strip() if len(row) > 0 else None
@@ -389,6 +420,16 @@ class CustomerPDFParser:
         return {
             'our_account_number': our_account_number
         }
+
+    def _parse_currency(self, value: Optional[str]) -> Optional[float]:
+        """Parse Italian currency format: '124.497,43 €' → 124497.43"""
+        if not value:
+            return None
+        sales_str = (value or '').replace('€', '').replace('.', '').replace(',', '.').strip()
+        try:
+            return float(sales_str)
+        except (ValueError, AttributeError):
+            return None
 
 
 def main():
@@ -418,7 +459,7 @@ def main():
 
         elif output_format == 'csv':
             # Print CSV header
-            print('customer_profile,name,vat_number,pec,sdi,fiscal_code,delivery_terms,street,logistics_address,postal_code,city,phone,mobile,url,attention_to,last_order_date,actual_order_count,customer_type,previous_order_count_1,previous_sales_1,previous_order_count_2,previous_sales_2,description,type,external_account_number,our_account_number')
+            print('customer_profile,name,vat_number,pec,sdi,fiscal_code,delivery_terms,street,logistics_address,postal_code,city,phone,mobile,url,attention_to,last_order_date,actual_order_count,actual_sales,previous_order_count_1,previous_sales_1,previous_order_count_2,previous_sales_2,description,type,external_account_number,our_account_number')
 
             # Print data rows
             for c in customers:
@@ -440,7 +481,7 @@ def main():
                     c.attention_to or '',
                     c.last_order_date or '',
                     str(c.actual_order_count) if c.actual_order_count is not None else '',
-                    c.customer_type or '',
+                    str(c.actual_sales) if c.actual_sales is not None else '',
                     str(c.previous_order_count_1) if c.previous_order_count_1 is not None else '',
                     str(c.previous_sales_1) if c.previous_sales_1 is not None else '',
                     str(c.previous_order_count_2) if c.previous_order_count_2 is not None else '',

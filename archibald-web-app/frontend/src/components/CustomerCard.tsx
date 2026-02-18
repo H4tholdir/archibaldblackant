@@ -736,8 +736,12 @@ export function CustomerCard({
                   {formatDate(customer.lastOrderDate)}
                 </div>
                 <div>
-                  <strong style={{ color: "#666" }}>Ordini totali:</strong>{" "}
+                  <strong style={{ color: "#666" }}>Ordini attuali:</strong>{" "}
                   {customer.actualOrderCount}
+                </div>
+                <div>
+                  <strong style={{ color: "#666" }}>Vendite attuali:</strong>{" "}
+                  {formatAmount(customer.actualSales)}
                 </div>
                 <div>
                   <strong style={{ color: "#666" }}>Ordini precedenti:</strong>{" "}

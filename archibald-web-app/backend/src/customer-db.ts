@@ -37,6 +37,7 @@ export interface Customer {
   // Order History & Analytics
   lastOrderDate?: string; // Data ultimo ordine (ISO 8601)
   actualOrderCount?: number; // Conteggio ordini effettivi
+  actualSales?: number; // Vendite attuali
   previousOrderCount1?: number; // Conteggio ordini precedente
   previousSales1?: number; // Vendite precedente
   previousOrderCount2?: number; // Conteggio ordini precedente 2
@@ -106,6 +107,7 @@ export class CustomerDatabase {
         -- Order History & Analytics
         lastOrderDate TEXT,
         actualOrderCount INTEGER DEFAULT 0,
+        actualSales REAL DEFAULT 0.0,
         previousOrderCount1 INTEGER DEFAULT 0,
         previousSales1 REAL DEFAULT 0.0,
         previousOrderCount2 INTEGER DEFAULT 0,
@@ -170,6 +172,7 @@ export class CustomerDatabase {
       { column: "description", type: "TEXT" },
       { column: "lastOrderDate", type: "TEXT" },
       { column: "actualOrderCount", type: "INTEGER DEFAULT 0" },
+      { column: "actualSales", type: "REAL DEFAULT 0.0" },
       { column: "previousOrderCount1", type: "INTEGER DEFAULT 0" },
       { column: "previousSales1", type: "REAL DEFAULT 0.0" },
       { column: "previousOrderCount2", type: "INTEGER DEFAULT 0" },
@@ -237,6 +240,7 @@ export class CustomerDatabase {
       customer.description,
       customer.lastOrderDate,
       customer.actualOrderCount,
+      customer.actualSales,
       customer.previousOrderCount1,
       customer.previousSales1,
       customer.previousOrderCount2,
@@ -270,13 +274,13 @@ export class CustomerDatabase {
         phone, mobile, url, attentionTo,
         street, logisticsAddress, postalCode, city,
         customerType, type, deliveryTerms, description,
-        lastOrderDate, actualOrderCount,
+        lastOrderDate, actualOrderCount, actualSales,
         previousOrderCount1, previousSales1,
         previousOrderCount2, previousSales2,
         externalAccountNumber, ourAccountNumber,
         hash, lastSync
       )
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       ON CONFLICT(customerProfile) DO UPDATE SET
         internalId = excluded.internalId,
         name = excluded.name,
@@ -298,6 +302,7 @@ export class CustomerDatabase {
         description = excluded.description,
         lastOrderDate = excluded.lastOrderDate,
         actualOrderCount = excluded.actualOrderCount,
+        actualSales = excluded.actualSales,
         previousOrderCount1 = excluded.previousOrderCount1,
         previousSales1 = excluded.previousSales1,
         previousOrderCount2 = excluded.previousOrderCount2,
@@ -345,6 +350,7 @@ export class CustomerDatabase {
               customer.description ?? null,
               customer.lastOrderDate ?? null,
               customer.actualOrderCount ?? 0,
+              customer.actualSales ?? 0.0,
               customer.previousOrderCount1 ?? 0,
               customer.previousSales1 ?? 0.0,
               customer.previousOrderCount2 ?? 0,
@@ -378,6 +384,7 @@ export class CustomerDatabase {
               customer.description ?? null,
               customer.lastOrderDate ?? null,
               customer.actualOrderCount ?? 0,
+              customer.actualSales ?? 0.0,
               customer.previousOrderCount1 ?? 0,
               customer.previousSales1 ?? 0.0,
               customer.previousOrderCount2 ?? 0,
@@ -445,7 +452,7 @@ export class CustomerDatabase {
     phone, mobile, email, url, attentionTo,
     street, logisticsAddress, postalCode, city,
     customerType, type, deliveryTerms, description,
-    lastOrderDate, actualOrderCount,
+    lastOrderDate, actualOrderCount, actualSales,
     previousOrderCount1, previousSales1,
     previousOrderCount2, previousSales2,
     externalAccountNumber, ourAccountNumber,

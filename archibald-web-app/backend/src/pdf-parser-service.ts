@@ -41,6 +41,7 @@ export interface ParsedCustomer {
   // Order history & analytics
   last_order_date?: string | null;
   actual_order_count?: number | null;
+  actual_sales?: number | null;
   previous_order_count_1?: number | null;
   previous_sales_1?: number | null;
   previous_order_count_2?: number | null;

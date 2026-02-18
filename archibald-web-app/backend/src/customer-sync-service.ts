@@ -458,9 +458,10 @@ export class CustomerSyncService extends EventEmitter {
       customer.last_order_date || "",
       // Page 4: Order Analytics
       String(customer.actual_order_count ?? ""),
+      String(customer.actual_sales ?? ""),
       customer.customer_type || "",
       String(customer.previous_order_count_1 ?? ""),
-      // Page 5: Sales Analytics
+      // Page 5-6: Sales Analytics
       String(customer.previous_sales_1 ?? ""),
       String(customer.previous_order_count_2 ?? ""),
       String(customer.previous_sales_2 ?? ""),
@@ -501,12 +502,13 @@ export class CustomerSyncService extends EventEmitter {
       logisticsAddress: pdf.logistics_address || undefined,
       postalCode: pdf.postal_code || undefined,
       city: pdf.city || undefined,
-      customerType: pdf.customer_type || undefined,
+      customerType: undefined,
       type: pdf.type || undefined,
       deliveryTerms: pdf.delivery_terms || undefined,
       description: pdf.description || undefined,
       lastOrderDate: pdf.last_order_date || undefined,
       actualOrderCount: pdf.actual_order_count ?? undefined,
+      actualSales: pdf.actual_sales ?? undefined,
       previousOrderCount1: pdf.previous_order_count_1 ?? undefined,
       previousSales1: pdf.previous_sales_1 ?? undefined,
       previousOrderCount2: pdf.previous_order_count_2 ?? undefined,

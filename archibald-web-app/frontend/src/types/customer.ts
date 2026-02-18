@@ -20,6 +20,7 @@ export interface Customer {
   description: string | null;
   lastOrderDate: string | null;
   actualOrderCount: number;
+  actualSales: number;
   previousOrderCount1: number;
   previousSales1: number;
   previousOrderCount2: number;
