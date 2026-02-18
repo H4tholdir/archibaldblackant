@@ -1,4 +1,4 @@
-import type { CSSProperties } from "react";
+import type { CSSProperties, Ref, KeyboardEvent } from "react";
 import {
   arcaSunkenInput,
   arcaReadOnlyInput,
@@ -21,6 +21,8 @@ type ArcaInputProps = {
   labelStyle?: CSSProperties;
   type?: "text" | "number";
   align?: "left" | "right" | "center";
+  inputRef?: Ref<HTMLInputElement>;
+  onKeyDown?: (e: KeyboardEvent<HTMLInputElement>) => void;
 };
 
 export function ArcaInput({
@@ -37,6 +39,8 @@ export function ArcaInput({
   labelStyle: labelStyleOverride,
   type = "text",
   align = "left",
+  inputRef,
+  onKeyDown,
 }: ArcaInputProps) {
   const baseStyle = specialReadOnly
     ? arcaReadOnlySpecialInput
@@ -58,10 +62,12 @@ export function ArcaInput({
   if (!label) {
     return (
       <input
+        ref={inputRef}
         type={type}
         value={value}
         readOnly={readOnly}
         onChange={readOnly ? undefined : (e) => onChange?.(e.target.value)}
+        onKeyDown={onKeyDown}
         style={inputStyle}
       />
     );
@@ -74,10 +80,12 @@ export function ArcaInput({
           {label}
         </span>
         <input
+          ref={inputRef}
           type={type}
           value={value}
           readOnly={readOnly}
           onChange={readOnly ? undefined : (e) => onChange?.(e.target.value)}
+          onKeyDown={onKeyDown}
           style={inputStyle}
         />
       </div>
@@ -103,10 +111,12 @@ export function ArcaInput({
         {label}
       </span>
       <input
+        ref={inputRef}
         type={type}
         value={value}
         readOnly={readOnly}
         onChange={readOnly ? undefined : (e) => onChange?.(e.target.value)}
+        onKeyDown={onKeyDown}
         style={inputStyle}
       />
     </div>

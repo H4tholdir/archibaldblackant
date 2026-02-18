@@ -31,7 +31,7 @@ const RIGHE_COLUMNS = [
   { label: "", width: 16 },
   { label: "Codice", width: 90 },
   { label: "Descrizione Articolo", width: 220 },
-  { label: "Quantit\u00E0", width: 50 },
+  { label: "Quantità", width: 50 },
   { label: "Sconto", width: 50 },
   { label: "Prezzo Totale", width: 90 },
   { label: "IVA", width: 30 },
@@ -76,6 +76,12 @@ export function ArcaTabRighe({
   const productInputRef = useRef<HTMLInputElement>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // Refs for cursor flow: Articolo → Quantità → % Sconto → new row → Articolo
+  const quantityRef = useRef<HTMLInputElement>(null);
+  const discountRef = useRef<HTMLInputElement>(null);
+  const pendingFocusRef = useRef<"quantity" | "article" | null>(null);
+  const prevRigheLengthRef = useRef(righe.length);
+
   const provvPercent = commissionRate != null
     ? (commissionRate * 100).toFixed(0)
     : "18";
@@ -106,12 +112,36 @@ export function ArcaTabRighe({
     return () => document.removeEventListener("mousedown", handleClick);
   }, []);
 
+  // Detect new row added → select it and focus article input
+  useEffect(() => {
+    if (righe.length > prevRigheLengthRef.current && pendingFocusRef.current === "article") {
+      const newIdx = righe.length - 1;
+      setSelectedIndex(newIdx);
+      setTimeout(() => {
+        productInputRef.current?.focus();
+        pendingFocusRef.current = null;
+      }, 0);
+    }
+    prevRigheLengthRef.current = righe.length;
+  }, [righe.length]);
+
+  // Handle pending focus on quantity after product selection
+  useEffect(() => {
+    if (pendingFocusRef.current === "quantity") {
+      setTimeout(() => {
+        quantityRef.current?.focus();
+        quantityRef.current?.select();
+        pendingFocusRef.current = null;
+      }, 0);
+    }
+  });
+
   const handleSelectProduct = useCallback((product: Product) => {
     if (selectedIndex == null || !onRigaChange || !selectedRiga) return;
     onRigaChange(selectedIndex, {
       ...selectedRiga,
       CODICEARTI: product.article || "",
-      DESCRIZION: buildDescription(product.article || "", product.name),
+      DESCRIZION: product.name,
       ALIIVA: product.vat != null ? String(product.vat) : selectedRiga.ALIIVA,
       PREZZOUN: product.price ?? selectedRiga.PREZZOUN,
     });
@@ -119,6 +149,7 @@ export function ArcaTabRighe({
     setShowProductDropdown(false);
     setHighlightedProductIdx(-1);
     setProductResults([]);
+    pendingFocusRef.current = "quantity";
   }, [selectedIndex, selectedRiga, onRigaChange]);
 
   const handleProductKeyDown = useCallback((e: React.KeyboardEvent) => {
@@ -145,6 +176,22 @@ export function ArcaTabRighe({
         break;
     }
   }, [showProductDropdown, productResults, highlightedProductIdx, handleSelectProduct]);
+
+  const handleQuantityKeyDown = useCallback((e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "Tab" || e.key === "Enter") {
+      e.preventDefault();
+      discountRef.current?.focus();
+      discountRef.current?.select();
+    }
+  }, []);
+
+  const handleDiscountKeyDown = useCallback((e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "Tab" || e.key === "Enter") {
+      e.preventDefault();
+      pendingFocusRef.current = "article";
+      onAddRiga?.();
+    }
+  }, [onAddRiga]);
 
   const handleCopyRiga = () => {
     if (selectedRiga) {
@@ -344,16 +391,18 @@ export function ArcaTabRighe({
               } : undefined}
             />
           </div>
-          {/* Row 2: Quantit\u00E0, Prezzo Unitario, % Sconto, % Provvigioni, Totale */}
+          {/* Row 2: Quantità, Prezzo Unitario, % Sconto, % Provvigioni, Totale */}
           <div style={{ display: "flex", gap: "2px", flexWrap: "wrap", alignItems: "flex-end", marginBottom: "2px" }}>
             <ArcaInput
               labelAbove
-              label="Quantit\u00E0"
+              label="Quantità"
               value={selectedRiga.QUANTITA === 0 ? "" : String(selectedRiga.QUANTITA)}
               width="88px"
               align="right"
               readOnly={false}
               type="text"
+              inputRef={quantityRef}
+              onKeyDown={handleQuantityKeyDown}
               onChange={selectedIndex !== null ? (v) => {
                 const parsed = parseFloat(v);
                 onRigaChange?.(selectedIndex, { ...selectedRiga, QUANTITA: isNaN(parsed) ? 0 : parsed });
@@ -378,6 +427,8 @@ export function ArcaTabRighe({
               width="58px"
               align="right"
               readOnly={false}
+              inputRef={discountRef}
+              onKeyDown={handleDiscountKeyDown}
               onChange={selectedIndex !== null ? (v) => {
                 onRigaChange?.(selectedIndex, { ...selectedRiga, SCONTI: v });
               } : undefined}

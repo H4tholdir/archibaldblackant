@@ -1,5 +1,6 @@
 import { useState, useMemo, useCallback, useEffect, useRef } from "react";
 import type { FresisHistoryOrder } from "../../db/schema";
+import { db } from "../../db/schema";
 import type { ArcaData, ArcaRiga, ArcaTestata } from "../../types/arca-data";
 import { ArcaInput } from "./ArcaInput";
 import { ArcaTabBar } from "./ArcaTabBar";
@@ -9,6 +10,7 @@ import { ArcaTabPiede } from "./ArcaTabPiede";
 import { ArcaTabRiepilogo } from "./ArcaTabRiepilogo";
 import { ArcaTabOrdineMadre } from "./ArcaTabOrdineMadre";
 import { parseLinkedIds } from "../../services/fresis-history.service";
+import { fresisDiscountService } from "../../services/fresis-discount.service";
 import {
   ARCA_FONT,
   ARCA_COLORS,
@@ -269,6 +271,7 @@ export function ArcaDocumentDetail({
 
   const handlePasteRighe = useCallback((pastedRighe: ArcaRiga[]) => {
     pushData(data => {
+      const maxRow = data.righe.reduce((m, r) => Math.max(m, r.NUMERORIGA), 0);
       const adjusted = pastedRighe.map((r, i) => ({
         ...r,
         ID_TESTA: data.testata.ID,
@@ -279,9 +282,9 @@ export function ArcaDocumentDetail({
         CODICECF: data.testata.CODICECF,
         MAGPARTENZ: data.testata.MAGPARTENZ,
         MAGARRIVO: data.testata.MAGARRIVO,
-        NUMERORIGA: i + 1,
+        NUMERORIGA: maxRow + i + 1,
       }));
-      return recalcTotals({ ...data, righe: adjusted });
+      return recalcTotals({ ...data, righe: [...data.righe, ...adjusted] });
     });
   }, [pushData]);
 
@@ -303,22 +306,59 @@ export function ArcaDocumentDetail({
     onClose();
   }, [order.id, onClose]);
 
+  // --- Revenue calculation: listPrice × qty × (1 - fresisDiscount%) ---
+  const [revenueData, setRevenueData] = useState<{ value: number; percent: string | null } | null>(null);
+
+  useEffect(() => {
+    if (!currentData || currentData.righe.length === 0) {
+      setRevenueData(null);
+      return;
+    }
+
+    let cancelled = false;
+
+    const compute = async () => {
+      const righe = currentData.righe;
+      const totNetto = currentData.testata.TOTNETTO;
+      let totalFresisCost = 0;
+
+      for (const riga of righe) {
+        if (!riga.CODICEARTI || riga.QUANTITA === 0) continue;
+
+        const product = await db.products
+          .where("article")
+          .equals(riga.CODICEARTI)
+          .first();
+
+        const listPrice = product?.price ?? 0;
+        if (listPrice === 0) continue;
+
+        const discountPercent = await fresisDiscountService.getDiscountForArticle(
+          product?.id ?? "",
+          riga.CODICEARTI,
+        );
+
+        totalFresisCost += listPrice * riga.QUANTITA * (1 - discountPercent / 100);
+      }
+
+      if (cancelled) return;
+
+      const value = totNetto - totalFresisCost;
+      const percent = totNetto > 0 ? ((value / totNetto) * 100).toFixed(1) : null;
+      setRevenueData({ value, percent });
+    };
+
+    compute();
+    return () => { cancelled = true; };
+  }, [currentData]);
+
   if (!arcaData || !currentData) {
     return renderNoArcaData(order, handleClose, onLink, onUnlink, onDelete);
   }
 
   const t = currentData.testata;
-
-  const fresisCost = order.items.reduce((sum, item) => {
-    const listPrice = item.originalListPrice ?? 0;
-    const qty = item.quantity;
-    const discountFactor = item.discount ? (1 - item.discount / 100) : 1;
-    return sum + listPrice * qty * discountFactor;
-  }, 0);
-  const revenueValue = order.items.length > 0 ? t.TOTNETTO - fresisCost : null;
-  const revenuePercent = t.TOTNETTO > 0 && revenueValue != null
-    ? ((revenueValue / t.TOTNETTO) * 100).toFixed(1)
-    : null;
+  const revenueValue = revenueData?.value ?? null;
+  const revenuePercent = revenueData?.percent ?? null;
 
   return (
     <div style={{ ...ARCA_FONT, maxWidth: "680px" }}>
