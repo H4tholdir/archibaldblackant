@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback } from "react";
+import { useState, useMemo, useCallback, useEffect, useRef } from "react";
 import type { FresisHistoryOrder } from "../../db/schema";
 import type { ArcaData, ArcaRiga, ArcaTestata } from "../../types/arca-data";
 import { ArcaInput } from "./ArcaInput";
@@ -12,10 +12,11 @@ import { parseLinkedIds } from "../../services/fresis-history.service";
 import {
   ARCA_FONT,
   ARCA_COLORS,
-  arcaComeConvenuto,
+  arcaLabel,
+  arcaSunkenInput,
+  arcaReadOnlySpecialInput,
   arcaTransparentField,
   formatArcaCurrency,
-  formatArcaDecimal,
   formatArcaDate,
   parseArcaDataFromOrder,
 } from "./arcaStyles";
@@ -37,6 +38,12 @@ type ArcaDocumentDetailProps = {
 };
 
 const TAB_NAMES = ["Testa", "Righe", "Piede", "Riepilogo", "Ordine Madre"];
+const LABEL_W = "70px";
+
+type HistoryState = {
+  entries: ArcaData[];
+  index: number;
+};
 
 function deepClone<T>(obj: T): T {
   return JSON.parse(JSON.stringify(obj)) as T;
@@ -148,63 +155,133 @@ export function ArcaDocumentDetail({
   const [activeTab, setActiveTab] = useState(1);
   const arcaData = useMemo(() => parseArcaDataFromOrder(order.arcaData), [order]);
 
-  const [editing, setEditing] = useState(false);
-  const [editData, setEditData] = useState<ArcaData | null>(null);
+  // --- Undo/redo history ---
+  const [histState, setHistState] = useState<HistoryState>({ entries: [], index: -1 });
+  const lastInitRef = useRef<string | null>(null);
+  const autoSaveRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const onSaveRef = useRef(onSave);
+  onSaveRef.current = onSave;
+  const [showSaved, setShowSaved] = useState(false);
 
-  const startEditing = useCallback(() => {
-    if (!arcaData) return;
-    setEditData(deepClone(arcaData));
-    setEditing(true);
-  }, [arcaData]);
+  useEffect(() => {
+    if (!arcaData || order.id === lastInitRef.current) return;
+    lastInitRef.current = order.id;
+    setHistState({ entries: [deepClone(arcaData)], index: 0 });
+  }, [order.id, arcaData]);
 
-  const cancelEditing = useCallback(() => {
-    setEditing(false);
-    setEditData(null);
+  const currentData = useMemo(() => {
+    if (histState.index >= 0 && histState.index < histState.entries.length) {
+      return histState.entries[histState.index];
+    }
+    return arcaData;
+  }, [histState.index, histState.entries, arcaData]);
+
+  const canUndo = histState.index > 0;
+  const canRedo = histState.index < histState.entries.length - 1;
+
+  const undo = useCallback(() => {
+    setHistState(prev => ({ ...prev, index: Math.max(0, prev.index - 1) }));
   }, []);
 
-  const saveEditing = useCallback(() => {
-    if (!editData) return;
-    onSave?.(order.id, editData);
-    setEditing(false);
-    setEditData(null);
-  }, [editData, order.id, onSave]);
+  const redo = useCallback(() => {
+    setHistState(prev => ({ ...prev, index: Math.min(prev.entries.length - 1, prev.index + 1) }));
+  }, []);
 
+  const pushData = useCallback((updater: (current: ArcaData) => ArcaData) => {
+    setHistState(prev => {
+      const data = prev.entries[prev.index];
+      if (!data) return prev;
+      const newData = updater(data);
+      return {
+        entries: [...prev.entries.slice(0, prev.index + 1), newData],
+        index: prev.index + 1,
+      };
+    });
+  }, []);
+
+  // --- Auto-save ---
+  const currentDataRef = useRef(currentData);
+  currentDataRef.current = currentData;
+  const histIndexRef = useRef(histState.index);
+  histIndexRef.current = histState.index;
+
+  useEffect(() => {
+    if (histState.index <= 0 || !currentData) return;
+    if (autoSaveRef.current) clearTimeout(autoSaveRef.current);
+    autoSaveRef.current = setTimeout(() => {
+      onSaveRef.current?.(order.id, currentData);
+      setShowSaved(true);
+      setTimeout(() => setShowSaved(false), 2000);
+    }, 1500);
+    return () => {
+      if (autoSaveRef.current) clearTimeout(autoSaveRef.current);
+    };
+  }, [histState.index, currentData, order.id]);
+
+  // Save on unmount
+  useEffect(() => {
+    return () => {
+      if (autoSaveRef.current) {
+        clearTimeout(autoSaveRef.current);
+        autoSaveRef.current = null;
+      }
+      if (histIndexRef.current > 0 && currentDataRef.current) {
+        onSaveRef.current?.(order.id, currentDataRef.current);
+      }
+    };
+  }, [order.id]);
+
+  // --- Change handlers ---
   const handleRigaChange = useCallback((index: number, riga: ArcaRiga) => {
-    setEditData((prev) => {
-      if (!prev) return prev;
-      const newRighe = [...prev.righe];
+    pushData(data => {
+      const newRighe = [...data.righe];
       const newTotal = calculateRowTotal(riga.PREZZOUN, riga.QUANTITA, riga.SCONTI);
       newRighe[index] = { ...riga, PREZZOTOT: newTotal };
-      return recalcTotals({ ...prev, righe: newRighe });
+      return recalcTotals({ ...data, righe: newRighe });
     });
-  }, []);
+  }, [pushData]);
 
   const handleRemoveRiga = useCallback((index: number) => {
-    setEditData((prev) => {
-      if (!prev) return prev;
-      const newRighe = prev.righe.filter((_, i) => i !== index);
-      return recalcTotals({ ...prev, righe: newRighe });
+    pushData(data => {
+      const newRighe = data.righe.filter((_, i) => i !== index);
+      return recalcTotals({ ...data, righe: newRighe });
     });
-  }, []);
+  }, [pushData]);
 
   const handleAddRiga = useCallback(() => {
-    setEditData((prev) => {
-      if (!prev) return prev;
-      const newRiga = makeBlankRiga(prev);
-      return recalcTotals({ ...prev, righe: [...prev.righe, newRiga] });
+    pushData(data => {
+      const newRiga = makeBlankRiga(data);
+      return recalcTotals({ ...data, righe: [...data.righe, newRiga] });
     });
-  }, []);
+  }, [pushData]);
 
   const handleTestaFieldChange = useCallback((field: keyof ArcaTestata, value: number | string) => {
-    setEditData((prev) => {
-      if (!prev) return prev;
-      const updated = { ...prev, testata: { ...prev.testata, [field]: value } };
+    pushData(data => {
+      const updated = { ...data, testata: { ...data.testata, [field]: value } };
       if (field === "SCONTI") {
         updated.testata.SCONTIF = cascadeDiscountToFactor(String(value));
       }
       return recalcTotals(updated);
     });
-  }, []);
+  }, [pushData]);
+
+  const handlePasteRighe = useCallback((pastedRighe: ArcaRiga[]) => {
+    pushData(data => {
+      const adjusted = pastedRighe.map((r, i) => ({
+        ...r,
+        ID_TESTA: data.testata.ID,
+        ESERCIZIO: data.testata.ESERCIZIO,
+        TIPODOC: data.testata.TIPODOC,
+        NUMERODOC: data.testata.NUMERODOC,
+        DATADOC: data.testata.DATADOC,
+        CODICECF: data.testata.CODICECF,
+        MAGPARTENZ: data.testata.MAGPARTENZ,
+        MAGARRIVO: data.testata.MAGARRIVO,
+        NUMERORIGA: i + 1,
+      }));
+      return recalcTotals({ ...data, righe: adjusted });
+    });
+  }, [pushData]);
 
   const handleNavigateToOrder = useCallback(() => {
     if (!order.archibaldOrderId || !onNavigateToOrder) return;
@@ -212,52 +289,64 @@ export function ArcaDocumentDetail({
     if (firstId) onNavigateToOrder(firstId);
   }, [order.archibaldOrderId, onNavigateToOrder]);
 
-  if (!arcaData) {
-    return renderNoArcaData(order, onClose, onLink, onUnlink, onDelete);
+  // Flush pending auto-save before closing
+  const handleClose = useCallback(() => {
+    if (autoSaveRef.current) {
+      clearTimeout(autoSaveRef.current);
+      autoSaveRef.current = null;
+      if (histIndexRef.current > 0 && currentDataRef.current) {
+        onSaveRef.current?.(order.id, currentDataRef.current);
+      }
+    }
+    onClose();
+  }, [order.id, onClose]);
+
+  if (!arcaData || !currentData) {
+    return renderNoArcaData(order, handleClose, onLink, onUnlink, onDelete);
   }
 
-  const currentData = editing && editData ? editData : arcaData;
   const t = currentData.testata;
-  const pagDesc = t.PAG === "0001" ? "COME CONVENUTO" : t.PAG;
-
   const revenueValue = order.revenue;
-  const revenuePercent = t.TOTMERCE > 0 && revenueValue != null ? ((revenueValue / t.TOTMERCE) * 100).toFixed(1) : null;
+  const revenuePercent = t.TOTMERCE > 0 && revenueValue != null
+    ? ((revenueValue / t.TOTMERCE) * 100).toFixed(1)
+    : null;
 
   return (
     <div style={{ ...ARCA_FONT, maxWidth: "680px" }}>
       {/* BARRA AZIONI */}
       <div style={{ display: "flex", justifyContent: "space-between", padding: "4px 6px", alignItems: "center", backgroundColor: ARCA_COLORS.windowBg, borderBottom: `1px solid ${ARCA_COLORS.borderDark}` }}>
-        <div style={{ display: "flex", gap: "4px", flexWrap: "wrap" }}>
-          {editing ? (
-            <>
-              <button onClick={saveEditing} style={{ ...actionBtnStyle, backgroundColor: "#2e7d32", color: "#fff" }}>
-                Salva
-              </button>
-              <button onClick={cancelEditing} style={actionBtnStyle}>
-                Annulla
-              </button>
-            </>
-          ) : (
-            <>
-              {onDownloadPDF && (
-                <button onClick={() => onDownloadPDF(order)} style={actionBtnStyle}>
-                  Esporta PDF
-                </button>
-              )}
-              {onLink && (
-                <button onClick={() => onLink(order.id)} style={actionBtnStyle}>
-                  {order.archibaldOrderId ? "Mod. collegamento" : "Collega ordine"}
-                </button>
-              )}
-              {order.archibaldOrderId && onUnlink && (
-                <button onClick={() => onUnlink(order.id)} style={{ ...actionBtnStyle, color: "#c62828" }}>
-                  Scollega
-                </button>
-              )}
-            </>
+        <div style={{ display: "flex", gap: "4px", flexWrap: "wrap", alignItems: "center" }}>
+          <button onClick={undo} disabled={!canUndo} style={{ ...actionBtnStyle, opacity: canUndo ? 1 : 0.35, padding: "3px 8px" }} title="Annulla operazione">
+            {"\u2190"}
+          </button>
+          <button onClick={redo} disabled={!canRedo} style={{ ...actionBtnStyle, opacity: canRedo ? 1 : 0.35, padding: "3px 8px" }} title="Rifai operazione">
+            {"\u2192"}
+          </button>
+          {showSaved && (
+            <span style={{ ...ARCA_FONT, color: "#2e7d32", fontSize: "7pt" }}>Salvato</span>
+          )}
+          {onDownloadPDF && (
+            <button onClick={() => onDownloadPDF(order)} style={actionBtnStyle}>
+              Esporta PDF
+            </button>
+          )}
+          {onLink && (
+            <button onClick={() => onLink(order.id)} style={actionBtnStyle}>
+              {order.archibaldOrderId ? "Mod. collegamento" : "Collega ordine"}
+            </button>
+          )}
+          {order.archibaldOrderId && onUnlink && (
+            <button onClick={() => onUnlink(order.id)} style={{ ...actionBtnStyle, color: "#c62828" }}>
+              Scollega
+            </button>
+          )}
+          {onDelete && (
+            <button onClick={() => onDelete(order.id)} style={{ ...actionBtnStyle, color: "#c62828" }}>
+              Elimina FT
+            </button>
           )}
         </div>
-        <button onClick={onClose} style={closeButtonStyle}>
+        <button onClick={handleClose} style={closeButtonStyle}>
           X
         </button>
       </div>
@@ -265,66 +354,63 @@ export function ArcaDocumentDetail({
       {/* ZONA 1: BANNER ORDINE MADRE */}
       {renderBanner(order, onLink, handleNavigateToOrder)}
 
-      {/* ZONA 2: HEADER DOCUMENTO */}
+      {/* ZONA 2: HEADER DOCUMENTO — 2 colonne */}
       <div
         style={{
           border: `1px solid ${ARCA_COLORS.shapeBorder}`,
           backgroundColor: ARCA_COLORS.windowBg,
-          padding: "2px 4px",
+          padding: "4px 6px",
           marginBottom: "1px",
         }}
       >
-        {/* Riga 1: Doc tipo, Numero, Data, Cliente */}
-        <div style={{ display: "flex", gap: "1px", alignItems: "center", marginBottom: "1px" }}>
-          <ArcaInput label="Documento" value={t.TIPODOC} width="30px" specialReadOnly />
-          <ArcaInput value={`${t.NUMERODOC}/`} width="128px" style={{ fontFamily: "'Courier New', monospace", color: "#FF0000", fontSize: "9pt" }} />
-          <ArcaInput label="Data" value={formatArcaDate(t.DATADOC)} width="62px" />
-          <ArcaInput label="Cliente" value={t.CODICECF} width="50px" />
-        </div>
+        <div style={{ display: "flex", gap: "6px" }}>
+          {/* Left: Fields stacked */}
+          <div style={{ display: "flex", flexDirection: "column", gap: "1px", flexShrink: 0 }}>
+            {/* Documento (2 inputs) */}
+            <div style={{ display: "flex", alignItems: "center", gap: "1px" }}>
+              <span style={{ ...arcaLabel, width: LABEL_W, flexShrink: 0 }}>Documento</span>
+              <input
+                type="text"
+                value={t.TIPODOC}
+                readOnly
+                style={{ ...arcaReadOnlySpecialInput, width: "30px", height: "16px", lineHeight: "14px" }}
+              />
+              <input
+                type="text"
+                value={`${t.NUMERODOC}/`}
+                readOnly
+                style={{ ...arcaSunkenInput, width: "90px", height: "16px", lineHeight: "14px", color: "#FF0000" }}
+              />
+            </div>
+            <ArcaInput label="Data" value={formatArcaDate(t.DATADOC)} width="120px" labelWidth={LABEL_W} />
+            <ArcaInput label="Cliente" value={t.CODICECF} width="120px" labelWidth={LABEL_W} />
+            <ArcaInput
+              label="Sconto m."
+              value={t.SCONTI || ""}
+              width="120px"
+              labelWidth={LABEL_W}
+              readOnly={false}
+              onChange={(v) => handleTestaFieldChange("SCONTI", v)}
+            />
+            <ArcaInput
+              label="Tot. Doc."
+              value={formatArcaCurrency(t.TOTDOC)}
+              width="120px"
+              labelWidth={LABEL_W}
+              align="right"
+              style={{ ...arcaTransparentField, color: "#800000" }}
+            />
+            <ArcaInput
+              label="Merce"
+              value={formatArcaCurrency(t.TOTMERCE)}
+              width="120px"
+              labelWidth={LABEL_W}
+              align="right"
+              style={{ ...arcaTransparentField, color: "#800000" }}
+            />
+          </div>
 
-        {/* Riga 2: Valuta, Cambio, Sc. Cassa, Merce */}
-        <div style={{ display: "flex", gap: "1px", alignItems: "center", marginBottom: "1px" }}>
-          <ArcaInput label="Valuta" value={t.VALUTA} width="41px" />
-          <ArcaInput value={formatArcaDecimal(t.CAMBIO)} width="83px" align="right" />
-          <ArcaInput
-            label="Sconto cassa"
-            value={t.SCONTOCASS || ""}
-            width="62px"
-            readOnly={!editing}
-            onChange={editing ? (v) => handleTestaFieldChange("SCONTOCASS", v) : undefined}
-          />
-          <ArcaInput label="Merce" value={formatArcaCurrency(t.TOTMERCE)} width="87px" align="right" style={{ ...arcaTransparentField, color: "#800000" }} />
-        </div>
-
-        {/* Riga 3: Cod. Pag., COME CONVENUTO, Sconto merce, Tot. Doc. */}
-        <div style={{ display: "flex", gap: "1px", alignItems: "center" }}>
-          <ArcaInput
-            label="Cod. Pag."
-            value={t.PAG}
-            width="40px"
-            readOnly={!editing}
-            onChange={editing ? (v) => handleTestaFieldChange("PAG", v) : undefined}
-          />
-          {t.PAG === "0001" && <span style={arcaComeConvenuto}>{pagDesc}</span>}
-          <ArcaInput
-            label="Sconto merce"
-            value={t.SCONTI || ""}
-            width="62px"
-            readOnly={!editing}
-            onChange={editing ? (v) => handleTestaFieldChange("SCONTI", v) : undefined}
-          />
-          <ArcaInput
-            label="Tot. Doc."
-            value={formatArcaCurrency(t.TOTDOC)}
-            width="87px"
-            align="right"
-            style={{ ...arcaTransparentField, color: "#800000" }}
-          />
-        </div>
-
-        {/* Box info cliente + Box ricavo (affiancati) */}
-        <div style={{ display: "flex", gap: "4px", marginTop: "2px" }}>
-          {/* Box info cliente */}
+          {/* Right: Client box */}
           <div
             style={{
               flex: 1,
@@ -350,34 +436,6 @@ export function ArcaDocumentDetail({
                 {order.subClientData.localita ? ` ${order.subClientData.localita}` : ""}
                 {order.subClientData.prov ? ` ${order.subClientData.prov}` : ""}
               </div>
-            )}
-          </div>
-
-          {/* Box ricavo */}
-          <div
-            style={{
-              minWidth: "160px",
-              border: `1px solid ${ARCA_COLORS.shapeBorder}`,
-              backgroundColor: revenueValue != null ? (revenueValue >= 0 ? "#E8F5E9" : "#FFEBEE") : "#F5F5F5",
-              padding: "4px 8px",
-              ...ARCA_FONT,
-              display: "flex",
-              flexDirection: "column",
-              justifyContent: "center",
-            }}
-          >
-            {revenueValue != null ? (
-              <>
-                <div style={{ fontWeight: "bold", fontSize: "9pt" }}>
-                  RICAVO {"\u20AC"} {formatArcaCurrency(revenueValue)}
-                  {revenuePercent && <span style={{ fontSize: "8pt" }}> ({revenuePercent}%)</span>}
-                </div>
-                <div style={{ fontSize: "7pt", color: "#666", marginTop: "2px" }}>
-                  prezzoCliente - costoFresis
-                </div>
-              </>
-            ) : (
-              <div style={{ color: "#999", fontStyle: "italic" }}>N/D</div>
             )}
           </div>
         </div>
@@ -412,18 +470,18 @@ export function ArcaDocumentDetail({
         {activeTab === 1 && (
           <ArcaTabRighe
             righe={currentData.righe}
-            editing={editing}
             onRigaChange={handleRigaChange}
             onRemoveRiga={handleRemoveRiga}
             onAddRiga={handleAddRiga}
-            onEditDocument={!editing && onSave ? startEditing : undefined}
-            onDeleteDocument={!editing && onDelete ? () => onDelete(order.id) : undefined}
+            onPasteRighe={handlePasteRighe}
+            revenueValue={revenueValue}
+            revenuePercent={revenuePercent}
           />
         )}
         {activeTab === 2 && (
           <ArcaTabPiede
             testata={t}
-            editing={editing}
+            editing={true}
             onFieldChange={handleTestaFieldChange}
           />
         )}
@@ -455,7 +513,6 @@ function renderBanner(
   const isArcaImport = order.source === "arca_import";
 
   if (isLinked) {
-    // Variante A: collegata a ordine madre
     const linkedNumbers = parseLinkedIds(order.archibaldOrderNumber);
     return (
       <div
@@ -493,7 +550,6 @@ function renderBanner(
   }
 
   if (isArcaImport) {
-    // Variante C: importata da Arca
     return (
       <div
         style={{
@@ -520,7 +576,6 @@ function renderBanner(
     );
   }
 
-  // Variante B: non collegata
   return (
     <div
       style={{
