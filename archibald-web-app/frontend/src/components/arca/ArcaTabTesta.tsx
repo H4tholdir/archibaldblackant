@@ -1,4 +1,5 @@
 import type { ArcaTestata, ArcaDestinazione } from "../../types/arca-data";
+import type { FresisHistoryOrder } from "../../db/schema";
 import { ArcaInput } from "./ArcaInput";
 import {
   ARCA_FONT,
@@ -10,9 +11,10 @@ import {
 type ArcaTabTestaProps = {
   testata: ArcaTestata;
   destinazione?: ArcaDestinazione | null;
+  order?: FresisHistoryOrder;
 };
 
-export function ArcaTabTesta({ testata, destinazione }: ArcaTabTestaProps) {
+export function ArcaTabTesta({ testata, destinazione, order }: ArcaTabTestaProps) {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
       {/* Sezione 1: Dati Generali */}
@@ -20,33 +22,15 @@ export function ArcaTabTesta({ testata, destinazione }: ArcaTabTestaProps) {
         <span style={arcaSectionLabel}>Dati Generali</span>
         <div style={{ display: "flex", gap: "2px", flexWrap: "wrap", marginBottom: "2px", marginTop: "4px" }}>
           <ArcaInput label="Esercizio" value={testata.ESERCIZIO} width="40px" />
-          <ArcaInput label="Contabilita" value="001" width="30px" />
           <ArcaInput label="Tipo Doc" value={testata.TIPODOC} width="30px" />
-        </div>
-        <div style={{ display: "flex", gap: "2px", flexWrap: "wrap", marginBottom: "2px" }}>
-          <ArcaInput label="Mag.Partenza" value={testata.MAGPARTENZ} width="50px" />
-          <ArcaInput label="Mag.Arrivo" value={testata.MAGARRIVO} width="50px" />
           <ArcaInput label="Listino" value={testata.LISTINO} width="20px" />
         </div>
         <div style={{ display: "flex", gap: "2px", flexWrap: "wrap", marginBottom: "2px" }}>
           <ArcaInput label="Zona" value={testata.ZONA} width="30px" />
-          <ArcaInput label="Settore" value={testata.SETTORE} width="30px" />
-          <ArcaInput label="Tipo Fatt." value={testata.TIPOFATT} width="60px" />
-        </div>
-        <div style={{ display: "flex", gap: "2px", flexWrap: "wrap", marginBottom: "2px" }}>
           <ArcaInput label="Data Consegna" value={formatArcaDate(testata.DATACONSEG)} width="62px" />
-          <ArcaInput label="Commessa" value={testata.COMMESSA} width="80px" />
         </div>
         <div style={{ display: "flex", gap: "2px", flexWrap: "wrap", alignItems: "center" }}>
           <ArcaInput label="Dest.Div." value={testata.DESTDIV} width="30px" />
-          <label style={{ ...ARCA_FONT, display: "flex", alignItems: "center", gap: "2px" }}>
-            <input type="checkbox" checked={testata.TRIANGOLAZ} readOnly />
-            Triangolazione
-          </label>
-          <label style={{ ...ARCA_FONT, display: "flex", alignItems: "center", gap: "2px" }}>
-            <input type="checkbox" checked={testata.SCORPORO} readOnly />
-            Scorporo
-          </label>
         </div>
         {destinazione && (
           <div style={{ marginTop: "4px", padding: "2px 0", borderTop: "1px solid #D4D0C8" }}>
@@ -64,32 +48,40 @@ export function ArcaTabTesta({ testata, destinazione }: ArcaTabTestaProps) {
         )}
       </div>
 
-      {/* Sezione 2: Documento Fornitore */}
+      {/* Sezione 2: Ordine Madre (Fornitore = Fresis) */}
       <div style={{ ...arcaEtchedBorder, marginTop: "8px" }}>
-        <span style={arcaSectionLabel}>Documento Fornitore</span>
-        <div style={{ display: "flex", gap: "2px", flexWrap: "wrap", marginTop: "4px" }}>
-          <ArcaInput label="Num.Doc.Forn" value={testata.NUMERODOCF} width="100px" />
-          <ArcaInput label="Data Doc.Forn" value={formatArcaDate(testata.DATADOCFOR)} width="62px" />
+        <span style={arcaSectionLabel}>Ordine Madre (Fornitore: Fresis)</span>
+        <div style={{ display: "flex", gap: "2px", flexWrap: "wrap", marginTop: "4px", marginBottom: "2px" }}>
+          <ArcaInput label="N. Ordine" value={order?.archibaldOrderNumber || ""} width="80px" />
+          <ArcaInput label="Stato" value={order?.currentState || ""} width="100px" />
         </div>
+        {order?.ddtNumber && (
+          <div style={{ display: "flex", gap: "2px", flexWrap: "wrap", marginBottom: "2px" }}>
+            <ArcaInput label="DDT" value={order.ddtNumber} width="80px" />
+            <ArcaInput label="Data DDT" value={order.ddtDeliveryDate || ""} width="62px" />
+          </div>
+        )}
+        {order?.invoiceNumber && (
+          <div style={{ display: "flex", gap: "2px", flexWrap: "wrap", marginBottom: "2px" }}>
+            <ArcaInput label="Fattura" value={order.invoiceNumber} width="80px" />
+            <ArcaInput label="Data Fatt." value={order.invoiceDate || ""} width="62px" />
+            <ArcaInput label="Importo" value={order.invoiceAmount || ""} width="80px" />
+          </div>
+        )}
+        {order?.trackingNumber && (
+          <div style={{ display: "flex", gap: "2px", flexWrap: "wrap" }}>
+            <ArcaInput label="Tracking" value={order.trackingNumber} width="120px" />
+            <ArcaInput label="Corriere" value={order.trackingCourier || ""} width="80px" />
+          </div>
+        )}
+        {!order?.archibaldOrderNumber && (
+          <div style={{ ...ARCA_FONT, color: "#999", fontStyle: "italic", marginTop: "4px" }}>
+            Nessun ordine madre collegato
+          </div>
+        )}
       </div>
 
-      {/* Sezione 3: Coordinate Bancarie */}
-      <div style={{ ...arcaEtchedBorder, marginTop: "8px" }}>
-        <span style={arcaSectionLabel}>Coordinate Bancarie</span>
-        <div style={{ display: "flex", gap: "2px", flexWrap: "wrap", marginTop: "4px" }}>
-          <ArcaInput label="Banca" value={testata.CODBANCA} width="20px" />
-          <ArcaInput label="BIC" value={testata.CB_BIC} width="70px" />
-          <ArcaInput label="Nazione" value={testata.CB_NAZIONE} width="22px" />
-          <ArcaInput label="CIN UE" value={testata.CB_CIN_UE} width="22px" />
-          <ArcaInput label="CIN IT" value={testata.CB_CIN_IT} width="18px" />
-        </div>
-        <div style={{ display: "flex", gap: "2px", flexWrap: "wrap", marginTop: "2px" }}>
-          <ArcaInput label="ABI+CAB" value={testata.ABICAB} width="75px" />
-          <ArcaInput label="C/C" value={testata.CONTOCORR} width="110px" />
-        </div>
-      </div>
-
-      {/* Sezione 4: Metadati */}
+      {/* Sezione 3: Metadati */}
       <div style={{ ...arcaEtchedBorder, marginTop: "8px" }}>
         <span style={arcaSectionLabel}>Metadati</span>
         <div style={{ display: "flex", gap: "2px", flexWrap: "wrap", marginTop: "4px" }}>

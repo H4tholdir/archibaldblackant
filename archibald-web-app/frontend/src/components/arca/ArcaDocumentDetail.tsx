@@ -438,7 +438,7 @@ export function ArcaDocumentDetail({
               />
               <input
                 type="text"
-                value={`${t.NUMERODOC}/`}
+                value={t.NUMERODOC}
                 readOnly
                 style={{ ...arcaSunkenInput, width: "90px", height: "16px", lineHeight: "14px", color: "#FF0000" }}
               />
@@ -508,6 +508,7 @@ export function ArcaDocumentDetail({
           <ArcaTabTesta
             testata={t}
             destinazione={currentData.destinazione_diversa}
+            order={order}
           />
         )}
         {activeTab === 1 && (
