@@ -326,7 +326,7 @@ export function ArcaDocumentDetail({
         if (!riga.CODICEARTI || riga.QUANTITA === 0) continue;
 
         const product = await db.products
-          .where("article")
+          .where("name")
           .equals(riga.CODICEARTI)
           .first();
 

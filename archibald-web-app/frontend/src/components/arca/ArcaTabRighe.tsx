@@ -1,11 +1,11 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
+import type { CSSProperties } from "react";
 import type { ArcaRiga } from "../../types/arca-data";
 import type { Product } from "../../db/schema";
 import { productService } from "../../services/products.service";
 import { ArcaInput } from "./ArcaInput";
 import {
   ARCA_FONT,
-  ARCA_GRID,
   arcaNavyHeader,
   arcaRowStyle,
   arcaGridCell,
@@ -27,17 +27,21 @@ type ArcaTabRigheProps = {
 };
 
 const RIGHE_COLUMNS = [
-  { label: "N\u00B0", width: 24 },
-  { label: "", width: 16 },
-  { label: "Codice", width: 90 },
-  { label: "Descrizione Articolo", width: 220 },
-  { label: "Quantità", width: 50 },
-  { label: "Sconto", width: 50 },
-  { label: "Prezzo Totale", width: 90 },
-  { label: "IVA", width: 30 },
+  { label: "N\u00B0", width: 28 },
+  { label: "Codice", width: 110 },
+  { label: "Descrizione Articolo", width: 200 },
+  { label: "Qtà", width: 40 },
+  { label: "Sconto", width: 45 },
+  { label: "Prezzo Tot.", width: 80 },
+  { label: "IVA", width: 32 },
 ];
 
-const EMPTY_VISUAL_ROWS = 5;
+const RIGHE_ROW_HEIGHT = 32;
+const RIGHE_HEADER_HEIGHT = 34;
+const RIGHE_CELL_PADDING = "4px 6px";
+const RIGHE_FONT_SIZE = "11px";
+
+const EMPTY_VISUAL_ROWS = 3;
 
 function stripCode(desc: string, code: string): string {
   if (!code || !desc.startsWith(code)) return desc;
@@ -47,6 +51,29 @@ function stripCode(desc: string, code: string): string {
 function buildDescription(code: string, text: string): string {
   if (!code) return text;
   return code + "   " + text;
+}
+
+function righeHeaderStyle(width: number, isLast: boolean): CSSProperties {
+  return {
+    ...arcaNavyHeader,
+    width,
+    height: RIGHE_HEADER_HEIGHT,
+    padding: RIGHE_CELL_PADDING,
+    fontSize: RIGHE_FONT_SIZE,
+    boxSizing: "border-box",
+    borderRight: isLast ? "none" : arcaNavyHeader.borderRight,
+  };
+}
+
+function righeCellStyle(width: number, align?: "left" | "right" | "center", isLast?: boolean): CSSProperties {
+  return {
+    ...arcaGridCell(width, align),
+    padding: RIGHE_CELL_PADDING,
+    fontSize: RIGHE_FONT_SIZE,
+    height: RIGHE_ROW_HEIGHT,
+    lineHeight: `${RIGHE_ROW_HEIGHT - 8}px`,
+    borderRight: isLast ? "none" : `1px solid ${ARCA_COLORS.gridBorderColLight}`,
+  };
 }
 
 export function ArcaTabRighe({
@@ -138,10 +165,11 @@ export function ArcaTabRighe({
 
   const handleSelectProduct = useCallback((product: Product) => {
     if (selectedIndex == null || !onRigaChange || !selectedRiga) return;
+    const articleCode = product.article || product.name || "";
     onRigaChange(selectedIndex, {
       ...selectedRiga,
-      CODICEARTI: product.article || "",
-      DESCRIZION: product.name,
+      CODICEARTI: articleCode,
+      DESCRIZION: product.description || product.name,
       ALIIVA: product.vat != null ? String(product.vat) : selectedRiga.ALIIVA,
       PREZZOUN: product.price ?? selectedRiga.PREZZOUN,
     });
@@ -228,18 +256,13 @@ export function ArcaTabRighe({
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
       {/* Griglia righe */}
-      <div style={{ border: `1px solid ${ARCA_COLORS.shapeBorder}`, maxHeight: "350px", overflowY: "auto" }}>
+      <div style={{ border: `1px solid ${ARCA_COLORS.shapeBorder}`, maxHeight: "350px", overflowY: "auto", overflowX: "auto" }}>
         {/* Header */}
-        <div style={{ display: "flex", position: "sticky", top: 0, zIndex: 1 }}>
+        <div style={{ display: "flex", position: "sticky", top: 0, zIndex: 1, minWidth: "fit-content" }}>
           {RIGHE_COLUMNS.map((col, colIdx) => (
             <div
               key={col.label || `col-${colIdx}`}
-              style={{
-                ...arcaNavyHeader,
-                width: col.width,
-                boxSizing: "border-box",
-                borderRight: colIdx === RIGHE_COLUMNS.length - 1 ? "none" : arcaNavyHeader.borderRight,
-              }}
+              style={righeHeaderStyle(col.width, colIdx === RIGHE_COLUMNS.length - 1)}
             >
               {col.label}
             </div>
@@ -254,20 +277,21 @@ export function ArcaTabRighe({
               ...arcaRowStyle(idx, idx === selectedIndex),
               display: "flex",
               alignItems: "center",
-              height: ARCA_GRID.righeRowHeight,
+              height: RIGHE_ROW_HEIGHT,
               cursor: "pointer",
+              minWidth: "fit-content",
+              fontSize: RIGHE_FONT_SIZE,
             }}
           >
-            <div style={arcaGridCell(24, "center")}>{riga.NUMERORIGA}</div>
-            <div style={arcaGridCell(16, "center")}>{riga.ESPLDISTIN}</div>
-            <div style={arcaGridCell(90)}>{riga.CODICEARTI}</div>
-            <div style={arcaGridCell(220)}>{stripCode(riga.DESCRIZION, riga.CODICEARTI)}</div>
-            <div style={arcaGridCell(50, "right")}>{riga.QUANTITA || ""}</div>
-            <div style={arcaGridCell(50)}>{riga.SCONTI}</div>
-            <div style={arcaGridCell(90, "right")}>
+            <div style={righeCellStyle(28, "center")}>{riga.NUMERORIGA}</div>
+            <div style={righeCellStyle(110)}>{riga.CODICEARTI}</div>
+            <div style={righeCellStyle(200)}>{stripCode(riga.DESCRIZION, riga.CODICEARTI)}</div>
+            <div style={righeCellStyle(40, "right")}>{riga.QUANTITA || ""}</div>
+            <div style={righeCellStyle(45)}>{riga.SCONTI}</div>
+            <div style={righeCellStyle(80, "right")}>
               {formatArcaCurrency(riga.PREZZOTOT)}
             </div>
-            <div style={{ ...arcaGridCell(30, "center"), borderRight: "none" }}>
+            <div style={righeCellStyle(32, "center", true)}>
               {riga.ALIIVA}
             </div>
           </div>
@@ -280,18 +304,19 @@ export function ArcaTabRighe({
               ...arcaRowStyle(righe.length + i, false),
               display: "flex",
               alignItems: "center",
-              height: ARCA_GRID.righeRowHeight,
+              height: RIGHE_ROW_HEIGHT,
               cursor: "default",
+              minWidth: "fit-content",
+              fontSize: RIGHE_FONT_SIZE,
             }}
           >
-            <div style={arcaGridCell(24, "center")} />
-            <div style={arcaGridCell(16, "center")} />
-            <div style={arcaGridCell(90)} />
-            <div style={arcaGridCell(220)} />
-            <div style={arcaGridCell(50, "right")} />
-            <div style={arcaGridCell(50)} />
-            <div style={arcaGridCell(90, "right")} />
-            <div style={{ ...arcaGridCell(30, "center"), borderRight: "none" }} />
+            <div style={righeCellStyle(28, "center")} />
+            <div style={righeCellStyle(110)} />
+            <div style={righeCellStyle(200)} />
+            <div style={righeCellStyle(40, "right")} />
+            <div style={righeCellStyle(45)} />
+            <div style={righeCellStyle(80, "right")} />
+            <div style={righeCellStyle(32, "center", true)} />
           </div>
         ))}
         {righe.length === 0 && (
@@ -370,8 +395,8 @@ export function ArcaTabRighe({
                         borderBottom: pIdx < productResults.length - 1 ? "1px solid #eee" : "none",
                       }}
                     >
-                      <div style={{ fontWeight: "bold" }}>{product.article}</div>
-                      <div style={{ fontSize: "7pt", color: "#666" }}>{product.name}</div>
+                      <div style={{ fontWeight: "bold" }}>{product.article || product.name}</div>
+                      <div style={{ fontSize: "7pt", color: "#666" }}>{product.description}</div>
                     </div>
                   ))}
                 </div>
@@ -479,16 +504,7 @@ export function ArcaTabRighe({
               )}
             </div>
             <ArcaInput labelAbove label="U.M." value={selectedRiga.UNMISURA} width="30px" />
-            <ArcaInput
-              labelAbove
-              label="IVA"
-              value={selectedRiga.ALIIVA}
-              width="30px"
-              readOnly={false}
-              onChange={selectedIndex !== null ? (v) => {
-                onRigaChange?.(selectedIndex, { ...selectedRiga, ALIIVA: v });
-              } : undefined}
-            />
+            <ArcaInput labelAbove label="IVA" value={selectedRiga.ALIIVA} width="30px" />
           </div>
         </div>
       )}
