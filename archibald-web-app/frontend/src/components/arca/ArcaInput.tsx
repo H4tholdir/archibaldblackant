@@ -88,7 +88,7 @@ export function ArcaInput({
       style={{
         display: "flex",
         alignItems: "center",
-        gap: "2px",
+        gap: "1px",
       }}
     >
       <span

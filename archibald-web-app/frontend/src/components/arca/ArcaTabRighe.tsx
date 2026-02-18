@@ -21,10 +21,11 @@ type ArcaTabRigheProps = {
 };
 
 const RIGHE_COLUMNS = [
-  { label: "N", width: 21 },
+  { label: "N\u00B0", width: 21 },
+  { label: "", width: 13 },
   { label: "Codice", width: 100 },
   { label: "Descrizione Articolo", width: 228 },
-  { label: "Quantita", width: 70 },
+  { label: "Quantit\u00E0", width: 70 },
   { label: "Residuo", width: 68 },
   { label: "Prezzo Totale", width: 88 },
   { label: "N", width: 17 },
@@ -70,6 +71,7 @@ export function ArcaTabRighe({ righe, editing, onRigaChange, onRemoveRiga, onAdd
             }}
           >
             <div style={arcaGridCell(21, "center")}>{riga.NUMERORIGA}</div>
+            <div style={arcaGridCell(13, "center")}>{riga.ESPLDISTIN}</div>
             <div style={arcaGridCell(100)}>{riga.CODICEARTI}</div>
             <div style={arcaGridCell(228)}>{riga.DESCRIZION}</div>
             <div style={arcaGridCell(70, "right")}>{riga.QUANTITA}</div>
@@ -153,7 +155,7 @@ export function ArcaTabRighe({ righe, editing, onRigaChange, onRemoveRiga, onAdd
               } : undefined}
             />
             <ArcaInput labelAbove label="% Provvigioni" value={selectedRiga.PROVV} width="67px" />
-            <ArcaInput labelAbove label="Totale" value={formatArcaCurrency(selectedRiga.PREZZOTOT)} width="96px" align="right" highlight />
+            <ArcaInput labelAbove label="Totale" value={formatArcaCurrency(selectedRiga.PREZZOTOT)} width="96px" align="right" style={{ color: "#FF0000", fontWeight: "bold" }} />
             <ArcaInput
               labelAbove
               label="IVA"

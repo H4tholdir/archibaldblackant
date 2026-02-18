@@ -10,6 +10,7 @@ import {
   ARCA_FONT,
   ARCA_COLORS,
   arcaComeConvenuto,
+  arcaTransparentField,
   formatArcaCurrency,
   formatArcaDecimal,
   formatArcaDate,
@@ -268,26 +269,26 @@ export function ArcaDocumentDetail({
         style={{
           border: `1px solid ${ARCA_COLORS.shapeBorder}`,
           backgroundColor: ARCA_COLORS.windowBg,
-          padding: "4px 6px",
-          marginBottom: "2px",
+          padding: "2px 4px",
+          marginBottom: "1px",
           display: "flex",
-          gap: "4px",
+          gap: "2px",
         }}
       >
         {/* Sinistra: campi documento */}
         <div style={{ flex: 1, minWidth: 0 }}>
           {/* Riga 1: Doc tipo, Numero, Data, Cliente (Top=2) */}
-          <div style={{ display: "flex", gap: "2px", alignItems: "center", marginBottom: "2px", flexWrap: "wrap" }}>
+          <div style={{ display: "flex", gap: "1px", alignItems: "center", marginBottom: "1px" }}>
             <ArcaInput label="Documento" value={t.TIPODOC} width="30px" specialReadOnly />
-            <ArcaInput value={`${t.NUMERODOC}/`} width="60px" style={{ fontFamily: "'Courier New', monospace", color: "#FF0000" }} />
+            <ArcaInput value={`${t.NUMERODOC}/`} width="128px" style={{ fontFamily: "'Courier New', monospace", color: "#FF0000", fontSize: "9pt" }} />
             <ArcaInput label="Data Docum." value={formatArcaDate(t.DATADOC)} width="62px" />
             <ArcaInput label="Cliente / Fornit." value={t.CODICECF} width="50px" />
           </div>
 
           {/* Riga 2: Valuta, Cambio, Sc. Cassa, Merce (Top=25) */}
-          <div style={{ display: "flex", gap: "2px", alignItems: "center", marginBottom: "2px", flexWrap: "wrap" }}>
+          <div style={{ display: "flex", gap: "1px", alignItems: "center", marginBottom: "1px" }}>
             <ArcaInput label="Valuta" value={t.VALUTA} width="41px" />
-            <ArcaInput value={formatArcaDecimal(t.CAMBIO)} width="84px" align="right" />
+            <ArcaInput value={formatArcaDecimal(t.CAMBIO)} width="83px" align="right" />
             <ArcaInput
               label="Sconto cassa"
               value={t.SCONTOCASS || ""}
@@ -295,11 +296,11 @@ export function ArcaDocumentDetail({
               readOnly={!editing}
               onChange={editing ? (v) => handleTestaFieldChange("SCONTOCASS", v) : undefined}
             />
-            <ArcaInput label="Merce" value={formatArcaCurrency(t.TOTMERCE)} width="70px" align="right" highlight style={{ color: "#408080" }} />
+            <ArcaInput label="Merce" value={formatArcaCurrency(t.TOTMERCE)} width="87px" align="right" style={{ ...arcaTransparentField, color: "#800000" }} />
           </div>
 
           {/* Riga 3: Cod. Pag., COME CONVENUTO, Sconto merce, Tot. Doc. (Top≈48) */}
-          <div style={{ display: "flex", gap: "2px", alignItems: "center", flexWrap: "wrap" }}>
+          <div style={{ display: "flex", gap: "1px", alignItems: "center" }}>
             <ArcaInput
               label="Cod. Pag."
               value={t.PAG}
@@ -320,8 +321,7 @@ export function ArcaDocumentDetail({
               value={formatArcaCurrency(t.TOTDOC)}
               width="87px"
               align="right"
-              highlight
-              style={{ color: "#800000" }}
+              style={{ ...arcaTransparentField, color: "#800000" }}
             />
           </div>
         </div>

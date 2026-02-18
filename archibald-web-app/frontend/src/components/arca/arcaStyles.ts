@@ -16,14 +16,14 @@ export const ARCA_COLORS = {
   tabActive: "#FFFFFF",
   tabInactive: "#D4D0C8",
   tabBorder: "#808080",
-  windowBg: "#ECE9D8",
+  windowBg: "#D4D0C8",
   fieldBg: "#FFFFFF",
   labelColor: "#000000",
   borderLight: "#D4D0C8",
   borderDark: "#808080",
   shapeBorder: "#A2A2A2",
   linkBlue: "#0000CC",
-  readOnlySpecialBg: "#D0E0F0",
+  readOnlySpecialBg: "#C0C0C0",
   expenseDescGreen: "#008000",
   gridBorderSilver: "#C0C0C0",
   gridBorderColLight: "#D0D0D0",
@@ -96,16 +96,18 @@ export function arcaRowStyle(index: number, selected: boolean): CSSProperties {
 
 export const arcaSunkenInput: CSSProperties = {
   ...ARCA_FONT,
-  border: "2px inset #808080",
+  borderWidth: "2px",
+  borderStyle: "solid",
+  borderColor: "#808080 #FFFFFF #FFFFFF #808080",
   backgroundColor: ARCA_COLORS.fieldBg,
-  padding: "2px 4px",
+  padding: "1px 3px",
   outline: "none",
   boxSizing: "border-box",
 };
 
 export const arcaReadOnlyInput: CSSProperties = {
   ...arcaSunkenInput,
-  backgroundColor: "#C0C0C0",
+  backgroundColor: "#FFFFFF",
   color: "#000",
 };
 
@@ -119,7 +121,7 @@ export const arcaLabel: CSSProperties = {
   ...ARCA_FONT,
   color: ARCA_COLORS.labelColor,
   whiteSpace: "nowrap",
-  padding: "1px 2px",
+  padding: "0 1px",
 };
 
 export const arcaTab = (active: boolean): CSSProperties => ({
@@ -137,7 +139,7 @@ export const arcaTab = (active: boolean): CSSProperties => ({
 
 export const arcaPanel: CSSProperties = {
   border: `1px solid ${ARCA_COLORS.tabBorder}`,
-  backgroundColor: ARCA_COLORS.tabActive,
+  backgroundColor: ARCA_COLORS.windowBg,
   padding: "4px",
 };
 
@@ -188,7 +190,19 @@ export function parseArcaDataFromOrder(arcaDataStr: string | null | undefined): 
 export const arcaReadOnlySpecialInput: CSSProperties = {
   ...arcaSunkenInput,
   backgroundColor: ARCA_COLORS.readOnlySpecialBg,
-  color: "#000",
+  color: "#FF0000",
+  height: "21px",
+};
+
+export const arcaTransparentField: CSSProperties = {
+  ...ARCA_FONT,
+  backgroundColor: "transparent",
+  borderWidth: "1px",
+  borderStyle: "solid",
+  borderColor: "#808080 #FFFFFF #FFFFFF #808080",
+  padding: "1px 3px",
+  outline: "none",
+  boxSizing: "border-box",
   height: "21px",
 };
 
