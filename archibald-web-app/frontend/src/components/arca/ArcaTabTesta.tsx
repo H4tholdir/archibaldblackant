@@ -14,6 +14,11 @@ type ArcaTabTestaProps = {
   order?: FresisHistoryOrder;
 };
 
+function fitWidth(value: string | number, minPx = 30): string {
+  const len = String(value).length;
+  return Math.max(minPx, len * 7 + 12) + "px";
+}
+
 export function ArcaTabTesta({ testata, destinazione, order }: ArcaTabTestaProps) {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
@@ -21,27 +26,27 @@ export function ArcaTabTesta({ testata, destinazione, order }: ArcaTabTestaProps
       <div style={{ ...arcaEtchedBorder, marginTop: "8px" }}>
         <span style={arcaSectionLabel}>Dati Generali</span>
         <div style={{ display: "flex", gap: "2px", flexWrap: "wrap", marginBottom: "2px", marginTop: "4px" }}>
-          <ArcaInput label="Esercizio" value={testata.ESERCIZIO} width="40px" />
-          <ArcaInput label="Tipo Doc" value={testata.TIPODOC} width="30px" />
-          <ArcaInput label="Listino" value={testata.LISTINO} width="20px" />
+          <ArcaInput label="Esercizio" value={testata.ESERCIZIO} width={fitWidth(testata.ESERCIZIO)} />
+          <ArcaInput label="Tipo Doc" value={testata.TIPODOC} width={fitWidth(testata.TIPODOC)} />
+          <ArcaInput label="Listino" value={testata.LISTINO} width={fitWidth(testata.LISTINO)} />
         </div>
         <div style={{ display: "flex", gap: "2px", flexWrap: "wrap", marginBottom: "2px" }}>
-          <ArcaInput label="Zona" value={testata.ZONA} width="30px" />
-          <ArcaInput label="Data Consegna" value={formatArcaDate(testata.DATACONSEG)} width="62px" />
+          <ArcaInput label="Zona" value={testata.ZONA} width={fitWidth(testata.ZONA)} />
+          <ArcaInput label="Data Consegna" value={formatArcaDate(testata.DATACONSEG)} width={fitWidth(formatArcaDate(testata.DATACONSEG))} />
         </div>
         <div style={{ display: "flex", gap: "2px", flexWrap: "wrap", alignItems: "center" }}>
-          <ArcaInput label="Dest.Div." value={testata.DESTDIV} width="30px" />
+          <ArcaInput label="Dest.Div." value={testata.DESTDIV} width={fitWidth(testata.DESTDIV)} />
         </div>
         {destinazione && (
           <div style={{ marginTop: "4px", padding: "2px 0", borderTop: "1px solid #D4D0C8" }}>
             <div style={{ ...ARCA_FONT, fontWeight: "bold", fontSize: "10px", marginBottom: "2px" }}>Destinazione Diversa</div>
             <div style={{ display: "flex", flexDirection: "column", gap: "1px" }}>
-              <ArcaInput label="Rag. Sociale" value={destinazione.RAGIONESOC} width="200px" />
-              <ArcaInput label="Indirizzo" value={destinazione.INDIRIZZO} width="200px" />
+              <ArcaInput label="Rag. Sociale" value={destinazione.RAGIONESOC} width={fitWidth(destinazione.RAGIONESOC, 100)} />
+              <ArcaInput label="Indirizzo" value={destinazione.INDIRIZZO} width={fitWidth(destinazione.INDIRIZZO, 100)} />
               <div style={{ display: "flex", gap: "2px" }}>
-                <ArcaInput label="CAP" value={destinazione.CAP} width="50px" />
-                <ArcaInput label="Loc." value={destinazione.LOCALITA} width="120px" />
-                <ArcaInput label="Prov." value={destinazione.PROVINCIA} width="25px" />
+                <ArcaInput label="CAP" value={destinazione.CAP} width={fitWidth(destinazione.CAP)} />
+                <ArcaInput label="Loc." value={destinazione.LOCALITA} width={fitWidth(destinazione.LOCALITA, 60)} />
+                <ArcaInput label="Prov." value={destinazione.PROVINCIA} width={fitWidth(destinazione.PROVINCIA)} />
               </div>
             </div>
           </div>
@@ -52,26 +57,26 @@ export function ArcaTabTesta({ testata, destinazione, order }: ArcaTabTestaProps
       <div style={{ ...arcaEtchedBorder, marginTop: "8px" }}>
         <span style={arcaSectionLabel}>Ordine Madre (Fornitore: Fresis)</span>
         <div style={{ display: "flex", gap: "2px", flexWrap: "wrap", marginTop: "4px", marginBottom: "2px" }}>
-          <ArcaInput label="N. Ordine" value={order?.archibaldOrderNumber || ""} width="80px" />
-          <ArcaInput label="Stato" value={order?.currentState || ""} width="100px" />
+          <ArcaInput label="N. Ordine" value={order?.archibaldOrderNumber || ""} width={fitWidth(order?.archibaldOrderNumber || "", 60)} />
+          <ArcaInput label="Stato" value={order?.currentState || ""} width={fitWidth(order?.currentState || "", 60)} />
         </div>
         {order?.ddtNumber && (
           <div style={{ display: "flex", gap: "2px", flexWrap: "wrap", marginBottom: "2px" }}>
-            <ArcaInput label="DDT" value={order.ddtNumber} width="80px" />
-            <ArcaInput label="Data DDT" value={order.ddtDeliveryDate || ""} width="62px" />
+            <ArcaInput label="DDT" value={order.ddtNumber} width={fitWidth(order.ddtNumber)} />
+            <ArcaInput label="Data DDT" value={order.ddtDeliveryDate || ""} width={fitWidth(order.ddtDeliveryDate || "")} />
           </div>
         )}
         {order?.invoiceNumber && (
           <div style={{ display: "flex", gap: "2px", flexWrap: "wrap", marginBottom: "2px" }}>
-            <ArcaInput label="Fattura" value={order.invoiceNumber} width="80px" />
-            <ArcaInput label="Data Fatt." value={order.invoiceDate || ""} width="62px" />
-            <ArcaInput label="Importo" value={order.invoiceAmount || ""} width="80px" />
+            <ArcaInput label="Fattura" value={order.invoiceNumber} width={fitWidth(order.invoiceNumber)} />
+            <ArcaInput label="Data Fatt." value={order.invoiceDate || ""} width={fitWidth(order.invoiceDate || "")} />
+            <ArcaInput label="Importo" value={order.invoiceAmount || ""} width={fitWidth(order.invoiceAmount || "")} />
           </div>
         )}
         {order?.trackingNumber && (
           <div style={{ display: "flex", gap: "2px", flexWrap: "wrap" }}>
-            <ArcaInput label="Tracking" value={order.trackingNumber} width="120px" />
-            <ArcaInput label="Corriere" value={order.trackingCourier || ""} width="80px" />
+            <ArcaInput label="Tracking" value={order.trackingNumber} width={fitWidth(order.trackingNumber, 80)} />
+            <ArcaInput label="Corriere" value={order.trackingCourier || ""} width={fitWidth(order.trackingCourier || "", 60)} />
           </div>
         )}
         {!order?.archibaldOrderNumber && (
@@ -85,8 +90,8 @@ export function ArcaTabTesta({ testata, destinazione, order }: ArcaTabTestaProps
       <div style={{ ...arcaEtchedBorder, marginTop: "8px" }}>
         <span style={arcaSectionLabel}>Metadati</span>
         <div style={{ display: "flex", gap: "2px", flexWrap: "wrap", marginTop: "4px" }}>
-          <ArcaInput label="Timestamp" value={formatArcaDate(testata.TIMESTAMP)} width="62px" />
-          <ArcaInput label="Username" value={testata.USERNAME} width="100px" />
+          <ArcaInput label="Timestamp" value={formatArcaDate(testata.TIMESTAMP)} width={fitWidth(formatArcaDate(testata.TIMESTAMP))} />
+          <ArcaInput label="Username" value={testata.USERNAME} width={fitWidth(testata.USERNAME)} />
         </div>
       </div>
     </div>
