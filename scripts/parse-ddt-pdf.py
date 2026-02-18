@@ -133,19 +133,54 @@ def extract_tracking_info(text: str) -> tuple:
     return (tracking_number, courier_name, tracking_url)
 
 
+EXPECTED_CYCLE_SIZE = 6
+
+
+def _detect_cycle_size(pdf_path: str) -> int:
+    """Auto-detect cycle size by scanning for repeated DDT anchor headers."""
+    with pdfplumber.open(pdf_path) as pdf:
+        anchor_pages = []
+        for page_idx, page in enumerate(pdf.pages):
+            tables = page.extract_tables()
+            if tables and tables[0] and len(tables[0]) > 0:
+                header_row = tables[0][0]
+                headers_upper = [(h or '').strip().upper() for h in header_row]
+                if any('DDT' in h for h in headers_upper):
+                    anchor_pages.append(page_idx)
+            if len(anchor_pages) >= 2:
+                break
+
+    if len(anchor_pages) >= 2:
+        detected = anchor_pages[1] - anchor_pages[0]
+        status = "OK" if detected == EXPECTED_CYCLE_SIZE else "CHANGED"
+        _emit_cycle_warning(detected, status)
+        return detected
+
+    _emit_cycle_warning(EXPECTED_CYCLE_SIZE, "DETECTION_FAILED")
+    return EXPECTED_CYCLE_SIZE
+
+
+def _emit_cycle_warning(detected: int, status: str) -> None:
+    warning = {"parser": "ddt", "detected": detected, "expected": EXPECTED_CYCLE_SIZE, "status": status}
+    print(f"CYCLE_SIZE_WARNING:{json.dumps(warning)}", file=sys.stderr)
+
+
 def parse_ddt_pdf(pdf_path: str):
     """
     Parse Documenti di trasporto.pdf with 6-page cycle structure.
     Yields one ParsedDDT per DDT entry.
     """
+    cycle_size = _detect_cycle_size(pdf_path)
+    print(f"Detected cycle size: {cycle_size} pages", file=sys.stderr)
+
     with pdfplumber.open(pdf_path) as pdf:
         total_pages = len(pdf.pages)
 
-        # Process in 6-page cycles
-        for cycle_start in range(0, total_pages, 6):
-            # Extract all 6 pages as tables
+        # Process in cycle_size-page cycles
+        for cycle_start in range(0, total_pages, cycle_size):
+            # Extract all pages for this cycle as tables
             tables = []
-            for i in range(6):
+            for i in range(cycle_size):
                 page_idx = cycle_start + i
                 if page_idx >= total_pages:
                     break
@@ -160,8 +195,8 @@ def parse_ddt_pdf(pdf_path: str):
 
                 page = None
 
-            # Need all 6 pages
-            if len(tables) < 6:
+            # Need all pages for complete cycle
+            if len(tables) < cycle_size:
                 break
 
             # Skip if first table empty

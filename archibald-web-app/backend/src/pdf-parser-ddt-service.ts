@@ -1,6 +1,8 @@
 import { spawn } from "child_process";
 import { logger } from "./logger";
 import path from "node:path";
+import { extractCycleSizeWarnings } from "./cycle-size-warning";
+import type { CycleSizeWarning } from "./cycle-size-warning";
 
 export interface ParsedDDT {
   id: string;
@@ -22,6 +24,7 @@ export class PDFParserDDTService {
   private static instance: PDFParserDDTService;
   private readonly parserPath: string;
   private readonly timeout: number = 180000; // 3 minutes
+  private lastWarnings: CycleSizeWarning[] = [];
 
   private constructor() {
     this.parserPath = path.join(__dirname, "../../../scripts/parse-ddt-pdf.py");
@@ -41,6 +44,7 @@ export class PDFParserDDTService {
       const startTime = Date.now();
       const ddts: ParsedDDT[] = [];
       let stdoutBuffer = "";
+      let stderrBuffer = "";
 
       const pythonProcess = spawn("python3", [this.parserPath, pdfPath], {
         timeout: this.timeout,
@@ -68,8 +72,10 @@ export class PDFParserDDTService {
       });
 
       pythonProcess.stderr.on("data", (data: Buffer) => {
+        const chunk = data.toString();
+        stderrBuffer += chunk;
         logger.warn("[PDFParserDDTService] Python stderr", {
-          stderr: data.toString(),
+          stderr: chunk,
         });
       });
 
@@ -81,6 +87,12 @@ export class PDFParserDDTService {
             duration: `${duration}ms`,
             ddtCount: ddts.length,
           });
+          this.lastWarnings = extractCycleSizeWarnings(stderrBuffer);
+          for (const w of this.lastWarnings) {
+            if (w.status === "CHANGED") {
+              logger.error("[PDFParserDDTService] Cycle size CHANGED", w);
+            }
+          }
           resolve(ddts);
         } else {
           logger.error("[PDFParserDDTService] Parsing failed", {
@@ -98,6 +110,10 @@ export class PDFParserDDTService {
         reject(err);
       });
     });
+  }
+
+  getLastWarnings(): CycleSizeWarning[] {
+    return this.lastWarnings;
   }
 
   isAvailable(): boolean {

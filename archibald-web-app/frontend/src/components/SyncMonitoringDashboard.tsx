@@ -15,6 +15,7 @@ interface HistoryEntry {
   duration: number;
   success: boolean;
   error: string | null;
+  warnings?: string[];
 }
 
 interface SyncTypeData {
@@ -548,6 +549,14 @@ export default function SyncMonitoringDashboard() {
                               }}
                             >
                               {entry.success ? "✅" : "❌"}
+                              {entry.warnings && entry.warnings.length > 0 && (
+                                <span
+                                  title={entry.warnings.join("\n")}
+                                  style={{ cursor: "help", marginLeft: "4px" }}
+                                >
+                                  ⚠️
+                                </span>
+                              )}
                             </td>
                             <td
                               style={{

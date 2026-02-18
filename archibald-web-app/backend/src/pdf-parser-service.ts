@@ -3,6 +3,8 @@ import { promisify } from "util";
 import { promises as fs } from "fs";
 import path from "path";
 import { logger } from "./logger";
+import { extractCycleSizeWarnings } from "./cycle-size-warning";
+import type { CycleSizeWarning } from "./cycle-size-warning";
 
 const execAsync = promisify(exec);
 
@@ -62,6 +64,7 @@ export interface PDFParseResult {
  */
 export class PDFParserService {
   private readonly parserPath: string;
+  private lastWarnings: CycleSizeWarning[] = [];
 
   constructor() {
     // Path to parse-clienti-pdf.py
@@ -102,6 +105,13 @@ export class PDFParserService {
         logger.warn(`[PDFParser] Python stderr: ${stderr}`);
       }
 
+      this.lastWarnings = extractCycleSizeWarnings(stderr);
+      for (const w of this.lastWarnings) {
+        if (w.status === "CHANGED") {
+          logger.error("[PDFParser] Cycle size CHANGED", w);
+        }
+      }
+
       // Parse JSON output
       const result: PDFParseResult = JSON.parse(stdout);
 
@@ -132,6 +142,10 @@ export class PDFParserService {
 
       throw new Error(`PDF parsing failed: ${error.message}`);
     }
+  }
+
+  getLastWarnings(): CycleSizeWarning[] {
+    return this.lastWarnings;
   }
 
   /**

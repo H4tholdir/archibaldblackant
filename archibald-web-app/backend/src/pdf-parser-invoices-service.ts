@@ -1,6 +1,8 @@
 import { spawn } from "child_process";
 import { logger } from "./logger";
 import path from "node:path";
+import { extractCycleSizeWarnings } from "./cycle-size-warning";
+import type { CycleSizeWarning } from "./cycle-size-warning";
 
 export interface ParsedInvoice {
   // Page 1/7: Invoice identification
@@ -46,6 +48,7 @@ export class PDFParserInvoicesService {
   private readonly parserPath: string;
   private readonly timeout: number = 120000; // 2 minutes (less than orders)
   private readonly maxBuffer: number = 20 * 1024 * 1024; // 20MB
+  private lastWarnings: CycleSizeWarning[] = [];
 
   private constructor() {
     this.parserPath = path.join(
@@ -70,6 +73,7 @@ export class PDFParserInvoicesService {
       const startTime = Date.now();
       const invoices: ParsedInvoice[] = [];
       let stdoutBuffer = "";
+      let stderrBuffer = "";
 
       const pythonProcess = spawn("python3", [this.parserPath, pdfPath], {
         timeout: this.timeout,
@@ -97,10 +101,12 @@ export class PDFParserInvoicesService {
         }
       });
 
-      // Log stderr
+      // Collect stderr
       pythonProcess.stderr.on("data", (data: Buffer) => {
+        const chunk = data.toString();
+        stderrBuffer += chunk;
         logger.warn("[PDFParserInvoicesService] Python stderr", {
-          stderr: data.toString(),
+          stderr: chunk,
         });
       });
 
@@ -113,6 +119,12 @@ export class PDFParserInvoicesService {
             duration: `${duration}ms`,
             invoicesCount: invoices.length,
           });
+          this.lastWarnings = extractCycleSizeWarnings(stderrBuffer);
+          for (const w of this.lastWarnings) {
+            if (w.status === "CHANGED") {
+              logger.error("[PDFParserInvoicesService] Cycle size CHANGED", w);
+            }
+          }
           resolve(invoices);
         } else {
           logger.error("[PDFParserInvoicesService] Parsing failed", {
@@ -131,6 +143,10 @@ export class PDFParserInvoicesService {
         reject(err);
       });
     });
+  }
+
+  getLastWarnings(): CycleSizeWarning[] {
+    return this.lastWarnings;
   }
 
   isAvailable(): boolean {

@@ -1,6 +1,8 @@
 import { spawn } from "child_process";
 import { logger } from "./logger";
 import path from "path";
+import { extractCycleSizeWarnings } from "./cycle-size-warning";
+import type { CycleSizeWarning } from "./cycle-size-warning";
 
 export interface ParsedProduct {
   // Page 1
@@ -56,6 +58,7 @@ export interface ParsedProduct {
 export class PDFParserProductsService {
   private static instance: PDFParserProductsService;
   private parserPath: string;
+  private lastWarnings: CycleSizeWarning[] = [];
   private timeout: number = 420000; // 420s (7 minutes) - measured: 5m07s, buffer for safety
 
   private constructor() {
@@ -107,6 +110,12 @@ export class PDFParserProductsService {
             logger.info(
               `[PDFParserProductsService] Parsed ${products.length} products in ${duration}ms`,
             );
+            this.lastWarnings = extractCycleSizeWarnings(stderr);
+            for (const w of this.lastWarnings) {
+              if (w.status === "CHANGED") {
+                logger.error("[PDFParserProductsService] Cycle size CHANGED", w);
+              }
+            }
             resolve(products);
           } catch (error) {
             logger.error("[PDFParserProductsService] JSON parse error", {
@@ -132,6 +141,10 @@ export class PDFParserProductsService {
         reject(new Error(`Failed to spawn Python process: ${error.message}`));
       });
     });
+  }
+
+  getLastWarnings(): CycleSizeWarning[] {
+    return this.lastWarnings;
   }
 
   /**

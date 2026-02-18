@@ -111,19 +111,56 @@ def get_column_value(table: list, row_idx: int, header_text: str) -> Optional[st
     return None
 
 
+EXPECTED_CYCLE_SIZE = 7
+
+
+def _detect_cycle_size(pdf_path: str) -> int:
+    """Auto-detect cycle size by scanning for repeated order anchor headers."""
+    with pdfplumber.open(pdf_path) as pdf:
+        anchor_pages = []
+        for page_idx, page in enumerate(pdf.pages):
+            tables = page.extract_tables()
+            if tables and tables[0] and len(tables[0]) > 0:
+                header_row = tables[0][0]
+                headers_upper = [(h or '').strip().upper() for h in header_row]
+                has_id = 'ID' in headers_upper
+                has_id_vendita = any('ID DI VENDITA' in h for h in headers_upper)
+                if has_id and has_id_vendita:
+                    anchor_pages.append(page_idx)
+            if len(anchor_pages) >= 2:
+                break
+
+    if len(anchor_pages) >= 2:
+        detected = anchor_pages[1] - anchor_pages[0]
+        status = "OK" if detected == EXPECTED_CYCLE_SIZE else "CHANGED"
+        _emit_cycle_warning(detected, status)
+        return detected
+
+    _emit_cycle_warning(EXPECTED_CYCLE_SIZE, "DETECTION_FAILED")
+    return EXPECTED_CYCLE_SIZE
+
+
+def _emit_cycle_warning(detected: int, status: str) -> None:
+    warning = {"parser": "orders", "detected": detected, "expected": EXPECTED_CYCLE_SIZE, "status": status}
+    print(f"CYCLE_SIZE_WARNING:{json.dumps(warning)}", file=sys.stderr)
+
+
 def parse_orders_pdf(pdf_path: str):
     """
     Parse Ordini.pdf with 7-page cycle structure.
     Yields one ParsedOrder per order.
     """
+    cycle_size = _detect_cycle_size(pdf_path)
+    print(f"Detected cycle size: {cycle_size} pages", file=sys.stderr)
+
     with pdfplumber.open(pdf_path) as pdf:
         total_pages = len(pdf.pages)
 
-        # Process in 7-page cycles
-        for cycle_start in range(0, total_pages, 7):
-            # Extract all 7 pages as tables
+        # Process in cycle_size-page cycles
+        for cycle_start in range(0, total_pages, cycle_size):
+            # Extract all pages for this cycle as tables
             tables = []
-            for i in range(7):
+            for i in range(cycle_size):
                 page_idx = cycle_start + i
                 if page_idx >= total_pages:
                     break
@@ -140,8 +177,8 @@ def parse_orders_pdf(pdf_path: str):
                 # Free memory
                 page = None
 
-            # Need all 7 pages for complete cycle
-            if len(tables) < 7:
+            # Need all pages for complete cycle
+            if len(tables) < cycle_size:
                 break
 
             # Skip if tables are empty

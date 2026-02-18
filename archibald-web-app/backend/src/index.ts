@@ -4887,6 +4887,7 @@ app.get(
             duration: entry.duration,
             success: entry.success,
             error: entry.error,
+            warnings: entry.warnings ?? [],
           })),
 
           // Health indicator (based on last run)

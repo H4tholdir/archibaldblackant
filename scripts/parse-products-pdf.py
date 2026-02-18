@@ -92,15 +92,47 @@ class ProductsPDFParserOptimized:
         if not self.pdf_path.exists():
             raise FileNotFoundError(f"PDF not found: {pdf_path}")
 
+    def _detect_cycle_size(self) -> int:
+        """Auto-detect cycle size by scanning for repeated 'ID ARTICOLO' header in first column."""
+        expected = self.__class__.PAGES_PER_CYCLE
+        with pdfplumber.open(self.pdf_path) as pdf:
+            anchor_pages = []
+            for page_idx, page in enumerate(pdf.pages):
+                tables = page.extract_tables()
+                if tables and len(tables[0]) > 0:
+                    header_row = tables[0][0]
+                    if header_row and len(header_row) > 0:
+                        first_col = (header_row[0] or '').strip().upper()
+                        if first_col == 'ID ARTICOLO':
+                            anchor_pages.append(page_idx)
+                if len(anchor_pages) >= 2:
+                    break
+
+        if len(anchor_pages) >= 2:
+            detected = anchor_pages[1] - anchor_pages[0]
+            status = "OK" if detected == expected else "CHANGED"
+            self._emit_cycle_warning(detected, expected, status)
+            return detected
+
+        self._emit_cycle_warning(expected, expected, "DETECTION_FAILED")
+        return expected
+
+    def _emit_cycle_warning(self, detected: int, expected: int, status: str) -> None:
+        warning = {"parser": "products", "detected": detected, "expected": expected, "status": status}
+        print(f"CYCLE_SIZE_WARNING:{json.dumps(warning)}", file=sys.stderr)
+
     def parse_streaming(self) -> Generator[ParsedProduct, None, None]:
         """
         Memory-efficient streaming parser that yields products one by one.
-        Processes 8-page cycles incrementally to minimize memory usage.
+        Processes N-page cycles incrementally to minimize memory usage.
 
         KEY OPTIMIZATION: Re-opens PDF for each cycle to force garbage collection.
         This reduces memory from ~9GB to ~450-500MB per the pdfplumber workaround:
         https://github.com/jsvine/pdfplumber/issues/193
         """
+        self.PAGES_PER_CYCLE = self._detect_cycle_size()
+        print(f"Detected cycle size: {self.PAGES_PER_CYCLE} pages", file=sys.stderr)
+
         # First pass: get total pages
         with pdfplumber.open(self.pdf_path) as pdf:
             total_pages = len(pdf.pages)

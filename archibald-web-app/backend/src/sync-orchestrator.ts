@@ -7,6 +7,13 @@ import { DDTSyncService } from "./ddt-sync-service";
 import { InvoiceSyncService } from "./invoice-sync-service";
 import { logger } from "./logger";
 import { UserDatabase } from "./user-db";
+import { pdfParserService } from "./pdf-parser-service";
+import { PDFParserProductsService } from "./pdf-parser-products-service";
+import { PDFParserPricesService } from "./pdf-parser-prices-service";
+import { PDFParserOrdersService } from "./pdf-parser-orders-service";
+import { PDFParserDDTService } from "./pdf-parser-ddt-service";
+import { PDFParserInvoicesService } from "./pdf-parser-invoices-service";
+import type { CycleSizeWarning } from "./cycle-size-warning";
 
 export type SyncType =
   | "customers"
@@ -91,6 +98,7 @@ export class SyncOrchestrator extends EventEmitter {
       success: boolean;
       error: string | null;
       syncType: SyncType;
+      warnings: string[];
     }>
   > = {
     customers: [],
@@ -316,9 +324,10 @@ export class SyncOrchestrator extends EventEmitter {
       this.emit("sync-error", { type, error });
     } finally {
       const duration = Date.now() - startTime;
+      const warnings = this.collectParserWarnings(type);
 
       // Record history entry
-      this.addHistoryEntry(type, duration, success, errorMessage);
+      this.addHistoryEntry(type, duration, success, errorMessage, warnings);
 
       this.currentSync = null;
       await this.processQueue();
@@ -691,6 +700,7 @@ export class SyncOrchestrator extends EventEmitter {
     success: boolean;
     error: string | null;
     syncType: SyncType;
+    warnings: string[];
   }> {
     if (type) {
       const history = this.syncHistory[type];
@@ -704,6 +714,7 @@ export class SyncOrchestrator extends EventEmitter {
       success: boolean;
       error: string | null;
       syncType: SyncType;
+      warnings: string[];
     }> = [];
 
     for (const syncType of Object.keys(this.syncHistory) as SyncType[]) {
@@ -723,6 +734,7 @@ export class SyncOrchestrator extends EventEmitter {
     duration: number,
     success: boolean,
     error: string | null,
+    warnings: string[] = [],
   ): void {
     const entry = {
       timestamp: new Date(),
@@ -730,6 +742,7 @@ export class SyncOrchestrator extends EventEmitter {
       success,
       error,
       syncType: type,
+      warnings,
     };
 
     this.syncHistory[type].unshift(entry); // Add to front (newest first)
@@ -741,6 +754,36 @@ export class SyncOrchestrator extends EventEmitter {
         this.MAX_HISTORY_PER_TYPE,
       );
     }
+  }
+
+  private collectParserWarnings(type: SyncType): string[] {
+    let warnings: CycleSizeWarning[] = [];
+    switch (type) {
+      case "customers":
+        warnings = pdfParserService.getLastWarnings();
+        break;
+      case "products":
+        warnings = PDFParserProductsService.getInstance().getLastWarnings();
+        break;
+      case "prices":
+        warnings = PDFParserPricesService.getInstance().getLastWarnings();
+        break;
+      case "orders":
+        warnings = PDFParserOrdersService.getInstance().getLastWarnings();
+        break;
+      case "ddt":
+        warnings = PDFParserDDTService.getInstance().getLastWarnings();
+        break;
+      case "invoices":
+        warnings = PDFParserInvoicesService.getInstance().getLastWarnings();
+        break;
+    }
+    return warnings
+      .filter((w) => w.status !== "OK")
+      .map(
+        (w) =>
+          `[${w.parser}] Cycle size ${w.status}: detected=${w.detected}, expected=${w.expected}`,
+      );
   }
 
   /**

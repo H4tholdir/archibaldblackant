@@ -1,6 +1,8 @@
 import { spawn } from "child_process";
 import { logger } from "./logger";
 import path from "node:path";
+import { extractCycleSizeWarnings } from "./cycle-size-warning";
+import type { CycleSizeWarning } from "./cycle-size-warning";
 
 export interface ParsedOrder {
   id: string;
@@ -30,6 +32,7 @@ export class PDFParserOrdersService {
   private readonly parserPath: string;
   private readonly timeout: number = 300000; // 5 minutes
   private readonly maxBuffer: number = 20 * 1024 * 1024; // 20MB
+  private lastWarnings: CycleSizeWarning[] = [];
 
   private constructor() {
     this.parserPath = path.join(
@@ -52,6 +55,7 @@ export class PDFParserOrdersService {
       const startTime = Date.now();
       const orders: ParsedOrder[] = [];
       let stdoutBuffer = "";
+      let stderrBuffer = "";
 
       const pythonProcess = spawn("python3", [this.parserPath, pdfPath], {
         timeout: this.timeout,
@@ -79,10 +83,12 @@ export class PDFParserOrdersService {
         }
       });
 
-      // Log stderr
+      // Collect stderr
       pythonProcess.stderr.on("data", (data: Buffer) => {
+        const chunk = data.toString();
+        stderrBuffer += chunk;
         logger.warn("[PDFParserOrdersService] Python stderr", {
-          stderr: data.toString(),
+          stderr: chunk,
         });
       });
 
@@ -95,6 +101,12 @@ export class PDFParserOrdersService {
             duration: `${duration}ms`,
             ordersCount: orders.length,
           });
+          this.lastWarnings = extractCycleSizeWarnings(stderrBuffer);
+          for (const w of this.lastWarnings) {
+            if (w.status === "CHANGED") {
+              logger.error("[PDFParserOrdersService] Cycle size CHANGED", w);
+            }
+          }
           resolve(orders);
         } else {
           logger.error("[PDFParserOrdersService] Parsing failed", {
@@ -113,6 +125,10 @@ export class PDFParserOrdersService {
         reject(err);
       });
     });
+  }
+
+  getLastWarnings(): CycleSizeWarning[] {
+    return this.lastWarnings;
   }
 
   isAvailable(): boolean {

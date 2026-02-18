@@ -1,6 +1,8 @@
 import { spawn } from "child_process";
 import path from "path";
 import { logger } from "./logger";
+import { extractCycleSizeWarnings } from "./cycle-size-warning";
+import type { CycleSizeWarning } from "./cycle-size-warning";
 
 /**
  * Parsed price record from PDF (matches Python parser output)
@@ -35,6 +37,7 @@ export interface ParsedPrice {
 export class PDFParserPricesService {
   private static instance: PDFParserPricesService;
   private parserPath: string;
+  private lastWarnings: CycleSizeWarning[] = [];
   private timeout: number = 300000; // 5 minutes - prices PDF is large (13,000+ pages)
 
   private constructor() {
@@ -91,6 +94,12 @@ export class PDFParserPricesService {
             logger.info(
               `[PDFParserPricesService] Parsed ${prices.length} prices in ${duration}ms (3-page cycles)`,
             );
+            this.lastWarnings = extractCycleSizeWarnings(stderr);
+            for (const w of this.lastWarnings) {
+              if (w.status === "CHANGED") {
+                logger.error("[PDFParserPricesService] Cycle size CHANGED", w);
+              }
+            }
             resolve(prices);
           } catch (error) {
             logger.error("[PDFParserPricesService] JSON parse error", {
@@ -132,6 +141,10 @@ export class PDFParserPricesService {
         },
       );
     });
+  }
+
+  getLastWarnings(): CycleSizeWarning[] {
+    return this.lastWarnings;
   }
 
   /**

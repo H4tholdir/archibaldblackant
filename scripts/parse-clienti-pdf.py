@@ -73,6 +73,8 @@ class CustomerPDFParser:
         if not self.pdf_path.exists():
             raise FileNotFoundError(f"PDF not found: {pdf_path}")
 
+    EXPECTED_CYCLE_SIZE = 9
+
     def _detect_cycle_size(self) -> int:
         """Auto-detect cycle size by scanning for repeated 'ID' header in first column."""
         with pdfplumber.open(self.pdf_path) as pdf:
@@ -89,9 +91,17 @@ class CustomerPDFParser:
                     break
 
         if len(id_header_pages) >= 2:
-            return id_header_pages[1] - id_header_pages[0]
+            detected = id_header_pages[1] - id_header_pages[0]
+            status = "OK" if detected == self.EXPECTED_CYCLE_SIZE else "CHANGED"
+            self._emit_cycle_warning(detected, status)
+            return detected
 
-        return 9
+        self._emit_cycle_warning(self.EXPECTED_CYCLE_SIZE, "DETECTION_FAILED")
+        return self.EXPECTED_CYCLE_SIZE
+
+    def _emit_cycle_warning(self, detected: int, status: str) -> None:
+        warning = {"parser": "clienti", "detected": detected, "expected": self.EXPECTED_CYCLE_SIZE, "status": status}
+        print(f"CYCLE_SIZE_WARNING:{json.dumps(warning)}", file=sys.stderr)
 
     def parse(self) -> List[ParsedCustomer]:
         """

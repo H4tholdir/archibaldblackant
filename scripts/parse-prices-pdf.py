@@ -49,6 +49,35 @@ class PricesPDFParser:
     def __init__(self, pdf_path: str):
         self.pdf_path = pdf_path
 
+    def _detect_cycle_size(self) -> int:
+        """Auto-detect cycle size by scanning for repeated 'ID' header in first column."""
+        expected = self.__class__.PAGES_PER_CYCLE
+        with pdfplumber.open(self.pdf_path) as pdf:
+            anchor_pages = []
+            for page_idx, page in enumerate(pdf.pages):
+                table = page.extract_table()
+                if table and len(table) > 0:
+                    header_row = table[0]
+                    if header_row and len(header_row) > 0:
+                        first_col = (header_row[0] or '').strip().upper()
+                        if first_col == 'ID':
+                            anchor_pages.append(page_idx)
+                if len(anchor_pages) >= 2:
+                    break
+
+        if len(anchor_pages) >= 2:
+            detected = anchor_pages[1] - anchor_pages[0]
+            status = "OK" if detected == expected else "CHANGED"
+            self._emit_cycle_warning(detected, expected, status)
+            return detected
+
+        self._emit_cycle_warning(expected, expected, "DETECTION_FAILED")
+        return expected
+
+    def _emit_cycle_warning(self, detected: int, expected: int, status: str) -> None:
+        warning = {"parser": "prices", "detected": detected, "expected": expected, "status": status}
+        print(f"CYCLE_SIZE_WARNING:{json.dumps(warning)}", file=sys.stderr)
+
     def parse(self) -> List[ParsedPrice]:
         """
         Parse all prices from PDF using table extraction
@@ -57,6 +86,8 @@ class PricesPDFParser:
         Reduces memory from ~GB to <100MB following pdfplumber best practices.
         """
         prices = []
+        self.PAGES_PER_CYCLE = self._detect_cycle_size()
+        print(f"Detected cycle size: {self.PAGES_PER_CYCLE} pages", file=sys.stderr)
 
         try:
             # First pass: get total pages
