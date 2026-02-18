@@ -155,6 +155,13 @@ export function formatArcaCurrency(value: number | undefined): string {
   });
 }
 
+export function formatArcaDecimal(value: number, decimals = 6): string {
+  return value.toLocaleString("it-IT", {
+    minimumFractionDigits: decimals,
+    maximumFractionDigits: decimals,
+  });
+}
+
 export function formatArcaDate(iso: string | null | undefined): string {
   if (!iso) return "";
   try {
@@ -205,8 +212,8 @@ export function arcaGridCell(width: number, align: "left" | "right" | "center" =
 export const arcaEtchedBorder: CSSProperties = {
   border: `1px solid ${ARCA_COLORS.borderDark}`,
   boxShadow: "inset 1px 1px 0 #fff",
-  padding: "8px",
-  marginBottom: "6px",
+  padding: "4px 6px",
+  marginBottom: "2px",
   position: "relative",
 };
 
@@ -214,21 +221,21 @@ export const arcaSectionLabel: CSSProperties = {
   ...ARCA_FONT,
   fontWeight: "bold",
   backgroundColor: ARCA_COLORS.windowBg,
-  padding: "0 4px",
+  padding: "0 3px",
   position: "absolute",
-  top: "-8px",
-  left: "8px",
-  fontSize: "11px",
+  top: "-7px",
+  left: "6px",
+  fontSize: "10px",
 };
 
 export const arcaGreyHeader: CSSProperties = {
   ...ARCA_FONT,
   backgroundColor: "#C0C0C0",
   color: "#000",
-  padding: "2px 6px",
+  padding: "1px 6px",
   fontWeight: "normal",
   fontStyle: "italic",
-  marginBottom: "4px",
+  marginBottom: "1px",
 };
 
 export const arcaDescriptionRed: CSSProperties = {

@@ -11,6 +11,7 @@ import {
   ARCA_COLORS,
   arcaComeConvenuto,
   formatArcaCurrency,
+  formatArcaDecimal,
   formatArcaDate,
   parseArcaDataFromOrder,
 } from "./arcaStyles";
@@ -276,7 +277,7 @@ export function ArcaDocumentDetail({
         {/* Sinistra: campi documento */}
         <div style={{ flex: 1, minWidth: 0 }}>
           {/* Riga 1: Doc tipo, Numero, Data, Cliente */}
-          <div style={{ display: "flex", gap: "6px", alignItems: "center", marginBottom: "3px", flexWrap: "wrap" }}>
+          <div style={{ display: "flex", gap: "4px", alignItems: "center", marginBottom: "2px", flexWrap: "wrap" }}>
             <ArcaInput label="Documento" value={t.TIPODOC} width="30px" specialReadOnly />
             <ArcaInput value={`${t.NUMERODOC}/`} width="60px" />
             <ArcaInput label="Data Docum." value={formatArcaDate(t.DATADOC)} width="80px" />
@@ -284,9 +285,9 @@ export function ArcaDocumentDetail({
           </div>
 
           {/* Riga 2: Valuta, Cambio, Sc. Cassa, Merce */}
-          <div style={{ display: "flex", gap: "6px", alignItems: "center", marginBottom: "3px", flexWrap: "wrap" }}>
+          <div style={{ display: "flex", gap: "4px", alignItems: "center", marginBottom: "2px", flexWrap: "wrap" }}>
             <ArcaInput label="Valuta" value={t.VALUTA} width="30px" />
-            <ArcaInput value={String(t.CAMBIO)} width="70px" align="right" />
+            <ArcaInput value={formatArcaDecimal(t.CAMBIO)} width="70px" align="right" />
             <ArcaInput
               label="Sconto cassa"
               value={t.SCONTOCASS || ""}
@@ -298,7 +299,7 @@ export function ArcaDocumentDetail({
           </div>
 
           {/* Riga 3: Cod. Pag., COME CONVENUTO, Sconto merce, Tot. Doc. */}
-          <div style={{ display: "flex", gap: "6px", alignItems: "center", flexWrap: "wrap" }}>
+          <div style={{ display: "flex", gap: "4px", alignItems: "center", flexWrap: "wrap" }}>
             <ArcaInput
               label="Cod. Pag."
               value={t.PAG}
@@ -358,11 +359,11 @@ export function ArcaDocumentDetail({
       <div
         style={{
           display: "flex",
-          gap: "8px",
-          padding: "3px 6px",
+          gap: "6px",
+          padding: "2px 6px",
           backgroundColor: "#F5F5F5",
           border: `1px solid ${ARCA_COLORS.borderLight}`,
-          marginBottom: "4px",
+          marginBottom: "2px",
           flexWrap: "wrap",
         }}
       >
