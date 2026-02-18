@@ -308,10 +308,12 @@ export function ArcaDocumentDetail({
 
   // --- Revenue calculation: listPrice × qty × (1 - fresisDiscount%) ---
   const [revenueData, setRevenueData] = useState<{ value: number; percent: string | null } | null>(null);
+  const [rowRevenues, setRowRevenues] = useState<Record<number, number>>({});
 
   useEffect(() => {
     if (!currentData || currentData.righe.length === 0) {
       setRevenueData(null);
+      setRowRevenues({});
       return;
     }
 
@@ -321,8 +323,10 @@ export function ArcaDocumentDetail({
       const righe = currentData.righe;
       const totNetto = currentData.testata.TOTNETTO;
       let totalFresisCost = 0;
+      const perRow: Record<number, number> = {};
 
-      for (const riga of righe) {
+      for (let i = 0; i < righe.length; i++) {
+        const riga = righe[i];
         if (!riga.CODICEARTI || riga.QUANTITA === 0) continue;
 
         const product = await db.products
@@ -338,7 +342,9 @@ export function ArcaDocumentDetail({
           riga.CODICEARTI,
         );
 
-        totalFresisCost += listPrice * riga.QUANTITA * (1 - discountPercent / 100);
+        const rowCost = listPrice * riga.QUANTITA * (1 - discountPercent / 100);
+        totalFresisCost += rowCost;
+        perRow[i] = riga.PREZZOTOT - rowCost;
       }
 
       if (cancelled) return;
@@ -346,6 +352,7 @@ export function ArcaDocumentDetail({
       const value = totNetto - totalFresisCost;
       const percent = totNetto > 0 ? ((value / totNetto) * 100).toFixed(1) : null;
       setRevenueData({ value, percent });
+      setRowRevenues(perRow);
     };
 
     compute();
@@ -508,6 +515,7 @@ export function ArcaDocumentDetail({
             revenueValue={revenueValue}
             revenuePercent={revenuePercent}
             commissionRate={commissionRate}
+            rowRevenues={rowRevenues}
           />
         )}
         {activeTab === 2 && (
