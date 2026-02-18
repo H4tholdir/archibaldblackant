@@ -30,11 +30,11 @@ export const ARCA_COLORS = {
 } as const;
 
 export const ARCA_GRID = {
-  elencoRowHeight: 20,
+  elencoRowHeight: 18,
   elencoHeaderHeight: 22,
-  righeRowHeight: 20,
-  righeHeaderHeight: 22,
-  cellPadding: "2px 4px",
+  righeRowHeight: 18,
+  righeHeaderHeight: 20,
+  cellPadding: "1px 4px",
   headerPadding: "2px 6px",
 } as const;
 
@@ -219,4 +219,21 @@ export const arcaSectionLabel: CSSProperties = {
   top: "-8px",
   left: "8px",
   fontSize: "11px",
+};
+
+export const arcaGreyHeader: CSSProperties = {
+  ...ARCA_FONT,
+  backgroundColor: "#C0C0C0",
+  color: "#000",
+  padding: "2px 6px",
+  fontWeight: "normal",
+  fontStyle: "italic",
+  marginBottom: "4px",
+};
+
+export const arcaDescriptionRed: CSSProperties = {
+  ...ARCA_FONT,
+  color: ARCA_COLORS.comeConvenuto,
+  fontStyle: "italic",
+  marginLeft: "4px",
 };

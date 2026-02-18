@@ -7,6 +7,7 @@ import {
   arcaNavyHeader,
   arcaRowStyle,
   arcaGridCell,
+  arcaLabel,
   ARCA_COLORS,
   formatArcaCurrency,
 } from "./arcaStyles";
@@ -86,37 +87,39 @@ export function ArcaTabRighe({ righe, editing, onRigaChange, onRemoveRiga, onAdd
         )}
       </div>
 
-      {/* Dettaglio riga selezionata (2 righe come Arca) */}
+      {/* Dettaglio riga selezionata (2 righe, label sopra i campi come Arca) */}
       {selectedRiga && (
         <div
           style={{
             border: `1px solid ${ARCA_COLORS.borderDark}`,
-            padding: "6px 8px",
-            backgroundColor: "#FAFAF5",
+            padding: "4px 6px",
+            backgroundColor: ARCA_COLORS.windowBg,
           }}
         >
-          {/* Riga 1: Articolo, Descrizione, Data Con., U.M., Fatt. conv. */}
-          <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", marginBottom: "4px" }}>
-            <ArcaInput label="Articolo" value={selectedRiga.CODICEARTI} width="120px" />
+          {/* Riga 1: Articolo, Descrizione articolo, Data Con., U.M., Fattore conv. */}
+          <div style={{ display: "flex", gap: "6px", flexWrap: "wrap", marginBottom: "4px" }}>
+            <ArcaInput labelAbove label="Articolo" value={selectedRiga.CODICEARTI} width="100px" />
             <ArcaInput
-              label="Descrizione"
+              labelAbove
+              label="Descrizione articolo"
               value={selectedRiga.DESCRIZION}
-              width="220px"
+              width="280px"
               readOnly={!editing}
               onChange={editing && selectedIndex !== null ? (v) => {
                 onRigaChange?.(selectedIndex, { ...selectedRiga, DESCRIZION: v });
               } : undefined}
             />
-            <ArcaInput label="Data Con." value={selectedRiga.DATACONSEG ?? ""} width="90px" />
-            <ArcaInput label="U.M." value={selectedRiga.UNMISURA} width="30px" />
-            <ArcaInput label="Fatt. conv." value={String(selectedRiga.FATT)} width="40px" />
+            <ArcaInput labelAbove label="Data Con." value={selectedRiga.DATACONSEG ?? ""} width="80px" />
+            <ArcaInput labelAbove label="U.M." value={selectedRiga.UNMISURA} width="25px" />
+            <ArcaInput labelAbove label="Fattore conv." value={String(selectedRiga.FATT)} width="70px" align="right" />
           </div>
-          {/* Riga 2: Q.ta, Q.ta Resid., Prezzo Un., % Sconto, % Provv., Totale, IVA, C.S., Om. Merce, Om. IVA */}
-          <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+          {/* Riga 2: Quantità, Quantità Residua, Prezzo Unitario, % Sconto, % Provvigioni, Totale, IVA, C.S., Omaggio */}
+          <div style={{ display: "flex", gap: "6px", flexWrap: "wrap", alignItems: "flex-end" }}>
             <ArcaInput
-              label="Q.ta'"
+              labelAbove
+              label="Quantità"
               value={String(selectedRiga.QUANTITA)}
-              width="60px"
+              width="50px"
               align="right"
               readOnly={!editing}
               type={editing ? "number" : "text"}
@@ -124,11 +127,12 @@ export function ArcaTabRighe({ righe, editing, onRigaChange, onRemoveRiga, onAdd
                 onRigaChange?.(selectedIndex, { ...selectedRiga, QUANTITA: parseFloat(v) || 0 });
               } : undefined}
             />
-            <ArcaInput label="Q.ta' Resid." value={String(selectedRiga.QUANTITARE)} width="60px" align="right" />
+            <ArcaInput labelAbove label="Quantità Residua" value={String(selectedRiga.QUANTITARE)} width="50px" align="right" />
             <ArcaInput
-              label="Prezzo Un."
+              labelAbove
+              label="Prezzo Unitario"
               value={editing ? String(selectedRiga.PREZZOUN) : formatArcaCurrency(selectedRiga.PREZZOUN)}
-              width="80px"
+              width="70px"
               align="right"
               readOnly={!editing}
               type={editing ? "number" : "text"}
@@ -137,28 +141,50 @@ export function ArcaTabRighe({ righe, editing, onRigaChange, onRemoveRiga, onAdd
               } : undefined}
             />
             <ArcaInput
+              labelAbove
               label="% Sconto"
               value={selectedRiga.SCONTI}
-              width="60px"
+              width="50px"
               readOnly={!editing}
               onChange={editing && selectedIndex !== null ? (v) => {
                 onRigaChange?.(selectedIndex, { ...selectedRiga, SCONTI: v });
               } : undefined}
             />
-            <ArcaInput label="% Provv." value={selectedRiga.PROVV} width="50px" />
-            <ArcaInput label="Totale" value={formatArcaCurrency(selectedRiga.PREZZOTOT)} width="90px" align="right" highlight />
+            <ArcaInput labelAbove label="% Provvigioni" value={selectedRiga.PROVV} width="60px" />
+            <ArcaInput labelAbove label="Totale" value={formatArcaCurrency(selectedRiga.PREZZOTOT)} width="60px" align="right" highlight />
             <ArcaInput
+              labelAbove
               label="IVA"
               value={selectedRiga.ALIIVA}
-              width="30px"
+              width="25px"
               readOnly={!editing}
               onChange={editing && selectedIndex !== null ? (v) => {
                 onRigaChange?.(selectedIndex, { ...selectedRiga, ALIIVA: v });
               } : undefined}
             />
-            <ArcaInput label="C.S." value={selectedRiga.CONTOSCARI} width="60px" />
-            <ArcaInput label="Om. Merce" value={selectedRiga.OMMERCE ? "Si" : ""} width="30px" />
-            <ArcaInput label="Om. IVA" value={selectedRiga.OMIVA ? "Si" : ""} width="30px" />
+            <ArcaInput labelAbove label="C. S." value={selectedRiga.CONTOSCARI} width="30px" />
+            {/* Omaggio: checkbox come Arca */}
+            <div style={{ display: "flex", flexDirection: "column", gap: "1px" }}>
+              <span style={{ ...arcaLabel, fontSize: "10px", padding: "0 1px" }}>Omaggio</span>
+              <div style={{ display: "flex", gap: "4px", alignItems: "center" }}>
+                <label style={{ ...ARCA_FONT, fontSize: "10px", display: "flex", alignItems: "center", gap: "2px" }}>
+                  <input type="checkbox" checked={selectedRiga.OMMERCE} readOnly={!editing}
+                    onChange={editing && selectedIndex !== null ? (e) => {
+                      onRigaChange?.(selectedIndex, { ...selectedRiga, OMMERCE: e.target.checked });
+                    } : undefined}
+                  />
+                  Merce
+                </label>
+                <label style={{ ...ARCA_FONT, fontSize: "10px", display: "flex", alignItems: "center", gap: "2px" }}>
+                  <input type="checkbox" checked={selectedRiga.OMIVA} readOnly={!editing}
+                    onChange={editing && selectedIndex !== null ? (e) => {
+                      onRigaChange?.(selectedIndex, { ...selectedRiga, OMIVA: e.target.checked });
+                    } : undefined}
+                  />
+                  Iva
+                </label>
+              </div>
+            </div>
           </div>
           {editing && selectedIndex !== null && (
             <div style={{ marginTop: "6px", display: "flex", gap: "6px" }}>
