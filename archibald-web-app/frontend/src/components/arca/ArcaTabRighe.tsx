@@ -3,7 +3,6 @@ import type { CSSProperties } from "react";
 import type { ArcaRiga } from "../../types/arca-data";
 import type { Product } from "../../db/schema";
 import { productService } from "../../services/products.service";
-import type { PackagingResult } from "../../services/products.service";
 import { priceService } from "../../services/prices.service";
 import { normalizeVatRate } from "../../utils/vat-utils";
 import { ArcaInput } from "./ArcaInput";
@@ -109,12 +108,9 @@ export function ArcaTabRighe({
   const productInputRef = useRef<HTMLInputElement>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Track product just selected from search (for packaging on quantity entry)
-  const [selectedProductName, setSelectedProductName] = useState<string | null>(null);
-  const [packagingInfo, setPackagingInfo] = useState<PackagingResult | null>(null);
-
-  // Refs for cursor flow: Articolo → Quantità → % Sconto → new row → Articolo
+  // Refs for cursor flow: Articolo → Quantità → Prezzo Unitario → % Sconto → new row → Articolo
   const quantityRef = useRef<HTMLInputElement>(null);
+  const priceRef = useRef<HTMLInputElement>(null);
   const discountRef = useRef<HTMLInputElement>(null);
   const pendingFocusRef = useRef<"quantity" | "article" | null>(null);
   const prevRigheLengthRef = useRef(righe.length);
@@ -195,8 +191,6 @@ export function ArcaTabRighe({
       ALIIVA: String(vat),
       PREZZOUN: price,
     });
-    setSelectedProductName(articleCode);
-    setPackagingInfo(null);
     setProductQuery("");
     setShowProductDropdown(false);
     setHighlightedProductIdx(-1);
@@ -229,51 +223,21 @@ export function ArcaTabRighe({
     }
   }, [showProductDropdown, productResults, highlightedProductIdx, handleSelectProduct]);
 
-  const handleQuantityKeyDown = useCallback(async (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key !== "Tab" && e.key !== "Enter") return;
-    e.preventDefault();
-
-    if (selectedProductName && selectedRiga && selectedIndex != null && onRigaChange) {
-      const qty = selectedRiga.QUANTITA;
-      if (qty > 0) {
-        const result = await productService.calculateOptimalPackaging(selectedProductName, qty);
-        setPackagingInfo(result);
-        if (result.success && result.breakdown && result.breakdown.length > 0) {
-          const firstPkg = result.breakdown[0];
-          const firstPrice = await priceService.getPriceByArticleId(firstPkg.variant.variantId);
-          const firstProduct = await priceService.getPriceAndVat(firstPkg.variant.variantId);
-          const firstVat = normalizeVatRate(firstProduct?.vat) ?? 22;
-          onRigaChange(selectedIndex, {
-            ...selectedRiga,
-            QUANTITA: firstPkg.totalPieces,
-            PREZZOUN: firstPrice ?? selectedRiga.PREZZOUN,
-            ALIIVA: String(firstVat),
-          });
-
-          if (result.breakdown.length > 1 && onPasteRighe) {
-            const additionalRows: ArcaRiga[] = [];
-            for (let i = 1; i < result.breakdown.length; i++) {
-              const pkg = result.breakdown[i];
-              const varPrice = await priceService.getPriceByArticleId(pkg.variant.variantId);
-              const varPriceData = await priceService.getPriceAndVat(pkg.variant.variantId);
-              const varVat = normalizeVatRate(varPriceData?.vat) ?? 22;
-              additionalRows.push({
-                ...selectedRiga,
-                QUANTITA: pkg.totalPieces,
-                PREZZOUN: varPrice ?? 0,
-                ALIIVA: String(varVat),
-              });
-            }
-            onPasteRighe(additionalRows);
-          }
-          setSelectedProductName(null);
-        }
-      }
+  const handleQuantityKeyDown = useCallback((e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "Tab" || e.key === "Enter") {
+      e.preventDefault();
+      priceRef.current?.focus();
+      priceRef.current?.select();
     }
+  }, []);
 
-    discountRef.current?.focus();
-    discountRef.current?.select();
-  }, [selectedProductName, selectedRiga, selectedIndex, onRigaChange, onPasteRighe]);
+  const handlePriceKeyDown = useCallback((e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "Tab" || e.key === "Enter") {
+      e.preventDefault();
+      discountRef.current?.focus();
+      discountRef.current?.select();
+    }
+  }, []);
 
   const handleDiscountKeyDown = useCallback((e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === "Tab" || e.key === "Enter") {
@@ -334,7 +298,7 @@ export function ArcaTabRighe({
         {righe.map((riga, idx) => (
           <div
             key={riga.NUMERORIGA}
-            onClick={() => { setSelectedIndex(idx); setSelectedProductName(null); setPackagingInfo(null); }}
+            onClick={() => setSelectedIndex(idx)}
             style={{
               ...arcaRowStyle(idx, idx === selectedIndex),
               display: "flex",
@@ -513,6 +477,8 @@ export function ArcaTabRighe({
               align="right"
               readOnly={false}
               type="text"
+              inputRef={priceRef}
+              onKeyDown={handlePriceKeyDown}
               onChange={selectedIndex !== null ? (v) => {
                 onRigaChange?.(selectedIndex, { ...selectedRiga, PREZZOUN: parseFloat(v) || 0 });
               } : undefined}
@@ -546,18 +512,6 @@ export function ArcaTabRighe({
               style={{ color: "#FF0000", fontWeight: "bold" }}
             />
           </div>
-          {/* Packaging preview */}
-          {packagingInfo && packagingInfo.success && packagingInfo.breakdown && (
-            <div style={{ ...ARCA_FONT, fontSize: "8pt", padding: "2px 4px", background: "#dbeafe", borderRadius: "2px", marginBottom: "2px" }}>
-              <strong>Confezionamento:</strong>{" "}
-              {packagingInfo.breakdown.map(pkg => `${pkg.packageCount}x ${pkg.packageSize}pz`).join(" + ")}
-            </div>
-          )}
-          {packagingInfo && !packagingInfo.success && (
-            <div style={{ ...ARCA_FONT, fontSize: "8pt", padding: "2px 4px", color: "#c62828", marginBottom: "2px" }}>
-              {packagingInfo.error}
-            </div>
-          )}
           {/* Row 3: Revenue box + U.M. + IVA */}
           <div style={{ display: "flex", gap: "4px", alignItems: "flex-end" }}>
             <div

@@ -294,14 +294,19 @@ export function ArcaDocumentDetail({
     if (firstId) onNavigateToOrder(firstId);
   }, [order.archibaldOrderId, onNavigateToOrder]);
 
-  // Flush pending auto-save before closing
+  // Flush pending auto-save before closing, removing empty rows
   const handleClose = useCallback(() => {
     if (autoSaveRef.current) {
       clearTimeout(autoSaveRef.current);
       autoSaveRef.current = null;
-      if (histIndexRef.current > 0 && currentDataRef.current) {
-        onSaveRef.current?.(order.id, currentDataRef.current);
-      }
+    }
+    if (currentDataRef.current) {
+      const cleaned = {
+        ...currentDataRef.current,
+        righe: currentDataRef.current.righe.filter(r => r.CODICEARTI.trim() !== ""),
+      };
+      currentDataRef.current = cleaned;
+      onSaveRef.current?.(order.id, cleaned);
     }
     onClose();
   }, [order.id, onClose]);
