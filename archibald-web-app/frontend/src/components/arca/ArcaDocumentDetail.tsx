@@ -262,64 +262,97 @@ export function ArcaDocumentDetail({
         </button>
       </div>
 
-      {/* Header fisso (3 righe) */}
+      {/* Header fisso (3 righe) + pannello info cliente */}
       <div
         style={{
           border: `1px solid ${ARCA_COLORS.borderDark}`,
           backgroundColor: ARCA_COLORS.windowBg,
           padding: "4px 6px",
           marginBottom: "4px",
+          display: "flex",
+          gap: "8px",
         }}
       >
-        {/* Riga 1: Doc tipo, Numero, Data, Cliente */}
-        <div style={{ display: "flex", gap: "6px", alignItems: "center", marginBottom: "3px", flexWrap: "wrap" }}>
-          <ArcaInput label="Documento" value={t.TIPODOC} width="30px" />
-          <ArcaInput label="Numero" value={t.NUMERODOC} width="60px" />
-          <ArcaInput label="Data" value={formatArcaDate(t.DATADOC)} width="80px" />
-          <ArcaInput label="Cliente/Fornit." value={t.CODICECF} width="80px" />
-          <span style={{ ...ARCA_FONT, color: "#333", flex: 1 }}>
+        {/* Sinistra: campi documento */}
+        <div style={{ flex: 1, minWidth: 0 }}>
+          {/* Riga 1: Doc tipo, Numero, Data, Cliente */}
+          <div style={{ display: "flex", gap: "6px", alignItems: "center", marginBottom: "3px", flexWrap: "wrap" }}>
+            <ArcaInput label="Documento" value={t.TIPODOC} width="30px" specialReadOnly />
+            <ArcaInput label="Numero" value={t.NUMERODOC} width="60px" />
+            <ArcaInput label="Data" value={formatArcaDate(t.DATADOC)} width="80px" />
+            <ArcaInput label="Cliente/Fornit." value={t.CODICECF} width="80px" />
+          </div>
+
+          {/* Riga 2: Valuta, Cambio, Sc. Cassa, Merce */}
+          <div style={{ display: "flex", gap: "6px", alignItems: "center", marginBottom: "3px", flexWrap: "wrap" }}>
+            <ArcaInput label="Valuta" value={t.VALUTA} width="35px" />
+            <ArcaInput label="Cambio" value={String(t.CAMBIO)} width="35px" align="right" />
+            <ArcaInput
+              label="Sc. Cassa"
+              value={t.SCONTOCASS || "-"}
+              width="50px"
+              readOnly={!editing}
+              onChange={editing ? (v) => handleTestaFieldChange("SCONTOCASS", v) : undefined}
+            />
+            <ArcaInput label="Merce" value={formatArcaCurrency(t.TOTMERCE)} width="90px" align="right" highlight />
+          </div>
+
+          {/* Riga 3: Cod. Pag., COME CONVENUTO, Sconto merce, Tot. Doc. */}
+          <div style={{ display: "flex", gap: "6px", alignItems: "center", flexWrap: "wrap" }}>
+            <ArcaInput
+              label="Cod.Pag."
+              value={t.PAG}
+              width="40px"
+              readOnly={!editing}
+              onChange={editing ? (v) => handleTestaFieldChange("PAG", v) : undefined}
+            />
+            {t.PAG === "0001" && <span style={arcaComeConvenuto}>{pagDesc}</span>}
+            <ArcaInput
+              label="Sc. Merce"
+              value={t.SCONTI || "-"}
+              width="50px"
+              readOnly={!editing}
+              onChange={editing ? (v) => handleTestaFieldChange("SCONTI", v) : undefined}
+            />
+            <ArcaInput
+              label="Tot. Doc."
+              value={formatArcaCurrency(t.TOTDOC)}
+              width="100px"
+              align="right"
+              highlight
+            />
+          </div>
+        </div>
+
+        {/* Destra: pannello info cliente */}
+        <div
+          style={{
+            minWidth: "180px",
+            border: `1px solid ${ARCA_COLORS.borderLight}`,
+            backgroundColor: ARCA_COLORS.fieldBg,
+            padding: "4px 6px",
+            ...ARCA_FONT,
+            flexShrink: 0,
+          }}
+        >
+          <div style={{ fontWeight: "bold", marginBottom: "2px" }}>
             {order.subClientName}
-          </span>
-        </div>
-
-        {/* Riga 2: Valuta, Cambio, Sc. Cassa, Merce */}
-        <div style={{ display: "flex", gap: "6px", alignItems: "center", marginBottom: "3px", flexWrap: "wrap" }}>
-          <ArcaInput label="Valuta" value={t.VALUTA} width="35px" />
-          <ArcaInput label="Cambio" value={String(t.CAMBIO)} width="35px" align="right" />
-          <ArcaInput
-            label="Sc. Cassa"
-            value={t.SCONTOCASS || "-"}
-            width="50px"
-            readOnly={!editing}
-            onChange={editing ? (v) => handleTestaFieldChange("SCONTOCASS", v) : undefined}
-          />
-          <ArcaInput label="Merce" value={formatArcaCurrency(t.TOTMERCE)} width="90px" align="right" highlight />
-        </div>
-
-        {/* Riga 3: Cod. Pag., COME CONVENUTO, Sconto merce, Tot. Doc. */}
-        <div style={{ display: "flex", gap: "6px", alignItems: "center", flexWrap: "wrap" }}>
-          <ArcaInput
-            label="Cod.Pag."
-            value={t.PAG}
-            width="40px"
-            readOnly={!editing}
-            onChange={editing ? (v) => handleTestaFieldChange("PAG", v) : undefined}
-          />
-          {t.PAG === "0001" && <span style={arcaComeConvenuto}>{pagDesc}</span>}
-          <ArcaInput
-            label="Sc. Merce"
-            value={t.SCONTI || "-"}
-            width="50px"
-            readOnly={!editing}
-            onChange={editing ? (v) => handleTestaFieldChange("SCONTI", v) : undefined}
-          />
-          <ArcaInput
-            label="Tot. Doc."
-            value={formatArcaCurrency(t.TOTDOC)}
-            width="100px"
-            align="right"
-            highlight
-          />
+          </div>
+          {order.subClientData?.supplRagioneSociale && (
+            <div>{order.subClientData.supplRagioneSociale}</div>
+          )}
+          {order.subClientData?.indirizzo && (
+            <div>{order.subClientData.indirizzo}</div>
+          )}
+          {(order.subClientData?.cap || order.subClientData?.localita || order.subClientData?.prov) && (
+            <div>
+              {[
+                order.subClientData.cap,
+                order.subClientData.localita,
+                order.subClientData.prov,
+              ].filter(Boolean).join(" ")}
+            </div>
+          )}
         </div>
       </div>
 

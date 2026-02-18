@@ -22,6 +22,20 @@ export const ARCA_COLORS = {
   borderLight: "#D4D0C8",
   borderDark: "#808080",
   linkBlue: "#0000CC",
+  readOnlySpecialBg: "#D0E0F0",
+  expenseDescGreen: "#008000",
+  gridBorderSilver: "#C0C0C0",
+  gridBorderColLight: "#D0D0D0",
+  navyHeaderBorder: "#404080",
+} as const;
+
+export const ARCA_GRID = {
+  elencoRowHeight: 20,
+  elencoHeaderHeight: 22,
+  righeRowHeight: 20,
+  righeHeaderHeight: 22,
+  cellPadding: "2px 4px",
+  headerPadding: "2px 6px",
 } as const;
 
 export const ARCA_FONT: CSSProperties = {
@@ -34,7 +48,9 @@ export const arcaHeaderRow: CSSProperties = {
   backgroundColor: ARCA_COLORS.headerBg,
   color: ARCA_COLORS.headerText,
   fontWeight: "bold",
-  padding: "4px 8px",
+  padding: ARCA_GRID.headerPadding,
+  height: ARCA_GRID.elencoHeaderHeight,
+  borderRight: `1px solid ${ARCA_COLORS.gridBorderColLight}`,
   userSelect: "none",
   cursor: "pointer",
   whiteSpace: "nowrap",
@@ -45,7 +61,9 @@ export const arcaNavyHeader: CSSProperties = {
   backgroundColor: ARCA_COLORS.navyHeader,
   color: ARCA_COLORS.navyHeaderText,
   fontWeight: "bold",
-  padding: "3px 6px",
+  padding: ARCA_GRID.headerPadding,
+  height: ARCA_GRID.righeHeaderHeight,
+  borderRight: `1px solid ${ARCA_COLORS.navyHeaderBorder}`,
   whiteSpace: "nowrap",
 };
 
@@ -55,7 +73,9 @@ export function arcaRowStyle(index: number, selected: boolean): CSSProperties {
       ...ARCA_FONT,
       backgroundColor: ARCA_COLORS.selectionBg,
       color: ARCA_COLORS.selectionText,
-      padding: "3px 8px",
+      padding: ARCA_GRID.cellPadding,
+      height: ARCA_GRID.elencoRowHeight,
+      borderBottom: `1px solid ${ARCA_COLORS.gridBorderSilver}`,
       cursor: "pointer",
       whiteSpace: "nowrap",
     };
@@ -65,7 +85,9 @@ export function arcaRowStyle(index: number, selected: boolean): CSSProperties {
     backgroundColor:
       index % 2 === 0 ? ARCA_COLORS.rowEven : ARCA_COLORS.rowOdd,
     color: "#000",
-    padding: "3px 8px",
+    padding: ARCA_GRID.cellPadding,
+    height: ARCA_GRID.elencoRowHeight,
+    borderBottom: `1px solid ${ARCA_COLORS.gridBorderSilver}`,
     cursor: "pointer",
     whiteSpace: "nowrap",
   };
@@ -154,3 +176,47 @@ export function parseArcaDataFromOrder(arcaDataStr: string | null | undefined): 
     return null;
   }
 }
+
+export const arcaReadOnlySpecialInput: CSSProperties = {
+  ...arcaSunkenInput,
+  backgroundColor: ARCA_COLORS.readOnlySpecialBg,
+  color: "#000",
+  height: "20px",
+};
+
+export const arcaExpenseDesc: CSSProperties = {
+  ...ARCA_FONT,
+  color: ARCA_COLORS.expenseDescGreen,
+  fontStyle: "italic",
+};
+
+export function arcaGridCell(width: number, align: "left" | "right" | "center" = "left"): CSSProperties {
+  return {
+    width,
+    textAlign: align,
+    borderRight: `1px solid ${ARCA_COLORS.gridBorderColLight}`,
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+    boxSizing: "border-box",
+    padding: ARCA_GRID.cellPadding,
+  };
+}
+
+export const arcaEtchedBorder: CSSProperties = {
+  border: `1px solid ${ARCA_COLORS.borderDark}`,
+  boxShadow: "inset 1px 1px 0 #fff",
+  padding: "8px",
+  marginBottom: "6px",
+  position: "relative",
+};
+
+export const arcaSectionLabel: CSSProperties = {
+  ...ARCA_FONT,
+  fontWeight: "bold",
+  backgroundColor: ARCA_COLORS.windowBg,
+  padding: "0 4px",
+  position: "absolute",
+  top: "-8px",
+  left: "8px",
+  fontSize: "11px",
+};

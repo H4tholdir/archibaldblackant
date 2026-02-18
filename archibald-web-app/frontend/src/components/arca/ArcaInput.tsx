@@ -3,6 +3,7 @@ import {
   arcaSunkenInput,
   arcaReadOnlyInput,
   arcaHighlightInput,
+  arcaReadOnlySpecialInput,
   arcaLabel,
 } from "./arcaStyles";
 
@@ -12,6 +13,7 @@ type ArcaInputProps = {
   onChange?: (value: string) => void;
   readOnly?: boolean;
   highlight?: boolean;
+  specialReadOnly?: boolean;
   width?: string | number;
   labelWidth?: string | number;
   style?: CSSProperties;
@@ -25,19 +27,25 @@ export function ArcaInput({
   onChange,
   readOnly = true,
   highlight = false,
+  specialReadOnly = false,
   width = "100%",
   labelWidth,
   style,
   type = "text",
   align = "left",
 }: ArcaInputProps) {
-  const inputStyle: CSSProperties = {
-    ...(highlight
+  const baseStyle = specialReadOnly
+    ? arcaReadOnlySpecialInput
+    : highlight
       ? arcaHighlightInput
       : readOnly
         ? arcaReadOnlyInput
-        : arcaSunkenInput),
+        : arcaSunkenInput;
+
+  const inputStyle: CSSProperties = {
+    ...baseStyle,
     width,
+    height: "20px",
     textAlign: align,
     ...style,
   };

@@ -4,8 +4,10 @@ import type { FresisHistoryOrder } from "../../db/schema";
 import type { ArcaData } from "../../types/arca-data";
 import {
   ARCA_FONT,
+  ARCA_GRID,
   arcaHeaderRow,
   arcaRowStyle,
+  arcaGridCell,
   ARCA_COLORS,
   formatArcaCurrency,
   formatArcaDate,
@@ -102,8 +104,8 @@ const COLUMNS = [
   { field: "revenue" as SortField, label: "Ricavo", width: 100 },
 ];
 
-const ROW_HEIGHT = 24;
-const HEADER_HEIGHT = 28;
+const ROW_HEIGHT = ARCA_GRID.elencoRowHeight;
+const HEADER_HEIGHT = ARCA_GRID.elencoHeaderHeight;
 
 const STATE_LABELS: Record<string, string> = {
   piazzato: "Su Archibald",
@@ -143,6 +145,8 @@ function ArcaRow({
   const isSelected = item.order.id === selectedId;
   const rowBaseStyle = arcaRowStyle(index, isSelected);
 
+  const lastColIdx = COLUMNS.length - 1;
+
   return (
     <div
       style={{
@@ -150,42 +154,29 @@ function ArcaRow({
         ...rowBaseStyle,
         display: "flex",
         alignItems: "center",
-        borderBottom: "1px solid #e0e0e0",
       }}
       onClick={() => onSelect(item.order)}
       onDoubleClick={() => onDoubleClick(item.order)}
     >
-      <div
-        style={{
-          width: COLUMNS[0].width,
-          overflow: "hidden",
-          textOverflow: "ellipsis",
-        }}
-      >
+      <div style={arcaGridCell(COLUMNS[0].width)}>
         {item.ftNumber}
       </div>
-      <div style={{ width: COLUMNS[1].width }}>
+      <div style={arcaGridCell(COLUMNS[1].width)}>
         {formatArcaDate(item.datadoc)}
       </div>
-      <div
-        style={{
-          width: COLUMNS[2].width,
-          overflow: "hidden",
-          textOverflow: "ellipsis",
-        }}
-      >
+      <div style={arcaGridCell(COLUMNS[2].width)}>
         {item.cliente}
       </div>
-      <div style={{ width: COLUMNS[3].width, textAlign: "right" }}>
+      <div style={arcaGridCell(COLUMNS[3].width, "right")}>
         {formatArcaCurrency(item.totale)}
       </div>
-      <div style={{ width: COLUMNS[4].width }}>
+      <div style={arcaGridCell(COLUMNS[4].width)}>
         {STATE_LABELS[item.stato] ?? item.stato}
       </div>
       <div
         style={{
-          width: COLUMNS[5].width,
-          textAlign: "right",
+          ...arcaGridCell(COLUMNS[lastColIdx].width, "right"),
+          borderRight: "none",
           color:
             item.revenue != null
               ? item.revenue >= 0
@@ -251,7 +242,7 @@ export function ArcaDocumentList({
           alignItems: "center",
         }}
       >
-        {COLUMNS.map((col) => (
+        {COLUMNS.map((col, colIdx) => (
           <div
             key={col.field}
             onClick={() => handleHeaderClick(col.field)}
@@ -263,11 +254,12 @@ export function ArcaDocumentList({
               gap: "4px",
               height: "100%",
               boxSizing: "border-box",
+              borderRight: colIdx === COLUMNS.length - 1 ? "none" : arcaHeaderRow.borderRight,
             }}
           >
             {col.label}
             {sortField === col.field && (
-              <span style={{ fontSize: "9px" }}>
+              <span style={{ fontSize: "9px", color: "#FFFFFF" }}>
                 {sortDir === "asc" ? "\u25B2" : "\u25BC"}
               </span>
             )}
