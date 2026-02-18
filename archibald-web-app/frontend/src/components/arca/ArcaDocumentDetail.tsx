@@ -276,30 +276,30 @@ export function ArcaDocumentDetail({
       >
         {/* Sinistra: campi documento */}
         <div style={{ flex: 1, minWidth: 0 }}>
-          {/* Riga 1: Doc tipo, Numero, Data, Cliente */}
-          <div style={{ display: "flex", gap: "4px", alignItems: "center", marginBottom: "2px", flexWrap: "wrap" }}>
+          {/* Riga 1: Doc tipo, Numero, Data, Cliente (Top=2) */}
+          <div style={{ display: "flex", gap: "2px", alignItems: "center", marginBottom: "2px", flexWrap: "wrap" }}>
             <ArcaInput label="Documento" value={t.TIPODOC} width="30px" specialReadOnly />
-            <ArcaInput value={`${t.NUMERODOC}/`} width="60px" />
-            <ArcaInput label="Data Docum." value={formatArcaDate(t.DATADOC)} width="80px" />
+            <ArcaInput value={`${t.NUMERODOC}/`} width="60px" style={{ fontFamily: "'Courier New', monospace", color: "#FF0000" }} />
+            <ArcaInput label="Data Docum." value={formatArcaDate(t.DATADOC)} width="62px" />
             <ArcaInput label="Cliente / Fornit." value={t.CODICECF} width="50px" />
           </div>
 
-          {/* Riga 2: Valuta, Cambio, Sc. Cassa, Merce */}
-          <div style={{ display: "flex", gap: "4px", alignItems: "center", marginBottom: "2px", flexWrap: "wrap" }}>
-            <ArcaInput label="Valuta" value={t.VALUTA} width="30px" />
-            <ArcaInput value={formatArcaDecimal(t.CAMBIO)} width="70px" align="right" />
+          {/* Riga 2: Valuta, Cambio, Sc. Cassa, Merce (Top=25) */}
+          <div style={{ display: "flex", gap: "2px", alignItems: "center", marginBottom: "2px", flexWrap: "wrap" }}>
+            <ArcaInput label="Valuta" value={t.VALUTA} width="41px" />
+            <ArcaInput value={formatArcaDecimal(t.CAMBIO)} width="84px" align="right" />
             <ArcaInput
               label="Sconto cassa"
               value={t.SCONTOCASS || ""}
-              width="50px"
+              width="62px"
               readOnly={!editing}
               onChange={editing ? (v) => handleTestaFieldChange("SCONTOCASS", v) : undefined}
             />
             <ArcaInput label="Merce" value={formatArcaCurrency(t.TOTMERCE)} width="70px" align="right" highlight />
           </div>
 
-          {/* Riga 3: Cod. Pag., COME CONVENUTO, Sconto merce, Tot. Doc. */}
-          <div style={{ display: "flex", gap: "4px", alignItems: "center", flexWrap: "wrap" }}>
+          {/* Riga 3: Cod. Pag., COME CONVENUTO, Sconto merce, Tot. Doc. (Top≈48) */}
+          <div style={{ display: "flex", gap: "2px", alignItems: "center", flexWrap: "wrap" }}>
             <ArcaInput
               label="Cod. Pag."
               value={t.PAG}
@@ -311,29 +311,32 @@ export function ArcaDocumentDetail({
             <ArcaInput
               label="Sconto merce"
               value={t.SCONTI || ""}
-              width="60px"
+              width="62px"
               readOnly={!editing}
               onChange={editing ? (v) => handleTestaFieldChange("SCONTI", v) : undefined}
             />
             <ArcaInput
               label="Tot. Doc."
               value={formatArcaCurrency(t.TOTDOC)}
-              width="70px"
+              width="87px"
               align="right"
               highlight
+              style={{ color: "#800000" }}
             />
           </div>
         </div>
 
-        {/* Destra: pannello info cliente */}
+        {/* Destra: pannello info cliente (Edtanagrafe: W=176, H=67) */}
         <div
           style={{
-            minWidth: "200px",
+            width: "176px",
+            minHeight: "67px",
             border: `1px solid ${ARCA_COLORS.borderDark}`,
             backgroundColor: ARCA_COLORS.fieldBg,
-            padding: "4px 8px",
+            padding: "2px 4px",
             ...ARCA_FONT,
             flexShrink: 0,
+            overflow: "hidden",
           }}
         >
           <div style={{ fontWeight: "bold", marginBottom: "2px" }}>

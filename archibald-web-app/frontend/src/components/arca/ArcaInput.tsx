@@ -47,7 +47,7 @@ export function ArcaInput({
   const inputStyle: CSSProperties = {
     ...baseStyle,
     width,
-    height: "18px",
+    height: "21px",
     textAlign: align,
     ...style,
   };
@@ -86,7 +86,7 @@ export function ArcaInput({
       style={{
         display: "flex",
         alignItems: "center",
-        gap: "4px",
+        gap: "2px",
       }}
     >
       <span

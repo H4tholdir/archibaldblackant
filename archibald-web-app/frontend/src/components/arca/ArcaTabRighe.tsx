@@ -21,13 +21,13 @@ type ArcaTabRigheProps = {
 };
 
 const RIGHE_COLUMNS = [
-  { label: "N.", width: 30 },
-  { label: "Codice", width: 120 },
-  { label: "Descrizione", width: 220 },
-  { label: "Q.ta'", width: 60 },
-  { label: "Residuo", width: 60 },
-  { label: "Prezzo Tot.", width: 100 },
-  { label: "N", width: 30 },
+  { label: "N", width: 21 },
+  { label: "Descrizione Articolo", width: 228 },
+  { label: "Quantita", width: 70 },
+  { label: "Residuo", width: 68 },
+  { label: "Prezzo Totale", width: 88 },
+  { label: "Codice", width: 100 },
+  { label: "N", width: 17 },
 ];
 
 export function ArcaTabRighe({ righe, editing, onRigaChange, onRemoveRiga, onAddRiga }: ArcaTabRigheProps) {
@@ -69,15 +69,15 @@ export function ArcaTabRighe({ righe, editing, onRigaChange, onRemoveRiga, onAdd
               cursor: "pointer",
             }}
           >
-            <div style={arcaGridCell(30, "right")}>{riga.NUMERORIGA}</div>
-            <div style={arcaGridCell(120)}>{riga.CODICEARTI}</div>
-            <div style={arcaGridCell(220)}>{riga.DESCRIZION}</div>
-            <div style={arcaGridCell(60, "right")}>{riga.QUANTITA}</div>
-            <div style={arcaGridCell(60, "right")}>{riga.QUANTITARE}</div>
-            <div style={arcaGridCell(100, "right")}>
+            <div style={arcaGridCell(21, "center")}>{riga.NUMERORIGA}</div>
+            <div style={arcaGridCell(228)}>{riga.DESCRIZION}</div>
+            <div style={arcaGridCell(70, "right")}>{riga.QUANTITA}</div>
+            <div style={arcaGridCell(68, "right")}>{riga.QUANTITARE}</div>
+            <div style={arcaGridCell(88, "right")}>
               {formatArcaCurrency(riga.PREZZOTOT)}
             </div>
-            <div style={{ ...arcaGridCell(30, "center"), borderRight: "none" }}>{riga.FATT}</div>
+            <div style={arcaGridCell(100)}>{riga.CODICEARTI}</div>
+            <div style={{ ...arcaGridCell(17, "center"), borderRight: "none" }}>{riga.NOTE ? "X" : ""}</div>
           </div>
         ))}
         {righe.length === 0 && (
@@ -96,30 +96,30 @@ export function ArcaTabRighe({ righe, editing, onRigaChange, onRemoveRiga, onAdd
             backgroundColor: ARCA_COLORS.windowBg,
           }}
         >
-          {/* Riga 1: Articolo, Descrizione articolo, Data Con., U.M., Fattore conv. */}
-          <div style={{ display: "flex", gap: "6px", flexWrap: "wrap", marginBottom: "4px" }}>
-            <ArcaInput labelAbove label="Articolo" value={selectedRiga.CODICEARTI} width="100px" />
+          {/* Riga 1: Articolo, Descrizione, Data Con., U.M., Fatt conv. (Top=204) */}
+          <div style={{ display: "flex", gap: "2px", flexWrap: "wrap", marginBottom: "2px" }}>
+            <ArcaInput labelAbove label="Articolo" value={selectedRiga.CODICEARTI} width="120px" />
             <ArcaInput
               labelAbove
               label="Descrizione articolo"
               value={selectedRiga.DESCRIZION}
-              width="280px"
+              width="279px"
               readOnly={!editing}
               onChange={editing && selectedIndex !== null ? (v) => {
                 onRigaChange?.(selectedIndex, { ...selectedRiga, DESCRIZION: v });
               } : undefined}
             />
-            <ArcaInput labelAbove label="Data Con." value={selectedRiga.DATACONSEG ?? ""} width="80px" />
-            <ArcaInput labelAbove label="U.M." value={selectedRiga.UNMISURA} width="25px" />
-            <ArcaInput labelAbove label="Fattore conv." value={String(selectedRiga.FATT)} width="70px" align="right" />
+            <ArcaInput labelAbove label="Data Con." value={selectedRiga.DATACONSEG ?? ""} width="62px" />
+            <ArcaInput labelAbove label="U.M." value={selectedRiga.UNMISURA} width="30px" />
+            <ArcaInput labelAbove label="Fattore conv." value={String(selectedRiga.FATT)} width="71px" align="right" />
           </div>
-          {/* Riga 2: Quantità, Quantità Residua, Prezzo Unitario, % Sconto, % Provvigioni, Totale, IVA, C.S., Omaggio */}
-          <div style={{ display: "flex", gap: "6px", flexWrap: "wrap", alignItems: "flex-end" }}>
+          {/* Riga 2: Quantità, Prezzo Unitario, % Sconto, % Provvigioni, Totale, IVA, C.S., Omaggio (Top=244) */}
+          <div style={{ display: "flex", gap: "2px", flexWrap: "wrap", alignItems: "flex-end" }}>
             <ArcaInput
               labelAbove
               label="Quantità"
               value={String(selectedRiga.QUANTITA)}
-              width="50px"
+              width="88px"
               align="right"
               readOnly={!editing}
               type={editing ? "number" : "text"}
@@ -127,12 +127,11 @@ export function ArcaTabRighe({ righe, editing, onRigaChange, onRemoveRiga, onAdd
                 onRigaChange?.(selectedIndex, { ...selectedRiga, QUANTITA: parseFloat(v) || 0 });
               } : undefined}
             />
-            <ArcaInput labelAbove label="Quantità Residua" value={String(selectedRiga.QUANTITARE)} width="50px" align="right" />
             <ArcaInput
               labelAbove
               label="Prezzo Unitario"
               value={editing ? String(selectedRiga.PREZZOUN) : formatArcaCurrency(selectedRiga.PREZZOUN)}
-              width="70px"
+              width="89px"
               align="right"
               readOnly={!editing}
               type={editing ? "number" : "text"}
@@ -144,19 +143,19 @@ export function ArcaTabRighe({ righe, editing, onRigaChange, onRemoveRiga, onAdd
               labelAbove
               label="% Sconto"
               value={selectedRiga.SCONTI}
-              width="50px"
+              width="58px"
               readOnly={!editing}
               onChange={editing && selectedIndex !== null ? (v) => {
                 onRigaChange?.(selectedIndex, { ...selectedRiga, SCONTI: v });
               } : undefined}
             />
-            <ArcaInput labelAbove label="% Provvigioni" value={selectedRiga.PROVV} width="60px" />
-            <ArcaInput labelAbove label="Totale" value={formatArcaCurrency(selectedRiga.PREZZOTOT)} width="60px" align="right" highlight />
+            <ArcaInput labelAbove label="% Provvigioni" value={selectedRiga.PROVV} width="67px" />
+            <ArcaInput labelAbove label="Totale" value={formatArcaCurrency(selectedRiga.PREZZOTOT)} width="96px" align="right" highlight />
             <ArcaInput
               labelAbove
               label="IVA"
               value={selectedRiga.ALIIVA}
-              width="25px"
+              width="30px"
               readOnly={!editing}
               onChange={editing && selectedIndex !== null ? (v) => {
                 onRigaChange?.(selectedIndex, { ...selectedRiga, ALIIVA: v });

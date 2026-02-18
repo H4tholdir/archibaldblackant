@@ -32,15 +32,15 @@ export const ARCA_COLORS = {
 export const ARCA_GRID = {
   elencoRowHeight: 18,
   elencoHeaderHeight: 22,
-  righeRowHeight: 18,
-  righeHeaderHeight: 20,
+  righeRowHeight: 15,
+  righeHeaderHeight: 18,
   cellPadding: "1px 4px",
   headerPadding: "2px 6px",
 } as const;
 
 export const ARCA_FONT: CSSProperties = {
-  fontFamily: "'Segoe UI', Tahoma, sans-serif",
-  fontSize: "11px",
+  fontFamily: "Arial, Tahoma, sans-serif",
+  fontSize: "8pt",
 };
 
 export const arcaHeaderRow: CSSProperties = {
@@ -118,7 +118,7 @@ export const arcaLabel: CSSProperties = {
   ...ARCA_FONT,
   color: ARCA_COLORS.labelColor,
   whiteSpace: "nowrap",
-  padding: "2px 4px",
+  padding: "1px 2px",
 };
 
 export const arcaTab = (active: boolean): CSSProperties => ({
@@ -188,7 +188,7 @@ export const arcaReadOnlySpecialInput: CSSProperties = {
   ...arcaSunkenInput,
   backgroundColor: ARCA_COLORS.readOnlySpecialBg,
   color: "#000",
-  height: "20px",
+  height: "21px",
 };
 
 export const arcaExpenseDesc: CSSProperties = {
