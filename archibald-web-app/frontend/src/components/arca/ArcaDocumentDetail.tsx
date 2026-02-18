@@ -35,6 +35,7 @@ type ArcaDocumentDetailProps = {
   onSave?: (orderId: string, arcaData: ArcaData) => void;
   onDownloadPDF?: (order: FresisHistoryOrder) => void;
   onNavigateToOrder?: (archibaldOrderId: string) => void;
+  commissionRate?: number;
 };
 
 const TAB_NAMES = ["Testa", "Righe", "Piede", "Riepilogo", "Ordine Madre"];
@@ -101,7 +102,7 @@ function makeBlankRiga(data: ArcaData): ArcaRiga {
     NUMERORIGA: maxRow + 1,
     ESPLDISTIN: "",
     UNMISURA: "PZ",
-    QUANTITA: 1,
+    QUANTITA: 0,
     QUANTITARE: 0,
     SCONTI: "",
     PREZZOUN: 0,
@@ -151,6 +152,7 @@ export function ArcaDocumentDetail({
   onSave,
   onDownloadPDF,
   onNavigateToOrder,
+  commissionRate,
 }: ArcaDocumentDetailProps) {
   const [activeTab, setActiveTab] = useState(1);
   const arcaData = useMemo(() => parseArcaDataFromOrder(order.arcaData), [order]);
@@ -306,9 +308,16 @@ export function ArcaDocumentDetail({
   }
 
   const t = currentData.testata;
-  const revenueValue = order.revenue;
-  const revenuePercent = t.TOTMERCE > 0 && revenueValue != null
-    ? ((revenueValue / t.TOTMERCE) * 100).toFixed(1)
+
+  const fresisCost = order.items.reduce((sum, item) => {
+    const listPrice = item.originalListPrice ?? 0;
+    const qty = item.quantity;
+    const discountFactor = item.discount ? (1 - item.discount / 100) : 1;
+    return sum + listPrice * qty * discountFactor;
+  }, 0);
+  const revenueValue = order.items.length > 0 ? t.TOTNETTO - fresisCost : null;
+  const revenuePercent = t.TOTNETTO > 0 && revenueValue != null
+    ? ((revenueValue / t.TOTNETTO) * 100).toFixed(1)
     : null;
 
   return (
@@ -385,7 +394,7 @@ export function ArcaDocumentDetail({
             <ArcaInput label="Data" value={formatArcaDate(t.DATADOC)} width="120px" labelWidth={LABEL_W} />
             <ArcaInput label="Cliente" value={t.CODICECF} width="120px" labelWidth={LABEL_W} />
             <ArcaInput
-              label="Sconto m."
+              label="Sconto Tot"
               value={t.SCONTI || ""}
               width="120px"
               labelWidth={LABEL_W}
@@ -393,16 +402,16 @@ export function ArcaDocumentDetail({
               onChange={(v) => handleTestaFieldChange("SCONTI", v)}
             />
             <ArcaInput
-              label="Tot. Doc."
-              value={formatArcaCurrency(t.TOTDOC)}
+              label="Impon."
+              value={formatArcaCurrency(t.TOTIMP)}
               width="120px"
               labelWidth={LABEL_W}
               align="right"
               style={{ ...arcaTransparentField, color: "#800000" }}
             />
             <ArcaInput
-              label="Merce"
-              value={formatArcaCurrency(t.TOTMERCE)}
+              label="Tot. Doc."
+              value={formatArcaCurrency(t.TOTDOC)}
               width="120px"
               labelWidth={LABEL_W}
               align="right"
@@ -441,24 +450,6 @@ export function ArcaDocumentDetail({
         </div>
       </div>
 
-      {/* Riepilogo totali rapido */}
-      <div
-        style={{
-          display: "flex",
-          gap: "4px",
-          padding: "1px 4px",
-          backgroundColor: ARCA_COLORS.windowBg,
-          border: `1px solid ${ARCA_COLORS.shapeBorder}`,
-          marginBottom: "1px",
-          flexWrap: "wrap",
-        }}
-      >
-        <span style={ARCA_FONT}>Netto: <strong>{formatArcaCurrency(t.TOTNETTO)}</strong></span>
-        <span style={ARCA_FONT}>Imponib.: <strong>{formatArcaCurrency(t.TOTIMP)}</strong></span>
-        <span style={ARCA_FONT}>IVA: <strong>{formatArcaCurrency(t.TOTIVA)}</strong></span>
-        <span style={ARCA_FONT}>Spese: <strong>{formatArcaCurrency(t.SPESETR + t.SPESEIM + t.SPESEVA)}</strong></span>
-      </div>
-
       {/* ZONA 3+4: TAB BAR + CONTENUTO */}
       <ArcaTabBar tabs={TAB_NAMES} activeTab={activeTab} onTabChange={setActiveTab}>
         {activeTab === 0 && (
@@ -476,6 +467,7 @@ export function ArcaDocumentDetail({
             onPasteRighe={handlePasteRighe}
             revenueValue={revenueValue}
             revenuePercent={revenuePercent}
+            commissionRate={commissionRate}
           />
         )}
         {activeTab === 2 && (
@@ -651,7 +643,8 @@ const closeButtonStyle: React.CSSProperties = {
   ...ARCA_FONT,
   padding: "2px 8px",
   border: "1px outset #D4D0C8",
-  backgroundColor: "#D4D0C8",
+  backgroundColor: "#c62828",
+  color: "#FFFFFF",
   cursor: "pointer",
   fontWeight: "bold",
 };

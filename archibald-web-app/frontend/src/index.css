@@ -68,7 +68,7 @@ button:active {
 
 /* Input fields for mobile */
 input, select, textarea {
-  min-height: 44px;
+  min-height: 20px;
   font-size: 16px; /* Prevent zoom on iOS */
   font-family: inherit;
 }

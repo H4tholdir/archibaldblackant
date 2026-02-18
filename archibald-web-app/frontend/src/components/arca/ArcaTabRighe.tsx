@@ -1,5 +1,7 @@
-import React, { useState } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import type { ArcaRiga } from "../../types/arca-data";
+import type { Product } from "../../db/schema";
+import { productService } from "../../services/products.service";
 import { ArcaInput } from "./ArcaInput";
 import {
   ARCA_FONT,
@@ -21,15 +23,18 @@ type ArcaTabRigheProps = {
   onPasteRighe?: (righe: ArcaRiga[]) => void;
   revenueValue?: number | null;
   revenuePercent?: string | null;
+  commissionRate?: number;
 };
 
 const RIGHE_COLUMNS = [
   { label: "N\u00B0", width: 24 },
   { label: "", width: 16 },
-  { label: "Codice", width: 100 },
-  { label: "Descrizione Articolo", width: 280 },
-  { label: "Quantit\u00E0", width: 80 },
-  { label: "Prezzo Totale", width: 105 },
+  { label: "Codice", width: 90 },
+  { label: "Descrizione Articolo", width: 220 },
+  { label: "Quantit\u00E0", width: 50 },
+  { label: "Sconto", width: 50 },
+  { label: "Prezzo Totale", width: 90 },
+  { label: "IVA", width: 30 },
 ];
 
 const EMPTY_VISUAL_ROWS = 5;
@@ -52,6 +57,7 @@ export function ArcaTabRighe({
   onPasteRighe,
   revenueValue,
   revenuePercent,
+  commissionRate,
 }: ArcaTabRigheProps) {
   const [selectedIndex, setSelectedIndex] = useState<number | null>(
     righe.length > 0 ? 0 : null,
@@ -60,6 +66,85 @@ export function ArcaTabRighe({
 
   const [copiedRiga, setCopiedRiga] = useState<ArcaRiga | null>(null);
   const [ftCopied, setFtCopied] = useState(() => localStorage.getItem(COPIED_FT_KEY) !== null);
+
+  // Product search state
+  const [productQuery, setProductQuery] = useState("");
+  const [productResults, setProductResults] = useState<Product[]>([]);
+  const [showProductDropdown, setShowProductDropdown] = useState(false);
+  const [highlightedProductIdx, setHighlightedProductIdx] = useState(-1);
+  const productDropdownRef = useRef<HTMLDivElement>(null);
+  const productInputRef = useRef<HTMLInputElement>(null);
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const provvPercent = commissionRate != null
+    ? (commissionRate * 100).toFixed(0)
+    : "18";
+
+  useEffect(() => {
+    if (productQuery.length < 2) {
+      setProductResults([]);
+      setShowProductDropdown(false);
+      return;
+    }
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(async () => {
+      const results = await productService.searchProducts(productQuery, 20);
+      setProductResults(results);
+      setShowProductDropdown(results.length > 0);
+    }, 300);
+    return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
+  }, [productQuery]);
+
+  useEffect(() => {
+    const handleClick = (e: MouseEvent) => {
+      if (productDropdownRef.current && !productDropdownRef.current.contains(e.target as Node) &&
+          productInputRef.current && !productInputRef.current.contains(e.target as Node)) {
+        setShowProductDropdown(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, []);
+
+  const handleSelectProduct = useCallback((product: Product) => {
+    if (selectedIndex == null || !onRigaChange || !selectedRiga) return;
+    onRigaChange(selectedIndex, {
+      ...selectedRiga,
+      CODICEARTI: product.article || "",
+      DESCRIZION: buildDescription(product.article || "", product.name),
+      ALIIVA: product.vat != null ? String(product.vat) : selectedRiga.ALIIVA,
+      PREZZOUN: product.price ?? selectedRiga.PREZZOUN,
+    });
+    setProductQuery("");
+    setShowProductDropdown(false);
+    setHighlightedProductIdx(-1);
+    setProductResults([]);
+  }, [selectedIndex, selectedRiga, onRigaChange]);
+
+  const handleProductKeyDown = useCallback((e: React.KeyboardEvent) => {
+    if (!showProductDropdown || productResults.length === 0) return;
+    switch (e.key) {
+      case "ArrowDown":
+        e.preventDefault();
+        setHighlightedProductIdx(prev => prev < productResults.length - 1 ? prev + 1 : prev);
+        break;
+      case "ArrowUp":
+        e.preventDefault();
+        setHighlightedProductIdx(prev => prev > 0 ? prev - 1 : 0);
+        break;
+      case "Enter":
+        e.preventDefault();
+        if (highlightedProductIdx >= 0 && highlightedProductIdx < productResults.length) {
+          handleSelectProduct(productResults[highlightedProductIdx]);
+        }
+        break;
+      case "Escape":
+        e.preventDefault();
+        setShowProductDropdown(false);
+        setHighlightedProductIdx(-1);
+        break;
+    }
+  }, [showProductDropdown, productResults, highlightedProductIdx, handleSelectProduct]);
 
   const handleCopyRiga = () => {
     if (selectedRiga) {
@@ -128,11 +213,15 @@ export function ArcaTabRighe({
           >
             <div style={arcaGridCell(24, "center")}>{riga.NUMERORIGA}</div>
             <div style={arcaGridCell(16, "center")}>{riga.ESPLDISTIN}</div>
-            <div style={arcaGridCell(100)}>{riga.CODICEARTI}</div>
-            <div style={arcaGridCell(280)}>{stripCode(riga.DESCRIZION, riga.CODICEARTI)}</div>
-            <div style={arcaGridCell(80, "right")}>{riga.QUANTITA}</div>
-            <div style={{ ...arcaGridCell(105, "right"), borderRight: "none" }}>
+            <div style={arcaGridCell(90)}>{riga.CODICEARTI}</div>
+            <div style={arcaGridCell(220)}>{stripCode(riga.DESCRIZION, riga.CODICEARTI)}</div>
+            <div style={arcaGridCell(50, "right")}>{riga.QUANTITA || ""}</div>
+            <div style={arcaGridCell(50)}>{riga.SCONTI}</div>
+            <div style={arcaGridCell(90, "right")}>
               {formatArcaCurrency(riga.PREZZOTOT)}
+            </div>
+            <div style={{ ...arcaGridCell(30, "center"), borderRight: "none" }}>
+              {riga.ALIIVA}
             </div>
           </div>
         ))}
@@ -148,12 +237,14 @@ export function ArcaTabRighe({
               cursor: "default",
             }}
           >
-            <div style={arcaGridCell(24, "center")}></div>
+            <div style={arcaGridCell(24, "center")} />
             <div style={arcaGridCell(16, "center")} />
-            <div style={arcaGridCell(100)} />
-            <div style={arcaGridCell(280)} />
-            <div style={arcaGridCell(80, "right")} />
-            <div style={{ ...arcaGridCell(105, "right"), borderRight: "none" }} />
+            <div style={arcaGridCell(90)} />
+            <div style={arcaGridCell(220)} />
+            <div style={arcaGridCell(50, "right")} />
+            <div style={arcaGridCell(50)} />
+            <div style={arcaGridCell(90, "right")} />
+            <div style={{ ...arcaGridCell(30, "center"), borderRight: "none" }} />
           </div>
         ))}
         {righe.length === 0 && (
@@ -172,9 +263,73 @@ export function ArcaTabRighe({
             backgroundColor: ARCA_COLORS.windowBg,
           }}
         >
-          {/* Row 1: Articolo, Descrizione */}
+          {/* Row 1: Articolo (with search), Descrizione */}
           <div style={{ display: "flex", gap: "2px", flexWrap: "wrap", marginBottom: "2px" }}>
-            <ArcaInput labelAbove label="Articolo" value={selectedRiga.CODICEARTI} width="120px" />
+            <div style={{ display: "flex", flexDirection: "column", gap: "1px", position: "relative" }}>
+              <span style={{ ...ARCA_FONT, fontSize: "10px", padding: "0 1px" }}>Articolo</span>
+              <input
+                ref={productInputRef}
+                type="text"
+                value={productQuery || selectedRiga.CODICEARTI}
+                onChange={(e) => {
+                  setProductQuery(e.target.value);
+                  setHighlightedProductIdx(-1);
+                }}
+                onFocus={() => {
+                  setProductQuery(selectedRiga.CODICEARTI);
+                }}
+                onKeyDown={handleProductKeyDown}
+                autoComplete="off"
+                style={{
+                  ...ARCA_FONT,
+                  width: "120px",
+                  height: "16px",
+                  lineHeight: "14px",
+                  borderWidth: "2px",
+                  borderStyle: "solid",
+                  borderColor: "#808080 #FFFFFF #FFFFFF #808080",
+                  backgroundColor: "#FFFFFF",
+                  padding: "1px 3px",
+                  outline: "none",
+                  boxSizing: "border-box",
+                }}
+              />
+              {showProductDropdown && productResults.length > 0 && (
+                <div
+                  ref={productDropdownRef}
+                  style={{
+                    position: "absolute",
+                    top: "100%",
+                    left: 0,
+                    width: "350px",
+                    maxHeight: "200px",
+                    overflowY: "auto",
+                    backgroundColor: "#fff",
+                    border: "1px solid #ccc",
+                    boxShadow: "0 4px 8px rgba(0,0,0,0.15)",
+                    zIndex: 1000,
+                  }}
+                >
+                  {productResults.map((product, pIdx) => (
+                    <div
+                      key={product.id}
+                      onClick={() => handleSelectProduct(product)}
+                      onMouseEnter={() => setHighlightedProductIdx(pIdx)}
+                      style={{
+                        ...ARCA_FONT,
+                        padding: "3px 6px",
+                        cursor: "pointer",
+                        backgroundColor: pIdx === highlightedProductIdx ? "#E3F2FD" : "#fff",
+                        borderBottom: pIdx < productResults.length - 1 ? "1px solid #eee" : "none",
+                      }}
+                    >
+                      <div style={{ fontWeight: "bold" }}>{product.article}</div>
+                      <div style={{ fontSize: "7pt", color: "#666" }}>{product.name}</div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
             <ArcaInput
               labelAbove
               label="Descrizione articolo"
@@ -189,18 +344,19 @@ export function ArcaTabRighe({
               } : undefined}
             />
           </div>
-          {/* Row 2: Quantità, Prezzo Unitario, % Sconto, % Provvigioni, Totale */}
+          {/* Row 2: Quantit\u00E0, Prezzo Unitario, % Sconto, % Provvigioni, Totale */}
           <div style={{ display: "flex", gap: "2px", flexWrap: "wrap", alignItems: "flex-end", marginBottom: "2px" }}>
             <ArcaInput
               labelAbove
               label="Quantit\u00E0"
-              value={String(selectedRiga.QUANTITA)}
+              value={selectedRiga.QUANTITA === 0 ? "" : String(selectedRiga.QUANTITA)}
               width="88px"
               align="right"
               readOnly={false}
-              type="number"
+              type="text"
               onChange={selectedIndex !== null ? (v) => {
-                onRigaChange?.(selectedIndex, { ...selectedRiga, QUANTITA: parseFloat(v) || 0 });
+                const parsed = parseFloat(v);
+                onRigaChange?.(selectedIndex, { ...selectedRiga, QUANTITA: isNaN(parsed) ? 0 : parsed });
               } : undefined}
             />
             <ArcaInput
@@ -210,7 +366,7 @@ export function ArcaTabRighe({
               width="89px"
               align="right"
               readOnly={false}
-              type="number"
+              type="text"
               onChange={selectedIndex !== null ? (v) => {
                 onRigaChange?.(selectedIndex, { ...selectedRiga, PREZZOUN: parseFloat(v) || 0 });
               } : undefined}
@@ -220,16 +376,23 @@ export function ArcaTabRighe({
               label="% Sconto"
               value={selectedRiga.SCONTI}
               width="58px"
+              align="right"
               readOnly={false}
               onChange={selectedIndex !== null ? (v) => {
                 onRigaChange?.(selectedIndex, { ...selectedRiga, SCONTI: v });
               } : undefined}
             />
-            <ArcaInput labelAbove label="% Provvigioni" value={selectedRiga.PROVV} width="67px" />
+            <ArcaInput
+              labelAbove
+              label="% Provvigioni"
+              value={provvPercent}
+              width="67px"
+              align="right"
+            />
             <ArcaInput
               labelAbove
               label="Totale"
-              value={formatArcaCurrency(selectedRiga.PREZZOTOT)}
+              value={formatArcaCurrency(selectedRiga.PREZZOTOT * (1 + parseFloat(selectedRiga.ALIIVA || "0") / 100))}
               width="96px"
               align="right"
               style={{ color: "#FF0000", fontWeight: "bold" }}
@@ -257,7 +420,7 @@ export function ArcaTabRighe({
                     {revenuePercent && <span style={{ fontSize: "8pt" }}> ({revenuePercent}%)</span>}
                   </div>
                   <div style={{ fontSize: "7pt", color: "#666", marginTop: "2px" }}>
-                    prezzoCliente - costoFresis
+                    totImponibile FT - costoFresis
                   </div>
                 </>
               ) : (

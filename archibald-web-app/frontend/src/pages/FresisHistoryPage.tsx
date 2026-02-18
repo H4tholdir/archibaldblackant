@@ -400,6 +400,18 @@ export function FresisHistoryPage() {
     [wsRefetch],
   );
 
+  // Commission rate from profile
+  const [commissionRate, setCommissionRate] = useState<number>(0.18);
+  useEffect(() => {
+    if (!auth.token) return;
+    fetch("/api/users/me/target", { headers: { Authorization: `Bearer ${auth.token}` } })
+      .then(r => r.ok ? r.json() : null)
+      .then(data => {
+        if (data?.commissionRate != null) setCommissionRate(data.commissionRate);
+      })
+      .catch(() => {});
+  }, [auth.token]);
+
   const [exporting, setExporting] = useState(false);
   const [showExportPanel, setShowExportPanel] = useState(false);
   const [exportFrom, setExportFrom] = useState("");
@@ -828,6 +840,7 @@ export function FresisHistoryPage() {
                 setSelectedOrder(null);
                 navigate(`/orders?highlight=${archibaldOrderId}`);
               }}
+              commissionRate={commissionRate}
             />
           </div>
         </div>
