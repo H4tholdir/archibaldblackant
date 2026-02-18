@@ -23,7 +23,7 @@ const tdStyle = {
 };
 
 export function ArcaTabPiede({ testata, editing, onFieldChange }: ArcaTabPiedeProps) {
-  const trasportoChecked = testata.SPESETR > 0;
+  const trasportoChecked = Math.abs(testata.SPESETR - SPEDIZIONE_FISSA) < 0.01;
 
   const handleTrasportoToggle = () => {
     if (!editing || !onFieldChange) return;
@@ -50,15 +50,22 @@ export function ArcaTabPiede({ testata, editing, onFieldChange }: ArcaTabPiedePr
             </tr>
             <tr style={{ backgroundColor: ARCA_COLORS.rowEven }}>
               <td style={tdStyle}>
-                {editing ? (
-                  <label style={{ display: "flex", alignItems: "center", gap: "3px", cursor: "pointer" }}>
-                    <input type="checkbox" checked={trasportoChecked} onChange={handleTrasportoToggle} />
-                    Trasporto
-                  </label>
-                ) : "Trasporto"}
+                <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
+                  <span>Trasporto</span>
+                  {editing && (
+                    <label style={{ display: "flex", alignItems: "center", gap: "2px", cursor: "pointer", fontSize: "7pt", color: "#666" }}>
+                      <input type="checkbox" checked={trasportoChecked} onChange={handleTrasportoToggle} style={{ margin: 0 }} />
+                      Std. Komet
+                    </label>
+                  )}
+                </div>
               </td>
               <td style={{ ...tdStyle, textAlign: "right" }}>
-                {formatArcaCurrency(testata.SPESETR)}
+                {editing ? (
+                  <input type="text" inputMode="decimal" value={testata.SPESETR}
+                    onChange={(e) => onFieldChange?.("SPESETR", parseFloat(e.target.value) || 0)}
+                    style={{ ...ARCA_FONT, width: "70px", textAlign: "right", height: "15px", border: "1px solid #808080" }} />
+                ) : formatArcaCurrency(testata.SPESETR)}
               </td>
               <td style={{ ...tdStyle, textAlign: "center" }}>{testata.SPESETRIVA}</td>
               <td style={{ ...tdStyle, ...arcaExpenseDesc }}>Spese di trasporto</td>

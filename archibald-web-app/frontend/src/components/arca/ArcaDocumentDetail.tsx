@@ -41,7 +41,7 @@ type ArcaDocumentDetailProps = {
 };
 
 const TAB_NAMES = ["Testa", "Righe", "Piede", "Riepilogo", "Ordine Madre"];
-const LABEL_W = "70px";
+const LABEL_W = "80px";
 
 type HistoryState = {
   entries: ArcaData[];
@@ -426,29 +426,29 @@ export function ArcaDocumentDetail({
       >
         <div style={{ display: "flex", gap: "6px" }}>
           {/* Left: Fields stacked */}
-          <div style={{ display: "flex", flexDirection: "column", gap: "1px", flexShrink: 0 }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: "2px", flexShrink: 0 }}>
             {/* Documento (2 inputs) */}
-            <div style={{ display: "flex", alignItems: "center", gap: "1px" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "2px" }}>
               <span style={{ ...arcaLabel, width: LABEL_W, flexShrink: 0 }}>Documento</span>
               <input
                 type="text"
                 value={t.TIPODOC}
                 readOnly
-                style={{ ...arcaReadOnlySpecialInput, width: "30px", height: "16px", lineHeight: "14px" }}
+                style={{ ...arcaReadOnlySpecialInput, width: "36px", height: "18px", lineHeight: "16px" }}
               />
               <input
                 type="text"
                 value={t.NUMERODOC}
                 readOnly
-                style={{ ...arcaSunkenInput, width: "90px", height: "16px", lineHeight: "14px", color: "#FF0000" }}
+                style={{ ...arcaSunkenInput, width: "100px", height: "18px", lineHeight: "16px", color: "#FF0000", fontWeight: "bold" }}
               />
             </div>
-            <ArcaInput label="Data" value={formatArcaDate(t.DATADOC)} width="120px" labelWidth={LABEL_W} />
-            <ArcaInput label="Cliente" value={t.CODICECF} width="120px" labelWidth={LABEL_W} />
+            <ArcaInput label="Data" value={formatArcaDate(t.DATADOC)} width="138px" labelWidth={LABEL_W} />
+            <ArcaInput label="Cliente" value={t.CODICECF} width="138px" labelWidth={LABEL_W} />
             <ArcaInput
               label="Sconto Tot"
               value={t.SCONTI || ""}
-              width="120px"
+              width="138px"
               labelWidth={LABEL_W}
               readOnly={false}
               onChange={(v) => handleTestaFieldChange("SCONTI", v)}
@@ -456,18 +456,18 @@ export function ArcaDocumentDetail({
             <ArcaInput
               label="Impon."
               value={formatArcaCurrency(t.TOTIMP)}
-              width="120px"
+              width="138px"
               labelWidth={LABEL_W}
               align="right"
-              style={{ ...arcaTransparentField, color: "#800000" }}
+              style={{ ...arcaTransparentField, color: "#800000", fontWeight: "bold", fontSize: "10pt" }}
             />
             <ArcaInput
               label="Tot. Doc."
               value={formatArcaCurrency(t.TOTDOC)}
-              width="120px"
+              width="138px"
               labelWidth={LABEL_W}
               align="right"
-              style={{ ...arcaTransparentField, color: "#800000" }}
+              style={{ ...arcaTransparentField, color: "#800000", fontWeight: "bold", fontSize: "10pt" }}
             />
           </div>
 
@@ -535,7 +535,9 @@ export function ArcaDocumentDetail({
           <ArcaTabRiepilogo
             testata={t}
             righe={currentData.righe}
-            order={order}
+            revenueData={revenueData}
+            rowRevenues={rowRevenues}
+            commissionRate={commissionRate}
           />
         )}
         {activeTab === 4 && (

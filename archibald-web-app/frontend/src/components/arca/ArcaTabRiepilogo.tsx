@@ -1,5 +1,4 @@
 import type { ArcaTestata, ArcaRiga } from "../../types/arca-data";
-import type { FresisHistoryOrder } from "../../db/schema";
 import {
   ARCA_COLORS,
   ARCA_FONT,
@@ -11,7 +10,9 @@ import {
 type ArcaTabRiepilogoProps = {
   testata: ArcaTestata;
   righe: ArcaRiga[];
-  order: FresisHistoryOrder;
+  revenueData: { value: number; percent: string | null } | null;
+  rowRevenues: Record<number, number>;
+  commissionRate?: number;
 };
 
 type IvaGroup = {
@@ -21,22 +22,50 @@ type IvaGroup = {
   totale: number;
 };
 
-function groupByIva(righe: ArcaRiga[]): IvaGroup[] {
+function groupByIva(
+  righe: ArcaRiga[],
+  scontif: number,
+  spese: {
+    spesetr: number;
+    speseim: number;
+    speseva: number;
+    spesetriva: string;
+    speseimiva: string;
+    spesevaiva: string;
+  },
+): IvaGroup[] {
   const map = new Map<string, { imponibile: number; iva: number }>();
+
   for (const riga of righe) {
     const ali = riga.ALIIVA || "0";
     const prev = map.get(ali) ?? { imponibile: 0, iva: 0 };
+    const nettoRiga = riga.PREZZOTOT * scontif;
     const ivaRate = parseFloat(ali) / 100;
-    prev.imponibile += riga.PREZZOTOT;
-    prev.iva += riga.PREZZOTOT * ivaRate;
+    prev.imponibile += nettoRiga;
+    prev.iva += nettoRiga * ivaRate;
     map.set(ali, prev);
   }
+
+  const addSpesa = (importo: number, aliStr: string) => {
+    if (importo <= 0) return;
+    const ali = aliStr || "0";
+    const prev = map.get(ali) ?? { imponibile: 0, iva: 0 };
+    const ivaRate = parseFloat(ali) / 100;
+    prev.imponibile += importo;
+    prev.iva += importo * ivaRate;
+    map.set(ali, prev);
+  };
+
+  addSpesa(spese.spesetr, spese.spesetriva);
+  addSpesa(spese.speseim, spese.speseimiva);
+  addSpesa(spese.speseva, spese.spesevaiva);
+
   return Array.from(map.entries())
     .map(([aliquota, { imponibile, iva }]) => ({
       aliquota: `${aliquota}%`,
-      imponibile,
-      iva,
-      totale: imponibile + iva,
+      imponibile: Math.round(imponibile * 100) / 100,
+      iva: Math.round(iva * 100) / 100,
+      totale: Math.round((imponibile + iva) * 100) / 100,
     }))
     .sort((a, b) => parseFloat(b.aliquota) - parseFloat(a.aliquota));
 }
@@ -53,12 +82,33 @@ const thStyle: React.CSSProperties = {
   backgroundColor: ARCA_COLORS.windowBg,
 };
 
-export function ArcaTabRiepilogo({ testata, righe, order }: ArcaTabRiepilogoProps) {
-  const ivaGroups = groupByIva(righe);
-  const ivaTotal = ivaGroups.reduce((s, g) => ({ imponibile: s.imponibile + g.imponibile, iva: s.iva + g.iva, totale: s.totale + g.totale }), { imponibile: 0, iva: 0, totale: 0 });
+export function ArcaTabRiepilogo({
+  testata,
+  righe,
+  revenueData,
+  rowRevenues,
+  commissionRate,
+}: ArcaTabRiepilogoProps) {
+  const ivaGroups = groupByIva(righe, testata.SCONTIF, {
+    spesetr: testata.SPESETR,
+    speseim: testata.SPESEIM,
+    speseva: testata.SPESEVA,
+    spesetriva: testata.SPESETRIVA,
+    speseimiva: testata.SPESEIMIVA,
+    spesevaiva: testata.SPESEVAIVA,
+  });
+  const ivaTotal = ivaGroups.reduce(
+    (s, g) => ({
+      imponibile: s.imponibile + g.imponibile,
+      iva: s.iva + g.iva,
+      totale: s.totale + g.totale,
+    }),
+    { imponibile: 0, iva: 0, totale: 0 },
+  );
 
-  const hasRevenueData = order.source !== "arca_import" && order.items.length > 0 && order.items.some(i => i.originalListPrice != null);
   const totPagare = testata.TOTDOC - testata.ACCONTO;
+  const provvRate = commissionRate ?? 0.18;
+  const provvAmount = testata.TOTIMP * provvRate;
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
@@ -112,19 +162,30 @@ export function ArcaTabRiepilogo({ testata, righe, order }: ArcaTabRiepilogoProp
         </div>
       </div>
 
+      {/* Provvigioni */}
+      <div style={{ ...arcaEtchedBorder, marginTop: "8px" }}>
+        <span style={arcaSectionLabel}>Provvigioni (campo PWA)</span>
+        <div style={{ ...ARCA_FONT, marginTop: "4px", display: "flex", flexDirection: "column", gap: "2px" }}>
+          <TotalRow label="Imponibile" value={testata.TOTIMP} />
+          <TotalRow label={`\u00D7 Aliquota provvigioni (${(provvRate * 100).toFixed(0)}%)`} value={provvRate} />
+          <div style={{ borderBottom: "1px solid #000", margin: "1px 0" }} />
+          <TotalRow label="= PROVVIGIONI" value={provvAmount} bold highlight />
+        </div>
+      </div>
+
       {/* Ricavo */}
       <div style={{ ...arcaEtchedBorder, marginTop: "8px" }}>
         <span style={arcaSectionLabel}>Ricavo (campo PWA)</span>
-        {hasRevenueData ? (
+        {revenueData ? (
           <div style={{ marginTop: "4px" }}>
             <div style={{ ...ARCA_FONT, display: "flex", flexDirection: "column", gap: "2px", marginBottom: "6px" }}>
-              <TotalRow label="Prezzo Cliente (fatturato)" value={testata.TOTMERCE} />
-              <TotalRow label="- Costo Fresis (listino)" value={-(order.items.reduce((s, i) => s + (i.originalListPrice ?? i.price) * i.quantity * (1 - (i.discount ?? 0) / 100), 0))} />
+              <TotalRow label="Merce Netto (fatturato)" value={testata.TOTNETTO} />
+              <TotalRow label="- Costo Fresis (listino scontato)" value={-(testata.TOTNETTO - revenueData.value)} />
               <div style={{ borderBottom: "1px solid #000", margin: "1px 0" }} />
-              <TotalRow label="= RICAVO NETTO" value={order.revenue ?? 0} bold highlight />
-              {testata.TOTMERCE > 0 && order.revenue != null && (
+              <TotalRow label="= RICAVO NETTO" value={revenueData.value} bold highlight />
+              {revenueData.percent && (
                 <div style={{ ...ARCA_FONT, paddingLeft: "12px", color: "#666" }}>
-                  Margine: {((order.revenue / testata.TOTMERCE) * 100).toFixed(1)}%
+                  Margine: {revenueData.percent}%
                 </div>
               )}
             </div>
@@ -135,24 +196,28 @@ export function ArcaTabRiepilogo({ testata, righe, order }: ArcaTabRiepilogoProp
                   <th style={{ ...thStyle, textAlign: "left" }}>Articolo</th>
                   <th style={{ ...thStyle, textAlign: "right", width: "40px" }}>Qta</th>
                   <th style={{ ...thStyle, textAlign: "right", width: "70px" }}>Pr.Cli.</th>
-                  <th style={{ ...thStyle, textAlign: "right", width: "70px" }}>Costo Fr</th>
+                  <th style={{ ...thStyle, textAlign: "right", width: "70px" }}>Costo Fr.</th>
                   <th style={{ ...thStyle, textAlign: "right", width: "70px" }}>Ricavo</th>
                 </tr>
               </thead>
               <tbody>
-                {order.items.map((item, idx) => {
-                  const discountFactor = 1 - (item.discount ?? 0) / 100;
-                  const clientTotal = item.price * item.quantity * discountFactor;
-                  const costTotal = (item.originalListPrice ?? item.price) * item.quantity * discountFactor;
-                  const rowRevenue = clientTotal - costTotal;
+                {righe.map((riga, idx) => {
+                  const rev = rowRevenues[idx];
+                  if (rev == null || !riga.CODICEARTI) return null;
+                  const costoFr = riga.PREZZOTOT - rev;
                   return (
                     <tr key={idx}>
-                      <td style={tdStyle}>{item.articleCode}</td>
-                      <td style={{ ...tdStyle, textAlign: "right" }}>{item.quantity}</td>
-                      <td style={{ ...tdStyle, textAlign: "right" }}>{formatArcaCurrency(clientTotal)}</td>
-                      <td style={{ ...tdStyle, textAlign: "right" }}>{formatArcaCurrency(costTotal)}</td>
-                      <td style={{ ...tdStyle, textAlign: "right", color: rowRevenue >= 0 ? "#006600" : "#CC0000", fontWeight: "bold" }}>
-                        {formatArcaCurrency(rowRevenue)}
+                      <td style={tdStyle}>{riga.CODICEARTI}</td>
+                      <td style={{ ...tdStyle, textAlign: "right" }}>{riga.QUANTITA}</td>
+                      <td style={{ ...tdStyle, textAlign: "right" }}>{formatArcaCurrency(riga.PREZZOTOT)}</td>
+                      <td style={{ ...tdStyle, textAlign: "right" }}>{formatArcaCurrency(costoFr)}</td>
+                      <td style={{
+                        ...tdStyle,
+                        textAlign: "right",
+                        color: rev >= 0 ? "#006600" : "#CC0000",
+                        fontWeight: "bold",
+                      }}>
+                        {formatArcaCurrency(rev)}
                       </td>
                     </tr>
                   );
