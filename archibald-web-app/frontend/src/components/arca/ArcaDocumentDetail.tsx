@@ -538,6 +538,7 @@ export function ArcaDocumentDetail({
             revenueData={revenueData}
             rowRevenues={rowRevenues}
             commissionRate={commissionRate}
+            orderItems={order.items}
           />
         )}
         {activeTab === 4 && (

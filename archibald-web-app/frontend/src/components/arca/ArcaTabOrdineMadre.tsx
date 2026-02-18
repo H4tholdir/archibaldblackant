@@ -1,5 +1,6 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import type { FresisHistoryOrder } from "../../db/schema";
+import type { ArcaData } from "../../types/arca-data";
 import { parseLinkedIds } from "../../services/fresis-history.service";
 import { fetchSiblingFTs } from "../../services/fresis-history.service";
 import {
@@ -9,6 +10,7 @@ import {
   arcaSectionLabel,
   formatArcaCurrency,
   formatArcaDate,
+  parseArcaDataFromOrder,
 } from "./arcaStyles";
 
 type ArcaTabOrdineMadreProps = {
@@ -57,6 +59,47 @@ const linkBtnStyle: React.CSSProperties = {
   fontWeight: "bold",
 };
 
+type ArticleMatch = {
+  articleCode: string;
+  orderQty: number;
+  matchedQty: number;
+  ftSources: string[];
+};
+
+function buildArticleMatching(
+  orderItems: FresisHistoryOrder["items"],
+  siblings: FresisHistoryOrder[],
+  currentOrderId: string,
+): ArticleMatch[] {
+  const coverage = new Map<string, { matched: number; ftSources: string[] }>();
+
+  for (const sib of siblings) {
+    const arcaData = parseArcaDataFromOrder(sib.arcaData) as ArcaData | null;
+    if (!arcaData) continue;
+    const ftLabel = sib.id === currentOrderId
+      ? "Questa"
+      : (sib.invoiceNumber ?? sib.id.slice(0, 8));
+
+    for (const riga of arcaData.righe) {
+      if (!riga.CODICEARTI) continue;
+      const prev = coverage.get(riga.CODICEARTI) ?? { matched: 0, ftSources: [] };
+      prev.matched += riga.QUANTITA;
+      if (!prev.ftSources.includes(ftLabel)) prev.ftSources.push(ftLabel);
+      coverage.set(riga.CODICEARTI, prev);
+    }
+  }
+
+  return orderItems.map(item => {
+    const cov = coverage.get(item.articleCode);
+    return {
+      articleCode: item.articleCode,
+      orderQty: item.quantity,
+      matchedQty: cov?.matched ?? 0,
+      ftSources: cov?.ftSources ?? [],
+    };
+  });
+}
+
 export function ArcaTabOrdineMadre({ order, onLink, onNavigateToOrder }: ArcaTabOrdineMadreProps) {
   const [siblings, setSiblings] = useState<FresisHistoryOrder[]>([]);
   const [loadingSiblings, setLoadingSiblings] = useState(false);
@@ -73,6 +116,13 @@ export function ArcaTabOrdineMadre({ order, onLink, onNavigateToOrder }: ArcaTab
       .catch(() => setSiblings([]))
       .finally(() => setLoadingSiblings(false));
   }, [order.archibaldOrderId]);
+
+  const articleMatching = useMemo(
+    () => buildArticleMatching(order.items, siblings, order.id),
+    [order.items, siblings, order.id],
+  );
+  const matchedCount = articleMatching.filter(a => a.matchedQty >= a.orderQty).length;
+  const totalArticles = articleMatching.length;
 
   if (!hasLinkedOrder) {
     return (
@@ -201,21 +251,6 @@ export function ArcaTabOrdineMadre({ order, onLink, onNavigateToOrder }: ArcaTab
                 })}
               </tbody>
             </table>
-            {(() => {
-              const totalOrderMadre = siblings.reduce((s, sib) => s + (sib.targetTotalWithVAT ?? 0), 0);
-              const totalRevenue = siblings.reduce((s, sib) => s + (sib.revenue ?? 0), 0);
-              return (
-                <div style={{ ...ARCA_FONT, padding: "4px", fontWeight: "bold", borderTop: `1px solid ${ARCA_COLORS.shapeBorder}` }}>
-                  Totale ordine madre: {"\u20AC"} {formatArcaCurrency(totalOrderMadre)}
-                  {totalRevenue !== 0 && (
-                    <span style={{ marginLeft: "12px", color: totalRevenue >= 0 ? "#006600" : "#CC0000" }}>
-                      Ricavo: {"\u20AC"} {formatArcaCurrency(totalRevenue)}
-                      {totalOrderMadre > 0 && ` (${((totalRevenue / totalOrderMadre) * 100).toFixed(1)}%)`}
-                    </span>
-                  )}
-                </div>
-              );
-            })()}
           </div>
         ) : (
           <div style={{ ...ARCA_FONT, marginTop: "4px", color: "#666", fontStyle: "italic" }}>
@@ -223,6 +258,55 @@ export function ArcaTabOrdineMadre({ order, onLink, onNavigateToOrder }: ArcaTab
           </div>
         )}
       </div>
+
+      {/* Matching Articoli */}
+      {totalArticles > 0 && (
+        <div style={{ ...arcaEtchedBorder, marginTop: "8px" }}>
+          <span style={arcaSectionLabel}>
+            Matching Articoli ({matchedCount}/{totalArticles})
+          </span>
+          <table style={{ ...ARCA_FONT, width: "100%", borderCollapse: "collapse", marginTop: "4px" }}>
+            <thead>
+              <tr>
+                <th style={{ ...tdStyle, fontWeight: "bold", backgroundColor: ARCA_COLORS.windowBg, textAlign: "left" }}>Articolo</th>
+                <th style={{ ...tdStyle, fontWeight: "bold", backgroundColor: ARCA_COLORS.windowBg, textAlign: "right", width: "40px" }}>Ord.</th>
+                <th style={{ ...tdStyle, fontWeight: "bold", backgroundColor: ARCA_COLORS.windowBg, textAlign: "right", width: "40px" }}>FT</th>
+                <th style={{ ...tdStyle, fontWeight: "bold", backgroundColor: ARCA_COLORS.windowBg, textAlign: "left" }}>Fonte</th>
+              </tr>
+            </thead>
+            <tbody>
+              {articleMatching.map((a) => {
+                const isFullMatch = a.matchedQty >= a.orderQty;
+                const isPartial = a.matchedQty > 0 && a.matchedQty < a.orderQty;
+                const bgColor = isFullMatch ? "#E8F5E9" : isPartial ? "#FFF8E1" : "#FFEBEE";
+                const textColor = isFullMatch ? "#2e7d32" : isPartial ? "#F57F17" : "#c62828";
+                return (
+                  <tr key={a.articleCode} style={{ backgroundColor: bgColor }}>
+                    <td style={{ ...tdStyle, color: textColor }}>{a.articleCode}</td>
+                    <td style={{ ...tdStyle, textAlign: "right" }}>{a.orderQty}</td>
+                    <td style={{ ...tdStyle, textAlign: "right", fontWeight: "bold", color: textColor }}>
+                      {a.matchedQty || "\u2014"}
+                    </td>
+                    <td style={{ ...tdStyle, color: "#666", fontSize: "7pt" }}>
+                      {a.ftSources.length > 0 ? a.ftSources.join(", ") : "\u2014"}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+          {matchedCount < totalArticles && (
+            <div style={{ ...ARCA_FONT, padding: "4px", color: "#c62828", fontSize: "7pt" }}>
+              {totalArticles - matchedCount} articol{totalArticles - matchedCount === 1 ? "o" : "i"} mancant{totalArticles - matchedCount === 1 ? "e" : "i"} nelle FT sorelle
+            </div>
+          )}
+          {matchedCount === totalArticles && (
+            <div style={{ ...ARCA_FONT, padding: "4px", color: "#2e7d32", fontSize: "7pt" }}>
+              Tutti gli articoli dell'ordine madre sono coperti dalle FT
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }

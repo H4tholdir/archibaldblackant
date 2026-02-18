@@ -7,12 +7,18 @@ import {
   formatArcaCurrency,
 } from "./arcaStyles";
 
+type OrderItem = {
+  articleCode: string;
+  quantity: number;
+};
+
 type ArcaTabRiepilogoProps = {
   testata: ArcaTestata;
   righe: ArcaRiga[];
   revenueData: { value: number; percent: string | null } | null;
   rowRevenues: Record<number, number>;
   commissionRate?: number;
+  orderItems?: OrderItem[];
 };
 
 type IvaGroup = {
@@ -88,6 +94,7 @@ export function ArcaTabRiepilogo({
   revenueData,
   rowRevenues,
   commissionRate,
+  orderItems,
 }: ArcaTabRiepilogoProps) {
   const ivaGroups = groupByIva(righe, testata.SCONTIF, {
     spesetr: testata.SPESETR,
@@ -108,7 +115,23 @@ export function ArcaTabRiepilogo({
 
   const totPagare = testata.TOTDOC - testata.ACCONTO;
   const provvRate = commissionRate ?? 0.18;
-  const provvAmount = testata.TOTIMP * provvRate;
+
+  const orderArticleCodes = new Set(orderItems?.map(i => i.articleCode) ?? []);
+  const hasOrderItems = orderArticleCodes.size > 0;
+
+  let matchedImponibile = 0;
+  let unmatchedCount = 0;
+  for (const riga of righe) {
+    if (!riga.CODICEARTI) continue;
+    const nettoRiga = riga.PREZZOTOT * testata.SCONTIF;
+    if (orderArticleCodes.has(riga.CODICEARTI)) {
+      matchedImponibile += nettoRiga;
+    } else {
+      unmatchedCount++;
+    }
+  }
+  matchedImponibile = Math.round(matchedImponibile * 100) / 100;
+  const provvAmount = Math.round(matchedImponibile * provvRate * 100) / 100;
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
@@ -165,12 +188,23 @@ export function ArcaTabRiepilogo({
       {/* Provvigioni */}
       <div style={{ ...arcaEtchedBorder, marginTop: "8px" }}>
         <span style={arcaSectionLabel}>Provvigioni (campo PWA)</span>
-        <div style={{ ...ARCA_FONT, marginTop: "4px", display: "flex", flexDirection: "column", gap: "2px" }}>
-          <TotalRow label="Imponibile" value={testata.TOTIMP} />
-          <TotalRow label={`\u00D7 Aliquota provvigioni (${(provvRate * 100).toFixed(0)}%)`} value={provvRate} />
-          <div style={{ borderBottom: "1px solid #000", margin: "1px 0" }} />
-          <TotalRow label="= PROVVIGIONI" value={provvAmount} bold highlight />
-        </div>
+        {hasOrderItems ? (
+          <div style={{ ...ARCA_FONT, marginTop: "4px", display: "flex", flexDirection: "column", gap: "2px" }}>
+            <TotalRow label="Imponibile articoli in ordine madre" value={matchedImponibile} />
+            <TotalRow label={`\u00D7 Aliquota provvigioni (${(provvRate * 100).toFixed(0)}%)`} value={provvRate} />
+            <div style={{ borderBottom: "1px solid #000", margin: "1px 0" }} />
+            <TotalRow label="= PROVVIGIONI" value={provvAmount} bold highlight />
+            {unmatchedCount > 0 && (
+              <div style={{ ...ARCA_FONT, paddingLeft: "12px", color: "#999", fontSize: "7pt", marginTop: "2px" }}>
+                {unmatchedCount} articol{unmatchedCount === 1 ? "o" : "i"} non in ordine madre (no provvigioni)
+              </div>
+            )}
+          </div>
+        ) : (
+          <div style={{ ...ARCA_FONT, marginTop: "4px", color: "#666", fontStyle: "italic" }}>
+            N/D - nessun ordine madre collegato
+          </div>
+        )}
       </div>
 
       {/* Ricavo */}
