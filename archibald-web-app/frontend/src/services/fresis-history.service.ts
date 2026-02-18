@@ -609,3 +609,18 @@ class FresisHistoryService {
 }
 
 export const fresisHistoryService = FresisHistoryService.getInstance();
+
+export async function fetchSiblingFTs(archibaldOrderId: string): Promise<FresisHistoryOrder[]> {
+  const token = localStorage.getItem("archibald_jwt");
+  if (!token) return [];
+  try {
+    const response = await fetch(`/api/fresis-history/siblings/${encodeURIComponent(archibaldOrderId)}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!response.ok) return [];
+    const data = await response.json();
+    return data.records ?? [];
+  } catch {
+    return [];
+  }
+}

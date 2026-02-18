@@ -653,6 +653,46 @@ router.get(
 );
 
 router.get(
+  "/fresis-history/siblings/:archibaldOrderId",
+  authenticateJWT,
+  (req: AuthRequest, res: Response) => {
+    try {
+      const userId = req.user!.userId;
+      const { archibaldOrderId } = req.params;
+
+      const ids = archibaldOrderId.split(",").map((id) => id.trim()).filter(Boolean);
+
+      if (ids.length === 0) {
+        return res.json({ success: true, records: [] });
+      }
+
+      const placeholders = ids.flatMap(() => ["?", "?", "?"]);
+      const params: (string | number)[] = [];
+      const conditions: string[] = [];
+
+      for (const id of ids) {
+        conditions.push("(archibald_order_id = ? OR archibald_order_id LIKE ? OR merged_into_order_id = ?)");
+        params.push(id, `%"${id}"%`, id);
+      }
+
+      const rows = usersDb
+        .prepare(
+          `SELECT * FROM fresis_history WHERE user_id = ? AND (${conditions.join(" OR ")})`,
+        )
+        .all(userId, ...params) as any[];
+
+      res.json({
+        success: true,
+        records: rows.map(rowToRecord),
+      });
+    } catch (error) {
+      logger.error("Error fetching sibling FTs", { error });
+      res.status(500).json({ success: false, error: "Errore server" });
+    }
+  },
+);
+
+router.get(
   "/fresis-history/:id",
   authenticateJWT,
   (req: AuthRequest, res: Response) => {

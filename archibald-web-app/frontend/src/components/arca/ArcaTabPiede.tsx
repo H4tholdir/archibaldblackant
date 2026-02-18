@@ -3,6 +3,8 @@ import { ArcaInput } from "./ArcaInput";
 import {
   ARCA_COLORS,
   ARCA_FONT,
+  arcaEtchedBorder,
+  arcaSectionLabel,
   arcaExpenseDesc,
   formatArcaCurrency,
   formatArcaDate,
@@ -22,71 +24,44 @@ const tdStyle = {
 
 export function ArcaTabPiede({ testata, editing, onFieldChange }: ArcaTabPiedeProps) {
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: "1px" }}>
-      {/* Top row: Spedizione/Aspetto/Trasporto/Porto (Left, W≈458) + Colli/Volume/Peso (Right, W≈160) */}
-      <div style={{ display: "flex", gap: "2px", flexWrap: "wrap" }}>
-        {/* Left: Spedizione/Aspetto + Trasporto/Porto (W=229 each in Arca) */}
-        <div style={{ flex: 1, minWidth: "230px" }}>
-          <div style={{ display: "flex", gap: "2px", flexWrap: "wrap", marginBottom: "1px" }}>
-            <ArcaInput label="Spedizione" value={testata.SPEDIZIONE} width="140px" />
-            <ArcaInput label="Aspetto" value={testata.ASPBENI} width="140px" />
-          </div>
-          <div style={{ display: "flex", gap: "2px", flexWrap: "wrap" }}>
-            <ArcaInput label="Trasporto" value={testata.TRCAUSALE} width="140px" />
-            <ArcaInput label="Porto" value={testata.PORTO} width="140px" />
-          </div>
+    <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+      {/* Sezione 1: Trasporto e Spedizione */}
+      <div style={{ ...arcaEtchedBorder, marginTop: "8px" }}>
+        <span style={arcaSectionLabel}>Trasporto e Spedizione</span>
+        <div style={{ display: "flex", gap: "2px", flexWrap: "wrap", marginBottom: "2px", marginTop: "4px" }}>
+          <ArcaInput label="Spedizione" value={testata.SPEDIZIONE} width="140px" />
+          <ArcaInput label="Aspetto" value={testata.ASPBENI} width="140px" />
         </div>
-        {/* Right: Colli/Volume/Peso (W=80-81 each in Arca) */}
-        <div style={{ minWidth: "170px" }}>
-          <div style={{ display: "flex", gap: "2px", flexWrap: "wrap", marginBottom: "1px" }}>
-            <ArcaInput label="Colli" value={testata.COLLI} width="40px" />
-            <ArcaInput label="Volume" value={formatArcaCurrency(testata.VOLUME)} width="60px" align="right" />
-          </div>
-          <div style={{ display: "flex", gap: "2px", flexWrap: "wrap" }}>
-            <ArcaInput label="Peso Lordo" value={formatArcaCurrency(testata.PESOLORDO)} width="60px" align="right" />
-            <ArcaInput label="Peso Netto" value={formatArcaCurrency(testata.PESONETTO)} width="60px" align="right" />
-          </div>
+        <div style={{ display: "flex", gap: "2px", flexWrap: "wrap", marginBottom: "2px" }}>
+          <ArcaInput label="Trasporto" value={testata.TRCAUSALE} width="140px" />
+          <ArcaInput label="Porto" value={testata.PORTO} width="140px" />
         </div>
-      </div>
-
-      {/* Vettori + Data/Ora/Num.Doc (Left) + Data Trasporto/Agenti/Provv (Right) */}
-      <div style={{ display: "flex", gap: "2px", flexWrap: "wrap" }}>
-        {/* Left: Vettori (Vettore1 W=254, V1Data W=89, V1Ora W=56) */}
-        <div style={{ flex: 1, minWidth: "260px", border: `1px solid ${ARCA_COLORS.shapeBorder}`, padding: "2px 4px" }}>
-          <div style={{ ...ARCA_FONT, fontWeight: "bold", fontSize: "7pt", marginBottom: "1px" }}>Vettore</div>
-          <div style={{ display: "flex", gap: "2px", flexWrap: "wrap", marginBottom: "1px" }}>
-            <ArcaInput label="n. 1" value={testata.VETTORE1} width="36px" />
-            <ArcaInput label="Data Ritiro" value={formatArcaDate(testata.V1DATA)} width="62px" />
-            <ArcaInput label="Ora Ritiro" value={testata.V1ORA} width="40px" />
-          </div>
-          <div style={{ display: "flex", gap: "2px", flexWrap: "wrap", marginBottom: "1px" }}>
-            <ArcaInput label="n. 2" value={testata.VETTORE2} width="36px" />
-            <ArcaInput value={formatArcaDate(testata.V2DATA)} width="62px" />
-            <ArcaInput value={testata.V2ORA} width="40px" />
-          </div>
-          <ArcaInput label="Num. Doc." value={`${testata.NUMERODOC}/`} width="60px" />
+        <div style={{ display: "flex", gap: "2px", flexWrap: "wrap", marginBottom: "2px" }}>
+          <ArcaInput label="Colli" value={testata.COLLI} width="40px" />
+          <ArcaInput label="Volume" value={formatArcaCurrency(testata.VOLUME)} width="60px" align="right" />
         </div>
-        {/* Right: Data trasporto, Agenti, Provvigioni */}
-        <div style={{ minWidth: "150px", border: `1px solid ${ARCA_COLORS.shapeBorder}`, padding: "2px 4px" }}>
-          <div style={{ display: "flex", gap: "2px", flexWrap: "wrap", marginBottom: "1px" }}>
-            <ArcaInput label="Data" value={formatArcaDate(testata.TRDATA)} width="62px" />
-            <ArcaInput label="Ora" value={testata.TRORA} width="40px" />
-          </div>
-          <div style={{ display: "flex", gap: "2px", flexWrap: "wrap", marginBottom: "1px" }}>
-            <ArcaInput label="Ag. 1" value={testata.AGENTE} width="36px" />
-            <ArcaInput label="Ag. 2" value={testata.AGENTE2} width="36px" />
-          </div>
-          <div style={{ display: "flex", gap: "2px", flexWrap: "wrap" }}>
-            <ArcaInput label="% Provv." value={String(testata.PERCPROVV)} width="47px" align="right" />
-            <ArcaInput value={String(testata.PERCPROVV2)} width="47px" align="right" />
-          </div>
+        <div style={{ display: "flex", gap: "2px", flexWrap: "wrap", marginBottom: "2px" }}>
+          <ArcaInput label="Peso Lordo" value={formatArcaCurrency(testata.PESOLORDO)} width="60px" align="right" />
+          <ArcaInput label="Peso Netto" value={formatArcaCurrency(testata.PESONETTO)} width="60px" align="right" />
+        </div>
+        <div style={{ display: "flex", gap: "2px", flexWrap: "wrap", marginBottom: "2px" }}>
+          <ArcaInput label="Vettore 1" value={testata.VETTORE1} width="36px" />
+          <ArcaInput label="Data Rit." value={formatArcaDate(testata.V1DATA)} width="62px" />
+          <ArcaInput label="Ora" value={testata.V1ORA} width="40px" />
+        </div>
+        <div style={{ display: "flex", gap: "2px", flexWrap: "wrap" }}>
+          <ArcaInput label="Vettore 2" value={testata.VETTORE2} width="36px" />
+          <ArcaInput value={formatArcaDate(testata.V2DATA)} width="62px" />
+          <ArcaInput value={testata.V2ORA} width="40px" />
         </div>
       </div>
 
-      {/* Spese table (Shape2: W=458, H=112) + Rit/Acconto/Abbuono (Right) */}
-      <div style={{ display: "flex", gap: "2px", flexWrap: "wrap" }}>
-        <div style={{ flex: 1, minWidth: "300px" }}>
-          <table style={{ ...ARCA_FONT, width: "100%", borderCollapse: "collapse", border: `1px solid ${ARCA_COLORS.shapeBorder}` }}>
+      {/* Layout 2 colonne: Spese (sinistra) + Agenti/Importi (destra) */}
+      <div style={{ display: "flex", gap: "4px", flexWrap: "wrap" }}>
+        {/* Colonna sinistra: Spese */}
+        <div style={{ ...arcaEtchedBorder, flex: 1, minWidth: "300px", marginTop: "8px" }}>
+          <span style={arcaSectionLabel}>Spese</span>
+          <table style={{ ...ARCA_FONT, width: "100%", borderCollapse: "collapse", marginTop: "4px" }}>
             <tbody>
               <tr style={{ backgroundColor: ARCA_COLORS.windowBg }}>
                 <td style={{ ...tdStyle, width: "55px" }}></td>
@@ -140,7 +115,7 @@ export function ArcaTabPiede({ testata, editing, onFieldChange }: ArcaTabPiedePr
               </tr>
             </tbody>
           </table>
-          <div style={{ display: "flex", gap: "2px", flexWrap: "wrap", marginTop: "1px" }}>
+          <div style={{ display: "flex", gap: "2px", flexWrap: "wrap", marginTop: "2px" }}>
             <span style={{ ...ARCA_FONT, padding: "1px 0" }}>Incasso:</span>
             <ArcaInput label="Eff." value={formatArcaCurrency(testata.SPESEINEFF)} width="60px" align="right" />
             <ArcaInput label="Doc." value={formatArcaCurrency(testata.SPESEINDOC)} width="50px" align="right" />
@@ -148,9 +123,23 @@ export function ArcaTabPiede({ testata, editing, onFieldChange }: ArcaTabPiedePr
             <ArcaInput value={testata.SPESEINCP} width="22px" />
           </div>
         </div>
-        {/* Right: Acconto W=141 (field Left=61, W=80), Abbuono W=141 */}
-        <div style={{ minWidth: "141px" }}>
-          <div style={{ display: "flex", flexDirection: "column", gap: "1px" }}>
+
+        {/* Colonna destra: Agenti/Importi */}
+        <div style={{ ...arcaEtchedBorder, minWidth: "160px", marginTop: "8px" }}>
+          <span style={arcaSectionLabel}>Agenti / Importi</span>
+          <div style={{ display: "flex", gap: "2px", flexWrap: "wrap", marginBottom: "2px", marginTop: "4px" }}>
+            <ArcaInput label="Data" value={formatArcaDate(testata.TRDATA)} width="62px" />
+            <ArcaInput label="Ora" value={testata.TRORA} width="40px" />
+          </div>
+          <div style={{ display: "flex", gap: "2px", flexWrap: "wrap", marginBottom: "2px" }}>
+            <ArcaInput label="Ag. 1" value={testata.AGENTE} width="36px" />
+            <ArcaInput label="Ag. 2" value={testata.AGENTE2} width="36px" />
+          </div>
+          <div style={{ display: "flex", gap: "2px", flexWrap: "wrap", marginBottom: "4px" }}>
+            <ArcaInput label="% Provv." value={String(testata.PERCPROVV)} width="47px" align="right" />
+            <ArcaInput value={String(testata.PERCPROVV2)} width="47px" align="right" />
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: "1px", borderTop: "1px solid #D4D0C8", paddingTop: "4px" }}>
             <ArcaInput label="Rit.Condom." value={formatArcaCurrency(testata.RITCOND)} width="80px" align="right" />
             <ArcaInput label="Acconto" value={editing ? String(testata.ACCONTO) : formatArcaCurrency(testata.ACCONTO)}
               width="80px" align="right" readOnly={!editing} type={editing ? "number" : "text"}
@@ -162,13 +151,13 @@ export function ArcaTabPiede({ testata, editing, onFieldChange }: ArcaTabPiedePr
         </div>
       </div>
 
-      {/* Note (W=458, H=27) */}
-      <div style={{ display: "flex", gap: "2px", alignItems: "flex-start" }}>
-        <span style={{ ...ARCA_FONT, fontWeight: "bold", padding: "1px 0", flexShrink: 0 }}>Note</span>
+      {/* Sezione: Note */}
+      <div style={{ ...arcaEtchedBorder, marginTop: "8px" }}>
+        <span style={arcaSectionLabel}>Note</span>
         <textarea readOnly={!editing} value={testata.NOTE}
           onChange={editing ? (e) => onFieldChange?.("NOTE", e.target.value) : undefined}
-          style={{ ...ARCA_FONT, flex: 1, minHeight: "27px", border: "2px inset #808080",
-            backgroundColor: editing ? "#FFFFFF" : "#F0F0F0", padding: "1px 3px", boxSizing: "border-box", resize: "vertical" }} />
+          style={{ ...ARCA_FONT, width: "100%", minHeight: "40px", border: "2px inset #808080",
+            backgroundColor: editing ? "#FFFFFF" : "#F0F0F0", padding: "1px 3px", boxSizing: "border-box", resize: "vertical", marginTop: "4px" }} />
       </div>
     </div>
   );

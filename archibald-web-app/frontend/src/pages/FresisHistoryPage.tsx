@@ -31,7 +31,7 @@ import {
 import type { ArcaData } from "../types/arca-data";
 import { ArcaDocumentList } from "../components/arca/ArcaDocumentList";
 import { ArcaDocumentDetail } from "../components/arca/ArcaDocumentDetail";
-import { ARCA_FONT, ARCA_COLORS } from "../components/arca/arcaStyles";
+import { ARCA_FONT } from "../components/arca/arcaStyles";
 
 const TIME_PRESETS: { id: FresisTimePreset; label: string }[] = [
   { id: "today", label: "Oggi" },
@@ -442,8 +442,7 @@ export function FresisHistoryPage() {
     }
   }, [auth.token, exportFrom, exportTo]);
 
-  // List height calculation
-  const listHeight = selectedOrder ? 320 : 600;
+  const listHeight = 600;
 
   return (
     <div
@@ -753,132 +752,84 @@ export function FresisHistoryPage() {
         </div>
       )}
 
-      {/* Main content: List + Detail */}
+      {/* Main content: List */}
       {!loading && filteredOrders.length > 0 && (
-        <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-          {/* Document list */}
-          <ArcaDocumentList
-            orders={filteredOrders}
-            selectedId={selectedOrder?.id ?? null}
-            onSelect={handleSelectInList}
-            onDoubleClick={handleDoubleClickInList}
-            height={listHeight}
-          />
+        <ArcaDocumentList
+          orders={filteredOrders}
+          selectedId={selectedOrder?.id ?? null}
+          onSelect={handleSelectInList}
+          onDoubleClick={handleDoubleClickInList}
+          height={listHeight}
+        />
+      )}
 
-          {/* Detail panel */}
-          {selectedOrder && (
-            <div
-              style={{
-                backgroundColor: "#8a8a88",
-                border: `1px solid ${ARCA_COLORS.borderDark}`,
-                borderRadius: "2px",
-                overflow: "auto",
-              }}
-            >
-              {/* Delete confirmation bar */}
-              {deleteConfirmId === selectedOrder.id && (
-                <div
-                  style={{
-                    padding: "6px 12px",
-                    backgroundColor: "#fee2e2",
-                    borderBottom: "1px solid #fca5a5",
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "8px",
-                    fontSize: "12px",
-                  }}
-                >
-                  <span style={{ fontWeight: 600, color: "#c62828" }}>
-                    {isDraftInArchibald(selectedOrder)
-                      ? "Confermi eliminazione da Archibald?"
-                      : "Confermi eliminazione?"}
-                  </span>
-                  <button
-                    onClick={() => handleDelete(selectedOrder.id)}
-                    style={{ ...headerBtnStyle, backgroundColor: "#dc2626", color: "#fff", border: "none" }}
-                  >
-                    Conferma
-                  </button>
-                  <button
-                    onClick={() => setDeleteConfirmId(null)}
-                    style={headerBtnStyle}
-                  >
-                    Annulla
-                  </button>
-                </div>
-              )}
-
-              {/* Delete progress */}
-              {deletingFromArchibald === selectedOrder.id && (
-                <div style={{ padding: "6px 12px" }}>
-                  <JobProgressBar
-                    progress={deleteProgress?.progress ?? 0}
-                    operation={
-                      deleteProgress?.operation ?? "Avvio cancellazione..."
-                    }
-                    status="processing"
-                  />
-                </div>
-              )}
-
-              {/* PDF download button */}
+      {/* Detail modal */}
+      {selectedOrder && (
+        <div
+          style={overlayStyle}
+          onClick={(e) => { if (e.target === e.currentTarget) setSelectedOrder(null); }}
+        >
+          <div style={modalStyle}>
+            {/* Delete confirmation bar */}
+            {deleteConfirmId === selectedOrder.id && (
               <div
                 style={{
+                  padding: "6px 12px",
+                  backgroundColor: "#fee2e2",
+                  borderBottom: "1px solid #fca5a5",
                   display: "flex",
-                  gap: "4px",
-                  padding: "4px 8px",
-                  borderBottom: `1px solid ${ARCA_COLORS.borderLight}`,
-                  backgroundColor: ARCA_COLORS.windowBg,
-                  flexWrap: "wrap",
+                  alignItems: "center",
+                  gap: "8px",
+                  fontSize: "12px",
                 }}
               >
+                <span style={{ fontWeight: 600, color: "#c62828" }}>
+                  {isDraftInArchibald(selectedOrder)
+                    ? "Confermi eliminazione da Archibald?"
+                    : "Confermi eliminazione?"}
+                </span>
                 <button
-                  onClick={() => handleDownloadPDF(selectedOrder)}
-                  style={toolbarBtnStyle}
+                  onClick={() => handleDelete(selectedOrder.id)}
+                  style={{ ...headerBtnStyle, backgroundColor: "#dc2626", color: "#fff", border: "none" }}
                 >
-                  PDF
+                  Conferma
                 </button>
                 <button
-                  onClick={() => setLinkingOrderId(selectedOrder.id)}
-                  style={toolbarBtnStyle}
+                  onClick={() => setDeleteConfirmId(null)}
+                  style={headerBtnStyle}
                 >
-                  {selectedOrder.archibaldOrderId
-                    ? "Mod. collegamento"
-                    : "Collega ordine"}
+                  Annulla
                 </button>
-                {selectedOrder.archibaldOrderId && (
-                  <>
-                    <button
-                      onClick={() => {
-                        const firstId = parseLinkedIds(
-                          selectedOrder.archibaldOrderId,
-                        )[0];
-                        if (firstId) navigate(`/orders?highlight=${firstId}`);
-                      }}
-                      style={toolbarBtnStyle}
-                    >
-                      Vedi ordine madre
-                    </button>
-                    <button
-                      onClick={() => handleUnlinkOrder(selectedOrder.id)}
-                      style={{ ...toolbarBtnStyle, color: "#c62828" }}
-                    >
-                      Scollega
-                    </button>
-                  </>
-                )}
               </div>
+            )}
 
-              <ArcaDocumentDetail
-                order={selectedOrder}
-                onClose={() => setSelectedOrder(null)}
-                onLink={(id) => setLinkingOrderId(id)}
-                onUnlink={(id) => handleUnlinkOrder(id)}
-                onDelete={handleDeleteFromDetail}
-                onSave={handleSaveArcaData}
-              />
-            </div>
-          )}
+            {/* Delete progress */}
+            {deletingFromArchibald === selectedOrder.id && (
+              <div style={{ padding: "6px 12px" }}>
+                <JobProgressBar
+                  progress={deleteProgress?.progress ?? 0}
+                  operation={
+                    deleteProgress?.operation ?? "Avvio cancellazione..."
+                  }
+                  status="processing"
+                />
+              </div>
+            )}
+
+            <ArcaDocumentDetail
+              order={selectedOrder}
+              onClose={() => setSelectedOrder(null)}
+              onLink={(id) => setLinkingOrderId(id)}
+              onUnlink={(id) => handleUnlinkOrder(id)}
+              onDelete={handleDeleteFromDetail}
+              onSave={handleSaveArcaData}
+              onDownloadPDF={handleDownloadPDF}
+              onNavigateToOrder={(archibaldOrderId) => {
+                setSelectedOrder(null);
+                navigate(`/orders?highlight=${archibaldOrderId}`);
+              }}
+            />
+          </div>
         </div>
       )}
 
@@ -997,11 +948,27 @@ const clearFilterBtnStyle: React.CSSProperties = {
   cursor: "pointer",
 };
 
-const toolbarBtnStyle: React.CSSProperties = {
-  ...ARCA_FONT,
-  padding: "3px 8px",
-  border: "1px outset #D4D0C8",
-  backgroundColor: "#D4D0C8",
-  cursor: "pointer",
-  fontSize: "11px",
+const overlayStyle: React.CSSProperties = {
+  position: "fixed",
+  top: 0,
+  left: 0,
+  right: 0,
+  bottom: 0,
+  backgroundColor: "rgba(0, 0, 0, 0.5)",
+  zIndex: 1000,
+  display: "flex",
+  justifyContent: "center",
+  alignItems: "flex-start",
+  paddingTop: "5vh",
+  overflowY: "auto",
+};
+
+const modalStyle: React.CSSProperties = {
+  backgroundColor: "#8a8a88",
+  borderRadius: "2px",
+  maxWidth: "680px",
+  width: "95%",
+  maxHeight: "90vh",
+  overflowY: "auto",
+  boxShadow: "0 8px 32px rgba(0, 0, 0, 0.3)",
 };

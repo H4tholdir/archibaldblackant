@@ -1,4 +1,4 @@
-import { useState } from "react";
+import React, { useState } from "react";
 import type { ArcaRiga } from "../../types/arca-data";
 import { ArcaInput } from "./ArcaInput";
 import {
@@ -7,7 +7,6 @@ import {
   arcaNavyHeader,
   arcaRowStyle,
   arcaGridCell,
-  arcaLabel,
   ARCA_COLORS,
   formatArcaCurrency,
 } from "./arcaStyles";
@@ -18,6 +17,8 @@ type ArcaTabRigheProps = {
   onRigaChange?: (index: number, riga: ArcaRiga) => void;
   onRemoveRiga?: (index: number) => void;
   onAddRiga?: () => void;
+  onEditDocument?: () => void;
+  onDeleteDocument?: () => void;
 };
 
 const RIGHE_COLUMNS = [
@@ -31,7 +32,7 @@ const RIGHE_COLUMNS = [
   { label: "N", width: 17 },
 ];
 
-export function ArcaTabRighe({ righe, editing, onRigaChange, onRemoveRiga, onAddRiga }: ArcaTabRigheProps) {
+export function ArcaTabRighe({ righe, editing, onRigaChange, onRemoveRiga, onAddRiga, onEditDocument, onDeleteDocument }: ArcaTabRigheProps) {
   const [selectedIndex, setSelectedIndex] = useState<number | null>(
     righe.length > 0 ? 0 : null,
   );
@@ -167,29 +168,21 @@ export function ArcaTabRighe({ righe, editing, onRigaChange, onRemoveRiga, onAdd
               } : undefined}
             />
             <ArcaInput labelAbove label="C. S." value={selectedRiga.CONTOSCARI} width="30px" />
-            {/* Omaggio: checkbox come Arca */}
-            <div style={{ display: "flex", flexDirection: "column", gap: "1px" }}>
-              <span style={{ ...arcaLabel, fontSize: "10px", padding: "0 1px" }}>Omaggio</span>
-              <div style={{ display: "flex", gap: "4px", alignItems: "center" }}>
-                <label style={{ ...ARCA_FONT, fontSize: "10px", display: "flex", alignItems: "center", gap: "2px" }}>
-                  <input type="checkbox" checked={selectedRiga.OMMERCE} readOnly={!editing}
-                    onChange={editing && selectedIndex !== null ? (e) => {
-                      onRigaChange?.(selectedIndex, { ...selectedRiga, OMMERCE: e.target.checked });
-                    } : undefined}
-                  />
-                  Merce
-                </label>
-                <label style={{ ...ARCA_FONT, fontSize: "10px", display: "flex", alignItems: "center", gap: "2px" }}>
-                  <input type="checkbox" checked={selectedRiga.OMIVA} readOnly={!editing}
-                    onChange={editing && selectedIndex !== null ? (e) => {
-                      onRigaChange?.(selectedIndex, { ...selectedRiga, OMIVA: e.target.checked });
-                    } : undefined}
-                  />
-                  Iva
-                </label>
-              </div>
-            </div>
           </div>
+          {!editing && (onEditDocument || onDeleteDocument) && (
+            <div style={{ marginTop: "4px", display: "flex", gap: "6px" }}>
+              {onEditDocument && (
+                <button onClick={onEditDocument} style={ftBtnStyle}>
+                  Modifica FT
+                </button>
+              )}
+              {onDeleteDocument && (
+                <button onClick={onDeleteDocument} style={{ ...ftBtnStyle, color: "#c62828" }}>
+                  Elimina FT
+                </button>
+              )}
+            </div>
+          )}
           {editing && selectedIndex !== null && (
             <div style={{ marginTop: "6px", display: "flex", gap: "6px" }}>
               <button
@@ -230,3 +223,12 @@ export function ArcaTabRighe({ righe, editing, onRigaChange, onRemoveRiga, onAdd
     </div>
   );
 }
+
+const ftBtnStyle: React.CSSProperties = {
+  ...ARCA_FONT,
+  padding: "3px 10px",
+  border: "1px outset #D4D0C8",
+  backgroundColor: "#D4D0C8",
+  cursor: "pointer",
+  fontWeight: "bold",
+};
