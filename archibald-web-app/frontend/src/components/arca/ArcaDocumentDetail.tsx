@@ -224,12 +224,17 @@ export function ArcaDocumentDetail({
             </p>
           )}
         </div>
-        <ActionButtons
-          order={order}
-          onLink={onLink}
-          onUnlink={onUnlink}
-          onDelete={onDelete}
-        />
+        <div style={{ display: "flex", gap: "4px", marginTop: "6px", flexWrap: "wrap" }}>
+          {!order.archibaldOrderId && onLink && (
+            <button onClick={() => onLink(order.id)} style={editBtnStyle}>Collega ordine</button>
+          )}
+          {order.archibaldOrderId && onUnlink && (
+            <button onClick={() => onUnlink(order.id)} style={{ ...editBtnStyle, color: "#c62828" }}>Scollega</button>
+          )}
+          {onDelete && (
+            <button onClick={() => onDelete(order.id)} style={{ ...editBtnStyle, color: "#c62828" }}>Elimina</button>
+          )}
+        </div>
       </div>
     );
   }
@@ -240,9 +245,9 @@ export function ArcaDocumentDetail({
 
   return (
     <div style={{ ...ARCA_FONT, maxWidth: "632px" }}>
-      {/* Top bar: Edit/Save/Cancel + Close */}
+      {/* Top bar: all actions + Close */}
       <div style={{ display: "flex", justifyContent: "space-between", padding: "2px 4px", alignItems: "center" }}>
-        <div style={{ display: "flex", gap: "4px" }}>
+        <div style={{ display: "flex", gap: "4px", flexWrap: "wrap" }}>
           {!editing && onSave && (
             <button onClick={startEditing} style={editBtnStyle}>
               Modifica
@@ -257,6 +262,21 @@ export function ArcaDocumentDetail({
                 Annulla
               </button>
             </>
+          )}
+          {!editing && !order.archibaldOrderId && onLink && (
+            <button onClick={() => onLink(order.id)} style={editBtnStyle}>
+              Collega ordine
+            </button>
+          )}
+          {!editing && order.archibaldOrderId && onUnlink && (
+            <button onClick={() => onUnlink(order.id)} style={{ ...editBtnStyle, color: "#c62828" }}>
+              Scollega
+            </button>
+          )}
+          {!editing && onDelete && (
+            <button onClick={() => onDelete(order.id)} style={{ ...editBtnStyle, color: "#c62828" }}>
+              Elimina
+            </button>
           )}
         </div>
         <button onClick={onClose} style={closeButtonStyle}>
@@ -413,47 +433,6 @@ export function ArcaDocumentDetail({
         )}
       </ArcaTabBar>
 
-      {/* Action buttons */}
-      {!editing && (
-        <ActionButtons
-          order={order}
-          onLink={onLink}
-          onUnlink={onUnlink}
-          onDelete={onDelete}
-        />
-      )}
-    </div>
-  );
-}
-
-function ActionButtons({
-  order,
-  onLink,
-  onUnlink,
-  onDelete,
-}: {
-  order: FresisHistoryOrder;
-  onLink?: (id: string) => void;
-  onUnlink?: (id: string) => void;
-  onDelete?: (id: string) => void;
-}) {
-  return (
-    <div style={{ display: "flex", gap: "6px", marginTop: "6px", flexWrap: "wrap" }}>
-      {!order.archibaldOrderId && onLink && (
-        <button onClick={() => onLink(order.id)} style={actionBtnStyle("#1976d2")}>
-          Collega ordine
-        </button>
-      )}
-      {order.archibaldOrderId && onUnlink && (
-        <button onClick={() => onUnlink(order.id)} style={actionBtnStyle("#e65100")}>
-          Scollega
-        </button>
-      )}
-      {onDelete && (
-        <button onClick={() => onDelete(order.id)} style={actionBtnStyle("#c62828")}>
-          Elimina
-        </button>
-      )}
     </div>
   );
 }
@@ -476,15 +455,3 @@ const editBtnStyle: React.CSSProperties = {
   fontWeight: "bold",
 };
 
-function actionBtnStyle(bg: string): React.CSSProperties {
-  return {
-    ...ARCA_FONT,
-    padding: "4px 12px",
-    backgroundColor: bg,
-    color: "#fff",
-    border: "none",
-    borderRadius: "3px",
-    cursor: "pointer",
-    fontWeight: "bold",
-  };
-}

@@ -769,7 +769,7 @@ export function FresisHistoryPage() {
           {selectedOrder && (
             <div
               style={{
-                backgroundColor: "#fff",
+                backgroundColor: "#8a8a88",
                 border: `1px solid ${ARCA_COLORS.borderDark}`,
                 borderRadius: "2px",
                 overflow: "auto",

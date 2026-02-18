@@ -40,7 +40,7 @@ export function ArcaTabRighe({ righe, editing, onRigaChange, onRemoveRiga, onAdd
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
       {/* Griglia righe */}
-      <div style={{ border: `1px solid ${ARCA_COLORS.shapeBorder}`, maxHeight: "200px", overflowY: "auto" }}>
+      <div style={{ border: `1px solid ${ARCA_COLORS.shapeBorder}`, maxHeight: "350px", overflowY: "auto" }}>
         {/* Header */}
         <div style={{ display: "flex", position: "sticky", top: 0, zIndex: 1 }}>
           {RIGHE_COLUMNS.map((col, colIdx) => (

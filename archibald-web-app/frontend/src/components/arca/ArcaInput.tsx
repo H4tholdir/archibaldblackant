@@ -49,7 +49,6 @@ export function ArcaInput({
   const inputStyle: CSSProperties = {
     ...baseStyle,
     width,
-    height: "21px",
     textAlign: align,
     ...style,
   };

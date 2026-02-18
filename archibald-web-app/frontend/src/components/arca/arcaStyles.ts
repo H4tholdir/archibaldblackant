@@ -191,7 +191,6 @@ export const arcaReadOnlySpecialInput: CSSProperties = {
   ...arcaSunkenInput,
   backgroundColor: ARCA_COLORS.readOnlySpecialBg,
   color: "#FF0000",
-  height: "21px",
 };
 
 export const arcaTransparentField: CSSProperties = {
@@ -203,7 +202,6 @@ export const arcaTransparentField: CSSProperties = {
   padding: "1px 3px",
   outline: "none",
   boxSizing: "border-box",
-  height: "21px",
 };
 
 export const arcaExpenseDesc: CSSProperties = {
