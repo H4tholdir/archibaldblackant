@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
-import { subClientService } from "../../services/subclient.service";
+import { searchSubClients, deleteSubClient } from "../../api/subclients";
 import { useKeyboardScroll } from "../../hooks/useKeyboardScroll";
-import type { SubClient } from "../../db/schema";
+import type { SubClient } from "../../types/sub-client";
 
 interface SubClientSelectorProps {
   onSelect: (subClient: SubClient) => void;
@@ -68,7 +68,7 @@ export function SubClientSelector({
     debounceTimerRef.current = window.setTimeout(async () => {
       setLoading(true);
       try {
-        const subClients = await subClientService.searchSubClients(searchQuery);
+        const subClients = await searchSubClients(searchQuery);
         setResults(subClients);
         setShowDropdown(subClients.length > 0);
       } catch (err) {
@@ -174,7 +174,7 @@ export function SubClientSelector({
     if (!confirmDeleteSubClient) return;
     const codice = confirmDeleteSubClient.codice;
     try {
-      await subClientService.deleteSubClient(codice);
+      await deleteSubClient(codice);
       setResults((prev) => prev.filter((sc) => sc.codice !== codice));
     } catch (err) {
       console.error("[SubClientSelector] Delete failed:", err);

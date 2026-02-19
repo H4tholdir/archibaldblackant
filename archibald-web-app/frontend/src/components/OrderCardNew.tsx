@@ -8,8 +8,6 @@ import { HighlightText } from "./HighlightText";
 import { productService } from "../services/products.service";
 import type { ProductWithDetails } from "../services/products.service";
 import { priceService } from "../services/prices.service";
-import { db } from "../db/schema";
-import { CachePopulationService } from "../services/cache-population";
 import { normalizeVatRate } from "../utils/vat-utils";
 import {
   formatCurrency,
@@ -750,16 +748,7 @@ function TabArticoli({
       if (cancelled) return;
       setSyncingArticles(false);
 
-      // 2. Sync product cache if empty
-      const count = await db.products.count();
-      if (count === 0) {
-        setSyncingProducts(true);
-        const jwt = localStorage.getItem("archibald_jwt") || "";
-        await CachePopulationService.getInstance().populateCache(jwt, (p) => {
-          if (!cancelled) setSyncProductsMsg(p.message);
-        });
-        if (!cancelled) setSyncingProducts(false);
-      }
+      // Product cache sync no longer needed - data comes from API
 
       if (cancelled) return;
 

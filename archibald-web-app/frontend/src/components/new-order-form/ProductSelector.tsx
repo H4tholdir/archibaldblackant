@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { productService } from "../../services/products.service";
 import { useKeyboardScroll } from "../../hooks/useKeyboardScroll";
-import type { Product } from "../../db/schema";
+import type { Product } from "../../types/product";
 
 interface ProductSelectorProps {
   onSelect: (product: Product) => void;

@@ -2,9 +2,9 @@ import { useState, useEffect } from "react";
 import {
   uploadWarehouseFile,
   getWarehouseMetadata,
-  clearWarehouseData,
-} from "../services/warehouse-service";
-import type { WarehouseMetadata } from "../db/schema";
+  clearAllWarehouseData,
+} from "../api/warehouse";
+import type { WarehouseMetadata } from "../types/warehouse";
 
 export function WarehouseUpload() {
   const [uploading, setUploading] = useState(false);
@@ -63,7 +63,7 @@ export function WarehouseUpload() {
       return;
     }
 
-    await clearWarehouseData();
+    await clearAllWarehouseData();
     setMetadata(null);
     setUploadResult({
       success: true,

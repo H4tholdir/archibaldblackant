@@ -2,23 +2,12 @@
 import { describe, test, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { PendingOrdersPage } from "./PendingOrdersPage";
-import { orderService } from "../services/orders.service";
-import type { PendingOrder } from "../db/schema";
+import type { PendingOrder } from "../types/pending-order";
 
 // Mock react-router-dom
 const mockNavigate = vi.fn();
 vi.mock("react-router-dom", () => ({
   useNavigate: () => mockNavigate,
-}));
-
-// Mock db/schema to prevent heavy Dexie initialization
-vi.mock("../db/schema", () => ({
-  db: {
-    pendingOrders: { update: vi.fn(), add: vi.fn(), delete: vi.fn() },
-    customers: { get: vi.fn() },
-    fresisHistory: { bulkAdd: vi.fn() },
-    cacheMetadata: { put: vi.fn() },
-  },
 }));
 
 // Mock usePendingSync hook — module-level vars so tests can set data before render
@@ -34,11 +23,13 @@ vi.mock("../hooks/usePendingSync", () => ({
   }),
 }));
 
-vi.mock("../services/orders.service", () => ({
-  orderService: {
-    updatePendingOrderStatus: vi.fn(),
-    deletePendingOrder: vi.fn(),
-  },
+
+const mockSavePendingOrder = vi.fn().mockResolvedValue({ id: "test", action: "updated", serverUpdatedAt: Date.now() });
+const mockDeletePendingOrder = vi.fn().mockResolvedValue(undefined);
+vi.mock("../api/pending-orders", () => ({
+  savePendingOrder: (...args: any[]) => mockSavePendingOrder(...args),
+  deletePendingOrder: (...args: any[]) => mockDeletePendingOrder(...args),
+  getPendingOrders: vi.fn().mockResolvedValue([]),
 }));
 
 vi.mock("../services/toast.service", () => ({
@@ -62,16 +53,25 @@ vi.mock("../services/share.service", () => ({
   },
 }));
 
-vi.mock("../services/fresis-discount.service", () => ({
-  fresisDiscountService: { getAllDiscounts: vi.fn().mockResolvedValue([]) },
+vi.mock("../api/fresis-discounts", () => ({
+  getFresisDiscounts: vi.fn().mockResolvedValue([]),
 }));
 
-vi.mock("../services/fresis-history.service", () => ({
-  fresisHistoryService: { archiveOrders: vi.fn() },
+vi.mock("../api/fresis-history", () => ({
+  archiveOrders: vi.fn().mockResolvedValue([]),
+  reassignMergedOrderId: vi.fn().mockResolvedValue(0),
 }));
 
-vi.mock("../services/warehouse-order-integration", () => ({
-  transferWarehouseReservations: vi.fn(),
+vi.mock("../api/warehouse", () => ({
+  batchTransfer: vi.fn().mockResolvedValue({ transferred: 0 }),
+}));
+
+vi.mock("../api/customers", () => ({
+  getCustomers: vi.fn().mockResolvedValue([]),
+}));
+
+vi.mock("../utils/format-currency", () => ({
+  formatCurrency: vi.fn((v: number) => `${v.toFixed(2)}`),
 }));
 
 vi.mock("../utils/order-calculations", () => ({
@@ -293,13 +293,17 @@ describe("PendingOrdersPage", () => {
     });
 
     await waitFor(() => {
-      expect(orderService.updatePendingOrderStatus).toHaveBeenCalledWith(
-        "order-uuid-001",
-        "syncing",
+      expect(mockSavePendingOrder).toHaveBeenCalledWith(
+        expect.objectContaining({
+          id: "order-uuid-001",
+          status: "syncing",
+        }),
       );
-      expect(orderService.updatePendingOrderStatus).toHaveBeenCalledWith(
-        "order-uuid-002",
-        "syncing",
+      expect(mockSavePendingOrder).toHaveBeenCalledWith(
+        expect.objectContaining({
+          id: "order-uuid-002",
+          status: "syncing",
+        }),
       );
     });
   });

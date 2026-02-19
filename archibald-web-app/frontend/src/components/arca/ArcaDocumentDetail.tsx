@@ -1,6 +1,5 @@
 import { useState, useMemo, useCallback, useEffect, useRef } from "react";
-import type { FresisHistoryOrder } from "../../db/schema";
-import { db } from "../../db/schema";
+import type { FresisHistoryOrder } from "../../types/fresis";
 import type { ArcaData, ArcaRiga, ArcaTestata } from "../../types/arca-data";
 import { ArcaInput } from "./ArcaInput";
 import { ArcaTabBar } from "./ArcaTabBar";
@@ -9,8 +8,9 @@ import { ArcaTabRighe } from "./ArcaTabRighe";
 import { ArcaTabPiede } from "./ArcaTabPiede";
 import { ArcaTabRiepilogo } from "./ArcaTabRiepilogo";
 import { ArcaTabOrdineMadre } from "./ArcaTabOrdineMadre";
-import { parseLinkedIds } from "../../services/fresis-history.service";
-import { fresisDiscountService } from "../../services/fresis-discount.service";
+import { parseLinkedIds } from "../../api/fresis-history";
+import { getDiscountForArticle } from "../../api/fresis-discounts";
+import { getProducts } from "../../api/products";
 import {
   ARCA_FONT,
   ARCA_COLORS,
@@ -370,18 +370,15 @@ export function ArcaDocumentDetail({
         const riga = righe[i];
         if (!riga.CODICEARTI || riga.QUANTITA === 0) continue;
 
-        const product = await db.products
-          .where("name")
-          .equals(riga.CODICEARTI)
-          .first();
+        const token = localStorage.getItem("archibald_jwt") ?? "";
+        const productsResult = await getProducts(token, riga.CODICEARTI, 1);
+        const product = productsResult.data.products[0];
 
         const listPrice = product?.price ?? 0;
         if (listPrice === 0) continue;
 
-        const discountPercent = await fresisDiscountService.getDiscountForArticle(
-          product?.id ?? "",
-          riga.CODICEARTI,
-        );
+        const discountRecord = await getDiscountForArticle(riga.CODICEARTI);
+        const discountPercent = discountRecord?.discountPercent ?? 0;
 
         const rowCost = listPrice * riga.QUANTITA * (1 - discountPercent / 100);
         totalFresisCost += rowCost;

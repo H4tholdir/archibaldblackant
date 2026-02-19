@@ -1,6 +1,7 @@
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
-import type { PendingOrderItem, SubClient } from "../db/schema";
+import type { PendingOrderItem } from "../types/pending-order";
+import type { SubClient } from "../types/sub-client";
 import { formatCurrency } from "../utils/format-currency";
 
 export type PDFOrderData = {

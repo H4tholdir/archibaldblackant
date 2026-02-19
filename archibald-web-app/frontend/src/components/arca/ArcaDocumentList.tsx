@@ -1,6 +1,6 @@
 import { useState, useCallback, useMemo } from "react";
 import { List } from "react-window";
-import type { FresisHistoryOrder } from "../../db/schema";
+import type { FresisHistoryOrder } from "../../types/fresis";
 import type { ArcaData } from "../../types/arca-data";
 import {
   ARCA_FONT,

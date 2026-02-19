@@ -1,11 +1,7 @@
 // @ts-nocheck
 import { describe, test, expect, vi, beforeAll, beforeEach } from "vitest";
 import { render, screen, fireEvent, waitFor, cleanup } from "@testing-library/react";
-import type { Product } from "../../db/schema";
-
-vi.mock("../../db/schema", () => ({
-  db: {},
-}));
+import type { Product } from "../../types/product";
 
 vi.mock("../../services/products.service", () => ({
   productService: {

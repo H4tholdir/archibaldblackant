@@ -1,12 +1,15 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useAuth } from "../hooks/useAuth";
-import type { FresisHistoryOrder } from "../db/schema";
+import type { FresisHistoryOrder } from "../types/fresis";
 import {
-  fresisHistoryService,
   parseLinkedIds,
   serializeLinkedIds,
-} from "../services/fresis-history.service";
+  getFresisHistory,
+  deleteFresisHistory,
+  deleteFromArchibald,
+  updateFresisHistoryOrder,
+} from "../api/fresis-history";
 import { PDFExportService } from "../services/pdf-export.service";
 import { useFresisHistorySync } from "../hooks/useFresisHistorySync";
 import { ArcaImportModal } from "../components/ArcaImportModal";
@@ -266,8 +269,8 @@ export function FresisHistoryPage() {
     setSyncing(true);
     setSyncMessage(null);
     try {
-      const count = await fresisHistoryService.syncFromServer();
-      setSyncMessage(`Aggiornati ${count} ordini`);
+      const records = await getFresisHistory();
+      setSyncMessage(`Aggiornati ${records.length} ordini`);
       await wsRefetch();
     } catch (err) {
       console.error("[FresisHistoryPage] Sync failed:", err);
@@ -292,14 +295,14 @@ export function FresisHistoryPage() {
     try {
       if (isDraftInArchibald(order)) {
         setDeletingFromArchibald(id);
-        const result = await fresisHistoryService.deleteFromArchibald(id);
+        const result = await deleteFromArchibald(id);
         setDeletingFromArchibald(null);
-        if (!result.success) {
-          alert(`Errore cancellazione da Archibald: ${result.message}`);
+        if (!result.message) {
+          alert("Errore cancellazione da Archibald");
           return;
         }
       } else {
-        await fresisHistoryService.deleteHistoryOrder(id);
+        await deleteFresisHistory(id);
       }
       setDeleteConfirmId(null);
       setSelectedOrder(null);
@@ -317,7 +320,7 @@ export function FresisHistoryPage() {
     try {
       const ids = archibaldOrders.map((o) => o.id);
       const numbers = archibaldOrders.map((o) => o.orderNumber);
-      await fresisHistoryService.updateHistoryOrder(historyId, {
+      await updateFresisHistoryOrder(historyId, {
         archibaldOrderId: serializeLinkedIds(ids),
         archibaldOrderNumber: serializeLinkedIds(numbers),
       });
@@ -332,7 +335,7 @@ export function FresisHistoryPage() {
     if (!window.confirm("Sei sicuro di voler scollegare questo ordine?"))
       return;
     try {
-      await fresisHistoryService.updateHistoryOrder(historyId, {
+      await updateFresisHistoryOrder(historyId, {
         archibaldOrderId: undefined,
         archibaldOrderNumber: undefined,
         currentState: undefined,
@@ -383,7 +386,7 @@ export function FresisHistoryPage() {
     async (orderId: string, arcaData: ArcaData) => {
       try {
         const arcaDataStr = JSON.stringify(arcaData);
-        await fresisHistoryService.updateHistoryOrder(orderId, {
+        await updateFresisHistoryOrder(orderId, {
           arcaData: arcaDataStr,
           targetTotalWithVAT: arcaData.testata.TOTDOC,
           shippingCost:
@@ -851,7 +854,7 @@ export function FresisHistoryPage() {
         <ArcaImportModal
           onClose={() => setShowImportModal(false)}
           onImportComplete={() => {
-            fresisHistoryService.syncFromServer().then(() => wsRefetch());
+            wsRefetch();
           }}
         />
       )}

@@ -1,5 +1,5 @@
-import type { WarehouseItem } from "../db/schema";
-import { db } from "../db/schema";
+import type { WarehouseItem } from "../types/warehouse";
+import { getWarehouseItems } from "../api/warehouse";
 
 /**
  * Parsed article code structure
@@ -141,9 +141,10 @@ export async function findWarehouseMatches(
 ): Promise<WarehouseMatch[]> {
   // Get all warehouse items (not sold and not reserved)
   // 🔧 FIX #2: Filter out reserved items as well as sold items
-  const allItems = await db.warehouseItems
-    .filter((item) => !item.soldInOrder && !item.reservedForOrder)
-    .toArray();
+  const allWarehouseItems = await getWarehouseItems();
+  const allItems = allWarehouseItems.filter(
+    (item) => !item.soldInOrder && !item.reservedForOrder,
+  );
 
   if (allItems.length === 0) {
     return [];

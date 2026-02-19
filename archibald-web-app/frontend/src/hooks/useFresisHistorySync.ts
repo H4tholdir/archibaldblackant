@@ -1,8 +1,8 @@
 import { useState, useEffect, useCallback } from "react";
 import { useWebSocketContext } from "../contexts/WebSocketContext";
 import { FresisHistoryRealtimeService } from "../services/fresis-history-realtime.service";
-import { fresisHistoryService } from "../services/fresis-history.service";
-import type { FresisHistoryOrder } from "../db/schema";
+import { getFresisHistory } from "../api/fresis-history";
+import type { FresisHistoryOrder } from "../types/fresis";
 
 export interface UseFresisHistorySyncReturn {
   historyOrders: FresisHistoryOrder[];
@@ -21,7 +21,7 @@ export function useFresisHistorySync(): UseFresisHistorySyncReturn {
   const loadOrders = useCallback(async () => {
     try {
       setIsSyncing(true);
-      const orders = await fresisHistoryService.getAllHistoryOrders();
+      const orders = await getFresisHistory();
       setHistoryOrders(orders);
     } catch (error) {
       console.error(
@@ -39,10 +39,6 @@ export function useFresisHistorySync(): UseFresisHistorySyncReturn {
 
   useEffect(() => {
     loadOrders();
-
-    fresisHistoryService
-      .fullSync()
-      .then(() => loadOrders());
 
     const unsubscribers = realtimeService.initializeSubscriptions(subscribe);
 

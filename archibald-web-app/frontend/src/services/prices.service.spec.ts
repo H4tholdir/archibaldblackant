@@ -1,52 +1,41 @@
-import { describe, test, expect, beforeEach, afterEach, vi } from "vitest";
-import Dexie from "dexie";
+import { describe, test, expect, beforeEach, vi } from "vitest";
 import { PriceService } from "./prices.service";
+import { fetchWithRetry } from "../utils/fetch-with-retry";
 
-// Test database matching current PriceService expectations
-// PriceService.getPriceByArticleId now reads from the products table (not prices)
-class TestDatabase extends Dexie {
-  products!: Dexie.Table<{ id: string; name: string; price?: number; vat?: number }, string>;
+vi.mock("../utils/fetch-with-retry", () => ({
+  fetchWithRetry: vi.fn(),
+}));
 
-  constructor() {
-    super("TestPriceDB");
-    this.version(1).stores({
-      products: "id, name",
-    });
-  }
+const mockFetchWithRetry = vi.mocked(fetchWithRetry);
+
+function makeProductsResponse(products: any[]) {
+  return {
+    ok: true,
+    json: async () => ({
+      success: true,
+      data: {
+        products,
+        totalCount: products.length,
+        returnedCount: products.length,
+        limited: false,
+      },
+    }),
+  } as Response;
 }
 
 describe("PriceService", () => {
-  let testDb: TestDatabase;
   let service: PriceService;
 
-  const mockProduct1 = {
-    id: "P001",
-    name: "Vite M6",
-    price: 12.5,
-    vat: 22,
-  };
-
-  const mockProduct2 = {
-    id: "P002",
-    name: "Bullone M8",
-    price: 18.75,
-    vat: 22,
-  };
-
-  beforeEach(async () => {
-    testDb = new TestDatabase();
-    service = new PriceService(testDb);
-    await testDb.open();
-  });
-
-  afterEach(async () => {
-    vi.restoreAllMocks();
-    await testDb.delete();
+  beforeEach(() => {
+    vi.clearAllMocks();
+    service = new PriceService();
   });
 
   describe("getPriceByArticleId", () => {
-    test("returns price from products table", async () => {
-      await testDb.products.bulkAdd([mockProduct1, mockProduct2]);
+    test("returns price from API products response", async () => {
+      mockFetchWithRetry.mockResolvedValue(
+        makeProductsResponse([{ id: "P001", name: "Vite M6", price: 12.5, vat: 22 }]),
+      );
 
       const price = await service.getPriceByArticleId("P001");
 
@@ -54,13 +43,17 @@ describe("PriceService", () => {
     });
 
     test("returns null when product not found", async () => {
+      mockFetchWithRetry.mockResolvedValue(makeProductsResponse([]));
+
       const price = await service.getPriceByArticleId("NONEXISTENT");
 
       expect(price).toBeNull();
     });
 
     test("returns null when product has no price", async () => {
-      await testDb.products.add({ id: "NO_PRICE", name: "No price product" });
+      mockFetchWithRetry.mockResolvedValue(
+        makeProductsResponse([{ id: "NO_PRICE", name: "No price product" }]),
+      );
 
       const price = await service.getPriceByArticleId("NO_PRICE");
 
@@ -69,8 +62,10 @@ describe("PriceService", () => {
   });
 
   describe("getPriceAndVat", () => {
-    test("returns price and vat from products table", async () => {
-      await testDb.products.add(mockProduct1);
+    test("returns price and vat from API", async () => {
+      mockFetchWithRetry.mockResolvedValue(
+        makeProductsResponse([{ id: "P001", name: "Vite M6", price: 12.5, vat: 22 }]),
+      );
 
       const result = await service.getPriceAndVat("P001");
 
@@ -78,13 +73,17 @@ describe("PriceService", () => {
     });
 
     test("returns null when product not found", async () => {
+      mockFetchWithRetry.mockResolvedValue(makeProductsResponse([]));
+
       const result = await service.getPriceAndVat("NONEXISTENT");
 
       expect(result).toBeNull();
     });
 
     test("defaults vat to 22 when not set", async () => {
-      await testDb.products.add({ id: "NO_VAT", name: "No VAT", price: 10 });
+      mockFetchWithRetry.mockResolvedValue(
+        makeProductsResponse([{ id: "NO_VAT", name: "No VAT", price: 10 }]),
+      );
 
       const result = await service.getPriceAndVat("NO_VAT");
 
@@ -92,7 +91,9 @@ describe("PriceService", () => {
     });
 
     test("returns null when product has no price", async () => {
-      await testDb.products.add({ id: "NO_PRICE", name: "No price" });
+      mockFetchWithRetry.mockResolvedValue(
+        makeProductsResponse([{ id: "NO_PRICE", name: "No price" }]),
+      );
 
       const result = await service.getPriceAndVat("NO_PRICE");
 
@@ -101,11 +102,9 @@ describe("PriceService", () => {
   });
 
   describe("syncPrices", () => {
-    test("is a no-op (prices are now stored in products)", async () => {
+    test("is a no-op", async () => {
       await service.syncPrices();
-
-      // syncPrices does nothing - prices are synced with products
-      // Just verify it doesn't throw
+      expect(mockFetchWithRetry).not.toHaveBeenCalled();
     });
   });
 });

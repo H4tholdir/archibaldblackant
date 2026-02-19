@@ -1,6 +1,5 @@
 import { useState, useEffect, useRef } from "react";
 import "../styles/SyncBars.css";
-import { productService } from "../services/products.service";
 import { toastService } from "../services/toast.service";
 
 interface SyncProgress {
@@ -52,16 +51,9 @@ export default function SyncBars() {
     console.log("[SyncBars] Cache invalidation received:", event);
 
     if (event.target === "products") {
-      try {
-        // Refresh products cache
-        await productService.syncProducts();
-        toastService.success(
-          `✅ Prezzi aggiornati: ${event.matchedRows || 0} prodotti`,
-        );
-      } catch (error) {
-        console.error("[SyncBars] Auto-sync failed:", error);
-        toastService.warning("⚠️ Aggiorna la pagina per vedere i nuovi prezzi");
-      }
+      toastService.success(
+        `Prezzi aggiornati: ${event.matchedRows || 0} prodotti`,
+      );
     }
   };
 

@@ -1,4 +1,4 @@
-import type { PendingOrder, PendingOrderItem } from "../db/schema";
+import type { PendingOrder, PendingOrderItem } from "../types/pending-order";
 import type { ArcaData, ArcaTestata, ArcaRiga } from "../types/arca-data";
 import { calculateArcaTotals, calculateRowTotal } from "./arca-totals";
 

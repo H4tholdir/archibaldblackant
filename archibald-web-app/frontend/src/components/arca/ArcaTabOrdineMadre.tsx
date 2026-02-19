@@ -1,8 +1,7 @@
 import { useState, useEffect, useMemo } from "react";
-import type { FresisHistoryOrder } from "../../db/schema";
+import type { FresisHistoryOrder } from "../../types/fresis";
 import type { ArcaData } from "../../types/arca-data";
-import { parseLinkedIds } from "../../services/fresis-history.service";
-import { fetchSiblingFTs } from "../../services/fresis-history.service";
+import { parseLinkedIds, getSiblings } from "../../api/fresis-history";
 import {
   ARCA_FONT,
   ARCA_COLORS,
@@ -118,7 +117,7 @@ export function ArcaTabOrdineMadre({ order, onLink, onNavigateToOrder, parentOrd
   useEffect(() => {
     if (!order.archibaldOrderId) return;
     setLoadingSiblings(true);
-    fetchSiblingFTs(order.archibaldOrderId)
+    getSiblings([order.archibaldOrderId])
       .then(setSiblings)
       .catch(() => setSiblings([]))
       .finally(() => setLoadingSiblings(false));

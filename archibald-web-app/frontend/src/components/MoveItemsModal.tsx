@@ -1,10 +1,9 @@
 import { useState, useEffect } from "react";
-import type { WarehouseItem } from "../db/schema";
+import type { WarehouseItem, BoxWithStats } from "../types/warehouse";
 import {
   moveWarehouseItems,
   getWarehouseBoxes,
-  type BoxWithStats,
-} from "../services/warehouse-service";
+} from "../api/warehouse";
 import { toastService } from "../services/toast.service";
 
 export interface MoveItemsModalProps {

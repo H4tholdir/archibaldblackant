@@ -1,7 +1,6 @@
 import { useState } from "react";
-import { handleOrderReturn } from "../services/warehouse-order-integration";
+import { getWarehouseItems, batchRelease } from "../api/warehouse";
 import { toastService } from "../services/toast.service";
-import { db } from "../db/schema";
 
 /**
  * Warehouse Returns Management (Phase 5)
@@ -35,9 +34,8 @@ export default function WarehouseReturnsView() {
     }
 
     try {
-      const items = await db.warehouseItems
-        .filter((item) => item.soldInOrder === orderId.trim())
-        .toArray();
+      const allItems = await getWarehouseItems();
+      const items = allItems.filter((item) => item.soldInOrder === orderId.trim());
 
       if (items.length === 0) {
         toastService.warning(
@@ -80,10 +78,7 @@ export default function WarehouseReturnsView() {
     setProcessing(true);
 
     try {
-      const itemsReturned = await handleOrderReturn(
-        orderId.trim(),
-        returnReason,
-      );
+      const { released: itemsReturned } = await batchRelease(orderId.trim());
 
       toastService.success(
         `✅ ${itemsReturned} articoli restituiti al magazzino`,
