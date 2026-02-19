@@ -3,7 +3,7 @@ import { describe, test, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { PendingOrdersPage } from "./PendingOrdersPage";
 import { orderService } from "../services/orders.service";
-import type { PendingOrder } from "../db/schema";
+import type { PendingOrder } from "../types/pending-order";
 
 // Mock react-router-dom
 const mockNavigate = vi.fn();
@@ -39,6 +39,14 @@ vi.mock("../services/orders.service", () => ({
     updatePendingOrderStatus: vi.fn(),
     deletePendingOrder: vi.fn(),
   },
+}));
+
+const mockSavePendingOrder = vi.fn().mockResolvedValue({ id: "test", action: "updated", serverUpdatedAt: Date.now() });
+const mockDeletePendingOrder = vi.fn().mockResolvedValue(undefined);
+vi.mock("../api/pending-orders", () => ({
+  savePendingOrder: (...args: any[]) => mockSavePendingOrder(...args),
+  deletePendingOrder: (...args: any[]) => mockDeletePendingOrder(...args),
+  getPendingOrders: vi.fn().mockResolvedValue([]),
 }));
 
 vi.mock("../services/toast.service", () => ({
@@ -293,13 +301,17 @@ describe("PendingOrdersPage", () => {
     });
 
     await waitFor(() => {
-      expect(orderService.updatePendingOrderStatus).toHaveBeenCalledWith(
-        "order-uuid-001",
-        "syncing",
+      expect(mockSavePendingOrder).toHaveBeenCalledWith(
+        expect.objectContaining({
+          id: "order-uuid-001",
+          status: "syncing",
+        }),
       );
-      expect(orderService.updatePendingOrderStatus).toHaveBeenCalledWith(
-        "order-uuid-002",
-        "syncing",
+      expect(mockSavePendingOrder).toHaveBeenCalledWith(
+        expect.objectContaining({
+          id: "order-uuid-002",
+          status: "syncing",
+        }),
       );
     });
   });

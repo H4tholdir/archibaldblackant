@@ -1,57 +1,45 @@
-import { db } from "../db/schema";
-import type Dexie from "dexie";
+import { fetchWithRetry } from "../utils/fetch-with-retry";
 
 export class PriceService {
-  private db: Dexie;
-
-  constructor(database: Dexie = db) {
-    this.db = database;
-  }
-
-  /**
-   * Get price by article ID
-   * @param articleId - Article ID (product ID)
-   * @returns Price or null if not found
-   */
   async getPriceByArticleId(articleId: string): Promise<number | null> {
     try {
-      // Price is stored directly in the product (not in a separate prices table)
-      const product = await this.db
-        .table("products")
-        .where("id")
-        .equals(articleId)
-        .first();
+      const params = new URLSearchParams();
+      params.append("search", articleId);
+      params.append("limit", "100");
 
-      return product?.price || null;
+      const response = await fetchWithRetry(`/api/products?${params}`);
+      if (!response.ok) return null;
+
+      const data = await response.json();
+      const products: any[] = data.data?.products || [];
+
+      const match = products.find((p: any) => p.id === articleId);
+      return match?.price ?? null;
     } catch (error) {
       console.error("[PriceService] Failed to get price:", error);
       return null;
     }
   }
 
-  /**
-   * Get both price and VAT by article ID
-   * @param articleId - Article ID (product ID)
-   * @returns Object with price and vat, or null if not found
-   */
   async getPriceAndVat(articleId: string): Promise<{ price: number; vat: number } | null> {
     try {
-      const product = await this.db
-        .table("products")
-        .where("id")
-        .equals(articleId)
-        .first();
+      const params = new URLSearchParams();
+      params.append("search", articleId);
+      params.append("limit", "100");
 
-      if (!product) {
-        return null;
-      }
+      const response = await fetchWithRetry(`/api/products?${params}`);
+      if (!response.ok) return null;
 
-      const price = product.price;
-      const vat = product.vat ?? 22; // Default to 22% if not set
+      const data = await response.json();
+      const products: any[] = data.data?.products || [];
 
-      if (price === null || price === undefined) {
-        return null;
-      }
+      const match = products.find((p: any) => p.id === articleId);
+      if (!match) return null;
+
+      const price = match.price;
+      const vat = match.vat ?? 22;
+
+      if (price === null || price === undefined) return null;
 
       return { price, vat };
     } catch (error) {
@@ -60,15 +48,8 @@ export class PriceService {
     }
   }
 
-  /**
-   * Sync prices from API to IndexedDB
-   * NOTE: Prices are now stored directly in products, so this method is deprecated.
-   * It's kept for backward compatibility but does nothing.
-   */
   async syncPrices(): Promise<void> {
-    console.log("[PriceService] Price sync skipped - prices are now stored in products");
-    // Prices are synced automatically when products are synced
-    // No separate sync needed
+    console.log("[PriceService] Price sync skipped - prices are stored in products on server");
   }
 }
 

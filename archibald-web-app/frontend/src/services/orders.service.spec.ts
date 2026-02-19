@@ -1,25 +1,41 @@
-import { describe, test, expect, beforeEach, afterEach } from "vitest";
-import Dexie from "dexie";
+import { describe, test, expect, beforeEach, vi } from "vitest";
 import { OrderService } from "./orders.service";
-import type { PendingOrder } from "../db/schema";
+import type { PendingOrder } from "../types/pending-order";
 
-// Test database with same schema as production
-class TestDatabase extends Dexie {
-  pendingOrders!: Dexie.Table<PendingOrder, string>;
+vi.mock("../api/pending-orders", () => ({
+  savePendingOrder: vi.fn().mockResolvedValue({ id: "test", action: "created", serverUpdatedAt: Date.now() }),
+  getPendingOrders: vi.fn().mockResolvedValue([]),
+  deletePendingOrder: vi.fn().mockResolvedValue(undefined),
+}));
 
-  constructor() {
-    super("TestOrderDB");
-    this.version(1).stores({
-      pendingOrders: "id, status, createdAt, updatedAt, needsSync",
-    });
-  }
-}
+vi.mock("../api/warehouse", () => ({
+  batchReserve: vi.fn().mockResolvedValue({ reserved: 0, skipped: 0 }),
+  batchRelease: vi.fn().mockResolvedValue({ released: 0 }),
+  batchMarkSold: vi.fn().mockResolvedValue({ sold: 0 }),
+}));
+
+vi.mock("../utils/device-id", () => ({
+  getDeviceId: () => "test-device-001",
+}));
+
+vi.mock("../utils/fetch-with-retry", () => ({
+  fetchWithRetry: vi.fn().mockResolvedValue({ ok: true, json: async () => ({}) }),
+}));
+
+import {
+  savePendingOrder as apiSavePendingOrder,
+  getPendingOrders as apiGetPendingOrders,
+  deletePendingOrder as apiDeletePendingOrder,
+} from "../api/pending-orders";
+
+const mockApiSave = vi.mocked(apiSavePendingOrder);
+const mockApiGetAll = vi.mocked(apiGetPendingOrders);
+const mockApiDelete = vi.mocked(apiDeletePendingOrder);
 
 describe("OrderService", () => {
-  let testDb: TestDatabase;
   let service: OrderService;
 
-  const mockPendingOrder: Omit<PendingOrder, "id"> = {
+  const mockOrderInput = {
     customerId: "C001",
     customerName: "Mario Rossi",
     items: [
@@ -31,165 +47,144 @@ describe("OrderService", () => {
         vat: 22,
       },
     ],
-    createdAt: "2025-01-23T10:00:00Z",
-    updatedAt: "2025-01-23T10:00:00Z",
-    status: "pending",
-    retryCount: 0,
-    deviceId: "test-device-001",
-    needsSync: true,
   };
 
-  beforeEach(async () => {
-    // Create fresh test database
-    testDb = new TestDatabase();
-    service = new OrderService(testDb);
-    await testDb.open();
-  });
-
-  afterEach(async () => {
-    // Clean up test database
-    await testDb.delete();
+  beforeEach(() => {
+    vi.restoreAllMocks();
+    mockApiSave.mockResolvedValue({ id: "test", action: "created", serverUpdatedAt: Date.now() });
+    mockApiGetAll.mockResolvedValue([]);
+    mockApiDelete.mockResolvedValue(undefined);
+    service = new OrderService();
   });
 
   describe("savePendingOrder", () => {
-    test("saves pending order with status pending", async () => {
-      // Act
-      const id = await service.savePendingOrder(mockPendingOrder);
+    test("saves pending order via API and returns ID", async () => {
+      const id = await service.savePendingOrder(mockOrderInput);
 
-      // Assert
       expect(id).toBeTypeOf("string");
       expect(id).toMatch(
         /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
       );
-
-      // Verify saved in database
-      const saved = await testDb.pendingOrders.get(id);
-      expect(saved).toBeDefined();
-      expect(saved?.status).toBe("pending");
-      expect(saved?.retryCount).toBe(0);
-    });
-
-    test("sets createdAt timestamp", async () => {
-      // Act
-      const id = await service.savePendingOrder(mockPendingOrder);
-
-      // Assert
-      const saved = await testDb.pendingOrders.get(id);
-      expect(saved?.createdAt).toBeDefined();
-      expect(new Date(saved!.createdAt).getTime()).toBeGreaterThan(0);
+      expect(mockApiSave).toHaveBeenCalledTimes(1);
+      expect(mockApiSave).toHaveBeenCalledWith(
+        expect.objectContaining({
+          customerId: "C001",
+          status: "pending",
+          retryCount: 0,
+          deviceId: "test-device-001",
+        }),
+      );
     });
   });
 
   describe("getPendingOrders", () => {
     test("returns pending and error status orders sorted by createdAt", async () => {
-      // Arrange: add orders with different statuses
       const pending1: PendingOrder = {
-        id: crypto.randomUUID(),
-        ...mockPendingOrder,
+        id: "order-1",
+        ...mockOrderInput,
         createdAt: "2025-01-23T10:00:00Z",
-        status: "pending" as const,
+        updatedAt: "2025-01-23T10:00:00Z",
+        status: "pending",
+        retryCount: 0,
+        deviceId: "test-device",
+        needsSync: true,
       };
       const error1: PendingOrder = {
-        id: crypto.randomUUID(),
-        ...mockPendingOrder,
+        id: "order-2",
+        ...mockOrderInput,
         customerId: "C002",
         createdAt: "2025-01-23T09:00:00Z",
-        status: "error" as const,
+        updatedAt: "2025-01-23T09:00:00Z",
+        status: "error",
+        retryCount: 1,
+        deviceId: "test-device",
+        needsSync: true,
       };
       const syncing1: PendingOrder = {
-        id: crypto.randomUUID(),
-        ...mockPendingOrder,
+        id: "order-3",
+        ...mockOrderInput,
         customerId: "C003",
         createdAt: "2025-01-23T08:00:00Z",
-        status: "syncing" as const,
+        updatedAt: "2025-01-23T08:00:00Z",
+        status: "syncing",
+        retryCount: 0,
+        deviceId: "test-device",
+        needsSync: true,
       };
 
-      await testDb.pendingOrders.bulkAdd([pending1, error1, syncing1]);
+      mockApiGetAll.mockResolvedValue([pending1, error1, syncing1]);
 
-      // Act
       const orders = await service.getPendingOrders();
 
-      // Assert: should exclude 'syncing', oldest first
       expect(orders).toHaveLength(2);
-      expect(orders[0].customerId).toBe("C002"); // 09:00 (oldest)
+      expect(orders[0].customerId).toBe("C002");
       expect(orders[0].status).toBe("error");
-      expect(orders[1].customerId).toBe("C001"); // 10:00
+      expect(orders[1].customerId).toBe("C001");
       expect(orders[1].status).toBe("pending");
     });
 
     test("returns empty array when no pending orders exist", async () => {
-      // Act
+      mockApiGetAll.mockResolvedValue([]);
+
       const orders = await service.getPendingOrders();
 
-      // Assert
       expect(orders).toEqual([]);
     });
   });
 
   describe("updatePendingOrderStatus", () => {
-    test("updates order status to syncing", async () => {
-      // Arrange
+    test("updates order status via API", async () => {
       const order: PendingOrder = {
-        id: crypto.randomUUID(),
-        ...mockPendingOrder,
+        id: "order-1",
+        ...mockOrderInput,
+        createdAt: "2025-01-23T10:00:00Z",
+        updatedAt: "2025-01-23T10:00:00Z",
         status: "pending",
+        retryCount: 0,
+        deviceId: "test-device",
+        needsSync: true,
       };
-      await testDb.pendingOrders.add(order);
 
-      // Act
-      await service.updatePendingOrderStatus(order.id, "syncing");
+      mockApiGetAll.mockResolvedValue([order]);
 
-      // Assert
-      const updated = await testDb.pendingOrders.get(order.id);
-      expect(updated?.status).toBe("syncing");
-    });
+      await service.updatePendingOrderStatus("order-1", "syncing");
 
-    test("updates order status to error with error message", async () => {
-      // Arrange
-      const order: PendingOrder = {
-        id: crypto.randomUUID(),
-        ...mockPendingOrder,
-        status: "pending",
-      };
-      await testDb.pendingOrders.add(order);
-
-      // Act
-      await service.updatePendingOrderStatus(
-        order.id,
-        "error",
-        "Network timeout",
+      expect(mockApiSave).toHaveBeenCalledWith(
+        expect.objectContaining({
+          id: "order-1",
+          status: "syncing",
+          needsSync: true,
+        }),
       );
-
-      // Assert
-      const updated = await testDb.pendingOrders.get(order.id);
-      expect(updated?.status).toBe("error");
-      expect(updated?.errorMessage).toBe("Network timeout");
-    });
-
-    test("updates order status back to pending", async () => {
-      // Arrange
-      const order: PendingOrder = {
-        id: crypto.randomUUID(),
-        ...mockPendingOrder,
-        status: "error",
-        errorMessage: "Previous error",
-      };
-      await testDb.pendingOrders.add(order);
-
-      // Act
-      await service.updatePendingOrderStatus(order.id, "pending");
-
-      // Assert
-      const updated = await testDb.pendingOrders.get(order.id);
-      expect(updated?.status).toBe("pending");
-      // Note: errorMessage persists unless explicitly cleared
     });
 
     test("does not throw when updating non-existent order", async () => {
-      // Act & Assert: should not throw
+      mockApiGetAll.mockResolvedValue([]);
+
       await expect(
         service.updatePendingOrderStatus("non-existent-uuid", "error"),
       ).resolves.not.toThrow();
+    });
+  });
+
+  describe("deletePendingOrder", () => {
+    test("deletes order via API", async () => {
+      const order: PendingOrder = {
+        id: "order-1",
+        ...mockOrderInput,
+        createdAt: "2025-01-23T10:00:00Z",
+        updatedAt: "2025-01-23T10:00:00Z",
+        status: "pending",
+        retryCount: 0,
+        deviceId: "test-device",
+        needsSync: true,
+      };
+
+      mockApiGetAll.mockResolvedValue([order]);
+
+      await service.deletePendingOrder("order-1");
+
+      expect(mockApiDelete).toHaveBeenCalledWith("order-1");
     });
   });
 });
