@@ -9123,55 +9123,80 @@ export class ArchibaldBot {
   ): Promise<void> {
     if (!this.page) throw new Error("Browser page is null");
 
-    // Step 1: Find the input, scroll into view, focus+click in single evaluate
-    // (fast single round-trip, gives DevExpress less time to redirect focus)
-    const inputId = await this.page.evaluate((regex: string) => {
-      const inputs = Array.from(document.querySelectorAll("input"));
-      const input = inputs.find((i) =>
-        new RegExp(regex).test(i.id),
-      ) as HTMLInputElement | null;
-      if (!input) return null;
-      input.scrollIntoView({ block: "center" });
-      input.focus();
-      input.click();
-      return input.id;
-    }, fieldRegex.source);
+    for (let attempt = 0; attempt < 2; attempt++) {
+      // Step 1: Find the input, scroll into view, focus+click in single evaluate
+      const inputId = await this.page.evaluate((regex: string) => {
+        const inputs = Array.from(document.querySelectorAll("input"));
+        const input = inputs.find((i) =>
+          new RegExp(regex).test(i.id),
+        ) as HTMLInputElement | null;
+        if (!input) return null;
+        input.scrollIntoView({ block: "center" });
+        input.focus();
+        input.click();
+        return input.id;
+      }, fieldRegex.source);
 
-    if (!inputId) {
-      throw new Error(`Input field not found: ${fieldRegex}`);
+      if (!inputId) {
+        throw new Error(`Input field not found: ${fieldRegex}`);
+      }
+
+      // On retry, wait longer for DevExpress to settle after previous Tab
+      if (attempt > 0) {
+        await this.wait(500);
+        await this.page.evaluate((id: string) => {
+          const input = document.getElementById(id) as HTMLInputElement;
+          if (input) {
+            input.scrollIntoView({ block: "center" });
+            input.focus();
+            input.click();
+          }
+        }, inputId);
+      }
+
+      // Step 2: Select all existing text and delete it
+      await this.page.keyboard.down("Control");
+      await this.page.keyboard.press("a");
+      await this.page.keyboard.up("Control");
+      await this.page.keyboard.press("Backspace");
+
+      // Step 3: Type the value using real Puppeteer keyboard events
+      await this.page.keyboard.type(value, { delay: 5 });
+
+      // Step 4: Tab out to commit the value to DevExpress
+      await this.page.keyboard.press("Tab");
+      await this.waitForDevExpressIdle({
+        timeout: 8000,
+        label: `typed-${inputId}`,
+      });
+
+      // Step 5: Verify the value was set correctly
+      const actual = await this.page.evaluate((id: string) => {
+        const input = document.getElementById(id) as HTMLInputElement | null;
+        return input?.value ?? "";
+      }, inputId);
+
+      if (actual === value) {
+        logger.debug("typeDevExpressField done", {
+          id: inputId,
+          value,
+          attempt,
+        });
+        return;
+      }
+
+      logger.warn("typeDevExpressField value mismatch", {
+        id: inputId,
+        expected: value,
+        actual,
+        attempt,
+      });
     }
 
-    // Step 2: Wait for DevExpress async focus handlers to settle
-    await this.wait(250);
-
-    // Step 3: Verify focus is still on our input; retry with page.click if stolen
-    const focusOk = await this.page.evaluate((targetId: string) => {
-      return (document.activeElement as HTMLElement)?.id === targetId;
-    }, inputId);
-
-    if (!focusOk) {
-      const selector = `input[id="${inputId}"]`;
-      await this.page.click(selector);
-      await this.wait(250);
-    }
-
-    // Step 4: Select all existing text and delete it
-    await this.page.keyboard.down("Control");
-    await this.page.keyboard.press("a");
-    await this.page.keyboard.up("Control");
-    await this.page.keyboard.press("Backspace");
-
-    // Step 5: Type the value using real Puppeteer keyboard events
-    await this.page.keyboard.type(value, { delay: 5 });
-
-    // Step 6: Tab out to commit the value to DevExpress
-    await this.page.keyboard.press("Tab");
-    await this.waitForDevExpressIdle({
-      timeout: 8000,
-      label: `typed-${inputId}`,
+    logger.warn("typeDevExpressField: value may not be set correctly after retries", {
+      regex: fieldRegex.source,
+      value,
     });
-
-    logger.debug("typeDevExpressField done", { id: inputId, value });
   }
 
   private async setDevExpressComboBox(
