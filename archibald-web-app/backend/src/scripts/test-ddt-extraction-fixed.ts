@@ -3,7 +3,7 @@
  * Test script: Verify DDT column extraction using FIXED indices
  */
 
-import { ArchibaldBot } from "../archibald-bot";
+import { ArchibaldBot } from "../bot/archibald-bot";
 import { logger } from "../logger";
 import type { Page } from "puppeteer";
 

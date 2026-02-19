@@ -3,7 +3,7 @@
  * Find the common field between Order List and DDT for matching
  */
 
-import { ArchibaldBot } from "../archibald-bot";
+import { ArchibaldBot } from "../bot/archibald-bot";
 
 async function main() {
   console.log("🔍 Finding Common Match Field between Order List and DDT\n");

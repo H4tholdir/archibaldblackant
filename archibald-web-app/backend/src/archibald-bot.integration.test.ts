@@ -1,5 +1,5 @@
 import { describe, test, expect, beforeAll, afterAll } from "vitest";
-import { ArchibaldBot } from "./archibald-bot";
+import { ArchibaldBot } from "./bot/archibald-bot";
 import { ProductDatabase } from "./product-db";
 import * as fixtures from "./test-fixtures/orders";
 

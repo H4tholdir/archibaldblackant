@@ -9,7 +9,7 @@
  * 4. Documents findings in console output
  */
 
-import { ArchibaldBot } from "./archibald-bot";
+import { ArchibaldBot } from "./bot/archibald-bot";
 import { logger } from "./logger";
 import { config } from "./config";
 import * as fs from "fs";

@@ -2,7 +2,7 @@ import { EventEmitter } from "events";
 import type { BrowserContext } from "puppeteer";
 import { ProductDatabase, Product, SyncSession } from "./product-db";
 import { BrowserPool } from "./browser-pool";
-import { ArchibaldBot } from "./archibald-bot";
+import { ArchibaldBot } from "./bot/archibald-bot";
 import {
   PDFParserProductsService,
   ParsedProduct,

@@ -3,7 +3,7 @@
  * Test: Navigate to page 1 and sort by delivery date (newest first)
  */
 
-import { ArchibaldBot } from "../archibald-bot";
+import { ArchibaldBot } from "../bot/archibald-bot";
 
 async function main() {
   console.log("🧪 Test: Page 1 Navigation and Sort by Delivery Date\n");

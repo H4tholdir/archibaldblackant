@@ -1,4 +1,4 @@
-import type { ArchibaldBot } from "./archibald-bot";
+import type { ArchibaldBot } from "./bot/archibald-bot";
 import type { OrderData } from "./types";
 import { logger } from "./logger";
 

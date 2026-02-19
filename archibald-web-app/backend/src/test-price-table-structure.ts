@@ -9,7 +9,7 @@
  * 4. Identify key columns for price data
  */
 
-import { ArchibaldBot } from "./archibald-bot";
+import { ArchibaldBot } from "./bot/archibald-bot";
 import { logger } from "./logger";
 import { config } from "./config";
 

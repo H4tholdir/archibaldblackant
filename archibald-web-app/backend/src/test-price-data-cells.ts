@@ -4,7 +4,7 @@
  * This will show us the real cell indices for extracting price data
  */
 
-import { ArchibaldBot } from "./archibald-bot";
+import { ArchibaldBot } from "./bot/archibald-bot";
 import { logger } from "./logger";
 import { config } from "./config";
 

@@ -3,7 +3,7 @@
  * Final test: Verify matching by orderNumber ↔ orderId with sorted data
  */
 
-import { ArchibaldBot } from "../archibald-bot";
+import { ArchibaldBot } from "../bot/archibald-bot";
 
 async function main() {
   console.log("🧪 Final Test: Match by orderNumber ↔ orderId\n");

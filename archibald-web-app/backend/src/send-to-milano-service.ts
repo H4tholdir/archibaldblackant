@@ -1,6 +1,6 @@
 import { logger } from "./logger";
 import { config } from "./config";
-import { ArchibaldBot } from "./archibald-bot";
+import { ArchibaldBot } from "./bot/archibald-bot";
 
 export interface SendToMilanoResult {
   success: boolean;

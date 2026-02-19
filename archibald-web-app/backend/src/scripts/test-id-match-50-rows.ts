@@ -3,7 +3,7 @@
  * Test: Extract 50 rows from both tables and verify ID matching
  */
 
-import { ArchibaldBot } from "../archibald-bot";
+import { ArchibaldBot } from "../bot/archibald-bot";
 
 async function main() {
   console.log("🧪 Test: ID Matching on 50 Rows from Both Tables\n");

@@ -3,7 +3,7 @@
  * Debug script: Inspect ALL cells in DDT table to find missing columns
  */
 
-import { ArchibaldBot } from "../archibald-bot";
+import { ArchibaldBot } from "../bot/archibald-bot";
 import { logger } from "../logger";
 
 async function main() {

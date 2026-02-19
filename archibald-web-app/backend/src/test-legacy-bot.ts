@@ -3,7 +3,7 @@
  * Test script to verify legacy bot functionality
  * Creates an order using the original single-user ArchibaldBot
  */
-import { ArchibaldBot } from "./archibald-bot";
+import { ArchibaldBot } from "./bot/archibald-bot";
 import { logger } from "./logger";
 
 async function testLegacyBot() {

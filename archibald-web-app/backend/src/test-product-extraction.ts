@@ -11,7 +11,7 @@
  *   npx ts-node src/test-product-extraction.ts
  */
 
-import { ArchibaldBot } from "./archibald-bot";
+import { ArchibaldBot } from "./bot/archibald-bot";
 import { logger } from "./logger";
 import fs from "fs";
 import path from "path";

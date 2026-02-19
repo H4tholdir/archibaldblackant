@@ -6,14 +6,14 @@ import puppeteer, {
   type ElementHandle,
   type Page,
 } from "puppeteer";
-import { config } from "./config";
-import { logger } from "./logger";
-import { ProductDatabase } from "./product-db";
-import { SessionCacheManager } from "./session-cache";
-import { SessionCacheManager as MultiUserSessionCacheManager } from "./session-cache-manager";
-import { BrowserPool } from "./browser-pool";
-import { PasswordCache } from "./password-cache";
-import type { OrderData } from "./types";
+import { config } from "../config";
+import { logger } from "../logger";
+import { ProductDatabase } from "../product-db";
+import { SessionCacheManager } from "../session-cache";
+import { SessionCacheManager as MultiUserSessionCacheManager } from "../session-cache-manager";
+import { BrowserPool } from "../browser-pool";
+import { PasswordCache } from "../password-cache";
+import type { OrderData } from "../types";
 import {
   buildVariantCandidates,
   buildTextMatchCandidates,
@@ -21,7 +21,7 @@ import {
   chooseBestVariantCandidate,
   computeVariantHeaderIndices,
   normalizeLookupText,
-} from "./variant-selection";
+} from "../variant-selection";
 
 /**
  * Configuration for per-step slowdown values (in milliseconds).
@@ -2265,7 +2265,7 @@ export class ArchibaldBot {
         );
       }
       // Get username from UserDatabase
-      const { UserDatabase } = await import("./user-db");
+      const { UserDatabase } = await import("../user-db");
       const user = UserDatabase.getInstance().getUserById(this.userId);
       if (!user) {
         throw new Error(`User ${this.userId} not found in database`);
@@ -9027,7 +9027,7 @@ export class ArchibaldBot {
     csvPath: string;
   }> {
     const { PerformanceDashboardGenerator } =
-      await import("./performance-dashboard-generator");
+      await import("../performance-dashboard-generator");
     const profilingData = this.exportProfilingData();
     const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
     const baseName = `profiling-${timestamp}`;
@@ -10956,7 +10956,7 @@ export class ArchibaldBot {
   // ─── Customer CRUD Operations ───────────────────────────────────────
 
   async createCustomer(
-    customerData: import("./types").CustomerFormData,
+    customerData: import("../types").CustomerFormData,
   ): Promise<string> {
     if (!this.page) throw new Error("Browser page is null");
 
@@ -11267,7 +11267,7 @@ export class ArchibaldBot {
 
   async updateCustomer(
     customerProfile: string,
-    customerData: import("./types").CustomerFormData,
+    customerData: import("../types").CustomerFormData,
     originalName?: string,
   ): Promise<void> {
     if (!this.page) throw new Error("Browser page is null");
@@ -11676,7 +11676,7 @@ export class ArchibaldBot {
 
   async submitVatAndReadAutofill(
     vatNumber: string,
-  ): Promise<import("./types").VatLookupResult> {
+  ): Promise<import("../types").VatLookupResult> {
     if (!this.page) throw new Error("Browser page is null");
 
     logger.info("Interactive: submitting VAT number", { vatNumber });
@@ -11856,7 +11856,7 @@ export class ArchibaldBot {
 
     logger.info("Interactive: raw VAT autofill fields", rawFields);
 
-    const { parseIndirizzoIva } = await import("./parse-indirizzo-iva");
+    const { parseIndirizzoIva } = await import("../parse-indirizzo-iva");
 
     // Extract values: prefer DOM fieldsByLabel, fallback to DevExpress API values
     const findByLabel = (
@@ -11908,7 +11908,7 @@ export class ArchibaldBot {
 
     const parsed = parseIndirizzoIva(vatAddress);
 
-    const result: import("./types").VatLookupResult = {
+    const result: import("../types").VatLookupResult = {
       lastVatCheck,
       vatValidated,
       vatAddress,
@@ -11922,7 +11922,7 @@ export class ArchibaldBot {
   }
 
   async completeCustomerCreation(
-    customerData: import("./types").CustomerFormData,
+    customerData: import("../types").CustomerFormData,
   ): Promise<string> {
     if (!this.page) throw new Error("Browser page is null");
 

@@ -3,7 +3,7 @@
  * Test: Verify match key (ID) and tracking link extraction
  */
 
-import { ArchibaldBot } from "../archibald-bot";
+import { ArchibaldBot } from "../bot/archibald-bot";
 
 async function main() {
   console.log("🧪 Test: Match Key (ID) and Tracking Link Extraction\n");

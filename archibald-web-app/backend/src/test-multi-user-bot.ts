@@ -3,7 +3,7 @@
  * Test script to verify multi-user bot functionality
  * Creates an order using multi-user BrowserContext from BrowserPool
  */
-import { ArchibaldBot } from "./archibald-bot";
+import { ArchibaldBot } from "./bot/archibald-bot";
 import { logger } from "./logger";
 import { PasswordCache } from "./password-cache";
 import { UserDatabase } from "./user-db";

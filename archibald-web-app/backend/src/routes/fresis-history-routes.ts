@@ -310,7 +310,7 @@ router.post(
       }
 
       // Import bot dynamically to avoid circular deps
-      const { ArchibaldBot } = await import("../archibald-bot");
+      const { ArchibaldBot } = await import("../bot/archibald-bot");
       const { getDeleteProgressMilestone } = await import(
         "../job-progress-mapper"
       );
@@ -922,7 +922,7 @@ router.post(
         });
       }
 
-      const { ArchibaldBot } = await import("../archibald-bot");
+      const { ArchibaldBot } = await import("../bot/archibald-bot");
       const { getEditProgressMilestone } = await import(
         "../job-progress-mapper"
       );

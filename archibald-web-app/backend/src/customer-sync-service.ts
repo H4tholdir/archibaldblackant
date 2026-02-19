@@ -1,6 +1,6 @@
 import { EventEmitter } from "events";
 import type { BrowserContext } from "puppeteer";
-import { ArchibaldBot } from "./archibald-bot";
+import { ArchibaldBot } from "./bot/archibald-bot";
 import { CustomerDatabase, Customer } from "./customer-db";
 import { pdfParserService, ParsedCustomer } from "./pdf-parser-service";
 import { BrowserPool } from "./browser-pool";

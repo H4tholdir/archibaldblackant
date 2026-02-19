@@ -1,7 +1,7 @@
 #!/usr/bin/env tsx
 
 import { BrowserPool } from "../browser-pool";
-import { ArchibaldBot } from "../archibald-bot";
+import { ArchibaldBot } from "../bot/archibald-bot";
 import { PasswordCache } from "../password-cache";
 import { UserDatabase } from "../user-db";
 import { logger } from "../logger";

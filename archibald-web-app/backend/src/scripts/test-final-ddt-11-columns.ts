@@ -3,7 +3,7 @@
  * Final test: Extract all 11 DDT columns using updated mapping
  */
 
-import { ArchibaldBot } from "../archibald-bot";
+import { ArchibaldBot } from "../bot/archibald-bot";
 
 async function main() {
   console.log("🚀 Final Test: ALL 11 DDT Columns Extraction\n");

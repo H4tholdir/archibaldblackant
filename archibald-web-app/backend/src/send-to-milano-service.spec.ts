@@ -1,9 +1,9 @@
 import { describe, expect, test, beforeEach, vi } from "vitest";
 import { SendToMilanoService } from "./send-to-milano-service";
 import { config } from "./config";
-import { ArchibaldBot } from "./archibald-bot";
+import { ArchibaldBot } from "./bot/archibald-bot";
 
-vi.mock("./archibald-bot", () => {
+vi.mock("./bot/archibald-bot", () => {
   return {
     ArchibaldBot: vi.fn(),
   };

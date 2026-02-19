@@ -1,4 +1,4 @@
-import { ArchibaldBot } from "../archibald-bot";
+import { ArchibaldBot } from "../bot/archibald-bot";
 import { SlowdownOptimizer } from "../slowdown-optimizer";
 import { BrowserPool } from "../browser-pool";
 import { logger } from "../logger";

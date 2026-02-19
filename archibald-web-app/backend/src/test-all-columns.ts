@@ -7,7 +7,7 @@
  * 3. Extract column headers to understand mapping
  */
 
-import { ArchibaldBot } from "./archibald-bot";
+import { ArchibaldBot } from "./bot/archibald-bot";
 import { logger } from "./logger";
 
 async function testAllColumns() {

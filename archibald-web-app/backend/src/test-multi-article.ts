@@ -8,7 +8,7 @@
  * Usage: DEBUG_SCREENSHOTS=true npx tsx src/test-multi-article.ts
  */
 
-import { ArchibaldBot } from "./archibald-bot";
+import { ArchibaldBot } from "./bot/archibald-bot";
 import { ProductDatabase } from "./product-db";
 import { logger } from "./logger";
 import type { OrderData } from "./types";

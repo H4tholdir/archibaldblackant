@@ -3,7 +3,7 @@
  * Final DDT mapping: match 54-cell header row to 22-cell data rows
  */
 
-import { ArchibaldBot } from "../archibald-bot";
+import { ArchibaldBot } from "../bot/archibald-bot";
 
 async function main() {
   console.log("🔍 Final DDT Column Mapping\n");

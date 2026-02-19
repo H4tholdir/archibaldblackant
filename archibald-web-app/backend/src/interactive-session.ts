@@ -1,5 +1,5 @@
 import type { InteractiveSessionState, VatLookupResult } from "./types";
-import type { ArchibaldBot } from "./archibald-bot";
+import type { ArchibaldBot } from "./bot/archibald-bot";
 import { logger } from "./logger";
 
 type InteractiveSession = {

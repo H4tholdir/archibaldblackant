@@ -1,6 +1,6 @@
 import { describe, expect, test, beforeEach, vi } from "vitest";
 import { SlowdownOptimizer } from "./slowdown-optimizer";
-import type { ArchibaldBot } from "./archibald-bot";
+import type { ArchibaldBot } from "./bot/archibald-bot";
 
 describe("SlowdownOptimizer", () => {
   let optimizer: SlowdownOptimizer;

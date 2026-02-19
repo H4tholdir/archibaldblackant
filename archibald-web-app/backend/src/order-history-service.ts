@@ -427,7 +427,7 @@ export class OrderHistoryService {
       });
 
       // Use legacy ArchibaldBot for system sync operations (like customer-sync)
-      const { ArchibaldBot } = await import("./archibald-bot");
+      const { ArchibaldBot } = await import("./bot/archibald-bot");
       bot = new ArchibaldBot(); // No userId = legacy mode
       await bot.initialize();
       await bot.login(); // Uses config credentials

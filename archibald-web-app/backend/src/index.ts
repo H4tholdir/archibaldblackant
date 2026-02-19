@@ -8,7 +8,7 @@ import fs from "fs";
 import path from "path";
 import { config } from "./config";
 import { logger } from "./logger";
-import { ArchibaldBot } from "./archibald-bot";
+import { ArchibaldBot } from "./bot/archibald-bot";
 import { PasswordCache } from "./password-cache";
 import { passwordEncryption } from "./services/password-encryption-service";
 import {
@@ -6429,7 +6429,7 @@ app.post(
       }
 
       return await withUserActionLock("send-to-milano", async () => {
-        const { ArchibaldBot } = await import("./archibald-bot");
+        const { ArchibaldBot } = await import("./bot/archibald-bot");
         const { getSendToVeronaProgressMilestone } =
           await import("./job-progress-mapper");
 

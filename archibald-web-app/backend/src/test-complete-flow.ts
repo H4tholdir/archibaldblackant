@@ -6,7 +6,7 @@
  * Usage: DEBUG_SCREENSHOTS=true TEST_CREATE_ORDER=true npx tsx src/test-complete-flow.ts
  */
 
-import { ArchibaldBot } from "./archibald-bot";
+import { ArchibaldBot } from "./bot/archibald-bot";
 import { ProductDatabase } from "./product-db";
 import { logger } from "./logger";
 import type { OrderData } from "./types";
