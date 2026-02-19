@@ -9123,7 +9123,7 @@ export class ArchibaldBot {
   ): Promise<void> {
     if (!this.page) throw new Error("Browser page is null");
 
-    // Step 1: Find the input, scroll into view, click to focus
+    // Step 1: Find the input and return its ID (no focus yet)
     const inputId = await this.page.evaluate((regex: string) => {
       const inputs = Array.from(document.querySelectorAll("input"));
       const input = inputs.find((i) =>
@@ -9131,8 +9131,6 @@ export class ArchibaldBot {
       ) as HTMLInputElement | null;
       if (!input) return null;
       input.scrollIntoView({ block: "center" });
-      input.focus();
-      input.click();
       return input.id;
     }, fieldRegex.source);
 
@@ -9140,17 +9138,23 @@ export class ArchibaldBot {
       throw new Error(`Input field not found: ${fieldRegex}`);
     }
 
-    // Step 2: Select all existing text and delete it
-    await this.page.keyboard.down("Control");
-    await this.page.keyboard.press("a");
-    await this.page.keyboard.up("Control");
+    // Step 2: Use Puppeteer's click to establish focus via real mouse events.
+    // page.evaluate focus()/click() causes DevExpress to jump focus elsewhere
+    // before keyboard events arrive. Puppeteer's click is synchronous with
+    // the browser event loop and properly waits for the click to complete.
+    const selector = `input[id="${inputId}"]`;
+    await this.page.click(selector);
+    await this.wait(150);
+
+    // Step 3: Triple-click to select all text in the field
+    await this.page.click(selector, { clickCount: 3 });
+    await this.wait(50);
     await this.page.keyboard.press("Backspace");
 
-    // Step 3: Type the value using real Puppeteer keyboard events
-    // DevExpress captures these as genuine user input
+    // Step 4: Type the value using real Puppeteer keyboard events
     await this.page.keyboard.type(value, { delay: 5 });
 
-    // Step 4: Tab out to commit the value to DevExpress
+    // Step 5: Tab out to commit the value to DevExpress
     await this.page.keyboard.press("Tab");
     await this.waitForDevExpressIdle({
       timeout: 8000,
