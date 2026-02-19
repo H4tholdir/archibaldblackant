@@ -9123,37 +9123,88 @@ export class ArchibaldBot {
   ): Promise<void> {
     if (!this.page) throw new Error("Browser page is null");
 
-    const inputId = await this.page.evaluate((regex: string) => {
-      const inputs = Array.from(document.querySelectorAll("input"));
-      const input = inputs.find((i) =>
-        new RegExp(regex).test(i.id),
-      ) as HTMLInputElement | null;
-      if (!input) return null;
-      input.scrollIntoView({ block: "center" });
-      input.focus();
-      input.click();
-      input.value = "";
-      return input.id;
-    }, fieldRegex.source);
+    const result = await this.page.evaluate(
+      (regex: string, val: string) => {
+        const w = window as any;
+        const inputs = Array.from(document.querySelectorAll("input"));
+        const input = inputs.find((i) =>
+          new RegExp(regex).test(i.id),
+        ) as HTMLInputElement | null;
+        if (!input) return { found: false, inputId: "", method: "" };
 
-    if (!inputId) {
+        input.scrollIntoView({ block: "center" });
+
+        // Try DevExpress client API first — find control that owns this input
+        const collection = w.ASPxClientControl?.GetControlCollection?.();
+        if (collection) {
+          let dxControl: any = null;
+          collection.ForEachControl((c: any) => {
+            if (dxControl) return;
+            try {
+              const el =
+                c.GetInputElement?.() || c.GetMainElement?.();
+              if (
+                el === input ||
+                (el && el.id === input.id)
+              ) {
+                dxControl = c;
+              }
+            } catch {}
+          });
+
+          if (dxControl) {
+            if (typeof dxControl.SetText === "function") {
+              dxControl.SetText(val);
+              return {
+                found: true,
+                inputId: input.id,
+                method: "api-SetText",
+                actual: input.value,
+              };
+            }
+            if (typeof dxControl.SetValue === "function") {
+              dxControl.SetValue(val);
+              return {
+                found: true,
+                inputId: input.id,
+                method: "api-SetValue",
+                actual: input.value,
+              };
+            }
+          }
+        }
+
+        // Fallback: type via DOM (may not survive callbacks)
+        input.focus();
+        input.click();
+        input.select();
+        document.execCommand("insertText", false, val);
+        return {
+          found: true,
+          inputId: input.id,
+          method: "dom-insertText",
+          actual: input.value,
+        };
+      },
+      fieldRegex.source,
+      value,
+    );
+
+    if (!result.found) {
       throw new Error(`Input field not found: ${fieldRegex}`);
     }
 
-    await this.page.evaluate((id: string, text: string) => {
-      const input = document.getElementById(id) as HTMLInputElement;
-      if (!input) return;
-      input.focus();
-      input.select();
-      document.execCommand("insertText", false, text);
-    }, inputId, value);
     await this.page.keyboard.press("Tab");
     await this.waitForDevExpressIdle({
       timeout: 5000,
-      label: `typed-${inputId}`,
+      label: `typed-${result.inputId}`,
     });
 
-    logger.debug("typeDevExpressField done", { id: inputId, value });
+    logger.debug("typeDevExpressField done", {
+      id: result.inputId,
+      value,
+      method: result.method,
+    });
   }
 
   private async setDevExpressComboBox(
@@ -9173,29 +9224,37 @@ export class ArchibaldBot {
 
         input.scrollIntoView({ block: "center" });
 
-        // Try DevExpress client API first
+        // Find DevExpress control that owns this input or a parent element
         const collection = w.ASPxClientControl?.GetControlCollection?.();
         if (collection) {
-          // The combo box control name is usually the input ID minus the trailing "_I"
-          const controlPrefix = input.id.replace(/_I$/, "").replace(/_DD_I$/, "");
-
           let comboControl: any = null;
+
+          // Strategy 1: match via GetInputElement()
           collection.ForEachControl((c: any) => {
             if (comboControl) return;
-            const name = c?.name || c?.GetName?.() || "";
-            if (
-              name === controlPrefix ||
-              name === controlPrefix.replace(/_dropdown$/, "") ||
-              input.id.startsWith(name)
-            ) {
-              if (typeof c.SetText === "function" || typeof c.SetValue === "function") {
+            try {
+              const el = c.GetInputElement?.();
+              if (el === input || (el && el.id === input.id)) {
                 comboControl = c;
+                return;
               }
-            }
+            } catch {}
+            // Strategy 2: the combo's main element contains our input
+            try {
+              const mainEl = c.GetMainElement?.();
+              if (mainEl && mainEl.contains(input)) {
+                if (
+                  typeof c.GetItemCount === "function" ||
+                  typeof c.SetSelectedIndex === "function"
+                ) {
+                  comboControl = c;
+                }
+              }
+            } catch {}
           });
 
           if (comboControl) {
-            // Try to find the item and select it properly
+            // Try to find the item and select by index (most reliable)
             if (typeof comboControl.GetItemCount === "function") {
               const count = comboControl.GetItemCount();
               for (let i = 0; i < count; i++) {
@@ -9217,7 +9276,6 @@ export class ArchibaldBot {
               }
             }
 
-            // Fallback: SetText
             if (typeof comboControl.SetText === "function") {
               comboControl.SetText(val);
               return {
@@ -9228,7 +9286,6 @@ export class ArchibaldBot {
               };
             }
 
-            // Fallback: SetValue
             if (typeof comboControl.SetValue === "function") {
               comboControl.SetValue(val);
               return {
