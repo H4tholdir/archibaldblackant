@@ -285,7 +285,7 @@ describe("PendingOrdersPage", () => {
 
     await waitFor(() => {
       expect(mockFetch).toHaveBeenCalledWith(
-        "/api/bot/submit-orders",
+        "/api/operations/enqueue",
         expect.objectContaining({
           method: "POST",
         }),
