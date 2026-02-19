@@ -85,4 +85,35 @@ describe('createSyncScheduler', () => {
     scheduler.stop();
     scheduler.stop();
   });
+
+  test('isRunning() returns false before start', () => {
+    const scheduler = createSyncScheduler(createMockEnqueue(), () => []);
+    expect(scheduler.isRunning()).toBe(false);
+  });
+
+  test('isRunning() returns true after start', () => {
+    const scheduler = createSyncScheduler(createMockEnqueue(), () => []);
+    scheduler.start(intervals);
+    expect(scheduler.isRunning()).toBe(true);
+    scheduler.stop();
+  });
+
+  test('isRunning() returns false after stop', () => {
+    const scheduler = createSyncScheduler(createMockEnqueue(), () => []);
+    scheduler.start(intervals);
+    scheduler.stop();
+    expect(scheduler.isRunning()).toBe(false);
+  });
+
+  test('getIntervals() returns default values before start', () => {
+    const scheduler = createSyncScheduler(createMockEnqueue(), () => []);
+    expect(scheduler.getIntervals()).toEqual({ agentSyncMs: 0, sharedSyncMs: 0 });
+  });
+
+  test('getIntervals() returns configured values after start', () => {
+    const scheduler = createSyncScheduler(createMockEnqueue(), () => []);
+    scheduler.start(intervals);
+    expect(scheduler.getIntervals()).toEqual({ agentSyncMs: 100, sharedSyncMs: 200 });
+    scheduler.stop();
+  });
 });

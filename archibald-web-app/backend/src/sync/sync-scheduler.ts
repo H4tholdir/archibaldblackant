@@ -16,8 +16,13 @@ function createSyncScheduler(
   getActiveAgentIds: () => string[],
 ) {
   const timers: NodeJS.Timeout[] = [];
+  let running = false;
+  let currentIntervals: SyncIntervals = { agentSyncMs: 0, sharedSyncMs: 0 };
 
   function start(intervals: SyncIntervals): void {
+    currentIntervals = intervals;
+    running = true;
+
     timers.push(
       setInterval(() => {
         const agentIds = getActiveAgentIds();
@@ -43,9 +48,18 @@ function createSyncScheduler(
       clearInterval(timer);
     }
     timers.length = 0;
+    running = false;
   }
 
-  return { start, stop };
+  function isRunning(): boolean {
+    return running;
+  }
+
+  function getIntervals(): SyncIntervals {
+    return { ...currentIntervals };
+  }
+
+  return { start, stop, isRunning, getIntervals };
 }
 
 type SyncScheduler = ReturnType<typeof createSyncScheduler>;
