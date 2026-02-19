@@ -47,4 +47,12 @@ export const config = {
     appSecret: process.env.DROPBOX_APP_SECRET || "",
     basePath: process.env.DROPBOX_BASE_PATH || "/Archibald/Preventivi",
   },
+  database: {
+    host: process.env.PG_HOST || "localhost",
+    port: parseInt(process.env.PG_PORT || "5432", 10),
+    database: process.env.PG_DATABASE || "archibald",
+    user: process.env.PG_USER || "archibald",
+    password: process.env.PG_PASSWORD || "",
+    maxConnections: parseInt(process.env.PG_MAX_CONNECTIONS || "20", 10),
+  },
 } as const;
