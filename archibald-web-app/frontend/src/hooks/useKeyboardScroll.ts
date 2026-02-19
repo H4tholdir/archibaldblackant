@@ -31,8 +31,6 @@ function scrollElementIntoVisible(
 
   if (scrollParent) {
     scrollParent.scrollBy({ top: delta, behavior });
-  } else {
-    window.scrollBy({ top: delta, behavior });
   }
 }
 

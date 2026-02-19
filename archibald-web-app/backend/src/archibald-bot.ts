@@ -9162,41 +9162,47 @@ export class ArchibaldBot {
   ): Promise<void> {
     if (!this.page) throw new Error("Browser page is null");
 
-    const inputId = await this.page.evaluate(
-      (regex: string, val: string) => {
-        const inputs = Array.from(document.querySelectorAll("input"));
-        const input = inputs.find((i) =>
-          new RegExp(regex).test(i.id),
-        ) as HTMLInputElement | null;
-        if (!input) return null;
+    const inputId = await this.page.evaluate((regex: string) => {
+      const inputs = Array.from(document.querySelectorAll("input"));
+      const input = inputs.find((i) =>
+        new RegExp(regex).test(i.id),
+      ) as HTMLInputElement | null;
+      if (!input) return null;
 
-        input.scrollIntoView({ block: "center" });
-        input.focus();
-        input.click();
+      input.scrollIntoView({ block: "center" });
+      input.focus();
+      input.click();
 
-        const setter = Object.getOwnPropertyDescriptor(
-          HTMLInputElement.prototype,
-          "value",
-        )?.set;
-        if (setter) {
-          setter.call(input, val);
-        } else {
-          input.value = val;
-        }
-        input.dispatchEvent(new Event("input", { bubbles: true }));
-        input.dispatchEvent(new Event("change", { bubbles: true }));
-
-        return input.id;
-      },
-      fieldRegex.source,
-      value,
-    );
+      return input.id;
+    }, fieldRegex.source);
 
     if (!inputId) {
       throw new Error(`ComboBox input not found: ${fieldRegex}`);
     }
 
+    await this.page.evaluate((id: string) => {
+      const input = document.getElementById(id) as HTMLInputElement;
+      if (!input) return;
+      input.focus();
+      input.select();
+      document.execCommand("insertText", false, "");
+    }, inputId);
+
+    await this.page.evaluate((id: string, text: string) => {
+      const input = document.getElementById(id) as HTMLInputElement;
+      if (!input) return;
+      input.focus();
+      document.execCommand("insertText", false, text);
+    }, inputId, value);
+
+    await this.wait(500);
+
+    await this.page.keyboard.press("ArrowDown");
+    await this.wait(200);
+    await this.page.keyboard.press("Enter");
+    await this.wait(200);
     await this.page.keyboard.press("Tab");
+
     await this.waitForDevExpressIdle({
       timeout: 5000,
       label: `combo-${inputId}`,
@@ -10319,6 +10325,72 @@ export class ArchibaldBot {
     }
 
     if (!formClosed) {
+      // Try to handle DevExpress popup (e.g. UPPopupWindowControl) with validation errors
+      const popupHandled = await this.page.evaluate(() => {
+        const popupEl = document.querySelector(
+          'div[id*="UPPopupWindowControl"], div[id*="PopupWindow"], div[id*="popupWindow"]',
+        ) as HTMLElement | null;
+        if (!popupEl || popupEl.offsetParent === null) return false;
+
+        // Try to find and click a checkbox inside the popup
+        const checkboxSpan = popupEl.querySelector(
+          'span[class*="CheckBox"], span[class*="dxeCheck"]',
+        ) as HTMLElement | null;
+        if (checkboxSpan) {
+          checkboxSpan.click();
+          return true;
+        }
+
+        const checkboxInput = popupEl.querySelector(
+          'input[type="checkbox"]',
+        ) as HTMLInputElement | null;
+        if (checkboxInput && !checkboxInput.checked) {
+          const wrapper = checkboxInput.closest("span") || checkboxInput.parentElement;
+          if (wrapper) (wrapper as HTMLElement).click();
+          else checkboxInput.click();
+          return true;
+        }
+
+        // Try clicking OK/Close button inside popup
+        const buttons = Array.from(popupEl.querySelectorAll("a, span, button"));
+        for (const btn of buttons) {
+          const text = (btn as HTMLElement).textContent?.trim().toLowerCase() || "";
+          if (text === "ok" || text === "close" || text === "chiudi") {
+            (btn as HTMLElement).click();
+            return true;
+          }
+        }
+
+        return false;
+      });
+
+      if (popupHandled) {
+        logger.info("DevExpress validation popup handled, retrying save");
+        await this.waitForDevExpressIdle({
+          timeout: 3000,
+          label: "popup-validation-ack",
+        });
+
+        const savedAfterPopup = await saveAttempt();
+        if (!savedAfterPopup) {
+          await this.clickElementByText("Salva e chiudi", {
+            selectors: ["a", "span", "button", "li"],
+          });
+        }
+
+        try {
+          await this.page.waitForFunction(
+            () => !window.location.href.includes("DetailView"),
+            { timeout: 10000, polling: 500 },
+          );
+          formClosed = true;
+        } catch {
+          formClosed = false;
+        }
+      }
+    }
+
+    if (!formClosed) {
       const screenshotPath = `logs/customer-save-failed-${Date.now()}.png`;
       try {
         await this.page.screenshot({ path: screenshotPath, fullPage: true });
@@ -10745,6 +10817,46 @@ export class ArchibaldBot {
 
     logger.info("Customer form loaded, filling fields");
 
+    // Step 1: "Prezzi e sconti" tab — set SCONTO LINEA first (before filling Principale)
+    await this.openCustomerTab("Prezzi e sconti");
+
+    try {
+      await this.page.waitForFunction(
+        () => {
+          const input = document.querySelector(
+            'input[id*="LINEDISC"][id$="_I"]',
+          ) as HTMLInputElement | null;
+          return input && input.offsetParent !== null;
+        },
+        { timeout: 10000, polling: 200 },
+      );
+    } catch {
+      logger.warn("LINEDISC not found after tab switch, retrying...");
+      await this.openCustomerTab("Prezzi e sconti");
+      await this.wait(1000);
+    }
+
+    await this.setDevExpressComboBox(
+      /xaf_dviLINEDISC_Edit_dropdown_DD_I$/,
+      customerData.lineDiscount || "N/A",
+    );
+
+    // Step 2: "Indirizzo alt." tab — fill delivery address (if present)
+    if (customerData.deliveryStreet && customerData.deliveryPostalCode) {
+      await this.fillDeliveryAddress(
+        customerData.deliveryStreet,
+        customerData.deliveryPostalCode,
+        customerData.deliveryPostalCodeCity,
+      );
+    }
+
+    // Step 3: Back to "Principale" tab — fill ALL fields last so they persist at save time
+    await this.openCustomerTab("Principale");
+    await this.waitForDevExpressIdle({
+      timeout: 5000,
+      label: "tab-principale",
+    });
+
     await this.typeDevExpressField(/xaf_dviNAME_Edit_I$/, customerData.name);
 
     if (customerData.deliveryMode) {
@@ -10840,37 +10952,6 @@ export class ArchibaldBot {
         "URL field not found, dumping visible input IDs for diagnostics",
       );
       await this.dumpVisibleInputIds();
-    }
-
-    await this.openCustomerTab("Prezzi e sconti");
-
-    try {
-      await this.page.waitForFunction(
-        () => {
-          const input = document.querySelector(
-            'input[id*="LINEDISC"][id$="_I"]',
-          ) as HTMLInputElement | null;
-          return input && input.offsetParent !== null;
-        },
-        { timeout: 10000, polling: 200 },
-      );
-    } catch {
-      logger.warn("LINEDISC not found after tab switch, retrying...");
-      await this.openCustomerTab("Prezzi e sconti");
-      await this.wait(1000);
-    }
-
-    await this.setDevExpressComboBox(
-      /xaf_dviLINEDISC_Edit_dropdown_DD_I$/,
-      customerData.lineDiscount || "N/A",
-    );
-
-    if (customerData.deliveryStreet && customerData.deliveryPostalCode) {
-      await this.fillDeliveryAddress(
-        customerData.deliveryStreet,
-        customerData.deliveryPostalCode,
-        customerData.deliveryPostalCodeCity,
-      );
     }
 
     await this.emitProgress("customer.save");
@@ -11665,6 +11746,46 @@ export class ArchibaldBot {
       name: customerData.name,
     });
 
+    // Step 1: "Prezzi e sconti" tab — set SCONTO LINEA first (before filling Principale)
+    await this.openCustomerTab("Prezzi e sconti");
+
+    try {
+      await this.page.waitForFunction(
+        () => {
+          const input = document.querySelector(
+            'input[id*="LINEDISC"][id$="_I"]',
+          ) as HTMLInputElement | null;
+          return input && input.offsetParent !== null;
+        },
+        { timeout: 10000, polling: 200 },
+      );
+    } catch {
+      logger.warn("LINEDISC not found after tab switch, retrying...");
+      await this.openCustomerTab("Prezzi e sconti");
+      await this.wait(1000);
+    }
+
+    await this.setDevExpressComboBox(
+      /xaf_dviLINEDISC_Edit_dropdown_DD_I$/,
+      customerData.lineDiscount || "N/A",
+    );
+
+    // Step 2: "Indirizzo alt." tab — fill delivery address (if present)
+    if (customerData.deliveryStreet && customerData.deliveryPostalCode) {
+      await this.fillDeliveryAddress(
+        customerData.deliveryStreet,
+        customerData.deliveryPostalCode,
+        customerData.deliveryPostalCodeCity,
+      );
+    }
+
+    // Step 3: Back to "Principale" tab — fill ALL fields last so they persist at save time
+    await this.openCustomerTab("Principale");
+    await this.waitForDevExpressIdle({
+      timeout: 5000,
+      label: "tab-principale-interactive",
+    });
+
     await this.typeDevExpressField(/xaf_dviNAME_Edit_I$/, customerData.name);
 
     if (customerData.deliveryMode) {
@@ -11753,37 +11874,6 @@ export class ArchibaldBot {
         "URL field not found (interactive), dumping visible input IDs",
       );
       await this.dumpVisibleInputIds();
-    }
-
-    await this.openCustomerTab("Prezzi e sconti");
-
-    try {
-      await this.page.waitForFunction(
-        () => {
-          const input = document.querySelector(
-            'input[id*="LINEDISC"][id$="_I"]',
-          ) as HTMLInputElement | null;
-          return input && input.offsetParent !== null;
-        },
-        { timeout: 10000, polling: 200 },
-      );
-    } catch {
-      logger.warn("LINEDISC not found after tab switch, retrying...");
-      await this.openCustomerTab("Prezzi e sconti");
-      await this.wait(1000);
-    }
-
-    await this.setDevExpressComboBox(
-      /xaf_dviLINEDISC_Edit_dropdown_DD_I$/,
-      customerData.lineDiscount || "N/A",
-    );
-
-    if (customerData.deliveryStreet && customerData.deliveryPostalCode) {
-      await this.fillDeliveryAddress(
-        customerData.deliveryStreet,
-        customerData.deliveryPostalCode,
-        customerData.deliveryPostalCodeCity,
-      );
     }
 
     await this.emitProgress("customer.save");
