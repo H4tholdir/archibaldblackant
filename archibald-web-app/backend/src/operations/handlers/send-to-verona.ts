@@ -41,12 +41,6 @@ async function handleSendToVerona(
     ['inviato_milano', sentToMilanoAt, Math.floor(Date.now() / 1000), data.orderId, userId],
   );
 
-  await pool.query(
-    `INSERT INTO agents.audit_log (user_id, action, entity_id, details, created_at)
-     VALUES ($1, $2, $3, $4, $5)`,
-    [userId, 'send_to_milano', data.orderId, JSON.stringify({ sentToMilanoAt, message: result.message }), sentToMilanoAt],
-  );
-
   onProgress(100, 'Invio completato');
 
   return { success: true, message: result.message, sentToMilanoAt };

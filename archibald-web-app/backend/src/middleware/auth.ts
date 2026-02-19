@@ -1,4 +1,4 @@
-import { Request, Response, NextFunction } from "express";
+import type { Request, Response, NextFunction } from "express";
 import { verifyJWT } from "../auth-utils";
 import { logger } from "../logger";
 import type { UserRole } from "../db/repositories/users";

@@ -32,18 +32,20 @@ async function handleDeleteOrder(
 
   onProgress(70, 'Rimozione ordine dal database');
 
-  await pool.query(
-    'DELETE FROM agents.order_state_history WHERE order_id = $1 AND user_id = $2',
-    [data.orderId, userId],
-  );
-  await pool.query(
-    'DELETE FROM agents.order_articles WHERE order_id = $1 AND user_id = $2',
-    [data.orderId, userId],
-  );
-  await pool.query(
-    'DELETE FROM agents.order_records WHERE id = $1 AND user_id = $2',
-    [data.orderId, userId],
-  );
+  await pool.withTransaction(async (tx) => {
+    await tx.query(
+      'DELETE FROM agents.order_state_history WHERE order_id = $1 AND user_id = $2',
+      [data.orderId, userId],
+    );
+    await tx.query(
+      'DELETE FROM agents.order_articles WHERE order_id = $1 AND user_id = $2',
+      [data.orderId, userId],
+    );
+    await tx.query(
+      'DELETE FROM agents.order_records WHERE id = $1 AND user_id = $2',
+      [data.orderId, userId],
+    );
+  });
 
   onProgress(100, 'Cancellazione completata');
 

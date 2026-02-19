@@ -49,6 +49,7 @@ const defaultConfig: BrowserPoolConfig = {
   maxContextsPerBrowser: 3,
   contextExpiryMs: 60 * 60 * 1000,
   launchOptions: {},
+  sessionValidationUrl: 'https://archibald.example.com/Archibald',
 };
 
 describe('createBrowserPool', () => {

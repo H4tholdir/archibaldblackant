@@ -4,7 +4,7 @@ import { fetchWithRetry } from "../utils/fetch-with-retry";
 const API_BASE = "";
 
 export async function getPendingOrders(): Promise<PendingOrder[]> {
-  const response = await fetchWithRetry(`${API_BASE}/api/sync/pending-orders`);
+  const response = await fetchWithRetry(`${API_BASE}/api/pending-orders`);
 
   if (!response.ok) {
     throw new Error(`HTTP ${response.status}: ${response.statusText}`);
@@ -17,7 +17,7 @@ export async function getPendingOrders(): Promise<PendingOrder[]> {
 export async function savePendingOrder(
   order: PendingOrder,
 ): Promise<{ id: string; action: string; serverUpdatedAt: number }> {
-  const response = await fetchWithRetry(`${API_BASE}/api/sync/pending-orders`, {
+  const response = await fetchWithRetry(`${API_BASE}/api/pending-orders`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
@@ -43,7 +43,7 @@ export async function deletePendingOrder(orderId: string): Promise<void> {
   const idempotencyKey = `delete-${orderId}-${Date.now()}`;
 
   const response = await fetchWithRetry(
-    `${API_BASE}/api/sync/pending-orders/${encodeURIComponent(orderId)}?deviceId=${encodeURIComponent(deviceId)}&idempotencyKey=${encodeURIComponent(idempotencyKey)}`,
+    `${API_BASE}/api/pending-orders/${encodeURIComponent(orderId)}?deviceId=${encodeURIComponent(deviceId)}&idempotencyKey=${encodeURIComponent(idempotencyKey)}`,
     { method: "DELETE" },
   );
 

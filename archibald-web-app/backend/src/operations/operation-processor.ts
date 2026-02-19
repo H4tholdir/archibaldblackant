@@ -60,6 +60,7 @@ function createOperationProcessor(deps: ProcessorDeps) {
       throw new Error(`No handler registered for operation type: ${type}`);
     }
 
+    let lockAcquired = false;
     let acquireResult = agentLock.acquire(userId, job.id, type);
 
     if (!acquireResult.acquired) {
@@ -77,6 +78,8 @@ function createOperationProcessor(deps: ProcessorDeps) {
         return { success: false, requeued: true, duration: Date.now() - startTime };
       }
     }
+
+    lockAcquired = true;
 
     let context: BrowserContext | null = null;
     try {
@@ -113,7 +116,9 @@ function createOperationProcessor(deps: ProcessorDeps) {
 
       throw error;
     } finally {
-      agentLock.release(userId);
+      if (lockAcquired) {
+        agentLock.release(userId);
+      }
     }
   }
 

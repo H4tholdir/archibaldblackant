@@ -64,19 +64,20 @@ async function handleCreateCustomer(
   });
 
   onProgress(10, 'Creazione cliente su Archibald');
-  const customerProfile = await bot.createCustomer(data);
+  const realProfile = await bot.createCustomer(data);
 
-  onProgress(80, 'Aggiornamento stato');
+  onProgress(80, 'Aggiornamento profilo cliente');
 
   await pool.query(
-    `UPDATE agents.customers SET bot_status = $1, updated_at = NOW()
-     WHERE customer_profile = $2 AND user_id = $3`,
-    ['placed', tempProfile, userId],
+    `UPDATE agents.customers
+     SET customer_profile = $1, bot_status = $2, updated_at = NOW()
+     WHERE customer_profile = $3 AND user_id = $4`,
+    [realProfile, 'placed', tempProfile, userId],
   );
 
   onProgress(100, 'Cliente creato');
 
-  return { customerProfile: tempProfile };
+  return { customerProfile: realProfile };
 }
 
 function createCreateCustomerHandler(pool: DbPool, createBot: (userId: string) => CreateCustomerBot): OperationHandler {

@@ -52,8 +52,8 @@ describe('createWarehouseRouter', () => {
 
       expect(res.status).toBe(200);
       expect(res.body.success).toBe(true);
-      expect(res.body.data).toHaveLength(1);
-      expect(res.body.data[0].name).toBe('Box A');
+      expect(res.body.boxes).toHaveLength(1);
+      expect(res.body.boxes[0].name).toBe('Box A');
     });
   });
 
@@ -80,9 +80,10 @@ describe('createWarehouseRouter', () => {
     test('renames a box', async () => {
       const res = await request(app)
         .put('/api/warehouse/boxes/Box%20A')
-        .send({ name: 'Box C' });
+        .send({ newName: 'Box C' });
 
       expect(res.status).toBe(200);
+      expect(res.body).toEqual({ success: true, updatedItems: 0, updatedOrders: 0 });
       expect(deps.renameBox).toHaveBeenCalledWith('user-1', 'Box A', 'Box C');
     });
   });
@@ -164,7 +165,7 @@ describe('createWarehouseRouter', () => {
       const res = await request(app).delete('/api/warehouse/clear-all');
 
       expect(res.status).toBe(200);
-      expect(res.body.deleted).toBe(10);
+      expect(res.body).toEqual({ success: true, itemsDeleted: 10, boxesDeleted: 0 });
     });
   });
 });

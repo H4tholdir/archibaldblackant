@@ -3,8 +3,10 @@ import { handleSubmitOrder, type SubmitOrderBot, type SubmitOrderData } from './
 import type { DbPool } from '../../db/pool';
 
 function createMockPool(): DbPool {
+  const query = vi.fn().mockResolvedValue({ rows: [], rowCount: 0 });
   return {
-    query: vi.fn().mockResolvedValue({ rows: [], rowCount: 0 }),
+    query,
+    withTransaction: vi.fn(async (fn) => fn({ query })),
     end: vi.fn(),
     getStats: vi.fn().mockReturnValue({ totalCount: 0, idleCount: 0, waitingCount: 0 }),
   };

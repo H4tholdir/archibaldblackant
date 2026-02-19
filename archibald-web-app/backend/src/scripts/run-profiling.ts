@@ -1,6 +1,6 @@
 import { ArchibaldBot } from "../bot/archibald-bot";
 import { SlowdownOptimizer } from "../slowdown-optimizer";
-import { BrowserPool } from "../browser-pool";
+import { BrowserPool } from "../bot/browser-pool";
 import { logger } from "../logger";
 import fs from "fs/promises";
 import path from "path";

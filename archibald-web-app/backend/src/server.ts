@@ -19,6 +19,7 @@ import { createFresisHistoryRouter } from './routes/fresis-history';
 import { createSyncStatusRouter } from './routes/sync-status';
 import { createAdminRouter } from './routes/admin';
 import { createShareRouter } from './routes/share';
+import { createPendingOrdersRouter } from './routes/pending-orders';
 import { createSseProgressRouter } from './realtime/sse-progress';
 import * as customersRepo from './db/repositories/customers';
 import * as usersRepo from './db/repositories/users';
@@ -26,6 +27,7 @@ import * as productsRepo from './db/repositories/products';
 import * as ordersRepo from './db/repositories/orders';
 import * as warehouseRepo from './db/repositories/warehouse';
 import * as fresisHistoryRepo from './db/repositories/fresis-history';
+import * as pendingOrdersRepo from './db/repositories/pending-orders';
 
 type PasswordCacheLike = {
   get: (userId: string) => string | null;
@@ -121,6 +123,12 @@ function createApp(deps: AppDeps): Express {
     getStateHistory: (userId, orderId) => ordersRepo.getStateHistory(pool, userId, orderId),
   }));
 
+  app.use('/api/pending-orders', authenticateJWT, createPendingOrdersRouter({
+    getPendingOrders: (userId) => pendingOrdersRepo.getPendingOrders(pool, userId),
+    upsertPendingOrder: (userId, order) => pendingOrdersRepo.upsertPendingOrder(pool, userId, order),
+    deletePendingOrder: (userId, orderId) => pendingOrdersRepo.deletePendingOrder(pool, userId, orderId),
+  }));
+
   app.use('/api/warehouse', authenticateJWT, createWarehouseRouter({
     pool,
     getBoxes: (userId) => warehouseRepo.getBoxes(pool, userId),
@@ -135,6 +143,13 @@ function createApp(deps: AppDeps): Express {
     clearAllItems: (userId) => warehouseRepo.clearAllItems(pool, userId),
     getItemById: (userId, id) => warehouseRepo.getItemById(pool, userId, id),
     ensureBoxExists: (userId, name) => warehouseRepo.ensureBoxExists(pool, userId, name),
+    getAllItems: (userId) => warehouseRepo.getAllItems(pool, userId),
+    bulkStoreItems: (userId, items, clearExisting) => warehouseRepo.bulkStoreItems(pool, userId, items, clearExisting),
+    batchReserve: (userId, itemIds, orderId, tracking) => warehouseRepo.batchReserve(pool, userId, itemIds, orderId, tracking),
+    batchRelease: (userId, orderId) => warehouseRepo.batchRelease(pool, userId, orderId),
+    batchMarkSold: (userId, orderId, tracking) => warehouseRepo.batchMarkSold(pool, userId, orderId, tracking),
+    batchTransfer: (userId, fromOrderIds, toOrderId) => warehouseRepo.batchTransfer(pool, userId, fromOrderIds, toOrderId),
+    getMetadata: (userId) => warehouseRepo.getMetadata(pool, userId),
   }));
 
   app.use('/api/fresis-history', authenticateJWT, createFresisHistoryRouter({

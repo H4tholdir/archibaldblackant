@@ -2,8 +2,10 @@ import { describe, test, expect, vi, beforeEach } from 'vitest';
 import type { DbPool } from '../pool';
 
 function createMockPool(queryFn?: DbPool['query']): DbPool {
+  const query = queryFn ?? vi.fn(async () => ({ rows: [], rowCount: 0, command: '', oid: 0, fields: [] }));
   return {
-    query: queryFn ?? vi.fn(async () => ({ rows: [], rowCount: 0, command: '', oid: 0, fields: [] })),
+    query,
+    withTransaction: vi.fn(async (fn) => fn({ query })),
     end: vi.fn(async () => {}),
     getStats: vi.fn(() => ({ totalCount: 1, idleCount: 1, waitingCount: 0 })),
   };

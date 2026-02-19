@@ -48,43 +48,48 @@ async function handleEditOrder(
   if (data.updatedItems && data.updatedItems.length > 0) {
     onProgress(70, 'Aggiornamento articoli nel database');
 
-    await pool.query(
-      'DELETE FROM agents.order_articles WHERE order_id = $1 AND user_id = $2',
-      [data.orderId, userId],
-    );
-
-    const values: unknown[] = [];
-    const placeholders: string[] = [];
-
-    for (let i = 0; i < data.updatedItems.length; i++) {
-      const base = i * 11;
-      placeholders.push(
-        `($${base + 1}, $${base + 2}, $${base + 3}, $${base + 4}, $${base + 5}, $${base + 6}, $${base + 7}, $${base + 8}, $${base + 9}, $${base + 10}, $${base + 11})`,
+    const itemsToUpdate = data.updatedItems;
+    await pool.withTransaction(async (tx) => {
+      await tx.query(
+        'DELETE FROM agents.order_articles WHERE order_id = $1 AND user_id = $2',
+        [data.orderId, userId],
       );
-      const item = data.updatedItems[i];
-      values.push(
-        data.orderId,
-        userId,
-        item.articleCode,
-        item.articleDescription ?? item.productName ?? null,
-        item.quantity,
-        item.unitPrice,
-        item.discountPercent ?? 0,
-        item.lineAmount ?? 0,
-        item.vatPercent ?? 0,
-        item.vatAmount ?? 0,
-        item.lineTotalWithVat ?? 0,
-      );
-    }
 
-    await pool.query(
-      `INSERT INTO agents.order_articles (
-        order_id, user_id, article_code, article_description, quantity,
-        unit_price, discount_percent, line_amount, vat_percent, vat_amount,
-        line_total_with_vat
-      ) VALUES ${placeholders.join(', ')}`,
-      values,
-    );
+      const values: unknown[] = [];
+      const placeholders: string[] = [];
+
+      const editNow = new Date().toISOString();
+      for (let i = 0; i < itemsToUpdate.length; i++) {
+        const base = i * 12;
+        placeholders.push(
+          `($${base + 1}, $${base + 2}, $${base + 3}, $${base + 4}, $${base + 5}, $${base + 6}, $${base + 7}, $${base + 8}, $${base + 9}, $${base + 10}, $${base + 11}, $${base + 12})`,
+        );
+        const item = itemsToUpdate[i];
+        values.push(
+          data.orderId,
+          userId,
+          item.articleCode,
+          item.articleDescription ?? item.productName ?? null,
+          item.quantity,
+          item.unitPrice,
+          item.discountPercent ?? 0,
+          item.lineAmount ?? 0,
+          item.vatPercent ?? 0,
+          item.vatAmount ?? 0,
+          item.lineTotalWithVat ?? 0,
+          editNow,
+        );
+      }
+
+      await tx.query(
+        `INSERT INTO agents.order_articles (
+          order_id, user_id, article_code, article_description, quantity,
+          unit_price, discount_percent, line_amount, vat_percent, vat_amount,
+          line_total_with_vat, created_at
+        ) VALUES ${placeholders.join(', ')}`,
+        values,
+      );
+    });
   }
 
   onProgress(100, 'Modifica completata');

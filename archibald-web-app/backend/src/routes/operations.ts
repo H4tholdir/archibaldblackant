@@ -46,6 +46,9 @@ function createOperationsRouter(deps: OperationsRouterDeps) {
   });
 
   router.get('/user/:userId', async (req: AuthRequest, res) => {
+    if (req.params.userId !== req.user!.userId && req.user!.role !== 'admin') {
+      return res.status(403).json({ success: false, error: 'Forbidden' });
+    }
     const jobs = await queue.getAgentJobs(req.params.userId);
     res.json({ success: true, jobs });
   });
@@ -55,6 +58,9 @@ function createOperationsRouter(deps: OperationsRouterDeps) {
     if (!job) {
       return res.status(404).json({ success: false, error: 'Job not found' });
     }
+    if (job.data.userId !== req.user!.userId && req.user!.role !== 'admin') {
+      return res.status(403).json({ success: false, error: 'Forbidden' });
+    }
     await job.retry();
     res.json({ success: true });
   });
@@ -63,6 +69,9 @@ function createOperationsRouter(deps: OperationsRouterDeps) {
     const job = await queue.queue.getJob(req.params.jobId);
     if (!job) {
       return res.status(404).json({ success: false, error: 'Job not found' });
+    }
+    if (job.data.userId !== req.user!.userId && req.user!.role !== 'admin') {
+      return res.status(403).json({ success: false, error: 'Forbidden' });
     }
 
     const state = await job.getState();

@@ -30,6 +30,7 @@ function createMockDeps(): OperationsRouterDeps {
       queue: {
         getJob: vi.fn().mockResolvedValue({
           id: 'job-123',
+          data: { userId: 'user-1' },
           retry: vi.fn().mockResolvedValue(undefined),
           remove: vi.fn().mockResolvedValue(undefined),
           getState: vi.fn().mockResolvedValue('failed'),
@@ -51,11 +52,11 @@ function createMockDeps(): OperationsRouterDeps {
   };
 }
 
-function createApp(deps: OperationsRouterDeps) {
+function createApp(deps: OperationsRouterDeps, user = { userId: 'user-1', username: 'agent1', role: 'agent' }) {
   const app = express();
   app.use(express.json());
   app.use((req, _res, next) => {
-    (req as any).user = { userId: 'user-1', username: 'agent1', role: 'agent' };
+    (req as any).user = user;
     next();
   });
   app.use('/api/operations', createOperationsRouter(deps));
@@ -138,22 +139,51 @@ describe('createOperationsRouter', () => {
   });
 
   describe('GET /api/operations/user/:userId', () => {
-    test('returns jobs for agent', async () => {
+    test('returns jobs for own user', async () => {
       const res = await request(app).get('/api/operations/user/user-1');
 
       expect(res.status).toBe(200);
+      expect(res.body).toEqual({
+        success: true,
+        jobs: [{ jobId: 'job-123', type: 'submit-order', state: 'active', progress: 50 }],
+      });
+    });
+
+    test('returns 403 when agent requests another user jobs', async () => {
+      const res = await request(app).get('/api/operations/user/user-2');
+
+      expect(res.status).toBe(403);
+      expect(res.body).toEqual({ success: false, error: 'Forbidden' });
+    });
+
+    test('allows admin to access any user jobs', async () => {
+      const adminApp = createApp(deps, { userId: 'admin-1', username: 'admin', role: 'admin' });
+      const res = await request(adminApp).get('/api/operations/user/user-2');
+
+      expect(res.status).toBe(200);
       expect(res.body.success).toBe(true);
-      expect(res.body.jobs).toHaveLength(1);
-      expect(res.body.jobs[0].type).toBe('submit-order');
     });
   });
 
   describe('POST /api/operations/:jobId/retry', () => {
-    test('retries failed job', async () => {
+    test('retries failed job owned by user', async () => {
       const res = await request(app).post('/api/operations/job-123/retry');
 
       expect(res.status).toBe(200);
       expect(res.body.success).toBe(true);
+    });
+
+    test('returns 403 when agent retries another user job', async () => {
+      (deps.queue.queue.getJob as ReturnType<typeof vi.fn>).mockResolvedValue({
+        id: 'job-999',
+        data: { userId: 'user-2' },
+        retry: vi.fn(),
+        getState: vi.fn().mockResolvedValue('failed'),
+      });
+      const res = await request(app).post('/api/operations/job-999/retry');
+
+      expect(res.status).toBe(403);
+      expect(res.body).toEqual({ success: false, error: 'Forbidden' });
     });
 
     test('returns 404 for unknown job', async () => {
@@ -168,6 +198,7 @@ describe('createOperationsRouter', () => {
     test('cancels waiting job', async () => {
       const mockJob = {
         id: 'job-123',
+        data: { userId: 'user-1' },
         getState: vi.fn().mockResolvedValue('waiting'),
         remove: vi.fn().mockResolvedValue(undefined),
       };
@@ -182,6 +213,7 @@ describe('createOperationsRouter', () => {
     test('returns 409 for active job', async () => {
       const mockJob = {
         id: 'job-123',
+        data: { userId: 'user-1' },
         getState: vi.fn().mockResolvedValue('active'),
         remove: vi.fn(),
       };
@@ -191,6 +223,19 @@ describe('createOperationsRouter', () => {
 
       expect(res.status).toBe(409);
       expect(mockJob.remove).not.toHaveBeenCalled();
+    });
+
+    test('returns 403 when agent cancels another user job', async () => {
+      (deps.queue.queue.getJob as ReturnType<typeof vi.fn>).mockResolvedValue({
+        id: 'job-999',
+        data: { userId: 'user-2' },
+        getState: vi.fn().mockResolvedValue('waiting'),
+        remove: vi.fn(),
+      });
+      const res = await request(app).post('/api/operations/job-999/cancel');
+
+      expect(res.status).toBe(403);
+      expect(res.body).toEqual({ success: false, error: 'Forbidden' });
     });
   });
 

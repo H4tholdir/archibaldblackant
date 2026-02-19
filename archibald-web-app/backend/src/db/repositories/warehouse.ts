@@ -156,23 +156,18 @@ async function renameBox(
   oldName: string,
   newName: string,
 ): Promise<void> {
-  await pool.query('BEGIN', []);
-  try {
-    await pool.query(
+  await pool.withTransaction(async (tx) => {
+    await tx.query(
       `UPDATE agents.warehouse_boxes SET name = $1, updated_at = $2
       WHERE user_id = $3 AND name = $4`,
       [newName, Date.now(), userId, oldName],
     );
-    await pool.query(
+    await tx.query(
       `UPDATE agents.warehouse_items SET box_name = $1
       WHERE user_id = $2 AND box_name = $3`,
       [newName, userId, oldName],
     );
-    await pool.query('COMMIT', []);
-  } catch (error) {
-    await pool.query('ROLLBACK', []);
-    throw error;
-  }
+  });
 }
 
 async function deleteBox(pool: DbPool, userId: string, name: string): Promise<boolean> {
@@ -291,6 +286,129 @@ async function getItemById(pool: DbPool, userId: string, itemId: number): Promis
   return row ? mapRowToItem(row) : null;
 }
 
+async function getAllItems(pool: DbPool, userId: string): Promise<WarehouseItem[]> {
+  const { rows } = await pool.query<WarehouseItemRow>(
+    `SELECT * FROM agents.warehouse_items WHERE user_id = $1 ORDER BY uploaded_at DESC`,
+    [userId],
+  );
+  return rows.map(mapRowToItem);
+}
+
+async function bulkStoreItems(
+  pool: DbPool,
+  userId: string,
+  items: Array<{ articleCode: string; description: string; quantity: number; boxName: string; deviceId: string }>,
+  clearExisting: boolean,
+): Promise<number> {
+  return pool.withTransaction(async (tx) => {
+    if (clearExisting) {
+      await tx.query('DELETE FROM agents.warehouse_items WHERE user_id = $1', [userId]);
+    }
+    const now = Date.now();
+    let inserted = 0;
+    for (const item of items) {
+      await tx.query(
+        `INSERT INTO agents.warehouse_boxes (user_id, name, created_at, updated_at)
+         VALUES ($1, $2, $3, $4)
+         ON CONFLICT (user_id, name) DO NOTHING`,
+        [userId, item.boxName, now, now],
+      );
+      await tx.query(
+        `INSERT INTO agents.warehouse_items (user_id, article_code, description, quantity, box_name, uploaded_at, device_id)
+         VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+        [userId, item.articleCode, item.description, item.quantity, item.boxName, now, item.deviceId],
+      );
+      inserted++;
+    }
+    return inserted;
+  });
+}
+
+async function batchReserve(
+  pool: DbPool,
+  userId: string,
+  itemIds: number[],
+  orderId: string,
+  tracking?: { customerName?: string; subClientName?: string; orderDate?: string; orderNumber?: string },
+): Promise<{ reserved: number; skipped: number }> {
+  if (itemIds.length === 0) return { reserved: 0, skipped: 0 };
+  const placeholders = itemIds.map((_, i) => `$${i + 3}`).join(', ');
+  const { rowCount } = await pool.query(
+    `UPDATE agents.warehouse_items
+     SET reserved_for_order = $1,
+         customer_name = $${itemIds.length + 3},
+         sub_client_name = $${itemIds.length + 4},
+         order_date = $${itemIds.length + 5},
+         order_number = $${itemIds.length + 6}
+     WHERE user_id = $2 AND id IN (${placeholders})
+       AND reserved_for_order IS NULL AND sold_in_order IS NULL`,
+    [orderId, userId, ...itemIds, tracking?.customerName ?? null, tracking?.subClientName ?? null, tracking?.orderDate ?? null, tracking?.orderNumber ?? null],
+  );
+  const reserved = rowCount ?? 0;
+  return { reserved, skipped: itemIds.length - reserved };
+}
+
+async function batchRelease(pool: DbPool, userId: string, orderId: string): Promise<number> {
+  const { rowCount } = await pool.query(
+    `UPDATE agents.warehouse_items
+     SET reserved_for_order = NULL, customer_name = NULL, sub_client_name = NULL, order_date = NULL, order_number = NULL
+     WHERE user_id = $1 AND reserved_for_order = $2`,
+    [userId, orderId],
+  );
+  return rowCount ?? 0;
+}
+
+async function batchMarkSold(
+  pool: DbPool,
+  userId: string,
+  orderId: string,
+  tracking?: { customerName?: string; subClientName?: string; orderDate?: string; orderNumber?: string },
+): Promise<number> {
+  const { rowCount } = await pool.query(
+    `UPDATE agents.warehouse_items
+     SET sold_in_order = $1,
+         customer_name = COALESCE($3, customer_name),
+         sub_client_name = COALESCE($4, sub_client_name),
+         order_date = COALESCE($5, order_date),
+         order_number = COALESCE($6, order_number)
+     WHERE user_id = $2 AND reserved_for_order = $1 AND sold_in_order IS NULL`,
+    [orderId, userId, tracking?.customerName ?? null, tracking?.subClientName ?? null, tracking?.orderDate ?? null, tracking?.orderNumber ?? null],
+  );
+  return rowCount ?? 0;
+}
+
+async function batchTransfer(pool: DbPool, userId: string, fromOrderIds: string[], toOrderId: string): Promise<number> {
+  if (fromOrderIds.length === 0) return 0;
+  const placeholders = fromOrderIds.map((_, i) => `$${i + 3}`).join(', ');
+  const { rowCount } = await pool.query(
+    `UPDATE agents.warehouse_items
+     SET reserved_for_order = $1
+     WHERE user_id = $2 AND reserved_for_order IN (${placeholders}) AND sold_in_order IS NULL`,
+    [toOrderId, userId, ...fromOrderIds],
+  );
+  return rowCount ?? 0;
+}
+
+async function getMetadata(pool: DbPool, userId: string): Promise<{ totalItems: number; totalQuantity: number; boxesCount: number; reservedCount: number; soldCount: number }> {
+  const { rows: [row] } = await pool.query<{ total_items: string; total_quantity: string; boxes_count: string; reserved_count: string; sold_count: string }>(
+    `SELECT
+      COUNT(*)::text AS total_items,
+      COALESCE(SUM(quantity), 0)::text AS total_quantity,
+      COUNT(DISTINCT box_name)::text AS boxes_count,
+      COUNT(*) FILTER (WHERE reserved_for_order IS NOT NULL)::text AS reserved_count,
+      COUNT(*) FILTER (WHERE sold_in_order IS NOT NULL)::text AS sold_count
+    FROM agents.warehouse_items WHERE user_id = $1`,
+    [userId],
+  );
+  return {
+    totalItems: parseInt(row.total_items, 10),
+    totalQuantity: parseInt(row.total_quantity, 10),
+    boxesCount: parseInt(row.boxes_count, 10),
+    reservedCount: parseInt(row.reserved_count, 10),
+    soldCount: parseInt(row.sold_count, 10),
+  };
+}
+
 export {
   getBoxes,
   createBox,
@@ -304,6 +422,13 @@ export {
   moveItems,
   clearAllItems,
   getItemById,
+  getAllItems,
+  bulkStoreItems,
+  batchReserve,
+  batchRelease,
+  batchMarkSold,
+  batchTransfer,
+  getMetadata,
   mapRowToBox,
   mapRowToBoxDetail,
   mapRowToItem,

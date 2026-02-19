@@ -47,20 +47,15 @@ describe('handleSendToVerona', () => {
     expect(params).toContain('user-1');
   });
 
-  test('inserts audit log entry', async () => {
+  test('executes only one DB query (UPDATE order state)', async () => {
     const pool = createMockPool();
     const bot = createMockBot();
 
     await handleSendToVerona(pool, bot, sampleData, 'user-1', vi.fn());
 
-    const auditCalls = (pool.query as ReturnType<typeof vi.fn>).mock.calls
-      .filter((c: unknown[]) => typeof c[0] === 'string' && (c[0] as string).includes('INSERT INTO agents.audit_log'));
-    expect(auditCalls).toHaveLength(1);
-
-    const params = auditCalls[0][1] as unknown[];
-    expect(params).toContain('user-1');
-    expect(params).toContain('send_to_milano');
-    expect(params).toContain('ORD-001');
+    expect(pool.query).toHaveBeenCalledTimes(1);
+    const call = (pool.query as ReturnType<typeof vi.fn>).mock.calls[0];
+    expect(call[0]).toContain('UPDATE agents.order_records');
   });
 
   test('returns success with sentToMilanoAt timestamp', async () => {

@@ -3,8 +3,10 @@ import { handleDeleteOrder, type DeleteOrderBot, type DeleteOrderData } from './
 import type { DbPool } from '../../db/pool';
 
 function createMockPool(): DbPool {
+  const query = vi.fn().mockResolvedValue({ rows: [], rowCount: 1 });
   return {
-    query: vi.fn().mockResolvedValue({ rows: [], rowCount: 1 }),
+    query,
+    withTransaction: vi.fn(async (fn) => fn({ query })),
     end: vi.fn(),
     getStats: vi.fn().mockReturnValue({ totalCount: 0, idleCount: 0, waitingCount: 0 }),
   };

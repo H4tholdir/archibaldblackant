@@ -2,7 +2,7 @@ import { Router } from 'express';
 import type { AuthRequest } from '../middleware/auth';
 import type { OperationQueue } from '../operations/operation-queue';
 import type { AgentLock } from '../operations/agent-lock';
-import { SCHEDULED_SYNCS, type OperationType } from '../operations/operation-types';
+import type { OperationType } from '../operations/operation-types';
 import { logger } from '../logger';
 
 type SyncSchedulerLike = {

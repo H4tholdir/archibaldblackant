@@ -25,7 +25,8 @@ export default function SyncButton() {
     // Connetti al WebSocket per ricevere aggiornamenti sync
     const connectWebSocket = () => {
       try {
-        const ws = new WebSocket("ws://localhost:3000/ws/sync");
+        const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+        const ws = new WebSocket(`${wsProtocol}//${window.location.host}/ws/sync`);
         wsRef.current = ws;
 
         ws.onopen = () => {

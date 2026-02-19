@@ -4,7 +4,7 @@ import { fetchWithRetry } from "../utils/fetch-with-retry";
 const API_BASE = "";
 
 export async function getWarehouseItems(): Promise<WarehouseItem[]> {
-  const response = await fetchWithRetry(`${API_BASE}/api/sync/warehouse-items`);
+  const response = await fetchWithRetry(`${API_BASE}/api/warehouse/items`);
 
   if (!response.ok) {
     throw new Error(`HTTP ${response.status}: ${response.statusText}`);
@@ -18,7 +18,7 @@ export async function storeWarehouseItems(
   items: WarehouseItem[],
   clearExisting?: boolean,
 ): Promise<{ success: boolean; results: unknown[] }> {
-  const response = await fetchWithRetry(`${API_BASE}/api/sync/warehouse-items`, {
+  const response = await fetchWithRetry(`${API_BASE}/api/warehouse/items/bulk`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ items, clearExisting }),
@@ -33,7 +33,7 @@ export async function storeWarehouseItems(
 
 export async function deleteWarehouseItem(id: number): Promise<void> {
   const response = await fetchWithRetry(
-    `${API_BASE}/api/sync/warehouse-items/${id}`,
+    `${API_BASE}/api/warehouse/items/${id}`,
     { method: "DELETE" },
   );
 
@@ -74,7 +74,7 @@ export async function batchReserve(
   },
 ): Promise<{ reserved: number; skipped: number }> {
   const response = await fetchWithRetry(
-    `${API_BASE}/api/sync/warehouse-items/batch-reserve`,
+    `${API_BASE}/api/warehouse/items/batch-reserve`,
     {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -94,7 +94,7 @@ export async function batchRelease(
   orderId: string,
 ): Promise<{ released: number }> {
   const response = await fetchWithRetry(
-    `${API_BASE}/api/sync/warehouse-items/batch-release`,
+    `${API_BASE}/api/warehouse/items/batch-release`,
     {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -121,7 +121,7 @@ export async function batchMarkSold(
   },
 ): Promise<{ sold: number }> {
   const response = await fetchWithRetry(
-    `${API_BASE}/api/sync/warehouse-items/batch-mark-sold`,
+    `${API_BASE}/api/warehouse/items/batch-mark-sold`,
     {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -142,7 +142,7 @@ export async function batchTransfer(
   toOrderId: string,
 ): Promise<{ transferred: number }> {
   const response = await fetchWithRetry(
-    `${API_BASE}/api/sync/warehouse-items/batch-transfer`,
+    `${API_BASE}/api/warehouse/items/batch-transfer`,
     {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -321,7 +321,7 @@ export async function clearAllWarehouseData(): Promise<{
 
 export async function getWarehouseMetadata(): Promise<WarehouseMetadata> {
   const response = await fetchWithRetry(
-    `${API_BASE}/api/sync/warehouse-metadata`,
+    `${API_BASE}/api/warehouse/metadata`,
   );
 
   if (!response.ok) {

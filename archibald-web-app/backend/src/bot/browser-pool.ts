@@ -31,6 +31,7 @@ type BrowserPoolConfig = {
   maxContextsPerBrowser: number;
   contextExpiryMs: number;
   launchOptions: Record<string, unknown>;
+  sessionValidationUrl: string;
 };
 
 type CachedContext = {
@@ -131,7 +132,7 @@ function createBrowserPool(poolConfig: BrowserPoolConfig, launchFn: LaunchFn) {
     let page: PageLike | null = null;
     try {
       page = await context.newPage();
-      const cookies = await page.cookies('about:blank');
+      const cookies = await page.cookies(poolConfig.sessionValidationUrl);
       await page.close();
       page = null;
 
