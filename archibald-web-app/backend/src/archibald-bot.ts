@@ -10991,7 +10991,21 @@ export class ArchibaldBot {
       }
     }
 
-    // Phase B: Combo boxes
+    // Phase B: vatNumber (triggers async VAT validation — must complete before other fields)
+    if (customerData.vatNumber) {
+      await this.typeDevExpressField(
+        /xaf_dviVATNUM_Edit_I$/,
+        customerData.vatNumber,
+      );
+      // Wait for the async VAT validation callback to fully complete
+      await this.wait(5000);
+      await this.waitForDevExpressIdle({
+        timeout: 10000,
+        label: "vat-validation",
+      });
+    }
+
+    // Phase C: Combo boxes (after VAT callback so they don't get cleared)
     if (customerData.deliveryMode) {
       await this.setDevExpressComboBox(
         /xaf_dviDLVMODE_Edit_dropdown_DD_I$/,
@@ -10999,15 +11013,8 @@ export class ArchibaldBot {
       );
     }
 
-    // Phase C: Text fields (set after lookups so they don't get cleared)
+    // Phase D: All other text fields (after VAT callback completed)
     await this.typeDevExpressField(/xaf_dviNAME_Edit_I$/, customerData.name);
-
-    if (customerData.vatNumber) {
-      await this.typeDevExpressField(
-        /xaf_dviVATNUM_Edit_I$/,
-        customerData.vatNumber,
-      );
-    }
 
     if (customerData.pec) {
       await this.typeDevExpressField(
