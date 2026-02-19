@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { customerService } from "../../services/customers.service";
 import { useKeyboardScroll } from "../../hooks/useKeyboardScroll";
-import type { Customer } from "../../db/schema";
+import type { Customer } from "../../types/local-customer";
 
 interface CustomerSelectorProps {
   onSelect: (customer: Customer) => void;

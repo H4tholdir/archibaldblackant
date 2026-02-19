@@ -225,3 +225,93 @@ export async function exportArca(
 
   return response.blob();
 }
+
+export function parseLinkedIds(value?: string): string[] {
+  if (!value) return [];
+  try {
+    const parsed = JSON.parse(value);
+    if (Array.isArray(parsed)) return parsed;
+  } catch {
+    /* not JSON */
+  }
+  return [value];
+}
+
+export function serializeLinkedIds(ids: string[]): string {
+  if (ids.length === 1) return ids[0];
+  return JSON.stringify(ids);
+}
+
+export async function archiveOrders(
+  orders: Array<{
+    id: string;
+    customerId: string;
+    customerName: string;
+    subClientCodice?: string;
+    subClientName?: string;
+    subClientData?: unknown;
+    items: unknown[];
+    discountPercent?: number;
+    targetTotalWithVAT?: number;
+    shippingCost?: number;
+    shippingTax?: number;
+    revenue?: number;
+    createdAt: string;
+  }>,
+  mergedOrderId?: string,
+): Promise<FresisHistoryOrder[]> {
+  const response = await fetchWithRetry(
+    `${API_BASE}/api/fresis-history/archive`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ orders, mergedOrderId }),
+    },
+  );
+
+  if (!response.ok) {
+    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+  }
+
+  const data = await response.json();
+  return data.records;
+}
+
+export async function reassignMergedOrderId(
+  oldMergedId: string,
+  newMergedId: string,
+): Promise<number> {
+  const response = await fetchWithRetry(
+    `${API_BASE}/api/fresis-history/reassign-merged`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ oldMergedId, newMergedId }),
+    },
+  );
+
+  if (!response.ok) {
+    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+  }
+
+  const data = await response.json();
+  return data.count;
+}
+
+export async function updateFresisHistoryOrder(
+  id: string,
+  data: Partial<FresisHistoryOrder>,
+): Promise<void> {
+  const response = await fetchWithRetry(
+    `${API_BASE}/api/fresis-history/${encodeURIComponent(id)}`,
+    {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(data),
+    },
+  );
+
+  if (!response.ok) {
+    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+  }
+}

@@ -31,7 +31,6 @@ import type {
   WebSocketEventHandler,
   WebSocketHookReturn,
 } from "../types/websocket";
-import { websocketQueue } from "../services/websocket-queue";
 
 const TOKEN_KEY = "archibald_jwt";
 
@@ -88,16 +87,14 @@ export function WebSocketProvider({ children }: WebSocketProviderProps) {
   }, []);
 
   /**
-   * Send message via WebSocket or queue if disconnected
+   * Send message via WebSocket (drops silently if disconnected)
    */
   const send = useCallback((type: string, payload: unknown): Promise<void> => {
     return new Promise((resolve, reject) => {
       const ws = wsRef.current;
 
       if (!ws || ws.readyState !== WebSocket.OPEN) {
-        // Queue for replay when reconnected
-        websocketQueue.enqueue(type, payload);
-        console.log(`[WebSocket] Queued operation (offline): ${type}`);
+        console.log(`[WebSocket] Dropped message (disconnected): ${type}`);
         resolve();
         return;
       }
@@ -201,28 +198,6 @@ export function WebSocketProvider({ children }: WebSocketProviderProps) {
     }
   }, []);
 
-  /**
-   * Replay queued operations after reconnect
-   */
-  const replayQueue = useCallback(() => {
-    const queueSize = websocketQueue.size();
-    if (queueSize === 0) return;
-
-    console.log(`[WebSocket] Replaying ${queueSize} queued operations`);
-
-    const items = websocketQueue.dequeueAll();
-    items.forEach((item) => {
-      send(item.type, item.payload).catch((error) => {
-        console.error(
-          `[WebSocket] Failed to replay operation ${item.type}:`,
-          error,
-        );
-        // Re-queue if failed
-        websocketQueue.enqueue(item.type, item.payload);
-      });
-    });
-  }, [send]);
-
   const stopHeartbeat = useCallback(() => {
     if (heartbeatIntervalRef.current) {
       clearInterval(heartbeatIntervalRef.current);
@@ -287,9 +262,6 @@ export function WebSocketProvider({ children }: WebSocketProviderProps) {
 
       // Start application-level heartbeat
       startHeartbeat(ws);
-
-      // Replay queued operations
-      replayQueue();
     };
 
     ws.onmessage = handleMessage;
@@ -326,7 +298,7 @@ export function WebSocketProvider({ children }: WebSocketProviderProps) {
         connect();
       }, delay);
     };
-  }, [getToken, handleMessage, replayQueue, startHeartbeat, stopHeartbeat]);
+  }, [getToken, handleMessage, startHeartbeat, stopHeartbeat]);
 
   /**
    * Disconnect WebSocket

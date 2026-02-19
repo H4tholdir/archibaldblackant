@@ -3,7 +3,7 @@ import { WarehouseUpload } from "../components/WarehouseUpload";
 import { WarehouseInventoryView } from "../components/WarehouseInventoryView";
 import { AddItemManuallyModal } from "../components/AddItemManuallyModal";
 import { BoxManagementModal } from "../components/BoxManagementModal";
-import { clearWarehouseData } from "../services/warehouse-service";
+import { clearAllWarehouseData } from "../api/warehouse";
 import { toastService } from "../services/toast.service";
 
 export default function WarehouseManagementView() {
@@ -47,7 +47,7 @@ export default function WarehouseManagementView() {
     setClearing(true);
 
     try {
-      await clearWarehouseData();
+      await clearAllWarehouseData();
       toastService.success(
         "🗑️ Magazzino completamente svuotato. Ricarica il file Excel.",
       );

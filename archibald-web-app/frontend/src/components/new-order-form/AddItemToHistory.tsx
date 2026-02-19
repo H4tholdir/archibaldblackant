@@ -5,8 +5,8 @@ import {
 } from "../../services/products.service";
 import { formatCurrency } from "../../utils/format-currency";
 import { priceService } from "../../services/prices.service";
-import { db } from "../../db/schema";
-import type { Product, PendingOrderItem } from "../../db/schema";
+import type { Product } from "../../types/product";
+import type { PendingOrderItem } from "../../types/pending-order";
 import {
   WarehouseMatchAccordion,
   type SelectedWarehouseMatch,
@@ -112,10 +112,8 @@ export function AddItemToHistory({
 
     const loadVariants = async () => {
       const productName = selectedProduct.name;
-      const allProducts = await db.products
-        .where("name")
-        .equals(productName)
-        .toArray();
+      const allProductsWithDetails = await productService.searchProducts(productName, 100);
+      const allProducts = allProductsWithDetails.filter(p => p.name === productName);
 
       const variants: VariantInfo[] = [];
       for (const p of allProducts) {
@@ -276,10 +274,8 @@ export function AddItemToHistory({
 
     if (createWarehouseOnly) {
       const articleCode = selectedProduct.name || selectedProduct.article;
-      const variants = await db.productVariants
-        .where("productId")
-        .equals(articleCode)
-        .toArray();
+      const productWithDetails = await productService.getProductById(articleCode);
+      const variants = productWithDetails?.variants ?? [];
 
       if (!variants || variants.length === 0) {
         setError(`Nessuna variante disponibile per ${articleCode}`);
@@ -297,7 +293,7 @@ export function AddItemToHistory({
         return;
       }
 
-      const variantProduct = await db.products.get(variantCode);
+      const variantProduct = await productService.getProductById(variantCode);
       const rawVatRate = normalizeVatRate(variantProduct?.vat);
       if (rawVatRate === null) {
         toastService.warning(
@@ -328,7 +324,7 @@ export function AddItemToHistory({
           setError(`Prezzo non disponibile per ${variantArticleCode}`);
           return;
         }
-        const variantProduct = await db.products.get(variantArticleCode);
+        const variantProduct = await productService.getProductById(variantArticleCode);
         const rawVatRate = normalizeVatRate(variantProduct?.vat);
         if (rawVatRate === null && i === 0) {
           toastService.warning(
@@ -360,7 +356,7 @@ export function AddItemToHistory({
           setError(`Prezzo non disponibile per ${variantArticleCode}`);
           return;
         }
-        const variantProduct = await db.products.get(variantArticleCode);
+        const variantProduct = await productService.getProductById(variantArticleCode);
         const rawVatRate = normalizeVatRate(variantProduct?.vat);
         if (rawVatRate === null && !vatWarningShown) {
           toastService.warning(

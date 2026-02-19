@@ -1,4 +1,4 @@
-import type { PendingOrder, PendingOrderItem } from "../db/schema";
+import type { PendingOrder, PendingOrderItem } from "../types/pending-order";
 import {
   FRESIS_CUSTOMER_PROFILE,
   FRESIS_DEFAULT_DISCOUNT,

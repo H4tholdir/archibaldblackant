@@ -1,14 +1,20 @@
 import { useState, useEffect } from "react";
 import { useKeyboardScroll } from "../hooks/useKeyboardScroll";
 import {
-  addWarehouseItemManually,
-  validateWarehouseItemCode,
+  manualAddItem,
+  validateArticleCode,
   getWarehouseBoxes,
-  type ManualAddItemResult,
-  type Product,
-} from "../services/warehouse-service";
+} from "../api/warehouse";
 import { toastService } from "../services/toast.service";
-import { unifiedSyncService } from "../services/unified-sync-service";
+
+type ValidatedProduct = {
+  id: string;
+  name: string;
+  description?: string;
+  price?: number;
+  vat?: number;
+  packageContent?: string;
+};
 
 export interface AddItemManuallyModalProps {
   isOpen: boolean;
@@ -35,8 +41,8 @@ export function AddItemManuallyModal({
   const [validationState, setValidationState] = useState<{
     status: "idle" | "valid" | "warning" | "invalid";
     confidence: number;
-    matchedProduct: Product | null;
-    suggestions: Product[];
+    matchedProduct: ValidatedProduct | null;
+    suggestions: ValidatedProduct[];
     message?: string;
   }>({
     status: "idle",
@@ -98,9 +104,11 @@ export function AddItemManuallyModal({
     const timer = setTimeout(async () => {
       try {
         // Call validation API for real-time fuzzy matching
-        const result = await validateWarehouseItemCode(articleCode.trim());
+        const result = await validateArticleCode(articleCode.trim());
 
-        const { matchedProduct, confidence, suggestions } = result;
+        const matchedProduct = result.matchedProduct as ValidatedProduct | null;
+        const { confidence } = result;
+        const suggestions = result.suggestions as ValidatedProduct[];
 
         // Update validation state based on confidence
         let status: "valid" | "warning" | "invalid" = "invalid";
@@ -168,44 +176,14 @@ export function AddItemManuallyModal({
     setLoading(true);
 
     try {
-      const result: ManualAddItemResult = await addWarehouseItemManually(
+      await manualAddItem(
         articleCode.trim(),
         quantity,
         selectedBox,
       );
 
-      // Update validation state to show match result
-      setValidationState({
-        status:
-          result.confidence >= 0.7
-            ? "valid"
-            : result.confidence >= 0.3
-              ? "warning"
-              : "invalid",
-        confidence: result.confidence,
-        matchedProduct: result.matchedProduct,
-        suggestions: result.suggestions,
-        message: result.warning,
-      });
+      toastService.success("Articolo aggiunto");
 
-      // Show success toast
-      const confidencePercent = Math.round(result.confidence * 100);
-      if (result.confidence >= 0.7) {
-        toastService.success(
-          `✅ Articolo aggiunto (Match: ${confidencePercent}%)`,
-        );
-      } else if (result.confidence >= 0.3) {
-        toastService.warning(
-          result.warning || `⚠️ Match parziale (${confidencePercent}%)`,
-        );
-      } else {
-        toastService.warning(
-          result.warning || "⚠️ Articolo aggiunto con codice personalizzato",
-        );
-      }
-
-      // Trigger sync and callback
-      await unifiedSyncService.syncAll();
       onSuccess();
       onClose();
     } catch (error) {
@@ -220,7 +198,7 @@ export function AddItemManuallyModal({
     }
   };
 
-  const handleSuggestionClick = (product: Product) => {
+  const handleSuggestionClick = (product: ValidatedProduct) => {
     // Set article code using product.name (the article code, not variant)
     setArticleCode(product.name);
     // Pre-fill description and validation state immediately

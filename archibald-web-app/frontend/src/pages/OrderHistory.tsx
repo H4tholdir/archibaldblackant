@@ -22,7 +22,7 @@ import {
   FresisHistoryRealtimeService,
   type SendToVeronaProgressState,
 } from "../services/fresis-history-realtime.service";
-import type { Customer } from "../db/schema";
+import type { Customer } from "../types/local-customer";
 
 interface OrderFilters {
   dateFrom: string;

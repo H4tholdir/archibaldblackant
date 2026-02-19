@@ -29,3 +29,14 @@ export async function searchSubClients(
   const data = await response.json();
   return data.data;
 }
+
+export async function deleteSubClient(codice: string): Promise<void> {
+  const response = await fetchWithRetry(
+    `${API_BASE}/api/subclients/${encodeURIComponent(codice)}`,
+    { method: "DELETE" },
+  );
+
+  if (!response.ok) {
+    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+  }
+}

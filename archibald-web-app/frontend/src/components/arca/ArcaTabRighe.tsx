@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import type { CSSProperties } from "react";
 import type { ArcaRiga } from "../../types/arca-data";
-import type { Product } from "../../db/schema";
+import type { Product } from "../../types/product";
 import { productService } from "../../services/products.service";
 import { priceService } from "../../services/prices.service";
 import { normalizeVatRate } from "../../utils/vat-utils";

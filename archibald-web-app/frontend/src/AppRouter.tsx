@@ -3,7 +3,6 @@ import { useState, useEffect } from "react";
 import "./App.css";
 import { useAuth } from "./hooks/useAuth";
 import { useNetworkStatus } from "./hooks/useNetworkStatus";
-import { useAutomaticSync } from "./hooks/useAutomaticSync";
 import { useToast } from "./hooks/useToast";
 import { LoginModal } from "./components/LoginModal";
 import { PinSetupWizard } from "./components/PinSetupWizard";
@@ -42,8 +41,6 @@ function AppRouter() {
   const { isOffline } = useNetworkStatus();
   const toasts = useToast();
 
-  // Automatic sync when network returns
-  useAutomaticSync(auth.token);
   const [tempCredentials, setTempCredentials] = useState<{
     username: string;
     password: string;
