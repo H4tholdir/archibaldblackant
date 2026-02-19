@@ -9123,76 +9123,107 @@ export class ArchibaldBot {
   ): Promise<void> {
     if (!this.page) throw new Error("Browser page is null");
 
-    const result = await this.page.evaluate(
+    const inputId = await this.page.evaluate(
       (regex: string, val: string) => {
+        const w = window as any;
         const inputs = Array.from(document.querySelectorAll("input"));
         const input = inputs.find((i) =>
           new RegExp(regex).test(i.id),
         ) as HTMLInputElement | null;
-        if (!input) return { found: false, inputId: "" };
+        if (!input) return null;
 
         input.scrollIntoView({ block: "center" });
+
+        // 1) execCommand to trigger real input events and mark dirty
         input.focus();
         input.click();
         input.select();
         document.execCommand("delete");
         document.execCommand("insertText", false, val);
 
-        return { found: true, inputId: input.id };
+        // 2) SetValue via DevExpress API so value survives server re-renders
+        const collection = w.ASPxClientControl?.GetControlCollection?.();
+        if (collection) {
+          collection.ForEachControl((c: any) => {
+            try {
+              const el = c.GetInputElement?.();
+              if (el === input || (el && el.id === input.id)) {
+                if (typeof c.SetValue === "function") c.SetValue(val);
+                else if (typeof c.SetText === "function") c.SetText(val);
+              }
+            } catch {}
+          });
+        }
+
+        return input.id;
       },
       fieldRegex.source,
       value,
     );
 
-    if (!result.found) {
+    if (!inputId) {
       throw new Error(`Input field not found: ${fieldRegex}`);
     }
 
     await this.page.keyboard.press("Tab");
     await this.waitForDevExpressIdle({
       timeout: 8000,
-      label: `typed-${result.inputId}`,
+      label: `typed-${inputId}`,
     });
 
     const actual = await this.page.evaluate((id: string) => {
       const input = document.getElementById(id) as HTMLInputElement | null;
       return input?.value ?? "";
-    }, result.inputId);
+    }, inputId);
 
     if (actual !== value) {
       logger.warn("typeDevExpressField value mismatch, retrying", {
-        id: result.inputId,
+        id: inputId,
         expected: value,
         actual,
       });
 
       await this.page.evaluate(
-        (id: string, val: string) => {
-          const input = document.getElementById(id) as HTMLInputElement;
-          if (input) {
-            input.scrollIntoView({ block: "center" });
-            input.focus();
-            input.click();
-            input.select();
-            document.execCommand("delete");
-            document.execCommand("insertText", false, val);
+        (regex: string, val: string) => {
+          const w = window as any;
+          const inputs = Array.from(document.querySelectorAll("input"));
+          const input = inputs.find((i) =>
+            new RegExp(regex).test(i.id),
+          ) as HTMLInputElement | null;
+          if (!input) return;
+
+          input.scrollIntoView({ block: "center" });
+          input.focus();
+          input.click();
+          input.select();
+          document.execCommand("delete");
+          document.execCommand("insertText", false, val);
+
+          const collection = w.ASPxClientControl?.GetControlCollection?.();
+          if (collection) {
+            collection.ForEachControl((c: any) => {
+              try {
+                const el = c.GetInputElement?.();
+                if (el === input || (el && el.id === input.id)) {
+                  if (typeof c.SetValue === "function") c.SetValue(val);
+                  else if (typeof c.SetText === "function") c.SetText(val);
+                }
+              } catch {}
+            });
           }
         },
-        result.inputId,
+        fieldRegex.source,
         value,
       );
 
       await this.page.keyboard.press("Tab");
       await this.waitForDevExpressIdle({
         timeout: 8000,
-        label: `typed-retry-${result.inputId}`,
+        label: `typed-retry-${inputId}`,
       });
     }
 
-    logger.debug("typeDevExpressField done", {
-      id: result.inputId,
-      value,
-    });
+    logger.debug("typeDevExpressField done", { id: inputId, value });
   }
 
   private async setDevExpressComboBox(
