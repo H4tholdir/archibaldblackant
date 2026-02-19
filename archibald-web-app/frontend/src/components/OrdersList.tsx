@@ -34,7 +34,7 @@ export default function OrdersList({ token, onViewOrder, onNewOrder }: OrdersLis
 
   const fetchOrders = async () => {
     try {
-      const response = await fetchWithRetry('/api/orders/my-orders', {
+      const response = await fetchWithRetry('/api/orders', {
         headers: {
           'Authorization': `Bearer ${token}`,
         },

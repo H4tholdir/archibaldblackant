@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
-import type { PendingOrder } from "../db/schema";
-import { db } from "../db/schema";
+import type { PendingOrder } from "../types/pending-order";
+import { getProducts } from "../api/products";
 import { formatCurrency } from "../utils/format-currency";
 
 interface OrderConflictReviewProps {
@@ -37,28 +37,32 @@ export function OrderConflictReview({
         let queued = 0;
         let current = 0;
 
+        const token = localStorage.getItem("archibald_jwt") ?? "";
+
         for (const item of order.items) {
           const queuedPrice = item.price;
           const queuedQty = item.quantity;
           queued += queuedPrice * queuedQty;
 
-          // Fetch current price and product from cache
-          const priceRecord = await db.prices
-            .where("articleId")
-            .equals(item.articleCode)
-            .first();
+          let currentPrice: number | null = null;
+          let currentProductName: string | undefined;
+          let productNotFoundFlag = true;
 
-          const productRecord = await db.products
-            .where("id")
-            .equals(item.articleCode)
-            .first();
-
-          const currentPrice = priceRecord?.price ?? null;
-          const currentProductName = productRecord?.name;
+          try {
+            const result = await getProducts(token, item.articleCode, 1);
+            const productRecord = result.data.products[0];
+            if (productRecord) {
+              productNotFoundFlag = false;
+              currentProductName = productRecord.name;
+              currentPrice = productRecord.price ?? null;
+            }
+          } catch {
+            // API call failed, treat as product not found
+          }
 
           const priceChanged =
             currentPrice !== null && currentPrice !== queuedPrice;
-          const productNotFound = !productRecord;
+          const productNotFound = productNotFoundFlag;
           const nameChanged =
             currentProductName !== undefined &&
             currentProductName !== item.productName;

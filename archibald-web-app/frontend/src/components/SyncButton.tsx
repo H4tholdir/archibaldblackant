@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import "../styles/SyncButton.css";
+import { enqueueOperation, type OperationType } from "../api/operations";
 
 interface SyncProgress {
   status: "idle" | "syncing" | "completed" | "error";
@@ -24,7 +25,8 @@ export default function SyncButton() {
     // Connetti al WebSocket per ricevere aggiornamenti sync
     const connectWebSocket = () => {
       try {
-        const ws = new WebSocket("ws://localhost:3000/ws/sync");
+        const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+        const ws = new WebSocket(`${wsProtocol}//${window.location.host}/ws/sync`);
         wsRef.current = ws;
 
         ws.onopen = () => {
@@ -104,46 +106,20 @@ export default function SyncButton() {
   const handleQuickSync = async () => {
     try {
       setSyncing(true);
-      setStatus("checking");
-      setMessage("Controllo...");
+      setStatus("syncing");
+      setMessage("Avvio sync...");
 
-      // Quick check se serve sync
-      const checkResponse = await fetch("/api/sync/quick-check");
-      const checkData = await checkResponse.json();
+      const syncTypes: OperationType[] = [
+        "sync-customers", "sync-orders", "sync-ddt",
+        "sync-invoices", "sync-products", "sync-prices",
+      ];
+      await Promise.all(syncTypes.map((type) => enqueueOperation(type, {})));
 
-      if (!checkData.success) {
-        throw new Error(checkData.error || "Errore controllo sync");
-      }
-
-      if (checkData.data.needsSync) {
-        // Avvia sync completo (clienti + prodotti + prezzi)
-        setStatus("syncing");
-        setMessage("Avvio sync...");
-
-        const syncResponse = await fetch("/api/sync/full", { method: "POST" });
-        const syncData = await syncResponse.json();
-
-        if (!syncData.success) {
-          throw new Error(syncData.error || "Errore sync");
-        }
-
-        // Il progresso sarà mostrato via WebSocket
-        setMessage("Sync in corso (clienti, prodotti, prezzi)...");
-      } else {
-        // Già sincronizzato
-        setStatus("success");
-        setMessage(`✓ Sync OK`);
-        setSyncing(false);
-
-        setTimeout(() => {
-          setStatus("idle");
-          setMessage("");
-        }, 3000);
-      }
+      setMessage("Sync accodati. Progresso via WebSocket...");
     } catch (error) {
       console.error("Errore sync:", error);
       setStatus("error");
-      setMessage("✗ Errore");
+      setMessage("Errore");
       setSyncing(false);
 
       setTimeout(() => {

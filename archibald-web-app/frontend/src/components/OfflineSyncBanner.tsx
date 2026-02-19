@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useOnlineStatus } from "../hooks/useOnlineStatus";
-import { orderService } from "../services/orders.service";
+import { getPendingOrders } from "../api/pending-orders";
 
 const BANNER_DISMISSED_KEY = "archibald_pending_orders_banner_dismissed";
 
@@ -32,7 +32,7 @@ export function OfflineSyncBanner() {
         return;
       }
 
-      const orders = await orderService.getPendingOrders();
+      const orders = await getPendingOrders();
       const pendingOrders = orders.filter((o) => o.status === "pending");
 
       if (pendingOrders.length > 0) {

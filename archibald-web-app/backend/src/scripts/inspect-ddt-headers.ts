@@ -3,7 +3,7 @@
  * Inspect DDT table headers to find all column names
  */
 
-import { ArchibaldBot } from "../archibald-bot";
+import { ArchibaldBot } from "../bot/archibald-bot";
 
 async function main() {
   console.log("🔍 Inspecting DDT Table Headers\n");

@@ -1,21 +1,22 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { orderService } from "../services/orders.service";
+import { savePendingOrder, deletePendingOrder } from "../api/pending-orders";
+import { enqueueOperation } from "../api/operations";
+import { batchTransfer } from "../api/warehouse";
+import { getFresisDiscounts } from "../api/fresis-discounts";
+import { archiveOrders, reassignMergedOrderId } from "../api/fresis-history";
 import { toastService } from "../services/toast.service";
 import { pdfExportService } from "../services/pdf-export.service";
-import type { PendingOrder } from "../db/schema";
+import type { PendingOrder } from "../types/pending-order";
 import { calculateShippingCosts } from "../utils/order-calculations";
 import { usePendingSync } from "../hooks/usePendingSync";
 import { JobProgressBar } from "../components/JobProgressBar";
 import { isFresis } from "../utils/fresis-constants";
 import { mergeFresisPendingOrders } from "../utils/order-merge";
-import { transferWarehouseReservations } from "../services/warehouse-order-integration";
-import { db } from "../db/schema";
-import { fresisDiscountService } from "../services/fresis-discount.service";
-import { fresisHistoryService } from "../services/fresis-history.service";
 import { shareService } from "../services/share.service";
 import { EmailShareDialog } from "../components/EmailShareDialog";
 import { formatCurrency } from "../utils/format-currency";
+import { getCustomers } from "../api/customers";
 
 function itemSubtotal(
   _order: PendingOrder,
@@ -109,49 +110,44 @@ export function PendingOrdersPage() {
     setSubmitting(true);
 
     try {
-      const token = localStorage.getItem("archibald_jwt");
-      if (!token) {
+      if (!localStorage.getItem("archibald_jwt")) {
         throw new Error("Token non trovato, rifare login");
       }
 
       const selectedOrders = orders.filter((o) => selectedOrderIds.has(o.id!));
 
-      const ordersToSubmit = selectedOrders.map((order) => ({
-        pendingOrderId: order.id, // Phase 72: Include pending order ID for job tracking
-        customerId: order.customerId,
-        customerName: order.customerName,
-        items: order.items.map((item) => ({
-          articleCode: item.articleCode,
-          productName: item.productName,
-          description: item.description,
-          quantity: item.quantity,
-          price: item.price,
-          discount: item.discount,
-          // Include warehouse fields for backend filtering
-          warehouseQuantity: item.warehouseQuantity || 0,
-          warehouseSources: item.warehouseSources || [],
-        })),
-        discountPercent: order.discountPercent,
-        targetTotalWithVAT: order.targetTotalWithVAT,
-      }));
-
-      const response = await fetch("/api/bot/submit-orders", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          orders: ordersToSubmit,
-        }),
-      });
-
-      if (!response.ok) throw new Error("Bot submission failed");
-
-      const { jobIds } = await response.json();
+      const jobIds: string[] = [];
+      for (const order of selectedOrders) {
+        const result = await enqueueOperation('submit-order', {
+          pendingOrderId: order.id,
+          customerId: order.customerId,
+          customerName: order.customerName,
+          items: order.items.map((item) => ({
+            articleCode: item.articleCode,
+            productName: item.productName,
+            description: item.description,
+            quantity: item.quantity,
+            price: item.price,
+            discount: item.discount,
+            warehouseQuantity: item.warehouseQuantity || 0,
+            warehouseSources: item.warehouseSources || [],
+          })),
+          discountPercent: order.discountPercent,
+          targetTotalWithVAT: order.targetTotalWithVAT,
+        });
+        jobIds.push(result.jobId);
+      }
 
       for (const orderId of selectedOrderIds) {
-        await orderService.updatePendingOrderStatus(orderId, "syncing");
+        const order = orders.find((o) => o.id === orderId);
+        if (order) {
+          await savePendingOrder({
+            ...order,
+            status: "syncing",
+            updatedAt: new Date().toISOString(),
+            needsSync: true,
+          });
+        }
       }
 
       toastService.success(
@@ -176,14 +172,13 @@ export function PendingOrdersPage() {
         return;
       }
 
-      const token = localStorage.getItem("archibald_jwt");
-      if (!token) {
+      if (!localStorage.getItem("archibald_jwt")) {
         throw new Error("Token non trovato, rifare login");
       }
 
-      // Reset job fields in IndexedDB (via direct db access)
-      const { db } = await import("../db/schema");
-      await db.pendingOrders.update(orderId, {
+      // Reset job fields via API
+      await savePendingOrder({
+        ...order,
         jobId: undefined,
         jobStatus: "idle",
         jobProgress: 0,
@@ -195,37 +190,23 @@ export function PendingOrdersPage() {
         updatedAt: new Date().toISOString(),
       });
 
-      // Resubmit to bot
-      const response = await fetch("/api/bot/submit-orders", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          orders: [
-            {
-              pendingOrderId: order.id,
-              customerId: order.customerId,
-              customerName: order.customerName,
-              items: order.items.map((item) => ({
-                articleCode: item.articleCode,
-                productName: item.productName,
-                description: item.description,
-                quantity: item.quantity,
-                price: item.price,
-                discount: item.discount,
-                warehouseQuantity: item.warehouseQuantity || 0,
-                warehouseSources: item.warehouseSources || [],
-              })),
-              discountPercent: order.discountPercent,
-              targetTotalWithVAT: order.targetTotalWithVAT,
-            },
-          ],
-        }),
+      await enqueueOperation('submit-order', {
+        pendingOrderId: order.id,
+        customerId: order.customerId,
+        customerName: order.customerName,
+        items: order.items.map((item) => ({
+          articleCode: item.articleCode,
+          productName: item.productName,
+          description: item.description,
+          quantity: item.quantity,
+          price: item.price,
+          discount: item.discount,
+          warehouseQuantity: item.warehouseQuantity || 0,
+          warehouseSources: item.warehouseSources || [],
+        })),
+        discountPercent: order.discountPercent,
+        targetTotalWithVAT: order.targetTotalWithVAT,
       });
-
-      if (!response.ok) throw new Error("Submission failed");
 
       toastService.success("Ordine reinviato al bot");
       await refetch();
@@ -241,7 +222,7 @@ export function PendingOrdersPage() {
     }
 
     try {
-      await orderService.deletePendingOrder(orderId);
+      await deletePendingOrder(orderId);
       toastService.success("Ordine eliminato con successo");
       await refetch();
       // Remove from selection if it was selected
@@ -268,7 +249,7 @@ export function PendingOrdersPage() {
     try {
       // Delete all selected orders
       for (const orderId of selectedOrderIds) {
-        await orderService.deletePendingOrder(orderId);
+        await deletePendingOrder(orderId);
       }
 
       await refetch();
@@ -292,7 +273,7 @@ export function PendingOrdersPage() {
     if (selectedFresisOrders.length < 2) return;
 
     try {
-      const allDiscounts = await fresisDiscountService.getAllDiscounts();
+      const allDiscounts = await getFresisDiscounts();
       const discountMap = new Map<string, number>();
       for (const d of allDiscounts) {
         discountMap.set(d.id, d.discountPercent);
@@ -326,81 +307,26 @@ export function PendingOrdersPage() {
       mergedOrder.revenue = mergedRevenue;
 
       // Archive original orders to fresisHistory
-      await fresisHistoryService.archiveOrders(
+      await archiveOrders(
         selectedFresisOrders,
         mergedOrder.id,
       );
 
       // Re-assign existing history entries from old merged orders to new merged order
       for (const order of selectedFresisOrders) {
-        await fresisHistoryService.reassignMergedOrderId(order.id!, mergedOrder.id);
+        await reassignMergedOrderId(order.id!, mergedOrder.id);
       }
 
-      // Add merged order locally
-      await db.pendingOrders.add(mergedOrder);
+      // Save merged order to server
+      await savePendingOrder(mergedOrder);
 
       // Transfer warehouse reservations from original orders to merged order
-      const originalIds = selectedFresisOrders.map((o) => o.id!);
-      await transferWarehouseReservations(originalIds, mergedOrder.id);
+      const originalIds = selectedFresisOrders.map((o) => `pending-${o.id!}`);
+      await batchTransfer(originalIds, `pending-${mergedOrder.id}`);
 
       // Delete original orders from server (releaseWarehouseReservations will be a no-op since items were transferred)
       for (const original of selectedFresisOrders) {
-        await orderService.deletePendingOrder(original.id!);
-      }
-
-      // Push merged order to server
-      if (navigator.onLine) {
-        try {
-          const mergeIdempotencyKey = crypto.randomUUID();
-          const { PendingRealtimeService } =
-            await import("../services/pending-realtime.service");
-          PendingRealtimeService.getInstance().trackIdempotencyKey(
-            mergeIdempotencyKey,
-          );
-          const { fetchWithRetry } = await import("../utils/fetch-with-retry");
-
-          const pushResponse = await fetchWithRetry(
-            "/api/sync/pending-orders",
-            {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                orders: [
-                  {
-                    id: mergedOrder.id,
-                    customerId: mergedOrder.customerId,
-                    customerName: mergedOrder.customerName,
-                    items: mergedOrder.items,
-                    status: mergedOrder.status,
-                    discountPercent: mergedOrder.discountPercent,
-                    targetTotalWithVAT: mergedOrder.targetTotalWithVAT,
-                    shippingCost: mergedOrder.shippingCost || 0,
-                    shippingTax: mergedOrder.shippingTax || 0,
-                    retryCount: 0,
-                    createdAt: mergedOrder.createdAt,
-                    updatedAt: mergedOrder.updatedAt,
-                    deviceId: mergedOrder.deviceId,
-                    subClientCodice: mergedOrder.subClientCodice,
-                    subClientName: mergedOrder.subClientName,
-                    subClientData: mergedOrder.subClientData,
-                    idempotencyKey: mergeIdempotencyKey,
-                  },
-                ],
-              }),
-            },
-          );
-          if (pushResponse.ok) {
-            await db.pendingOrders.update(mergedOrder.id, {
-              needsSync: false,
-              serverUpdatedAt: Date.now(),
-            });
-          }
-        } catch (pushError) {
-          console.error(
-            "[PendingOrdersPage] Failed to push merged order:",
-            pushError,
-          );
-        }
+        await deletePendingOrder(original.id!);
       }
 
       await refetch();
@@ -427,11 +353,11 @@ export function PendingOrdersPage() {
     try {
       // Archive to fresisHistory if it's a Fresis sub-client order
       if (isFresis({ id: order.customerId }) && order.subClientCodice) {
-        await fresisHistoryService.archiveOrders([order]);
+        await archiveOrders([order]);
       }
 
       // Remove the order from pendingOrders (warehouse items already marked as sold)
-      await db.pendingOrders.delete(order.id!);
+      await deletePendingOrder(order.id!);
 
       toastService.success("Ordine magazzino confermato e archiviato");
       await refetch();
@@ -493,8 +419,14 @@ export function PendingOrdersPage() {
         email: order.subClientData.email,
       };
     }
-    const customer = await db.customers.get(order.customerId);
-    return { phone: customer?.phone, email: customer?.email };
+    const token = localStorage.getItem("archibald_jwt") ?? "";
+    try {
+      const result = await getCustomers(token);
+      const customer = result.data?.customers.find((c) => c.id === order.customerId);
+      return { phone: customer?.phone ?? undefined, email: customer?.pec ?? undefined };
+    } catch {
+      return { phone: undefined, email: undefined };
+    }
   }
 
   const handleWhatsApp = async (order: PendingOrder) => {

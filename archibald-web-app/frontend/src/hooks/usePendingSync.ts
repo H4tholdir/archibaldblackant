@@ -1,17 +1,7 @@
-/**
- * usePendingSync Hook
- *
- * React hook for real-time pending order synchronization via WebSocket.
- * Provides pending order list updates, connection state, and automatic subscription management.
- *
- * Phase 32: Real-time pending sync via WebSocket
- */
-
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useWebSocketContext } from "../contexts/WebSocketContext";
-import { PendingRealtimeService } from "../services/pending-realtime.service";
-import { db } from "../db/schema";
-import type { PendingOrder, PendingOrderItem } from "../db/schema";
+import { getPendingOrders } from "../api/pending-orders";
+import type { PendingOrder } from "../types/pending-order";
 import { fetchWithRetry } from "../utils/fetch-with-retry";
 
 export interface UsePendingSyncReturn {
@@ -22,14 +12,6 @@ export interface UsePendingSyncReturn {
   refetch: () => Promise<void>;
 }
 
-/**
- * Hook for real-time pending order synchronization
- *
- * Usage:
- * ```tsx
- * const { pendingOrders, isConnected, isSyncing, refetch } = usePendingSync();
- * ```
- */
 function isJobStale(order: PendingOrder): boolean {
   const now = Date.now();
 
@@ -46,23 +28,29 @@ function isJobStale(order: PendingOrder): boolean {
   return false;
 }
 
+const WS_EVENTS_PENDING = [
+  "PENDING_CREATED",
+  "PENDING_UPDATED",
+  "PENDING_DELETED",
+  "PENDING_SUBMITTED",
+  "JOB_STARTED",
+  "JOB_PROGRESS",
+  "JOB_COMPLETED",
+  "JOB_FAILED",
+  "ORDER_NUMBERS_RESOLVED",
+] as const;
+
 export function usePendingSync(): UsePendingSyncReturn {
   const { state, subscribe } = useWebSocketContext();
   const [pendingOrders, setPendingOrders] = useState<PendingOrder[]>([]);
   const [isSyncing, setIsSyncing] = useState<boolean>(false);
   const [staleJobIds, setStaleJobIds] = useState<Set<string>>(new Set());
 
-  const pendingRealtimeService = PendingRealtimeService.getInstance();
-
-  /**
-   * Load pending orders from IndexedDB
-   */
-  const loadPendingOrders = useCallback(async () => {
+  const fetchPendingOrders = useCallback(async () => {
     try {
       setIsSyncing(true);
-      const orders = await db.pendingOrders.toArray();
+      const orders = await getPendingOrders();
 
-      // Sort by updatedAt descending (newest first)
       orders.sort((a, b) => {
         const aTime = new Date(a.updatedAt).getTime();
         const bTime = new Date(b.updatedAt).getTime();
@@ -71,209 +59,30 @@ export function usePendingSync(): UsePendingSyncReturn {
 
       setPendingOrders(orders);
     } catch (error) {
-      console.error("[usePendingSync] Error loading pending orders:", error);
+      console.error("[usePendingSync] Error fetching pending orders:", error);
     } finally {
       setIsSyncing(false);
     }
   }, []);
 
-  const pullFromServer = useCallback(async () => {
-    try {
-      // Try delta sync first
-      const syncMeta = await db.syncMetadata.get("pending");
-      const lastSyncId = syncMeta?.lastSyncId || 0;
-
-      if (lastSyncId > 0) {
-        const deltaResponse = await fetchWithRetry(
-          `/api/sync/pending-orders/delta?lastSyncId=${lastSyncId}`,
-        );
-
-        if (deltaResponse.ok) {
-          const deltaData = await deltaResponse.json();
-
-          if (!deltaData.resync && deltaData.success) {
-            // Apply delta actions
-            for (const action of deltaData.actions) {
-              if (action.action === "DELETE") {
-                await db.pendingOrders.delete(action.entityId);
-              } else if (
-                action.action === "INSERT" ||
-                action.action === "UPDATE"
-              ) {
-                const serverOrder = action.data;
-                if (!serverOrder) continue;
-
-                const localOrder = await db.pendingOrders.get(action.entityId);
-
-                await db.pendingOrders.put({
-                  id: serverOrder.id,
-                  customerId: serverOrder.customerId,
-                  customerName: serverOrder.customerName,
-                  items: serverOrder.items as PendingOrderItem[],
-                  discountPercent: serverOrder.discountPercent,
-                  targetTotalWithVAT: serverOrder.targetTotalWithVAT,
-                  shippingCost: serverOrder.shippingCost || 0,
-                  shippingTax: serverOrder.shippingTax || 0,
-                  createdAt: new Date(serverOrder.createdAt).toISOString(),
-                  updatedAt: new Date(serverOrder.updatedAt).toISOString(),
-                  status: serverOrder.status,
-                  errorMessage: serverOrder.errorMessage,
-                  retryCount: serverOrder.retryCount || 0,
-                  deviceId: serverOrder.deviceId,
-                  subClientCodice: serverOrder.subClientCodice || undefined,
-                  subClientName: serverOrder.subClientName || undefined,
-                  subClientData: serverOrder.subClientData || undefined,
-                  needsSync: false,
-                  serverUpdatedAt: action.createdAt,
-                  ...(localOrder?.jobId && {
-                    jobId: localOrder.jobId,
-                    jobStatus: localOrder.jobStatus,
-                    jobStartedAt: localOrder.jobStartedAt,
-                    jobOperation: localOrder.jobOperation,
-                    jobProgress: localOrder.jobProgress,
-                    jobError: localOrder.jobError,
-                  }),
-                } as PendingOrder);
-              }
-            }
-
-            // Update lastSyncId
-            if (deltaData.lastSyncId > lastSyncId) {
-              await db.syncMetadata.put({
-                key: "pending",
-                lastSyncId: deltaData.lastSyncId,
-              });
-            }
-
-            // If more pages, continue fetching
-            if (deltaData.hasMore) {
-              await pullFromServer();
-              return;
-            }
-
-            await loadPendingOrders();
-            console.log(
-              `[usePendingSync] Delta sync applied: ${deltaData.actions.length} actions`,
-            );
-            return;
-          }
-          // resync: true — fall through to full pull
-        }
-      }
-
-      // Full pull (initial sync or resync required)
-      const response = await fetchWithRetry("/api/sync/pending-orders");
-      if (!response.ok) return;
-
-      const data = await response.json();
-      if (!data.success || !Array.isArray(data.orders)) return;
-
-      const serverIds = new Set<string>();
-
-      for (const serverOrder of data.orders) {
-        serverIds.add(serverOrder.id);
-
-        const localOrder = await db.pendingOrders.get(serverOrder.id);
-
-        // needsSync guard removed: server is authoritative
-
-        const serverUpdatedAtMs = new Date(serverOrder.updatedAt).getTime();
-
-        if (
-          !localOrder ||
-          serverUpdatedAtMs > (localOrder.serverUpdatedAt || 0)
-        ) {
-          await db.pendingOrders.put({
-            id: serverOrder.id,
-            customerId: serverOrder.customerId,
-            customerName: serverOrder.customerName,
-            items: serverOrder.items,
-            discountPercent: serverOrder.discountPercent,
-            targetTotalWithVAT: serverOrder.targetTotalWithVAT,
-            shippingCost: serverOrder.shippingCost || 0,
-            shippingTax: serverOrder.shippingTax || 0,
-            createdAt: new Date(serverOrder.createdAt).toISOString(),
-            updatedAt: new Date(serverOrder.updatedAt).toISOString(),
-            status: serverOrder.status,
-            errorMessage: serverOrder.errorMessage,
-            retryCount: serverOrder.retryCount || 0,
-            deviceId: serverOrder.deviceId,
-            subClientCodice: serverOrder.subClientCodice || undefined,
-            subClientName: serverOrder.subClientName || undefined,
-            subClientData: serverOrder.subClientData || undefined,
-            needsSync: false,
-            serverUpdatedAt: serverUpdatedAtMs,
-            ...(localOrder?.jobId && {
-              jobId: localOrder.jobId,
-              jobStatus: localOrder.jobStatus,
-              jobStartedAt: localOrder.jobStartedAt,
-              jobOperation: localOrder.jobOperation,
-              jobProgress: localOrder.jobProgress,
-              jobError: localOrder.jobError,
-            }),
-          } as PendingOrder);
-        }
-      }
-
-      // Delete local orders that don't exist on server (server is authoritative)
-      const localOrders = await db.pendingOrders.toArray();
-      for (const localOrder of localOrders) {
-        if (!serverIds.has(localOrder.id)) {
-          await db.pendingOrders.delete(localOrder.id);
-        }
-      }
-
-      await loadPendingOrders();
-    } catch (error) {
-      console.error("[usePendingSync] Pull from server failed:", error);
-    }
-  }, [loadPendingOrders]);
-
-  /**
-   * Refetch pending orders from IndexedDB (manual refresh)
-   */
   const refetch = useCallback(async () => {
-    await loadPendingOrders();
-  }, [loadPendingOrders]);
+    await fetchPendingOrders();
+  }, [fetchPendingOrders]);
 
-  /**
-   * Initialize WebSocket subscriptions and load initial data
-   */
   useEffect(() => {
-    // Clean up orphaned completed orders left from previous sessions
-    (async () => {
-      try {
-        const allOrders = await db.pendingOrders.toArray();
-        for (const order of allOrders) {
-          if (order.jobStatus === "completed") {
-            await db.pendingOrders.delete(order.id);
-          }
-        }
-      } catch {
-        // Non-critical — will be cleaned up by server sync
-      }
-    })();
+    fetchPendingOrders();
 
-    // Load initial pending orders from IndexedDB, then sync from server
-    loadPendingOrders().then(() => pullFromServer());
+    const unsubscribers = WS_EVENTS_PENDING.map((eventType) =>
+      subscribe(eventType, () => {
+        fetchPendingOrders();
+      }),
+    );
 
-    // Initialize WebSocket subscriptions
-    const unsubscribers =
-      pendingRealtimeService.initializeSubscriptions(subscribe);
-
-    // Subscribe to pending order updates (triggers UI refresh)
-    const unsubscribeUpdate = pendingRealtimeService.onUpdate(() => {
-      loadPendingOrders();
-    });
-
-    // Cleanup on unmount
     return () => {
       unsubscribers.forEach((unsubscribe) => unsubscribe());
-      unsubscribeUpdate();
     };
-  }, [subscribe, loadPendingOrders, pullFromServer, pendingRealtimeService]);
+  }, [subscribe, fetchPendingOrders]);
 
-  // Watchdog: check for stale jobs and poll backend for real status
   const pendingOrdersRef = useRef(pendingOrders);
   pendingOrdersRef.current = pendingOrders;
 
@@ -302,36 +111,11 @@ export function usePendingSync(): UsePendingSyncReturn {
             jobState === "completed" ||
             jobState === "not_found"
           ) {
-            const isFailed = jobState === "failed" || jobState === "not_found";
-            const orderId = data.data?.result?.orderId;
-            await db.pendingOrders.update(order.id, {
-              jobStatus: isFailed ? "failed" : "completed",
-              jobProgress: isFailed ? order.jobProgress : 100,
-              jobError: data.data?.error,
-              jobOperation: isFailed
-                ? "Errore durante elaborazione"
-                : "Ordine creato con successo",
-              ...(orderId && { jobOrderId: orderId }),
-              status: isFailed ? "error" : order.status,
-              errorMessage: data.data?.error,
-              updatedAt: new Date().toISOString(),
-            });
             newStaleIds.delete(order.id);
-            loadPendingOrders();
-
-            if (!isFailed) {
-              setTimeout(async () => {
-                try {
-                  await db.pendingOrders.delete(order.id);
-                  loadPendingOrders();
-                } catch {
-                  // Ignore — order may have been removed already
-                }
-              }, 4000);
-            }
+            fetchPendingOrders();
           }
         } catch {
-          // Backend unreachable — keep as stale
+          // Backend unreachable - keep as stale
         }
       }
 
@@ -339,7 +123,7 @@ export function usePendingSync(): UsePendingSyncReturn {
     }, 15_000);
 
     return () => clearInterval(interval);
-  }, [loadPendingOrders]);
+  }, [fetchPendingOrders]);
 
   return {
     pendingOrders,

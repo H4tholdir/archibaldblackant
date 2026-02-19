@@ -1,6 +1,6 @@
 import { describe, test, expect } from "vitest";
 import { mergeFresisPendingOrders } from "./order-merge";
-import type { PendingOrder, PendingOrderItem } from "../db/schema";
+import type { PendingOrder, PendingOrderItem } from "../types/pending-order";
 import {
   FRESIS_CUSTOMER_PROFILE,
   FRESIS_DEFAULT_DISCOUNT,

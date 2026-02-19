@@ -1,6 +1,3 @@
-import { db } from "../db/schema";
-import { fresisHistoryService } from "./fresis-history.service";
-
 type UpdateHandler = () => void;
 
 interface HistoryEventPayload {
@@ -81,7 +78,7 @@ export class FresisHistoryRealtimeService {
     });
   }
 
-  public async handleHistoryCreated(payload: unknown): Promise<void> {
+  public handleHistoryCreated(payload: unknown): void {
     try {
       const data = payload as HistoryEventPayload;
 
@@ -89,7 +86,6 @@ export class FresisHistoryRealtimeService {
         recordId: data.recordId,
       });
 
-      await fresisHistoryService.syncFromServer();
       this.notifyUpdate();
     } catch (error) {
       console.error(
@@ -99,7 +95,7 @@ export class FresisHistoryRealtimeService {
     }
   }
 
-  public async handleHistoryUpdated(payload: unknown): Promise<void> {
+  public handleHistoryUpdated(payload: unknown): void {
     try {
       const data = payload as HistoryEventPayload;
 
@@ -107,7 +103,6 @@ export class FresisHistoryRealtimeService {
         recordId: data.recordId,
       });
 
-      await fresisHistoryService.syncFromServer();
       this.notifyUpdate();
     } catch (error) {
       console.error(
@@ -117,7 +112,7 @@ export class FresisHistoryRealtimeService {
     }
   }
 
-  public async handleHistoryDeleted(payload: unknown): Promise<void> {
+  public handleHistoryDeleted(payload: unknown): void {
     try {
       const data = payload as HistoryEventPayload;
 
@@ -125,7 +120,6 @@ export class FresisHistoryRealtimeService {
         recordId: data.recordId,
       });
 
-      await db.fresisHistory.delete(data.recordId);
       this.notifyUpdate();
     } catch (error) {
       console.error(
@@ -385,7 +379,7 @@ export class FresisHistoryRealtimeService {
     }
   }
 
-  public async handleBulkImported(payload: unknown): Promise<void> {
+  public handleBulkImported(payload: unknown): void {
     try {
       const data = payload as BulkImportedPayload;
 
@@ -394,7 +388,6 @@ export class FresisHistoryRealtimeService {
         { count: data.count },
       );
 
-      await fresisHistoryService.syncFromServer();
       this.notifyUpdate();
     } catch (error) {
       console.error(

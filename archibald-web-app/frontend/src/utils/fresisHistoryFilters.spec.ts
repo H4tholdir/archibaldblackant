@@ -1,5 +1,6 @@
 import { describe, expect, test } from "vitest";
-import type { FresisHistoryOrder, PendingOrderItem } from "../db/schema";
+import type { FresisHistoryOrder } from "../types/fresis";
+import type { PendingOrderItem } from "../types/pending-order";
 import {
   getDateRangeForPreset,
   filterByDateRange,

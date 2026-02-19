@@ -1,5 +1,5 @@
 import type { ArcaTestata, ArcaDestinazione } from "../../types/arca-data";
-import type { FresisHistoryOrder } from "../../db/schema";
+import type { FresisHistoryOrder } from "../../types/fresis";
 import { ArcaInput } from "./ArcaInput";
 import {
   ARCA_FONT,

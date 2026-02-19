@@ -5,6 +5,31 @@ import userEvent from "@testing-library/user-event";
 import { QuantityInput } from "./QuantityInput";
 import type { PackagingResult } from "../../services/products.service";
 
+vi.mock("../../services/products.service", () => ({
+  productService: {
+    calculateOptimalPackaging: vi.fn().mockResolvedValue({
+      success: true,
+      quantity: 10,
+      totalPackages: 1,
+      breakdown: [
+        {
+          variant: {
+            productId: "prod-1",
+            variantId: "v1",
+            multipleQty: 1,
+            minQty: 1,
+            maxQty: 9999,
+            packageContent: "1 pz",
+          },
+          packageCount: 10,
+          packageSize: 1,
+          totalPieces: 10,
+        },
+      ],
+    }),
+  },
+}));
+
 describe("QuantityInput", () => {
   beforeEach(() => {
     vi.clearAllMocks();

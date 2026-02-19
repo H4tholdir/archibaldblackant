@@ -1,0 +1,59 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    environment:
+      POSTGRES_DB: ${PG_DATABASE:-archibald}
+      POSTGRES_USER: ${PG_USER:-archibald}
+      POSTGRES_PASSWORD: ${PG_PASSWORD:?PG_PASSWORD must be set}
+    ports:
+      - "127.0.0.1:5432:5432"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${PG_USER:-archibald} -d ${PG_DATABASE:-archibald}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    volumes:
+      - redisdata:/data
+    ports:
+      - "127.0.0.1:6379:6379"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build:
+      context: ../
+      dockerfile: archibald-web-app/backend/Dockerfile
+    ports:
+      - "127.0.0.1:3000:3000"
+    env_file:
+      - .env.production
+    environment:
+      PG_HOST: postgres
+      PG_PORT: 5432
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+    volumes:
+      - backend-cache:/app/.cache
+      - backend-logs:/app/logs
+
+volumes:
+  pgdata:
+  redisdata:
+  backend-cache:
+  backend-logs:

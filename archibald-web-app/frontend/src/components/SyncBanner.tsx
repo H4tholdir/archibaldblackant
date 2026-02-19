@@ -23,7 +23,8 @@ export default function SyncBanner() {
 
     const connect = () => {
       try {
-        websocket = new WebSocket('ws://localhost:3000/ws/sync');
+        const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+        websocket = new WebSocket(`${wsProtocol}//${window.location.host}/ws/sync`);
         // ... rest of old code ...
       } catch (error) {
         console.error('Errore creazione WebSocket:', error);

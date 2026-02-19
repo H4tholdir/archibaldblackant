@@ -1,6 +1,6 @@
 import { describe, expect, test } from "vitest";
 import { generateArcaData } from "./arca-document-generator";
-import type { PendingOrderItem } from "../db/schema";
+import type { PendingOrderItem } from "../types/pending-order";
 
 function makeItem(overrides: Partial<PendingOrderItem> = {}): PendingOrderItem {
   return {

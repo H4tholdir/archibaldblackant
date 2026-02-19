@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import "../styles/SyncBars.css";
-import { productService } from "../services/products.service";
 import { toastService } from "../services/toast.service";
+import { enqueueOperation, type OperationType } from "../api/operations";
 
 interface SyncProgress {
   status: "idle" | "syncing" | "completed" | "error";
@@ -52,16 +52,9 @@ export default function SyncBars() {
     console.log("[SyncBars] Cache invalidation received:", event);
 
     if (event.target === "products") {
-      try {
-        // Refresh products cache
-        await productService.syncProducts();
-        toastService.success(
-          `✅ Prezzi aggiornati: ${event.matchedRows || 0} prodotti`,
-        );
-      } catch (error) {
-        console.error("[SyncBars] Auto-sync failed:", error);
-        toastService.warning("⚠️ Aggiorna la pagina per vedere i nuovi prezzi");
-      }
+      toastService.success(
+        `Prezzi aggiornati: ${event.matchedRows || 0} prodotti`,
+      );
     }
   };
 
@@ -69,7 +62,8 @@ export default function SyncBars() {
     // Connetti al WebSocket per ricevere aggiornamenti sync
     const connectWebSocket = () => {
       try {
-        const ws = new WebSocket("ws://localhost:3000/ws/sync");
+        const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+        const ws = new WebSocket(`${wsProtocol}//${window.location.host}/ws/sync`);
         wsRef.current = ws;
 
         ws.onopen = () => {
@@ -176,27 +170,13 @@ export default function SyncBars() {
     }
 
     try {
-      // Get JWT token for admin authentication
-      const jwt = localStorage.getItem("archibald_jwt");
-      if (!jwt) {
+      if (!localStorage.getItem("archibald_jwt")) {
         alert("Autenticazione richiesta. Effettua il login.");
         return;
       }
 
-      const endpoint = `/api/sync/${type}`;
-      const response = await fetch(endpoint, {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${jwt}`,
-        },
-      });
-      const data = await response.json();
+      await enqueueOperation(`sync-${type}` as OperationType, {});
 
-      if (!data.success) {
-        throw new Error(data.error || "Errore avvio sincronizzazione");
-      }
-
-      // Il progresso sarà mostrato via WebSocket
       setSyncState((prev) => ({
         ...prev,
         activeSyncType: type,

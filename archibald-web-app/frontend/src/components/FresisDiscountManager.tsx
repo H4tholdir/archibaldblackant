@@ -1,7 +1,7 @@
 import { useState, useRef } from "react";
-import { fresisDiscountService } from "../services/fresis-discount.service";
+import { getFresisDiscounts, uploadFresisDiscounts } from "../api/fresis-discounts";
 import { toastService } from "../services/toast.service";
-import type { FresisArticleDiscount } from "../db/schema";
+import type { FresisArticleDiscount } from "../types/fresis";
 import * as XLSX from "xlsx";
 import { formatCurrency } from "../utils/format-currency";
 
@@ -11,7 +11,7 @@ export function FresisDiscountManager() {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const loadDiscounts = async () => {
-    const all = await fresisDiscountService.getAllDiscounts();
+    const all = await getFresisDiscounts();
     setDiscounts(all);
   };
 
@@ -60,11 +60,10 @@ export function FresisDiscountManager() {
         return;
       }
 
-      const count = await fresisDiscountService.importDiscounts(parsed);
-      await fresisDiscountService.uploadToServer(parsed);
+      const result = await uploadFresisDiscounts(parsed);
       await loadDiscounts();
 
-      toastService.success(`${count} sconti Fresis importati`);
+      toastService.success(`${result.count} sconti Fresis importati`);
     } catch (error) {
       console.error("[FresisDiscountManager] Import failed:", error);
       toastService.error("Errore durante l'importazione del file Excel");

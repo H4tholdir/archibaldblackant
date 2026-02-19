@@ -3,7 +3,7 @@
  * Identify exact pattern for all 11 DDT columns across multiple rows
  */
 
-import { ArchibaldBot } from "../archibald-bot";
+import { ArchibaldBot } from "../bot/archibald-bot";
 
 async function main() {
   console.log("🔍 Identifying Pattern for ALL 11 DDT Columns\n");

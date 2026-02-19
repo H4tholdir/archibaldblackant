@@ -1,13 +1,11 @@
 import { useState, useEffect } from "react";
-import { db, type WarehouseItem } from "../db/schema";
+import type { WarehouseItem } from "../types/warehouse";
 import {
-  releaseWarehouseReservations,
-  returnSpecificWarehouseItems,
-} from "../services/warehouse-order-integration";
-import {
+  getWarehouseItems,
   updateWarehouseItem,
   deleteWarehouseItem,
-} from "../services/warehouse-service";
+  batchRelease,
+} from "../api/warehouse";
 import { toastService } from "../services/toast.service";
 import { MoveItemsModal } from "./MoveItemsModal";
 
@@ -50,7 +48,7 @@ export function WarehouseInventoryView() {
   const loadInventory = async () => {
     setLoading(true);
     try {
-      const allItems = await db.warehouseItems.toArray();
+      const allItems = await getWarehouseItems();
 
       // Sort by box name, then by article code
       allItems.sort((a, b) => {
@@ -156,8 +154,7 @@ export function WarehouseInventoryView() {
 
       // Release each order group
       for (const [reservedForOrder] of orderGroups) {
-        const orderId = reservedForOrder.replace("pending-", "");
-        await releaseWarehouseReservations(orderId);
+        await batchRelease(reservedForOrder);
       }
 
       toastService.success(
@@ -195,12 +192,21 @@ export function WarehouseInventoryView() {
         return;
       }
 
-      const itemsReturned = await returnSpecificWarehouseItems(
-        selectedSoldItems.map((item) => item.id!),
-      );
+      const soldOrderGroups = new Map<string, number[]>();
+      for (const item of selectedSoldItems) {
+        const orderId = item.soldInOrder!;
+        if (!soldOrderGroups.has(orderId)) {
+          soldOrderGroups.set(orderId, []);
+        }
+        soldOrderGroups.get(orderId)!.push(item.id!);
+      }
+
+      for (const [orderId] of soldOrderGroups) {
+        await batchRelease(orderId);
+      }
 
       toastService.success(
-        `✅ ${itemsReturned} articoli venduti resi al magazzino`,
+        `${selectedSoldItems.length} articoli venduti resi al magazzino`,
       );
 
       // Clear selection and reload

@@ -7,22 +7,23 @@ import {
 } from "../services/products.service";
 import { priceService } from "../services/prices.service";
 import { orderService } from "../services/orders.service";
-import { cachePopulationService } from "../services/cache-population";
 import { toastService } from "../services/toast.service";
-import { db } from "../db/schema";
-import type { Customer, Product, PendingOrderItem } from "../db/schema";
+import type { Customer } from "../types/local-customer";
+import type { Product } from "../types/product";
+import type { PendingOrderItem } from "../types/pending-order";
 import {
   WarehouseMatchAccordion,
   type SelectedWarehouseMatch,
 } from "./WarehouseMatchAccordion";
-import { releaseWarehouseReservations } from "../services/warehouse-order-integration";
+import { batchRelease } from "../api/warehouse";
+import { getFresisHistory } from "../api/fresis-history";
+import { getDiscountForArticle } from "../api/fresis-discounts";
 import { calculateShippingCosts, roundUp } from "../utils/order-calculations";
 import { useKeyboardScroll } from "../hooks/useKeyboardScroll";
-import type { SubClient } from "../db/schema";
+import type { SubClient } from "../types/sub-client";
 import { SubClientSelector } from "./new-order-form/SubClientSelector";
 import { isFresis, isSubClientFresis, FRESIS_DEFAULT_DISCOUNT } from "../utils/fresis-constants";
 import { normalizeVatRate } from "../utils/vat-utils";
-import { fresisDiscountService } from "../services/fresis-discount.service";
 import { formatCurrency } from "../utils/format-currency";
 
 interface OrderItem {
@@ -323,11 +324,8 @@ export default function OrderFormSimple() {
       let totalPrezzoCliente = 0;
       let totalCostoFresis = 0;
       for (const item of items) {
-        const fresisDiscount =
-          await fresisDiscountService.getDiscountForArticle(
-            item.productId,
-            item.article,
-          );
+        const fresisDiscountRecord = await getDiscountForArticle(item.article);
+        const fresisDiscount = fresisDiscountRecord?.discountPercent ?? FRESIS_DEFAULT_DISCOUNT;
         const originalPrice = item.originalListPrice ?? item.unitPrice;
         const prezzoCliente =
           item.unitPrice *
@@ -371,7 +369,7 @@ export default function OrderFormSimple() {
     }
 
     const searchArticleHistory = async () => {
-      const allOrders = await db.fresisHistory.toArray();
+      const allOrders = await getFresisHistory();
       const clientOrders = allOrders.filter((o) =>
         matchesSubClientCodice(o.subClientCodice, selectedSubClient.codice),
       );
@@ -499,7 +497,7 @@ export default function OrderFormSimple() {
           },
         );
         try {
-          await releaseWarehouseReservations(orderId);
+          await batchRelease(`pending-${orderId}`);
           console.log(
             "[OrderForm] ✅ Warehouse reservations released for editing",
           );
@@ -541,10 +539,8 @@ export default function OrderFormSimple() {
 
             // If articleCode is actually a product name, resolve a variant ID
             if (item.productName && productId === item.productName) {
-              const product = await db.products
-                .where("name")
-                .equals(item.productName)
-                .first();
+              const results = await productService.searchProducts(item.productName, 1);
+              const product = results.find(p => p.name === item.productName);
               if (product) {
                 productId = product.id;
               }
@@ -635,18 +631,21 @@ export default function OrderFormSimple() {
         // We can't await here because cleanup is synchronous
         (async () => {
           try {
-            const { reserveWarehouseItems } =
-              await import("../services/warehouse-order-integration");
-            await reserveWarehouseItems(editingOrderId, originalOrderItems);
-            console.log(
-              "[OrderForm] ✅ Warehouse reservations restored after exit without save",
-            );
+            const { batchReserve } = await import("../api/warehouse");
+            const itemIds = originalOrderItems
+              .flatMap((item) => item.warehouseSources ?? [])
+              .map((source) => source.warehouseItemId);
+            if (itemIds.length > 0) {
+              await batchReserve(itemIds, editingOrderId);
+              console.log(
+                "[OrderForm] Warehouse reservations restored after exit without save",
+              );
+            }
           } catch (error) {
             console.error(
               "[OrderForm] Failed to restore warehouse reservations",
               error,
             );
-            // Can't show toast here as component is unmounted
           }
         })();
       }
@@ -658,35 +657,7 @@ export default function OrderFormSimple() {
   useEffect(() => {
     const checkAndSyncVariants = async () => {
       try {
-        // Check if productVariants table has data
-        const variantCount = await db.productVariants.count();
-        console.log("[OrderForm] Variant count in cache:", variantCount);
-
-        if (variantCount === 0) {
-          console.log(
-            "[OrderForm] No variants in cache, triggering automatic sync...",
-          );
-          setCacheSyncing(true);
-
-          // Get auth token from localStorage
-          const token = localStorage.getItem("archibald_jwt");
-          if (!token) {
-            console.error("[OrderForm] No auth token found");
-            return;
-          }
-
-          // Trigger cache population
-          const result = await cachePopulationService.populateCache(token);
-
-          if (result.success) {
-            console.log(
-              "[OrderForm] Cache sync completed:",
-              result.recordCounts,
-            );
-          } else {
-            console.error("[OrderForm] Cache sync failed:", result.error);
-          }
-        }
+        // No local cache check needed - data comes from API
       } catch (error) {
         console.error("[OrderForm] Error checking variants:", error);
       } finally {
@@ -814,7 +785,7 @@ export default function OrderFormSimple() {
   const loadTopSoldItems = async () => {
     if (!selectedSubClient) return;
 
-    const all = await db.fresisHistory.toArray();
+    const all = await getFresisHistory();
     const allOrders = all.filter((o) =>
       matchesSubClientCodice(o.subClientCodice, selectedSubClient.codice),
     );
@@ -859,7 +830,7 @@ export default function OrderFormSimple() {
       return;
     }
 
-    const all = await db.fresisHistory.toArray();
+    const all = await getFresisHistory();
     const allOrders = all.filter((o) =>
       matchesSubClientCodice(o.subClientCodice, selectedSubClient.codice),
     );
@@ -994,10 +965,8 @@ export default function OrderFormSimple() {
 
       try {
         // Find all products (variants) with the same name
-        const allVariants = await db.products
-          .where("name")
-          .equals(selectedProduct.name)
-          .toArray();
+        const allVariantsWithDetails = await productService.searchProducts(selectedProduct.name, 100);
+        const allVariants = allVariantsWithDetails.filter(p => p.name === selectedProduct.name);
 
         console.log(
           `[OrderForm] Found ${allVariants.length} variants for: ${selectedProduct.name}`,
@@ -1173,7 +1142,7 @@ export default function OrderFormSimple() {
       const allSales: SaleEntry[] = [];
 
       // 1. Search in local fresisHistory (ALL sub-clients)
-      const allOrders = await db.fresisHistory.toArray();
+      const allOrders = await getFresisHistory();
       for (const order of allOrders) {
         for (const item of order.items) {
           const code = (item.articleCode || "").toLowerCase();
@@ -1395,10 +1364,8 @@ export default function OrderFormSimple() {
 
       // Find the smallest variant to use for pricing
       // (since we're not ordering, we just need a valid variant for price/VAT)
-      const variants = await db.productVariants
-        .where("productId")
-        .equals(finalArticleCode)
-        .toArray();
+      const variantProductForVariants = await productService.getProductById(finalArticleCode);
+      const variants = variantProductForVariants?.variants ?? [];
 
       if (!variants || variants.length === 0) {
         toastService.error(
@@ -1420,7 +1387,7 @@ export default function OrderFormSimple() {
         return;
       }
 
-      const variantProduct = await db.products.get(variantCode);
+      const variantProduct = await productService.getProductById(variantCode);
       const rawVatRate = normalizeVatRate(variantProduct?.vat);
       if (rawVatRate === null) {
         toastService.warning(
@@ -1486,7 +1453,7 @@ export default function OrderFormSimple() {
           return;
         }
 
-        const variantProduct = await db.products.get(variantArticleCode);
+        const variantProduct = await productService.getProductById(variantArticleCode);
         const rawVatRate = normalizeVatRate(variantProduct?.vat);
         if (rawVatRate === null && i === 0) {
           toastService.warning(
@@ -1550,7 +1517,7 @@ export default function OrderFormSimple() {
           return;
         }
 
-        const variantProduct = await db.products.get(variantArticleCode);
+        const variantProduct = await productService.getProductById(variantArticleCode);
         const rawVatRate = normalizeVatRate(variantProduct?.vat);
         if (rawVatRate === null && i === 0) {
           toastService.warning(
@@ -1740,10 +1707,8 @@ export default function OrderFormSimple() {
     if (!articleChangeModal) return;
 
     try {
-      const variants = await db.products
-        .where("name")
-        .equals(product.name)
-        .toArray();
+      const allVariantsResult = await productService.searchProducts(product.name, 100);
+      const variants = allVariantsResult.filter(p => p.name === product.name);
       if (variants.length === 0) {
         toastService.error("Nessuna variante trovata");
         return;
@@ -1915,7 +1880,7 @@ export default function OrderFormSimple() {
         return;
       }
 
-      const variantProduct = await db.products.get(variantArticleCode);
+      const variantProduct = await productService.getProductById(variantArticleCode);
       const vatRate = normalizeVatRate(variantProduct?.vat) ?? 0;
 
       const effectivePrice =

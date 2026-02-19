@@ -1,12 +1,12 @@
 import { useState, useEffect } from "react";
 import { useKeyboardScroll } from "../hooks/useKeyboardScroll";
+import type { BoxWithStats } from "../types/warehouse";
 import {
   getWarehouseBoxes,
-  createWarehouseBox,
-  renameWarehouseBox,
-  deleteWarehouseBox,
-  type BoxWithStats,
-} from "../services/warehouse-service";
+  createBox,
+  renameBox,
+  deleteBox,
+} from "../api/warehouse";
 import { toastService } from "../services/toast.service";
 
 export interface BoxManagementModalProps {
@@ -66,7 +66,7 @@ export function BoxManagementModal({
 
     setLoading(true);
     try {
-      await createWarehouseBox(newBoxName.trim());
+      await createBox(newBoxName.trim());
       toastService.success("✅ Scatolo creato");
       setNewBoxName("");
       setActiveTab("list");
@@ -100,7 +100,7 @@ export function BoxManagementModal({
 
     setLoading(true);
     try {
-      await renameWarehouseBox(oldName, editName.trim());
+      await renameBox(oldName, editName.trim());
       toastService.success("✅ Scatolo rinominato");
       setEditingBox(null);
       await loadBoxes();
@@ -123,7 +123,7 @@ export function BoxManagementModal({
 
     setLoading(true);
     try {
-      await deleteWarehouseBox(boxName);
+      await deleteBox(boxName);
       toastService.success("✅ Scatolo cancellato");
       await loadBoxes();
     } catch (error) {

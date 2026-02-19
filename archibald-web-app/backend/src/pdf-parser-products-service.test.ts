@@ -1,29 +1,19 @@
 import { describe, test, expect, beforeAll } from "vitest";
 import { PDFParserProductsService } from "./pdf-parser-products-service";
-import path from "path";
+import fs from "fs";
 
-const skipInCI = () => {
-  if (process.env.CI) {
-    console.warn("⏭️  Skipping test in CI (requires Archibald credentials)");
-    return true;
-  }
-  return false;
-};
+const testPdfPath = process.env.PRODUCTS_PDF_PATH || "/tmp/articoli-test.pdf";
+const pdfExists = fs.existsSync(testPdfPath);
+const shouldSkip = !!process.env.CI || !pdfExists;
 
-describe("PDFParserProductsService", () => {
+describe.skipIf(shouldSkip)("PDFParserProductsService", () => {
   let service: PDFParserProductsService;
-  let testPdfPath: string;
 
   beforeAll(() => {
-    if (skipInCI()) return;
-
     service = PDFParserProductsService.getInstance();
-    testPdfPath = process.env.PRODUCTS_PDF_PATH || "/tmp/articoli-test.pdf";
   });
 
   test("should parse PDF successfully", async () => {
-    if (skipInCI()) return;
-
     const products = await service.parsePDF(testPdfPath);
 
     expect(products).toBeInstanceOf(Array);
@@ -31,8 +21,6 @@ describe("PDFParserProductsService", () => {
   });
 
   test("should return ~4,540 valid products", async () => {
-    if (skipInCI()) return;
-
     const products = await service.parsePDF(testPdfPath);
 
     expect(products.length).toBeGreaterThanOrEqual(4000);
@@ -40,17 +28,12 @@ describe("PDFParserProductsService", () => {
   });
 
   test("should have all 26+ business fields", async () => {
-    if (skipInCI()) return;
-
     const products = await service.parsePDF(testPdfPath);
     const sample = products[0];
 
-    // Check core fields
     expect(sample.id_articolo).toBeDefined();
     expect(sample.nome_articolo).toBeDefined();
 
-    // Check extended fields from pages 4-8
-    // At least some should be populated
     const hasExtendedFields = [
       sample.figura,
       sample.grandezza,
@@ -62,19 +45,15 @@ describe("PDFParserProductsService", () => {
   });
 
   test("should parse within performance target (<20s)", async () => {
-    if (skipInCI()) return;
-
     const start = Date.now();
     const products = await service.parsePDF(testPdfPath);
     const duration = Date.now() - start;
 
     console.log(`✅ Parsed ${products.length} products in ${duration}ms`);
-    expect(duration).toBeLessThan(20000); // 20s buffer
+    expect(duration).toBeLessThan(20000);
   });
 
   test("should pass health check", async () => {
-    if (skipInCI()) return;
-
     const health = await service.healthCheck();
 
     expect(health.healthy).toBe(true);
@@ -83,8 +62,6 @@ describe("PDFParserProductsService", () => {
   });
 
   test("should throw error for non-existent PDF", async () => {
-    if (skipInCI()) return;
-
     await expect(service.parsePDF("/tmp/non-existent.pdf")).rejects.toThrow();
   });
 });
