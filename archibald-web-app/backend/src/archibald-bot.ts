@@ -9161,6 +9161,13 @@ export class ArchibaldBot {
           });
 
           if (textControl) {
+            if (typeof textControl.Focus === "function") {
+              textControl.Focus();
+            } else {
+              input.focus();
+              input.click();
+            }
+
             if (typeof textControl.SetValue === "function") {
               textControl.SetValue(val);
               return {
