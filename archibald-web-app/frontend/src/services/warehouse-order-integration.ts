@@ -1,4 +1,5 @@
 import { db, type PendingOrderItem } from "../db/schema";
+import { fetchWithRetry } from "../utils/fetch-with-retry";
 
 export type TrackingInfo = {
   customerName?: string;
@@ -99,6 +100,23 @@ export async function reserveWarehouseItems(
   }
 
   console.log("[Warehouse] ✅ Reservation complete for order", { orderId });
+
+  if (navigator.onLine && itemsToReserve.length > 0) {
+    try {
+      const itemIds = itemsToReserve.map((i) => i.warehouseItemId);
+      await fetchWithRetry("/api/sync/warehouse-items/batch-reserve", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          itemIds,
+          orderId: `pending-${orderId}`,
+          tracking,
+        }),
+      });
+    } catch (e) {
+      console.warn("[Warehouse] Backend reserve sync failed:", e);
+    }
+  }
 }
 
 /**
@@ -134,6 +152,18 @@ export async function releaseWarehouseReservations(
     orderId,
     itemsReleased: reservedItems.length,
   });
+
+  if (navigator.onLine) {
+    try {
+      await fetchWithRetry("/api/sync/warehouse-items/batch-release", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ orderId: `pending-${orderId}` }),
+      });
+    } catch (e) {
+      console.warn("[Warehouse] Backend release sync failed:", e);
+    }
+  }
 }
 
 /**
@@ -174,6 +204,22 @@ export async function markWarehouseItemsAsSold(
     archibaldOrderId,
     itemsSold: reservedItems.length,
   });
+
+  if (navigator.onLine) {
+    try {
+      await fetchWithRetry("/api/sync/warehouse-items/batch-mark-sold", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          orderId: `pending-${pendingOrderId}`,
+          jobId: archibaldOrderId,
+          tracking,
+        }),
+      });
+    } catch (e) {
+      console.warn("[Warehouse] Backend mark-sold sync failed:", e);
+    }
+  }
 }
 
 /**
@@ -210,6 +256,21 @@ export async function transferWarehouseReservations(
     toOrderId,
     itemsTransferred: transferred,
   });
+
+  if (navigator.onLine) {
+    try {
+      await fetchWithRetry("/api/sync/warehouse-items/batch-transfer", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          fromOrderIds: fromOrderIds.map((id) => `pending-${id}`),
+          toOrderId: `pending-${toOrderId}`,
+        }),
+      });
+    } catch (e) {
+      console.warn("[Warehouse] Backend transfer sync failed:", e);
+    }
+  }
 }
 
 /**

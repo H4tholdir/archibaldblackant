@@ -903,6 +903,270 @@ router.post(
 );
 
 /**
+ * POST /api/sync/warehouse-items/batch-reserve
+ *
+ * Reserve multiple warehouse items for an order in a single transaction
+ */
+router.post(
+  "/warehouse-items/batch-reserve",
+  authenticateJWT,
+  async (req: AuthRequest, res: Response) => {
+    try {
+      const userId = req.user!.userId;
+      const { itemIds, orderId, tracking } = req.body as {
+        itemIds: number[];
+        orderId: string;
+        tracking?: {
+          customerName?: string;
+          subClientName?: string;
+          orderDate?: string;
+          orderNumber?: string;
+        };
+      };
+
+      if (!itemIds || !Array.isArray(itemIds) || itemIds.length === 0) {
+        return res
+          .status(400)
+          .json({ success: false, error: "itemIds richiesto (array non vuoto)" });
+      }
+      if (!orderId) {
+        return res
+          .status(400)
+          .json({ success: false, error: "orderId richiesto" });
+      }
+
+      const stmt = usersDb.prepare(`
+        UPDATE warehouse_items
+        SET reserved_for_order = ?,
+            customer_name = ?,
+            sub_client_name = ?,
+            order_date = ?,
+            order_number = ?
+        WHERE id = ? AND user_id = ? AND reserved_for_order IS NULL
+      `);
+
+      let reserved = 0;
+      const skipped: number[] = [];
+
+      const runBatch = usersDb.transaction(() => {
+        for (const itemId of itemIds) {
+          const result = stmt.run(
+            orderId,
+            tracking?.customerName || null,
+            tracking?.subClientName || null,
+            tracking?.orderDate || null,
+            tracking?.orderNumber || null,
+            itemId,
+            userId,
+          );
+          if (result.changes > 0) {
+            reserved++;
+          } else {
+            skipped.push(itemId);
+          }
+        }
+      });
+
+      runBatch();
+
+      logger.info("Warehouse items batch reserved", {
+        orderId,
+        userId,
+        reserved,
+        skipped: skipped.length,
+      });
+
+      res.json({ success: true, reserved, skipped });
+    } catch (error) {
+      logger.error("Error batch reserving warehouse items", { error });
+      res.status(500).json({ success: false, error: "Errore server" });
+    }
+  },
+);
+
+/**
+ * POST /api/sync/warehouse-items/batch-release
+ *
+ * Release all warehouse items reserved for a given orderId
+ */
+router.post(
+  "/warehouse-items/batch-release",
+  authenticateJWT,
+  async (req: AuthRequest, res: Response) => {
+    try {
+      const userId = req.user!.userId;
+      const { orderId } = req.body as { orderId: string };
+
+      if (!orderId) {
+        return res
+          .status(400)
+          .json({ success: false, error: "orderId richiesto" });
+      }
+
+      const result = usersDb
+        .prepare(
+          `
+        UPDATE warehouse_items
+        SET reserved_for_order = NULL,
+            customer_name = NULL,
+            sub_client_name = NULL,
+            order_date = NULL,
+            order_number = NULL
+        WHERE user_id = ? AND reserved_for_order = ?
+      `,
+        )
+        .run(userId, orderId);
+
+      logger.info("Warehouse items batch released", {
+        orderId,
+        userId,
+        released: result.changes,
+      });
+
+      res.json({ success: true, released: result.changes });
+    } catch (error) {
+      logger.error("Error batch releasing warehouse items", { error });
+      res.status(500).json({ success: false, error: "Errore server" });
+    }
+  },
+);
+
+/**
+ * POST /api/sync/warehouse-items/batch-mark-sold
+ *
+ * Mark all warehouse items reserved for an orderId as sold
+ */
+router.post(
+  "/warehouse-items/batch-mark-sold",
+  authenticateJWT,
+  async (req: AuthRequest, res: Response) => {
+    try {
+      const userId = req.user!.userId;
+      const { orderId, jobId, tracking } = req.body as {
+        orderId: string;
+        jobId: string;
+        tracking?: {
+          customerName?: string;
+          subClientName?: string;
+          orderDate?: string;
+          orderNumber?: string;
+        };
+      };
+
+      if (!orderId) {
+        return res
+          .status(400)
+          .json({ success: false, error: "orderId richiesto" });
+      }
+      if (!jobId) {
+        return res
+          .status(400)
+          .json({ success: false, error: "jobId richiesto" });
+      }
+
+      const result = usersDb
+        .prepare(
+          `
+        UPDATE warehouse_items
+        SET sold_in_order = ?,
+            reserved_for_order = NULL,
+            customer_name = COALESCE(?, customer_name),
+            sub_client_name = COALESCE(?, sub_client_name),
+            order_date = COALESCE(?, order_date),
+            order_number = COALESCE(?, order_number)
+        WHERE user_id = ? AND reserved_for_order = ?
+      `,
+        )
+        .run(
+          jobId,
+          tracking?.customerName || null,
+          tracking?.subClientName || null,
+          tracking?.orderDate || null,
+          tracking?.orderNumber || null,
+          userId,
+          orderId,
+        );
+
+      logger.info("Warehouse items batch marked as sold", {
+        orderId,
+        jobId,
+        userId,
+        sold: result.changes,
+      });
+
+      res.json({ success: true, sold: result.changes });
+    } catch (error) {
+      logger.error("Error batch marking warehouse items as sold", { error });
+      res.status(500).json({ success: false, error: "Errore server" });
+    }
+  },
+);
+
+/**
+ * POST /api/sync/warehouse-items/batch-transfer
+ *
+ * Transfer reservations from multiple source orders to a destination order
+ */
+router.post(
+  "/warehouse-items/batch-transfer",
+  authenticateJWT,
+  async (req: AuthRequest, res: Response) => {
+    try {
+      const userId = req.user!.userId;
+      const { fromOrderIds, toOrderId } = req.body as {
+        fromOrderIds: string[];
+        toOrderId: string;
+      };
+
+      if (
+        !fromOrderIds ||
+        !Array.isArray(fromOrderIds) ||
+        fromOrderIds.length === 0
+      ) {
+        return res.status(400).json({
+          success: false,
+          error: "fromOrderIds richiesto (array non vuoto)",
+        });
+      }
+      if (!toOrderId) {
+        return res
+          .status(400)
+          .json({ success: false, error: "toOrderId richiesto" });
+      }
+
+      const stmt = usersDb.prepare(`
+        UPDATE warehouse_items
+        SET reserved_for_order = ?
+        WHERE user_id = ? AND reserved_for_order = ?
+      `);
+
+      let transferred = 0;
+
+      const runBatch = usersDb.transaction(() => {
+        for (const fromOrderId of fromOrderIds) {
+          const result = stmt.run(toOrderId, userId, fromOrderId);
+          transferred += result.changes;
+        }
+      });
+
+      runBatch();
+
+      logger.info("Warehouse items batch transferred", {
+        fromOrderIds,
+        toOrderId,
+        userId,
+        transferred,
+      });
+
+      res.json({ success: true, transferred });
+    } catch (error) {
+      logger.error("Error batch transferring warehouse items", { error });
+      res.status(500).json({ success: false, error: "Errore server" });
+    }
+  },
+);
+
+/**
  * GET /api/sync/warehouse-metadata
  *
  * Get warehouse upload metadata for current user
