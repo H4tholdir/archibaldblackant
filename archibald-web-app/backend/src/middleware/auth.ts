@@ -1,7 +1,7 @@
 import { Request, Response, NextFunction } from "express";
 import { verifyJWT } from "../auth-utils";
 import { logger } from "../logger";
-import type { UserRole } from "../user-db";
+import type { UserRole } from "../db/repositories/users";
 
 export interface AuthRequest extends Request {
   user?: {

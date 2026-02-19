@@ -8,10 +8,7 @@ import puppeteer, {
 } from "puppeteer";
 import { config } from "../config";
 import { logger } from "../logger";
-import { ProductDatabase } from "../product-db";
 import { SessionCacheManager } from "../session-cache";
-import { SessionCacheManager as MultiUserSessionCacheManager } from "../session-cache-manager";
-import { BrowserPool } from "../browser-pool";
 import { PasswordCache } from "../password-cache";
 import type { OrderData } from "../types";
 import {
@@ -32,14 +29,33 @@ interface SlowdownConfig {
   [stepName: string]: number;
 }
 
+type BotBrowserPool = {
+  acquireContext: (userId: string) => Promise<BrowserContext>;
+  releaseContext: (userId: string, context: BrowserContext, success: boolean) => Promise<void>;
+};
+
+type BotProductDb = {
+  getProductById: (code: string) => { id: string; packageContent?: string; multipleQty?: number } | undefined;
+  selectPackageVariant: (name: string, quantity: number) => { id: string; packageContent?: string; multipleQty?: number } | undefined;
+};
+
+type BotGetUserById = (userId: string) => Promise<{ username: string } | null>;
+
+type BotDeps = {
+  browserPool?: BotBrowserPool;
+  productDb?: BotProductDb;
+  getUserById?: BotGetUserById;
+};
+
 export class ArchibaldBot {
   private browser: Browser | null = null;
   private context: BrowserContext | null = null;
   public page: Page | null = null;
   private userId: string | null = null;
-  private productDb: ProductDatabase;
+  private productDb: BotProductDb | null = null;
   private legacySessionCache: SessionCacheManager | null = null;
-  private multiUserSessionCache: MultiUserSessionCacheManager | null = null;
+  private _browserPool: BotBrowserPool | null = null;
+  private _getUserById: BotGetUserById | null = null;
   private slowdownConfig: SlowdownConfig = {}; // Per-step slowdown configuration
   private opSeq = 0;
   private lastOpEndNs: bigint | null = null;
@@ -66,16 +82,13 @@ export class ArchibaldBot {
     errorMessage?: string;
   }> = [];
 
-  constructor(userId?: string) {
+  constructor(userId?: string, deps?: BotDeps) {
     this.userId = userId || null;
-    this.productDb = ProductDatabase.getInstance();
+    this._browserPool = deps?.browserPool ?? null;
+    this.productDb = deps?.productDb ?? null;
+    this._getUserById = deps?.getUserById ?? null;
 
-    // Use appropriate session cache based on mode
-    if (this.userId) {
-      // Multi-user mode: use per-user session cache
-      this.multiUserSessionCache = MultiUserSessionCacheManager.getInstance();
-    } else {
-      // Legacy mode: use single-user session cache
+    if (!this.userId) {
       this.legacySessionCache = new SessionCacheManager();
     }
   }
@@ -2102,11 +2115,11 @@ export class ArchibaldBot {
       // Multi-user mode: acquire context from pool
       logger.info(`Inizializzazione bot per user ${this.userId}`);
 
-      const pool = BrowserPool.getInstance();
+      if (!this._browserPool) throw new Error('BrowserPool not provided. Pass browserPool in constructor deps.');
       this.context = await this.runOp(
         "browserPool.acquireContext",
         async () => {
-          return pool.acquireContext(this.userId!);
+          return this._browserPool!.acquireContext(this.userId!);
         },
         "login",
       );
@@ -2264,9 +2277,8 @@ export class ArchibaldBot {
           `Password not found in cache for user ${this.userId}. User must login again.`,
         );
       }
-      // Get username from UserDatabase
-      const { UserDatabase } = await import("../user-db");
-      const user = UserDatabase.getInstance().getUserById(this.userId);
+      if (!this._getUserById) throw new Error('getUserById not provided. Pass getUserById in constructor deps.');
+      const user = await this._getUserById(this.userId);
       if (!user) {
         throw new Error(`User ${this.userId} not found in database`);
       }
@@ -2286,10 +2298,7 @@ export class ArchibaldBot {
     // Try to restore session from persistent cache (daily expiration)
     let cachedCookies: any[] | null = null;
 
-    if (this.userId && this.multiUserSessionCache) {
-      // Multi-user mode: load per-user session
-      cachedCookies = await this.multiUserSessionCache.loadSession(this.userId);
-    } else if (this.legacySessionCache) {
+    if (this.legacySessionCache) {
       // Legacy mode: load single-user session
       cachedCookies = this.legacySessionCache.loadSession();
     }
@@ -2314,10 +2323,7 @@ export class ArchibaldBot {
           "Session expired, clearing cache and performing fresh login",
         );
 
-        // Clear the appropriate cache
-        if (this.userId && this.multiUserSessionCache) {
-          this.multiUserSessionCache.clearSession(this.userId);
-        } else if (this.legacySessionCache) {
+        if (this.legacySessionCache) {
           this.legacySessionCache.clearSession();
         }
       } catch (error) {
@@ -2328,10 +2334,7 @@ export class ArchibaldBot {
           },
         );
 
-        // Clear the appropriate cache
-        if (this.userId && this.multiUserSessionCache) {
-          this.multiUserSessionCache.clearSession(this.userId);
-        } else if (this.legacySessionCache) {
+        if (this.legacySessionCache) {
           this.legacySessionCache.clearSession();
         }
       }
@@ -2528,14 +2531,7 @@ export class ArchibaldBot {
         // Map cookies to Protocol.Network.Cookie format (use type assertion to handle version mismatch)
         const protocolCookies = cookies as any;
 
-        if (this.userId && this.multiUserSessionCache) {
-          // Multi-user mode: save to per-user cache
-          await this.multiUserSessionCache.saveSession(
-            this.userId,
-            protocolCookies,
-          );
-        } else if (this.legacySessionCache) {
-          // Legacy single-user mode
+        if (this.legacySessionCache) {
           this.legacySessionCache.saveSession(protocolCookies);
         }
       } else {
@@ -3632,12 +3628,12 @@ export class ArchibaldBot {
           async () => {
             const variantLookupName =
               item.productName?.trim() || item.articleCode;
-            const directVariant = this.productDb.getProductById(
+            const directVariant = this.productDb?.getProductById(
               item.articleCode,
             );
             const selectedVariant =
               directVariant ||
-              this.productDb.selectPackageVariant(
+              this.productDb?.selectPackageVariant(
                 variantLookupName,
                 item.quantity,
               );
@@ -7447,10 +7443,10 @@ export class ArchibaldBot {
     if (!this.page) throw new Error("Page not initialized");
 
     // Step 1: Look up the correct variant from the product database
-    const directVariant = this.productDb.getProductById(articleCode);
+    const directVariant = this.productDb?.getProductById(articleCode);
     const selectedVariant =
       directVariant ||
-      this.productDb.selectPackageVariant(articleCode, quantity);
+      this.productDb?.selectPackageVariant(articleCode, quantity);
 
     if (!selectedVariant) {
       throw new Error(
@@ -8321,11 +8317,10 @@ export class ArchibaldBot {
       this.page = null;
     }
 
-    if (this.userId && this.context) {
+    if (this.userId && this.context && this._browserPool) {
       // Multi-user mode: release context to pool
-      const pool = BrowserPool.getInstance();
       // Release with success=false if there were errors, so pool closes the context
-      await pool.releaseContext(this.userId, this.context, !this.hasError);
+      await this._browserPool.releaseContext(this.userId, this.context, !this.hasError);
       this.context = null;
       logger.info(
         `Context released for user ${this.userId}, success=${!this.hasError}`,

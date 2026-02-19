@@ -1,6 +1,6 @@
 import * as jose from "jose";
 import { logger } from "./logger";
-import type { UserRole } from "./user-db";
+import type { UserRole } from "./db/repositories/users";
 
 const JWT_SECRET = new TextEncoder().encode(
   process.env.JWT_SECRET || "dev-secret-key-change-in-production",
