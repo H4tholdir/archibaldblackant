@@ -1,6 +1,7 @@
 import type { Customer } from "../types/local-customer";
 import type { CacheMetadata } from "../types/cache";
 import { fetchWithRetry } from "../utils/fetch-with-retry";
+import { enqueueOperation } from "../api/operations";
 
 function parseLastOrderDate(raw: string | undefined | null): string {
   if (!raw) return "";
@@ -99,21 +100,8 @@ export class CustomerService {
     deliveryPostalCodeCity?: string;
     deliveryPostalCodeCountry?: string;
   }): Promise<{ customer: Customer | null; taskId: string | null }> {
-    const response = await fetchWithRetry("/api/customers", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(formData),
-    });
-
-    if (!response.ok) {
-      throw new Error(`API request failed: ${response.status}`);
-    }
-
-    const data = await response.json();
-    const customer: Customer | undefined = data.data?.customer;
-    const taskId: string | undefined = data.data?.taskId;
-
-    return { customer: customer ?? null, taskId: taskId ?? null };
+    const result = await enqueueOperation('create-customer', formData as Record<string, unknown>);
+    return { customer: null, taskId: result.jobId };
   }
 
   async updateCustomer(
@@ -137,23 +125,11 @@ export class CustomerService {
       deliveryPostalCodeCountry?: string;
     },
   ): Promise<{ taskId: string | null }> {
-    const response = await fetchWithRetry(
-      `/api/customers/${encodeURIComponent(customerProfile)}`,
-      {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(formData),
-      },
-    );
-
-    if (!response.ok) {
-      throw new Error(`Update failed: ${response.status}`);
-    }
-
-    const data = await response.json();
-    const taskId: string | undefined = data.data?.taskId;
-
-    return { taskId: taskId ?? null };
+    const result = await enqueueOperation('update-customer', {
+      customerProfile,
+      ...formData,
+    } as Record<string, unknown>);
+    return { taskId: result.jobId };
   }
 
   async getCustomerBotStatus(customerProfile: string): Promise<string> {
