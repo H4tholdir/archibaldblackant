@@ -1,4 +1,6 @@
 import { useState, useEffect } from "react";
+import { enqueueOperation, type OperationType } from "../api/operations";
+import { fetchWithRetry } from "../utils/fetch-with-retry";
 
 type SyncType =
   | "customers"
@@ -8,21 +10,24 @@ type SyncType =
   | "ddt"
   | "invoices";
 
-interface SyncStatus {
-  type: SyncType;
-  isRunning: boolean;
-  lastRunTime: string | null;
-  queuePosition: number | null;
-}
+type QueueStats = {
+  waiting: number;
+  active: number;
+  completed: number;
+  failed: number;
+};
 
-interface OrchestratorStatus {
-  currentSync: SyncType | null;
-  queue: Array<{ type: SyncType; priority: number; requestedAt: string }>;
-  statuses: Record<SyncType, SyncStatus>;
-  smartCustomerSyncActive: boolean;
-  sessionCount: number;
-  safetyTimeoutActive: boolean;
-}
+type ActiveJob = {
+  userId: string;
+  jobId: string;
+  type: string;
+};
+
+type DashboardState = {
+  queue: QueueStats;
+  activeJobs: ActiveJob[];
+  scheduler: { running: boolean; intervals: { agentSyncMs: number; sharedSyncMs: number } };
+};
 
 interface SyncSection {
   type: SyncType;
@@ -41,7 +46,7 @@ const syncSections: SyncSection[] = [
 ];
 
 export default function SyncControlPanel() {
-  const [status, setStatus] = useState<OrchestratorStatus | null>(null);
+  const [dashboard, setDashboard] = useState<DashboardState | null>(null);
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState<Record<SyncType, boolean>>({
     customers: false,
@@ -63,11 +68,9 @@ export default function SyncControlPanel() {
   const [autoSyncEnabled, setAutoSyncEnabled] = useState<boolean | null>(null);
 
   useEffect(() => {
-    // Initial fetch
     fetchStatus();
     fetchAutoSyncStatus();
 
-    // Poll every 5s during active syncs
     const interval = setInterval(() => {
       fetchStatus();
       fetchAutoSyncStatus();
@@ -78,29 +81,21 @@ export default function SyncControlPanel() {
 
   const fetchStatus = async () => {
     try {
-      const jwt = localStorage.getItem("archibald_jwt");
-      if (!jwt) return;
-
-      const response = await fetch("/api/sync/status", {
-        headers: { Authorization: `Bearer ${jwt}` },
-      });
-
+      const response = await fetchWithRetry("/api/sync/monitoring/status");
       const data = await response.json();
       if (data.success) {
-        setStatus(data.status);
+        setDashboard(data);
 
-        // Update syncing states based on orchestrator status
         const newSyncing: Record<SyncType, boolean> = {
-          customers: false,
-          products: false,
-          prices: false,
-          orders: false,
-          ddt: false,
-          invoices: false,
+          customers: false, products: false, prices: false,
+          orders: false, ddt: false, invoices: false,
         };
 
-        if (data.status.currentSync) {
-          newSyncing[data.status.currentSync as SyncType] = true;
+        for (const job of (data.activeJobs || [])) {
+          const syncType = job.type.replace('sync-', '') as SyncType;
+          if (syncType in newSyncing) {
+            newSyncing[syncType] = true;
+          }
         }
 
         setSyncing(newSyncing);
@@ -114,16 +109,10 @@ export default function SyncControlPanel() {
 
   const fetchAutoSyncStatus = async () => {
     try {
-      const jwt = localStorage.getItem("archibald_jwt");
-      if (!jwt) return;
-
-      const response = await fetch("/api/sync/auto-sync/status", {
-        headers: { Authorization: `Bearer ${jwt}` },
-      });
-
+      const response = await fetchWithRetry("/api/sync/auto-sync/status");
       const data = await response.json();
       if (data.success) {
-        setAutoSyncEnabled(data.isRunning);
+        setAutoSyncEnabled(data.running);
       }
     } catch (error) {
       console.error("Failed to fetch auto-sync status:", error);
@@ -131,17 +120,10 @@ export default function SyncControlPanel() {
   };
 
   const toggleAutoSync = async () => {
-    const jwt = localStorage.getItem("archibald_jwt");
-    if (!jwt) {
-      alert("Devi effettuare il login");
-      return;
-    }
-
     const endpoint = autoSyncEnabled ? "stop" : "start";
     try {
-      const response = await fetch(`/api/sync/auto-sync/${endpoint}`, {
+      const response = await fetchWithRetry(`/api/sync/auto-sync/${endpoint}`, {
         method: "POST",
-        headers: { Authorization: `Bearer ${jwt}` },
       });
 
       const data = await response.json();
@@ -158,27 +140,9 @@ export default function SyncControlPanel() {
 
   const handleSyncIndividual = async (type: SyncType) => {
     try {
-      const jwt = localStorage.getItem("archibald_jwt");
-      if (!jwt) {
-        alert("Devi effettuare il login");
-        return;
-      }
-
       setSyncing((prev) => ({ ...prev, [type]: true }));
-
-      const response = await fetch(`/api/sync/${type}`, {
-        method: "POST",
-        headers: { Authorization: `Bearer ${jwt}` },
-      });
-
-      const data = await response.json();
-
-      if (!data.success) {
-        alert(`Errore sync ${type}: ${data.error}`);
-      } else {
-        // Refresh status immediately
-        fetchStatus();
-      }
+      await enqueueOperation(`sync-${type}` as OperationType, {});
+      fetchStatus();
     } catch (error) {
       console.error(`Error syncing ${type}:`, error);
       alert(`Errore durante sync ${type}`);
@@ -187,27 +151,14 @@ export default function SyncControlPanel() {
 
   const handleSyncAll = async () => {
     try {
-      const jwt = localStorage.getItem("archibald_jwt");
-      if (!jwt) {
-        alert("Devi effettuare il login");
-        return;
-      }
-
       setSyncingAll(true);
 
-      const response = await fetch("/api/sync/all", {
-        method: "POST",
-        headers: { Authorization: `Bearer ${jwt}` },
-      });
+      const syncTypes: SyncType[] = ["customers", "orders", "ddt", "invoices", "products", "prices"];
+      await Promise.all(
+        syncTypes.map((type) => enqueueOperation(`sync-${type}` as OperationType, {})),
+      );
 
-      const data = await response.json();
-
-      if (!data.success) {
-        alert(`Errore sync all: ${data.error}`);
-      } else {
-        // Refresh status immediately
-        fetchStatus();
-      }
+      fetchStatus();
     } catch (error) {
       console.error("Error syncing all:", error);
       alert("Errore durante sync generale");
@@ -218,7 +169,7 @@ export default function SyncControlPanel() {
 
   const handleDeleteDb = async (type: SyncType) => {
     const confirmDelete = window.confirm(
-      `⚠️ ATTENZIONE: Stai per cancellare il database ${type}.\n\n` +
+      `ATTENZIONE: Stai per cancellare il database ${type}.\n\n` +
         `Tutti i dati verranno eliminati e dovrai rifare una sync completa.\n\n` +
         `Sei sicuro di voler procedere?`,
     );
@@ -226,17 +177,10 @@ export default function SyncControlPanel() {
     if (!confirmDelete) return;
 
     try {
-      const jwt = localStorage.getItem("archibald_jwt");
-      if (!jwt) {
-        alert("Devi effettuare il login");
-        return;
-      }
-
       setDeletingDb((prev) => ({ ...prev, [type]: true }));
 
-      const response = await fetch(`/api/sync/${type}/clear-db`, {
+      const response = await fetchWithRetry(`/api/sync/${type}/clear-db`, {
         method: "DELETE",
-        headers: { Authorization: `Bearer ${jwt}` },
       });
 
       const data = await response.json();
@@ -245,7 +189,7 @@ export default function SyncControlPanel() {
         alert(`Errore cancellazione DB ${type}: ${data.error}`);
       } else {
         alert(
-          `✅ Database ${type} cancellato con successo!\n\nEsegui ora una sync completa.`,
+          `Database ${type} cancellato con successo!\n\nEsegui ora una sync completa.`,
         );
         fetchStatus();
       }
@@ -257,84 +201,38 @@ export default function SyncControlPanel() {
     }
   };
 
+  const isSyncActive = (syncType: SyncType) => {
+    if (!dashboard) return false;
+    return dashboard.activeJobs.some((j) => j.type === `sync-${syncType}`);
+  };
+
+  const hasAnyActiveSync = () => {
+    if (!dashboard) return false;
+    return dashboard.activeJobs.some((j) => j.type.startsWith('sync-'));
+  };
+
   const getStatusBadge = (syncType: SyncType) => {
-    if (!status) return { bg: "#9e9e9e", color: "#fff", text: "N/A" };
+    if (!dashboard) return { bg: "#9e9e9e", color: "#fff", text: "N/A" };
 
-    const syncStatus = status.statuses[syncType];
-
-    if (syncStatus.isRunning) {
+    if (isSyncActive(syncType)) {
       return { bg: "#ff9800", color: "#fff", text: "Running" };
     }
 
-    if (syncStatus.queuePosition !== null) {
-      return {
-        bg: "#2196f3",
-        color: "#fff",
-        text: `Queue #${syncStatus.queuePosition}`,
-      };
+    if (dashboard.queue.waiting > 0) {
+      return { bg: "#2196f3", color: "#fff", text: "In coda" };
     }
 
-    if (syncStatus.lastRunTime) {
-      return { bg: "#4caf50", color: "#fff", text: "Idle" };
-    }
-
-    return { bg: "#9e9e9e", color: "#fff", text: "Never run" };
+    return { bg: "#4caf50", color: "#fff", text: "Idle" };
   };
 
   const getHealthIndicator = (syncType: SyncType) => {
-    if (!status) return "🟢";
+    if (!dashboard) return "";
 
-    const syncStatus = status.statuses[syncType];
-
-    if (syncStatus.isRunning) {
-      return "🟡"; // Running
+    if (isSyncActive(syncType)) {
+      return ""; // Running
     }
 
-    if (syncStatus.lastRunTime) {
-      const lastRun = new Date(syncStatus.lastRunTime);
-      const now = new Date();
-      const hoursSinceLastRun =
-        (now.getTime() - lastRun.getTime()) / (1000 * 60 * 60);
-
-      // Health thresholds based on sync type priority
-      const thresholds: Record<SyncType, number> = {
-        orders: 1, // 1 hour
-        customers: 2, // 2 hours
-        ddt: 3, // 3 hours
-        invoices: 3, // 3 hours
-        prices: 4, // 4 hours
-        products: 8, // 8 hours
-      };
-
-      if (hoursSinceLastRun > thresholds[syncType]) {
-        return "🔴"; // Degraded (too long since last sync)
-      }
-
-      return "🟢"; // Healthy
-    }
-
-    return "⚪"; // Never run
-  };
-
-  const formatLastSync = (lastRunTime: string | null) => {
-    if (!lastRunTime) return "Mai sincronizzato";
-
-    const date = new Date(lastRunTime);
-    const now = new Date();
-    const diffMs = now.getTime() - date.getTime();
-    const diffMins = Math.floor(diffMs / (1000 * 60));
-    const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
-
-    if (diffMins < 1) return "Appena ora";
-    if (diffMins < 60) return `${diffMins} min fa`;
-    if (diffHours < 24) return `${diffHours}h fa`;
-
-    return date.toLocaleString("it-IT", {
-      day: "2-digit",
-      month: "2-digit",
-      hour: "2-digit",
-      minute: "2-digit",
-    });
+    return ""; // Idle
   };
 
   if (loading) {
@@ -367,20 +265,20 @@ export default function SyncControlPanel() {
         </div>
         <button
           onClick={handleSyncAll}
-          disabled={syncingAll || status?.currentSync !== null}
+          disabled={syncingAll || hasAnyActiveSync()}
           style={{
             padding: "12px 24px",
             fontSize: "16px",
             fontWeight: 600,
             backgroundColor:
-              syncingAll || status?.currentSync !== null
+              syncingAll || hasAnyActiveSync()
                 ? "#9e9e9e"
                 : "#2196f3",
             color: "#fff",
             border: "none",
             borderRadius: "8px",
             cursor:
-              syncingAll || status?.currentSync !== null
+              syncingAll || hasAnyActiveSync()
                 ? "not-allowed"
                 : "pointer",
             transition: "all 0.2s",
@@ -436,30 +334,6 @@ export default function SyncControlPanel() {
         </div>
       </div>
 
-      {status?.smartCustomerSyncActive && (
-        <div
-          style={{
-            marginBottom: "20px",
-            padding: "12px 16px",
-            backgroundColor: "#e3f2fd",
-            border: "1px solid #2196f3",
-            borderRadius: "8px",
-            display: "flex",
-            alignItems: "center",
-            gap: "12px",
-          }}
-        >
-          <span style={{ fontSize: "20px" }}>⚡</span>
-          <div>
-            <strong>Smart Customer Sync attivo</strong>
-            <p style={{ margin: "4px 0 0 0", fontSize: "13px", color: "#666" }}>
-              Altri sync in pausa. Sessioni attive: {status.sessionCount}
-              {status.safetyTimeoutActive && " | Timeout sicurezza: 10 min"}
-            </p>
-          </div>
-        </div>
-      )}
-
       <div
         style={{
           display: "grid",
@@ -468,7 +342,6 @@ export default function SyncControlPanel() {
         }}
       >
         {syncSections.map((section) => {
-          const syncStatus = status?.statuses[section.type];
           const statusBadge = getStatusBadge(section.type);
           const healthIndicator = getHealthIndicator(section.type);
 
@@ -532,7 +405,7 @@ export default function SyncControlPanel() {
                 <button
                   onClick={() => handleSyncIndividual(section.type)}
                   disabled={
-                    syncing[section.type] || status?.currentSync !== null
+                    syncing[section.type] || hasAnyActiveSync()
                   }
                   style={{
                     flex: 1,
@@ -540,14 +413,14 @@ export default function SyncControlPanel() {
                     fontSize: "14px",
                     fontWeight: 600,
                     backgroundColor:
-                      syncing[section.type] || status?.currentSync !== null
+                      syncing[section.type] || hasAnyActiveSync()
                         ? "#9e9e9e"
                         : "#4caf50",
                     color: "#fff",
                     border: "none",
                     borderRadius: "6px",
                     cursor:
-                      syncing[section.type] || status?.currentSync !== null
+                      syncing[section.type] || hasAnyActiveSync()
                         ? "not-allowed"
                         : "pointer",
                   }}
@@ -561,7 +434,7 @@ export default function SyncControlPanel() {
                   disabled={
                     deletingDb[section.type] ||
                     syncing[section.type] ||
-                    status?.currentSync !== null
+                    hasAnyActiveSync()
                   }
                   title="Cancella database e ricrea da zero"
                   style={{
@@ -571,7 +444,7 @@ export default function SyncControlPanel() {
                     backgroundColor:
                       deletingDb[section.type] ||
                       syncing[section.type] ||
-                      status?.currentSync !== null
+                      hasAnyActiveSync()
                         ? "#9e9e9e"
                         : "#f44336",
                     color: "#fff",
@@ -580,7 +453,7 @@ export default function SyncControlPanel() {
                     cursor:
                       deletingDb[section.type] ||
                       syncing[section.type] ||
-                      status?.currentSync !== null
+                      hasAnyActiveSync()
                         ? "not-allowed"
                         : "pointer",
                   }}
@@ -590,10 +463,6 @@ export default function SyncControlPanel() {
               </div>
 
               <div style={{ fontSize: "12px", color: "#666" }}>
-                <div style={{ marginBottom: "4px" }}>
-                  <strong>Ultima sync:</strong>{" "}
-                  {formatLastSync(syncStatus?.lastRunTime || null)}
-                </div>
                 <div>
                   <strong>Priorità:</strong> {section.priority}/6
                 </div>
@@ -603,7 +472,7 @@ export default function SyncControlPanel() {
         })}
       </div>
 
-      {status && status.queue.length > 0 && (
+      {dashboard && (dashboard.queue.waiting > 0 || dashboard.activeJobs.length > 0) && (
         <div
           style={{
             marginTop: "24px",
@@ -616,12 +485,12 @@ export default function SyncControlPanel() {
           <h3
             style={{ margin: "0 0 12px 0", fontSize: "16px", fontWeight: 600 }}
           >
-            📋 Coda Sync ({status.queue.length})
+            Coda Operazioni (attivi: {dashboard.activeJobs.length}, in attesa: {dashboard.queue.waiting})
           </h3>
           <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-            {status.queue.map((item, index) => (
+            {dashboard.activeJobs.map((job) => (
               <div
-                key={index}
+                key={job.jobId}
                 style={{
                   display: "flex",
                   justifyContent: "space-between",
@@ -632,11 +501,10 @@ export default function SyncControlPanel() {
                 }}
               >
                 <span>
-                  <strong>#{index + 1}</strong> {item.type}
+                  <strong>{job.type}</strong>
                 </span>
                 <span style={{ color: "#666" }}>
-                  Priorità: {item.priority} | Richiesto:{" "}
-                  {new Date(item.requestedAt).toLocaleTimeString("it-IT")}
+                  User: {job.userId} | Job: {job.jobId}
                 </span>
               </div>
             ))}
