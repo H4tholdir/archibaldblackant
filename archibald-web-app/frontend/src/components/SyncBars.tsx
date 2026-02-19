@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import "../styles/SyncBars.css";
 import { toastService } from "../services/toast.service";
+import { enqueueOperation, type OperationType } from "../api/operations";
 
 interface SyncProgress {
   status: "idle" | "syncing" | "completed" | "error";
@@ -168,27 +169,13 @@ export default function SyncBars() {
     }
 
     try {
-      // Get JWT token for admin authentication
-      const jwt = localStorage.getItem("archibald_jwt");
-      if (!jwt) {
+      if (!localStorage.getItem("archibald_jwt")) {
         alert("Autenticazione richiesta. Effettua il login.");
         return;
       }
 
-      const endpoint = `/api/sync/${type}`;
-      const response = await fetch(endpoint, {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${jwt}`,
-        },
-      });
-      const data = await response.json();
+      await enqueueOperation(`sync-${type}` as OperationType, {});
 
-      if (!data.success) {
-        throw new Error(data.error || "Errore avvio sincronizzazione");
-      }
-
-      // Il progresso sarà mostrato via WebSocket
       setSyncState((prev) => ({
         ...prev,
         activeSyncType: type,

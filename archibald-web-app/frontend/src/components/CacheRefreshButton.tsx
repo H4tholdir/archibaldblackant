@@ -1,12 +1,12 @@
 import { useState } from "react";
 import { toastService } from "../services/toast.service";
+import { enqueueOperation, type OperationType } from "../api/operations";
 
 export function CacheRefreshButton() {
   const [refreshing, setRefreshing] = useState(false);
 
   async function handleRefresh() {
-    const jwt = localStorage.getItem("archibald_jwt");
-    if (!jwt) {
+    if (!localStorage.getItem("archibald_jwt")) {
       toastService.warning("Devi effettuare il login per aggiornare i dati");
       return;
     }
@@ -14,22 +14,12 @@ export function CacheRefreshButton() {
     setRefreshing(true);
 
     try {
-      // Trigger manual sync for all types (priority order)
-      const response = await fetch("/api/sync/all", {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${jwt}`,
-        },
-      });
+      const syncTypes: OperationType[] = [
+        "sync-customers", "sync-orders", "sync-ddt",
+        "sync-invoices", "sync-products", "sync-prices",
+      ];
+      await Promise.all(syncTypes.map((type) => enqueueOperation(type, {})));
 
-      const result = await response.json();
-
-      if (!result.success) {
-        throw new Error(result.error || "Sync failed");
-      }
-
-      // Progress will be shown via UnifiedSyncProgress component (SSE)
-      // Auto-hide button loading state after 2 seconds
       setTimeout(() => {
         setRefreshing(false);
       }, 2000);
