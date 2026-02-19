@@ -8,6 +8,11 @@ const mockUsers = [
   { id: 'u2', username: 'admin1', fullName: 'Admin One', role: 'admin' as const, whitelisted: true, lastLoginAt: 1708300000 },
 ];
 
+const mockJobs = [
+  { jobId: 'j1', type: 'sync-customers', userId: 'u1', state: 'completed', progress: 100, createdAt: 1708300000, processedAt: 1708300010, finishedAt: 1708300020, failedReason: undefined },
+  { jobId: 'j2', type: 'submit-order', userId: 'u2', state: 'failed', progress: 50, createdAt: 1708300100, processedAt: 1708300110, finishedAt: 1708300120, failedReason: 'Timeout' },
+];
+
 function createMockDeps(): AdminRouterDeps {
   return {
     pool: {} as AdminRouterDeps['pool'],
@@ -26,6 +31,12 @@ function createMockDeps(): AdminRouterDeps {
     generateJWT: vi.fn().mockResolvedValue('impersonation-token'),
     createAdminSession: vi.fn().mockResolvedValue(42),
     closeAdminSession: vi.fn().mockResolvedValue(undefined),
+    getAllJobs: vi.fn().mockResolvedValue(mockJobs),
+    retryJob: vi.fn().mockResolvedValue({ success: true, newJobId: 'j3' }),
+    cancelJob: vi.fn().mockResolvedValue({ success: true }),
+    cleanupJobs: vi.fn().mockResolvedValue({ removedCompleted: 5, removedFailed: 2 }),
+    getRetentionConfig: vi.fn().mockReturnValue({ completedCount: 100, failedCount: 50 }),
+    importSubclients: vi.fn().mockResolvedValue({ success: true, imported: 15, skipped: 3 }),
   };
 }
 
@@ -107,7 +118,7 @@ describe('createAdminRouter', () => {
   });
 
   describe('POST /api/admin/impersonate', () => {
-    test('impersonates target user', async () => {
+    test('impersonates target user with their original role', async () => {
       const res = await request(app)
         .post('/api/admin/impersonate')
         .send({ targetUserId: 'u1' });
@@ -115,6 +126,7 @@ describe('createAdminRouter', () => {
       expect(res.status).toBe(200);
       expect(res.body.token).toBe('impersonation-token');
       expect(res.body.user.isImpersonating).toBe(true);
+      expect(res.body.user.role).toBe('agent');
     });
 
     test('returns 404 for unknown user', async () => {
@@ -171,6 +183,149 @@ describe('createAdminRouter', () => {
 
       expect(res.status).toBe(200);
       expect(deps.updateUserTarget).toHaveBeenCalled();
+    });
+  });
+
+  describe('GET /api/admin/jobs', () => {
+    test('returns all jobs with default limit', async () => {
+      const res = await request(app).get('/api/admin/jobs');
+
+      expect(res.status).toBe(200);
+      expect(res.body).toEqual({ success: true, data: mockJobs });
+      expect(deps.getAllJobs).toHaveBeenCalledWith(50, undefined);
+    });
+
+    test('respects limit and status query params', async () => {
+      const res = await request(app).get('/api/admin/jobs?limit=10&status=failed');
+
+      expect(res.status).toBe(200);
+      expect(deps.getAllJobs).toHaveBeenCalledWith(10, 'failed');
+    });
+
+    test('returns 500 when getAllJobs fails', async () => {
+      (deps.getAllJobs as ReturnType<typeof vi.fn>).mockRejectedValue(new Error('Redis down'));
+      const res = await request(app).get('/api/admin/jobs');
+
+      expect(res.status).toBe(500);
+      expect(res.body.success).toBe(false);
+    });
+  });
+
+  describe('POST /api/admin/jobs/retry/:jobId', () => {
+    test('retries a job and returns new jobId', async () => {
+      const res = await request(app).post('/api/admin/jobs/retry/j2');
+
+      expect(res.status).toBe(200);
+      expect(res.body).toEqual({
+        success: true,
+        data: { newJobId: 'j3' },
+      });
+      expect(deps.retryJob).toHaveBeenCalledWith('j2');
+    });
+
+    test('returns 400 when retry fails', async () => {
+      (deps.retryJob as ReturnType<typeof vi.fn>).mockResolvedValue({ success: false, error: 'Job not found' });
+      const res = await request(app).post('/api/admin/jobs/retry/bad-id');
+
+      expect(res.status).toBe(400);
+      expect(res.body).toEqual({ success: false, error: 'Job not found' });
+    });
+  });
+
+  describe('POST /api/admin/jobs/cancel/:jobId', () => {
+    test('cancels a job', async () => {
+      const res = await request(app).post('/api/admin/jobs/cancel/j1');
+
+      expect(res.status).toBe(200);
+      expect(res.body.success).toBe(true);
+      expect(deps.cancelJob).toHaveBeenCalledWith('j1');
+    });
+
+    test('returns 400 when cancel fails', async () => {
+      (deps.cancelJob as ReturnType<typeof vi.fn>).mockResolvedValue({ success: false, error: 'Cannot cancel active job' });
+      const res = await request(app).post('/api/admin/jobs/cancel/j1');
+
+      expect(res.status).toBe(400);
+      expect(res.body).toEqual({ success: false, error: 'Cannot cancel active job' });
+    });
+  });
+
+  describe('POST /api/admin/jobs/cleanup', () => {
+    test('cleans up old jobs', async () => {
+      const res = await request(app).post('/api/admin/jobs/cleanup');
+
+      expect(res.status).toBe(200);
+      expect(res.body).toEqual({
+        success: true,
+        data: { removedCompleted: 5, removedFailed: 2 },
+      });
+    });
+
+    test('returns 500 when cleanup fails', async () => {
+      (deps.cleanupJobs as ReturnType<typeof vi.fn>).mockRejectedValue(new Error('Cleanup error'));
+      const res = await request(app).post('/api/admin/jobs/cleanup');
+
+      expect(res.status).toBe(500);
+      expect(res.body.success).toBe(false);
+    });
+  });
+
+  describe('GET /api/admin/jobs/retention', () => {
+    test('returns retention config', async () => {
+      const res = await request(app).get('/api/admin/jobs/retention');
+
+      expect(res.status).toBe(200);
+      expect(res.body).toEqual({
+        success: true,
+        data: { completedCount: 100, failedCount: 50 },
+      });
+    });
+  });
+
+  describe('GET /api/admin/session/check', () => {
+    test('returns not impersonating for normal admin', async () => {
+      const res = await request(app).get('/api/admin/session/check');
+
+      expect(res.status).toBe(200);
+      expect(res.body).toEqual({
+        success: true,
+        data: { isImpersonating: false, realAdminId: null, adminSessionId: null },
+      });
+    });
+
+    test('returns impersonation details when impersonating', async () => {
+      const impersonatingApp = createApp(deps, {
+        isImpersonating: true,
+        realAdminId: 'admin-1',
+        adminSessionId: 42,
+      });
+      const res = await request(impersonatingApp).get('/api/admin/session/check');
+
+      expect(res.status).toBe(200);
+      expect(res.body).toEqual({
+        success: true,
+        data: { isImpersonating: true, realAdminId: 'admin-1', adminSessionId: 42 },
+      });
+    });
+  });
+
+  describe('POST /api/admin/subclients/import', () => {
+    test('imports subclients from uploaded file', async () => {
+      const csvContent = 'codice,nome\nSC001,Test Client';
+      const res = await request(app)
+        .post('/api/admin/subclients/import')
+        .attach('file', Buffer.from(csvContent), 'subclients.xlsx');
+
+      expect(res.status).toBe(200);
+      expect(res.body).toEqual({ success: true, data: { success: true, imported: 15, skipped: 3 } });
+      expect(deps.importSubclients).toHaveBeenCalledWith(expect.any(Buffer), 'subclients.xlsx');
+    });
+
+    test('returns 400 when no file uploaded', async () => {
+      const res = await request(app).post('/api/admin/subclients/import');
+
+      expect(res.status).toBe(400);
+      expect(res.body).toEqual({ success: false, error: 'File richiesto' });
     });
   });
 });

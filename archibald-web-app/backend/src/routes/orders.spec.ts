@@ -109,14 +109,28 @@ const mockStateHistory = {
   createdAt: '2026-01-15T10:00:00Z',
 };
 
+const mockLastSale = {
+  orderId: 'ORD-001',
+  orderNumber: 'SO-12345',
+  customerName: 'Rossi Mario',
+  quantity: 5,
+  unitPrice: 10.00,
+  lineAmount: 50.00,
+  creationDate: '2026-01-15',
+};
+
 function createMockDeps(): OrdersRouterDeps {
   return {
-    pool: {} as OrdersRouterDeps['pool'],
+    queue: {
+      enqueue: vi.fn().mockResolvedValue('job-456'),
+      getJobStatus: vi.fn().mockResolvedValue({ jobId: 'job-456', type: 'sync-orders', state: 'completed', progress: 100, result: null, failedReason: undefined }),
+    },
     getOrdersByUser: vi.fn().mockResolvedValue([mockOrder]),
     countOrders: vi.fn().mockResolvedValue(1),
     getOrderById: vi.fn().mockResolvedValue(mockOrder),
     getOrderArticles: vi.fn().mockResolvedValue([mockArticle]),
     getStateHistory: vi.fn().mockResolvedValue([mockStateHistory]),
+    getLastSalesForArticle: vi.fn().mockResolvedValue([mockLastSale]),
   };
 }
 
@@ -206,6 +220,96 @@ describe('createOrdersRouter', () => {
       expect(res.body.success).toBe(true);
       expect(res.body.data).toHaveLength(1);
       expect(res.body.data[0].newState).toBe('created');
+    });
+  });
+
+  describe('GET /api/orders/last-sales/:articleCode', () => {
+    test('returns last sales for article', async () => {
+      const res = await request(app).get('/api/orders/last-sales/ART-001');
+
+      expect(res.status).toBe(200);
+      expect(res.body.success).toBe(true);
+      expect(res.body.data).toEqual([mockLastSale]);
+      expect(deps.getLastSalesForArticle).toHaveBeenCalledWith('ART-001');
+    });
+  });
+
+  describe('GET /api/orders/status/:jobId', () => {
+    test('returns job status', async () => {
+      const res = await request(app).get('/api/orders/status/job-456');
+
+      expect(res.status).toBe(200);
+      expect(res.body.success).toBe(true);
+      expect(res.body.data.jobId).toBe('job-456');
+      expect(res.body.data.state).toBe('completed');
+      expect(deps.queue.getJobStatus).toHaveBeenCalledWith('job-456');
+    });
+  });
+
+  describe('POST /api/orders/force-sync', () => {
+    test('enqueues force sync job', async () => {
+      const res = await request(app).post('/api/orders/force-sync');
+
+      expect(res.status).toBe(200);
+      expect(res.body.success).toBe(true);
+      expect(res.body.jobId).toBe('job-456');
+      expect(deps.queue.enqueue).toHaveBeenCalledWith('sync-orders', 'user-1', { mode: 'force' });
+    });
+  });
+
+  describe('POST /api/orders/reset-and-sync', () => {
+    test('enqueues reset-and-sync job', async () => {
+      const res = await request(app).post('/api/orders/reset-and-sync');
+
+      expect(res.status).toBe(200);
+      expect(res.body.success).toBe(true);
+      expect(res.body.jobId).toBe('job-456');
+      expect(deps.queue.enqueue).toHaveBeenCalledWith('sync-orders', 'user-1', { mode: 'reset' });
+    });
+  });
+
+  describe('POST /api/orders/:orderId/send-to-milano', () => {
+    test('enqueues send-to-verona job', async () => {
+      const res = await request(app).post('/api/orders/ORD-001/send-to-milano');
+
+      expect(res.status).toBe(200);
+      expect(res.body.success).toBe(true);
+      expect(res.body.jobId).toBe('job-456');
+      expect(deps.queue.enqueue).toHaveBeenCalledWith('send-to-verona', 'user-1', { orderId: 'ORD-001' });
+    });
+  });
+
+  describe('GET /api/orders/:orderId/pdf-download', () => {
+    test('enqueues invoice pdf download', async () => {
+      const res = await request(app).get('/api/orders/ORD-001/pdf-download?type=invoice');
+
+      expect(res.status).toBe(200);
+      expect(res.body.success).toBe(true);
+      expect(deps.queue.enqueue).toHaveBeenCalledWith('download-invoice-pdf', 'user-1', { orderId: 'ORD-001', type: 'invoice' });
+    });
+
+    test('enqueues ddt pdf download', async () => {
+      const res = await request(app).get('/api/orders/ORD-001/pdf-download?type=ddt');
+
+      expect(res.status).toBe(200);
+      expect(deps.queue.enqueue).toHaveBeenCalledWith('download-ddt-pdf', 'user-1', { orderId: 'ORD-001', type: 'ddt' });
+    });
+
+    test('returns 400 for invalid type', async () => {
+      const res = await request(app).get('/api/orders/ORD-001/pdf-download?type=invalid');
+
+      expect(res.status).toBe(400);
+    });
+  });
+
+  describe('POST /api/orders/:orderId/sync-articles', () => {
+    test('enqueues articles sync job', async () => {
+      const res = await request(app).post('/api/orders/ORD-001/sync-articles');
+
+      expect(res.status).toBe(200);
+      expect(res.body.success).toBe(true);
+      expect(res.body.jobId).toBe('job-456');
+      expect(deps.queue.enqueue).toHaveBeenCalledWith('sync-order-articles', 'user-1', { orderId: 'ORD-001' });
     });
   });
 });

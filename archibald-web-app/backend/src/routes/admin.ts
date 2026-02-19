@@ -1,10 +1,23 @@
 import { Router } from 'express';
 import { z } from 'zod';
+import multer from 'multer';
 import type { DbPool } from '../db/pool';
 import type { AuthRequest } from '../middleware/auth';
 import type { User, UserRole, UserTarget } from '../db/repositories/users';
 import type { JWTPayload } from '../auth-utils';
 import { logger } from '../logger';
+
+type AdminJob = {
+  jobId: string;
+  type: string;
+  userId: string;
+  state: string;
+  progress: number;
+  createdAt: number;
+  processedAt: number | null;
+  finishedAt: number | null;
+  failedReason: string | undefined;
+};
 
 type AdminRouterDeps = {
   pool: DbPool;
@@ -18,6 +31,12 @@ type AdminRouterDeps = {
   generateJWT: (payload: JWTPayload) => Promise<string>;
   createAdminSession: (adminUserId: string, targetUserId: string) => Promise<number>;
   closeAdminSession: (sessionId: number) => Promise<void>;
+  getAllJobs: (limit: number, status?: string) => Promise<AdminJob[]>;
+  retryJob: (jobId: string) => Promise<{ success: boolean; newJobId?: string; error?: string }>;
+  cancelJob: (jobId: string) => Promise<{ success: boolean; error?: string }>;
+  cleanupJobs: () => Promise<{ removedCompleted: number; removedFailed: number }>;
+  getRetentionConfig: () => { completedCount: number; failedCount: number };
+  importSubclients: (buffer: Buffer, filename: string) => Promise<{ success: boolean; imported?: number; skipped?: number; error?: string }>;
 };
 
 const createUserSchema = z.object({
@@ -38,8 +57,14 @@ const updateTargetSchema = z.object({
   hideCommissions: z.boolean(),
 });
 
+const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
+
 function createAdminRouter(deps: AdminRouterDeps) {
-  const { getAllUsers, getUserById, createUser, updateWhitelist, deleteUser, updateUserTarget, getUserTarget, generateJWT, createAdminSession, closeAdminSession } = deps;
+  const {
+    getAllUsers, getUserById, createUser, updateWhitelist, deleteUser,
+    updateUserTarget, getUserTarget, generateJWT, createAdminSession, closeAdminSession,
+    getAllJobs, retryJob, cancelJob, cleanupJobs, getRetentionConfig, importSubclients,
+  } = deps;
   const router = Router();
 
   router.get('/users', async (req: AuthRequest, res) => {
@@ -147,7 +172,7 @@ function createAdminRouter(deps: AdminRouterDeps) {
       const token = await generateJWT({
         userId: targetUser.id,
         username: targetUser.username,
-        role: 'admin',
+        role: targetUser.role as UserRole,
         isImpersonating: true,
         realAdminId: adminUser.userId,
         adminSessionId,
@@ -160,7 +185,7 @@ function createAdminRouter(deps: AdminRouterDeps) {
           id: targetUser.id,
           username: targetUser.username,
           fullName: targetUser.fullName,
-          role: 'admin',
+          role: targetUser.role,
           isImpersonating: true,
           realAdminName: adminUser.username,
         },
@@ -203,7 +228,85 @@ function createAdminRouter(deps: AdminRouterDeps) {
     }
   });
 
+  router.get('/jobs', async (req: AuthRequest, res) => {
+    try {
+      const limit = parseInt((req.query.limit as string) || '50', 10);
+      const status = req.query.status as string | undefined;
+      const jobs = await getAllJobs(limit, status);
+      res.json({ success: true, data: jobs });
+    } catch (error) {
+      logger.error('Error fetching admin jobs', { error });
+      res.status(500).json({ success: false, error: 'Errore recupero jobs' });
+    }
+  });
+
+  router.post('/jobs/retry/:jobId', async (req: AuthRequest, res) => {
+    try {
+      const result = await retryJob(req.params.jobId);
+      if (!result.success) {
+        return res.status(400).json({ success: false, error: result.error ?? 'Retry fallito' });
+      }
+      res.json({ success: true, data: { newJobId: result.newJobId } });
+    } catch (error) {
+      logger.error('Error retrying job', { error });
+      res.status(500).json({ success: false, error: 'Errore retry job' });
+    }
+  });
+
+  router.post('/jobs/cancel/:jobId', async (req: AuthRequest, res) => {
+    try {
+      const result = await cancelJob(req.params.jobId);
+      if (!result.success) {
+        return res.status(400).json({ success: false, error: result.error ?? 'Cancellazione fallita' });
+      }
+      res.json({ success: true });
+    } catch (error) {
+      logger.error('Error cancelling job', { error });
+      res.status(500).json({ success: false, error: 'Errore cancellazione job' });
+    }
+  });
+
+  router.post('/jobs/cleanup', async (_req: AuthRequest, res) => {
+    try {
+      const result = await cleanupJobs();
+      res.json({ success: true, data: result });
+    } catch (error) {
+      logger.error('Error cleaning up jobs', { error });
+      res.status(500).json({ success: false, error: 'Errore pulizia jobs' });
+    }
+  });
+
+  router.get('/jobs/retention', async (_req: AuthRequest, res) => {
+    res.json({ success: true, data: getRetentionConfig() });
+  });
+
+  router.get('/session/check', async (req: AuthRequest, res) => {
+    const user = req.user!;
+    res.json({
+      success: true,
+      data: {
+        isImpersonating: user.isImpersonating ?? false,
+        realAdminId: user.realAdminId ?? null,
+        adminSessionId: user.adminSessionId ?? null,
+      },
+    });
+  });
+
+  router.post('/subclients/import', upload.single('file'), async (req: AuthRequest, res) => {
+    try {
+      const file = req.file;
+      if (!file) {
+        return res.status(400).json({ success: false, error: 'File richiesto' });
+      }
+      const result = await importSubclients(file.buffer, file.originalname);
+      res.json({ success: true, data: result });
+    } catch (error) {
+      logger.error('Error importing subclients', { error });
+      res.status(500).json({ success: false, error: 'Errore importazione sottoclienti' });
+    }
+  });
+
   return router;
 }
 
-export { createAdminRouter, type AdminRouterDeps };
+export { createAdminRouter, type AdminRouterDeps, type AdminJob };

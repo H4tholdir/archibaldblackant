@@ -199,7 +199,7 @@ export class OrderService {
             .flatMap((item) => item.warehouseSources || [])
             .map((source) => source.warehouseItemId);
           if (warehouseItemIds.length > 0) {
-            await fetchWithRetry("/api/sync/warehouse-items/batch-return", {
+            await fetchWithRetry("/api/warehouse/items/batch-release", {
               method: "POST",
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({ itemIds: warehouseItemIds }),

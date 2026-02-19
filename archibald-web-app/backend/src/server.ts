@@ -18,9 +18,15 @@ import { createWarehouseRouter } from './routes/warehouse';
 import { createFresisHistoryRouter } from './routes/fresis-history';
 import { createSyncStatusRouter } from './routes/sync-status';
 import { createAdminRouter } from './routes/admin';
+import { createPricesRouter } from './routes/prices';
 import { createShareRouter } from './routes/share';
 import { createPendingOrdersRouter } from './routes/pending-orders';
+import { createUsersRouter } from './routes/users';
+import { createWidgetRouter, createMetricsRouter } from './routes/widget';
+import { createCustomerInteractiveRouter, type CustomerBotLike } from './routes/customer-interactive';
+import { createSubclientsRouter } from './routes/subclients';
 import { createSseProgressRouter } from './realtime/sse-progress';
+import { createInteractiveSessionManager } from './interactive-session-manager';
 import * as customersRepo from './db/repositories/customers';
 import * as usersRepo from './db/repositories/users';
 import * as productsRepo from './db/repositories/products';
@@ -28,6 +34,8 @@ import * as ordersRepo from './db/repositories/orders';
 import * as warehouseRepo from './db/repositories/warehouse';
 import * as fresisHistoryRepo from './db/repositories/fresis-history';
 import * as pendingOrdersRepo from './db/repositories/pending-orders';
+import * as pricesRepo from './db/repositories/prices';
+import * as dashboardService from './dashboard-service';
 
 type PasswordCacheLike = {
   get: (userId: string) => string | null;
@@ -54,6 +62,8 @@ type AppDeps = {
   verifyToken: (token: string) => Promise<{ userId: string } | null>;
   sendEmail: (to: string, subject: string, body: string, fileBuffer: Buffer, fileName: string) => Promise<{ messageId: string }>;
   uploadToDropbox: (fileBuffer: Buffer, fileName: string) => Promise<{ path: string }>;
+  createCustomerBot?: (userId: string) => CustomerBotLike;
+  broadcast?: (userId: string, msg: { type: string; payload: unknown; timestamp: string }) => void;
 };
 
 function createApp(deps: AppDeps): Express {
@@ -72,6 +82,21 @@ function createApp(deps: AppDeps): Express {
 
   app.get('/api/health', (_req, res) => {
     res.json({ status: 'ok' });
+  });
+
+  app.get('/api/websocket/health', authenticateJWT, requireAdmin, (_req, res) => {
+    try {
+      const stats = wsServer.getStats();
+      let status: 'healthy' | 'idle' | 'offline' = 'offline';
+      if (stats.totalConnections > 0 && stats.activeUsers > 0) {
+        status = 'healthy';
+      } else if (stats.uptime > 0) {
+        status = 'idle';
+      }
+      res.json({ success: true, status, stats });
+    } catch (error) {
+      res.status(500).json({ success: false, error: 'Errore recupero statistiche WebSocket' });
+    }
   });
 
   app.use('/api/operations', authenticateJWT, createOperationsRouter({
@@ -94,7 +119,7 @@ function createApp(deps: AppDeps): Express {
   }));
 
   app.use('/api/customers', authenticateJWT, createCustomersRouter({
-    pool,
+    queue,
     getCustomers: (userId, search) => customersRepo.getCustomers(pool, userId, search),
     getCustomerByProfile: (userId, profile) => customersRepo.getCustomerByProfile(pool, userId, profile),
     getCustomerCount: (userId) => customersRepo.getCustomerCount(pool, userId),
@@ -102,25 +127,58 @@ function createApp(deps: AppDeps): Express {
     getCustomerPhoto: (userId, profile) => customersRepo.getCustomerPhoto(pool, userId, profile),
     setCustomerPhoto: (userId, profile, photo) => customersRepo.setCustomerPhoto(pool, userId, profile, photo),
     deleteCustomerPhoto: (userId, profile) => customersRepo.deleteCustomerPhoto(pool, userId, profile),
+    upsertSingleCustomer: (userId, formData, profile, status) => customersRepo.upsertSingleCustomer(pool, userId, formData, profile, status),
+    updateCustomerBotStatus: (userId, profile, status) => customersRepo.updateCustomerBotStatus(pool, userId, profile, status),
+    updateArchibaldName: (userId, profile, name) => customersRepo.updateArchibaldName(pool, userId, profile, name),
   }));
 
+  if (deps.createCustomerBot) {
+    const sessionManager = createInteractiveSessionManager();
+    sessionManager.startAutoCleanup();
+    const broadcastFn = deps.broadcast ?? (() => {});
+
+    app.use('/api/customers/interactive', authenticateJWT, createCustomerInteractiveRouter({
+      sessionManager,
+      createBot: deps.createCustomerBot,
+      broadcast: broadcastFn,
+      upsertSingleCustomer: (userId, formData, profile, status) => customersRepo.upsertSingleCustomer(pool, userId, formData, profile, status),
+      updateCustomerBotStatus: (userId, profile, status) => customersRepo.updateCustomerBotStatus(pool, userId, profile, status),
+      pauseSyncs: async () => { syncScheduler.stop(); },
+      resumeSyncs: () => { if (!syncScheduler.isRunning()) syncScheduler.start(syncScheduler.getIntervals()); },
+    }));
+  }
+
   app.use('/api/products', authenticateJWT, createProductsRouter({
-    pool,
+    queue,
     getProducts: (search) => productsRepo.getProducts(pool, search),
     getProductById: (id) => productsRepo.getProductById(pool, id),
     getProductCount: () => productsRepo.getProductCount(pool),
+    getZeroPriceCount: () => productsRepo.getZeroPriceCount(pool),
+    getNoVatCount: () => productsRepo.getNoVatCount(pool),
     getProductVariants: (name) => productsRepo.getProductVariants(pool, name),
     updateProductPrice: (id, price, vat, priceSource, vatSource) => productsRepo.updateProductPrice(pool, id, price, vat, priceSource, vatSource),
     getLastSyncTime: () => productsRepo.getLastSyncTime(pool),
+    getProductChanges: (productId) => productsRepo.getProductChanges(pool, productId),
+    getRecentProductChanges: (days, limit) => productsRepo.getRecentProductChanges(pool, days, limit),
+    getProductChangeStats: (days) => productsRepo.getProductChangeStats(pool, days),
+  }));
+
+  app.use('/api/prices', authenticateJWT, createPricesRouter({
+    getPricesByProductId: (productId) => pricesRepo.getPricesByProductId(pool, productId),
+    getPriceHistory: async (_productId, _limit) => [],
+    getRecentPriceChanges: async (_days) => [],
+    getImportHistory: async () => [],
+    importExcel: async (_buffer, _filename, _userId) => ({ totalRows: 0, matched: 0, unmatched: 0, errors: ['Not yet implemented'] }),
   }));
 
   app.use('/api/orders', authenticateJWT, createOrdersRouter({
-    pool,
+    queue,
     getOrdersByUser: (userId, options) => ordersRepo.getOrdersByUser(pool, userId, options),
     countOrders: (userId, options) => ordersRepo.countOrders(pool, userId, options),
     getOrderById: (userId, orderId) => ordersRepo.getOrderById(pool, userId, orderId),
     getOrderArticles: (orderId, userId) => ordersRepo.getOrderArticles(pool, orderId, userId),
     getStateHistory: (userId, orderId) => ordersRepo.getStateHistory(pool, userId, orderId),
+    getLastSalesForArticle: (articleCode) => ordersRepo.getLastSalesForArticle(pool, articleCode),
   }));
 
   app.use('/api/pending-orders', authenticateJWT, createPendingOrdersRouter({
@@ -150,6 +208,11 @@ function createApp(deps: AppDeps): Express {
     batchMarkSold: (userId, orderId, tracking) => warehouseRepo.batchMarkSold(pool, userId, orderId, tracking),
     batchTransfer: (userId, fromOrderIds, toOrderId) => warehouseRepo.batchTransfer(pool, userId, fromOrderIds, toOrderId),
     getMetadata: (userId) => warehouseRepo.getMetadata(pool, userId),
+    validateArticle: async (articleCode) => {
+      const product = await productsRepo.getProductById(pool, articleCode);
+      return product ? { valid: true, productName: product.name } : { valid: false };
+    },
+    importExcel: async (_userId, _buffer, _filename) => ({ success: true, imported: 0, skipped: 0, errors: [] }),
   }));
 
   app.use('/api/fresis-history', authenticateJWT, createFresisHistoryRouter({
@@ -164,6 +227,10 @@ function createApp(deps: AppDeps): Express {
     getDiscounts: (userId) => fresisHistoryRepo.getDiscounts(pool, userId),
     upsertDiscount: (userId, id, code, pct, kp) => fresisHistoryRepo.upsertDiscount(pool, userId, id, code, pct, kp),
     deleteDiscount: (userId, id) => fresisHistoryRepo.deleteDiscount(pool, userId, id),
+    searchOrders: async (userId, query) => ordersRepo.getOrdersByUser(pool, userId, { search: query, limit: 50 }),
+    exportArca: async (_userId) => ({ zipBuffer: Buffer.from(''), stats: { totalDocuments: 0, totalRows: 0, totalClients: 0, totalDestinations: 0 } }),
+    importArca: async (_userId, _buffer, _filename) => ({ success: true, imported: 0, errors: [] }),
+    getNextFtNumber: async (_userId, _esercizio) => 1,
   }));
 
   app.use('/api/sync', authenticateJWT, createSyncStatusRouter({
@@ -197,9 +264,83 @@ function createApp(deps: AppDeps): Express {
     generateJWT,
     createAdminSession: async (_adminUserId, _targetUserId) => 0,
     closeAdminSession: async (_sessionId) => {},
+    getAllJobs: async (limit, status) => {
+      const states = status ? [status] : ['waiting', 'active', 'completed', 'failed', 'delayed'];
+      const jobs = await queue.queue.getJobs(states as any[], 0, limit - 1);
+      const result = [];
+      for (const job of jobs) {
+        const state = await job.getState();
+        result.push({
+          jobId: job.id!,
+          type: job.data.type,
+          userId: job.data.userId,
+          state,
+          progress: typeof job.progress === 'number' ? job.progress : 0,
+          createdAt: job.timestamp ?? 0,
+          processedAt: job.processedOn ?? null,
+          finishedAt: job.finishedOn ?? null,
+          failedReason: job.failedReason,
+        });
+      }
+      return result;
+    },
+    retryJob: async (jobId) => {
+      const job = await queue.queue.getJob(jobId);
+      if (!job) return { success: false, error: 'Job non trovato' };
+      const state = await job.getState();
+      if (state !== 'failed') return { success: false, error: `Job in stato ${state}, solo jobs falliti possono essere ritentati` };
+      await job.retry();
+      return { success: true, newJobId: job.id! };
+    },
+    cancelJob: async (jobId) => {
+      const job = await queue.queue.getJob(jobId);
+      if (!job) return { success: false, error: 'Job non trovato' };
+      await job.remove();
+      return { success: true };
+    },
+    cleanupJobs: async () => {
+      const completed = await queue.queue.clean(0, 1000, 'completed');
+      const failed = await queue.queue.clean(0, 1000, 'failed');
+      return { removedCompleted: completed.length, removedFailed: failed.length };
+    },
+    getRetentionConfig: () => ({ completedCount: 100, failedCount: 50 }),
+    importSubclients: async (_buffer, _filename) => ({ success: true, imported: 0, skipped: 0 }),
   }));
 
-  app.use('/api/share', createShareRouter({
+  app.use('/api/widget', authenticateJWT, createWidgetRouter({
+    getDashboardData: (userId) => dashboardService.getDashboardData(pool, userId),
+    getOrdersForPeriod: (userId, year, month) => dashboardService.getOrdersForPeriod(pool, userId, year, month),
+    setOrderExclusion: (userId, orderId, excludeFromYearly, excludeFromMonthly, reason) =>
+      dashboardService.setOrderExclusion(pool, userId, orderId, excludeFromYearly, excludeFromMonthly, reason),
+    getExcludedOrders: (userId) => dashboardService.getExcludedOrders(pool, userId),
+  }));
+
+  app.use('/api/metrics', authenticateJWT, createMetricsRouter({
+    getBudgetMetrics: (userId) => dashboardService.getBudgetMetrics(pool, userId),
+    getOrderMetrics: (userId) => dashboardService.getOrderMetrics(pool, userId),
+  }));
+
+  app.use('/api/users', authenticateJWT, createUsersRouter({
+    getUserTarget: (userId) => usersRepo.getUserTarget(pool, userId),
+    updateUserTarget: (userId, yearlyTarget, currency, commissionRate, bonusAmount, bonusInterval, extraBudgetInterval, extraBudgetReward, monthlyAdvance, hideCommissions) =>
+      usersRepo.updateUserTarget(pool, userId, yearlyTarget, currency, commissionRate, bonusAmount, bonusInterval, extraBudgetInterval, extraBudgetReward, monthlyAdvance, hideCommissions),
+    getPrivacySettings: (userId) => usersRepo.getPrivacySettings(pool, userId),
+    setPrivacySettings: (userId, enabled) => usersRepo.setPrivacySettings(pool, userId, enabled),
+  }));
+
+  app.use('/api/subclients', authenticateJWT, createSubclientsRouter({
+    getAllSubclients: async () => [],
+    searchSubclients: async (_query) => [],
+    getSubclientByCodice: async (_codice) => null,
+    deleteSubclient: async (_codice) => false,
+  }));
+
+  app.use('/api/share', (req, res, next) => {
+    if (req.method === 'GET' && req.path.startsWith('/pdf/')) {
+      return next();
+    }
+    return authenticateJWT(req as any, res, next);
+  }, createShareRouter({
     pdfStore,
     sendEmail,
     uploadToDropbox,

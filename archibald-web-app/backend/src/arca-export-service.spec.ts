@@ -96,12 +96,15 @@ describe("isoToDate", () => {
 
   test("round-trips any valid ISO date", () => {
     fc.assert(
-      fc.property(fc.date(), (date) => {
-        const iso = date.toISOString();
-        const result = isoToDate(iso);
-        expect(result).toBeInstanceOf(Date);
-        expect(result!.getTime()).toBe(date.getTime());
-      }),
+      fc.property(
+        fc.date().filter((d) => !isNaN(d.getTime())),
+        (date) => {
+          const iso = date.toISOString();
+          const result = isoToDate(iso);
+          expect(result).toBeInstanceOf(Date);
+          expect(result!.getTime()).toBe(date.getTime());
+        },
+      ),
     );
   });
 });

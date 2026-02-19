@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import { z } from 'zod';
 import type { AuthRequest } from '../middleware/auth';
 import type { OperationQueue } from '../operations/operation-queue';
 import type { AgentLock } from '../operations/agent-lock';
@@ -10,12 +11,15 @@ type SyncSchedulerLike = {
   stop: () => void;
   isRunning: () => boolean;
   getIntervals: () => { agentSyncMs: number; sharedSyncMs: number };
+  updateInterval?: (type: string, intervalMinutes: number) => void;
+  getDetailedIntervals?: () => Record<string, number>;
 };
 
 type SyncStatusRouterDeps = {
   queue: OperationQueue;
   agentLock: AgentLock;
   syncScheduler: SyncSchedulerLike;
+  clearSyncData?: (type: string) => Promise<{ message: string }>;
 };
 
 const VALID_SYNC_TYPES = new Set([
@@ -110,6 +114,121 @@ function createSyncStatusRouter(deps: SyncStatusRouterDeps) {
     } catch (error) {
       logger.error('Error triggering sync', { error });
       res.status(500).json({ success: false, error: 'Errore trigger sync' });
+    }
+  });
+
+  router.get('/status', async (_req: AuthRequest, res) => {
+    try {
+      const [queueStats, activeJobs] = await Promise.all([
+        queue.getStats(),
+        Promise.resolve(agentLock.getAllActive()),
+      ]);
+
+      const activeJobsList = Array.from(activeJobs.entries()).map(([userId, job]) => ({
+        userId,
+        jobId: job.jobId,
+        type: job.type,
+      }));
+
+      res.json({
+        success: true,
+        status: {
+          queue: queueStats,
+          activeJobs: activeJobsList,
+          scheduler: {
+            running: syncScheduler.isRunning(),
+            intervals: syncScheduler.getIntervals(),
+          },
+        },
+      });
+    } catch (error) {
+      logger.error('Error fetching sync status', { error });
+      res.status(500).json({ success: false, error: 'Errore nel recupero stato sync' });
+    }
+  });
+
+  router.get('/intervals', async (_req: AuthRequest, res) => {
+    try {
+      const intervals = syncScheduler.getDetailedIntervals
+        ? syncScheduler.getDetailedIntervals()
+        : syncScheduler.getIntervals();
+      res.json({ success: true, intervals });
+    } catch (error) {
+      logger.error('Error fetching sync intervals', { error });
+      res.status(500).json({ success: false, error: 'Errore nel recupero intervalli sync' });
+    }
+  });
+
+  const VALID_INTERVAL_TYPES = new Set([
+    'orders', 'customers', 'products', 'prices', 'ddt', 'invoices',
+  ]);
+
+  const intervalSchema = z.object({
+    intervalMinutes: z.number().min(5).max(1440),
+  });
+
+  router.post('/intervals/:type', async (req: AuthRequest, res) => {
+    try {
+      const { type } = req.params;
+      if (!VALID_INTERVAL_TYPES.has(type)) {
+        return res.status(400).json({ success: false, error: 'Tipo sync non valido' });
+      }
+
+      const parsed = intervalSchema.safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({
+          success: false,
+          error: 'Interval must be a number between 5 and 1440 minutes',
+        });
+      }
+
+      if (!syncScheduler.updateInterval) {
+        return res.status(501).json({ success: false, error: 'Aggiornamento intervalli non supportato' });
+      }
+
+      syncScheduler.updateInterval(type, parsed.data.intervalMinutes);
+
+      logger.info(`Sync interval updated for ${type}`, {
+        userId: req.user?.userId,
+        intervalMinutes: parsed.data.intervalMinutes,
+      });
+
+      res.json({
+        success: true,
+        message: `Interval updated to ${parsed.data.intervalMinutes} minutes`,
+        type,
+        intervalMinutes: parsed.data.intervalMinutes,
+      });
+    } catch (error) {
+      logger.error('Error updating sync interval', { error });
+      res.status(500).json({ success: false, error: 'Errore aggiornamento intervallo sync' });
+    }
+  });
+
+  const VALID_CLEAR_TYPES = new Set([
+    'customers', 'products', 'prices', 'orders', 'ddt', 'invoices',
+  ]);
+
+  router.delete('/:type/clear-db', async (req: AuthRequest, res) => {
+    try {
+      const { type } = req.params;
+      if (!VALID_CLEAR_TYPES.has(type)) {
+        return res.status(400).json({
+          success: false,
+          error: `Invalid sync type. Must be one of: ${Array.from(VALID_CLEAR_TYPES).join(', ')}`,
+        });
+      }
+
+      if (!deps.clearSyncData) {
+        return res.status(501).json({ success: false, error: 'Cancellazione dati non supportata' });
+      }
+
+      logger.info(`Clear DB requested for ${type}`, { userId: req.user?.userId });
+      const result = await deps.clearSyncData(type);
+      res.json({ success: true, message: result.message });
+    } catch (error) {
+      logger.error('Error clearing sync data', { error });
+      res.status(500).json({ success: false, error: 'Errore durante cancellazione database' });
     }
   });
 

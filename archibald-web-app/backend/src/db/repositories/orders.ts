@@ -794,6 +794,45 @@ async function updateInvoiceData(
   return rowCount ?? 0;
 }
 
+type LastSaleEntry = {
+  orderId: string;
+  orderNumber: string;
+  customerName: string;
+  quantity: number;
+  unitPrice: number | null;
+  lineAmount: number | null;
+  creationDate: string;
+};
+
+async function getLastSalesForArticle(pool: DbPool, articleCode: string): Promise<LastSaleEntry[]> {
+  const { rows } = await pool.query<{
+    order_id: string;
+    order_number: string;
+    customer_name: string;
+    quantity: number;
+    unit_price: number | null;
+    line_amount: number | null;
+    creation_date: string;
+  }>(
+    `SELECT a.order_id, o.order_number, o.customer_name, a.quantity, a.unit_price, a.line_amount, o.creation_date
+     FROM agents.order_articles a
+     JOIN agents.order_records o ON a.order_id = o.id AND a.user_id = o.user_id
+     WHERE a.article_code = $1
+     ORDER BY o.creation_date DESC
+     LIMIT 20`,
+    [articleCode],
+  );
+  return rows.map((r) => ({
+    orderId: r.order_id,
+    orderNumber: r.order_number,
+    customerName: r.customer_name,
+    quantity: r.quantity,
+    unitPrice: r.unit_price,
+    lineAmount: r.line_amount,
+    creationDate: r.creation_date,
+  }));
+}
+
 async function deleteOrdersNotInList(
   pool: DbPool,
   userId: string,
@@ -846,6 +885,7 @@ export {
   updateOrderDDT,
   updateInvoiceData,
   deleteOrdersNotInList,
+  getLastSalesForArticle,
   mapRowToOrder,
   mapRowToArticle,
   mapRowToStateHistory,
@@ -863,4 +903,5 @@ export {
   type StateHistory,
   type DDTData,
   type InvoiceData,
+  type LastSaleEntry,
 };

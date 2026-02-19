@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { z } from 'zod';
+import multer from 'multer';
 import type { DbPool } from '../db/pool';
 import type { AuthRequest } from '../middleware/auth';
 import type { WarehouseBox, WarehouseBoxDetail, WarehouseItem } from '../db/repositories/warehouse';
@@ -27,6 +28,7 @@ type WarehouseRouterDeps = {
   batchTransfer: (userId: string, fromOrderIds: string[], toOrderId: string) => Promise<number>;
   getMetadata: (userId: string) => Promise<{ totalItems: number; totalQuantity: number; boxesCount: number; reservedCount: number; soldCount: number }>;
   validateArticle?: (articleCode: string) => Promise<{ valid: boolean; productName?: string }>;
+  importExcel?: (userId: string, buffer: Buffer, filename: string) => Promise<{ success: boolean; imported?: number; skipped?: number; errors?: string[] }>;
 };
 
 const createBoxSchema = z.object({
@@ -90,6 +92,8 @@ const batchTransferSchema = z.object({
   fromOrderIds: z.array(z.string().min(1)).min(1),
   toOrderId: z.string().min(1),
 });
+
+const warehouseUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
 
 function createWarehouseRouter(deps: WarehouseRouterDeps) {
   const {
@@ -343,6 +347,40 @@ function createWarehouseRouter(deps: WarehouseRouterDeps) {
     } catch (error) {
       logger.error('Error fetching warehouse metadata', { error });
       res.status(500).json({ success: false, error: 'Errore nel recupero metadati magazzino' });
+    }
+  });
+
+  router.post('/upload', warehouseUpload.single('file'), async (req: AuthRequest, res) => {
+    try {
+      const file = req.file;
+      if (!file) {
+        return res.status(400).json({ success: false, error: 'File Excel richiesto' });
+      }
+      if (!deps.importExcel) {
+        return res.status(501).json({ success: false, error: 'Import Excel non configurato' });
+      }
+      const result = await deps.importExcel(req.user!.userId, file.buffer, file.originalname);
+      res.json({ success: true, data: result });
+    } catch (error) {
+      logger.error('Error uploading warehouse file', { error });
+      res.status(500).json({ success: false, error: 'Errore nell\'upload file magazzino' });
+    }
+  });
+
+  router.get('/items/validate', async (req: AuthRequest, res) => {
+    try {
+      const articleCode = req.query.articleCode as string | undefined;
+      if (!articleCode) {
+        return res.status(400).json({ success: false, error: 'Codice articolo richiesto' });
+      }
+      if (!deps.validateArticle) {
+        return res.status(501).json({ success: false, error: 'Validazione articoli non configurata' });
+      }
+      const result = await deps.validateArticle(articleCode);
+      res.json({ success: true, data: result });
+    } catch (error) {
+      logger.error('Error validating article', { error });
+      res.status(500).json({ success: false, error: 'Errore nella validazione articolo' });
     }
   });
 

@@ -50,7 +50,7 @@ export async function uploadFresisHistory(
   records: FresisHistoryOrder[],
 ): Promise<{ created: number; updated: number }> {
   const response = await fetchWithRetry(
-    `${API_BASE}/api/fresis-history/upload`,
+    `${API_BASE}/api/fresis-history`,
     {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -63,10 +63,9 @@ export async function uploadFresisHistory(
   }
 
   const data = await response.json();
-  const results = data.results as Array<{ action: string }>;
   return {
-    created: results.filter((r) => r.action === "created").length,
-    updated: results.filter((r) => r.action === "updated").length,
+    created: data.inserted ?? 0,
+    updated: data.updated ?? 0,
   };
 }
 

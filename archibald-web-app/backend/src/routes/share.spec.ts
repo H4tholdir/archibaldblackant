@@ -75,7 +75,7 @@ describe('createShareRouter', () => {
     test('sends email with PDF', async () => {
       const res = await request(app)
         .post('/api/share/email')
-        .attach('file', Buffer.from('fake-pdf'), 'test.pdf')
+        .attach('file', Buffer.from('fake-pdf'), { filename: 'test.pdf', contentType: 'application/pdf' })
         .field('to', 'test@example.com')
         .field('subject', 'Preventivo');
 
@@ -86,9 +86,29 @@ describe('createShareRouter', () => {
     test('returns 400 when no recipient', async () => {
       const res = await request(app)
         .post('/api/share/email')
-        .attach('file', Buffer.from('fake-pdf'), 'test.pdf');
+        .attach('file', Buffer.from('fake-pdf'), { filename: 'test.pdf', contentType: 'application/pdf' });
 
       expect(res.status).toBe(400);
+    });
+
+    test('returns 400 for invalid email format', async () => {
+      const res = await request(app)
+        .post('/api/share/email')
+        .attach('file', Buffer.from('fake-pdf'), { filename: 'test.pdf', contentType: 'application/pdf' })
+        .field('to', 'not-an-email');
+
+      expect(res.status).toBe(400);
+      expect(res.body.error).toContain('email');
+    });
+
+    test('returns 400 for non-PDF file', async () => {
+      const res = await request(app)
+        .post('/api/share/email')
+        .attach('file', Buffer.from('fake-txt'), { filename: 'test.txt', contentType: 'text/plain' })
+        .field('to', 'valid@example.com');
+
+      expect(res.status).toBe(400);
+      expect(res.body.error).toContain('PDF');
     });
   });
 

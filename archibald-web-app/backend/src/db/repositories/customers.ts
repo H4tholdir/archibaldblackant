@@ -507,6 +507,19 @@ async function updateCustomerBotStatus(
   );
 }
 
+async function updateArchibaldName(
+  pool: DbPool,
+  userId: string,
+  customerProfile: string,
+  name: string,
+): Promise<void> {
+  await pool.query(
+    `UPDATE agents.customers SET archibald_name = $1, updated_at = NOW()
+     WHERE customer_profile = $2 AND user_id = $3`,
+    [name, customerProfile, userId],
+  );
+}
+
 async function getCustomerPhoto(
   pool: DbPool,
   userId: string,
@@ -555,6 +568,7 @@ export {
   deleteCustomers,
   upsertSingleCustomer,
   updateCustomerBotStatus,
+  updateArchibaldName,
   getCustomerPhoto,
   setCustomerPhoto,
   deleteCustomerPhoto,

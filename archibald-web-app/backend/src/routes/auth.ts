@@ -101,13 +101,13 @@ function createAuthRouter(deps: AuthRouterDeps) {
   router.post('/refresh-credentials', async (req: AuthRequest, res) => {
     try {
       const userId = req.user!.userId;
-      const { password } = req.body;
+      const parsed = z.object({ password: z.string().min(1, 'Password richiesta') }).safeParse(req.body);
 
-      if (!password || typeof password !== 'string') {
-        return res.status(400).json({ success: false, error: 'Password richiesta' });
+      if (!parsed.success) {
+        return res.status(400).json({ success: false, error: parsed.error.issues[0]?.message ?? 'Password richiesta' });
       }
 
-      passwordCache.set(userId, password);
+      passwordCache.set(userId, parsed.data.password);
       res.json({ success: true, data: { message: 'Credenziali aggiornate' } });
     } catch (error) {
       logger.error('Error refreshing credentials', { error });

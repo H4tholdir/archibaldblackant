@@ -54,6 +54,10 @@ const mockDiscount = {
   updatedAt: 1708300000,
 };
 
+const mockOrders = [
+  { orderId: 'ORD-001', customerName: 'Rossi Mario', orderDate: '2026-01-15', totalAmount: 150.00 },
+];
+
 function createMockDeps(): FresisHistoryRouterDeps {
   return {
     pool: {} as FresisHistoryRouterDeps['pool'],
@@ -67,6 +71,10 @@ function createMockDeps(): FresisHistoryRouterDeps {
     getDiscounts: vi.fn().mockResolvedValue([mockDiscount]),
     upsertDiscount: vi.fn().mockResolvedValue(undefined),
     deleteDiscount: vi.fn().mockResolvedValue(1),
+    searchOrders: vi.fn().mockResolvedValue(mockOrders),
+    exportArca: vi.fn().mockResolvedValue({ zipBuffer: Buffer.from('ZIP'), stats: { totalDocuments: 1, totalRows: 2, totalClients: 1, totalDestinations: 0 } }),
+    importArca: vi.fn().mockResolvedValue({ success: true, imported: 5, errors: [] }),
+    getNextFtNumber: vi.fn().mockResolvedValue(42),
   };
 }
 
@@ -136,6 +144,22 @@ describe('createFresisHistoryRouter', () => {
       expect(res.body.inserted).toBe(1);
       expect(res.body.updated).toBe(0);
     });
+
+    test('returns 400 for invalid records structure', async () => {
+      const res = await request(app)
+        .post('/api/fresis-history')
+        .send({ records: [{ id: 'FH-BAD' }] });
+
+      expect(res.status).toBe(400);
+    });
+
+    test('returns 400 when records is not an array', async () => {
+      const res = await request(app)
+        .post('/api/fresis-history')
+        .send({ records: 'not-an-array' });
+
+      expect(res.status).toBe(400);
+    });
   });
 
   describe('DELETE /api/fresis-history/:id', () => {
@@ -189,6 +213,78 @@ describe('createFresisHistoryRouter', () => {
       const res = await request(app).delete('/api/fresis-history/discounts/FD-001');
 
       expect(res.status).toBe(200);
+    });
+  });
+
+  describe('GET /api/fresis-history/search-orders', () => {
+    test('searches orders by query', async () => {
+      const res = await request(app).get('/api/fresis-history/search-orders?q=Rossi');
+
+      expect(res.status).toBe(200);
+      expect(res.body).toEqual({ success: true, data: mockOrders });
+      expect(deps.searchOrders).toHaveBeenCalledWith('user-1', 'Rossi');
+    });
+
+    test('returns 400 when no query provided', async () => {
+      const res = await request(app).get('/api/fresis-history/search-orders');
+
+      expect(res.status).toBe(400);
+      expect(res.body).toEqual({ success: false, error: 'Parametro di ricerca richiesto' });
+    });
+  });
+
+  describe('GET /api/fresis-history/export-arca', () => {
+    test('exports arca zip file', async () => {
+      const res = await request(app).get('/api/fresis-history/export-arca');
+
+      expect(res.status).toBe(200);
+      expect(res.headers['content-type']).toMatch(/application\/zip/);
+      expect(deps.exportArca).toHaveBeenCalledWith('user-1');
+    });
+
+    test('returns 500 on export error', async () => {
+      (deps.exportArca as ReturnType<typeof vi.fn>).mockRejectedValue(new Error('Export failed'));
+      const res = await request(app).get('/api/fresis-history/export-arca');
+
+      expect(res.status).toBe(500);
+      expect(res.body.success).toBe(false);
+    });
+  });
+
+  describe('POST /api/fresis-history/import-arca', () => {
+    test('imports arca file', async () => {
+      const csvContent = 'test data';
+      const res = await request(app)
+        .post('/api/fresis-history/import-arca')
+        .attach('file', Buffer.from(csvContent), 'import.zip');
+
+      expect(res.status).toBe(200);
+      expect(res.body).toEqual({ success: true, data: { success: true, imported: 5, errors: [] } });
+      expect(deps.importArca).toHaveBeenCalledWith('user-1', expect.any(Buffer), 'import.zip');
+    });
+
+    test('returns 400 when no file uploaded', async () => {
+      const res = await request(app).post('/api/fresis-history/import-arca');
+
+      expect(res.status).toBe(400);
+      expect(res.body).toEqual({ success: false, error: 'File richiesto' });
+    });
+  });
+
+  describe('GET /api/fresis-history/next-ft-number', () => {
+    test('returns next FT number for current year', async () => {
+      const res = await request(app).get('/api/fresis-history/next-ft-number');
+
+      expect(res.status).toBe(200);
+      expect(res.body).toEqual({ success: true, data: { nextNumber: 42 } });
+      expect(deps.getNextFtNumber).toHaveBeenCalledWith('user-1', expect.any(String));
+    });
+
+    test('accepts custom esercizio parameter', async () => {
+      const res = await request(app).get('/api/fresis-history/next-ft-number?esercizio=2025');
+
+      expect(res.status).toBe(200);
+      expect(deps.getNextFtNumber).toHaveBeenCalledWith('user-1', '2025');
     });
   });
 });

@@ -345,6 +345,85 @@ async function getLastSyncTime(pool: DbPool): Promise<number | null> {
   return rows[0]?.last_sync ?? null;
 }
 
+async function getZeroPriceCount(pool: DbPool): Promise<number> {
+  const { rows } = await pool.query<{ count: number }>(
+    `SELECT COUNT(*)::int AS count FROM shared.products WHERE deleted_at IS NULL AND price IS NULL`,
+  );
+  return rows[0].count;
+}
+
+async function getNoVatCount(pool: DbPool): Promise<number> {
+  const { rows } = await pool.query<{ count: number }>(
+    `SELECT COUNT(*)::int AS count FROM shared.products WHERE deleted_at IS NULL AND vat IS NULL`,
+  );
+  return rows[0].count;
+}
+
+type ProductChange = {
+  productId: string;
+  changeType: string;
+  changedAt: number;
+  syncSessionId: string | null;
+};
+
+type ProductChangeStats = {
+  created: number;
+  updated: number;
+  deleted: number;
+};
+
+async function getProductChanges(pool: DbPool, productId: string): Promise<ProductChange[]> {
+  const { rows } = await pool.query<{ product_id: string; change_type: string; changed_at: number; sync_session_id: string | null }>(
+    `SELECT product_id, change_type, changed_at, sync_session_id
+     FROM shared.product_changes
+     WHERE product_id = $1
+     ORDER BY changed_at DESC`,
+    [productId],
+  );
+  return rows.map((r) => ({
+    productId: r.product_id,
+    changeType: r.change_type,
+    changedAt: r.changed_at,
+    syncSessionId: r.sync_session_id,
+  }));
+}
+
+async function getRecentProductChanges(pool: DbPool, days: number, limit: number): Promise<ProductChange[]> {
+  const cutoff = Date.now() - days * 24 * 60 * 60 * 1000;
+  const { rows } = await pool.query<{ product_id: string; change_type: string; changed_at: number; sync_session_id: string | null }>(
+    `SELECT product_id, change_type, changed_at, sync_session_id
+     FROM shared.product_changes
+     WHERE changed_at >= $1
+     ORDER BY changed_at DESC
+     LIMIT $2`,
+    [cutoff, limit],
+  );
+  return rows.map((r) => ({
+    productId: r.product_id,
+    changeType: r.change_type,
+    changedAt: r.changed_at,
+    syncSessionId: r.sync_session_id,
+  }));
+}
+
+async function getProductChangeStats(pool: DbPool, days: number): Promise<ProductChangeStats> {
+  const cutoff = Date.now() - days * 24 * 60 * 60 * 1000;
+  const { rows } = await pool.query<{ change_type: string; count: number }>(
+    `SELECT change_type, COUNT(*)::int AS count
+     FROM shared.product_changes
+     WHERE changed_at >= $1
+     GROUP BY change_type`,
+    [cutoff],
+  );
+  const stats: ProductChangeStats = { created: 0, updated: 0, deleted: 0 };
+  for (const row of rows) {
+    if (row.change_type === 'created') stats.created = row.count;
+    else if (row.change_type === 'updated') stats.updated = row.count;
+    else if (row.change_type === 'deleted') stats.deleted = row.count;
+  }
+  return stats;
+}
+
 async function getAllProducts(pool: DbPool): Promise<ProductRow[]> {
   const { rows } = await pool.query<ProductRow>(
     `SELECT ${PRODUCT_COLUMNS}
@@ -377,6 +456,8 @@ export {
   getProducts,
   getProductById,
   getProductCount,
+  getZeroPriceCount,
+  getNoVatCount,
   getProductVariants,
   upsertProducts,
   findDeletedProducts,
@@ -385,8 +466,13 @@ export {
   getLastSyncTime,
   getAllProducts,
   getAllProductVariants,
+  getProductChanges,
+  getRecentProductChanges,
+  getProductChangeStats,
   type ProductRow,
   type ProductUpsertInput,
   type UpsertResult,
   type VariantRow,
+  type ProductChange,
+  type ProductChangeStats,
 };

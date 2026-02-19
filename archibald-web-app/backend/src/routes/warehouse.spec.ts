@@ -23,6 +23,14 @@ function createMockDeps(): WarehouseRouterDeps {
     getItemById: vi.fn().mockResolvedValue(mockItem),
     ensureBoxExists: vi.fn().mockResolvedValue(undefined),
     validateArticle: vi.fn().mockResolvedValue({ valid: true, productName: 'Test Product' }),
+    getAllItems: vi.fn().mockResolvedValue([mockItem]),
+    bulkStoreItems: vi.fn().mockResolvedValue(5),
+    batchReserve: vi.fn().mockResolvedValue({ reserved: 2, skipped: 0 }),
+    batchRelease: vi.fn().mockResolvedValue(2),
+    batchMarkSold: vi.fn().mockResolvedValue(2),
+    batchTransfer: vi.fn().mockResolvedValue(2),
+    getMetadata: vi.fn().mockResolvedValue({ totalItems: 10, totalQuantity: 50, boxesCount: 3, reservedCount: 2, soldCount: 1 }),
+    importExcel: vi.fn().mockResolvedValue({ success: true, imported: 10, skipped: 2, errors: [] }),
   };
 }
 
@@ -166,6 +174,50 @@ describe('createWarehouseRouter', () => {
 
       expect(res.status).toBe(200);
       expect(res.body).toEqual({ success: true, itemsDeleted: 10, boxesDeleted: 0 });
+    });
+  });
+
+  describe('POST /api/warehouse/upload', () => {
+    test('uploads and processes Excel file', async () => {
+      const res = await request(app)
+        .post('/api/warehouse/upload')
+        .attach('file', Buffer.from('test'), 'warehouse.xlsx');
+
+      expect(res.status).toBe(200);
+      expect(res.body).toEqual({ success: true, data: { success: true, imported: 10, skipped: 2, errors: [] } });
+      expect(deps.importExcel).toHaveBeenCalledWith('user-1', expect.any(Buffer), 'warehouse.xlsx');
+    });
+
+    test('returns 400 when no file uploaded', async () => {
+      const res = await request(app).post('/api/warehouse/upload');
+
+      expect(res.status).toBe(400);
+      expect(res.body).toEqual({ success: false, error: 'File Excel richiesto' });
+    });
+  });
+
+  describe('GET /api/warehouse/items/validate', () => {
+    test('validates article code', async () => {
+      const res = await request(app).get('/api/warehouse/items/validate?articleCode=ART-001');
+
+      expect(res.status).toBe(200);
+      expect(res.body).toEqual({ success: true, data: { valid: true, productName: 'Test Product' } });
+      expect(deps.validateArticle).toHaveBeenCalledWith('ART-001');
+    });
+
+    test('returns 400 when articleCode missing', async () => {
+      const res = await request(app).get('/api/warehouse/items/validate');
+
+      expect(res.status).toBe(400);
+      expect(res.body).toEqual({ success: false, error: 'Codice articolo richiesto' });
+    });
+
+    test('returns valid:false for unknown article', async () => {
+      (deps.validateArticle as ReturnType<typeof vi.fn>).mockResolvedValue({ valid: false });
+      const res = await request(app).get('/api/warehouse/items/validate?articleCode=UNKNOWN');
+
+      expect(res.status).toBe(200);
+      expect(res.body).toEqual({ success: true, data: { valid: false } });
     });
   });
 });

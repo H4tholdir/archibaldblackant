@@ -1,7 +1,16 @@
 import { Router, type Request, type Response } from 'express';
+import { z } from 'zod';
 import multer from 'multer';
 import type { AuthRequest } from '../middleware/auth';
 import { logger } from '../logger';
+
+const emailSchema = z.object({
+  to: z.string().email('Formato email non valido'),
+  subject: z.string().max(200).optional(),
+  body: z.string().max(5000).optional(),
+});
+
+const ALLOWED_PDF_MIME_TYPES = ['application/pdf'];
 
 type PdfStoreLike = {
   save: (buffer: Buffer, originalName: string, req: Request) => { id: string; url: string };
@@ -59,10 +68,16 @@ function createShareRouter(deps: ShareRouterDeps) {
         return res.status(400).json({ success: false, error: 'Nessun file caricato' });
       }
 
-      const { to, subject, body } = req.body;
-      if (!to) {
-        return res.status(400).json({ success: false, error: 'Destinatario mancante' });
+      if (!ALLOWED_PDF_MIME_TYPES.includes(req.file.mimetype)) {
+        return res.status(400).json({ success: false, error: 'Solo file PDF sono accettati' });
       }
+
+      const parsed = emailSchema.safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({ success: false, error: parsed.error.issues[0]?.message ?? 'Dati non validi' });
+      }
+
+      const { to, subject, body } = parsed.data;
 
       const result = await sendEmail(
         to,

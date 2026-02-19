@@ -1,8 +1,10 @@
 import { Router } from 'express';
 import { z } from 'zod';
+import multer from 'multer';
 import type { DbPool } from '../db/pool';
 import type { AuthRequest } from '../middleware/auth';
 import type { FresisHistoryRecord, FresisHistoryInput, FresisDiscount, StateData } from '../db/repositories/fresis-history';
+import type { ExportStats } from '../arca-export-service';
 import { logger } from '../logger';
 
 type FresisHistoryRouterDeps = {
@@ -17,6 +19,10 @@ type FresisHistoryRouterDeps = {
   getDiscounts: (userId: string) => Promise<FresisDiscount[]>;
   upsertDiscount: (userId: string, id: string, articleCode: string, discountPercent: number, kpPriceUnit?: number | null) => Promise<void>;
   deleteDiscount: (userId: string, id: string) => Promise<number>;
+  searchOrders: (userId: string, query: string) => Promise<unknown[]>;
+  exportArca: (userId: string) => Promise<{ zipBuffer: Buffer; stats: ExportStats }>;
+  importArca: (userId: string, buffer: Buffer, filename: string) => Promise<{ success: boolean; imported?: number; errors?: string[] }>;
+  getNextFtNumber: (userId: string, esercizio: string) => Promise<number>;
 };
 
 const propagateStateSchema = z.object({
@@ -44,8 +50,58 @@ const upsertDiscountSchema = z.object({
   kpPriceUnit: z.number().optional(),
 });
 
+const fresisRecordSchema = z.object({
+  id: z.string().min(1),
+  originalPendingOrderId: z.string().nullable(),
+  subClientCodice: z.string(),
+  subClientName: z.string(),
+  subClientData: z.unknown().nullable(),
+  customerId: z.string(),
+  customerName: z.string(),
+  items: z.unknown(),
+  discountPercent: z.number().nullable(),
+  targetTotalWithVat: z.number().nullable(),
+  shippingCost: z.number().nullable(),
+  shippingTax: z.number().nullable(),
+  revenue: z.number().nullable(),
+  mergedIntoOrderId: z.string().nullable(),
+  mergedAt: z.string().nullable(),
+  createdAt: z.string(),
+  updatedAt: z.string(),
+  notes: z.string().nullable(),
+  archibaldOrderId: z.string().nullable(),
+  archibaldOrderNumber: z.string().nullable(),
+  currentState: z.string().nullable(),
+  stateUpdatedAt: z.string().nullable(),
+  ddtNumber: z.string().nullable(),
+  ddtDeliveryDate: z.string().nullable(),
+  trackingNumber: z.string().nullable(),
+  trackingUrl: z.string().nullable(),
+  trackingCourier: z.string().nullable(),
+  deliveryCompletedDate: z.string().nullable(),
+  invoiceNumber: z.string().nullable(),
+  invoiceDate: z.string().nullable(),
+  invoiceAmount: z.string().nullable(),
+  invoiceClosed: z.boolean().nullable(),
+  invoiceRemainingAmount: z.string().nullable(),
+  invoiceDueDate: z.string().nullable(),
+  arcaData: z.unknown().nullable(),
+  parentCustomerName: z.string().nullable(),
+  source: z.string(),
+}).passthrough();
+
+const upsertRecordsSchema = z.object({
+  records: z.array(fresisRecordSchema).min(1).max(1000),
+});
+
+const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
+
 function createFresisHistoryRouter(deps: FresisHistoryRouterDeps) {
-  const { getAll, getById, upsertRecords, deleteRecord, getByMotherOrder, getSiblings, propagateState, getDiscounts, upsertDiscount, deleteDiscount } = deps;
+  const {
+    getAll, getById, upsertRecords, deleteRecord, getByMotherOrder, getSiblings,
+    propagateState, getDiscounts, upsertDiscount, deleteDiscount,
+    searchOrders, exportArca, importArca, getNextFtNumber,
+  } = deps;
   const router = Router();
 
   router.get('/', async (req: AuthRequest, res) => {
@@ -65,6 +121,60 @@ function createFresisHistoryRouter(deps: FresisHistoryRouterDeps) {
     } catch (error) {
       logger.error('Error fetching discounts', { error });
       res.status(500).json({ success: false, error: 'Errore nel recupero sconti' });
+    }
+  });
+
+  router.get('/search-orders', async (req: AuthRequest, res) => {
+    try {
+      const q = req.query.q as string | undefined;
+      if (!q) {
+        return res.status(400).json({ success: false, error: 'Parametro di ricerca richiesto' });
+      }
+      const data = await searchOrders(req.user!.userId, q);
+      res.json({ success: true, data });
+    } catch (error) {
+      logger.error('Error searching orders for fresis', { error });
+      res.status(500).json({ success: false, error: 'Errore ricerca ordini' });
+    }
+  });
+
+  router.get('/export-arca', async (req: AuthRequest, res) => {
+    try {
+      const { zipBuffer, stats } = await exportArca(req.user!.userId);
+      res.set({
+        'Content-Type': 'application/zip',
+        'Content-Disposition': `attachment; filename="arca-export-${Date.now()}.zip"`,
+        'X-Export-Stats': JSON.stringify(stats),
+      });
+      res.send(zipBuffer);
+    } catch (error) {
+      logger.error('Error exporting ArcA', { error });
+      res.status(500).json({ success: false, error: 'Errore esportazione ArcA' });
+    }
+  });
+
+  router.post('/import-arca', upload.single('file'), async (req: AuthRequest, res) => {
+    try {
+      const file = req.file;
+      if (!file) {
+        return res.status(400).json({ success: false, error: 'File richiesto' });
+      }
+      const result = await importArca(req.user!.userId, file.buffer, file.originalname);
+      res.json({ success: true, data: result });
+    } catch (error) {
+      logger.error('Error importing ArcA', { error });
+      res.status(500).json({ success: false, error: 'Errore importazione ArcA' });
+    }
+  });
+
+  router.get('/next-ft-number', async (req: AuthRequest, res) => {
+    try {
+      const esercizio = (req.query.esercizio as string) || new Date().getFullYear().toString();
+      const nextNumber = await getNextFtNumber(req.user!.userId, esercizio);
+      res.json({ success: true, data: { nextNumber } });
+    } catch (error) {
+      logger.error('Error getting next FT number', { error });
+      res.status(500).json({ success: false, error: 'Errore recupero numero FT' });
     }
   });
 
@@ -103,11 +213,11 @@ function createFresisHistoryRouter(deps: FresisHistoryRouterDeps) {
 
   router.post('/', async (req: AuthRequest, res) => {
     try {
-      const { records } = req.body;
-      if (!Array.isArray(records)) {
-        return res.status(400).json({ success: false, error: 'records deve essere un array' });
+      const parsed = upsertRecordsSchema.safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({ success: false, error: parsed.error.issues });
       }
-      const result = await upsertRecords(req.user!.userId, records);
+      const result = await upsertRecords(req.user!.userId, parsed.data.records as FresisHistoryInput[]);
       res.json({ success: true, ...result });
     } catch (error) {
       logger.error('Error upserting fresis history', { error });

@@ -1,20 +1,6 @@
-/**
- * Temporal Comparisons Helper Functions
- * Calculate historical periods and comparisons for dashboard widgets
- */
-
-import type { Database } from "better-sqlite3";
+import type { DbPool } from "./db/pool";
 import { logger } from "./logger";
 
-/**
- * ORDER AMOUNT OVERRIDES
- * Hardcoded corrections for orders with erroneous data from Archibald
- *
- * Format: { "ORDER_NUMBER": { correctAmount: number, reason: string } }
- *
- * NOTE: These overrides are applied during revenue calculations.
- * The database values remain unchanged to preserve sync integrity.
- */
 export const ORDER_AMOUNT_OVERRIDES: Record<
   string,
   { correctAmount: number; reason: string }
@@ -26,9 +12,6 @@ export const ORDER_AMOUNT_OVERRIDES: Record<
   },
 };
 
-/**
- * Get order amount overrides (for API responses)
- */
 export function getOrderAmountOverrides() {
   return ORDER_AMOUNT_OVERRIDES;
 }
@@ -51,9 +34,6 @@ export interface SparklineData {
 // DATE RANGE CALCULATIONS
 // ============================================================================
 
-/**
- * Get start and end dates for previous month
- */
 export function getPreviousMonthRange(): { start: Date; end: Date } {
   const now = new Date();
   const firstDayCurrentMonth = new Date(now.getFullYear(), now.getMonth(), 1);
@@ -70,54 +50,36 @@ export function getPreviousMonthRange(): { start: Date; end: Date } {
   };
 }
 
-/**
- * Get start and end dates for same month last year
- */
 export function getSameMonthLastYearRange(): { start: Date; end: Date } {
   const now = new Date();
   const currentMonth = now.getMonth();
   const currentYear = now.getFullYear();
 
   const start = new Date(currentYear - 1, currentMonth, 1);
-  const end = new Date(currentYear - 1, currentMonth + 1, 0); // Last day of month
+  const end = new Date(currentYear - 1, currentMonth + 1, 0);
 
   return { start, end };
 }
 
-/**
- * Get start date for current year
- */
 export function getCurrentYearStart(): Date {
   const now = new Date();
-  return new Date(now.getFullYear(), 0, 1); // January 1st
+  return new Date(now.getFullYear(), 0, 1);
 }
 
-/**
- * Get start date for previous year
- */
 export function getPreviousYearStart(): Date {
   const now = new Date();
   return new Date(now.getFullYear() - 1, 0, 1);
 }
 
-/**
- * Get date N days ago
- */
 export function getDaysAgo(days: number): Date {
   const now = new Date();
   return new Date(now.getTime() - days * 24 * 60 * 60 * 1000);
 }
 
-/**
- * Get date N weeks ago
- */
 export function getWeeksAgo(weeks: number): Date {
   return getDaysAgo(weeks * 7);
 }
 
-/**
- * Get date N months ago
- */
 export function getMonthsAgo(months: number): Date {
   const now = new Date();
   return new Date(now.getFullYear(), now.getMonth() - months, now.getDate());
@@ -127,44 +89,19 @@ export function getMonthsAgo(months: number): Date {
 // REVENUE CALCULATIONS FROM ORDERS
 // ============================================================================
 
-/**
- * Parse Italian-formatted currency string to number
- * Handles formats like:
- * - "123,45 €" → 123.45
- * - "1.234,56 €" → 1234.56
- * - "2.215,40 €" → 2215.40
- *
- * Exported for use in other modules to avoid code duplication
- */
 export function parseItalianCurrency(value: string | null): number {
   if (!value || value.trim() === "") return 0;
 
-  // Remove currency symbol and whitespace
   let cleaned = value.replace(/€/g, "").trim();
-
-  // Remove thousand separators (.)
   cleaned = cleaned.replace(/\./g, "");
-
-  // Replace decimal comma with dot
   cleaned = cleaned.replace(/,/g, ".");
 
   const parsed = parseFloat(cleaned);
   return isNaN(parsed) ? 0 : parsed;
 }
 
-/**
- * Calculate total revenue from orders in a date range
- * Uses 'total_amount' field (matches existing widget logic)
- * TODO: Switch to imponibile (taxable amount without VAT) when column is added
- *
- * NOTE: Applies ORDER_AMOUNT_OVERRIDES for known erroneous orders
- * NOTE: Properly parses Italian currency format ("2.215,40 €")
- *
- * @param excludeFromMonthly - If true, excludes orders marked as excluded_from_monthly
- * @param excludeFromYearly - If true, excludes orders marked as excluded_from_yearly
- */
-export function calculateRevenueInRange(
-  db: Database,
+export async function calculateRevenueInRange(
+  pool: DbPool,
   userId: string,
   startDate: Date,
   endDate: Date,
@@ -172,70 +109,41 @@ export function calculateRevenueInRange(
     excludeFromMonthly?: boolean;
     excludeFromYearly?: boolean;
   },
-): number {
-  logger.info(`[temporal-comparisons] calculateRevenueInRange called`, {
-    userId,
-    startDate: startDate.toISOString(),
-    endDate: endDate.toISOString(),
-    options,
-  });
+): Promise<number> {
+  const params: unknown[] = [userId, userId, startDate.toISOString(), endDate.toISOString()];
+  let paramIndex = 5;
 
-  // Build query with optional exclusions
   let query = `
     SELECT o.id, o.order_number, o.creation_date, o.total_amount
-    FROM orders o
-    LEFT JOIN widget_order_exclusions e ON o.id = e.order_id AND e.user_id = ?
-    WHERE o.user_id = ?
-      AND o.creation_date >= ?
-      AND o.creation_date <= ?
+    FROM agents.order_records o
+    LEFT JOIN agents.widget_order_exclusions e ON o.id = e.order_id AND e.user_id = $1
+    WHERE o.user_id = $2
+      AND o.creation_date >= $3
+      AND o.creation_date <= $4
       AND o.total_amount IS NOT NULL
       AND o.total_amount != ''
   `;
 
-  // Add exclusion filters if requested
   if (options?.excludeFromMonthly) {
-    query += `\n      AND (e.excluded_from_monthly IS NULL OR e.excluded_from_monthly = 0)`;
+    query += `\n      AND (e.excluded_from_monthly IS NULL OR e.excluded_from_monthly = FALSE)`;
   }
   if (options?.excludeFromYearly) {
-    query += `\n      AND (e.excluded_from_yearly IS NULL OR e.excluded_from_yearly = 0)`;
+    query += `\n      AND (e.excluded_from_yearly IS NULL OR e.excluded_from_yearly = FALSE)`;
   }
 
-  const orders = db
-    .prepare(query)
-    .all(
-      userId,
-      userId,
-      startDate.toISOString(),
-      endDate.toISOString(),
-    ) as Array<{
+  const { rows: orders } = await pool.query<{
     id: string;
     order_number: string;
     creation_date: string;
     total_amount: string;
-  }>;
+  }>(query, params);
 
-  logger.info(`[temporal-comparisons] calculateRevenueInRange called`, {
-    userId,
-    startDate: startDate.toISOString(),
-    endDate: endDate.toISOString(),
-    options,
-  });
-
-  // Calculate total by parsing Italian currency format
   let total = 0;
-  const parsedAmounts: Array<{ order_number: string; parsed: number }> = [];
 
   for (const order of orders) {
-    const parsed = parseItalianCurrency(order.total_amount);
-    total += parsed;
-    parsedAmounts.push({ order_number: order.order_number, parsed });
+    total += parseItalianCurrency(order.total_amount);
   }
 
-  logger.info(`[temporal-comparisons] Base total: ${total.toFixed(2)}€`, {
-    parsedAmounts,
-  });
-
-  // Apply overrides
   for (const order of orders) {
     const override = ORDER_AMOUNT_OVERRIDES[order.order_number];
     if (override) {
@@ -243,7 +151,7 @@ export function calculateRevenueInRange(
       const diff = override.correctAmount - originalParsed;
       total += diff;
       logger.info(
-        `[temporal-comparisons] Applied override for ${order.order_number}: ${originalParsed.toFixed(2)}€ → ${override.correctAmount}€ (${diff > 0 ? "+" : ""}${diff.toFixed(2)}€) - ${override.reason}`,
+        `[temporal-comparisons] Applied override for ${order.order_number}: ${originalParsed.toFixed(2)}€ → ${override.correctAmount}€ (${diff > 0 ? "+" : ""}${diff.toFixed(2)}€)`,
       );
     }
   }
@@ -251,56 +159,40 @@ export function calculateRevenueInRange(
   return parseFloat(total.toFixed(2));
 }
 
-/**
- * Calculate current month revenue (from start of month to end of today)
- * Uses end-of-day (23:59:59) instead of exact current time to ensure
- * all orders created today are always included in the calculation.
- * @param excludeFromMonthly - If true, excludes orders marked as excluded_from_monthly
- */
-export function calculateCurrentMonthRevenue(
-  db: Database,
+export async function calculateCurrentMonthRevenue(
+  pool: DbPool,
   userId: string,
   excludeFromMonthly?: boolean,
-): number {
+): Promise<number> {
   const now = new Date();
   const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
   const endOfToday = new Date(
     now.getFullYear(),
     now.getMonth(),
     now.getDate(),
-    23,
-    59,
-    59,
+    23, 59, 59,
   );
-  return calculateRevenueInRange(db, userId, monthStart, endOfToday, {
+  return calculateRevenueInRange(pool, userId, monthStart, endOfToday, {
     excludeFromMonthly,
   });
 }
 
-/**
- * Calculate previous month revenue (full month)
- * @param excludeFromMonthly - If true (default), excludes orders marked as excluded_from_monthly
- */
-export function calculatePreviousMonthRevenue(
-  db: Database,
+export async function calculatePreviousMonthRevenue(
+  pool: DbPool,
   userId: string,
   excludeFromMonthly = true,
-): number {
+): Promise<number> {
   const { start, end } = getPreviousMonthRange();
-  return calculateRevenueInRange(db, userId, start, end, {
+  return calculateRevenueInRange(pool, userId, start, end, {
     excludeFromMonthly,
   });
 }
 
-/**
- * Calculate same month last year revenue (up to same day)
- * @param excludeFromMonthly - If true (default), excludes orders marked as excluded_from_monthly
- */
-export function calculateSameMonthLastYearRevenue(
-  db: Database,
+export async function calculateSameMonthLastYearRevenue(
+  pool: DbPool,
   userId: string,
   excludeFromMonthly = true,
-): number {
+): Promise<number> {
   const now = new Date();
   const currentDay = now.getDate();
   const currentMonth = now.getMonth();
@@ -309,59 +201,45 @@ export function calculateSameMonthLastYearRevenue(
   const start = new Date(lastYear, currentMonth, 1);
   const end = new Date(lastYear, currentMonth, currentDay, 23, 59, 59);
 
-  return calculateRevenueInRange(db, userId, start, end, {
+  return calculateRevenueInRange(pool, userId, start, end, {
     excludeFromMonthly,
   });
 }
 
-/**
- * Calculate current year revenue (from Jan 1 to end of today)
- * Uses end-of-day (23:59:59) instead of exact current time to ensure
- * all orders created today are always included in the calculation.
- * @param excludeFromYearly - If true, excludes orders marked as excluded_from_yearly
- */
-export function calculateCurrentYearRevenue(
-  db: Database,
+export async function calculateCurrentYearRevenue(
+  pool: DbPool,
   userId: string,
   excludeFromYearly?: boolean,
-): number {
+): Promise<number> {
   const now = new Date();
   const yearStart = getCurrentYearStart();
   const endOfToday = new Date(
     now.getFullYear(),
     now.getMonth(),
     now.getDate(),
-    23,
-    59,
-    59,
+    23, 59, 59,
   );
-  return calculateRevenueInRange(db, userId, yearStart, endOfToday, {
+  return calculateRevenueInRange(pool, userId, yearStart, endOfToday, {
     excludeFromYearly,
   });
 }
 
-/**
- * Calculate previous year revenue (full year)
- */
-export function calculatePreviousYearRevenue(
-  db: Database,
+export async function calculatePreviousYearRevenue(
+  pool: DbPool,
   userId: string,
-): number {
+): Promise<number> {
   const lastYear = new Date().getFullYear() - 1;
   const start = new Date(lastYear, 0, 1);
   const end = new Date(lastYear, 11, 31, 23, 59, 59);
-  return calculateRevenueInRange(db, userId, start, end);
+  return calculateRevenueInRange(pool, userId, start, end);
 }
 
 // ============================================================================
 // ORDER COUNT CALCULATIONS
 // ============================================================================
 
-/**
- * Count orders in a date range
- */
-export function countOrdersInRange(
-  db: Database,
+export async function countOrdersInRange(
+  pool: DbPool,
   userId: string,
   startDate: Date,
   endDate: Date,
@@ -369,39 +247,33 @@ export function countOrdersInRange(
     excludeFromMonthly?: boolean;
     excludeFromYearly?: boolean;
   },
-): number {
+): Promise<number> {
   let query = `
     SELECT COUNT(*) as count
-    FROM orders o
-    LEFT JOIN widget_order_exclusions e ON o.id = e.order_id AND e.user_id = ?
-    WHERE o.user_id = ?
-      AND o.creation_date >= ?
-      AND o.creation_date <= ?
+    FROM agents.order_records o
+    LEFT JOIN agents.widget_order_exclusions e ON o.id = e.order_id AND e.user_id = $1
+    WHERE o.user_id = $2
+      AND o.creation_date >= $3
+      AND o.creation_date <= $4
   `;
 
-  // Add exclusion filters if requested
   if (options?.excludeFromMonthly) {
-    query += `\n      AND (e.excluded_from_monthly IS NULL OR e.excluded_from_monthly = 0)`;
+    query += `\n      AND (e.excluded_from_monthly IS NULL OR e.excluded_from_monthly = FALSE)`;
   }
   if (options?.excludeFromYearly) {
-    query += `\n      AND (e.excluded_from_yearly IS NULL OR e.excluded_from_yearly = 0)`;
+    query += `\n      AND (e.excluded_from_yearly IS NULL OR e.excluded_from_yearly = FALSE)`;
   }
 
-  const result = db
-    .prepare(query)
-    .get(userId, userId, startDate.toISOString(), endDate.toISOString()) as {
-    count: number;
-  };
+  const { rows: [result] } = await pool.query<{ count: string }>(
+    query,
+    [userId, userId, startDate.toISOString(), endDate.toISOString()],
+  );
 
-  return result?.count || 0;
+  return parseInt(result?.count ?? '0', 10);
 }
 
-/**
- * Calculate average order value in a date range
- * Uses correct Italian currency parsing for accurate results
- */
-export function calculateAverageOrderValue(
-  db: Database,
+export async function calculateAverageOrderValue(
+  pool: DbPool,
   userId: string,
   startDate: Date,
   endDate: Date,
@@ -409,20 +281,12 @@ export function calculateAverageOrderValue(
     excludeFromMonthly?: boolean;
     excludeFromYearly?: boolean;
   },
-): number {
-  const totalRevenue = calculateRevenueInRange(
-    db,
-    userId,
-    startDate,
-    endDate,
-    options,
+): Promise<number> {
+  const totalRevenue = await calculateRevenueInRange(
+    pool, userId, startDate, endDate, options,
   );
-  const orderCount = countOrdersInRange(
-    db,
-    userId,
-    startDate,
-    endDate,
-    options,
+  const orderCount = await countOrdersInRange(
+    pool, userId, startDate, endDate, options,
   );
 
   if (orderCount === 0) {
@@ -436,30 +300,17 @@ export function calculateAverageOrderValue(
 // SPARKLINE DATA GENERATION
 // ============================================================================
 
-/**
- * Generate monthly sparkline data for last N months
- */
-export function generateMonthlySparkline(
-  db: Database,
+export async function generateMonthlySparkline(
+  pool: DbPool,
   userId: string,
   months: number = 12,
-): SparklineData {
+): Promise<SparklineData> {
   const values: number[] = [];
   const labels: string[] = [];
 
   const monthNames = [
-    "Gen",
-    "Feb",
-    "Mar",
-    "Apr",
-    "Mag",
-    "Giu",
-    "Lug",
-    "Ago",
-    "Set",
-    "Ott",
-    "Nov",
-    "Dic",
+    "Gen", "Feb", "Mar", "Apr", "Mag", "Giu",
+    "Lug", "Ago", "Set", "Ott", "Nov", "Dic",
   ];
 
   for (let i = months - 1; i >= 0; i--) {
@@ -472,77 +323,49 @@ export function generateMonthlySparkline(
     const monthEnd = new Date(
       monthDate.getFullYear(),
       monthDate.getMonth() + 1,
-      0,
-      23,
-      59,
-      59,
+      0, 23, 59, 59,
     );
 
-    const revenue = calculateRevenueInRange(db, userId, monthStart, monthEnd);
+    const revenue = await calculateRevenueInRange(pool, userId, monthStart, monthEnd);
     values.push(revenue);
     labels.push(monthNames[monthDate.getMonth()]);
   }
 
-  return {
-    values,
-    labels,
-    period: "monthly",
-  };
+  return { values, labels, period: "monthly" };
 }
 
-/**
- * Generate daily sparkline data for last N days
- */
-export function generateDailySparkline(
-  db: Database,
+export async function generateDailySparkline(
+  pool: DbPool,
   userId: string,
   days: number = 7,
-): SparklineData {
+): Promise<SparklineData> {
   const values: number[] = [];
   const labels: string[] = [];
 
   for (let i = days - 1; i >= 0; i--) {
     const date = getDaysAgo(i);
     const dayStart = new Date(
-      date.getFullYear(),
-      date.getMonth(),
-      date.getDate(),
-      0,
-      0,
-      0,
+      date.getFullYear(), date.getMonth(), date.getDate(), 0, 0, 0,
     );
     const dayEnd = new Date(
-      date.getFullYear(),
-      date.getMonth(),
-      date.getDate(),
-      23,
-      59,
-      59,
+      date.getFullYear(), date.getMonth(), date.getDate(), 23, 59, 59,
     );
 
-    const count = countOrdersInRange(db, userId, dayStart, dayEnd);
+    const count = await countOrdersInRange(pool, userId, dayStart, dayEnd);
     values.push(count);
 
-    // Format label as "Lun 3" or similar
     const dayNames = ["Dom", "Lun", "Mar", "Mer", "Gio", "Ven", "Sab"];
     const dayName = dayNames[date.getDay()];
     labels.push(`${dayName} ${date.getDate()}`);
   }
 
-  return {
-    values,
-    labels,
-    period: "daily",
-  };
+  return { values, labels, period: "daily" };
 }
 
 // ============================================================================
 // COMPARISON BUILDERS
 // ============================================================================
 
-/**
- * Build temporal comparison object
- */
 export function buildComparison(
   currentValue: number,
   previousValue: number,
@@ -561,15 +384,12 @@ export function buildComparison(
   };
 }
 
-/**
- * Build comparison with previous month
- */
-export function buildPreviousMonthComparison(
-  db: Database,
+export async function buildPreviousMonthComparison(
+  pool: DbPool,
   userId: string,
   currentValue: number,
-): TemporalComparison {
-  const previousValue = calculatePreviousMonthRevenue(db, userId);
+): Promise<TemporalComparison> {
+  const previousValue = await calculatePreviousMonthRevenue(pool, userId);
   return buildComparison(
     currentValue,
     previousValue,
@@ -577,29 +397,16 @@ export function buildPreviousMonthComparison(
   );
 }
 
-/**
- * Build comparison with same month last year
- */
-export function buildSameMonthLastYearComparison(
-  db: Database,
+export async function buildSameMonthLastYearComparison(
+  pool: DbPool,
   userId: string,
   currentValue: number,
-): TemporalComparison {
-  const previousValue = calculateSameMonthLastYearRevenue(db, userId);
+): Promise<TemporalComparison> {
+  const previousValue = await calculateSameMonthLastYearRevenue(pool, userId);
   const now = new Date();
   const monthNames = [
-    "Gen",
-    "Feb",
-    "Mar",
-    "Apr",
-    "Mag",
-    "Giu",
-    "Lug",
-    "Ago",
-    "Set",
-    "Ott",
-    "Nov",
-    "Dic",
+    "Gen", "Feb", "Mar", "Apr", "Mag", "Giu",
+    "Lug", "Ago", "Set", "Ott", "Nov", "Dic",
   ];
   const monthName = monthNames[now.getMonth()];
   const lastYear = now.getFullYear() - 1;
@@ -611,9 +418,6 @@ export function buildSameMonthLastYearComparison(
   );
 }
 
-/**
- * Build comparison with yearly target
- */
 export function buildYearlyProgressComparison(
   currentYearRevenue: number,
   yearlyTarget: number,
