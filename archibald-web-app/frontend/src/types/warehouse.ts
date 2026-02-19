@@ -22,3 +22,13 @@ export interface WarehouseMetadata {
   totalQuantity: number;
   boxesCount: number;
 }
+
+export interface BoxWithStats {
+  name: string;
+  itemsCount: number;
+  totalQuantity: number;
+  availableItems: number;
+  reservedItems: number;
+  soldItems: number;
+  canDelete: boolean;
+}
