@@ -9123,78 +9123,130 @@ export class ArchibaldBot {
   ): Promise<void> {
     if (!this.page) throw new Error("Browser page is null");
 
-    for (let attempt = 0; attempt < 2; attempt++) {
-      // Step 1: Find the input, scroll into view, focus+click in single evaluate
-      const inputId = await this.page.evaluate((regex: string) => {
+    const result = await this.page.evaluate(
+      (regex: string, val: string) => {
+        const w = window as any;
         const inputs = Array.from(document.querySelectorAll("input"));
         const input = inputs.find((i) =>
           new RegExp(regex).test(i.id),
         ) as HTMLInputElement | null;
-        if (!input) return null;
+        if (!input) return { found: false, inputId: "", method: "" };
+
         input.scrollIntoView({ block: "center" });
+
+        const collection = w.ASPxClientControl?.GetControlCollection?.();
+        if (collection) {
+          let textControl: any = null;
+
+          collection.ForEachControl((c: any) => {
+            if (textControl) return;
+            try {
+              const el = c.GetInputElement?.();
+              if (el === input || (el && el.id === input.id)) {
+                textControl = c;
+                return;
+              }
+            } catch {}
+            try {
+              const mainEl = c.GetMainElement?.();
+              if (mainEl && mainEl.contains(input)) {
+                if (
+                  typeof c.SetText === "function" ||
+                  typeof c.SetValue === "function"
+                ) {
+                  textControl = c;
+                }
+              }
+            } catch {}
+          });
+
+          if (textControl) {
+            if (typeof textControl.SetValue === "function") {
+              textControl.SetValue(val);
+              return {
+                found: true,
+                inputId: input.id,
+                method: "api-SetValue",
+              };
+            }
+            if (typeof textControl.SetText === "function") {
+              textControl.SetText(val);
+              return {
+                found: true,
+                inputId: input.id,
+                method: "api-SetText",
+              };
+            }
+          }
+        }
+
         input.focus();
         input.click();
-        return input.id;
-      }, fieldRegex.source);
+        const setter = Object.getOwnPropertyDescriptor(
+          HTMLInputElement.prototype,
+          "value",
+        )?.set;
+        if (setter) {
+          setter.call(input, val);
+        } else {
+          input.value = val;
+        }
+        input.dispatchEvent(new Event("input", { bubbles: true }));
+        input.dispatchEvent(new Event("change", { bubbles: true }));
 
-      if (!inputId) {
-        throw new Error(`Input field not found: ${fieldRegex}`);
-      }
+        return { found: true, inputId: input.id, method: "dom-fallback" };
+      },
+      fieldRegex.source,
+      value,
+    );
 
-      // On retry, wait longer for DevExpress to settle after previous Tab
-      if (attempt > 0) {
-        await this.wait(500);
-        await this.page.evaluate((id: string) => {
-          const input = document.getElementById(id) as HTMLInputElement;
-          if (input) {
-            input.scrollIntoView({ block: "center" });
-            input.focus();
-            input.click();
-          }
-        }, inputId);
-      }
+    if (!result.found) {
+      throw new Error(`Input field not found: ${fieldRegex}`);
+    }
 
-      // Step 2: Select all existing text and delete it
+    await this.page.keyboard.press("Tab");
+    await this.waitForDevExpressIdle({
+      timeout: 8000,
+      label: `typed-${result.inputId}`,
+    });
+
+    const actual = await this.page.evaluate((id: string) => {
+      const input = document.getElementById(id) as HTMLInputElement | null;
+      return input?.value ?? "";
+    }, result.inputId);
+
+    if (actual !== value) {
+      logger.warn("typeDevExpressField value mismatch, retrying with keyboard", {
+        id: result.inputId,
+        method: result.method,
+        expected: value,
+        actual,
+      });
+
+      await this.page.evaluate((id: string) => {
+        const input = document.getElementById(id) as HTMLInputElement;
+        if (input) {
+          input.scrollIntoView({ block: "center" });
+          input.focus();
+          input.click();
+        }
+      }, result.inputId);
+
       await this.page.keyboard.down("Control");
       await this.page.keyboard.press("a");
       await this.page.keyboard.up("Control");
       await this.page.keyboard.press("Backspace");
-
-      // Step 3: Type the value using real Puppeteer keyboard events
       await this.page.keyboard.type(value, { delay: 5 });
-
-      // Step 4: Tab out to commit the value to DevExpress
       await this.page.keyboard.press("Tab");
       await this.waitForDevExpressIdle({
         timeout: 8000,
-        label: `typed-${inputId}`,
-      });
-
-      // Step 5: Verify the value was set correctly
-      const actual = await this.page.evaluate((id: string) => {
-        const input = document.getElementById(id) as HTMLInputElement | null;
-        return input?.value ?? "";
-      }, inputId);
-
-      if (actual === value) {
-        logger.debug("typeDevExpressField done", {
-          id: inputId,
-          value,
-          attempt,
-        });
-        return;
-      }
-
-      logger.warn("typeDevExpressField value mismatch", {
-        id: inputId,
-        expected: value,
-        actual,
-        attempt,
+        label: `typed-retry-${result.inputId}`,
       });
     }
 
-    logger.warn("typeDevExpressField: value may not be set correctly after retries", {
-      regex: fieldRegex.source,
+    logger.debug("typeDevExpressField done", {
+      id: result.inputId,
+      method: result.method,
       value,
     });
   }
