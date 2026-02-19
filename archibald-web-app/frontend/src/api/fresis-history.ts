@@ -1,5 +1,6 @@
 import type { FresisHistoryOrder } from "../types/fresis";
 import { fetchWithRetry } from "../utils/fetch-with-retry";
+import { enqueueOperation } from "./operations";
 
 const API_BASE = "";
 
@@ -84,18 +85,11 @@ export async function editFresisHistory(
   id: string,
   data: { modifications: unknown[]; updatedItems?: unknown[] },
 ): Promise<void> {
-  const response = await fetchWithRetry(
-    `${API_BASE}/api/fresis-history/${encodeURIComponent(id)}/edit-in-archibald`,
-    {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(data),
-    },
-  );
-
-  if (!response.ok) {
-    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-  }
+  await enqueueOperation('edit-order', {
+    orderId: id,
+    modifications: data.modifications,
+    updatedItems: data.updatedItems,
+  });
 }
 
 export async function bulkImportFresisHistory(
@@ -125,16 +119,11 @@ export async function bulkImportFresisHistory(
 export async function deleteFromArchibald(
   id: string,
 ): Promise<{ message: string }> {
-  const response = await fetchWithRetry(
-    `${API_BASE}/api/fresis-history/${encodeURIComponent(id)}/delete-from-archibald`,
-    { method: "POST" },
-  );
+  await enqueueOperation('delete-order', {
+    orderId: id,
+  });
 
-  if (!response.ok) {
-    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-  }
-
-  const data = await response.json();
+  const data = { message: 'Delete job enqueued' };
   return { message: data.message };
 }
 

@@ -4,6 +4,7 @@ import type { Order, OrderItem } from "../types/order";
 
 import { getOrderStatus, isNotSentToVerona } from "../utils/orderStatus";
 import { fetchWithRetry } from "../utils/fetch-with-retry";
+import { enqueueOperation } from "../api/operations";
 import { HighlightText } from "./HighlightText";
 import { productService } from "../services/products.service";
 import type { ProductWithDetails } from "../services/products.service";
@@ -1041,21 +1042,14 @@ function TabArticoli({
     setSubmittingEdit(true);
 
     try {
-      const response = await fetch(`/api/orders/${orderId}/edit-in-archibald`, {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          modifications,
-          updatedItems: editItems,
-        }),
+      const result = await enqueueOperation('edit-order', {
+        orderId,
+        modifications,
+        updatedItems: editItems,
       });
 
-      const result = await response.json();
       if (!result.success) {
-        setError(result.error || "Errore durante la modifica");
+        setError("Errore durante la modifica");
         setSubmittingEdit(false);
         return;
       }
@@ -3385,22 +3379,9 @@ export function OrderCardNew({
     setDeleteProgress({ progress: 5, operation: "Avvio eliminazione..." });
 
     try {
-      const jwt = token || localStorage.getItem("archibald_jwt") || "";
-      const response = await fetch(
-        `/api/orders/${order.id}/delete-from-archibald`,
-        {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${jwt}`,
-            "Content-Type": "application/json",
-          },
-        },
-      );
-
-      if (!response.ok) {
-        const data = await response.json().catch(() => ({}));
-        throw new Error(data.error || `Errore ${response.status}`);
-      }
+      await enqueueOperation('delete-order', {
+        orderId: order.id,
+      });
 
       // Fallback: if WebSocket ORDER_DELETE_COMPLETE already handled, skip
       if (!deleteHandledRef.current) {
