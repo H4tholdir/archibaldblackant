@@ -9123,88 +9123,41 @@ export class ArchibaldBot {
   ): Promise<void> {
     if (!this.page) throw new Error("Browser page is null");
 
-    const result = await this.page.evaluate(
-      (regex: string, val: string) => {
-        const w = window as any;
-        const inputs = Array.from(document.querySelectorAll("input"));
-        const input = inputs.find((i) =>
-          new RegExp(regex).test(i.id),
-        ) as HTMLInputElement | null;
-        if (!input) return { found: false, inputId: "", method: "" };
+    // Step 1: Find the input, scroll into view, click to focus
+    const inputId = await this.page.evaluate((regex: string) => {
+      const inputs = Array.from(document.querySelectorAll("input"));
+      const input = inputs.find((i) =>
+        new RegExp(regex).test(i.id),
+      ) as HTMLInputElement | null;
+      if (!input) return null;
+      input.scrollIntoView({ block: "center" });
+      input.focus();
+      input.click();
+      return input.id;
+    }, fieldRegex.source);
 
-        input.scrollIntoView({ block: "center" });
-
-        // Try DevExpress client API first — find control that owns this input
-        const collection = w.ASPxClientControl?.GetControlCollection?.();
-        if (collection) {
-          let dxControl: any = null;
-          collection.ForEachControl((c: any) => {
-            if (dxControl) return;
-            try {
-              const el =
-                c.GetInputElement?.() || c.GetMainElement?.();
-              if (
-                el === input ||
-                (el && el.id === input.id)
-              ) {
-                dxControl = c;
-              }
-            } catch {}
-          });
-
-          if (dxControl) {
-            if (typeof dxControl.SetText === "function") {
-              dxControl.SetText(val);
-              return {
-                found: true,
-                inputId: input.id,
-                method: "api-SetText",
-                actual: input.value,
-              };
-            }
-            if (typeof dxControl.SetValue === "function") {
-              dxControl.SetValue(val);
-              return {
-                found: true,
-                inputId: input.id,
-                method: "api-SetValue",
-                actual: input.value,
-              };
-            }
-          }
-        }
-
-        // Fallback: type via DOM (may not survive callbacks)
-        input.focus();
-        input.click();
-        input.select();
-        document.execCommand("insertText", false, val);
-        return {
-          found: true,
-          inputId: input.id,
-          method: "dom-insertText",
-          actual: input.value,
-        };
-      },
-      fieldRegex.source,
-      value,
-    );
-
-    if (!result.found) {
+    if (!inputId) {
       throw new Error(`Input field not found: ${fieldRegex}`);
     }
 
+    // Step 2: Select all existing text and delete it
+    await this.page.keyboard.down("Control");
+    await this.page.keyboard.press("a");
+    await this.page.keyboard.up("Control");
+    await this.page.keyboard.press("Backspace");
+
+    // Step 3: Type the value using real Puppeteer keyboard events
+    // DevExpress captures these as genuine user input
+    await this.page.keyboard.type(value, { delay: 5 });
+
+    // Step 4: Tab out to commit the value to DevExpress
     await this.page.keyboard.press("Tab");
     await this.waitForDevExpressIdle({
-      timeout: 5000,
-      label: `typed-${result.inputId}`,
+      timeout: 8000,
+      label: `typed-${inputId}`,
     });
 
-    logger.debug("typeDevExpressField done", {
-      id: result.inputId,
-      value,
-      method: result.method,
-    });
+    logger.debug("typeDevExpressField done", { id: inputId, value });
   }
 
   private async setDevExpressComboBox(
