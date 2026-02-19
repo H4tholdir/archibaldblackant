@@ -9125,83 +9125,20 @@ export class ArchibaldBot {
 
     const result = await this.page.evaluate(
       (regex: string, val: string) => {
-        const w = window as any;
         const inputs = Array.from(document.querySelectorAll("input"));
         const input = inputs.find((i) =>
           new RegExp(regex).test(i.id),
         ) as HTMLInputElement | null;
-        if (!input) return { found: false, inputId: "", method: "" };
+        if (!input) return { found: false, inputId: "" };
 
         input.scrollIntoView({ block: "center" });
-
-        const collection = w.ASPxClientControl?.GetControlCollection?.();
-        if (collection) {
-          let textControl: any = null;
-
-          collection.ForEachControl((c: any) => {
-            if (textControl) return;
-            try {
-              const el = c.GetInputElement?.();
-              if (el === input || (el && el.id === input.id)) {
-                textControl = c;
-                return;
-              }
-            } catch {}
-            try {
-              const mainEl = c.GetMainElement?.();
-              if (mainEl && mainEl.contains(input)) {
-                if (
-                  typeof c.SetText === "function" ||
-                  typeof c.SetValue === "function"
-                ) {
-                  textControl = c;
-                }
-              }
-            } catch {}
-          });
-
-          if (textControl) {
-            if (typeof textControl.Focus === "function") {
-              textControl.Focus();
-            } else {
-              input.focus();
-              input.click();
-            }
-
-            if (typeof textControl.SetValue === "function") {
-              textControl.SetValue(val);
-              return {
-                found: true,
-                inputId: input.id,
-                method: "api-SetValue",
-              };
-            }
-            if (typeof textControl.SetText === "function") {
-              textControl.SetText(val);
-              return {
-                found: true,
-                inputId: input.id,
-                method: "api-SetText",
-              };
-            }
-          }
-        }
-
         input.focus();
         input.click();
-        const setter = Object.getOwnPropertyDescriptor(
-          HTMLInputElement.prototype,
-          "value",
-        )?.set;
-        if (setter) {
-          setter.call(input, val);
-        } else {
-          input.value = val;
-        }
-        input.dispatchEvent(new Event("input", { bubbles: true }));
-        input.dispatchEvent(new Event("change", { bubbles: true }));
+        input.select();
+        document.execCommand("delete");
+        document.execCommand("insertText", false, val);
 
-        return { found: true, inputId: input.id, method: "dom-fallback" };
+        return { found: true, inputId: input.id };
       },
       fieldRegex.source,
       value,
@@ -9223,27 +9160,28 @@ export class ArchibaldBot {
     }, result.inputId);
 
     if (actual !== value) {
-      logger.warn("typeDevExpressField value mismatch, retrying with keyboard", {
+      logger.warn("typeDevExpressField value mismatch, retrying", {
         id: result.inputId,
-        method: result.method,
         expected: value,
         actual,
       });
 
-      await this.page.evaluate((id: string) => {
-        const input = document.getElementById(id) as HTMLInputElement;
-        if (input) {
-          input.scrollIntoView({ block: "center" });
-          input.focus();
-          input.click();
-        }
-      }, result.inputId);
+      await this.page.evaluate(
+        (id: string, val: string) => {
+          const input = document.getElementById(id) as HTMLInputElement;
+          if (input) {
+            input.scrollIntoView({ block: "center" });
+            input.focus();
+            input.click();
+            input.select();
+            document.execCommand("delete");
+            document.execCommand("insertText", false, val);
+          }
+        },
+        result.inputId,
+        value,
+      );
 
-      await this.page.keyboard.down("Control");
-      await this.page.keyboard.press("a");
-      await this.page.keyboard.up("Control");
-      await this.page.keyboard.press("Backspace");
-      await this.page.keyboard.type(value, { delay: 5 });
       await this.page.keyboard.press("Tab");
       await this.waitForDevExpressIdle({
         timeout: 8000,
@@ -9253,7 +9191,6 @@ export class ArchibaldBot {
 
     logger.debug("typeDevExpressField done", {
       id: result.inputId,
-      method: result.method,
       value,
     });
   }
