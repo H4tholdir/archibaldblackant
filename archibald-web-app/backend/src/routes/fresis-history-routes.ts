@@ -64,6 +64,7 @@ function rowToRecord(r: any) {
     invoiceRemainingAmount: r.invoice_remaining_amount ?? undefined,
     invoiceDueDate: r.invoice_due_date ?? undefined,
     arcaData: r.arca_data ?? undefined,
+    parentCustomerName: r.parent_customer_name ?? undefined,
     source: r.source,
   };
 }
@@ -114,7 +115,8 @@ router.post(
           archibald_order_number, current_state, state_updated_at, ddt_number,
           ddt_delivery_date, tracking_number, tracking_url, tracking_courier,
           delivery_completed_date, invoice_number, invoice_date, invoice_amount,
-          invoice_closed, invoice_remaining_amount, invoice_due_date, arca_data, source
+          invoice_closed, invoice_remaining_amount, invoice_due_date, arca_data,
+          parent_customer_name, source
         ) VALUES (
           ?, ?, ?, ?, ?,
           ?, ?, ?, ?, ?,
@@ -123,7 +125,8 @@ router.post(
           ?, ?, ?, ?,
           ?, ?, ?, ?,
           ?, ?, ?, ?,
-          ?, ?, ?, ?, ?
+          ?, ?, ?, ?,
+          ?, ?
         )
       `);
 
@@ -184,6 +187,7 @@ router.post(
             r.invoiceRemainingAmount ?? null,
             r.invoiceDueDate ?? null,
             r.arcaData ?? null,
+            r.parentCustomerName ?? null,
             r.source ?? "app",
           );
 
@@ -572,7 +576,7 @@ router.post(
       const { orderId, currentState, ddtNumber, trackingNumber, trackingUrl,
         trackingCourier, invoiceNumber, invoiceDate, invoiceAmount,
         invoiceClosed, invoiceRemainingAmount, invoiceDueDate,
-        deliveryCompletedDate, ddtDeliveryDate } = req.body;
+        deliveryCompletedDate, ddtDeliveryDate, parentCustomerName } = req.body;
 
       if (!orderId) {
         return res.status(400).json({ success: false, error: "orderId richiesto" });
@@ -584,6 +588,7 @@ router.post(
           `UPDATE fresis_history SET
             current_state = COALESCE(?, current_state),
             state_updated_at = ?,
+            parent_customer_name = COALESCE(?, parent_customer_name),
             ddt_number = COALESCE(?, ddt_number),
             ddt_delivery_date = COALESCE(?, ddt_delivery_date),
             tracking_number = COALESCE(?, tracking_number),
@@ -605,6 +610,7 @@ router.post(
         )
         .run(
           currentState ?? null, now,
+          parentCustomerName ?? null,
           ddtNumber ?? null, ddtDeliveryDate ?? null,
           trackingNumber ?? null, trackingUrl ?? null, trackingCourier ?? null,
           deliveryCompletedDate ?? null,

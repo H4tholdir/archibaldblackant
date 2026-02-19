@@ -1,5 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
-import { fresisHistoryService } from "../services/fresis-history.service";
+import { useState, useEffect } from "react";
 
 type SyncType =
   | "customers"
@@ -62,32 +61,11 @@ export default function SyncControlPanel() {
     invoices: false,
   });
   const [autoSyncEnabled, setAutoSyncEnabled] = useState<boolean | null>(null);
-  const [fresisLifecycleSyncing, setFresisLifecycleSyncing] = useState(false);
-  const [fresisLastSync, setFresisLastSync] = useState<string | null>(null);
-
-  const fetchFresisLastSync = useCallback(async () => {
-    const lastSync = await fresisHistoryService.getLastSyncTime();
-    setFresisLastSync(lastSync);
-  }, []);
-
-  const handleFresisLifecycleSync = async () => {
-    setFresisLifecycleSyncing(true);
-    try {
-      await fresisHistoryService.syncOrderLifecycles();
-      await fetchFresisLastSync();
-    } catch (error) {
-      console.error("Fresis lifecycle sync failed:", error);
-      alert("Errore durante sync stati Fresis");
-    } finally {
-      setFresisLifecycleSyncing(false);
-    }
-  };
 
   useEffect(() => {
     // Initial fetch
     fetchStatus();
     fetchAutoSyncStatus();
-    fetchFresisLastSync();
 
     // Poll every 5s during active syncs
     const interval = setInterval(() => {
@@ -623,75 +601,6 @@ export default function SyncControlPanel() {
             </div>
           );
         })}
-      </div>
-
-      {/* Frontend Sync Section */}
-      <div
-        style={{
-          marginTop: "24px",
-          padding: "16px",
-          backgroundColor: "#fffbeb",
-          border: "2px solid #f59e0b",
-          borderRadius: "8px",
-        }}
-      >
-        <h3 style={{ margin: "0 0 12px 0", fontSize: "16px", fontWeight: 600 }}>
-          Sync Frontend
-        </h3>
-        <p style={{ margin: "0 0 12px 0", fontSize: "13px", color: "#666" }}>
-          Sync eseguiti direttamente dal browser (IndexedDB)
-        </p>
-
-        <div
-          style={{
-            border: "1px solid #ddd",
-            borderRadius: "8px",
-            padding: "16px",
-            backgroundColor: "#fff",
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
-          }}
-        >
-          <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-            <span style={{ fontSize: "28px" }}>{"🔄"}</span>
-            <div>
-              <h4
-                style={{
-                  margin: "0 0 4px 0",
-                  fontSize: "16px",
-                  fontWeight: 600,
-                }}
-              >
-                Stati Fresis (Lifecycle)
-              </h4>
-              <div style={{ fontSize: "12px", color: "#666" }}>
-                <strong>Ultimo sync:</strong> {formatLastSync(fresisLastSync)}
-              </div>
-              <div style={{ fontSize: "12px", color: "#666" }}>
-                Auto: ogni 30 min + eventi online/visibility
-              </div>
-            </div>
-          </div>
-          <button
-            onClick={handleFresisLifecycleSync}
-            disabled={fresisLifecycleSyncing}
-            style={{
-              padding: "10px 20px",
-              fontSize: "14px",
-              fontWeight: 600,
-              backgroundColor: fresisLifecycleSyncing ? "#9e9e9e" : "#f59e0b",
-              color: "#fff",
-              border: "none",
-              borderRadius: "6px",
-              cursor: fresisLifecycleSyncing ? "not-allowed" : "pointer",
-            }}
-          >
-            {fresisLifecycleSyncing
-              ? "Aggiornamento..."
-              : "Aggiorna Stati Fresis"}
-          </button>
-        </div>
       </div>
 
       {status && status.queue.length > 0 && (

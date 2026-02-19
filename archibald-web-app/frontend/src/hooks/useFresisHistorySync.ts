@@ -42,7 +42,6 @@ export function useFresisHistorySync(): UseFresisHistorySyncReturn {
 
     fresisHistoryService
       .fullSync()
-      .then(() => fresisHistoryService.syncOrderLifecycles())
       .then(() => loadOrders());
 
     const unsubscribers = realtimeService.initializeSubscriptions(subscribe);

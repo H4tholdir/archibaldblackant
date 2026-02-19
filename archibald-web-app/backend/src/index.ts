@@ -3,6 +3,7 @@ import cors from "cors";
 import helmet from "helmet";
 import { createServer } from "http";
 import { EventEmitter } from "events";
+import Database from "better-sqlite3";
 import fs from "fs";
 import path from "path";
 import { config } from "./config";
@@ -71,7 +72,6 @@ import { OrderDatabaseNew } from "./order-db-new";
 import { PriorityManager } from "./priority-manager";
 import * as WidgetCalc from "./widget-calculations";
 import { OrderStateSyncService } from "./order-state-sync-service";
-import { OrderStateService } from "./order-state-service";
 import { pdfParserService } from "./pdf-parser-service";
 import { PDFParserProductsService } from "./pdf-parser-products-service";
 import { PDFParserPricesService } from "./pdf-parser-prices-service";
@@ -7256,6 +7256,87 @@ app.post(
 
       logger.info(`[State Sync] Completed for user ${userId}`, syncResult);
 
+      // Propagate updated states to fresis_history (users.db)
+      if (syncResult.updatedOrderIds.length > 0) {
+        try {
+          const orderDbInstance = OrderDatabaseNew.getInstance();
+          const usersDbPath = path.join(__dirname, "../data/users.db");
+          const usersDb = new Database(usersDbPath);
+
+          try {
+            const propagateStmt = usersDb.prepare(
+              `UPDATE fresis_history SET
+                current_state = COALESCE(?, current_state),
+                state_updated_at = ?,
+                parent_customer_name = COALESCE(?, parent_customer_name),
+                archibald_order_number = COALESCE(?, archibald_order_number),
+                ddt_number = COALESCE(?, ddt_number),
+                ddt_delivery_date = COALESCE(?, ddt_delivery_date),
+                tracking_number = COALESCE(?, tracking_number),
+                tracking_url = COALESCE(?, tracking_url),
+                tracking_courier = COALESCE(?, tracking_courier),
+                delivery_completed_date = COALESCE(?, delivery_completed_date),
+                invoice_number = COALESCE(?, invoice_number),
+                invoice_date = COALESCE(?, invoice_date),
+                invoice_amount = COALESCE(?, invoice_amount),
+                invoice_closed = COALESCE(?, invoice_closed),
+                invoice_remaining_amount = COALESCE(?, invoice_remaining_amount),
+                invoice_due_date = COALESCE(?, invoice_due_date),
+                updated_at = ?
+              WHERE user_id = ? AND (
+                archibald_order_id = ?
+                OR archibald_order_id LIKE ?
+                OR merged_into_order_id = ?
+              )`,
+            );
+
+            const now = new Date().toISOString();
+            let propagated = 0;
+
+            for (const orderId of syncResult.updatedOrderIds) {
+              const order = orderDbInstance.getOrderById(userId, orderId);
+              if (!order) continue;
+
+              const result = propagateStmt.run(
+                order.currentState ?? null,
+                now,
+                order.customerName ?? null,
+                order.orderNumber ?? null,
+                order.ddtNumber ?? null,
+                order.ddtDeliveryDate ?? null,
+                order.trackingNumber ?? null,
+                order.trackingUrl ?? null,
+                order.trackingCourier ?? null,
+                order.deliveryCompletedDate ?? null,
+                order.invoiceNumber ?? null,
+                order.invoiceDate ?? null,
+                order.invoiceAmount ?? null,
+                order.invoiceClosed != null ? (order.invoiceClosed ? 1 : 0) : null,
+                order.invoiceRemainingAmount ?? null,
+                order.invoiceDueDate ?? null,
+                now,
+                userId,
+                orderId,
+                `%"${orderId}"%`,
+                orderId,
+              );
+
+              if (result.changes > 0) propagated += result.changes;
+            }
+
+            if (propagated > 0) {
+              logger.info(`[State Sync] Propagated ${propagated} fresis_history records for user ${userId}`);
+            }
+          } finally {
+            usersDb.close();
+          }
+        } catch (propError) {
+          logger.warn("[State Sync] Failed to propagate to fresis_history", {
+            error: propError instanceof Error ? propError.message : String(propError),
+          });
+        }
+      }
+
       return res.json({
         success: syncResult.success,
         message: syncResult.message,
@@ -7667,87 +7748,6 @@ app.post(
   },
 );
 
-// Get lifecycle summary for multiple orders - GET /api/orders/lifecycle-summary
-app.get(
-  "/api/orders/lifecycle-summary",
-  authenticateJWT,
-  async (req: AuthRequest, res: Response) => {
-    const userId = req.user?.userId;
-    if (!userId) {
-      return res.status(401).json({ success: false, error: "Unauthorized" });
-    }
-
-    const idsParam = req.query.ids as string | undefined;
-    if (!idsParam) {
-      return res.status(400).json({
-        success: false,
-        error: "Query parameter 'ids' is required",
-      });
-    }
-
-    const ids = idsParam.split(",").filter(Boolean);
-    if (ids.length === 0) {
-      return res.status(400).json({
-        success: false,
-        error: "At least one order ID is required",
-      });
-    }
-    if (ids.length > 50) {
-      return res.status(400).json({
-        success: false,
-        error: "Maximum 50 order IDs per request",
-      });
-    }
-
-    try {
-      const orderDbInstance = OrderDatabaseNew.getInstance();
-      const stateService = new OrderStateService();
-      const data: Record<string, any> = {};
-
-      for (const id of ids) {
-        const order = orderDbInstance.getOrderById(userId, id);
-        if (!order) {
-          data[id] = null;
-          continue;
-        }
-
-        const stateResult = await stateService.detectOrderState(order);
-
-        data[id] = {
-          orderNumber: order.orderNumber ?? null,
-          customerName: order.customerName ?? null,
-          currentState: stateResult.state,
-          ddtNumber: order.ddtNumber ?? null,
-          ddtDeliveryDate: order.ddtDeliveryDate ?? null,
-          trackingNumber: order.trackingNumber ?? null,
-          trackingUrl: order.trackingUrl ?? null,
-          trackingCourier: order.trackingCourier ?? null,
-          deliveryCompletedDate: order.deliveryCompletedDate ?? null,
-          invoiceNumber: order.invoiceNumber ?? null,
-          invoiceDate: order.invoiceDate ?? null,
-          invoiceAmount: order.invoiceAmount ?? null,
-          invoiceClosed: order.invoiceClosed ?? null,
-          invoiceRemainingAmount: order.invoiceRemainingAmount ?? null,
-          invoiceDueDate: order.invoiceDueDate ?? null,
-          invoiceDaysPastDue: order.invoiceDaysPastDue ?? null,
-        };
-      }
-
-      return res.json({ success: true, data });
-    } catch (error) {
-      logger.error("[API] Lifecycle summary failed", {
-        error: error instanceof Error ? error.message : String(error),
-        userId,
-      });
-
-      return res.status(500).json({
-        success: false,
-        error: "Failed to fetch lifecycle summary",
-      });
-    }
-  },
-);
-
 // Test login endpoint (per debug)
 app.post(
   "/api/test/login",
@@ -8004,6 +8004,18 @@ server.listen(config.server.port, async () => {
     );
   } catch (error) {
     logger.warn("⚠️  Migration 033 failed or already applied", { error });
+  }
+
+  try {
+    const {
+      runMigration034,
+    } = require("./migrations/034-add-parent-customer-name-to-fresis-history");
+    runMigration034();
+    logger.info(
+      "✅ Migration 034 completed (add parent_customer_name to fresis_history)",
+    );
+  } catch (error) {
+    logger.warn("⚠️  Migration 034 failed or already applied", { error });
   }
 
   // ========== AUTO-LOAD ENCRYPTED PASSWORDS (LAZY-LOAD) ==========

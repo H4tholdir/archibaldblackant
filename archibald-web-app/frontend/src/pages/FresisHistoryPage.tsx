@@ -266,7 +266,7 @@ export function FresisHistoryPage() {
     setSyncing(true);
     setSyncMessage(null);
     try {
-      const count = await fresisHistoryService.syncOrderLifecycles();
+      const count = await fresisHistoryService.syncFromServer();
       setSyncMessage(`Aggiornati ${count} ordini`);
       await wsRefetch();
     } catch (err) {

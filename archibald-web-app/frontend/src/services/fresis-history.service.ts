@@ -141,64 +141,6 @@ class FresisHistoryService {
     const updated = await db.fresisHistory.get(id);
     if (updated) {
       await this.uploadToServer([updated]);
-
-      // Post-link: fetch lifecycle state from the linked order
-      if (data.archibaldOrderId && updated.archibaldOrderId) {
-        await this.fetchAndApplyLifecycle(id, updated.archibaldOrderId);
-      }
-    }
-  }
-
-  private async fetchAndApplyLifecycle(
-    historyId: string,
-    archibaldOrderId: string,
-  ): Promise<void> {
-    try {
-      const token = this.getToken();
-      if (!token) return;
-
-      const linkedIds = parseLinkedIds(archibaldOrderId);
-      if (linkedIds.length === 0) return;
-
-      const response = await fetch(
-        `/api/orders/lifecycle-summary?ids=${linkedIds.join(",")}`,
-        { headers: { Authorization: `Bearer ${token}` } },
-      );
-      if (!response.ok) return;
-
-      const json = await response.json();
-      if (!json.success || !json.data) return;
-
-      const lifecycle = json.data[linkedIds[0]];
-      if (!lifecycle) return;
-
-      const now = new Date().toISOString();
-      await db.fresisHistory.update(historyId, {
-        archibaldOrderNumber: lifecycle.orderNumber ?? undefined,
-        parentCustomerName: lifecycle.customerName ?? undefined,
-        currentState: lifecycle.currentState ?? undefined,
-        stateUpdatedAt: now,
-        ddtNumber: lifecycle.ddtNumber ?? undefined,
-        ddtDeliveryDate: lifecycle.ddtDeliveryDate ?? undefined,
-        trackingNumber: lifecycle.trackingNumber ?? undefined,
-        trackingUrl: lifecycle.trackingUrl ?? undefined,
-        trackingCourier: lifecycle.trackingCourier ?? undefined,
-        deliveryCompletedDate: lifecycle.deliveryCompletedDate ?? undefined,
-        invoiceNumber: lifecycle.invoiceNumber ?? undefined,
-        invoiceDate: lifecycle.invoiceDate ?? undefined,
-        invoiceAmount: lifecycle.invoiceAmount ?? undefined,
-        invoiceClosed: lifecycle.invoiceClosed ?? undefined,
-        invoiceRemainingAmount: lifecycle.invoiceRemainingAmount ?? undefined,
-        invoiceDueDate: lifecycle.invoiceDueDate ?? undefined,
-        updatedAt: now,
-      });
-
-      const refreshed = await db.fresisHistory.get(historyId);
-      if (refreshed) {
-        await this.uploadToServer([refreshed]);
-      }
-    } catch (err) {
-      console.warn("[FresisHistory] fetchAndApplyLifecycle failed for", historyId, archibaldOrderId, err);
     }
   }
 
@@ -307,15 +249,6 @@ class FresisHistoryService {
     id: string,
   ): Promise<FresisHistoryOrder | undefined> {
     return db.fresisHistory.get(id);
-  }
-
-  async getLastSyncTime(): Promise<string | null> {
-    try {
-      const meta = await db.cacheMetadata.get("fresisLifecycle");
-      return meta?.lastSynced ?? null;
-    } catch {
-      return null;
-    }
   }
 
   async uploadToServer(records: FresisHistoryOrder[]): Promise<boolean> {
@@ -429,36 +362,12 @@ class FresisHistoryService {
     for (const record of unlinked) {
       const pending = pendingMap.get(record.mergedIntoOrderId!);
       if (pending?.jobOrderId) {
-        const token = this.getToken();
-        if (!token) continue;
-
-        try {
-          const response = await fetch(
-            `/api/orders/lifecycle-summary?ids=${pending.jobOrderId}`,
-            { headers: { Authorization: `Bearer ${token}` } },
-          );
-
-          if (!response.ok) continue;
-
-          const json = await response.json();
-          if (!json.success || !json.data) continue;
-
-          const lifecycle = json.data[pending.jobOrderId];
-          if (lifecycle) {
-            await db.fresisHistory.update(record.id, {
-              archibaldOrderId: pending.jobOrderId,
-              archibaldOrderNumber: lifecycle.orderNumber ?? undefined,
-              currentState: lifecycle.currentState ?? undefined,
-              stateUpdatedAt: new Date().toISOString(),
-              updatedAt: new Date().toISOString(),
-            });
-            linkedCount++;
-          }
-        } catch {
-          continue;
-        }
+        await db.fresisHistory.update(record.id, {
+          archibaldOrderId: pending.jobOrderId,
+          updatedAt: new Date().toISOString(),
+        });
+        linkedCount++;
       } else if (!pending) {
-        // PendingOrder no longer in IndexedDB (auto-deleted after 4s) — fetch from server
         const token = this.getToken();
         if (!token) continue;
 
@@ -476,6 +385,7 @@ class FresisHistoryService {
             await db.fresisHistory.update(record.id, {
               archibaldOrderId: serverRecord.archibaldOrderId,
               archibaldOrderNumber: serverRecord.archibaldOrderNumber,
+              parentCustomerName: serverRecord.parentCustomerName,
               currentState: serverRecord.currentState,
               stateUpdatedAt: serverRecord.stateUpdatedAt,
               updatedAt: serverRecord.updatedAt,
@@ -499,114 +409,6 @@ class FresisHistoryService {
     }
 
     return linkedCount;
-  }
-
-  async syncOrderLifecycles(): Promise<number> {
-    await this.reconcileUnlinkedOrders();
-
-    const allRecords = await db.fresisHistory.toArray();
-    const trackable = allRecords.filter(
-      (r) => r.archibaldOrderId && r.currentState !== "pagato",
-    );
-
-    if (trackable.length === 0) return 0;
-
-    const allLinkedIds = trackable.flatMap((r) =>
-      parseLinkedIds(r.archibaldOrderId),
-    );
-    const uniqueIds = [...new Set(allLinkedIds)];
-
-    if (uniqueIds.length === 0) return 0;
-
-    const jwt = this.getToken();
-    if (!jwt) return 0;
-
-    const response = await fetch(
-      `/api/orders/lifecycle-summary?ids=${uniqueIds.join(",")}`,
-      { headers: { Authorization: `Bearer ${jwt}` } },
-    );
-
-    if (!response.ok) return 0;
-
-    const json = await response.json();
-    if (!json.success || !json.data) return 0;
-
-    const STATE_PRIORITY: Record<string, number> = {
-      piazzato: 0,
-      ordine_aperto: 1,
-      modifica: 2,
-      inviato_milano: 3,
-      trasferito: 4,
-      spedito: 5,
-      consegnato: 6,
-      fatturato: 7,
-      pagamento_scaduto: 8,
-      pagato: 9,
-      transfer_error: -1,
-    };
-
-    const now = new Date().toISOString();
-    let updatedCount = 0;
-
-    for (const record of trackable) {
-      const linkedIds = parseLinkedIds(record.archibaldOrderId);
-      const lifecycles = linkedIds
-        .map((id) => json.data[id])
-        .filter(Boolean);
-
-      if (lifecycles.length === 0) continue;
-
-      const best = lifecycles.reduce((a: any, b: any) => {
-        const pa = STATE_PRIORITY[a.currentState] ?? -1;
-        const pb = STATE_PRIORITY[b.currentState] ?? -1;
-        return pb > pa ? b : a;
-      });
-
-      const orderNumbers = lifecycles
-        .map((l: any) => l.orderNumber)
-        .filter(Boolean);
-
-      await db.fresisHistory.update(record.id, {
-        archibaldOrderNumber:
-          orderNumbers.length <= 1
-            ? (orderNumbers[0] ?? undefined)
-            : JSON.stringify(orderNumbers),
-        parentCustomerName: best.customerName ?? undefined,
-        currentState: best.currentState ?? undefined,
-        stateUpdatedAt: now,
-        ddtNumber: best.ddtNumber ?? undefined,
-        ddtDeliveryDate: best.ddtDeliveryDate ?? undefined,
-        trackingNumber: best.trackingNumber ?? undefined,
-        trackingUrl: best.trackingUrl ?? undefined,
-        trackingCourier: best.trackingCourier ?? undefined,
-        deliveryCompletedDate: best.deliveryCompletedDate ?? undefined,
-        invoiceNumber: best.invoiceNumber ?? undefined,
-        invoiceDate: best.invoiceDate ?? undefined,
-        invoiceAmount: best.invoiceAmount ?? undefined,
-        invoiceClosed: best.invoiceClosed ?? undefined,
-        invoiceRemainingAmount: best.invoiceRemainingAmount ?? undefined,
-        invoiceDueDate: best.invoiceDueDate ?? undefined,
-        updatedAt: now,
-      });
-      updatedCount++;
-    }
-
-    await db.cacheMetadata.put({
-      key: "fresisLifecycle",
-      lastSynced: now,
-      recordCount: updatedCount,
-      version: 1,
-    });
-
-    if (updatedCount > 0) {
-      const updatedRecords = await db.fresisHistory.toArray();
-      const toUpload = updatedRecords.filter((r) =>
-        trackable.some((t) => t.id === r.id),
-      );
-      await this.uploadToServer(toUpload);
-    }
-
-    return updatedCount;
   }
 }
 

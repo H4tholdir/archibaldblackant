@@ -1,6 +1,5 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect } from "react";
 import ErrorDetailsModal from "./ErrorDetailsModal";
-import { fresisHistoryService } from "../services/fresis-history.service";
 
 type SyncType =
   | "customers"
@@ -69,21 +68,12 @@ export default function SyncMonitoringDashboard() {
   const [editedIntervals, setEditedIntervals] = useState<
     Partial<Record<SyncType, number>>
   >({});
-  const [fresisLastSync, setFresisLastSync] = useState<string | null>(null);
-
-  const fetchFresisLastSync = useCallback(async () => {
-    const lastSync = await fresisHistoryService.getLastSyncTime();
-    setFresisLastSync(lastSync);
-  }, []);
-
   useEffect(() => {
     fetchStatus();
     fetchIntervals();
-    fetchFresisLastSync();
 
     const interval = setInterval(() => {
       fetchStatus();
-      fetchFresisLastSync();
     }, 5000);
 
     return () => clearInterval(interval);
@@ -620,92 +610,6 @@ export default function SyncMonitoringDashboard() {
             </div>
           );
         })}
-      </div>
-
-      {/* Frontend Sync Status */}
-      <div style={{ marginTop: "24px" }}>
-        <h3 style={{ margin: "0 0 12px 0", fontSize: "18px", fontWeight: 600 }}>
-          Frontend Sync Status
-        </h3>
-        <div
-          style={{
-            border: "1px solid #ddd",
-            borderRadius: "8px",
-            padding: "20px",
-            backgroundColor: "white",
-            boxShadow: "0 2px 8px rgba(0, 0, 0, 0.1)",
-          }}
-        >
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: "12px",
-            }}
-          >
-            <span style={{ fontSize: "32px" }}>{"🔄"}</span>
-            <div style={{ flex: 1 }}>
-              <h4 style={{ margin: 0, fontSize: "18px", fontWeight: 600 }}>
-                Fresis Lifecycle
-              </h4>
-              <div
-                style={{
-                  marginTop: "4px",
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "8px",
-                }}
-              >
-                <span style={{ fontSize: "18px" }}>
-                  {(() => {
-                    if (!fresisLastSync) return "⚪";
-                    const diffMs =
-                      Date.now() - new Date(fresisLastSync).getTime();
-                    const diffHours = diffMs / (1000 * 60 * 60);
-                    if (diffHours < 1) return "🟢";
-                    if (diffHours < 2) return "🟡";
-                    return "🔴";
-                  })()}
-                </span>
-                <span
-                  style={{
-                    fontSize: "14px",
-                    color: (() => {
-                      if (!fresisLastSync) return "#ff9800";
-                      const diffMs =
-                        Date.now() - new Date(fresisLastSync).getTime();
-                      const diffHours = diffMs / (1000 * 60 * 60);
-                      if (diffHours < 1) return "#4caf50";
-                      if (diffHours < 2) return "#ff9800";
-                      return "#f44336";
-                    })(),
-                    fontWeight: 600,
-                  }}
-                >
-                  {(() => {
-                    if (!fresisLastSync) return "IDLE";
-                    const diffMs =
-                      Date.now() - new Date(fresisLastSync).getTime();
-                    const diffHours = diffMs / (1000 * 60 * 60);
-                    if (diffHours < 1) return "HEALTHY";
-                    if (diffHours < 2) return "STALE";
-                    return "UNHEALTHY";
-                  })()}
-                </span>
-              </div>
-            </div>
-          </div>
-          <div style={{ marginTop: "12px", fontSize: "13px", color: "#666" }}>
-            <strong>Last sync:</strong>{" "}
-            {fresisLastSync
-              ? new Date(fresisLastSync).toLocaleString("it-IT")
-              : "Never"}
-          </div>
-          <div style={{ fontSize: "13px", color: "#666" }}>
-            <strong>Interval:</strong> 30 minutes (auto) + online/visibility
-            events
-          </div>
-        </div>
       </div>
 
       {/* Error Details Modal */}

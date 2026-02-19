@@ -13,6 +13,7 @@ export interface StateSyncResult {
   errors: number;
   cacheTimestamp: string; // ISO 8601
   scrapedCount?: number;
+  updatedOrderIds: string[];
 }
 
 /**
@@ -87,6 +88,7 @@ export class OrderStateSyncService {
             unchanged: 0,
             errors: 0,
             cacheTimestamp: cacheData.lastSyncAt,
+            updatedOrderIds: [],
           };
         }
       }
@@ -118,6 +120,7 @@ export class OrderStateSyncService {
       let updated = 0;
       let unchanged = 0;
       let errors = 0;
+      const updatedOrderIds: string[] = [];
 
       for (const order of orders) {
         try {
@@ -148,6 +151,7 @@ export class OrderStateSyncService {
             );
 
             updated++;
+            updatedOrderIds.push(order.id);
           } else {
             unchanged++;
           }
@@ -185,6 +189,7 @@ export class OrderStateSyncService {
         errors,
         cacheTimestamp: syncTimestamp,
         scrapedCount: orders.length,
+        updatedOrderIds,
       };
     } catch (error) {
       const errorMessage =
@@ -203,6 +208,7 @@ export class OrderStateSyncService {
         unchanged: 0,
         errors: 1,
         cacheTimestamp: new Date().toISOString(),
+        updatedOrderIds: [],
       };
     }
   }
