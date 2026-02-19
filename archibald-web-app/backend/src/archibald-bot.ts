@@ -9162,60 +9162,130 @@ export class ArchibaldBot {
   ): Promise<void> {
     if (!this.page) throw new Error("Browser page is null");
 
-    const inputId = await this.page.evaluate((regex: string) => {
-      const inputs = Array.from(document.querySelectorAll("input"));
-      const input = inputs.find((i) =>
-        new RegExp(regex).test(i.id),
-      ) as HTMLInputElement | null;
-      if (!input) return null;
+    const result = await this.page.evaluate(
+      (regex: string, val: string) => {
+        const w = window as any;
+        const inputs = Array.from(document.querySelectorAll("input"));
+        const input = inputs.find((i) =>
+          new RegExp(regex).test(i.id),
+        ) as HTMLInputElement | null;
+        if (!input) return { found: false, inputId: "", method: "" };
 
-      input.scrollIntoView({ block: "center" });
-      input.focus();
-      input.click();
+        input.scrollIntoView({ block: "center" });
 
-      return input.id;
-    }, fieldRegex.source);
+        // Try DevExpress client API first
+        const collection = w.ASPxClientControl?.GetControlCollection?.();
+        if (collection) {
+          // The combo box control name is usually the input ID minus the trailing "_I"
+          const controlPrefix = input.id.replace(/_I$/, "").replace(/_DD_I$/, "");
 
-    if (!inputId) {
+          let comboControl: any = null;
+          collection.ForEachControl((c: any) => {
+            if (comboControl) return;
+            const name = c?.name || c?.GetName?.() || "";
+            if (
+              name === controlPrefix ||
+              name === controlPrefix.replace(/_dropdown$/, "") ||
+              input.id.startsWith(name)
+            ) {
+              if (typeof c.SetText === "function" || typeof c.SetValue === "function") {
+                comboControl = c;
+              }
+            }
+          });
+
+          if (comboControl) {
+            // Try to find the item and select it properly
+            if (typeof comboControl.GetItemCount === "function") {
+              const count = comboControl.GetItemCount();
+              for (let i = 0; i < count; i++) {
+                const itemText =
+                  typeof comboControl.GetItem === "function"
+                    ? comboControl.GetItem(i)?.text
+                    : null;
+                if (itemText === val) {
+                  if (typeof comboControl.SetSelectedIndex === "function") {
+                    comboControl.SetSelectedIndex(i);
+                    return {
+                      found: true,
+                      inputId: input.id,
+                      method: "api-SetSelectedIndex",
+                      actual: input.value,
+                    };
+                  }
+                }
+              }
+            }
+
+            // Fallback: SetText
+            if (typeof comboControl.SetText === "function") {
+              comboControl.SetText(val);
+              return {
+                found: true,
+                inputId: input.id,
+                method: "api-SetText",
+                actual: input.value,
+              };
+            }
+
+            // Fallback: SetValue
+            if (typeof comboControl.SetValue === "function") {
+              comboControl.SetValue(val);
+              return {
+                found: true,
+                inputId: input.id,
+                method: "api-SetValue",
+                actual: input.value,
+              };
+            }
+          }
+        }
+
+        // Fallback: type text, ArrowDown, Enter
+        input.focus();
+        input.click();
+        input.select();
+        document.execCommand("insertText", false, "");
+        document.execCommand("insertText", false, val);
+
+        return {
+          found: true,
+          inputId: input.id,
+          method: "keyboard-fallback",
+          actual: input.value,
+        };
+      },
+      fieldRegex.source,
+      value,
+    );
+
+    if (!result.found) {
       throw new Error(`ComboBox input not found: ${fieldRegex}`);
     }
 
-    await this.page.evaluate((id: string) => {
-      const input = document.getElementById(id) as HTMLInputElement;
-      if (!input) return;
-      input.focus();
-      input.select();
-      document.execCommand("insertText", false, "");
-    }, inputId);
+    if (result.method === "keyboard-fallback") {
+      await this.wait(500);
+      await this.page.keyboard.press("ArrowDown");
+      await this.wait(200);
+      await this.page.keyboard.press("Enter");
+      await this.wait(200);
+    }
 
-    await this.page.evaluate((id: string, text: string) => {
-      const input = document.getElementById(id) as HTMLInputElement;
-      if (!input) return;
-      input.focus();
-      document.execCommand("insertText", false, text);
-    }, inputId, value);
-
-    await this.wait(500);
-
-    await this.page.keyboard.press("ArrowDown");
-    await this.wait(200);
-    await this.page.keyboard.press("Enter");
-    await this.wait(200);
     await this.page.keyboard.press("Tab");
-
     await this.waitForDevExpressIdle({
       timeout: 5000,
-      label: `combo-${inputId}`,
+      label: `combo-${result.inputId}`,
     });
 
     const actual = await this.page.evaluate((id: string) => {
       const input = document.getElementById(id) as HTMLInputElement;
       return input?.value || "";
-    }, inputId);
+    }, result.inputId);
 
     logger.debug("setDevExpressComboBox done", {
-      id: inputId,
+      id: result.inputId,
       requested: value,
+      method: result.method,
       actual,
     });
   }
@@ -9860,7 +9930,38 @@ export class ArchibaldBot {
     logger.debug("Row selection result", selectionResult);
   }
 
+  private static readonly TAB_ALIASES: Record<string, string[]> = {
+    "Principale": ["Principale", "Main"],
+    "Main": ["Main", "Principale"],
+    "Prezzi e sconti": ["Prezzi e sconti", "Price Discount", "Prices and Discounts"],
+    "Price Discount": ["Price Discount", "Prezzi e sconti", "Prices and Discounts"],
+    "Indirizzo alt": ["Indirizzo alt", "Alt. address", "Alt. Address", "Alternative address"],
+    "Alt. address": ["Alt. address", "Alt. Address", "Indirizzo alt", "Alternative address"],
+    "Dettagli fiscali": ["Dettagli fiscali", "Tax", "Tax Details"],
+    "Tax": ["Tax", "Tax Details", "Dettagli fiscali"],
+    "Orari di consegna": ["Orari di consegna", "Deliverytimes", "Delivery times"],
+    "Deliverytimes": ["Deliverytimes", "Delivery times", "Orari di consegna"],
+    "Info CRM": ["Info CRM", "CRM Infos", "CRM Info"],
+    "CRM Infos": ["CRM Infos", "CRM Info", "Info CRM"],
+    "Altre informazioni": ["Altre informazioni", "Other Information"],
+    "Other Information": ["Other Information", "Altre informazioni"],
+  };
+
   private async openCustomerTab(tabText: string): Promise<boolean> {
+    if (!this.page) return false;
+
+    const candidates = ArchibaldBot.TAB_ALIASES[tabText] || [tabText];
+
+    for (const candidate of candidates) {
+      const result = await this.tryOpenTab(candidate);
+      if (result) return true;
+    }
+
+    logger.warn(`Tab "${tabText}" not found (tried: ${candidates.join(", ")})`);
+    return false;
+  }
+
+  private async tryOpenTab(tabText: string): Promise<boolean> {
     if (!this.page) return false;
 
     const clicked = await this.page.evaluate((text: string) => {
@@ -9899,10 +10000,7 @@ export class ArchibaldBot {
       return false;
     }, tabText);
 
-    if (!clicked) {
-      logger.warn(`Tab "${tabText}" not found`);
-      return false;
-    }
+    if (!clicked) return false;
 
     logger.info(`Tab "${tabText}" clicked`);
 
@@ -10849,6 +10947,7 @@ export class ArchibaldBot {
     }
 
     // Step 3: Back to "Principale" tab — fill ALL fields last so they persist at save time
+    // Order: lookups first (they trigger callbacks), then combo boxes, then text fields
     await this.openCustomerTab("Principale");
     await this.dismissDevExpressPopups();
     await this.waitForDevExpressIdle({
@@ -10856,8 +10955,33 @@ export class ArchibaldBot {
       label: "tab-principale",
     });
 
-    await this.typeDevExpressField(/xaf_dviNAME_Edit_I$/, customerData.name);
+    // Phase A: Lookups (trigger server callbacks that may reset other fields)
+    if (customerData.paymentTerms) {
+      await this.selectFromDevExpressLookup(
+        /xaf_dviPAYMTERMID_Edit_find_Edit_B0/,
+        customerData.paymentTerms,
+      );
+    }
 
+    if (customerData.postalCode) {
+      try {
+        await this.selectFromDevExpressLookup(
+          /xaf_dviLOGISTICSADDRESSZIPCODE_Edit_find_Edit_B0/,
+          customerData.postalCode,
+          customerData.postalCodeCity,
+        );
+      } catch (capErr) {
+        logger.warn("CAP lookup failed, dismissing any lingering dialog", {
+          error: String(capErr),
+        });
+        await this.page.keyboard.press("Escape");
+        await this.wait(500);
+        await this.page.keyboard.press("Escape");
+        await this.wait(300);
+      }
+    }
+
+    // Phase B: Combo boxes
     if (customerData.deliveryMode) {
       await this.setDevExpressComboBox(
         /xaf_dviDLVMODE_Edit_dropdown_DD_I$/,
@@ -10865,17 +10989,13 @@ export class ArchibaldBot {
       );
     }
 
+    // Phase C: Text fields (set after lookups so they don't get cleared)
+    await this.typeDevExpressField(/xaf_dviNAME_Edit_I$/, customerData.name);
+
     if (customerData.vatNumber) {
       await this.typeDevExpressField(
         /xaf_dviVATNUM_Edit_I$/,
         customerData.vatNumber,
-      );
-    }
-
-    if (customerData.paymentTerms) {
-      await this.selectFromDevExpressLookup(
-        /xaf_dviPAYMTERMID_Edit_find_Edit_B0/,
-        customerData.paymentTerms,
       );
     }
 
@@ -10901,24 +11021,6 @@ export class ArchibaldBot {
     }
 
     await this.emitProgress("customer.field");
-
-    if (customerData.postalCode) {
-      try {
-        await this.selectFromDevExpressLookup(
-          /xaf_dviLOGISTICSADDRESSZIPCODE_Edit_find_Edit_B0/,
-          customerData.postalCode,
-          customerData.postalCodeCity,
-        );
-      } catch (capErr) {
-        logger.warn("CAP lookup failed, dismissing any lingering dialog", {
-          error: String(capErr),
-        });
-        await this.page.keyboard.press("Escape");
-        await this.wait(500);
-        await this.page.keyboard.press("Escape");
-        await this.wait(300);
-      }
-    }
 
     if (customerData.phone) {
       await this.typeDevExpressField(/xaf_dviPHONE_Edit_I$/, customerData.phone);
@@ -11788,8 +11890,33 @@ export class ArchibaldBot {
       label: "tab-principale-interactive",
     });
 
-    await this.typeDevExpressField(/xaf_dviNAME_Edit_I$/, customerData.name);
+    // Phase A: Lookups (trigger server callbacks that may reset other fields)
+    if (customerData.paymentTerms) {
+      await this.selectFromDevExpressLookup(
+        /xaf_dviPAYMTERMID_Edit_find_Edit_B0/,
+        customerData.paymentTerms,
+      );
+    }
 
+    if (customerData.postalCode) {
+      try {
+        await this.selectFromDevExpressLookup(
+          /xaf_dviLOGISTICSADDRESSZIPCODE_Edit_find_Edit_B0/,
+          customerData.postalCode,
+          customerData.postalCodeCity,
+        );
+      } catch (capErr) {
+        logger.warn("CAP lookup failed, dismissing any lingering dialog", {
+          error: String(capErr),
+        });
+        await this.page.keyboard.press("Escape");
+        await this.wait(500);
+        await this.page.keyboard.press("Escape");
+        await this.wait(300);
+      }
+    }
+
+    // Phase B: Combo boxes
     if (customerData.deliveryMode) {
       await this.setDevExpressComboBox(
         /xaf_dviDLVMODE_Edit_dropdown_DD_I$/,
@@ -11797,12 +11924,8 @@ export class ArchibaldBot {
       );
     }
 
-    if (customerData.paymentTerms) {
-      await this.selectFromDevExpressLookup(
-        /xaf_dviPAYMTERMID_Edit_find_Edit_B0/,
-        customerData.paymentTerms,
-      );
-    }
+    // Phase C: Text fields (set after lookups so they don't get cleared)
+    await this.typeDevExpressField(/xaf_dviNAME_Edit_I$/, customerData.name);
 
     if (customerData.pec) {
       await this.typeDevExpressField(
@@ -11826,24 +11949,6 @@ export class ArchibaldBot {
     }
 
     await this.emitProgress("customer.field");
-
-    if (customerData.postalCode) {
-      try {
-        await this.selectFromDevExpressLookup(
-          /xaf_dviLOGISTICSADDRESSZIPCODE_Edit_find_Edit_B0/,
-          customerData.postalCode,
-          customerData.postalCodeCity,
-        );
-      } catch (capErr) {
-        logger.warn("CAP lookup failed, dismissing any lingering dialog", {
-          error: String(capErr),
-        });
-        await this.page.keyboard.press("Escape");
-        await this.wait(500);
-        await this.page.keyboard.press("Escape");
-        await this.wait(300);
-      }
-    }
 
     if (customerData.phone) {
       await this.typeDevExpressField(/xaf_dviPHONE_Edit_I$/, customerData.phone);
