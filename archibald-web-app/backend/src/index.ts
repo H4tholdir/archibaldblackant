@@ -7715,6 +7715,7 @@ app.get(
 
         data[id] = {
           orderNumber: order.orderNumber ?? null,
+          customerName: order.customerName ?? null,
           currentState: stateResult.state,
           ddtNumber: order.ddtNumber ?? null,
           ddtDeliveryDate: order.ddtDeliveryDate ?? null,

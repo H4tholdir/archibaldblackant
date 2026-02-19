@@ -311,6 +311,42 @@ export function ArcaDocumentDetail({
     onClose();
   }, [order.id, onClose]);
 
+  // --- Parent order articles for provvigioni + matching ---
+  type ParentOrderArticle = { articleCode: string; quantity: number; lineAmount: number };
+  const [parentOrderArticles, setParentOrderArticles] = useState<ParentOrderArticle[] | null>(null);
+
+  useEffect(() => {
+    if (!order.archibaldOrderId) {
+      setParentOrderArticles(null);
+      return;
+    }
+    const linkedIds = parseLinkedIds(order.archibaldOrderId);
+    if (linkedIds.length === 0) return;
+
+    let cancelled = false;
+    const token = localStorage.getItem("archibald_jwt");
+    if (!token) return;
+
+    fetch(`/api/orders/${encodeURIComponent(linkedIds[0])}/articles`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((json) => {
+        if (cancelled || !json?.success) return;
+        const arts: ParentOrderArticle[] = (json.data.articles ?? []).map(
+          (a: any) => ({
+            articleCode: a.articleCode,
+            quantity: a.quantity ?? 0,
+            lineAmount: a.lineAmount ?? 0,
+          }),
+        );
+        setParentOrderArticles(arts);
+      })
+      .catch(() => setParentOrderArticles(null));
+
+    return () => { cancelled = true; };
+  }, [order.archibaldOrderId]);
+
   // --- Revenue calculation: listPrice × qty × (1 - fresisDiscount%) ---
   const [revenueData, setRevenueData] = useState<{ value: number; percent: string | null } | null>(null);
   const [rowRevenues, setRowRevenues] = useState<Record<number, number>>({});
@@ -538,7 +574,7 @@ export function ArcaDocumentDetail({
             revenueData={revenueData}
             rowRevenues={rowRevenues}
             commissionRate={commissionRate}
-            orderItems={order.items}
+            parentOrderArticles={parentOrderArticles}
           />
         )}
         {activeTab === 4 && (
@@ -546,6 +582,7 @@ export function ArcaDocumentDetail({
             order={order}
             onLink={onLink}
             onNavigateToOrder={onNavigateToOrder}
+            parentOrderArticles={parentOrderArticles}
           />
         )}
       </ArcaTabBar>
@@ -585,7 +622,7 @@ function renderBanner(
             {"\u25CF"} {order.currentState}
           </span>
         )}
-        <span style={{ flex: 1 }}>{order.customerName}</span>
+        <span style={{ flex: 1 }}>{order.parentCustomerName ?? order.subClientName}</span>
         {order.stateUpdatedAt && (
           <span style={{ color: "#666", fontSize: "7pt" }}>Agg: {formatArcaDate(order.stateUpdatedAt)}</span>
         )}

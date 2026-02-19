@@ -182,6 +182,7 @@ export interface FresisHistoryOrder {
 
   archibaldOrderId?: string;
   archibaldOrderNumber?: string;
+  parentCustomerName?: string;
   currentState?: string;
   stateUpdatedAt?: string;
 

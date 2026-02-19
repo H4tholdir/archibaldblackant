@@ -175,6 +175,7 @@ class FresisHistoryService {
       const now = new Date().toISOString();
       await db.fresisHistory.update(historyId, {
         archibaldOrderNumber: lifecycle.orderNumber ?? undefined,
+        parentCustomerName: lifecycle.customerName ?? undefined,
         currentState: lifecycle.currentState ?? undefined,
         stateUpdatedAt: now,
         ddtNumber: lifecycle.ddtNumber ?? undefined,
@@ -196,8 +197,8 @@ class FresisHistoryService {
       if (refreshed) {
         await this.uploadToServer([refreshed]);
       }
-    } catch {
-      // Non-critical: lifecycle sync will catch up later
+    } catch (err) {
+      console.warn("[FresisHistory] fetchAndApplyLifecycle failed for", historyId, archibaldOrderId, err);
     }
   }
 
@@ -570,6 +571,7 @@ class FresisHistoryService {
           orderNumbers.length <= 1
             ? (orderNumbers[0] ?? undefined)
             : JSON.stringify(orderNumbers),
+        parentCustomerName: best.customerName ?? undefined,
         currentState: best.currentState ?? undefined,
         stateUpdatedAt: now,
         ddtNumber: best.ddtNumber ?? undefined,

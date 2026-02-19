@@ -13,10 +13,17 @@ import {
   parseArcaDataFromOrder,
 } from "./arcaStyles";
 
+type ParentOrderArticle = {
+  articleCode: string;
+  quantity: number;
+  lineAmount: number;
+};
+
 type ArcaTabOrdineMadreProps = {
   order: FresisHistoryOrder;
   onLink?: (orderId: string) => void;
   onNavigateToOrder?: (archibaldOrderId: string) => void;
+  parentOrderArticles?: ParentOrderArticle[] | null;
 };
 
 const STATE_LABELS: Record<string, string> = {
@@ -67,7 +74,7 @@ type ArticleMatch = {
 };
 
 function buildArticleMatching(
-  orderItems: FresisHistoryOrder["items"],
+  parentArticles: ParentOrderArticle[],
   siblings: FresisHistoryOrder[],
   currentOrderId: string,
 ): ArticleMatch[] {
@@ -89,18 +96,18 @@ function buildArticleMatching(
     }
   }
 
-  return orderItems.map(item => {
-    const cov = coverage.get(item.articleCode);
+  return parentArticles.map(art => {
+    const cov = coverage.get(art.articleCode);
     return {
-      articleCode: item.articleCode,
-      orderQty: item.quantity,
+      articleCode: art.articleCode,
+      orderQty: art.quantity,
       matchedQty: cov?.matched ?? 0,
       ftSources: cov?.ftSources ?? [],
     };
   });
 }
 
-export function ArcaTabOrdineMadre({ order, onLink, onNavigateToOrder }: ArcaTabOrdineMadreProps) {
+export function ArcaTabOrdineMadre({ order, onLink, onNavigateToOrder, parentOrderArticles }: ArcaTabOrdineMadreProps) {
   const [siblings, setSiblings] = useState<FresisHistoryOrder[]>([]);
   const [loadingSiblings, setLoadingSiblings] = useState(false);
 
@@ -118,8 +125,10 @@ export function ArcaTabOrdineMadre({ order, onLink, onNavigateToOrder }: ArcaTab
   }, [order.archibaldOrderId]);
 
   const articleMatching = useMemo(
-    () => buildArticleMatching(order.items, siblings, order.id),
-    [order.items, siblings, order.id],
+    () => parentOrderArticles && parentOrderArticles.length > 0
+      ? buildArticleMatching(parentOrderArticles, siblings, order.id)
+      : [],
+    [parentOrderArticles, siblings, order.id],
   );
   const matchedCount = articleMatching.filter(a => a.matchedQty >= a.orderQty).length;
   const totalArticles = articleMatching.length;
@@ -148,9 +157,9 @@ export function ArcaTabOrdineMadre({ order, onLink, onNavigateToOrder }: ArcaTab
         <span style={arcaSectionLabel}>Collegamento Ordine Madre</span>
         <div style={{ ...ARCA_FONT, marginTop: "4px", display: "flex", flexDirection: "column", gap: "2px" }}>
           <div><strong>Ordine:</strong> {linkedNumbers.join(", ") || linkedIds.join(", ")}</div>
-          <div><strong>Cliente:</strong> {order.customerName}</div>
+          <div><strong>Cliente:</strong> {order.parentCustomerName ?? order.subClientName}</div>
           <div><strong>Creato:</strong> {formatArcaDate(order.createdAt)}</div>
-          <div><strong>Articoli:</strong> {order.items.length}</div>
+          <div><strong>Articoli ord. madre:</strong> {parentOrderArticles?.length ?? "..."}</div>
         </div>
         {onNavigateToOrder && linkedIds[0] && (
           <button
@@ -260,7 +269,7 @@ export function ArcaTabOrdineMadre({ order, onLink, onNavigateToOrder }: ArcaTab
       </div>
 
       {/* Matching Articoli */}
-      {totalArticles > 0 && (
+      {totalArticles > 0 ? (
         <div style={{ ...arcaEtchedBorder, marginTop: "8px" }}>
           <span style={arcaSectionLabel}>
             Matching Articoli ({matchedCount}/{totalArticles})
@@ -306,7 +315,21 @@ export function ArcaTabOrdineMadre({ order, onLink, onNavigateToOrder }: ArcaTab
             </div>
           )}
         </div>
-      )}
+      ) : parentOrderArticles === null ? (
+        <div style={{ ...arcaEtchedBorder, marginTop: "8px" }}>
+          <span style={arcaSectionLabel}>Matching Articoli</span>
+          <div style={{ ...ARCA_FONT, marginTop: "4px", color: "#666", fontStyle: "italic" }}>
+            Caricamento articoli ordine madre...
+          </div>
+        </div>
+      ) : parentOrderArticles && parentOrderArticles.length === 0 ? (
+        <div style={{ ...arcaEtchedBorder, marginTop: "8px" }}>
+          <span style={arcaSectionLabel}>Matching Articoli</span>
+          <div style={{ ...ARCA_FONT, marginTop: "4px", color: "#666", fontStyle: "italic" }}>
+            Articoli ordine madre non ancora sincronizzati
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

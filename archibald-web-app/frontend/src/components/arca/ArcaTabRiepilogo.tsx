@@ -7,9 +7,10 @@ import {
   formatArcaCurrency,
 } from "./arcaStyles";
 
-type OrderItem = {
+type ParentOrderArticle = {
   articleCode: string;
   quantity: number;
+  lineAmount: number;
 };
 
 type ArcaTabRiepilogoProps = {
@@ -18,7 +19,7 @@ type ArcaTabRiepilogoProps = {
   revenueData: { value: number; percent: string | null } | null;
   rowRevenues: Record<number, number>;
   commissionRate?: number;
-  orderItems?: OrderItem[];
+  parentOrderArticles?: ParentOrderArticle[] | null;
 };
 
 type IvaGroup = {
@@ -94,7 +95,7 @@ export function ArcaTabRiepilogo({
   revenueData,
   rowRevenues,
   commissionRate,
-  orderItems,
+  parentOrderArticles,
 }: ArcaTabRiepilogoProps) {
   const ivaGroups = groupByIva(righe, testata.SCONTIF, {
     spesetr: testata.SPESETR,
@@ -116,16 +117,26 @@ export function ArcaTabRiepilogo({
   const totPagare = testata.TOTDOC - testata.ACCONTO;
   const provvRate = commissionRate ?? 0.18;
 
-  const orderArticleCodes = new Set(orderItems?.map(i => i.articleCode) ?? []);
-  const hasOrderItems = orderArticleCodes.size > 0;
+  const parentArticleMap = new Map<string, number>();
+  if (parentOrderArticles) {
+    for (const art of parentOrderArticles) {
+      const prev = parentArticleMap.get(art.articleCode) ?? 0;
+      parentArticleMap.set(art.articleCode, prev + art.lineAmount);
+    }
+  }
+  const hasParentArticles = parentArticleMap.size > 0;
 
   let matchedImponibile = 0;
   let unmatchedCount = 0;
+  const ftArticleCodes = new Set<string>();
   for (const riga of righe) {
     if (!riga.CODICEARTI) continue;
-    const nettoRiga = riga.PREZZOTOT * testata.SCONTIF;
-    if (orderArticleCodes.has(riga.CODICEARTI)) {
-      matchedImponibile += nettoRiga;
+    ftArticleCodes.add(riga.CODICEARTI);
+  }
+  for (const code of ftArticleCodes) {
+    const parentAmount = parentArticleMap.get(code);
+    if (parentAmount != null) {
+      matchedImponibile += parentAmount;
     } else {
       unmatchedCount++;
     }
@@ -188,21 +199,26 @@ export function ArcaTabRiepilogo({
       {/* Provvigioni */}
       <div style={{ ...arcaEtchedBorder, marginTop: "8px" }}>
         <span style={arcaSectionLabel}>Provvigioni (campo PWA)</span>
-        {hasOrderItems ? (
+        {hasParentArticles ? (
           <div style={{ ...ARCA_FONT, marginTop: "4px", display: "flex", flexDirection: "column", gap: "2px" }}>
-            <TotalRow label="Imponibile articoli in ordine madre" value={matchedImponibile} />
-            <TotalRow label={`\u00D7 Aliquota provvigioni (${(provvRate * 100).toFixed(0)}%)`} value={provvRate} />
+            <TotalRow label="Imponibile ordine madre (art. matchati)" value={matchedImponibile} />
+            <div style={{ display: "flex", justifyContent: "space-between", padding: "1px 4px" }}>
+              <span>{"\u00D7"} Aliquota provvigioni</span>
+              <span>{(provvRate * 100).toFixed(0)}%</span>
+            </div>
             <div style={{ borderBottom: "1px solid #000", margin: "1px 0" }} />
             <TotalRow label="= PROVVIGIONI" value={provvAmount} bold highlight />
             {unmatchedCount > 0 && (
               <div style={{ ...ARCA_FONT, paddingLeft: "12px", color: "#999", fontSize: "7pt", marginTop: "2px" }}>
-                {unmatchedCount} articol{unmatchedCount === 1 ? "o" : "i"} non in ordine madre (no provvigioni)
+                {unmatchedCount} articol{unmatchedCount === 1 ? "o" : "i"} FT non presenti in ordine madre
               </div>
             )}
           </div>
         ) : (
           <div style={{ ...ARCA_FONT, marginTop: "4px", color: "#666", fontStyle: "italic" }}>
-            N/D - nessun ordine madre collegato
+            {parentOrderArticles === null
+              ? "N/D - nessun ordine madre collegato"
+              : "N/D - articoli ordine madre non disponibili"}
           </div>
         )}
       </div>
