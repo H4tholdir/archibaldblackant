@@ -9927,6 +9927,45 @@ export class ArchibaldBot {
     return true;
   }
 
+  private async dismissDevExpressPopups(): Promise<boolean> {
+    if (!this.page) return false;
+
+    const result = await this.page.evaluate(() => {
+      const w = window as any;
+      const collection = w.ASPxClientControl?.GetControlCollection?.();
+      if (!collection) return { dismissed: false, popups: [] as string[] };
+
+      const popups: string[] = [];
+      collection.ForEachControl((c: any) => {
+        const name = c?.name || c?.GetName?.() || "";
+        if (
+          (name.includes("PopupWindow") || name.includes("popupWindow") || name.includes("UPPopup")) &&
+          typeof c.Hide === "function"
+        ) {
+          try {
+            const isVisible = typeof c.IsVisible === "function" ? c.IsVisible() : true;
+            if (isVisible) {
+              c.Hide();
+              popups.push(name);
+            }
+          } catch {
+            c.Hide();
+            popups.push(name);
+          }
+        }
+      });
+
+      return { dismissed: popups.length > 0, popups };
+    });
+
+    if (result.dismissed) {
+      logger.info("Dismissed DevExpress popups", { popups: result.popups });
+      await this.waitForDevExpressIdle({ timeout: 3000, label: "dismiss-popups" });
+    }
+
+    return result.dismissed;
+  }
+
   private async saveAndCloseCustomer(): Promise<void> {
     if (!this.page) throw new Error("Browser page is null");
 
@@ -10325,52 +10364,9 @@ export class ArchibaldBot {
     }
 
     if (!formClosed) {
-      // Try to handle DevExpress popup (e.g. UPPopupWindowControl) with validation errors
-      const popupHandled = await this.page.evaluate(() => {
-        const popupEl = document.querySelector(
-          'div[id*="UPPopupWindowControl"], div[id*="PopupWindow"], div[id*="popupWindow"]',
-        ) as HTMLElement | null;
-        if (!popupEl || popupEl.offsetParent === null) return false;
+      const popupDismissed = await this.dismissDevExpressPopups();
 
-        // Try to find and click a checkbox inside the popup
-        const checkboxSpan = popupEl.querySelector(
-          'span[class*="CheckBox"], span[class*="dxeCheck"]',
-        ) as HTMLElement | null;
-        if (checkboxSpan) {
-          checkboxSpan.click();
-          return true;
-        }
-
-        const checkboxInput = popupEl.querySelector(
-          'input[type="checkbox"]',
-        ) as HTMLInputElement | null;
-        if (checkboxInput && !checkboxInput.checked) {
-          const wrapper = checkboxInput.closest("span") || checkboxInput.parentElement;
-          if (wrapper) (wrapper as HTMLElement).click();
-          else checkboxInput.click();
-          return true;
-        }
-
-        // Try clicking OK/Close button inside popup
-        const buttons = Array.from(popupEl.querySelectorAll("a, span, button"));
-        for (const btn of buttons) {
-          const text = (btn as HTMLElement).textContent?.trim().toLowerCase() || "";
-          if (text === "ok" || text === "close" || text === "chiudi") {
-            (btn as HTMLElement).click();
-            return true;
-          }
-        }
-
-        return false;
-      });
-
-      if (popupHandled) {
-        logger.info("DevExpress validation popup handled, retrying save");
-        await this.waitForDevExpressIdle({
-          timeout: 3000,
-          label: "popup-validation-ack",
-        });
-
+      if (popupDismissed) {
         const savedAfterPopup = await saveAttempt();
         if (!savedAfterPopup) {
           await this.clickElementByText("Salva e chiudi", {
@@ -10819,6 +10815,7 @@ export class ArchibaldBot {
 
     // Step 1: "Prezzi e sconti" tab — set SCONTO LINEA first (before filling Principale)
     await this.openCustomerTab("Prezzi e sconti");
+    await this.dismissDevExpressPopups();
 
     try {
       await this.page.waitForFunction(
@@ -10833,6 +10830,7 @@ export class ArchibaldBot {
     } catch {
       logger.warn("LINEDISC not found after tab switch, retrying...");
       await this.openCustomerTab("Prezzi e sconti");
+      await this.dismissDevExpressPopups();
       await this.wait(1000);
     }
 
@@ -10852,6 +10850,7 @@ export class ArchibaldBot {
 
     // Step 3: Back to "Principale" tab — fill ALL fields last so they persist at save time
     await this.openCustomerTab("Principale");
+    await this.dismissDevExpressPopups();
     await this.waitForDevExpressIdle({
       timeout: 5000,
       label: "tab-principale",
@@ -11748,6 +11747,7 @@ export class ArchibaldBot {
 
     // Step 1: "Prezzi e sconti" tab — set SCONTO LINEA first (before filling Principale)
     await this.openCustomerTab("Prezzi e sconti");
+    await this.dismissDevExpressPopups();
 
     try {
       await this.page.waitForFunction(
@@ -11762,6 +11762,7 @@ export class ArchibaldBot {
     } catch {
       logger.warn("LINEDISC not found after tab switch, retrying...");
       await this.openCustomerTab("Prezzi e sconti");
+      await this.dismissDevExpressPopups();
       await this.wait(1000);
     }
 
@@ -11781,6 +11782,7 @@ export class ArchibaldBot {
 
     // Step 3: Back to "Principale" tab — fill ALL fields last so they persist at save time
     await this.openCustomerTab("Principale");
+    await this.dismissDevExpressPopups();
     await this.waitForDevExpressIdle({
       timeout: 5000,
       label: "tab-principale-interactive",
