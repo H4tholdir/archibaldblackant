@@ -28,8 +28,11 @@ function createAgentLock() {
     };
   }
 
-  function release(userId: string): void {
+  function release(userId: string, jobId: string): boolean {
+    const active = activeJobs.get(userId);
+    if (!active || active.jobId !== jobId) return false;
     activeJobs.delete(userId);
+    return true;
   }
 
   function setStopCallback(userId: string, requestStop: () => void): void {

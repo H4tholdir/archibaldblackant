@@ -20,10 +20,30 @@ describe('createAgentLock', () => {
     });
   });
 
+  test('release with matching jobId returns true and frees lock', () => {
+    const lock = createAgentLock();
+    lock.acquire('user-a', 'job-1', 'submit-order');
+
+    const released = lock.release('user-a', 'job-1');
+
+    expect(released).toBe(true);
+    expect(lock.getActive('user-a')).toBeUndefined();
+  });
+
+  test('release with mismatched jobId returns false and keeps lock', () => {
+    const lock = createAgentLock();
+    lock.acquire('user-a', 'job-1', 'submit-order');
+
+    const released = lock.release('user-a', 'wrong-job');
+
+    expect(released).toBe(false);
+    expect(lock.getActive('user-a')).toEqual({ jobId: 'job-1', type: 'submit-order' });
+  });
+
   test('release then re-acquire for same user succeeds', () => {
     const lock = createAgentLock();
     lock.acquire('user-a', 'job-1', 'submit-order');
-    lock.release('user-a');
+    lock.release('user-a', 'job-1');
 
     const result = lock.acquire('user-a', 'job-2', 'edit-order');
     expect(result).toEqual({ acquired: true });
@@ -106,7 +126,7 @@ describe('createAgentLock', () => {
     lock.acquire('user-a', 'job-1', 'submit-order');
 
     const snapshot = lock.getAllActive();
-    lock.release('user-a');
+    lock.release('user-a', 'job-1');
 
     expect(snapshot.size).toBe(1);
     expect(lock.getAllActive().size).toBe(0);

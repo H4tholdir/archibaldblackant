@@ -102,7 +102,7 @@ describe('createOperationProcessor', () => {
     const job = createMockJob();
 
     await expect(processor.processJob(job as any)).rejects.toThrow('handler failed');
-    expect(agentLock.release).toHaveBeenCalledWith('user-a');
+    expect(agentLock.release).toHaveBeenCalledWith('user-a', 'job-123');
   });
 
   test('acquires browser context and releases on success', async () => {

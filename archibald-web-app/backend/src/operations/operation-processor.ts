@@ -168,7 +168,7 @@ function createOperationProcessor(deps: ProcessorDeps) {
     } finally {
       clearTimeout(timer);
       if (lockAcquired) {
-        agentLock.release(userId);
+        agentLock.release(userId, job.id);
       }
     }
   }
