@@ -35,7 +35,7 @@ None
 
 Plans:
 - [x] 01-01: Knip analysis + cancellare file orfani frontend (19 deleted) + commit baseline refactoring
-- [ ] 01-02: Fix naming sentToMilanoAt→sentToVeronaAt (code+DB), rimuovere legacy localStorage keys, rinominare .test.ts→.spec.ts, pulire dead exports
+- [x] 01-02: Fix naming sentToMilanoAt→sentToVeronaAt (code+DB), rimuovere legacy localStorage keys, rinominare .test.ts→.spec.ts, pulire dead exports
 - [ ] 01-03: Pulizia root directory (4 dir clutter, ~25 MD file, log, script debug), fix struttura .planning/, .gitignore
 
 ### Phase 2: Operation Queue Core Fixes
@@ -149,7 +149,7 @@ Note: Phase 3 and 4 can start after Phase 2. Phase 5 depends on Phase 2+3. Phase
 
 | Phase | Plans Complete | Status | Completed |
 |-------|---------------|--------|-----------|
-| 1. Cleanup & Dead Code | 1/3 | In progress | - |
+| 1. Cleanup & Dead Code | 2/3 | In progress | - |
 | 2. Operation Queue Core | 0/3 | Not started | - |
 | 3. Browser Pool & Concurrency | 0/3 | Not started | - |
 | 4. Sync Scheduler & Auto-Sync | 0/2 | Not started | - |
