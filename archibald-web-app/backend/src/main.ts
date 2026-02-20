@@ -224,15 +224,18 @@ async function main() {
     ),
   };
 
+  let worker: Worker;
+
   const processor = createOperationProcessor({
     agentLock,
     browserPool: browserPool as any,
     broadcast: (userId, msg) => wsServer.broadcast(userId, msg as any),
     enqueue: queue.enqueue.bind(queue),
     handlers,
+    cancelJob: (jobId) => worker.cancelJob(jobId),
   });
 
-  const worker = new Worker('operations', async (job, token, signal) => {
+  worker = new Worker('operations', async (job, token, signal) => {
     await processor.processJob({
       id: job.id ?? '',
       data: job.data,

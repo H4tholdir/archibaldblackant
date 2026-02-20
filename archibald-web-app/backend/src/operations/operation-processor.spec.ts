@@ -51,12 +51,15 @@ describe('createOperationProcessor', () => {
     broadcast?: ReturnType<typeof createMockBroadcast>;
     enqueue?: ReturnType<typeof createMockEnqueue>;
     handlers?: Record<string, any>;
+    cancelJob?: ReturnType<typeof vi.fn>;
+    preemptionConfig?: { timeoutMs: number; pollIntervalMs: number };
   } = {}) {
     const agentLock = opts.agentLock ?? createMockAgentLock();
     const browserPool = opts.browserPool ?? createMockBrowserPool();
     const broadcast = opts.broadcast ?? createMockBroadcast();
     const enqueue = opts.enqueue ?? createMockEnqueue();
     const handlers = opts.handlers ?? { 'submit-order': dummyHandler };
+    const cancelJob = opts.cancelJob ?? vi.fn().mockReturnValue(true);
 
     return {
       processor: createOperationProcessor({
@@ -65,11 +68,14 @@ describe('createOperationProcessor', () => {
         broadcast,
         enqueue,
         handlers,
+        cancelJob,
+        preemptionConfig: opts.preemptionConfig,
       }),
       agentLock,
       browserPool,
       broadcast,
       enqueue,
+      cancelJob,
     };
   }
 
@@ -142,14 +148,13 @@ describe('createOperationProcessor', () => {
     );
   });
 
-  test('calls requestStop on active sync when write job arrives for same agent (preemption)', async () => {
+  test('calls cancelJob and requestStop on active sync when write job arrives (preemption)', async () => {
     const stopFn = vi.fn();
     const preemptableLock = createMockAgentLock({
       acquired: false,
       activeJob: { jobId: 'sync-job', type: 'sync-customers', requestStop: stopFn },
       preemptable: true,
     });
-    // After preemption, the lock is released and re-acquired
     preemptableLock.acquire
       .mockReturnValueOnce({
         acquired: false,
@@ -158,13 +163,73 @@ describe('createOperationProcessor', () => {
       })
       .mockReturnValue({ acquired: true });
 
-    const { processor } = createProcessor({ agentLock: preemptableLock });
+    const { processor, cancelJob } = createProcessor({
+      agentLock: preemptableLock,
+      preemptionConfig: { timeoutMs: 200, pollIntervalMs: 10 },
+    });
     const job = createMockJob({ type: 'submit-order' });
 
     await processor.processJob(job as any);
 
+    expect(cancelJob).toHaveBeenCalledWith('sync-job');
     expect(stopFn).toHaveBeenCalled();
     expect(preemptableLock.acquire).toHaveBeenCalledTimes(2);
+  });
+
+  test('times out preemption after max wait and requeues', async () => {
+    const preemptableLock = createMockAgentLock({
+      acquired: false,
+      activeJob: { jobId: 'sync-job', type: 'sync-customers', requestStop: vi.fn() },
+      preemptable: true,
+    });
+    preemptableLock.acquire.mockReturnValue({
+      acquired: false,
+      activeJob: { jobId: 'sync-job', type: 'sync-customers', requestStop: vi.fn() },
+      preemptable: true,
+    });
+
+    const { processor, enqueue, cancelJob } = createProcessor({
+      agentLock: preemptableLock,
+      preemptionConfig: { timeoutMs: 50, pollIntervalMs: 10 },
+    });
+    const job = createMockJob({ type: 'submit-order' });
+
+    const result = await processor.processJob(job as any);
+
+    expect(cancelJob).toHaveBeenCalledWith('sync-job');
+    expect(result).toEqual({ success: false, requeued: true, duration: expect.any(Number) });
+    expect(enqueue).toHaveBeenCalledWith('submit-order', 'user-a', { orderId: '1' }, 'key-1');
+  });
+
+  test('acquires lock during polling after cancel', async () => {
+    const preemptableLock = createMockAgentLock({
+      acquired: false,
+      activeJob: { jobId: 'sync-job', type: 'sync-customers', requestStop: vi.fn() },
+      preemptable: true,
+    });
+    let callCount = 0;
+    preemptableLock.acquire.mockImplementation(() => {
+      callCount++;
+      if (callCount <= 4) {
+        return {
+          acquired: false,
+          activeJob: { jobId: 'sync-job', type: 'sync-customers', requestStop: vi.fn() },
+          preemptable: true,
+        };
+      }
+      return { acquired: true };
+    });
+
+    const { processor } = createProcessor({
+      agentLock: preemptableLock,
+      preemptionConfig: { timeoutMs: 500, pollIntervalMs: 10 },
+    });
+    const job = createMockJob({ type: 'submit-order' });
+
+    const result = await processor.processJob(job as any);
+
+    expect(result.success).toBe(true);
+    expect(preemptableLock.acquire.mock.calls.length).toBeGreaterThanOrEqual(5);
   });
 
   test('broadcasts JOB_COMPLETED via WebSocket on success', async () => {

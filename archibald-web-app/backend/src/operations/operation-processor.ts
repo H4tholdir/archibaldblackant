@@ -32,12 +32,19 @@ type JobLike = {
   signal?: AbortSignal;
 };
 
+type PreemptionConfig = {
+  timeoutMs: number;
+  pollIntervalMs: number;
+};
+
 type ProcessorDeps = {
   agentLock: AgentLock;
   browserPool: BrowserPoolLike;
   broadcast: BroadcastFn;
   enqueue: EnqueueFn;
   handlers: Partial<Record<OperationType, OperationHandler>>;
+  cancelJob: (jobId: string) => boolean;
+  preemptionConfig?: PreemptionConfig;
 };
 
 type ProcessJobResult = {
@@ -47,7 +54,8 @@ type ProcessJobResult = {
   requeued?: boolean;
 };
 
-const PREEMPTION_WAIT_MS = 2000;
+const PREEMPTION_TIMEOUT_MS = 30_000;
+const POLL_INTERVAL_MS = 500;
 const REQUEUE_DELAY_MS = 2000;
 
 function createOperationProcessor(deps: ProcessorDeps) {
@@ -68,11 +76,20 @@ function createOperationProcessor(deps: ProcessorDeps) {
     if (!acquireResult.acquired) {
       if (acquireResult.preemptable) {
         const { activeJob } = acquireResult;
+        deps.cancelJob(activeJob.jobId);
         if (activeJob.requestStop) {
           activeJob.requestStop();
         }
-        await new Promise((resolve) => setTimeout(resolve, PREEMPTION_WAIT_MS));
-        acquireResult = agentLock.acquire(userId, job.id, type);
+
+        const preemptionTimeout = deps.preemptionConfig?.timeoutMs ?? PREEMPTION_TIMEOUT_MS;
+        const pollInterval = deps.preemptionConfig?.pollIntervalMs ?? POLL_INTERVAL_MS;
+        let waited = 0;
+        while (waited < preemptionTimeout) {
+          await new Promise((resolve) => setTimeout(resolve, pollInterval));
+          waited += pollInterval;
+          acquireResult = agentLock.acquire(userId, job.id, type);
+          if (acquireResult.acquired) break;
+        }
       }
 
       if (!acquireResult.acquired) {
