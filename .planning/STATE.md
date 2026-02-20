@@ -10,18 +10,18 @@ See: .planning/PROJECT.md (updated 2026-02-20)
 ## Current Position
 
 Phase: 5 of 10 (WebSocket & Real-time Events)
-Plan: 1 of 3 in current phase
+Plan: 2 of 3 in current phase
 Status: In progress
-Last activity: 2026-02-20 — Completed 05-01-PLAN.md
+Last activity: 2026-02-20 — Completed 05-02-PLAN.md
 
-Progress: ████░░░░░░ 41%
+Progress: ████░░░░░░ 44%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 13
-- Average duration: 6.0 min
-- Total execution time: 78 min
+- Total plans completed: 14
+- Average duration: 5.9 min
+- Total execution time: 82 min
 
 **By Phase:**
 
@@ -31,11 +31,11 @@ Progress: ████░░░░░░ 41%
 | 2 | 3/3 | 16 min | 5.3 min |
 | 3 | 3/3 | 16 min | 5.3 min |
 | 4 | 3/3 | 16 min | 5.3 min |
-| 5 | 1/3 | 4 min | 4.0 min |
+| 5 | 2/3 | 8 min | 4.0 min |
 
 **Recent Trend:**
-- Last 5 plans: 04-01 (3 min), 04-02 (7 min), 04-03 (6 min), 05-01 (4 min)
-- Trend: Fast (~5.0 min avg)
+- Last 5 plans: 04-02 (7 min), 04-03 (6 min), 05-01 (4 min), 05-02 (4 min)
+- Trend: Fast (~5.3 min avg)
 
 ## Accumulated Context
 
@@ -80,6 +80,9 @@ Recent decisions affecting current work:
 - Events emitted after res.json() to guarantee DB write confirmed before notification
 - Broadcast calls wrapped in try/catch — failures never affect HTTP responses
 - Batch POST operations emit aggregated events (one per action type) rather than one per order
+- operationType (not type) in WebSocketMessage payload to avoid collision with message-level type field
+- JOB_STARTED emitted before browser context acquisition to signal job start immediately
+- All processor broadcasts standardized to { type, payload, timestamp } WebSocketMessage format
 
 ### Deferred Issues
 
@@ -92,5 +95,5 @@ None.
 ## Session Continuity
 
 Last session: 2026-02-20
-Stopped at: Completed 05-01-PLAN.md — Phase 5 in progress (1/3)
+Stopped at: Completed 05-02-PLAN.md — Phase 5 in progress (2/3)
 Resume file: None
