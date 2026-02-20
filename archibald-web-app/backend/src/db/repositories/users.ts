@@ -365,6 +365,7 @@ export {
   getUserById,
   getUserByUsername,
   getAllUsers,
+  getWhitelistedUsers,
   updateWhitelist,
   updateLastLogin,
   deleteUser,
