@@ -27,7 +27,7 @@ type WarehouseRouterDeps = {
   batchMarkSold: (userId: string, orderId: string, tracking?: { customerName?: string; subClientName?: string; orderDate?: string; orderNumber?: string }) => Promise<number>;
   batchTransfer: (userId: string, fromOrderIds: string[], toOrderId: string) => Promise<number>;
   getMetadata: (userId: string) => Promise<{ totalItems: number; totalQuantity: number; boxesCount: number; reservedCount: number; soldCount: number }>;
-  validateArticle?: (articleCode: string) => Promise<{ valid: boolean; productName?: string }>;
+  validateArticle?: (articleCode: string) => Promise<{ matchedProduct: { id: string; name: string; description: string | null } | null; confidence: number; suggestions: Array<{ id: string; name: string; description: string | null }> }>;
   importExcel?: (userId: string, buffer: Buffer, filename: string) => Promise<{ success: boolean; imported?: number; skipped?: number; errors?: string[] }>;
 };
 
@@ -376,7 +376,7 @@ function createWarehouseRouter(deps: WarehouseRouterDeps) {
 
   router.get('/items/validate', async (req: AuthRequest, res) => {
     try {
-      const articleCode = req.query.articleCode as string | undefined;
+      const articleCode = (req.query.code ?? req.query.articleCode) as string | undefined;
       if (!articleCode) {
         return res.status(400).json({ success: false, error: 'Codice articolo richiesto' });
       }

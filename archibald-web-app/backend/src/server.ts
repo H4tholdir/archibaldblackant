@@ -44,6 +44,8 @@ import * as dashboardService from './dashboard-service';
 import { exportToArcaDbf, createExportTempDir, cleanupExportDir, streamExportAsZip } from './arca-export-service';
 import { parseArcaExport } from './arca-import-service';
 import type { FresisHistoryRow } from './arca-import-service';
+import { parseWarehouseFile } from './warehouse-parser';
+import { parsePriceExcel } from './price-excel-parser';
 import { PassThrough } from 'stream';
 
 type PasswordCacheLike = {
@@ -217,7 +219,41 @@ function createApp(deps: AppDeps): Express {
     getPriceHistory: async (_productId, _limit) => [],
     getRecentPriceChanges: async (_days) => [],
     getImportHistory: async () => [],
-    importExcel: async (_buffer, _filename, _userId) => ({ totalRows: 0, matched: 0, unmatched: 0, errors: ['Not yet implemented'] }),
+    importExcel: async (buffer, _filename, _userId) => {
+      const parsed = parsePriceExcel(buffer);
+      if (!parsed) {
+        return { totalRows: 0, matched: 0, unmatched: 0, errors: ['Impossibile leggere il file Excel'] };
+      }
+      let matched = 0;
+      let vatUpdated = 0;
+      const unmatched: string[] = [];
+      for (const row of parsed.rows) {
+        const product = await productsRepo.getProductById(pool, row.productId);
+        if (product) {
+          matched++;
+          if (row.vat !== null && row.vat !== undefined) {
+            await productsRepo.updateProductPrice(
+              pool, product.id,
+              row.price ?? product.price ?? 0,
+              row.vat,
+              row.price !== null && row.price !== undefined ? 'excel-import' : product.price_source ?? 'sync',
+              'excel-import',
+            );
+            vatUpdated++;
+          }
+        } else {
+          unmatched.push(row.productId);
+        }
+      }
+      return {
+        totalRows: parsed.totalRows,
+        matched,
+        matchedRows: matched,
+        vatUpdatedCount: vatUpdated,
+        unmatched: unmatched.length,
+        errors: parsed.errors,
+      };
+    },
   }));
 
   app.use('/api/orders', authenticateJWT, createOrdersRouter({
@@ -259,10 +295,52 @@ function createApp(deps: AppDeps): Express {
     batchTransfer: (userId, fromOrderIds, toOrderId) => warehouseRepo.batchTransfer(pool, userId, fromOrderIds, toOrderId),
     getMetadata: (userId) => warehouseRepo.getMetadata(pool, userId),
     validateArticle: async (articleCode) => {
-      const product = await productsRepo.getProductById(pool, articleCode);
-      return product ? { valid: true, productName: product.name } : { valid: false };
+      const exactMatch = await productsRepo.getProductById(pool, articleCode);
+      if (exactMatch) {
+        return {
+          matchedProduct: { id: exactMatch.id, name: exactMatch.name, description: exactMatch.description },
+          confidence: 1.0,
+          suggestions: [],
+        };
+      }
+      const fuzzyMatches = await productsRepo.getProducts(pool, articleCode);
+      const topMatches = fuzzyMatches.slice(0, 5).map(p => ({ id: p.id, name: p.name, description: p.description }));
+      if (topMatches.length > 0) {
+        return {
+          matchedProduct: topMatches[0],
+          confidence: 0.5,
+          suggestions: topMatches,
+        };
+      }
+      return { matchedProduct: null, confidence: 0, suggestions: [] };
     },
-    importExcel: async (_userId, _buffer, _filename) => ({ success: true, imported: 0, skipped: 0, errors: [] }),
+    importExcel: async (userId, buffer, _filename) => {
+      const parsed = parseWarehouseFile(buffer);
+      if (!parsed) {
+        return { success: false, imported: 0, skipped: 0, errors: ['Impossibile leggere il file Excel'] };
+      }
+      if (parsed.items.length > 0) {
+        const deviceId = 'excel-import';
+        const storeItems = parsed.items.map(item => ({
+          articleCode: item.articleCode,
+          description: item.description,
+          quantity: item.quantity,
+          boxName: item.boxName,
+          deviceId,
+        }));
+        await warehouseRepo.bulkStoreItems(pool, userId, storeItems, false);
+      }
+      return {
+        success: true,
+        imported: parsed.totalItems,
+        skipped: 0,
+        errors: parsed.errors,
+        items: parsed.items,
+        totalItems: parsed.totalItems,
+        totalQuantity: parsed.totalQuantity,
+        boxesCount: parsed.boxesCount,
+      };
+    },
   }));
 
   app.use('/api/fresis-history', authenticateJWT, createFresisHistoryRouter({
@@ -385,6 +463,65 @@ function createApp(deps: AppDeps): Express {
     },
     persistInterval: (syncType, intervalMinutes) =>
       syncSettingsRepo.updateInterval(pool, syncType, intervalMinutes),
+    pool,
+    clearSyncData: async (type) => {
+      const tableMap: Record<string, () => Promise<string>> = {
+        customers: async () => {
+          await pool.query('DELETE FROM agents.customers');
+          return 'Database clienti cancellato';
+        },
+        products: async () => {
+          await pool.query('DELETE FROM shared.product_changes');
+          await pool.query('DELETE FROM shared.product_images');
+          await pool.query('DELETE FROM shared.products');
+          return 'Database prodotti cancellato';
+        },
+        prices: async () => {
+          await pool.query('DELETE FROM shared.prices');
+          return 'Database prezzi cancellato';
+        },
+        orders: async () => {
+          await pool.query('DELETE FROM agents.order_state_history');
+          await pool.query('DELETE FROM agents.order_articles');
+          await pool.query('DELETE FROM agents.order_records');
+          return 'Database ordini cancellato';
+        },
+        ddt: async () => {
+          await pool.query(
+            `UPDATE agents.order_records SET
+              ddt_number = NULL, ddt_delivery_date = NULL, ddt_id = NULL,
+              ddt_customer_account = NULL, ddt_sales_name = NULL, ddt_delivery_name = NULL,
+              ddt_delivery_address = NULL, ddt_total = NULL, ddt_customer_reference = NULL,
+              ddt_description = NULL, delivery_terms = NULL, delivery_method = NULL,
+              delivery_city = NULL, attention_to = NULL,
+              tracking_number = NULL, tracking_url = NULL, tracking_courier = NULL,
+              delivery_completed_date = NULL`,
+          );
+          return 'Dati DDT cancellati';
+        },
+        invoices: async () => {
+          await pool.query(
+            `UPDATE agents.order_records SET
+              invoice_number = NULL, invoice_date = NULL, invoice_amount = NULL,
+              invoice_customer_account = NULL, invoice_billing_name = NULL,
+              invoice_quantity = NULL, invoice_remaining_amount = NULL,
+              invoice_tax_amount = NULL, invoice_line_discount = NULL,
+              invoice_total_discount = NULL, invoice_due_date = NULL,
+              invoice_payment_terms_id = NULL, invoice_purchase_order = NULL,
+              invoice_closed = NULL, invoice_days_past_due = NULL,
+              invoice_settled_amount = NULL, invoice_last_payment_id = NULL,
+              invoice_last_settlement_date = NULL, invoice_closed_date = NULL`,
+          );
+          return 'Dati fatture cancellati';
+        },
+      };
+      const handler = tableMap[type];
+      if (!handler) {
+        throw new Error(`Tipo sync non valido: ${type}`);
+      }
+      const message = await handler();
+      return { message };
+    },
   }));
 
   app.use('/api/sync', authenticateJWT, createSseProgressRouter({
