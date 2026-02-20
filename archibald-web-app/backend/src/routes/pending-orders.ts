@@ -8,6 +8,7 @@ type PendingOrdersRouterDeps = {
   getPendingOrders: (userId: string) => Promise<PendingOrder[]>;
   upsertPendingOrder: (userId: string, order: PendingOrderInput) => Promise<{ id: string; action: string; serverUpdatedAt: number }>;
   deletePendingOrder: (userId: string, orderId: string) => Promise<boolean>;
+  broadcast: (userId: string, msg: { type: string; payload: unknown; timestamp: string }) => void;
 };
 
 const pendingOrderSchema = z.object({
@@ -33,7 +34,7 @@ const batchUpsertSchema = z.object({
 });
 
 function createPendingOrdersRouter(deps: PendingOrdersRouterDeps) {
-  const { getPendingOrders, upsertPendingOrder, deletePendingOrder } = deps;
+  const { getPendingOrders, upsertPendingOrder, deletePendingOrder, broadcast } = deps;
   const router = Router();
 
   router.get('/', async (req: AuthRequest, res) => {
@@ -59,6 +60,29 @@ function createPendingOrdersRouter(deps: PendingOrdersRouterDeps) {
       );
 
       res.json({ success: true, results });
+
+      try {
+        const createdIds = results.filter((r) => r.action === 'created').map((r) => r.id);
+        const updatedIds = results.filter((r) => r.action === 'updated').map((r) => r.id);
+
+        if (createdIds.length > 0) {
+          broadcast(userId, {
+            type: 'PENDING_CREATED',
+            payload: { orderIds: createdIds, count: createdIds.length },
+            timestamp: new Date().toISOString(),
+          });
+        }
+
+        if (updatedIds.length > 0) {
+          broadcast(userId, {
+            type: 'PENDING_UPDATED',
+            payload: { orderIds: updatedIds, count: updatedIds.length },
+            timestamp: new Date().toISOString(),
+          });
+        }
+      } catch {
+        logger.error('Error broadcasting pending order events');
+      }
     } catch (error) {
       logger.error('Error upserting pending orders', { error });
       res.status(500).json({ success: false, error: 'Errore nel salvataggio ordini in sospeso' });
@@ -67,11 +91,23 @@ function createPendingOrdersRouter(deps: PendingOrdersRouterDeps) {
 
   router.delete('/:id', async (req: AuthRequest, res) => {
     try {
-      const deleted = await deletePendingOrder(req.user!.userId, req.params.id);
+      const userId = req.user!.userId;
+      const orderId = req.params.id;
+      const deleted = await deletePendingOrder(userId, orderId);
       if (!deleted) {
         return res.status(404).json({ success: false, error: 'Ordine in sospeso non trovato' });
       }
       res.json({ success: true });
+
+      try {
+        broadcast(userId, {
+          type: 'PENDING_DELETED',
+          payload: { orderId },
+          timestamp: new Date().toISOString(),
+        });
+      } catch {
+        logger.error('Error broadcasting pending order delete event');
+      }
     } catch (error) {
       logger.error('Error deleting pending order', { error });
       res.status(500).json({ success: false, error: 'Errore nella cancellazione ordine in sospeso' });
