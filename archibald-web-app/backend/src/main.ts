@@ -284,6 +284,7 @@ async function main() {
     sendEmail,
     uploadToDropbox,
     broadcast: (userId, msg) => wsServer.broadcast(userId, msg),
+    createCustomerBot: createBot as (userId: string) => any,
   });
 
   const httpServer = http.createServer(app);
