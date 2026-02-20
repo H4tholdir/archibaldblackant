@@ -33,7 +33,9 @@ function createSyncPricesHandler(
   deps: SyncPricesFactoryDeps,
   createBot: (userId: string) => { downloadPricesPDF: (ctx: unknown) => Promise<string> },
 ): OperationHandler {
-  return async (context, _data, _userId, onProgress) => {
+  return async (context, _data, _userId, onProgress, signal) => {
+    let stopped = false;
+    signal?.addEventListener('abort', () => { stopped = true; }, { once: true });
     const bot = createBot('service-account');
     const result = await syncPrices(
       {
@@ -46,7 +48,7 @@ function createSyncPricesHandler(
         cleanupFile: deps.cleanupFile,
       },
       onProgress,
-      () => false,
+      () => stopped,
     );
     return result as unknown as Record<string, unknown>;
   };

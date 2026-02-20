@@ -38,7 +38,9 @@ function createSyncInvoicesHandler(
   deps: SyncInvoicesFactoryDeps,
   createBot: (userId: string) => { downloadInvoicesPDF: (ctx: unknown) => Promise<string> },
 ): OperationHandler {
-  return async (context, _data, userId, onProgress) => {
+  return async (context, _data, userId, onProgress, signal) => {
+    let stopped = false;
+    signal?.addEventListener('abort', () => { stopped = true; }, { once: true });
     const bot = createBot(userId);
     const result = await syncInvoices(
       {
@@ -52,7 +54,7 @@ function createSyncInvoicesHandler(
       },
       userId,
       onProgress,
-      () => false,
+      () => stopped,
     );
     return result as unknown as Record<string, unknown>;
   };

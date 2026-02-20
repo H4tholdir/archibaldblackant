@@ -34,7 +34,9 @@ function createSyncProductsHandler(
   deps: SyncProductsFactoryDeps,
   createBot: (userId: string) => { downloadProductsPDF: (ctx: unknown) => Promise<string> },
 ): OperationHandler {
-  return async (context, _data, _userId, onProgress) => {
+  return async (context, _data, _userId, onProgress, signal) => {
+    let stopped = false;
+    signal?.addEventListener('abort', () => { stopped = true; }, { once: true });
     const bot = createBot('service-account');
     const result = await syncProducts(
       {
@@ -47,7 +49,7 @@ function createSyncProductsHandler(
         cleanupFile: deps.cleanupFile,
       },
       onProgress,
-      () => false,
+      () => stopped,
     );
     return result as unknown as Record<string, unknown>;
   };
