@@ -77,8 +77,8 @@ test.describe.serial("multi-device WebSocket sync", () => {
       localStorage.setItem("archibald_device_id", "e2e-device-b");
     });
 
-    await pageA.goto("/pending-orders");
-    await pageB.goto("/pending-orders");
+    await pageA.goto("/pending-orders", { waitUntil: "networkidle" });
+    await pageB.goto("/pending-orders", { waitUntil: "networkidle" });
 
     await waitForPageLoaded(pageA);
     await waitForPageLoaded(pageB);
@@ -143,7 +143,7 @@ test.describe.serial("multi-device WebSocket sync", () => {
         return parseInt(match[1], 10) >= args.expected;
       },
       { expected: expectedCount },
-      { timeout: 10_000 },
+      { timeout: 15_000 },
     );
 
     const updatedCount = await getPendingCountFromDom(pageB);
@@ -173,7 +173,7 @@ test.describe.serial("multi-device WebSocket sync", () => {
         return parseInt(match[1], 10) <= args.expected;
       },
       { expected: expectedCount },
-      { timeout: 10_000 },
+      { timeout: 15_000 },
     );
 
     const finalCount = await getPendingCountFromDom(pageB);

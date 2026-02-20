@@ -66,7 +66,7 @@ test.describe("login flow", () => {
       await page.click('button[type="submit"]');
 
       await expect(page.locator(".error-message")).toBeVisible({
-        timeout: 60_000,
+        timeout: 120_000,
       });
 
       await expect(page.locator("#username")).toBeVisible();

@@ -7,7 +7,7 @@ test.describe.serial("pending orders CRUD", () => {
   let createdOrderId: string;
 
   test("pending orders page loads and shows data", async ({ page }) => {
-    await page.goto("/pending-orders");
+    await page.goto("/pending-orders", { waitUntil: "networkidle" });
 
     await expect(
       page.getByText("Caricamento ordini in attesa..."),
@@ -31,7 +31,7 @@ test.describe.serial("pending orders CRUD", () => {
   test("can create a pending order via API and see it in list", async ({
     page,
   }) => {
-    await page.goto("/pending-orders");
+    await page.goto("/pending-orders", { waitUntil: "networkidle" });
 
     await expect(
       page.getByText("Caricamento ordini in attesa..."),
@@ -75,7 +75,7 @@ test.describe.serial("pending orders CRUD", () => {
     const body = await response.json();
     expect(body.success).toBe(true);
 
-    await page.goto("/pending-orders");
+    await page.goto("/pending-orders", { waitUntil: "networkidle" });
 
     await expect(
       page.getByText("Caricamento ordini in attesa..."),
@@ -87,7 +87,7 @@ test.describe.serial("pending orders CRUD", () => {
   });
 
   test("can delete a pending order", async ({ page }) => {
-    await page.goto("/pending-orders");
+    await page.goto("/pending-orders", { waitUntil: "networkidle" });
 
     await expect(
       page.getByText("Caricamento ordini in attesa..."),
@@ -110,7 +110,7 @@ test.describe.serial("pending orders CRUD", () => {
     );
     expect(deleteResponse.status()).toBe(200);
 
-    await page.goto("/pending-orders");
+    await page.goto("/pending-orders", { waitUntil: "networkidle" });
 
     await expect(
       page.getByText("Caricamento ordini in attesa..."),
