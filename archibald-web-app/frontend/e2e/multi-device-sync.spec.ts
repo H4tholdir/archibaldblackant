@@ -77,8 +77,8 @@ test.describe.serial("multi-device WebSocket sync", () => {
       localStorage.setItem("archibald_device_id", "e2e-device-b");
     });
 
-    await pageA.goto("/pending-orders", { waitUntil: "networkidle" });
-    await pageB.goto("/pending-orders", { waitUntil: "networkidle" });
+    await pageA.goto("/pending-orders");
+    await pageB.goto("/pending-orders");
 
     await waitForPageLoaded(pageA);
     await waitForPageLoaded(pageB);

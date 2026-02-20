@@ -72,8 +72,8 @@ export async function fetchWithRetry(
       headers,
     });
 
-    // 3. Handle 401 Unauthorized
-    if (response.status === 401) {
+    // 3. Handle 401 Unauthorized (skip for login endpoint - 401 is expected for invalid credentials)
+    if (response.status === 401 && !url.includes('/api/auth/login')) {
       try {
         const clonedResponse = response.clone();
         const contentType = response.headers.get('content-type');

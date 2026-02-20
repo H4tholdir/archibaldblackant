@@ -15,7 +15,7 @@ test.describe("all main pages load without errors", () => {
     test(`${route.name} (${route.path}) loads successfully`, async ({
       page,
     }) => {
-      await page.goto(route.path, { waitUntil: "networkidle" });
+      await page.goto(route.path);
 
       await expect(page.locator("nav")).toBeVisible({ timeout: 30_000 });
 
