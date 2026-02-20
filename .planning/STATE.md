@@ -10,29 +10,29 @@ See: .planning/PROJECT.md (updated 2026-02-20)
 ## Current Position
 
 Phase: 2 of 10 (Operation Queue Core Fixes)
-Plan: 1 of 3 in current phase
+Plan: 2 of 3 in current phase
 Status: In progress
-Last activity: 2026-02-20 — Completed 02-01-PLAN.md
+Last activity: 2026-02-20 — Completed 02-02-PLAN.md
 
-Progress: █░░░░░░░░░ 13%
+Progress: █░░░░░░░░░ 16%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 4
-- Average duration: 7.5 min
-- Total execution time: 30 min
+- Total plans completed: 5
+- Average duration: 7.4 min
+- Total execution time: 37 min
 
 **By Phase:**
 
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
 | 1 | 3/3 | 26 min | 8.7 min |
-| 2 | 1/3 | 4 min | 4 min |
+| 2 | 2/3 | 11 min | 5.5 min |
 
 **Recent Trend:**
-- Last 5 plans: 01-01 (5 min), 01-02 (12 min), 01-03 (9 min), 02-01 (4 min)
-- Trend: Fast (~7.5 min avg)
+- Last 5 plans: 01-02 (12 min), 01-03 (9 min), 02-01 (4 min), 02-02 (7 min)
+- Trend: Fast (~7.4 min avg)
 
 ## Accumulated Context
 
@@ -50,6 +50,9 @@ Recent decisions affecting current work:
 - Config sendToVeronaEnabled accepts both new and old env var names for backward compat
 - Root cleanup: delete-all (no archive, git history as safety net)
 - AbortSignal addEventListener with { once: true } to prevent memory leaks in handlers
+- Injectable preemptionConfig and getTimeout in ProcessorDeps for testability without fake timers
+- Promise.race handler against abort rejection to enforce timeout on hung handlers
+- UnrecoverableError on AbortError to prevent BullMQ retry on timeout
 
 ### Deferred Issues
 
@@ -62,5 +65,5 @@ None.
 ## Session Continuity
 
 Last session: 2026-02-20
-Stopped at: Completed 02-01-PLAN.md — Phase 2 plan 1 of 3
+Stopped at: Completed 02-02-PLAN.md — Phase 2 plan 2 of 3
 Resume file: None
