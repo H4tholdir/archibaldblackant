@@ -5,23 +5,23 @@
 See: .planning/PROJECT.md (updated 2026-02-20)
 
 **Core value:** Riportare la PWA a perfetto funzionamento multi-utente e multi-dispositivo, eliminando ogni race condition, stub silenzioso e feature rotta, con copertura test che garantisca stabilità nel tempo.
-**Current focus:** Phase 3 in progress — Browser Pool & Concurrency
+**Current focus:** Phase 3 complete — Browser Pool & Concurrency
 
 ## Current Position
 
 Phase: 3 of 10 (Browser Pool & Concurrency)
-Plan: 2 of 3 in current phase
-Status: In progress
-Last activity: 2026-02-20 — Completed 03-02-PLAN.md
+Plan: 3 of 3 in current phase
+Status: Phase complete
+Last activity: 2026-02-20 — Completed 03-03-PLAN.md
 
-Progress: ██▓░░░░░░░ 27%
+Progress: ███░░░░░░░ 29%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 8
-- Average duration: 6.5 min
-- Total execution time: 52 min
+- Total plans completed: 9
+- Average duration: 6.4 min
+- Total execution time: 58 min
 
 **By Phase:**
 
@@ -29,11 +29,11 @@ Progress: ██▓░░░░░░░ 27%
 |-------|-------|-------|----------|
 | 1 | 3/3 | 26 min | 8.7 min |
 | 2 | 3/3 | 16 min | 5.3 min |
-| 3 | 2/3 | 10 min | 5.0 min |
+| 3 | 3/3 | 16 min | 5.3 min |
 
 **Recent Trend:**
-- Last 5 plans: 02-02 (7 min), 02-03 (5 min), 03-01 (4 min), 03-02 (6 min)
-- Trend: Fast (~5.5 min avg)
+- Last 5 plans: 02-03 (5 min), 03-01 (4 min), 03-02 (6 min), 03-03 (6 min)
+- Trend: Fast (~5.3 min avg)
 
 ## Accumulated Context
 
@@ -63,6 +63,9 @@ Recent decisions affecting current work:
 - Worker concurrency 10 default, configurabile via WORKER_CONCURRENCY env var
 - Backoff esponenziale 2s-30s per re-enqueue su lock contention
 - EnqueueFn estesa con options?: { delay?: number }
+- bot_results table con UNIQUE(user_id, operation_type, operation_key) per idempotenza recovery
+- clearBotResult DOPO la transazione DB (non dentro) per idempotenza
+- INSERT ON CONFLICT DO UPDATE per saveBotResult (retry-safe)
 
 ### Deferred Issues
 
@@ -75,5 +78,5 @@ None.
 ## Session Continuity
 
 Last session: 2026-02-20
-Stopped at: Completed 03-02-PLAN.md
+Stopped at: Completed 03-03-PLAN.md — Phase 3 complete
 Resume file: None
