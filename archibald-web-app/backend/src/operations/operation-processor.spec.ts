@@ -476,6 +476,87 @@ describe('createOperationProcessor', () => {
     await expect(promise).rejects.toThrow('Handler timeout after 5000ms for submit-order');
     expect(capturedSignal!.aborted).toBe(true);
   });
+
+  test('preemptable lock acquisition succeeds on retry, runs handler, returns success with data', async () => {
+    const stopFn = vi.fn();
+    const handlerResult = { orderId: 'ORD-99', status: 'submitted' };
+    const handler = vi.fn().mockResolvedValue(handlerResult);
+    const preemptableLock = createMockAgentLock({
+      acquired: false,
+      activeJob: { jobId: 'sync-job', type: 'sync-customers', requestStop: stopFn },
+      preemptable: true,
+    });
+    preemptableLock.acquire
+      .mockReturnValueOnce({
+        acquired: false,
+        activeJob: { jobId: 'sync-job', type: 'sync-customers', requestStop: stopFn },
+        preemptable: true,
+      })
+      .mockReturnValue({ acquired: true });
+
+    const { processor } = createProcessor({
+      agentLock: preemptableLock,
+      handlers: { 'submit-order': handler },
+      preemptionConfig: { timeoutMs: 200, pollIntervalMs: 10 },
+    });
+    const job = createMockJob();
+
+    const result = await processor.processJob(job as any);
+
+    expect(result).toEqual({
+      success: true,
+      data: handlerResult,
+      duration: expect.any(Number),
+    });
+    expect(handler).toHaveBeenCalledTimes(1);
+  });
+
+  test('releases lock with correct userId and jobId on successful handler completion', async () => {
+    const { processor, agentLock } = createProcessor();
+    const job = createMockJob();
+
+    await processor.processJob(job as any);
+
+    expect(agentLock.release).toHaveBeenCalledWith('user-a', 'job-123');
+  });
+
+  test('non-preemptable re-enqueue does not call cancelJob or requestStop', async () => {
+    const stopFn = vi.fn();
+    const busyLock = createMockAgentLock({
+      acquired: false,
+      activeJob: { jobId: 'existing-job', type: 'edit-order', requestStop: stopFn },
+      preemptable: false,
+    });
+    const syncHandler = vi.fn().mockResolvedValue({});
+    const { processor, cancelJob } = createProcessor({
+      agentLock: busyLock,
+      handlers: { 'sync-customers': syncHandler } as any,
+    });
+    const job = createMockJob({ type: 'sync-customers' });
+
+    await processor.processJob(job as any);
+
+    expect(cancelJob).not.toHaveBeenCalled();
+    expect(stopFn).not.toHaveBeenCalled();
+  });
+
+  test('does not release lock when job is re-enqueued (lock never acquired)', async () => {
+    const busyLock = createMockAgentLock({
+      acquired: false,
+      activeJob: { jobId: 'existing-job', type: 'edit-order' },
+      preemptable: false,
+    });
+    const syncHandler = vi.fn().mockResolvedValue({});
+    const { processor, agentLock } = createProcessor({
+      agentLock: busyLock,
+      handlers: { 'sync-customers': syncHandler } as any,
+    });
+    const job = createMockJob({ type: 'sync-customers' });
+
+    await processor.processJob(job as any);
+
+    expect(agentLock.release).not.toHaveBeenCalled();
+  });
 });
 
 describe('multi-user concurrency', () => {
