@@ -1,7 +1,7 @@
 import express, { type Express } from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
-import rateLimit from 'express-rate-limit';
+import rateLimit, { ipKeyGenerator } from 'express-rate-limit';
 import type { DbPool } from './db/pool';
 import type { OperationQueue } from './operations/operation-queue';
 import type { AgentLock } from './operations/agent-lock';
@@ -94,7 +94,7 @@ function createApp(deps: AppDeps): Express {
     max: 200,
     standardHeaders: true,
     legacyHeaders: false,
-    keyGenerator: (req) => req.ip || req.socket.remoteAddress || 'unknown',
+    keyGenerator: (req) => ipKeyGenerator(req.ip ?? req.socket.remoteAddress ?? 'unknown'),
     message: { success: false, error: 'Too many requests, please try again later' },
   });
 
@@ -103,7 +103,7 @@ function createApp(deps: AppDeps): Express {
     max: 20,
     standardHeaders: true,
     legacyHeaders: false,
-    keyGenerator: (req) => req.ip || req.socket.remoteAddress || 'unknown',
+    keyGenerator: (req) => ipKeyGenerator(req.ip ?? req.socket.remoteAddress ?? 'unknown'),
     message: { success: false, error: 'Too many requests, please try again later' },
   });
 
@@ -112,7 +112,7 @@ function createApp(deps: AppDeps): Express {
     max: 15,
     standardHeaders: true,
     legacyHeaders: false,
-    keyGenerator: (req) => req.ip || req.socket.remoteAddress || 'unknown',
+    keyGenerator: (req) => ipKeyGenerator(req.ip ?? req.socket.remoteAddress ?? 'unknown'),
     message: { success: false, error: 'Too many login attempts, please try again later' },
   });
 
