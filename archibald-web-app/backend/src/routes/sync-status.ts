@@ -5,6 +5,7 @@ import type { OperationQueue } from '../operations/operation-queue';
 import type { AgentLock } from '../operations/agent-lock';
 import type { OperationType } from '../operations/operation-types';
 import type { SyncType, SyncTypeIntervals } from '../sync/sync-scheduler';
+import type { DbPool } from '../db/pool';
 import { logger } from '../logger';
 
 type SyncSchedulerLike = {
@@ -23,6 +24,7 @@ type SyncStatusRouterDeps = {
   clearSyncData?: (type: string) => Promise<{ message: string }>;
   loadIntervalsMs?: () => Promise<SyncTypeIntervals>;
   persistInterval?: (syncType: SyncType, intervalMinutes: number) => Promise<void>;
+  pool?: DbPool;
 };
 
 const VALID_SYNC_TYPES = new Set([
@@ -30,6 +32,28 @@ const VALID_SYNC_TYPES = new Set([
   'sync-invoices', 'sync-products', 'sync-prices',
   'sync-order-articles',
 ]);
+
+type SyncWarning = {
+  warning: string;
+  syncType: string;
+  createdAt: string;
+};
+
+async function fetchRecentWarnings(pool?: DbPool): Promise<SyncWarning[]> {
+  if (!pool) return [];
+  const { rows } = await pool.query<{ warning: string; sync_type: string; created_at: string }>(
+    `SELECT details->>'warning' as warning, sync_type, created_at
+     FROM system.sync_events
+     WHERE event_type = 'parser_warning'
+     ORDER BY created_at DESC
+     LIMIT 10`,
+  );
+  return rows.map((row) => ({
+    warning: row.warning,
+    syncType: row.sync_type,
+    createdAt: row.created_at,
+  }));
+}
 
 function createSyncStatusRouter(deps: SyncStatusRouterDeps) {
   const { queue, agentLock, syncScheduler } = deps;
@@ -47,9 +71,10 @@ function createSyncStatusRouter(deps: SyncStatusRouterDeps) {
 
   router.get('/monitoring/status', async (_req: AuthRequest, res) => {
     try {
-      const [queueStats, activeJobs] = await Promise.all([
+      const [queueStats, activeJobs, recentWarnings] = await Promise.all([
         queue.getStats(),
         Promise.resolve(agentLock.getAllActive()),
+        fetchRecentWarnings(deps.pool),
       ]);
 
       const activeJobsList = Array.from(activeJobs.entries()).map(([userId, job]) => ({
@@ -66,6 +91,7 @@ function createSyncStatusRouter(deps: SyncStatusRouterDeps) {
           running: syncScheduler.isRunning(),
           intervals: syncScheduler.getDetailedIntervals(),
         },
+        recentWarnings,
       });
     } catch (error) {
       logger.error('Error fetching monitoring status', { error });

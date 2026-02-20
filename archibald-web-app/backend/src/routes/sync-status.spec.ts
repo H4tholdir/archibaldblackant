@@ -3,6 +3,7 @@ import express from 'express';
 import request from 'supertest';
 import { createSyncStatusRouter, type SyncStatusRouterDeps } from './sync-status';
 import type { SyncType, SyncTypeIntervals } from '../sync/sync-scheduler';
+import type { DbPool } from '../db/pool';
 
 const defaultIntervals: SyncTypeIntervals = {
   orders: 600_000, customers: 900_000, products: 1_800_000,
@@ -224,6 +225,69 @@ describe('createSyncStatusRouter', () => {
       const res = await request(app).delete('/api/sync/invalid/clear-db');
 
       expect(res.status).toBe(400);
+    });
+  });
+
+  describe('GET /api/sync/monitoring/status warnings', () => {
+    test('includes recent warnings when parser_warning events exist', async () => {
+      const mockPool: DbPool = {
+        query: vi.fn().mockResolvedValue({
+          rows: [
+            {
+              warning: 'Parser returned 0 customers, existing 50 preserved',
+              sync_type: 'customers',
+              created_at: '2026-02-20T10:00:00Z',
+            },
+            {
+              warning: 'Customer count dropped from 100 to 40 (>50% drop), possible incomplete PDF',
+              sync_type: 'customers',
+              created_at: '2026-02-20T09:00:00Z',
+            },
+          ],
+          rowCount: 2,
+        }),
+        end: vi.fn(),
+        getStats: vi.fn().mockReturnValue({ totalCount: 0, idleCount: 0, waitingCount: 0 }),
+      } as unknown as DbPool;
+      deps.pool = mockPool;
+      const app = createApp(deps, 'admin');
+      const res = await request(app).get('/api/sync/monitoring/status');
+
+      expect(res.status).toBe(200);
+      expect(res.body.recentWarnings).toEqual([
+        {
+          warning: 'Parser returned 0 customers, existing 50 preserved',
+          syncType: 'customers',
+          createdAt: '2026-02-20T10:00:00Z',
+        },
+        {
+          warning: 'Customer count dropped from 100 to 40 (>50% drop), possible incomplete PDF',
+          syncType: 'customers',
+          createdAt: '2026-02-20T09:00:00Z',
+        },
+      ]);
+    });
+
+    test('returns empty warnings when no parser_warning events exist', async () => {
+      const mockPool: DbPool = {
+        query: vi.fn().mockResolvedValue({ rows: [], rowCount: 0 }),
+        end: vi.fn(),
+        getStats: vi.fn().mockReturnValue({ totalCount: 0, idleCount: 0, waitingCount: 0 }),
+      } as unknown as DbPool;
+      deps.pool = mockPool;
+      const app = createApp(deps, 'admin');
+      const res = await request(app).get('/api/sync/monitoring/status');
+
+      expect(res.status).toBe(200);
+      expect(res.body.recentWarnings).toEqual([]);
+    });
+
+    test('returns empty warnings when pool is not provided', async () => {
+      const app = createApp(deps, 'admin');
+      const res = await request(app).get('/api/sync/monitoring/status');
+
+      expect(res.status).toBe(200);
+      expect(res.body.recentWarnings).toEqual([]);
     });
   });
 });
