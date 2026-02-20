@@ -1,0 +1,145 @@
+npm warn exec The following package was not found and will be installed: knip@5.84.1
+Unused files (40)
+archibald-web-app/backend/src/adaptive-timeout-manager.ts
+archibald-web-app/backend/src/analyze-excel-vat.ts
+archibald-web-app/backend/src/error-messages.ts
+archibald-web-app/backend/src/filesystem-check.ts
+archibald-web-app/backend/src/image-downloader.ts
+archibald-web-app/backend/src/python-health-check.ts
+archibald-web-app/backend/src/services/password-encryption-service.ts
+archibald-web-app/backend/src/test-fixtures/orders.ts
+archibald-web-app/backend/src/warehouse-parser.ts
+archibald-web-app/frontend/src/components/BudgetWidget.tsx
+archibald-web-app/frontend/src/components/CacheRefreshButton.tsx
+archibald-web-app/frontend/src/components/CommissionsWidget.tsx
+archibald-web-app/frontend/src/components/ExcelPriceManager.tsx
+archibald-web-app/frontend/src/components/ManualSyncBanner.tsx
+archibald-web-app/frontend/src/components/OrderConflictReview.tsx
+archibald-web-app/frontend/src/components/OrderStatus.tsx
+archibald-web-app/frontend/src/components/OrdersList.tsx
+archibald-web-app/frontend/src/components/PackageInfo.tsx
+archibald-web-app/frontend/src/components/PriceSyncNotification.tsx
+archibald-web-app/frontend/src/components/SyncBars.tsx
+archibald-web-app/frontend/src/components/SyncButton.tsx
+archibald-web-app/frontend/src/components/TargetVisualizationWidget.tsx
+archibald-web-app/frontend/src/components/UnifiedSyncProgress.tsx
+archibald-web-app/frontend/src/components/new-order-form/AddItemToHistory.tsx
+archibald-web-app/frontend/src/pages/WarehouseReturnsView.tsx
+archibald-web-app/frontend/src/services/pending-realtime.service.ts
+archibald-web-app/frontend/src/utils/italianFiscalValidators.ts
+archibald-web-app/frontend/src/utils/logger.ts
+archibald-web-app/load-tests/stress-test.js
+archibald-web-app/load-tests/websocket-load.js
+my-video/eslint.config.mjs
+my-video/postcss.config.mjs
+my-video/remotion.config.ts
+my-video/src/Ant.tsx
+my-video/src/Composition.tsx
+my-video/src/FormicanneraAnimation.tsx
+my-video/src/Root.tsx
+my-video/src/index.ts
+scripts/dump-salestable-elements.ts
+scripts/test-delete-orders.ts
+Unused dependencies (2)
+archibald-web-app/backend/package.json: decimal.js, prom-client, xlsx
+package.json: fuse.js, jspdf, jspdf-autotable
+Unused devDependencies (1)
+archibald-web-app/frontend/package.json: @types/react-window
+Unused exports (26)
+archibald-web-app/backend/src/arca-export-service.ts: exportToArcaDbf, createExportTempDir, cleanupExportDir, streamExportAsZip
+archibald-web-app/backend/src/arca-import-service.ts: parseArcaExport
+archibald-web-app/backend/src/db/repositories/customers.ts: findDeletedCustomers (customersRepo)
+archibald-web-app/backend/src/db/repositories/fresis-history.ts: deleteArcaImports, getArcaExport, updateItems, mapRowToFresisDiscount (fresisHistoryRepo)
+archibald-web-app/backend/src/db/repositories/orders.ts: mapRowToArticle, mapRowToStateHistory (ordersRepo)
+archibald-web-app/backend/src/db/repositories/pending-orders.ts: mapRowToPendingOrder (pendingOrdersRepo)
+archibald-web-app/backend/src/db/repositories/users.ts: getWhitelistedUsers, updateRole, updateLastOrderSync, updateLastCustomerSync, clearEncryptedPassword, mapRowToUser (usersRepo)
+archibald-web-app/backend/src/db/repositories/warehouse.ts: mapRowToBox, mapRowToBoxDetail, mapRowToItem (warehouseRepo)
+archibald-web-app/backend/src/operations/handlers/submit-order.ts: calculateAmounts
+archibald-web-app/backend/src/operations/operation-types.ts: WRITE_OPERATIONS, SCHEDULED_SYNCS
+archibald-web-app/backend/src/schemas.ts: orderItemSchema, createUserSchema, updateWhitelistSchema, loginSchema
+archibald-web-app/backend/src/temporal-comparisons.ts: ORDER_AMOUNT_OVERRIDES, getPreviousMonthRange, getSameMonthLastYearRange, getCurrentYearStart, getPreviousYearStart, getDaysAgo, getWeeksAgo, calculatePreviousYearRevenue, generateDailySparkline
+archibald-web-app/frontend/src/api/auth.ts: loginWithCredentials (authApi)
+archibald-web-app/frontend/src/api/customers.ts: syncCustomers, getSyncStatus
+archibald-web-app/frontend/src/api/fresis-history.ts: getFresisHistoryById, searchFresisHistory, uploadFresisHistory, editFresisHistory, bulkImportFresisHistory, getByMotherOrder, propagateState, getNextFtNumber, exportArca
+archibald-web-app/frontend/src/api/operations.ts: getQueueStats, retryJob, cancelJob
+archibald-web-app/frontend/src/api/products.ts: searchProducts, getProductChanges, getProductPriceHistory, syncProducts
+archibald-web-app/frontend/src/api/subclients.ts: getSubClients
+archibald-web-app/frontend/src/api/warehouse.ts: storeWarehouseItems
+archibald-web-app/frontend/src/components/arca/arcaStyles.ts: arcaComeConvenuto, formatArcaDecimal, arcaGreyHeader, arcaDescriptionRed
+archibald-web-app/frontend/src/data/cap-list.ts: CAP_ENTRIES
+archibald-web-app/frontend/src/services/biometric-auth.ts: BiometricAuth
+archibald-web-app/frontend/src/services/warehouse-matching.ts: getTotalAvailableQuantity, hasExactMatch
+archibald-web-app/frontend/src/utils/device-id.ts: clearDeviceId
+archibald-web-app/frontend/src/utils/format-currency.ts: formatCurrencyCompactWithCurrency
+archibald-web-app/frontend/src/utils/order-calculations.ts: SHIPPING_COST, SHIPPING_TAX_RATE
+Unused exported types (70)
+archibald-web-app/backend/src/arca-import-service.ts: ParseResult
+archibald-web-app/backend/src/bot/browser-pool.ts: BrowserPoolStats, BrowserLike, BrowserContextLike, PageLike, LaunchFn
+archibald-web-app/backend/src/cycle-size-warning.ts: CycleSizeStatus
+archibald-web-app/backend/src/db/migrate.ts: MigrationFile, MigrationResult
+archibald-web-app/backend/src/db/pool.ts: TxClient
+archibald-web-app/backend/src/db/repositories/customers.ts: CustomerInput, UpsertResult (customersRepo)
+archibald-web-app/backend/src/db/repositories/fresis-history.ts: FresisHistoryRow, FresisDiscountRow (fresisHistoryRepo)
+archibald-web-app/backend/src/db/repositories/orders.ts: OrderRow, UpsertResult, OrderArticleRow, StateHistoryRow, DDTData, InvoiceData, LastSaleEntry (ordersRepo)
+archibald-web-app/backend/src/db/repositories/pending-orders.ts: PendingOrderRow, UpsertResult (pendingOrdersRepo)
+archibald-web-app/backend/src/db/repositories/prices.ts: PriceUpsertInput, SyncStats (pricesRepo)
+archibald-web-app/backend/src/db/repositories/products.ts: ProductUpsertInput, UpsertResult, VariantRow, ProductChange, ProductChangeStats (productsRepo)
+archibald-web-app/backend/src/db/repositories/users.ts: UserRow, EncryptedPassword (usersRepo)
+archibald-web-app/backend/src/db/repositories/warehouse.ts: WarehouseBoxRow, WarehouseBoxDetailRow, WarehouseItemRow (warehouseRepo)
+archibald-web-app/backend/src/interactive-session-manager.ts: InteractiveSession
+archibald-web-app/backend/src/operations/agent-lock.ts: AcquireResult
+archibald-web-app/backend/src/operations/handlers/edit-order.ts: EditOrderArticle
+archibald-web-app/backend/src/operations/handlers/submit-order.ts: SubmitOrderItem
+archibald-web-app/backend/src/operations/handlers/sync-order-articles.ts: SyncOrderArticlesResult, ParsedArticle
+archibald-web-app/backend/src/operations/operation-processor.ts: OperationProcessor, BrowserPoolLike, BroadcastFn, EnqueueFn, JobLike, ProcessorDeps, ProcessJobResult
+archibald-web-app/backend/src/operations/operation-queue.ts: JobStatus, AgentJob
+archibald-web-app/backend/src/pdf-parser-ddt-service.ts: ParsedDDT
+archibald-web-app/backend/src/pdf-parser-invoices-service.ts: ParsedInvoice
+archibald-web-app/backend/src/pdf-parser-orders-service.ts: ParsedOrder
+archibald-web-app/backend/src/pdf-parser-prices-service.ts: ParsedPrice
+archibald-web-app/backend/src/pdf-parser-products-service.ts: ParsedProduct
+archibald-web-app/backend/src/pdf-parser-saleslines-service.ts: ParsedArticle
+archibald-web-app/backend/src/realtime/sse-progress.ts: JobEvent
+archibald-web-app/backend/src/realtime/websocket-server.ts: ConnectionStats, WebSocketServerDeps
+archibald-web-app/backend/src/routes/admin.ts: AdminJob
+archibald-web-app/backend/src/routes/orders.ts: LastSaleEntry
+archibald-web-app/backend/src/routes/prices.ts: PriceHistoryEntry, ImportRecord, ImportResult
+archibald-web-app/backend/src/routes/products.ts: ProductChange, ProductChangeStats
+archibald-web-app/backend/src/routes/subclients.ts: Subclient
+archibald-web-app/backend/src/sync/services/ddt-sync.ts: DdtSyncResult
+archibald-web-app/backend/src/sync/services/invoice-sync.ts: InvoiceSyncResult
+archibald-web-app/backend/src/sync/services/order-sync.ts: OrderSyncResult
+archibald-web-app/backend/src/sync/services/price-sync.ts: PriceSyncResult
+archibald-web-app/backend/src/sync/services/product-sync.ts: ProductSyncResult
+archibald-web-app/backend/src/sync/sync-scheduler.ts: EnqueueFn
+archibald-web-app/backend/src/types.ts: OrderItem, Customer, Product, ApiResponse, ProfilingData, WebSocketMessage, ConnectionStats
+archibald-web-app/backend/src/variant-selection.ts: VariantMatchReason, VariantRowSnapshot, VariantHeaderIndices, VariantCandidate, VariantSelectionChoice, TextMatchReason, TextMatchCandidate, TextMatchChoice
+archibald-web-app/backend/src/widget-calculations.ts: UserConfig, OrderData (WidgetCalc)
+archibald-web-app/frontend/src/api/auth.ts: LoginRequest, LoginResponse, GetMeResponse (authApi)
+archibald-web-app/frontend/src/api/customers.ts: Customer, SyncCustomersResponse, SyncStatusResponse, GetCustomersResponse
+archibald-web-app/frontend/src/api/operations.ts: EnqueueResponse, JobStatusResponse, DashboardResponse
+archibald-web-app/frontend/src/api/products.ts: ProductsResponse, ProductVariantsResponse, SearchResult, SearchResponse, SyncProductsResult
+archibald-web-app/frontend/src/components/AddItemManuallyModal.tsx: AddItemManuallyModalProps
+archibald-web-app/frontend/src/components/BoxManagementModal.tsx: BoxManagementModalProps
+archibald-web-app/frontend/src/components/MoveItemsModal.tsx: MoveItemsModalProps
+archibald-web-app/frontend/src/components/OrderStatusLegend.tsx: OrderStatusLegendProps
+archibald-web-app/frontend/src/components/OrderTracking.tsx: OrderTrackingProps
+archibald-web-app/frontend/src/components/SendToVeronaModal.tsx: SendToVeronaModalProps
+archibald-web-app/frontend/src/data/payment-terms.ts: PaymentTerm
+archibald-web-app/frontend/src/hooks/useAuth.ts: AuthState
+archibald-web-app/frontend/src/hooks/useFresisHistorySync.ts: UseFresisHistorySyncReturn
+archibald-web-app/frontend/src/hooks/usePendingSync.ts: UsePendingSyncReturn
+archibald-web-app/frontend/src/services/biometric-auth.ts: BiometricCapability
+archibald-web-app/frontend/src/services/fresis-history-realtime.service.ts: EditProgressState
+archibald-web-app/frontend/src/services/pdf-export.service.ts: PDFOrderData
+archibald-web-app/frontend/src/services/warehouse-matching.ts: ArticleCodeParts
+archibald-web-app/frontend/src/types/arca-data.ts: ArcaClientData
+archibald-web-app/frontend/src/types/cache.ts: SyncMetadata
+archibald-web-app/frontend/src/types/dashboard.ts: BonusStepStatus, PrivacySettings, UserTargetConfig, WorkingDaysInfo
+archibald-web-app/frontend/src/types/order.ts: OrderData
+archibald-web-app/frontend/src/types/product.ts: Price
+archibald-web-app/frontend/src/utils/arca-totals.ts: ArcaTotals
+archibald-web-app/frontend/src/utils/fresisHistoryFilters.ts: FresisPeriod, FresisOrderGroup, OrderTotals
+archibald-web-app/frontend/src/utils/order-calculations.ts: ItemCalculationInput, ItemCalculationResult, GlobalDiscountInput, ShippingCostsResult, OrderCalculationResult, ReverseCalculationResult
+archibald-web-app/frontend/src/utils/orderGrouping.ts: OrderGroup
+archibald-web-app/frontend/src/utils/orderStatus.ts: OrderStatusStyle

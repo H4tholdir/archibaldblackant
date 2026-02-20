@@ -1,0 +1,15 @@
+{
+  "$schema": "https://unpkg.com/knip@5/schema.json",
+  "workspaces": {
+    "archibald-web-app/frontend": {
+      "entry": ["src/main.tsx"],
+      "project": ["src/**/*.{ts,tsx}"],
+      "ignore": ["src/vite-env.d.ts"]
+    },
+    "archibald-web-app/backend": {
+      "entry": ["src/main.ts"],
+      "project": ["src/**/*.ts"],
+      "ignore": ["src/**/*.spec.ts", "src/**/*.test.ts", "src/scripts/**"]
+    }
+  }
+}
