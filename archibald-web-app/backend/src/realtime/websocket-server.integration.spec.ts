@@ -98,6 +98,40 @@ describe('WebSocket integration', () => {
     });
   }
 
+  function connectClientCollectingMessages(
+    userId: TestUserId,
+    expectedCount: number,
+    options?: { lastEventTs?: string },
+  ): Promise<{ ws: WebSocket; messages: WebSocketMessage[] }> {
+    return new Promise((resolve, reject) => {
+      const token = userId === 'user-1' ? VALID_TOKEN : `token-for-${userId}`;
+      let url = `ws://127.0.0.1:${serverPort}?token=${token}`;
+      if (options?.lastEventTs) {
+        url += `&lastEventTs=${encodeURIComponent(options.lastEventTs)}`;
+      }
+
+      const ws = new WebSocket(url);
+      activeClients.push(ws);
+      const messages: WebSocketMessage[] = [];
+
+      ws.on('message', (data: Buffer | string) => {
+        const msg = typeof data === 'string' ? data : data.toString();
+        messages.push(JSON.parse(msg) as WebSocketMessage);
+        if (messages.length >= expectedCount) {
+          ws.removeAllListeners('message');
+          resolve({ ws, messages });
+        }
+      });
+
+      ws.on('error', (err) => reject(err));
+
+      setTimeout(() => {
+        ws.removeAllListeners('message');
+        resolve({ ws, messages });
+      }, 500);
+    });
+  }
+
   beforeAll(async () => {
     httpServer = createServer();
     wsServer = createWebSocketServer({
@@ -197,6 +231,106 @@ describe('WebSocket integration', () => {
 
       const event = makeEvent('SYSTEM', { announcement: 'maintenance' });
       wsServer.broadcastToAll(event);
+
+      const [msg1, msg2] = await Promise.all([msg1Promise, msg2Promise]);
+
+      expect(msg1).toEqual(event);
+      expect(msg2).toEqual(event);
+    });
+  });
+
+  describe('event replay on reconnect', () => {
+    test('replays only events after lastEventTs', async () => {
+      const userId = 'user-replay';
+      const ws1 = await connectClient(userId);
+
+      const firstTimestamp = new Date(Date.now() - 3000).toISOString();
+      const secondTimestamp = new Date(Date.now() - 2000).toISOString();
+      const thirdTimestamp = new Date(Date.now() - 1000).toISOString();
+
+      const event1 = makeEvent('JOB_STARTED', { jobId: 'r1' }, firstTimestamp);
+      const event2 = makeEvent('JOB_COMPLETED', { jobId: 'r2' }, secondTimestamp);
+      const event3 = makeEvent('JOB_COMPLETED', { jobId: 'r3' }, thirdTimestamp);
+
+      const receivedPromise = waitForNMessages(ws1, 3);
+      wsServer.broadcast(userId, event1);
+      wsServer.broadcast(userId, event2);
+      wsServer.broadcast(userId, event3);
+      await receivedPromise;
+
+      ws1.terminate();
+      await new Promise((r) => setTimeout(r, 50));
+
+      const ws2 = await connectClientCollectingMessages(
+        userId,
+        2,
+        { lastEventTs: firstTimestamp },
+      );
+
+      expect(ws2.messages).toEqual([event2, event3]);
+    });
+  });
+
+  describe('transient event filtering', () => {
+    test('JOB_PROGRESS is not replayed but JOB_COMPLETED is', async () => {
+      const userId = 'user-transient';
+      const ws1 = await connectClient(userId);
+
+      const progressTimestamp = new Date(Date.now() - 2000).toISOString();
+      const completedTimestamp = new Date(Date.now() - 1000).toISOString();
+
+      const progressEvent = makeEvent('JOB_PROGRESS', { progress: 50 }, progressTimestamp);
+      const completedEvent = makeEvent('JOB_COMPLETED', { jobId: 'tc1' }, completedTimestamp);
+
+      const receivedPromise = waitForNMessages(ws1, 2);
+      wsServer.broadcast(userId, progressEvent);
+      wsServer.broadcast(userId, completedEvent);
+      await receivedPromise;
+
+      ws1.terminate();
+      await new Promise((r) => setTimeout(r, 50));
+
+      const beforeAllEvents = new Date(Date.now() - 5000).toISOString();
+      const ws2 = await connectClientCollectingMessages(
+        userId,
+        1,
+        { lastEventTs: beforeAllEvents },
+      );
+
+      expect(ws2.messages).toEqual([completedEvent]);
+    });
+  });
+
+  describe('multi-user broadcast isolation', () => {
+    test('event to user-1 is not received by user-2', async () => {
+      const ws1 = await connectClient('user-1');
+      const wsOther = await connectClient('user-iso-2');
+
+      const messagePromise = waitForMessage(ws1);
+      const noMessagePromise = expectNoMessage(wsOther);
+
+      const event = makeEvent('JOB_COMPLETED', { jobId: 'iso-1' });
+      wsServer.broadcast('user-1', event);
+
+      const received = await messagePromise;
+      const sentinel = await noMessagePromise;
+
+      expect(received).toEqual(event);
+      expect(sentinel).toBe('no-message');
+    });
+  });
+
+  describe('multiple clients same user', () => {
+    test('both clients receive the broadcast', async () => {
+      const userId = 'user-multi';
+      const ws1 = await connectClient(userId);
+      const ws2 = await connectClient(userId);
+
+      const msg1Promise = waitForMessage(ws1);
+      const msg2Promise = waitForMessage(ws2);
+
+      const event = makeEvent('JOB_STARTED', { jobId: 'multi-1' });
+      wsServer.broadcast(userId, event);
 
       const [msg1, msg2] = await Promise.all([msg1Promise, msg2Promise]);
 
