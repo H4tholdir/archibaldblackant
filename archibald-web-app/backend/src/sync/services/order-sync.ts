@@ -1,3 +1,4 @@
+import crypto from 'crypto';
 import type { DbPool } from '../../db/pool';
 import { SyncStoppedError } from './customer-sync';
 
@@ -82,7 +83,7 @@ async function syncOrders(
       }
       loopIndex++;
 
-      const hash = require('crypto').createHash('md5').update(computeHash(order)).digest('hex');
+      const hash = crypto.createHash('sha256').update(computeHash(order)).digest('hex');
 
       const { rows: [existing] } = await pool.query<{ hash: string; order_number: string }>(
         'SELECT hash, order_number FROM agents.order_records WHERE id = $1 AND user_id = $2',

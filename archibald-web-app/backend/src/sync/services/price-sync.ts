@@ -1,3 +1,4 @@
+import crypto from 'crypto';
 import type { DbPool } from '../../db/pool';
 import { SyncStoppedError } from './customer-sync';
 
@@ -72,7 +73,7 @@ async function syncPrices(
       }
       loopIndex++;
 
-      const hash = require('crypto').createHash('md5')
+      const hash = crypto.createHash('sha256')
         .update([p.productId, p.unitPrice, p.priceValidFrom, p.priceValidTo, p.priceQtyFrom, p.priceQtyTo].join('|'))
         .digest('hex');
 
