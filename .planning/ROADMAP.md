@@ -64,11 +64,12 @@ Plans:
 **Goal**: Sync automatici funzionanti con intervalli configurabili da admin
 **Depends on**: Phase 2
 **Research**: Unlikely (fixing existing sync-scheduler.ts)
-**Plans**: 2 plans
+**Plans**: 3 plans
 
 Plans:
-- [ ] 04-01: Avviare sync scheduler nel bootstrap con intervalli da config/env, fix getActiveAgentIds (usare utenti dal DB)
-- [ ] 04-02: Proteggere customer sync da parser failures (non cancellare se PDF incompleto) + UI admin per intervalli sync
+- [x] 04-01: Sync settings persistence layer (migration 007-sync-settings.sql, repository CRUD, unit test)
+- [ ] 04-02: Avviare sync scheduler nel bootstrap con intervalli da DB, fix getActiveAgentIds (usare utenti dal DB)
+- [ ] 04-03: Proteggere customer sync da parser failures (count validation) + warning monitoring API
 
 ### Phase 5: WebSocket & Real-time Events
 **Goal**: Tutti i dispositivi ricevono aggiornamenti real-time per ogni operazione
@@ -152,7 +153,7 @@ Note: Phase 3 and 4 can start after Phase 2. Phase 5 depends on Phase 2+3. Phase
 | 1. Cleanup & Dead Code | 3/3 | Complete | 2026-02-20 |
 | 2. Operation Queue Core | 3/3 | Complete | 2026-02-20 |
 | 3. Browser Pool & Concurrency | 3/3 | Complete | 2026-02-20 |
-| 4. Sync Scheduler & Auto-Sync | 0/2 | Not started | - |
+| 4. Sync Scheduler & Auto-Sync | 1/3 | In progress | - |
 | 5. WebSocket & Real-time | 0/3 | Not started | - |
 | 6. Data Integrity & Hardening | 0/3 | Not started | - |
 | 7. Missing Features | 0/3 | Not started | - |

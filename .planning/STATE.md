@@ -5,23 +5,23 @@
 See: .planning/PROJECT.md (updated 2026-02-20)
 
 **Core value:** Riportare la PWA a perfetto funzionamento multi-utente e multi-dispositivo, eliminando ogni race condition, stub silenzioso e feature rotta, con copertura test che garantisca stabilità nel tempo.
-**Current focus:** Phase 3 complete — Browser Pool & Concurrency
+**Current focus:** Phase 4 in progress — Sync Scheduler & Auto-Sync
 
 ## Current Position
 
-Phase: 3 of 10 (Browser Pool & Concurrency)
-Plan: 3 of 3 in current phase
-Status: Phase complete
-Last activity: 2026-02-20 — Completed 03-03-PLAN.md
+Phase: 4 of 10 (Sync Scheduler & Auto-Sync)
+Plan: 1 of 3 in current phase
+Status: In progress
+Last activity: 2026-02-20 — Completed 04-01-PLAN.md
 
-Progress: ███░░░░░░░ 29%
+Progress: ███▒░░░░░░ 32%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 9
-- Average duration: 6.4 min
-- Total execution time: 58 min
+- Total plans completed: 10
+- Average duration: 6.1 min
+- Total execution time: 61 min
 
 **By Phase:**
 
@@ -30,10 +30,11 @@ Progress: ███░░░░░░░ 29%
 | 1 | 3/3 | 26 min | 8.7 min |
 | 2 | 3/3 | 16 min | 5.3 min |
 | 3 | 3/3 | 16 min | 5.3 min |
+| 4 | 1/3 | 3 min | 3.0 min |
 
 **Recent Trend:**
-- Last 5 plans: 02-03 (5 min), 03-01 (4 min), 03-02 (6 min), 03-03 (6 min)
-- Trend: Fast (~5.3 min avg)
+- Last 5 plans: 03-01 (4 min), 03-02 (6 min), 03-03 (6 min), 04-01 (3 min)
+- Trend: Fast (~4.8 min avg)
 
 ## Accumulated Context
 
@@ -66,6 +67,9 @@ Recent decisions affecting current work:
 - bot_results table con UNIQUE(user_id, operation_type, operation_key) per idempotenza recovery
 - clearBotResult DOPO la transazione DB (non dentro) per idempotenza
 - INSERT ON CONFLICT DO UPDATE per saveBotResult (retry-safe)
+- system schema per sync_settings (infrastructure config, non agent data)
+- CHECK constraint su sync_type per validare i 6 tipi ammessi a livello DB
+- interval_minutes CHECK 5-1440 per limiti ragionevoli
 
 ### Deferred Issues
 
@@ -78,5 +82,5 @@ None.
 ## Session Continuity
 
 Last session: 2026-02-20
-Stopped at: Completed 03-03-PLAN.md — Phase 3 complete
+Stopped at: Completed 04-01-PLAN.md — Phase 4 in progress (1/3)
 Resume file: None
