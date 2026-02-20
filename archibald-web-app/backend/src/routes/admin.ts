@@ -231,6 +231,9 @@ function createAdminRouter(deps: AdminRouterDeps) {
   router.get('/jobs', async (req: AuthRequest, res) => {
     try {
       const limit = parseInt((req.query.limit as string) || '50', 10);
+      if (isNaN(limit) || limit < 1 || limit > 500) {
+        return res.status(400).json({ success: false, error: 'Invalid limit parameter (1-500)' });
+      }
       const status = req.query.status as string | undefined;
       const jobs = await getAllJobs(limit, status);
       res.json({ success: true, data: jobs });

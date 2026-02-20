@@ -46,14 +46,31 @@ function createOrdersRouter(deps: OrdersRouterDeps) {
   router.get('/', async (req: AuthRequest, res) => {
     try {
       const userId = req.user!.userId;
+      let limit: number | undefined;
+      let offset: number | undefined;
+
+      if (req.query.limit) {
+        limit = parseInt(req.query.limit as string, 10);
+        if (isNaN(limit) || limit < 1 || limit > 500) {
+          return res.status(400).json({ success: false, error: 'Invalid limit parameter (1-500)' });
+        }
+      }
+
+      if (req.query.offset) {
+        offset = parseInt(req.query.offset as string, 10);
+        if (isNaN(offset) || offset < 0) {
+          return res.status(400).json({ success: false, error: 'Invalid offset parameter (>= 0)' });
+        }
+      }
+
       const options: OrderFilterOptions = {
         customer: req.query.customer as string | undefined,
         status: req.query.status as string | undefined,
         dateFrom: req.query.dateFrom as string | undefined,
         dateTo: req.query.dateTo as string | undefined,
         search: req.query.search as string | undefined,
-        limit: req.query.limit ? parseInt(req.query.limit as string, 10) : undefined,
-        offset: req.query.offset ? parseInt(req.query.offset as string, 10) : undefined,
+        limit,
+        offset,
       };
 
       const [data, total] = await Promise.all([

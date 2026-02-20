@@ -188,6 +188,9 @@ function createWarehouseRouter(deps: WarehouseRouterDeps) {
         return res.status(400).json({ success: false, error: 'Quantità non valida' });
       }
       const itemId = parseInt(req.params.id, 10);
+      if (isNaN(itemId)) {
+        return res.status(400).json({ success: false, error: 'Invalid item ID' });
+      }
       const updated = await updateItemQuantity(req.user!.userId, itemId, quantity);
       if (!updated) {
         return res.status(404).json({ success: false, error: 'Articolo non trovato o non modificabile' });
@@ -202,7 +205,11 @@ function createWarehouseRouter(deps: WarehouseRouterDeps) {
 
   router.delete('/items/:id', async (req: AuthRequest, res) => {
     try {
-      const deleted = await deleteItem(req.user!.userId, parseInt(req.params.id, 10));
+      const itemId = parseInt(req.params.id, 10);
+      if (isNaN(itemId)) {
+        return res.status(400).json({ success: false, error: 'Invalid item ID' });
+      }
+      const deleted = await deleteItem(req.user!.userId, itemId);
       if (!deleted) {
         return res.status(404).json({ success: false, error: 'Articolo non trovato o non eliminabile' });
       }

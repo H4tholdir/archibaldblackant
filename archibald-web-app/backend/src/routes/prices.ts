@@ -80,7 +80,13 @@ function createPricesRouter(deps: PricesRouterDeps) {
   router.get('/history/:productId', async (req: AuthRequest, res) => {
     try {
       const { productId } = req.params;
-      const limit = req.query.limit ? parseInt(req.query.limit as string, 10) : undefined;
+      let limit: number | undefined;
+      if (req.query.limit) {
+        limit = parseInt(req.query.limit as string, 10);
+        if (isNaN(limit) || limit < 1) {
+          return res.status(400).json({ success: false, error: 'Invalid limit parameter' });
+        }
+      }
       const history = await getPriceHistory(productId, limit);
       res.json({ success: true, productId, historyCount: history.length, history });
     } catch (error) {
@@ -92,7 +98,13 @@ function createPricesRouter(deps: PricesRouterDeps) {
   router.get('/:productId/history', async (req: AuthRequest, res) => {
     try {
       const { productId } = req.params;
-      const limit = req.query.limit ? parseInt(req.query.limit as string, 10) : undefined;
+      let limit: number | undefined;
+      if (req.query.limit) {
+        limit = parseInt(req.query.limit as string, 10);
+        if (isNaN(limit) || limit < 1) {
+          return res.status(400).json({ success: false, error: 'Invalid limit parameter' });
+        }
+      }
       const history = await getPriceHistory(productId, limit);
       res.json({ success: true, productId, historyCount: history.length, history });
     } catch (error) {
