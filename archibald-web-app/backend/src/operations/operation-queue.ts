@@ -69,6 +69,7 @@ function createOperationQueue(redisConfig?: { host: string; port: number }) {
     userId: string,
     data: Record<string, unknown>,
     idempotencyKey?: string,
+    options?: { delay?: number },
   ): Promise<string> {
     const jobData: OperationJobData = {
       type,
@@ -78,15 +79,19 @@ function createOperationQueue(redisConfig?: { host: string; port: number }) {
       timestamp: Date.now(),
     };
 
-    const options = getJobOptions(type);
+    const jobOptions = getJobOptions(type);
 
     if (isScheduledSync(type)) {
-      options.deduplication = { id: `${type}-${userId}` };
+      jobOptions.deduplication = { id: `${type}-${userId}` };
     } else if (idempotencyKey && isWriteOperation(type)) {
-      options.deduplication = { id: idempotencyKey, ttl: 30_000 };
+      jobOptions.deduplication = { id: idempotencyKey, ttl: 30_000 };
     }
 
-    const job = await queue.add(type, jobData, options);
+    if (options?.delay) {
+      jobOptions.delay = options.delay;
+    }
+
+    const job = await queue.add(type, jobData, jobOptions);
     return job.id!;
   }
 

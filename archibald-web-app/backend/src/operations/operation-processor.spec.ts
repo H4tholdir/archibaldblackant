@@ -126,7 +126,7 @@ describe('createOperationProcessor', () => {
     expect(browserPool.releaseContext).toHaveBeenCalledWith('user-a', { id: 'ctx-1' }, false);
   });
 
-  test('re-enqueues job with delay when agent is busy and not preemptable', async () => {
+  test('re-enqueues job with delay and _requeueCount when agent is busy and not preemptable', async () => {
     const busyLock = createMockAgentLock({
       acquired: false,
       activeJob: { jobId: 'existing-job', type: 'edit-order' },
@@ -145,8 +145,9 @@ describe('createOperationProcessor', () => {
     expect(enqueue).toHaveBeenCalledWith(
       'sync-customers',
       'user-a',
-      { orderId: '1' },
+      { orderId: '1', _requeueCount: 1 },
       'key-1',
+      { delay: 2000 },
     );
   });
 
@@ -200,7 +201,7 @@ describe('createOperationProcessor', () => {
 
     expect(cancelJob).toHaveBeenCalledWith('sync-job');
     expect(result).toEqual({ success: false, requeued: true, duration: expect.any(Number) });
-    expect(enqueue).toHaveBeenCalledWith('submit-order', 'user-a', { orderId: '1' }, 'key-1');
+    expect(enqueue).toHaveBeenCalledWith('submit-order', 'user-a', { orderId: '1', _requeueCount: 1 }, 'key-1', { delay: 2000 });
   });
 
   test('acquires lock during polling after cancel', async () => {
@@ -340,6 +341,57 @@ describe('createOperationProcessor', () => {
     expect(result.success).toBe(true);
     const signal = handler.mock.calls[0][4] as AbortSignal;
     expect(signal.aborted).toBe(false);
+  });
+
+  test.each([
+    { requeueCount: 0, expectedDelay: 2_000, expectedCount: 1 },
+    { requeueCount: 2, expectedDelay: 8_000, expectedCount: 3 },
+    { requeueCount: 10, expectedDelay: 30_000, expectedCount: 11 },
+  ])('re-enqueue uses exponential backoff delay (requeueCount=$requeueCount)', async ({ requeueCount, expectedDelay, expectedCount }) => {
+    const busyLock = createMockAgentLock({
+      acquired: false,
+      activeJob: { jobId: 'existing-job', type: 'edit-order' },
+      preemptable: false,
+    });
+    const syncHandler = vi.fn().mockResolvedValue({});
+    const { processor, enqueue } = createProcessor({
+      agentLock: busyLock,
+      handlers: { 'sync-customers': syncHandler } as any,
+    });
+    const job = createMockJob({
+      type: 'sync-customers',
+      data: { orderId: '1', _requeueCount: requeueCount },
+    });
+
+    await processor.processJob(job as any);
+
+    expect(enqueue).toHaveBeenCalledWith(
+      'sync-customers',
+      'user-a',
+      { orderId: '1', _requeueCount: expectedCount },
+      'key-1',
+      { delay: expectedDelay },
+    );
+  });
+
+  test('_requeueCount is stripped from handler data', async () => {
+    const handler = vi.fn().mockResolvedValue({ done: true });
+    const { processor } = createProcessor({
+      handlers: { 'submit-order': handler },
+    });
+    const job = createMockJob({
+      data: { orderId: '1', _requeueCount: 5 },
+    });
+
+    await processor.processJob(job as any);
+
+    expect(handler).toHaveBeenCalledWith(
+      { id: 'ctx-1' },
+      { orderId: '1' },
+      'user-a',
+      expect.any(Function),
+      expect.any(AbortSignal),
+    );
   });
 
   test('combined signal aborts when BullMQ job signal aborts', async () => {

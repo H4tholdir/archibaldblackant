@@ -86,6 +86,7 @@ type OperationJobData = {
   data: Record<string, unknown>;
   idempotencyKey?: string;
   timestamp: number;
+  _requeueCount?: number;
 };
 
 type OperationJobResult = {

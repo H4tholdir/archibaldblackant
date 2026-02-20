@@ -20,6 +20,7 @@ type EnqueueFn = (
   userId: string,
   data: Record<string, unknown>,
   idempotencyKey?: string,
+  options?: { delay?: number },
 ) => Promise<string>;
 
 type BrowserPoolLike = {
@@ -61,7 +62,6 @@ type ProcessJobResult = {
 
 const PREEMPTION_TIMEOUT_MS = 30_000;
 const POLL_INTERVAL_MS = 500;
-const REQUEUE_DELAY_MS = 2000;
 
 function createOperationProcessor(deps: ProcessorDeps) {
   const { agentLock, browserPool, broadcast, enqueue, handlers } = deps;
@@ -69,6 +69,7 @@ function createOperationProcessor(deps: ProcessorDeps) {
   async function processJob(job: JobLike): Promise<ProcessJobResult> {
     const startTime = Date.now();
     const { type, userId, data, idempotencyKey } = job.data;
+    const { _requeueCount, ...handlerData } = data as Record<string, unknown> & { _requeueCount?: number };
 
     const handler = handlers[type];
     if (!handler) {
@@ -98,7 +99,10 @@ function createOperationProcessor(deps: ProcessorDeps) {
       }
 
       if (!acquireResult.acquired) {
-        await enqueue(type, userId, data, idempotencyKey);
+        const requeueCount = (_requeueCount ?? 0) + 1;
+        const delay = Math.min(2_000 * Math.pow(2, requeueCount - 1), 30_000);
+        console.info(`[Processor] Re-enqueueing ${type} for ${userId} (attempt ${requeueCount}, delay ${delay}ms)`);
+        await enqueue(type, userId, { ...handlerData, _requeueCount: requeueCount }, idempotencyKey, { delay });
         return { success: false, requeued: true, duration: Date.now() - startTime };
       }
     }
@@ -122,7 +126,7 @@ function createOperationProcessor(deps: ProcessorDeps) {
       };
 
       const result = await Promise.race([
-        handler(context, data, userId, onProgress, timeoutController.signal),
+        handler(context, handlerData, userId, onProgress, timeoutController.signal),
         new Promise<never>((_resolve, reject) => {
           if (timeoutController.signal.aborted) {
             reject(timeoutController.signal.reason ?? new DOMException('The operation was aborted.', 'AbortError'));

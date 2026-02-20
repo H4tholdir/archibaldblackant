@@ -235,6 +235,8 @@ async function main() {
     cancelJob: (jobId) => worker.cancelJob(jobId),
   });
 
+  const workerConcurrency = parseInt(process.env.WORKER_CONCURRENCY ?? '10', 10);
+
   worker = new Worker('operations', async (job, token, signal) => {
     await processor.processJob({
       id: job.id ?? '',
@@ -244,7 +246,7 @@ async function main() {
     });
   }, {
     connection: { host: redisHost, port: redisPort },
-    concurrency: 1,
+    concurrency: workerConcurrency,
     lockDuration: 600_000,
   });
 
