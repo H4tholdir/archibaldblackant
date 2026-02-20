@@ -5,23 +5,23 @@
 See: .planning/PROJECT.md (updated 2026-02-20)
 
 **Core value:** Riportare la PWA a perfetto funzionamento multi-utente e multi-dispositivo, eliminando ogni race condition, stub silenzioso e feature rotta, con copertura test che garantisca stabilità nel tempo.
-**Current focus:** Phase 7 in progress — Missing Feature Implementation
+**Current focus:** Phase 7 complete — ready for Phase 8: Unit & Integration Tests
 
 ## Current Position
 
 Phase: 7 of 10 (Missing Feature Implementation)
-Plan: 2 of 3 in current phase
-Status: In progress
-Last activity: 2026-02-20 — Completed 07-02-PLAN.md
+Plan: 3 of 3 in current phase
+Status: Phase complete
+Last activity: 2026-02-20 — Completed 07-03-PLAN.md
 
-Progress: ██████░░░░ 65%
+Progress: ███████░░░ 68%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 21
-- Average duration: 5.4 min
-- Total execution time: 114 min
+- Total plans completed: 22
+- Average duration: 5.5 min
+- Total execution time: 122 min
 
 **By Phase:**
 
@@ -33,11 +33,11 @@ Progress: ██████░░░░ 65%
 | 4 | 3/3 | 16 min | 5.3 min |
 | 5 | 3/3 | 12 min | 4.0 min |
 | 6 | 4/4 | 18 min | 4.5 min |
-| 7 | 2/3 | 10 min | 5.0 min |
+| 7 | 3/3 | 18 min | 6.0 min |
 
 **Recent Trend:**
-- Last 5 plans: 06-03 (3 min), 06-04 (5 min), 07-01 (5 min), 07-02 (5 min)
-- Trend: Fast (~4.5 min avg)
+- Last 5 plans: 06-04 (5 min), 07-01 (5 min), 07-02 (5 min), 07-03 (8 min)
+- Trend: Fast (~5.8 min avg)
 
 ## Accumulated Context
 
@@ -102,6 +102,9 @@ Recent decisions affecting current work:
 - Subclient type exported from repository as single source of truth, imported by routes
 - Migration 009 for subclients (008 already used by ft-counter)
 - Case-insensitive flexible column mapping for Excel parser
+- All 4 Group C stubs wired (all actively called by frontend)
+- warehouse validateArticle response shape aligned to frontend contract (matchedProduct, confidence, suggestions)
+- Query param compat: backend accepts both ?code= and ?articleCode= for warehouse validate
 
 ### Deferred Issues
 
@@ -114,5 +117,5 @@ None.
 ## Session Continuity
 
 Last session: 2026-02-20
-Stopped at: Completed 07-02-PLAN.md — Phase 7 in progress (2/3)
+Stopped at: Phase 7 complete (3/3) — Ready for Phase 8
 Resume file: None
