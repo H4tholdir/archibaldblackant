@@ -2,12 +2,32 @@ import type { DbPool } from '../../db/pool';
 import type { OperationHandler } from '../operation-processor';
 import { syncCustomers } from '../../sync/services/customer-sync';
 import type { ParsedCustomer as SyncParsedCustomer } from '../../sync/services/customer-sync';
+import { logger } from '../../logger';
 
 type SyncCustomersFactoryDeps = {
   pool: DbPool;
   parsePdf: (pdfPath: string) => Promise<Array<Record<string, unknown>>>;
   cleanupFile: (filePath: string) => Promise<void>;
 };
+
+type SkipResult = { skip: true; warning: string } | { skip: false };
+
+function shouldSkipSync(currentCount: number, parsedCount: number): SkipResult {
+  if (currentCount === 0) return { skip: false };
+
+  if (parsedCount === 0) {
+    return { skip: true, warning: `Parser returned 0 customers, existing ${currentCount} preserved` };
+  }
+
+  if (currentCount > 10 && parsedCount < currentCount * 0.5) {
+    return {
+      skip: true,
+      warning: `Customer count dropped from ${currentCount} to ${parsedCount} (>50% drop), possible incomplete PDF`,
+    };
+  }
+
+  return { skip: false };
+}
 
 function mapCustomer(raw: Record<string, unknown>): SyncParsedCustomer {
   return {
@@ -43,6 +63,27 @@ function mapCustomer(raw: Record<string, unknown>): SyncParsedCustomer {
   };
 }
 
+async function getCurrentCustomerCount(pool: DbPool, userId: string): Promise<number> {
+  const { rows } = await pool.query<{ count: string }>(
+    'SELECT COUNT(*) FROM agents.customers WHERE user_id = $1',
+    [userId],
+  );
+  return Number(rows[0].count);
+}
+
+async function logParserWarning(
+  pool: DbPool,
+  userId: string,
+  warning: string,
+  currentCount: number,
+  parsedCount: number,
+): Promise<void> {
+  await pool.query(
+    'INSERT INTO system.sync_events (user_id, sync_type, event_type, details) VALUES ($1, $2, $3, $4)',
+    [userId, 'customers', 'parser_warning', { warning, currentCount, parsedCount }],
+  );
+}
+
 function createSyncCustomersHandler(
   deps: SyncCustomersFactoryDeps,
   createBot: (userId: string) => { downloadCustomersPDF: (ctx: unknown) => Promise<string> },
@@ -50,15 +91,39 @@ function createSyncCustomersHandler(
   return async (context, _data, userId, onProgress, signal) => {
     let stopped = false;
     signal?.addEventListener('abort', () => { stopped = true; }, { once: true });
+
+    const currentCount = await getCurrentCustomerCount(deps.pool, userId);
+
     const bot = createBot(userId);
+    onProgress(5, 'Download PDF clienti');
+    const pdfPath = await bot.downloadCustomersPDF(context);
+
+    onProgress(20, 'Lettura PDF');
+    const rawParsed = await deps.parsePdf(pdfPath);
+    const parsedCustomers = rawParsed.map(mapCustomer);
+
+    const validation = shouldSkipSync(currentCount, parsedCustomers.length);
+    if (validation.skip) {
+      logger.warn('Customer sync skipped due to parser validation', {
+        userId,
+        currentCount,
+        parsedCount: parsedCustomers.length,
+        warning: validation.warning,
+      });
+      await logParserWarning(deps.pool, userId, validation.warning, currentCount, parsedCustomers.length);
+      await deps.cleanupFile(pdfPath);
+      return {
+        success: true,
+        skipped: true,
+        warnings: [validation.warning],
+      } as unknown as Record<string, unknown>;
+    }
+
     const result = await syncCustomers(
       {
         pool: deps.pool,
-        downloadPdf: () => bot.downloadCustomersPDF(context),
-        parsePdf: async (pdfPath) => {
-          const raw = await deps.parsePdf(pdfPath);
-          return raw.map(mapCustomer);
-        },
+        downloadPdf: async () => pdfPath,
+        parsePdf: async () => parsedCustomers,
         cleanupFile: deps.cleanupFile,
       },
       userId,
@@ -69,4 +134,4 @@ function createSyncCustomersHandler(
   };
 }
 
-export { createSyncCustomersHandler };
+export { createSyncCustomersHandler, shouldSkipSync };
