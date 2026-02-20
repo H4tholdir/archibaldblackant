@@ -5,23 +5,23 @@
 See: .planning/PROJECT.md (updated 2026-02-20)
 
 **Core value:** Riportare la PWA a perfetto funzionamento multi-utente e multi-dispositivo, eliminando ogni race condition, stub silenzioso e feature rotta, con copertura test che garantisca stabilità nel tempo.
-**Current focus:** Phase 4 complete — ready for Phase 5: WebSocket & Real-time Events
+**Current focus:** Phase 5 in progress — WebSocket & Real-time Events
 
 ## Current Position
 
-Phase: 4 of 10 (Sync Scheduler & Auto-Sync)
-Plan: 3 of 3 in current phase
-Status: Phase complete
-Last activity: 2026-02-20 — Completed 04-03-PLAN.md
+Phase: 5 of 10 (WebSocket & Real-time Events)
+Plan: 1 of 3 in current phase
+Status: In progress
+Last activity: 2026-02-20 — Completed 05-01-PLAN.md
 
-Progress: ████░░░░░░ 38%
+Progress: ████░░░░░░ 41%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 12
-- Average duration: 6.2 min
-- Total execution time: 74 min
+- Total plans completed: 13
+- Average duration: 6.0 min
+- Total execution time: 78 min
 
 **By Phase:**
 
@@ -31,10 +31,11 @@ Progress: ████░░░░░░ 38%
 | 2 | 3/3 | 16 min | 5.3 min |
 | 3 | 3/3 | 16 min | 5.3 min |
 | 4 | 3/3 | 16 min | 5.3 min |
+| 5 | 1/3 | 4 min | 4.0 min |
 
 **Recent Trend:**
-- Last 5 plans: 03-03 (6 min), 04-01 (3 min), 04-02 (7 min), 04-03 (6 min)
-- Trend: Fast (~5.5 min avg)
+- Last 5 plans: 04-01 (3 min), 04-02 (7 min), 04-03 (6 min), 05-01 (4 min)
+- Trend: Fast (~5.0 min avg)
 
 ## Accumulated Context
 
@@ -76,6 +77,9 @@ Recent decisions affecting current work:
 - resumeSyncs fire-and-forget async con fallback a cached intervals
 - shouldSkipSync as pure function: protective skip with warnings (not errors) to avoid BullMQ retry
 - Count validation thresholds: 0-result skip, >50% drop skip when >10 existing, first sync always proceeds
+- Events emitted after res.json() to guarantee DB write confirmed before notification
+- Broadcast calls wrapped in try/catch — failures never affect HTTP responses
+- Batch POST operations emit aggregated events (one per action type) rather than one per order
 
 ### Deferred Issues
 
@@ -88,5 +92,5 @@ None.
 ## Session Continuity
 
 Last session: 2026-02-20
-Stopped at: Completed 04-03-PLAN.md — Phase 4 complete (3/3)
+Stopped at: Completed 05-01-PLAN.md — Phase 5 in progress (1/3)
 Resume file: None
