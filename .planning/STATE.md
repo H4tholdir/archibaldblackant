@@ -10,18 +10,18 @@ See: .planning/PROJECT.md (updated 2026-02-20)
 ## Current Position
 
 Phase: 4 of 10 (Sync Scheduler & Auto-Sync)
-Plan: 1 of 3 in current phase
+Plan: 2 of 3 in current phase
 Status: In progress
-Last activity: 2026-02-20 — Completed 04-01-PLAN.md
+Last activity: 2026-02-20 — Completed 04-02-PLAN.md
 
-Progress: ███▒░░░░░░ 32%
+Progress: ████░░░░░░ 35%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 10
-- Average duration: 6.1 min
-- Total execution time: 61 min
+- Total plans completed: 11
+- Average duration: 6.2 min
+- Total execution time: 68 min
 
 **By Phase:**
 
@@ -30,11 +30,11 @@ Progress: ███▒░░░░░░ 32%
 | 1 | 3/3 | 26 min | 8.7 min |
 | 2 | 3/3 | 16 min | 5.3 min |
 | 3 | 3/3 | 16 min | 5.3 min |
-| 4 | 1/3 | 3 min | 3.0 min |
+| 4 | 2/3 | 10 min | 5.0 min |
 
 **Recent Trend:**
-- Last 5 plans: 03-01 (4 min), 03-02 (6 min), 03-03 (6 min), 04-01 (3 min)
-- Trend: Fast (~4.8 min avg)
+- Last 5 plans: 03-02 (6 min), 03-03 (6 min), 04-01 (3 min), 04-02 (7 min)
+- Trend: Fast (~5.5 min avg)
 
 ## Accumulated Context
 
@@ -70,6 +70,10 @@ Recent decisions affecting current work:
 - system schema per sync_settings (infrastructure config, non agent data)
 - CHECK constraint su sync_type per validare i 6 tipi ammessi a livello DB
 - interval_minutes CHECK 5-1440 per limiti ragionevoli
+- Per-type timers via Map<SyncType, NodeJS.Timeout> instead of two-group model
+- Agent ID cache con 5s TTL per evitare query DB ridondanti
+- loadIntervalsMs/persistInterval come deps opzionali per testabilità route
+- resumeSyncs fire-and-forget async con fallback a cached intervals
 
 ### Deferred Issues
 
@@ -82,5 +86,5 @@ None.
 ## Session Continuity
 
 Last session: 2026-02-20
-Stopped at: Completed 04-01-PLAN.md — Phase 4 in progress (1/3)
+Stopped at: Completed 04-02-PLAN.md — Phase 4 in progress (2/3)
 Resume file: None

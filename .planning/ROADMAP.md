@@ -68,7 +68,7 @@ Plans:
 
 Plans:
 - [x] 04-01: Sync settings persistence layer (migration 007-sync-settings.sql, repository CRUD, unit test)
-- [ ] 04-02: Avviare sync scheduler nel bootstrap con intervalli da DB, fix getActiveAgentIds (usare utenti dal DB)
+- [x] 04-02: Refactor scheduler per-type intervals, async agent registry, bootstrap auto-start con DB intervals, API routes funzionanti
 - [ ] 04-03: Proteggere customer sync da parser failures (count validation) + warning monitoring API
 
 ### Phase 5: WebSocket & Real-time Events
@@ -153,7 +153,7 @@ Note: Phase 3 and 4 can start after Phase 2. Phase 5 depends on Phase 2+3. Phase
 | 1. Cleanup & Dead Code | 3/3 | Complete | 2026-02-20 |
 | 2. Operation Queue Core | 3/3 | Complete | 2026-02-20 |
 | 3. Browser Pool & Concurrency | 3/3 | Complete | 2026-02-20 |
-| 4. Sync Scheduler & Auto-Sync | 1/3 | In progress | - |
+| 4. Sync Scheduler & Auto-Sync | 2/3 | In progress | - |
 | 5. WebSocket & Real-time | 0/3 | Not started | - |
 | 6. Data Integrity & Hardening | 0/3 | Not started | - |
 | 7. Missing Features | 0/3 | Not started | - |

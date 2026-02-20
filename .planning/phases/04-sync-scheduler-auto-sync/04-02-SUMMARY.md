@@ -45,7 +45,7 @@ patterns-established:
 issues-created: []
 
 # Metrics
-duration: ~8min
+duration: 7min
 completed: 2026-02-20
 ---
 
@@ -55,7 +55,9 @@ completed: 2026-02-20
 
 ## Performance
 
-- **Duration:** ~8 min
+- **Duration:** 7 min
+- **Started:** 2026-02-20T13:34:18Z
+- **Completed:** 2026-02-20T13:41:51Z
 - **Tasks:** 2
 - **Files modified:** 7
 
