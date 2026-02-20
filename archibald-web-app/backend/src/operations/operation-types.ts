@@ -84,7 +84,7 @@ type OperationJobData = {
   type: OperationType;
   userId: string;
   data: Record<string, unknown>;
-  idempotencyKey: string;
+  idempotencyKey?: string;
   timestamp: number;
 };
 

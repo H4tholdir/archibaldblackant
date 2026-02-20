@@ -59,6 +59,16 @@ describe('createOperationQueue', () => {
     expect(jobId).toBe('job-123');
   });
 
+  test('enqueue does not include idempotencyKey when not provided', async () => {
+    mockAdd.mockResolvedValue({ id: 'job-no-key' });
+
+    const queue = createOperationQueue();
+    await queue.enqueue('submit-order', 'user-a', { orderId: '1' });
+
+    const jobData = mockAdd.mock.calls[0][1] as OperationJobData;
+    expect(jobData).not.toHaveProperty('idempotencyKey');
+  });
+
   test('enqueue uses correct priority for sync operations', async () => {
     mockAdd.mockResolvedValue({ id: 'job-456' });
 
@@ -70,6 +80,56 @@ describe('createOperationQueue', () => {
       expect.objectContaining({ type: 'sync-prices' }),
       expect.objectContaining({ priority: 15 }),
     );
+  });
+
+  test('enqueue adds deduplication for sync operations', async () => {
+    mockAdd.mockResolvedValue({ id: 'job-dedup-sync' });
+
+    const queue = createOperationQueue();
+    await queue.enqueue('sync-customers', 'user-a', {});
+
+    expect(mockAdd).toHaveBeenCalledWith(
+      'sync-customers',
+      expect.anything(),
+      expect.objectContaining({
+        deduplication: { id: 'sync-customers-user-a' },
+      }),
+    );
+  });
+
+  test('enqueue adds throttle deduplication for write ops with idempotencyKey', async () => {
+    mockAdd.mockResolvedValue({ id: 'job-dedup-write' });
+
+    const queue = createOperationQueue();
+    await queue.enqueue('submit-order', 'user-a', { orderId: '1' }, 'order-submit-abc');
+
+    expect(mockAdd).toHaveBeenCalledWith(
+      'submit-order',
+      expect.anything(),
+      expect.objectContaining({
+        deduplication: { id: 'order-submit-abc', ttl: 30_000 },
+      }),
+    );
+  });
+
+  test('enqueue does not add deduplication for write ops without idempotencyKey', async () => {
+    mockAdd.mockResolvedValue({ id: 'job-no-dedup' });
+
+    const queue = createOperationQueue();
+    await queue.enqueue('submit-order', 'user-a', { orderId: '1' });
+
+    const options = mockAdd.mock.calls[0][2];
+    expect(options).not.toHaveProperty('deduplication');
+  });
+
+  test('enqueue does not add deduplication for download operations', async () => {
+    mockAdd.mockResolvedValue({ id: 'job-download' });
+
+    const queue = createOperationQueue();
+    await queue.enqueue('download-ddt-pdf', 'user-a', { ddtId: 'DDT-1' });
+
+    const options = mockAdd.mock.calls[0][2];
+    expect(options).not.toHaveProperty('deduplication');
   });
 
   test('enqueue sets retry config for sync operations', async () => {

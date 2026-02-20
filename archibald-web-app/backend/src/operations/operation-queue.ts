@@ -74,11 +74,19 @@ function createOperationQueue(redisConfig?: { host: string; port: number }) {
       type,
       userId,
       data,
-      idempotencyKey: idempotencyKey ?? `${type}-${userId}-${Date.now()}`,
+      ...(idempotencyKey ? { idempotencyKey } : {}),
       timestamp: Date.now(),
     };
 
-    const job = await queue.add(type, jobData, getJobOptions(type));
+    const options = getJobOptions(type);
+
+    if (isScheduledSync(type)) {
+      options.deduplication = { id: `${type}-${userId}` };
+    } else if (idempotencyKey && isWriteOperation(type)) {
+      options.deduplication = { id: idempotencyKey, ttl: 30_000 };
+    }
+
+    const job = await queue.add(type, jobData, options);
     return job.id!;
   }
 
