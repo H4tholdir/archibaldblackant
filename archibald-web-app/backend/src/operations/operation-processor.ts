@@ -5,12 +5,15 @@ import { UnrecoverableError } from 'bullmq';
 
 type BrowserContext = unknown;
 
+type OnEmitFn = (event: { type: string; payload: unknown; timestamp: string }) => void;
+
 type OperationHandler = (
   context: BrowserContext,
   data: Record<string, unknown>,
   userId: string,
   onProgress: (progress: number, label?: string) => void,
   signal?: AbortSignal,
+  onEmit?: OnEmitFn,
 ) => Promise<Record<string, unknown>>;
 
 type BroadcastFn = (userId: string, event: Record<string, unknown>) => void;
@@ -136,8 +139,12 @@ function createOperationProcessor(deps: ProcessorDeps) {
         });
       };
 
+      const onEmit: OnEmitFn = (event) => {
+        broadcast(userId, event);
+      };
+
       const result = await Promise.race([
-        handler(context, handlerData, userId, onProgress, timeoutController.signal),
+        handler(context, handlerData, userId, onProgress, timeoutController.signal, onEmit),
         new Promise<never>((_resolve, reject) => {
           if (timeoutController.signal.aborted) {
             reject(timeoutController.signal.reason ?? new DOMException('The operation was aborted.', 'AbortError'));
@@ -199,6 +206,7 @@ export {
   createOperationProcessor,
   type OperationProcessor,
   type OperationHandler,
+  type OnEmitFn,
   type BrowserPoolLike,
   type BroadcastFn,
   type EnqueueFn,

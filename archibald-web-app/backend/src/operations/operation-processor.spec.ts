@@ -281,6 +281,7 @@ describe('createOperationProcessor', () => {
       'user-a',
       expect.any(Function),
       expect.any(AbortSignal),
+      expect.any(Function),
     );
   });
 
@@ -389,6 +390,7 @@ describe('createOperationProcessor', () => {
       'user-a',
       expect.any(Function),
       expect.any(AbortSignal),
+      expect.any(Function),
     );
   });
 
@@ -649,6 +651,7 @@ describe('multi-user concurrency', () => {
       'alice',
       expect.any(Function),
       expect.any(AbortSignal),
+      expect.any(Function),
     );
   });
 });
