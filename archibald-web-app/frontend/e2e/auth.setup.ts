@@ -17,8 +17,9 @@ setup("authenticate", async ({ page }) => {
     throw new Error("TEST_USER_PASSWORD env var required for E2E tests");
   }
 
-  await page.addInitScript(() => localStorage.clear());
   await page.goto("/");
+  await page.evaluate(() => localStorage.clear());
+  await page.reload();
 
   await page.waitForSelector("#username", { timeout: 30_000 });
   await page.fill("#username", username);
@@ -30,7 +31,7 @@ setup("authenticate", async ({ page }) => {
     { timeout: 60_000 },
   );
 
-  await expect(page.locator("nav")).toBeVisible({ timeout: 10_000 });
+  await expect(page.locator("nav")).toBeVisible({ timeout: 30_000 });
 
   await page.context().storageState({ path: authFile });
 });

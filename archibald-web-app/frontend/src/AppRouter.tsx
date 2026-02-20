@@ -61,7 +61,8 @@ function AppRouter() {
 
         if (response.ok) {
           const targetData = await response.json();
-          const hasConfiguredTarget = targetData.yearlyTarget > 0;
+          const target = targetData.data ?? targetData;
+          const hasConfiguredTarget = target.yearlyTarget > 0;
           setHasTarget(hasConfiguredTarget);
           setShowTargetWizard(!hasConfiguredTarget);
         }

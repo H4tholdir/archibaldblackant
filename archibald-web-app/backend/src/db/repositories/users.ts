@@ -258,7 +258,7 @@ async function updateUserTarget(
   await pool.query(
     `UPDATE agents.users
      SET yearly_target = $2,
-         monthly_target = $2 / 12,
+         monthly_target = ($2::integer) / 12,
          currency = $3,
          commission_rate = $4,
          bonus_amount = $5,
