@@ -13,7 +13,7 @@ export interface OrderItem {
   subtotal: number; // price × quantity
   discount: number; // Calculated discount amount
   subtotalAfterDiscount: number; // subtotal - discount
-  vat: number; // subtotalAfterDiscount × VAT_RATE
+  vat: number;
   total: number; // subtotalAfterDiscount + vat
 }
 
