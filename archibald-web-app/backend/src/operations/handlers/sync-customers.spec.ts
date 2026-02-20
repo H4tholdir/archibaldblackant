@@ -22,6 +22,17 @@ function createMockPool(currentCount: number): DbPool {
   } as unknown as DbPool;
 }
 
+function createMockBot() {
+  return {
+    downloadCustomersPDF: vi.fn().mockResolvedValue('/tmp/customers.pdf'),
+  };
+}
+
+const SMALL_DATASET = [
+  { customer_profile: 'CP001', name: 'Customer 1' },
+  { customer_profile: 'CP002', name: 'Customer 2' },
+];
+
 describe('shouldSkipSync', () => {
   test('skips when currentCount > 0 and parsedCount is 0', () => {
     const result = shouldSkipSync(50, 0);
@@ -87,20 +98,21 @@ describe('shouldSkipSync', () => {
       warning: 'Parser returned 0 customers, existing 3 preserved',
     });
   });
+
+  test.each([
+    { currentCount: 0, parsedCount: 0, expected: { skip: false }, label: 'first sync with 0 results proceeds' },
+    { currentCount: 0, parsedCount: 10, expected: { skip: false }, label: 'first sync always proceeds' },
+    { currentCount: 20, parsedCount: 5, expected: { skip: true, warning: expect.stringContaining('drop') }, label: '>50% drop with >10 existing skips' },
+    { currentCount: 20, parsedCount: 15, expected: { skip: false }, label: '25% drop within tolerance proceeds' },
+    { currentCount: 5, parsedCount: 2, expected: { skip: false }, label: '<10 existing skips drop check' },
+    { currentCount: 10, parsedCount: 4, expected: { skip: false }, label: 'exactly 10 existing skips drop check (not >10)' },
+  ])('$label (current=$currentCount, parsed=$parsedCount)', ({ currentCount, parsedCount, expected }) => {
+    const result = shouldSkipSync(currentCount, parsedCount);
+    expect(result).toEqual(expected);
+  });
 });
 
 describe('createSyncCustomersHandler', () => {
-  const mockParsedCustomers = [
-    { customer_profile: 'CP001', name: 'Customer 1' },
-    { customer_profile: 'CP002', name: 'Customer 2' },
-  ];
-
-  function createMockBot() {
-    return {
-      downloadCustomersPDF: vi.fn().mockResolvedValue('/tmp/customers.pdf'),
-    };
-  }
-
   test('returns warnings when parser returns 0 customers with existing data', async () => {
     const pool = createMockPool(50);
     const handler = createSyncCustomersHandler(
@@ -140,7 +152,7 @@ describe('createSyncCustomersHandler', () => {
   test('proceeds normally when count is valid', async () => {
     const pool = createMockPool(2);
     const handler = createSyncCustomersHandler(
-      { pool, parsePdf: vi.fn().mockResolvedValue(mockParsedCustomers), cleanupFile: vi.fn().mockResolvedValue(undefined) },
+      { pool, parsePdf: vi.fn().mockResolvedValue(SMALL_DATASET), cleanupFile: vi.fn().mockResolvedValue(undefined) },
       () => createMockBot(),
     );
 
@@ -183,6 +195,169 @@ describe('createSyncCustomersHandler', () => {
     );
 
     await handler({}, {}, 'user-1', vi.fn());
+
+    expect(cleanupFile).toHaveBeenCalledWith('/tmp/customers.pdf');
+  });
+
+  test('returns success: false when signal aborted during download step', async () => {
+    const pool = createMockPool(0);
+    const abortController = new AbortController();
+    const bot = {
+      downloadCustomersPDF: vi.fn().mockImplementation(async () => {
+        abortController.abort();
+        return '/tmp/customers.pdf';
+      }),
+    };
+    const handler = createSyncCustomersHandler(
+      { pool, parsePdf: vi.fn().mockResolvedValue(SMALL_DATASET), cleanupFile: vi.fn().mockResolvedValue(undefined) },
+      () => bot,
+    );
+
+    const result = await handler({}, {}, 'user-1', vi.fn(), abortController.signal);
+
+    expect(result).toEqual(expect.objectContaining({ success: false }));
+  });
+
+  test('returns success: false when signal aborted during execution with 15+ records', async () => {
+    const recordCount = 15;
+    const parsedRows = Array.from({ length: recordCount }, (_, i) => ({
+      customer_profile: `CP${String(i).padStart(3, '0')}`,
+      name: `Customer ${i}`,
+    }));
+    const pool = createMockPool(0);
+    const abortController = new AbortController();
+
+    let queryCallCount = 0;
+    (pool.query as ReturnType<typeof vi.fn>).mockImplementation((sql: string) => {
+      if (sql.includes('COUNT(*)')) {
+        return Promise.resolve({ rows: [{ count: '0' }], rowCount: 1 });
+      }
+      queryCallCount++;
+      if (queryCallCount >= 10) {
+        abortController.abort();
+      }
+      if (sql.includes('SELECT')) {
+        return Promise.resolve({ rows: [], rowCount: 0 });
+      }
+      return Promise.resolve({ rows: [], rowCount: 0 });
+    });
+
+    const handler = createSyncCustomersHandler(
+      { pool, parsePdf: vi.fn().mockResolvedValue(parsedRows), cleanupFile: vi.fn().mockResolvedValue(undefined) },
+      () => createMockBot(),
+    );
+
+    const result = await handler({}, {}, 'user-1', vi.fn(), abortController.signal);
+
+    expect(result).toEqual(expect.objectContaining({ success: false }));
+  });
+
+  test('registers abort listener with { once: true } on signal', async () => {
+    const pool = createMockPool(0);
+    const handler = createSyncCustomersHandler(
+      { pool, parsePdf: vi.fn().mockResolvedValue(SMALL_DATASET), cleanupFile: vi.fn().mockResolvedValue(undefined) },
+      () => createMockBot(),
+    );
+
+    const mockSignal = {
+      aborted: false,
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      reason: undefined,
+      onabort: null,
+      throwIfAborted: vi.fn(),
+      dispatchEvent: vi.fn(),
+    } as unknown as AbortSignal;
+
+    await handler({}, {}, 'user-1', vi.fn(), mockSignal);
+
+    expect(mockSignal.addEventListener).toHaveBeenCalledWith(
+      'abort',
+      expect.any(Function),
+      { once: true },
+    );
+  });
+
+  test('calls onProgress with incremental progress during successful sync', async () => {
+    const pool = createMockPool(0);
+    const onProgress = vi.fn();
+    const handler = createSyncCustomersHandler(
+      { pool, parsePdf: vi.fn().mockResolvedValue(SMALL_DATASET), cleanupFile: vi.fn().mockResolvedValue(undefined) },
+      () => createMockBot(),
+    );
+
+    await handler({}, {}, 'user-1', onProgress);
+
+    const progressValues = onProgress.mock.calls.map((c) => c[0] as number);
+    expect(progressValues.length).toBeGreaterThanOrEqual(2);
+    expect(progressValues[0]).toEqual(5);
+    expect(progressValues[1]).toEqual(20);
+  });
+
+  test('onProgress called with string label describing the step', async () => {
+    const pool = createMockPool(0);
+    const onProgress = vi.fn();
+    const handler = createSyncCustomersHandler(
+      { pool, parsePdf: vi.fn().mockResolvedValue(SMALL_DATASET), cleanupFile: vi.fn().mockResolvedValue(undefined) },
+      () => createMockBot(),
+    );
+
+    await handler({}, {}, 'user-1', onProgress);
+
+    const labels = onProgress.mock.calls.map((c) => c[1] as string);
+    expect(labels[0]).toEqual('Download PDF clienti');
+    expect(labels[1]).toEqual('Lettura PDF');
+  });
+
+  test('rejects when parsePdf throws', async () => {
+    const parsePdfError = new Error('PDF parse failure');
+    const pool = createMockPool(0);
+    const handler = createSyncCustomersHandler(
+      { pool, parsePdf: vi.fn().mockRejectedValue(parsePdfError), cleanupFile: vi.fn().mockResolvedValue(undefined) },
+      () => createMockBot(),
+    );
+
+    await expect(handler({}, {}, 'user-1', vi.fn())).rejects.toThrow('PDF parse failure');
+  });
+
+  test('rejects when downloadPdf throws', async () => {
+    const pool = createMockPool(0);
+    const failingBot = {
+      downloadCustomersPDF: vi.fn().mockRejectedValue(new Error('Download failed')),
+    };
+    const handler = createSyncCustomersHandler(
+      { pool, parsePdf: vi.fn().mockResolvedValue([]), cleanupFile: vi.fn().mockResolvedValue(undefined) },
+      () => failingBot,
+    );
+
+    await expect(handler({}, {}, 'user-1', vi.fn())).rejects.toThrow('Download failed');
+  });
+
+  test('cleanupFile called via service finally block on successful sync', async () => {
+    const cleanupFile = vi.fn().mockResolvedValue(undefined);
+    const pool = createMockPool(0);
+    const handler = createSyncCustomersHandler(
+      { pool, parsePdf: vi.fn().mockResolvedValue(SMALL_DATASET), cleanupFile },
+      () => createMockBot(),
+    );
+
+    await handler({}, {}, 'user-1', vi.fn());
+
+    expect(cleanupFile).toHaveBeenCalledWith('/tmp/customers.pdf');
+  });
+
+  test('cleanupFile called when sync is stopped via abort', async () => {
+    const cleanupFile = vi.fn().mockResolvedValue(undefined);
+    const pool = createMockPool(0);
+    const abortController = new AbortController();
+    abortController.abort();
+
+    const handler = createSyncCustomersHandler(
+      { pool, parsePdf: vi.fn().mockResolvedValue(SMALL_DATASET), cleanupFile },
+      () => createMockBot(),
+    );
+
+    await handler({}, {}, 'user-1', vi.fn(), abortController.signal);
 
     expect(cleanupFile).toHaveBeenCalledWith('/tmp/customers.pdf');
   });
