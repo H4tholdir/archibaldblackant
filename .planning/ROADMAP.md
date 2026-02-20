@@ -19,7 +19,7 @@ None
 - [ ] **Phase 3: Browser Pool & Concurrency** - Fix race condition user lock, concurrency per-utente, transaction safety
 - [x] **Phase 4: Sync Scheduler & Auto-Sync** - Avviare sync scheduler, intervalli configurabili, fix getActiveAgentIds
 - [x] **Phase 5: WebSocket & Real-time Events** - Emettere tutti gli eventi WebSocket, implementare/rimuovere SSE
-- [ ] **Phase 6: Data Integrity & Hardening** - IVA da DB, hashing SHA-256, validazione input, rate limiting, PDF persist
+- [x] **Phase 6: Data Integrity & Hardening** - IVA da DB, hashing SHA-256, validazione input, rate limiting, PDF persist
 - [ ] **Phase 7: Missing Feature Implementation** - createCustomerBot, subclients API, getNextFtNumber, exportArca, stub
 - [ ] **Phase 8: Unit & Integration Tests** - Test per operation processor, agent lock, sync handlers, WebSocket, DB
 - [ ] **Phase 9: E2E Tests & VPS Validation** - Playwright E2E su VPS, integration test backend, multi-device
@@ -156,7 +156,7 @@ Note: Phase 3 and 4 can start after Phase 2. Phase 5 depends on Phase 2+3. Phase
 | 3. Browser Pool & Concurrency | 3/3 | Complete | 2026-02-20 |
 | 4. Sync Scheduler & Auto-Sync | 3/3 | Complete | 2026-02-20 |
 | 5. WebSocket & Real-time | 3/3 | Complete | 2026-02-20 |
-| 6. Data Integrity & Hardening | 3/4 | In progress | - |
+| 6. Data Integrity & Hardening | 4/4 | Complete | 2026-02-20 |
 | 7. Missing Features | 0/3 | Not started | - |
 | 8. Unit & Integration Tests | 0/5 | Not started | - |
 | 9. E2E Tests & VPS | 0/4 | Not started | - |

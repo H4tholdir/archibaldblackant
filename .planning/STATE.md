@@ -5,23 +5,23 @@
 See: .planning/PROJECT.md (updated 2026-02-20)
 
 **Core value:** Riportare la PWA a perfetto funzionamento multi-utente e multi-dispositivo, eliminando ogni race condition, stub silenzioso e feature rotta, con copertura test che garantisca stabilità nel tempo.
-**Current focus:** Phase 6 in progress — Data Integrity & Hardening
+**Current focus:** Phase 6 complete — Ready for Phase 7: Missing Feature Implementation
 
 ## Current Position
 
 Phase: 6 of 10 (Data Integrity & Hardening)
-Plan: 3 of 4 in current phase
-Status: In progress
-Last activity: 2026-02-20 — Completed 06-03-PLAN.md
+Plan: 4 of 4 in current phase
+Status: Phase complete
+Last activity: 2026-02-20 — Completed 06-04-PLAN.md
 
-Progress: ██████░░░░ 55%
+Progress: ██████░░░░ 58%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 18
+- Total plans completed: 19
 - Average duration: 5.5 min
-- Total execution time: 99 min
+- Total execution time: 104 min
 
 **By Phase:**
 
@@ -32,11 +32,11 @@ Progress: ██████░░░░ 55%
 | 3 | 3/3 | 16 min | 5.3 min |
 | 4 | 3/3 | 16 min | 5.3 min |
 | 5 | 3/3 | 12 min | 4.0 min |
-| 6 | 3/4 | 13 min | 4.3 min |
+| 6 | 4/4 | 18 min | 4.5 min |
 
 **Recent Trend:**
-- Last 5 plans: 05-03 (4 min), 06-01 (5 min), 06-02 (5 min), 06-03 (3 min)
-- Trend: Fast (~4.3 min avg)
+- Last 5 plans: 06-01 (5 min), 06-02 (5 min), 06-03 (3 min), 06-04 (5 min)
+- Trend: Fast (~4.5 min avg)
 
 ## Accumulated Context
 
@@ -93,6 +93,9 @@ Recent decisions affecting current work:
 - Health check registered before rate limiting middleware (never rate-limited)
 - MemoryStore for rate limiting (single-process VPS, no Redis needed)
 - Global rate limiter on /api only, not static assets
+- Filesystem PDF store with .pdf/.meta.json sidecar pattern
+- PDF TTL configurable via PDF_STORE_DIR, PDF_CLEANUP_INTERVAL_MS, PDF_MAX_AGE_MS env vars
+- PdfStoreLike exported from pdf-store.ts as single source of truth
 
 ### Deferred Issues
 
@@ -105,5 +108,5 @@ None.
 ## Session Continuity
 
 Last session: 2026-02-20
-Stopped at: Completed 06-03-PLAN.md — Phase 6 plan 3/4
+Stopped at: Completed 06-04-PLAN.md — Phase 6 complete (4/4)
 Resume file: None
