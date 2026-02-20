@@ -229,4 +229,47 @@ describe('handleSubmitOrder', () => {
     expect(saveBotResult).toHaveBeenCalled();
     expect(clearBotResult).not.toHaveBeenCalled();
   });
+
+  test('emits PENDING_SUBMITTED after transaction with pendingOrderId and orderId', async () => {
+    const pool = createMockPool();
+    const bot = createMockBot('ORD-001');
+    const onEmit = vi.fn();
+
+    await handleSubmitOrder(pool, bot, sampleData, 'user-1', vi.fn(), onEmit);
+
+    expect(onEmit).toHaveBeenCalledWith({
+      type: 'PENDING_SUBMITTED',
+      payload: { pendingOrderId: 'pending-123', orderId: 'ORD-001' },
+      timestamp: expect.any(String),
+    });
+  });
+
+  test('emits ORDER_NUMBERS_RESOLVED with order mapping after transaction', async () => {
+    const pool = createMockPool();
+    const bot = createMockBot('ORD-001');
+    const onEmit = vi.fn();
+
+    await handleSubmitOrder(pool, bot, sampleData, 'user-1', vi.fn(), onEmit);
+
+    expect(onEmit).toHaveBeenCalledWith({
+      type: 'ORDER_NUMBERS_RESOLVED',
+      payload: {
+        pendingOrderId: 'pending-123',
+        orderId: 'ORD-001',
+        orderNumber: 'PENDING-ORD-001',
+        customerId: 'CUST-001',
+        customerName: 'Acme Corp',
+      },
+      timestamp: expect.any(String),
+    });
+  });
+
+  test('does not throw if onEmit is undefined', async () => {
+    const pool = createMockPool();
+    const bot = createMockBot('ORD-001');
+
+    const result = await handleSubmitOrder(pool, bot, sampleData, 'user-1', vi.fn());
+
+    expect(result.orderId).toBe('ORD-001');
+  });
 });

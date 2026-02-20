@@ -1,5 +1,5 @@
 import type { DbPool } from '../../db/pool';
-import type { OperationHandler } from '../operation-processor';
+import type { OperationHandler, OnEmitFn } from '../operation-processor';
 import { checkBotResult, saveBotResult, clearBotResult } from '../bot-result-store';
 
 type SubmitOrderItem = {
@@ -51,6 +51,7 @@ async function handleSubmitOrder(
   data: SubmitOrderData,
   userId: string,
   onProgress: (progress: number, label?: string) => void,
+  onEmit?: OnEmitFn,
 ): Promise<{ orderId: string }> {
   bot.setProgressCallback(async (category, metadata) => {
     onProgress(50, category);
@@ -169,6 +170,24 @@ async function handleSubmitOrder(
     );
   });
 
+  onEmit?.({
+    type: 'PENDING_SUBMITTED',
+    payload: { pendingOrderId: data.pendingOrderId, orderId },
+    timestamp: new Date().toISOString(),
+  });
+
+  onEmit?.({
+    type: 'ORDER_NUMBERS_RESOLVED',
+    payload: {
+      pendingOrderId: data.pendingOrderId,
+      orderId,
+      orderNumber: isWarehouseOnly ? orderId : `PENDING-${orderId}`,
+      customerId: data.customerId,
+      customerName: data.customerName,
+    },
+    timestamp: new Date().toISOString(),
+  });
+
   await clearBotResult(pool, userId, 'submit-order', data.pendingOrderId);
 
   onProgress(100, 'Ordine completato');
@@ -177,10 +196,10 @@ async function handleSubmitOrder(
 }
 
 function createSubmitOrderHandler(pool: DbPool, createBot: (userId: string) => SubmitOrderBot): OperationHandler {
-  return async (context, data, userId, onProgress) => {
+  return async (context, data, userId, onProgress, signal, onEmit) => {
     const bot = createBot(userId);
     const typedData = data as unknown as SubmitOrderData;
-    const result = await handleSubmitOrder(pool, bot, typedData, userId, onProgress);
+    const result = await handleSubmitOrder(pool, bot, typedData, userId, onProgress, onEmit);
     return result as unknown as Record<string, unknown>;
   };
 }
