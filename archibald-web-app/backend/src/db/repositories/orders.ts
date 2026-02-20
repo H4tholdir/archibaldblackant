@@ -423,7 +423,16 @@ function mapRowToStateHistory(row: StateHistoryRow): StateHistory {
   };
 }
 
-function computeHash(order: OrderInput): string {
+type OrderHashInput = {
+  id: string;
+  orderNumber: string;
+  salesStatus?: string | null;
+  documentStatus?: string | null;
+  transferStatus?: string | null;
+  totalAmount?: string | null;
+};
+
+function computeOrderHash(order: OrderHashInput): string {
   const hashInput = [
     order.id,
     order.orderNumber,
@@ -544,7 +553,7 @@ async function upsertOrder(
   order: OrderInput,
 ): Promise<UpsertResult> {
   const now = Math.floor(Date.now() / 1000);
-  const hash = computeHash(order);
+  const hash = computeOrderHash(order);
 
   const { rows: [existing] } = await pool.query<{ hash: string; order_number: string }>(
     'SELECT hash, order_number FROM agents.order_records WHERE id = $1 AND user_id = $2',
@@ -887,7 +896,7 @@ export {
   deleteOrdersNotInList,
   getLastSalesForArticle,
   mapRowToOrder,
-  computeHash,
+  computeOrderHash,
   buildFilterClause,
   type Order,
   type OrderInput,

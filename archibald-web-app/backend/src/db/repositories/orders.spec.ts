@@ -180,8 +180,8 @@ describe('upsertOrder', () => {
   });
 
   test('skips unchanged order with same hash', async () => {
-    const { computeHash } = await import('./orders');
-    const existingHash = computeHash(SAMPLE_ORDER);
+    const { computeOrderHash } = await import('./orders');
+    const existingHash = computeOrderHash(SAMPLE_ORDER);
 
     const pool = createMockPool(async (text) => {
       if (text.includes('SELECT hash')) {
@@ -687,25 +687,25 @@ describe('deleteOrdersNotInList', () => {
   });
 });
 
-describe('computeHash', () => {
+describe('computeOrderHash', () => {
   test('produces consistent hash for same input', async () => {
-    const { computeHash } = await import('./orders');
-    const hash1 = computeHash(SAMPLE_ORDER);
-    const hash2 = computeHash(SAMPLE_ORDER);
+    const { computeOrderHash } = await import('./orders');
+    const hash1 = computeOrderHash(SAMPLE_ORDER);
+    const hash2 = computeOrderHash(SAMPLE_ORDER);
     expect(hash1).toBe(hash2);
   });
 
   test('produces different hash for different salesStatus', async () => {
-    const { computeHash } = await import('./orders');
-    const hash1 = computeHash(SAMPLE_ORDER);
-    const hash2 = computeHash({ ...SAMPLE_ORDER, salesStatus: 'Consegnato' });
+    const { computeOrderHash } = await import('./orders');
+    const hash1 = computeOrderHash(SAMPLE_ORDER);
+    const hash2 = computeOrderHash({ ...SAMPLE_ORDER, salesStatus: 'Consegnato' });
     expect(hash1).not.toBe(hash2);
   });
 
   test('produces different hash for different totalAmount', async () => {
-    const { computeHash } = await import('./orders');
-    const hash1 = computeHash(SAMPLE_ORDER);
-    const hash2 = computeHash({ ...SAMPLE_ORDER, totalAmount: '999,00 \u20ac' });
+    const { computeOrderHash } = await import('./orders');
+    const hash1 = computeOrderHash(SAMPLE_ORDER);
+    const hash2 = computeOrderHash({ ...SAMPLE_ORDER, totalAmount: '999,00 \u20ac' });
     expect(hash1).not.toBe(hash2);
   });
 });

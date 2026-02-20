@@ -1,5 +1,5 @@
-import crypto from 'crypto';
 import type { DbPool } from '../../db/pool';
+import { computeOrderHash } from '../../db/repositories/orders';
 import { SyncStoppedError } from './customer-sync';
 
 type ParsedOrder = {
@@ -73,9 +73,6 @@ async function syncOrders(
     let ordersSkipped = 0;
     const now = Math.floor(Date.now() / 1000);
 
-    const computeHash = (o: ParsedOrder) =>
-      [o.id, o.orderNumber, o.salesStatus, o.documentStatus, o.transferStatus, o.totalAmount].join('|');
-
     let loopIndex = 0;
     for (const order of parsedOrders) {
       if (loopIndex > 0 && loopIndex % 10 === 0 && shouldStop()) {
@@ -83,7 +80,7 @@ async function syncOrders(
       }
       loopIndex++;
 
-      const hash = crypto.createHash('sha256').update(computeHash(order)).digest('hex');
+      const hash = computeOrderHash(order);
 
       const { rows: [existing] } = await pool.query<{ hash: string; order_number: string }>(
         'SELECT hash, order_number FROM agents.order_records WHERE id = $1 AND user_id = $2',
