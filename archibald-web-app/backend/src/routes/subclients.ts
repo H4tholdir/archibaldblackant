@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import type { AuthRequest } from '../middleware/auth';
+import type { Subclient } from '../db/repositories/subclients';
 import { logger } from '../logger';
 
 const searchSchema = z.object({
@@ -10,15 +11,6 @@ const searchSchema = z.object({
 const codiceSchema = z.object({
   codice: z.string().min(1).max(50),
 });
-
-type Subclient = {
-  codice: string;
-  nome: string;
-  indirizzo: string | null;
-  cap: string | null;
-  citta: string | null;
-  provincia: string | null;
-};
 
 type SubclientsRouterDeps = {
   getAllSubclients: () => Promise<Subclient[]>;
@@ -83,4 +75,4 @@ function createSubclientsRouter(deps: SubclientsRouterDeps) {
   return router;
 }
 
-export { createSubclientsRouter, type SubclientsRouterDeps, type Subclient };
+export { createSubclientsRouter, type SubclientsRouterDeps };

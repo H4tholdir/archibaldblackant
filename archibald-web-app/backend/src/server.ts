@@ -28,6 +28,8 @@ import { createUsersRouter } from './routes/users';
 import { createWidgetRouter, createMetricsRouter } from './routes/widget';
 import { createCustomerInteractiveRouter, type CustomerBotLike } from './routes/customer-interactive';
 import { createSubclientsRouter } from './routes/subclients';
+import { createSubclientsRepository } from './db/repositories/subclients';
+import { parseSubclientsExcel } from './subclient-parser';
 import { createSseProgressRouter } from './realtime/sse-progress';
 import { createInteractiveSessionManager } from './interactive-session-manager';
 import * as customersRepo from './db/repositories/customers';
@@ -392,6 +394,8 @@ function createApp(deps: AppDeps): Express {
     onJobEvent: (_userId, _callback) => () => {},
   }));
 
+  const subclientsRepo = createSubclientsRepository(pool);
+
   app.use('/api/admin', authenticateJWT, requireAdmin, createAdminRouter({
     pool,
     getAllUsers: () => usersRepo.getAllUsers(pool),
@@ -445,7 +449,13 @@ function createApp(deps: AppDeps): Express {
       return { removedCompleted: completed.length, removedFailed: failed.length };
     },
     getRetentionConfig: () => ({ completedCount: 100, failedCount: 50 }),
-    importSubclients: async (_buffer, _filename) => ({ success: true, imported: 0, skipped: 0 }),
+    importSubclients: async (buffer, _filename) => {
+      const result = parseSubclientsExcel(buffer);
+      if (result.subclients.length > 0) {
+        await subclientsRepo.upsertBatch(result.subclients);
+      }
+      return { success: result.errors.length === 0 || result.imported > 0, imported: result.imported, skipped: result.skipped };
+    },
   }));
 
   app.use('/api/widget', authenticateJWT, createWidgetRouter({
@@ -470,10 +480,10 @@ function createApp(deps: AppDeps): Express {
   }));
 
   app.use('/api/subclients', authenticateJWT, createSubclientsRouter({
-    getAllSubclients: async () => [],
-    searchSubclients: async (_query) => [],
-    getSubclientByCodice: async (_codice) => null,
-    deleteSubclient: async (_codice) => false,
+    getAllSubclients: () => subclientsRepo.getAll(),
+    searchSubclients: (query) => subclientsRepo.search(query),
+    getSubclientByCodice: (codice) => subclientsRepo.getByCodice(codice),
+    deleteSubclient: (codice) => subclientsRepo.delete(codice),
   }));
 
   app.use('/api/share', (req, res, next) => {
