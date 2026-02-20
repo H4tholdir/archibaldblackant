@@ -13,12 +13,7 @@ function makeProductsResponse(products: any[]) {
     ok: true,
     json: async () => ({
       success: true,
-      data: {
-        products,
-        totalCount: products.length,
-        returnedCount: products.length,
-        limited: false,
-      },
+      data: products,
     }),
   } as Response;
 }
