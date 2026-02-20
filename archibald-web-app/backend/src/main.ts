@@ -46,21 +46,8 @@ import { PDFParserInvoicesService } from './pdf-parser-invoices-service';
 import * as usersRepo from './db/repositories/users';
 import * as syncSettingsRepo from './db/repositories/sync-settings';
 import type { SyncTypeIntervals } from './sync/sync-scheduler';
-
-function createPdfStore() {
-  const store = new Map<string, { buffer: Buffer; originalName: string }>();
-
-  return {
-    save: (buffer: Buffer, originalName: string, _req: unknown) => {
-      const id = `pdf-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-      store.set(id, { buffer, originalName });
-      const url = `${config.share.baseUrl}/api/share/pdf/${id}`;
-      return { id, url };
-    },
-    get: (id: string) => store.get(id) ?? null,
-    delete: (id: string) => { store.delete(id); },
-  };
-}
+import { createFileSystemPdfStore, startCleanupScheduler } from './pdf-store';
+import type { CleanupSchedulerHandle } from './pdf-store';
 
 function createEmailService() {
   if (!config.smtp.host) {
@@ -169,7 +156,15 @@ async function main() {
   }
 
   const passwordCache = PasswordCache.getInstance();
-  const pdfStore = createPdfStore();
+
+  const pdfStoreDir = process.env.PDF_STORE_DIR || path.join(__dirname, '..', 'data', 'pdfs');
+  const pdfStore = createFileSystemPdfStore(pdfStoreDir, config.share.baseUrl);
+
+  const pdfCleanupIntervalMs = parseInt(process.env.PDF_CLEANUP_INTERVAL_MS || String(30 * 60 * 1000), 10);
+  const pdfMaxAgeMs = parseInt(process.env.PDF_MAX_AGE_MS || String(2 * 60 * 60 * 1000), 10);
+  const pdfCleanupHandle: CleanupSchedulerHandle = startCleanupScheduler(pdfStoreDir, pdfCleanupIntervalMs, pdfMaxAgeMs);
+  logger.info('PDF store initialized', { storeDir: pdfStoreDir, cleanupIntervalMs: pdfCleanupIntervalMs, maxAgeMs: pdfMaxAgeMs });
+
   const sendEmail = createEmailService();
   const uploadToDropbox = createDropboxService();
 
@@ -300,6 +295,7 @@ async function main() {
 
   const shutdown = async (signal: string) => {
     logger.info(`${signal} received, shutting down gracefully`);
+    clearInterval(pdfCleanupHandle);
     syncScheduler.stop();
 
     httpServer.close(async () => {
