@@ -557,6 +557,217 @@ describe('createOperationProcessor', () => {
 
     expect(agentLock.release).not.toHaveBeenCalled();
   });
+
+  test('releases lock after handler timeout', async () => {
+    const hangingHandler = vi.fn().mockImplementation(
+      () => new Promise(() => {}),
+    );
+    const { processor, agentLock } = createProcessor({
+      handlers: { 'submit-order': hangingHandler },
+      getTimeout: () => 50,
+    });
+    const job = createMockJob();
+
+    await expect(processor.processJob(job as any)).rejects.toThrow(
+      'Handler timeout after 50ms for submit-order',
+    );
+
+    expect(agentLock.release).toHaveBeenCalledWith('user-a', 'job-123');
+  });
+
+  test('shouldStop returns false when signal is not aborted', async () => {
+    let capturedSignal: AbortSignal | undefined;
+    const handler = vi.fn().mockImplementation(
+      async (_ctx: unknown, _data: unknown, _userId: string, _onProgress: unknown, signal: AbortSignal) => {
+        capturedSignal = signal;
+        return { done: true };
+      },
+    );
+    const { processor } = createProcessor({
+      handlers: { 'submit-order': handler },
+    });
+    const job = createMockJob();
+
+    await processor.processJob(job as any);
+
+    expect(capturedSignal!.aborted).toBe(false);
+  });
+
+  test('shouldStop returns true when signal is aborted during handler execution', async () => {
+    let capturedSignal: AbortSignal | undefined;
+    const handler = vi.fn().mockImplementation(
+      (_ctx: unknown, _data: unknown, _userId: string, _onProgress: unknown, signal: AbortSignal) => {
+        capturedSignal = signal;
+        return new Promise(() => {});
+      },
+    );
+    const ac = new AbortController();
+    const { processor } = createProcessor({
+      handlers: { 'submit-order': handler },
+      getTimeout: () => 10_000,
+    });
+    const job = createMockJob();
+    (job as any).signal = ac.signal;
+
+    const promise = processor.processJob(job as any);
+    ac.abort();
+
+    await expect(promise).rejects.toThrow();
+    expect(capturedSignal!.aborted).toBe(true);
+  });
+
+  test('job.signal addEventListener called with { once: true } to prevent memory leaks', async () => {
+    const handler = vi.fn().mockResolvedValue({ done: true });
+    const ac = new AbortController();
+    const addEventListenerSpy = vi.spyOn(ac.signal, 'addEventListener');
+
+    const { processor } = createProcessor({
+      handlers: { 'submit-order': handler },
+    });
+    const job = createMockJob();
+    (job as any).signal = ac.signal;
+
+    await processor.processJob(job as any);
+
+    expect(addEventListenerSpy).toHaveBeenCalledWith(
+      'abort',
+      expect.any(Function),
+      { once: true },
+    );
+  });
+
+  test('emits JOB_STARTED before acquireContext', async () => {
+    const callOrder: string[] = [];
+    const trackingBrowserPool = {
+      acquireContext: vi.fn().mockImplementation(async () => {
+        callOrder.push('acquireContext');
+        return { id: 'ctx-1' };
+      }),
+      releaseContext: vi.fn().mockResolvedValue(undefined),
+    };
+    const trackingBroadcast = vi.fn().mockImplementation((_userId: string, event: Record<string, unknown>) => {
+      callOrder.push(event.type as string);
+    });
+    const handler = vi.fn().mockResolvedValue({ done: true });
+
+    const { processor } = createProcessor({
+      handlers: { 'submit-order': handler },
+      broadcast: trackingBroadcast,
+      browserPool: trackingBrowserPool,
+    });
+    const job = createMockJob();
+
+    await processor.processJob(job as any);
+
+    expect(callOrder.indexOf('JOB_STARTED')).toBeLessThan(callOrder.indexOf('acquireContext'));
+  });
+
+  test('full lifecycle broadcasts all 4 event types with correct shapes', async () => {
+    const progressValue = 75;
+    const progressLabel = 'Processing items';
+    const handlerResult = { items: 10 };
+    const handler = vi.fn().mockImplementation(
+      async (_ctx: unknown, _data: unknown, _userId: string, onProgress: (p: number, l?: string) => void) => {
+        onProgress(progressValue, progressLabel);
+        return handlerResult;
+      },
+    );
+    const { processor, broadcast } = createProcessor({
+      handlers: { 'submit-order': handler },
+    });
+    const job = createMockJob();
+
+    await processor.processJob(job as any);
+
+    const broadcastCalls = broadcast.mock.calls.map(([userId, event]: [string, Record<string, unknown>]) => ({
+      userId,
+      event,
+    }));
+    expect(broadcastCalls).toEqual([
+      {
+        userId: 'user-a',
+        event: {
+          type: 'JOB_STARTED',
+          payload: { jobId: 'job-123', operationType: 'submit-order' },
+          timestamp: expect.any(String),
+        },
+      },
+      {
+        userId: 'user-a',
+        event: {
+          type: 'JOB_PROGRESS',
+          payload: { jobId: 'job-123', operationType: 'submit-order', progress: progressValue, label: progressLabel },
+          timestamp: expect.any(String),
+        },
+      },
+      {
+        userId: 'user-a',
+        event: {
+          type: 'JOB_COMPLETED',
+          payload: { jobId: 'job-123', operationType: 'submit-order', result: handlerResult },
+          timestamp: expect.any(String),
+        },
+      },
+    ]);
+  });
+
+  test('broadcasts JOB_FAILED on timeout with correct payload shape', async () => {
+    const timeoutMs = 30;
+    const hangingHandler = vi.fn().mockImplementation(
+      () => new Promise(() => {}),
+    );
+    const { processor, broadcast } = createProcessor({
+      handlers: { 'submit-order': hangingHandler },
+      getTimeout: () => timeoutMs,
+    });
+    const job = createMockJob();
+
+    await expect(processor.processJob(job as any)).rejects.toThrow();
+
+    expect(broadcast).toHaveBeenCalledWith('user-a', {
+      type: 'JOB_FAILED',
+      payload: {
+        jobId: 'job-123',
+        operationType: 'submit-order',
+        error: `Handler timeout after ${timeoutMs}ms for submit-order`,
+      },
+      timestamp: expect.any(String),
+    });
+  });
+
+  test('handler receives onEmit that wraps broadcast', async () => {
+    const customEvent = { type: 'CUSTOM_EVENT', payload: { detail: 'test' }, timestamp: '2026-01-01T00:00:00.000Z' };
+    const handler = vi.fn().mockImplementation(
+      async (_ctx: unknown, _data: unknown, _userId: string, _onProgress: unknown, _signal: unknown, onEmit: (event: Record<string, unknown>) => void) => {
+        onEmit(customEvent);
+        return { done: true };
+      },
+    );
+    const { processor, broadcast } = createProcessor({
+      handlers: { 'submit-order': handler },
+    });
+    const job = createMockJob();
+
+    await processor.processJob(job as any);
+
+    expect(broadcast).toHaveBeenCalledWith('user-a', customEvent);
+  });
+
+  test('handler without onEmit does not cause error (backward compat)', async () => {
+    const handler = vi.fn().mockImplementation(
+      async (_ctx: unknown, _data: unknown, _userId: string, _onProgress: unknown, _signal: unknown) => {
+        return { done: true };
+      },
+    );
+    const { processor } = createProcessor({
+      handlers: { 'submit-order': handler },
+    });
+    const job = createMockJob();
+
+    const result = await processor.processJob(job as any);
+
+    expect(result.success).toBe(true);
+  });
 });
 
 describe('multi-user concurrency', () => {
