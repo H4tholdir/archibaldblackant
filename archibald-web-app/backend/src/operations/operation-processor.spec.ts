@@ -1,5 +1,6 @@
 import { describe, expect, test, vi, beforeEach } from 'vitest';
 import { createOperationProcessor } from './operation-processor';
+import { createAgentLock } from './agent-lock';
 import type { OperationJobData, OperationJobResult } from './operation-types';
 
 function createMockAgentLock(acquireResult = { acquired: true } as any) {
@@ -415,5 +416,182 @@ describe('createOperationProcessor', () => {
 
     await expect(promise).rejects.toThrow('Handler timeout after 5000ms for submit-order');
     expect(capturedSignal!.aborted).toBe(true);
+  });
+});
+
+describe('multi-user concurrency', () => {
+  function createMockBrowserPool() {
+    return {
+      acquireContext: vi.fn().mockResolvedValue({ id: 'ctx-1' }),
+      releaseContext: vi.fn().mockResolvedValue(undefined),
+      markInUse: vi.fn(),
+      markIdle: vi.fn(),
+    };
+  }
+
+  test('different users process in parallel without blocking', async () => {
+    const agentLock = createAgentLock();
+    const browserPool = createMockBrowserPool();
+    const enqueue = vi.fn().mockResolvedValue('re-enqueued-id');
+    const handler = vi.fn().mockResolvedValue({ done: true });
+
+    const processor = createOperationProcessor({
+      agentLock,
+      browserPool,
+      broadcast: vi.fn(),
+      enqueue,
+      handlers: { 'submit-order': handler, 'edit-order': handler } as any,
+      cancelJob: vi.fn().mockReturnValue(true),
+    });
+
+    const aliceJob = {
+      id: 'job-alice',
+      data: { type: 'submit-order' as const, userId: 'alice', data: { orderId: 'A1' }, timestamp: Date.now() },
+      updateProgress: vi.fn(),
+    };
+    const bobJob = {
+      id: 'job-bob',
+      data: { type: 'edit-order' as const, userId: 'bob', data: { orderId: 'B1' }, timestamp: Date.now() },
+      updateProgress: vi.fn(),
+    };
+
+    const [aliceResult, bobResult] = await Promise.all([
+      processor.processJob(aliceJob as any),
+      processor.processJob(bobJob as any),
+    ]);
+
+    expect(aliceResult.success).toBe(true);
+    expect(bobResult.success).toBe(true);
+    expect(enqueue).not.toHaveBeenCalled();
+  });
+
+  test('same user jobs serialize via agentLock', async () => {
+    const agentLock = createAgentLock();
+    const browserPool = createMockBrowserPool();
+    const enqueue = vi.fn().mockResolvedValue('re-enqueued-id');
+
+    let resolveFirst: () => void;
+    const firstHandlerPromise = new Promise<Record<string, unknown>>((resolve) => {
+      resolveFirst = () => resolve({ done: true });
+    });
+    const firstHandler = vi.fn().mockReturnValue(firstHandlerPromise);
+    const secondHandler = vi.fn().mockResolvedValue({ done: true });
+
+    const processor = createOperationProcessor({
+      agentLock,
+      browserPool,
+      broadcast: vi.fn(),
+      enqueue,
+      handlers: { 'submit-order': firstHandler, 'edit-order': secondHandler } as any,
+      cancelJob: vi.fn().mockReturnValue(true),
+    });
+
+    const firstJob = {
+      id: 'job-1',
+      data: { type: 'submit-order' as const, userId: 'alice', data: { orderId: 'A1' }, timestamp: Date.now() },
+      updateProgress: vi.fn(),
+    };
+    const secondJob = {
+      id: 'job-2',
+      data: { type: 'edit-order' as const, userId: 'alice', data: { orderId: 'A2' }, timestamp: Date.now() },
+      updateProgress: vi.fn(),
+    };
+
+    const firstPromise = processor.processJob(firstJob as any);
+    await new Promise((r) => setTimeout(r, 0));
+
+    const secondResult = await processor.processJob(secondJob as any);
+
+    expect(secondResult).toEqual({ success: false, requeued: true, duration: expect.any(Number) });
+    expect(enqueue).toHaveBeenCalledWith(
+      'edit-order',
+      'alice',
+      { orderId: 'A2', _requeueCount: 1 },
+      undefined,
+      { delay: 2000 },
+    );
+
+    resolveFirst!();
+    const firstResult = await firstPromise;
+    expect(firstResult.success).toBe(true);
+  });
+
+  test.each([
+    { requeueCount: 0, expectedDelay: 2_000 },
+    { requeueCount: 3, expectedDelay: 16_000 },
+    { requeueCount: 100, expectedDelay: 30_000 },
+  ])('exponential backoff delay increases with _requeueCount ($requeueCount -> $expectedDelay)', async ({ requeueCount, expectedDelay }) => {
+    const agentLock = createAgentLock();
+    const browserPool = createMockBrowserPool();
+    const enqueue = vi.fn().mockResolvedValue('re-enqueued-id');
+    const handler = vi.fn().mockResolvedValue({ done: true });
+
+    agentLock.acquire('alice', 'blocking-job', 'submit-order');
+
+    const processor = createOperationProcessor({
+      agentLock,
+      browserPool,
+      broadcast: vi.fn(),
+      enqueue,
+      handlers: { 'sync-customers': handler } as any,
+      cancelJob: vi.fn().mockReturnValue(true),
+    });
+
+    const job = {
+      id: 'job-requeue',
+      data: {
+        type: 'sync-customers' as const,
+        userId: 'alice',
+        data: { source: 'test', _requeueCount: requeueCount },
+        timestamp: Date.now(),
+      },
+      updateProgress: vi.fn(),
+    };
+
+    await processor.processJob(job as any);
+
+    expect(enqueue).toHaveBeenCalledWith(
+      'sync-customers',
+      'alice',
+      expect.objectContaining({ _requeueCount: requeueCount + 1 }),
+      undefined,
+      { delay: expectedDelay },
+    );
+  });
+
+  test('handler receives data without _requeueCount', async () => {
+    const agentLock = createAgentLock();
+    const browserPool = createMockBrowserPool();
+    const handler = vi.fn().mockResolvedValue({ done: true });
+
+    const processor = createOperationProcessor({
+      agentLock,
+      browserPool,
+      broadcast: vi.fn(),
+      enqueue: vi.fn().mockResolvedValue('id'),
+      handlers: { 'submit-order': handler } as any,
+      cancelJob: vi.fn().mockReturnValue(true),
+    });
+
+    const job = {
+      id: 'job-strip',
+      data: {
+        type: 'submit-order' as const,
+        userId: 'alice',
+        data: { orderId: 'A1', _requeueCount: 5 },
+        timestamp: Date.now(),
+      },
+      updateProgress: vi.fn(),
+    };
+
+    await processor.processJob(job as any);
+
+    expect(handler).toHaveBeenCalledWith(
+      { id: 'ctx-1' },
+      { orderId: 'A1' },
+      'alice',
+      expect.any(Function),
+      expect.any(AbortSignal),
+    );
   });
 });
