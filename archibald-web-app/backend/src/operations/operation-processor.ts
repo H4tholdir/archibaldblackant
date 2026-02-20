@@ -118,11 +118,22 @@ function createOperationProcessor(deps: ProcessorDeps) {
     job.signal?.addEventListener('abort', combinedAbort, { once: true });
 
     try {
+      broadcast(userId, {
+        type: 'JOB_STARTED',
+        payload: { jobId: job.id, operationType: type },
+        timestamp: new Date().toISOString(),
+      });
+
       context = await browserPool.acquireContext(userId, { fromQueue: true });
       browserPool.markInUse?.(userId);
 
       const onProgress = (progress: number, label?: string) => {
         job.updateProgress(label ? { progress, label } : progress);
+        broadcast(userId, {
+          type: 'JOB_PROGRESS',
+          payload: { jobId: job.id, operationType: type, progress, label },
+          timestamp: new Date().toISOString(),
+        });
       };
 
       const result = await Promise.race([
@@ -143,10 +154,9 @@ function createOperationProcessor(deps: ProcessorDeps) {
       context = null;
 
       broadcast(userId, {
-        event: 'JOB_COMPLETED',
-        jobId: job.id,
-        type,
-        result,
+        type: 'JOB_COMPLETED',
+        payload: { jobId: job.id, operationType: type, result },
+        timestamp: new Date().toISOString(),
       });
 
       return { success: true, data: result, duration: Date.now() - startTime };
@@ -158,19 +168,17 @@ function createOperationProcessor(deps: ProcessorDeps) {
 
       if (error instanceof Error && error.name === 'AbortError') {
         broadcast(userId, {
-          event: 'JOB_FAILED',
-          jobId: job.id,
-          type,
-          error: `Handler timeout after ${timeoutMs}ms for ${type}`,
+          type: 'JOB_FAILED',
+          payload: { jobId: job.id, operationType: type, error: `Handler timeout after ${timeoutMs}ms for ${type}` },
+          timestamp: new Date().toISOString(),
         });
         throw new UnrecoverableError(`Handler timeout after ${timeoutMs}ms for ${type}`);
       }
 
       broadcast(userId, {
-        event: 'JOB_FAILED',
-        jobId: job.id,
-        type,
-        error: error instanceof Error ? error.message : String(error),
+        type: 'JOB_FAILED',
+        payload: { jobId: job.id, operationType: type, error: error instanceof Error ? error.message : String(error) },
+        timestamp: new Date().toISOString(),
       });
 
       throw error;
