@@ -1,48 +1,112 @@
-# 07-01 Summary: Wire Group A Stubs to Existing Services
+---
+phase: 07-missing-features
+plan: 01
+subsystem: api
+tags: [customer-bot, arca-export, arca-import, ft-counter, stub-wiring]
 
-**Completed:** 2026-02-20
-**Status:** Done
+# Dependency graph
+requires:
+  - phase: 03-browser-pool-concurrency/03
+    provides: bot-result check-save-clear pattern, compensating transactions
+  - phase: 05-websocket-realtime-events/03
+    provides: onEmit pattern for handler domain events
+  - phase: 06-data-integrity-hardening/04
+    provides: PdfStoreLike, filesystem store pattern
+provides:
+  - createCustomerBot wired to createApp — interactive customer routes enabled
+  - exportArca returns real DBF ZIP via arca-export-service
+  - importArca parses real DBF files via arca-import-service
+  - getNextFtNumber uses PostgreSQL UPSERT for progressive numbering
+  - Migration 008-ft-counter for agents.ft_counter table
+affects: [07-missing-features/02, 07-missing-features/03, 08-unit-integration-tests]
 
-## Tasks Completed
+# Tech tracking
+tech-stack:
+  added: []
+  patterns: [direct-sql-in-server-deps for simple queries, PostgreSQL UPSERT for atomic counters]
 
-### Task 1: Wire createCustomerBot factory to createApp
-- **Commit:** db93894
-- **Files modified:** `archibald-web-app/backend/src/main.ts`
-- **Change:** Added `createCustomerBot: createBot as (userId: string) => any` to the `createApp()` call
-- **Effect:** The `if (deps.createCustomerBot)` guard in server.ts now activates, enabling all interactive customer routes (`/api/customers/interactive/*`)
+key-files:
+  created:
+    - archibald-web-app/backend/src/db/migrations/008-ft-counter.sql
+  modified:
+    - archibald-web-app/backend/src/main.ts
+    - archibald-web-app/backend/src/server.ts
 
-### Task 2: Wire Arca export, import, and FT number stubs to real services
-- **Commit:** 8ec0931
-- **Files modified:** `archibald-web-app/backend/src/server.ts`
-- **Files created:** `archibald-web-app/backend/src/db/migrations/008-ft-counter.sql`
-- **Changes:**
-  - **exportArca**: Queries fresis_history rows with arca_data, calls `exportToArcaDbf()` to generate DBF files, ZIPs them via `streamExportAsZip()`, returns `{ zipBuffer, stats }`
-  - **importArca**: Calls `parseArcaExport()` to parse uploaded DBF files, maps records to `FresisHistoryInput`, upserts via `fresisHistoryRepo.upsertRecords()`
-  - **getNextFtNumber**: PostgreSQL UPSERT into `agents.ft_counter` table with atomic increment, returns progressive number
-  - **Migration 008**: Creates `agents.ft_counter` table with `(esercizio, user_id)` primary key
+key-decisions:
+  - "FT counter uses direct PostgreSQL UPSERT instead of legacy ft-counter.ts (which uses better-sqlite3)"
+  - "Export queries fresis_history directly instead of modifying repository layer"
+
+patterns-established:
+  - "Pattern: wire existing service implementations via server.ts dependency injection lambdas"
+
+issues-created: []
+
+# Metrics
+duration: 5min
+completed: 2026-02-20
+---
+
+# Phase 7 Plan 1: Wire Group A Stubs Summary
+
+**4 Group A stubs wired to real implementations: createCustomerBot, exportArca, importArca, getNextFtNumber with PostgreSQL migration**
+
+## Performance
+
+- **Duration:** 5 min
+- **Started:** 2026-02-20T19:05:09Z
+- **Completed:** 2026-02-20T19:10:28Z
+- **Tasks:** 2
+- **Files modified:** 3 (main.ts, server.ts, new migration)
+
+## Accomplishments
+
+- createCustomerBot factory wired to createApp — interactive customer routes (`/api/customers/interactive/*`) now enabled
+- exportArca produces real DBF files (4 DBF in ZIP) via arca-export-service
+- importArca parses real DBF uploads via arca-import-service and upserts to fresis_history
+- getNextFtNumber returns progressive PostgreSQL number via atomic UPSERT on agents.ft_counter
+
+## Task Commits
+
+1. **Task 1: Wire createCustomerBot factory to createApp** - `db93894` (feat)
+2. **Task 2: Wire Arca export, import, FT number stubs** - `8ec0931` (feat)
+
+## Files Created/Modified
+
+- `archibald-web-app/backend/src/main.ts` - Added createCustomerBot dep to createApp() call
+- `archibald-web-app/backend/src/server.ts` - Replaced 3 stubs (exportArca, importArca, getNextFtNumber) with real service calls
+- `archibald-web-app/backend/src/db/migrations/008-ft-counter.sql` - PostgreSQL table for FT counter (esercizio + user_id PK)
+
+## Decisions Made
+
+- FT counter uses direct PostgreSQL UPSERT instead of legacy ft-counter.ts (which uses better-sqlite3) — production is PostgreSQL-only
+- Export queries fresis_history directly via SQL instead of modifying repository — avoids touching files outside plan scope
 
 ## Deviations from Plan
 
-1. **FT counter migration added (Rule 2 - missing critical):** The plan said to wire ft-counter.ts but that file uses better-sqlite3 (legacy). Since the project is PostgreSQL-only in production, a new migration (008-ft-counter.sql) was created and the UPSERT query was written directly using the PostgreSQL pool instead of importing from ft-counter.ts.
+### Auto-fixed Issues
 
-2. **Direct SQL for export query:** Instead of modifying the fresis-history repository to export `getArcaExport`, the export lambda queries raw rows directly from PostgreSQL with `::text` casts for JSONB columns. This avoids modifying the repository and keeps the type alignment with `FresisHistoryRow` from arca-import-service.
+**1. [Rule 2 - Missing Critical] FT counter migration for PostgreSQL**
+- **Found during:** Task 2 (wire getNextFtNumber)
+- **Issue:** ft-counter.ts uses better-sqlite3 (legacy), but production is PostgreSQL
+- **Fix:** Created migration 008-ft-counter.sql and wrote UPSERT directly using pg pool
+- **Files modified:** server.ts, new migration 008-ft-counter.sql
+- **Verification:** Build and tests pass, FT numbering uses PostgreSQL
+- **Committed in:** `8ec0931`
 
-## Verification Results
+---
 
-- `npm run build --prefix archibald-web-app/backend`: PASS
-- `npm test --prefix archibald-web-app/backend`: PASS (838 passed, 12 skipped, 63 files passed)
-- createCustomerBot factory passed to createApp: YES
-- Interactive customer routes activated: YES (server.ts line 165 guard now passes)
-- exportArca stub replaced: YES (real DBF export via arca-export-service)
-- importArca stub replaced: YES (real DBF import via arca-import-service)
-- getNextFtNumber stub replaced: YES (PostgreSQL UPSERT counter)
-- No new TypeScript errors: CONFIRMED
+**Total deviations:** 1 auto-fixed (missing critical)
+**Impact on plan:** Necessary for production correctness. No scope creep.
 
-## Success Criteria
+## Issues Encountered
 
-- [x] 4 Group A stubs eliminated (createCustomerBot, exportArca, importArca, getNextFtNumber)
-- [x] Customer interactive routes enabled end-to-end
-- [x] Arca export produces real DBF files in ZIP format
-- [x] FT numbering uses PostgreSQL persistence (not hardcoded 1)
-- [x] All existing tests pass
-- [x] TypeScript compiles cleanly
+None
+
+## Next Phase Readiness
+
+- Ready for 07-02-PLAN.md (Subclient Data Layer + Excel Parser)
+- All Group A stubs eliminated, TypeScript compiles, all tests pass
+
+---
+*Phase: 07-missing-features*
+*Completed: 2026-02-20*

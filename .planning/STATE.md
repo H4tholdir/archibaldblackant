@@ -5,23 +5,23 @@
 See: .planning/PROJECT.md (updated 2026-02-20)
 
 **Core value:** Riportare la PWA a perfetto funzionamento multi-utente e multi-dispositivo, eliminando ogni race condition, stub silenzioso e feature rotta, con copertura test che garantisca stabilità nel tempo.
-**Current focus:** Phase 6 complete — Ready for Phase 7: Missing Feature Implementation
+**Current focus:** Phase 7 in progress — Missing Feature Implementation
 
 ## Current Position
 
-Phase: 6 of 10 (Data Integrity & Hardening)
-Plan: 4 of 4 in current phase
-Status: Phase complete
-Last activity: 2026-02-20 — Completed 06-04-PLAN.md
+Phase: 7 of 10 (Missing Feature Implementation)
+Plan: 1 of 3 in current phase
+Status: In progress
+Last activity: 2026-02-20 — Completed 07-01-PLAN.md
 
-Progress: ██████░░░░ 58%
+Progress: ██████░░░░ 61%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 19
+- Total plans completed: 20
 - Average duration: 5.5 min
-- Total execution time: 104 min
+- Total execution time: 109 min
 
 **By Phase:**
 
@@ -33,9 +33,10 @@ Progress: ██████░░░░ 58%
 | 4 | 3/3 | 16 min | 5.3 min |
 | 5 | 3/3 | 12 min | 4.0 min |
 | 6 | 4/4 | 18 min | 4.5 min |
+| 7 | 1/3 | 5 min | 5.0 min |
 
 **Recent Trend:**
-- Last 5 plans: 06-01 (5 min), 06-02 (5 min), 06-03 (3 min), 06-04 (5 min)
+- Last 5 plans: 06-02 (5 min), 06-03 (3 min), 06-04 (5 min), 07-01 (5 min)
 - Trend: Fast (~4.5 min avg)
 
 ## Accumulated Context
@@ -96,6 +97,8 @@ Recent decisions affecting current work:
 - Filesystem PDF store with .pdf/.meta.json sidecar pattern
 - PDF TTL configurable via PDF_STORE_DIR, PDF_CLEANUP_INTERVAL_MS, PDF_MAX_AGE_MS env vars
 - PdfStoreLike exported from pdf-store.ts as single source of truth
+- FT counter uses direct PostgreSQL UPSERT instead of legacy ft-counter.ts (better-sqlite3)
+- Export queries fresis_history directly instead of modifying repository layer
 
 ### Deferred Issues
 
@@ -108,5 +111,5 @@ None.
 ## Session Continuity
 
 Last session: 2026-02-20
-Stopped at: Completed 06-04-PLAN.md — Phase 6 complete (4/4)
+Stopped at: Completed 07-01-PLAN.md — Phase 7 in progress (1/3)
 Resume file: None
