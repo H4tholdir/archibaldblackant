@@ -5,23 +5,23 @@
 See: .planning/PROJECT.md (updated 2026-02-20)
 
 **Core value:** Riportare la PWA a perfetto funzionamento multi-utente e multi-dispositivo, eliminando ogni race condition, stub silenzioso e feature rotta, con copertura test che garantisca stabilità nel tempo.
-**Current focus:** Phase 7 complete — ready for Phase 8: Unit & Integration Tests
+**Current focus:** Phase 8: Unit & Integration Tests (in progress)
 
 ## Current Position
 
-Phase: 7 of 10 (Missing Feature Implementation)
-Plan: 3 of 3 in current phase
-Status: Phase complete
-Last activity: 2026-02-20 — Completed 07-03-PLAN.md
+Phase: 8 of 10 (Unit & Integration Tests)
+Plan: 1 of 5 in current phase
+Status: In progress
+Last activity: 2026-02-20 — Completed 08-01-PLAN.md
 
-Progress: ███████░░░ 68%
+Progress: ███████░░░ 70%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 22
+- Total plans completed: 23
 - Average duration: 5.5 min
-- Total execution time: 122 min
+- Total execution time: 126 min
 
 **By Phase:**
 
@@ -34,10 +34,11 @@ Progress: ███████░░░ 68%
 | 5 | 3/3 | 12 min | 4.0 min |
 | 6 | 4/4 | 18 min | 4.5 min |
 | 7 | 3/3 | 18 min | 6.0 min |
+| 8 | 1/5 | 4 min | 4.0 min |
 
 **Recent Trend:**
-- Last 5 plans: 06-04 (5 min), 07-01 (5 min), 07-02 (5 min), 07-03 (8 min)
-- Trend: Fast (~5.8 min avg)
+- Last 5 plans: 07-01 (5 min), 07-02 (5 min), 07-03 (8 min), 08-01 (4 min)
+- Trend: Fast (~5.5 min avg)
 
 ## Accumulated Context
 
@@ -117,5 +118,5 @@ None.
 ## Session Continuity
 
 Last session: 2026-02-20
-Stopped at: Phase 7 complete (3/3) — Ready for Phase 8
+Stopped at: Completed 08-01-PLAN.md (1/5 in Phase 8)
 Resume file: None

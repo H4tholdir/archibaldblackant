@@ -158,6 +158,6 @@ Note: Phase 3 and 4 can start after Phase 2. Phase 5 depends on Phase 2+3. Phase
 | 5. WebSocket & Real-time | 3/3 | Complete | 2026-02-20 |
 | 6. Data Integrity & Hardening | 4/4 | Complete | 2026-02-20 |
 | 7. Missing Features | 3/3 | Complete | 2026-02-20 |
-| 8. Unit & Integration Tests | 0/5 | Not started | - |
+| 8. Unit & Integration Tests | 1/5 | In progress | - |
 | 9. E2E Tests & VPS | 0/4 | Not started | - |
 | 10. Final Review | 0/2 | Not started | - |
