@@ -10,18 +10,18 @@ See: .planning/PROJECT.md (updated 2026-02-20)
 ## Current Position
 
 Phase: 3 of 10 (Browser Pool & Concurrency)
-Plan: 1 of 3 in current phase
+Plan: 2 of 3 in current phase
 Status: In progress
-Last activity: 2026-02-20 — Completed 03-01-PLAN.md
+Last activity: 2026-02-20 — Completed 03-02-PLAN.md
 
-Progress: ██▒░░░░░░░ 23%
+Progress: ██▓░░░░░░░ 27%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 7
-- Average duration: 6.6 min
-- Total execution time: 46 min
+- Total plans completed: 8
+- Average duration: 6.5 min
+- Total execution time: 52 min
 
 **By Phase:**
 
@@ -29,11 +29,11 @@ Progress: ██▒░░░░░░░ 23%
 |-------|-------|-------|----------|
 | 1 | 3/3 | 26 min | 8.7 min |
 | 2 | 3/3 | 16 min | 5.3 min |
-| 3 | 1/3 | 4 min | 4.0 min |
+| 3 | 2/3 | 10 min | 5.0 min |
 
 **Recent Trend:**
-- Last 5 plans: 02-01 (4 min), 02-02 (7 min), 02-03 (5 min), 03-01 (4 min)
-- Trend: Fast (~5.0 min avg)
+- Last 5 plans: 02-02 (7 min), 02-03 (5 min), 03-01 (4 min), 03-02 (6 min)
+- Trend: Fast (~5.5 min avg)
 
 ## Accumulated Context
 
@@ -60,6 +60,9 @@ Recent decisions affecting current work:
 - release sincrona con boolean return per evitare race condition nel finally block
 - inUseContexts come Set in-memory (no distributed lock, single process)
 - markInUse/markIdle opzionali in BrowserPoolLike per backward compat nei test
+- Worker concurrency 10 default, configurabile via WORKER_CONCURRENCY env var
+- Backoff esponenziale 2s-30s per re-enqueue su lock contention
+- EnqueueFn estesa con options?: { delay?: number }
 
 ### Deferred Issues
 
@@ -72,5 +75,5 @@ None.
 ## Session Continuity
 
 Last session: 2026-02-20
-Stopped at: Completed 03-01-PLAN.md
+Stopped at: Completed 03-02-PLAN.md
 Resume file: None
