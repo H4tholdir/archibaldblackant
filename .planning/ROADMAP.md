@@ -31,11 +31,12 @@ None
 **Goal**: Codebase pulito senza file orfani, dead code o naming inconsistencies — base solida per i fix successivi
 **Depends on**: Nothing (first phase)
 **Research**: Unlikely (internal file operations)
-**Plans**: 2 plans
+**Plans**: 3 plans
 
 Plans:
-- [ ] 01-01: Spostare file orfani frontend (8) e backend (2) in _deprecated/, rimuovere ExcelPriceManager.css
-- [ ] 01-02: Fix dead code (DDT sync ternary, legacy localStorage keys, sentToMilanoAt naming, UnifiedSyncProgress cleanup)
+- [ ] 01-01: Knip analysis + cancellare file orfani frontend (7+CSS) e backend (10 già rimossi), commit baseline refactoring
+- [ ] 01-02: Fix naming sentToMilanoAt→sentToVeronaAt (code+DB), rimuovere legacy localStorage keys, rinominare .test.ts→.spec.ts, pulire dead exports
+- [ ] 01-03: Pulizia root directory (4 dir clutter, ~25 MD file, log, script debug), fix struttura .planning/, .gitignore
 
 ### Phase 2: Operation Queue Core Fixes
 **Goal**: Preemption funzionante, sync interrompibili, nessun job duplicato, timeout su handler
@@ -148,7 +149,7 @@ Note: Phase 3 and 4 can start after Phase 2. Phase 5 depends on Phase 2+3. Phase
 
 | Phase | Plans Complete | Status | Completed |
 |-------|---------------|--------|-----------|
-| 1. Cleanup & Dead Code | 0/2 | Not started | - |
+| 1. Cleanup & Dead Code | 0/3 | Planned | - |
 | 2. Operation Queue Core | 0/3 | Not started | - |
 | 3. Browser Pool & Concurrency | 0/3 | Not started | - |
 | 4. Sync Scheduler & Auto-Sync | 0/2 | Not started | - |

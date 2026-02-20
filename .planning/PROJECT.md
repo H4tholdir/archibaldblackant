@@ -121,7 +121,7 @@ La PWA è deployata in produzione su VPS (formicanera.com) ed è usata attivamen
 | Concurrency per-utente (non globale) | Ogni utente opera 1 alla volta, ma utenti diversi in parallelo. Sync automatici indipendenti. Semplifica il lock system | — Pending |
 | IVA da database (excel admin + alert articoli) | L'IVA viene caricata via excel nella pagina admin e corretta tramite alert nella pagina articoli, non hardcoded | — Pending |
 | Sync intervals configurabili da admin | L'admin deve poter impostare gli intervalli dal pannello di controllo, non hardcoded | — Pending |
-| File orfani in _deprecated/ | Spostare in cartella dedicata invece di eliminare, per riferimento futuro se necessario | — Pending |
+| File orfani cancellati direttamente | Git è il safety net — cancellazione diretta, no cartella _deprecated/ | Decided (Phase 1 planning) |
 | PDF store su filesystem con TTL | Feature usata spesso dagli agenti (condivisione DDT, fatture via WhatsApp/Email), deve sopravvivere al restart | — Pending |
 | Test E2E + integration su VPS | Sia Playwright E2E che integration test backend eseguiti contro la PWA in VPS per verifica completa | — Pending |
 

@@ -10,9 +10,9 @@ See: .planning/PROJECT.md (updated 2026-02-20)
 ## Current Position
 
 Phase: 1 of 10 (Cleanup & Dead Code Removal)
-Plan: Not started
-Status: Ready to plan
-Last activity: 2026-02-20 — Project initialized, roadmap created
+Plan: 3 plans created (01-01, 01-02, 01-03)
+Status: Ready to execute
+Last activity: 2026-02-20 — Phase 1 planned (3 plans, expanded scope: root cleanup + MD archive)
 
 Progress: ░░░░░░░░░░ 0%
 
@@ -43,7 +43,7 @@ Recent decisions affecting current work:
 - Concurrency per-utente (non globale) per il worker BullMQ
 - IVA da database (excel admin + alert articoli)
 - Sync intervals configurabili da admin
-- File orfani spostati in _deprecated/ (non eliminati)
+- File orfani cancellati direttamente (git è il safety net, no _deprecated/)
 - PDF store su filesystem con TTL
 
 ### Deferred Issues
