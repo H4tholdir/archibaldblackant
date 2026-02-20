@@ -8,6 +8,8 @@
     "build": "tsc",
     "start": "node dist/main.js",
     "test": "vitest run",
+    "test:unit": "vitest run --exclude '**/*.integration.spec.ts'",
+    "test:integration": "vitest run src/**/*.integration.spec.ts",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
     "test:login": "tsx src/scripts/test-login.ts",
