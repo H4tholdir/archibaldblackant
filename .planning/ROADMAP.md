@@ -17,7 +17,7 @@ None
 - [x] **Phase 1: Cleanup & Dead Code Removal** - Rimuovere file orfani, dead code, legacy code e naming inconsistencies
 - [ ] **Phase 2: Operation Queue Core Fixes** - Fix preemption, shouldStop, timeout handler, deduplicazione
 - [ ] **Phase 3: Browser Pool & Concurrency** - Fix race condition user lock, concurrency per-utente, transaction safety
-- [ ] **Phase 4: Sync Scheduler & Auto-Sync** - Avviare sync scheduler, intervalli configurabili, fix getActiveAgentIds
+- [x] **Phase 4: Sync Scheduler & Auto-Sync** - Avviare sync scheduler, intervalli configurabili, fix getActiveAgentIds
 - [ ] **Phase 5: WebSocket & Real-time Events** - Emettere tutti gli eventi WebSocket, implementare/rimuovere SSE
 - [ ] **Phase 6: Data Integrity & Hardening** - IVA da DB, hashing SHA-256, validazione input, rate limiting, PDF persist
 - [ ] **Phase 7: Missing Feature Implementation** - createCustomerBot, subclients API, getNextFtNumber, exportArca, stub
@@ -69,7 +69,7 @@ Plans:
 Plans:
 - [x] 04-01: Sync settings persistence layer (migration 007-sync-settings.sql, repository CRUD, unit test)
 - [x] 04-02: Refactor scheduler per-type intervals, async agent registry, bootstrap auto-start con DB intervals, API routes funzionanti
-- [ ] 04-03: Proteggere customer sync da parser failures (count validation) + warning monitoring API
+- [x] 04-03: Proteggere customer sync da parser failures (count validation) + warning monitoring API
 
 ### Phase 5: WebSocket & Real-time Events
 **Goal**: Tutti i dispositivi ricevono aggiornamenti real-time per ogni operazione
@@ -153,7 +153,7 @@ Note: Phase 3 and 4 can start after Phase 2. Phase 5 depends on Phase 2+3. Phase
 | 1. Cleanup & Dead Code | 3/3 | Complete | 2026-02-20 |
 | 2. Operation Queue Core | 3/3 | Complete | 2026-02-20 |
 | 3. Browser Pool & Concurrency | 3/3 | Complete | 2026-02-20 |
-| 4. Sync Scheduler & Auto-Sync | 2/3 | In progress | - |
+| 4. Sync Scheduler & Auto-Sync | 3/3 | Complete | 2026-02-20 |
 | 5. WebSocket & Real-time | 0/3 | Not started | - |
 | 6. Data Integrity & Hardening | 0/3 | Not started | - |
 | 7. Missing Features | 0/3 | Not started | - |

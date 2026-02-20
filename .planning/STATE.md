@@ -5,23 +5,23 @@
 See: .planning/PROJECT.md (updated 2026-02-20)
 
 **Core value:** Riportare la PWA a perfetto funzionamento multi-utente e multi-dispositivo, eliminando ogni race condition, stub silenzioso e feature rotta, con copertura test che garantisca stabilità nel tempo.
-**Current focus:** Phase 4 in progress — Sync Scheduler & Auto-Sync
+**Current focus:** Phase 4 complete — ready for Phase 5: WebSocket & Real-time Events
 
 ## Current Position
 
 Phase: 4 of 10 (Sync Scheduler & Auto-Sync)
-Plan: 2 of 3 in current phase
-Status: In progress
-Last activity: 2026-02-20 — Completed 04-02-PLAN.md
+Plan: 3 of 3 in current phase
+Status: Phase complete
+Last activity: 2026-02-20 — Completed 04-03-PLAN.md
 
-Progress: ████░░░░░░ 35%
+Progress: ████░░░░░░ 38%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 11
+- Total plans completed: 12
 - Average duration: 6.2 min
-- Total execution time: 68 min
+- Total execution time: 74 min
 
 **By Phase:**
 
@@ -30,10 +30,10 @@ Progress: ████░░░░░░ 35%
 | 1 | 3/3 | 26 min | 8.7 min |
 | 2 | 3/3 | 16 min | 5.3 min |
 | 3 | 3/3 | 16 min | 5.3 min |
-| 4 | 2/3 | 10 min | 5.0 min |
+| 4 | 3/3 | 16 min | 5.3 min |
 
 **Recent Trend:**
-- Last 5 plans: 03-02 (6 min), 03-03 (6 min), 04-01 (3 min), 04-02 (7 min)
+- Last 5 plans: 03-03 (6 min), 04-01 (3 min), 04-02 (7 min), 04-03 (6 min)
 - Trend: Fast (~5.5 min avg)
 
 ## Accumulated Context
@@ -74,6 +74,8 @@ Recent decisions affecting current work:
 - Agent ID cache con 5s TTL per evitare query DB ridondanti
 - loadIntervalsMs/persistInterval come deps opzionali per testabilità route
 - resumeSyncs fire-and-forget async con fallback a cached intervals
+- shouldSkipSync as pure function: protective skip with warnings (not errors) to avoid BullMQ retry
+- Count validation thresholds: 0-result skip, >50% drop skip when >10 existing, first sync always proceeds
 
 ### Deferred Issues
 
@@ -86,5 +88,5 @@ None.
 ## Session Continuity
 
 Last session: 2026-02-20
-Stopped at: Completed 04-02-PLAN.md — Phase 4 in progress (2/3)
+Stopped at: Completed 04-03-PLAN.md — Phase 4 complete (3/3)
 Resume file: None
