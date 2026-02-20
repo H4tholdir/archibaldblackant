@@ -5,23 +5,23 @@
 See: .planning/PROJECT.md (updated 2026-02-20)
 
 **Core value:** Riportare la PWA a perfetto funzionamento multi-utente e multi-dispositivo, eliminando ogni race condition, stub silenzioso e feature rotta, con copertura test che garantisca stabilità nel tempo.
-**Current focus:** Phase 5 in progress — WebSocket & Real-time Events
+**Current focus:** Phase 5 complete — Ready for Phase 6: Data Integrity & Hardening
 
 ## Current Position
 
 Phase: 5 of 10 (WebSocket & Real-time Events)
-Plan: 2 of 3 in current phase
-Status: In progress
-Last activity: 2026-02-20 — Completed 05-02-PLAN.md
+Plan: 3 of 3 in current phase
+Status: Phase complete
+Last activity: 2026-02-20 — Completed 05-03-PLAN.md
 
-Progress: ████░░░░░░ 44%
+Progress: █████░░░░░ 47%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 14
-- Average duration: 5.9 min
-- Total execution time: 82 min
+- Total plans completed: 15
+- Average duration: 5.7 min
+- Total execution time: 86 min
 
 **By Phase:**
 
@@ -31,11 +31,11 @@ Progress: ████░░░░░░ 44%
 | 2 | 3/3 | 16 min | 5.3 min |
 | 3 | 3/3 | 16 min | 5.3 min |
 | 4 | 3/3 | 16 min | 5.3 min |
-| 5 | 2/3 | 8 min | 4.0 min |
+| 5 | 3/3 | 12 min | 4.0 min |
 
 **Recent Trend:**
-- Last 5 plans: 04-02 (7 min), 04-03 (6 min), 05-01 (4 min), 05-02 (4 min)
-- Trend: Fast (~5.3 min avg)
+- Last 5 plans: 04-03 (6 min), 05-01 (4 min), 05-02 (4 min), 05-03 (4 min)
+- Trend: Fast (~4.5 min avg)
 
 ## Accumulated Context
 
@@ -83,6 +83,8 @@ Recent decisions affecting current work:
 - operationType (not type) in WebSocketMessage payload to avoid collision with message-level type field
 - JOB_STARTED emitted before browser context acquisition to signal job start immediately
 - All processor broadcasts standardized to { type, payload, timestamp } WebSocketMessage format
+- onEmit optional in OperationHandler — handlers opt-in to domain-specific event emission
+- Domain events emitted after pool.withTransaction() completes (not inside transaction)
 
 ### Deferred Issues
 
@@ -95,5 +97,5 @@ None.
 ## Session Continuity
 
 Last session: 2026-02-20
-Stopped at: Completed 05-02-PLAN.md — Phase 5 in progress (2/3)
+Stopped at: Completed 05-03-PLAN.md — Phase 5 complete (3/3)
 Resume file: None
