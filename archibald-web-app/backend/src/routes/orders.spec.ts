@@ -68,7 +68,7 @@ const mockOrder = {
   invoiceLastSettlementDate: null,
   invoiceClosedDate: null,
   currentState: 'created',
-  sentToMilanoAt: null,
+  sentToVeronaAt: null,
   archibaldOrderId: 'ARC-001',
   totalVatAmount: null,
   totalWithVat: null,
@@ -268,9 +268,9 @@ describe('createOrdersRouter', () => {
     });
   });
 
-  describe('POST /api/orders/:orderId/send-to-milano', () => {
+  describe('POST /api/orders/:orderId/send-to-verona', () => {
     test('enqueues send-to-verona job', async () => {
-      const res = await request(app).post('/api/orders/ORD-001/send-to-milano');
+      const res = await request(app).post('/api/orders/ORD-001/send-to-verona');
 
       expect(res.status).toBe(200);
       expect(res.body.success).toBe(true);

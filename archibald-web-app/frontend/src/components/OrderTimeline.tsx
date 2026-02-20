@@ -20,7 +20,7 @@ interface OrderTimelineProps {
 const stateLabels: Record<string, string> = {
   creato: "Creato",
   piazzato: "Piazzato su Archibald",
-  inviato_milano: "Inviato a Verona",
+  inviato_verona: "Inviato a Verona",
   modifica: "In modifica",
   trasferito: "Trasferito",
   transfer_error: "Errore trasferimento",
@@ -74,7 +74,7 @@ function getStatusColor(status: string): string {
   if (
     statusLower.includes("creato") ||
     statusLower.includes("piazzato") ||
-    statusLower.includes("inviato_milano")
+    statusLower.includes("inviato_verona")
   )
     return "#9e9e9e"; // Gray
   return "#9e9e9e"; // Gray default

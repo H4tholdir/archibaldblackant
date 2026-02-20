@@ -26,8 +26,8 @@ export const config = {
     protocolTimeout: 300000, // 5 minutes - increased for large orders (12+ items)
   },
   features: {
-    // Feature flag for Send to Milano - disabled by default until safe test order available
-    sendToMilanoEnabled: process.env.SEND_TO_MILANO_ENABLED === "true",
+    // Feature flag for Send to Verona - disabled by default until safe test order available
+    sendToVeronaEnabled: process.env.SEND_TO_VERONA_ENABLED === "true" || process.env.SEND_TO_MILANO_ENABLED === "true",
   },
   share: {
     baseUrl: process.env.SHARE_BASE_URL || "http://localhost:3000",

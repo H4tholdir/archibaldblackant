@@ -18,7 +18,7 @@ async function handleSendToVerona(
   data: SendToVeronaData,
   userId: string,
   onProgress: (progress: number, label?: string) => void,
-): Promise<{ success: boolean; message: string; sentToMilanoAt: string }> {
+): Promise<{ success: boolean; message: string; sentToVeronaAt: string }> {
   bot.setProgressCallback(async (category) => {
     onProgress(50, category);
   });
@@ -30,20 +30,20 @@ async function handleSendToVerona(
     throw new Error(result.message);
   }
 
-  const sentToMilanoAt = new Date().toISOString();
+  const sentToVeronaAt = new Date().toISOString();
 
   onProgress(70, 'Aggiornamento stato ordine');
 
   await pool.query(
     `UPDATE agents.order_records
-     SET current_state = $1, sent_to_milano_at = $2, last_sync = $3
+     SET current_state = $1, sent_to_verona_at = $2, last_sync = $3
      WHERE id = $4 AND user_id = $5`,
-    ['inviato_milano', sentToMilanoAt, Math.floor(Date.now() / 1000), data.orderId, userId],
+    ['inviato_verona', sentToVeronaAt, Math.floor(Date.now() / 1000), data.orderId, userId],
   );
 
   onProgress(100, 'Invio completato');
 
-  return { success: true, message: result.message, sentToMilanoAt };
+  return { success: true, message: result.message, sentToVeronaAt };
 }
 
 function createSendToVeronaHandler(pool: DbPool, createBot: (userId: string) => SendToVeronaBot): OperationHandler {

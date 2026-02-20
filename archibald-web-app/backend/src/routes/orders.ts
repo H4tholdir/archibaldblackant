@@ -146,15 +146,15 @@ function createOrdersRouter(deps: OrdersRouterDeps) {
     }
   });
 
-  router.post('/:orderId/send-to-milano', async (req: AuthRequest, res) => {
+  router.post('/:orderId/send-to-verona', async (req: AuthRequest, res) => {
     try {
       const userId = req.user!.userId;
       const { orderId } = req.params;
       const jobId = await queue.enqueue('send-to-verona', userId, { orderId });
       res.json({ success: true, jobId });
     } catch (error) {
-      logger.error('Error enqueuing send-to-milano', { error });
-      res.status(500).json({ success: false, error: 'Errore invio ordine a Milano' });
+      logger.error('Error enqueuing send-to-verona', { error });
+      res.status(500).json({ success: false, error: 'Errore invio ordine a Verona' });
     }
   });
 

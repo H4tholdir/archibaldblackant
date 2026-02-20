@@ -577,7 +577,7 @@ export function OrderHistory() {
       }
 
       const response = await fetchWithRetry(
-        `/api/orders/${modalOrderId}/send-to-milano`,
+        `/api/orders/${modalOrderId}/send-to-verona`,
         {
           method: "POST",
           headers: {

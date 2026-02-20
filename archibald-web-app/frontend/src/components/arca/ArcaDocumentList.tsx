@@ -109,7 +109,7 @@ const HEADER_HEIGHT = ARCA_GRID.elencoHeaderHeight;
 
 const STATE_LABELS: Record<string, string> = {
   piazzato: "Su Archibald",
-  inviato_milano: "Attesa approv.",
+  inviato_verona: "Attesa approv.",
   ordine_aperto: "In lavorazione",
   trasferito: "In lavorazione",
   transfer_error: "Intervento",

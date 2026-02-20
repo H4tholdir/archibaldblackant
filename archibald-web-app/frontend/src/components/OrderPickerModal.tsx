@@ -25,7 +25,7 @@ interface OrderPickerModalProps {
 
 const STATE_COLORS: Record<string, { bg: string; color: string }> = {
   piazzato: { bg: "#e5e7eb", color: "#374151" },
-  inviato_milano: { bg: "#dbeafe", color: "#1e40af" },
+  inviato_verona: { bg: "#dbeafe", color: "#1e40af" },
   trasferito: { bg: "#d1fae5", color: "#065f46" },
   transfer_error: { bg: "#fee2e2", color: "#991b1b" },
   modifica: { bg: "#fef3c7", color: "#92400e" },

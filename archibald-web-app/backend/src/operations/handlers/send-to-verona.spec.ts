@@ -31,7 +31,7 @@ describe('handleSendToVerona', () => {
     expect(bot.sendOrderToVerona).toHaveBeenCalledWith('ORD-001');
   });
 
-  test('updates order state to inviato_milano in DB', async () => {
+  test('updates order state to inviato_verona in DB', async () => {
     const pool = createMockPool();
     const bot = createMockBot();
 
@@ -42,7 +42,7 @@ describe('handleSendToVerona', () => {
     expect(updateCalls).toHaveLength(1);
 
     const params = updateCalls[0][1] as unknown[];
-    expect(params).toContain('inviato_milano');
+    expect(params).toContain('inviato_verona');
     expect(params).toContain('ORD-001');
     expect(params).toContain('user-1');
   });
@@ -58,15 +58,15 @@ describe('handleSendToVerona', () => {
     expect(call[0]).toContain('UPDATE agents.order_records');
   });
 
-  test('returns success with sentToMilanoAt timestamp', async () => {
+  test('returns success with sentToVeronaAt timestamp', async () => {
     const pool = createMockPool();
     const bot = createMockBot();
 
     const result = await handleSendToVerona(pool, bot, sampleData, 'user-1', vi.fn());
 
     expect(result.success).toBe(true);
-    expect(result.sentToMilanoAt).toBeDefined();
-    expect(typeof result.sentToMilanoAt).toBe('string');
+    expect(result.sentToVeronaAt).toBeDefined();
+    expect(typeof result.sentToVeronaAt).toBe('string');
   });
 
   test('throws when bot returns success: false', async () => {
