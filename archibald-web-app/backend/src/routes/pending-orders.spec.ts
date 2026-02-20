@@ -33,6 +33,7 @@ function createMockDeps(): PendingOrdersRouterDeps {
     getPendingOrders: vi.fn().mockResolvedValue([mockPendingOrder]),
     upsertPendingOrder: vi.fn().mockResolvedValue(upsertResult),
     deletePendingOrder: vi.fn().mockResolvedValue(true),
+    broadcast: vi.fn(),
   };
 }
 
@@ -181,6 +182,83 @@ describe('createPendingOrdersRouter', () => {
 
       expect(res.status).toBe(500);
       expect(res.body.success).toBe(false);
+    });
+  });
+
+  describe('broadcast events', () => {
+    const validOrder = {
+      id: 'po-1',
+      customerId: 'cust-1',
+      customerName: 'Acme Corp',
+      itemsJson: [{ code: 'ART-001', quantity: 2 }],
+      deviceId: 'dev-1',
+    };
+
+    test('POST emits PENDING_CREATED for new orders', async () => {
+      (deps.upsertPendingOrder as ReturnType<typeof vi.fn>).mockResolvedValue({ id: 'po-1', action: 'created', serverUpdatedAt: 1708300100 });
+
+      const res = await request(app)
+        .post('/api/pending-orders')
+        .send({ orders: [validOrder] });
+
+      expect(res.status).toBe(200);
+      await vi.waitFor(() => {
+        expect(deps.broadcast).toHaveBeenCalledWith('user-1', {
+          type: 'PENDING_CREATED',
+          payload: { orderIds: ['po-1'], count: 1 },
+          timestamp: expect.any(String),
+        });
+      });
+    });
+
+    test('POST emits PENDING_UPDATED for existing orders', async () => {
+      (deps.upsertPendingOrder as ReturnType<typeof vi.fn>).mockResolvedValue({ id: 'po-1', action: 'updated', serverUpdatedAt: 1708300100 });
+
+      const res = await request(app)
+        .post('/api/pending-orders')
+        .send({ orders: [validOrder] });
+
+      expect(res.status).toBe(200);
+      await vi.waitFor(() => {
+        expect(deps.broadcast).toHaveBeenCalledWith('user-1', {
+          type: 'PENDING_UPDATED',
+          payload: { orderIds: ['po-1'], count: 1 },
+          timestamp: expect.any(String),
+        });
+      });
+    });
+
+    test('DELETE emits PENDING_DELETED on success', async () => {
+      const res = await request(app).delete('/api/pending-orders/po-1');
+
+      expect(res.status).toBe(200);
+      await vi.waitFor(() => {
+        expect(deps.broadcast).toHaveBeenCalledWith('user-1', {
+          type: 'PENDING_DELETED',
+          payload: { orderId: 'po-1' },
+          timestamp: expect.any(String),
+        });
+      });
+    });
+
+    test('DELETE 404 does not emit event', async () => {
+      (deps.deletePendingOrder as ReturnType<typeof vi.fn>).mockResolvedValue(false);
+
+      const res = await request(app).delete('/api/pending-orders/nonexistent');
+
+      expect(res.status).toBe(404);
+      expect(deps.broadcast).not.toHaveBeenCalled();
+    });
+
+    test('broadcast failure does not affect HTTP response', async () => {
+      (deps.broadcast as ReturnType<typeof vi.fn>).mockImplementation(() => { throw new Error('ws error'); });
+
+      const res = await request(app)
+        .post('/api/pending-orders')
+        .send({ orders: [validOrder] });
+
+      expect(res.status).toBe(200);
+      expect(res.body).toEqual({ success: true, results: [upsertResult] });
     });
   });
 });
