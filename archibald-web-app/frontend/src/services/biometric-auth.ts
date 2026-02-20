@@ -3,12 +3,12 @@
  * Uses Web Authentication API (WebAuthn) for platform biometric unlock
  */
 
-export interface BiometricCapability {
+interface BiometricCapability {
   available: boolean;
   platformLabel: string; // "Face ID / Touch ID", "Impronta digitale", etc.
 }
 
-export class BiometricAuth {
+class BiometricAuth {
   /**
    * Check if biometric authentication is available on this device
    */

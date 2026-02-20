@@ -143,25 +143,11 @@ export const arcaPanel: CSSProperties = {
   padding: "4px",
 };
 
-export const arcaComeConvenuto: CSSProperties = {
-  ...ARCA_FONT,
-  color: ARCA_COLORS.comeConvenuto,
-  fontWeight: "bold",
-  fontStyle: "italic",
-};
-
 export function formatArcaCurrency(value: number | undefined): string {
   if (value == null) return "";
   return value.toLocaleString("it-IT", {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
-  });
-}
-
-export function formatArcaDecimal(value: number, decimals = 6): string {
-  return value.toLocaleString("it-IT", {
-    minimumFractionDigits: decimals,
-    maximumFractionDigits: decimals,
   });
 }
 
@@ -241,19 +227,3 @@ export const arcaSectionLabel: CSSProperties = {
   fontSize: "10px",
 };
 
-export const arcaGreyHeader: CSSProperties = {
-  ...ARCA_FONT,
-  backgroundColor: "#C0C0C0",
-  color: "#000",
-  padding: "1px 6px",
-  fontWeight: "normal",
-  fontStyle: "italic",
-  marginBottom: "1px",
-};
-
-export const arcaDescriptionRed: CSSProperties = {
-  ...ARCA_FONT,
-  color: ARCA_COLORS.comeConvenuto,
-  fontStyle: "italic",
-  marginLeft: "4px",
-};

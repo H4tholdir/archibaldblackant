@@ -54,9 +54,3 @@ export function getPlatform(): string {
   return navigator.platform || "Unknown";
 }
 
-/**
- * Clear device ID (for testing or logout)
- */
-export function clearDeviceId(): void {
-  localStorage.removeItem(DEVICE_ID_KEY);
-}

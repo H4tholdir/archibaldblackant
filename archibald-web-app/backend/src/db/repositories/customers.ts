@@ -564,7 +564,6 @@ export {
   getCustomerCount,
   getLastSyncTime,
   upsertCustomers,
-  findDeletedCustomers,
   deleteCustomers,
   upsertSingleCustomer,
   updateCustomerBotStatus,
@@ -574,9 +573,6 @@ export {
   deleteCustomerPhoto,
   mapRowToCustomer,
   calculateHash,
-  type CustomerRow,
   type Customer,
-  type CustomerInput,
   type CustomerFormInput,
-  type UpsertResult,
 };

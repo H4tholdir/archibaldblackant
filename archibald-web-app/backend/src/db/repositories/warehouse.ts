@@ -429,13 +429,7 @@ export {
   batchMarkSold,
   batchTransfer,
   getMetadata,
-  mapRowToBox,
-  mapRowToBoxDetail,
-  mapRowToItem,
   type WarehouseBox,
   type WarehouseBoxDetail,
   type WarehouseItem,
-  type WarehouseBoxRow,
-  type WarehouseBoxDetailRow,
-  type WarehouseItemRow,
 };

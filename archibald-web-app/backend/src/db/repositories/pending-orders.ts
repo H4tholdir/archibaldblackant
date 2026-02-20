@@ -166,9 +166,6 @@ export {
   getPendingOrders,
   upsertPendingOrder,
   deletePendingOrder,
-  mapRowToPendingOrder,
-  type PendingOrderRow,
   type PendingOrder,
   type PendingOrderInput,
-  type UpsertResult,
 };

@@ -23,9 +23,9 @@ interface Toast {
 
 export function ProfilePage() {
   const { scrollFieldIntoView, keyboardPaddingStyle } = useKeyboardScroll();
-  // User info (from localStorage or auth context)
-  const fullName = localStorage.getItem("archibald_fullName") || "Utente";
-  const username = localStorage.getItem("archibald_username") || "";
+  const lastUserJson = localStorage.getItem("archibald_last_user");
+  const lastUser = lastUserJson ? JSON.parse(lastUserJson) as { fullName?: string } : null;
+  const fullName = lastUser?.fullName ?? "Utente";
 
   // Current target state (from API)
   const [currentTarget, setCurrentTarget] = useState<TargetData | null>(null);
@@ -299,9 +299,6 @@ export function ProfilePage() {
           <span style={{ fontSize: "48px" }}>👤</span>
           <div>
             <h2 style={styles.sectionTitle}>{fullName}</h2>
-            <p style={{ color: "#7f8c8d", fontSize: "16px", margin: 0 }}>
-              @{username}
-            </p>
           </div>
         </div>
       </div>

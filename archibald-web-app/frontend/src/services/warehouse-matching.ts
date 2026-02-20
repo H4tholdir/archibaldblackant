@@ -4,7 +4,7 @@ import { getWarehouseItems } from "../api/warehouse";
 /**
  * Parsed article code structure
  */
-export interface ArticleCodeParts {
+interface ArticleCodeParts {
   raw: string; // Original code
   figura: string; // First part (e.g., "H129FSQ", "801")
   gambo: string | null; // Second part (e.g., "104", "314")
@@ -237,20 +237,3 @@ export async function findWarehouseMatches(
   });
 }
 
-/**
- * Get total available quantity for an article code (across all matches)
- */
-export async function getTotalAvailableQuantity(
-  articleCode: string,
-): Promise<number> {
-  const matches = await findWarehouseMatches(articleCode);
-  return matches.reduce((sum, match) => sum + match.availableQty, 0);
-}
-
-/**
- * Check if article has exact match in warehouse
- */
-export async function hasExactMatch(articleCode: string): Promise<boolean> {
-  const matches = await findWarehouseMatches(articleCode);
-  return matches.some((match) => match.level === "exact");
-}

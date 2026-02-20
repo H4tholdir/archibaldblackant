@@ -14,23 +14,6 @@ export async function getWarehouseItems(): Promise<WarehouseItem[]> {
   return data.items;
 }
 
-export async function storeWarehouseItems(
-  items: WarehouseItem[],
-  clearExisting?: boolean,
-): Promise<{ success: boolean; results: unknown[] }> {
-  const response = await fetchWithRetry(`${API_BASE}/api/warehouse/items/bulk`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ items, clearExisting }),
-  });
-
-  if (!response.ok) {
-    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-  }
-
-  return response.json();
-}
-
 export async function deleteWarehouseItem(id: number): Promise<void> {
   const response = await fetchWithRetry(
     `${API_BASE}/api/warehouse/items/${id}`,

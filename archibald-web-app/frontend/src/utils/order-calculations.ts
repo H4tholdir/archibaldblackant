@@ -1,6 +1,6 @@
 export const VAT_RATE = 0.22; // 22% Italy standard
-export const SHIPPING_COST = 15.45; // Spese di trasporto K3 (imponibile)
-export const SHIPPING_TAX_RATE = 0.22; // IVA spese di trasporto
+const SHIPPING_COST = 15.45; // Spese di trasporto K3 (imponibile)
+const SHIPPING_TAX_RATE = 0.22; // IVA spese di trasporto
 export const SHIPPING_THRESHOLD = 200; // Soglia imponibile per spese
 
 export interface ItemCalculationInput {

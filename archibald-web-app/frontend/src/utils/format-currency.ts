@@ -35,19 +35,6 @@ export function formatCurrencyWithCurrency(
   }).format(amount);
 }
 
-export function formatCurrencyCompactWithCurrency(
-  amount: number,
-  currency: string,
-): string {
-  return new Intl.NumberFormat("it-IT", {
-    style: "currency",
-    currency,
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
-    useGrouping: true,
-  }).format(amount);
-}
-
 export function formatPrice(price: number | null): string {
   if (price === null) return "N/A";
   return fullFormatter.format(price);

@@ -79,8 +79,6 @@ type OperationJobResult = {
 export {
   OPERATION_TYPES,
   OPERATION_PRIORITIES,
-  WRITE_OPERATIONS,
-  SCHEDULED_SYNCS,
   isWriteOperation,
   isScheduledSync,
   type OperationType,
