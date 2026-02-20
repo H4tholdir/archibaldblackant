@@ -50,6 +50,7 @@ COPY --from=deps /app/node_modules ./node_modules
 
 # Copy built application
 COPY --from=builder /app/dist ./dist
+COPY archibald-web-app/backend/src/db/migrations ./dist/db/migrations
 COPY archibald-web-app/backend/package*.json ./
 
 # Copy Python scripts for PDF parsing
