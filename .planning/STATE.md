@@ -5,23 +5,23 @@
 See: .planning/PROJECT.md (updated 2026-02-20)
 
 **Core value:** Riportare la PWA a perfetto funzionamento multi-utente e multi-dispositivo, eliminando ogni race condition, stub silenzioso e feature rotta, con copertura test che garantisca stabilità nel tempo.
-**Current focus:** Phase 8: Unit & Integration Tests (in progress)
+**Current focus:** Phase 8: Unit & Integration Tests (complete) → Phase 9 next
 
 ## Current Position
 
 Phase: 8 of 10 (Unit & Integration Tests)
-Plan: 4 of 5 in current phase
-Status: In progress
-Last activity: 2026-02-20 — Completed 08-04-PLAN.md
+Plan: 5 of 5 in current phase
+Status: Phase complete
+Last activity: 2026-02-20 — Completed 08-05-PLAN.md
 
-Progress: █████████░ 79%
+Progress: █████████░ 82%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 26
+- Total plans completed: 27
 - Average duration: 5.4 min
-- Total execution time: 140 min
+- Total execution time: 147 min
 
 **By Phase:**
 
@@ -34,11 +34,11 @@ Progress: █████████░ 79%
 | 5 | 3/3 | 12 min | 4.0 min |
 | 6 | 4/4 | 18 min | 4.5 min |
 | 7 | 3/3 | 18 min | 6.0 min |
-| 8 | 4/5 | 18 min | 4.5 min |
+| 8 | 5/5 | 25 min | 5.0 min |
 
 **Recent Trend:**
-- Last 5 plans: 08-01 (4 min), 08-02 (4 min), 08-03 (7 min), 08-04 (3 min)
-- Trend: Fast (~4.5 min avg)
+- Last 5 plans: 08-01 (4 min), 08-02 (4 min), 08-03 (7 min), 08-04 (3 min), 08-05 (7 min)
+- Trend: Fast (~5.0 min avg)
 
 ## Accumulated Context
 
@@ -106,6 +106,8 @@ Recent decisions affecting current work:
 - All 4 Group C stubs wired (all actively called by frontend)
 - warehouse validateArticle response shape aligned to frontend contract (matchedProduct, confidence, suggestions)
 - Query param compat: backend accepts both ?code= and ?articleCode= for warehouse validate
+- Product sync has no hash-based dedup — always UPDATE for existing products
+- Migration 010 adds missing columns (figure, bulk_article_id, leg_package, size) to shared.products
 
 ### Deferred Issues
 
@@ -118,5 +120,5 @@ None.
 ## Session Continuity
 
 Last session: 2026-02-20
-Stopped at: Completed 08-04-PLAN.md (4/5 in Phase 8)
+Stopped at: Completed 08-05-PLAN.md — Phase 8 complete
 Resume file: None
