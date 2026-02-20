@@ -232,11 +232,12 @@ async function main() {
     handlers,
   });
 
-  const worker = new Worker('operations', async (job) => {
+  const worker = new Worker('operations', async (job, token, signal) => {
     await processor.processJob({
       id: job.id ?? '',
       data: job.data,
       updateProgress: (p) => job.updateProgress(p),
+      signal,
     });
   }, {
     connection: { host: redisHost, port: redisPort },

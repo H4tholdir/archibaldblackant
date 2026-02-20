@@ -199,12 +199,14 @@ describe('createOperationProcessor', () => {
     });
   });
 
-  test('passes context, job data and updateProgress to handler', async () => {
+  test('passes context, job data, updateProgress, and signal to handler', async () => {
     const handler = vi.fn().mockResolvedValue({ done: true });
     const { processor } = createProcessor({
       handlers: { 'submit-order': handler },
     });
+    const ac = new AbortController();
     const job = createMockJob();
+    (job as any).signal = ac.signal;
 
     await processor.processJob(job as any);
 
@@ -213,7 +215,27 @@ describe('createOperationProcessor', () => {
       { orderId: '1' },
       'user-a',
       expect.any(Function),
+      ac.signal,
     );
+  });
+
+  test('processJob works when signal is undefined', async () => {
+    const handler = vi.fn().mockResolvedValue({ ok: true });
+    const { processor } = createProcessor({
+      handlers: { 'submit-order': handler },
+    });
+    const job = createMockJob();
+
+    const result = await processor.processJob(job as any);
+
+    expect(handler).toHaveBeenCalledWith(
+      { id: 'ctx-1' },
+      { orderId: '1' },
+      'user-a',
+      expect.any(Function),
+      undefined,
+    );
+    expect(result.success).toBe(true);
   });
 
   test('throws for unknown operation type', async () => {

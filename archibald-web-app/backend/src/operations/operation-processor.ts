@@ -8,6 +8,7 @@ type OperationHandler = (
   data: Record<string, unknown>,
   userId: string,
   onProgress: (progress: number, label?: string) => void,
+  signal?: AbortSignal,
 ) => Promise<Record<string, unknown>>;
 
 type BroadcastFn = (userId: string, event: Record<string, unknown>) => void;
@@ -28,6 +29,7 @@ type JobLike = {
   id: string;
   data: OperationJobData;
   updateProgress: (progress: number | object) => Promise<void>;
+  signal?: AbortSignal;
 };
 
 type ProcessorDeps = {
@@ -89,7 +91,7 @@ function createOperationProcessor(deps: ProcessorDeps) {
         job.updateProgress(label ? { progress, label } : progress);
       };
 
-      const result = await handler(context, data, userId, onProgress);
+      const result = await handler(context, data, userId, onProgress, job.signal);
 
       await browserPool.releaseContext(userId, context, true);
       context = null;
