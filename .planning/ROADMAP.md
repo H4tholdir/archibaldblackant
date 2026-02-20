@@ -86,12 +86,13 @@ Plans:
 **Goal**: Dati corretti (IVA, hash), input validati, rate limiting, PDF persistenti
 **Depends on**: Phase 4
 **Research**: Unlikely (DB queries, crypto, Express middleware)
-**Plans**: 3 plans
+**Plans**: 4 plans
 
 Plans:
-- [ ] 06-01: IVA da database (leggere da tabella prodotti/prezzi invece di hardcoded 22%)
-- [ ] 06-02: Standardizzare hashing a SHA-256 (eliminare MD5 da order-sync e price-sync)
-- [ ] 06-03: Validazione parseInt con isNaN su query params + rate limiting su route costose + PDF store su filesystem con TTL
+- [ ] 06-01: Fix IVA data flow (products.service.ts shape mismatch) + remove dead order-calculation code (VAT_RATE, calculateItemTotals, calculateOrderTotals, reverseCalculateGlobalDiscount)
+- [ ] 06-02: Standardizzare hashing a SHA-256 (eliminare MD5 da price-sync, order-sync, orders repo) + extract shared computeOrderHash
+- [ ] 06-03: Validazione parseInt con isNaN su route params + install express-rate-limit con 3 tier (global, strict, auth)
+- [ ] 06-04: PDF filesystem store con TTL cleanup (sostituire in-memory Map) + cleanup scheduler
 
 ### Phase 7: Missing Feature Implementation
 **Goal**: Tutti gli endpoint stub attivamente usati dal frontend funzionanti
