@@ -36,14 +36,9 @@ describe("ProductService", () => {
         ok: true,
         json: async () => ({
           success: true,
-          data: {
-            products: [
-              { id: "P001", name: "Vite M6", articleName: "V001", description: "Test", price: 12.5 },
-            ],
-            totalCount: 1,
-            returnedCount: 1,
-            limited: false,
-          },
+          data: [
+            { id: "P001", name: "Vite M6", articleName: "V001", description: "Test", price: 12.5 },
+          ],
         }),
       } as Response);
 
@@ -67,7 +62,7 @@ describe("ProductService", () => {
         ok: true,
         json: async () => ({
           success: true,
-          data: { products: [], totalCount: 0, returnedCount: 0, limited: false },
+          data: [],
         }),
       } as Response);
 
@@ -89,14 +84,9 @@ describe("ProductService", () => {
         ok: true,
         json: async () => ({
           success: true,
-          data: {
-            products: [
-              { id: "P001", name: "Vite M6", articleName: "V001", description: "Test", price: 12.5 },
-            ],
-            totalCount: 1,
-            returnedCount: 1,
-            limited: false,
-          },
+          data: [
+            { id: "P001", name: "Vite M6", articleName: "V001", description: "Test", price: 12.5 },
+          ],
         }),
       } as Response);
 
@@ -120,7 +110,7 @@ describe("ProductService", () => {
         ok: true,
         json: async () => ({
           success: true,
-          data: { products: [], totalCount: 0, returnedCount: 0, limited: false },
+          data: [],
         }),
       } as Response);
 

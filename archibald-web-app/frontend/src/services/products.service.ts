@@ -65,7 +65,7 @@ export class ProductService {
       if (!response.ok) throw new Error("API fetch failed");
 
       const data = await response.json();
-      const apiProducts: any[] = data.data?.products || [];
+      const apiProducts: any[] = data.data || [];
 
       return apiProducts.map((p) => {
         const product = mapApiProductToLocal(p);
@@ -102,7 +102,7 @@ export class ProductService {
       if (!response.ok) return null;
 
       const data = await response.json();
-      const apiProducts: any[] = data.data?.products || [];
+      const apiProducts: any[] = data.data || [];
 
       const match = apiProducts.find((p: any) => p.id === id);
       if (!match) return null;

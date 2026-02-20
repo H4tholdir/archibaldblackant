@@ -11,7 +11,7 @@ export class PriceService {
       if (!response.ok) return null;
 
       const data = await response.json();
-      const products: any[] = data.data?.products || [];
+      const products: any[] = data.data || [];
 
       const match = products.find((p: any) => p.id === articleId);
       return match?.price ?? null;
@@ -31,7 +31,7 @@ export class PriceService {
       if (!response.ok) return null;
 
       const data = await response.json();
-      const products: any[] = data.data?.products || [];
+      const products: any[] = data.data || [];
 
       const match = products.find((p: any) => p.id === articleId);
       if (!match) return null;
