@@ -61,4 +61,35 @@ describe('syncOrders', () => {
 
     expect(onProgress).toHaveBeenCalledWith(100, expect.any(String));
   });
+
+  test('stops during DB loop when shouldStop returns true mid-iteration', async () => {
+    const totalRecords = 15;
+    const orders = Array.from({ length: totalRecords }, (_, i) => ({
+      id: `ORD-${String(i).padStart(3, '0')}`,
+      orderNumber: `SO-${String(i).padStart(3, '0')}`,
+      customerProfileId: `C${i}`,
+      customerName: `Customer ${i}`,
+      creationDate: '2026-01-01',
+      salesStatus: 'Open',
+    }));
+    const pool = createMockPool();
+    (pool.query as ReturnType<typeof vi.fn>).mockResolvedValue({ rows: [], rowCount: 0 });
+    const deps = createMockDeps(pool);
+    (deps.parsePdf as ReturnType<typeof vi.fn>).mockResolvedValue(orders);
+
+    let dbLoopCalls = 0;
+    const shouldStop = () => {
+      dbLoopCalls++;
+      return dbLoopCalls > 3;
+    };
+
+    const result = await syncOrders(deps, 'user-1', vi.fn(), shouldStop);
+
+    expect(result.success).toBe(false);
+    expect(result.error).toContain('db-loop');
+
+    const insertCalls = (pool.query as ReturnType<typeof vi.fn>).mock.calls
+      .filter((c: unknown[]) => typeof c[0] === 'string' && (c[0] as string).includes('INSERT INTO agents.order_records'));
+    expect(insertCalls.length).toBeLessThan(totalRecords);
+  });
 });

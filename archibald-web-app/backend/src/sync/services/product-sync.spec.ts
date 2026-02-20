@@ -49,4 +49,32 @@ describe('syncProducts', () => {
     await syncProducts(deps, onProgress, () => false);
     expect(onProgress).toHaveBeenCalledWith(100, expect.any(String));
   });
+
+  test('stops during DB loop when shouldStop returns true mid-iteration', async () => {
+    const totalRecords = 15;
+    const products = Array.from({ length: totalRecords }, (_, i) => ({
+      id: `P-${String(i).padStart(3, '0')}`,
+      name: `Product ${i}`,
+      searchName: `PRODUCT-${i}`,
+      groupCode: `GRP${i}`,
+      packageContent: 1,
+    }));
+    const deps = createMockDeps();
+    (deps.parsePdf as ReturnType<typeof vi.fn>).mockResolvedValue(products);
+
+    let dbLoopCalls = 0;
+    const shouldStop = () => {
+      dbLoopCalls++;
+      return dbLoopCalls > 3;
+    };
+
+    const result = await syncProducts(deps, vi.fn(), shouldStop);
+
+    expect(result.success).toBe(false);
+    expect(result.error).toContain('db-loop');
+
+    const insertCalls = (deps.pool.query as ReturnType<typeof vi.fn>).mock.calls
+      .filter((c: unknown[]) => typeof c[0] === 'string' && (c[0] as string).includes('INSERT INTO shared.products'));
+    expect(insertCalls.length).toBeLessThan(totalRecords);
+  });
 });

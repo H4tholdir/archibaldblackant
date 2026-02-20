@@ -49,4 +49,32 @@ describe('syncPrices', () => {
     await syncPrices(deps, onProgress, () => false);
     expect(onProgress).toHaveBeenCalledWith(100, expect.any(String));
   });
+
+  test('stops during DB loop when shouldStop returns true mid-iteration', async () => {
+    const totalRecords = 15;
+    const prices = Array.from({ length: totalRecords }, (_, i) => ({
+      productId: `P-${String(i).padStart(3, '0')}`,
+      productName: `Product ${i}`,
+      unitPrice: (i + 1) * 5,
+      currency: 'EUR',
+      priceValidFrom: '2026-01-01',
+    }));
+    const deps = createMockDeps();
+    (deps.parsePdf as ReturnType<typeof vi.fn>).mockResolvedValue(prices);
+
+    let dbLoopCalls = 0;
+    const shouldStop = () => {
+      dbLoopCalls++;
+      return dbLoopCalls > 3;
+    };
+
+    const result = await syncPrices(deps, vi.fn(), shouldStop);
+
+    expect(result.success).toBe(false);
+    expect(result.error).toContain('db-loop');
+
+    const insertCalls = (deps.pool.query as ReturnType<typeof vi.fn>).mock.calls
+      .filter((c: unknown[]) => typeof c[0] === 'string' && (c[0] as string).includes('INSERT INTO shared.prices'));
+    expect(insertCalls.length).toBeLessThan(totalRecords);
+  });
 });

@@ -51,4 +51,29 @@ describe('syncInvoices', () => {
     await syncInvoices(deps, 'user-1', onProgress, () => false);
     expect(onProgress).toHaveBeenCalledWith(100, expect.any(String));
   });
+
+  test('stops during DB loop when shouldStop returns true mid-iteration', async () => {
+    const totalRecords = 15;
+    const invoices = Array.from({ length: totalRecords }, (_, i) => ({
+      orderNumber: `SO-${String(i).padStart(3, '0')}`,
+      invoiceNumber: `INV-${String(i).padStart(3, '0')}`,
+      invoiceDate: '2026-01-20',
+      invoiceAmount: `${(i + 1) * 100}.00`,
+    }));
+    const pool = createMockPool();
+    (pool.query as ReturnType<typeof vi.fn>).mockResolvedValue({ rows: [{ id: `ORD-1` }], rowCount: 1 });
+    const deps = createMockDeps(pool);
+    (deps.parsePdf as ReturnType<typeof vi.fn>).mockResolvedValue(invoices);
+
+    let dbLoopCalls = 0;
+    const shouldStop = () => {
+      dbLoopCalls++;
+      return dbLoopCalls > 3;
+    };
+
+    const result = await syncInvoices(deps, 'user-1', vi.fn(), shouldStop);
+
+    expect(result.success).toBe(false);
+    expect(result.error).toContain('db-loop');
+  });
 });

@@ -75,7 +75,13 @@ async function syncOrders(
     const computeHash = (o: ParsedOrder) =>
       [o.id, o.orderNumber, o.salesStatus, o.documentStatus, o.transferStatus, o.totalAmount].join('|');
 
+    let loopIndex = 0;
     for (const order of parsedOrders) {
+      if (loopIndex > 0 && loopIndex % 10 === 0 && shouldStop()) {
+        throw new SyncStoppedError('db-loop');
+      }
+      loopIndex++;
+
       const hash = require('crypto').createHash('md5').update(computeHash(order)).digest('hex');
 
       const { rows: [existing] } = await pool.query<{ hash: string; order_number: string }>(

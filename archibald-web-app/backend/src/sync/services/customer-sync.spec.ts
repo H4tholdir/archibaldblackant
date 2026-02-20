@@ -102,4 +102,31 @@ describe('syncCustomers', () => {
     const lastCall = onProgress.mock.calls[onProgress.mock.calls.length - 1];
     expect(lastCall[0]).toBe(100);
   });
+
+  test('stops during DB loop when shouldStop returns true mid-iteration', async () => {
+    const totalRecords = 15;
+    const customers = Array.from({ length: totalRecords }, (_, i) => ({
+      customerProfile: `CUST-${String(i).padStart(3, '0')}`,
+      name: `Customer ${i}`,
+      vatNumber: `IT${i}`,
+      phone: `+39${i}`,
+    }));
+    const deps = createMockDeps();
+    (deps.parsePdf as ReturnType<typeof vi.fn>).mockResolvedValue(customers);
+
+    let dbLoopCalls = 0;
+    const shouldStop = () => {
+      dbLoopCalls++;
+      return dbLoopCalls > 3;
+    };
+
+    const result = await syncCustomers(deps, 'user-1', vi.fn(), shouldStop);
+
+    expect(result.success).toBe(false);
+    expect(result.error).toContain('db-loop');
+
+    const insertCalls = (deps.pool.query as ReturnType<typeof vi.fn>).mock.calls
+      .filter((c: unknown[]) => typeof c[0] === 'string' && (c[0] as string).includes('INSERT INTO agents.customers'));
+    expect(insertCalls.length).toBeLessThan(totalRecords);
+  });
 });

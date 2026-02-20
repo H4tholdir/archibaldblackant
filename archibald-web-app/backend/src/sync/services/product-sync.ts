@@ -64,7 +64,13 @@ async function syncProducts(
     let updatedProducts = 0;
     const now = Math.floor(Date.now() / 1000);
 
+    let loopIndex = 0;
     for (const p of products) {
+      if (loopIndex > 0 && loopIndex % 10 === 0 && shouldStop()) {
+        throw new SyncStoppedError('db-loop');
+      }
+      loopIndex++;
+
       const { rows: [existing] } = await pool.query<{ id: string }>(
         'SELECT id FROM shared.products WHERE id = $1',
         [p.id],

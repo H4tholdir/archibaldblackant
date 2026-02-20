@@ -51,4 +51,28 @@ describe('syncDdt', () => {
     await syncDdt(deps, 'user-1', onProgress, () => false);
     expect(onProgress).toHaveBeenCalledWith(100, expect.any(String));
   });
+
+  test('stops during DB loop when shouldStop returns true mid-iteration', async () => {
+    const totalRecords = 15;
+    const ddts = Array.from({ length: totalRecords }, (_, i) => ({
+      orderNumber: `SO-${String(i).padStart(3, '0')}`,
+      ddtNumber: `DDT-${String(i).padStart(3, '0')}`,
+      ddtDeliveryDate: '2026-01-15',
+    }));
+    const pool = createMockPool();
+    (pool.query as ReturnType<typeof vi.fn>).mockResolvedValue({ rows: [{ id: `ORD-1` }], rowCount: 1 });
+    const deps = createMockDeps(pool);
+    (deps.parsePdf as ReturnType<typeof vi.fn>).mockResolvedValue(ddts);
+
+    let dbLoopCalls = 0;
+    const shouldStop = () => {
+      dbLoopCalls++;
+      return dbLoopCalls > 3;
+    };
+
+    const result = await syncDdt(deps, 'user-1', vi.fn(), shouldStop);
+
+    expect(result.success).toBe(false);
+    expect(result.error).toContain('db-loop');
+  });
 });

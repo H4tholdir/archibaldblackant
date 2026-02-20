@@ -69,7 +69,13 @@ async function syncInvoices(
     let invoicesSkipped = 0;
     const now = Math.floor(Date.now() / 1000);
 
+    let loopIndex = 0;
     for (const inv of parsedInvoices) {
+      if (loopIndex > 0 && loopIndex % 10 === 0 && shouldStop()) {
+        throw new SyncStoppedError('db-loop');
+      }
+      loopIndex++;
+
       if (!inv.orderNumber) { invoicesSkipped++; continue; }
 
       const { rows: [order] } = await pool.query<{ id: string }>(

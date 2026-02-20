@@ -85,7 +85,13 @@ async function syncCustomers(
     let updatedCustomers = 0;
 
     const now = Date.now();
+    let loopIndex = 0;
     for (const customer of parsedCustomers) {
+      if (loopIndex > 0 && loopIndex % 10 === 0 && shouldStop()) {
+        throw new SyncStoppedError('db-loop');
+      }
+      loopIndex++;
+
       const hash = computeSimpleHash(customer);
 
       const { rows: [existing] } = await pool.query<{ hash: string }>(

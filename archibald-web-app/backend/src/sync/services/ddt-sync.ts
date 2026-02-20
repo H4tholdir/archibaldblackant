@@ -67,7 +67,13 @@ async function syncDdt(
     let ddtSkipped = 0;
     const now = Math.floor(Date.now() / 1000);
 
+    let loopIndex = 0;
     for (const ddt of parsedDdts) {
+      if (loopIndex > 0 && loopIndex % 10 === 0 && shouldStop()) {
+        throw new SyncStoppedError('db-loop');
+      }
+      loopIndex++;
+
       const { rows: [order] } = await pool.query<{ id: string }>(
         'SELECT id FROM agents.order_records WHERE order_number = $1 AND user_id = $2',
         [ddt.orderNumber, userId],
