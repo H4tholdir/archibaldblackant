@@ -10,18 +10,18 @@ See: .planning/PROJECT.md (updated 2026-02-20)
 ## Current Position
 
 Phase: 7 of 10 (Missing Feature Implementation)
-Plan: 1 of 3 in current phase
+Plan: 2 of 3 in current phase
 Status: In progress
-Last activity: 2026-02-20 — Completed 07-01-PLAN.md
+Last activity: 2026-02-20 — Completed 07-02-PLAN.md
 
-Progress: ██████░░░░ 61%
+Progress: ██████░░░░ 65%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 20
-- Average duration: 5.5 min
-- Total execution time: 109 min
+- Total plans completed: 21
+- Average duration: 5.4 min
+- Total execution time: 114 min
 
 **By Phase:**
 
@@ -33,10 +33,10 @@ Progress: ██████░░░░ 61%
 | 4 | 3/3 | 16 min | 5.3 min |
 | 5 | 3/3 | 12 min | 4.0 min |
 | 6 | 4/4 | 18 min | 4.5 min |
-| 7 | 1/3 | 5 min | 5.0 min |
+| 7 | 2/3 | 10 min | 5.0 min |
 
 **Recent Trend:**
-- Last 5 plans: 06-02 (5 min), 06-03 (3 min), 06-04 (5 min), 07-01 (5 min)
+- Last 5 plans: 06-03 (3 min), 06-04 (5 min), 07-01 (5 min), 07-02 (5 min)
 - Trend: Fast (~4.5 min avg)
 
 ## Accumulated Context
@@ -99,6 +99,9 @@ Recent decisions affecting current work:
 - PdfStoreLike exported from pdf-store.ts as single source of truth
 - FT counter uses direct PostgreSQL UPSERT instead of legacy ft-counter.ts (better-sqlite3)
 - Export queries fresis_history directly instead of modifying repository layer
+- Subclient type exported from repository as single source of truth, imported by routes
+- Migration 009 for subclients (008 already used by ft-counter)
+- Case-insensitive flexible column mapping for Excel parser
 
 ### Deferred Issues
 
@@ -111,5 +114,5 @@ None.
 ## Session Continuity
 
 Last session: 2026-02-20
-Stopped at: Completed 07-01-PLAN.md — Phase 7 in progress (1/3)
+Stopped at: Completed 07-02-PLAN.md — Phase 7 in progress (2/3)
 Resume file: None
