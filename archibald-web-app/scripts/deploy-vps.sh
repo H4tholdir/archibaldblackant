@@ -46,7 +46,7 @@ case "$step" in
   migrate-data|all)
     log "Step 4: Running SQLite-to-PostgreSQL data migration..."
     log "  IMPORTANT: Ensure DATA_DIR points to $LOCAL_TMP in the migration script"
-    npx tsx archibald-web-app/backend/src/scripts/migrate-sqlite-to-pg.ts
+    npx tsx archibald-web-app/backend/src/scripts/archive/migrate-sqlite-to-pg.ts
     log "  Data migration complete."
     ;;&
 

@@ -9003,53 +9003,6 @@ export class ArchibaldBot {
     return this.browser !== null && this.page !== null;
   }
 
-  /**
-   * Generate performance dashboard with HTML, JSON, and CSV exports
-   *
-   * Creates three files in the specified output directory:
-   * - HTML: Interactive dashboard with charts and bottleneck analysis
-   * - JSON: Raw profiling data for external tools
-   * - CSV: Tabular operation data for spreadsheet analysis
-   *
-   * @param outputDir Directory to save dashboard files (default: './profiling-reports')
-   * @returns Paths to the generated files
-   */
-  public async generatePerformanceDashboard(
-    outputDir: string = "./profiling-reports",
-  ): Promise<{
-    htmlPath: string;
-    jsonPath: string;
-    csvPath: string;
-  }> {
-    const { PerformanceDashboardGenerator } =
-      await import("../performance-dashboard-generator");
-    const profilingData = this.exportProfilingData();
-    const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
-    const baseName = `profiling-${timestamp}`;
-
-    const htmlPath = `${outputDir}/${baseName}.html`;
-    const jsonPath = `${outputDir}/${baseName}.json`;
-    const csvPath = `${outputDir}/${baseName}.csv`;
-
-    await PerformanceDashboardGenerator.saveDashboard(profilingData, htmlPath, {
-      format: "html",
-    });
-
-    await PerformanceDashboardGenerator.saveDashboard(profilingData, jsonPath, {
-      format: "json",
-    });
-
-    await PerformanceDashboardGenerator.saveDashboard(profilingData, csvPath, {
-      format: "csv",
-    });
-
-    return {
-      htmlPath,
-      jsonPath,
-      csvPath,
-    };
-  }
-
   // ─── DevExpress-aware Customer Helpers ────────────────────────────────
 
   private async dumpVisibleInputIds(): Promise<void> {

@@ -7,6 +7,7 @@ type DatabaseConfig = {
   user: string;
   password: string;
   maxConnections: number;
+  ssl?: boolean;
 };
 
 type TxClient = {
@@ -36,9 +37,14 @@ function createPool(dbConfig: DatabaseConfig): DbPool {
     max: dbConfig.maxConnections,
     idleTimeoutMillis: 30000,
     connectionTimeoutMillis: 5000,
+    ssl: dbConfig.ssl ? { rejectUnauthorized: false } : undefined,
   };
 
   const pool = new Pool(poolConfig);
+
+  pool.on('error', (err) => {
+    console.error('Unexpected PostgreSQL pool error', err);
+  });
 
   return {
     query: <T extends QueryResultRow = QueryResultRow>(

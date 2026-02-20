@@ -5,6 +5,7 @@ vi.mock('pg', () => {
   const mockPool = {
     query: vi.fn().mockResolvedValue({ rows: [{ now: new Date() }] }),
     end: vi.fn().mockResolvedValue(undefined),
+    on: vi.fn(),
     totalCount: 5,
     idleCount: 3,
     waitingCount: 0,

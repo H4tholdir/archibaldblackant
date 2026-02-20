@@ -9,8 +9,7 @@ RUN npm ci
 # Copy source code
 COPY . .
 
-# Build production bundle (skip type checking for faster build)
-ENV SKIP_TYPE_CHECK=true
+# Build production bundle
 RUN npm run build -- --mode production && \
     npm cache clean --force
 

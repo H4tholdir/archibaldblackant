@@ -17,6 +17,33 @@ import { createWebSocketServer } from './realtime/websocket-server';
 import { PasswordCache } from './password-cache';
 import { generateJWT, verifyJWT } from './auth-utils';
 import path from 'path';
+import { promises as fsPromises } from 'fs';
+import { Worker } from 'bullmq';
+import { createOperationProcessor } from './operations/operation-processor';
+import { createSubmitOrderHandler } from './operations/handlers/submit-order';
+import { createCreateCustomerHandler } from './operations/handlers/create-customer';
+import { createUpdateCustomerHandler } from './operations/handlers/update-customer';
+import { createSendToVeronaHandler } from './operations/handlers/send-to-verona';
+import { createEditOrderHandler } from './operations/handlers/edit-order';
+import { createDeleteOrderHandler } from './operations/handlers/delete-order';
+import { createDownloadDdtPdfHandler } from './operations/handlers/download-ddt-pdf';
+import { createDownloadInvoicePdfHandler } from './operations/handlers/download-invoice-pdf';
+import { createSyncOrderArticlesHandler } from './operations/handlers/sync-order-articles';
+import { createSyncCustomersHandler } from './operations/handlers/sync-customers';
+import { createSyncOrdersHandler } from './operations/handlers/sync-orders';
+import { createSyncDdtHandler } from './operations/handlers/sync-ddt';
+import { createSyncInvoicesHandler } from './operations/handlers/sync-invoices';
+import { createSyncProductsHandler } from './operations/handlers/sync-products';
+import { createSyncPricesHandler } from './operations/handlers/sync-prices';
+import { ArchibaldBot } from './bot/archibald-bot';
+import { PDFParserSaleslinesService } from './pdf-parser-saleslines-service';
+import { PDFParserService } from './pdf-parser-service';
+import { PDFParserOrdersService } from './pdf-parser-orders-service';
+import { PDFParserProductsService } from './pdf-parser-products-service';
+import { PDFParserPricesService } from './pdf-parser-prices-service';
+import { PDFParserDDTService } from './pdf-parser-ddt-service';
+import { PDFParserInvoicesService } from './pdf-parser-invoices-service';
+import * as usersRepo from './db/repositories/users';
 
 function createPdfStore() {
   const store = new Map<string, { buffer: Buffer; originalName: string }>();
@@ -90,10 +117,10 @@ async function main() {
     logger.warn('Migration files not found or already applied, continuing', { error: String(err) });
   }
 
-  const queue = createOperationQueue({
-    host: process.env.REDIS_HOST || 'localhost',
-    port: parseInt(process.env.REDIS_PORT || '6379', 10),
-  });
+  const redisHost = process.env.REDIS_HOST || 'localhost';
+  const redisPort = parseInt(process.env.REDIS_PORT || '6379', 10);
+
+  const queue = createOperationQueue({ host: redisHost, port: redisPort });
   logger.info('Operation queue initialized');
 
   const agentLock = createAgentLock();
@@ -138,6 +165,90 @@ async function main() {
     },
   });
 
+  const createBot = (userId: string) => new ArchibaldBot(userId, {
+    browserPool: browserPool as any,
+    getUserById: (id) => usersRepo.getUserById(pool, id).then(u => u ? { username: u.username } : null),
+  });
+
+  const saleslinesParser = PDFParserSaleslinesService.getInstance();
+  const customerParser = new PDFParserService();
+  const ordersParser = PDFParserOrdersService.getInstance();
+  const productsParser = PDFParserProductsService.getInstance();
+  const pricesParser = PDFParserPricesService.getInstance();
+  const ddtParser = PDFParserDDTService.getInstance();
+  const invoicesParser = PDFParserInvoicesService.getInstance();
+
+  const botFactory = createBot as (userId: string) => any;
+
+  const handlers = {
+    'submit-order': createSubmitOrderHandler(pool, botFactory),
+    'create-customer': createCreateCustomerHandler(pool, botFactory),
+    'update-customer': createUpdateCustomerHandler(pool, botFactory),
+    'send-to-verona': createSendToVeronaHandler(pool, botFactory),
+    'edit-order': createEditOrderHandler(pool, botFactory),
+    'delete-order': createDeleteOrderHandler(pool, botFactory),
+    'download-ddt-pdf': createDownloadDdtPdfHandler(botFactory),
+    'download-invoice-pdf': createDownloadInvoicePdfHandler(botFactory),
+    'sync-order-articles': createSyncOrderArticlesHandler(
+      {
+        pool,
+        parsePdf: (pdfPath: string) => saleslinesParser.parseSaleslinesPDF(pdfPath) as any,
+        getProductVat: () => 22,
+        cleanupFile: (filePath: string) => fsPromises.unlink(filePath),
+      },
+      botFactory,
+    ),
+    'sync-customers': createSyncCustomersHandler(
+      { pool, parsePdf: (p) => customerParser.parsePDF(p).then(r => r.customers) as any, cleanupFile: (f) => fsPromises.unlink(f) },
+      botFactory,
+    ),
+    'sync-orders': createSyncOrdersHandler(
+      { pool, parsePdf: (p) => ordersParser.parseOrdersPDF(p) as any, cleanupFile: (f) => fsPromises.unlink(f) },
+      botFactory,
+    ),
+    'sync-ddt': createSyncDdtHandler(
+      { pool, parsePdf: (p) => ddtParser.parseDDTPDF(p) as any, cleanupFile: (f) => fsPromises.unlink(f) },
+      botFactory,
+    ),
+    'sync-invoices': createSyncInvoicesHandler(
+      { pool, parsePdf: (p) => invoicesParser.parseInvoicesPDF(p) as any, cleanupFile: (f) => fsPromises.unlink(f) },
+      botFactory,
+    ),
+    'sync-products': createSyncProductsHandler(
+      { pool, parsePdf: (p) => productsParser.parsePDF(p) as any, cleanupFile: (f) => fsPromises.unlink(f) },
+      botFactory,
+    ),
+    'sync-prices': createSyncPricesHandler(
+      { pool, parsePdf: (p) => pricesParser.parsePDF(p) as any, cleanupFile: (f) => fsPromises.unlink(f) },
+      botFactory,
+    ),
+  };
+
+  const processor = createOperationProcessor({
+    agentLock,
+    browserPool: browserPool as any,
+    broadcast: (userId, msg) => wsServer.broadcast(userId, msg as any),
+    enqueue: queue.enqueue.bind(queue),
+    handlers,
+  });
+
+  const worker = new Worker('operations', async (job) => {
+    await processor.processJob({
+      id: job.id ?? '',
+      data: job.data,
+      updateProgress: (p) => job.updateProgress(p),
+    });
+  }, {
+    connection: { host: redisHost, port: redisPort },
+    concurrency: 1,
+  });
+
+  worker.on('failed', (job, err) => {
+    logger.error('Job failed', { jobId: job?.id, error: String(err) });
+  });
+
+  logger.info('Operation worker started');
+
   const app = createApp({
     pool,
     queue,
@@ -170,6 +281,7 @@ async function main() {
 
     httpServer.close(async () => {
       try {
+        await worker.close();
         await wsServer.shutdown();
         await browserPool.shutdown();
         await queue.close();
