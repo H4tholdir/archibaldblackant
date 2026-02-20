@@ -33,7 +33,6 @@ import { ImpersonationBanner } from "./components/ImpersonationBanner";
 import { AdminSessionBanner } from "./components/AdminSessionBanner";
 import { WebSocketProvider } from "./contexts/WebSocketContext";
 import WebSocketSync from "./components/WebSocketSync";
-// import { UnifiedSyncProgress } from "./components/UnifiedSyncProgress"; // Temporarily disabled
 
 function AppRouter() {
   const auth = useAuth();
@@ -240,9 +239,6 @@ function AppRouter() {
           <OfflineSyncBanner />
           <ImpersonationBanner />
           <AdminSessionBanner />
-          {/* Unified sync progress - temporarily disabled due to SSE errors */}
-          {/* <UnifiedSyncProgress mode="banner" /> */}
-          {/* <UnifiedSyncProgress mode="badge" /> */}
           {/* Global Dashboard Navigation */}
           <DashboardNav />
           <Routes>
