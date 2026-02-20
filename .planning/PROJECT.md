@@ -1,174 +1,129 @@
-# Archibald Black Ant
+# Archibald Black Ant - Stabilization & Bug Fix
 
 ## What This Is
 
-Una PWA moderna e mobile-first che permette agli agenti Komet di creare ordini in Archibald ERP in modo fluido e veloce tramite voice input e UI touch-optimized, superando la macchinosità dell'interfaccia web legacy di Archibald su dispositivi mobili.
+Milestone di stabilizzazione della PWA Archibald Black Ant dopo due grandi refactoring: (1) eliminazione IndexedDB con backend-as-source-of-truth e (2) queue unificata BullMQ per operazioni e sync. L'obiettivo è fixare tutti i bug identificati dalla code review approfondita (23 bug, 10 file orfani), implementare gli stub attivamente usati dal frontend, e aggiungere test automatici completi (unit, integration, E2E) eseguibili anche in VPS.
 
 ## Core Value
 
-Rendere la creazione ordini Archibald **veloce, affidabile e mobile-friendly** per agenti in movimento, riducendo drasticamente il tempo e la frustrazione rispetto al processo manuale attuale.
+Riportare la PWA a **perfetto funzionamento multi-utente e multi-dispositivo**, eliminando ogni race condition, stub silenzioso e feature rotta, con copertura test che garantisca stabilità nel tempo.
 
 ## Requirements
 
 ### Validated
 
-<!-- Funzionalità già implementate nel codebase esistente -->
-
-- ✓ Sincronizzazione clienti da Archibald ERP — existing (`backend/src/customer-sync-service.ts`)
-- ✓ Sincronizzazione prodotti da Archibald ERP — existing (`backend/src/product-sync-service.ts`)
-- ✓ Sincronizzazione prezzi da Archibald ERP — existing (`backend/src/price-sync-service.ts`)
-- ✓ Browser automation pool per performance — existing (`backend/src/browser-pool.ts`)
-- ✓ Job queue con BullMQ per ordini asincroni — existing (`backend/src/queue-manager.ts`)
-- ✓ WebSocket real-time per sync progress — existing (`backend/src/index.ts`)
-- ✓ React PWA con service worker configurato — existing (`frontend/vite.config.ts`)
-- ✓ Voice input con Web Speech API — existing (`frontend/src/hooks/useVoiceInput.ts`)
-- ✓ Cache locale SQLite per clienti/prodotti — existing (`backend/data/*.db`)
-- ✓ Checkpoint/resume per sync interrotte — existing (`backend/src/sync-checkpoint.ts`)
+- ✓ Frontend React PWA con routing completo (13 pagine) — existing
+- ✓ Login/unlock flow con PIN e biometria — existing
+- ✓ WebSocket context con reconnection e heartbeat — existing
+- ✓ API layer frontend completo (9 moduli) — existing
+- ✓ PostgreSQL schema con 4 migrazioni (shared, agents, system) — existing
+- ✓ Repository layer con query parametrizzate (no SQL injection) — existing
+- ✓ BullMQ operation queue con 15 tipi di operazione e priorità — existing
+- ✓ Browser pool multi-browser con LRU eviction — existing
+- ✓ Bot Archibald con operation tracking e performance reporting — existing
+- ✓ Eliminazione completa Dexie/IndexedDB per dati applicativi — existing
+- ✓ IndexedDB solo per credential store crittografato (legittimo) — existing
+- ✓ localStorage solo per JWT, device ID, UI state (legittimo) — existing
+- ✓ Handler factory pattern per tutte le 15 operazioni — existing
+- ✓ Password cache con lazy-load da DB e AES-256-GCM — existing
 
 ### Active
 
-<!-- MVP Ordini - Fase 1 prioritaria -->
+**Bug Critici - Multi-device Sync:**
+- [ ] BUG-1: Avviare sync scheduler con intervalli configurabili da admin + fix getActiveAgentIds
+- [ ] BUG-2: Emettere tutti i 9 eventi WebSocket (PENDING_CREATED/UPDATED/DELETED/SUBMITTED, JOB_STARTED/PROGRESS, ORDER_NUMBERS_RESOLVED) da pending-orders e operation-processor
+- [ ] BUG-3: Implementare SSE progress reale (onJobEvent) o rimuoverlo e riattivare UnifiedSyncProgress via WebSocket
 
-**Order Creation (MVP):**
-- [ ] Ricerca clienti con autocomplete da cache locale
-- [ ] Ricerca articoli con autocomplete da catalogo Archibald
-- [ ] Visualizzazione prezzi read-only da listino Archibald (no edit)
-- [ ] Input quantità + sconto di riga per articolo
-- [ ] Gestione confezioni multiple (es: articolo h129fsq.104.023 in conf da 1 o 5 pezzi)
-- [ ] Selezione tipo confezione e multipli per articolo
-- [ ] Voice input hybrid: dettatura → compilazione form → conferma tap
-- [ ] Validazione vincoli confezione/multipli prima invio
-- [ ] Invio ordine ad Archibald via Puppeteer automation
-- [ ] Tracking stato job con feedback real-time
-- [ ] Error recovery con retry automatico (BullMQ già presente)
+**Bug Critici - Operation Queue & Preemption:**
+- [ ] BUG-12: Implementare shouldStop() reale nei sync handlers collegato al meccanismo di preemption
+- [ ] BUG-13: Fix race condition preemption nel processor (attendere stop effettivo, non timeout fisso 2s)
+- [ ] BUG-14: Fix race condition browser pool user lock (lock rilasciato prima del completamento)
+- [ ] BUG-16: Aggiungere timeout sui handler per prevenire pool exhaustion
 
-**Multi-User Access:**
-- [ ] Whitelist agenti autorizzati (gestione manuale)
-- [ ] Login con credenziali Archibald per-agente
-- [ ] Salvataggio credenziali cifrato su device (Web Crypto API)
-- [ ] Sessioni Puppeteer per-utente (vs sessione globale attuale)
-- [ ] Backend non salva credenziali (session-per-request)
+**Bug Critici - Data Integrity:**
+- [ ] BUG-5: IVA da database (inserita via excel admin + alert articoli) invece di hardcoded 22%
+- [ ] BUG-15: Gestire fallimento transazione post-bot con compensating logic
+- [ ] BUG-17: Proteggere customer sync da parser failures (non cancellare se PDF incompleto)
+- [ ] BUG-18: Implementare deduplicazione idempotency key nella queue
 
-**Security & Stability:**
-- [ ] Fix credenziali hardcoded in `backend/.env` (CRITICAL)
-- [ ] Rotazione credenziali ERP dopo leak
-- [ ] Rimozione `.env` da git history (BFG Repo-Cleaner)
-- [ ] Centralizzare tutti URL hardcoded in `config.ts`
-- [ ] Fix bug `activeSyncType` undefined in `backend/src/index.ts`
-- [ ] Rimuovere dead code in `product-sync-service.ts`
-- [ ] Sostituire `console.log()` con `logger` (30+ istanze)
-- [ ] Rimuovere type `any` con interfacce tipate
+**Bug Alti - Feature Rotte:**
+- [ ] BUG-4: Passare createCustomerBot a createApp per abilitare route interattive clienti
+- [ ] BUG-6: Persistere PDF su filesystem con TTL cleanup invece di in-memory Map
+- [ ] BUG-7: Concurrency per-utente: utenti diversi in parallelo, 1 operazione alla volta per utente
 
-**Testing Foundation:**
-- [ ] Unit test suite per service layer (Vitest)
-- [ ] Integration test per sync services
-- [ ] Integration test per queue manager
-- [ ] E2E test per order creation flow (Playwright)
-- [ ] Mock Puppeteer per test isolati
+**Bug Medi - Hardening:**
+- [ ] BUG-19: Standardizzare hashing a SHA-256 (eliminare MD5 da order-sync e price-sync)
+- [ ] BUG-20: Validare parseInt con isNaN su tutti i query params (orders.ts, admin.ts)
+- [ ] BUG-21: Rate limiting su route costose (sync, PDF, import)
 
-**Deployment:**
-- [ ] VPS con budget minimo (raccomandato: 2 vCPU / 4 GB RAM)
-- [ ] Docker Compose setup (Nginx + Node + Redis)
-- [ ] SSL con Let's Encrypt per archibaldblackant.it
-- [ ] CI/CD pipeline per deploy automatico
-- [ ] Health check endpoint (`/health`)
-- [ ] Graceful shutdown con wait per operazioni in-progress
+**Stub da Implementare (frontend li chiama attivamente):**
+- [ ] Subclients API: getAll, search, getByCode, importSubclients (usato da SubClientSelector.tsx e AdminPage.tsx)
+- [ ] getNextFtNumber: numerazione progressiva FT (usato da fresis-history API)
+- [ ] exportArca: export dati Arca (usato da fresis-history API)
+- [ ] Stub rimanenti: price history, importExcel prezzi/warehouse, admin sessions — valutare se usati
 
-<!-- Offline Capability - Fase 2 -->
+**Cleanup:**
+- [ ] BUG-10/11: Spostare file orfani in cartella _deprecated/ (8 frontend + 2 backend)
+- [ ] BUG-22: Rimuovere legacy localStorage keys (archibald_fullName, archibald_username)
+- [ ] BUG-23: Fix naming inconsistency sentToMilanoAt → sentToVeronaAt
+- [ ] Rimuovere dead code DDT sync ternary (false ? false : false)
 
-**Offline-First (Post-MVP):**
-- [ ] IndexedDB cache per clienti/prodotti/prezzi
-- [ ] Service worker con offline strategy
-- [ ] Bozze ordine persistenti in locale
-- [ ] Coda ordini offline con sync manuale (consenso utente)
-- [ ] Sync automatico quando torna la rete
-- [ ] Conflict resolution per dati stale
-
-<!-- Order History & Tracking - Fase 3 -->
-
-**Order History:**
-- [ ] Visualizzare storico ordini da Archibald
-- [ ] Filtri per cliente/data/stato ordine
-- [ ] Dettaglio ordine completo (articoli, quantità, prezzi, totale)
-- [ ] Tracking stato ordine (in lavorazione/spedito/consegnato)
-- [ ] Modifica ordini pendenti (se non ancora evasi)
-- [ ] Duplica ordine ("Ripeti ultimo ordine")
-
-<!-- Analytics - Fase 4 (post-MVP) -->
-
-**Analytics (Future):**
-- [ ] Dashboard KPI agente (totale venduto, trend)
-- [ ] Top prodotti ordinati per agente
-- [ ] Top clienti attivi per agente
-- [ ] Statistiche periodo selezionabile
+**Testing:**
+- [ ] Unit test per tutti i fix critici (operation processor, agent lock, sync handlers)
+- [ ] Integration test per WebSocket events end-to-end
+- [ ] Integration test per operation queue con preemption
+- [ ] Integration test per sync services con DB
+- [ ] E2E Playwright contro PWA deployata in VPS (login, ordini, sync, multi-device)
+- [ ] CI/CD pipeline per eseguire test automaticamente
 
 ### Out of Scope
 
-- **Gestione prezzi/listini** — Archibald resta master dei prezzi, PWA solo read-only
-- **Gestione anagrafica clienti** — Solo lettura da Archibald, no CRUD clienti in PWA
-- **Multi-tenant enterprise SaaS** — Un'istanza VPS per Komet, no multi-company complesso
-- **Integrazione altri ERP** — Solo Archibald, no supporto SAP/Odoo/altro
-- **Gestione ordini fornitore** — Solo ordini cliente (vendita), no ordini acquisto
-- **DDT e documenti logistica** — Focus su ordini vendita, documenti trasporto fuori scope
-- **Preventivi/offerte** — Solo ordini confermati, no workflow preventivi
-- **Mobile app nativa** — PWA installabile basta, no sviluppo iOS/Android nativo
+- Nuove feature (analytics, dashboard KPI, voice input migliorato) — milestone successiva
+- Offline-first / service worker avanzato — milestone successiva
+- Migrazione JWT a HttpOnly cookies — miglioramento futuro, non urgente
+- Redesign UI — la UI funziona, focus su backend/logic
+- Supporto altri ERP — solo Archibald
+- Mobile app nativa — PWA basta
 
 ## Context
 
-**Problema attuale:**
-- Archibald ERP ha UI web obsoleta, lenta e macchinosa su mobile/tablet
-- Agenti Komet faticano a creare ordini in mobilità
-- Processo attuale richiede troppi step, campi obbligatori inutili, navigation complessa
-- Limitazioni strutturali del DB Archibald rendono UI poco flessibile
+**Stato attuale:**
+La PWA è deployata in produzione su VPS (formicanera.com) ed è usata attivamente dagli agenti Komet. Dopo due grandi refactoring (eliminazione IndexedDB + queue unificata BullMQ), una code review approfondita con 6 agenti paralleli ha identificato 23 bug di severità variabile. I più critici riguardano:
 
-**Utenti target:**
-- Agenti commerciali Komet che usano Archibald per ordini clienti
-- Device: smartphone/tablet Android e iOS, desktop Mac/Windows
-- Contesto d'uso: in movimento, visite clienti, fiere, ufficio
+1. **Sync rotto**: Lo scheduler non parte mai, gli eventi WebSocket non vengono emessi, SSE è stub
+2. **Preemption inoperativa**: shouldStop() sempre false, race conditions nel processor
+3. **Data integrity**: Transazioni non atomiche tra bot e DB, customer sync aggressivo
+4. **Stub silenziosamente rotti**: Il frontend chiama endpoint che ritornano array vuoti
 
-**Architettura esistente:**
-- Backend Node.js + Express + Puppeteer per browser automation
-- Frontend React 19 PWA con Vite
-- Automazione Archibald via headless Chrome (sessioni pre-autenticate)
-- Cache locale SQLite per performance (customers.db, products.db, prices.db)
-- Job queue BullMQ + Redis per ordini asincroni
-- WebSocket per sync progress real-time
+**Architettura:**
+- Frontend: React 19 PWA (Vite + TypeScript)
+- Backend: Express + Puppeteer + BullMQ + Redis + PostgreSQL
+- Deploy: Docker Compose su VPS (Nginx + Node + Redis + PostgreSQL)
+- Automazione: Headless Chrome per interazione con Archibald ERP
 
-**Codebase concerns (da CONCERNS.md):**
-- ⚠️ **CRITICAL:** Credenziali production hardcoded in `backend/.env` committato (username: [REDACTED-USERNAME], password: [REDACTED-PASSWORD])
-- Bug: Variable `activeSyncType` undefined causa runtime error
-- Tech debt: 30+ `console.log()` invece di logger, 10+ type `any`, dead code
-- Testing: 0 unit tests, 0 integration tests, 0 E2E tests (solo manual scripts)
-- Performance: Polling loop busy-wait, N+1 query pattern in price sync
-
-**Stato attuale del codice:**
-- MVP parziale: form ordini, autocomplete clienti/prodotti, voice input base
-- Mancante: prezzi read-only, vincoli confezione, multi-utente, sessioni per-agente
-- Sync services funzionanti ma sessione globale (non per-utente)
-- Offline non completo (solo cache API, no IndexedDB, no coda ordini locale)
+**Multi-utente/multi-dispositivo:**
+- Ogni utente logga con proprie credenziali Archibald
+- Opera in autonomia (1 operazione alla volta per utente)
+- Sync automatici viaggiano indipendentemente
+- Può aprire la PWA da qualsiasi dispositivo e continuare il lavoro
 
 ## Constraints
 
-- **Budget Hosting**: Minimizzare costi VPS mantenendo affidabilità (target: €10-20/mese VPS + dominio)
-- **Compatibilità Device**: Android phone/tablet, iOS phone/tablet (Safari iOS 14.5+), macOS desktop, Windows desktop
-- **Performance**: Ordine completato "il più veloce possibile" mantenendo stabilità e affidabilità (no target specifico, ottimizzare senza compromettere reliability)
-- **Tech Stack**: TypeScript + React (frontend), Node.js + Express (backend), Puppeteer (automation) — già scelto, mantenere
-- **ERP Integration**: Solo Archibald ERP raggiungibile via HTTPS pubblico (https://4.231.124.90/Archibald) — no VPN, no altri ERP
-- **Deployment**: Dominio archibaldblackant.it già scelto, serve setup VPS con HTTPS
+- **Stack**: TypeScript + React + Express + Puppeteer + BullMQ + Redis + PostgreSQL — nessun cambio
+- **Produzione attiva**: La PWA è in uso, i fix devono essere retrocompatibili
+- **VPS risorse**: Budget minimo VPS, ottimizzare consumo risorse
+- **Archibald ERP**: Nessuna API, solo browser automation via Puppeteer
 
 ## Key Decisions
 
 | Decision | Rationale | Outcome |
 |----------|-----------|---------|
-| PWA vs Native App | PWA installabile funziona su tutti device (iOS/Android/desktop) senza doppio sviluppo, costi minori | — Pending |
-| Puppeteer Browser Automation | Archibald non ha API, unica via è browser automation headless per leggere/scrivere dati | ✓ Good — funziona, performance accettabili con browser pool |
-| SQLite Cache Locale | Cache clienti/prodotti/prezzi riduce latency, funziona offline, no dipendenza cloud DB | ✓ Good — sync veloce, no costi extra |
-| BullMQ Job Queue | Ordini asincroni con retry, no blocking UI, scalabile con Redis backend | — Pending |
-| Voice Input Hybrid | Dettatura popola form, utente rivede visivamente, conferma tap finale — massima affidabilità vs errori voice recognition | — Pending |
-| Session per-User | Ogni agente usa proprie credenziali Archibald, backend crea sessione on-demand, no salvataggio credenziali server | — Pending |
-| Whitelist Agenti | Lista autorizzati gestita manualmente vs sistema abbonamento automatico — semplicità MVP | — Pending |
-| Docker Deployment | Docker Compose (Nginx + Node + Redis) su VPS per portabilità, facilità deploy, ambiente riproducibile | — Pending |
-| React 19 + Vite | Stack moderno, fast refresh, PWA plugin built-in, TypeScript strict mode | ✓ Good — setup esistente funzionante |
+| Concurrency per-utente (non globale) | Ogni utente opera 1 alla volta, ma utenti diversi in parallelo. Sync automatici indipendenti. Semplifica il lock system | — Pending |
+| IVA da database (excel admin + alert articoli) | L'IVA viene caricata via excel nella pagina admin e corretta tramite alert nella pagina articoli, non hardcoded | — Pending |
+| Sync intervals configurabili da admin | L'admin deve poter impostare gli intervalli dal pannello di controllo, non hardcoded | — Pending |
+| File orfani in _deprecated/ | Spostare in cartella dedicata invece di eliminare, per riferimento futuro se necessario | — Pending |
+| PDF store su filesystem con TTL | Feature usata spesso dagli agenti (condivisione DDT, fatture via WhatsApp/Email), deve sopravvivere al restart | — Pending |
+| Test E2E + integration su VPS | Sia Playwright E2E che integration test backend eseguiti contro la PWA in VPS per verifica completa | — Pending |
 
 ---
-*Last updated: 2026-01-11 after initialization with codebase mapping*
+*Last updated: 2026-02-20 after initialization with comprehensive code review*
