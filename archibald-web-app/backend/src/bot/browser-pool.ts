@@ -54,6 +54,7 @@ function createBrowserPool(poolConfig: BrowserPoolConfig, launchFn: LaunchFn) {
   const contextPool = new Map<string, CachedContext>();
   const browserContextCounts: number[] = [];
   const userLocks = new Map<string, Promise<BrowserContextLike>>();
+  const inUseContexts = new Set<string>();
 
   async function launchBrowser(index: number): Promise<void> {
     const browser = await launchFn(poolConfig.launchOptions);
@@ -98,11 +99,20 @@ function createBrowserPool(poolConfig: BrowserPoolConfig, launchFn: LaunchFn) {
     return poolConfig.maxBrowsers * poolConfig.maxContextsPerBrowser;
   }
 
+  function markInUse(userId: string): void {
+    inUseContexts.add(userId);
+  }
+
+  function markIdle(userId: string): void {
+    inUseContexts.delete(userId);
+  }
+
   async function evictLeastRecentlyUsed(): Promise<void> {
     let lruUserId: string | null = null;
     let lruTimestamp = Infinity;
 
     for (const [userId, cached] of contextPool.entries()) {
+      if (inUseContexts.has(userId)) continue;
       if (cached.lastUsedAt < lruTimestamp) {
         lruTimestamp = cached.lastUsedAt;
         lruUserId = userId;
@@ -111,6 +121,8 @@ function createBrowserPool(poolConfig: BrowserPoolConfig, launchFn: LaunchFn) {
 
     if (lruUserId) {
       await removeContextFromPool(lruUserId);
+    } else {
+      throw new Error('Browser pool exhausted: all contexts in use');
     }
   }
 
@@ -264,7 +276,7 @@ function createBrowserPool(poolConfig: BrowserPoolConfig, launchFn: LaunchFn) {
     browserContextCounts.length = 0;
   }
 
-  return { initialize, acquireContext, releaseContext, getStats, shutdown };
+  return { initialize, acquireContext, releaseContext, markInUse, markIdle, getStats, shutdown };
 }
 
 type BrowserPool = ReturnType<typeof createBrowserPool>;

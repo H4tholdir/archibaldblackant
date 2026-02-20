@@ -25,6 +25,8 @@ type EnqueueFn = (
 type BrowserPoolLike = {
   acquireContext: (userId: string, options?: { fromQueue?: boolean }) => Promise<BrowserContext>;
   releaseContext: (userId: string, context: BrowserContext, success: boolean) => Promise<void>;
+  markInUse?: (userId: string) => void;
+  markIdle?: (userId: string) => void;
 };
 
 type JobLike = {
@@ -113,6 +115,7 @@ function createOperationProcessor(deps: ProcessorDeps) {
 
     try {
       context = await browserPool.acquireContext(userId, { fromQueue: true });
+      browserPool.markInUse?.(userId);
 
       const onProgress = (progress: number, label?: string) => {
         job.updateProgress(label ? { progress, label } : progress);
@@ -131,6 +134,7 @@ function createOperationProcessor(deps: ProcessorDeps) {
         }),
       ]);
 
+      browserPool.markIdle?.(userId);
       await browserPool.releaseContext(userId, context, true);
       context = null;
 
@@ -144,6 +148,7 @@ function createOperationProcessor(deps: ProcessorDeps) {
       return { success: true, data: result, duration: Date.now() - startTime };
     } catch (error) {
       if (context) {
+        browserPool.markIdle?.(userId);
         await browserPool.releaseContext(userId, context, false);
       }
 

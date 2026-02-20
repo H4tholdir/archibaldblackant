@@ -228,4 +228,77 @@ describe('createBrowserPool', () => {
     expect(browsers[0].close).toHaveBeenCalled();
     expect(browsers[1].close).toHaveBeenCalled();
   });
+
+  test('evictLeastRecentlyUsed skips in-use contexts', async () => {
+    const config: BrowserPoolConfig = {
+      ...defaultConfig,
+      maxBrowsers: 1,
+      maxContextsPerBrowser: 2,
+    };
+
+    const pool = createBrowserPool(config, launchFn);
+    await pool.initialize();
+
+    await pool.acquireContext('user-a', { fromQueue: true });
+    await pool.acquireContext('user-b', { fromQueue: true });
+
+    pool.markInUse('user-a');
+
+    await pool.acquireContext('user-c', { fromQueue: true });
+
+    const stats = pool.getStats();
+    const userIds = stats.cachedContexts.map((c) => c.userId);
+    expect(userIds).toContain('user-a');
+    expect(userIds).not.toContain('user-b');
+    expect(userIds).toContain('user-c');
+  });
+
+  test('evictLeastRecentlyUsed throws when all contexts in use', async () => {
+    const config: BrowserPoolConfig = {
+      ...defaultConfig,
+      maxBrowsers: 1,
+      maxContextsPerBrowser: 2,
+    };
+
+    const pool = createBrowserPool(config, launchFn);
+    await pool.initialize();
+
+    await pool.acquireContext('user-a', { fromQueue: true });
+    await pool.acquireContext('user-b', { fromQueue: true });
+
+    pool.markInUse('user-a');
+    pool.markInUse('user-b');
+
+    await expect(pool.acquireContext('user-c', { fromQueue: true })).rejects.toThrow(
+      'Browser pool exhausted: all contexts in use',
+    );
+  });
+
+  test('markInUse/markIdle lifecycle', async () => {
+    const pool = createBrowserPool(defaultConfig, launchFn);
+    await pool.initialize();
+
+    await pool.acquireContext('user-a', { fromQueue: true });
+
+    pool.markInUse('user-a');
+
+    const config: BrowserPoolConfig = {
+      ...defaultConfig,
+      maxBrowsers: 1,
+      maxContextsPerBrowser: 1,
+    };
+    const smallPool = createBrowserPool(config, launchFn);
+    await smallPool.initialize();
+    await smallPool.acquireContext('user-x', { fromQueue: true });
+    smallPool.markInUse('user-x');
+    await expect(smallPool.acquireContext('user-y', { fromQueue: true })).rejects.toThrow(
+      'Browser pool exhausted: all contexts in use',
+    );
+
+    smallPool.markIdle('user-x');
+    await smallPool.acquireContext('user-y', { fromQueue: true });
+    const stats = smallPool.getStats();
+    expect(stats.activeContexts).toBe(1);
+    expect(stats.cachedContexts[0].userId).toBe('user-y');
+  });
 });
