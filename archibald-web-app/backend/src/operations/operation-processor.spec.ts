@@ -244,10 +244,9 @@ describe('createOperationProcessor', () => {
     await processor.processJob(job as any);
 
     expect(broadcast).toHaveBeenCalledWith('user-a', {
-      event: 'JOB_COMPLETED',
-      jobId: 'job-123',
-      type: 'submit-order',
-      result: { orderId: 'ORD-1' },
+      type: 'JOB_COMPLETED',
+      payload: { jobId: 'job-123', operationType: 'submit-order', result: { orderId: 'ORD-1' } },
+      timestamp: expect.any(String),
     });
   });
 
@@ -261,10 +260,9 @@ describe('createOperationProcessor', () => {
     await expect(processor.processJob(job as any)).rejects.toThrow('boom');
 
     expect(broadcast).toHaveBeenCalledWith('user-a', {
-      event: 'JOB_FAILED',
-      jobId: 'job-123',
-      type: 'submit-order',
-      error: 'boom',
+      type: 'JOB_FAILED',
+      payload: { jobId: 'job-123', operationType: 'submit-order', error: 'boom' },
+      timestamp: expect.any(String),
     });
   });
 
@@ -322,10 +320,9 @@ describe('createOperationProcessor', () => {
       'Handler timeout after 50ms for submit-order',
     );
     expect(broadcast).toHaveBeenCalledWith('user-a', {
-      event: 'JOB_FAILED',
-      jobId: 'job-123',
-      type: 'submit-order',
-      error: 'Handler timeout after 50ms for submit-order',
+      type: 'JOB_FAILED',
+      payload: { jobId: 'job-123', operationType: 'submit-order', error: 'Handler timeout after 50ms for submit-order' },
+      timestamp: expect.any(String),
     });
   });
 
@@ -393,6 +390,66 @@ describe('createOperationProcessor', () => {
       expect.any(Function),
       expect.any(AbortSignal),
     );
+  });
+
+  test('emits JOB_STARTED before handler execution', async () => {
+    const callOrder: string[] = [];
+    const trackingHandler = vi.fn().mockImplementation(async () => {
+      callOrder.push('handler');
+      return { done: true };
+    });
+    const trackingBroadcast = vi.fn().mockImplementation((_userId: string, event: Record<string, unknown>) => {
+      callOrder.push(event.type as string);
+    });
+    const { processor } = createProcessor({
+      handlers: { 'submit-order': trackingHandler },
+      broadcast: trackingBroadcast,
+    });
+    const job = createMockJob();
+
+    await processor.processJob(job as any);
+
+    expect(callOrder.indexOf('JOB_STARTED')).toBeLessThan(callOrder.indexOf('handler'));
+  });
+
+  test('emits JOB_PROGRESS when handler calls onProgress', async () => {
+    const progressValue = 50;
+    const progressLabel = 'Uploading order';
+    const progressHandler = vi.fn().mockImplementation(
+      async (_ctx: unknown, _data: unknown, _userId: string, onProgress: (p: number, l?: string) => void) => {
+        onProgress(progressValue, progressLabel);
+        return { done: true };
+      },
+    );
+    const { processor, broadcast } = createProcessor({
+      handlers: { 'submit-order': progressHandler },
+    });
+    const job = createMockJob();
+
+    await processor.processJob(job as any);
+
+    expect(broadcast).toHaveBeenCalledWith('user-a', {
+      type: 'JOB_PROGRESS',
+      payload: { jobId: 'job-123', operationType: 'submit-order', progress: progressValue, label: progressLabel },
+      timestamp: expect.any(String),
+    });
+  });
+
+  test('JOB_STARTED includes correct operationType', async () => {
+    const editHandler = vi.fn().mockResolvedValue({ updated: true });
+    const { processor, broadcast } = createProcessor({
+      handlers: { 'edit-order': editHandler } as any,
+    });
+    const operationType = 'edit-order' as const;
+    const job = createMockJob({ type: operationType });
+
+    await processor.processJob(job as any);
+
+    expect(broadcast).toHaveBeenCalledWith('user-a', {
+      type: 'JOB_STARTED',
+      payload: { jobId: 'job-123', operationType },
+      timestamp: expect.any(String),
+    });
   });
 
   test('combined signal aborts when BullMQ job signal aborts', async () => {
