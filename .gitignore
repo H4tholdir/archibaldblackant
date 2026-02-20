@@ -131,6 +131,10 @@ komet-campionari-images-2026-02-15/
 my-video/
 tutteftarca/
 
+# PDF store (runtime data, always recreatable)
+data/pdfs/
+archibald-web-app/backend/data/pdfs/
+
 # Legacy backend planning (moved to root .planning/)
 archibald-web-app/backend/.planning/
 

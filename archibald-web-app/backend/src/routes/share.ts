@@ -2,6 +2,7 @@ import { Router, type Request, type Response } from 'express';
 import { z } from 'zod';
 import multer from 'multer';
 import type { AuthRequest } from '../middleware/auth';
+import type { PdfStoreLike } from '../pdf-store';
 import { logger } from '../logger';
 
 const emailSchema = z.object({
@@ -11,12 +12,6 @@ const emailSchema = z.object({
 });
 
 const ALLOWED_PDF_MIME_TYPES = ['application/pdf'];
-
-type PdfStoreLike = {
-  save: (buffer: Buffer, originalName: string, req: Request) => { id: string; url: string };
-  get: (id: string) => { buffer: Buffer; originalName: string } | null;
-  delete: (id: string) => void;
-};
 
 type ShareRouterDeps = {
   pdfStore: PdfStoreLike;

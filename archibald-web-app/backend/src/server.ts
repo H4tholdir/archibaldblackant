@@ -10,6 +10,7 @@ import type { SyncScheduler, SyncTypeIntervals } from './sync/sync-scheduler';
 import * as syncSettingsRepo from './db/repositories/sync-settings';
 import type { WebSocketServerModule } from './realtime/websocket-server';
 import type { JWTPayload } from './auth-utils';
+import type { PdfStoreLike } from './pdf-store';
 import { authenticateJWT, requireAdmin } from './middleware/auth';
 import { createOperationsRouter } from './routes/operations';
 import { createAuthRouter } from './routes/auth';
@@ -43,12 +44,6 @@ type PasswordCacheLike = {
   get: (userId: string) => string | null;
   set: (userId: string, password: string) => void;
   clear: (userId: string) => void;
-};
-
-type PdfStoreLike = {
-  save: (buffer: Buffer, originalName: string, req: express.Request) => { id: string; url: string };
-  get: (id: string) => { buffer: Buffer; originalName: string } | null;
-  delete: (id: string) => void;
 };
 
 type AppDeps = {
