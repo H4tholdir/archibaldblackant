@@ -245,6 +245,7 @@ async function main() {
   }, {
     connection: { host: redisHost, port: redisPort },
     concurrency: 1,
+    lockDuration: 600_000,
   });
 
   worker.on('failed', (job, err) => {

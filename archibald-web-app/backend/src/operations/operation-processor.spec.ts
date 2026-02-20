@@ -53,6 +53,7 @@ describe('createOperationProcessor', () => {
     handlers?: Record<string, any>;
     cancelJob?: ReturnType<typeof vi.fn>;
     preemptionConfig?: { timeoutMs: number; pollIntervalMs: number };
+    getTimeout?: (type: string) => number;
   } = {}) {
     const agentLock = opts.agentLock ?? createMockAgentLock();
     const browserPool = opts.browserPool ?? createMockBrowserPool();
@@ -70,6 +71,7 @@ describe('createOperationProcessor', () => {
         handlers,
         cancelJob,
         preemptionConfig: opts.preemptionConfig,
+        getTimeout: opts.getTimeout as any,
       }),
       agentLock,
       browserPool,
@@ -264,14 +266,12 @@ describe('createOperationProcessor', () => {
     });
   });
 
-  test('passes context, job data, updateProgress, and signal to handler', async () => {
+  test('passes context, job data, updateProgress, and AbortSignal to handler', async () => {
     const handler = vi.fn().mockResolvedValue({ done: true });
     const { processor } = createProcessor({
       handlers: { 'submit-order': handler },
     });
-    const ac = new AbortController();
     const job = createMockJob();
-    (job as any).signal = ac.signal;
 
     await processor.processJob(job as any);
 
@@ -280,27 +280,21 @@ describe('createOperationProcessor', () => {
       { orderId: '1' },
       'user-a',
       expect.any(Function),
-      ac.signal,
+      expect.any(AbortSignal),
     );
   });
 
-  test('processJob works when signal is undefined', async () => {
+  test('handler receives non-aborted signal when no timeout or cancel', async () => {
     const handler = vi.fn().mockResolvedValue({ ok: true });
     const { processor } = createProcessor({
       handlers: { 'submit-order': handler },
     });
     const job = createMockJob();
 
-    const result = await processor.processJob(job as any);
+    await processor.processJob(job as any);
 
-    expect(handler).toHaveBeenCalledWith(
-      { id: 'ctx-1' },
-      { orderId: '1' },
-      'user-a',
-      expect.any(Function),
-      undefined,
-    );
-    expect(result.success).toBe(true);
+    const signal = handler.mock.calls[0][4] as AbortSignal;
+    expect(signal.aborted).toBe(false);
   });
 
   test('throws for unknown operation type', async () => {
@@ -310,5 +304,64 @@ describe('createOperationProcessor', () => {
     await expect(processor.processJob(job as any)).rejects.toThrow(
       'No handler registered for operation type: sync-customers',
     );
+  });
+
+  test('throws UnrecoverableError when handler exceeds timeout', async () => {
+    const hangingHandler = vi.fn().mockImplementation(
+      () => new Promise(() => {}),
+    );
+    const { processor, broadcast } = createProcessor({
+      handlers: { 'submit-order': hangingHandler },
+      getTimeout: () => 50,
+    });
+    const job = createMockJob();
+
+    await expect(processor.processJob(job as any)).rejects.toThrow(
+      'Handler timeout after 50ms for submit-order',
+    );
+    expect(broadcast).toHaveBeenCalledWith('user-a', {
+      event: 'JOB_FAILED',
+      jobId: 'job-123',
+      type: 'submit-order',
+      error: 'Handler timeout after 50ms for submit-order',
+    });
+  });
+
+  test('clears timeout on successful handler completion', async () => {
+    const handler = vi.fn().mockResolvedValue({ done: true });
+    const { processor } = createProcessor({
+      handlers: { 'submit-order': handler },
+      getTimeout: () => 5000,
+    });
+    const job = createMockJob();
+
+    const result = await processor.processJob(job as any);
+
+    expect(result.success).toBe(true);
+    const signal = handler.mock.calls[0][4] as AbortSignal;
+    expect(signal.aborted).toBe(false);
+  });
+
+  test('combined signal aborts when BullMQ job signal aborts', async () => {
+    let capturedSignal: AbortSignal | undefined;
+    const handler = vi.fn().mockImplementation(
+      (_ctx: unknown, _data: unknown, _userId: string, _onProgress: unknown, signal: AbortSignal) => {
+        capturedSignal = signal;
+        return new Promise(() => {});
+      },
+    );
+    const ac = new AbortController();
+    const { processor } = createProcessor({
+      handlers: { 'submit-order': handler },
+      getTimeout: () => 5000,
+    });
+    const job = createMockJob();
+    (job as any).signal = ac.signal;
+
+    const promise = processor.processJob(job as any);
+    ac.abort();
+
+    await expect(promise).rejects.toThrow('Handler timeout after 5000ms for submit-order');
+    expect(capturedSignal!.aborted).toBe(true);
   });
 });

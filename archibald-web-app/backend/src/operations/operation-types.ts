@@ -54,6 +54,24 @@ const SCHEDULED_SYNCS: ReadonlySet<OperationType> = new Set([
   'sync-prices',
 ]);
 
+const OPERATION_TIMEOUTS: Record<OperationType, number> = {
+  'submit-order': 120_000,
+  'create-customer': 120_000,
+  'update-customer': 120_000,
+  'send-to-verona': 120_000,
+  'edit-order': 120_000,
+  'delete-order': 60_000,
+  'download-ddt-pdf': 60_000,
+  'download-invoice-pdf': 60_000,
+  'sync-order-articles': 180_000,
+  'sync-customers': 300_000,
+  'sync-orders': 300_000,
+  'sync-ddt': 300_000,
+  'sync-invoices': 300_000,
+  'sync-products': 300_000,
+  'sync-prices': 300_000,
+};
+
 function isWriteOperation(type: OperationType): boolean {
   return WRITE_OPERATIONS.has(type);
 }
@@ -79,6 +97,7 @@ type OperationJobResult = {
 export {
   OPERATION_TYPES,
   OPERATION_PRIORITIES,
+  OPERATION_TIMEOUTS,
   isWriteOperation,
   isScheduledSync,
   type OperationType,

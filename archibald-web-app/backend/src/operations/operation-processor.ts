@@ -1,5 +1,7 @@
 import type { OperationType, OperationJobData, OperationJobResult } from './operation-types';
+import { OPERATION_TIMEOUTS } from './operation-types';
 import type { AgentLock } from './agent-lock';
+import { UnrecoverableError } from 'bullmq';
 
 type BrowserContext = unknown;
 
@@ -45,6 +47,7 @@ type ProcessorDeps = {
   handlers: Partial<Record<OperationType, OperationHandler>>;
   cancelJob: (jobId: string) => boolean;
   preemptionConfig?: PreemptionConfig;
+  getTimeout?: (type: OperationType) => number;
 };
 
 type ProcessJobResult = {
@@ -101,6 +104,13 @@ function createOperationProcessor(deps: ProcessorDeps) {
     lockAcquired = true;
 
     let context: BrowserContext | null = null;
+    const timeoutMs = deps.getTimeout?.(type) ?? OPERATION_TIMEOUTS[type] ?? 120_000;
+    const timeoutController = new AbortController();
+    const timer = setTimeout(() => timeoutController.abort(), timeoutMs);
+
+    const combinedAbort = () => { timeoutController.abort(); };
+    job.signal?.addEventListener('abort', combinedAbort, { once: true });
+
     try {
       context = await browserPool.acquireContext(userId, { fromQueue: true });
 
@@ -108,7 +118,18 @@ function createOperationProcessor(deps: ProcessorDeps) {
         job.updateProgress(label ? { progress, label } : progress);
       };
 
-      const result = await handler(context, data, userId, onProgress, job.signal);
+      const result = await Promise.race([
+        handler(context, data, userId, onProgress, timeoutController.signal),
+        new Promise<never>((_resolve, reject) => {
+          if (timeoutController.signal.aborted) {
+            reject(timeoutController.signal.reason ?? new DOMException('The operation was aborted.', 'AbortError'));
+            return;
+          }
+          timeoutController.signal.addEventListener('abort', () => {
+            reject(timeoutController.signal.reason ?? new DOMException('The operation was aborted.', 'AbortError'));
+          }, { once: true });
+        }),
+      ]);
 
       await browserPool.releaseContext(userId, context, true);
       context = null;
@@ -126,6 +147,16 @@ function createOperationProcessor(deps: ProcessorDeps) {
         await browserPool.releaseContext(userId, context, false);
       }
 
+      if (error instanceof Error && error.name === 'AbortError') {
+        broadcast(userId, {
+          event: 'JOB_FAILED',
+          jobId: job.id,
+          type,
+          error: `Handler timeout after ${timeoutMs}ms for ${type}`,
+        });
+        throw new UnrecoverableError(`Handler timeout after ${timeoutMs}ms for ${type}`);
+      }
+
       broadcast(userId, {
         event: 'JOB_FAILED',
         jobId: job.id,
@@ -135,6 +166,7 @@ function createOperationProcessor(deps: ProcessorDeps) {
 
       throw error;
     } finally {
+      clearTimeout(timer);
       if (lockAcquired) {
         agentLock.release(userId);
       }
