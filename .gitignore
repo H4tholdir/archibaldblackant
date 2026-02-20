@@ -121,6 +121,19 @@ client.jpg
 *.jpeg
 LOGO-FRESIS*.jpeg
 
+# Test artifacts (regeneratable)
+playwright-report/
+test-results/
+
+# Legacy data directories (not project code)
+ArcaPro/
+komet-campionari-images-2026-02-15/
+my-video/
+tutteftarca/
+
+# Legacy backend planning (moved to root .planning/)
+archibald-web-app/backend/.planning/
+
 # Planning analysis documents (temporary)
 .planning/CUSTOMER_SCRAPING_*.md
 VPS-ACCESS-CREDENTIALS.md
