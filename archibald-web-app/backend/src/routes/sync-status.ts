@@ -4,15 +4,16 @@ import type { AuthRequest } from '../middleware/auth';
 import type { OperationQueue } from '../operations/operation-queue';
 import type { AgentLock } from '../operations/agent-lock';
 import type { OperationType } from '../operations/operation-types';
+import type { SyncType, SyncTypeIntervals } from '../sync/sync-scheduler';
 import { logger } from '../logger';
 
 type SyncSchedulerLike = {
-  start: (intervals?: unknown) => void;
+  start: (intervals: SyncTypeIntervals) => void;
   stop: () => void;
   isRunning: () => boolean;
-  getIntervals: () => { agentSyncMs: number; sharedSyncMs: number };
-  updateInterval?: (type: string, intervalMinutes: number) => void;
-  getDetailedIntervals?: () => Record<string, number>;
+  getIntervals: () => SyncTypeIntervals;
+  updateInterval: (syncType: SyncType, intervalMs: number) => void;
+  getDetailedIntervals: () => Record<SyncType, number>;
 };
 
 type SyncStatusRouterDeps = {
@@ -20,6 +21,8 @@ type SyncStatusRouterDeps = {
   agentLock: AgentLock;
   syncScheduler: SyncSchedulerLike;
   clearSyncData?: (type: string) => Promise<{ message: string }>;
+  loadIntervalsMs?: () => Promise<SyncTypeIntervals>;
+  persistInterval?: (syncType: SyncType, intervalMinutes: number) => Promise<void>;
 };
 
 const VALID_SYNC_TYPES = new Set([
@@ -61,7 +64,7 @@ function createSyncStatusRouter(deps: SyncStatusRouterDeps) {
         activeJobs: activeJobsList,
         scheduler: {
           running: syncScheduler.isRunning(),
-          intervals: syncScheduler.getIntervals(),
+          intervals: syncScheduler.getDetailedIntervals(),
         },
       });
     } catch (error) {
@@ -74,13 +77,18 @@ function createSyncStatusRouter(deps: SyncStatusRouterDeps) {
     res.json({
       success: true,
       running: syncScheduler.isRunning(),
-      intervals: syncScheduler.getIntervals(),
+      intervals: syncScheduler.getDetailedIntervals(),
     });
   });
 
   router.post('/auto-sync/start', async (_req: AuthRequest, res) => {
     try {
-      syncScheduler.start();
+      if (deps.loadIntervalsMs) {
+        const intervalsMs = await deps.loadIntervalsMs();
+        syncScheduler.start(intervalsMs);
+      } else {
+        syncScheduler.start(syncScheduler.getIntervals());
+      }
       res.json({ success: true });
     } catch (error) {
       logger.error('Error starting auto-sync', { error });
@@ -137,7 +145,7 @@ function createSyncStatusRouter(deps: SyncStatusRouterDeps) {
           activeJobs: activeJobsList,
           scheduler: {
             running: syncScheduler.isRunning(),
-            intervals: syncScheduler.getIntervals(),
+            intervals: syncScheduler.getDetailedIntervals(),
           },
         },
       });
@@ -149,9 +157,7 @@ function createSyncStatusRouter(deps: SyncStatusRouterDeps) {
 
   router.get('/intervals', async (_req: AuthRequest, res) => {
     try {
-      const intervals = syncScheduler.getDetailedIntervals
-        ? syncScheduler.getDetailedIntervals()
-        : syncScheduler.getIntervals();
+      const intervals = syncScheduler.getDetailedIntervals();
       res.json({ success: true, intervals });
     } catch (error) {
       logger.error('Error fetching sync intervals', { error });
@@ -182,11 +188,12 @@ function createSyncStatusRouter(deps: SyncStatusRouterDeps) {
         });
       }
 
-      if (!syncScheduler.updateInterval) {
-        return res.status(501).json({ success: false, error: 'Aggiornamento intervalli non supportato' });
-      }
+      const intervalMs = parsed.data.intervalMinutes * 60_000;
+      syncScheduler.updateInterval(type as SyncType, intervalMs);
 
-      syncScheduler.updateInterval(type, parsed.data.intervalMinutes);
+      if (deps.persistInterval) {
+        await deps.persistInterval(type as SyncType, parsed.data.intervalMinutes);
+      }
 
       logger.info(`Sync interval updated for ${type}`, {
         userId: req.user?.userId,
@@ -235,4 +242,4 @@ function createSyncStatusRouter(deps: SyncStatusRouterDeps) {
   return router;
 }
 
-export { createSyncStatusRouter, type SyncStatusRouterDeps };
+export { createSyncStatusRouter, type SyncStatusRouterDeps, type SyncSchedulerLike };

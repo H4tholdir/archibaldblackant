@@ -5,7 +5,8 @@ import type { DbPool } from './db/pool';
 import type { OperationQueue } from './operations/operation-queue';
 import type { AgentLock } from './operations/agent-lock';
 import type { BrowserPool } from './bot/browser-pool';
-import type { SyncScheduler } from './sync/sync-scheduler';
+import type { SyncScheduler, SyncTypeIntervals } from './sync/sync-scheduler';
+import * as syncSettingsRepo from './db/repositories/sync-settings';
 import type { WebSocketServerModule } from './realtime/websocket-server';
 import type { JWTPayload } from './auth-utils';
 import { authenticateJWT, requireAdmin } from './middleware/auth';
@@ -144,7 +145,20 @@ function createApp(deps: AppDeps): Express {
       upsertSingleCustomer: (userId, formData, profile, status) => customersRepo.upsertSingleCustomer(pool, userId, formData, profile, status),
       updateCustomerBotStatus: (userId, profile, status) => customersRepo.updateCustomerBotStatus(pool, userId, profile, status),
       pauseSyncs: async () => { syncScheduler.stop(); },
-      resumeSyncs: () => { if (!syncScheduler.isRunning()) syncScheduler.start(syncScheduler.getIntervals()); },
+      resumeSyncs: () => {
+        if (!syncScheduler.isRunning()) {
+          syncSettingsRepo.getAllIntervals(pool)
+            .then(saved => {
+              const intervalsMs = Object.fromEntries(
+                Object.entries(saved).map(([k, v]) => [k, v * 60_000]),
+              ) as SyncTypeIntervals;
+              syncScheduler.start(intervalsMs);
+            })
+            .catch(() => {
+              syncScheduler.start(syncScheduler.getIntervals());
+            });
+        }
+      },
     }));
   }
 
@@ -237,11 +251,21 @@ function createApp(deps: AppDeps): Express {
     queue,
     agentLock,
     syncScheduler: {
-      start: (intervals) => syncScheduler.start(intervals as any),
+      start: (intervals) => syncScheduler.start(intervals),
       stop: () => syncScheduler.stop(),
       isRunning: () => syncScheduler.isRunning(),
       getIntervals: () => syncScheduler.getIntervals(),
+      updateInterval: (syncType, intervalMs) => syncScheduler.updateInterval(syncType, intervalMs),
+      getDetailedIntervals: () => syncScheduler.getDetailedIntervals(),
     },
+    loadIntervalsMs: async () => {
+      const saved = await syncSettingsRepo.getAllIntervals(pool);
+      return Object.fromEntries(
+        Object.entries(saved).map(([k, v]) => [k, v * 60_000]),
+      ) as SyncTypeIntervals;
+    },
+    persistInterval: (syncType, intervalMinutes) =>
+      syncSettingsRepo.updateInterval(pool, syncType, intervalMinutes),
   }));
 
   app.use('/api/sync', authenticateJWT, createSseProgressRouter({

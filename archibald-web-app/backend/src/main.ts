@@ -44,6 +44,8 @@ import { PDFParserPricesService } from './pdf-parser-prices-service';
 import { PDFParserDDTService } from './pdf-parser-ddt-service';
 import { PDFParserInvoicesService } from './pdf-parser-invoices-service';
 import * as usersRepo from './db/repositories/users';
+import * as syncSettingsRepo from './db/repositories/sync-settings';
+import type { SyncTypeIntervals } from './sync/sync-scheduler';
 
 function createPdfStore() {
   const store = new Map<string, { buffer: Buffer; originalName: string }>();
@@ -149,8 +151,22 @@ async function main() {
 
   const syncScheduler = createSyncScheduler(
     queue.enqueue.bind(queue),
-    () => Array.from(agentLock.getAllActive().keys()),
+    async () => {
+      const users = await usersRepo.getWhitelistedUsers(pool);
+      return users.map(u => u.id);
+    },
   );
+
+  try {
+    const savedIntervals = await syncSettingsRepo.getAllIntervals(pool);
+    const intervalsMs = Object.fromEntries(
+      Object.entries(savedIntervals).map(([k, v]) => [k, v * 60_000]),
+    ) as SyncTypeIntervals;
+    syncScheduler.start(intervalsMs);
+    logger.info('Sync scheduler started', { intervals: savedIntervals });
+  } catch (err) {
+    logger.warn('Failed to start sync scheduler, will need manual start', { error: String(err) });
+  }
 
   const passwordCache = PasswordCache.getInstance();
   const pdfStore = createPdfStore();
