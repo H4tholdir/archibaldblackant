@@ -1,5 +1,6 @@
 import type { DbPool } from '../../db/pool';
 import type { OperationHandler } from '../operation-processor';
+import { checkBotResult, saveBotResult, clearBotResult } from '../bot-result-store';
 
 type SubmitOrderItem = {
   articleCode: string;
@@ -56,7 +57,16 @@ async function handleSubmitOrder(
   });
 
   onProgress(10, 'Creazione ordine su Archibald');
-  const orderId = await bot.createOrder(data);
+
+  let orderId: string;
+  const savedResult = await checkBotResult(pool, userId, 'submit-order', data.pendingOrderId);
+
+  if (savedResult) {
+    orderId = savedResult.orderId as string;
+  } else {
+    orderId = await bot.createOrder(data);
+    await saveBotResult(pool, userId, 'submit-order', data.pendingOrderId, { orderId });
+  }
 
   onProgress(70, 'Salvataggio ordine nel database');
 
@@ -158,6 +168,8 @@ async function handleSubmitOrder(
       [data.pendingOrderId],
     );
   });
+
+  await clearBotResult(pool, userId, 'submit-order', data.pendingOrderId);
 
   onProgress(100, 'Ordine completato');
 

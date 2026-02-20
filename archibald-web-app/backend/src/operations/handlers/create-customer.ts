@@ -1,5 +1,6 @@
 import type { DbPool } from '../../db/pool';
 import type { OperationHandler } from '../operation-processor';
+import { checkBotResult, saveBotResult, clearBotResult } from '../bot-result-store';
 
 type CreateCustomerData = {
   name: string;
@@ -64,7 +65,16 @@ async function handleCreateCustomer(
   });
 
   onProgress(10, 'Creazione cliente su Archibald');
-  const realProfile = await bot.createCustomer(data);
+
+  let realProfile: string;
+  const savedResult = await checkBotResult(pool, userId, 'create-customer', data.name);
+
+  if (savedResult) {
+    realProfile = savedResult.customerProfile as string;
+  } else {
+    realProfile = await bot.createCustomer(data);
+    await saveBotResult(pool, userId, 'create-customer', data.name, { customerProfile: realProfile });
+  }
 
   onProgress(80, 'Aggiornamento profilo cliente');
 
@@ -74,6 +84,8 @@ async function handleCreateCustomer(
      WHERE customer_profile = $3 AND user_id = $4`,
     [realProfile, 'placed', tempProfile, userId],
   );
+
+  await clearBotResult(pool, userId, 'create-customer', data.name);
 
   onProgress(100, 'Cliente creato');
 

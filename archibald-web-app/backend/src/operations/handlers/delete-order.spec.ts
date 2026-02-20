@@ -1,6 +1,13 @@
 import { describe, expect, test, vi } from 'vitest';
 import { handleDeleteOrder, type DeleteOrderBot, type DeleteOrderData } from './delete-order';
 import type { DbPool } from '../../db/pool';
+import { checkBotResult, saveBotResult, clearBotResult } from '../bot-result-store';
+
+vi.mock('../bot-result-store', () => ({
+  checkBotResult: vi.fn().mockResolvedValue(null),
+  saveBotResult: vi.fn().mockResolvedValue(undefined),
+  clearBotResult: vi.fn().mockResolvedValue(undefined),
+}));
 
 function createMockPool(): DbPool {
   const query = vi.fn().mockResolvedValue({ rows: [], rowCount: 1 });
@@ -73,5 +80,56 @@ describe('handleDeleteOrder', () => {
     await handleDeleteOrder(pool, bot, sampleData, 'user-1', onProgress);
 
     expect(onProgress).toHaveBeenCalledWith(100, expect.any(String));
+  });
+
+  test('skips bot call when bot_result exists (recovery path)', async () => {
+    vi.mocked(checkBotResult).mockResolvedValueOnce({ success: true, message: 'Already deleted' });
+    const pool = createMockPool();
+    const bot = createMockBot();
+
+    const result = await handleDeleteOrder(pool, bot, sampleData, 'user-1', vi.fn());
+
+    expect(bot.deleteOrderFromArchibald).not.toHaveBeenCalled();
+    expect(result.success).toBe(true);
+    expect(pool.withTransaction).toHaveBeenCalled();
+  });
+
+  test('calls bot and saves result when no bot_result exists (normal path)', async () => {
+    vi.mocked(checkBotResult).mockResolvedValueOnce(null);
+    const pool = createMockPool();
+    const bot = createMockBot();
+
+    await handleDeleteOrder(pool, bot, sampleData, 'user-1', vi.fn());
+
+    expect(bot.deleteOrderFromArchibald).toHaveBeenCalledWith('ORD-001');
+    expect(saveBotResult).toHaveBeenCalledWith(
+      pool, 'user-1', 'delete-order', 'ORD-001', { success: true, message: 'Order deleted' },
+    );
+  });
+
+  test('clears bot_result after successful DB transaction', async () => {
+    vi.mocked(checkBotResult).mockResolvedValueOnce(null);
+    const pool = createMockPool();
+    const bot = createMockBot();
+
+    await handleDeleteOrder(pool, bot, sampleData, 'user-1', vi.fn());
+
+    expect(clearBotResult).toHaveBeenCalledWith(pool, 'user-1', 'delete-order', 'ORD-001');
+  });
+
+  test('bot_result persists if DB transaction fails', async () => {
+    vi.mocked(checkBotResult).mockResolvedValueOnce(null);
+    vi.mocked(saveBotResult).mockResolvedValueOnce(undefined);
+    vi.mocked(clearBotResult).mockClear();
+    const pool = createMockPool();
+    (pool.withTransaction as ReturnType<typeof vi.fn>).mockRejectedValueOnce(new Error('DB error'));
+    const bot = createMockBot();
+
+    await expect(
+      handleDeleteOrder(pool, bot, sampleData, 'user-1', vi.fn()),
+    ).rejects.toThrow('DB error');
+
+    expect(saveBotResult).toHaveBeenCalled();
+    expect(clearBotResult).not.toHaveBeenCalled();
   });
 });

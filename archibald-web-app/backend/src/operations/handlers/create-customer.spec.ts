@@ -1,6 +1,13 @@
 import { describe, expect, test, vi } from 'vitest';
 import { handleCreateCustomer, type CreateCustomerBot, type CreateCustomerData } from './create-customer';
 import type { DbPool } from '../../db/pool';
+import { checkBotResult, saveBotResult, clearBotResult } from '../bot-result-store';
+
+vi.mock('../bot-result-store', () => ({
+  checkBotResult: vi.fn().mockResolvedValue(null),
+  saveBotResult: vi.fn().mockResolvedValue(undefined),
+  clearBotResult: vi.fn().mockResolvedValue(undefined),
+}));
 
 function createMockPool(): DbPool {
   return {
@@ -79,5 +86,57 @@ describe('handleCreateCustomer', () => {
     await handleCreateCustomer(pool, bot, sampleData, 'user-1', onProgress);
 
     expect(onProgress).toHaveBeenCalledWith(100, expect.any(String));
+  });
+
+  test('skips bot call when bot_result exists (recovery path)', async () => {
+    vi.mocked(checkBotResult).mockResolvedValueOnce({ customerProfile: 'CUST-RECOVERED' });
+    const pool = createMockPool();
+    const bot = createMockBot();
+
+    const result = await handleCreateCustomer(pool, bot, sampleData, 'user-1', vi.fn());
+
+    expect(bot.createCustomer).not.toHaveBeenCalled();
+    expect(result.customerProfile).toBe('CUST-RECOVERED');
+  });
+
+  test('calls bot and saves result when no bot_result exists (normal path)', async () => {
+    vi.mocked(checkBotResult).mockResolvedValueOnce(null);
+    const pool = createMockPool();
+    const bot = createMockBot();
+
+    await handleCreateCustomer(pool, bot, sampleData, 'user-1', vi.fn());
+
+    expect(bot.createCustomer).toHaveBeenCalledWith(sampleData);
+    expect(saveBotResult).toHaveBeenCalledWith(
+      pool, 'user-1', 'create-customer', 'New Corp S.r.l.', { customerProfile: 'CUST-PROFILE-001' },
+    );
+  });
+
+  test('clears bot_result after successful DB update', async () => {
+    vi.mocked(checkBotResult).mockResolvedValueOnce(null);
+    const pool = createMockPool();
+    const bot = createMockBot();
+
+    await handleCreateCustomer(pool, bot, sampleData, 'user-1', vi.fn());
+
+    expect(clearBotResult).toHaveBeenCalledWith(pool, 'user-1', 'create-customer', 'New Corp S.r.l.');
+  });
+
+  test('bot_result persists if DB update fails', async () => {
+    vi.mocked(checkBotResult).mockResolvedValueOnce(null);
+    vi.mocked(saveBotResult).mockResolvedValueOnce(undefined);
+    vi.mocked(clearBotResult).mockClear();
+    const pool = createMockPool();
+    const queryMock = pool.query as ReturnType<typeof vi.fn>;
+    queryMock.mockResolvedValueOnce({ rows: [], rowCount: 1 });
+    queryMock.mockRejectedValueOnce(new Error('DB error'));
+    const bot = createMockBot();
+
+    await expect(
+      handleCreateCustomer(pool, bot, sampleData, 'user-1', vi.fn()),
+    ).rejects.toThrow('DB error');
+
+    expect(saveBotResult).toHaveBeenCalled();
+    expect(clearBotResult).not.toHaveBeenCalled();
   });
 });

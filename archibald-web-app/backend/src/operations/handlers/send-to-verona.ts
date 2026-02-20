@@ -1,5 +1,6 @@
 import type { DbPool } from '../../db/pool';
 import type { OperationHandler } from '../operation-processor';
+import { checkBotResult, saveBotResult, clearBotResult } from '../bot-result-store';
 
 type SendToVeronaData = {
   orderId: string;
@@ -24,10 +25,18 @@ async function handleSendToVerona(
   });
 
   onProgress(10, 'Invio ordine a Verona');
-  const result = await bot.sendOrderToVerona(data.orderId);
 
-  if (!result.success) {
-    throw new Error(result.message);
+  const savedResult = await checkBotResult(pool, userId, 'send-to-verona', data.orderId);
+  let result: { success: boolean; message: string };
+
+  if (savedResult) {
+    result = { success: savedResult.success as boolean, message: savedResult.message as string };
+  } else {
+    result = await bot.sendOrderToVerona(data.orderId);
+    if (!result.success) {
+      throw new Error(result.message);
+    }
+    await saveBotResult(pool, userId, 'send-to-verona', data.orderId, { success: true, message: result.message });
   }
 
   const sentToVeronaAt = new Date().toISOString();
@@ -40,6 +49,8 @@ async function handleSendToVerona(
      WHERE id = $4 AND user_id = $5`,
     ['inviato_verona', sentToVeronaAt, Math.floor(Date.now() / 1000), data.orderId, userId],
   );
+
+  await clearBotResult(pool, userId, 'send-to-verona', data.orderId);
 
   onProgress(100, 'Invio completato');
 

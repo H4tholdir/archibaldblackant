@@ -1,5 +1,6 @@
 import type { DbPool } from '../../db/pool';
 import type { OperationHandler } from '../operation-processor';
+import { checkBotResult, saveBotResult, clearBotResult } from '../bot-result-store';
 
 type DeleteOrderData = {
   orderId: string;
@@ -24,10 +25,18 @@ async function handleDeleteOrder(
   });
 
   onProgress(10, 'Cancellazione ordine da Archibald');
-  const result = await bot.deleteOrderFromArchibald(data.orderId);
 
-  if (!result.success) {
-    throw new Error(result.message);
+  const savedResult = await checkBotResult(pool, userId, 'delete-order', data.orderId);
+  let result: { success: boolean; message: string };
+
+  if (savedResult) {
+    result = { success: savedResult.success as boolean, message: savedResult.message as string };
+  } else {
+    result = await bot.deleteOrderFromArchibald(data.orderId);
+    if (!result.success) {
+      throw new Error(result.message);
+    }
+    await saveBotResult(pool, userId, 'delete-order', data.orderId, { success: true, message: result.message });
   }
 
   onProgress(70, 'Rimozione ordine dal database');
@@ -46,6 +55,8 @@ async function handleDeleteOrder(
       [data.orderId, userId],
     );
   });
+
+  await clearBotResult(pool, userId, 'delete-order', data.orderId);
 
   onProgress(100, 'Cancellazione completata');
 
