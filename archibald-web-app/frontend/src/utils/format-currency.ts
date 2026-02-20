@@ -28,7 +28,7 @@ export function formatCurrencyWithCurrency(
 ): string {
   return new Intl.NumberFormat("it-IT", {
     style: "currency",
-    currency,
+    currency: currency || "EUR",
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
     useGrouping: true,

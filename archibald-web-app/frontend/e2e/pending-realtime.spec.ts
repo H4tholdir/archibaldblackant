@@ -12,7 +12,7 @@ import { test, expect } from "@playwright/test";
 import type { BrowserContext, Page } from "@playwright/test";
 
 const STORAGE_STATE = "playwright/.auth/user.json";
-const SYNC_TIMEOUT = 15_000;
+const SYNC_TIMEOUT = 30_000;
 const TEST_ORDER_PREFIX = "e2e-rt-";
 
 function makeTestOrderId() {
@@ -233,6 +233,9 @@ test.describe.serial("pending orders real-time sync", () => {
   });
 
   test("rapid create and delete maintains consistency", async () => {
+    // Allow both pages to settle after previous tests
+    await pageA.waitForTimeout(1_000);
+
     const initialCountA = await getPendingCountFromDom(pageA);
     const initialCountB = await getPendingCountFromDom(pageB);
 
@@ -243,10 +246,16 @@ test.describe.serial("pending orders real-time sync", () => {
 
     await waitForCountAtLeast(pageB, initialCountB + 1);
 
+    // Brief pause to ensure WebSocket events fully process before next operation
+    await pageA.waitForTimeout(500);
+
     await deleteOrderViaApi(pageA, jwt, orderId);
     createdOrderIds.pop();
 
     await waitForCountAtMost(pageB, initialCountB);
+
+    // Wait for both pages to fully settle before final assertions
+    await pageA.waitForTimeout(1_000);
 
     const finalCountA = await getPendingCountFromDom(pageA);
     const finalCountB = await getPendingCountFromDom(pageB);

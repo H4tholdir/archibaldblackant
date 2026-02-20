@@ -64,19 +64,20 @@ export function ProfilePage() {
         });
 
         if (response.ok) {
-          const data: TargetData = await response.json();
+          const json = await response.json();
+          const data: TargetData = json.data ?? json;
           setCurrentTarget(data);
 
           // Initialize edit form with current values
-          setEditYearlyTarget(data.yearlyTarget.toString());
-          setEditCurrency(data.currency);
-          setEditCommissionRate((data.commissionRate * 100).toString());
-          setEditBonusAmount(data.bonusAmount.toString());
-          setEditBonusInterval(data.bonusInterval.toString());
-          setEditExtraBudgetInterval(data.extraBudgetInterval.toString());
-          setEditExtraBudgetReward(data.extraBudgetReward.toString());
-          setEditMonthlyAdvance(data.monthlyAdvance.toString());
-          setEditHideCommissions(data.hideCommissions);
+          setEditYearlyTarget((data.yearlyTarget ?? 0).toString());
+          setEditCurrency(data.currency || "EUR");
+          setEditCommissionRate(((data.commissionRate ?? 0) * 100).toString());
+          setEditBonusAmount((data.bonusAmount ?? 0).toString());
+          setEditBonusInterval((data.bonusInterval ?? 0).toString());
+          setEditExtraBudgetInterval((data.extraBudgetInterval ?? 0).toString());
+          setEditExtraBudgetReward((data.extraBudgetReward ?? 0).toString());
+          setEditMonthlyAdvance((data.monthlyAdvance ?? 0).toString());
+          setEditHideCommissions(data.hideCommissions ?? false);
         } else {
           console.error(
             "[ProfilePage] Failed to load target:",
@@ -229,15 +230,15 @@ export function ProfilePage() {
     if (!currentTarget) return;
 
     // Reset form to current values
-    setEditYearlyTarget(currentTarget.yearlyTarget.toString());
-    setEditCurrency(currentTarget.currency);
-    setEditCommissionRate((currentTarget.commissionRate * 100).toString());
-    setEditBonusAmount(currentTarget.bonusAmount.toString());
-    setEditBonusInterval(currentTarget.bonusInterval.toString());
-    setEditExtraBudgetInterval(currentTarget.extraBudgetInterval.toString());
-    setEditExtraBudgetReward(currentTarget.extraBudgetReward.toString());
-    setEditMonthlyAdvance(currentTarget.monthlyAdvance.toString());
-    setEditHideCommissions(currentTarget.hideCommissions);
+    setEditYearlyTarget((currentTarget.yearlyTarget ?? 0).toString());
+    setEditCurrency(currentTarget.currency || "EUR");
+    setEditCommissionRate(((currentTarget.commissionRate ?? 0) * 100).toString());
+    setEditBonusAmount((currentTarget.bonusAmount ?? 0).toString());
+    setEditBonusInterval((currentTarget.bonusInterval ?? 0).toString());
+    setEditExtraBudgetInterval((currentTarget.extraBudgetInterval ?? 0).toString());
+    setEditExtraBudgetReward((currentTarget.extraBudgetReward ?? 0).toString());
+    setEditMonthlyAdvance((currentTarget.monthlyAdvance ?? 0).toString());
+    setEditHideCommissions(currentTarget.hideCommissions ?? false);
     setValidationError("");
   };
 
