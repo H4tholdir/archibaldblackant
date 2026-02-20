@@ -10,18 +10,18 @@ See: .planning/PROJECT.md (updated 2026-02-20)
 ## Current Position
 
 Phase: 6 of 10 (Data Integrity & Hardening)
-Plan: 1 of 4 in current phase
+Plan: 2 of 4 in current phase
 Status: In progress
-Last activity: 2026-02-20 — Completed 06-01-PLAN.md
+Last activity: 2026-02-20 — Completed 06-02-PLAN.md
 
-Progress: █████░░░░░ 48%
+Progress: █████░░░░░ 52%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 16
-- Average duration: 5.7 min
-- Total execution time: 91 min
+- Total plans completed: 17
+- Average duration: 5.6 min
+- Total execution time: 96 min
 
 **By Phase:**
 
@@ -32,11 +32,11 @@ Progress: █████░░░░░ 48%
 | 3 | 3/3 | 16 min | 5.3 min |
 | 4 | 3/3 | 16 min | 5.3 min |
 | 5 | 3/3 | 12 min | 4.0 min |
-| 6 | 1/4 | 5 min | 5.0 min |
+| 6 | 2/4 | 10 min | 5.0 min |
 
 **Recent Trend:**
-- Last 5 plans: 05-01 (4 min), 05-02 (4 min), 05-03 (4 min), 06-01 (5 min)
-- Trend: Fast (~4.3 min avg)
+- Last 5 plans: 05-02 (4 min), 05-03 (4 min), 06-01 (5 min), 06-02 (5 min)
+- Trend: Fast (~4.5 min avg)
 
 ## Accumulated Context
 
@@ -88,6 +88,8 @@ Recent decisions affecting current work:
 - Domain events emitted after pool.withTransaction() completes (not inside transaction)
 - Backend product API response is correct (flat array) — frontend parsing was wrong, not backend shape
 - Dead code removed: VAT_RATE, calculateItemTotals, calculateOrderTotals, reverseCalculateGlobalDiscount
+- No transitional dual-hash period for MD5→SHA-256 migration; first sync re-hashes all records
+- computeOrderHash uses minimal OrderHashInput type to accept both ParsedOrder and OrderInput
 
 ### Deferred Issues
 
@@ -100,5 +102,5 @@ None.
 ## Session Continuity
 
 Last session: 2026-02-20
-Stopped at: Completed 06-01-PLAN.md — Phase 6 plan 1/4
+Stopped at: Completed 06-02-PLAN.md — Phase 6 plan 2/4
 Resume file: None
