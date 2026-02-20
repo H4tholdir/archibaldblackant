@@ -39,6 +39,10 @@ import * as fresisHistoryRepo from './db/repositories/fresis-history';
 import * as pendingOrdersRepo from './db/repositories/pending-orders';
 import * as pricesRepo from './db/repositories/prices';
 import * as dashboardService from './dashboard-service';
+import { exportToArcaDbf, createExportTempDir, cleanupExportDir, streamExportAsZip } from './arca-export-service';
+import { parseArcaExport } from './arca-import-service';
+import type { FresisHistoryRow } from './arca-import-service';
+import { PassThrough } from 'stream';
 
 type PasswordCacheLike = {
   get: (userId: string) => string | null;
@@ -272,9 +276,92 @@ function createApp(deps: AppDeps): Express {
     upsertDiscount: (userId, id, code, pct, kp) => fresisHistoryRepo.upsertDiscount(pool, userId, id, code, pct, kp),
     deleteDiscount: (userId, id) => fresisHistoryRepo.deleteDiscount(pool, userId, id),
     searchOrders: async (userId, query) => ordersRepo.getOrdersByUser(pool, userId, { search: query, limit: 50 }),
-    exportArca: async (_userId) => ({ zipBuffer: Buffer.from(''), stats: { totalDocuments: 0, totalRows: 0, totalClients: 0, totalDestinations: 0 } }),
-    importArca: async (_userId, _buffer, _filename) => ({ success: true, imported: 0, errors: [] }),
-    getNextFtNumber: async (_userId, _esercizio) => 1,
+    exportArca: async (userId) => {
+      const { rows } = await pool.query<FresisHistoryRow>(
+        'SELECT id, user_id, original_pending_order_id, sub_client_codice, sub_client_name, ' +
+        'sub_client_data::text, customer_id, customer_name, items::text, discount_percent, ' +
+        'target_total_with_vat, shipping_cost, shipping_tax, revenue, merged_into_order_id, ' +
+        'merged_at, created_at, updated_at, notes, archibald_order_id, archibald_order_number, ' +
+        'current_state, state_updated_at, ddt_number, ddt_delivery_date, tracking_number, ' +
+        'tracking_url, tracking_courier, delivery_completed_date, invoice_number, invoice_date, ' +
+        'invoice_amount, arca_data::text, source ' +
+        'FROM agents.fresis_history WHERE user_id = $1 AND arca_data IS NOT NULL',
+        [userId],
+      );
+      const tmpDir = createExportTempDir();
+      try {
+        const stats = await exportToArcaDbf(rows, tmpDir);
+        const passThrough = new PassThrough();
+        const chunks: Buffer[] = [];
+        passThrough.on('data', (chunk: Buffer) => chunks.push(chunk));
+        await streamExportAsZip(tmpDir, passThrough);
+        const zipBuffer = Buffer.concat(chunks);
+        return { zipBuffer, stats };
+      } finally {
+        cleanupExportDir(tmpDir);
+      }
+    },
+    importArca: async (userId, buffer, filename) => {
+      const files = [{ originalName: filename, buffer }];
+      const result = await parseArcaExport(files, userId);
+      if (result.records.length > 0) {
+        await fresisHistoryRepo.upsertRecords(pool, userId, result.records.map(r => ({
+          id: r.id,
+          originalPendingOrderId: r.original_pending_order_id,
+          subClientCodice: r.sub_client_codice,
+          subClientName: r.sub_client_name,
+          subClientData: r.sub_client_data ? JSON.parse(r.sub_client_data) : null,
+          customerId: r.customer_id,
+          customerName: r.customer_name,
+          items: JSON.parse(r.items),
+          discountPercent: r.discount_percent,
+          targetTotalWithVat: r.target_total_with_vat,
+          shippingCost: r.shipping_cost,
+          shippingTax: r.shipping_tax,
+          revenue: r.revenue,
+          mergedIntoOrderId: r.merged_into_order_id,
+          mergedAt: r.merged_at,
+          createdAt: r.created_at,
+          updatedAt: r.updated_at,
+          notes: r.notes,
+          archibaldOrderId: r.archibald_order_id,
+          archibaldOrderNumber: r.archibald_order_number,
+          currentState: r.current_state,
+          stateUpdatedAt: r.state_updated_at,
+          ddtNumber: r.ddt_number,
+          ddtDeliveryDate: r.ddt_delivery_date,
+          trackingNumber: r.tracking_number,
+          trackingUrl: r.tracking_url,
+          trackingCourier: r.tracking_courier,
+          deliveryCompletedDate: r.delivery_completed_date,
+          invoiceNumber: r.invoice_number,
+          invoiceDate: r.invoice_date,
+          invoiceAmount: r.invoice_amount,
+          invoiceClosed: null,
+          invoiceRemainingAmount: null,
+          invoiceDueDate: null,
+          arcaData: r.arca_data ? JSON.parse(r.arca_data) : null,
+          parentCustomerName: null,
+          source: r.source,
+        })));
+      }
+      return {
+        success: result.errors.length === 0 || result.records.length > 0,
+        imported: result.records.length,
+        errors: result.errors,
+      };
+    },
+    getNextFtNumber: async (userId, esercizio) => {
+      const { rows } = await pool.query<{ last_number: number }>(
+        `INSERT INTO agents.ft_counter (esercizio, user_id, last_number)
+         VALUES ($1, $2, 1)
+         ON CONFLICT (esercizio, user_id)
+         DO UPDATE SET last_number = agents.ft_counter.last_number + 1
+         RETURNING last_number`,
+        [esercizio, userId],
+      );
+      return rows[0].last_number;
+    },
   }));
 
   app.use('/api/sync', authenticateJWT, createSyncStatusRouter({
