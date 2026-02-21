@@ -9000,7 +9000,7 @@ export class ArchibaldBot {
         "Packing slip journal.pdf",
       ],
       filePrefix: "ddt",
-      downloadTimeout: 300_000,
+      downloadTimeout: 600_000,
     });
   }
 
