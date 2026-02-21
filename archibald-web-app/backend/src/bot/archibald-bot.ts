@@ -8565,6 +8565,24 @@ export class ArchibaldBot {
 
       await this.waitForDevExpressReadyOnPage(page);
 
+      // Detect ERP error banners ("Requested objects cannot be loaded").
+      // Workaround: a first click on the export button clears the error state,
+      // then the real click (below) triggers the actual download.
+      const hasErpError = await page.evaluate(() => {
+        const text = document.body?.innerText || '';
+        return text.includes('Requested objects cannot be loaded') ||
+               text.includes('objects can already be deleted/purged');
+      });
+      if (hasErpError) {
+        logger.warn(`[ArchibaldBot] ERP error banner detected on ${filePrefix} page, clicking export once to clear...`);
+        await page.evaluate((sel: string) => {
+          const btn = document.querySelector(sel) as HTMLElement | null;
+          if (btn) btn.click();
+        }, buttonSelector);
+        await new Promise((resolve) => setTimeout(resolve, 3000));
+        await this.waitForDevExpressReadyOnPage(page);
+      }
+
       if (beforeClick) {
         await beforeClick(page);
       }
@@ -9000,7 +9018,6 @@ export class ArchibaldBot {
         "Packing slip journal.pdf",
       ],
       filePrefix: "ddt",
-      downloadTimeout: 600_000,
     });
   }
 
