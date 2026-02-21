@@ -84,14 +84,15 @@ async function syncPrices(
       );
 
       if (!existing) {
-        await pool.query(
+        const { rowCount } = await pool.query(
           `INSERT INTO shared.prices (
             product_id, product_name, unit_price, item_selection,
             packaging_description, currency, price_valid_from, price_valid_to,
             price_unit, account_description, account_code,
             price_qty_from, price_qty_to, last_modified, data_area_id,
             hash, last_sync
-          ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)`,
+          ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)
+          ON CONFLICT (hash) DO UPDATE SET last_sync = $17`,
           [
             p.productId, p.productName, p.unitPrice, p.itemSelection ?? null,
             p.packagingDescription ?? null, p.currency ?? null, p.priceValidFrom ?? null, p.priceValidTo ?? null,
@@ -100,16 +101,18 @@ async function syncPrices(
             hash, now,
           ],
         );
-        await recordPriceChange(pool, {
-          product_id: p.productId,
-          product_name: p.productName,
-          variant_id: p.itemSelection ?? null,
-          old_price: null,
-          new_price: p.unitPrice,
-          percentage_change: 0,
-          change_type: 'new',
-          sync_date: now,
-        });
+        if (rowCount && rowCount > 0) {
+          await recordPriceChange(pool, {
+            product_id: p.productId,
+            product_name: p.productName,
+            variant_id: p.itemSelection ?? null,
+            old_price: null,
+            new_price: p.unitPrice,
+            percentage_change: 0,
+            change_type: 'new',
+            sync_date: now,
+          });
+        }
         pricesInserted++;
       } else if (existing.hash !== hash) {
         const { rows: [oldRow] } = await pool.query<{ unit_price: string | null }>(

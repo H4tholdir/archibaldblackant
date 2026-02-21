@@ -8763,6 +8763,7 @@ export class ArchibaldBot {
       containerSelector: "#Vertical_mainMenu_Menu_DXI3_",
       expectedFileNames: ["Prodotti.pdf", "Products.pdf"],
       filePrefix: "prodotti",
+      downloadTimeout: 300_000,
     });
   }
 
@@ -8999,6 +9000,7 @@ export class ArchibaldBot {
         "Packing slip journal.pdf",
       ],
       filePrefix: "ddt",
+      downloadTimeout: 300_000,
     });
   }
 
@@ -9025,6 +9027,7 @@ export class ArchibaldBot {
       containerSelector: "#Vertical_mainMenu_Menu_DXI3_",
       expectedFileNames: ["Tabella prezzi.pdf", "Price table.pdf"],
       filePrefix: "prezzi",
+      downloadTimeout: 300_000,
     });
   }
 

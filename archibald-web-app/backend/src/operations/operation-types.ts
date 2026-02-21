@@ -66,10 +66,10 @@ const OPERATION_TIMEOUTS: Record<OperationType, number> = {
   'sync-order-articles': 180_000,
   'sync-customers': 300_000,
   'sync-orders': 300_000,
-  'sync-ddt': 300_000,
+  'sync-ddt': 600_000,
   'sync-invoices': 300_000,
-  'sync-products': 300_000,
-  'sync-prices': 300_000,
+  'sync-products': 600_000,
+  'sync-prices': 600_000,
 };
 
 function isWriteOperation(type: OperationType): boolean {
