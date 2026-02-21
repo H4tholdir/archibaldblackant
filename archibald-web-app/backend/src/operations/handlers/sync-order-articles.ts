@@ -15,6 +15,7 @@ type SyncOrderArticlesData = {
 };
 
 type SyncOrderArticlesBot = {
+  ensureReadyWithContext: (context: unknown) => Promise<void>;
   downloadOrderArticlesPDF: (archibaldOrderId: string) => Promise<string>;
   setProgressCallback: (
     callback: (category: string, metadata?: Record<string, unknown>) => Promise<void>,
@@ -139,6 +140,7 @@ async function handleSyncOrderArticles(
 function createSyncOrderArticlesHandler(deps: Omit<SyncOrderArticlesDeps, 'bot'>, createBot: (userId: string) => SyncOrderArticlesBot): OperationHandler {
   return async (context, data, userId, onProgress) => {
     const bot = createBot(userId);
+    await bot.ensureReadyWithContext(context);
     const typedData = data as unknown as SyncOrderArticlesData;
     const result = await handleSyncOrderArticles({ ...deps, bot }, typedData, userId, onProgress);
     return result as unknown as Record<string, unknown>;

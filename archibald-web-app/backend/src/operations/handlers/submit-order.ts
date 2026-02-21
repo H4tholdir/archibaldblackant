@@ -23,6 +23,7 @@ type SubmitOrderData = {
 };
 
 type SubmitOrderBot = {
+  ensureReadyWithContext: (context: unknown) => Promise<void>;
   createOrder: (orderData: SubmitOrderData) => Promise<string>;
   setProgressCallback: (
     callback: (category: string, metadata?: Record<string, unknown>) => Promise<void>,
@@ -198,6 +199,7 @@ async function handleSubmitOrder(
 function createSubmitOrderHandler(pool: DbPool, createBot: (userId: string) => SubmitOrderBot): OperationHandler {
   return async (context, data, userId, onProgress, signal, onEmit) => {
     const bot = createBot(userId);
+    await bot.ensureReadyWithContext(context);
     const typedData = data as unknown as SubmitOrderData;
     const result = await handleSubmitOrder(pool, bot, typedData, userId, onProgress, onEmit);
     return result as unknown as Record<string, unknown>;

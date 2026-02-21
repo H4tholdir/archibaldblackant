@@ -21,6 +21,7 @@ type EditOrderData = {
 };
 
 type EditOrderBot = {
+  ensureReadyWithContext: (context: unknown) => Promise<void>;
   editOrderInArchibald: (orderId: string, modifications: Array<Record<string, unknown>>) => Promise<{ success: boolean; message: string }>;
   setProgressCallback: (
     callback: (category: string, metadata?: Record<string, unknown>) => Promise<void>,
@@ -100,6 +101,7 @@ async function handleEditOrder(
 function createEditOrderHandler(pool: DbPool, createBot: (userId: string) => EditOrderBot): OperationHandler {
   return async (context, data, userId, onProgress) => {
     const bot = createBot(userId);
+    await bot.ensureReadyWithContext(context);
     const typedData = data as unknown as EditOrderData;
     const result = await handleEditOrder(pool, bot, typedData, userId, onProgress);
     return result as unknown as Record<string, unknown>;

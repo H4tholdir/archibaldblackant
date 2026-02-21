@@ -7,6 +7,7 @@ type SendToVeronaData = {
 };
 
 type SendToVeronaBot = {
+  ensureReadyWithContext: (context: unknown) => Promise<void>;
   sendOrderToVerona: (orderId: string) => Promise<{ success: boolean; message: string }>;
   setProgressCallback: (
     callback: (category: string, metadata?: Record<string, unknown>) => Promise<void>,
@@ -60,6 +61,7 @@ async function handleSendToVerona(
 function createSendToVeronaHandler(pool: DbPool, createBot: (userId: string) => SendToVeronaBot): OperationHandler {
   return async (context, data, userId, onProgress) => {
     const bot = createBot(userId);
+    await bot.ensureReadyWithContext(context);
     const typedData = data as unknown as SendToVeronaData;
     const result = await handleSendToVerona(pool, bot, typedData, userId, onProgress);
     return result as unknown as Record<string, unknown>;

@@ -25,6 +25,7 @@ type UpdateCustomerData = {
 };
 
 type UpdateCustomerBot = {
+  ensureReadyWithContext: (context: unknown) => Promise<void>;
   updateCustomer: (customerProfile: string, customerData: UpdateCustomerData, originalName: string) => Promise<void>;
   setProgressCallback: (
     callback: (category: string, metadata?: Record<string, unknown>) => Promise<void>,
@@ -89,6 +90,7 @@ async function handleUpdateCustomer(
 function createUpdateCustomerHandler(pool: DbPool, createBot: (userId: string) => UpdateCustomerBot): OperationHandler {
   return async (context, data, userId, onProgress) => {
     const bot = createBot(userId);
+    await bot.ensureReadyWithContext(context);
     const typedData = data as unknown as UpdateCustomerData;
     const result = await handleUpdateCustomer(pool, bot, typedData, userId, onProgress);
     return result as unknown as Record<string, unknown>;

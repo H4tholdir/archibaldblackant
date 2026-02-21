@@ -7,6 +7,7 @@ type DeleteOrderData = {
 };
 
 type DeleteOrderBot = {
+  ensureReadyWithContext: (context: unknown) => Promise<void>;
   deleteOrderFromArchibald: (orderId: string) => Promise<{ success: boolean; message: string }>;
   setProgressCallback: (
     callback: (category: string, metadata?: Record<string, unknown>) => Promise<void>,
@@ -66,6 +67,7 @@ async function handleDeleteOrder(
 function createDeleteOrderHandler(pool: DbPool, createBot: (userId: string) => DeleteOrderBot): OperationHandler {
   return async (context, data, userId, onProgress) => {
     const bot = createBot(userId);
+    await bot.ensureReadyWithContext(context);
     const typedData = data as unknown as DeleteOrderData;
     const result = await handleDeleteOrder(pool, bot, typedData, userId, onProgress);
     return result as unknown as Record<string, unknown>;

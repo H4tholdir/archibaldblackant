@@ -8359,6 +8359,153 @@ export class ArchibaldBot {
     }
   }
 
+  private async loginOnPage(page: Page): Promise<void> {
+    let username: string;
+    let password: string;
+
+    if (this.userId) {
+      const cachedPassword = PasswordCache.getInstance().get(this.userId);
+      if (!cachedPassword) {
+        throw new Error(
+          `Password not found in cache for user ${this.userId}. User must login again.`,
+        );
+      }
+      if (!this._getUserById) throw new Error('getUserById not provided.');
+      const user = await this._getUserById(this.userId);
+      if (!user) {
+        throw new Error(`User ${this.userId} not found in database`);
+      }
+      username = user.username;
+      password = cachedPassword;
+    } else {
+      username = config.archibald.username;
+      password = config.archibald.password;
+    }
+
+    logger.info(`[ArchibaldBot] loginOnPage: performing login for ${username}`);
+
+    const loginUrl = `${config.archibald.url}/Login.aspx?ReturnUrl=%2fArchibald%2fDefault.aspx`;
+    if (!page.url().includes("Login.aspx")) {
+      await page.goto(loginUrl, { waitUntil: "networkidle2", timeout: 30000 });
+    }
+
+    const fields = await page.evaluate(() => {
+      const textInputs = Array.from(
+        document.querySelectorAll('input[type="text"]'),
+      ) as HTMLInputElement[];
+      const userInput =
+        textInputs.find(
+          (i) =>
+            i.id.includes("UserName") ||
+            i.name.includes("UserName") ||
+            i.placeholder?.toLowerCase().includes("account") ||
+            i.placeholder?.toLowerCase().includes("username"),
+        ) || textInputs[0];
+      const passInput = document.querySelector(
+        'input[type="password"]',
+      ) as HTMLInputElement | null;
+      if (!userInput || !passInput) return null;
+      return { userFieldId: userInput.id, passFieldId: passInput.id };
+    });
+
+    if (!fields) {
+      throw new Error("Login fields not found on page");
+    }
+
+    await page.evaluate(
+      (fieldId: string, val: string) => {
+        const input = document.getElementById(fieldId) as HTMLInputElement;
+        if (!input) return;
+        input.focus();
+        input.click();
+        const setter = Object.getOwnPropertyDescriptor(
+          HTMLInputElement.prototype, "value",
+        )?.set;
+        if (setter) setter.call(input, val);
+        else input.value = val;
+        input.dispatchEvent(new Event("input", { bubbles: true }));
+        input.dispatchEvent(new Event("change", { bubbles: true }));
+      },
+      fields.userFieldId,
+      username,
+    );
+    await page.keyboard.press("Tab");
+    await new Promise((resolve) => setTimeout(resolve, 500));
+
+    await page.evaluate(
+      (fieldId: string, val: string) => {
+        const input = document.getElementById(fieldId) as HTMLInputElement;
+        if (!input) return;
+        input.focus();
+        input.click();
+        const setter = Object.getOwnPropertyDescriptor(
+          HTMLInputElement.prototype, "value",
+        )?.set;
+        if (setter) setter.call(input, val);
+        else input.value = val;
+        input.dispatchEvent(new Event("input", { bubbles: true }));
+        input.dispatchEvent(new Event("change", { bubbles: true }));
+      },
+      fields.passFieldId,
+      password,
+    );
+    await page.keyboard.press("Tab");
+    await new Promise((resolve) => setTimeout(resolve, 500));
+
+    await page.evaluate(() => {
+      const buttons = Array.from(
+        document.querySelectorAll(
+          "button, input[type='submit'], a, div[role='button']",
+        ),
+      );
+      const byText = buttons.find((btn) => {
+        const text = (btn.textContent || "").toLowerCase().replace(/\s+/g, "");
+        return text.includes("accedi") || text === "login";
+      });
+      const byId =
+        !byText &&
+        buttons.find((btn) => {
+          const id = ((btn as HTMLElement).id || "").toLowerCase();
+          if (id.includes("logo")) return false;
+          return id.includes("login") || id.includes("logon");
+        });
+      const loginBtn = byText || byId;
+      if (loginBtn) (loginBtn as HTMLElement).click();
+    });
+
+    await page.waitForNavigation({
+      waitUntil: "networkidle2",
+      timeout: 30000,
+    });
+
+    const currentUrl = page.url();
+    if (currentUrl.includes("Login.aspx")) {
+      throw new Error("Login failed: still on login page after submit");
+    }
+
+    logger.info(`[ArchibaldBot] loginOnPage: login successful`, { url: currentUrl });
+  }
+
+  async ensureReadyWithContext(context: BrowserContext): Promise<void> {
+    this.page = await context.newPage();
+    await this.page.setViewport({ width: 1280, height: 800 });
+    await this.page.setExtraHTTPHeaders({
+      "Accept-Language": "it-IT,it;q=0.9,en-US;q=0.8,en;q=0.7",
+    });
+
+    await this.page.goto(`${config.archibald.url}/Default.aspx`, {
+      waitUntil: "domcontentloaded",
+      timeout: 30000,
+    });
+
+    if (this.page.url().includes("Login.aspx")) {
+      logger.info(`[ArchibaldBot] ensureReadyWithContext: not authenticated, logging in...`);
+      await this.loginOnPage(this.page);
+    }
+
+    logger.info(`[ArchibaldBot] ensureReadyWithContext: ready`, { url: this.page.url() });
+  }
+
   private async downloadPDFExport(options: {
     context: BrowserContext;
     pageUrl: string;
@@ -8400,6 +8547,16 @@ export class ArchibaldBot {
         waitUntil: "domcontentloaded",
         timeout: 60000,
       });
+
+      if (page.url().includes("Login.aspx")) {
+        logger.info(`[ArchibaldBot] Redirected to login page, authenticating...`);
+        await this.loginOnPage(page);
+        await page.goto(pageUrl, {
+          waitUntil: "domcontentloaded",
+          timeout: 60000,
+        });
+      }
+
       logger.info(`[ArchibaldBot] Navigated to ${filePrefix} page: ${pageUrl}`);
 
       await this.waitForDevExpressReadyOnPage(page);

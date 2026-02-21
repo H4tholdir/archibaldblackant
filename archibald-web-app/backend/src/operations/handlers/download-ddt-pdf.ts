@@ -6,6 +6,7 @@ type DownloadDdtPdfData = {
 };
 
 type DownloadDdtPdfBot = {
+  ensureReadyWithContext: (context: unknown) => Promise<void>;
   downloadDDTPDF: (orderId: string, ddtNumber: string) => Promise<Buffer>;
   setProgressCallback: (
     callback: (category: string, metadata?: Record<string, unknown>) => Promise<void>,
@@ -33,6 +34,7 @@ async function handleDownloadDdtPdf(
 function createDownloadDdtPdfHandler(createBot: (userId: string) => DownloadDdtPdfBot): OperationHandler {
   return async (context, data, userId, onProgress) => {
     const bot = createBot(userId);
+    await bot.ensureReadyWithContext(context);
     const typedData = data as unknown as DownloadDdtPdfData;
     const result = await handleDownloadDdtPdf(bot, typedData, userId, onProgress);
     return { pdf: result.pdf.toString('base64') };

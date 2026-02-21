@@ -6,6 +6,7 @@ type DownloadInvoicePdfData = {
 };
 
 type DownloadInvoicePdfBot = {
+  ensureReadyWithContext: (context: unknown) => Promise<void>;
   downloadInvoicePDF: (orderId: string, invoiceNumber: string) => Promise<Buffer>;
   setProgressCallback: (
     callback: (category: string, metadata?: Record<string, unknown>) => Promise<void>,
@@ -33,6 +34,7 @@ async function handleDownloadInvoicePdf(
 function createDownloadInvoicePdfHandler(createBot: (userId: string) => DownloadInvoicePdfBot): OperationHandler {
   return async (context, data, userId, onProgress) => {
     const bot = createBot(userId);
+    await bot.ensureReadyWithContext(context);
     const typedData = data as unknown as DownloadInvoicePdfData;
     const result = await handleDownloadInvoicePdf(bot, typedData, userId, onProgress);
     return { pdf: result.pdf.toString('base64') };
