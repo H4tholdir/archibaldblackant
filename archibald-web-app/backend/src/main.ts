@@ -15,6 +15,7 @@ import { createBrowserPool } from './bot/browser-pool';
 import { createSyncScheduler } from './sync/sync-scheduler';
 import { createWebSocketServer } from './realtime/websocket-server';
 import { PasswordCache } from './password-cache';
+import { passwordEncryption } from './services/password-encryption-service';
 import { generateJWT, verifyJWT } from './auth-utils';
 import path from 'path';
 import { promises as fsPromises } from 'fs';
@@ -166,6 +167,20 @@ async function main() {
 
   const passwordCache = PasswordCache.getInstance();
 
+  const whitelistedUsers = await usersRepo.getWhitelistedUsers(pool);
+  let preWarmedCount = 0;
+  for (const user of whitelistedUsers) {
+    try {
+      const encrypted = await usersRepo.getEncryptedPassword(pool, user.id);
+      if (encrypted) {
+        const password = passwordEncryption.decrypt(encrypted, user.id);
+        passwordCache.set(user.id, password);
+        preWarmedCount++;
+      }
+    } catch { /* skip corrupted entries */ }
+  }
+  logger.info('Password cache pre-warmed', { total: whitelistedUsers.length, loaded: preWarmedCount });
+
   const pdfStoreDir = process.env.PDF_STORE_DIR || path.join(__dirname, '..', 'data', 'pdfs');
   const pdfStore = createFileSystemPdfStore(pdfStoreDir, config.share.baseUrl);
 
@@ -300,6 +315,10 @@ async function main() {
     uploadToDropbox,
     broadcast: (userId, msg) => wsServer.broadcast(userId, msg),
     createCustomerBot: createBot as (userId: string) => any,
+    encryptAndSavePassword: async (userId, password) => {
+      const encrypted = passwordEncryption.encrypt(password, userId);
+      await usersRepo.saveEncryptedPassword(pool, userId, encrypted);
+    },
   });
 
   const httpServer = http.createServer(app);

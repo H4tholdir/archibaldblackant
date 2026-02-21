@@ -69,6 +69,7 @@ type AppDeps = {
   uploadToDropbox: (fileBuffer: Buffer, fileName: string) => Promise<{ path: string }>;
   createCustomerBot?: (userId: string) => CustomerBotLike;
   broadcast?: (userId: string, msg: { type: string; payload: unknown; timestamp: string }) => void;
+  encryptAndSavePassword?: (userId: string, password: string) => Promise<void>;
 };
 
 function createApp(deps: AppDeps): Express {
@@ -154,6 +155,7 @@ function createApp(deps: AppDeps): Express {
       releaseContext: (userId, ctx, success) => browserPool.releaseContext(userId, ctx as any, success),
     },
     generateJWT,
+    encryptAndSavePassword: deps.encryptAndSavePassword,
   }));
 
   app.use('/api/customers', authenticateJWT, createCustomersRouter({

@@ -18,7 +18,8 @@
     "test:multi-user": "tsx src/scripts/test-multi-user.ts",
     "test:grid-discount": "tsx src/scripts/test-grid-discount-cell.ts",
     "seed:users": "tsx src/scripts/seed-users.ts",
-    "test:customer-fields": "tsx src/scripts/test-customer-fields.ts"
+    "test:customer-fields": "tsx src/scripts/test-customer-fields.ts",
+    "test:e2e": "vitest run --config vitest.config.e2e.ts"
   },
   "keywords": [
     "archibald",

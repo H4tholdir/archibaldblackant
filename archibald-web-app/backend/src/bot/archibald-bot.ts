@@ -2269,7 +2269,7 @@ export class ArchibaldBot {
     let username: string;
     let password: string;
 
-    if (this.userId) {
+    if (this.userId && this.userId !== 'service-account') {
       // Multi-user mode: get password from cache
       const cachedPassword = PasswordCache.getInstance().get(this.userId);
       if (!cachedPassword) {
@@ -2289,10 +2289,10 @@ export class ArchibaldBot {
         username,
       });
     } else {
-      // Legacy mode: use config
+      // Legacy/service-account mode: use config
       username = config.archibald.username;
       password = config.archibald.password;
-      logger.info(`Using config credentials for legacy login`, { username });
+      logger.info(`Using config credentials for login`, { username });
     }
 
     // Try to restore session from persistent cache (daily expiration)
@@ -8363,7 +8363,7 @@ export class ArchibaldBot {
     let username: string;
     let password: string;
 
-    if (this.userId) {
+    if (this.userId && this.userId !== 'service-account') {
       const cachedPassword = PasswordCache.getInstance().get(this.userId);
       if (!cachedPassword) {
         throw new Error(
@@ -8487,23 +8487,27 @@ export class ArchibaldBot {
   }
 
   async ensureReadyWithContext(context: BrowserContext): Promise<void> {
-    this.page = await context.newPage();
-    await this.page.setViewport({ width: 1280, height: 800 });
-    await this.page.setExtraHTTPHeaders({
-      "Accept-Language": "it-IT,it;q=0.9,en-US;q=0.8,en;q=0.7",
-    });
+    const page = await context.newPage();
+    try {
+      await page.setViewport({ width: 1280, height: 800 });
+      await page.setExtraHTTPHeaders({
+        "Accept-Language": "it-IT,it;q=0.9,en-US;q=0.8,en;q=0.7",
+      });
 
-    await this.page.goto(`${config.archibald.url}/Default.aspx`, {
-      waitUntil: "domcontentloaded",
-      timeout: 30000,
-    });
+      await page.goto(`${config.archibald.url}/Default.aspx`, {
+        waitUntil: "domcontentloaded",
+        timeout: 30000,
+      });
 
-    if (this.page.url().includes("Login.aspx")) {
-      logger.info(`[ArchibaldBot] ensureReadyWithContext: not authenticated, logging in...`);
-      await this.loginOnPage(this.page);
+      if (page.url().includes("Login.aspx")) {
+        logger.info(`[ArchibaldBot] ensureReadyWithContext: not authenticated, logging in...`);
+        await this.loginOnPage(page);
+      }
+
+      logger.info(`[ArchibaldBot] ensureReadyWithContext: ready`, { url: page.url() });
+    } finally {
+      await page.close();
     }
-
-    logger.info(`[ArchibaldBot] ensureReadyWithContext: ready`, { url: this.page.url() });
   }
 
   private async downloadPDFExport(options: {
