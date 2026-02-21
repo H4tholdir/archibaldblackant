@@ -1,80 +1,60 @@
-# Archibald Black Ant - Stabilization & Bug Fix
+# Archibald Black Ant
 
 ## What This Is
 
-Milestone di stabilizzazione della PWA Archibald Black Ant dopo due grandi refactoring: (1) eliminazione IndexedDB con backend-as-source-of-truth e (2) queue unificata BullMQ per operazioni e sync. L'obiettivo è fixare tutti i bug identificati dalla code review approfondita (23 bug, 10 file orfani), implementare gli stub attivamente usati dal frontend, e aggiungere test automatici completi (unit, integration, E2E) eseguibili anche in VPS.
+PWA per agenti Komet che automatizza ordini, sync clienti/prodotti/prezzi, e gestione magazzino tramite browser automation su Archibald ERP. Deployata su VPS (formicanera.com), supporta multi-utente e multi-dispositivo con sync real-time via WebSocket.
 
 ## Core Value
 
-Riportare la PWA a **perfetto funzionamento multi-utente e multi-dispositivo**, eliminando ogni race condition, stub silenzioso e feature rotta, con copertura test che garantisca stabilità nel tempo.
+**Perfetto funzionamento multi-utente e multi-dispositivo** — ogni agente opera in autonomia da qualsiasi dispositivo, con sync automatici, zero race condition, e copertura test che garantisce stabilità nel tempo.
 
 ## Requirements
 
 ### Validated
 
+**Pre-existing (before v1.0):**
 - ✓ Frontend React PWA con routing completo (13 pagine) — existing
 - ✓ Login/unlock flow con PIN e biometria — existing
 - ✓ WebSocket context con reconnection e heartbeat — existing
 - ✓ API layer frontend completo (9 moduli) — existing
-- ✓ PostgreSQL schema con 4 migrazioni (shared, agents, system) — existing
+- ✓ PostgreSQL schema (shared, agents, system) — existing
 - ✓ Repository layer con query parametrizzate (no SQL injection) — existing
 - ✓ BullMQ operation queue con 15 tipi di operazione e priorità — existing
 - ✓ Browser pool multi-browser con LRU eviction — existing
 - ✓ Bot Archibald con operation tracking e performance reporting — existing
-- ✓ Eliminazione completa Dexie/IndexedDB per dati applicativi — existing
-- ✓ IndexedDB solo per credential store crittografato (legittimo) — existing
-- ✓ localStorage solo per JWT, device ID, UI state (legittimo) — existing
 - ✓ Handler factory pattern per tutte le 15 operazioni — existing
 - ✓ Password cache con lazy-load da DB e AES-256-GCM — existing
 
+**v1.0 Stabilization:**
+- ✓ Sync scheduler con intervalli configurabili da admin — v1.0 (Phase 4)
+- ✓ 9 eventi WebSocket real-time (PENDING_*, JOB_*, ORDER_NUMBERS_RESOLVED) — v1.0 (Phase 5)
+- ✓ shouldStop() reale nei sync handlers con preemption reattiva — v1.0 (Phase 2)
+- ✓ Fix race condition preemption e timeout handler — v1.0 (Phase 2)
+- ✓ Fix race condition browser pool user lock — v1.0 (Phase 3)
+- ✓ IVA da database (excel admin + alert articoli) — v1.0 (Phase 6)
+- ✓ Compensating transactions post-bot (check-save-clear pattern) — v1.0 (Phase 3)
+- ✓ Customer sync protetto da parser failures (count validation) — v1.0 (Phase 4)
+- ✓ Deduplicazione idempotency key nativa BullMQ — v1.0 (Phase 2)
+- ✓ Concurrency per-utente nel worker BullMQ — v1.0 (Phase 3)
+- ✓ PDF persistence su filesystem con TTL cleanup — v1.0 (Phase 6)
+- ✓ createCustomerBot passato a createApp — v1.0 (Phase 7)
+- ✓ Hashing standardizzato a SHA-256 — v1.0 (Phase 6)
+- ✓ Validazione parseInt con isNaN su route params — v1.0 (Phase 6)
+- ✓ Rate limiting a 3 tier (global, strict, auth) — v1.0 (Phase 6)
+- ✓ Subclients API completa (getAll, search, getByCode, import) — v1.0 (Phase 7)
+- ✓ getNextFtNumber con numerazione progressiva PostgreSQL — v1.0 (Phase 7)
+- ✓ exportArca e importArca implementati — v1.0 (Phase 7)
+- ✓ Tutti i 13 stub eliminati — v1.0 (Phase 7)
+- ✓ File orfani rimossi, dead code eliminato — v1.0 (Phase 1)
+- ✓ Naming consistency sentToVeronaAt — v1.0 (Phase 1)
+- ✓ Unit test per operation processor, agent lock, sync handlers — v1.0 (Phase 8)
+- ✓ Integration test WebSocket, sync services con PostgreSQL — v1.0 (Phase 8)
+- ✓ E2E Playwright contro VPS (login, ordini, sync, multi-device) — v1.0 (Phase 9)
+- ✓ Verifica completa produzione con 35 E2E test su live — v1.0 (Phase 10)
+
 ### Active
 
-**Bug Critici - Multi-device Sync:**
-- [ ] BUG-1: Avviare sync scheduler con intervalli configurabili da admin + fix getActiveAgentIds
-- [ ] BUG-2: Emettere tutti i 9 eventi WebSocket (PENDING_CREATED/UPDATED/DELETED/SUBMITTED, JOB_STARTED/PROGRESS, ORDER_NUMBERS_RESOLVED) da pending-orders e operation-processor
-- [ ] BUG-3: Implementare SSE progress reale (onJobEvent) o rimuoverlo e riattivare UnifiedSyncProgress via WebSocket
-
-**Bug Critici - Operation Queue & Preemption:**
-- [ ] BUG-12: Implementare shouldStop() reale nei sync handlers collegato al meccanismo di preemption
-- [ ] BUG-13: Fix race condition preemption nel processor (attendere stop effettivo, non timeout fisso 2s)
-- [ ] BUG-14: Fix race condition browser pool user lock (lock rilasciato prima del completamento)
-- [ ] BUG-16: Aggiungere timeout sui handler per prevenire pool exhaustion
-
-**Bug Critici - Data Integrity:**
-- [ ] BUG-5: IVA da database (inserita via excel admin + alert articoli) invece di hardcoded 22%
-- [ ] BUG-15: Gestire fallimento transazione post-bot con compensating logic
-- [ ] BUG-17: Proteggere customer sync da parser failures (non cancellare se PDF incompleto)
-- [ ] BUG-18: Implementare deduplicazione idempotency key nella queue
-
-**Bug Alti - Feature Rotte:**
-- [ ] BUG-4: Passare createCustomerBot a createApp per abilitare route interattive clienti
-- [ ] BUG-6: Persistere PDF su filesystem con TTL cleanup invece di in-memory Map
-- [ ] BUG-7: Concurrency per-utente: utenti diversi in parallelo, 1 operazione alla volta per utente
-
-**Bug Medi - Hardening:**
-- [ ] BUG-19: Standardizzare hashing a SHA-256 (eliminare MD5 da order-sync e price-sync)
-- [ ] BUG-20: Validare parseInt con isNaN su tutti i query params (orders.ts, admin.ts)
-- [ ] BUG-21: Rate limiting su route costose (sync, PDF, import)
-
-**Stub da Implementare (frontend li chiama attivamente):**
-- [ ] Subclients API: getAll, search, getByCode, importSubclients (usato da SubClientSelector.tsx e AdminPage.tsx)
-- [ ] getNextFtNumber: numerazione progressiva FT (usato da fresis-history API)
-- [ ] exportArca: export dati Arca (usato da fresis-history API)
-- [ ] Stub rimanenti: price history, importExcel prezzi/warehouse, admin sessions — valutare se usati
-
-**Cleanup:**
-- [ ] BUG-10/11: Spostare file orfani in cartella _deprecated/ (8 frontend + 2 backend)
-- [ ] BUG-22: Rimuovere legacy localStorage keys (archibald_fullName, archibald_username)
-- [ ] BUG-23: Fix naming inconsistency sentToMilanoAt → sentToVeronaAt
-- [ ] Rimuovere dead code DDT sync ternary (false ? false : false)
-
-**Testing:**
-- [ ] Unit test per tutti i fix critici (operation processor, agent lock, sync handlers)
-- [ ] Integration test per WebSocket events end-to-end
-- [ ] Integration test per operation queue con preemption
-- [ ] Integration test per sync services con DB
-- [ ] E2E Playwright contro PWA deployata in VPS (login, ordini, sync, multi-device)
-- [ ] CI/CD pipeline per eseguire test automaticamente
+(Nessun requisito attivo — milestone v1.0 completato. I requisiti per il prossimo milestone verranno definiti in `/gsd:discuss-milestone`.)
 
 ### Out of Scope
 
@@ -84,46 +64,53 @@ Riportare la PWA a **perfetto funzionamento multi-utente e multi-dispositivo**, 
 - Redesign UI — la UI funziona, focus su backend/logic
 - Supporto altri ERP — solo Archibald
 - Mobile app nativa — PWA basta
+- CI/CD pipeline automatico — test eseguibili manualmente, CI da valutare
 
 ## Context
 
-**Stato attuale:**
-La PWA è deployata in produzione su VPS (formicanera.com) ed è usata attivamente dagli agenti Komet. Dopo due grandi refactoring (eliminazione IndexedDB + queue unificata BullMQ), una code review approfondita con 6 agenti paralleli ha identificato 23 bug di severità variabile. I più critici riguardano:
+**Stato attuale (post v1.0):**
+PWA stabile e verificata in produzione su VPS (formicanera.com). Tutti i 23 bug dalla code review sono stati risolti, tutti i 13 stub sostituiti con implementazioni reali, e 1,381 test automatici coprono l'intero stack. 7 container Docker operativi e healthy.
 
-1. **Sync rotto**: Lo scheduler non parte mai, gli eventi WebSocket non vengono emessi, SSE è stub
-2. **Preemption inoperativa**: shouldStop() sempre false, race conditions nel processor
-3. **Data integrity**: Transazioni non atomiche tra bot e DB, customer sync aggressivo
-4. **Stub silenziosamente rotti**: Il frontend chiama endpoint che ritornano array vuoti
+**Codebase:**
+- ~114K LOC TypeScript (55K backend + 59K frontend)
+- 386 source files (196 backend + 190 frontend)
+- 10 database migrations (PostgreSQL, 3 schemi)
+- 1,381 test (921 unit backend + 22 integration + 403 unit frontend + 35 E2E)
 
 **Architettura:**
 - Frontend: React 19 PWA (Vite + TypeScript)
 - Backend: Express + Puppeteer + BullMQ + Redis + PostgreSQL
-- Deploy: Docker Compose su VPS (Nginx + Node + Redis + PostgreSQL)
+- Deploy: Docker Compose su VPS Hetzner (Nginx + Node + Redis + PostgreSQL + Prometheus + Grafana)
 - Automazione: Headless Chrome per interazione con Archibald ERP
+- Real-time: WebSocket server per sync multi-dispositivo (9 tipi di evento)
 
 **Multi-utente/multi-dispositivo:**
 - Ogni utente logga con proprie credenziali Archibald
-- Opera in autonomia (1 operazione alla volta per utente)
-- Sync automatici viaggiano indipendentemente
-- Può aprire la PWA da qualsiasi dispositivo e continuare il lavoro
+- Opera in autonomia (1 operazione alla volta per utente, utenti diversi in parallelo)
+- Sync automatici con intervalli configurabili da admin
+- Qualsiasi dispositivo con sync real-time via WebSocket
 
 ## Constraints
 
 - **Stack**: TypeScript + React + Express + Puppeteer + BullMQ + Redis + PostgreSQL — nessun cambio
-- **Produzione attiva**: La PWA è in uso, i fix devono essere retrocompatibili
-- **VPS risorse**: Budget minimo VPS, ottimizzare consumo risorse
+- **Produzione attiva**: La PWA è in uso quotidiano dagli agenti Komet
+- **VPS risorse**: Budget minimo VPS Hetzner, ottimizzare consumo risorse
 - **Archibald ERP**: Nessuna API, solo browser automation via Puppeteer
 
 ## Key Decisions
 
 | Decision | Rationale | Outcome |
 |----------|-----------|---------|
-| Concurrency per-utente (non globale) | Ogni utente opera 1 alla volta, ma utenti diversi in parallelo. Sync automatici indipendenti. Semplifica il lock system | — Pending |
-| IVA da database (excel admin + alert articoli) | L'IVA viene caricata via excel nella pagina admin e corretta tramite alert nella pagina articoli, non hardcoded | — Pending |
-| Sync intervals configurabili da admin | L'admin deve poter impostare gli intervalli dal pannello di controllo, non hardcoded | — Pending |
-| File orfani cancellati direttamente | Git è il safety net — cancellazione diretta, no cartella _deprecated/ | Decided (Phase 1 planning) |
-| PDF store su filesystem con TTL | Feature usata spesso dagli agenti (condivisione DDT, fatture via WhatsApp/Email), deve sopravvivere al restart | — Pending |
-| Test E2E + integration su VPS | Sia Playwright E2E che integration test backend eseguiti contro la PWA in VPS per verifica completa | — Pending |
+| Concurrency per-utente (non globale) | Utenti diversi in parallelo, 1 op/utente. Semplifica lock system | ✓ Good — Worker concurrency 10, backoff esponenziale |
+| IVA da database (excel admin + alert) | IVA caricata via excel, corretta tramite alert articoli | ✓ Good — products.service shape fixed, dead VAT code removed |
+| Sync intervals configurabili da admin | Admin imposta intervalli dal pannello, non hardcoded | ✓ Good — Per-type timers, DB persistence, API routes |
+| File orfani cancellati direttamente | Git è il safety net, no _deprecated/ | ✓ Good — 82+ files removed cleanly |
+| PDF store su filesystem con TTL | Sopravvive al restart, condivisione DDT/fatture | ✓ Good — .pdf/.meta.json sidecar, 2h TTL |
+| BullMQ native deduplication | Simple mode per sync, Throttle 30s per writes | ✓ Good — Replaced broken timestamp idempotencyKey |
+| bot_results compensating transactions | check-save-clear pattern per 4 handler critici | ✓ Good — No duplicate bot calls after DB failure |
+| SHA-256 hashing (no MD5) | Sicurezza e consistenza | ✓ Good — All sync services migrated |
+| MemoryStore per rate limiting | Single-process VPS, no Redis needed | ✓ Good — 3-tier limiting operational |
+| E2E + integration test su VPS | Verifica completa su ambiente reale | ✓ Good — 35 E2E + 22 integration passing |
 
 ---
-*Last updated: 2026-02-20 after initialization with comprehensive code review*
+*Last updated: 2026-02-21 after v1.0 milestone*
