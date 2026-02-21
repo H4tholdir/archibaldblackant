@@ -5,23 +5,23 @@
 See: .planning/PROJECT.md (updated 2026-02-20)
 
 **Core value:** Riportare la PWA a perfetto funzionamento multi-utente e multi-dispositivo, eliminando ogni race condition, stub silenzioso e feature rotta, con copertura test che garantisca stabilità nel tempo.
-**Current focus:** Phase 9: E2E Tests & VPS Validation (complete, validated) → Phase 10 next
+**Current focus:** Phase 10: Final Review & Stabilization (in progress)
 
 ## Current Position
 
-Phase: 9 of 10 (E2E Tests & VPS Validation)
-Plan: 4 of 4 in current phase
-Status: Phase complete — all 35 E2E tests passing on VPS
-Last activity: 2026-02-21 — VPS E2E suite fully validated (35/35 pass)
+Phase: 10 of 10 (Final Review & Stabilization)
+Plan: 1 of 2 in current phase
+Status: In progress
+Last activity: 2026-02-21 — Completed 10-01-PLAN.md
 
-Progress: █████████░ 94%
+Progress: █████████░ 97%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 31
+- Total plans completed: 32
 - Average duration: 5.5 min
-- Total execution time: 172 min
+- Total execution time: 177 min
 
 **By Phase:**
 
@@ -36,10 +36,11 @@ Progress: █████████░ 94%
 | 7 | 3/3 | 18 min | 6.0 min |
 | 8 | 5/5 | 25 min | 5.0 min |
 | 9 | 4/4 | 25 min | 6.3 min |
+| 10 | 1/2 | 5 min | 5.0 min |
 
 **Recent Trend:**
-- Last 5 plans: 09-01 (2 min), 09-02 (2 min), 09-03 (2 min), 09-04 (19 min)
-- Trend: 09-04 slower due to VPS debugging
+- Last 5 plans: 09-02 (2 min), 09-03 (2 min), 09-04 (19 min), 10-01 (5 min)
+- Trend: Stable, 10-01 verification suite completed with 1 bug fix
 
 ## Accumulated Context
 
@@ -109,6 +110,7 @@ Recent decisions affecting current work:
 - Query param compat: backend accepts both ?code= and ?articleCode= for warehouse validate
 - Product sync has no hash-based dedup — always UPDATE for existing products
 - Migration 010 adds missing columns (figure, bulk_article_id, leg_package, size) to shared.products
+- auth.spec.ts fixed to use real JWT tokens (not mocked req.user) for authenticated route tests
 
 ### Deferred Issues
 
@@ -121,5 +123,5 @@ None.
 ## Session Continuity
 
 Last session: 2026-02-21
-Stopped at: VPS E2E suite fully validated — 35/35 tests passing, Phase 9 complete
+Stopped at: Completed 10-01-PLAN.md — full verification suite passed, VPS healthy
 Resume file: None
