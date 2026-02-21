@@ -250,6 +250,115 @@ describe('createOperationProcessor', () => {
     });
   });
 
+  test('throws and broadcasts JOB_FAILED when handler returns {success: false}', async () => {
+    const failHandler = vi.fn().mockResolvedValue({ success: false, error: 'PDF download failed' });
+    const { processor, broadcast, browserPool } = createProcessor({
+      handlers: { 'sync-orders': failHandler } as any,
+    });
+    const job = createMockJob({ type: 'sync-orders' as any });
+
+    await expect(processor.processJob(job as any)).rejects.toThrow('PDF download failed');
+
+    expect(broadcast).toHaveBeenCalledWith('user-a', {
+      type: 'JOB_FAILED',
+      payload: { jobId: 'job-123', operationType: 'sync-orders', error: 'PDF download failed' },
+      timestamp: expect.any(String),
+    });
+    expect(browserPool.releaseContext).toHaveBeenCalledWith('user-a', { id: 'ctx-1' }, false);
+  });
+
+  test('uses default error message when handler returns {success: false} without error', async () => {
+    const failHandler = vi.fn().mockResolvedValue({ success: false });
+    const { processor } = createProcessor({
+      handlers: { 'sync-orders': failHandler } as any,
+    });
+    const job = createMockJob({ type: 'sync-orders' as any });
+
+    await expect(processor.processJob(job as any)).rejects.toThrow('Sync completed with failure');
+  });
+
+  test('calls logSyncEvent on sync handler success', async () => {
+    const syncHandler = vi.fn().mockResolvedValue({ synced: 10 });
+    const logSyncEvent = vi.fn().mockResolvedValue(undefined);
+    const agentLock = createMockAgentLock();
+    const browserPool = createMockBrowserPool();
+    const broadcast = createMockBroadcast();
+    const enqueue = createMockEnqueue();
+
+    const processor = createOperationProcessor({
+      agentLock,
+      browserPool,
+      broadcast,
+      enqueue,
+      handlers: { 'sync-orders': syncHandler } as any,
+      cancelJob: vi.fn().mockReturnValue(true),
+      logSyncEvent,
+    });
+    const job = createMockJob({ type: 'sync-orders' as any });
+
+    await processor.processJob(job as any);
+
+    expect(logSyncEvent).toHaveBeenCalledWith(
+      'user-a',
+      'sync-orders',
+      'sync_completed',
+      expect.objectContaining({ duration: expect.any(Number), result: { synced: 10 } }),
+    );
+  });
+
+  test('calls logSyncEvent on sync handler failure', async () => {
+    const failHandler = vi.fn().mockResolvedValue({ success: false, error: 'timeout' });
+    const logSyncEvent = vi.fn().mockResolvedValue(undefined);
+    const agentLock = createMockAgentLock();
+    const browserPool = createMockBrowserPool();
+    const broadcast = createMockBroadcast();
+    const enqueue = createMockEnqueue();
+
+    const processor = createOperationProcessor({
+      agentLock,
+      browserPool,
+      broadcast,
+      enqueue,
+      handlers: { 'sync-orders': failHandler } as any,
+      cancelJob: vi.fn().mockReturnValue(true),
+      logSyncEvent,
+    });
+    const job = createMockJob({ type: 'sync-orders' as any });
+
+    await expect(processor.processJob(job as any)).rejects.toThrow('timeout');
+
+    expect(logSyncEvent).toHaveBeenCalledWith(
+      'user-a',
+      'sync-orders',
+      'sync_error',
+      expect.objectContaining({ error: 'timeout', duration: expect.any(Number) }),
+    );
+  });
+
+  test('does not call logSyncEvent for non-sync operations', async () => {
+    const handler = vi.fn().mockResolvedValue({ done: true });
+    const logSyncEvent = vi.fn().mockResolvedValue(undefined);
+    const agentLock = createMockAgentLock();
+    const browserPool = createMockBrowserPool();
+    const broadcast = createMockBroadcast();
+    const enqueue = createMockEnqueue();
+
+    const processor = createOperationProcessor({
+      agentLock,
+      browserPool,
+      broadcast,
+      enqueue,
+      handlers: { 'submit-order': handler },
+      cancelJob: vi.fn().mockReturnValue(true),
+      logSyncEvent,
+    });
+    const job = createMockJob();
+
+    await processor.processJob(job as any);
+
+    expect(logSyncEvent).not.toHaveBeenCalled();
+  });
+
   test('broadcasts JOB_FAILED via WebSocket on error', async () => {
     const failingHandler = vi.fn().mockRejectedValue(new Error('boom'));
     const { processor, broadcast } = createProcessor({

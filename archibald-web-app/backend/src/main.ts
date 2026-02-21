@@ -122,7 +122,16 @@ async function main() {
       launchOptions: {
         headless: config.puppeteer.headless,
         executablePath: process.env.PUPPETEER_EXECUTABLE_PATH,
-        args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage'],
+        ignoreHTTPSErrors: true,
+        args: [
+          '--no-sandbox',
+          '--disable-setuid-sandbox',
+          '--disable-dev-shm-usage',
+          '--disable-web-security',
+          '--ignore-certificate-errors',
+          '--lang=it-IT',
+          '--accept-lang=it-IT,it',
+        ],
       },
       sessionValidationUrl: config.archibald.url,
     },
@@ -244,6 +253,12 @@ async function main() {
     enqueue: queue.enqueue.bind(queue),
     handlers,
     cancelJob: (jobId) => worker.cancelJob(jobId),
+    logSyncEvent: async (userId, syncType, eventType, details) => {
+      await pool.query(
+        'INSERT INTO system.sync_events (user_id, sync_type, event_type, details) VALUES ($1, $2, $3, $4)',
+        [userId, syncType, eventType, JSON.stringify(details)],
+      );
+    },
   });
 
   const workerConcurrency = parseInt(process.env.WORKER_CONCURRENCY ?? '10', 10);

@@ -45,6 +45,13 @@ type PreemptionConfig = {
   pollIntervalMs: number;
 };
 
+type LogSyncEventFn = (
+  userId: string,
+  syncType: string,
+  eventType: string,
+  details: Record<string, unknown>,
+) => Promise<void>;
+
 type ProcessorDeps = {
   agentLock: AgentLock;
   browserPool: BrowserPoolLike;
@@ -54,6 +61,7 @@ type ProcessorDeps = {
   cancelJob: (jobId: string) => boolean;
   preemptionConfig?: PreemptionConfig;
   getTimeout?: (type: OperationType) => number;
+  logSyncEvent?: LogSyncEventFn;
 };
 
 type ProcessJobResult = {
@@ -156,9 +164,37 @@ function createOperationProcessor(deps: ProcessorDeps) {
         }),
       ]);
 
+      if (result && typeof result === 'object' && 'success' in result && result.success === false) {
+        const errorMessage = ('error' in result && typeof result.error === 'string')
+          ? result.error
+          : 'Sync completed with failure';
+
+        browserPool.markIdle?.(userId);
+        await browserPool.releaseContext(userId, context, false);
+        context = null;
+
+        const duration = Date.now() - startTime;
+        if (type.startsWith('sync-') && deps.logSyncEvent) {
+          await deps.logSyncEvent(userId, type, 'sync_error', { error: errorMessage, duration }).catch(() => {});
+        }
+
+        broadcast(userId, {
+          type: 'JOB_FAILED',
+          payload: { jobId: job.id, operationType: type, error: errorMessage },
+          timestamp: new Date().toISOString(),
+        });
+
+        throw new Error(errorMessage);
+      }
+
       browserPool.markIdle?.(userId);
       await browserPool.releaseContext(userId, context, true);
       context = null;
+
+      const duration = Date.now() - startTime;
+      if (type.startsWith('sync-') && deps.logSyncEvent) {
+        await deps.logSyncEvent(userId, type, 'sync_completed', { duration, result }).catch(() => {});
+      }
 
       broadcast(userId, {
         type: 'JOB_COMPLETED',
@@ -166,11 +202,20 @@ function createOperationProcessor(deps: ProcessorDeps) {
         timestamp: new Date().toISOString(),
       });
 
-      return { success: true, data: result, duration: Date.now() - startTime };
+      return { success: true, data: result, duration };
     } catch (error) {
       if (context) {
         browserPool.markIdle?.(userId);
         await browserPool.releaseContext(userId, context, false);
+      }
+
+      const errorMsg = error instanceof Error ? error.message : String(error);
+
+      if (type.startsWith('sync-') && deps.logSyncEvent) {
+        await deps.logSyncEvent(userId, type, 'sync_error', {
+          error: errorMsg,
+          duration: Date.now() - startTime,
+        }).catch(() => {});
       }
 
       if (error instanceof Error && error.name === 'AbortError') {
@@ -184,7 +229,7 @@ function createOperationProcessor(deps: ProcessorDeps) {
 
       broadcast(userId, {
         type: 'JOB_FAILED',
-        payload: { jobId: job.id, operationType: type, error: error instanceof Error ? error.message : String(error) },
+        payload: { jobId: job.id, operationType: type, error: errorMsg },
         timestamp: new Date().toISOString(),
       });
 
@@ -210,6 +255,7 @@ export {
   type BrowserPoolLike,
   type BroadcastFn,
   type EnqueueFn,
+  type LogSyncEventFn,
   type JobLike,
   type ProcessorDeps,
   type ProcessJobResult,

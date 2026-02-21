@@ -23,10 +23,20 @@ type ActiveJob = {
   type: string;
 };
 
+type SyncTypeData = {
+  isRunning: boolean;
+  lastRunTime: string | null;
+  queuePosition: number | null;
+  history: Array<{ timestamp: string; duration: number; success: boolean; error: string | null }>;
+  health: 'healthy' | 'unhealthy' | 'idle';
+};
+
 type DashboardState = {
+  currentSync: string | null;
+  types: Record<string, SyncTypeData>;
   queue: QueueStats;
   activeJobs: ActiveJob[];
-  scheduler: { running: boolean; intervals: { agentSyncMs: number; sharedSyncMs: number } };
+  scheduler: { running: boolean; intervals: Record<string, number> };
 };
 
 interface SyncSection {
@@ -34,6 +44,19 @@ interface SyncSection {
   label: string;
   icon: string;
   priority: number;
+}
+
+const healthThresholds: Record<SyncType, number> = {
+  orders: 1, customers: 2, ddt: 3, invoices: 3, prices: 4, products: 8,
+};
+
+function formatLastSync(timestamp: string | null): string {
+  if (!timestamp) return 'Mai eseguito';
+  const diff = Date.now() - new Date(timestamp).getTime();
+  if (diff < 60_000) return 'Appena ora';
+  if (diff < 3_600_000) return `${Math.floor(diff / 60_000)} min fa`;
+  if (diff < 86_400_000) return `${Math.floor(diff / 3_600_000)}h fa`;
+  return new Date(timestamp).toLocaleString('it-IT');
 }
 
 const syncSections: SyncSection[] = [
@@ -90,6 +113,14 @@ export default function SyncControlPanel() {
           customers: false, products: false, prices: false,
           orders: false, ddt: false, invoices: false,
         };
+
+        if (data.types) {
+          for (const [type, typeData] of Object.entries(data.types)) {
+            if (type in newSyncing && (typeData as SyncTypeData).isRunning) {
+              newSyncing[type as SyncType] = true;
+            }
+          }
+        }
 
         for (const job of (data.activeJobs || [])) {
           const syncType = job.type.replace('sync-', '') as SyncType;
@@ -201,38 +232,27 @@ export default function SyncControlPanel() {
     }
   };
 
-  const isSyncActive = (syncType: SyncType) => {
-    if (!dashboard) return false;
-    return dashboard.activeJobs.some((j) => j.type === `sync-${syncType}`);
-  };
-
   const hasAnyActiveSync = () => {
     if (!dashboard) return false;
     return dashboard.activeJobs.some((j) => j.type.startsWith('sync-'));
   };
 
   const getStatusBadge = (syncType: SyncType) => {
-    if (!dashboard) return { bg: "#9e9e9e", color: "#fff", text: "N/A" };
-
-    if (isSyncActive(syncType)) {
-      return { bg: "#ff9800", color: "#fff", text: "Running" };
-    }
-
-    if (dashboard.queue.waiting > 0) {
-      return { bg: "#2196f3", color: "#fff", text: "In coda" };
-    }
-
-    return { bg: "#4caf50", color: "#fff", text: "Idle" };
+    const typeData = dashboard?.types?.[syncType];
+    if (!typeData) return { bg: "#9e9e9e", color: "#fff", text: "N/A" };
+    if (typeData.isRunning) return { bg: "#ff9800", color: "#fff", text: "Running" };
+    if (typeData.queuePosition != null) return { bg: "#2196f3", color: "#fff", text: `Queue #${typeData.queuePosition}` };
+    if (typeData.lastRunTime) return { bg: "#4caf50", color: "#fff", text: "Idle" };
+    return { bg: "#9e9e9e", color: "#fff", text: "Never run" };
   };
 
   const getHealthIndicator = (syncType: SyncType) => {
-    if (!dashboard) return "";
-
-    if (isSyncActive(syncType)) {
-      return ""; // Running
-    }
-
-    return ""; // Idle
+    if (!dashboard?.types?.[syncType]) return '';
+    const typeData = dashboard.types[syncType];
+    if (typeData.isRunning) return '\uD83D\uDFE1';
+    if (!typeData.lastRunTime) return '\u26AA';
+    const hoursSince = (Date.now() - new Date(typeData.lastRunTime).getTime()) / 3_600_000;
+    return hoursSince > healthThresholds[syncType] ? '\uD83D\uDD34' : '\uD83D\uDFE2';
   };
 
   if (loading) {
@@ -463,6 +483,10 @@ export default function SyncControlPanel() {
               </div>
 
               <div style={{ fontSize: "12px", color: "#666" }}>
+                <div>
+                  <strong>Ultimo sync:</strong>{" "}
+                  {formatLastSync(dashboard?.types?.[section.type]?.lastRunTime ?? null)}
+                </div>
                 <div>
                   <strong>Priorità:</strong> {section.priority}/6
                 </div>
