@@ -622,6 +622,7 @@ function TabArticoli({
   onEditDone?: () => void;
   editProgress?: { progress: number; operation: string } | null;
 }) {
+  const { subscribe } = useWebSocketContext();
   const [articles, setArticles] = useState(items || []);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -668,18 +669,15 @@ function TabArticoli({
         if (!response.ok) return;
 
         const data = await response.json();
-        if (data.success && data.data.articles.length > 0) {
-          setArticles(data.data.articles);
+        if (data.success && Array.isArray(data.data) && data.data.length > 0) {
+          setArticles(data.data);
 
-          if (
-            onTotalsUpdate &&
-            data.data.totalVatAmount &&
-            data.data.totalWithVat
-          ) {
-            onTotalsUpdate({
-              totalVatAmount: data.data.totalVatAmount,
-              totalWithVat: data.data.totalWithVat,
-            });
+          if (onTotalsUpdate) {
+            const totalVatAmount = data.data.reduce((sum, a) => sum + (a.vatAmount ?? 0), 0);
+            const totalWithVat = data.data.reduce((sum, a) => sum + (a.lineTotalWithVat ?? 0), 0);
+            if (totalVatAmount > 0 || totalWithVat > 0) {
+              onTotalsUpdate({ totalVatAmount, totalWithVat });
+            }
           }
         }
       } catch (err) {
@@ -723,20 +721,37 @@ function TabArticoli({
           );
 
           if (syncResponse.ok) {
-            const syncResult = await syncResponse.json();
-            if (syncResult.success && syncResult.data.articles.length > 0) {
-              freshArticles = syncResult.data.articles;
-              if (!cancelled) {
-                setArticles(freshArticles);
-                if (
-                  onTotalsUpdate &&
-                  syncResult.data.totalVatAmount &&
-                  syncResult.data.totalWithVat
-                ) {
-                  onTotalsUpdate({
-                    totalVatAmount: syncResult.data.totalVatAmount,
-                    totalWithVat: syncResult.data.totalWithVat,
-                  });
+            await new Promise((resolve) => {
+              const timeout = setTimeout(() => { unsubDone(); unsubFail(); resolve(undefined); }, 30_000);
+              const unsubDone = subscribe("JOB_COMPLETED", (payload) => {
+                if (payload.operationType === "sync-order-articles") {
+                  clearTimeout(timeout); unsubDone(); unsubFail(); resolve(undefined);
+                }
+              });
+              const unsubFail = subscribe("JOB_FAILED", (payload) => {
+                if (payload.operationType === "sync-order-articles") {
+                  clearTimeout(timeout); unsubDone(); unsubFail(); resolve(undefined);
+                }
+              });
+            });
+
+            const articlesRes = await fetchWithRetry(
+              `/api/orders/${orderId}/articles`,
+              { headers: { Authorization: `Bearer ${token}` } },
+            );
+            if (articlesRes.ok) {
+              const articlesData = await articlesRes.json();
+              if (articlesData.success && Array.isArray(articlesData.data) && articlesData.data.length > 0) {
+                freshArticles = articlesData.data;
+                if (!cancelled) {
+                  setArticles(freshArticles);
+                  if (onTotalsUpdate) {
+                    const totalVatAmount = articlesData.data.reduce((sum, a) => sum + (a.vatAmount ?? 0), 0);
+                    const totalWithVat = articlesData.data.reduce((sum, a) => sum + (a.lineTotalWithVat ?? 0), 0);
+                    if (totalVatAmount > 0 || totalWithVat > 0) {
+                      onTotalsUpdate({ totalVatAmount, totalWithVat });
+                    }
+                  }
                 }
               }
             }
@@ -1100,22 +1115,43 @@ function TabArticoli({
         );
       }
 
-      const result = await response.json();
-      setArticles(result.data.articles);
-      const totalVat = result.data.totalVatAmount ?? 0;
-      setSuccess(
-        `Sincronizzati ${result.data.articles.length} articoli. Totale IVA: ${formatCurrency(totalVat)}`,
-      );
-
-      if (
-        onTotalsUpdate &&
-        result.data.totalVatAmount &&
-        result.data.totalWithVat
-      ) {
-        onTotalsUpdate({
-          totalVatAmount: result.data.totalVatAmount,
-          totalWithVat: result.data.totalWithVat,
+      await new Promise((resolve, reject) => {
+        const timeout = setTimeout(() => {
+          unsubDone(); unsubFail();
+          reject(new Error("Timeout sincronizzazione articoli"));
+        }, 90_000);
+        const unsubDone = subscribe("JOB_COMPLETED", (payload) => {
+          if (payload.operationType === "sync-order-articles") {
+            clearTimeout(timeout); unsubDone(); unsubFail(); resolve(undefined);
+          }
         });
+        const unsubFail = subscribe("JOB_FAILED", (payload) => {
+          if (payload.operationType === "sync-order-articles") {
+            clearTimeout(timeout); unsubDone(); unsubFail();
+            reject(new Error(payload.error || "Sincronizzazione articoli fallita"));
+          }
+        });
+      });
+
+      const articlesRes = await fetchWithRetry(
+        `/api/orders/${orderId}/articles`,
+        { headers: { Authorization: `Bearer ${token}` } },
+      );
+      if (!articlesRes.ok) throw new Error("Errore nel recupero articoli");
+
+      const articlesData = await articlesRes.json();
+      if (articlesData.success && Array.isArray(articlesData.data) && articlesData.data.length > 0) {
+        setArticles(articlesData.data);
+        const totalVat = articlesData.data.reduce((sum, a) => sum + (a.vatAmount ?? 0), 0);
+        const totalWithVat = articlesData.data.reduce((sum, a) => sum + (a.lineTotalWithVat ?? 0), 0);
+        setSuccess(
+          `Sincronizzati ${articlesData.data.length} articoli. Totale IVA: ${formatCurrency(totalVat)}`,
+        );
+        if (onTotalsUpdate && (totalVat > 0 || totalWithVat > 0)) {
+          onTotalsUpdate({ totalVatAmount: totalVat, totalWithVat });
+        }
+      } else {
+        setSuccess("Sincronizzazione completata, nessun articolo trovato.");
       }
 
       setTimeout(() => setSuccess(null), 5000);
