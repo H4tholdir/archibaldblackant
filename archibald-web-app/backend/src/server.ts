@@ -100,7 +100,7 @@ function createApp(deps: AppDeps): Express {
 
   const strictLimiter = rateLimit({
     windowMs: 60_000,
-    max: 20,
+    max: 60,
     standardHeaders: true,
     legacyHeaders: false,
     keyGenerator: (req) => ipKeyGenerator(req.ip ?? req.socket.remoteAddress ?? 'unknown'),
@@ -584,16 +584,23 @@ function createApp(deps: AppDeps): Express {
       const result = [];
       for (const job of jobs) {
         const state = await job.getState();
+        const payload = (job.data?.data ?? {}) as Record<string, unknown>;
+        const returnValue = (job.returnvalue?.data ?? {}) as Record<string, unknown>;
         result.push({
           jobId: job.id!,
           type: job.data.type,
+          status: state,
           userId: job.data.userId,
-          state,
-          progress: typeof job.progress === 'number' ? job.progress : 0,
+          username: (payload.username as string) ?? job.data.userId,
+          orderData: {
+            customerName: (payload.customerName as string) ?? (payload.customer as string) ?? '-',
+            items: (payload.items as unknown[]) ?? [],
+          },
           createdAt: job.timestamp ?? 0,
           processedAt: job.processedOn ?? null,
           finishedAt: job.finishedOn ?? null,
-          failedReason: job.failedReason,
+          result: returnValue.orderId ? { orderId: returnValue.orderId as string } : null,
+          error: job.failedReason ?? null,
         });
       }
       return result;
@@ -617,7 +624,7 @@ function createApp(deps: AppDeps): Express {
       const failed = await queue.queue.clean(0, 1000, 'failed');
       return { removedCompleted: completed.length, removedFailed: failed.length };
     },
-    getRetentionConfig: () => ({ completedCount: 100, failedCount: 50 }),
+    getRetentionConfig: () => ({ keepCompleted: 100, keepFailed: 50 }),
     importSubclients: async (buffer, _filename) => {
       const result = parseSubclientsExcel(buffer);
       if (result.subclients.length > 0) {

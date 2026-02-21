@@ -10,13 +10,18 @@ import { logger } from '../logger';
 type AdminJob = {
   jobId: string;
   type: string;
+  status: string;
   userId: string;
-  state: string;
-  progress: number;
+  username: string;
+  orderData: {
+    customerName: string;
+    items: unknown[];
+  };
   createdAt: number;
   processedAt: number | null;
   finishedAt: number | null;
-  failedReason: string | undefined;
+  result: { orderId: string } | null;
+  error: string | null;
 };
 
 type AdminRouterDeps = {
@@ -35,7 +40,7 @@ type AdminRouterDeps = {
   retryJob: (jobId: string) => Promise<{ success: boolean; newJobId?: string; error?: string }>;
   cancelJob: (jobId: string) => Promise<{ success: boolean; error?: string }>;
   cleanupJobs: () => Promise<{ removedCompleted: number; removedFailed: number }>;
-  getRetentionConfig: () => { completedCount: number; failedCount: number };
+  getRetentionConfig: () => { keepCompleted: number; keepFailed: number };
   importSubclients: (buffer: Buffer, filename: string) => Promise<{ success: boolean; imported?: number; skipped?: number; error?: string }>;
 };
 

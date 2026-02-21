@@ -72,6 +72,8 @@ export function AdminPage({ onLogout, userName }: AdminPageProps) {
         headers: { Authorization: `Bearer ${jwt}` },
       });
 
+      if (!response.ok) return;
+
       const data = await response.json();
       if (data.success) {
         setJobs(data.data);
@@ -91,6 +93,8 @@ export function AdminPage({ onLogout, userName }: AdminPageProps) {
       const response = await fetch("/api/admin/jobs/retention", {
         headers: { Authorization: `Bearer ${jwt}` },
       });
+
+      if (!response.ok) return;
 
       const data = await response.json();
       if (data.success) {
@@ -141,9 +145,9 @@ export function AdminPage({ onLogout, userName }: AdminPageProps) {
     const q = searchQuery.toLowerCase();
     return jobs.filter(
       (job) =>
-        job.jobId.toLowerCase().includes(q) ||
-        job.username.toLowerCase().includes(q) ||
-        job.orderData.customerName.toLowerCase().includes(q) ||
+        job.jobId?.toLowerCase().includes(q) ||
+        job.username?.toLowerCase().includes(q) ||
+        job.orderData?.customerName?.toLowerCase().includes(q) ||
         job.result?.orderId?.toLowerCase().includes(q) ||
         job.error?.toLowerCase().includes(q),
     );
@@ -787,9 +791,9 @@ export function AdminPage({ onLogout, userName }: AdminPageProps) {
                             >
                               {job.jobId.substring(0, 12)}
                             </td>
-                            <td style={{ padding: "10px 12px" }}>{job.username}</td>
+                            <td style={{ padding: "10px 12px" }}>{job.username || job.userId}</td>
                             <td style={{ padding: "10px 12px" }}>
-                              {job.orderData.customerName}
+                              {job.orderData?.customerName || "-"}
                             </td>
                             <td style={{ padding: "10px 12px" }}>
                               {getStatusBadge(job.status)}
@@ -873,7 +877,7 @@ export function AdminPage({ onLogout, userName }: AdminPageProps) {
                                   <div><strong>Job ID:</strong> <span style={{ fontFamily: "monospace" }}>{job.jobId}</span></div>
                                   <div><strong>User ID:</strong> <span style={{ fontFamily: "monospace" }}>{job.userId}</span></div>
                                 </div>
-                                {job.orderData.items.length > 0 && (
+                                {(job.orderData?.items?.length ?? 0) > 0 && (
                                   <div style={{ marginTop: "8px" }}>
                                     <strong style={{ fontSize: "13px" }}>Articoli ({job.orderData.items.length}):</strong>
                                     <div style={{ marginTop: "4px", fontSize: "12px", fontFamily: "monospace", maxHeight: "120px", overflowY: "auto" }}>

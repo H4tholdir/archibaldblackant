@@ -55,6 +55,44 @@ async function fetchRecentWarnings(pool?: DbPool): Promise<SyncWarning[]> {
   }));
 }
 
+type SyncHistoryEntry = {
+  syncType: string;
+  timestamp: string;
+  duration: number;
+  success: boolean;
+  error: string | null;
+  warnings?: string[];
+};
+
+async function fetchSyncHistory(pool: DbPool | undefined, limit: number): Promise<SyncHistoryEntry[]> {
+  if (!pool) return [];
+  try {
+    const { rows } = await pool.query<{
+      sync_type: string;
+      event_type: string;
+      details: Record<string, unknown>;
+      created_at: string;
+    }>(
+      `SELECT sync_type, event_type, details, created_at
+       FROM system.sync_events
+       WHERE event_type IN ('sync_completed', 'sync_error', 'parser_warning')
+       ORDER BY created_at DESC
+       LIMIT $1`,
+      [limit * 6],
+    );
+    return rows.map((row) => ({
+      syncType: row.sync_type.replace('sync-', ''),
+      timestamp: row.created_at,
+      duration: (row.details?.duration as number) ?? 0,
+      success: row.event_type !== 'sync_error',
+      error: (row.details?.error as string) ?? null,
+      warnings: row.details?.warning ? [row.details.warning as string] : undefined,
+    }));
+  } catch {
+    return [];
+  }
+}
+
 function createSyncStatusRouter(deps: SyncStatusRouterDeps) {
   const { queue, agentLock, syncScheduler } = deps;
   const router = Router();
@@ -69,12 +107,14 @@ function createSyncStatusRouter(deps: SyncStatusRouterDeps) {
     }
   });
 
-  router.get('/monitoring/status', async (_req: AuthRequest, res) => {
+  router.get('/monitoring/status', async (req: AuthRequest, res) => {
     try {
-      const [queueStats, activeJobs, recentWarnings] = await Promise.all([
+      const limit = parseInt((req.query.limit as string) || '20', 10);
+      const [queueStats, activeJobs, recentWarnings, syncHistory] = await Promise.all([
         queue.getStats(),
         Promise.resolve(agentLock.getAllActive()),
         fetchRecentWarnings(deps.pool),
+        fetchSyncHistory(deps.pool, limit),
       ]);
 
       const activeJobsList = Array.from(activeJobs.entries()).map(([userId, job]) => ({
@@ -83,8 +123,50 @@ function createSyncStatusRouter(deps: SyncStatusRouterDeps) {
         type: job.type,
       }));
 
+      const syncTypes: Array<'orders' | 'customers' | 'products' | 'prices' | 'ddt' | 'invoices'> =
+        ['orders', 'customers', 'products', 'prices', 'ddt', 'invoices'];
+
+      const activeTypeSet = new Set(
+        activeJobsList.map((j) => j.type.replace('sync-', '')),
+      );
+
+      const types: Record<string, {
+        isRunning: boolean;
+        lastRunTime: string | null;
+        queuePosition: number | null;
+        history: Array<{ timestamp: string; duration: number; success: boolean; error: string | null; warnings?: string[] }>;
+        health: 'healthy' | 'unhealthy' | 'idle';
+      }> = {};
+
+      for (const syncType of syncTypes) {
+        const typeHistory = syncHistory.filter((h) => h.syncType === syncType);
+        const isRunning = activeTypeSet.has(syncType);
+        const lastEntry = typeHistory[0] ?? null;
+        const hasRecentError = typeHistory.slice(0, 3).some((h) => !h.success);
+
+        types[syncType] = {
+          isRunning,
+          lastRunTime: lastEntry?.timestamp ?? null,
+          queuePosition: null,
+          history: typeHistory.map((h) => ({
+            timestamp: h.timestamp,
+            duration: h.duration,
+            success: h.success,
+            error: h.error,
+            warnings: h.warnings,
+          })),
+          health: isRunning ? 'healthy' : lastEntry ? (hasRecentError ? 'unhealthy' : 'healthy') : 'idle',
+        };
+      }
+
+      const currentSync = activeJobsList.length > 0
+        ? activeJobsList[0].type.replace('sync-', '') as string
+        : null;
+
       res.json({
         success: true,
+        currentSync,
+        types,
         queue: queueStats,
         activeJobs: activeJobsList,
         scheduler: {

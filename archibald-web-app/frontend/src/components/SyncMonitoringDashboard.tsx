@@ -91,6 +91,8 @@ export default function SyncMonitoringDashboard() {
         },
       );
 
+      if (!response.ok) return;
+
       const data = await response.json();
       if (data.success && data.types) {
         setStatus(data);
@@ -131,6 +133,8 @@ export default function SyncMonitoringDashboard() {
       const response = await fetch("/api/sync/intervals", {
         headers: { Authorization: `Bearer ${jwt}` },
       });
+
+      if (!response.ok) return;
 
       const data = await response.json();
       if (data.success) {
