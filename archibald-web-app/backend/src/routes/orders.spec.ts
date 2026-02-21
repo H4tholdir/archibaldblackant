@@ -183,6 +183,67 @@ describe('createOrdersRouter', () => {
     });
   });
 
+  describe('GET /api/orders/history', () => {
+    test('returns orders in history format', async () => {
+      const res = await request(app).get('/api/orders/history?dateFrom=2026-01-01&limit=10000');
+
+      expect(res.status).toBe(200);
+      expect(res.body).toEqual({
+        success: true,
+        data: {
+          orders: [mockOrder],
+          total: 1,
+          hasMore: false,
+        },
+      });
+      expect(deps.getOrdersByUser).toHaveBeenCalledWith(
+        'user-1',
+        expect.objectContaining({ dateFrom: '2026-01-01', limit: 10000 }),
+      );
+    });
+
+    test('passes customer filter', async () => {
+      await request(app).get('/api/orders/history?customer=Rossi&dateFrom=2026-01-01');
+
+      expect(deps.getOrdersByUser).toHaveBeenCalledWith(
+        'user-1',
+        expect.objectContaining({ customer: 'Rossi', dateFrom: '2026-01-01' }),
+      );
+    });
+
+    test('passes offset for pagination', async () => {
+      (deps.countOrders as ReturnType<typeof vi.fn>).mockResolvedValue(50);
+      const res = await request(app).get('/api/orders/history?dateFrom=2026-01-01&limit=25&offset=25');
+
+      expect(res.status).toBe(200);
+      expect(res.body.data.hasMore).toBe(true);
+      expect(deps.getOrdersByUser).toHaveBeenCalledWith(
+        'user-1',
+        expect.objectContaining({ limit: 25, offset: 25 }),
+      );
+    });
+
+    test('hasMore is false when all orders are loaded', async () => {
+      (deps.countOrders as ReturnType<typeof vi.fn>).mockResolvedValue(1);
+      const res = await request(app).get('/api/orders/history?dateFrom=2026-01-01&limit=25');
+
+      expect(res.status).toBe(200);
+      expect(res.body.data.hasMore).toBe(false);
+    });
+
+    test('returns 400 for invalid limit', async () => {
+      const res = await request(app).get('/api/orders/history?limit=abc');
+
+      expect(res.status).toBe(400);
+    });
+
+    test('returns 400 for invalid offset', async () => {
+      const res = await request(app).get('/api/orders/history?offset=-1');
+
+      expect(res.status).toBe(400);
+    });
+  });
+
   describe('GET /api/orders/:orderId', () => {
     test('returns order detail with articles', async () => {
       const res = await request(app).get('/api/orders/ORD-001');

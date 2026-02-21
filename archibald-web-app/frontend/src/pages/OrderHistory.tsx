@@ -24,6 +24,8 @@ import {
 } from "../services/fresis-history-realtime.service";
 import type { Customer } from "../types/local-customer";
 
+const PAGE_SIZE = 25;
+
 interface OrderFilters {
   dateFrom: string;
   dateTo: string;
@@ -200,11 +202,14 @@ export function OrderHistory() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [expandedOrderId, setExpandedOrderId] = useState<string | null>(null);
-  const [filters, setFilters] = useState<OrderFilters>({
-    dateFrom: "",
-    dateTo: "",
-    quickFilters: new Set(),
-    search: "",
+  const [filters, setFilters] = useState<OrderFilters>(() => {
+    const now = new Date();
+    return {
+      dateFrom: formatDate(new Date(now.getFullYear(), now.getMonth(), 1)),
+      dateTo: "",
+      quickFilters: new Set(),
+      search: "",
+    };
   });
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [syncModalOpen, setSyncModalOpen] = useState(false);
@@ -231,7 +236,7 @@ export function OrderHistory() {
   const [showCustomerDropdown, setShowCustomerDropdown] = useState(false);
 
   // Time presets
-  const [activeTimePreset, setActiveTimePreset] = useState<TimePreset>(null);
+  const [activeTimePreset, setActiveTimePreset] = useState<TimePreset>("thisMonth");
 
   // Hide zero amount toggle
   const [hideZeroAmount, setHideZeroAmount] = useState(true);
@@ -242,8 +247,13 @@ export function OrderHistory() {
   // Scroll state
   const [showScrollToTop, setShowScrollToTop] = useState(false);
 
-  // Infinite scroll state
-  const [visibleCount, setVisibleCount] = useState(30);
+  // Server-side pagination state
+  const [hasMore, setHasMore] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const hasMoreRef = useRef(false);
+  const loadingMoreRef = useRef(false);
+  const offsetRef = useRef(0);
+  const fetchParamsRef = useRef({ customer: "", dateFrom: "", dateTo: "" });
 
   // Refs
   const customerDropdownRef = useRef<HTMLDivElement>(null);
@@ -319,10 +329,11 @@ export function OrderHistory() {
     }
   }, [highlightedCustomerIndex]);
 
-  // Fetch orders
+  // Fetch orders (initial load, resets pagination)
   const fetchOrders = useCallback(async () => {
     setLoading(true);
     setError(null);
+    offsetRef.current = 0;
 
     try {
       const token = localStorage.getItem("archibald_jwt");
@@ -332,12 +343,21 @@ export function OrderHistory() {
         return;
       }
 
+      const today = new Date();
+      const defaultDateFrom = formatDate(
+        new Date(today.getFullYear(), today.getMonth(), 1),
+      );
+      const customerName = selectedCustomer?.name || "";
+      const dateFrom = filters.dateFrom || defaultDateFrom;
+      const dateTo = filters.dateTo;
+
+      fetchParamsRef.current = { customer: customerName, dateFrom, dateTo };
+
       const params = new URLSearchParams();
-      if (selectedCustomer?.name)
-        params.append("customer", selectedCustomer.name);
-      params.append("dateFrom", filters.dateFrom || "2026-01-01");
-      if (filters.dateTo) params.append("dateTo", filters.dateTo);
-      params.append("limit", "10000");
+      if (customerName) params.append("customer", customerName);
+      params.append("dateFrom", dateFrom);
+      if (dateTo) params.append("dateTo", dateTo);
+      params.append("limit", String(PAGE_SIZE));
 
       const response = await fetchWithRetry(
         `/api/orders/history?${params.toString()}`,
@@ -366,6 +386,9 @@ export function OrderHistory() {
       }
 
       setOrders(data.data.orders);
+      offsetRef.current = data.data.orders.length;
+      hasMoreRef.current = data.data.hasMore;
+      setHasMore(data.data.hasMore);
       setBackorderDismissed(false);
     } catch (err) {
       console.error("Error fetching orders:", err);
@@ -374,6 +397,50 @@ export function OrderHistory() {
       setLoading(false);
     }
   }, [selectedCustomer, filters.dateFrom, filters.dateTo]);
+
+  // Fetch next page (appends to existing orders)
+  const fetchMore = useCallback(async () => {
+    if (loadingMoreRef.current || !hasMoreRef.current) return;
+    loadingMoreRef.current = true;
+    setLoadingMore(true);
+
+    try {
+      const token = localStorage.getItem("archibald_jwt");
+      if (!token) return;
+
+      const { customer, dateFrom, dateTo } = fetchParamsRef.current;
+      const params = new URLSearchParams();
+      if (customer) params.append("customer", customer);
+      params.append("dateFrom", dateFrom);
+      if (dateTo) params.append("dateTo", dateTo);
+      params.append("limit", String(PAGE_SIZE));
+      params.append("offset", String(offsetRef.current));
+
+      const response = await fetchWithRetry(
+        `/api/orders/history?${params.toString()}`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        },
+      );
+
+      if (!response.ok) return;
+
+      const data: OrderHistoryResponse = await response.json();
+      if (!data.success) return;
+
+      setOrders((prev) => [...prev, ...data.data.orders]);
+      offsetRef.current += data.data.orders.length;
+      hasMoreRef.current = data.data.hasMore;
+      setHasMore(data.data.hasMore);
+    } catch (err) {
+      console.error("Error fetching more orders:", err);
+    } finally {
+      loadingMoreRef.current = false;
+      setLoadingMore(false);
+    }
+  }, []);
 
   useEffect(() => {
     fetchOrders();
@@ -388,12 +455,6 @@ export function OrderHistory() {
 
     setExpandedOrderId(target.id);
     setHighlightFlash(target.id);
-
-    // Ensure the order is within the visible infinite-scroll window
-    const targetIndex = orders.indexOf(target);
-    if (targetIndex >= visibleCount) {
-      setVisibleCount(targetIndex + 5);
-    }
 
     // Clean up highlight param from URL
     setSearchParams((prev) => {
@@ -413,7 +474,7 @@ export function OrderHistory() {
     setTimeout(() => {
       setHighlightFlash(null);
     }, 2500);
-  }, [highlightOrderId, orders, setSearchParams, visibleCount]);
+  }, [highlightOrderId, orders, setSearchParams]);
 
   // Customer search handler
   const handleCustomerSearch = async (query: string) => {
@@ -543,16 +604,17 @@ export function OrderHistory() {
     setExpandedOrderId(expandedOrderId === orderId ? null : orderId);
   };
 
-  // Clear all filters
+  // Clear all filters (reset to "this month" default)
   const handleClearFilters = () => {
+    const today = new Date();
     setFilters({
-      dateFrom: "",
+      dateFrom: formatDate(new Date(today.getFullYear(), today.getMonth(), 1)),
       dateTo: "",
       quickFilters: new Set(),
       search: "",
     });
     handleClearCustomer();
-    setActiveTimePreset(null);
+    setActiveTimePreset("thisMonth");
     setHideZeroAmount(true);
   };
 
@@ -689,16 +751,6 @@ export function OrderHistory() {
     });
   };
 
-  // Reset visibleCount when filters change
-  const filterKey = `${selectedCustomer?.id ?? ""}_${filters.dateFrom}_${filters.dateTo}_${[...filters.quickFilters].sort().join(",")}_${debouncedSearch}_${hideZeroAmount}`;
-  const prevFilterKeyRef = useRef(filterKey);
-  if (prevFilterKeyRef.current !== filterKey) {
-    prevFilterKeyRef.current = filterKey;
-    if (visibleCount !== 30) {
-      setVisibleCount(30);
-    }
-  }
-
   // Filtering pipeline: hideZeroAmount → quick filters → global search
   let result = orders;
   if (hideZeroAmount) {
@@ -734,25 +786,23 @@ export function OrderHistory() {
     filters.search !== "" ||
     !hideZeroAmount;
 
-  const visibleOrders = filteredOrders.slice(0, visibleCount);
-  const hasMoreOrders = visibleCount < filteredOrders.length;
-  const orderGroups = groupOrdersByPeriod(visibleOrders);
+  const orderGroups = groupOrdersByPeriod(filteredOrders);
 
-  // Infinite scroll: re-create observer after each batch so it fires again
+  // Infinite scroll: fetch next page when sentinel becomes visible
   useEffect(() => {
     const sentinel = sentinelRef.current;
-    if (!sentinel || !hasMoreOrders) return;
+    if (!sentinel || !hasMore) return;
     const observer = new IntersectionObserver(
       (entries) => {
         if (entries[0].isIntersecting) {
-          setVisibleCount((prev) => prev + 30);
+          fetchMore();
         }
       },
       { rootMargin: "200px" },
     );
     observer.observe(sentinel);
     return () => observer.disconnect();
-  }, [visibleCount, hasMoreOrders]);
+  }, [fetchMore, hasMore]);
 
   // Quick filter definitions
   const quickFilterDefs: {
@@ -1717,9 +1767,9 @@ export function OrderHistory() {
             }}
           >
             {filteredOrders.length === orders.length
-              ? `${orders.length} ordini`
-              : `${filteredOrders.length} di ${orders.length} ordini`}
-            {hasMoreOrders && ` (${visibleCount} visualizzati)`}
+              ? `${orders.length} ordini caricati`
+              : `${filteredOrders.length} di ${orders.length} ordini caricati`}
+            {hasMore && " (scorri per vederne altri)"}
           </div>
 
           {/* Search navigation bar */}
@@ -1847,8 +1897,20 @@ export function OrderHistory() {
             ))}
           </div>
 
-          {/* Infinite scroll sentinel */}
-          <div ref={sentinelRef} style={{ height: "1px" }} />
+          {/* Infinite scroll sentinel + loading indicator */}
+          {loadingMore && (
+            <div
+              style={{
+                textAlign: "center",
+                padding: "16px",
+                color: "#888",
+                fontSize: "14px",
+              }}
+            >
+              Caricamento altri ordini...
+            </div>
+          )}
+          {hasMore && <div ref={sentinelRef} style={{ height: "1px" }} />}
         </div>
       )}
 

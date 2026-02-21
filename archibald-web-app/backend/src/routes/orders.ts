@@ -127,6 +127,54 @@ function createOrdersRouter(deps: OrdersRouterDeps) {
     }
   });
 
+  router.get('/history', async (req: AuthRequest, res) => {
+    try {
+      const userId = req.user!.userId;
+      let limit: number | undefined;
+      let offset: number | undefined;
+
+      if (req.query.limit) {
+        limit = parseInt(req.query.limit as string, 10);
+        if (isNaN(limit) || limit < 1) {
+          return res.status(400).json({ success: false, error: 'Invalid limit parameter (>= 1)' });
+        }
+      }
+
+      if (req.query.offset) {
+        offset = parseInt(req.query.offset as string, 10);
+        if (isNaN(offset) || offset < 0) {
+          return res.status(400).json({ success: false, error: 'Invalid offset parameter (>= 0)' });
+        }
+      }
+
+      const options: OrderFilterOptions = {
+        customer: req.query.customer as string | undefined,
+        dateFrom: req.query.dateFrom as string | undefined,
+        dateTo: req.query.dateTo as string | undefined,
+        search: req.query.search as string | undefined,
+        limit,
+        offset,
+      };
+
+      const [orders, total] = await Promise.all([
+        getOrdersByUser(userId, options),
+        countOrders(userId, options),
+      ]);
+
+      res.json({
+        success: true,
+        data: {
+          orders,
+          total,
+          hasMore: limit ? (offset || 0) + orders.length < total : false,
+        },
+      });
+    } catch (error) {
+      logger.error('Error fetching order history', { error });
+      res.status(500).json({ success: false, error: 'Errore nel recupero storico ordini' });
+    }
+  });
+
   router.get('/:orderId', async (req: AuthRequest, res) => {
     try {
       const userId = req.user!.userId;
