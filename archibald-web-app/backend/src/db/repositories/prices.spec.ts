@@ -7,6 +7,9 @@ import {
   getTotalCount,
   getAllPrices,
   getSyncStats,
+  recordPriceChange,
+  getRecentPriceChanges,
+  getPriceHistoryByProduct,
 } from './prices';
 
 function createMockPool(queryFn?: DbPool['query']): DbPool {
@@ -202,5 +205,109 @@ describe('getSyncStats', () => {
       last_sync_timestamp: 1708300000,
       prices_with_null_price: 5,
     });
+  });
+});
+
+describe('recordPriceChange', () => {
+  test('inserts a price change record with all fields', async () => {
+    const queryFn = vi.fn(async () => ({ rows: [], rowCount: 1, command: '', oid: 0, fields: [] }));
+    const pool = createMockPool(queryFn);
+
+    await recordPriceChange(pool, {
+      product_id: 'P001',
+      product_name: 'Widget',
+      variant_id: 'K2',
+      old_price: 10,
+      new_price: 15,
+      percentage_change: 50,
+      change_type: 'increase',
+      sync_date: 1700000000,
+      source: 'price-sync',
+    });
+
+    expect(queryFn).toHaveBeenCalledWith(
+      expect.stringContaining('INSERT INTO shared.price_history'),
+      ['P001', 'Widget', 'K2', 10, 15, 50, 'increase', 1700000000, 'price-sync'],
+    );
+  });
+
+  test('defaults source to price-sync and variant_id to null', async () => {
+    const queryFn = vi.fn(async () => ({ rows: [], rowCount: 1, command: '', oid: 0, fields: [] }));
+    const pool = createMockPool(queryFn);
+
+    await recordPriceChange(pool, {
+      product_id: 'P002',
+      product_name: 'Gadget',
+      old_price: null,
+      new_price: 20,
+      percentage_change: 0,
+      change_type: 'new',
+      sync_date: 1700000000,
+    });
+
+    expect(queryFn).toHaveBeenCalledWith(
+      expect.stringContaining('INSERT INTO shared.price_history'),
+      ['P002', 'Gadget', null, null, 20, 0, 'new', 1700000000, 'price-sync'],
+    );
+  });
+});
+
+describe('getRecentPriceChanges', () => {
+  test('returns changes and aggregated stats', async () => {
+    const changeRow = {
+      id: 1, product_id: 'P001', product_name: 'Widget', variant_id: null,
+      old_price: 10, new_price: 15, percentage_change: 50,
+      change_type: 'increase', sync_date: 1700000000, source: 'price-sync',
+    };
+    const statsRow = { total_changes: 3, increases: 2, decreases: 1, new_prices: 0 };
+    const queryFn = vi.fn(async (text: string) => {
+      if (text.includes('SELECT id, product_id')) {
+        return { rows: [changeRow], rowCount: 1, command: '', oid: 0, fields: [] };
+      }
+      if (text.includes('COUNT(*)')) {
+        return { rows: [statsRow], rowCount: 1, command: '', oid: 0, fields: [] };
+      }
+      return { rows: [], rowCount: 0, command: '', oid: 0, fields: [] };
+    });
+    const pool = createMockPool(queryFn);
+
+    const result = await getRecentPriceChanges(pool, 30);
+
+    expect(result).toEqual({
+      changes: [changeRow],
+      stats: statsRow,
+    });
+  });
+});
+
+describe('getPriceHistoryByProduct', () => {
+  test('returns history rows for a product with default limit', async () => {
+    const historyRow = {
+      id: 1, product_id: 'P001', product_name: 'Widget', variant_id: null,
+      old_price: 10, new_price: 12, percentage_change: 20,
+      change_type: 'increase', sync_date: 1700000000, source: 'price-sync',
+    };
+    const queryFn = vi.fn(async () => ({ rows: [historyRow], rowCount: 1, command: '', oid: 0, fields: [] }));
+    const pool = createMockPool(queryFn);
+
+    const result = await getPriceHistoryByProduct(pool, 'P001');
+
+    expect(result).toEqual([historyRow]);
+    expect(queryFn).toHaveBeenCalledWith(
+      expect.stringContaining('WHERE product_id = $1'),
+      ['P001', 100],
+    );
+  });
+
+  test('respects custom limit', async () => {
+    const queryFn = vi.fn(async () => ({ rows: [], rowCount: 0, command: '', oid: 0, fields: [] }));
+    const pool = createMockPool(queryFn);
+
+    await getPriceHistoryByProduct(pool, 'P001', 5);
+
+    expect(queryFn).toHaveBeenCalledWith(
+      expect.stringContaining('LIMIT $2'),
+      ['P001', 5],
+    );
   });
 });

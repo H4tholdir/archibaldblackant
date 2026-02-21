@@ -49,6 +49,38 @@ type SyncStats = {
   prices_with_null_price: number;
 };
 
+type PriceChangeInput = {
+  product_id: string;
+  product_name: string;
+  variant_id?: string | null;
+  old_price?: number | null;
+  new_price: number;
+  percentage_change: number;
+  change_type: 'increase' | 'decrease' | 'new';
+  sync_date: number;
+  source?: string;
+};
+
+type PriceChangeRow = {
+  id: number;
+  product_id: string;
+  product_name: string;
+  variant_id: string | null;
+  old_price: number | null;
+  new_price: number;
+  percentage_change: number;
+  change_type: string;
+  sync_date: number;
+  source: string;
+};
+
+type PriceStatsRow = {
+  total_changes: number;
+  increases: number;
+  decreases: number;
+  new_prices: number;
+};
+
 async function upsertPrice(
   pool: DbPool,
   priceData: PriceUpsertInput,
@@ -192,6 +224,73 @@ async function getSyncStats(pool: DbPool): Promise<SyncStats> {
   return rows[0];
 }
 
+async function recordPriceChange(pool: DbPool, data: PriceChangeInput): Promise<void> {
+  await pool.query(
+    `INSERT INTO shared.price_history (
+       product_id, product_name, variant_id, old_price, new_price,
+       percentage_change, change_type, sync_date, source
+     ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
+    [
+      data.product_id,
+      data.product_name,
+      data.variant_id ?? null,
+      data.old_price ?? null,
+      data.new_price,
+      data.percentage_change,
+      data.change_type,
+      data.sync_date,
+      data.source ?? 'price-sync',
+    ],
+  );
+}
+
+async function getRecentPriceChanges(
+  pool: DbPool,
+  days: number,
+): Promise<{ changes: PriceChangeRow[]; stats: PriceStatsRow }> {
+  const cutoff = Math.floor(Date.now() / 1000) - days * 86400;
+
+  const { rows: changes } = await pool.query<PriceChangeRow>(
+    `SELECT id, product_id, product_name, variant_id, old_price, new_price,
+            percentage_change, change_type, sync_date, source
+     FROM shared.price_history
+     WHERE sync_date >= $1
+     ORDER BY sync_date DESC`,
+    [cutoff],
+  );
+
+  const { rows: [statsRow] } = await pool.query<PriceStatsRow>(
+    `SELECT
+       COUNT(*)::int AS total_changes,
+       COUNT(*) FILTER (WHERE change_type = 'increase')::int AS increases,
+       COUNT(*) FILTER (WHERE change_type = 'decrease')::int AS decreases,
+       COUNT(*) FILTER (WHERE change_type = 'new')::int AS new_prices
+     FROM shared.price_history
+     WHERE sync_date >= $1`,
+    [cutoff],
+  );
+
+  return { changes, stats: statsRow };
+}
+
+async function getPriceHistoryByProduct(
+  pool: DbPool,
+  productId: string,
+  limit?: number,
+): Promise<PriceChangeRow[]> {
+  const { rows } = await pool.query<PriceChangeRow>(
+    `SELECT id, product_id, product_name, variant_id, old_price, new_price,
+            percentage_change, change_type, sync_date, source
+     FROM shared.price_history
+     WHERE product_id = $1
+     ORDER BY sync_date DESC
+     LIMIT $2`,
+    [productId, limit ?? 100],
+  );
+
+  return rows;
+}
+
 export {
   upsertPrice,
   getPrice,
@@ -199,7 +298,13 @@ export {
   getTotalCount,
   getAllPrices,
   getSyncStats,
+  recordPriceChange,
+  getRecentPriceChanges,
+  getPriceHistoryByProduct,
   type PriceRow,
   type PriceUpsertInput,
   type SyncStats,
+  type PriceChangeInput,
+  type PriceChangeRow,
+  type PriceStatsRow,
 };

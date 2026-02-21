@@ -1,5 +1,4 @@
 import { Router } from 'express';
-import { z } from 'zod';
 import multer from 'multer';
 import type { AuthRequest } from '../middleware/auth';
 import type { PriceRow } from '../db/repositories/prices';
@@ -9,12 +8,12 @@ const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 
 
 type PriceHistoryEntry = {
   id: number;
-  productId: string;
-  oldPrice: string | null;
-  newPrice: string | null;
+  oldPrice: number | null;
+  newPrice: number;
+  percentageChange: number;
   changeType: string;
-  changedAt: string;
-  source: string | null;
+  syncDate: number;
+  source: string;
 };
 
 type ImportRecord = {
@@ -35,10 +34,29 @@ type ImportResult = {
   errors: string[];
 };
 
+type PriceChange = {
+  id: number;
+  productId: string;
+  productName: string;
+  variantId: string | null;
+  oldPrice: number | null;
+  newPrice: number;
+  percentageChange: number;
+  changeType: string;
+  syncDate: number;
+};
+
+type PriceStats = {
+  totalChanges: number;
+  increases: number;
+  decreases: number;
+  newPrices: number;
+};
+
 type PricesRouterDeps = {
   getPricesByProductId: (productId: string) => Promise<PriceRow[]>;
   getPriceHistory: (productId: string, limit?: number) => Promise<PriceHistoryEntry[]>;
-  getRecentPriceChanges: (days: number) => Promise<PriceHistoryEntry[]>;
+  getRecentPriceChanges: (days: number) => Promise<{ changes: PriceChange[]; stats: PriceStats }>;
   getImportHistory: () => Promise<ImportRecord[]>;
   importExcel: (buffer: Buffer, filename: string, userId: string) => Promise<ImportResult>;
 };
@@ -69,8 +87,8 @@ function createPricesRouter(deps: PricesRouterDeps) {
       if (isNaN(days) || days < 1) {
         return res.status(400).json({ success: false, error: 'Parametro giorni non valido' });
       }
-      const changes = await getRecentPriceChanges(days);
-      res.json({ success: true, daysBack: days, historyCount: changes.length, history: changes });
+      const { changes, stats } = await getRecentPriceChanges(days);
+      res.json({ success: true, daysBack: days, stats, changes });
     } catch (error) {
       logger.error('Error fetching recent price changes', { error });
       res.status(500).json({ success: false, error: 'Errore nel recupero variazioni prezzi recenti' });

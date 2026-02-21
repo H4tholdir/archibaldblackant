@@ -144,4 +144,90 @@ describe('syncPrices (integration)', () => {
       { product_id: 'P-030', unit_price: '11', price_valid_from: '2026-07-01' },
     ]);
   });
+
+  test('new price insert records price_history with change_type=new', async () => {
+    const prices = [
+      makePrice({ productId: 'P-040', productName: 'New Product', unitPrice: 7.50, priceValidFrom: '2026-01-01' }),
+    ];
+
+    await syncPrices(makeDeps(pool, prices), vi.fn(), neverStop);
+
+    const { rows } = await pool.query<{
+      product_id: string; product_name: string; old_price: number | null;
+      new_price: number; change_type: string; percentage_change: number;
+    }>(
+      'SELECT product_id, product_name, old_price, new_price, change_type, percentage_change FROM shared.price_history WHERE product_id = $1',
+      ['P-040'],
+    );
+    expect(rows).toEqual([{
+      product_id: 'P-040',
+      product_name: 'New Product',
+      old_price: null,
+      new_price: 7.5,
+      change_type: 'new',
+      percentage_change: 0,
+    }]);
+  });
+
+  test('price update records price_history with increase change_type', async () => {
+    const original = makePrice({
+      productId: 'P-050', productName: 'Tracked Product',
+      unitPrice: 10.00, priceValidFrom: '2026-01-01', priceQtyFrom: 1,
+    });
+    await syncPrices(makeDeps(pool, [original]), vi.fn(), neverStop);
+
+    await pool.query('DELETE FROM shared.price_history WHERE product_id = $1', ['P-050']);
+
+    const updated = makePrice({
+      productId: 'P-050', productName: 'Tracked Product',
+      unitPrice: 15.00, priceValidFrom: '2026-01-01', priceQtyFrom: 1,
+      priceValidTo: '2027-12-31',
+    });
+    await syncPrices(makeDeps(pool, [updated]), vi.fn(), neverStop);
+
+    const { rows } = await pool.query<{
+      product_id: string; old_price: number; new_price: number;
+      change_type: string; percentage_change: number;
+    }>(
+      'SELECT product_id, old_price, new_price, change_type, percentage_change FROM shared.price_history WHERE product_id = $1',
+      ['P-050'],
+    );
+    expect(rows).toEqual([{
+      product_id: 'P-050',
+      old_price: 10,
+      new_price: 15,
+      change_type: 'increase',
+      percentage_change: 50,
+    }]);
+  });
+
+  test('price decrease records price_history with decrease change_type', async () => {
+    const original = makePrice({
+      productId: 'P-060', productName: 'Discount Product',
+      unitPrice: 20.00, priceValidFrom: '2026-01-01', priceQtyFrom: 1,
+    });
+    await syncPrices(makeDeps(pool, [original]), vi.fn(), neverStop);
+
+    await pool.query('DELETE FROM shared.price_history WHERE product_id = $1', ['P-060']);
+
+    const discounted = makePrice({
+      productId: 'P-060', productName: 'Discount Product',
+      unitPrice: 16.00, priceValidFrom: '2026-01-01', priceQtyFrom: 1,
+      priceValidTo: '2027-12-31',
+    });
+    await syncPrices(makeDeps(pool, [discounted]), vi.fn(), neverStop);
+
+    const { rows } = await pool.query<{
+      old_price: number; new_price: number; change_type: string; percentage_change: number;
+    }>(
+      'SELECT old_price, new_price, change_type, percentage_change FROM shared.price_history WHERE product_id = $1',
+      ['P-060'],
+    );
+    expect(rows).toEqual([{
+      old_price: 20,
+      new_price: 16,
+      change_type: 'decrease',
+      percentage_change: -20,
+    }]);
+  });
 });

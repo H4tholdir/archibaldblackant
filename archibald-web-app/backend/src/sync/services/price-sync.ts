@@ -1,5 +1,6 @@
 import crypto from 'crypto';
 import type { DbPool } from '../../db/pool';
+import { recordPriceChange } from '../../db/repositories/prices';
 import { SyncStoppedError } from './customer-sync';
 
 type ParsedPrice = {
@@ -99,8 +100,25 @@ async function syncPrices(
             hash, now,
           ],
         );
+        await recordPriceChange(pool, {
+          product_id: p.productId,
+          product_name: p.productName,
+          variant_id: p.itemSelection ?? null,
+          old_price: null,
+          new_price: p.unitPrice,
+          percentage_change: 0,
+          change_type: 'new',
+          sync_date: now,
+        });
         pricesInserted++;
       } else if (existing.hash !== hash) {
+        const { rows: [oldRow] } = await pool.query<{ unit_price: string | null }>(
+          'SELECT unit_price FROM shared.prices WHERE product_id = $1 AND price_valid_from = $2 AND COALESCE(price_qty_from, 0) = $3',
+          [p.productId, p.priceValidFrom ?? null, p.priceQtyFrom ?? 0],
+        );
+        const oldPrice = oldRow?.unit_price != null ? parseFloat(oldRow.unit_price) : null;
+        const newPrice = p.unitPrice;
+
         await pool.query(
           `UPDATE shared.prices SET
             product_name=$2, unit_price=$3, item_selection=$4,
@@ -118,6 +136,23 @@ async function syncPrices(
             p.priceValidFrom ?? null, p.priceQtyFrom ?? 0,
           ],
         );
+
+        if (oldPrice !== null && oldPrice !== newPrice) {
+          const percentageChange = oldPrice !== 0
+            ? ((newPrice - oldPrice) / oldPrice) * 100
+            : 0;
+          await recordPriceChange(pool, {
+            product_id: p.productId,
+            product_name: p.productName,
+            variant_id: p.itemSelection ?? null,
+            old_price: oldPrice,
+            new_price: newPrice,
+            percentage_change: Math.round(percentageChange * 100) / 100,
+            change_type: newPrice > oldPrice ? 'increase' : 'decrease',
+            sync_date: now,
+          });
+        }
+
         pricesUpdated++;
       } else {
         pricesSkipped++;

@@ -5,12 +5,31 @@ import { createPricesRouter, type PricesRouterDeps } from './prices';
 
 const mockPriceHistory = {
   id: 1,
+  oldPrice: 10.00,
+  newPrice: 12.50,
+  percentageChange: 25,
+  changeType: 'increase',
+  syncDate: 1705312800,
+  source: 'price-sync',
+};
+
+const mockPriceChange = {
+  id: 1,
   productId: 'ART-001',
-  oldPrice: '10.00',
-  newPrice: '12.50',
-  changeType: 'update',
-  changedAt: '2026-01-15T10:00:00Z',
-  source: 'excel-import',
+  productName: 'Articolo Test',
+  variantId: null,
+  oldPrice: 10.00,
+  newPrice: 12.50,
+  percentageChange: 25,
+  changeType: 'increase',
+  syncDate: 1705312800,
+};
+
+const mockPriceStats = {
+  totalChanges: 1,
+  increases: 1,
+  decreases: 0,
+  newPrices: 0,
 };
 
 const mockImportRecord = {
@@ -51,7 +70,7 @@ function createMockDeps(): PricesRouterDeps {
   return {
     getPricesByProductId: vi.fn().mockResolvedValue([mockPriceRow]),
     getPriceHistory: vi.fn().mockResolvedValue([mockPriceHistory]),
-    getRecentPriceChanges: vi.fn().mockResolvedValue([mockPriceHistory]),
+    getRecentPriceChanges: vi.fn().mockResolvedValue({ changes: [mockPriceChange], stats: mockPriceStats }),
     getImportHistory: vi.fn().mockResolvedValue([mockImportRecord]),
     importExcel: vi.fn().mockResolvedValue({ totalRows: 500, matched: 480, unmatched: 20, errors: [] }),
   };
@@ -94,7 +113,8 @@ describe('createPricesRouter', () => {
       expect(res.status).toBe(200);
       expect(res.body.success).toBe(true);
       expect(res.body.daysBack).toBe(30);
-      expect(res.body.history).toEqual([mockPriceHistory]);
+      expect(res.body.changes).toEqual([mockPriceChange]);
+      expect(res.body.stats).toEqual(mockPriceStats);
       expect(deps.getRecentPriceChanges).toHaveBeenCalledWith(30);
     });
 

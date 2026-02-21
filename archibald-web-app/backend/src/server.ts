@@ -216,8 +216,40 @@ function createApp(deps: AppDeps): Express {
 
   app.use('/api/prices', authenticateJWT, createPricesRouter({
     getPricesByProductId: (productId) => pricesRepo.getPricesByProductId(pool, productId),
-    getPriceHistory: async (_productId, _limit) => [],
-    getRecentPriceChanges: async (_days) => [],
+    getPriceHistory: async (productId, limit) => {
+      const rows = await pricesRepo.getPriceHistoryByProduct(pool, productId, limit);
+      return rows.map(r => ({
+        id: r.id,
+        oldPrice: r.old_price,
+        newPrice: r.new_price,
+        percentageChange: r.percentage_change,
+        changeType: r.change_type,
+        syncDate: r.sync_date,
+        source: r.source,
+      }));
+    },
+    getRecentPriceChanges: async (days) => {
+      const { changes: rows, stats } = await pricesRepo.getRecentPriceChanges(pool, days);
+      return {
+        changes: rows.map(r => ({
+          id: r.id,
+          productId: r.product_id,
+          productName: r.product_name,
+          variantId: r.variant_id,
+          oldPrice: r.old_price,
+          newPrice: r.new_price,
+          percentageChange: r.percentage_change,
+          changeType: r.change_type,
+          syncDate: r.sync_date,
+        })),
+        stats: {
+          totalChanges: stats.total_changes,
+          increases: stats.increases,
+          decreases: stats.decreases,
+          newPrices: stats.new_prices,
+        },
+      };
+    },
     getImportHistory: async () => [],
     importExcel: async (buffer, _filename, _userId) => {
       const parsed = parsePriceExcel(buffer);
