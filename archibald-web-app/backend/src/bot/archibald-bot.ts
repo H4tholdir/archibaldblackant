@@ -8735,7 +8735,37 @@ export class ArchibaldBot {
         "[ArchibaldBot] PDF export button clicked, waiting for download...",
       );
 
-      await downloadComplete;
+      // Retry click: if no PDF file appears within 15s, the first click likely
+      // went to void (known ERP issue). Click again — the second click works.
+      const retryClickTimer = setTimeout(async () => {
+        try {
+          const files = await fsp.readdir("/tmp");
+          const hasPdf = files.some(
+            (f) =>
+              expectedFileNames.includes(f) ||
+              (f.startsWith(`${filePrefix}-`) && f.endsWith(".pdf")),
+          );
+          if (!hasPdf && !page.isClosed()) {
+            logger.warn(
+              `[ArchibaldBot] No ${filePrefix} PDF after 15s, retrying export click...`,
+            );
+            await page.evaluate((sel: string) => {
+              const btn = document.querySelector(sel) as HTMLElement | null;
+              if (btn) {
+                btn.dispatchEvent(new MouseEvent("mousedown", { bubbles: true }));
+                btn.dispatchEvent(new MouseEvent("mouseup", { bubbles: true }));
+                btn.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+              }
+            }, buttonSelector);
+          }
+        } catch { /* page may have closed */ }
+      }, 15_000);
+
+      try {
+        await downloadComplete;
+      } finally {
+        clearTimeout(retryClickTimer);
+      }
 
       const stats = fs.statSync(downloadPath);
       if (stats.size === 0) {
