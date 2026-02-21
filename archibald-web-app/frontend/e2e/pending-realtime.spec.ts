@@ -10,6 +10,7 @@
 
 import { test, expect } from "@playwright/test";
 import type { BrowserContext, Page } from "@playwright/test";
+import { guardJwt } from "./helpers/auth-guard";
 
 const STORAGE_STATE = "playwright/.auth/user.json";
 const SYNC_TIMEOUT = 30_000;
@@ -166,6 +167,9 @@ test.describe.serial("pending orders real-time sync", () => {
 
     pageA = await contextA.newPage();
     pageB = await contextB.newPage();
+
+    await guardJwt(pageA);
+    await guardJwt(pageB);
 
     await pageA.addInitScript(() => {
       localStorage.setItem("archibald_device_id", "e2e-device-rt-a");

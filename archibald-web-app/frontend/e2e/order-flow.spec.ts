@@ -1,10 +1,15 @@
 import { test, expect } from "@playwright/test";
+import { guardJwt } from "./helpers/auth-guard";
+import { apiPost, apiDelete } from "./helpers/rate-limit";
 
-const TEST_ORDER_ID = `e2e-test-${Date.now()}`;
-const TEST_CUSTOMER_NAME = "E2E Test Customer";
+test.describe("pending orders CRUD", () => {
+  test.beforeEach(async ({ page }) => {
+    await guardJwt(page);
+  });
 
-test.describe.serial("pending orders CRUD", () => {
-  let createdOrderId: string;
+  test.afterEach(async () => {
+    await new Promise((resolve) => setTimeout(resolve, 2_000));
+  });
 
   test("pending orders page loads and shows data", async ({ page }) => {
     await page.goto("/pending-orders");
@@ -42,81 +47,122 @@ test.describe.serial("pending orders CRUD", () => {
     );
     expect(jwt).toBeTruthy();
 
-    createdOrderId = TEST_ORDER_ID;
+    const orderId = `e2e-test-${Date.now()}`;
+    const customerName = `E2E Create ${Date.now()}`;
 
-    const payload = {
-      orders: [
-        {
-          id: createdOrderId,
-          customerId: "e2e-test-cust-id",
-          customerName: TEST_CUSTOMER_NAME,
-          itemsJson: JSON.stringify([
-            {
-              articleCode: "E2E-ART-001",
-              productName: "E2E Test Product",
-              quantity: 1,
-              price: 10,
-              vat: 22,
-              discount: 0,
-            },
-          ]),
-          status: "pending",
-          deviceId: "e2e-test-device",
-        },
-      ],
-    };
-
-    const response = await page.request.post("/api/pending-orders", {
-      data: payload,
-      headers: { Authorization: `Bearer ${jwt}` },
-    });
+    const response = await apiPost(
+      page,
+      "/api/pending-orders",
+      {
+        orders: [
+          {
+            id: orderId,
+            customerId: "e2e-test-cust-id",
+            customerName,
+            itemsJson: JSON.stringify([
+              {
+                articleCode: "E2E-ART-001",
+                productName: "E2E Test Product",
+                quantity: 1,
+                price: 10,
+                vat: 22,
+                discount: 0,
+              },
+            ]),
+            status: "pending",
+            deviceId: "e2e-test-device",
+          },
+        ],
+      },
+      jwt!,
+    );
 
     expect(response.status()).toBe(200);
     const body = await response.json();
     expect(body.success).toBe(true);
 
-    await page.goto("/pending-orders");
+    await page.reload();
 
     await expect(
       page.getByText("Caricamento ordini in attesa..."),
     ).not.toBeVisible({ timeout: 30_000 });
 
     await expect(
-      page.locator("div", { hasText: TEST_CUSTOMER_NAME }).first(),
+      page.locator("div", { hasText: customerName }).first(),
     ).toBeVisible({ timeout: 15_000 });
+
+    // Cleanup: delete the created order
+    await apiDelete(page, `/api/pending-orders/${orderId}`, jwt!);
   });
 
-  test("can delete a pending order", async ({ page }) => {
+  test("can create and delete a pending order", async ({ page }) => {
     await page.goto("/pending-orders");
 
     await expect(
       page.getByText("Caricamento ordini in attesa..."),
     ).not.toBeVisible({ timeout: 30_000 });
-
-    await expect(
-      page.locator("div", { hasText: TEST_CUSTOMER_NAME }).first(),
-    ).toBeVisible({ timeout: 15_000 });
 
     const jwt = await page.evaluate(() =>
       localStorage.getItem("archibald_jwt"),
     );
     expect(jwt).toBeTruthy();
 
-    page.on("dialog", (dialog) => dialog.accept());
+    const orderId = `e2e-del-${Date.now()}`;
+    const customerName = `E2E Delete ${Date.now()}`;
 
-    const deleteResponse = await page.request.delete(
-      `/api/pending-orders/${createdOrderId}`,
-      { headers: { Authorization: `Bearer ${jwt}` } },
+    const createResponse = await apiPost(
+      page,
+      "/api/pending-orders",
+      {
+        orders: [
+          {
+            id: orderId,
+            customerId: "e2e-del-cust-id",
+            customerName,
+            itemsJson: JSON.stringify([
+              {
+                articleCode: "E2E-DEL-001",
+                productName: "E2E Delete Product",
+                quantity: 1,
+                price: 10,
+                vat: 22,
+                discount: 0,
+              },
+            ]),
+            status: "pending",
+            deviceId: "e2e-test-device",
+          },
+        ],
+      },
+      jwt!,
     );
-    expect(deleteResponse.status()).toBe(200);
 
-    await page.goto("/pending-orders");
+    expect(createResponse.status()).toBe(200);
+
+    await page.reload();
 
     await expect(
       page.getByText("Caricamento ordini in attesa..."),
     ).not.toBeVisible({ timeout: 30_000 });
 
-    const orderLocator = page.locator(`text=${TEST_CUSTOMER_NAME}`);
+    await expect(
+      page.locator("div", { hasText: customerName }).first(),
+    ).toBeVisible({ timeout: 15_000 });
+
+    const deleteResponse = await apiDelete(
+      page,
+      `/api/pending-orders/${orderId}`,
+      jwt!,
+    );
+    expect(deleteResponse.status()).toBe(200);
+
+    await page.reload();
+
+    await expect(
+      page.getByText("Caricamento ordini in attesa..."),
+    ).not.toBeVisible({ timeout: 30_000 });
+
+    const orderLocator = page.locator(`text=${customerName}`);
     await expect(orderLocator).not.toBeVisible({ timeout: 10_000 });
   });
 });

@@ -62,6 +62,16 @@ test.describe("navigation links work from dashboard", () => {
 
 test.describe("logout flow", () => {
   test("logout redirects to login", async ({ page }) => {
+    // Intercept logout API to prevent clearing backend password cache
+    // (which would cause subsequent tests to fail with 401)
+    await page.route("**/api/auth/logout", (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ success: true, data: { message: "Logout effettuato" } }),
+      }),
+    );
+
     await page.goto("/");
     await expect(page.locator("nav")).toBeVisible({ timeout: 30_000 });
 

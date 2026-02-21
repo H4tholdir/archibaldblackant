@@ -91,7 +91,7 @@ function createApp(deps: AppDeps): Express {
 
   const globalLimiter = rateLimit({
     windowMs: 60_000,
-    max: 200,
+    max: Number(process.env.RATE_LIMIT_GLOBAL_MAX) || 500,
     standardHeaders: true,
     legacyHeaders: false,
     keyGenerator: (req) => ipKeyGenerator(req.ip ?? req.socket.remoteAddress ?? 'unknown'),

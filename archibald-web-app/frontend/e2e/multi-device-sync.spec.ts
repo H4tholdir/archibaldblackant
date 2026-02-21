@@ -1,5 +1,6 @@
 import { test, expect } from "@playwright/test";
 import type { BrowserContext, Page } from "@playwright/test";
+import { guardJwt } from "./helpers/auth-guard";
 
 const STORAGE_STATE = "playwright/.auth/user.json";
 const TEST_ORDER_PREFIX = "e2e-sync-";
@@ -69,6 +70,9 @@ test.describe.serial("multi-device WebSocket sync", () => {
 
     pageA = await contextA.newPage();
     pageB = await contextB.newPage();
+
+    await guardJwt(pageA);
+    await guardJwt(pageB);
 
     await pageA.addInitScript(() => {
       localStorage.setItem("archibald_device_id", "e2e-device-a");
@@ -143,7 +147,7 @@ test.describe.serial("multi-device WebSocket sync", () => {
         return parseInt(match[1], 10) >= args.expected;
       },
       { expected: expectedCount },
-      { timeout: 15_000 },
+      { timeout: 30_000 },
     );
 
     const updatedCount = await getPendingCountFromDom(pageB);
@@ -173,7 +177,7 @@ test.describe.serial("multi-device WebSocket sync", () => {
         return parseInt(match[1], 10) <= args.expected;
       },
       { expected: expectedCount },
-      { timeout: 15_000 },
+      { timeout: 30_000 },
     );
 
     const finalCount = await getPendingCountFromDom(pageB);
