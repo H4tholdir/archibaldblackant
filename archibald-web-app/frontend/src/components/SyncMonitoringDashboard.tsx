@@ -92,8 +92,31 @@ export default function SyncMonitoringDashboard() {
       );
 
       const data = await response.json();
-      if (data.success) {
+      if (data.success && data.types) {
         setStatus(data);
+      } else if (data.success) {
+        const emptyTypeData: SyncTypeData = {
+          isRunning: false,
+          lastRunTime: null,
+          queuePosition: null,
+          history: [],
+          health: "idle",
+        };
+        const types = Object.fromEntries(
+          syncSections.map((s) => [s.type, { ...emptyTypeData }]),
+        ) as Record<SyncType, SyncTypeData>;
+        const activeTypes = (data.activeJobs ?? [])
+          .map((j: { type: string }) => j.type)
+          .filter((t: string) =>
+            syncSections.some((s) => s.type === t),
+          );
+        for (const t of activeTypes) {
+          types[t as SyncType] = { ...types[t as SyncType], isRunning: true, health: "healthy" };
+        }
+        setStatus({
+          currentSync: (activeTypes[0] as SyncType) ?? null,
+          types,
+        });
       }
     } catch (error) {
       console.error("Failed to fetch monitoring status:", error);
