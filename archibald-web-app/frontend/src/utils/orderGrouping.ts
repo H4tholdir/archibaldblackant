@@ -1,10 +1,9 @@
 export interface Order {
   id: string;
-  date: string; // ISO 8601
+  creationDate: string; // ISO 8601
   customerName: string;
-  total: string;
-  status: string;
-  [key: string]: unknown;
+  totalAmount: string;
+  salesStatus: string;
 }
 
 export type Period = "Oggi" | "Questa settimana" | "Questo mese" | "Più vecchi";
@@ -79,11 +78,11 @@ export function groupOrdersByPeriod(orders: Order[]): OrderGroup[] {
   // Categorize orders
   orders.forEach((order) => {
     try {
-      const orderDate = new Date(order.date);
+      const orderDate = new Date(order.creationDate);
 
       // Check for invalid date
       if (isNaN(orderDate.getTime())) {
-        console.warn(`Invalid date for order ${order.id}: ${order.date}`);
+        console.warn(`Invalid date for order ${order.id}: ${order.creationDate}`);
         groups.get("Più vecchi")!.push(order);
         return;
       }
@@ -99,8 +98,8 @@ export function groupOrdersByPeriod(orders: Order[]): OrderGroup[] {
   // Sort orders within each group by date descending (newest first)
   groups.forEach((orders) => {
     orders.sort((a, b) => {
-      const dateA = new Date(a.date).getTime();
-      const dateB = new Date(b.date).getTime();
+      const dateA = new Date(a.creationDate).getTime();
+      const dateB = new Date(b.creationDate).getTime();
       return dateB - dateA;
     });
   });

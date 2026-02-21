@@ -109,19 +109,17 @@ function isInvoicePaid(order: Order): boolean {
 }
 
 function hasTrackingData(order: Order): boolean {
-  return !!(
-    order.ddt?.trackingNumber?.trim() || order.tracking?.trackingNumber?.trim()
-  );
+  return !!order.trackingNumber?.trim();
 }
 
 export function isLikelyDelivered(order: Order): boolean {
-  const isStatusConsegnato = order.status?.toUpperCase() === "CONSEGNATO";
+  const isStatusConsegnato = order.salesStatus?.toUpperCase() === "CONSEGNATO";
   if (!hasTrackingData(order) && !isStatusConsegnato) return false;
 
   if (order.invoiceNumber) return true;
   if (order.deliveryCompletedDate) return true;
 
-  const shippedDate = order.ddt?.ddtDeliveryDate || order.date;
+  const shippedDate = order.ddtDeliveryDate || order.creationDate;
   const daysSinceShipped =
     (Date.now() - new Date(shippedDate).getTime()) / 86_400_000;
   return daysSinceShipped >= 3;
@@ -129,7 +127,7 @@ export function isLikelyDelivered(order: Order): boolean {
 
 export function isInTransit(order: Order): boolean {
   return (
-    (hasTrackingData(order) || order.status?.toUpperCase() === "CONSEGNATO") &&
+    (hasTrackingData(order) || order.salesStatus?.toUpperCase() === "CONSEGNATO") &&
     !isLikelyDelivered(order)
   );
 }
@@ -173,7 +171,7 @@ export function getOrderStatus(order: Order): OrderStatusStyle {
     return ORDER_STATUS_STYLES.overdue;
   }
 
-  if (order.invoiceNumber && order.documentState === "FATTURA") {
+  if (order.invoiceNumber && order.documentStatus === "FATTURA") {
     return ORDER_STATUS_STYLES.invoiced;
   }
 
@@ -192,12 +190,12 @@ export function getOrderStatus(order: Order): OrderStatusStyle {
   const tsNormalized =
     order.transferStatus?.toUpperCase().replace(/_/g, " ") || "";
 
-  if (order.state === "TRANSFER ERROR" || tsNormalized === "TRANSFER ERROR") {
+  if (order.currentState === "TRANSFER ERROR" || tsNormalized === "TRANSFER ERROR") {
     return ORDER_STATUS_STYLES.blocked;
   }
 
   if (
-    order.state === "IN ATTESA DI APPROVAZIONE" ||
+    order.currentState === "IN ATTESA DI APPROVAZIONE" ||
     tsNormalized === "IN ATTESA DI APPROVAZIONE"
   ) {
     return ORDER_STATUS_STYLES["pending-approval"];

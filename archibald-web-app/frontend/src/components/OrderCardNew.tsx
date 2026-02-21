@@ -99,8 +99,8 @@ function copyToClipboard(text: string) {
 
 function getStepInfo(order: Order): { index: number; isError: boolean } {
   const ts = order.transferStatus?.toUpperCase().replace(/_/g, " ") || "";
-  const ss = (order.state || order.status)?.toUpperCase() || "";
-  const dt = order.documentState?.toUpperCase() || "";
+  const ss = (order.currentState || order.salesStatus)?.toUpperCase() || "";
+  const dt = order.documentStatus?.toUpperCase() || "";
   const ot = order.orderType?.toUpperCase() || "";
 
   if (ss === "FATTURATO" || dt.includes("FATTURA") || order.invoiceNumber)
@@ -313,7 +313,7 @@ function TabPanoramica({
             <div>
               <div style={fieldLabelStyle}>Data Creazione</div>
               <div style={fieldValueStyle}>
-                {formatDateTime(order.orderDate || order.date)}
+                {formatDateTime(order.creationDate)}
               </div>
             </div>
             <div>
@@ -347,7 +347,7 @@ function TabPanoramica({
             <div
               style={{ ...fieldValueStyle, fontSize: "18px", fontWeight: 700 }}
             >
-              {order.total || "N/A"}
+              {order.totalAmount || "N/A"}
             </div>
           </div>
           {order.discountPercent && (
@@ -467,7 +467,7 @@ function TabPanoramica({
             <div style={fieldLabelStyle}>Vendite</div>
             <div style={fieldValueStyle}>
               <HighlightText
-                text={order.state || order.status || ""}
+                text={order.currentState || order.salesStatus || ""}
                 query={searchQuery}
               />
             </div>
@@ -476,7 +476,7 @@ function TabPanoramica({
             <div style={fieldLabelStyle}>Documento</div>
             <div style={fieldValueStyle}>
               <HighlightText
-                text={order.documentState || "\u2014"}
+                text={order.documentStatus || "\u2014"}
                 query={searchQuery}
               />
             </div>
@@ -2530,7 +2530,7 @@ function TabFinanziario({
             Totale Ordine
           </div>
           <div style={{ fontSize: "20px", fontWeight: 700, color: "#333" }}>
-            {order.total}
+            {order.totalAmount}
           </div>
           {order.totalWithVat && parseFloat(order.totalWithVat) > 0 && (
             <div
@@ -3532,7 +3532,7 @@ export function OrderCardNew({
                   {" \u2022 "}
                 </>
               ) : null}
-              {formatDate(order.orderDate || order.date)}
+              {formatDate(order.creationDate)}
             </div>
 
             {/* Total Amount + Lordo/Sconto inline */}
@@ -3552,7 +3552,7 @@ export function OrderCardNew({
                     color: "#333",
                   }}
                 >
-                  <HighlightText text={order.total || ""} query={searchQuery} />
+                  <HighlightText text={order.totalAmount || ""} query={searchQuery} />
                 </span>
                 {order.grossAmount && (
                   <span style={{ fontSize: "13px", color: "#666" }}>
@@ -3688,12 +3688,11 @@ export function OrderCardNew({
                 }}
               >
                 {/* Tracking Button */}
-                {(order.tracking?.trackingUrl || order.ddt?.trackingUrl) && (
+                {order.trackingUrl && (
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
-                      const url =
-                        order.tracking?.trackingUrl || order.ddt?.trackingUrl;
+                      const url = order.trackingUrl;
                       if (url) window.open(url, "_blank");
                     }}
                     style={{
@@ -3724,7 +3723,7 @@ export function OrderCardNew({
                 )}
 
                 {/* DDT Download Button */}
-                {order.ddt?.ddtNumber && order.ddt?.trackingNumber && (
+                {order.ddtNumber && order.trackingNumber && (
                   <div
                     style={{
                       display: "inline-flex",

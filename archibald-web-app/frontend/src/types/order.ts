@@ -38,58 +38,21 @@ export interface DocumentInfo {
   uploadedAt?: string;
 }
 
-export interface TrackingInfo {
-  trackingNumber?: string;
-  trackingUrl?: string;
-  trackingCourier?: string;
-}
-
-export interface DDTInfo {
-  ddtId?: string;
-  ddtNumber?: string;
-  ddtDeliveryDate?: string;
-  orderId?: string;
-  ddtCustomerAccount?: string;
-  ddtSalesName?: string;
-  ddtDeliveryName?: string;
-  deliveryTerms?: string;
-  deliveryMethod?: string;
-  deliveryCity?: string;
-  attentionTo?: string;
-  deliveryAddress?: string;
-  ddtTotal?: string;
-  customerReference?: string;
-  description?: string;
-  // Tracking fields (also nested in DDT)
-  trackingNumber?: string;
-  trackingUrl?: string;
-  trackingCourier?: string;
-}
-
-// Complete Order interface with all 41 fields
 export interface Order {
-  // Order List (20 columns)
   id: string;
   orderNumber?: string;
   customerProfileId?: string;
   customerName: string;
-  agentPersonName?: string;
-  orderDate?: string;
-  date: string; // Alias for orderDate (for backward compatibility)
+  creationDate: string;
   orderType?: string;
   deliveryTerms?: string;
   deliveryDate?: string;
-  total: string;
+  totalAmount: string;
   salesOrigin?: string;
-  discountPercent?: string; // Global order discount percentage (e.g., "14,27 %")
-  lineDiscount?: string;
-  endDiscount?: string;
-  shippingAddress?: string;
-  salesResponsible?: string;
-  status: string;
-  state?: string;
-  documentState?: string;
-  transferredToAccountingOffice?: boolean;
+  discountPercent?: string;
+  salesStatus: string;
+  currentState?: string;
+  documentStatus?: string;
   transferStatus?: string;
   transferDate?: string;
   completionDate?: string;
@@ -101,38 +64,39 @@ export interface Order {
   isQuote?: boolean;
   isGiftOrder?: boolean;
 
-  // Index signature for compatibility with orderGrouping
-  [key: string]: unknown;
+  // DDT fields (flat from backend)
+  ddtId?: string;
+  ddtNumber?: string;
+  ddtDeliveryDate?: string;
+  ddtCustomerAccount?: string;
+  ddtSalesName?: string;
+  ddtDeliveryName?: string;
+  ddtDeliveryAddress?: string;
+  ddtTotal?: string;
+  ddtCustomerReference?: string;
+  ddtDescription?: string;
 
-  // DDT (11 columns)
-  ddt?: DDTInfo;
+  // Tracking fields (flat from backend)
+  trackingNumber?: string;
+  trackingUrl?: string;
+  trackingCourier?: string;
 
-  // Tracking (3 columns - can be standalone or in DDT)
-  tracking?: TrackingInfo;
-
-  // Additional DDT fields stored directly in order
+  // Delivery
   deliveryMethod?: string;
   deliveryCity?: string;
   attentionTo?: string;
-  deliveryCompletedDate?: string; // ISO timestamp when delivery was completed
+  deliveryCompletedDate?: string;
 
-  // Metadata (12 columns)
-  botUserId?: string;
-  jobId?: string;
-  archibaldOrderId?: string; // Order ID in Archibald system
-  articlesSyncedAt?: string; // ISO timestamp of last articles sync
-  totalVatAmount?: string; // Total VAT amount from articles sync
-  totalWithVat?: string; // Total with VAT from articles sync
+  // Metadata
+  archibaldOrderId?: string;
+  articlesSyncedAt?: string;
+  totalVatAmount?: string;
+  totalWithVat?: string;
   createdAt?: string;
   lastUpdatedAt?: string;
-  notes?: string;
-  customerNotes?: string; // Alias for notes
-  items?: OrderItem[]; // JSON field
-  stateTimeline?: StatusUpdate[]; // JSON field
-  statusTimeline?: StatusUpdate[]; // Alias for stateTimeline
-  documents?: DocumentInfo[]; // JSON field
+  sentToVeronaAt?: string;
 
-  // Invoice (from invoices table) - all fields
+  // Invoice fields
   invoiceNumber?: string;
   invoiceDate?: string;
   invoiceAmount?: string;
@@ -153,9 +117,10 @@ export interface Order {
   invoiceLastSettlementDate?: string;
   invoiceClosedDate?: string;
 
-  // Article search text (concatenated codes + descriptions for global search)
+  // Article search text
   articleSearchText?: string;
 
-  // Current state tracking
-  currentState?: string;
+  // Shipping
+  shippingCost?: string;
+  shippingTax?: string;
 }

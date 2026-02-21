@@ -9,15 +9,15 @@ import {
 
 describe("getOrderStatus", () => {
   describe("invoiced status", () => {
-    test("returns invoiced when order has invoice number and FATTURA document state", () => {
+    test("returns invoiced when order has invoice number and FATTURA document status", () => {
       const order: Partial<Order> = {
         id: "test-order-1",
         customerName: "Test Customer",
-        date: "2026-01-15",
-        total: "1000.00",
-        status: "FATTURATO",
+        creationDate: "2026-01-15",
+        totalAmount: "1000.00",
+        salesStatus: "FATTURATO",
         invoiceNumber: "FAT/2026/001",
-        documentState: "FATTURA",
+        documentStatus: "FATTURA",
       };
 
       const result = getOrderStatus(order as Order);
@@ -32,9 +32,9 @@ describe("getOrderStatus", () => {
       const order: Partial<Order> = {
         id: "legacy-order",
         customerName: "Legacy Customer",
-        date: "2025-12-01",
-        total: "500.00",
-        status: "Completato",
+        creationDate: "2025-12-01",
+        totalAmount: "500.00",
+        salesStatus: "Completato",
         invoiceNumber: "FAT/2025/999",
       };
 
@@ -49,15 +49,13 @@ describe("getOrderStatus", () => {
       const order = {
         id: "delivered-order",
         customerName: "Delivered Customer",
-        date: "2026-01-20",
-        total: "750.00",
-        status: "CONSEGNATO",
+        creationDate: "2026-01-20",
+        totalAmount: "750.00",
+        salesStatus: "CONSEGNATO",
         orderType: "ORDINE DI VENDITA",
-        tracking: {
-          trackingNumber: "123456789",
-          trackingUrl: "https://fedex.com/track/123456789",
-          trackingCourier: "FedEx",
-        },
+        trackingNumber: "123456789",
+        trackingUrl: "https://fedex.com/track/123456789",
+        trackingCourier: "FedEx",
         deliveryCompletedDate: "2026-01-25T14:30:00Z",
       } as Order;
 
@@ -77,16 +75,14 @@ describe("getOrderStatus", () => {
       const order: Partial<Order> = {
         id: "transit-order",
         customerName: "Transit Customer",
-        date: yesterday.toISOString().slice(0, 10),
-        total: "900.00",
-        status: "CONSEGNATO",
+        creationDate: yesterday.toISOString().slice(0, 10),
+        totalAmount: "900.00",
+        salesStatus: "CONSEGNATO",
         orderType: "ORDINE DI VENDITA",
-        state: "TRASFERITO",
-        tracking: {
-          trackingNumber: "987654321",
-          trackingUrl: "https://fedex.com/track/987654321",
-          trackingCourier: "FedEx",
-        },
+        currentState: "TRASFERITO",
+        trackingNumber: "987654321",
+        trackingUrl: "https://fedex.com/track/987654321",
+        trackingCourier: "FedEx",
       };
 
       const result = getOrderStatus(order as Order);
@@ -97,20 +93,18 @@ describe("getOrderStatus", () => {
       expect(result.backgroundColor).toBe("#BBDEFB");
     });
 
-    test("returns in-transit when tracking is in DDT field (recent)", () => {
+    test("returns in-transit when tracking is in DDT fields (recent)", () => {
       const yesterday = new Date();
       yesterday.setDate(yesterday.getDate() - 1);
       const order: Partial<Order> = {
         id: "transit-order-ddt",
         customerName: "Transit DDT Customer",
-        date: yesterday.toISOString().slice(0, 10),
-        total: "600.00",
-        status: "CONSEGNATO",
-        ddt: {
-          trackingNumber: "FEDEX123",
-          trackingUrl: "https://fedex.com/track/FEDEX123",
-          trackingCourier: "FedEx",
-        },
+        creationDate: yesterday.toISOString().slice(0, 10),
+        totalAmount: "600.00",
+        salesStatus: "CONSEGNATO",
+        trackingNumber: "FEDEX123",
+        trackingUrl: "https://fedex.com/track/FEDEX123",
+        trackingCourier: "FedEx",
       };
 
       const result = getOrderStatus(order as Order);
@@ -124,12 +118,10 @@ describe("getOrderStatus", () => {
       const order: Partial<Order> = {
         id: "recent-tracking",
         customerName: "Recent Tracking",
-        date: yesterday.toISOString().slice(0, 10),
-        total: "400.00",
-        status: "Spedito",
-        tracking: {
-          trackingNumber: "LEG999",
-        },
+        creationDate: yesterday.toISOString().slice(0, 10),
+        totalAmount: "400.00",
+        salesStatus: "Spedito",
+        trackingNumber: "LEG999",
       };
 
       const result = getOrderStatus(order as Order);
@@ -141,12 +133,10 @@ describe("getOrderStatus", () => {
       const order: Partial<Order> = {
         id: "old-tracking",
         customerName: "Old Tracking",
-        date: "2025-11-15",
-        total: "400.00",
-        status: "Spedito",
-        tracking: {
-          trackingNumber: "LEG999",
-        },
+        creationDate: "2025-11-15",
+        totalAmount: "400.00",
+        salesStatus: "Spedito",
+        trackingNumber: "LEG999",
       };
 
       const result = getOrderStatus(order as Order);
@@ -156,14 +146,14 @@ describe("getOrderStatus", () => {
   });
 
   describe("blocked status", () => {
-    test("returns blocked when order has TRANSFER ERROR state", () => {
+    test("returns blocked when order has TRANSFER ERROR currentState", () => {
       const order: Partial<Order> = {
         id: "blocked-order",
         customerName: "Blocked Customer",
-        date: "2026-01-18",
-        total: "1200.00",
-        status: "ORDINE APERTO",
-        state: "TRANSFER ERROR",
+        creationDate: "2026-01-18",
+        totalAmount: "1200.00",
+        salesStatus: "ORDINE APERTO",
+        currentState: "TRANSFER ERROR",
         orderType: "GIORNALE",
       };
 
@@ -179,9 +169,9 @@ describe("getOrderStatus", () => {
       const order: Partial<Order> = {
         id: "blocked-transfer",
         customerName: "Blocked Transfer Customer",
-        date: "2026-01-18",
-        total: "1200.00",
-        status: "ORDINE APERTO",
+        creationDate: "2026-01-18",
+        totalAmount: "1200.00",
+        salesStatus: "ORDINE APERTO",
         transferStatus: "Transfer Error",
         orderType: "GIORNALE",
       };
@@ -195,9 +185,9 @@ describe("getOrderStatus", () => {
       const order: Partial<Order> = {
         id: "blocked-underscore",
         customerName: "Blocked Underscore Customer",
-        date: "2026-02-16",
-        total: "435.65",
-        status: "ORDINE APERTO",
+        creationDate: "2026-02-16",
+        totalAmount: "435.65",
+        salesStatus: "ORDINE APERTO",
         transferStatus: "Transfer_error",
         orderType: "GIORNALE",
       };
@@ -210,16 +200,16 @@ describe("getOrderStatus", () => {
   });
 
   describe("pending-approval status", () => {
-    test("returns pending-approval when order has state IN ATTESA DI APPROVAZIONE", () => {
+    test("returns pending-approval when order has currentState IN ATTESA DI APPROVAZIONE", () => {
       const order: Partial<Order> = {
         id: "pending-order",
         customerName: "Pending Customer",
-        date: "2026-01-28",
-        total: "850.00",
-        status: "ORDINE APERTO",
-        state: "IN ATTESA DI APPROVAZIONE",
+        creationDate: "2026-01-28",
+        totalAmount: "850.00",
+        salesStatus: "ORDINE APERTO",
+        currentState: "IN ATTESA DI APPROVAZIONE",
         orderType: "GIORNALE",
-        documentState: "NESSUNO",
+        documentStatus: "NESSUNO",
       };
 
       const result = getOrderStatus(order as Order);
@@ -234,13 +224,13 @@ describe("getOrderStatus", () => {
       const order: Partial<Order> = {
         id: "pending-transfer",
         customerName: "Pending Transfer Customer",
-        date: "2026-02-13",
-        total: "622.97",
-        status: "ORDINE APERTO",
+        creationDate: "2026-02-13",
+        totalAmount: "622.97",
+        salesStatus: "ORDINE APERTO",
         orderNumber: "PENDING-73.039",
         transferStatus: "In attesa di approvazione",
         orderType: "GIORNALE",
-        documentState: "NESSUNO",
+        documentStatus: "NESSUNO",
       };
 
       const result = getOrderStatus(order as Order);
@@ -256,13 +246,13 @@ describe("getOrderStatus", () => {
       const order: Partial<Order> = {
         id: "processing-order",
         customerName: "Processing Customer",
-        date: "2026-02-12",
-        total: "899.01",
-        status: "Ordine aperto",
+        creationDate: "2026-02-12",
+        totalAmount: "899.01",
+        salesStatus: "Ordine aperto",
         orderNumber: "ORD/26002615",
         orderType: "Ordine di vendita",
         transferStatus: "Trasferito",
-        documentState: "Nessuno",
+        documentStatus: "Nessuno",
       };
 
       const result = getOrderStatus(order as Order);
@@ -277,13 +267,13 @@ describe("getOrderStatus", () => {
       const order: Partial<Order> = {
         id: "completato-order",
         customerName: "Fresis Soc Cooperativa",
-        date: "2026-02-16",
-        total: "747.76",
-        status: "Ordine aperto",
+        creationDate: "2026-02-16",
+        totalAmount: "747.76",
+        salesStatus: "Ordine aperto",
         orderNumber: "PENDING-48.435",
         transferStatus: "Completato",
         orderType: "Giornale",
-        documentState: "Nessuno",
+        documentStatus: "Nessuno",
       };
 
       const result = getOrderStatus(order as Order);
@@ -296,9 +286,9 @@ describe("getOrderStatus", () => {
       const order: Partial<Order> = {
         id: "pending-local",
         customerName: "Pending Local",
-        date: "2026-02-12",
-        total: "100.00",
-        status: "Ordine aperto",
+        creationDate: "2026-02-12",
+        totalAmount: "100.00",
+        salesStatus: "Ordine aperto",
         orderNumber: "PENDING-72.938",
         transferStatus: "Modifica",
       };
@@ -314,12 +304,12 @@ describe("getOrderStatus", () => {
       const order: Partial<Order> = {
         id: "local-order",
         customerName: "Local Customer",
-        date: "2026-01-30",
-        total: "650.00",
-        status: "ORDINE APERTO",
-        state: "MODIFICA",
+        creationDate: "2026-01-30",
+        totalAmount: "650.00",
+        salesStatus: "ORDINE APERTO",
+        currentState: "MODIFICA",
         orderType: "GIORNALE",
-        documentState: "NESSUNO",
+        documentStatus: "NESSUNO",
       };
 
       const result = getOrderStatus(order as Order);
@@ -334,9 +324,9 @@ describe("getOrderStatus", () => {
       const order: Partial<Order> = {
         id: "unknown-order",
         customerName: "Unknown Customer",
-        date: "2026-01-01",
-        total: "100.00",
-        status: "Unknown Status",
+        creationDate: "2026-01-01",
+        totalAmount: "100.00",
+        salesStatus: "Unknown Status",
       };
 
       const result = getOrderStatus(order as Order);
@@ -350,14 +340,14 @@ describe("getOrderStatus", () => {
       const order: Partial<Order> = {
         id: "priority-test-1",
         customerName: "Priority Customer",
-        date: "2026-01-15",
-        total: "1000.00",
-        status: "CONSEGNATO",
+        creationDate: "2026-01-15",
+        totalAmount: "1000.00",
+        salesStatus: "CONSEGNATO",
         invoiceNumber: "FAT/2026/100",
-        documentState: "FATTURA",
-        tracking: { trackingNumber: "TRACK123" },
+        documentStatus: "FATTURA",
+        trackingNumber: "TRACK123",
         deliveryCompletedDate: "2026-01-20T10:00:00Z",
-      } as any;
+      };
 
       const result = getOrderStatus(order as Order);
 
@@ -368,12 +358,12 @@ describe("getOrderStatus", () => {
       const order: Partial<Order> = {
         id: "priority-test-2",
         customerName: "Priority Customer 2",
-        date: "2026-01-16",
-        total: "800.00",
-        status: "CONSEGNATO",
-        tracking: { trackingNumber: "TRACK456" },
+        creationDate: "2026-01-16",
+        totalAmount: "800.00",
+        salesStatus: "CONSEGNATO",
+        trackingNumber: "TRACK456",
         deliveryCompletedDate: "2026-01-22T15:30:00Z",
-      } as any;
+      };
 
       const result = getOrderStatus(order as Order);
 
@@ -384,10 +374,10 @@ describe("getOrderStatus", () => {
       const order: Partial<Order> = {
         id: "priority-test-3",
         customerName: "Priority Customer 3",
-        date: "2026-01-17",
-        total: "700.00",
-        status: "ORDINE APERTO",
-        state: "TRANSFER ERROR",
+        creationDate: "2026-01-17",
+        totalAmount: "700.00",
+        salesStatus: "ORDINE APERTO",
+        currentState: "TRANSFER ERROR",
         orderType: "GIORNALE",
       };
 
@@ -400,9 +390,9 @@ describe("getOrderStatus", () => {
       const order: Partial<Order> = {
         id: "priority-test-4",
         customerName: "Priority Customer 4",
-        date: "2026-02-12",
-        total: "500.00",
-        status: "Ordine aperto",
+        creationDate: "2026-02-12",
+        totalAmount: "500.00",
+        salesStatus: "Ordine aperto",
         orderNumber: "ORD/26002613",
         transferStatus: "Trasferito",
       };

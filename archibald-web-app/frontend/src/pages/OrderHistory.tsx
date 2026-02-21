@@ -83,67 +83,45 @@ function matchesGlobalSearch(order: Order, query: string): boolean {
     order.orderNumber,
     order.customerName,
     order.customerProfileId,
-    order.orderDate,
-    order.date,
+    order.creationDate,
     order.deliveryDate,
     order.orderType,
     order.salesOrigin,
-    order.total,
+    order.totalAmount,
     order.grossAmount,
     order.discountPercent,
     order.deliveryName,
     order.deliveryAddress,
     order.customerReference,
     order.remainingSalesFinancial,
-    order.state,
-    order.status,
-    order.documentState,
+    order.currentState,
+    order.salesStatus,
+    order.documentStatus,
     order.transferStatus,
     order.transferDate,
     order.completionDate,
     order.deliveryCompletedDate,
     order.articleSearchText,
+    // DDT fields (flat)
+    order.trackingNumber,
+    order.trackingCourier,
+    order.ddtNumber,
+    order.ddtDeliveryDate,
+    order.ddtCustomerAccount,
+    order.ddtSalesName,
+    order.ddtDeliveryName,
+    order.deliveryMethod,
+    order.deliveryTerms,
+    order.deliveryCity,
+    order.attentionTo,
+    order.ddtDeliveryAddress,
+    order.ddtTotal,
+    order.ddtCustomerReference,
+    order.ddtDescription,
   ];
 
   for (const val of topFields) {
     if (val && String(val).toLowerCase().includes(lower)) return true;
-  }
-
-  if (order.ddt) {
-    const ddtFields: (string | undefined | null)[] = [
-      order.ddt.trackingNumber,
-      order.ddt.trackingCourier,
-      order.ddt.ddtNumber,
-      order.ddt.ddtDeliveryDate,
-      order.ddt.ddtCustomerAccount,
-      order.ddt.orderId,
-      order.ddt.ddtSalesName,
-      order.ddt.ddtDeliveryName,
-      order.ddt.deliveryMethod,
-      order.ddt.deliveryTerms,
-      order.ddt.deliveryCity,
-      order.ddt.attentionTo,
-      order.ddt.deliveryAddress,
-      order.ddt.ddtTotal,
-      order.ddt.customerReference,
-      order.ddt.description,
-    ];
-    for (const val of ddtFields) {
-      if (val && String(val).toLowerCase().includes(lower)) return true;
-    }
-  }
-
-  if (order.tracking) {
-    if (
-      order.tracking.trackingNumber &&
-      order.tracking.trackingNumber.toLowerCase().includes(lower)
-    )
-      return true;
-    if (
-      order.tracking.trackingCourier &&
-      order.tracking.trackingCourier.toLowerCase().includes(lower)
-    )
-      return true;
   }
 
   const invoiceFields: (string | undefined | null)[] = [
@@ -164,17 +142,6 @@ function matchesGlobalSearch(order: Order, query: string): boolean {
   ];
   for (const val of invoiceFields) {
     if (val && String(val).toLowerCase().includes(lower)) return true;
-  }
-
-  if (order.items) {
-    for (const item of order.items) {
-      if (item.article && item.article.toLowerCase().includes(lower))
-        return true;
-      if (item.productName && item.productName.toLowerCase().includes(lower))
-        return true;
-      if (item.description && item.description.toLowerCase().includes(lower))
-        return true;
-    }
   }
 
   return false;
@@ -703,8 +670,8 @@ export function OrderHistory() {
         switch (filterType) {
           case "requiresAttention":
             matches =
-              order.state === "IN ATTESA DI APPROVAZIONE" ||
-              order.state === "TRANSFER ERROR" ||
+              order.currentState === "IN ATTESA DI APPROVAZIONE" ||
+              order.currentState === "TRANSFER ERROR" ||
               order.transferStatus
                 ?.toUpperCase()
                 .replace(/_/g, " ") === "TRANSFER ERROR";
@@ -716,9 +683,9 @@ export function OrderHistory() {
 
           case "backorder": {
             const hoursElapsed =
-              (Date.now() - new Date(order.date).getTime()) / 3_600_000;
+              (Date.now() - new Date(order.creationDate).getTime()) / 3_600_000;
             matches =
-              order.status?.toUpperCase() === "ORDINE APERTO" &&
+              order.salesStatus?.toUpperCase() === "ORDINE APERTO" &&
               hoursElapsed > 36;
             break;
           }
@@ -756,7 +723,7 @@ export function OrderHistory() {
   if (hideZeroAmount) {
     result = result.filter((o) => {
       const t = parseFloat(
-        String(o.total)
+        String(o.totalAmount)
           .replace(/[^\d.,-]/g, "")
           .replace(",", "."),
       );
@@ -768,8 +735,8 @@ export function OrderHistory() {
   const ordersForCounts = result;
 
   const backorderCount = ordersForCounts.filter((o) => {
-    const hoursElapsed = (Date.now() - new Date(o.date).getTime()) / 3_600_000;
-    return o.status?.toUpperCase() === "ORDINE APERTO" && hoursElapsed > 36;
+    const hoursElapsed = (Date.now() - new Date(o.creationDate).getTime()) / 3_600_000;
+    return o.salesStatus?.toUpperCase() === "ORDINE APERTO" && hoursElapsed > 36;
   }).length;
 
   result = applyQuickFilters(result);
@@ -819,8 +786,8 @@ export function OrderHistory() {
       bgColor: "#FFEBEE",
       count: ordersForCounts.filter(
         (o) =>
-          o.state === "IN ATTESA DI APPROVAZIONE" ||
-          o.state === "TRANSFER ERROR" ||
+          o.currentState === "IN ATTESA DI APPROVAZIONE" ||
+          o.currentState === "TRANSFER ERROR" ||
           o.transferStatus?.toUpperCase().replace(/_/g, " ") ===
             "TRANSFER ERROR",
       ).length,
@@ -839,8 +806,8 @@ export function OrderHistory() {
       bgColor: "#FFF3E0",
       count: ordersForCounts.filter((o) => {
         const hoursElapsed =
-          (Date.now() - new Date(o.date).getTime()) / 3_600_000;
-        return o.status?.toUpperCase() === "ORDINE APERTO" && hoursElapsed > 36;
+          (Date.now() - new Date(o.creationDate).getTime()) / 3_600_000;
+        return o.salesStatus?.toUpperCase() === "ORDINE APERTO" && hoursElapsed > 36;
       }).length,
     },
     {

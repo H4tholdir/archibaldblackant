@@ -1,12 +1,12 @@
 import { describe, expect, test } from "vitest";
 import { groupOrdersByPeriod, type Order, type Period } from "./orderGrouping";
 
-const createOrder = (id: string, date: string): Order => ({
+const createOrder = (id: string, creationDate: string): Order => ({
   id,
-  date,
+  creationDate,
   customerName: "Test Customer",
-  total: "0.00",
-  status: "test",
+  totalAmount: "0.00",
+  salesStatus: "test",
 });
 
 describe("groupOrdersByPeriod", () => {
@@ -158,10 +158,10 @@ describe("groupOrdersByPeriod", () => {
     const today = new Date();
     const orderWithExtraProps = {
       id: "1",
-      date: today.toISOString(),
+      creationDate: today.toISOString(),
       customerName: "Test Customer",
-      total: "100.00 €",
-      status: "Evaso",
+      totalAmount: "100.00 €",
+      salesStatus: "Evaso",
     };
 
     const result = groupOrdersByPeriod([orderWithExtraProps]);
