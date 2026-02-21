@@ -42,8 +42,8 @@ export function Dashboard() {
       ]);
 
       if (dashboardRes.ok) {
-        const data = await dashboardRes.json();
-        setDashboardData(data);
+        const response = await dashboardRes.json();
+        setDashboardData(response.data);
       } else {
         console.error(
           "[Dashboard] Failed to load dashboard data:",
@@ -52,8 +52,8 @@ export function Dashboard() {
       }
 
       if (ordersRes.ok) {
-        const data = await ordersRes.json();
-        setOrderMetrics(data);
+        const response = await ordersRes.json();
+        setOrderMetrics(response.data);
       } else {
         console.error(
           "[Dashboard] Failed to load order metrics:",
