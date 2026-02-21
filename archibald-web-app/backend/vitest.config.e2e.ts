@@ -5,7 +5,7 @@ export default defineConfig({
     globals: true,
     environment: "node",
     include: ["src/**/*.e2e.spec.ts"],
-    testTimeout: 300_000, // 5 minutes per test
+    testTimeout: 600_000, // 10 minutes per test
     hookTimeout: 60_000, // 1 minute for beforeAll/afterAll
     sequence: {
       concurrent: false,

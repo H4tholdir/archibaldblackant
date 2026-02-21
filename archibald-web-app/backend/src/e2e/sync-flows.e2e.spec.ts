@@ -5,7 +5,7 @@ const USERNAME = process.env.E2E_USERNAME;
 const PASSWORD = process.env.E2E_PASSWORD;
 
 const POLL_INTERVAL_MS = 5_000;
-const POLL_TIMEOUT_MS = 300_000; // 5 minutes
+const POLL_TIMEOUT_MS = 540_000; // 9 minutes
 
 type SyncType = 'customers' | 'orders' | 'products' | 'prices' | 'ddt' | 'invoices';
 

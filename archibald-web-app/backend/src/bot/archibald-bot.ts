@@ -8518,6 +8518,7 @@ export class ArchibaldBot {
     expectedFileNames: string[];
     filePrefix: string;
     downloadTimeout?: number;
+    retryClickAfterMs?: number;
     beforeClick?: (page: Page) => Promise<void>;
     clickStrategy?: "direct" | "responsive-fallback";
     responsiveMenuButtonSelector?: string;
@@ -8531,6 +8532,7 @@ export class ArchibaldBot {
       expectedFileNames,
       filePrefix,
       downloadTimeout = 120000,
+      retryClickAfterMs,
       beforeClick,
       clickStrategy = "direct",
       responsiveMenuButtonSelector,
@@ -8735,36 +8737,40 @@ export class ArchibaldBot {
         "[ArchibaldBot] PDF export button clicked, waiting for download...",
       );
 
-      // Retry click: if no PDF file appears within 15s, the first click likely
-      // went to void (known ERP issue). Click again — the second click works.
-      const retryClickTimer = setTimeout(async () => {
-        try {
-          const files = await fsp.readdir("/tmp");
-          const hasPdf = files.some(
-            (f) =>
-              expectedFileNames.includes(f) ||
-              (f.startsWith(`${filePrefix}-`) && f.endsWith(".pdf")),
-          );
-          if (!hasPdf && !page.isClosed()) {
-            logger.warn(
-              `[ArchibaldBot] No ${filePrefix} PDF after 15s, retrying export click...`,
+      // Retry click: known ERP issue where the first click produces no file.
+      // Only enabled for specific downloads (DDT) via retryClickAfterMs.
+      let retryClickTimer: ReturnType<typeof setTimeout> | undefined;
+      if (retryClickAfterMs) {
+        const delay = retryClickAfterMs;
+        retryClickTimer = setTimeout(async () => {
+          try {
+            const files = await fsp.readdir("/tmp");
+            const hasPdf = files.some(
+              (f) =>
+                expectedFileNames.includes(f) ||
+                (f.startsWith(`${filePrefix}-`) && f.endsWith(".pdf")),
             );
-            await page.evaluate((sel: string) => {
-              const btn = document.querySelector(sel) as HTMLElement | null;
-              if (btn) {
-                btn.dispatchEvent(new MouseEvent("mousedown", { bubbles: true }));
-                btn.dispatchEvent(new MouseEvent("mouseup", { bubbles: true }));
-                btn.dispatchEvent(new MouseEvent("click", { bubbles: true }));
-              }
-            }, buttonSelector);
-          }
-        } catch { /* page may have closed */ }
-      }, 15_000);
+            if (!hasPdf && !page.isClosed()) {
+              logger.warn(
+                `[ArchibaldBot] No ${filePrefix} PDF after ${delay / 1000}s, retrying export click...`,
+              );
+              await page.evaluate((sel: string) => {
+                const btn = document.querySelector(sel) as HTMLElement | null;
+                if (btn) {
+                  btn.dispatchEvent(new MouseEvent("mousedown", { bubbles: true }));
+                  btn.dispatchEvent(new MouseEvent("mouseup", { bubbles: true }));
+                  btn.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+                }
+              }, buttonSelector);
+            }
+          } catch { /* page may have closed */ }
+        }, delay);
+      }
 
       try {
         await downloadComplete;
       } finally {
-        clearTimeout(retryClickTimer);
+        if (retryClickTimer) clearTimeout(retryClickTimer);
       }
 
       const stats = fs.statSync(downloadPath);
@@ -9048,6 +9054,7 @@ export class ArchibaldBot {
         "Packing slip journal.pdf",
       ],
       filePrefix: "ddt",
+      retryClickAfterMs: 15_000,
     });
   }
 
